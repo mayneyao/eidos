@@ -97,6 +97,7 @@ export type SpaceFilesErrorCode =
   | "path-outside-space"
   | "not-found"
   | "not-a-file"
+  | "file-too-large"
   | "not-a-directory"
   | "file-exists"
   | "file-changed"
@@ -432,12 +433,22 @@ export class SpaceFiles {
     })
   }
 
-  async readText(relativePath: string): Promise<SpaceTextFile> {
+  async readText(
+    relativePath: string,
+    maxBytes?: number
+  ): Promise<SpaceTextFile> {
     const {
       filename,
       content,
       stats: fileStats,
-    } = await this.readStableFile(relativePath)
+    } = await this.readStableFile(relativePath, maxBytes)
+    if (maxBytes !== undefined && fileStats.size > content.byteLength) {
+      throw new SpaceFilesError(
+        "file-too-large",
+        `Space text file exceeds the ${maxBytes}-byte read limit: ${relativePath}`,
+        relativePath
+      )
+    }
     return {
       path: this.toRelative(filename),
       content: decodeUtf8(content, relativePath),

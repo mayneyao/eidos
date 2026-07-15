@@ -163,6 +163,17 @@ describe("SpaceFiles", () => {
     })
   })
 
+  it("supports bounded full-text reads", async () => {
+    await writeFile(path.join(root, "bounded.txt"), "0123456789")
+
+    await expect(files.readText("bounded.txt", 10)).resolves.toMatchObject({
+      content: "0123456789",
+    })
+    await expect(files.readText("bounded.txt", 9)).rejects.toMatchObject({
+      code: "file-too-large",
+    })
+  })
+
   it("recognizes BOM-marked UTF-16 text previews", async () => {
     const content = Buffer.concat([
       Buffer.from([0xff, 0xfe]),
