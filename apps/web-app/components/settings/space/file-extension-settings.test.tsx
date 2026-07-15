@@ -19,6 +19,8 @@ const cancelGitHubInstallMock = vi.hoisted(() => vi.fn())
 const uninstallMock = vi.hoisted(() => vi.fn())
 const startWatchingMock = vi.hoisted(() => vi.fn())
 const stopWatchingMock = vi.hoisted(() => vi.fn())
+const startDevelopmentSessionMock = vi.hoisted(() => vi.fn())
+const stopDevelopmentSessionMock = vi.hoisted(() => vi.fn())
 const onMock = vi.hoisted(() => vi.fn())
 const offMock = vi.hoisted(() => vi.fn())
 const translate = vi.hoisted(
@@ -196,6 +198,26 @@ describe("FileExtensionSettings", () => {
       watching: false,
       generation: 0,
     })
+    startDevelopmentSessionMock.mockReset().mockResolvedValue({
+      sessionId: "development-1",
+      packageId: "example.task-counter",
+      anchorSnapshot: {
+        packageId: "example.task-counter",
+        contentDigest,
+        permissionHash,
+      },
+      currentSnapshot: {
+        packageId: "example.task-counter",
+        contentDigest,
+        permissionHash,
+      },
+      status: "ready",
+      diagnostics: [],
+      granted: [],
+      startedAt: 1,
+      generation: 1,
+    })
+    stopDevelopmentSessionMock.mockReset().mockResolvedValue({ success: true })
     onMock.mockReset().mockReturnValue("listener-1")
     offMock.mockReset()
     discoverMock.mockResolvedValue(discoveryFixture())
@@ -217,6 +239,8 @@ describe("FileExtensionSettings", () => {
           uninstall: uninstallMock,
           startWatching: startWatchingMock,
           stopWatching: stopWatchingMock,
+          startDevelopmentSession: startDevelopmentSessionMock,
+          stopDevelopmentSession: stopDevelopmentSessionMock,
         },
       },
     })
@@ -484,6 +508,89 @@ describe("FileExtensionSettings", () => {
       directoryName: "example.task-counter",
       canonicalId: "example.task-counter",
       contentDigest,
+    })
+  })
+
+  it("starts and stops an inline development session from an enabled snapshot", async () => {
+    const enabled = discoveryFixture("enabled")
+    discoverMock.mockResolvedValue(enabled)
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const manage = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Manage"
+    )!
+    act(() => manage.click())
+    const start = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Start development"
+    )!
+    await act(async () => {
+      start.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(startDevelopmentSessionMock).toHaveBeenCalledWith("file-space", {
+      packageId: "example.task-counter",
+      contentDigest,
+      permissionHash,
+    })
+
+    const development = {
+      ...enabled,
+      packages: [
+        {
+          ...enabled.packages[0],
+          developmentSession: {
+            sessionId: "development-1",
+            packageId: "example.task-counter",
+            anchorSnapshot: {
+              packageId: "example.task-counter",
+              contentDigest,
+              permissionHash,
+            },
+            currentSnapshot: {
+              packageId: "example.task-counter",
+              contentDigest,
+              permissionHash,
+            },
+            status: "ready" as const,
+            diagnostics: [],
+            granted: [],
+            startedAt: 1,
+            generation: 1,
+          },
+        },
+      ],
+    }
+    discoverMock.mockResolvedValue(development)
+    await act(async () => {
+      const refresh = [...container.querySelectorAll("button")].find(
+        (button) => button.textContent?.trim() === "Refresh"
+      )!
+      refresh.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).toContain("Source-only changes reload")
+    expect(
+      [
+        ...container.querySelectorAll<HTMLButtonElement>("[role='switch']"),
+      ].every((control) => control.disabled)
+    ).toBe(true)
+    const stop = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Stop development"
+    )!
+    await act(async () => {
+      stop.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(stopDevelopmentSessionMock).toHaveBeenCalledWith("file-space", {
+      packageId: "example.task-counter",
+      sessionId: "development-1",
     })
   })
 

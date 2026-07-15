@@ -257,4 +257,76 @@ describe("ExtensionFileEditorSurface", () => {
       revision: 2,
     })
   })
+
+  it("automatically reopens the editor after a development source reload", async () => {
+    mocks.openEditor.mockResolvedValueOnce(openedEditor).mockResolvedValueOnce({
+      ...openedEditor,
+      sessionId: "session-2",
+      viewId: "view-2",
+      generation: "generation-2",
+      source: "/* recompiled extension source */",
+    })
+
+    await act(async () => {
+      root.render(
+        <ExtensionFileEditorSurface filePath="tasks.md" editorId={editor.id} />
+      )
+      await flushEffects()
+    })
+
+    const developmentListener = mocks.listeners.get(
+      "file-extensions:development-changed"
+    )
+    expect(developmentListener).toBeDefined()
+
+    await act(async () => {
+      developmentListener?.(undefined, {
+        spaceId: "space-a",
+        packageId: editor.packageId,
+        sessionId: "development-1",
+        status: "checking",
+        generation: 2,
+        diagnostics: [],
+      })
+      await Promise.resolve()
+    })
+    expect(container.textContent).toContain("Reloading extension")
+
+    const surfaceListener = mocks.listeners.get(
+      "file-extensions:surface-message"
+    )
+    await act(async () => {
+      surfaceListener?.(undefined, {
+        spaceId: "space-a",
+        sessionId: "session-1",
+        viewId: "view-1",
+        message: {
+          type: "dispose",
+          reason: "Extension source changed on disk",
+        },
+      })
+      await Promise.resolve()
+    })
+    expect(container.textContent).toContain("Reloading extension")
+    expect(container.textContent).not.toContain("Extension editor unavailable")
+
+    await act(async () => {
+      developmentListener?.(undefined, {
+        spaceId: "space-a",
+        packageId: editor.packageId,
+        sessionId: "development-1",
+        status: "ready",
+        generation: 3,
+        diagnostics: [],
+      })
+      await flushEffects()
+    })
+
+    expect(mocks.openEditor).toHaveBeenCalledTimes(2)
+    expect(mocks.close).toHaveBeenCalledWith("space-a", {
+      sessionId: "session-1",
+      viewId: "view-1",
+    })
+    expect(container.querySelector("iframe")).not.toBeNull()
+  })
 })

@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Code2,
   Download,
   FolderCog,
   Github,
@@ -349,6 +350,28 @@ export function FileExtensionSettings() {
     }
   }, [load, spaceId])
 
+  useEffect(() => {
+    if (!spaceId || !isDesktopMode || !window.eidos?.fileExtensions) return
+    const listenerId = window.eidos.on(
+      "file-extensions:development-changed",
+      (_event: unknown, payload: unknown) => {
+        if (
+          payload &&
+          typeof payload === "object" &&
+          "spaceId" in payload &&
+          payload.spaceId === spaceId
+        ) {
+          void load()
+        }
+      }
+    )
+    return () => {
+      if (listenerId) {
+        window.eidos.off("file-extensions:development-changed", listenerId)
+      }
+    }
+  }, [load, spaceId])
+
   useEffect(
     () => () => {
       const preview = installPreviewRef.current
@@ -363,6 +386,7 @@ export function FileExtensionSettings() {
 
   const counts = useMemo(() => {
     const result = {
+      development: 0,
       enabled: 0,
       disabled: 0,
       untrusted: 0,
@@ -370,7 +394,8 @@ export function FileExtensionSettings() {
       invalid: 0,
     }
     for (const extension of discovery?.packages ?? []) {
-      result[extension.lifecycleStatus] += 1
+      if (extension.developmentSession) result.development += 1
+      else result[extension.lifecycleStatus] += 1
     }
     return result
   }, [discovery])
@@ -391,6 +416,26 @@ export function FileExtensionSettings() {
         return t("space.settings.fileExtensions.incompatible", "Incompatible")
       case "invalid":
         return t("space.settings.fileExtensions.invalid", "Invalid")
+    }
+  }
+
+  const developmentStatusLabel = (
+    status: NonNullable<FileExtensionPackage["developmentSession"]>["status"]
+  ): string => {
+    switch (status) {
+      case "checking":
+        return t("space.settings.fileExtensions.devChecking", "Checking")
+      case "ready":
+        return t("space.settings.fileExtensions.devReady", "Development")
+      case "invalid":
+        return t("space.settings.fileExtensions.devInvalid", "Fix required")
+      case "permissions-changed":
+        return t(
+          "space.settings.fileExtensions.devPermissionsChanged",
+          "Review permissions"
+        )
+      case "missing":
+        return t("space.settings.fileExtensions.devMissing", "Source missing")
     }
   }
 
@@ -873,9 +918,10 @@ export function FileExtensionSettings() {
               <p className="mt-1 text-xs text-muted-foreground">
                 {t(
                   "space.settings.fileExtensions.hostVersion",
-                  "Host {{version}} · {{enabled}} enabled · {{disabled}} disabled · {{untrusted}} untrusted · {{incompatible}} incompatible · {{invalid}} invalid",
+                  "Host {{version}} · {{development}} developing · {{enabled}} enabled · {{disabled}} disabled · {{untrusted}} untrusted · {{incompatible}} incompatible · {{invalid}} invalid",
                   {
                     version: discovery.hostVersion,
+                    development: counts.development,
                     enabled: counts.enabled,
                     disabled: counts.disabled,
                     untrusted: counts.untrusted,
@@ -935,6 +981,8 @@ export function FileExtensionSettings() {
               }
               const expanded = expandedPackages.has(packageId)
               const manageable = extension.status === "ready" && !!snapshot
+              const development = extension.developmentSession
+              const canManage = manageable || !!development
               const busy = mutatingPackage === packageId
               const trusted = extension.localState?.trusted === true
               const enabled = extension.localState?.enabled === true
@@ -945,7 +993,9 @@ export function FileExtensionSettings() {
                 <div key={extension.directoryName} className="py-4">
                   <div className="flex min-h-[56px] items-start justify-between gap-6">
                     <div className="flex min-w-0 flex-1 items-start gap-3">
-                      {extension.lifecycleStatus === "enabled" ? (
+                      {development ? (
+                        <Code2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+                      ) : extension.lifecycleStatus === "enabled" ? (
                         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                       ) : extension.lifecycleStatus === "disabled" ? (
                         <PauseCircle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -1029,19 +1079,27 @@ export function FileExtensionSettings() {
                         variant="outline"
                         className={cn(
                           "font-normal",
-                          extension.lifecycleStatus === "enabled" &&
+                          development &&
+                            "border-sky-500/40 text-sky-700 dark:text-sky-400",
+                          !development &&
+                            extension.lifecycleStatus === "enabled" &&
                             "border-emerald-500/40 text-emerald-700 dark:text-emerald-400",
-                          extension.lifecycleStatus === "untrusted" &&
+                          !development &&
+                            extension.lifecycleStatus === "untrusted" &&
                             "border-amber-500/40 text-amber-700 dark:text-amber-400",
-                          extension.lifecycleStatus === "incompatible" &&
+                          !development &&
+                            extension.lifecycleStatus === "incompatible" &&
                             "border-amber-500/40 text-amber-700 dark:text-amber-400",
-                          extension.lifecycleStatus === "invalid" &&
+                          !development &&
+                            extension.lifecycleStatus === "invalid" &&
                             "border-destructive/40 text-destructive"
                         )}
                       >
-                        {statusLabel(extension.lifecycleStatus)}
+                        {development
+                          ? developmentStatusLabel(development.status)
+                          : statusLabel(extension.lifecycleStatus)}
                       </Badge>
-                      {manageable && (
+                      {canManage && (
                         <Button
                           type="button"
                           size="sm"
@@ -1056,7 +1114,7 @@ export function FileExtensionSettings() {
                           }}
                         >
                           {expanded ? <ChevronDown /> : <ChevronRight />}
-                          {trusted
+                          {trusted || development
                             ? t(
                                 "space.settings.fileExtensions.manage",
                                 "Manage"
@@ -1067,7 +1125,7 @@ export function FileExtensionSettings() {
                               )}
                         </Button>
                       )}
-                      {!manageable && (
+                      {!canManage && (
                         <Button
                           type="button"
                           size="sm"
@@ -1085,7 +1143,7 @@ export function FileExtensionSettings() {
                       )}
                     </div>
                   </div>
-                  {!manageable && removeConfirmation === packageId && (
+                  {!canManage && removeConfirmation === packageId && (
                     <div className="ml-7 mt-3 flex flex-wrap items-center justify-between gap-4 rounded-md bg-destructive/5 px-3 py-2">
                       <p className="max-w-xl text-xs leading-5 text-destructive">
                         {t(
@@ -1131,6 +1189,94 @@ export function FileExtensionSettings() {
                       </div>
                     </div>
                   )}
+                  {expanded && development && (
+                    <div className="ml-7 mt-4 border-l pl-4">
+                      <div className="rounded-md bg-sky-500/5 px-4">
+                        <div className="flex min-h-[76px] items-center justify-between gap-6 py-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Label>
+                                {t(
+                                  "space.settings.fileExtensions.developmentSession",
+                                  "Development session"
+                                )}
+                              </Label>
+                              <Badge
+                                variant="outline"
+                                className="border-sky-500/40 font-normal text-sky-700 dark:text-sky-400"
+                              >
+                                {developmentStatusLabel(development.status)}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                              {t(
+                                "space.settings.fileExtensions.developmentSessionDescription",
+                                "Source-only changes reload automatically. The permission set and grants remain frozen to the trusted anchor snapshot."
+                              )}
+                            </p>
+                            <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+                              {t(
+                                "space.settings.fileExtensions.developmentDigest",
+                                "Anchor {{anchor}} · Current {{current}}",
+                                {
+                                  anchor:
+                                    development.anchorSnapshot.contentDigest.slice(
+                                      7,
+                                      19
+                                    ),
+                                  current:
+                                    development.currentSnapshot?.contentDigest.slice(
+                                      7,
+                                      19
+                                    ) ?? "—",
+                                }
+                              )}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={!!mutatingPackage}
+                            onClick={() =>
+                              void mutatePackage(extension, () =>
+                                window.eidos.fileExtensions.stopDevelopmentSession(
+                                  spaceId,
+                                  {
+                                    packageId: development.packageId,
+                                    sessionId: development.sessionId,
+                                  }
+                                )
+                              )
+                            }
+                          >
+                            {busy && <LoaderCircle className="animate-spin" />}
+                            {t(
+                              "space.settings.fileExtensions.stopDevelopment",
+                              "Stop development"
+                            )}
+                          </Button>
+                        </div>
+                        {development.diagnostics.length > 0 && (
+                          <div className="border-t border-sky-500/20 py-3 text-xs text-destructive">
+                            {development.diagnostics.map(
+                              (diagnostic, index) => (
+                                <p key={`${diagnostic.code}-${index}`}>
+                                  <code>{diagnostic.code}</code>:{" "}
+                                  {diagnostic.message}
+                                </p>
+                              )
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {mutationError?.packageId === packageId && (
+                        <p className="mt-2 text-sm text-destructive">
+                          {mutationError.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {expanded && manageable && snapshot && (
                     <div className="ml-7 mt-4 border-l pl-4">
                       <div className="divide-y divide-border/70 rounded-md bg-muted/30 px-4">
@@ -1166,7 +1312,7 @@ export function FileExtensionSettings() {
                               size="sm"
                               variant="ghost"
                               className="text-destructive hover:text-destructive"
-                              disabled={!!mutatingPackage}
+                              disabled={!!mutatingPackage || !!development}
                               onClick={() =>
                                 void mutatePackage(extension, () =>
                                   window.eidos.fileExtensions.revokeTrust(
@@ -1188,7 +1334,7 @@ export function FileExtensionSettings() {
                             <Button
                               type="button"
                               size="sm"
-                              disabled={!!mutatingPackage}
+                              disabled={!!mutatingPackage || !!development}
                               onClick={() =>
                                 void mutatePackage(extension, () =>
                                   window.eidos.fileExtensions.trust(
@@ -1230,7 +1376,9 @@ export function FileExtensionSettings() {
                               "Enablement"
                             )}
                             checked={enabled}
-                            disabled={!trusted || !!mutatingPackage}
+                            disabled={
+                              !trusted || !!mutatingPackage || !!development
+                            }
                             onCheckedChange={(checked) =>
                               void mutatePackage(extension, () =>
                                 window.eidos.fileExtensions.setEnabled(
@@ -1242,6 +1390,49 @@ export function FileExtensionSettings() {
                             }
                           />
                         </div>
+
+                        {!development && trusted && enabled && (
+                          <div className="flex min-h-[72px] items-center justify-between gap-6 py-3">
+                            <div>
+                              <Label>
+                                {t(
+                                  "space.settings.fileExtensions.developmentSession",
+                                  "Development session"
+                                )}
+                              </Label>
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                {t(
+                                  "space.settings.fileExtensions.startDevelopmentDescription",
+                                  "Temporarily allow source-only edits to reload without persisting trust for each new digest. Permission changes remain blocked."
+                                )}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={!!mutatingPackage}
+                              onClick={() =>
+                                void mutatePackage(extension, () =>
+                                  window.eidos.fileExtensions.startDevelopmentSession(
+                                    spaceId,
+                                    snapshot
+                                  )
+                                )
+                              }
+                            >
+                              {busy ? (
+                                <LoaderCircle className="animate-spin" />
+                              ) : (
+                                <Code2 />
+                              )}
+                              {t(
+                                "space.settings.fileExtensions.startDevelopment",
+                                "Start development"
+                              )}
+                            </Button>
+                          </div>
+                        )}
 
                         <div className="py-3">
                           <Label>
@@ -1281,7 +1472,11 @@ export function FileExtensionSettings() {
                                   <Switch
                                     aria-label={`${grant.kind} ${grant.value}`}
                                     checked={granted.has(grantKey(grant))}
-                                    disabled={!trusted || !!mutatingPackage}
+                                    disabled={
+                                      !trusted ||
+                                      !!mutatingPackage ||
+                                      !!development
+                                    }
                                     onCheckedChange={(checked) =>
                                       void mutatePackage(extension, () =>
                                         window.eidos.fileExtensions.setGrant(
@@ -1326,7 +1521,9 @@ export function FileExtensionSettings() {
                               size="sm"
                               variant="outline"
                               disabled={
-                                !!mutatingPackage || extension.locallyModified
+                                !!mutatingPackage ||
+                                !!development ||
+                                extension.locallyModified
                               }
                               onClick={() => preparePackageUpdate(extension)}
                             >
@@ -1352,7 +1549,7 @@ export function FileExtensionSettings() {
                                   type="button"
                                   size="sm"
                                   variant="ghost"
-                                  disabled={!!mutatingPackage}
+                                  disabled={!!mutatingPackage || !!development}
                                   onClick={() => setRemoveConfirmation(null)}
                                 >
                                   {t(
@@ -1364,7 +1561,7 @@ export function FileExtensionSettings() {
                                   type="button"
                                   size="sm"
                                   variant="destructive"
-                                  disabled={!!mutatingPackage}
+                                  disabled={!!mutatingPackage || !!development}
                                   onClick={() =>
                                     void mutatePackage(extension, async () => {
                                       await window.eidos.fileExtensions.uninstall(
@@ -1393,7 +1590,7 @@ export function FileExtensionSettings() {
                               size="sm"
                               variant="ghost"
                               className="text-destructive hover:text-destructive"
-                              disabled={!!mutatingPackage}
+                              disabled={!!mutatingPackage || !!development}
                               onClick={() => setRemoveConfirmation(packageId)}
                             >
                               <Trash2 />

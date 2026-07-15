@@ -20,6 +20,7 @@ import { useTabDirty } from "@/apps/web-app/hooks/use-tab-dirty"
 import { Button } from "@/components/ui/button"
 import { useTheme } from "@/components/theme-provider"
 import type {
+  FileExtensionDevelopmentChangedEvent,
   FileExtensionOpenEditorResult,
   FileExtensionSurfaceMessageEvent,
 } from "@/apps/desktop/electron/modules/file-extensions/types"
@@ -76,6 +77,9 @@ export function ExtensionFileEditorSurface({
   const [activated, setActivated] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [developmentReloading, setDevelopmentReloading] = useState(false)
+  const [developmentIssue, setDevelopmentIssue] = useState<string | null>(null)
+  const [developmentBlocked, setDevelopmentBlocked] = useState(false)
   const pendingWriteKey = useId()
   const portRef = useRef<MessagePort | null>(null)
   const initializedRef = useRef(false)
@@ -83,6 +87,11 @@ export function ExtensionFileEditorSurface({
   const queuedMessagesRef = useRef<ExtensionHostToSurfaceMessage[]>([])
   const requestQueueRef = useRef<Promise<void>>(Promise.resolve())
   const documentStateRef = useRef<ExtensionTextDocumentState | null>(null)
+  const developmentEventRef = useRef<{
+    sessionId: string
+    generation: number
+  } | null>(null)
+  const developmentRefreshRef = useRef(false)
 
   useTabDirty(documentState?.dirty === true)
 
@@ -117,6 +126,10 @@ export function ExtensionFileEditorSurface({
     setActivated(false)
     setError(null)
     setSaveError(null)
+    setDevelopmentReloading(false)
+    setDevelopmentIssue(null)
+    setDevelopmentBlocked(false)
+    developmentRefreshRef.current = false
     setSession(null)
     setDocumentState(null)
 
@@ -178,6 +191,76 @@ export function ExtensionFileEditorSurface({
 
   useEffect(() => {
     const spaceId = currentSpace?.id
+    const packageId = session?.packageId
+    if (!spaceId || !packageId || !window.eidos) return
+    const listenerId = window.eidos.on(
+      "file-extensions:development-changed",
+      (_event: unknown, payload: unknown) => {
+        const event = payload as Partial<FileExtensionDevelopmentChangedEvent>
+        if (
+          event.spaceId !== spaceId ||
+          event.packageId !== packageId ||
+          typeof event.sessionId !== "string" ||
+          typeof event.generation !== "number" ||
+          typeof event.status !== "string"
+        ) {
+          return
+        }
+        const previous = developmentEventRef.current
+        if (
+          previous?.sessionId === event.sessionId &&
+          event.generation <= previous.generation
+        ) {
+          return
+        }
+        developmentEventRef.current = {
+          sessionId: event.sessionId,
+          generation: event.generation,
+        }
+        if (event.status === "checking") {
+          developmentRefreshRef.current = true
+          setDevelopmentReloading(true)
+          setDevelopmentIssue(null)
+          setDevelopmentBlocked(false)
+          setActivated(false)
+          return
+        }
+        if (event.status === "ready") {
+          developmentRefreshRef.current = false
+          setDevelopmentReloading(false)
+          setDevelopmentIssue(null)
+          setDevelopmentBlocked(false)
+          setRetry((value) => value + 1)
+          return
+        }
+        setDevelopmentReloading(false)
+        if (event.status === "stopped") {
+          developmentRefreshRef.current = false
+          setActivated(false)
+          setDevelopmentBlocked(false)
+          setError("The extension development session stopped.")
+          return
+        }
+        const diagnostic = event.diagnostics?.[0]
+        setError(null)
+        setDevelopmentIssue(
+          diagnostic?.message ??
+            "The extension cannot run until its development error is fixed."
+        )
+        const blocked = diagnostic?.code !== "document-save"
+        setDevelopmentBlocked(blocked)
+        if (blocked) setActivated(false)
+      }
+    )
+    return () => {
+      if (listenerId) {
+        window.eidos.off("file-extensions:development-changed", listenerId)
+      }
+    }
+  }, [currentSpace?.id, session?.packageId])
+
+  useEffect(() => {
+    const spaceId = currentSpace?.id
     if (!spaceId || !session) return
     return registerPendingWriteFlusher(
       pendingWriteKey,
@@ -218,7 +301,7 @@ export function ExtensionFileEditorSurface({
         }
       } else if (message.type === "dispose") {
         setActivated(false)
-        setError(message.reason)
+        if (!developmentRefreshRef.current) setError(message.reason)
       }
 
       const port = portRef.current
@@ -486,6 +569,11 @@ export function ExtensionFileEditorSurface({
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate">{saveError}</span>
         </div>
+      ) : developmentIssue ? (
+        <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">{developmentIssue}</span>
+        </div>
       ) : null}
       <iframe
         key={session.sessionId}
@@ -496,10 +584,18 @@ export function ExtensionFileEditorSurface({
         className="min-h-0 flex-1 border-0 bg-background"
         onLoad={(event) => connectSurface(event.currentTarget)}
       />
-      {!activated ? (
+      {!activated || developmentBlocked ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/80 text-sm text-muted-foreground backdrop-blur-[1px]">
-          <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-          Activating extension…
+          {developmentBlocked ? (
+            <AlertTriangle className="mr-2 h-4 w-4 text-destructive" />
+          ) : (
+            <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+          )}
+          {developmentBlocked
+            ? developmentIssue
+            : developmentReloading
+              ? "Reloading extension…"
+              : "Activating extension…"}
         </div>
       ) : null}
     </div>
