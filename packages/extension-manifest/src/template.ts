@@ -93,6 +93,15 @@ export function createExtensionCommandTemplate(
     entrypoints: { worker: "src/extension.ts" },
     contributes: {
       commands: [{ id: commandId, title: `Hello from ${displayName}` }],
+      menus: {
+        "files/context": [
+          {
+            command: commandId,
+            when: "resourceIsDirectory == false",
+            group: "extensions",
+          },
+        ],
+      },
     },
     permissions: {
       files: { read: [], write: [] },
@@ -125,7 +134,7 @@ export function createExtensionCommandTemplate(
       content: [
         `# ${displayName}`,
         "",
-        `This local extension contributes the \`${commandId}\` command.`,
+        `This local extension contributes the \`${commandId}\` command to the Command Palette and file context menu.`,
         "",
         "Run `eidos-extension check .` before installing this package into a Space.",
         "",

@@ -14,6 +14,7 @@ import {
   LoaderCircle,
   Package,
   PauseCircle,
+  Play,
   Plus,
   RefreshCw,
   ShieldAlert,
@@ -27,6 +28,7 @@ import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
+import { useCMDKStore } from "@/components/cmdk/store"
 import { toSpaceFileUrl } from "@/components/file-space/file-path"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -39,6 +41,9 @@ type FileExtensionDiscovery = Awaited<
 >
 type FileExtensionPackage = FileExtensionDiscovery["packages"][number]
 type FileExtensionGrant = FileExtensionPackage["requestedGrants"][number]
+type FileExtensionCommand = NonNullable<
+  NonNullable<FileExtensionPackage["manifest"]>["contributes"]["commands"]
+>[number]
 type FileExtensionInstallPreview = Awaited<
   ReturnType<typeof window.eidos.fileExtensions.prepareGitHubInstall>
 >
@@ -48,6 +53,11 @@ type CreatedLocalExtension = {
   root: string
   sourcePath: string
   template: LocalExtensionTemplateKind
+}
+type CommandRunState = {
+  key: string
+  status: "running" | "success" | "error"
+  message?: string
 }
 
 const DEFAULT_TEXT_EDITOR_PATTERN = "**/*.notes.md"
@@ -69,6 +79,16 @@ function snapshotFor(extension: FileExtensionPackage) {
 
 function grantKey(grant: FileExtensionGrant): string {
   return `${grant.kind}\0${grant.value}`
+}
+
+function commandRunKey(
+  extension: FileExtensionPackage,
+  commandId: string
+): string | null {
+  const snapshot = snapshotFor(extension)
+  return snapshot
+    ? `${snapshot.packageId}\0${snapshot.contentDigest}\0${snapshot.permissionHash}\0${commandId}`
+    : null
 }
 
 function contributionCount(extension: FileExtensionPackage): number {
@@ -150,6 +170,7 @@ export function FileExtensionSettings() {
     () => new Set()
   )
   const [mutatingPackage, setMutatingPackage] = useState<string | null>(null)
+  const [commandRun, setCommandRun] = useState<CommandRunState | null>(null)
   const [mutationError, setMutationError] = useState<{
     packageId: string
     message: string
@@ -417,6 +438,46 @@ export function FileExtensionSettings() {
       )
     },
     [openTab]
+  )
+
+  const runCommand = useCallback(
+    async (extension: FileExtensionPackage, command: FileExtensionCommand) => {
+      if (!spaceId) return
+      const snapshot = snapshotFor(extension)
+      if (!snapshot) return
+      const key = commandRunKey(extension, command.id)
+      if (!key) return
+      setCommandRun({ key, status: "running" })
+      try {
+        await window.eidos.fileExtensions.executeCommand(spaceId, {
+          ...snapshot,
+          commandId: command.id,
+          resource: { path: "" },
+        })
+        setCommandRun({ key, status: "success" })
+      } catch (error) {
+        setCommandRun({
+          key,
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : t(
+                  "space.settings.fileExtensions.commandFailed",
+                  "The extension command failed."
+                ),
+        })
+      }
+    },
+    [spaceId, t]
+  )
+
+  const openCommandPalette = useCallback(
+    (command: FileExtensionCommand) => {
+      useCMDKStore.getState().setInput(command.title)
+      setCmdkOpen(true)
+    },
+    [setCmdkOpen]
   )
 
   useEffect(() => {
@@ -1158,7 +1219,7 @@ export function FileExtensionSettings() {
                   {createdExtension.template === "command"
                     ? t(
                         "space.settings.fileExtensions.commandCreatedNextStep",
-                        "Next: review and enable it below, then run its command from the Command Palette."
+                        "Next: review and enable it below, then run the command here, from the Command Palette, or from a file's context menu."
                       )
                     : t(
                         "space.settings.fileExtensions.editorCreatedNextStep",
@@ -1358,10 +1419,19 @@ export function FileExtensionSettings() {
                             </span>
                             <span aria-hidden="true">·</span>
                             <span>
-                              {t(
-                                "space.settings.fileExtensions.commandPaletteShortcut",
-                                "Command Palette ⌘K"
-                              )}
+                              {(
+                                extension.manifest?.contributes.menus?.[
+                                  "files/context"
+                                ] ?? []
+                              ).some((item) => item.command === commands[0]?.id)
+                                ? t(
+                                    "space.settings.fileExtensions.commandPaletteAndFileMenu",
+                                    "Command Palette ⌘K · File menu"
+                                  )
+                                : t(
+                                    "space.settings.fileExtensions.commandPaletteShortcut",
+                                    "Command Palette ⌘K"
+                                  )}
                             </span>
                           </p>
                         )}
@@ -1797,24 +1867,85 @@ export function FileExtensionSettings() {
                                       <code className="block truncate text-[11px] text-muted-foreground">
                                         {command.id}
                                       </code>
+                                      {commandRun?.key ===
+                                        commandRunKey(extension, command.id) &&
+                                        commandRun.status === "success" && (
+                                          <p
+                                            role="status"
+                                            className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-400"
+                                          >
+                                            {t(
+                                              "space.settings.fileExtensions.commandCompleted",
+                                              "Command completed."
+                                            )}
+                                          </p>
+                                        )}
+                                      {commandRun?.key ===
+                                        commandRunKey(extension, command.id) &&
+                                        commandRun.status === "error" && (
+                                          <p
+                                            role="alert"
+                                            className="mt-0.5 max-w-xl text-xs text-destructive"
+                                          >
+                                            {commandRun.message}
+                                          </p>
+                                        )}
                                     </div>
                                   </div>
                                   {executionEnabled ? (
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={() => setCmdkOpen(true)}
-                                    >
-                                      <CommandIcon />
-                                      {t(
-                                        "space.settings.fileExtensions.openCommandPalette",
-                                        "Open Command Palette"
-                                      )}
-                                      <kbd className="ml-1 text-[10px] text-muted-foreground">
-                                        ⌘K
-                                      </kbd>
-                                    </Button>
+                                    <div className="flex shrink-0 items-center gap-1">
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        disabled={
+                                          commandRun?.status === "running"
+                                        }
+                                        onClick={() =>
+                                          void runCommand(extension, command)
+                                        }
+                                      >
+                                        {commandRun?.key ===
+                                          commandRunKey(
+                                            extension,
+                                            command.id
+                                          ) &&
+                                        commandRun.status === "running" ? (
+                                          <LoaderCircle className="animate-spin" />
+                                        ) : (
+                                          <Play />
+                                        )}
+                                        {commandRun?.key ===
+                                          commandRunKey(
+                                            extension,
+                                            command.id
+                                          ) && commandRun.status === "running"
+                                          ? t(
+                                              "space.settings.fileExtensions.runningCommand",
+                                              "Running…"
+                                            )
+                                          : t(
+                                              "space.settings.fileExtensions.runCommand",
+                                              "Run"
+                                            )}
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() =>
+                                          openCommandPalette(command)
+                                        }
+                                      >
+                                        <CommandIcon />
+                                        {t(
+                                          "space.settings.fileExtensions.openCommandPalette",
+                                          "Command Palette"
+                                        )}
+                                        <kbd className="ml-1 text-[10px] text-muted-foreground">
+                                          ⌘K
+                                        </kbd>
+                                      </Button>
+                                    </div>
                                   ) : trusted ? (
                                     <Button
                                       type="button"

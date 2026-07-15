@@ -1,26 +1,11 @@
-import type { ITreeNode } from "@/packages/core/types/ITreeNode"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
-import { create } from "zustand"
 
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 
-export type ISearchNodes = ITreeNode & {
-  result?: string
-  mode: "node" | "fts"
-}
-export const useCMDKStore = create<{
-  input: string
-  setInput: (input: string) => void
+import { useCMDKStore } from "./store"
 
-  searchNodes: ISearchNodes[]
-  setSearchNodes: (searchNodes: ISearchNodes[]) => void
-}>()((set) => ({
-  input: "",
-  setInput: (input) => set({ input }),
-
-  searchNodes: [],
-  setSearchNodes: (searchNodes) => set({ searchNodes }),
-}))
+export { useCMDKStore }
+export type { ISearchNodes } from "./store"
 
 export const useCMDKGoto = () => {
   const { navigate } = useRouterAdapter()

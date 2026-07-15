@@ -2,6 +2,7 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useCMDKStore } from "@/components/cmdk/store"
 
 import { FileExtensionSettings } from "./file-extension-settings"
 
@@ -15,6 +16,7 @@ const trustMock = vi.hoisted(() => vi.fn())
 const revokeTrustMock = vi.hoisted(() => vi.fn())
 const setEnabledMock = vi.hoisted(() => vi.fn())
 const setGrantMock = vi.hoisted(() => vi.fn())
+const executeCommandMock = vi.hoisted(() => vi.fn())
 const prepareGitHubInstallMock = vi.hoisted(() => vi.fn())
 const applyGitHubInstallMock = vi.hoisted(() => vi.fn())
 const cancelGitHubInstallMock = vi.hoisted(() => vi.fn())
@@ -78,6 +80,15 @@ function discoveryFixture(
                 title: "Count tasks",
               },
             ],
+            menus: {
+              "files/context": [
+                {
+                  command: "example.task-counter.count",
+                  when: "resourceIsDirectory == false",
+                  group: "extensions",
+                },
+              ],
+            },
           },
           permissions: {
             files: { read: ["**/*.md"], write: [] },
@@ -203,6 +214,7 @@ describe("FileExtensionSettings", () => {
 
   beforeEach(() => {
     useAppRuntimeStore.setState({ isCmdkOpen: false })
+    useCMDKStore.setState({ input: "", searchNodes: [] })
     openTabMock.mockReset()
     discoverMock.mockReset()
     createTemplateMock.mockReset().mockResolvedValue({
@@ -220,6 +232,7 @@ describe("FileExtensionSettings", () => {
     setGrantMock
       .mockReset()
       .mockResolvedValue({ trusted: true, enabled: false })
+    executeCommandMock.mockReset().mockResolvedValue({ success: true })
     prepareGitHubInstallMock.mockReset().mockResolvedValue({
       previewId: "preview-a",
       expiresAt: Date.now() + 60_000,
@@ -297,6 +310,7 @@ describe("FileExtensionSettings", () => {
           revokeTrust: revokeTrustMock,
           setEnabled: setEnabledMock,
           setGrant: setGrantMock,
+          executeCommand: executeCommandMock,
           prepareGitHubInstall: prepareGitHubInstallMock,
           applyGitHubInstall: applyGitHubInstallMock,
           cancelGitHubInstall: cancelGitHubInstallMock,
@@ -452,7 +466,7 @@ describe("FileExtensionSettings", () => {
     expect(discoverMock).toHaveBeenCalledTimes(2)
   })
 
-  it("shows how to trigger an enabled command and opens the command palette", async () => {
+  it("runs an enabled command directly and opens a filtered command palette", async () => {
     discoverMock.mockResolvedValue(discoveryFixture("enabled"))
     await act(async () => {
       root.render(<FileExtensionSettings />)
@@ -467,18 +481,37 @@ describe("FileExtensionSettings", () => {
     expect(container.textContent).toContain("How to use")
     expect(container.textContent).toContain("Count tasks")
     expect(container.textContent).toContain("example.task-counter.count")
+    expect(container.textContent).toContain("Command Palette ⌘K · File menu")
     expect(container.textContent).toContain(
       "some requested capabilities are still denied (1)"
     )
     expect(container.textContent).not.toContain(
       "This snapshot is ready. Use any contribution below"
     )
+    const run = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Run"
+    )!
+    await act(async () => {
+      run.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(executeCommandMock).toHaveBeenCalledWith("file-space", {
+      packageId: "example.task-counter",
+      contentDigest,
+      permissionHash,
+      commandId: "example.task-counter.count",
+      resource: { path: "" },
+    })
+    expect(container.textContent).toContain("Command completed.")
+
     const openCommandPalette = [...container.querySelectorAll("button")].find(
-      (button) => button.textContent?.includes("Open Command Palette")
+      (button) => button.textContent?.includes("Command Palette")
     )!
     expect(openCommandPalette.disabled).toBe(false)
     act(() => openCommandPalette.click())
     expect(useAppRuntimeStore.getState().isCmdkOpen).toBe(true)
+    expect(useCMDKStore.getState().input).toBe("Count tasks")
   })
 
   it("only reports a contribution as ready after requested grants are approved", async () => {
@@ -707,7 +740,7 @@ describe("FileExtensionSettings", () => {
     expect(container.textContent).toContain(
       "This snapshot is trusted but disabled. Enable it to add its contributions to Eidos."
     )
-    expect(container.textContent).not.toContain("Open Command Palette")
+    expect(container.textContent).not.toContain("Command Palette⌘K")
 
     const enableExtension = [...container.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "Enable extension"

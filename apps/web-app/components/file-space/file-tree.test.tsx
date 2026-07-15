@@ -35,6 +35,21 @@ const extensionEditorMocks = vi.hoisted(() => ({
   >,
   load: vi.fn(),
 }))
+const extensionCommandMocks = vi.hoisted(() => ({
+  commands: [] as Array<{
+    packageId: string
+    contentDigest: string
+    permissionHash: string
+    id: string
+    title: string
+    extensionDisplayName: string
+    menus: Record<
+      string,
+      Array<{ command: string; when?: string; group?: string }>
+    >
+  }>,
+  execute: vi.fn(),
+}))
 
 vi.mock("./base/space-base-editor-loader", () => ({
   preloadSpaceBaseEditor: preloadSpaceBaseEditorMock,
@@ -62,6 +77,14 @@ vi.mock("@/apps/web-app/hooks/use-file-extension-editors", () => ({
     editorsFor: (path: string) => extensionEditorMocks.byPath[path] ?? [],
     load: extensionEditorMocks.load,
     clear: vi.fn(),
+  }),
+}))
+
+vi.mock("@/apps/web-app/hooks/use-file-extension-commands", () => ({
+  useFileExtensionCommands: () => ({
+    commands: extensionCommandMocks.commands,
+    execute: extensionCommandMocks.execute,
+    refresh: vi.fn(),
   }),
 }))
 
@@ -194,6 +217,10 @@ describe("FileSpaceTree accessibility", () => {
     extensionEditorMocks.load.mockImplementation(
       async (path: string) => extensionEditorMocks.byPath[path] ?? []
     )
+    extensionCommandMocks.commands = []
+    extensionCommandMocks.execute.mockReset().mockResolvedValue({
+      success: true,
+    })
     moveMock.mockReset()
     createTextMock.mockImplementation(async (path: string) => {
       const created = entry(path, "file")
@@ -568,6 +595,58 @@ describe("FileSpaceTree accessibility", () => {
 
     expect(navigateMock).toHaveBeenLastCalledWith(
       "/space-file?editor=example.task-board.editor#root.md"
+    )
+  })
+
+  it("runs declared extension commands from the file context menu", async () => {
+    const command = {
+      packageId: "local.hello-tools",
+      contentDigest: `sha256:${"1".repeat(64)}`,
+      permissionHash: `sha256:${"2".repeat(64)}`,
+      id: "local.hello-tools.hello",
+      title: "Hello from Hello Tools",
+      extensionDisplayName: "Hello Tools",
+      menus: {
+        "files/context": [
+          {
+            command: "local.hello-tools.hello",
+            when: "resourceIsDirectory == false",
+            group: "extensions",
+          },
+        ],
+      },
+    }
+    extensionCommandMocks.commands = [command]
+    await renderTree()
+
+    await act(async () => {
+      getTreeItem("root.md").dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          clientX: 120,
+          clientY: 80,
+        })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const menu = document.body.querySelector<HTMLElement>(
+      '[aria-label="Actions for root.md"]'
+    )
+    const commandButton = Array.from(
+      menu?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []
+    ).find((button) => button.textContent?.includes(command.title))
+
+    await act(async () => {
+      commandButton?.click()
+      await Promise.resolve()
+    })
+
+    expect(extensionCommandMocks.execute).toHaveBeenCalledWith(
+      command,
+      "root.md"
     )
   })
 

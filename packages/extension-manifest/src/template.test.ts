@@ -21,6 +21,23 @@ describe("createExtensionCommandTemplate", () => {
       "src/extension.ts",
       "README.md",
     ])
+    expect(template.manifest.contributes).toMatchObject({
+      commands: [
+        {
+          id: "local.hello-tools.hello",
+          title: "Hello from Hello Tools",
+        },
+      ],
+      menus: {
+        "files/context": [
+          {
+            command: "local.hello-tools.hello",
+            when: "resourceIsDirectory == false",
+            group: "extensions",
+          },
+        ],
+      },
+    })
     expect(
       analyzeExtensionManifest(
         template.files.find((file) => file.path === "extension.json")!.content,
@@ -42,6 +59,9 @@ describe("createExtensionCommandTemplate", () => {
       )
     ).toEqual([])
     expect(source).toContain("local.hello-tools.hello")
+    expect(
+      template.files.find((file) => file.path === "README.md")!.content
+    ).toContain("Command Palette and file context menu")
   })
 
   it.each(["A", "UPPERCASE", "has spaces", "-leading", "a"])(
