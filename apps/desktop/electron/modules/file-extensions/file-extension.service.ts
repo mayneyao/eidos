@@ -31,6 +31,7 @@ import {
   type ExtensionLocalState,
   type ExtensionPermissionGrant,
   type ExtensionSnapshotIdentity,
+  type LegacyExtensionMapping,
 } from "@eidos.space/extension-state"
 import { BetterSqlite3ExtensionStateStore } from "@eidos.space/extension-state/better-sqlite3"
 import { minimatch } from "minimatch"
@@ -58,6 +59,7 @@ import {
 } from "./runtime/file-extension-runtime-manager"
 import type {
   FileExtensionChangedEvent,
+  FileExtensionConfirmLegacyPortingRequest,
   FileExtensionDevelopmentChangedEvent,
   FileExtensionDevelopmentDiagnostic,
   FileExtensionDevelopmentSessionSummary,
@@ -74,6 +76,7 @@ import type {
   FileExtensionOpenEditorRequest,
   FileExtensionOpenEditorResult,
   FileExtensionPackageSummary,
+  FileExtensionRetireLegacyPortingRequest,
   FileExtensionSnapshotRequest,
   FileExtensionStopDevelopmentSessionRequest,
   FileExtensionResolveConflictRequest,
@@ -282,6 +285,7 @@ export class FileExtensionService extends IpcServiceBase {
         await ensureExtensionStateDatabasePath(space.path)
       )
       try {
+        this.assertNoLegacyPortingConflict(store, snapshot.packageId)
         const localState = store.get(snapshot)
         if (!localState.trusted || !localState.enabled) {
           throw new Error(
@@ -444,6 +448,123 @@ export class FileExtensionService extends IpcServiceBase {
     )
     this.emitChange(spaceId)
     return state
+  }
+
+  @IpcMethod()
+  async confirmLegacyPorting(
+    spaceId: string,
+    request: FileExtensionConfirmLegacyPortingRequest
+  ): Promise<LegacyExtensionMapping> {
+    const space = this.getFileSpace(spaceId)
+    assertExtensionSnapshotIdentity(request)
+    this.assertNoDevelopmentSession(spaceId, request.packageId)
+    const result = await withFileSpaceOperationLock(spaceId, async () => {
+      const paths = await resolveExtensionProjectPaths(space.path)
+      if (!paths.extensionsRoot) {
+        throw new Error("Extension package is no longer installed")
+      }
+      const current = await inspectExtensionPackageSnapshot(
+        path.join(paths.extensionsRoot, request.packageId),
+        { hostVersion: app.getVersion() }
+      )
+      const inspection = current.inspection
+      if (
+        inspection.status !== "ready" ||
+        inspection.canonicalId !== request.packageId ||
+        inspection.contentDigest !== request.contentDigest ||
+        inspection.permissionHash !== request.permissionHash
+      ) {
+        throw new Error(
+          "Extension package changed; inspect the current source before linking its legacy source"
+        )
+      }
+      const receipt = inspection.legacyPorting?.receipt
+      if (!inspection.legacyPorting?.valid || !receipt) {
+        throw new Error(
+          "Extension package does not contain a valid legacy porting receipt"
+        )
+      }
+      const store = new BetterSqlite3ExtensionStateStore(
+        await ensureExtensionStateDatabasePath(space.path)
+      )
+      try {
+        const mapping = store.recordLegacyExtensionMapping({
+          legacyExtensionId: receipt.source.legacyExtensionId,
+          legacySlug: receipt.source.legacySlug ?? undefined,
+          canonicalPackageId: receipt.target.canonicalPackageId,
+          archiveDigest: receipt.source.archiveDigest,
+          candidateContribution: receipt.target.candidateContribution,
+        })
+        return {
+          mapping,
+          affectedPackageIds: [
+            mapping.canonicalPackageId,
+            ...mapping.conflictingCanonicalPackageIds,
+          ],
+        }
+      } finally {
+        store.close()
+      }
+    })
+    for (const packageId of new Set(result.affectedPackageIds)) {
+      this.invalidatePackageRuntime(
+        spaceId,
+        packageId,
+        "Legacy extension mapping changed"
+      )
+    }
+    this.emitChange(spaceId)
+    return result.mapping
+  }
+
+  @IpcMethod()
+  async retireLegacyPorting(
+    spaceId: string,
+    request: FileExtensionRetireLegacyPortingRequest
+  ): Promise<LegacyExtensionMapping> {
+    const space = this.getFileSpace(spaceId)
+    if (
+      !request ||
+      typeof request.legacyExtensionId !== "string" ||
+      !request.legacyExtensionId ||
+      typeof request.canonicalPackageId !== "string" ||
+      !request.canonicalPackageId
+    ) {
+      throw new Error("A current legacy extension mapping is required")
+    }
+    this.assertNoDevelopmentSession(spaceId, request.canonicalPackageId)
+    const result = await withFileSpaceOperationLock(spaceId, async () => {
+      const store = new BetterSqlite3ExtensionStateStore(
+        await ensureExtensionStateDatabasePath(space.path)
+      )
+      try {
+        const affectedPackageIds = store
+          .listLegacyExtensionMappings()
+          .filter(
+            (mapping) =>
+              mapping.legacyExtensionId === request.legacyExtensionId ||
+              mapping.canonicalPackageId === request.canonicalPackageId
+          )
+          .map((mapping) => mapping.canonicalPackageId)
+        const mapping = store.setLegacyExtensionMappingActive(
+          request.legacyExtensionId,
+          request.canonicalPackageId,
+          false
+        )
+        return { mapping, affectedPackageIds }
+      } finally {
+        store.close()
+      }
+    })
+    for (const packageId of new Set(result.affectedPackageIds)) {
+      this.invalidatePackageRuntime(
+        spaceId,
+        packageId,
+        "Legacy extension mapping was retired"
+      )
+    }
+    this.emitChange(spaceId)
+    return result.mapping
   }
 
   @IpcMethod()
@@ -985,6 +1106,7 @@ export class FileExtensionService extends IpcServiceBase {
           await ensureExtensionStateDatabasePath(spacePath)
         )
       : undefined
+    const legacyMappings = stateStore?.listLegacyExtensionMappings() ?? []
 
     try {
       return {
@@ -993,7 +1115,14 @@ export class FileExtensionService extends IpcServiceBase {
         executionAvailable: true,
         hostVersion,
         packages: discovery.packages.map((extension) =>
-          this.toPackageSummary(spaceId, extension, stateStore)
+          this.toPackageSummary(
+            spaceId,
+            extension,
+            stateStore,
+            legacyMappings.filter(
+              (mapping) => mapping.canonicalPackageId === extension.canonicalId
+            )
+          )
         ),
         diagnostics: discovery.diagnostics,
       }
@@ -1005,7 +1134,8 @@ export class FileExtensionService extends IpcServiceBase {
   private toPackageSummary(
     spaceId: string,
     extension: ExtensionPackageInspection,
-    stateStore: BetterSqlite3ExtensionStateStore | undefined
+    stateStore: BetterSqlite3ExtensionStateStore | undefined,
+    legacyMappings: LegacyExtensionMapping[]
   ): FileExtensionPackageSummary {
     const {
       packageRoot: _packageRoot,
@@ -1018,6 +1148,7 @@ export class FileExtensionService extends IpcServiceBase {
         ...inspection,
         normalizedPermissions,
         requestedGrants: grants,
+        legacyMappings,
         lifecycleStatus: extension.status,
         developmentSession:
           (extension.canonicalId
@@ -1039,6 +1170,7 @@ export class FileExtensionService extends IpcServiceBase {
         ...inspection,
         normalizedPermissions,
         requestedGrants: grants,
+        legacyMappings,
         lifecycleStatus: "invalid",
         developmentSession:
           (extension.canonicalId
@@ -1060,6 +1192,7 @@ export class FileExtensionService extends IpcServiceBase {
       ...inspection,
       normalizedPermissions,
       requestedGrants: grants,
+      legacyMappings,
       localState,
       developmentSession:
         this.developmentManager.get(spaceId, extension.canonicalId) ??
@@ -1493,6 +1626,7 @@ export class FileExtensionService extends IpcServiceBase {
       await ensureExtensionStateDatabasePath(spacePath)
     )
     try {
+      this.assertNoLegacyPortingConflict(store, snapshot.packageId)
       const localState = this.effectiveLocalState(
         spaceId,
         snapshot,
@@ -1575,6 +1709,7 @@ export class FileExtensionService extends IpcServiceBase {
     )
     let localState: ExtensionLocalState
     try {
+      this.assertNoLegacyPortingConflict(store, snapshot.packageId)
       const effectiveState = this.effectiveLocalState(
         spaceId,
         snapshot,
@@ -1718,6 +1853,7 @@ export class FileExtensionService extends IpcServiceBase {
       await ensureExtensionStateDatabasePath(spacePath)
     )
     try {
+      this.assertNoLegacyPortingConflict(store, snapshot.packageId)
       const state = this.effectiveLocalState(
         spaceId,
         snapshot,
@@ -1768,6 +1904,9 @@ export class FileExtensionService extends IpcServiceBase {
     spaceId: string,
     extension: FileExtensionPackageSummary
   ): ExtensionLocalState | undefined {
+    if (this.hasLegacyPortingConflict(extension.legacyMappings)) {
+      return undefined
+    }
     if (
       !extension.canonicalId ||
       !extension.contentDigest ||
@@ -1792,6 +1931,26 @@ export class FileExtensionService extends IpcServiceBase {
     extension: FileExtensionPackageSummary
   ): boolean {
     return this.effectiveStateForSummary(spaceId, extension) !== undefined
+  }
+
+  private hasLegacyPortingConflict(
+    mappings: readonly LegacyExtensionMapping[]
+  ): boolean {
+    return mappings.some((mapping) => mapping.conflict !== "none")
+  }
+
+  private assertNoLegacyPortingConflict(
+    store: BetterSqlite3ExtensionStateStore,
+    packageId: string
+  ): void {
+    const mappings = store
+      .listLegacyExtensionMappings()
+      .filter((mapping) => mapping.canonicalPackageId === packageId)
+    if (this.hasLegacyPortingConflict(mappings)) {
+      throw new Error(
+        "Extension execution is blocked until its legacy mapping conflict is resolved"
+      )
+    }
   }
 
   private assertNoDevelopmentSession(spaceId: string, packageId: string): void {

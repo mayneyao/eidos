@@ -151,6 +151,79 @@ describe("inspectExtensionPackage", () => {
     ).toBe("export const helper = () => 1\n")
   })
 
+  it("recognizes a strict legacy port receipt without making it runtime authority", async () => {
+    const { packageRoot } = await createPackage()
+    await writeFile(
+      path.join(packageRoot, "PORTING.json"),
+      JSON.stringify({
+        format: "eidos-legacy-extension-port",
+        formatVersion: 1,
+        source: {
+          legacyExtensionId: "legacy-1",
+          legacySlug: "task-counter",
+          archiveDigest: `sha256:${"a".repeat(64)}`,
+        },
+        target: {
+          canonicalPackageId: "example.task-counter",
+          candidateContribution: "command",
+        },
+        state: "draft",
+      })
+    )
+
+    const result = await inspectExtensionPackage(packageRoot, {
+      hostVersion: "0.34.0",
+    })
+
+    expect(result.status).toBe("ready")
+    expect(result.legacyPorting).toMatchObject({
+      valid: true,
+      diagnostics: [],
+      receipt: {
+        source: { legacyExtensionId: "legacy-1" },
+        target: { canonicalPackageId: "example.task-counter" },
+      },
+    })
+    expect(result.files.map(({ path: filePath }) => filePath)).toContain(
+      "PORTING.json"
+    )
+  })
+
+  it("ignores a port receipt that does not match the package contribution", async () => {
+    const { packageRoot } = await createPackage()
+    await writeFile(
+      path.join(packageRoot, "PORTING.json"),
+      JSON.stringify({
+        format: "eidos-legacy-extension-port",
+        formatVersion: 1,
+        source: {
+          legacyExtensionId: "legacy-1",
+          legacySlug: null,
+          archiveDigest: `sha256:${"a".repeat(64)}`,
+        },
+        target: {
+          canonicalPackageId: "example.task-counter",
+          candidateContribution: "file-editor",
+        },
+        state: "draft",
+      })
+    )
+
+    const result = await inspectExtensionPackage(packageRoot, {
+      hostVersion: "0.34.0",
+    })
+
+    expect(result.status).toBe("ready")
+    expect(result.legacyPorting).toEqual({
+      valid: false,
+      diagnostics: [
+        expect.objectContaining({
+          code: "porting-receipt-target-mismatch",
+        }),
+      ],
+    })
+  })
+
   it("ignores root development artifacts without traversing their contents", async () => {
     const { packageRoot } = await createPackage()
     const initial = await inspectExtensionPackage(packageRoot)

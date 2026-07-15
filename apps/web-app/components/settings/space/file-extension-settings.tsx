@@ -1438,9 +1438,14 @@ export function FileExtensionSettings() {
               const commands = extension.manifest?.contributes.commands ?? []
               const fileEditors =
                 extension.manifest?.contributes.fileEditors ?? []
+              const legacyMappings = extension.legacyMappings ?? []
+              const legacyConflict = legacyMappings.some(
+                (mapping) => mapping.conflict !== "none"
+              )
               const executionEnabled =
-                extension.lifecycleStatus === "enabled" ||
-                development?.status === "ready"
+                !legacyConflict &&
+                (extension.lifecycleStatus === "enabled" ||
+                  development?.status === "ready")
               return (
                 <div
                   id={packageElementId(packageId)}
@@ -1449,7 +1454,9 @@ export function FileExtensionSettings() {
                 >
                   <div className="flex min-h-[56px] items-start justify-between gap-6">
                     <div className="flex min-w-0 flex-1 items-start gap-3">
-                      {development ? (
+                      {legacyConflict ? (
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                      ) : development ? (
                         <Code2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
                       ) : extension.lifecycleStatus === "enabled" ? (
                         <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
@@ -1593,9 +1600,13 @@ export function FileExtensionSettings() {
                         variant="outline"
                         className={cn(
                           "font-normal",
+                          legacyConflict &&
+                            "border-destructive/40 text-destructive",
                           development &&
+                            !legacyConflict &&
                             "border-sky-500/40 text-sky-700 dark:text-sky-400",
                           !development &&
+                            !legacyConflict &&
                             extension.lifecycleStatus === "enabled" &&
                             "border-emerald-500/40 text-emerald-700 dark:text-emerald-400",
                           !development &&
@@ -1609,9 +1620,14 @@ export function FileExtensionSettings() {
                             "border-destructive/40 text-destructive"
                         )}
                       >
-                        {development
-                          ? developmentStatusLabel(development.status)
-                          : statusLabel(extension.lifecycleStatus)}
+                        {legacyConflict
+                          ? t(
+                              "space.settings.fileExtensions.migrationConflictBadge",
+                              "Migration conflict"
+                            )
+                          : development
+                            ? developmentStatusLabel(development.status)
+                            : statusLabel(extension.lifecycleStatus)}
                       </Badge>
                       {canManage && (
                         <Button
@@ -1794,6 +1810,145 @@ export function FileExtensionSettings() {
                   {expanded && manageable && snapshot && (
                     <div className="ml-7 mt-4 border-l pl-4">
                       <div className="divide-y divide-border/70 rounded-md bg-muted/30 px-4">
+                        {(extension.legacyPorting ||
+                          legacyMappings.length > 0) && (
+                          <div className="py-3">
+                            <div className="flex items-start justify-between gap-6">
+                              <div className="min-w-0">
+                                <Label>
+                                  {t(
+                                    "space.settings.fileExtensions.legacyMigration",
+                                    "Legacy migration"
+                                  )}
+                                </Label>
+                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                  {legacyConflict
+                                    ? t(
+                                        "space.settings.fileExtensions.legacyMigrationConflict",
+                                        "Migration conflict: this legacy source is linked to more than one package, or this package claims more than one source. Execution is blocked until the extra link is removed."
+                                      )
+                                    : legacyMappings.length > 0
+                                      ? t(
+                                          "space.settings.fileExtensions.legacyMigrationLinked",
+                                          "The reviewed legacy archive is linked to this canonical package on this device."
+                                        )
+                                      : extension.legacyPorting?.valid
+                                        ? t(
+                                            "space.settings.fileExtensions.legacyMigrationCandidate",
+                                            "PORTING.json is a candidate receipt only. Confirm it explicitly before Eidos records the legacy-to-canonical mapping."
+                                          )
+                                        : t(
+                                            "space.settings.fileExtensions.legacyMigrationInvalid",
+                                            "PORTING.json is invalid and will not be used as migration authority."
+                                          )}
+                                </p>
+                                {extension.legacyPorting?.receipt && (
+                                  <code className="mt-1 block max-w-[40rem] truncate text-[11px] text-muted-foreground">
+                                    {
+                                      extension.legacyPorting.receipt.source
+                                        .legacyExtensionId
+                                    }{" "}
+                                    → {extension.canonicalId}
+                                  </code>
+                                )}
+                                {extension.legacyPorting?.diagnostics.map(
+                                  (diagnostic, index) => (
+                                    <p
+                                      key={`${diagnostic.code}-${index}`}
+                                      className="mt-1 text-xs text-destructive"
+                                    >
+                                      <code>{diagnostic.code}</code>:{" "}
+                                      {diagnostic.message}
+                                    </p>
+                                  )
+                                )}
+                              </div>
+                              {extension.legacyPorting?.valid &&
+                                extension.legacyPorting.receipt &&
+                                legacyMappings.length === 0 && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={
+                                      !!mutatingPackage || !!development
+                                    }
+                                    onClick={() =>
+                                      void mutatePackage(extension, () =>
+                                        window.eidos.fileExtensions.confirmLegacyPorting(
+                                          spaceId,
+                                          snapshot
+                                        )
+                                      )
+                                    }
+                                  >
+                                    {busy && (
+                                      <LoaderCircle className="animate-spin" />
+                                    )}
+                                    {t(
+                                      "space.settings.fileExtensions.linkLegacySource",
+                                      "Link legacy source"
+                                    )}
+                                  </Button>
+                                )}
+                            </div>
+                            {legacyMappings.length > 0 && (
+                              <div className="mt-3 divide-y divide-border/60 border-t border-border/60">
+                                {legacyMappings.map((mapping) => (
+                                  <div
+                                    key={`${mapping.legacyExtensionId}-${mapping.canonicalPackageId}`}
+                                    className="flex min-h-[52px] items-center justify-between gap-4 py-2"
+                                  >
+                                    <div className="min-w-0 text-xs">
+                                      <p className="font-medium">
+                                        {mapping.legacySlug ??
+                                          mapping.legacyExtensionId}
+                                        {mapping.conflict !== "none" && (
+                                          <span className="ml-2 text-destructive">
+                                            {t(
+                                              "space.settings.fileExtensions.migrationConflictBadge",
+                                              "Conflict"
+                                            )}
+                                          </span>
+                                        )}
+                                      </p>
+                                      <code className="block max-w-[38rem] truncate text-[11px] text-muted-foreground">
+                                        {mapping.archiveDigest}
+                                      </code>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      className="text-destructive hover:text-destructive"
+                                      disabled={
+                                        !!mutatingPackage || !!development
+                                      }
+                                      onClick={() =>
+                                        void mutatePackage(extension, () =>
+                                          window.eidos.fileExtensions.retireLegacyPorting(
+                                            spaceId,
+                                            {
+                                              legacyExtensionId:
+                                                mapping.legacyExtensionId,
+                                              canonicalPackageId:
+                                                mapping.canonicalPackageId,
+                                            }
+                                          )
+                                        )
+                                      }
+                                    >
+                                      {t(
+                                        "space.settings.fileExtensions.unlinkLegacySource",
+                                        "Unlink"
+                                      )}
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <div className="flex min-h-[72px] items-center justify-between gap-6 py-3">
                           <div className="min-w-0">
                             <Label>
@@ -1919,21 +2074,26 @@ export function FileExtensionSettings() {
                                     "space.settings.fileExtensions.contributionsUntrusted",
                                     "Review and trust this exact snapshot before enabling it."
                                   )
-                                : !executionEnabled
+                                : legacyConflict
                                   ? t(
-                                      "space.settings.fileExtensions.contributionsDisabled",
-                                      "This snapshot is trusted but disabled. Enable it to add its contributions to Eidos."
+                                      "space.settings.fileExtensions.contributionsMigrationConflict",
+                                      "Execution is blocked until the legacy migration conflict is resolved."
                                     )
-                                  : missingGrants.length > 0
+                                  : !executionEnabled
                                     ? t(
-                                        "space.settings.fileExtensions.contributionsMissingGrants",
-                                        "Enabled, but some requested capabilities are still denied ({{count}}). Grant them below before relying on this extension.",
-                                        { count: missingGrants.length }
+                                        "space.settings.fileExtensions.contributionsDisabled",
+                                        "This snapshot is trusted but disabled. Enable it to add its contributions to Eidos."
                                       )
-                                    : t(
-                                        "space.settings.fileExtensions.contributionsReady",
-                                        "This snapshot is ready. Use any contribution below to activate it."
-                                      )}
+                                    : missingGrants.length > 0
+                                      ? t(
+                                          "space.settings.fileExtensions.contributionsMissingGrants",
+                                          "Enabled, but some requested capabilities are still denied ({{count}}). Grant them below before relying on this extension.",
+                                          { count: missingGrants.length }
+                                        )
+                                      : t(
+                                          "space.settings.fileExtensions.contributionsReady",
+                                          "This snapshot is ready. Use any contribution below to activate it."
+                                        )}
                             </p>
                             <div className="mt-2 divide-y divide-border/60">
                               {commands.map((command) => (
@@ -2029,6 +2189,18 @@ export function FileExtensionSettings() {
                                         </kbd>
                                       </Button>
                                     </div>
+                                  ) : legacyConflict ? (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      disabled
+                                    >
+                                      {t(
+                                        "space.settings.fileExtensions.resolveMigration",
+                                        "Resolve migration link"
+                                      )}
+                                    </Button>
                                   ) : trusted ? (
                                     <Button
                                       type="button"
@@ -2111,6 +2283,18 @@ export function FileExtensionSettings() {
                                         {t(
                                           "space.settings.fileExtensions.trustSourceFirst",
                                           "Trust source first"
+                                        )}
+                                      </Button>
+                                    ) : legacyConflict ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled
+                                      >
+                                        {t(
+                                          "space.settings.fileExtensions.resolveMigration",
+                                          "Resolve migration link"
                                         )}
                                       </Button>
                                     ) : !executionEnabled ? (

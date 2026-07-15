@@ -8,6 +8,7 @@ import type {
   NormalizedExtensionPermissions,
   ExtensionPackageFile,
   ExtensionPackageInspectionStatus,
+  LegacyExtensionPortingReceiptAnalysis,
 } from "@eidos.space/extension-manifest"
 import type {
   ExtensionFileChange,
@@ -20,6 +21,7 @@ import type {
   ExtensionLocalState,
   ExtensionPermissionGrant,
   ExtensionSnapshotIdentity,
+  LegacyExtensionMapping,
 } from "@eidos.space/extension-state"
 import type {
   ExtensionHostToSurfaceMessage,
@@ -43,6 +45,8 @@ export interface FileExtensionPackageSummary {
   requestedGrants: ExtensionPermissionGrant[]
   localState?: ExtensionLocalState
   developmentSession?: FileExtensionDevelopmentSessionSummary
+  legacyPorting?: LegacyExtensionPortingReceiptAnalysis
+  legacyMappings: LegacyExtensionMapping[]
   files: ExtensionPackageFile[]
   diagnostics: ExtensionDiagnostic[]
 }
@@ -159,6 +163,13 @@ export interface FileExtensionUninstallRequest {
 }
 
 export type FileExtensionSnapshotRequest = ExtensionSnapshotIdentity
+
+export type FileExtensionConfirmLegacyPortingRequest = ExtensionSnapshotIdentity
+
+export interface FileExtensionRetireLegacyPortingRequest {
+  legacyExtensionId: string
+  canonicalPackageId: string
+}
 
 export interface FileExtensionGrantRequest extends ExtensionSnapshotIdentity {
   grant: ExtensionPermissionGrant

@@ -16,6 +16,8 @@ const trustMock = vi.hoisted(() => vi.fn())
 const revokeTrustMock = vi.hoisted(() => vi.fn())
 const setEnabledMock = vi.hoisted(() => vi.fn())
 const setGrantMock = vi.hoisted(() => vi.fn())
+const confirmLegacyPortingMock = vi.hoisted(() => vi.fn())
+const retireLegacyPortingMock = vi.hoisted(() => vi.fn())
 const executeCommandMock = vi.hoisted(() => vi.fn())
 const prepareGitHubInstallMock = vi.hoisted(() => vi.fn())
 const applyGitHubInstallMock = vi.hoisted(() => vi.fn())
@@ -115,6 +117,7 @@ function discoveryFixture(
           contentDigest,
         },
         requestedGrants: [{ kind: "files.read", value: "**/*.md" }],
+        legacyMappings: [],
         localState: {
           snapshot: {
             packageId: "example.task-counter",
@@ -238,6 +241,14 @@ describe("FileExtensionSettings", () => {
     setGrantMock
       .mockReset()
       .mockResolvedValue({ trusted: true, enabled: false })
+    confirmLegacyPortingMock.mockReset().mockResolvedValue({
+      active: true,
+      conflict: "none",
+    })
+    retireLegacyPortingMock.mockReset().mockResolvedValue({
+      active: false,
+      conflict: "none",
+    })
     executeCommandMock.mockReset().mockResolvedValue({ success: true })
     prepareGitHubInstallMock.mockReset().mockResolvedValue({
       previewId: "preview-a",
@@ -320,6 +331,8 @@ describe("FileExtensionSettings", () => {
           revokeTrust: revokeTrustMock,
           setEnabled: setEnabledMock,
           setGrant: setGrantMock,
+          confirmLegacyPorting: confirmLegacyPortingMock,
+          retireLegacyPorting: retireLegacyPortingMock,
           executeCommand: executeCommandMock,
           prepareGitHubInstall: prepareGitHubInstallMock,
           applyGitHubInstall: applyGitHubInstallMock,
@@ -523,6 +536,97 @@ describe("FileExtensionSettings", () => {
     act(() => openCommandPalette.click())
     expect(useAppRuntimeStore.getState().isCmdkOpen).toBe(true)
     expect(useCMDKStore.getState().input).toBe("Count tasks")
+  })
+
+  it("requires explicit legacy linking and blocks controls on a mapping conflict", async () => {
+    const candidate = discoveryFixture("enabled")
+    candidate.packages[0]!.legacyPorting = {
+      valid: true,
+      diagnostics: [],
+      receipt: {
+        format: "eidos-legacy-extension-port",
+        formatVersion: 1,
+        source: {
+          legacyExtensionId: "legacy-task-counter",
+          legacySlug: "task-counter",
+          archiveDigest: `sha256:${"c".repeat(64)}`,
+        },
+        target: {
+          canonicalPackageId: "example.task-counter",
+          candidateContribution: "command",
+        },
+        state: "draft",
+      },
+    }
+    discoverMock.mockResolvedValue(candidate)
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Manage")!
+        .click()
+    )
+    expect(container.textContent).toContain("Legacy migration")
+    expect(container.textContent).toContain(
+      "PORTING.json is a candidate receipt only"
+    )
+    const linkLegacy = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Link legacy source"
+    )!
+    await act(async () => {
+      linkLegacy.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(confirmLegacyPortingMock).toHaveBeenCalledWith("file-space", {
+      packageId: "example.task-counter",
+      contentDigest,
+      permissionHash,
+    })
+
+    const conflicted = discoveryFixture("enabled")
+    conflicted.packages[0]!.legacyPorting = candidate.packages[0]!.legacyPorting
+    conflicted.packages[0]!.legacyMappings = [
+      {
+        legacyExtensionId: "legacy-task-counter",
+        legacySlug: "task-counter",
+        canonicalPackageId: "example.task-counter",
+        archiveDigest: `sha256:${"c".repeat(64)}`,
+        candidateContribution: "command",
+        active: true,
+        conflict: "legacy-source",
+        conflictingLegacyExtensionIds: [],
+        conflictingCanonicalPackageIds: ["example.other-counter"],
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]
+    discoverMock.mockResolvedValue(conflicted)
+    const refresh = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Refresh"
+    )!
+    await act(async () => {
+      refresh.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(container.textContent).toContain("Migration conflict")
+    expect(container.textContent).toContain("Resolve migration link")
+    expect(container.textContent).not.toContain("Command completed.")
+    const unlink = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Unlink"
+    )!
+    await act(async () => {
+      unlink.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(retireLegacyPortingMock).toHaveBeenCalledWith("file-space", {
+      legacyExtensionId: "legacy-task-counter",
+      canonicalPackageId: "example.task-counter",
+    })
   })
 
   it("only reports a contribution as ready after requested grants are approved", async () => {

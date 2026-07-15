@@ -144,6 +144,7 @@ export interface ExtensionPackageInspection {
   contentDigest?: string
   permissionHash?: string
   lock?: ExtensionLockV1
+  legacyPorting?: LegacyExtensionPortingReceiptAnalysis
   locallyModified?: boolean
   files: ExtensionPackageFile[]
   diagnostics: ExtensionDiagnostic[]
@@ -188,3 +189,4 @@ export interface ExtensionLockV1 {
   }
   contentDigest: string
 }
+import type { LegacyExtensionPortingReceiptAnalysis } from "./porting"

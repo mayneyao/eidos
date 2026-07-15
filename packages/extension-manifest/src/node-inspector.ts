@@ -18,6 +18,11 @@ import {
   DEFAULT_MAX_MANIFEST_BYTES,
   DEFAULT_MAX_MANIFEST_DEPTH,
 } from "./manifest"
+import {
+  analyzeLegacyExtensionPortingReceipt,
+  LEGACY_EXTENSION_PORTING_RECEIPT_FILENAME,
+  type LegacyExtensionPortingReceiptAnalysis,
+} from "./porting"
 import type {
   DiscoverExtensionPackagesOptions,
   ExtensionDiagnostic,
@@ -562,6 +567,48 @@ function inspectPackageTree(
     }
   }
 
+  let legacyPorting: LegacyExtensionPortingReceiptAnalysis | undefined
+  const portingFile = filesByPath.get(LEGACY_EXTENSION_PORTING_RECEIPT_FILENAME)
+  if (portingFile) {
+    try {
+      legacyPorting = analyzeLegacyExtensionPortingReceipt(
+        STRICT_UTF8.decode(portingFile.content),
+        { expectedCanonicalPackageId: analysis.canonicalId }
+      )
+    } catch {
+      legacyPorting = {
+        valid: false,
+        diagnostics: [
+          {
+            code: "porting-receipt-json",
+            message: `${LEGACY_EXTENSION_PORTING_RECEIPT_FILENAME} must be valid UTF-8 text`,
+          },
+        ],
+      }
+    }
+
+    const receipt = legacyPorting.receipt
+    if (receipt && analysis.manifest) {
+      const contributesCandidate =
+        receipt.target.candidateContribution === "command"
+          ? Boolean(analysis.manifest.contributes.commands?.length)
+          : Boolean(analysis.manifest.contributes.fileEditors?.length)
+      if (!contributesCandidate) {
+        legacyPorting = {
+          valid: false,
+          diagnostics: [
+            ...legacyPorting.diagnostics,
+            {
+              code: "porting-receipt-target-mismatch",
+              message: `${LEGACY_EXTENSION_PORTING_RECEIPT_FILENAME} declares a ${receipt.target.candidateContribution} candidate, but the manifest does not contribute one`,
+              pointer: "/target/candidateContribution",
+            },
+          ],
+        }
+      }
+    }
+  }
+
   const availablePaths = new Set(filesByPath.keys())
   for (const file of tree.files) {
     if (!CODE_FILE_PATTERN.test(file.path)) continue
@@ -626,6 +673,7 @@ function inspectPackageTree(
         ? calculateExtensionPermissionHash(analysis.normalizedPermissions)
         : undefined,
     lock: parsedLock,
+    legacyPorting,
     locallyModified,
     files: publicFiles,
     diagnostics,

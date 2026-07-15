@@ -82,6 +82,147 @@ afterEach(async () => {
 })
 
 describe("FileExtensionService", () => {
+  it("links an inspected legacy receipt and blocks conflicting ports until resolution", async () => {
+    const root = await createFileSpace()
+    const extensionsRoot = path.join(root, ".eidos", "extensions")
+    const firstPackageRoot = path.join(extensionsRoot, "example.task-counter")
+    const receipt = (canonicalPackageId: string, archiveSeed: string) => ({
+      format: "eidos-legacy-extension-port",
+      formatVersion: 1,
+      source: {
+        legacyExtensionId: "legacy-task-counter",
+        legacySlug: "task-counter",
+        archiveDigest: `sha256:${archiveSeed.repeat(64)}`,
+      },
+      target: {
+        canonicalPackageId,
+        candidateContribution: "command",
+      },
+      state: "draft",
+    })
+    await writeFile(
+      path.join(firstPackageRoot, "PORTING.json"),
+      JSON.stringify(receipt("example.task-counter", "a"))
+    )
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const windowProvider = {
+      getWindow: () => undefined,
+    } as unknown as MainWindowProvider
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManagerStub()
+    )
+
+    const firstDiscovery = await service.discover("space-a")
+    const first = firstDiscovery.packages.find(
+      (extension) => extension.canonicalId === "example.task-counter"
+    )!
+    expect(first).toMatchObject({
+      legacyPorting: {
+        valid: true,
+        receipt: {
+          source: { legacyExtensionId: "legacy-task-counter" },
+        },
+      },
+      legacyMappings: [],
+    })
+    const firstSnapshot = {
+      packageId: first.canonicalId!,
+      contentDigest: first.contentDigest!,
+      permissionHash: first.permissionHash!,
+    }
+    await expect(
+      service.confirmLegacyPorting("space-a", firstSnapshot)
+    ).resolves.toMatchObject({
+      active: true,
+      conflict: "none",
+      legacyExtensionId: "legacy-task-counter",
+      canonicalPackageId: "example.task-counter",
+    })
+    await service.trust("space-a", firstSnapshot)
+    await service.setEnabled("space-a", firstSnapshot, true)
+    await expect(service.listCommands("space-a")).resolves.toHaveLength(1)
+
+    const secondPackageRoot = path.join(extensionsRoot, "example.other-counter")
+    await mkdir(path.join(secondPackageRoot, "src"), { recursive: true })
+    await writeFile(
+      path.join(secondPackageRoot, "extension.json"),
+      JSON.stringify({
+        manifestVersion: 1,
+        publisher: "example",
+        name: "other-counter",
+        displayName: "Other Counter",
+        version: "1.0.0",
+        engines: { eidos: ">=0.33.0 <1.0.0" },
+        entrypoints: { worker: "src/extension.ts" },
+        contributes: {
+          commands: [
+            { id: "example.other-counter.count", title: "Count elsewhere" },
+          ],
+        },
+        permissions: {
+          files: { read: [], write: [] },
+          network: [],
+        },
+      })
+    )
+    await writeFile(
+      path.join(secondPackageRoot, "src", "extension.ts"),
+      "export const activate = () => undefined\n"
+    )
+    await writeFile(
+      path.join(secondPackageRoot, "PORTING.json"),
+      JSON.stringify(receipt("example.other-counter", "b"))
+    )
+    const second = (await service.discover("space-a")).packages.find(
+      (extension) => extension.canonicalId === "example.other-counter"
+    )!
+    const secondSnapshot = {
+      packageId: second.canonicalId!,
+      contentDigest: second.contentDigest!,
+      permissionHash: second.permissionHash!,
+    }
+    await expect(
+      service.confirmLegacyPorting("space-a", secondSnapshot)
+    ).resolves.toMatchObject({ conflict: "legacy-source" })
+
+    const conflicted = await service.discover("space-a")
+    expect(
+      conflicted.packages
+        .flatMap((extension) => extension.legacyMappings)
+        .map((mapping) => mapping.conflict)
+    ).toEqual(["legacy-source", "legacy-source"])
+    await expect(service.listCommands("space-a")).resolves.toEqual([])
+    await expect(
+      service.executeCommand("space-a", {
+        ...firstSnapshot,
+        commandId: "example.task-counter.count",
+        resource: { path: "" },
+      })
+    ).rejects.toThrow(/mapping conflict/)
+
+    await service.retireLegacyPorting("space-a", {
+      legacyExtensionId: "legacy-task-counter",
+      canonicalPackageId: "example.other-counter",
+    })
+    const resolved = await service.discover("space-a")
+    expect(
+      resolved.packages.find(
+        (extension) => extension.canonicalId === "example.task-counter"
+      )?.legacyMappings
+    ).toMatchObject([{ conflict: "none" }])
+    await expect(service.listCommands("space-a")).resolves.toHaveLength(1)
+  })
+
   it("opens an enabled file editor from the exact trusted snapshot", async () => {
     const root = await createFileSpace()
     const packageRoot = path.join(
