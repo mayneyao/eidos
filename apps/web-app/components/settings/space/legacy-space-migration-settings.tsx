@@ -31,10 +31,26 @@ const PHASE_LABELS = {
   finalizing: "Installing new Space…",
 } as const
 
+const PORTABILITY_LABELS = {
+  "manual-port": "Manual port",
+  "blocked-by-v1": "Not supported in v1",
+  "needs-review": "Needs review",
+  "source-missing": "Source missing",
+} as const
+
+const SOURCE_STATE_LABELS = {
+  "typescript-and-javascript": "TypeScript + JavaScript",
+  typescript: "TypeScript",
+  javascript: "JavaScript",
+  missing: "No source",
+} as const
+
 export function LegacySpaceMigrationSettings() {
   const { t } = useTranslation()
   const { toast } = useToast()
   const { currentSpace } = useCurrentSpace()
+  const legacySpaceId =
+    currentSpace?.mode === "legacy" ? currentSpace.id : undefined
   const {
     available,
     planHandle,
@@ -42,10 +58,15 @@ export function LegacySpaceMigrationSettings() {
     operation,
     progress,
     error,
+    legacyExtensions,
+    loadingLegacyExtensions,
+    exportingExtensionId,
+    extensionError,
     createPlan,
     executePlan,
+    exportLegacyExtension,
     reset,
-  } = useSpaceMigration(currentSpace?.id)
+  } = useSpaceMigration(legacySpaceId)
 
   if (!currentSpace || currentSpace.mode !== "legacy") return null
 
@@ -54,7 +75,25 @@ export function LegacySpaceMigrationSettings() {
     plan?.issues.filter((issue) => issue.severity === "error") ?? []
   const warnings =
     plan?.issues.filter((issue) => issue.severity === "warning") ?? []
-  const busy = operation !== null
+  const busy = operation !== null || exportingExtensionId !== null
+
+  const exportOneExtension = async (extensionId: string) => {
+    const destinationRoot = await window.eidos.selectFolder()
+    if (!destinationRoot) return
+    try {
+      const archive = await exportLegacyExtension(extensionId, destinationRoot)
+      toast({
+        title: t(
+          "space.settings.migration.extensionExported",
+          "Extension source archive exported"
+        ),
+        description: archive.targetDirectory,
+      })
+      window.eidos.showInFileManager(archive.targetDirectory)
+    } catch {
+      // The hook exposes the error inline.
+    }
+  }
 
   const chooseTarget = async () => {
     const targetRoot = await window.eidos.selectFolder()
@@ -110,6 +149,110 @@ export function LegacySpaceMigrationSettings() {
       <hr />
 
       <div className="divide-y divide-border/70">
+        <div className="py-4">
+          <div className="flex min-h-[64px] items-start gap-3">
+            <PackageOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <Label>
+                {t(
+                  "space.settings.migration.legacyExtensions",
+                  "Legacy extensions"
+                )}
+              </Label>
+              <p className="mt-0.5 max-w-2xl text-sm leading-5 text-muted-foreground">
+                {t(
+                  "space.settings.migration.legacyExtensionsDescription",
+                  "Review compatibility and export one extension as a non-executable source archive. Archives are never installed, trusted, or enabled automatically."
+                )}
+              </p>
+
+              {loadingLegacyExtensions ? (
+                <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                  {t(
+                    "space.settings.migration.loadingExtensions",
+                    "Inspecting legacy extensions…"
+                  )}
+                </div>
+              ) : legacyExtensions.length === 0 ? (
+                <p className="mt-4 text-sm text-muted-foreground">
+                  {t(
+                    "space.settings.migration.noLegacyExtensions",
+                    "No database-backed extensions were found in this Space."
+                  )}
+                </p>
+              ) : (
+                <div className="mt-4 divide-y divide-border/70 border-y border-border/70">
+                  {legacyExtensions.map((extension) => {
+                    const exporting = exportingExtensionId === extension.id
+                    return (
+                      <div
+                        key={extension.id}
+                        className="flex min-h-[88px] flex-col items-stretch justify-between gap-3 py-3 sm:flex-row sm:items-center sm:gap-5"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate text-sm font-medium">
+                              {extension.name ?? extension.slug ?? extension.id}
+                            </span>
+                            {extension.version ? (
+                              <span className="text-xs text-muted-foreground">
+                                v{extension.version}
+                              </span>
+                            ) : null}
+                            <Badge variant="outline" className="font-normal">
+                              {
+                                PORTABILITY_LABELS[
+                                  extension.portability.readiness
+                                ]
+                              }
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {extension.portability.legacyContribution ??
+                              "Unknown contribution"}
+                            {extension.portability.candidateContribution
+                              ? ` → ${extension.portability.candidateContribution}`
+                              : ""}
+                            {` · ${SOURCE_STATE_LABELS[extension.portability.sourceState]}`}
+                          </p>
+                          <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
+                            {extension.portability.summary}
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 self-start sm:self-auto"
+                          disabled={busy}
+                          onClick={() => void exportOneExtension(extension.id)}
+                        >
+                          {exporting ? (
+                            <LoaderCircle className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <FolderOutput className="h-4 w-4" />
+                          )}
+                          {t(
+                            "space.settings.migration.exportExtensionArchive",
+                            "Export source archive"
+                          )}
+                        </Button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {extensionError ? (
+                <div className="mt-3 flex items-start gap-2 text-sm text-destructive">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{extensionError.message}</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
         <div className="flex min-h-[92px] items-center justify-between gap-6 py-4">
           <div className="flex min-w-0 items-start gap-3">
             <FolderOutput className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />

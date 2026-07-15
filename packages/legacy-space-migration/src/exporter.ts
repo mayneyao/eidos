@@ -23,7 +23,10 @@ import Database from "better-sqlite3"
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml"
 
 import { inspectLegacySpace } from "./better-sqlite3"
-import { assessLegacyExtensionPortability } from "./extension-portability"
+import {
+  assessLegacyExtensionPortability,
+  type LegacyExtensionPortabilityAssessment,
+} from "./extension-portability"
 import {
   baseFieldTypeForLegacyField,
   buildLegacyFieldImportStrategies,
@@ -467,6 +470,91 @@ async function archivedLegacyExtensionIsExact(
     )
   } catch {
     return false
+  }
+}
+
+export interface ExportLegacyExtensionArchiveOptions {
+  targetDirectory: string
+}
+
+export interface LegacyExtensionArchiveExportResult {
+  targetDirectory: string
+  metadataPath: string
+  readmePath: string
+  sourcePath: string | null
+  compiledPath: string | null
+  portability: LegacyExtensionPortabilityAssessment
+}
+
+/**
+ * Export one database-backed extension as a non-executable source archive.
+ *
+ * The target is written through a sibling staging directory and atomically
+ * renamed only after every archived byte has been verified. Existing target
+ * contents are never overwritten.
+ */
+export async function exportLegacyExtensionArchive(
+  extension: LegacyExtension,
+  options: ExportLegacyExtensionArchiveOptions
+): Promise<LegacyExtensionArchiveExportResult> {
+  if (!options.targetDirectory.trim()) {
+    throw new Error("Legacy extension archive target is required")
+  }
+  const targetDirectory = path.resolve(options.targetDirectory)
+  if (targetDirectory === path.parse(targetDirectory).root) {
+    throw new Error(
+      "Legacy extension archive target cannot be a filesystem root"
+    )
+  }
+  await assertEmptyOrMissingDirectory(targetDirectory)
+  const targetParent = path.dirname(targetDirectory)
+  await mkdir(targetParent, { recursive: true })
+  const stagingRoot = await mkdtemp(
+    path.join(
+      targetParent,
+      `.${path.basename(targetDirectory)}.eidos-extension-archive-`
+    )
+  )
+  const planned: PlannedExtension = {
+    id: extension.id,
+    sourceSlug: extension.slug,
+    sourceType: extension.type,
+    targetDirectory: ".",
+    sourcePath:
+      extension.tsCode === null
+        ? null
+        : extension.type === "block"
+          ? "src/view.tsx"
+          : "src/extension.ts",
+    compiledPath: extension.code === null ? null : "dist/extension.js",
+    metadataPath: "legacy-extension.json",
+    readmePath: "README.md",
+  }
+  try {
+    await archiveLegacyExtension(stagingRoot, extension, planned)
+    if (
+      !(await archivedLegacyExtensionIsExact(stagingRoot, extension, planned))
+    ) {
+      throw new Error("Legacy extension archive validation failed")
+    }
+    await assertEmptyOrMissingDirectory(targetDirectory)
+    await removeEmptyDirectoryIfPresent(targetDirectory)
+    await rename(stagingRoot, targetDirectory)
+    const absolute = (relativePath: string | null) =>
+      relativePath
+        ? path.join(targetDirectory, ...relativePath.split("/"))
+        : null
+    return {
+      targetDirectory,
+      metadataPath: absolute(planned.metadataPath)!,
+      readmePath: absolute(planned.readmePath)!,
+      sourcePath: absolute(planned.sourcePath),
+      compiledPath: absolute(planned.compiledPath),
+      portability: assessLegacyExtensionPortability(extension),
+    }
+  } catch (error) {
+    await rm(stagingRoot, { recursive: true, force: true })
+    throw error
   }
 }
 

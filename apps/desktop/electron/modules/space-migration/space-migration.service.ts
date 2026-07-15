@@ -2,9 +2,16 @@ import { randomUUID } from "node:crypto"
 import fs from "node:fs"
 import path from "node:path"
 import { IpcMethod, IpcServiceBase } from "@eidos.space/electron-ipc"
-import { planLegacySpaceMigration } from "@eidos.space/legacy-space-migration"
 import {
+  assessLegacyExtensionPortability,
+  planLegacySpaceMigration,
+  sanitizePathSegment,
+  type LegacyExtensionPortabilityAssessment,
+} from "@eidos.space/legacy-space-migration"
+import {
+  exportLegacyExtensionArchive,
   exportLegacySpace,
+  inspectLegacyExtensions,
   inspectLegacySpace,
 } from "@eidos.space/legacy-space-migration/better-sqlite3"
 import type {
@@ -21,6 +28,17 @@ export interface SpaceMigrationPlanHandle {
   spaceId: string
   spaceName: string
   plan: LegacySpaceMigrationPlan
+}
+
+export interface LegacyExtensionExportItem {
+  id: string
+  slug: string | null
+  name: string | null
+  description: string | null
+  type: string | null
+  version: string | null
+  previouslyEnabled: boolean
+  portability: LegacyExtensionPortabilityAssessment
 }
 
 interface StoredPlan extends SpaceMigrationPlanHandle {
@@ -43,13 +61,66 @@ export class SpaceMigrationService extends IpcServiceBase {
   }
 
   @IpcMethod()
+  listLegacyExtensions(spaceId: string): LegacyExtensionExportItem[] {
+    const space = this.requireLegacySpace(spaceId)
+    return inspectLegacyExtensions(space.path).map((extension) => ({
+      id: extension.id,
+      slug: extension.slug,
+      name: extension.name,
+      description: extension.description,
+      type: extension.type,
+      version: extension.version,
+      previouslyEnabled: extension.enabled,
+      portability: assessLegacyExtensionPortability(extension),
+    }))
+  }
+
+  @IpcMethod()
+  async exportLegacyExtension(
+    spaceId: string,
+    extensionId: string,
+    destinationRoot: string
+  ) {
+    const space = this.requireLegacySpace(spaceId)
+    const extension = inspectLegacyExtensions(space.path).find(
+      (candidate) => candidate.id === extensionId
+    )
+    if (!extension)
+      throw new Error(`Legacy extension not found: ${extensionId}`)
+    const resolvedDestination = path.resolve(destinationRoot)
+    if (
+      !fs.existsSync(resolvedDestination) ||
+      !fs.statSync(resolvedDestination).isDirectory()
+    ) {
+      throw new Error(`Extension archive destination is not a folder`)
+    }
+    const realDestination = fs.realpathSync.native(resolvedDestination)
+    const targetDirectory = path.join(
+      realDestination,
+      sanitizePathSegment(
+        extension.slug ?? extension.name ?? extension.id,
+        extension.id
+      )
+    )
+    if (this.isRuntimeExtensionPath(targetDirectory)) {
+      throw new Error(
+        "Legacy source archives cannot be exported under .eidos/extensions"
+      )
+    }
+    if (
+      this.pathsOverlap(fs.realpathSync.native(space.path), targetDirectory)
+    ) {
+      throw new Error(
+        "Legacy extension archives must be exported outside the source Space"
+      )
+    }
+    return exportLegacyExtensionArchive(extension, { targetDirectory })
+  }
+
+  @IpcMethod()
   createPlan(spaceId: string, targetRoot: string): SpaceMigrationPlanHandle {
     this.prunePlans()
-    const space = this.registry.getSpace(spaceId)
-    if (!space) throw new Error(`Space not found: ${spaceId}`)
-    if (space.mode !== "legacy") {
-      throw new Error("Only legacy database Spaces can be exported")
-    }
+    const space = this.requireLegacySpace(spaceId)
     const resolvedTarget = path.resolve(targetRoot)
     this.assertTargetAvailable(resolvedTarget)
     const conflict = this.registry.getSpacePathConflict(resolvedTarget)
@@ -113,6 +184,39 @@ export class SpaceMigrationService extends IpcServiceBase {
       spaceName: stored.spaceName,
       plan: stored.plan,
     }
+  }
+
+  private requireLegacySpace(spaceId: string) {
+    const space = this.registry.getSpace(spaceId)
+    if (!space) throw new Error(`Space not found: ${spaceId}`)
+    if (space.mode !== "legacy") {
+      throw new Error("Only legacy database Spaces can be exported")
+    }
+    return space
+  }
+
+  private pathsOverlap(left: string, right: string): boolean {
+    const contains = (parent: string, candidate: string) => {
+      const relative = path.relative(parent, candidate)
+      return (
+        relative === "" ||
+        (relative !== ".." &&
+          !relative.startsWith(`..${path.sep}`) &&
+          !path.isAbsolute(relative))
+      )
+    }
+    return contains(left, right) || contains(right, left)
+  }
+
+  private isRuntimeExtensionPath(candidate: string): boolean {
+    const segments = path
+      .resolve(candidate)
+      .split(path.sep)
+      .map((segment) => segment.toLocaleLowerCase("en-US"))
+    return segments.some(
+      (segment, index) =>
+        segment === ".eidos" && segments[index + 1] === "extensions"
+    )
   }
 
   private prunePlans(): void {

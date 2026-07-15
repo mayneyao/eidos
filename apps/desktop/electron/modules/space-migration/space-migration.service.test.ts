@@ -2,7 +2,14 @@
 
 import "reflect-metadata"
 
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import Database from "better-sqlite3"
@@ -39,6 +46,29 @@ function createEmptyLegacySpace() {
       created_at TEXT,
       updated_at TEXT
     );
+    CREATE TABLE eidos__extensions (
+      id TEXT PRIMARY KEY,
+      slug TEXT,
+      name TEXT,
+      description TEXT,
+      type TEXT,
+      version TEXT,
+      code TEXT,
+      ts_code TEXT,
+      meta TEXT,
+      icon TEXT,
+      marketplace_id TEXT,
+      enabled BOOLEAN,
+      bindings TEXT,
+      created_at TEXT,
+      updated_at TEXT
+    );
+    INSERT INTO eidos__extensions
+      (id, slug, name, type, version, code, ts_code, meta, enabled)
+    VALUES
+      ('ext-1', 'task-counter', 'Task Counter', 'script', '0.1.0',
+       'exports.run = () => 1', 'export function run() { return 1 }',
+       '{"type":"tableAction"}', 1);
   `)
   database.close()
   return sourceRoot
@@ -137,5 +167,65 @@ describe("SpaceMigrationService", () => {
     expect(() => service.createPlan("legacy", targetRoot)).toThrow(
       "conflicts with registered Space Existing Space"
     )
+  })
+
+  it("lists and atomically exports one legacy extension outside runtime roots", async () => {
+    const sourceRoot = createEmptyLegacySpace()
+    roots.push(sourceRoot)
+    const destination = mkdtempSync(
+      path.join(tmpdir(), "eidos-extension-export-")
+    )
+    roots.push(destination)
+    const { service } = await createService(sourceRoot)
+
+    expect(service.listLegacyExtensions("legacy")).toEqual([
+      expect.objectContaining({
+        id: "ext-1",
+        slug: "task-counter",
+        previouslyEnabled: true,
+        portability: {
+          readiness: "manual-port",
+          reasonCode: "manual-command-port",
+          legacyContribution: "tableAction",
+          candidateContribution: "command",
+          metadataState: "valid",
+          sourceState: "typescript-and-javascript",
+          legacyFileExtensions: [],
+          summary: expect.any(String),
+          manualSteps: expect.any(Array),
+        },
+      }),
+    ])
+
+    const result = await service.exportLegacyExtension(
+      "legacy",
+      "ext-1",
+      destination
+    )
+    expect(result.targetDirectory).toBe(
+      path.join(realpathSync.native(destination), "task-counter")
+    )
+    expect(existsSync(result.metadataPath)).toBe(true)
+    expect(existsSync(result.sourcePath!)).toBe(true)
+
+    await expect(
+      service.exportLegacyExtension("legacy", "ext-1", destination)
+    ).rejects.toThrow("Migration target must be empty")
+
+    const runtimeRoot = path.join(destination, ".eidos", "extensions")
+    mkdirSync(runtimeRoot, { recursive: true })
+    await expect(
+      service.exportLegacyExtension("legacy", "ext-1", runtimeRoot)
+    ).rejects.toThrow("cannot be exported under .eidos/extensions")
+
+    const disguisedRuntimeRoot = path.join(destination, "extension-output")
+    symlinkSync(runtimeRoot, disguisedRuntimeRoot, "dir")
+    await expect(
+      service.exportLegacyExtension("legacy", "ext-1", disguisedRuntimeRoot)
+    ).rejects.toThrow("cannot be exported under .eidos/extensions")
+
+    await expect(
+      service.exportLegacyExtension("legacy", "ext-1", sourceRoot)
+    ).rejects.toThrow("outside the source Space")
   })
 })

@@ -3,7 +3,10 @@ import type {
   LegacySpaceMigrationResult,
   MigrationExportProgress,
 } from "@eidos.space/legacy-space-migration"
-import type { SpaceMigrationPlanHandle } from "@/apps/desktop/electron/modules/space-migration/space-migration.service"
+import type {
+  LegacyExtensionExportItem,
+  SpaceMigrationPlanHandle,
+} from "@/apps/desktop/electron/modules/space-migration/space-migration.service"
 
 import { isDesktopMode } from "@/lib/env"
 
@@ -21,6 +24,14 @@ export function useSpaceMigration(spaceId?: string) {
   const [operation, setOperation] = useState<MigrationOperation>(null)
   const [progress, setProgress] = useState<MigrationExportProgress | null>(null)
   const [error, setError] = useState<Error | null>(null)
+  const [legacyExtensions, setLegacyExtensions] = useState<
+    LegacyExtensionExportItem[]
+  >([])
+  const [loadingLegacyExtensions, setLoadingLegacyExtensions] = useState(false)
+  const [exportingExtensionId, setExportingExtensionId] = useState<
+    string | null
+  >(null)
+  const [extensionError, setExtensionError] = useState<Error | null>(null)
   const planRef = useRef<SpaceMigrationPlanHandle | null>(null)
   planRef.current = planHandle
 
@@ -45,6 +56,35 @@ export function useSpaceMigration(spaceId?: string) {
       if (listenerId) window.eidos.off("space-migration:progress", listenerId)
     }
   }, [available])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!available || !spaceId) {
+      setLegacyExtensions([])
+      setLoadingLegacyExtensions(false)
+      return
+    }
+    setLoadingLegacyExtensions(true)
+    setExtensionError(null)
+    void window.eidos.spaceMigration
+      .listLegacyExtensions(spaceId)
+      .then((extensions) => {
+        if (!cancelled) setLegacyExtensions(extensions)
+      })
+      .catch((cause) => {
+        if (cancelled) return
+        setLegacyExtensions([])
+        setExtensionError(
+          cause instanceof Error ? cause : new Error(String(cause))
+        )
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingLegacyExtensions(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [available, spaceId])
 
   useEffect(() => {
     return () => {
@@ -114,6 +154,31 @@ export function useSpaceMigration(spaceId?: string) {
     }
   }, [available])
 
+  const exportLegacyExtension = useCallback(
+    async (extensionId: string, destinationRoot: string) => {
+      if (!available || !spaceId) {
+        throw new Error("Legacy extension export is only available on Desktop")
+      }
+      setExportingExtensionId(extensionId)
+      setExtensionError(null)
+      try {
+        return await window.eidos.spaceMigration.exportLegacyExtension(
+          spaceId,
+          extensionId,
+          destinationRoot
+        )
+      } catch (cause) {
+        const nextError =
+          cause instanceof Error ? cause : new Error(String(cause))
+        setExtensionError(nextError)
+        throw nextError
+      } finally {
+        setExportingExtensionId(null)
+      }
+    },
+    [available, spaceId]
+  )
+
   const reset = useCallback(() => {
     const currentPlan = planRef.current
     if (available && currentPlan && operation !== "exporting") {
@@ -132,8 +197,13 @@ export function useSpaceMigration(spaceId?: string) {
     operation,
     progress,
     error,
+    legacyExtensions,
+    loadingLegacyExtensions,
+    exportingExtensionId,
+    extensionError,
     createPlan,
     executePlan,
+    exportLegacyExtension,
     reset,
   }
 }

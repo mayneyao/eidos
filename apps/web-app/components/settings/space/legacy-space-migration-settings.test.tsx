@@ -9,6 +9,7 @@ import { LegacySpaceMigrationSettings } from "./legacy-space-migration-settings"
 
 const createPlanMock = vi.hoisted(() => vi.fn())
 const executePlanMock = vi.hoisted(() => vi.fn())
+const exportLegacyExtensionMock = vi.hoisted(() => vi.fn())
 const resetMock = vi.hoisted(() => vi.fn())
 const toastMock = vi.hoisted(() => vi.fn())
 const migrationState = vi.hoisted(() => ({
@@ -66,6 +67,7 @@ describe("LegacySpaceMigrationSettings", () => {
   beforeEach(() => {
     createPlanMock.mockReset()
     executePlanMock.mockReset()
+    exportLegacyExtensionMock.mockReset()
     resetMock.mockReset()
     toastMock.mockReset()
     migrationState.value = {
@@ -86,8 +88,34 @@ describe("LegacySpaceMigrationSettings", () => {
       operation: null,
       progress: null,
       error: null,
+      legacyExtensions: [
+        {
+          id: "ext-1",
+          slug: "task-counter",
+          name: "Task Counter",
+          description: "Counts tasks",
+          type: "script",
+          version: "0.1.0",
+          previouslyEnabled: true,
+          portability: {
+            readiness: "manual-port",
+            reasonCode: "manual-command-port",
+            legacyContribution: "tableAction",
+            candidateContribution: "command",
+            metadataState: "valid",
+            sourceState: "typescript-and-javascript",
+            legacyFileExtensions: [],
+            summary: "Can be redesigned as a v1 command.",
+            manualSteps: [],
+          },
+        },
+      ],
+      loadingLegacyExtensions: false,
+      exportingExtensionId: null,
+      extensionError: null,
       createPlan: createPlanMock,
       executePlan: executePlanMock,
+      exportLegacyExtension: exportLegacyExtensionMock,
       reset: resetMock,
     }
     Object.defineProperty(window, "eidos", {
@@ -168,6 +196,39 @@ describe("LegacySpaceMigrationSettings", () => {
     expect(container.textContent).toContain("Archiving legacy extensions…")
     expect(container.textContent).toContain(
       ".eidos/legacy-extensions/hello-world"
+    )
+  })
+
+  it("shows portability inline and exports one source archive", async () => {
+    exportLegacyExtensionMock.mockResolvedValue({
+      targetDirectory: "/tmp/selected/task-counter",
+    })
+    await act(async () => root.render(<LegacySpaceMigrationSettings />))
+
+    expect(container.textContent).toContain("Legacy extensions")
+    expect(container.textContent).toContain("Task Counter")
+    expect(container.textContent).toContain("Manual port")
+    expect(container.textContent).toContain("tableAction → command")
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("Export source archive"))
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(exportLegacyExtensionMock).toHaveBeenCalledWith(
+      "ext-1",
+      "/tmp/selected"
+    )
+    expect(window.eidos.showInFileManager).toHaveBeenCalledWith(
+      "/tmp/selected/task-counter"
+    )
+    expect(toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Extension source archive exported",
+      })
     )
   })
 })

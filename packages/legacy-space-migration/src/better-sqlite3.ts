@@ -521,6 +521,36 @@ export interface InspectLegacySpaceOptions {
   databasePath?: string
 }
 
+export function inspectLegacyExtensions(
+  sourceRoot: string,
+  options: InspectLegacySpaceOptions = {}
+): LegacyExtension[] {
+  const resolvedRoot = path.resolve(sourceRoot)
+  const databasePath = path.resolve(
+    options.databasePath ?? path.join(resolvedRoot, ".eidos", "db.sqlite3")
+  )
+  if (!existsSync(databasePath)) {
+    throw new Error(`Legacy Space database not found: ${databasePath}`)
+  }
+  const database = new Database(databasePath, {
+    fileMustExist: true,
+    readonly: true,
+  })
+  try {
+    database.pragma("query_only = ON")
+    const tableNames = new Set(
+      (
+        database
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+          .all() as Array<{ name: string }>
+      ).map((table) => table.name)
+    )
+    return readExtensions(database, tableNames)
+  } finally {
+    database.close()
+  }
+}
+
 export function inspectLegacySpace(
   sourceRoot: string,
   options: InspectLegacySpaceOptions = {}
@@ -609,4 +639,4 @@ export function inspectLegacySpace(
   }
 }
 
-export { exportLegacySpace } from "./exporter"
+export { exportLegacyExtensionArchive, exportLegacySpace } from "./exporter"

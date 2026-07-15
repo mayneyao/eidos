@@ -12,7 +12,12 @@ import path from "node:path"
 import Database from "better-sqlite3"
 import { openBaseFile } from "@eidos.space/base/better-sqlite3"
 
-import { exportLegacySpace, inspectLegacySpace } from "./better-sqlite3"
+import {
+  exportLegacyExtensionArchive,
+  exportLegacySpace,
+  inspectLegacyExtensions,
+  inspectLegacySpace,
+} from "./better-sqlite3"
 import { planLegacySpaceMigration, sanitizePathSegment } from "./planner"
 
 function createLegacyFixture() {
@@ -483,6 +488,52 @@ describe("legacy Space migration planning", () => {
         sourceState: "missing",
       },
     })
+  })
+
+  it("exports one extension atomically without overwriting an existing target", async () => {
+    const fixture = createLegacyFixture()
+    roots.push(fixture.sourceRoot)
+    const extensions = inspectLegacyExtensions(fixture.sourceRoot)
+    expect(extensions.map((extension) => extension.id)).toEqual([
+      "ext-script",
+      "ext-block",
+    ])
+    const parent = mkdtempSync(
+      path.join(tmpdir(), "eidos-extension-archive-target-")
+    )
+    roots.push(parent)
+    const targetDirectory = path.join(parent, "task-counter")
+
+    const result = await exportLegacyExtensionArchive(extensions[0]!, {
+      targetDirectory,
+    })
+
+    expect(result).toMatchObject({
+      targetDirectory,
+      portability: {
+        readiness: "manual-port",
+        candidateContribution: "command",
+      },
+    })
+    expect(readFileSync(result.sourcePath!, "utf8")).toBe(
+      'export async function hello() { return "source" }'
+    )
+    expect(JSON.parse(readFileSync(result.metadataPath, "utf8"))).toMatchObject(
+      {
+        formatVersion: 2,
+        identity: { id: "ext-script" },
+      }
+    )
+
+    await expect(
+      exportLegacyExtensionArchive(extensions[1]!, { targetDirectory })
+    ).rejects.toThrow("Migration target must be empty")
+    expect(readFileSync(result.sourcePath!, "utf8")).toBe(
+      'export async function hello() { return "source" }'
+    )
+    await expect(
+      exportLegacyExtensionArchive(extensions[0]!, { targetDirectory: "" })
+    ).rejects.toThrow("target is required")
   })
 
   it("remaps legacy field identifiers, system references, and missing bodies without data loss", async () => {
