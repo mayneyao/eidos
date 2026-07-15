@@ -76,7 +76,7 @@ Electron bridge、SQLite connection、filesystem handle 或不受限制的 netwo
 ## UI entrypoint 不要求同时存在 Worker
 
 如果所有行为都属于一个 surface，package 可以只有 `entrypoints.ui`。只有 command、agent tool 或
-其他 non-visual handler 才需要 worker entrypoint。Discovery 和 **Reopen with** 都来自 Manifest，
+其他 non-visual handler 才需要 worker entrypoint。Discovery 和 **Open with** 都来自 Manifest，
 不需要先激活任何 entrypoint。
 
 对于 custom editor，Manifest contribution 的 `id` 同时也是 UI entrypoint 使用的 registration
@@ -101,12 +101,13 @@ Surface 不能直接保存整个文件，而是针对 expected version 提交 mi
 state、undo/redo、autosave、external-file conflict、Graft-visible write，以及 split view 之间的同步。
 
 这条边界的可执行 contract 位于 `@eidos.space/extension-surface-protocol`；参见
-[Surface protocol reference](/zh-cn/reference/extension-surface-protocol/)。P3a 已经与 UI host 解耦实现，
-第三方 iframe activation 仍属于 preview，且不能绕过这套 contract。
+[Surface protocol reference](/zh-cn/reference/extension-surface-protocol/)。当前 Desktop developer preview
+已经通过这套 contract 激活第三方 iframe entrypoint，不会另加 direct file-write path。
 
 打开 Markdown Task Board 的完整流程是：
 
-1. `fileEditors` 让 **Task Board** 出现在 **Reopen with**。
+1. `fileEditors` 让 **Task Board** 出现在 **Open with**，也可以针对狭窄 filename pattern 把它设为
+   default editor。
 2. Eidos 打开一个 `TextDocument`，把 snapshot 发送给 UI surface。
 3. 扩展解析 Markdown task list，渲染 progress、filter 和 grouped tasks。
 4. 用户切换 task 时，扩展只为 checkbox marker 提交一条 versioned text edit。
@@ -132,10 +133,10 @@ content 或 grant，或者替换 stale build，都会关闭 capability port 并 
 
 ## 首期交付边界
 
-第一个可执行切片只实现 command、menu、read-only file capability 和宿主渲染的 semantic UI。
-只有在 text-document contract 以及 save、undo、conflict、multi-view tests 完成后，custom
-`fileEditors` 才能激活。这个顺序让 public Manifest 保持可扩展，同时避免把直接 `writeFile()` 的
-捷径变成永久 API debt。
+当前 experimental slice 已实现 command、menu、worker read-only file access、宿主 semantic UI 与
+text `fileEditors`。Task Board 在没有 direct `writeFile()` 捷径的前提下，验证 activation、minimal edit、
+autosave、undo、conflict 与 multi-view broadcast。Binary custom document、Base view 和通用
+network/storage capability 仍不在本阶段边界内。
 
 ## 一手参考
 

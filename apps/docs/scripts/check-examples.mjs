@@ -1,7 +1,13 @@
-import { access, readFile, readdir } from "node:fs/promises"
+import { access, cp, mkdtemp, readFile, readdir, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import Ajv2020 from "ajv/dist/2020.js"
+import {
+  compileExtensionSurface,
+  compileExtensionWorker,
+} from "@eidos.space/extension-runtime/compiler"
+import { inspectExtensionPackage } from "@eidos.space/extension-manifest/node"
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const repositoryRoot = resolve(root, "../..")
@@ -40,6 +46,27 @@ const validateManifest = new Ajv2020({
   strict: true,
 }).compile(schema)
 
+async function collectPackageFiles(directory, relativeDirectory = "") {
+  const files = []
+  const entries = await readdir(join(directory, relativeDirectory), {
+    withFileTypes: true,
+  })
+  for (const entry of entries) {
+    const relativePath = relativeDirectory
+      ? `${relativeDirectory}/${entry.name}`
+      : entry.name
+    if (entry.isDirectory()) {
+      files.push(...(await collectPackageFiles(directory, relativePath)))
+    } else if (entry.isFile()) {
+      files.push({
+        path: relativePath,
+        content: await readFile(join(directory, relativePath)),
+      })
+    }
+  }
+  return files
+}
+
 for (const exampleName of exampleNames) {
   const exampleRoot = join(examplesRoot, exampleName)
   const manifestPath = join(exampleRoot, "extension.json")
@@ -59,12 +86,21 @@ for (const exampleName of exampleNames) {
 
   const extensionId = `${manifest.publisher}.${manifest.name}`
   const commands = manifest.contributes?.commands ?? []
+  const fileEditors = manifest.contributes?.fileEditors ?? []
 
-  if (commands.length === 0) fail("at least one command is required")
+  if (commands.length === 0 && fileEditors.length === 0) {
+    fail("at least one command or file editor is required")
+  }
 
   for (const command of commands) {
     if (!command.id.startsWith(`${extensionId}.`)) {
       fail(`command ${command.id} must start with ${extensionId}.`)
+    }
+  }
+
+  for (const editor of fileEditors) {
+    if (!editor.id.startsWith(`${extensionId}.`)) {
+      fail(`file editor ${editor.id} must start with ${extensionId}.`)
     }
   }
 
@@ -81,6 +117,52 @@ for (const exampleName of exampleNames) {
       fail(`entrypoint ${entrypoint} escapes the package`)
     }
     await access(join(exampleRoot, entrypoint))
+  }
+
+  const packageFiles = await collectPackageFiles(exampleRoot)
+  const compiled = []
+  if (manifest.entrypoints?.worker) {
+    compiled.push(
+      await compileExtensionWorker({
+        entrypoint: manifest.entrypoints.worker,
+        files: packageFiles,
+      })
+    )
+  }
+  if (manifest.entrypoints?.ui) {
+    compiled.push(
+      await compileExtensionSurface({
+        entrypoint: manifest.entrypoints.ui,
+        files: packageFiles,
+      })
+    )
+  }
+  const warnings = compiled.flatMap((bundle) => bundle.warnings)
+  if (warnings.length > 0) {
+    fail(
+      `compiler warnings:\n${warnings.map((warning) => `  ${warning}`).join("\n")}`
+    )
+  }
+
+  const inspectionRoot = await mkdtemp(join(tmpdir(), "eidos-docs-extension-"))
+  try {
+    const installedRoot = join(inspectionRoot, extensionId)
+    await cp(exampleRoot, installedRoot, { recursive: true })
+    const inspection = await inspectExtensionPackage(installedRoot, {
+      hostVersion: "0.33.0",
+    })
+    if (inspection.status !== "ready") {
+      fail(
+        `package inspector rejected the installable source:\n${inspection.diagnostics
+          .map(
+            (diagnostic) =>
+              `  ${diagnostic.severity} ${diagnostic.code}: ${diagnostic.message}`
+          )
+          .join("\n")}`
+      )
+    }
+  } finally {
+    await rm(inspectionRoot, { recursive: true, force: true })
   }
 
   console.log(`Validated ${extensionId}`)

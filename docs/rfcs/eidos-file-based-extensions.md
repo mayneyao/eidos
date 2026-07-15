@@ -634,14 +634,23 @@ configuration, or reopens mutable package files.
 - Prove the surface with an editable Markdown Task Board rather than a
   read-only demo.
 
-The P3a host contract is implemented in the independent
-`@eidos.space/extension-surface-protocol` package. Version 1 fixes UTF-16 edit
-offsets, exact base revisions, bounded change batches, host-owned dirty and
-undo state, single-use compare-and-swap save tokens, external conflict
-resolution, and multi-view broadcasts. This package contains no React,
-Electron, iframe, filesystem, or editor implementation. Activating third-party
-iframe entrypoints remains P3b and must consume this contract rather than add a
-direct file-write path.
+Implemented in the current developer preview. The independent
+`@eidos.space/extension-surface-protocol` package fixes UTF-16 edit offsets,
+exact base revisions, bounded change batches, host-owned dirty and undo state,
+single-use compare-and-swap save tokens, external conflict resolution, and
+multi-view broadcasts. The Desktop host now matches trusted `fileEditors`,
+opens one shared document session, activates the inspected UI bundle in an
+opaque sandboxed iframe through a dedicated `MessagePort`, propagates host
+appearance tokens, and exposes default-editor plus **Open with** routing.
+
+The fixed iframe document denies network, forms, nested frames, remote assets,
+and popup creation; main-window navigation policy also prevents an initialized
+surface from replacing its `srcdoc` document. Source and grants are revalidated
+before activation, and every edit, save, undo, redo, resync, conflict decision,
+and close operation returns through the host-owned document manager. The
+checked-in Markdown Task Board proves the complete path by changing only one
+checkbox marker while preserving normal autosave, undo, external-change, and
+Graft behavior.
 
 ### P4: GitHub installation
 

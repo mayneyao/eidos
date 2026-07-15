@@ -1,7 +1,8 @@
 # Eidos file-based extension contract
 
-Status: Manifest version 1 is frozen for foundation work. Third-party runtime
-execution is not available in stable builds yet.
+Status: Manifest version 1 is frozen for foundation work. The current Desktop
+development tree runs trusted command and text file-editor extensions as an
+experimental preview; this is not a stable public API yet.
 
 ## Mental model
 
@@ -11,9 +12,11 @@ and ignored. GitHub is a distribution source, not a runtime dependency.
 
 ## Required package files
 
+Every package contains `extension.json` and one or both explicit entrypoints:
+
 ```text
-extension.json
-src/extension.ts
+src/extension.ts  # worker commands
+src/editor.ts     # sandboxed UI surface
 ```
 
 `extension.json` declares identity, `engines.eidos`, explicit entrypoints,
@@ -24,12 +27,14 @@ contributions, and maximum permissions. The canonical ID is
 
 - `commands`: named operations.
 - `menus`: contextual placement of commands.
-- `fileEditors`: reserved editors selected by file pattern or media type; they
-  activate only after the versioned TextDocument contract ships.
+- `fileEditors`: text editors selected by file pattern or media type and
+  activated in a sandboxed UI surface.
 
 Activation is derived from contributions. A command activates its worker when
-invoked. The first executable slice is commands, menus, read-only file access,
-notices, and disposal.
+invoked. Opening a matching file activates its UI entrypoint. Worker commands
+have read-only file access and host notices/select/confirm. File-editor
+surfaces receive a host-owned versioned TextDocument, appearance tokens, and
+effective capabilities.
 
 Version 1 imports are limited to relative vendored modules and
 `@eidos.space/extension-sdk`. Bare dependencies, Node.js or Electron built-ins,
@@ -42,6 +47,11 @@ Command code runs in a per-package Web Worker. UI runs in sandboxed iframes.
 Capabilities cross a dedicated MessagePort and are checked by the host for
 every request. Extensions do not receive raw Electron, Node.js, SQLite,
 filesystem, DataSpace, or complete secret access.
+
+Text surfaces submit minimal UTF-16 edits against an exact revision. Eidos owns
+dirty state, undo/redo, autosave, digest compare-and-swap writes,
+external-change conflicts, and broadcasts to multiple views. A surface cannot
+fall back to direct `writeFile()`.
 
 ## Trust and permissions
 
@@ -56,7 +66,9 @@ trust record.
 
 ```ts
 export function activate(context: ExtensionContext): void | Promise<void>
-export function deactivate(): void | Promise<void>
+export function activate(
+  context: ExtensionFileEditorContext
+): void | ExtensionDisposable | Promise<void | ExtensionDisposable>
 ```
 
 All registrations belong in `context.subscriptions` so the host can dispose
@@ -75,4 +87,5 @@ are executed. Updates are manual and never overwrite local edits silently.
 - https://docs.eidos.space/extensions/quickstart/
 - https://docs.eidos.space/extensions/architecture/
 - https://docs.eidos.space/reference/extension-sdk/
+- https://docs.eidos.space/reference/extension-surface-protocol/
 - https://docs.eidos.space/schemas/extension-manifest.schema.json

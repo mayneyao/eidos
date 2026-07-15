@@ -587,11 +587,18 @@ package 文件。
 - 再通过独立 `MessagePort` capability channel 在 sandboxed iframe surface 中激活 `fileEditors`。
 - 使用可编辑 Markdown Task Board 验证，而不是只读 demo。
 
-P3a host contract 已经在独立的 `@eidos.space/extension-surface-protocol` package 中实现。Version 1
-固定 UTF-16 edit offset、精确 base revision、有界 change batch、宿主拥有的 dirty/undo state、一次性的
-compare-and-swap save token、external conflict resolution 与 multi-view broadcast。该 package 不包含
-React、Electron、iframe、filesystem 或 editor 实现。激活第三方 iframe entrypoint 仍属于 P3b，并且必须
-消费这套 contract，不能另加直接写文件路径。
+当前 developer preview 已经实现。独立的 `@eidos.space/extension-surface-protocol` package 固定 UTF-16
+edit offset、精确 base revision、有界 change batch、host-owned dirty/undo state、一次性的
+compare-and-swap save token、external conflict resolution 与 multi-view broadcast。Desktop 宿主现在会
+匹配受信任的 `fileEditors`、打开共享 document session、通过专用 `MessagePort` 在 opaque sandboxed
+iframe 中激活 inspected UI bundle、传播宿主 appearance token，并提供 default editor 与 **Open with**
+routing。
+
+固定 iframe document 会拒绝 network、form、nested frame、remote asset 与 popup；main-window navigation
+policy 还会阻止已经初始化的 surface 替换自己的 `srcdoc` document。Activation 前会重新校验 source 与
+grant；每次 edit、save、undo、redo、resync、conflict decision 与 close 都必须经过 host-owned document
+manager。仓库内的 Markdown Task Board 只修改一个 checkbox marker，验证完整链路，同时保留正常
+autosave、undo、external-change 与 Graft 行为。
 
 ### P4：GitHub 安装
 

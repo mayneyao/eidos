@@ -7,7 +7,7 @@ sidebar:
     text: Preview
     variant: caution
 banner:
-  content: "<strong>Design preview:</strong> the file-based extension runtime is being implemented. This section defines the target developer contract; it is not yet available in stable Eidos builds."
+  content: "<strong>Experimental developer preview:</strong> the current Desktop development tree runs trusted command and file-editor extensions. The public API may still change before a stable release."
 ---
 
 An Eidos extension is a self-contained package installed inside a Space. The
@@ -17,22 +17,22 @@ Electron, Node.js, SQLite, or the host filesystem.
 
 ## What extensions can contribute
 
-| Contribution    | Purpose                                                     | Initial delivery    |
-| --------------- | ----------------------------------------------------------- | ------------------- |
-| `commands`      | Named operations available to menus and the command palette | Yes                 |
-| `menus`         | Contextual placement of commands                            | Yes                 |
-| `fileEditors`   | Editors or previews selected by file pattern or media type  | P3b host activation |
-| `folderViews`   | Purpose-built views for folders                             | Later               |
-| `baseViews`     | Grid alternatives such as gallery, kanban, or timeline      | Later               |
-| `agentTools`    | Permission-aware tools callable by an agent                 | Later               |
-| `configuration` | Host-rendered settings with explicit storage scope          | Later               |
+| Contribution    | Purpose                                                     | Initial delivery |
+| --------------- | ----------------------------------------------------------- | ---------------- |
+| `commands`      | Named operations available to menus and the command palette | Yes              |
+| `menus`         | Contextual placement of commands                            | Yes              |
+| `fileEditors`   | Editors or previews selected by file pattern or media type  | Experimental     |
+| `folderViews`   | Purpose-built views for folders                             | Later            |
+| `baseViews`     | Grid alternatives such as gallery, kanban, or timeline      | Later            |
+| `agentTools`    | Permission-aware tools callable by an agent                 | Later            |
+| `configuration` | Host-rendered settings with explicit storage scope          | Later            |
 
 Legacy `FileAction`, `DocAction`, and `TableAction` records are normalized into
 commands plus menu placements. They are not separate package runtimes.
 
 ## The developer path
 
-1. Complete the [five-minute quickstart](/extensions/quickstart/).
+1. Build the executable [Markdown Task Board](/extensions/quickstart/).
 2. Understand the [package anatomy](/extensions/anatomy/).
 3. Define contributions in the [manifest](/extensions/manifest/).
 4. Use [lifecycle and activation](/extensions/lifecycle/) correctly.

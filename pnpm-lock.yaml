@@ -289,6 +289,12 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0(@astrojs/starlight@0.37.7(astro@5.18.1(@types/node@25.4.0)(aws4fetch@1.0.20)(idb-keyval@6.2.2)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.1)(terser@5.47.1)(tsx@4.21.0)(typescript@5.9.3)(yaml@2.9.0)))
     devDependencies:
+      '@eidos.space/extension-manifest':
+        specifier: workspace:*
+        version: link:../../packages/extension-manifest
+      '@eidos.space/extension-runtime':
+        specifier: workspace:*
+        version: link:../../packages/extension-runtime
       ajv:
         specifier: ^8.20.0
         version: 8.20.0

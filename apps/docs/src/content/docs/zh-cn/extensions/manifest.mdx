@@ -41,10 +41,11 @@ package import。Dependency 可以作为可审查源码 vendoring 进 package，
 ## Contribution
 
 Contribution 是声明式数据。宿主可以在不激活 worker 的情况下索引 command，也可以在不加载
-UI bundle 的情况下把 file editor 放入 **Reopen with**。
+UI bundle 的情况下把 file editor 放入 **Open with**。
 
-File editor contribution 的 `id` 同时也是未来 UI entrypoint 注册实现时使用的 key；不存在第二个
-component ID。`fileEditors` 已保留在 Manifest v1 中，但要等宿主 TextDocument lifecycle 可用后才会激活。
+File editor contribution 的 `id` 同时也是传给 UI entrypoint 的稳定 activation identity；不存在第二个
+component ID。当前 Desktop developer preview 会通过 host-owned TextDocument lifecycle 与 sandboxed
+UI surface 打开匹配且受信任的 editor。
 
 Menu condition 使用宿主解析的表达式子集，例如：
 

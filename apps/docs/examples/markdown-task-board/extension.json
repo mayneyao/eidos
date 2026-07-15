@@ -1,0 +1,37 @@
+{
+  "$schema": "https://docs.eidos.space/schemas/extension-manifest.schema.json",
+  "manifestVersion": 1,
+  "publisher": "example",
+  "name": "markdown-task-board",
+  "displayName": "Markdown Task Board",
+  "description": "Open *.tasks.md files as an editable task board without changing their Markdown format.",
+  "version": "0.1.0",
+  "engines": {
+    "eidos": ">=0.33.0"
+  },
+  "entrypoints": {
+    "ui": "src/editor.ts"
+  },
+  "contributes": {
+    "fileEditors": [
+      {
+        "id": "example.markdown-task-board.editor",
+        "displayName": "Task Board",
+        "selector": [
+          {
+            "filenamePattern": "**/*.tasks.md",
+            "mediaType": "text/markdown"
+          }
+        ],
+        "priority": "default"
+      }
+    ]
+  },
+  "permissions": {
+    "files": {
+      "read": ["**/*.tasks.md"],
+      "write": ["**/*.tasks.md"]
+    },
+    "network": []
+  }
+}

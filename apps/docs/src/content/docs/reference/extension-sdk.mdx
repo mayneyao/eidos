@@ -1,57 +1,125 @@
 ---
 title: Extension SDK
-description: Capability-oriented namespaces exposed to extension workers and UI.
+description: Current capability-oriented contexts for extension workers and file-editor surfaces.
 sidebar:
   order: 3
-  badge: Preview
+  badge: Experimental
 ---
 
-The future `@eidos.space/extension-sdk` package is the only supported host
-boundary for third-party file-based extensions. It does not re-export the
-legacy `DataSpace` object.
+`@eidos.space/extension-sdk` is the supported TypeScript contract for
+third-party file-based extensions. It does not expose the legacy `DataSpace`
+object, Electron, Node.js, SQLite, or raw filesystem APIs.
 
-The first executable SDK slice exposes commands, menus, read-only file access,
-notices, and disposal. Write access, network, secrets, storage, and custom UI
-remain reserved contracts until their host-side lifecycle and enforcement are
-covered by integration tests.
+The SDK is currently an experimental developer preview. Version 1 includes a
+worker context for commands and a separate UI context for text file editors.
+Storage, secrets, network access, Base views, and agent tools remain outside the
+executable boundary.
+
+SDK imports are type-only in extension source. The fixed compiler removes them
+and rejects arbitrary bare-module imports; the host constructs the runtime
+context itself.
 
 ## Worker context
 
-| Namespace               | Purpose                                        | Permission examples                |
-| ----------------------- | ---------------------------------------------- | ---------------------------------- |
-| `context.commands`      | Register declared command handlers             | Command must exist in the manifest |
-| `context.space.files`   | Read, write, stat, and enumerate Space files   | `files.read`, `files.write`        |
-| `context.window`        | Notices, prompts, and host-mediated navigation | User gesture for disruptive UI     |
-| `context.storage`       | Device- or Space-scoped extension values       | Declared configuration scope       |
-| `context.secrets`       | Resolve a named secret reference               | Declared secret slot               |
-| `context.network`       | Make host-mediated HTTPS requests              | Exact approved origin              |
-| `context.subscriptions` | Own disposable runtime resources               | None                               |
+```ts
+import type { ExtensionContext } from "@eidos.space/extension-sdk"
 
-## UI context
+export function activate(context: ExtensionContext) {
+  context.subscriptions.add(
+    context.commands.register("example.package.command", async (resource) => {
+      const text = await context.space.files.readText(resource.path)
+      context.window.showNotice(`${text.length} characters`)
+    })
+  )
+}
+```
 
-UI contributions run in sandboxed frames and receive serializable view models,
-theme tokens, localization helpers, and a capability channel. They do not share
-the host React tree or receive direct DOM access outside their surface.
+| Namespace               | Current operations                              | Enforcement                                            |
+| ----------------------- | ----------------------------------------------- | ------------------------------------------------------ |
+| `context.commands`      | Register a command declared by the same package | Unknown IDs fail activation                            |
+| `context.space.files`   | `readText(path)`                                | Requires an active matching `files.read` grant         |
+| `context.window`        | `showNotice`, `confirm`, `select`               | Host validates and renders semantic UI                 |
+| `context.subscriptions` | Own disposables                                 | Disposed on stop, update, disable, or stale generation |
 
-Custom file editors are intentionally not part of the first executable slice.
-Their host-owned P3a model now exists in the independent
-[`@eidos.space/extension-surface-protocol` contract](/reference/extension-surface-protocol/):
-versioned snapshots, minimal edits, dirty state, undo/redo, compare-and-swap
-save, external-change conflicts, and multi-view synchronization. P3b must wire
-sandboxed surfaces to that model; an editor cannot bypass it with direct
-`writeFile()` calls.
+Worker `activate()` is lazy. Installing or discovering a package does not start
+it. A worker is tied to the inspected content digest and effective grants;
+changing either terminates the old generation.
 
-## Error contract
+## File editor context
 
-Capability failures use structured error codes:
+A package with `entrypoints.ui` and a matching `fileEditors` contribution
+exports:
 
-| Code                      | Meaning                                                            |
-| ------------------------- | ------------------------------------------------------------------ |
-| `CAPABILITY_NOT_DECLARED` | The manifest did not request this operation.                       |
-| `CAPABILITY_NOT_GRANTED`  | The user has not granted the requested scope.                      |
-| `PATH_OUT_OF_SCOPE`       | A file path is outside the approved Space patterns.                |
-| `RUNTIME_STALE`           | Package content or grants changed while the request was in flight. |
-| `EXTENSION_STOPPED`       | The worker or UI runtime has been terminated.                      |
+```ts
+import type { ExtensionFileEditorContext } from "@eidos.space/extension-sdk"
 
-The final package API will be published together with the first executable
-Quickstart so documentation never claims a runtime that cannot be installed.
+export function activate(context: ExtensionFileEditorContext) {
+  context.root.textContent = context.document.snapshot.text
+}
+```
+
+| Member                              | Meaning                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------ |
+| `extensionId`, `editorId`, `viewId` | Stable activation identity and this surface instance                     |
+| `root`                              | The only DOM mount point provided to the package                         |
+| `document.snapshot`                 | Latest immutable text, resource metadata, revision, dirty and undo state |
+| `document.applyEdits()`             | Submit sorted, non-overlapping UTF-16 edits against the current revision |
+| `document.save()`                   | Ask the host to persist the current revision                             |
+| `document.undo()` / `redo()`        | Operate on shared host-owned document history                            |
+| `document.resync()`                 | Request a fresh full snapshot after a stale local view                   |
+| `document.onDidChange()`            | Receive minimal edits or a replacement snapshot from every view          |
+| `document.onDidChangeState()`       | Receive dirty, saved baseline, conflict, and undo-state changes          |
+| `document.onDidChangeSaveState()`   | Receive saving, saved, and error transitions                             |
+| `appearance.current`                | Resolved locale, color scheme, and stable theme tokens                   |
+| `capabilities`                      | Effective editable/save/undo and autosave policy, after local grants     |
+| `subscriptions`                     | Listeners the host disposes with the surface generation                  |
+
+The document API returns the accepted revision number. It never returns a file
+handle. A surface must apply every host broadcast, including edits attributed
+to its own view, because the host is authoritative.
+
+The exact serializable messages are defined by the
+[surface protocol](/reference/extension-surface-protocol/).
+
+## Appearance tokens
+
+The runtime maps `appearance.current.theme` to CSS custom properties:
+
+```css
+var(--eidos-color-background)
+var(--eidos-color-foreground)
+var(--eidos-color-muted-background)
+var(--eidos-color-muted-foreground)
+var(--eidos-color-border)
+var(--eidos-color-accent)
+var(--eidos-color-accent-foreground)
+var(--eidos-color-destructive)
+var(--eidos-color-destructive-foreground)
+var(--eidos-color-focus-ring)
+var(--eidos-font-family)
+var(--eidos-font-family-mono)
+```
+
+These values are resolved host tokens, not class names. The host updates them
+when appearance changes, so a surface does not need access to Eidos internals.
+
+## Error contracts
+
+Worker failures use codes such as `CAPABILITY_DENIED`, `RUNTIME_STALE`,
+`RUNTIME_TIMEOUT`, and `RUNTIME_COMMAND_FAILED`.
+
+File-editor document requests may reject with `INVALID_EDIT`,
+`STALE_REVISION`, `READ_ONLY`, `CONFLICT`, `RUNTIME_STALE`, `SAVE_FAILED`, or
+`NOT_AVAILABLE`. Treat these as runtime state, not as reasons to bypass the SDK.
+After `STALE_REVISION`, apply pending broadcasts or call `resync()` before
+retrying.
+
+## Minimal complete examples
+
+- [Markdown Task Counter source](https://github.com/mayneyao/eidos/tree/dev/apps/docs/examples/markdown-task-counter)
+  demonstrates a worker command, read-only file access, and a host notice.
+- [Markdown Task Board](/extensions/quickstart/) demonstrates a complete
+  `fileEditors` flow with minimal text edits, appearance tokens, autosave, undo,
+  and raw-Markdown fallback.
+
+The checked-in source for both packages lives under `apps/docs/examples/`.

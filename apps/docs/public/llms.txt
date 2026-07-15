@@ -10,7 +10,7 @@ containing files, Bases, versioned data, and optionally extension source.
 - [Platform introduction](https://docs.eidos.space/getting-started/)
 - [Core concepts](https://docs.eidos.space/concepts/)
 - [Extension overview](https://docs.eidos.space/extensions/)
-- [Five-minute extension quickstart](https://docs.eidos.space/extensions/quickstart/)
+- [Markdown Task Board quickstart](https://docs.eidos.space/extensions/quickstart/)
 - [Automation and APIs](https://docs.eidos.space/automation/)
 - [Reference](https://docs.eidos.space/reference/)
 
@@ -26,8 +26,9 @@ containing files, Bases, versioned data, and optionally extension source.
 
 ## Status
 
-The file-based extension runtime is a design preview. Do not claim that an API
-is executable unless its page no longer carries the Design preview status.
+The current Desktop development tree provides an experimental runtime for
+trusted command and text file-editor extensions. Treat the API as unstable
+until a stable developer preview is released.
 
 ## Legacy
 

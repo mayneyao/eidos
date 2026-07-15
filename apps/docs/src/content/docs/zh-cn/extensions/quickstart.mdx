@@ -1,21 +1,24 @@
 ---
-title: 开发 Markdown 任务计数器
-description: 从使用场景开始，完整开发、安装并使用一个文件右键菜单扩展。
+title: 开发 Markdown Task Board
+description: 从零开发、安装并使用一个可编辑的 file-based UI 扩展。
 sidebar:
   order: 2
   badge:
-    text: Preview
+    text: Experimental
     variant: caution
 banner:
-  content: "<strong>Runtime preview：</strong>当前 Desktop 开发分支会在隔离 lazy Worker 中运行受信任的 command/menu 扩展，并开放只读文本访问和宿主语义 UI。"
+  content: "<strong>Experimental runtime：</strong>当前 Desktop 开发分支可以在 sandboxed UI surface 中激活受信任的 <code>fileEditors</code>；在 developer preview 稳定前，API 仍可能调整。"
 ---
 
-本指南开发 **Markdown Task Counter**。它解决的是一个具体问题：用户在 Markdown 笔记中管理任务，
-希望不打开其他面板就能知道当前文件还有多少任务未完成。
+本指南开发 **Markdown Task Board**。它把 `*.tasks.md` 文件显示为双栏任务看板，但文件的
+source of truth 始终是普通 Markdown。
+
+经过真实编译检查的完整 package 位于
+[`apps/docs/examples/markdown-task-board`](https://github.com/mayneyao/eidos/tree/dev/apps/docs/examples/markdown-task-board)。
 
 ## 用户使用场景
 
-假设 `projects/website.md` 包含：
+创建 `projects/website.tasks.md`：
 
 ```md
 # Website launch
@@ -25,57 +28,49 @@ banner:
 - [ ] Invite beta users
 ```
 
-安装扩展后，用户可以：
+启用扩展后，打开这个文件会看到：
 
-1. 在 Files sidebar 找到 `website.md`；
-2. 右键点击文件；
-3. 选择 **Count Markdown tasks**；
-4. 在 Eidos notice 中看到 `projects/website.md: 2 open, 1 completed`。
+- **2 to do**、**1 completed** 和 **33%** 的进度摘要；
+- **To do** 与 **Completed** 两个分栏；
+- 每个 Markdown task-list item 对应一张 card；
+- 由 Eidos 提供的内联保存状态；
+- 勾选 card 后移动分栏，但文件格式保持不变。
 
-扩展不会修改文档，也不访问网络，只请求读取 Markdown 文件。
+用户随时可以在文件右键菜单选择 **Open with Eidos**，回到普通 Lexical 编辑器检查或修改原始
+Markdown。
 
-## Command 执行时发生什么
+## 谁拥有数据
+
+Task Board 只拥有展示，不拥有持久化：
 
 ```text
-用户右键点击 website.md
-          │
-          ▼
-Eidos 匹配 `resourceExtname == .md`
-          │
-          ▼
-用户选择 “Count Markdown tasks”
-          │ lazy activation
-          ▼
-Extension worker 通过 context.space.files 读取这个文件
-          │
-          ▼
-扩展统计 `[ ]` 和 `[x]` task-list item
-          │
-          ▼
-Eidos 通过宿主 notice 显示结果
+website.tasks.md
+       │ 宿主打开一个 versioned TextDocument
+       ▼
+sandboxed Task Board surface
+       │ applyEdits([{ start, end, text: "x" }])
+       ▼
+Eidos 校验 revision 并记录 undo
+       │ autosave + digest compare-and-swap
+       ▼
+website.tasks.md + Graft 可见的文件变更
 ```
 
-这个流程展示了 command extension 必需的三部分：
-
-- **Manifest contribution**：让 Eidos 在不执行代码时发现 command；
-- **Activation handler**：实现实际行为；
-- **Permission declaration**：覆盖代码需要的宿主操作。
+Surface 不会获得 Electron、Node.js、raw filesystem handle 或 `writeFile()`。Revision、dirty state、
+undo/redo、autosave、外部修改冲突，以及同一文件多个 view 的同步，都由 Eidos 宿主管理。
 
 ## 第一步：创建 package
 
-开发时应在生产 Space 之外创建：
+开发时先在生产 Space 之外创建：
 
 ```text
-markdown-task-counter/
+markdown-task-board/
 ├── extension.json
 └── src/
-    └── extension.ts
+    ├── editor.css
+    ├── editor.ts
+    └── tasks.ts
 ```
-
-文档使用的完整版本位于
-[`apps/docs/examples/markdown-task-counter`](https://github.com/mayneyao/eidos/tree/dev/apps/docs/examples/markdown-task-counter)。
-
-## 第二步：描述扩展
 
 创建 `extension.json`：
 
@@ -84,204 +79,212 @@ markdown-task-counter/
   "$schema": "https://docs.eidos.space/schemas/extension-manifest.schema.json",
   "manifestVersion": 1,
   "publisher": "example",
-  "name": "markdown-task-counter",
-  "displayName": "Markdown Task Counter",
-  "description": "Count open and completed tasks in a Markdown file.",
+  "name": "markdown-task-board",
+  "displayName": "Markdown Task Board",
+  "description": "Open *.tasks.md files as an editable task board without changing their Markdown format.",
   "version": "0.1.0",
   "engines": { "eidos": ">=0.33.0" },
-  "entrypoints": { "worker": "src/extension.ts" },
+  "entrypoints": { "ui": "src/editor.ts" },
   "contributes": {
-    "commands": [
+    "fileEditors": [
       {
-        "id": "example.markdown-task-counter.count-tasks",
-        "title": "Count Markdown tasks"
+        "id": "example.markdown-task-board.editor",
+        "displayName": "Task Board",
+        "selector": [
+          {
+            "filenamePattern": "**/*.tasks.md",
+            "mediaType": "text/markdown"
+          }
+        ],
+        "priority": "default"
       }
-    ],
-    "menus": {
-      "files/context": [
-        {
-          "command": "example.markdown-task-counter.count-tasks",
-          "when": "resourceExtname == .md"
-        }
-      ]
-    }
+    ]
   },
   "permissions": {
-    "files": { "read": ["**/*.md"], "write": [] },
+    "files": {
+      "read": ["**/*.tasks.md"],
+      "write": ["**/*.tasks.md"]
+    },
     "network": []
   }
 }
 ```
 
-关键字段的作用：
+关键设计决定：
 
-| Manifest value            | 作用                                                       |
-| ------------------------- | ---------------------------------------------------------- |
-| `publisher` + `name`      | 派生稳定 package ID：`example.markdown-task-counter`。     |
-| `commands`                | 让宿主无需运行扩展代码就能搜索 command。                   |
-| `files/context`           | 把 command 放进 Files sidebar 的右键菜单。                 |
-| `when`                    | 在 folder、image、`.base` 和其他非 Markdown 文件上隐藏它。 |
-| `files.read`              | 让宿主准确解释并限制 worker 可以读取什么。                 |
-| 空的 `write` 与 `network` | 明确扩展不需要这些 capability。                            |
+| Manifest value        | 效果                                                    |
+| --------------------- | ------------------------------------------------------- |
+| `entrypoints.ui`      | 构建 DOM surface；这个 package 不需要 worker。          |
+| `fileEditors[].id`    | 作为 tab URL 与 activation 共用的稳定 editor identity。 |
+| `**/*.tasks.md`       | 普通 `.md` 文件继续使用内置编辑器。                     |
+| `priority: "default"` | 匹配文件直接打开看板，不再多弹一个选择器。              |
+| read + write grants   | 用户本地批准后，宿主才能打开并保存匹配文件。            |
+| 空 `network`          | Surface 中的网络 API 不可用。                           |
 
-## 第三步：实现 command
+修改源码或申请的 permission 会产生新的 inspected snapshot。Trust、enablement 与 grant 只对用户审阅过的
+精确 content digest 和 permission hash 生效。
 
-创建 `src/extension.ts`：
+## 第二步：解析 Markdown，但不要重写它
+
+`src/tasks.ts` 扫描 task-list 行，并记录 checkbox marker 的 offset：
 
 ```ts
-import type { ExtensionContext } from "@eidos.space/extension-sdk"
+export interface MarkdownTask {
+  checked: boolean
+  label: string
+  line: number
+  markerOffset: number
+}
 
-export function activate(context: ExtensionContext) {
-  context.subscriptions.add(
-    context.commands.register(
-      "example.markdown-task-counter.count-tasks",
-      async (resource) => {
-        const text = await context.space.files.readText(resource.path)
-        const open = text.match(/^\s*[-*]\s+\[ \]/gim)?.length ?? 0
-        const completed = text.match(/^\s*[-*]\s+\[[xX]\]/gim)?.length ?? 0
+const TASK_LINE = /^(\s*[-*+]\s+\[)([ xX])\](?:\s+(.*?))?\s*$/
+```
 
-        context.window.showNotice(
-          `${resource.path}: ${open} open, ${completed} completed`
-        )
-      }
-    )
-  )
+完整 parser 还会忽略 fenced code block，并处理 CRLF 文件。Offset 使用 JavaScript UTF-16 code unit，
+与 version 1 surface protocol 一致；即使 task 之前存在 emoji，也不会破坏 edit range。
+
+不要把文档解析成一份新 Markdown，再替换整个文件。这会破坏无关格式、产生嘈杂的 Graft diff、丢失
+selection，也会让多个并发 view 更容易冲突。
+
+## 第三步：激活 UI surface
+
+UI entrypoint 导出一个 `activate()`：
+
+```ts
+import type { ExtensionFileEditorContext } from "@eidos.space/extension-sdk"
+
+import "./editor.css"
+import { parseMarkdownTasks } from "./tasks"
+
+export function activate(context: ExtensionFileEditorContext) {
+  function render() {
+    const tasks = parseMarkdownTasks(context.document.snapshot.text)
+    const list = document.createElement("ul")
+
+    for (const task of tasks) {
+      const item = document.createElement("li")
+      const button = document.createElement("button")
+      button.textContent = `${task.checked ? "✓" : "○"} ${task.label}`
+      button.disabled = context.document.snapshot.readOnly
+      button.addEventListener("click", () => void toggle(task))
+      item.append(button)
+      list.append(item)
+    }
+
+    context.root.replaceChildren(list)
+  }
+
+  async function toggle(task: ReturnType<typeof parseMarkdownTasks>[number]) {
+    await context.document.applyEdits([
+      {
+        start: task.markerOffset,
+        end: task.markerOffset + 1,
+        text: task.checked ? " " : "x",
+      },
+    ])
+  }
+
+  context.subscriptions.add(context.document.onDidChange(render))
+  context.subscriptions.add(context.document.onDidChangeState(render))
+  render()
+
+  return { dispose: () => context.root.replaceChildren() }
 }
 ```
 
-Eidos 启动时不会执行 `activate()`。用户第一次调用 command 时才创建这个 package 的 worker。
-`context.subscriptions` 保证扩展被禁用、更新或停止后，command handler 会被统一释放。
+仓库内的完整实现还包含 accessible task button、progress、empty state、保存/错误状态、focus 恢复和
+responsive style。它只使用 `context.root` 提供的 mount point。
 
-正则只统计位于行首的 Markdown task-list item。``Use `[ ]` as a marker`` 这样的普通文本不会被统计。
+### 使用宿主 theme
 
-## 第四步：验证 package
+Eidos 提供一组小而稳定的 token，不暴露内部 Tailwind class 或 DOM：
 
-在 Eidos repository checkout 中运行：
+```css
+:root {
+  font-family: var(--eidos-font-family);
+  color: var(--eidos-color-foreground);
+  background: var(--eidos-color-background);
+}
+
+.task-card:focus-visible {
+  outline: 2px solid var(--eidos-color-focus-ring);
+}
+```
+
+Appearance 改变后，宿主会更新这些变量。Package-local CSS 从 inspected snapshot 编译；surface CSP
+会阻止 remote style、font、script、frame 与 image。
+
+## 第四步：验证并编译示例
+
+在 Eidos checkout 中运行：
 
 ```bash
 pnpm --filter docs check:examples
 ```
 
-预期输出：
+输出应包含：
 
 ```text
-Validated example.markdown-task-counter
+Validated example.markdown-task-board
 ```
 
-当前检查会验证：
+这不只是 JSON 检查。命令会验证 contribution ID 和 entrypoint path，并用 Desktop 相同的固定 compiler
+编译每个 worker 与 UI entrypoint；compiler warning 也会让检查失败。
 
-- 完整 Manifest 符合公开的 version 1 JSON Schema；
-- command ID 属于当前 package；
-- menu item 引用的是已经声明的 command；
-- entrypoint 是存在于 package 内部的相对路径。
+Task Board parser 与交互 surface 还有可执行测试：
 
-未来安装器会在任何源码被信任或执行之前完成这些检查。
+```bash
+pnpm exec vitest run \
+  apps/docs/tests/markdown-task-board-tasks.test.ts \
+  apps/docs/tests/markdown-task-board-editor.test.ts
+```
 
-### 在当前 Desktop 开发版本中创建、批准并运行
-
-当前开发分支已经提供 Worker runtime 的开发者预览。可以不经过弹窗，直接创建一个本地扩展包：
-
-1. 用 Eidos Desktop 打开一个 file Space；
-2. 打开 **Settings → Extensions**，点击 **新建扩展**；
-3. 输入 `task-counter` 这样的 package name，点击 **创建**；
-4. Eidos 会在 `.eidos/extensions/local.task-counter/` 下写入
-   `extension.json`、`src/extension.ts` 和 `README.md`；
-5. 打开 **Version**，可以把这三个源码文件作为普通 Changes 审查。
-
-如果希望检查完整的 Task Counter 示例：
+## 第五步：安装到本地 Space
 
 1. 把示例目录复制到
-   `<你的-space>/.eidos/extensions/example.markdown-task-counter/`；
-2. 用 Eidos Desktop 打开这个 file Space；
-3. 打开 **Settings → Extensions**，点击 **刷新**；
-4. 查看扩展包状态与诊断信息。
+   `<space>/.eidos/extensions/example.markdown-task-board/`。
+2. 用 Eidos Desktop 打开这个 Space。
+3. 打开 **Settings → Extensions**，点击 **Refresh**。
+4. 审阅 package ID、content digest、entrypoint、contribution 与两项 file grant。
+5. 对当前精确 snapshot 点击 **Trust source**。
+6. 授权 `files.read **/*.tasks.md` 和 `files.write **/*.tasks.md`。
+7. 打开 **Enablement**。
 
-“未信任”表示 Manifest、兼容范围、entrypoint、import、permission 和 package digest 已经通过检查，
-但还不存在本地 trust decision。点击 **审阅** 可以查看精确 content digest 和每项 capability request。
-**信任源码**、启用状态和每项 permission grant 是彼此独立的本地决定；只有三者都允许当前精确快照时，
-Eidos 才会执行 Worker。
+安装、trust、grant 与 enablement 是不同决定。只有所有适用决定都允许同一个 inspected snapshot，package
+才会运行。
 
-这些决定保存在 `.eidos/state/extensions.sqlite3` 中，它属于私有状态，不会出现在 Version。状态以 package ID、
-content digest 和 permission hash 为键。修改任何 package 文件都会形成新快照：状态重新变为“未信任”，
-启用关闭，所有权限重新默认拒绝。旧扫描结果也不能覆盖更新后的结果。
+## 第六步：实际使用并验收
 
-仓库内的示例面向 Eidos 0.33，可以直接在当前 Desktop 开发版本中运行。
+1. 创建 `website.tasks.md`，加入本页示例 Markdown。
+2. 打开文件；默认匹配 editor 应为 **Task Board**。
+3. 勾选 **Finish the landing page**。
+4. 确认 card 移到 **Completed**，进度变为 `67%`，保存状态最终回到 **Saved**。
+5. 选择 **Open with Eidos**，确认原始行变为
+   `- [x] Finish the landing page`。
+6. 执行 Eidos undo，确认所有打开 view 都恢复到上一个状态。
+7. 在看板存在未保存编辑时从外部修改文件，确认宿主 conflict banner 提供 **Reload file** 与
+   **Keep my changes**。
 
-## 第五步：审阅并记录本地批准
+文件 diff 中应该只有 checkbox marker。如果整个文件都发生变化，扩展就绕过了预期 document model。
 
-对于已经位于 `.eidos/extensions` 下的 package：
+## 通过 GitHub 发布
 
-1. 先在 **Version** 中审阅被追踪的源码文件；
-2. 打开 **Settings → Extensions**，点击 **审阅**，核对 package ID、content digest 和申请的 capability；
-3. 点击 **信任源码**，它只批准当前检查到的精确快照；
-4. 授权 `files.read **/*.md`，其他 capability 仍保持拒绝；
-5. 打开 **启用状态**，记录当前快照在本机的启用意图。
+把 package 内容放在 public repository 根目录，推送 `v0.1.0` 这样的 immutable tag。在
+**Settings → Extensions** 中选择 **Install from GitHub**，填写 repository 与 tag，准备 review，再安装
+resolved commit。Eidos 不运行 `npm install` 或 repository lifecycle script。
 
-此时状态会变为“已启用”。打开命令面板并选择 **Count Markdown tasks**，或右键点击一个
-`.md` 文件并选择同名命令。Eidos 会按需启动这个 package 的 Worker，只通过已经授权的
-`files.read` pattern 读取选中的文件，然后显示类似
-`tasks.md: 2 open, 1 completed` 的宿主通知。
+安装后，用户仍要在本机审阅 trust 与 grant。更新到另一个 tag 会形成新的 source snapshot，也不会静默
+覆盖本地已经修改的 extension file。
 
-这条通知并不是扩展自行渲染的。扩展只请求 `window.showNotice`，Eidos 会重新校验当前快照并使用
-自己的 UI 渲染；confirm 和 select 也使用相同的宿主语义 UI 边界。撤销信任、停用 package、移除
-grant 或修改任意源码文件，都会终止活动 runtime，并使旧快照失效。
+## 常见问题
 
-### 从 GitHub 安装示例
+| 现象                     | 检查项                                                               |
+| ------------------------ | -------------------------------------------------------------------- |
+| 看不到 Task Board        | 文件必须以 `.tasks.md` 结尾，并刷新 package discovery。              |
+| Package 显示 `Untrusted` | 审阅并信任当前 content digest，不能只看旧 version string。           |
+| Board 只读               | 同时授权匹配的 read 与 write capability。                            |
+| Activation error         | 查看 package diagnostics，并在本地编译示例。                         |
+| Edit 被判定 stale        | 应用宿主 broadcast，并在重试前调用 `resync()`。                      |
+| Save conflict            | 使用宿主 conflict banner 解决，不能增加 direct filesystem fallback。 |
 
-Desktop 开发者预览已经支持 GitHub 安装。安装器要求 extension 位于 repository root，而仓库内示例
-位于 Eidos monorepo 的子目录。发布这个示例时，请新建独立 repository，把
-`apps/docs/examples/markdown-task-counter` 的内容放到仓库根目录，然后推送 `v0.1.0` 这样的 tag。
-
-安装发布后的 package：
-
-1. 打开 **Settings → Extensions**。
-2. 点击 **Install from GitHub**，粘贴公开 repository URL，并填写 release tag。
-3. 点击 **Prepare review**，然后审查 resolved commit、package ID、changed files 和请求的权限：
-   **Read Markdown files in this Space**。
-4. 点击 **Install reviewed source**。Eidos 把 immutable source snapshot 复制到
-   `.eidos/extensions/example.markdown-task-counter/`。
-5. 审阅 trust、grants 和 enablement。仅仅安装 package 永远不会执行它。
-
-当前预览只支持公开 repository。Eidos 不会运行 `npm install` 或 repository script；发布者仓库也不能
-包含由宿主管理的 `extension.lock.json`。
-
-## 第六步：实际使用
-
-Runtime 可用且扩展启用后：
-
-1. 创建或打开一个包含 `- [ ]`、`- [x]` 的 Markdown 文件。
-2. 在 **Files** sidebar 右键点击这个文件。
-3. 确认菜单中出现 **Count Markdown tasks**。在 folder、image、`.base` 或其他非 Markdown
-   文件上不应该出现。
-4. 点击 command。
-5. 确认 notice 中的 open 和 completed 数量正确。
-
-可以用下面的边界情况测试：
-
-| 文件内容                           | 预期结果              |
-| ---------------------------------- | --------------------- |
-| 没有 task-list item                | `0 open, 0 completed` |
-| `* [ ] Task`                       | 计入 open             |
-| `- [X] Task`                       | 计入 completed        |
-| 普通文本 ``Use `[ ]` as a marker`` | 不计入                |
-
-## 第七步：修改与调试
-
-本地开发时，修改除宿主管理的 `extension.lock.json` 外的任何已安装 package 文件，都会产生新的
-content digest。Eidos 会终止旧 worker，并要求用户信任新 digest 后才能 reload。Extension Manager
-应把 Manifest、build、activation 和 permission error 显示在当前 package 上，而不是静默继续运行旧 bundle。
-
-| 现象               | 检查项                                                           |
-| ------------------ | ---------------------------------------------------------------- |
-| 菜单中没有 command | 确认文件以 `.md` 结尾，并且 menu command ID 与 `commands` 一致。 |
-| Permission error   | 确认 `files.read` 覆盖选中文件的相对路径。                       |
-| Activation error   | 打开 package diagnostics，并检查 `src/extension.ts`。            |
-| 数量不正确         | 修改 parser 前，先把失败的 Markdown 行加入测试。                 |
-
-## 下一步
-
-- [Manifest](/zh-cn/extensions/manifest/)解释每项 package declaration。
-- [架构与 UI 模型](/zh-cn/extensions/architecture/)解释宿主 UI、语义 UI 和自定义 UI 的边界。
-- [生命周期](/zh-cn/extensions/lifecycle/)介绍 activation、源码变化和失败处理。
-- [安全模型](/zh-cn/extensions/security/)介绍 trust 和 capability enforcement。
-- [GitHub 分发](/zh-cn/extensions/distribution/)介绍发布与更新。
+下一步阅读 [UI architecture](/zh-cn/extensions/architecture/) 和精确的
+[surface protocol](/zh-cn/reference/extension-surface-protocol/)。

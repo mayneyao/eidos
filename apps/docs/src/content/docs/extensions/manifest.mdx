@@ -47,13 +47,13 @@ relatively.
 ## Contributions
 
 Contributions are declarative. A command can be indexed without activating the
-worker, and a file editor can be offered in **Reopen with** without loading its
-UI bundle.
+worker, and a file editor can be offered in **Open with** without loading its UI
+bundle.
 
-The file editor contribution `id` is also the key used by the future UI
-entrypoint to register its implementation; there is no second component ID.
-`fileEditors` is reserved in manifest version 1 but is not activated until the
-host TextDocument lifecycle is available.
+The file editor contribution `id` is also the stable activation identity passed
+to the UI entrypoint; there is no second component ID. In the current Desktop
+developer preview, a matching trusted editor opens through the host-owned
+TextDocument lifecycle and a sandboxed UI surface.
 
 Menu conditions use a host-parsed expression subset such as:
 

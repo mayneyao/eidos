@@ -1,21 +1,25 @@
 ---
-title: Build a Markdown task counter
-description: Build, install, and use a practical file context-menu extension from start to finish.
+title: Build a Markdown Task Board
+description: Build, install, and use an editable file-based UI extension from start to finish.
 sidebar:
   order: 2
   badge:
-    text: Preview
+    text: Experimental
     variant: caution
 banner:
-  content: "<strong>Runtime preview:</strong> the current Desktop development tree runs trusted command/menu extensions in isolated lazy Workers with read-only text access and host-owned semantic UI."
+  content: "<strong>Experimental runtime:</strong> the current Desktop development tree can activate trusted <code>fileEditors</code> in sandboxed UI surfaces. The API may still change before the developer preview is declared stable."
 ---
 
-This guide builds **Markdown Task Counter**, a small but useful extension for
-people who keep tasks in Markdown notes.
+This guide builds **Markdown Task Board**, an extension that opens
+`*.tasks.md` files as a two-column board while keeping ordinary Markdown as the
+source of truth.
+
+The complete, compiler-checked package is available at
+[`apps/docs/examples/markdown-task-board`](https://github.com/mayneyao/eidos/tree/dev/apps/docs/examples/markdown-task-board).
 
 ## The user scenario
 
-Suppose `projects/website.md` contains:
+Create `projects/website.tasks.md`:
 
 ```md
 # Website launch
@@ -25,58 +29,51 @@ Suppose `projects/website.md` contains:
 - [ ] Invite beta users
 ```
 
-After installing the extension, the user can:
+With the extension enabled, opening this file shows:
 
-1. find `website.md` in the Files sidebar;
-2. right-click the file;
-3. select **Count Markdown tasks**;
-4. see `projects/website.md: 2 open, 1 completed` in an Eidos notice.
+- a summary of **2 to do**, **1 completed**, and **33%** progress;
+- a **To do** column and a **Completed** column;
+- one card for every Markdown task-list item;
+- inline save state supplied by Eidos;
+- a checkbox interaction that moves a card without changing the file format.
 
-The extension never modifies the note and never uses the network. It requests
-read access to Markdown files only.
+The user can choose **Open with Eidos** from the file context menu at any time
+to inspect or edit the raw Markdown in the normal Lexical editor.
 
-## What happens when the command runs
+## What owns the data
+
+The Task Board owns presentation, not persistence:
 
 ```text
-User right-clicks website.md
-          │
-          ▼
-Eidos matches `resourceExtname == .md`
-          │
-          ▼
-User chooses “Count Markdown tasks”
-          │ lazy activation
-          ▼
-Extension worker reads this file through context.space.files
-          │
-          ▼
-Extension counts `[ ]` and `[x]` task-list items
-          │
-          ▼
-Eidos displays a host notice with the result
+website.tasks.md
+       │ host opens one versioned TextDocument
+       ▼
+sandboxed Task Board surface
+       │ applyEdits([{ start, end, text: "x" }])
+       ▼
+Eidos validates the revision and records undo
+       │ autosave with digest compare-and-swap
+       ▼
+website.tasks.md + Graft-visible file change
 ```
 
-This flow demonstrates the three parts every command extension needs:
-
-- a **manifest contribution** so Eidos can discover the command;
-- an **activation handler** containing the behavior;
-- a **permission declaration** covering the host operation.
+The surface never receives Electron, Node.js, a raw filesystem handle, or a
+`writeFile()` function. Eidos owns revisions, dirty state, undo/redo,
+autosave, external-change conflicts, and synchronization between multiple
+views of the same file.
 
 ## Step 1: Create the package
 
-Create the following directory outside your production Space while developing:
+Create this structure outside a production Space while developing:
 
 ```text
-markdown-task-counter/
+markdown-task-board/
 ├── extension.json
 └── src/
-    └── extension.ts
+    ├── editor.css
+    ├── editor.ts
+    └── tasks.ts
 ```
-
-The complete version used by these docs is available at
-[`apps/docs/examples/markdown-task-counter`](https://github.com/mayneyao/eidos/tree/dev/apps/docs/examples/markdown-task-counter).
-
-## Step 2: Describe the extension
 
 Create `extension.json`:
 
@@ -85,223 +82,227 @@ Create `extension.json`:
   "$schema": "https://docs.eidos.space/schemas/extension-manifest.schema.json",
   "manifestVersion": 1,
   "publisher": "example",
-  "name": "markdown-task-counter",
-  "displayName": "Markdown Task Counter",
-  "description": "Count open and completed tasks in a Markdown file.",
+  "name": "markdown-task-board",
+  "displayName": "Markdown Task Board",
+  "description": "Open *.tasks.md files as an editable task board without changing their Markdown format.",
   "version": "0.1.0",
   "engines": { "eidos": ">=0.33.0" },
-  "entrypoints": { "worker": "src/extension.ts" },
+  "entrypoints": { "ui": "src/editor.ts" },
   "contributes": {
-    "commands": [
+    "fileEditors": [
       {
-        "id": "example.markdown-task-counter.count-tasks",
-        "title": "Count Markdown tasks"
+        "id": "example.markdown-task-board.editor",
+        "displayName": "Task Board",
+        "selector": [
+          {
+            "filenamePattern": "**/*.tasks.md",
+            "mediaType": "text/markdown"
+          }
+        ],
+        "priority": "default"
       }
-    ],
-    "menus": {
-      "files/context": [
-        {
-          "command": "example.markdown-task-counter.count-tasks",
-          "when": "resourceExtname == .md"
-        }
-      ]
-    }
+    ]
   },
   "permissions": {
-    "files": { "read": ["**/*.md"], "write": [] },
+    "files": {
+      "read": ["**/*.tasks.md"],
+      "write": ["**/*.tasks.md"]
+    },
     "network": []
   }
 }
 ```
 
-The important lines are:
+The important decisions are:
 
-| Manifest value              | Why it exists                                                       |
-| --------------------------- | ------------------------------------------------------------------- |
-| `publisher` + `name`        | Derives the stable package ID `example.markdown-task-counter`.      |
-| `commands`                  | Makes the command searchable without running extension code.        |
-| `files/context`             | Places the command in the Files sidebar context menu.               |
-| `when`                      | Hides the command for folders, images, and non-Markdown files.      |
-| `files.read`                | Lets the host explain and enforce exactly what the worker may read. |
-| empty `write` and `network` | Proves the extension does not need these capabilities.              |
+| Manifest value        | Effect                                                              |
+| --------------------- | ------------------------------------------------------------------- |
+| `entrypoints.ui`      | Builds a DOM surface; no worker is needed for this package.         |
+| `fileEditors[].id`    | Stable editor identity used in tab URLs and activation.             |
+| `**/*.tasks.md`       | Leaves ordinary `.md` files with the built-in editor.               |
+| `priority: "default"` | Opens matching files as a board without another picker.             |
+| read + write grants   | Lets the host open and persist matching files after local approval. |
+| empty `network`       | Makes network APIs unavailable inside the surface.                  |
 
-## Step 3: Implement the command
+Changing source or requested permissions changes the inspected snapshot. Trust,
+enablement, and grants apply only to the exact content and permission digests
+the user reviewed.
 
-Create `src/extension.ts`:
+## Step 2: Parse Markdown without rewriting it
+
+`src/tasks.ts` scans task-list lines and records the checkbox marker offset:
 
 ```ts
-import type { ExtensionContext } from "@eidos.space/extension-sdk"
+export interface MarkdownTask {
+  checked: boolean
+  label: string
+  line: number
+  markerOffset: number
+}
 
-export function activate(context: ExtensionContext) {
-  context.subscriptions.add(
-    context.commands.register(
-      "example.markdown-task-counter.count-tasks",
-      async (resource) => {
-        const text = await context.space.files.readText(resource.path)
-        const open = text.match(/^\s*[-*]\s+\[ \]/gim)?.length ?? 0
-        const completed = text.match(/^\s*[-*]\s+\[[xX]\]/gim)?.length ?? 0
+const TASK_LINE = /^(\s*[-*+]\s+\[)([ xX])\](?:\s+(.*?))?\s*$/
+```
 
-        context.window.showNotice(
-          `${resource.path}: ${open} open, ${completed} completed`
-        )
-      }
-    )
-  )
+The complete parser also ignores fenced code blocks and handles CRLF files. Its
+offsets are JavaScript UTF-16 code units, which is the version 1 surface
+protocol coordinate system. An emoji before a task therefore does not corrupt
+the edit range.
+
+Do not parse the document into a new Markdown string and replace the whole
+file. That would destroy unrelated formatting, produce noisy Graft diffs, lose
+the user's selection, and make concurrent views conflict unnecessarily.
+
+## Step 3: Activate the UI surface
+
+The UI entrypoint exports one `activate()` function:
+
+```ts
+import type { ExtensionFileEditorContext } from "@eidos.space/extension-sdk"
+
+import "./editor.css"
+import { parseMarkdownTasks } from "./tasks"
+
+export function activate(context: ExtensionFileEditorContext) {
+  function render() {
+    const tasks = parseMarkdownTasks(context.document.snapshot.text)
+    const list = document.createElement("ul")
+
+    for (const task of tasks) {
+      const item = document.createElement("li")
+      const button = document.createElement("button")
+      button.textContent = `${task.checked ? "✓" : "○"} ${task.label}`
+      button.disabled = context.document.snapshot.readOnly
+      button.addEventListener("click", () => void toggle(task))
+      item.append(button)
+      list.append(item)
+    }
+
+    context.root.replaceChildren(list)
+  }
+
+  async function toggle(task: ReturnType<typeof parseMarkdownTasks>[number]) {
+    await context.document.applyEdits([
+      {
+        start: task.markerOffset,
+        end: task.markerOffset + 1,
+        text: task.checked ? " " : "x",
+      },
+    ])
+  }
+
+  context.subscriptions.add(context.document.onDidChange(render))
+  context.subscriptions.add(context.document.onDidChangeState(render))
+  render()
+
+  return { dispose: () => context.root.replaceChildren() }
 }
 ```
 
-`activate()` does not run when Eidos starts. The first invocation of the command
-creates the package worker. `context.subscriptions` ensures the command handler
-is removed when the extension is disabled, updated, or stopped.
+The checked-in implementation adds accessible task buttons, progress UI,
+empty states, save/error indicators, focus restoration, and responsive styles.
+It uses only the mount point in `context.root`.
 
-The regular expressions intentionally count only Markdown task-list items at
-the start of a line. Text such as ``Use `[ ]` as a marker`` is not counted.
+### Theme the surface
 
-## Step 4: Validate the package
+Eidos supplies a small stable token set instead of exposing its Tailwind
+classes or internal DOM:
 
-From an Eidos repository checkout, run:
+```css
+:root {
+  font-family: var(--eidos-font-family);
+  color: var(--eidos-color-foreground);
+  background: var(--eidos-color-background);
+}
+
+.task-card:focus-visible {
+  outline: 2px solid var(--eidos-color-focus-ring);
+}
+```
+
+The host updates these variables when appearance changes. Package-local CSS is
+compiled from the inspected snapshot; remote styles, fonts, scripts, frames,
+and images are blocked by the surface content-security policy.
+
+## Step 4: Validate and compile the example
+
+From an Eidos checkout, run:
 
 ```bash
 pnpm --filter docs check:examples
 ```
 
-Expected output:
+Expected output includes:
 
 ```text
-Validated example.markdown-task-counter
+Validated example.markdown-task-board
 ```
 
-The current check verifies that:
+This check now does more than validate JSON. It verifies contribution IDs and
+entrypoint paths, then compiles every worker and UI entrypoint through the same
+fixed extension compiler used by Desktop. Compiler warnings fail the example
+check.
 
-- the complete manifest matches the published version 1 JSON Schema;
-- command IDs belong to the package;
-- menu items refer to declared commands;
-- entrypoints are relative paths that exist inside the package.
+The Task Board parser and interactive surface also have executable tests:
 
-The installer will perform these checks before any source is trusted or run.
+```bash
+pnpm exec vitest run \
+  apps/docs/tests/markdown-task-board-tasks.test.ts \
+  apps/docs/tests/markdown-task-board-editor.test.ts
+```
 
-### Create, approve, and run it in the current Desktop development build
-
-The worker runtime is available as a developer preview in the current
-development tree. To create a local package without a dialog:
-
-1. Open a file Space in Eidos Desktop.
-2. Open **Settings → Extensions** and select **New extension**.
-3. Enter a package name such as `task-counter` and select **Create**.
-4. Eidos writes `extension.json`, `src/extension.ts`, and `README.md` under
-   `.eidos/extensions/local.task-counter/`.
-5. Open **Version** to review the three new source files as ordinary Changes.
-
-To inspect the complete Task Counter example instead:
+## Step 5: Install it in a local Space
 
 1. Copy the example directory to
-   `<your-space>/.eidos/extensions/example.markdown-task-counter/`.
-2. Open that file Space in Eidos Desktop.
+   `<space>/.eidos/extensions/example.markdown-task-board/`.
+2. Open the Space in Eidos Desktop.
 3. Open **Settings → Extensions** and select **Refresh**.
-4. Inspect the package status and diagnostics.
+4. Review the package ID, content digest, entrypoint, contribution, and the two
+   requested file grants.
+5. Select **Trust source** for the exact snapshot.
+6. Grant `files.read **/*.tasks.md` and `files.write **/*.tasks.md`.
+7. Turn on **Enablement**.
 
-`Untrusted` means that the manifest, compatibility range, entrypoints, imports,
-permissions, and package digest passed inspection but no local trust decision
-exists. Select **Review** to inspect the exact content digest and every requested
-capability. **Trust source**, enablement, and each permission grant are separate
-local decisions. Eidos executes the worker only after all three decisions allow
-the exact inspected snapshot.
+Installation, trust, grants, and enablement are separate decisions. The package
+does not run until all applicable decisions allow the same inspected snapshot.
 
-These decisions live in `.eidos/state/extensions.sqlite3`, which is private and
-ignored by Version. They are keyed by package ID, content digest, and permission
-hash. Editing any package file creates a different snapshot that returns to
-`Untrusted` with enablement off and all grants denied. Stale scans cannot replace
-a newer result.
+## Step 6: Use and verify it
 
-The checked-in example targets Eidos 0.33 and can run in the current Desktop
-development build.
+1. Create `website.tasks.md` and add the sample Markdown from this page.
+2. Open the file. The default matching editor should be **Task Board**.
+3. Toggle **Finish the landing page**.
+4. Confirm the card moves to **Completed**, progress becomes `67%`, and the save
+   indicator returns to **Saved**.
+5. Use **Open with Eidos** and confirm the raw line is now
+   `- [x] Finish the landing page`.
+6. Use Eidos undo and confirm every open view returns to the previous state.
+7. Edit the file externally while the board has unsaved changes and verify the
+   host conflict banner offers **Reload file** or **Keep my changes**.
 
-## Step 5: Review and record local approval
+Only the checkbox marker should appear in the file diff. If the complete file
+changes, the extension is bypassing the intended document model.
 
-For a package already present under `.eidos/extensions`:
+## Publish from GitHub
 
-1. Review its tracked source files in **Version**.
-2. Open **Settings → Extensions**, select **Review**, and compare the package ID,
-   content digest, and requested capabilities.
-3. Select **Trust source**. This approves only the exact inspected snapshot.
-4. Grant `files.read **/*.md`. Other capabilities remain denied.
-5. Turn on **Enablement** to record local intent for this snapshot.
+Put the package contents at the root of a public repository and tag an
+immutable release such as `v0.1.0`. In **Settings → Extensions**, select
+**Install from GitHub**, enter the repository and tag, prepare the review, then
+install the resolved commit. Eidos does not run `npm install` or repository
+lifecycle scripts.
 
-The status now becomes `Enabled`. Open the command palette and select
-**Count Markdown tasks**, or right-click a `.md` file and select the same
-command. Eidos lazily starts the package Worker, reads only the selected file
-through the granted `files.read` pattern, and shows a host-owned notification
-such as `tasks.md: 2 open, 1 completed`.
+After installation, the user still reviews trust and grants locally. Updating
+to another tag creates a new source snapshot and never silently overwrites
+locally modified extension files.
 
-The extension does not render that notification itself. It requests
-`window.showNotice`; Eidos validates the active snapshot and renders its own UI.
-The same boundary provides host-owned confirm and select controls. Revoke trust,
-disable the package, remove the grant, or edit any source file to terminate the
-active runtime and invalidate the old snapshot.
+## Troubleshooting
 
-### Install the example from GitHub
+| Symptom                   | Check                                                                     |
+| ------------------------- | ------------------------------------------------------------------------- |
+| Task Board is absent      | The file must end in `.tasks.md`; refresh package discovery.              |
+| Package is `Untrusted`    | Review and trust the current content digest, not an older version string. |
+| Board is read-only        | Grant both matching read and write capabilities.                          |
+| Activation error          | Inspect package diagnostics and compile the example locally.              |
+| Edit is rejected as stale | Apply host broadcasts and request `resync()` before retrying.             |
+| Save conflict             | Resolve the host conflict banner; never add a direct filesystem fallback. |
 
-GitHub installation is available as a Desktop developer preview. The installer
-expects the extension at the repository root, while the checked-in example is a
-subdirectory of the Eidos monorepo. To publish this example, create a separate
-repository whose root is the contents of
-`apps/docs/examples/markdown-task-counter`, then push a tag such as `v0.1.0`.
-
-To install that published package:
-
-1. Open **Settings → Extensions**.
-2. Select **Install from GitHub**, paste the public repository URL, and enter
-   the release tag.
-3. Select **Prepare review**, then review the resolved commit, package ID,
-   changed files, and requested
-   permission: **Read Markdown files in this Space**.
-4. Select **Install reviewed source**. Eidos copies an immutable source snapshot into
-   `.eidos/extensions/example.markdown-task-counter/`.
-5. Review trust, grants, and enablement. Installation alone never runs the
-   package.
-
-The preview supports public repositories only. Eidos does not run `npm install`
-or repository scripts, and the publisher repository must not contain the
-host-managed `extension.lock.json`.
-
-## Step 6: Use the extension
-
-Once the runtime is available and the extension is enabled:
-
-1. Create or open a Markdown file containing `- [ ]` and `- [x]` tasks.
-2. In the **Files** sidebar, right-click that file.
-3. Confirm that **Count Markdown tasks** appears. It should not appear on a
-   folder, image, `.base`, or other non-Markdown file.
-4. Select the command.
-5. Confirm the notice reports the expected open and completed counts.
-
-Try these edge cases:
-
-| File content               | Expected result       |
-| -------------------------- | --------------------- |
-| No task-list items         | `0 open, 0 completed` |
-| `* [ ] Task`               | Counted as open       |
-| `- [X] Task`               | Counted as completed  |
-| ``Text containing `[ ]` `` | Not counted           |
-
-## Step 7: Change and debug it
-
-During local development, changing any installed package file other than the
-host-managed `extension.lock.json` creates a new content digest. Eidos stops the
-old worker and requires trust for the new digest before reload.
-The Extension Manager should show manifest, build, activation, and permission
-errors against this package instead of silently retaining the previous bundle.
-
-| Symptom            | Check                                                                      |
-| ------------------ | -------------------------------------------------------------------------- |
-| Command is missing | Confirm the file ends in `.md` and the menu command ID matches `commands`. |
-| Permission error   | Confirm `files.read` includes the selected relative path.                  |
-| Activation error   | Open the package diagnostics and inspect `src/extension.ts`.               |
-| Counts are wrong   | Add the failing Markdown line to a test before changing the parser.        |
-
-## Next steps
-
-- [Manifest](/extensions/manifest/) explains every package declaration.
-- [Lifecycle](/extensions/lifecycle/) covers activation, source changes, and failures.
-- [Security](/extensions/security/) covers trust and capability enforcement.
-- [GitHub distribution](/extensions/distribution/) covers publishing and updates.
+Next, read the [UI architecture](/extensions/architecture/) and the exact
+[surface protocol](/reference/extension-surface-protocol/).
