@@ -9,6 +9,7 @@ import {
   Download,
   FileCode2,
   FilePenLine,
+  FilePlus2,
   FolderCog,
   Github,
   LoaderCircle,
@@ -29,7 +30,11 @@ import { useTabStore } from "@/apps/web-app/store/tabs"
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
 import { useCMDKStore } from "@/components/cmdk/store"
-import { toSpaceFileUrl } from "@/components/file-space/file-path"
+import {
+  toSpaceFileEditorUrl,
+  toSpaceFileUrl,
+  uniqueSpaceEntryName,
+} from "@/components/file-space/file-path"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -57,6 +62,11 @@ type CreatedLocalExtension = {
 type CommandRunState = {
   key: string
   status: "running" | "success" | "error"
+  message?: string
+}
+type EditorSampleState = {
+  key: string
+  status: "creating" | "error"
   message?: string
 }
 
@@ -111,6 +121,32 @@ function fileEditorSelectorLabel(
   return [selector.filenamePattern, selector.mediaType]
     .filter((value): value is string => !!value)
     .join(" · ")
+}
+
+function sampleFilePartsForPattern(
+  filenamePattern: string | undefined
+): { stem: string; extension: string } | null {
+  const normalized = filenamePattern?.trim().replace(/^\.\//, "")
+  if (!normalized) return null
+  const segments = normalized.split("/").filter(Boolean)
+  const basename = segments.pop()
+  if (!basename || segments.some((segment) => segment !== "**")) return null
+  const wildcardIndex = basename.indexOf("*")
+  if (
+    wildcardIndex < 0 ||
+    basename.indexOf("*", wildcardIndex + 1) >= 0 ||
+    /[?{}\[\]]/.test(basename)
+  ) {
+    return null
+  }
+  const sampleName = `${basename.slice(0, wildcardIndex)}Extension preview${basename.slice(wildcardIndex + 1)}`
+  const extensionIndex = sampleName.indexOf(".")
+  return extensionIndex < 0
+    ? { stem: sampleName, extension: "" }
+    : {
+        stem: sampleName.slice(0, extensionIndex),
+        extension: sampleName.slice(extensionIndex),
+      }
 }
 
 function sourcePathForPackage(
@@ -171,6 +207,9 @@ export function FileExtensionSettings() {
   )
   const [mutatingPackage, setMutatingPackage] = useState<string | null>(null)
   const [commandRun, setCommandRun] = useState<CommandRunState | null>(null)
+  const [editorSample, setEditorSample] = useState<EditorSampleState | null>(
+    null
+  )
   const [mutationError, setMutationError] = useState<{
     packageId: string
     message: string
@@ -438,6 +477,50 @@ export function FileExtensionSettings() {
       )
     },
     [openTab]
+  )
+
+  const createEditorSample = useCallback(
+    async (
+      extension: FileExtensionPackage,
+      editor: NonNullable<
+        NonNullable<
+          FileExtensionPackage["manifest"]
+        >["contributes"]["fileEditors"]
+      >[number],
+      parts: { stem: string; extension: string }
+    ) => {
+      if (!spaceId || !window.eidos?.spaceMgmt || editorSample) return
+      const key = `${extension.canonicalId ?? extension.directoryName}\0${editor.id}`
+      setEditorSample({ key, status: "creating" })
+      try {
+        const rootEntries = await window.eidos.spaceMgmt.listFiles(spaceId, "")
+        const fileName = uniqueSpaceEntryName(
+          rootEntries.map((entry) => entry.name),
+          parts.stem,
+          parts.extension
+        )
+        await window.eidos.spaceMgmt.createFile(
+          spaceId,
+          fileName,
+          `# ${editor.displayName}\n\nStart editing this sample file.\n`
+        )
+        openTab(toSpaceFileEditorUrl(fileName, editor.id), fileName)
+        setEditorSample(null)
+      } catch (sampleError) {
+        setEditorSample({
+          key,
+          status: "error",
+          message:
+            sampleError instanceof Error
+              ? sampleError.message
+              : t(
+                  "space.settings.fileExtensions.createEditorSampleFailed",
+                  "Unable to create the sample file."
+                ),
+        })
+      }
+    },
+    [editorSample, openTab, spaceId, t]
   )
 
   const runCommand = useCallback(
@@ -1986,99 +2069,141 @@ export function FileExtensionSettings() {
                                   )}
                                 </div>
                               ))}
-                              {fileEditors.map((editor) => (
-                                <div
-                                  key={editor.id}
-                                  className="flex min-h-[56px] items-center justify-between gap-4 py-2"
-                                >
-                                  <div className="flex min-w-0 items-start gap-2">
-                                    <FilePenLine className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                                    <div className="min-w-0">
-                                      <p className="truncate text-sm font-medium">
-                                        {editor.displayName}
-                                      </p>
-                                      <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-1">
-                                        {editor.selector.map(
-                                          (selector, index) => (
-                                            <code
-                                              key={`${editor.id}-selector-${index}`}
-                                              className="text-[11px] text-muted-foreground"
-                                            >
-                                              {fileEditorSelectorLabel(
-                                                selector
-                                              )}
-                                            </code>
-                                          )
-                                        )}
+                              {fileEditors.map((editor) => {
+                                const sampleParts = sampleFilePartsForPattern(
+                                  editor.selector[0]?.filenamePattern
+                                )
+                                const sampleKey = `${packageId}\0${editor.id}`
+                                return (
+                                  <div
+                                    key={editor.id}
+                                    className="flex min-h-[56px] items-center justify-between gap-4 py-2"
+                                  >
+                                    <div className="flex min-w-0 items-start gap-2">
+                                      <FilePenLine className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-medium">
+                                          {editor.displayName}
+                                        </p>
+                                        <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-1">
+                                          {editor.selector.map(
+                                            (selector, index) => (
+                                              <code
+                                                key={`${editor.id}-selector-${index}`}
+                                                className="text-[11px] text-muted-foreground"
+                                              >
+                                                {fileEditorSelectorLabel(
+                                                  selector
+                                                )}
+                                              </code>
+                                            )
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                  {!trusted ? (
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      disabled
-                                    >
-                                      {t(
-                                        "space.settings.fileExtensions.trustSourceFirst",
-                                        "Trust source first"
-                                      )}
-                                    </Button>
-                                  ) : !executionEnabled ? (
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      disabled={
-                                        !!mutatingPackage || !!development
-                                      }
-                                      onClick={() =>
-                                        void mutatePackage(extension, () =>
-                                          window.eidos.fileExtensions.setEnabled(
-                                            spaceId,
-                                            snapshot,
-                                            true
-                                          )
-                                        )
-                                      }
-                                    >
-                                      {busy && (
-                                        <LoaderCircle className="animate-spin" />
-                                      )}
-                                      {t(
-                                        "space.settings.fileExtensions.enableExtension",
-                                        "Enable extension"
-                                      )}
-                                    </Button>
-                                  ) : (
-                                    <p
-                                      className={cn(
-                                        "max-w-64 text-right text-xs leading-5",
-                                        missingReadGrant
-                                          ? "text-muted-foreground"
-                                          : "text-foreground"
-                                      )}
-                                    >
-                                      {missingReadGrant
-                                        ? t(
-                                            "space.settings.fileExtensions.editorMissingReadGrantInstructions",
-                                            "Grant matching file read access below."
-                                          )
-                                        : editor.priority === "option"
-                                          ? t(
-                                              "space.settings.fileExtensions.openEditorInstructions",
-                                              "Right-click a matching file → Open with → {{name}}",
-                                              { name: editor.displayName }
+                                    {!trusted ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled
+                                      >
+                                        {t(
+                                          "space.settings.fileExtensions.trustSourceFirst",
+                                          "Trust source first"
+                                        )}
+                                      </Button>
+                                    ) : !executionEnabled ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        disabled={
+                                          !!mutatingPackage || !!development
+                                        }
+                                        onClick={() =>
+                                          void mutatePackage(extension, () =>
+                                            window.eidos.fileExtensions.setEnabled(
+                                              spaceId,
+                                              snapshot,
+                                              true
                                             )
-                                          : t(
-                                              "space.settings.fileExtensions.defaultEditorInstructions",
-                                              "Open a matching file to use {{name}}",
-                                              { name: editor.displayName }
+                                          )
+                                        }
+                                      >
+                                        {busy && (
+                                          <LoaderCircle className="animate-spin" />
+                                        )}
+                                        {t(
+                                          "space.settings.fileExtensions.enableExtension",
+                                          "Enable extension"
+                                        )}
+                                      </Button>
+                                    ) : missingReadGrant ? (
+                                      <p className="max-w-64 text-right text-xs leading-5 text-muted-foreground">
+                                        {t(
+                                          "space.settings.fileExtensions.editorMissingReadGrantInstructions",
+                                          "Grant matching file read access below."
+                                        )}
+                                      </p>
+                                    ) : (
+                                      <div className="flex max-w-80 shrink-0 items-center justify-end gap-2">
+                                        <p className="text-right text-xs leading-5 text-foreground">
+                                          {editor.priority === "option"
+                                            ? t(
+                                                "space.settings.fileExtensions.openEditorInstructions",
+                                                "Right-click a matching file → Open with → {{name}}",
+                                                { name: editor.displayName }
+                                              )
+                                            : t(
+                                                "space.settings.fileExtensions.defaultEditorInstructions",
+                                                "Open a matching file to use {{name}}",
+                                                { name: editor.displayName }
+                                              )}
+                                        </p>
+                                        {sampleParts && (
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={
+                                              editorSample?.status ===
+                                              "creating"
+                                            }
+                                            onClick={() =>
+                                              void createEditorSample(
+                                                extension,
+                                                editor,
+                                                sampleParts
+                                              )
+                                            }
+                                          >
+                                            {editorSample?.key === sampleKey &&
+                                            editorSample.status ===
+                                              "creating" ? (
+                                              <LoaderCircle className="animate-spin" />
+                                            ) : (
+                                              <FilePlus2 />
                                             )}
-                                    </p>
-                                  )}
-                                </div>
-                              ))}
+                                            {t(
+                                              "space.settings.fileExtensions.createSampleFile",
+                                              "Create sample file"
+                                            )}
+                                          </Button>
+                                        )}
+                                        {editorSample?.key === sampleKey &&
+                                          editorSample.status === "error" && (
+                                            <p
+                                              role="alert"
+                                              className="max-w-56 text-xs text-destructive"
+                                            >
+                                              {editorSample.message}
+                                            </p>
+                                          )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
                             </div>
                           </div>
                         )}

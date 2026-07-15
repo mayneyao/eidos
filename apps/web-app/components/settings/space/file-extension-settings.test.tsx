@@ -28,6 +28,8 @@ const stopDevelopmentSessionMock = vi.hoisted(() => vi.fn())
 const onMock = vi.hoisted(() => vi.fn())
 const offMock = vi.hoisted(() => vi.fn())
 const openTabMock = vi.hoisted(() => vi.fn())
+const listSpaceFilesMock = vi.hoisted(() => vi.fn())
+const createSpaceFileMock = vi.hoisted(() => vi.fn())
 const translate = vi.hoisted(
   () =>
     (
@@ -216,6 +218,10 @@ describe("FileExtensionSettings", () => {
     useAppRuntimeStore.setState({ isCmdkOpen: false })
     useCMDKStore.setState({ input: "", searchNodes: [] })
     openTabMock.mockReset()
+    listSpaceFilesMock.mockReset().mockResolvedValue([])
+    createSpaceFileMock.mockReset().mockResolvedValue({
+      path: "Extension preview.tasks.md",
+    })
     discoverMock.mockReset()
     createTemplateMock.mockReset().mockResolvedValue({
       canonicalId: "local.hello-tools",
@@ -303,6 +309,10 @@ describe("FileExtensionSettings", () => {
       value: {
         on: onMock,
         off: offMock,
+        spaceMgmt: {
+          listFiles: listSpaceFilesMock,
+          createFile: createSpaceFileMock,
+        },
         fileExtensions: {
           discover: discoverMock,
           createTemplate: createTemplateMock,
@@ -803,6 +813,52 @@ describe("FileExtensionSettings", () => {
         permissionHash,
       },
       true
+    )
+  })
+
+  it("creates and opens a matching sample for a ready file editor", async () => {
+    const fixture = createdTextEditorFixture()
+    fixture.packages[0]!.lifecycleStatus = "enabled"
+    fixture.packages[0]!.localState = {
+      ...fixture.packages[0]!.localState,
+      trusted: true,
+      enabled: true,
+      granted: [
+        { kind: "files.read", value: "**/*.tasks.md" },
+        { kind: "files.write", value: "**/*.tasks.md" },
+      ],
+    }
+    listSpaceFilesMock.mockResolvedValue([
+      { name: "Extension preview.tasks.md" },
+    ])
+    discoverMock.mockResolvedValue(fixture)
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const manage = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Manage"
+    )!
+    act(() => manage.click())
+    const createSample = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Create sample file"
+    )!
+    await act(async () => {
+      createSample.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(listSpaceFilesMock).toHaveBeenCalledWith("file-space", "")
+    expect(createSpaceFileMock).toHaveBeenCalledWith(
+      "file-space",
+      "Extension preview 2.tasks.md",
+      "# Hello Tools\n\nStart editing this sample file.\n"
+    )
+    expect(openTabMock).toHaveBeenLastCalledWith(
+      "/space-file?editor=local.hello-tools.editor#Extension%20preview%202.tasks.md",
+      "Extension preview 2.tasks.md"
     )
   })
 
