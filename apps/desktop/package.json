@@ -27,6 +27,7 @@
     "smoke:graft-worker": "cross-env ELECTRON_RUN_AS_NODE=1 SQLITE_USE_URI=1 electron scripts/graft-worker-smoke.mjs",
     "smoke:file-extension-runtime": "electron scripts/file-extension-runtime-smoke.mjs",
     "smoke:file-extension-install": "pnpm --filter @eidos.space/extension-manifest build && pnpm --filter @eidos.space/extension-installer build && node scripts/file-extension-install-smoke.mjs",
+    "smoke:file-extension-porting": "cross-env ELECTRON_RUN_AS_NODE=1 electron ../../node_modules/vitest/vitest.mjs run apps/desktop/electron/modules/file-extensions/file-extension-porting.e2e.test.ts --root ../.. --environment node --maxWorkers 1",
     "audit:legacy-migration": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/legacy-migration-audit.mjs",
     "smoke:legacy-migration": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/legacy-migration-smoke.mjs",
     "typecheck": "tsc --noEmit",
@@ -86,6 +87,7 @@
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.9",
+    "@eidos.space/extension-cli": "workspace:*",
     "@types/express": "^4.17.21",
     "@types/node": "^20.4.1",
     "@types/react": "^18.2.14",

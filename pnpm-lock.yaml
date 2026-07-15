@@ -198,6 +198,9 @@ importers:
         specifier: ^3.25.67
         version: 3.25.67
     devDependencies:
+      '@eidos.space/extension-cli':
+        specifier: workspace:*
+        version: link:../../packages/extension-cli
       '@tailwindcss/typography':
         specifier: ^0.5.9
         version: 0.5.16(tailwindcss@4.2.2)
@@ -1458,6 +1461,9 @@ importers:
       '@eidos.space/base':
         specifier: workspace:*
         version: link:../base
+      '@eidos.space/extension-manifest':
+        specifier: workspace:*
+        version: link:../extension-manifest
       yaml:
         specifier: ^2.8.1
         version: 2.9.0

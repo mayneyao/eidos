@@ -32,6 +32,10 @@ export {
   type LegacyExtensionPortingReceiptV1,
 } from "./porting"
 export {
+  calculateLegacyExtensionArchiveDigest,
+  type LegacyExtensionArchiveDigestRecord,
+} from "./legacy-archive"
+export {
   createExtensionCommandTemplate,
   createExtensionTextEditorTemplate,
 } from "./template"

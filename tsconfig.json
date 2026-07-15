@@ -63,6 +63,8 @@
       "@eidos.space/extension-manifest/*": [
         "./packages/extension-manifest/src/*"
       ],
+      "@eidos.space/extension-cli": ["./packages/extension-cli/src/index.ts"],
+      "@eidos.space/extension-cli/*": ["./packages/extension-cli/src/*"],
       "@eidos.space/extension-installer": [
         "./packages/extension-installer/src/index.ts"
       ],

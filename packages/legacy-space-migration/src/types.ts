@@ -1,3 +1,5 @@
+import type { LegacyExtensionPortabilityAssessment } from "./extension-portability"
+
 export type LegacyNodeType =
   | "doc"
   | "day"
@@ -279,6 +281,27 @@ export interface MigrationExportValidation {
   archivedExtensionsExist: boolean
 }
 
+export type LegacyExtensionMigrationNextAction =
+  | "port-manually"
+  | "review-source"
+  | "wait-for-compatible-contribution"
+  | "recover-source"
+
+export interface LegacyExtensionMigrationReportItem {
+  legacyExtensionId: string
+  legacySlug: string | null
+  displayName: string
+  previouslyEnabled: boolean
+  archiveRelativePath: string
+  archiveDigest: string
+  executable: false
+  portability: LegacyExtensionPortabilityAssessment
+  nextAction: {
+    kind: LegacyExtensionMigrationNextAction
+    command: string | null
+  }
+}
+
 export interface LegacySpaceMigrationResult {
   status: "completed"
   migrationId: string
@@ -296,6 +319,7 @@ export interface LegacySpaceMigrationResult {
   skippedReferenceCount: number
   copiedAssetCount: number
   archivedExtensionCount: number
+  extensionMigrations: LegacyExtensionMigrationReportItem[]
   recoveredLexicalDocumentCount: number
   validation: MigrationExportValidation
   issues: MigrationIssue[]

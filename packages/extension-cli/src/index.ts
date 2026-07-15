@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto"
 import { constants } from "node:fs"
 import {
   lstat,
@@ -11,6 +10,7 @@ import {
 } from "node:fs/promises"
 import path from "node:path"
 import {
+  calculateLegacyExtensionArchiveDigest,
   createExtensionCommandTemplate,
   createExtensionTextEditorTemplate,
   type ExtensionDiagnosticSeverity,
@@ -216,29 +216,6 @@ async function regularFileIfPresent(
   }
 }
 
-function calculateLegacyArchiveDigest(
-  files: readonly { archivePath: string; content: Uint8Array }[]
-): string {
-  const hash = createHash("sha256")
-  hash.update("eidos-legacy-extension-archive-digest-v1\0", "utf8")
-  const updateRecord = (value: Uint8Array) => {
-    const length = Buffer.allocUnsafe(8)
-    length.writeBigUInt64BE(BigInt(value.byteLength))
-    hash.update(length)
-    hash.update(value)
-  }
-  for (const file of [...files].sort((left, right) =>
-    Buffer.compare(
-      Buffer.from(left.archivePath, "utf8"),
-      Buffer.from(right.archivePath, "utf8")
-    )
-  )) {
-    updateRecord(Buffer.from(file.archivePath, "utf8"))
-    updateRecord(file.content)
-  }
-  return `sha256:${hash.digest("hex")}`
-}
-
 function parseLegacyArchiveMetadata(raw: string): LegacyArchiveV2 {
   let value: unknown
   try {
@@ -343,7 +320,7 @@ async function inspectLegacyArchive(
   }
   return {
     metadata,
-    archiveDigest: calculateLegacyArchiveDigest(files),
+    archiveDigest: calculateLegacyExtensionArchiveDigest(files),
     files,
   }
 }

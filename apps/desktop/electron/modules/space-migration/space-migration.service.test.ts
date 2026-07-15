@@ -205,6 +205,7 @@ describe("SpaceMigrationService", () => {
     expect(result.targetDirectory).toBe(
       path.join(realpathSync.native(destination), "task-counter")
     )
+    expect(result.archiveDigest).toMatch(/^sha256:[0-9a-f]{64}$/)
     expect(existsSync(result.metadataPath)).toBe(true)
     expect(existsSync(result.sourcePath!)).toBe(true)
 

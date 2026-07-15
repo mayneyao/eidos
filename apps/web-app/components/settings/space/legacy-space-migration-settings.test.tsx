@@ -231,4 +231,52 @@ describe("LegacySpaceMigrationSettings", () => {
       })
     )
   })
+
+  it("shows an actionable per-extension report after exporting a Space", async () => {
+    migrationState.value = {
+      ...migrationState.value,
+      planHandle: null,
+      result: {
+        status: "completed",
+        targetRoot: "/tmp/new-space",
+        extensionMigrations: [
+          {
+            legacyExtensionId: "ext-1",
+            legacySlug: "task-counter",
+            displayName: "Task Counter",
+            previouslyEnabled: true,
+            archiveRelativePath: ".eidos/legacy-extensions/task-counter--ext-1",
+            archiveDigest: `sha256:${"a".repeat(64)}`,
+            executable: false,
+            portability: {
+              readiness: "manual-port",
+              summary: "Can be redesigned as a v1 command.",
+            },
+            nextAction: {
+              kind: "port-manually",
+              command:
+                'npx @eidos.space/extension-cli port "./.eidos/legacy-extensions/task-counter--ext-1" --publisher your-publisher --out-dir "./extension-ports"',
+            },
+          },
+        ],
+      },
+    }
+    await act(async () => root.render(<LegacySpaceMigrationSettings />))
+
+    expect(container.textContent).toContain("Legacy extension next steps")
+    expect(container.textContent).toContain("Task Counter")
+    expect(container.textContent).toContain("Previously enabled")
+    expect(container.textContent).toContain(
+      "npx @eidos.space/extension-cli port"
+    )
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("Show archive"))
+        ?.click()
+    })
+    expect(window.eidos.showInFileManager).toHaveBeenCalledWith(
+      "/tmp/new-space/.eidos/legacy-extensions/task-counter--ext-1"
+    )
+  })
 })

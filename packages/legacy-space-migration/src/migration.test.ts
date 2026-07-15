@@ -510,6 +510,7 @@ describe("legacy Space migration planning", () => {
 
     expect(result).toMatchObject({
       targetDirectory,
+      archiveDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
       portability: {
         readiness: "manual-port",
         candidateContribution: "command",
@@ -934,6 +935,32 @@ describe("legacy Space migration planning", () => {
     const blockArchive = plan.extensions.find(
       (extension) => extension.id === "ext-block"
     )!
+    expect(result.extensionMigrations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          legacyExtensionId: "ext-script",
+          archiveRelativePath: scriptArchive.targetDirectory,
+          archiveDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+          executable: false,
+          portability: expect.objectContaining({
+            readiness: "manual-port",
+            candidateContribution: "command",
+          }),
+          nextAction: {
+            kind: "port-manually",
+            command: expect.stringContaining(
+              `port "./${scriptArchive.targetDirectory}"`
+            ),
+          },
+        }),
+        expect.objectContaining({
+          legacyExtensionId: "ext-block",
+          archiveRelativePath: blockArchive.targetDirectory,
+          executable: false,
+          nextAction: { kind: "review-source", command: null },
+        }),
+      ])
+    )
     expect(
       readFileSync(
         path.join(targetRoot, ...scriptArchive.sourcePath!.split("/")),
@@ -980,9 +1007,27 @@ describe("legacy Space migration planning", () => {
     expect(readFileSync(result.reportPath, "utf8")).toContain(
       "Status: completed"
     )
+    expect(readFileSync(result.reportPath, "utf8")).toContain(
+      "## Legacy extension migration"
+    )
+    expect(readFileSync(result.reportPath, "utf8")).toContain(
+      "npx @eidos.space/extension-cli port"
+    )
     expect(JSON.parse(readFileSync(result.mappingPath, "utf8"))).toMatchObject({
       plan: { format: "eidos-legacy-space-migration-plan" },
-      result: { status: "completed" },
+      result: {
+        status: "completed",
+        extensionMigrations: expect.arrayContaining([
+          expect.objectContaining({
+            legacyExtensionId: "ext-script",
+            executable: false,
+          }),
+          expect.objectContaining({
+            legacyExtensionId: "ext-block",
+            executable: false,
+          }),
+        ]),
+      },
     })
 
     const base = openBaseFile(path.join(targetRoot, "main.base"), {

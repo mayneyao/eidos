@@ -51,11 +51,14 @@ type FixtureGrant = {
   kind: "files.read" | "files.write" | "network"
   value: string
 }
+type FileExtensionDiscoveryFixture = Awaited<
+  ReturnType<typeof window.eidos.fileExtensions.discover>
+>
 
 function discoveryFixture(
   lifecycleStatus: "untrusted" | "disabled" | "enabled" = "untrusted",
   granted: FixtureGrant[] = []
-) {
+): FileExtensionDiscoveryFixture {
   const trusted = lifecycleStatus !== "untrusted"
   return {
     root: ".eidos/extensions",
@@ -139,7 +142,7 @@ function discoveryFixture(
       },
     ],
     diagnostics: [],
-  }
+  } as FileExtensionDiscoveryFixture
 }
 
 function createdTextEditorFixture() {
@@ -882,7 +885,7 @@ describe("FileExtensionSettings", () => {
     const fixture = createdTextEditorFixture()
     fixture.packages[0]!.lifecycleStatus = "disabled"
     fixture.packages[0]!.localState = {
-      ...fixture.packages[0]!.localState,
+      ...fixture.packages[0]!.localState!,
       trusted: true,
       enabled: false,
     }
@@ -924,7 +927,7 @@ describe("FileExtensionSettings", () => {
     const fixture = createdTextEditorFixture()
     fixture.packages[0]!.lifecycleStatus = "enabled"
     fixture.packages[0]!.localState = {
-      ...fixture.packages[0]!.localState,
+      ...fixture.packages[0]!.localState!,
       trusted: true,
       enabled: true,
       granted: [

@@ -19,6 +19,7 @@ import {
   inspectBaseFile,
   openBaseFile,
 } from "@eidos.space/base/better-sqlite3"
+import { calculateLegacyExtensionArchiveDigest } from "@eidos.space/extension-manifest"
 import Database from "better-sqlite3"
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml"
 
@@ -42,6 +43,7 @@ import type {
   LegacyExtension,
   LegacySpaceMigrationPlan,
   LegacySpaceMigrationResult,
+  LegacyExtensionMigrationReportItem,
   LegacySpaceSnapshot,
   MigrationExportProgress,
   MigrationIssue,
@@ -292,6 +294,28 @@ function serializeReport(result: LegacySpaceMigrationResult): string {
           `- **${issue.severity.toUpperCase()} · ${issue.code}** — ${issue.message}`
       )
     : ["- None"]
+  const extensionLines = result.extensionMigrations.length
+    ? result.extensionMigrations.flatMap((extension) => [
+        `### ${extension.displayName.replace(/[\r\n]+/g, " ")}`,
+        "",
+        `- Legacy ID: \`${extension.legacyExtensionId.replace(/`/g, "\\`")}\``,
+        `- Archive: \`${extension.archiveRelativePath}\``,
+        `- Archive digest: \`${extension.archiveDigest}\``,
+        `- Previously enabled: ${extension.previouslyEnabled ? "yes" : "no"}`,
+        `- Readiness: \`${extension.portability.readiness}\``,
+        `- Next action: \`${extension.nextAction.kind}\``,
+        ...(extension.nextAction.command
+          ? [
+              "- Port command:",
+              "",
+              "```sh",
+              extension.nextAction.command,
+              "```",
+            ]
+          : []),
+        "",
+      ])
+    : ["- None"]
   return `# Eidos Space migration report
 
 - Status: completed
@@ -326,10 +350,54 @@ function serializeReport(result: LegacySpaceMigrationResult): string {
 - Extension count matches: ${result.validation.extensionCountMatches ? "yes" : "no"}
 - Archived extension files exist: ${result.validation.archivedExtensionsExist ? "yes" : "no"}
 
+## Legacy extension migration
+
+${extensionLines.join("\n")}
+
 ## Issues
 
 ${issueLines.join("\n")}
 `
+}
+
+function legacyExtensionMigrationNextAction(
+  portability: LegacyExtensionPortabilityAssessment
+): LegacyExtensionMigrationReportItem["nextAction"]["kind"] {
+  switch (portability.readiness) {
+    case "manual-port":
+      return "port-manually"
+    case "needs-review":
+      return "review-source"
+    case "blocked-by-v1":
+      return "wait-for-compatible-contribution"
+    case "source-missing":
+      return "recover-source"
+  }
+}
+
+function legacyExtensionMigrationReportItem(
+  extension: LegacyExtension,
+  planned: PlannedExtension,
+  archiveDigest: string
+): LegacyExtensionMigrationReportItem {
+  const portability = assessLegacyExtensionPortability(extension)
+  return {
+    legacyExtensionId: extension.id,
+    legacySlug: extension.slug,
+    displayName: extension.name ?? extension.slug ?? extension.id,
+    previouslyEnabled: extension.enabled,
+    archiveRelativePath: planned.targetDirectory,
+    archiveDigest,
+    executable: false,
+    portability,
+    nextAction: {
+      kind: legacyExtensionMigrationNextAction(portability),
+      command:
+        portability.readiness === "manual-port"
+          ? `npx @eidos.space/extension-cli port "./${planned.targetDirectory}" --publisher your-publisher --out-dir "./extension-ports"`
+          : null,
+    },
+  }
 }
 
 function legacyExtensionMetadata(extension: LegacyExtension) {
@@ -424,26 +492,55 @@ async function archiveLegacyExtension(
   stagingRoot: string,
   extension: LegacyExtension,
   planned: PlannedExtension
-): Promise<void> {
+): Promise<string> {
   const metadataPath = resolveOutputPath(stagingRoot, planned.metadataPath)
   const readmePath = resolveOutputPath(stagingRoot, planned.readmePath)
+  const metadata = `${JSON.stringify(legacyExtensionMetadata(extension), null, 2)}\n`
+  const readme = legacyExtensionReadme(extension, planned)
+  const digestRecords: Array<{ archivePath: string; content: Uint8Array }> = [
+    {
+      archivePath: path.posix.relative(
+        planned.targetDirectory,
+        planned.metadataPath
+      ),
+      content: Buffer.from(metadata),
+    },
+    {
+      archivePath: path.posix.relative(
+        planned.targetDirectory,
+        planned.readmePath
+      ),
+      content: Buffer.from(readme),
+    },
+  ]
   await mkdir(path.dirname(metadataPath), { recursive: true })
-  await writeFile(
-    metadataPath,
-    `${JSON.stringify(legacyExtensionMetadata(extension), null, 2)}\n`,
-    "utf8"
-  )
-  await writeFile(readmePath, legacyExtensionReadme(extension, planned), "utf8")
+  await writeFile(metadataPath, metadata, "utf8")
+  await writeFile(readmePath, readme, "utf8")
   if (planned.compiledPath && extension.code !== null) {
     const compiledPath = resolveOutputPath(stagingRoot, planned.compiledPath)
     await mkdir(path.dirname(compiledPath), { recursive: true })
     await writeFile(compiledPath, extension.code, "utf8")
+    digestRecords.push({
+      archivePath: path.posix.relative(
+        planned.targetDirectory,
+        planned.compiledPath
+      ),
+      content: Buffer.from(extension.code),
+    })
   }
   if (planned.sourcePath && extension.tsCode !== null) {
     const sourcePath = resolveOutputPath(stagingRoot, planned.sourcePath)
     await mkdir(path.dirname(sourcePath), { recursive: true })
     await writeFile(sourcePath, extension.tsCode, "utf8")
+    digestRecords.push({
+      archivePath: path.posix.relative(
+        planned.targetDirectory,
+        planned.sourcePath
+      ),
+      content: Buffer.from(extension.tsCode),
+    })
   }
+  return calculateLegacyExtensionArchiveDigest(digestRecords)
 }
 
 async function archivedLegacyExtensionIsExact(
@@ -495,6 +592,7 @@ export interface ExportLegacyExtensionArchiveOptions {
 
 export interface LegacyExtensionArchiveExportResult {
   targetDirectory: string
+  archiveDigest: string
   metadataPath: string
   readmePath: string
   sourcePath: string | null
@@ -547,7 +645,11 @@ export async function exportLegacyExtensionArchive(
     readmePath: "README.md",
   }
   try {
-    await archiveLegacyExtension(stagingRoot, extension, planned)
+    const archiveDigest = await archiveLegacyExtension(
+      stagingRoot,
+      extension,
+      planned
+    )
     if (
       !(await archivedLegacyExtensionIsExact(stagingRoot, extension, planned))
     ) {
@@ -562,6 +664,7 @@ export async function exportLegacyExtensionArchive(
         : null
     return {
       targetDirectory,
+      archiveDigest,
       metadataPath: absolute(planned.metadataPath)!,
       readmePath: absolute(planned.readmePath)!,
       sourcePath: absolute(planned.sourcePath),
@@ -737,6 +840,7 @@ export async function exportLegacySpace(
   let recoveredLexicalDocumentCount = 0
   let copiedAssetCount = 0
   let archivedExtensionCount = 0
+  const extensionMigrations: LegacyExtensionMigrationReportItem[] = []
   let exportedRowCount = 0
   let exportedFieldCount = 0
   let exportedViewCount = 0
@@ -1006,10 +1110,17 @@ export async function exportLegacySpace(
           `Legacy extension disappeared after planning: ${plannedExtension.id}`
         )
       }
-      await archiveLegacyExtension(
+      const archiveDigest = await archiveLegacyExtension(
         stagingRoot,
         sourceExtension,
         plannedExtension
+      )
+      extensionMigrations.push(
+        legacyExtensionMigrationReportItem(
+          sourceExtension,
+          plannedExtension,
+          archiveDigest
+        )
       )
       archivedExtensionCount += 1
       emitProgress(options, {
@@ -1133,6 +1244,7 @@ export async function exportLegacySpace(
       skippedReferenceCount: plan.summary.skippedReferenceCount,
       copiedAssetCount,
       archivedExtensionCount,
+      extensionMigrations,
       recoveredLexicalDocumentCount,
       validation,
       issues,

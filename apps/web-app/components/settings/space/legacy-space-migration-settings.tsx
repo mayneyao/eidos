@@ -443,6 +443,77 @@ export function LegacySpaceMigrationSettings() {
                 <p className="mt-2 truncate font-mono text-xs text-foreground/70">
                   {result.targetRoot}
                 </p>
+                {(result.extensionMigrations ?? []).length > 0 ? (
+                  <div className="mt-5">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {t(
+                        "space.settings.migration.extensionNextSteps",
+                        "Legacy extension next steps"
+                      )}
+                    </p>
+                    <div className="mt-2 divide-y divide-border/70 border-y border-border/70">
+                      {result.extensionMigrations.map((extension) => (
+                        <div
+                          key={extension.legacyExtensionId}
+                          className="flex flex-col gap-3 py-3 sm:flex-row sm:items-start sm:justify-between"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-medium">
+                                {extension.displayName}
+                              </span>
+                              <Badge variant="outline" className="font-normal">
+                                {
+                                  PORTABILITY_LABELS[
+                                    extension.portability.readiness
+                                  ]
+                                }
+                              </Badge>
+                              {extension.previouslyEnabled ? (
+                                <Badge
+                                  variant="secondary"
+                                  className="font-normal"
+                                >
+                                  {t(
+                                    "space.settings.migration.previouslyEnabled",
+                                    "Previously enabled"
+                                  )}
+                                </Badge>
+                              ) : null}
+                            </div>
+                            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                              {extension.portability.summary}
+                            </p>
+                            <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+                              {extension.archiveRelativePath}
+                            </p>
+                            {extension.nextAction.command ? (
+                              <code className="mt-2 block overflow-x-auto rounded-md bg-muted/70 px-2.5 py-2 text-[11px] leading-5 text-foreground/80">
+                                {extension.nextAction.command}
+                              </code>
+                            ) : null}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="shrink-0 self-start"
+                            onClick={() =>
+                              window.eidos.showInFileManager(
+                                `${result.targetRoot}/${extension.archiveRelativePath}`
+                              )
+                            }
+                          >
+                            <FolderOpen className="h-4 w-4" />
+                            {t(
+                              "space.settings.migration.showArchive",
+                              "Show archive"
+                            )}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
             <div className="mt-4 flex justify-end gap-2">
