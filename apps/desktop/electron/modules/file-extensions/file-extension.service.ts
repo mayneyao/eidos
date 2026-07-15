@@ -488,13 +488,20 @@ export class FileExtensionService extends IpcServiceBase {
         await ensureExtensionStateDatabasePath(space.path)
       )
       try {
-        const mapping = store.recordLegacyExtensionMapping({
+        const recorded = store.recordLegacyExtensionMapping({
           legacyExtensionId: receipt.source.legacyExtensionId,
           legacySlug: receipt.source.legacySlug ?? undefined,
           canonicalPackageId: receipt.target.canonicalPackageId,
           archiveDigest: receipt.source.archiveDigest,
           candidateContribution: receipt.target.candidateContribution,
         })
+        const mapping = recorded.active
+          ? recorded
+          : store.setLegacyExtensionMappingActive(
+              recorded.legacyExtensionId,
+              recorded.canonicalPackageId,
+              true
+            )
         return {
           mapping,
           affectedPackageIds: [

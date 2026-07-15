@@ -221,6 +221,22 @@ describe("FileExtensionService", () => {
       )?.legacyMappings
     ).toMatchObject([{ conflict: "none" }])
     await expect(service.listCommands("space-a")).resolves.toHaveLength(1)
+
+    await expect(
+      service.confirmLegacyPorting("space-a", secondSnapshot)
+    ).resolves.toMatchObject({
+      active: true,
+      conflict: "legacy-source",
+      legacyExtensionId: "legacy-task-counter",
+      canonicalPackageId: "example.other-counter",
+    })
+    await expect(service.listCommands("space-a")).resolves.toEqual([])
+
+    await service.retireLegacyPorting("space-a", {
+      legacyExtensionId: "legacy-task-counter",
+      canonicalPackageId: "example.other-counter",
+    })
+    await expect(service.listCommands("space-a")).resolves.toHaveLength(1)
   })
 
   it("opens an enabled file editor from the exact trusted snapshot", async () => {
