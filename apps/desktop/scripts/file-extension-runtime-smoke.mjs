@@ -2,13 +2,27 @@ import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { app, BrowserWindow, MessageChannelMain, session } from "electron"
-import { createExtensionCommandTemplate } from "@eidos.space/extension-manifest"
+import {
+  createExtensionCommandTemplate,
+  createExtensionTextEditorTemplate,
+} from "@eidos.space/extension-manifest"
 import {
   EXTENSION_RUNTIME_BOOTSTRAP_CHANNEL,
   createExtensionWorkerSource,
   extensionRuntimeDataUrl,
 } from "@eidos.space/extension-runtime"
-import { compileExtensionWorker } from "@eidos.space/extension-runtime/compiler"
+import {
+  compileExtensionSurface,
+  compileExtensionWorker,
+} from "@eidos.space/extension-runtime/compiler"
+import {
+  createExtensionSurfaceSource,
+  extensionSurfaceDataUrl,
+} from "@eidos.space/extension-runtime/surface"
+import {
+  EXTENSION_SURFACE_BOOTSTRAP_CHANNEL,
+  EXTENSION_SURFACE_PROTOCOL_VERSION,
+} from "@eidos.space/extension-surface-protocol"
 
 const desktopRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -36,23 +50,7 @@ function bytes(content) {
   return new TextEncoder().encode(content)
 }
 
-async function runCommandScenario({
-  scenarioId,
-  extensionId,
-  commandId,
-  entrypoint,
-  files,
-  resourcePath,
-  handleRpc,
-}) {
-  const generation = `smoke-${scenarioId}`
-  const bundle = await compileExtensionWorker({ entrypoint, files })
-  const source = createExtensionWorkerSource({
-    bundleCode: bundle.code,
-    extensionId,
-    generation,
-    commandIds: [commandId],
-  })
+function createRuntimeSession(scenarioId) {
   const runtimeSession = session.fromPartition(
     `eidos-file-extension-smoke-${scenarioId}-${Date.now()}`,
     { cache: false }
@@ -73,6 +71,46 @@ async function runCommandScenario({
     },
     (_details, done) => done({ cancel: true })
   )
+  return runtimeSession
+}
+
+function observeRuntimeWindow(runtimeWindow, label) {
+  runtimeWindow.webContents.on(
+    "preload-error",
+    (_event, preloadPath, error) => {
+      console.error(`${label} preload failed: ${preloadPath}`, error)
+    }
+  )
+  runtimeWindow.webContents.on("did-fail-load", (_event, code, description) => {
+    console.error(`${label} failed to load (${code}): ${description}`)
+  })
+  runtimeWindow.webContents.on("render-process-gone", (_event, details) => {
+    console.error(`${label} renderer exited`, details)
+  })
+  runtimeWindow.webContents.on("console-message", (event) => {
+    console.error(`${label} console (${event.level}): ${event.message}`)
+  })
+  runtimeWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
+}
+
+async function runCommandScenario({
+  scenarioId,
+  extensionId,
+  commandId,
+  entrypoint,
+  files,
+  resourcePath,
+  handleRpc,
+}) {
+  const generation = `smoke-${scenarioId}`
+  const bundle = await compileExtensionWorker({ entrypoint, files })
+  const source = createExtensionWorkerSource({
+    bundleCode: bundle.code,
+    extensionId,
+    generation,
+    commandIds: [commandId],
+  })
+  const runtimeSession = createRuntimeSession(scenarioId)
   const runtimeWindow = new BrowserWindow({
     show: false,
     webPreferences: {
@@ -86,22 +124,7 @@ async function runCommandScenario({
       preload,
     },
   })
-  runtimeWindow.webContents.on(
-    "preload-error",
-    (_event, preloadPath, error) => {
-      console.error(`Preload failed: ${preloadPath}`, error)
-    }
-  )
-  runtimeWindow.webContents.on("did-fail-load", (_event, code, description) => {
-    console.error(`Runtime host failed to load (${code}): ${description}`)
-  })
-  runtimeWindow.webContents.on("render-process-gone", (_event, details) => {
-    console.error("Runtime renderer exited", details)
-  })
-  runtimeWindow.webContents.on("console-message", (event) => {
-    console.error(`Runtime console (${event.level}): ${event.message}`)
-  })
-  runtimeWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
+  observeRuntimeWindow(runtimeWindow, `${scenarioId} runtime`)
 
   let hostPort
   try {
@@ -198,6 +221,235 @@ async function runCommandScenario({
   }
 }
 
+async function runSurfaceScenario({
+  scenarioId,
+  extensionId,
+  editorId,
+  entrypoint,
+  files,
+}) {
+  const generation = `smoke-${scenarioId}`
+  const bundle = await compileExtensionSurface({ entrypoint, files })
+  const source = createExtensionSurfaceSource({
+    bundleCode: bundle.code,
+    extensionId,
+    generation,
+  })
+  const runtimeSession = createRuntimeSession(scenarioId)
+  const runtimeWindow = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      session: runtimeSession,
+      sandbox: true,
+      nodeIntegration: false,
+      nodeIntegrationInWorker: false,
+      contextIsolation: true,
+      webSecurity: true,
+      devTools: false,
+    },
+  })
+  observeRuntimeWindow(runtimeWindow, `${scenarioId} surface`)
+
+  const initialText = "- [ ] Ship the editor\n"
+  const expectedText = `${initialText}Second line\n`
+  const initialize = {
+    type: "initialize",
+    protocolVersion: EXTENSION_SURFACE_PROTOCOL_VERSION,
+    packageId: extensionId,
+    generation,
+    editorId,
+    viewId: `${scenarioId}-view`,
+    snapshot: {
+      documentId: `${scenarioId}-document`,
+      resource: {
+        path: "notes.notes.md",
+        mediaType: "text/markdown",
+        languageId: "markdown",
+        encoding: "utf-8",
+      },
+      text: initialText,
+      persistedContentDigest: `sha256:${"3".repeat(64)}`,
+      revision: 1,
+      savedRevision: 1,
+      dirty: false,
+      readOnly: false,
+      canUndo: false,
+      canRedo: false,
+    },
+    capabilities: {
+      editable: true,
+      save: true,
+      undoRedo: true,
+      savePolicy: { mode: "afterDelay", delayMs: 700 },
+    },
+    appearance: {
+      colorScheme: "light",
+      locale: "en",
+      theme: {
+        background: "rgb(255, 255, 255)",
+        foreground: "rgb(17, 24, 39)",
+        mutedBackground: "rgb(249, 250, 251)",
+        mutedForeground: "rgb(107, 114, 128)",
+        border: "rgb(209, 213, 219)",
+        accent: "rgb(37, 99, 235)",
+        accentForeground: "rgb(255, 255, 255)",
+        destructive: "rgb(220, 38, 38)",
+        destructiveForeground: "rgb(255, 255, 255)",
+        focusRing: "rgb(59, 130, 246)",
+        fontFamily: "system-ui, sans-serif",
+        monoFontFamily: "ui-monospace, monospace",
+      },
+    },
+  }
+
+  try {
+    await runtimeWindow.loadURL(extensionSurfaceDataUrl())
+    const result = await runtimeWindow.webContents.executeJavaScript(
+      `new Promise((resolve, reject) => {
+        const source = ${JSON.stringify(source)};
+        const generation = ${JSON.stringify(generation)};
+        const initialize = ${JSON.stringify(initialize)};
+        const expectedText = ${JSON.stringify(expectedText)};
+        const channel = new MessageChannel();
+        const port = channel.port1;
+        let settled = false;
+        const timeout = setTimeout(() => fail(new Error("Surface smoke timed out")), 10000);
+        const fail = (error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          try { port.close(); } catch {}
+          reject(error);
+        };
+        const finish = (value) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          try { port.close(); } catch {}
+          resolve(value);
+        };
+        const applyEdits = (text, edits) => {
+          let next = text;
+          for (let index = edits.length - 1; index >= 0; index -= 1) {
+            const edit = edits[index];
+            next = next.slice(0, edit.start) + edit.text + next.slice(edit.end);
+          }
+          return next;
+        };
+        port.onmessage = (event) => {
+          try {
+            const message = event.data;
+            if (message?.type === "activation-error") {
+              throw new Error("Surface activation failed: " + message.message);
+            }
+            if (message?.type === "ready") {
+              if (message.protocolVersion !== initialize.protocolVersion) {
+                throw new Error("Surface activated with an unexpected protocol");
+              }
+              port.postMessage(initialize);
+              return;
+            }
+            if (message?.type === "activated") {
+              const textarea = document.querySelector('textarea[aria-label="Document text"]');
+              if (!(textarea instanceof HTMLTextAreaElement)) {
+                throw new Error("Generated surface did not render its text editor");
+              }
+              if (textarea.value !== initialize.snapshot.text) {
+                throw new Error("Generated surface did not render the initial document");
+              }
+              if (typeof fetch !== "undefined" || typeof XMLHttpRequest !== "undefined") {
+                throw new Error("Blocked network globals are still available");
+              }
+              textarea.value = expectedText;
+              textarea.dispatchEvent(new Event("input", { bubbles: true }));
+              return;
+            }
+            if (message?.type === "request-resync") {
+              throw new Error("Generated surface unexpectedly requested a resync");
+            }
+            if (message?.type !== "apply-edits") return;
+            if (
+              message.documentId !== initialize.snapshot.documentId ||
+              message.baseRevision !== initialize.snapshot.revision ||
+              !Array.isArray(message.edits) ||
+              applyEdits(initialize.snapshot.text, message.edits) !== expectedText
+            ) {
+              throw new Error("Generated surface emitted invalid document edits");
+            }
+            port.postMessage({
+              type: "document-changed",
+              documentId: initialize.snapshot.documentId,
+              originViewId: initialize.viewId,
+              reason: "edit",
+              edits: message.edits,
+              revision: 2,
+              savedRevision: 1,
+              dirty: true,
+              readOnly: false,
+              canUndo: true,
+              canRedo: false,
+            });
+            port.postMessage({
+              type: "request-result",
+              requestId: message.requestId,
+              ok: true,
+              revision: 2,
+            });
+            setTimeout(() => {
+              try {
+                const textarea = document.querySelector('textarea[aria-label="Document text"]');
+                const status = document.querySelector("header span");
+                if (!(textarea instanceof HTMLTextAreaElement) || textarea.value !== expectedText) {
+                  throw new Error("Generated surface lost the accepted document edit");
+                }
+                if (status?.textContent !== "Unsaved") {
+                  throw new Error("Generated surface did not reflect the dirty document state");
+                }
+                finish({
+                  text: textarea.value,
+                  status: status.textContent,
+                  edits: message.edits,
+                  borderRadius: getComputedStyle(textarea).borderRadius,
+                  background: document.documentElement.style.getPropertyValue("--eidos-color-background"),
+                });
+              } catch (error) {
+                fail(error);
+              }
+            }, 0);
+          } catch (error) {
+            fail(error);
+          }
+        };
+        port.start();
+        window.postMessage(
+          {
+            type: ${JSON.stringify(EXTENSION_SURFACE_BOOTSTRAP_CHANNEL)},
+            source,
+            generation,
+          },
+          "*",
+          [channel.port2]
+        );
+      })`,
+      true
+    )
+    if (
+      result?.text !== expectedText ||
+      result?.status !== "Unsaved" ||
+      result?.borderRadius !== "10px" ||
+      result?.background !== initialize.appearance.theme.background ||
+      !Array.isArray(result?.edits) ||
+      result.edits.length !== 1
+    ) {
+      throw new Error("Generated surface returned an unexpected result")
+    }
+    console.log(`${scenarioId} extension smoke passed`)
+  } finally {
+    if (!runtimeWindow.isDestroyed()) runtimeWindow.destroy()
+    await runtimeSession.clearStorageData()
+  }
+}
+
 async function run() {
   await app.whenReady()
 
@@ -267,6 +519,29 @@ async function run() {
       }
       return { value: undefined, completes: true }
     },
+  })
+
+  const generatedEditor = createExtensionTextEditorTemplate({
+    publisher: "local",
+    name: "surface-smoke",
+    displayName: "Surface Smoke",
+    engineRange: ">=0.33.0",
+    filenamePattern: "**/*.notes.md",
+    mediaType: "text/markdown",
+  })
+  const editor = generatedEditor.manifest.contributes.fileEditors?.[0]
+  if (!editor || !generatedEditor.manifest.entrypoints.ui) {
+    throw new Error("Generated editor template is missing its surface contract")
+  }
+  await runSurfaceScenario({
+    scenarioId: "generated-text-editor",
+    extensionId: generatedEditor.canonicalId,
+    editorId: editor.id,
+    entrypoint: generatedEditor.manifest.entrypoints.ui,
+    files: generatedEditor.files.map((file) => ({
+      path: file.path,
+      content: bytes(file.content),
+    })),
   })
 
   console.log("File extension runtime smoke passed")
