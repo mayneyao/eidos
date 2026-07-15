@@ -12,3 +12,9 @@ links, hard links, special files, path collisions, unsupported imports, missing
 entrypoints, malformed manifests, and packages that exceed configured limits.
 Electron, renderer APIs, Graft, SQLite, and runtime trust state are deliberately
 outside this package.
+
+The root export also creates self-consistent command and editable text-editor
+starter packages. Node inspection requires an installed directory to match the
+canonical `<publisher>.<name>` ID by default. Developer tools may explicitly
+set `requireCanonicalDirectoryName: false` when checking a source repository;
+all file, manifest, import, digest, and resource-limit checks still apply.

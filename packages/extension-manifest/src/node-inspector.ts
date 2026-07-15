@@ -533,7 +533,10 @@ function inspectPackageTree(
   }
 
   const analysis = analyzeExtensionManifest(manifestText.text, {
-    packageDirectoryName: directoryName,
+    packageDirectoryName:
+      options.requireCanonicalDirectoryName === false
+        ? undefined
+        : directoryName,
     hostVersion: options.hostVersion,
     maxBytes: options.maxManifestBytes ?? DEFAULT_MAX_MANIFEST_BYTES,
     maxDepth: options.maxManifestDepth ?? DEFAULT_MAX_MANIFEST_DEPTH,

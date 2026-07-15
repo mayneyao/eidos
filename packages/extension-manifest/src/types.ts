@@ -151,6 +151,12 @@ export interface ExtensionPackageInspection {
 
 export interface InspectExtensionPackageOptions {
   hostVersion?: string
+  /**
+   * Installed packages must live in a directory named after their canonical
+   * ID. Source repositories may opt out while retaining every other package
+   * inspection rule. Defaults to true.
+   */
+  requireCanonicalDirectoryName?: boolean
   maxManifestBytes?: number
   maxManifestDepth?: number
   maxEntries?: number

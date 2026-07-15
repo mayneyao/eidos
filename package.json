@@ -26,6 +26,8 @@
     "build:cli": "cd apps/cli && cargo build --release",
     "build:cli:dev": "cd apps/cli && cargo build",
     "build:desktop:local": "pnpm run --filter eidos build:cli && pnpm run --filter eidos build && pnpm run --filter eidos package:dev",
+    "extension:cli": "pnpm --filter @eidos.space/extension-cli build && node packages/extension-cli/dist/cli.mjs",
+    "check:extension-packages": "node scripts/check-extension-package-metadata.mjs",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "typecheck:ts": "pnpm run --recursive typecheck",

@@ -1,4 +1,12 @@
-import { link, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises"
+import {
+  link,
+  mkdir,
+  mkdtemp,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -91,6 +99,31 @@ describe("inspectExtensionPackage", () => {
       "src/helper.ts",
     ])
     expect(result.diagnostics).toEqual([])
+  })
+
+  it("allows source repositories to use a non-canonical directory name explicitly", async () => {
+    const { packageRoot } = await createPackage()
+    const sourceRoot = path.join(
+      path.dirname(packageRoot),
+      "task-counter-source"
+    )
+    await rename(packageRoot, sourceRoot)
+
+    const installedCheck = await inspectExtensionPackage(sourceRoot, {
+      hostVersion: "0.34.0",
+    })
+    const sourceCheck = await inspectExtensionPackage(sourceRoot, {
+      hostVersion: "0.34.0",
+      requireCanonicalDirectoryName: false,
+    })
+
+    expect(installedCheck.status).toBe("invalid")
+    expect(codes(installedCheck)).toContain("manifest-directory-mismatch")
+    expect(sourceCheck).toMatchObject({
+      status: "ready",
+      canonicalId: "example.task-counter",
+      diagnostics: [],
+    })
   })
 
   it("returns the exact stable bytes used for the inspected digest", async () => {

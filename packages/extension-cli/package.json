@@ -1,0 +1,52 @@
+{
+  "name": "@eidos.space/extension-cli",
+  "version": "0.1.0",
+  "description": "Scaffold and validate Eidos file-based extensions",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "bin": {
+    "eidos-extension": "./dist/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "prebuild": "pnpm --filter @eidos.space/extension-sdk... --filter @eidos.space/extension-runtime... build",
+    "build": "tsdown",
+    "pretest": "pnpm --filter @eidos.space/extension-sdk... --filter @eidos.space/extension-runtime... build",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "eidos",
+    "extensions",
+    "cli",
+    "scaffold"
+  ],
+  "license": "ISC",
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@eidos.space/extension-manifest": "workspace:*",
+    "@eidos.space/extension-runtime": "workspace:*",
+    "@eidos.space/extension-sdk": "workspace:*",
+    "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.1",
+    "tsdown": "^0.21.7",
+    "vitest": "^3.2.4"
+  }
+}
