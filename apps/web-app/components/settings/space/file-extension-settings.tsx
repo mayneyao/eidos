@@ -7,6 +7,7 @@ import {
   Code2,
   Command as CommandIcon,
   Download,
+  FileCode2,
   FilePenLine,
   FolderCog,
   Github,
@@ -23,8 +24,10 @@ import { useTranslation } from "react-i18next"
 
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
+import { toSpaceFileUrl } from "@/components/file-space/file-path"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,6 +46,7 @@ type LocalExtensionTemplateKind = "command" | "text-editor"
 type CreatedLocalExtension = {
   canonicalId: string
   root: string
+  sourcePath: string
   template: LocalExtensionTemplateKind
 }
 
@@ -89,10 +93,30 @@ function fileEditorSelectorLabel(
     .join(" · ")
 }
 
+function sourcePathForPackage(
+  root: string,
+  extension: FileExtensionPackage
+): string | null {
+  const filePaths = new Set(extension.files.map((file) => file.path))
+  const candidates = [
+    extension.manifest?.entrypoints.worker,
+    extension.manifest?.entrypoints.ui,
+    "extension.json",
+    ...extension.files.map((file) => file.path),
+  ]
+  const relativePath = candidates.find(
+    (candidate): candidate is string => !!candidate && filePaths.has(candidate)
+  )
+  return relativePath
+    ? `${root}/${extension.directoryName}/${relativePath}`
+    : null
+}
+
 export function FileExtensionSettings() {
   const { t } = useTranslation()
   const { currentSpace } = useCurrentSpace()
   const setCmdkOpen = useAppRuntimeStore((state) => state.setCmdkOpen)
+  const openTab = useTabStore((state) => state.openTab)
   const spaceId = currentSpace?.id
   const [discovery, setDiscovery] = useState<FileExtensionDiscovery | null>(
     null
@@ -198,6 +222,9 @@ export function FileExtensionSettings() {
       setCreatedExtension({
         canonicalId: result.canonicalId,
         root: result.root,
+        sourcePath: `${result.root}/${
+          createdTemplate === "command" ? "src/extension.ts" : "src/editor.ts"
+        }`,
         template: createdTemplate,
       })
       setTemplateName("")
@@ -381,6 +408,16 @@ export function FileExtensionSettings() {
         ?.scrollIntoView?.({ block: "center" })
     })
   }, [])
+
+  const openSource = useCallback(
+    (sourcePath: string) => {
+      openTab(
+        toSpaceFileUrl(sourcePath),
+        sourcePath.split("/").at(-1) ?? sourcePath
+      )
+    },
+    [openTab]
+  )
 
   useEffect(() => {
     const packageId = createdExtension?.canonicalId
@@ -1130,18 +1167,29 @@ export function FileExtensionSettings() {
                 </p>
               </div>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => revealPackage(createdExtension.canonicalId)}
-            >
-              {t(
-                "space.settings.fileExtensions.reviewCreatedExtension",
-                "Review extension"
-              )}
-              <ChevronRight />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => openSource(createdExtension.sourcePath)}
+              >
+                <FileCode2 />
+                {t("space.settings.fileExtensions.openSource", "Open source")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => revealPackage(createdExtension.canonicalId)}
+              >
+                {t(
+                  "space.settings.fileExtensions.reviewCreatedExtension",
+                  "Review extension"
+                )}
+                <ChevronRight />
+              </Button>
+            </div>
           </div>
         )}
         {installedMessage && (
@@ -1217,6 +1265,7 @@ export function FileExtensionSettings() {
               const diagnostics = extension.diagnostics
               const snapshot = snapshotFor(extension)
               const packageId = extension.canonicalId ?? extension.directoryName
+              const sourcePath = sourcePathForPackage(discovery.root, extension)
               const uninstallRequest = {
                 directoryName: extension.directoryName,
                 canonicalId: extension.canonicalId,
@@ -1373,6 +1422,20 @@ export function FileExtensionSettings() {
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
+                      {sourcePath && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openSource(sourcePath)}
+                        >
+                          <FileCode2 />
+                          {t(
+                            "space.settings.fileExtensions.openSource",
+                            "Open source"
+                          )}
+                        </Button>
+                      )}
                       <Badge
                         variant="outline"
                         className={cn(
@@ -1698,21 +1761,26 @@ export function FileExtensionSettings() {
                               )}
                             </Label>
                             <p className="mt-0.5 text-xs text-muted-foreground">
-                              {!executionEnabled
+                              {!trusted
                                 ? t(
-                                    "space.settings.fileExtensions.contributionsNotReady",
-                                    "Trust and enable this snapshot before using its contributions."
+                                    "space.settings.fileExtensions.contributionsUntrusted",
+                                    "Review and trust this exact snapshot before enabling it."
                                   )
-                                : missingGrants.length > 0
+                                : !executionEnabled
                                   ? t(
-                                      "space.settings.fileExtensions.contributionsMissingGrants",
-                                      "Enabled, but some requested capabilities are still denied ({{count}}). Grant them below before relying on this extension.",
-                                      { count: missingGrants.length }
+                                      "space.settings.fileExtensions.contributionsDisabled",
+                                      "This snapshot is trusted but disabled. Enable it to add its contributions to Eidos."
                                     )
-                                  : t(
-                                      "space.settings.fileExtensions.contributionsReady",
-                                      "This snapshot is ready. Use any contribution below to activate it."
-                                    )}
+                                  : missingGrants.length > 0
+                                    ? t(
+                                        "space.settings.fileExtensions.contributionsMissingGrants",
+                                        "Enabled, but some requested capabilities are still denied ({{count}}). Grant them below before relying on this extension.",
+                                        { count: missingGrants.length }
+                                      )
+                                    : t(
+                                        "space.settings.fileExtensions.contributionsReady",
+                                        "This snapshot is ready. Use any contribution below to activate it."
+                                      )}
                             </p>
                             <div className="mt-2 divide-y divide-border/60">
                               {commands.map((command) => (
@@ -1731,22 +1799,60 @@ export function FileExtensionSettings() {
                                       </code>
                                     </div>
                                   </div>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={!executionEnabled}
-                                    onClick={() => setCmdkOpen(true)}
-                                  >
-                                    <CommandIcon />
-                                    {t(
-                                      "space.settings.fileExtensions.openCommandPalette",
-                                      "Open Command Palette"
-                                    )}
-                                    <kbd className="ml-1 text-[10px] text-muted-foreground">
-                                      ⌘K
-                                    </kbd>
-                                  </Button>
+                                  {executionEnabled ? (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setCmdkOpen(true)}
+                                    >
+                                      <CommandIcon />
+                                      {t(
+                                        "space.settings.fileExtensions.openCommandPalette",
+                                        "Open Command Palette"
+                                      )}
+                                      <kbd className="ml-1 text-[10px] text-muted-foreground">
+                                        ⌘K
+                                      </kbd>
+                                    </Button>
+                                  ) : trusted ? (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      disabled={
+                                        !!mutatingPackage || !!development
+                                      }
+                                      onClick={() =>
+                                        void mutatePackage(extension, () =>
+                                          window.eidos.fileExtensions.setEnabled(
+                                            spaceId,
+                                            snapshot,
+                                            true
+                                          )
+                                        )
+                                      }
+                                    >
+                                      {busy && (
+                                        <LoaderCircle className="animate-spin" />
+                                      )}
+                                      {t(
+                                        "space.settings.fileExtensions.enableExtension",
+                                        "Enable extension"
+                                      )}
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      disabled
+                                    >
+                                      {t(
+                                        "space.settings.fileExtensions.trustSourceFirst",
+                                        "Trust source first"
+                                      )}
+                                    </Button>
+                                  )}
                                 </div>
                               ))}
                               {fileEditors.map((editor) => (

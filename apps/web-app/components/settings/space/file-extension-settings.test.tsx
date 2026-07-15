@@ -25,6 +25,7 @@ const startDevelopmentSessionMock = vi.hoisted(() => vi.fn())
 const stopDevelopmentSessionMock = vi.hoisted(() => vi.fn())
 const onMock = vi.hoisted(() => vi.fn())
 const offMock = vi.hoisted(() => vi.fn())
+const openTabMock = vi.hoisted(() => vi.fn())
 const translate = vi.hoisted(
   () =>
     (
@@ -179,6 +180,12 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("@/lib/env", () => ({ isDesktopMode: true }))
 
+vi.mock("@/apps/web-app/store/tabs", () => ({
+  useTabStore: (
+    selector: (state: { openTab: typeof openTabMock }) => unknown
+  ) => selector({ openTab: openTabMock }),
+}))
+
 vi.mock("@/apps/web-app/hooks/use-current-space", () => ({
   useCurrentSpace: () => ({
     currentSpace: {
@@ -196,6 +203,7 @@ describe("FileExtensionSettings", () => {
 
   beforeEach(() => {
     useAppRuntimeStore.setState({ isCmdkOpen: false })
+    openTabMock.mockReset()
     discoverMock.mockReset()
     createTemplateMock.mockReset().mockResolvedValue({
       canonicalId: "local.hello-tools",
@@ -329,7 +337,22 @@ describe("FileExtensionSettings", () => {
       [...container.querySelectorAll("button")].map((button) =>
         button.textContent?.trim()
       )
-    ).toEqual(["Install from GitHub", "New extension", "Refresh", "Review"])
+    ).toEqual([
+      "Install from GitHub",
+      "New extension",
+      "Refresh",
+      "Open source",
+      "Review",
+    ])
+
+    const openSource = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Open source"
+    )!
+    act(() => openSource.click())
+    expect(openTabMock).toHaveBeenCalledWith(
+      "/space-file#.eidos%2Fextensions%2Fexample.task-counter%2Fsrc%2Fextension.ts",
+      "extension.ts"
+    )
 
     const listener = onMock.mock.calls[0]?.[1]
     await act(async () => {
@@ -418,6 +441,14 @@ describe("FileExtensionSettings", () => {
       "Right-click a matching file → Open with → Hello Tools"
     )
     expect(container.textContent).toContain("**/*.tasks.md · text/markdown")
+    const openCreatedSource = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Open source"
+    )!
+    act(() => openCreatedSource.click())
+    expect(openTabMock).toHaveBeenLastCalledWith(
+      "/space-file#.eidos%2Fextensions%2Flocal.hello-tools%2Fsrc%2Feditor.ts",
+      "editor.ts"
+    )
     expect(discoverMock).toHaveBeenCalledTimes(2)
   })
 
@@ -611,6 +642,9 @@ describe("FileExtensionSettings", () => {
     }
     expect(trustMock).toHaveBeenCalledWith("file-space", snapshot)
     expect(container.textContent).toContain("Revoke trust")
+    expect(container.textContent).toContain(
+      "This snapshot is trusted but disabled"
+    )
 
     let switches = [
       ...container.querySelectorAll<HTMLElement>("[role='switch']"),
@@ -626,9 +660,11 @@ describe("FileExtensionSettings", () => {
       granted: true,
     })
 
-    switches = [...container.querySelectorAll<HTMLElement>("[role='switch']")]
+    const enableExtension = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Enable extension"
+    )!
     await act(async () => {
-      switches[0].click()
+      enableExtension.click()
       await Promise.resolve()
       await Promise.resolve()
     })
@@ -654,6 +690,44 @@ describe("FileExtensionSettings", () => {
       canonicalId: "example.task-counter",
       contentDigest,
     })
+  })
+
+  it("offers an explicit enable action before registering a trusted command", async () => {
+    discoverMock.mockResolvedValue(discoveryFixture("disabled", []))
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const manage = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Manage"
+    )!
+    act(() => manage.click())
+
+    expect(container.textContent).toContain(
+      "This snapshot is trusted but disabled. Enable it to add its contributions to Eidos."
+    )
+    expect(container.textContent).not.toContain("Open Command Palette")
+
+    const enableExtension = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Enable extension"
+    )!
+    await act(async () => {
+      enableExtension.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(setEnabledMock).toHaveBeenCalledWith(
+      "file-space",
+      {
+        packageId: "example.task-counter",
+        contentDigest,
+        permissionHash,
+      },
+      true
+    )
+    expect(useAppRuntimeStore.getState().isCmdkOpen).toBe(false)
   })
 
   it("starts and stops an inline development session from an enabled snapshot", async () => {
@@ -748,7 +822,7 @@ describe("FileExtensionSettings", () => {
           status: "invalid",
           lifecycleStatus: "invalid",
           requestedGrants: [],
-          files: [],
+          files: [{ path: "src/extension.ts", size: 80 }],
           diagnostics: [
             {
               code: "package-manifest-missing",
@@ -763,6 +837,15 @@ describe("FileExtensionSettings", () => {
       root.render(<FileExtensionSettings />)
       await Promise.resolve()
     })
+
+    const openSource = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Open source"
+    )!
+    act(() => openSource.click())
+    expect(openTabMock).toHaveBeenCalledWith(
+      "/space-file#.eidos%2Fextensions%2Fbroken-package%2Fsrc%2Fextension.ts",
+      "extension.ts"
+    )
 
     const remove = [...container.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "Remove"
