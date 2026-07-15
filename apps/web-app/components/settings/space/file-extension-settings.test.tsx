@@ -1,6 +1,8 @@
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
+
 import { FileExtensionSettings } from "./file-extension-settings"
 
 ;(
@@ -118,6 +120,54 @@ function discoveryFixture(
   }
 }
 
+function createdTextEditorFixture() {
+  const fixture = discoveryFixture()
+  return {
+    ...fixture,
+    packages: [
+      {
+        ...fixture.packages[0],
+        directoryName: "local.hello-tools",
+        canonicalId: "local.hello-tools",
+        manifest: {
+          ...fixture.packages[0].manifest,
+          publisher: "local",
+          name: "hello-tools",
+          displayName: "Hello Tools",
+          description: "Open matching text files with Hello Tools.",
+          entrypoints: { ui: "src/editor.ts" },
+          contributes: {
+            fileEditors: [
+              {
+                id: "local.hello-tools.editor",
+                displayName: "Hello Tools",
+                selector: [
+                  {
+                    filenamePattern: "**/*.tasks.md",
+                    mediaType: "text/markdown",
+                  },
+                ],
+                priority: "option" as const,
+              },
+            ],
+          },
+          permissions: {
+            files: {
+              read: ["**/*.tasks.md"],
+              write: ["**/*.tasks.md"],
+            },
+            network: [],
+          },
+        },
+        requestedGrants: [
+          { kind: "files.read" as const, value: "**/*.tasks.md" },
+          { kind: "files.write" as const, value: "**/*.tasks.md" },
+        ],
+      },
+    ],
+  }
+}
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: translate }),
 }))
@@ -140,6 +190,7 @@ describe("FileExtensionSettings", () => {
   let root: Root
 
   beforeEach(() => {
+    useAppRuntimeStore.setState({ isCmdkOpen: false })
     discoverMock.mockReset()
     createTemplateMock.mockReset().mockResolvedValue({
       canonicalId: "local.hello-tools",
@@ -290,6 +341,10 @@ describe("FileExtensionSettings", () => {
   })
 
   it("creates a text-editor template through the inline starter selector", async () => {
+    discoverMock
+      .mockReset()
+      .mockResolvedValueOnce(discoveryFixture())
+      .mockResolvedValue(createdTextEditorFixture())
     await act(async () => {
       root.render(<FileExtensionSettings />)
       await Promise.resolve()
@@ -349,7 +404,39 @@ describe("FileExtensionSettings", () => {
     expect(container.textContent).toContain(
       "Created .eidos/extensions/local.hello-tools"
     )
+    expect(container.textContent).toContain(
+      "Next: review permissions and enable it below"
+    )
+    expect(container.textContent).toContain("Source trust")
+    expect(container.textContent).toContain("How to use")
+    expect(container.textContent).toContain(
+      "Right-click a matching file → Open with → Hello Tools"
+    )
+    expect(container.textContent).toContain("**/*.tasks.md · text/markdown")
     expect(discoverMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("shows how to trigger an enabled command and opens the command palette", async () => {
+    discoverMock.mockResolvedValue(discoveryFixture("enabled"))
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const manage = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Manage"
+    )!
+    act(() => manage.click())
+
+    expect(container.textContent).toContain("How to use")
+    expect(container.textContent).toContain("Count tasks")
+    expect(container.textContent).toContain("example.task-counter.count")
+    const openCommandPalette = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("Open Command Palette")
+    )!
+    expect(openCommandPalette.disabled).toBe(false)
+    act(() => openCommandPalette.click())
+    expect(useAppRuntimeStore.getState().isCmdkOpen).toBe(true)
   })
 
   it("reviews an immutable GitHub snapshot before installing it", async () => {

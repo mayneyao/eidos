@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   Code2,
+  Command as CommandIcon,
   Download,
   FilePenLine,
   FolderCog,
@@ -21,6 +22,7 @@ import {
 import { useTranslation } from "react-i18next"
 
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
+import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
@@ -38,6 +40,11 @@ type FileExtensionInstallPreview = Awaited<
   ReturnType<typeof window.eidos.fileExtensions.prepareGitHubInstall>
 >
 type LocalExtensionTemplateKind = "command" | "text-editor"
+type CreatedLocalExtension = {
+  canonicalId: string
+  root: string
+  template: LocalExtensionTemplateKind
+}
 
 const DEFAULT_TEXT_EDITOR_PATTERN = "**/*.notes.md"
 
@@ -68,9 +75,24 @@ function contributionCount(extension: FileExtensionPackage): number {
   )
 }
 
+function packageElementId(packageId: string): string {
+  return `file-extension-package-${packageId.replace(/[^a-zA-Z0-9_-]/g, "-")}`
+}
+
+function fileEditorSelectorLabel(
+  selector: NonNullable<
+    NonNullable<FileExtensionPackage["manifest"]>["contributes"]["fileEditors"]
+  >[number]["selector"][number]
+): string {
+  return [selector.filenamePattern, selector.mediaType]
+    .filter((value): value is string => !!value)
+    .join(" · ")
+}
+
 export function FileExtensionSettings() {
   const { t } = useTranslation()
   const { currentSpace } = useCurrentSpace()
+  const setCmdkOpen = useAppRuntimeStore((state) => state.setCmdkOpen)
   const spaceId = currentSpace?.id
   const [discovery, setDiscovery] = useState<FileExtensionDiscovery | null>(
     null
@@ -86,7 +108,8 @@ export function FileExtensionSettings() {
   )
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
-  const [createdPath, setCreatedPath] = useState<string | null>(null)
+  const [createdExtension, setCreatedExtension] =
+    useState<CreatedLocalExtension | null>(null)
   const [showInstaller, setShowInstaller] = useState(false)
   const [githubRepository, setGithubRepository] = useState("")
   const [githubRef, setGithubRef] = useState("")
@@ -110,6 +133,7 @@ export function FileExtensionSettings() {
   const requestGeneration = useRef(0)
   const lastEventGeneration = useRef(0)
   const installPreviewRef = useRef<FileExtensionInstallPreview | null>(null)
+  const revealedCreatedPackage = useRef<string | null>(null)
 
   useEffect(() => {
     installPreviewRef.current = installPreview
@@ -160,8 +184,9 @@ export function FileExtensionSettings() {
     if (!name || (templateKind === "text-editor" && !filenamePattern)) return
     setCreating(true)
     setCreateError(null)
-    setCreatedPath(null)
+    setCreatedExtension(null)
     try {
+      const createdTemplate = templateKind
       const result = await window.eidos.fileExtensions.createTemplate(spaceId, {
         name,
         template: templateKind,
@@ -169,7 +194,12 @@ export function FileExtensionSettings() {
           templateKind === "text-editor" ? filenamePattern : undefined,
         mediaType: templateKind === "text-editor" ? "text/markdown" : undefined,
       })
-      setCreatedPath(result.root)
+      revealedCreatedPackage.current = null
+      setCreatedExtension({
+        canonicalId: result.canonicalId,
+        root: result.root,
+        template: createdTemplate,
+      })
       setTemplateName("")
       setTemplateKind("command")
       setTemplatePattern(DEFAULT_TEXT_EDITOR_PATTERN)
@@ -338,6 +368,35 @@ export function FileExtensionSettings() {
     }
   }, [load])
 
+  const revealPackage = useCallback((packageId: string) => {
+    setExpandedPackages((current) => {
+      if (current.has(packageId)) return current
+      const next = new Set(current)
+      next.add(packageId)
+      return next
+    })
+    requestAnimationFrame(() => {
+      document
+        .getElementById(packageElementId(packageId))
+        ?.scrollIntoView?.({ block: "center" })
+    })
+  }, [])
+
+  useEffect(() => {
+    const packageId = createdExtension?.canonicalId
+    if (
+      !packageId ||
+      revealedCreatedPackage.current === packageId ||
+      !discovery?.packages.some(
+        (extension) => extension.canonicalId === packageId
+      )
+    ) {
+      return
+    }
+    revealedCreatedPackage.current = packageId
+    revealPackage(packageId)
+  }, [createdExtension?.canonicalId, discovery, revealPackage])
+
   useEffect(() => {
     if (!spaceId || !isDesktopMode || !window.eidos?.fileExtensions) return
     lastEventGeneration.current = 0
@@ -489,7 +548,7 @@ export function FileExtensionSettings() {
               disabled={creating}
               onClick={() => {
                 setCreateError(null)
-                setCreatedPath(null)
+                setCreatedExtension(null)
                 setShowCreator((visible) => !visible)
               }}
             >
@@ -1043,14 +1102,47 @@ export function FileExtensionSettings() {
             </Badge>
           </div>
         </div>
-        {createdPath && (
-          <p className="mt-3 text-sm text-muted-foreground">
-            {t(
-              "space.settings.fileExtensions.created",
-              "Created {{path}}. Edit these real files with your preferred editor; Version will show their changes.",
-              { path: createdPath }
-            )}
-          </p>
+        {createdExtension && (
+          <div
+            role="status"
+            className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm"
+          >
+            <div className="flex min-w-0 items-start gap-2 text-muted-foreground">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+              <div className="min-w-0">
+                <p>
+                  {t(
+                    "space.settings.fileExtensions.created",
+                    "Created {{path}}.",
+                    { path: createdExtension.root }
+                  )}
+                </p>
+                <p className="mt-0.5 text-xs leading-5">
+                  {createdExtension.template === "command"
+                    ? t(
+                        "space.settings.fileExtensions.commandCreatedNextStep",
+                        "Next: review and enable it below, then run its command from the Command Palette."
+                      )
+                    : t(
+                        "space.settings.fileExtensions.editorCreatedNextStep",
+                        "Next: review permissions and enable it below, then open a matching file with the contributed editor."
+                      )}
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => revealPackage(createdExtension.canonicalId)}
+            >
+              {t(
+                "space.settings.fileExtensions.reviewCreatedExtension",
+                "Review extension"
+              )}
+              <ChevronRight />
+            </Button>
+          </div>
         )}
         {installedMessage && (
           <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-400">
@@ -1140,8 +1232,18 @@ export function FileExtensionSettings() {
               const granted = new Set(
                 extension.localState?.granted.map(grantKey) ?? []
               )
+              const commands = extension.manifest?.contributes.commands ?? []
+              const fileEditors =
+                extension.manifest?.contributes.fileEditors ?? []
+              const activationReady =
+                extension.lifecycleStatus === "enabled" ||
+                development?.status === "ready"
               return (
-                <div key={extension.directoryName} className="py-4">
+                <div
+                  id={packageElementId(packageId)}
+                  key={extension.directoryName}
+                  className="scroll-m-8 py-4"
+                >
                   <div className="flex min-h-[56px] items-start justify-between gap-6">
                     <div className="flex min-w-0 flex-1 items-start gap-3">
                       {development ? (
@@ -1189,6 +1291,41 @@ export function FileExtensionSettings() {
                             }
                           )}
                         </p>
+                        {commands[0] && (
+                          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <CommandIcon className="h-3 w-3" />
+                            <span className="truncate">
+                              {commands[0].title}
+                            </span>
+                            <span aria-hidden="true">·</span>
+                            <span>
+                              {t(
+                                "space.settings.fileExtensions.commandPaletteShortcut",
+                                "Command Palette ⌘K"
+                              )}
+                            </span>
+                          </p>
+                        )}
+                        {fileEditors[0] && (
+                          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <FilePenLine className="h-3 w-3" />
+                            <span className="truncate">
+                              {fileEditors[0].displayName}
+                            </span>
+                            <span aria-hidden="true">·</span>
+                            <span>
+                              {fileEditors[0].priority === "option"
+                                ? t(
+                                    "space.settings.fileExtensions.openWithTrigger",
+                                    "Open with"
+                                  )
+                                : t(
+                                    "space.settings.fileExtensions.opensAutomatically",
+                                    "Opens automatically"
+                                  )}
+                            </span>
+                          </p>
+                        )}
                         {extension.lock && (
                           <p className="text-xs text-muted-foreground">
                             <Github className="mr-1 inline h-3 w-3" />
@@ -1517,7 +1654,7 @@ export function FileExtensionSettings() {
                             <p className="mt-0.5 text-xs text-muted-foreground">
                               {t(
                                 "space.settings.fileExtensions.enablementDescription",
-                                "Allows this exact trusted snapshot to run when a command is invoked."
+                                "Allows this exact trusted snapshot to run when one of its contributions is used."
                               )}
                             </p>
                           </div>
@@ -1541,6 +1678,113 @@ export function FileExtensionSettings() {
                             }
                           />
                         </div>
+
+                        {(commands.length > 0 || fileEditors.length > 0) && (
+                          <div className="py-3">
+                            <Label>
+                              {t(
+                                "space.settings.fileExtensions.howToUse",
+                                "How to use"
+                              )}
+                            </Label>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {activationReady
+                                ? t(
+                                    "space.settings.fileExtensions.contributionsReady",
+                                    "This snapshot is ready. Use any contribution below to activate it."
+                                  )
+                                : t(
+                                    "space.settings.fileExtensions.contributionsNotReady",
+                                    "Trust and enable this snapshot before using its contributions."
+                                  )}
+                            </p>
+                            <div className="mt-2 divide-y divide-border/60">
+                              {commands.map((command) => (
+                                <div
+                                  key={command.id}
+                                  className="flex min-h-[52px] items-center justify-between gap-4 py-2"
+                                >
+                                  <div className="flex min-w-0 items-start gap-2">
+                                    <CommandIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-medium">
+                                        {command.title}
+                                      </p>
+                                      <code className="block truncate text-[11px] text-muted-foreground">
+                                        {command.id}
+                                      </code>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={!activationReady}
+                                    onClick={() => setCmdkOpen(true)}
+                                  >
+                                    <CommandIcon />
+                                    {t(
+                                      "space.settings.fileExtensions.openCommandPalette",
+                                      "Open Command Palette"
+                                    )}
+                                    <kbd className="ml-1 text-[10px] text-muted-foreground">
+                                      ⌘K
+                                    </kbd>
+                                  </Button>
+                                </div>
+                              ))}
+                              {fileEditors.map((editor) => (
+                                <div
+                                  key={editor.id}
+                                  className="flex min-h-[56px] items-center justify-between gap-4 py-2"
+                                >
+                                  <div className="flex min-w-0 items-start gap-2">
+                                    <FilePenLine className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-medium">
+                                        {editor.displayName}
+                                      </p>
+                                      <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-1">
+                                        {editor.selector.map(
+                                          (selector, index) => (
+                                            <code
+                                              key={`${editor.id}-selector-${index}`}
+                                              className="text-[11px] text-muted-foreground"
+                                            >
+                                              {fileEditorSelectorLabel(
+                                                selector
+                                              )}
+                                            </code>
+                                          )
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <p
+                                    className={cn(
+                                      "max-w-64 text-right text-xs leading-5",
+                                      activationReady
+                                        ? "text-foreground"
+                                        : "text-muted-foreground"
+                                    )}
+                                  >
+                                    {editor.priority === "option"
+                                      ? t(
+                                          "space.settings.fileExtensions.openEditorInstructions",
+                                          "Right-click a matching file → Open with → {{name}}",
+                                          { name: editor.displayName }
+                                        )
+                                      : t(
+                                          "space.settings.fileExtensions.defaultEditorInstructions",
+                                          "Open a matching file to use {{name}}",
+                                          { name: editor.displayName }
+                                        )}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         {!development && trusted && enabled && (
                           <div className="flex min-h-[72px] items-center justify-between gap-6 py-3">
