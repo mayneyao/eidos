@@ -1,17 +1,14 @@
 import { access, readFile, readdir } from "node:fs/promises"
 import path from "node:path"
 
+import {
+  extensionIssuesUrl,
+  extensionRegistryUrl,
+  extensionRepositoryUrl,
+  publicExtensionPackageDirectories,
+} from "./file-extension-public-packages.mjs"
+
 const packagesRoot = path.resolve("packages")
-const repositoryUrl = "git+https://github.com/mayneyao/eidos.git"
-const issuesUrl = "https://github.com/mayneyao/eidos/issues"
-const registryUrl = "https://registry.npmjs.org/"
-const publicDeveloperPackages = new Set([
-  "extension-cli",
-  "extension-manifest",
-  "extension-runtime",
-  "extension-sdk",
-  "extension-surface-protocol",
-])
 const entries = await readdir(packagesRoot, { withFileTypes: true })
 const extensionPackageCandidates = entries
   .filter((entry) => entry.isDirectory() && entry.name.startsWith("extension-"))
@@ -62,22 +59,25 @@ for (const directoryName of extensionPackages) {
   }
   console.log(`Validated ${manifest.name} license (${manifest.license})`)
 
-  if (!publicDeveloperPackages.has(directoryName)) continue
+  if (!publicExtensionPackageDirectories.has(directoryName)) continue
   const expectedHomepage = `https://github.com/mayneyao/eidos/tree/main/packages/${directoryName}#readme`
   const failures = [
     [manifest.private === true, "must not be private"],
     [manifest.author !== "mayneyao", "must declare the package author"],
     [
       manifest.repository?.type !== "git" ||
-        manifest.repository?.url !== repositoryUrl ||
+        manifest.repository?.url !== extensionRepositoryUrl ||
         manifest.repository?.directory !== `packages/${directoryName}`,
       "must link to its exact monorepo directory",
     ],
     [manifest.homepage !== expectedHomepage, "must link to its package README"],
-    [manifest.bugs?.url !== issuesUrl, "must link to the issue tracker"],
+    [
+      manifest.bugs?.url !== extensionIssuesUrl,
+      "must link to the issue tracker",
+    ],
     [
       manifest.publishConfig?.access !== "public" ||
-        manifest.publishConfig?.registry !== registryUrl,
+        manifest.publishConfig?.registry !== extensionRegistryUrl,
       "must publish publicly to the npm registry",
     ],
     [

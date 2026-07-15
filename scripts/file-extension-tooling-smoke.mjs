@@ -6,15 +6,19 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 
+import {
+  extensionIssuesUrl,
+  extensionRegistryUrl,
+  extensionRepositoryUrl,
+  publicExtensionPackages,
+} from "./file-extension-public-packages.mjs"
+
 const execFileAsync = promisify(execFile)
 const workspaceRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   ".."
 )
 const pnpmCli = process.env.npm_execpath
-const repositoryUrl = "git+https://github.com/mayneyao/eidos.git"
-const issuesUrl = "https://github.com/mayneyao/eidos/issues"
-const registryUrl = "https://registry.npmjs.org/"
 
 if (!pnpmCli) {
   throw new Error(
@@ -22,33 +26,9 @@ if (!pnpmCli) {
   )
 }
 
-const packages = [
-  {
-    name: "@eidos.space/extension-manifest",
-    directory: "extension-manifest",
-    archive: "extension-manifest.tgz",
-  },
-  {
-    name: "@eidos.space/extension-surface-protocol",
-    directory: "extension-surface-protocol",
-    archive: "extension-surface-protocol.tgz",
-  },
-  {
-    name: "@eidos.space/extension-sdk",
-    directory: "extension-sdk",
-    archive: "extension-sdk.tgz",
-  },
-  {
-    name: "@eidos.space/extension-runtime",
-    directory: "extension-runtime",
-    archive: "extension-runtime.tgz",
-  },
-  {
-    name: "@eidos.space/extension-cli",
-    directory: "extension-cli",
-    archive: "extension-cli.tgz",
-  },
-]
+const packages = publicExtensionPackages.map((packageInfo) => ({
+  ...packageInfo,
+}))
 
 for (const packageInfo of packages) {
   const manifest = JSON.parse(
@@ -182,13 +162,13 @@ try {
     assert.equal(installedManifest.author, "mayneyao")
     assert.deepEqual(installedManifest.repository, {
       type: "git",
-      url: repositoryUrl,
+      url: extensionRepositoryUrl,
       directory: `packages/${packageInfo.directory}`,
     })
-    assert.equal(installedManifest.bugs?.url, issuesUrl)
+    assert.equal(installedManifest.bugs?.url, extensionIssuesUrl)
     assert.deepEqual(installedManifest.publishConfig, {
       access: "public",
-      registry: registryUrl,
+      registry: extensionRegistryUrl,
     })
     assert.equal(
       JSON.stringify(installedManifest).includes("workspace:"),
