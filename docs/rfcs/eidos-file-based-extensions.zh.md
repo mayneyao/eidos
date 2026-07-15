@@ -596,3 +596,12 @@ package 文件。
 当前开发者预览已经为公开、package 位于 repository root 的仓库实现。Preview session 有短时限且绑定
 Space；renderer 只能看到经过清理的 metadata 与已审阅 digest，不能接触 staging path 或 archive bytes。
 安装与更新会在 Space operation lock 内重新验证。Package 在被单独批准之前保持 disabled 和 untrusted。
+
+Built installer lifecycle 提供可重复的 smoke gate：
+
+```bash
+pnpm --filter eidos smoke:file-extension-install
+```
+
+它导入构建后的 package，解析受控的 GitHub commit/tarball response，然后针对临时 file Space 实际执行并
+验证 install、update 和 uninstall，包括 lock provenance 与 staging cleanup。

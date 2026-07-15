@@ -162,6 +162,8 @@ pnpm format:check     # Check code formatting
 
 ```bash
 pnpm test             # Run Vitest tests
+pnpm --filter eidos smoke:file-extension-install # Built installer lifecycle
+pnpm --filter eidos smoke:file-extension-runtime # Sandboxed Worker runtime
 ```
 
 ### Version Management

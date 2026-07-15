@@ -647,3 +647,13 @@ packages. Preview sessions are short-lived and Space-bound; the renderer sees
 only sanitized metadata and reviewed digests, never staging paths or archive
 bytes. Install and update revalidate under the Space operation lock. Packages
 remain disabled and untrusted until separately approved.
+
+The built installer lifecycle has a repeatable smoke gate:
+
+```bash
+pnpm --filter eidos smoke:file-extension-install
+```
+
+It imports the built package, resolves controlled GitHub commit and tarball
+responses, then performs and verifies an actual install, update, and uninstall
+against a temporary file Space, including lock provenance and staging cleanup.
