@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto"
+import { constants } from "node:fs"
 import {
-  copyFile,
   lstat,
   mkdir,
+  open,
   readFile,
   rename,
   rm,
@@ -14,6 +16,7 @@ import {
   type ExtensionDiagnosticSeverity,
   type ExtensionTemplate,
   type ExtensionTemplateFile,
+  type LegacyExtensionPortingReceiptV1,
 } from "@eidos.space/extension-manifest"
 import { inspectExtensionPackageSnapshot } from "@eidos.space/extension-manifest/node"
 import {
@@ -91,6 +94,8 @@ export interface CreatedLegacyPortingProject {
   candidateContribution: "command" | "file-editor"
   draftManifestPath: string
   portingGuidePath: string
+  portingReceiptPath: string
+  portingReceipt: LegacyExtensionPortingReceiptV1
   archivedFiles: string[]
 }
 
@@ -120,7 +125,8 @@ interface LegacyArchiveV2 {
 
 interface InspectedLegacyArchive {
   metadata: LegacyArchiveV2
-  files: Array<{ source: string; target: string }>
+  archiveDigest: string
+  files: Array<{ archivePath: string; target: string; content: Buffer }>
 }
 
 const MAX_LEGACY_ARCHIVE_FILE_BYTES = 16 * 1024 * 1024
@@ -168,23 +174,69 @@ function normalizeExtensionName(value: string, fallbackId: string): string {
 async function regularFileIfPresent(
   root: string,
   relativePath: string
-): Promise<string | null> {
+): Promise<Buffer | null> {
   const filePath = path.join(root, ...relativePath.split("/"))
+  let handle
   try {
-    const stats = await lstat(filePath)
-    if (stats.isSymbolicLink() || !stats.isFile()) {
+    handle = await open(filePath, constants.O_RDONLY | constants.O_NOFOLLOW)
+  } catch (error) {
+    if (isNodeError(error, "ENOENT")) return null
+    if (isNodeError(error, "ELOOP")) {
+      throw new Error(
+        `Legacy archive entry must not be a symbolic link: ${relativePath}`
+      )
+    }
+    throw error
+  }
+  try {
+    const before = await handle.stat({ bigint: true })
+    if (!before.isFile() || before.nlink !== 1n) {
       throw new Error(
         `Legacy archive entry must be a regular file: ${relativePath}`
       )
     }
-    if (stats.size > MAX_LEGACY_ARCHIVE_FILE_BYTES) {
+    if (before.size > BigInt(MAX_LEGACY_ARCHIVE_FILE_BYTES)) {
       throw new Error(`Legacy archive entry is too large: ${relativePath}`)
     }
-    return filePath
-  } catch (error) {
-    if (isNodeError(error, "ENOENT")) return null
-    throw error
+    const content = await handle.readFile()
+    const after = await handle.stat({ bigint: true })
+    if (
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      before.size !== after.size ||
+      before.mtimeNs !== after.mtimeNs
+    ) {
+      throw new Error(
+        `Legacy archive entry changed while it was being read: ${relativePath}`
+      )
+    }
+    return content
+  } finally {
+    await handle.close()
   }
+}
+
+function calculateLegacyArchiveDigest(
+  files: readonly { archivePath: string; content: Uint8Array }[]
+): string {
+  const hash = createHash("sha256")
+  hash.update("eidos-legacy-extension-archive-digest-v1\0", "utf8")
+  const updateRecord = (value: Uint8Array) => {
+    const length = Buffer.allocUnsafe(8)
+    length.writeBigUInt64BE(BigInt(value.byteLength))
+    hash.update(length)
+    hash.update(value)
+  }
+  for (const file of [...files].sort((left, right) =>
+    Buffer.compare(
+      Buffer.from(left.archivePath, "utf8"),
+      Buffer.from(right.archivePath, "utf8")
+    )
+  )) {
+    updateRecord(Buffer.from(file.archivePath, "utf8"))
+    updateRecord(file.content)
+  }
+  return `sha256:${hash.digest("hex")}`
 }
 
 function parseLegacyArchiveMetadata(raw: string): LegacyArchiveV2 {
@@ -262,9 +314,7 @@ async function inspectLegacyArchive(
   if (!metadataSource) {
     throw new Error("Legacy extension archive is missing legacy-extension.json")
   }
-  const metadata = parseLegacyArchiveMetadata(
-    await readFile(metadataSource, "utf8")
-  )
+  const metadata = parseLegacyArchiveMetadata(metadataSource.toString("utf8"))
   const knownFiles = [
     ["legacy-extension.json", "legacy/legacy-extension.json"],
     ["README.md", "legacy/README.md"],
@@ -272,10 +322,14 @@ async function inspectLegacyArchive(
     ["src/view.tsx", "legacy/src/view.tsx"],
     ["dist/extension.js", "legacy/dist/extension.js"],
   ] as const
-  const files: Array<{ source: string; target: string }> = []
-  for (const [sourcePath, target] of knownFiles) {
-    const source = await regularFileIfPresent(root, sourcePath)
-    if (source) files.push({ source, target })
+  const files: Array<{
+    archivePath: string
+    target: string
+    content: Buffer
+  }> = []
+  for (const [archivePath, target] of knownFiles) {
+    const content = await regularFileIfPresent(root, archivePath)
+    if (content) files.push({ archivePath, target, content })
   }
   if (
     !files.some(
@@ -287,7 +341,11 @@ async function inspectLegacyArchive(
   ) {
     throw new Error("Legacy extension archive contains no recoverable source")
   }
-  return { metadata, files }
+  return {
+    metadata,
+    archiveDigest: calculateLegacyArchiveDigest(files),
+    files,
+  }
 }
 
 function inferredEditorPattern(metadata: LegacyArchiveV2): string | undefined {
@@ -328,9 +386,10 @@ ${steps}
 
 1. Replace the starter implementation with reviewed, capability-scoped code.
 2. Review and minimize permissions in \`extension.json.draft\`.
-3. Rename \`extension.json.draft\` to \`extension.json\`.
-4. Run \`npm install\` and \`npm run check\`.
-5. Install, trust, and enable the package only after the check succeeds.
+3. Keep \`PORTING.json\` as the machine-readable legacy-to-canonical receipt.
+4. Rename \`extension.json.draft\` to \`extension.json\`.
+5. Run \`npm install\` and \`npm run check\`.
+6. Install, trust, and enable the package only after the check succeeds.
 `
 }
 
@@ -389,6 +448,21 @@ export async function createLegacyPortingProject(
     "extension.json.draft"
   )
   const portingGuidePath = path.join(created.packageRoot, "PORTING.md")
+  const portingReceiptPath = path.join(created.packageRoot, "PORTING.json")
+  const portingReceipt: LegacyExtensionPortingReceiptV1 = {
+    format: "eidos-legacy-extension-port",
+    formatVersion: 1,
+    source: {
+      legacyExtensionId: archive.metadata.identity.id,
+      legacySlug: archive.metadata.identity.slug,
+      archiveDigest: archive.archiveDigest,
+    },
+    target: {
+      canonicalPackageId: canonicalId,
+      candidateContribution: candidate,
+    },
+    state: "draft",
+  }
   try {
     await rename(
       path.join(created.packageRoot, "extension.json"),
@@ -397,7 +471,7 @@ export async function createLegacyPortingProject(
     for (const file of archive.files) {
       const target = path.join(created.packageRoot, ...file.target.split("/"))
       await mkdir(path.dirname(target), { recursive: true })
-      await copyFile(file.source, target)
+      await writeFile(target, file.content, { flag: "wx" })
     }
     const entrypoint = path.join(
       created.packageRoot,
@@ -414,12 +488,19 @@ export async function createLegacyPortingProject(
       portingGuide(archive.metadata, canonicalId, candidate),
       "utf8"
     )
+    await writeFile(
+      portingReceiptPath,
+      `${JSON.stringify(portingReceipt, null, 2)}\n`,
+      { encoding: "utf8", flag: "wx" }
+    )
     return {
       canonicalId,
       packageRoot: created.packageRoot,
       candidateContribution: candidate,
       draftManifestPath,
       portingGuidePath,
+      portingReceiptPath,
+      portingReceipt,
       archivedFiles: archive.files.map((file) => file.target),
     }
   } catch (error) {

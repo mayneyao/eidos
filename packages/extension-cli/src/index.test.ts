@@ -1,9 +1,11 @@
 import {
+  link,
   lstat,
   mkdir,
   mkdtemp,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -337,6 +339,23 @@ describe("extension developer workflow", () => {
       "non-installable porting workspace"
     )
     expect(
+      JSON.parse(await readFile(created.portingReceiptPath, "utf8"))
+    ).toEqual(created.portingReceipt)
+    expect(created.portingReceipt).toMatchObject({
+      format: "eidos-legacy-extension-port",
+      formatVersion: 1,
+      source: {
+        legacyExtensionId: "legacy-1",
+        legacySlug: "task-counter",
+        archiveDigest: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+      },
+      target: {
+        canonicalPackageId: "example.task-counter",
+        candidateContribution: "command",
+      },
+      state: "draft",
+    })
+    expect(
       await readFile(
         path.join(created.packageRoot, "legacy", "src", "extension.ts"),
         "utf8"
@@ -381,6 +400,71 @@ describe("extension developer workflow", () => {
         fileEditors: [{ selector: [{ filenamePattern: "**/*.md" }] }],
       },
     })
+  })
+
+  it("derives a path-independent archive digest from the exact archived bytes", async () => {
+    const firstRoot = await temporaryRoot()
+    const secondRoot = await temporaryRoot()
+    const firstArchive = await createLegacyArchive(firstRoot)
+    const secondArchive = await createLegacyArchive(secondRoot)
+
+    const first = await createLegacyPortingProject({
+      archiveRoot: firstArchive,
+      publisher: "example",
+      outDir: path.join(firstRoot, "ports"),
+    })
+    const second = await createLegacyPortingProject({
+      archiveRoot: secondArchive,
+      publisher: "example",
+      outDir: path.join(secondRoot, "ports"),
+    })
+    expect(second.portingReceipt.source.archiveDigest).toBe(
+      first.portingReceipt.source.archiveDigest
+    )
+
+    await writeFile(
+      path.join(secondArchive, "src", "extension.ts"),
+      "export const legacySource = 'changed'\n"
+    )
+    const changed = await createLegacyPortingProject({
+      archiveRoot: secondArchive,
+      publisher: "example",
+      name: "task-counter-changed",
+      outDir: path.join(secondRoot, "changed-ports"),
+    })
+    expect(changed.portingReceipt.source.archiveDigest).not.toBe(
+      first.portingReceipt.source.archiveDigest
+    )
+  })
+
+  it("rejects symbolic links and hard links in known archive entries", async () => {
+    const symlinkRoot = await temporaryRoot()
+    const symlinkArchive = await createLegacyArchive(symlinkRoot)
+    const symlinkSource = path.join(symlinkArchive, "src", "extension.ts")
+    const symlinkTarget = path.join(symlinkArchive, "src", "external.ts")
+    await writeFile(symlinkTarget, "export const external = true\n")
+    await rm(symlinkSource)
+    await symlink(symlinkTarget, symlinkSource)
+    await expect(
+      createLegacyPortingProject({
+        archiveRoot: symlinkArchive,
+        publisher: "example",
+        outDir: path.join(symlinkRoot, "ports"),
+      })
+    ).rejects.toThrow(/symbolic link|regular file/)
+
+    const hardlinkRoot = await temporaryRoot()
+    const hardlinkArchive = await createLegacyArchive(hardlinkRoot)
+    const hardlinkSource = path.join(hardlinkArchive, "src", "extension.ts")
+    const hardlinkTarget = path.join(hardlinkArchive, "src", "linked.ts")
+    await link(hardlinkSource, hardlinkTarget)
+    await expect(
+      createLegacyPortingProject({
+        archiveRoot: hardlinkArchive,
+        publisher: "example",
+        outDir: path.join(hardlinkRoot, "ports"),
+      })
+    ).rejects.toThrow(/regular file/)
   })
 
   it("refuses blocked archives before creating any project", async () => {

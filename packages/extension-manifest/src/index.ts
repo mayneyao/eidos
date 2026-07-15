@@ -20,6 +20,18 @@ export {
 } from "./manifest"
 export { parseExtensionLock } from "./lock"
 export {
+  analyzeLegacyExtensionPortingReceipt,
+  DEFAULT_MAX_PORTING_RECEIPT_BYTES,
+  DEFAULT_MAX_PORTING_RECEIPT_DEPTH,
+  LEGACY_EXTENSION_PORTING_RECEIPT_FILENAME,
+  type AnalyzeLegacyExtensionPortingReceiptOptions,
+  type LegacyExtensionPortingContribution,
+  type LegacyExtensionPortingReceiptAnalysis,
+  type LegacyExtensionPortingReceiptDiagnostic,
+  type LegacyExtensionPortingReceiptDiagnosticCode,
+  type LegacyExtensionPortingReceiptV1,
+} from "./porting"
+export {
   createExtensionCommandTemplate,
   createExtensionTextEditorTemplate,
 } from "./template"
