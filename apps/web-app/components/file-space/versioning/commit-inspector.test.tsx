@@ -182,6 +182,14 @@ describe("CommitInspector", () => {
     expect(
       container.querySelector('[data-testid="mock-diff-view"]')?.textContent
     ).toContain("before")
+    expect(
+      container.querySelector('[data-testid="commit-changed-paths-pane"]')
+        ?.className
+    ).toContain("w-[clamp(240px,26%,340px)]")
+    expect(
+      container.querySelector('[data-testid="commit-change-details-pane"]')
+        ?.className
+    ).toContain("flex-1")
 
     const secondPath = [...container.querySelectorAll("button")].find(
       (button) => button.title === "notes/b.md"

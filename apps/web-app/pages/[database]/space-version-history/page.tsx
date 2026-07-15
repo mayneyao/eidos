@@ -32,7 +32,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
-const ROW_HEIGHT = 38
+const HISTORY_ROW_HEIGHT = 48
+const STACKED_LAYOUT_BREAKPOINT = 960
 
 function commitMatches(commit: SpaceVersionCommit, query: string) {
   const normalizedQuery = query.trim().toLowerCase()
@@ -75,7 +76,7 @@ export function SpaceVersionHistoryPage() {
   const [query, setQuery] = useState("")
   const [enableError, setEnableError] = useState<string | null>(null)
   const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null)
-  const [compactLayout, setCompactLayout] = useState(false)
+  const [stackedLayout, setStackedLayout] = useState(false)
   const pageRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const {
@@ -121,7 +122,6 @@ export function SpaceVersionHistoryPage() {
     [allGraphRows, filteredHistory.length]
   )
   const graphWidth = useMemo(() => commitGraphWidth(graphRows), [graphRows])
-  const rowHeight = compactLayout ? 48 : ROW_HEIGHT
   const selectedCommit = useMemo(
     () => history.find((commit) => commit.id === selectedCommitId) ?? null,
     [history, selectedCommitId]
@@ -130,7 +130,8 @@ export function SpaceVersionHistoryPage() {
   useEffect(() => {
     const element = pageRef.current
     if (!element) return
-    const update = (width: number) => setCompactLayout(width < 760)
+    const update = (width: number) =>
+      setStackedLayout(width < STACKED_LAYOUT_BREAKPOINT)
     update(element.getBoundingClientRect().width)
 
     if (typeof ResizeObserver === "undefined") {
@@ -204,13 +205,9 @@ export function SpaceVersionHistoryPage() {
   const virtualizer = useVirtualizer({
     count: graphRows.length,
     getScrollElement: () => listRef.current,
-    estimateSize: () => rowHeight,
+    estimateSize: () => HISTORY_ROW_HEIGHT,
     overscan: 14,
   })
-
-  useEffect(() => {
-    virtualizer.measure()
-  }, [rowHeight, virtualizer])
 
   useEffect(() => {
     if (!selectedCommitId) return
@@ -374,7 +371,7 @@ export function SpaceVersionHistoryPage() {
       <header
         className={cn(
           "flex shrink-0 items-center gap-3 border-b px-3",
-          compactLayout ? "min-h-[42px] flex-wrap py-1.5" : "h-[42px]"
+          stackedLayout ? "min-h-[42px] flex-wrap py-1.5" : "h-[42px]"
         )}
       >
         <div className="flex min-w-0 items-center gap-2">
@@ -389,13 +386,13 @@ export function SpaceVersionHistoryPage() {
         <div
           className={cn(
             "ml-auto flex min-w-0 items-center gap-1.5",
-            compactLayout && "ml-0 w-full"
+            stackedLayout && "ml-0 w-full"
           )}
         >
           <div
             className={cn(
               "relative",
-              compactLayout
+              stackedLayout
                 ? "min-w-0 flex-1"
                 : "w-[min(30vw,280px)] min-w-[160px]"
             )}
@@ -437,15 +434,19 @@ export function SpaceVersionHistoryPage() {
       ) : null}
 
       <div
+        data-testid="version-history-workspace"
         className={cn(
           "flex min-h-0 min-w-0 flex-1",
-          compactLayout && "flex-col"
+          stackedLayout && "flex-col"
         )}
       >
         <section
+          data-testid="version-history-log-pane"
           className={cn(
             "flex min-h-0 min-w-0 flex-col overflow-hidden",
-            compactLayout ? "flex-[1.05_1_0%]" : "min-w-[420px] flex-1"
+            stackedLayout
+              ? "flex-[0.8_1_0%]"
+              : "w-[clamp(320px,28vw,460px)] shrink-0"
           )}
         >
           <div className="flex h-7 shrink-0 items-center border-b bg-muted/35 text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
@@ -453,12 +454,6 @@ export function SpaceVersionHistoryPage() {
               Graph
             </span>
             <span className="min-w-0 flex-1 px-2">Message</span>
-            {!compactLayout ? (
-              <>
-                <span className="w-20 shrink-0 px-2 text-right">Paths</span>
-                <span className="w-24 shrink-0 px-2">When</span>
-              </>
-            ) : null}
             <span className="w-[72px] shrink-0 px-2">Commit</span>
           </div>
 
@@ -474,10 +469,7 @@ export function SpaceVersionHistoryPage() {
               <HistoryEmptyState filtered={Boolean(query.trim())} />
             ) : (
               <div
-                className={cn(
-                  "relative w-full",
-                  compactLayout ? "min-w-0" : "min-w-[560px]"
-                )}
+                className="relative w-full min-w-0"
                 style={{ height: `${virtualizer.getTotalSize()}px` }}
               >
                 {virtualizer.getVirtualItems().map((virtualRow) => {
@@ -507,60 +499,37 @@ export function SpaceVersionHistoryPage() {
                       onClick={() => selectCommit(commit.id)}
                     >
                       <CommitGraphCell row={graphRow} width={graphWidth} />
-                      <span
-                        className={cn(
-                          "flex min-w-0 flex-1 px-2",
-                          compactLayout
-                            ? "flex-col items-start justify-center"
-                            : "items-center gap-1.5"
-                        )}
-                      >
+                      <span className="flex min-w-0 flex-1 flex-col items-start justify-center px-2">
                         <span className="truncate" title={commit.message}>
                           {commit.message}
                         </span>
-                        {compactLayout ? (
-                          <span className="mt-0.5 flex max-w-full items-center gap-1.5 truncate text-[10px] text-muted-foreground">
-                            <span className="shrink-0 tabular-nums">
-                              {commit.changedPaths.length}{" "}
-                              {commit.changedPaths.length === 1
-                                ? "path"
-                                : "paths"}
-                            </span>
-                            <span aria-hidden="true">·</span>
-                            <span
-                              className="truncate"
-                              title={formatAbsoluteVersionTime(
-                                commit.timestamp
-                              )}
-                            >
-                              {formatVersionTime(commit.timestamp)}
-                            </span>
+                        <span className="mt-0.5 flex max-w-full items-center gap-1.5 truncate text-[10px] text-muted-foreground">
+                          <span className="shrink-0 tabular-nums">
+                            {commit.changedPaths.length}{" "}
+                            {commit.changedPaths.length === 1
+                              ? "path"
+                              : "paths"}
                           </span>
-                        ) : (
-                          commit.labels.slice(0, 2).map((label) => (
-                            <span
-                              key={label}
-                              className="max-w-28 shrink-0 truncate rounded-[3px] border border-border bg-background/70 px-1 py-px font-mono text-[9px] text-muted-foreground"
-                              title={label}
-                            >
-                              {label}
-                            </span>
-                          ))
-                        )}
-                      </span>
-                      {!compactLayout ? (
-                        <>
-                          <span className="w-20 shrink-0 px-2 text-right tabular-nums text-muted-foreground">
-                            {commit.changedPaths.length || "—"}
-                          </span>
+                          <span aria-hidden="true">·</span>
                           <span
-                            className="w-24 shrink-0 truncate px-2 text-[11px] text-muted-foreground"
+                            className="shrink-0"
                             title={formatAbsoluteVersionTime(commit.timestamp)}
                           >
                             {formatVersionTime(commit.timestamp)}
                           </span>
-                        </>
-                      ) : null}
+                          {commit.labels[0] ? (
+                            <>
+                              <span aria-hidden="true">·</span>
+                              <span
+                                className="min-w-0 truncate font-mono"
+                                title={commit.labels[0]}
+                              >
+                                {commit.labels[0]}
+                              </span>
+                            </>
+                          ) : null}
+                        </span>
+                      </span>
                       <code
                         className="w-[72px] shrink-0 truncate px-2 font-mono text-[10px] text-muted-foreground"
                         title={commit.id}
@@ -595,11 +564,10 @@ export function SpaceVersionHistoryPage() {
         </section>
 
         <div
+          data-testid="version-history-detail-pane"
           className={cn(
             "min-h-0 min-w-0",
-            compactLayout
-              ? "flex-[0.95_1_0%]"
-              : "w-[min(38vw,480px)] min-w-[300px] shrink-0"
+            stackedLayout ? "flex-[1.2_1_0%]" : "flex-1"
           )}
         >
           <CommitInspector
@@ -611,7 +579,7 @@ export function SpaceVersionHistoryPage() {
             operation={operation}
             restorePath={restorePath}
             restoreVersion={restoreVersion}
-            placement={compactLayout ? "below" : "side"}
+            placement={stackedLayout ? "below" : "side"}
           />
         </div>
       </div>

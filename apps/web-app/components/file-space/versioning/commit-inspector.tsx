@@ -799,132 +799,143 @@ export function CommitInspector({
         ) : null}
       </header>
 
-      <section
+      <div
         className={cn(
-          "flex shrink-0 flex-col border-b",
-          placement === "side"
-            ? "max-h-[38%] min-h-[120px]"
-            : "max-h-[42%] min-h-[84px]"
+          "flex min-h-0 min-w-0 flex-1",
+          placement === "below" && "flex-col"
         )}
       >
-        <div className="flex h-7 shrink-0 items-center justify-between bg-muted/45 px-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-          <span>Changed paths</span>
-          <span className="tabular-nums">{detail.changedPaths.length}</span>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto py-0.5">
-          {detail.changedPaths.length === 0 ? (
-            <p className="px-3 py-3 text-[11px] leading-5 text-muted-foreground">
-              No changed-path metadata was returned for this version.
-            </p>
-          ) : (
-            <ul>
-              {detail.changedPaths.map((change) => {
-                const meta = STATUS_META[change.status]
-                return (
-                  <li key={`${change.status}:${change.path}`}>
-                    <button
-                      type="button"
-                      className={cn(
-                        "flex h-7 w-full min-w-0 items-center gap-1.5 px-3 text-left text-[11px] outline-hidden hover:bg-accent focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
-                        selectedPath === change.path &&
-                          "bg-accent text-accent-foreground"
-                      )}
-                      title={change.path}
-                      onClick={() => setSelectedPath(change.path)}
-                    >
-                      <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate">
-                        {change.path}
-                      </span>
-                      <span
-                        className={cn(
-                          "w-3 shrink-0 text-right text-[10px] font-semibold",
-                          meta.className
-                        )}
-                        title={meta.label}
-                      >
-                        {meta.shortLabel}
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
+        <section
+          data-testid="commit-changed-paths-pane"
+          className={cn(
+            "flex shrink-0 flex-col",
+            placement === "side"
+              ? "w-[clamp(240px,26%,340px)] min-w-[240px] border-r"
+              : "max-h-[42%] min-h-[84px] border-b"
           )}
-        </div>
-      </section>
-
-      <section className="flex min-h-0 flex-1 flex-col">
-        <div className="flex h-7 shrink-0 items-center justify-between gap-2 border-b bg-muted/45 px-2.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <FileDiff className="h-3 w-3 shrink-0" />
-            <span className="shrink-0">Change details</span>
-            <span aria-hidden="true">·</span>
-            <span className="min-w-0 truncate normal-case tracking-normal">
-              {selectedPath ?? "Select a path"}
-            </span>
-          </span>
-          <button
-            type="button"
-            className="inline-flex h-5 shrink-0 items-center gap-1 rounded-[2px] px-1.5 text-[10px] font-medium normal-case tracking-normal text-muted-foreground outline-hidden hover:bg-accent hover:text-accent-foreground focus-visible:ring-1 focus-visible:ring-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-45"
-            aria-label={
-              selectedPath
-                ? `Restore ${selectedPath} from this version`
-                : "Restore selected path from this version"
-            }
-            title={restoreDisabledReason ?? "Restore this file"}
-            aria-disabled={restoreDisabledReason !== null}
-            aria-describedby={
-              restoreDisabledReason ? restoreReasonId : undefined
-            }
-            onClick={() => {
-              if (restoreDisabledReason) return
-              setRestoreFeedback(null)
-              setRestoreDialogOpen(true)
-            }}
-          >
-            {restoring ? (
-              <LoaderCircle className="h-3 w-3 animate-spin" />
-            ) : (
-              <RotateCcw className="h-3 w-3" />
-            )}
-            <span>Restore</span>
-          </button>
-          {restoreDisabledReason ? (
-            <span id={restoreReasonId} className="sr-only">
-              {restoreDisabledReason}
-            </span>
-          ) : null}
-        </div>
-        {restoreFeedback ? (
-          <div
-            className={cn(
-              "shrink-0 border-b px-3 py-2 text-[11px] leading-4",
-              restoreFeedback.tone === "error"
-                ? "border-destructive/25 bg-destructive/5 text-destructive"
-                : "border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
-            )}
-            role={restoreFeedback.tone === "error" ? "alert" : "status"}
-          >
-            {restoreFeedback.message}
+        >
+          <div className="flex h-7 shrink-0 items-center justify-between bg-muted/45 px-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+            <span>Changed paths</span>
+            <span className="tabular-nums">{detail.changedPaths.length}</span>
           </div>
-        ) : null}
-        <div className="min-h-0 flex-1 overflow-auto">
-          <ChangeDetails
-            diff={diff}
-            loading={diffLoading}
-            error={diffError}
-            notice={diffNotice}
-            selectedPath={selectedPath}
-            content={contentDiff?.path === selectedPath ? contentDiff : null}
-            contentLoading={contentLoading}
-            contentError={contentError}
-            baseDiff={baseDiff}
-            baseLoading={baseLoading}
-            baseError={baseError}
-          />
-        </div>
-      </section>
+          <div className="min-h-0 flex-1 overflow-y-auto py-0.5">
+            {detail.changedPaths.length === 0 ? (
+              <p className="px-3 py-3 text-[11px] leading-5 text-muted-foreground">
+                No changed-path metadata was returned for this version.
+              </p>
+            ) : (
+              <ul>
+                {detail.changedPaths.map((change) => {
+                  const meta = STATUS_META[change.status]
+                  return (
+                    <li key={`${change.status}:${change.path}`}>
+                      <button
+                        type="button"
+                        className={cn(
+                          "flex h-7 w-full min-w-0 items-center gap-1.5 px-3 text-left text-[11px] outline-hidden hover:bg-accent focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
+                          selectedPath === change.path &&
+                            "bg-accent text-accent-foreground"
+                        )}
+                        title={change.path}
+                        onClick={() => setSelectedPath(change.path)}
+                      >
+                        <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate">
+                          {change.path}
+                        </span>
+                        <span
+                          className={cn(
+                            "w-3 shrink-0 text-right text-[10px] font-semibold",
+                            meta.className
+                          )}
+                          title={meta.label}
+                        >
+                          {meta.shortLabel}
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        </section>
+
+        <section
+          data-testid="commit-change-details-pane"
+          className="flex min-h-0 min-w-0 flex-1 flex-col"
+        >
+          <div className="flex h-7 shrink-0 items-center justify-between gap-2 border-b bg-muted/45 px-2.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <FileDiff className="h-3 w-3 shrink-0" />
+              <span className="shrink-0">Change details</span>
+              <span aria-hidden="true">·</span>
+              <span className="min-w-0 truncate normal-case tracking-normal">
+                {selectedPath ?? "Select a path"}
+              </span>
+            </span>
+            <button
+              type="button"
+              className="inline-flex h-5 shrink-0 items-center gap-1 rounded-[2px] px-1.5 text-[10px] font-medium normal-case tracking-normal text-muted-foreground outline-hidden hover:bg-accent hover:text-accent-foreground focus-visible:ring-1 focus-visible:ring-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-45"
+              aria-label={
+                selectedPath
+                  ? `Restore ${selectedPath} from this version`
+                  : "Restore selected path from this version"
+              }
+              title={restoreDisabledReason ?? "Restore this file"}
+              aria-disabled={restoreDisabledReason !== null}
+              aria-describedby={
+                restoreDisabledReason ? restoreReasonId : undefined
+              }
+              onClick={() => {
+                if (restoreDisabledReason) return
+                setRestoreFeedback(null)
+                setRestoreDialogOpen(true)
+              }}
+            >
+              {restoring ? (
+                <LoaderCircle className="h-3 w-3 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3 w-3" />
+              )}
+              <span>Restore</span>
+            </button>
+            {restoreDisabledReason ? (
+              <span id={restoreReasonId} className="sr-only">
+                {restoreDisabledReason}
+              </span>
+            ) : null}
+          </div>
+          {restoreFeedback ? (
+            <div
+              className={cn(
+                "shrink-0 border-b px-3 py-2 text-[11px] leading-4",
+                restoreFeedback.tone === "error"
+                  ? "border-destructive/25 bg-destructive/5 text-destructive"
+                  : "border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
+              )}
+              role={restoreFeedback.tone === "error" ? "alert" : "status"}
+            >
+              {restoreFeedback.message}
+            </div>
+          ) : null}
+          <div className="min-h-0 flex-1 overflow-auto">
+            <ChangeDetails
+              diff={diff}
+              loading={diffLoading}
+              error={diffError}
+              notice={diffNotice}
+              selectedPath={selectedPath}
+              content={contentDiff?.path === selectedPath ? contentDiff : null}
+              contentLoading={contentLoading}
+              contentError={contentError}
+              baseDiff={baseDiff}
+              baseLoading={baseLoading}
+              baseError={baseError}
+            />
+          </div>
+        </section>
+      </div>
 
       <AlertDialog
         open={restoreDialogOpen}
