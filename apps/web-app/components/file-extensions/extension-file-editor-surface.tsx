@@ -55,6 +55,11 @@ function requestId(value: unknown): string {
   return "invalid-surface-request"
 }
 
+function isDisposedDocumentSessionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.includes("Extension editor session is unavailable")
+}
+
 export function ExtensionFileEditorSurface({
   filePath,
   editorId,
@@ -92,6 +97,7 @@ export function ExtensionFileEditorSurface({
     generation: number
   } | null>(null)
   const developmentRefreshRef = useRef(false)
+  const documentSessionDisposedRef = useRef(false)
 
   useTabDirty(documentState?.dirty === true)
 
@@ -130,6 +136,7 @@ export function ExtensionFileEditorSurface({
     setDevelopmentIssue(null)
     setDevelopmentBlocked(false)
     developmentRefreshRef.current = false
+    documentSessionDisposedRef.current = false
     setSession(null)
     setDocumentState(null)
 
@@ -235,7 +242,6 @@ export function ExtensionFileEditorSurface({
         }
         setDevelopmentReloading(false)
         if (event.status === "stopped") {
-          developmentRefreshRef.current = false
           setActivated(false)
           setDevelopmentBlocked(false)
           setError("The extension development session stopped.")
@@ -265,6 +271,10 @@ export function ExtensionFileEditorSurface({
     return registerPendingWriteFlusher(
       pendingWriteKey,
       async () => {
+        if (documentSessionDisposedRef.current) {
+          setSaveError(null)
+          return true
+        }
         try {
           await window.eidos.fileExtensions.flushFileEditor(spaceId, {
             sessionId: session.sessionId,
@@ -273,6 +283,14 @@ export function ExtensionFileEditorSurface({
           setSaveError(null)
           return true
         } catch (flushError) {
+          if (
+            developmentRefreshRef.current &&
+            isDisposedDocumentSessionError(flushError)
+          ) {
+            documentSessionDisposedRef.current = true
+            setSaveError(null)
+            return true
+          }
           setSaveError(
             flushError instanceof Error
               ? flushError.message
@@ -300,6 +318,7 @@ export function ExtensionFileEditorSurface({
           setSaveError(null)
         }
       } else if (message.type === "dispose") {
+        documentSessionDisposedRef.current = true
         setActivated(false)
         if (!developmentRefreshRef.current) setError(message.reason)
       }

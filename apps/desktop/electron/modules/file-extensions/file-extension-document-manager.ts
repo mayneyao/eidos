@@ -315,6 +315,8 @@ export class FileExtensionDocumentManager {
     sessionId: string,
     viewId: string
   ): Promise<{ success: true }> {
+    if (!this.sessionIds.has(sessionId)) return { success: true }
+
     const session = this.requireView(spaceId, sessionId, viewId)
     if (session.views.size === 1) {
       this.clearAutoSave(session)

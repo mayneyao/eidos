@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
   resolveConflict: vi.fn(),
   listeners: new Map<string, (event: unknown, payload: unknown) => void>(),
+  pendingWriteFlusher: undefined as undefined | (() => Promise<boolean>),
   tabDirty: vi.fn(),
 }))
 
@@ -39,7 +40,13 @@ vi.mock("@/apps/web-app/hooks/use-tab-dirty", () => ({
 }))
 
 vi.mock("@/apps/web-app/components/file-space/pending-writes", () => ({
-  registerPendingWriteFlusher: () => vi.fn(),
+  registerPendingWriteFlusher: (
+    _key: string,
+    flusher: () => Promise<boolean>
+  ) => {
+    mocks.pendingWriteFlusher = flusher
+    return vi.fn()
+  },
 }))
 
 vi.mock("@/components/theme-provider", () => ({
@@ -129,6 +136,7 @@ describe("ExtensionFileEditorSurface", () => {
   beforeEach(() => {
     messageChannels.length = 0
     mocks.listeners.clear()
+    mocks.pendingWriteFlusher = undefined
     mocks.close.mockReset().mockResolvedValue({ success: true })
     mocks.flush.mockReset().mockResolvedValue({ success: true })
     mocks.handleRequest.mockReset().mockResolvedValue({
@@ -309,6 +317,8 @@ describe("ExtensionFileEditorSurface", () => {
     })
     expect(container.textContent).toContain("Reloading extension")
     expect(container.textContent).not.toContain("Extension editor unavailable")
+    await expect(mocks.pendingWriteFlusher?.()).resolves.toBe(true)
+    expect(mocks.flush).not.toHaveBeenCalled()
 
     await act(async () => {
       developmentListener?.(undefined, {

@@ -194,6 +194,29 @@ describe("FileExtensionDocumentManager", () => {
     )
   })
 
+  it("treats close after host disposal as idempotent", async () => {
+    const { manager, options } = await fixture()
+    const disposed = await manager.open(options)
+
+    manager.disposePackage(
+      "space-a",
+      "example.tasks",
+      "Extension source changed"
+    )
+
+    await expect(
+      manager.close("space-a", disposed.sessionId, disposed.viewId)
+    ).resolves.toEqual({ success: true })
+
+    const active = await manager.open(options)
+    await expect(
+      manager.close("space-b", active.sessionId, active.viewId)
+    ).rejects.toMatchObject({ code: "RUNTIME_STALE" })
+    await expect(
+      manager.close("space-a", active.sessionId, "unknown-view")
+    ).rejects.toMatchObject({ code: "RUNTIME_STALE" })
+  })
+
   it("returns protocol failures as data instead of throwing", async () => {
     const { manager, options } = await fixture()
     const editor = await manager.open(options)
