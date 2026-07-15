@@ -400,20 +400,32 @@ export class FileExtensionDocumentManager {
   ): Promise<void> {
     const sessions = [...this.sessions.values()].filter(matches)
     for (const session of sessions) session.suspended = true
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       sessions.map(async (session) => {
         this.clearAutoSave(session)
         const snapshot = session.model.getSnapshot()
-        if (
-          snapshot.dirty &&
-          !snapshot.readOnly &&
-          !snapshot.externalConflict
-        ) {
+        if (snapshot.dirty && snapshot.externalConflict) {
+          throw new ExtensionTextDocumentError(
+            "CONFLICT",
+            `Cannot reload ${session.path} while it has an external conflict`
+          )
+        }
+        if (snapshot.dirty && !snapshot.readOnly) {
           await this.save(session, snapshot.revision)
         }
       })
     )
-    for (const session of sessions) this.disposeSession(session, reason)
+    results.forEach((result, index) => {
+      if (result.status === "fulfilled") {
+        this.disposeSession(sessions[index]!, reason)
+      } else {
+        sessions[index]!.suspended = false
+      }
+    })
+    const failure = results.find(
+      (result): result is PromiseRejectedResult => result.status === "rejected"
+    )
+    if (failure) throw failure.reason
   }
 
   private scheduleAutoSave(

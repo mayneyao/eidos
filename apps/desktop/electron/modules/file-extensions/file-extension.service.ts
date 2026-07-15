@@ -39,6 +39,7 @@ import {
   withFileSpaceReadLock,
 } from "../space-management/file-space-operation-lock"
 import { MainWindowProvider } from "../space-management/main-window.provider"
+import { SpaceResourceLifecycle } from "../space-management/space-resource-lifecycle"
 import { SpaceRegistry } from "../space-management/space-registry"
 import {
   ensureExtensionStateDatabasePath,
@@ -46,6 +47,7 @@ import {
 } from "./extension-paths"
 import { FileExtensionInstallManager } from "./file-extension-install-manager"
 import { FileExtensionDocumentManager } from "./file-extension-document-manager"
+import { FileExtensionDevelopmentManager } from "./file-extension-development-manager"
 import { writeExtensionTemplate } from "./extension-template-writer"
 import {
   FileExtensionRuntimeError,
@@ -54,6 +56,9 @@ import {
 } from "./runtime/file-extension-runtime-manager"
 import type {
   FileExtensionChangedEvent,
+  FileExtensionDevelopmentChangedEvent,
+  FileExtensionDevelopmentDiagnostic,
+  FileExtensionDevelopmentSessionSummary,
   FileExtensionApplyInstallRequest,
   FileExtensionCommandRequest,
   FileExtensionCommandSummary,
@@ -68,6 +73,7 @@ import type {
   FileExtensionOpenEditorResult,
   FileExtensionPackageSummary,
   FileExtensionSnapshotRequest,
+  FileExtensionStopDevelopmentSessionRequest,
   FileExtensionResolveConflictRequest,
   FileExtensionSurfaceRequestResult,
   FileExtensionSemanticUiRequest,
@@ -108,6 +114,8 @@ interface FileExtensionWatcher {
   watcher: FSWatcher
   generation: number
   timer?: ReturnType<typeof setTimeout>
+  pendingPackageIds: Set<string>
+  unknownChange: boolean
 }
 
 interface PendingSemanticUiRequest {
@@ -187,6 +195,11 @@ export class FileExtensionService extends IpcServiceBase {
   private readonly watchers = new Map<string, FileExtensionWatcher>()
   private readonly changeGenerations = new Map<string, number>()
   private readonly bundleCache = new Map<string, string>()
+  private readonly packageDirectories = new Map<string, Map<string, string>>()
+  private readonly pendingDocumentFlushes = new Map<
+    string,
+    Promise<Error | undefined>
+  >()
   private readonly pendingSemanticUi = new Map<
     string,
     PendingSemanticUiRequest
@@ -203,17 +216,139 @@ export class FileExtensionService extends IpcServiceBase {
     @Inject(FileExtensionDocumentManager)
     private readonly documentManager: FileExtensionDocumentManager = new FileExtensionDocumentManager(
       windowProvider
-    )
+    ),
+    @Inject(FileExtensionDevelopmentManager)
+    private readonly developmentManager: FileExtensionDevelopmentManager = new FileExtensionDevelopmentManager(),
+    @Inject(SpaceResourceLifecycle)
+    resourceLifecycle: SpaceResourceLifecycle | undefined = undefined
   ) {
     super()
+    resourceLifecycle?.register(
+      "file-extensions",
+      async (spacePath) => {
+        const space = this.registry.getSpaceByPath(spacePath)
+        if (space) {
+          await this.disposeSpaceResources(
+            space.id,
+            "File extension Space was released"
+          )
+        }
+      },
+      () => this.disposeAllResources("Eidos is shutting down")
+    )
   }
 
   @IpcMethod()
   async discover(spaceId: string): Promise<FileExtensionDiscoveryResult> {
     const space = this.getFileSpace(spaceId)
     return withFileSpaceOperationLock(spaceId, () =>
-      this.discoverUnlocked(space.path)
+      this.discoverUnlocked(spaceId, space.path)
     )
+  }
+
+  @IpcMethod()
+  async startDevelopmentSession(
+    spaceId: string,
+    request: FileExtensionSnapshotRequest
+  ): Promise<FileExtensionDevelopmentSessionSummary> {
+    const space = this.getFileSpace(spaceId)
+    assertExtensionSnapshotIdentity(request)
+    const snapshot: ExtensionSnapshotIdentity = { ...request }
+    const session = await withFileSpaceOperationLock(spaceId, async () => {
+      const paths = await resolveExtensionProjectPaths(space.path)
+      if (!paths.extensionsRoot) {
+        throw new Error("Extension package is no longer installed")
+      }
+      const discovery = await discoverExtensionPackages(paths.extensionsRoot, {
+        hostVersion: app.getVersion(),
+      })
+      const extension = discovery.packages.find(
+        (candidate) => candidate.canonicalId === snapshot.packageId
+      )
+      if (
+        !extension ||
+        extension.status !== "ready" ||
+        extension.contentDigest !== snapshot.contentDigest ||
+        extension.permissionHash !== snapshot.permissionHash
+      ) {
+        throw new Error(
+          "Extension package changed; inspect the current source before starting development"
+        )
+      }
+      const store = new BetterSqlite3ExtensionStateStore(
+        await ensureExtensionStateDatabasePath(space.path)
+      )
+      try {
+        const localState = store.get(snapshot)
+        if (!localState.trusted || !localState.enabled) {
+          throw new Error(
+            "Only an exact trusted and enabled snapshot can start a development session"
+          )
+        }
+        this.rememberPackageDirectory(
+          spaceId,
+          extension.directoryName,
+          snapshot.packageId
+        )
+        return this.developmentManager.start({
+          spaceId,
+          directoryName: extension.directoryName,
+          snapshot,
+          requestedGrants: localState.requestedGrants,
+          granted: localState.granted,
+        })
+      } finally {
+        store.close()
+      }
+    })
+    const watcher = await this.startWatching(spaceId)
+    if (!watcher.watching) {
+      this.developmentManager.stop(
+        spaceId,
+        session.packageId,
+        session.sessionId
+      )
+      throw new Error(
+        "Extension source watching must be available before starting development"
+      )
+    }
+    this.emitDevelopmentChange(spaceId, session)
+    this.emitChange(spaceId)
+    return session
+  }
+
+  @IpcMethod()
+  async stopDevelopmentSession(
+    spaceId: string,
+    request: FileExtensionStopDevelopmentSessionRequest
+  ): Promise<{ success: true }> {
+    this.getFileSpace(spaceId)
+    if (
+      !request ||
+      typeof request.packageId !== "string" ||
+      !request.packageId ||
+      typeof request.sessionId !== "string" ||
+      !request.sessionId
+    ) {
+      throw new Error("A current extension development session is required")
+    }
+    await this.documentManager.flushPackage(spaceId, request.packageId)
+    const stopped = this.developmentManager.stop(
+      spaceId,
+      request.packageId,
+      request.sessionId
+    )
+    if (!stopped) {
+      throw new Error("Extension development session is no longer active")
+    }
+    this.invalidatePackageRuntime(
+      spaceId,
+      request.packageId,
+      "Extension development session stopped"
+    )
+    this.emitDevelopmentStopped(spaceId, stopped)
+    this.emitChange(spaceId)
+    return { success: true }
   }
 
   @IpcMethod()
@@ -221,6 +356,7 @@ export class FileExtensionService extends IpcServiceBase {
     spaceId: string,
     request: FileExtensionSnapshotRequest
   ): Promise<ExtensionLocalState> {
+    this.assertNoDevelopmentSession(spaceId, request.packageId)
     await this.documentManager.flushPackage(spaceId, request.packageId)
     const state = await this.mutateCurrentSnapshot(
       spaceId,
@@ -241,6 +377,7 @@ export class FileExtensionService extends IpcServiceBase {
     spaceId: string,
     request: FileExtensionSnapshotRequest
   ): Promise<ExtensionLocalState> {
+    this.assertNoDevelopmentSession(spaceId, request.packageId)
     await this.documentManager.flushPackage(spaceId, request.packageId)
     const state = await this.mutateCurrentSnapshot(
       spaceId,
@@ -262,6 +399,7 @@ export class FileExtensionService extends IpcServiceBase {
     request: FileExtensionSnapshotRequest,
     enabled: boolean
   ): Promise<ExtensionLocalState> {
+    this.assertNoDevelopmentSession(spaceId, request.packageId)
     if (typeof enabled !== "boolean") {
       throw new Error("Extension enablement must be a boolean")
     }
@@ -285,6 +423,7 @@ export class FileExtensionService extends IpcServiceBase {
     spaceId: string,
     request: FileExtensionGrantRequest
   ): Promise<ExtensionLocalState> {
+    this.assertNoDevelopmentSession(spaceId, request.packageId)
     if (typeof request?.granted !== "boolean") {
       throw new Error("Extension grant state must be a boolean")
     }
@@ -309,7 +448,7 @@ export class FileExtensionService extends IpcServiceBase {
     const discovery = await this.discover(spaceId)
     return discovery.packages.flatMap((extension) => {
       if (
-        extension.lifecycleStatus !== "enabled" ||
+        !this.isPackageExecutionAvailable(spaceId, extension) ||
         !extension.manifest ||
         !extension.canonicalId ||
         !extension.contentDigest ||
@@ -347,14 +486,14 @@ export class FileExtensionService extends IpcServiceBase {
     const discovery = await this.discover(spaceId)
     return discovery.packages
       .flatMap((extension) => {
+        const effectiveState = this.effectiveStateForSummary(spaceId, extension)
         if (
-          extension.lifecycleStatus !== "enabled" ||
+          !effectiveState ||
           !extension.manifest?.entrypoints.ui ||
           !extension.canonicalId ||
           !extension.contentDigest ||
           !extension.permissionHash ||
-          !extension.localState ||
-          !this.hasPathGrant(extension.localState, "files.read", relativePath)
+          !this.hasPathGrant(effectiveState, "files.read", relativePath)
         ) {
           return []
         }
@@ -364,7 +503,7 @@ export class FileExtensionService extends IpcServiceBase {
           permissionHash: extension.permissionHash,
         }
         const editable = this.hasPathGrant(
-          extension.localState,
+          effectiveState,
           "files.write",
           relativePath
         )
@@ -608,6 +747,11 @@ export class FileExtensionService extends IpcServiceBase {
     const result = await withFileSpaceOperationLock(spaceId, () =>
       this.installManager.apply(spaceId, space.path, request, app.getVersion())
     )
+    this.stopDevelopmentSessionForPackage(
+      spaceId,
+      result.canonicalId,
+      "Extension source was installed from GitHub"
+    )
     this.invalidatePackageRuntime(
       spaceId,
       result.canonicalId,
@@ -640,6 +784,11 @@ export class FileExtensionService extends IpcServiceBase {
     await this.documentManager.flushPackage(
       spaceId,
       request.canonicalId ?? request.directoryName
+    )
+    this.stopDevelopmentSessionForPackage(
+      spaceId,
+      request.canonicalId ?? request.directoryName,
+      "Extension source was uninstalled"
     )
     await withFileSpaceOperationLock(spaceId, () =>
       this.installManager.uninstall(space.path, request, app.getVersion())
@@ -685,13 +834,19 @@ export class FileExtensionService extends IpcServiceBase {
       const state: FileExtensionWatcher = {
         root,
         generation: this.changeGenerations.get(spaceId) ?? 0,
-        watcher: watch(root, { recursive: true }, () => {
-          this.scheduleChange(spaceId)
+        pendingPackageIds: new Set(),
+        unknownChange: false,
+        watcher: watch(root, { recursive: true }, (_eventType, filename) => {
+          this.scheduleChange(spaceId, filename)
         }),
       }
       state.watcher.unref()
       state.watcher.on("error", () => {
         this.stopWatcher(spaceId)
+        this.stopDevelopmentSessionsForSpace(
+          spaceId,
+          "Extension watcher failed"
+        )
         this.invalidateSpaceRuntime(spaceId, "Extension watcher failed")
         this.emitChange(spaceId)
       })
@@ -710,6 +865,10 @@ export class FileExtensionService extends IpcServiceBase {
   stopWatching(spaceId: string): FileExtensionWatchResult {
     const generation = this.changeGenerations.get(spaceId) ?? 0
     this.stopWatcher(spaceId)
+    this.stopDevelopmentSessionsForSpace(
+      spaceId,
+      "Extension source watcher stopped"
+    )
     this.invalidateSpaceRuntime(spaceId, "Extension watcher stopped")
     return { watching: false, generation }
   }
@@ -740,6 +899,7 @@ export class FileExtensionService extends IpcServiceBase {
   }
 
   private async discoverUnlocked(
+    spaceId: string,
     spacePath: string
   ): Promise<FileExtensionDiscoveryResult> {
     // This host-owned path is intentionally not exposed through SpaceFiles:
@@ -749,6 +909,16 @@ export class FileExtensionService extends IpcServiceBase {
     const discovery = paths.extensionsRoot
       ? await discoverExtensionPackages(paths.extensionsRoot, { hostVersion })
       : { packages: [], diagnostics: [] }
+    this.packageDirectories.set(
+      spaceId,
+      new Map(
+        discovery.packages.flatMap((extension) =>
+          extension.canonicalId
+            ? [[extension.directoryName, extension.canonicalId] as const]
+            : []
+        )
+      )
+    )
     const hasStatefulPackage = discovery.packages.some(
       (extension) =>
         extension.status === "ready" &&
@@ -769,7 +939,7 @@ export class FileExtensionService extends IpcServiceBase {
         executionAvailable: true,
         hostVersion,
         packages: discovery.packages.map((extension) =>
-          this.toPackageSummary(extension, stateStore)
+          this.toPackageSummary(spaceId, extension, stateStore)
         ),
         diagnostics: discovery.diagnostics,
       }
@@ -779,6 +949,7 @@ export class FileExtensionService extends IpcServiceBase {
   }
 
   private toPackageSummary(
+    spaceId: string,
     extension: ExtensionPackageInspection,
     stateStore: BetterSqlite3ExtensionStateStore | undefined
   ): FileExtensionPackageSummary {
@@ -794,6 +965,14 @@ export class FileExtensionService extends IpcServiceBase {
         normalizedPermissions,
         requestedGrants: grants,
         lifecycleStatus: extension.status,
+        developmentSession:
+          (extension.canonicalId
+            ? this.developmentManager.get(spaceId, extension.canonicalId)
+            : undefined) ??
+          this.developmentManager.getByDirectory(
+            spaceId,
+            extension.directoryName
+          ),
       }
     }
     if (
@@ -807,6 +986,14 @@ export class FileExtensionService extends IpcServiceBase {
         normalizedPermissions,
         requestedGrants: grants,
         lifecycleStatus: "invalid",
+        developmentSession:
+          (extension.canonicalId
+            ? this.developmentManager.get(spaceId, extension.canonicalId)
+            : undefined) ??
+          this.developmentManager.getByDirectory(
+            spaceId,
+            extension.directoryName
+          ),
       }
     }
     const snapshot: ExtensionSnapshotIdentity = {
@@ -820,6 +1007,12 @@ export class FileExtensionService extends IpcServiceBase {
       normalizedPermissions,
       requestedGrants: grants,
       localState,
+      developmentSession:
+        this.developmentManager.get(spaceId, extension.canonicalId) ??
+        this.developmentManager.getByDirectory(
+          spaceId,
+          extension.directoryName
+        ),
       lifecycleStatus: !localState.trusted
         ? "untrusted"
         : localState.enabled
@@ -883,24 +1076,288 @@ export class FileExtensionService extends IpcServiceBase {
     })
   }
 
-  private scheduleChange(spaceId: string): void {
+  private scheduleChange(
+    spaceId: string,
+    filename: string | Buffer | null
+  ): void {
     const state = this.watchers.get(spaceId)
     if (!state) return
-    this.invalidateSpaceRuntime(spaceId, "Extension source changed on disk")
+    const packageId = this.packageIdForWatchEvent(spaceId, filename)
+    if (packageId) {
+      const firstChange = !state.pendingPackageIds.has(packageId)
+      state.pendingPackageIds.add(packageId)
+      if (firstChange) {
+        const session = this.developmentManager.markChecking(spaceId, packageId)
+        if (session) this.emitDevelopmentChange(spaceId, session)
+        this.invalidatePackageRuntimeSafely(
+          spaceId,
+          packageId,
+          "Extension source changed on disk"
+        )
+      }
+    } else if (!state.unknownChange) {
+      state.unknownChange = true
+      for (const session of this.developmentManager.list(spaceId)) {
+        const checking = this.developmentManager.markChecking(
+          spaceId,
+          session.packageId
+        )
+        if (checking) this.emitDevelopmentChange(spaceId, checking)
+      }
+      this.invalidateSpaceRuntime(spaceId, "Extension source changed on disk")
+    }
     state.generation = this.nextGeneration(spaceId)
     if (state.timer) clearTimeout(state.timer)
     state.timer = setTimeout(() => {
-      const current = this.watchers.get(spaceId)
-      if (!current) return
-      current.timer = undefined
-      const event: FileExtensionChangedEvent = {
-        spaceId,
-        generation: this.changeGenerations.get(spaceId) ?? current.generation,
-      }
-      this.windowProvider
-        .getWindow()
-        ?.webContents.send("file-extensions:changed", event)
+      void this.flushScheduledChanges(spaceId)
     }, WATCH_DEBOUNCE_MS)
+  }
+
+  private async flushScheduledChanges(spaceId: string): Promise<void> {
+    const state = this.watchers.get(spaceId)
+    if (!state) return
+    state.timer = undefined
+    const unknownChange = state.unknownChange
+    const packageIds = unknownChange
+      ? this.developmentManager
+          .list(spaceId)
+          .map((session) => session.packageId)
+      : [...state.pendingPackageIds]
+    state.pendingPackageIds.clear()
+    state.unknownChange = false
+
+    const flushError = await this.consumeDocumentFlushes(spaceId, packageIds)
+    if (flushError) {
+      for (const packageId of packageIds) {
+        const session = this.developmentManager.get(spaceId, packageId)
+        if (!session) continue
+        const blocked = this.developmentManager.markBlocked(
+          spaceId,
+          packageId,
+          "invalid",
+          [
+            {
+              code: "document-save",
+              message: `The extension was not reloaded because an open document could not be saved: ${flushError.message}`,
+            },
+          ]
+        )
+        if (blocked) this.emitDevelopmentChange(spaceId, blocked)
+      }
+    }
+
+    for (const packageId of flushError ? [] : packageIds) {
+      const session = this.developmentManager.get(spaceId, packageId)
+      if (!session) continue
+      const next = await this.reconcileDevelopmentSession(spaceId, session)
+      if (next) this.emitDevelopmentChange(spaceId, next)
+    }
+
+    const current = this.watchers.get(spaceId)
+    if (!current) return
+    const event: FileExtensionChangedEvent = {
+      spaceId,
+      generation: this.changeGenerations.get(spaceId) ?? current.generation,
+    }
+    this.windowProvider
+      .getWindow()
+      ?.webContents.send("file-extensions:changed", event)
+  }
+
+  private async reconcileDevelopmentSession(
+    spaceId: string,
+    expected: FileExtensionDevelopmentSessionSummary
+  ): Promise<FileExtensionDevelopmentSessionSummary | undefined> {
+    const directoryName = this.developmentManager.directoryName(
+      spaceId,
+      expected.packageId
+    )
+    if (!directoryName) return undefined
+    const space = this.registry.getSpace(spaceId)
+    if (!space || space.mode !== "file") {
+      return this.applyDevelopmentResult(spaceId, expected, () =>
+        this.developmentManager.markBlocked(
+          spaceId,
+          expected.packageId,
+          "missing",
+          [{ code: "inspection", message: "The file Space is no longer open." }]
+        )
+      )
+    }
+
+    try {
+      const paths = await resolveExtensionProjectPaths(space.path)
+      if (!paths.extensionsRoot) {
+        return this.applyDevelopmentResult(spaceId, expected, () =>
+          this.developmentManager.markBlocked(
+            spaceId,
+            expected.packageId,
+            "missing",
+            [
+              {
+                code: "inspection",
+                message: "The extension package is no longer installed.",
+              },
+            ]
+          )
+        )
+      }
+      const { inspection, files } = await inspectExtensionPackageSnapshot(
+        path.join(paths.extensionsRoot, directoryName),
+        { hostVersion: app.getVersion() }
+      )
+      const snapshot =
+        inspection.canonicalId &&
+        inspection.contentDigest &&
+        inspection.permissionHash
+          ? {
+              packageId: inspection.canonicalId,
+              contentDigest: inspection.contentDigest,
+              permissionHash: inspection.permissionHash,
+            }
+          : undefined
+
+      if (inspection.status !== "ready" || !inspection.manifest || !snapshot) {
+        const diagnostics: FileExtensionDevelopmentDiagnostic[] =
+          inspection.diagnostics.map((diagnostic) => ({
+            code: "inspection",
+            message: `${diagnostic.code}: ${diagnostic.message}`,
+            path: diagnostic.path,
+          }))
+        return this.applyDevelopmentResult(spaceId, expected, () =>
+          this.developmentManager.markBlocked(
+            spaceId,
+            expected.packageId,
+            "invalid",
+            diagnostics.length > 0
+              ? diagnostics
+              : [
+                  {
+                    code: "inspection",
+                    message: "The extension package is invalid.",
+                  },
+                ],
+            snapshot
+          )
+        )
+      }
+      if (
+        snapshot.packageId !== expected.packageId ||
+        snapshot.permissionHash !== expected.anchorSnapshot.permissionHash
+      ) {
+        return this.applyDevelopmentResult(spaceId, expected, () =>
+          this.developmentManager.markBlocked(
+            spaceId,
+            expected.packageId,
+            "permissions-changed",
+            [
+              {
+                code: "inspection",
+                message:
+                  "The extension ID or requested permissions changed. Stop development and review the new source before running it.",
+              },
+            ],
+            snapshot
+          )
+        )
+      }
+
+      try {
+        if (inspection.manifest.entrypoints.worker) {
+          const compiled = await compileExtensionWorker({
+            entrypoint: inspection.manifest.entrypoints.worker,
+            files,
+          })
+          this.bundleCache.set(
+            this.snapshotCacheKey(spaceId, snapshot, "worker"),
+            compiled.code
+          )
+        }
+        if (inspection.manifest.entrypoints.ui) {
+          const compiled = await compileExtensionSurface({
+            entrypoint: inspection.manifest.entrypoints.ui,
+            files,
+          })
+          this.bundleCache.set(
+            this.snapshotCacheKey(spaceId, snapshot, "surface"),
+            compiled.code
+          )
+        }
+      } catch (error) {
+        return this.applyDevelopmentResult(spaceId, expected, () =>
+          this.developmentManager.markBlocked(
+            spaceId,
+            expected.packageId,
+            "invalid",
+            [
+              {
+                code: "compile",
+                message:
+                  error instanceof Error
+                    ? error.message
+                    : "The extension could not be compiled.",
+              },
+            ],
+            snapshot
+          )
+        )
+      }
+
+      return this.applyDevelopmentResult(spaceId, expected, () =>
+        this.developmentManager.markReady(spaceId, expected.packageId, snapshot)
+      )
+    } catch (error) {
+      return this.applyDevelopmentResult(spaceId, expected, () =>
+        this.developmentManager.markBlocked(
+          spaceId,
+          expected.packageId,
+          "invalid",
+          [
+            {
+              code: "inspection",
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "The extension package could not be inspected.",
+            },
+          ]
+        )
+      )
+    }
+  }
+
+  private applyDevelopmentResult(
+    spaceId: string,
+    expected: FileExtensionDevelopmentSessionSummary,
+    apply: () => FileExtensionDevelopmentSessionSummary | undefined
+  ): FileExtensionDevelopmentSessionSummary | undefined {
+    const current = this.developmentManager.get(spaceId, expected.packageId)
+    if (
+      !current ||
+      current.sessionId !== expected.sessionId ||
+      current.generation !== expected.generation
+    ) {
+      return current
+    }
+    return apply()
+  }
+
+  private packageIdForWatchEvent(
+    spaceId: string,
+    filename: string | Buffer | null
+  ): string | undefined {
+    if (filename === null) return undefined
+    const relativePath = Buffer.isBuffer(filename)
+      ? filename.toString("utf8")
+      : filename
+    const directoryName = relativePath.split(/[\\/]/, 1)[0]
+    if (!directoryName || directoryName === "." || directoryName === "..") {
+      return undefined
+    }
+    return (
+      this.packageDirectories.get(spaceId)?.get(directoryName) ??
+      this.developmentManager.getByDirectory(spaceId, directoryName)?.packageId
+    )
   }
 
   private stopWatcher(spaceId: string): void {
@@ -967,8 +1424,12 @@ export class FileExtensionService extends IpcServiceBase {
       await ensureExtensionStateDatabasePath(spacePath)
     )
     try {
-      const localState = store.get(snapshot)
-      if (!localState.trusted || !localState.enabled) {
+      const localState = this.effectiveLocalState(
+        spaceId,
+        snapshot,
+        store.get(snapshot)
+      )
+      if (!localState) {
         throw new Error(
           "Extension must be trusted and enabled before execution"
         )
@@ -1045,12 +1506,17 @@ export class FileExtensionService extends IpcServiceBase {
     )
     let localState: ExtensionLocalState
     try {
-      localState = store.get(snapshot)
-      if (!localState.trusted || !localState.enabled) {
+      const effectiveState = this.effectiveLocalState(
+        spaceId,
+        snapshot,
+        store.get(snapshot)
+      )
+      if (!effectiveState) {
         throw new Error(
           "Extension must be trusted and enabled before opening its editor"
         )
       }
+      localState = effectiveState
     } finally {
       store.close()
     }
@@ -1183,8 +1649,12 @@ export class FileExtensionService extends IpcServiceBase {
       await ensureExtensionStateDatabasePath(spacePath)
     )
     try {
-      const state = store.get(snapshot)
-      if (!state.trusted || !state.enabled) {
+      const state = this.effectiveLocalState(
+        spaceId,
+        snapshot,
+        store.get(snapshot)
+      )
+      if (!state) {
         throw new FileExtensionRuntimeError(
           "CAPABILITY_DENIED",
           "Extension trust or enablement was revoked"
@@ -1206,6 +1676,74 @@ export class FileExtensionService extends IpcServiceBase {
       )
     }
     return relativePath
+  }
+
+  private effectiveLocalState(
+    spaceId: string,
+    snapshot: ExtensionSnapshotIdentity,
+    persisted: ExtensionLocalState
+  ): ExtensionLocalState | undefined {
+    if (persisted.trusted && persisted.enabled) return persisted
+    const development = this.developmentManager.authorize(spaceId, snapshot)
+    if (!development) return undefined
+    return {
+      snapshot: { ...snapshot },
+      trusted: true,
+      enabled: true,
+      requestedGrants: development.requestedGrants,
+      granted: development.granted,
+    }
+  }
+
+  private effectiveStateForSummary(
+    spaceId: string,
+    extension: FileExtensionPackageSummary
+  ): ExtensionLocalState | undefined {
+    if (
+      !extension.canonicalId ||
+      !extension.contentDigest ||
+      !extension.permissionHash ||
+      !extension.localState
+    ) {
+      return undefined
+    }
+    return this.effectiveLocalState(
+      spaceId,
+      {
+        packageId: extension.canonicalId,
+        contentDigest: extension.contentDigest,
+        permissionHash: extension.permissionHash,
+      },
+      extension.localState
+    )
+  }
+
+  private isPackageExecutionAvailable(
+    spaceId: string,
+    extension: FileExtensionPackageSummary
+  ): boolean {
+    return this.effectiveStateForSummary(spaceId, extension) !== undefined
+  }
+
+  private assertNoDevelopmentSession(spaceId: string, packageId: string): void {
+    if (this.developmentManager.get(spaceId, packageId)) {
+      throw new Error(
+        "Stop the extension development session before changing trust, enablement, or grants"
+      )
+    }
+  }
+
+  private rememberPackageDirectory(
+    spaceId: string,
+    directoryName: string,
+    packageId: string
+  ): void {
+    let directories = this.packageDirectories.get(spaceId)
+    if (!directories) {
+      directories = new Map()
+      this.packageDirectories.set(spaceId, directories)
+    }
+    directories.set(directoryName, packageId)
   }
 
   private hasPathGrant(
@@ -1243,6 +1781,40 @@ export class FileExtensionService extends IpcServiceBase {
         })
       )
       .digest("hex")}`
+  }
+
+  private emitDevelopmentChange(
+    spaceId: string,
+    session: FileExtensionDevelopmentSessionSummary
+  ): void {
+    const event: FileExtensionDevelopmentChangedEvent = {
+      spaceId,
+      packageId: session.packageId,
+      sessionId: session.sessionId,
+      status: session.status,
+      generation: session.generation,
+      diagnostics: session.diagnostics,
+    }
+    this.windowProvider
+      .getWindow()
+      ?.webContents.send("file-extensions:development-changed", event)
+  }
+
+  private emitDevelopmentStopped(
+    spaceId: string,
+    session: FileExtensionDevelopmentSessionSummary
+  ): void {
+    const event: FileExtensionDevelopmentChangedEvent = {
+      spaceId,
+      packageId: session.packageId,
+      sessionId: session.sessionId,
+      status: "stopped",
+      generation: session.generation + 1,
+      diagnostics: [],
+    }
+    this.windowProvider
+      .getWindow()
+      ?.webContents.send("file-extensions:development-changed", event)
   }
 
   private requestSemanticUi(
@@ -1305,6 +1877,26 @@ export class FileExtensionService extends IpcServiceBase {
   ): void {
     this.runtimeManager.disposePackage(spaceId, packageId, reason)
     this.documentManager.disposePackage(spaceId, packageId, reason)
+    this.clearPackageRuntimeState(spaceId, packageId, reason)
+  }
+
+  private invalidatePackageRuntimeSafely(
+    spaceId: string,
+    packageId: string,
+    reason: string
+  ): void {
+    this.runtimeManager.disposePackage(spaceId, packageId, reason)
+    this.clearPackageRuntimeState(spaceId, packageId, reason)
+    this.trackDocumentFlush(`${spaceId}\0${packageId}`, () =>
+      this.documentManager.flushAndDisposePackage(spaceId, packageId, reason)
+    )
+  }
+
+  private clearPackageRuntimeState(
+    spaceId: string,
+    packageId: string,
+    reason: string
+  ): void {
     const prefix = `${spaceId}\0${packageId}\0`
     for (const key of this.bundleCache.keys()) {
       if (key.startsWith(prefix)) this.bundleCache.delete(key)
@@ -1322,9 +1914,45 @@ export class FileExtensionService extends IpcServiceBase {
     }
   }
 
+  private trackDocumentFlush(key: string, start: () => Promise<void>): void {
+    if (this.pendingDocumentFlushes.has(key)) return
+    const pending = start().then(
+      () => undefined,
+      (error) =>
+        error instanceof Error
+          ? error
+          : new Error("The extension document could not be saved")
+    )
+    this.pendingDocumentFlushes.set(key, pending)
+  }
+
+  private async consumeDocumentFlushes(
+    spaceId: string,
+    packageIds: readonly string[]
+  ): Promise<Error | undefined> {
+    const packageSet = new Set(packageIds)
+    const prefix = `${spaceId}\0`
+    const matching = [...this.pendingDocumentFlushes.entries()].filter(
+      ([key]) => {
+        if (!key.startsWith(prefix)) return false
+        const packageId = key.slice(prefix.length)
+        return packageId === "*" || packageSet.has(packageId)
+      }
+    )
+    const results = await Promise.all(matching.map(([, pending]) => pending))
+    matching.forEach(([key, pending]) => {
+      if (this.pendingDocumentFlushes.get(key) === pending) {
+        this.pendingDocumentFlushes.delete(key)
+      }
+    })
+    return results.find((result): result is Error => result instanceof Error)
+  }
+
   private invalidateSpaceRuntime(spaceId: string, reason: string): void {
     this.runtimeManager.disposeSpace(spaceId, reason)
-    void this.documentManager.flushAndDisposeSpace(spaceId, reason)
+    this.trackDocumentFlush(`${spaceId}\0*`, () =>
+      this.documentManager.flushAndDisposeSpace(spaceId, reason)
+    )
     const prefix = `${spaceId}\0`
     for (const key of this.bundleCache.keys()) {
       if (key.startsWith(prefix)) this.bundleCache.delete(key)
@@ -1336,6 +1964,77 @@ export class FileExtensionService extends IpcServiceBase {
         this.sendSemanticUiCancellation(id)
         pending.reject(new FileExtensionRuntimeError("RUNTIME_STALE", reason))
       }
+    }
+  }
+
+  private stopDevelopmentSessionsForSpace(
+    spaceId: string,
+    reason: string
+  ): void {
+    for (const session of this.developmentManager.stopSpace(spaceId)) {
+      this.emitDevelopmentStopped(spaceId, session)
+      this.runtimeManager.disposePackage(spaceId, session.packageId, reason)
+    }
+  }
+
+  private stopDevelopmentSessionForPackage(
+    spaceId: string,
+    packageId: string,
+    reason: string
+  ): void {
+    const stopped = this.developmentManager.stop(spaceId, packageId)
+    if (!stopped) return
+    this.emitDevelopmentStopped(spaceId, stopped)
+    this.runtimeManager.disposePackage(spaceId, packageId, reason)
+  }
+
+  private async disposeSpaceResources(
+    spaceId: string,
+    reason: string
+  ): Promise<void> {
+    this.stopWatcher(spaceId)
+    this.developmentManager.stopSpace(spaceId)
+    this.runtimeManager.disposeSpace(spaceId, reason)
+    await this.documentManager.flushAndDisposeSpace(spaceId, reason)
+    this.packageDirectories.delete(spaceId)
+    for (const key of this.pendingDocumentFlushes.keys()) {
+      if (key.startsWith(`${spaceId}\0`))
+        this.pendingDocumentFlushes.delete(key)
+    }
+    const prefix = `${spaceId}\0`
+    for (const key of this.bundleCache.keys()) {
+      if (key.startsWith(prefix)) this.bundleCache.delete(key)
+    }
+    for (const [id, pending] of this.pendingSemanticUi) {
+      if (pending.request.spaceId !== spaceId) continue
+      clearTimeout(pending.timer)
+      this.pendingSemanticUi.delete(id)
+      this.sendSemanticUiCancellation(id)
+      pending.reject(new FileExtensionRuntimeError("RUNTIME_STALE", reason))
+    }
+  }
+
+  private async disposeAllResources(reason: string): Promise<void> {
+    const spaceIds = new Set([
+      ...this.watchers.keys(),
+      ...this.registry.getAllSpaces().map((space) => space.id),
+    ])
+    for (const spaceId of this.watchers.keys()) this.stopWatcher(spaceId)
+    this.developmentManager.stopAll()
+    this.runtimeManager.disposeAll(reason)
+    await Promise.all(
+      [...spaceIds].map((spaceId) =>
+        this.documentManager.flushAndDisposeSpace(spaceId, reason)
+      )
+    )
+    this.packageDirectories.clear()
+    this.pendingDocumentFlushes.clear()
+    this.bundleCache.clear()
+    for (const [id, pending] of this.pendingSemanticUi) {
+      clearTimeout(pending.timer)
+      this.pendingSemanticUi.delete(id)
+      this.sendSemanticUiCancellation(id)
+      pending.reject(new FileExtensionRuntimeError("RUNTIME_DISPOSED", reason))
     }
   }
 

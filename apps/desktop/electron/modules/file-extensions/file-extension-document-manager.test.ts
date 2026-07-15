@@ -157,6 +157,43 @@ describe("FileExtensionDocumentManager", () => {
     )
   })
 
+  it("keeps a dirty editor recoverable when reload cannot save it", async () => {
+    const { root, manager, options, send } = await fixture()
+    const editor = await manager.open(options)
+    await manager.handleRequest("space-a", editor.sessionId, editor.viewId, {
+      type: "apply-edits",
+      requestId: "edit-1",
+      documentId: editor.snapshot.documentId,
+      baseRevision: 1,
+      edits: [{ start: 3, end: 4, text: "x" }],
+    })
+    await writeFile(path.join(root, "tasks.md"), "external\n")
+
+    await expect(
+      manager.flushAndDisposePackage(
+        "space-a",
+        "example.tasks",
+        "Extension source changed"
+      )
+    ).rejects.toMatchObject({ code: "CONFLICT" })
+    expect(
+      surfaceEvents(send).some((event) => event.message.type === "dispose")
+    ).toBe(false)
+
+    await expect(
+      manager.resolveConflict(
+        "space-a",
+        editor.sessionId,
+        editor.viewId,
+        "overwrite"
+      )
+    ).resolves.toEqual({ success: true })
+    await manager.flush("space-a", editor.sessionId, editor.viewId)
+    await expect(readFile(path.join(root, "tasks.md"), "utf8")).resolves.toBe(
+      "- [x] Ship\n"
+    )
+  })
+
   it("returns protocol failures as data instead of throwing", async () => {
     const { manager, options } = await fixture()
     const editor = await manager.open(options)

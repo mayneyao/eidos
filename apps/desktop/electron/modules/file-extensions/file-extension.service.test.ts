@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { MainWindowProvider } from "../space-management/main-window.provider"
 import type { SpaceRegistry } from "../space-management/space-registry"
+import type { SpaceResourceLifecycle } from "../space-management/space-resource-lifecycle"
 import type { FileExtensionInstallManager } from "./file-extension-install-manager"
 import type { FileExtensionRuntimeManager } from "./runtime/file-extension-runtime-manager"
 import type { FileExtensionRuntimeExecution } from "./runtime/file-extension-runtime-manager"
@@ -575,6 +576,426 @@ describe("FileExtensionService", () => {
     await expect(
       service.setEnabled("space-a", snapshot, false)
     ).rejects.toThrow("package changed")
+  })
+
+  it("runs source-only changes inside an in-memory development session", async () => {
+    const root = await createFileSpace()
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+      getSpaceByPath: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+      getAllSpaces: vi.fn(() => []),
+    } as unknown as SpaceRegistry
+    const send = vi.fn()
+    const windowProvider = {
+      getWindow: () => ({ webContents: { send } }),
+    } as unknown as MainWindowProvider
+    const runtimeManager = runtimeManagerStub()
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManager
+    )
+    const extension = (await service.discover("space-a")).packages[0]!
+    const anchor = {
+      packageId: extension.canonicalId!,
+      contentDigest: extension.contentDigest!,
+      permissionHash: extension.permissionHash!,
+    }
+    await service.trust("space-a", anchor)
+    await service.setGrant("space-a", {
+      ...anchor,
+      grant: { kind: "files.read", value: "**/*.md" },
+      granted: true,
+    })
+    await service.setEnabled("space-a", anchor, true)
+
+    const session = await service.startDevelopmentSession("space-a", anchor)
+    expect(session).toMatchObject({
+      anchorSnapshot: anchor,
+      currentSnapshot: anchor,
+      status: "ready",
+      granted: [{ kind: "files.read", value: "**/*.md" }],
+    })
+
+    const sourcePath = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "example.task-counter",
+      "src",
+      "extension.ts"
+    )
+    await writeFile(sourcePath, "export const activate = () => 'changed'\n")
+    await vi.waitFor(
+      () => {
+        const ready = send.mock.calls.find(
+          ([channel, event]) =>
+            channel === "file-extensions:development-changed" &&
+            event.packageId === anchor.packageId &&
+            event.sessionId === session.sessionId &&
+            event.status === "ready" &&
+            event.generation > session.generation
+        )
+        expect(ready).toBeDefined()
+      },
+      { timeout: 3_000 }
+    )
+
+    const changed = (await service.discover("space-a")).packages[0]!
+    expect(changed.contentDigest).not.toBe(anchor.contentDigest)
+    expect(changed).toMatchObject({
+      lifecycleStatus: "untrusted",
+      localState: { trusted: false, enabled: false, granted: [] },
+      developmentSession: {
+        sessionId: session.sessionId,
+        status: "ready",
+        anchorSnapshot: anchor,
+        currentSnapshot: {
+          contentDigest: changed.contentDigest,
+          permissionHash: anchor.permissionHash,
+        },
+      },
+    })
+    await expect(service.listCommands("space-a")).resolves.toMatchObject([
+      {
+        packageId: anchor.packageId,
+        contentDigest: changed.contentDigest,
+      },
+    ])
+
+    await expect(
+      service.stopDevelopmentSession("space-a", {
+        packageId: anchor.packageId,
+        sessionId: session.sessionId,
+      })
+    ).resolves.toEqual({ success: true })
+    await expect(service.listCommands("space-a")).resolves.toEqual([])
+    service.stopWatching("space-a")
+  })
+
+  it("blocks permission changes during development without inheriting grants", async () => {
+    const root = await createFileSpace()
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const send = vi.fn()
+    const windowProvider = {
+      getWindow: () => ({ webContents: { send } }),
+    } as unknown as MainWindowProvider
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManagerStub()
+    )
+    const extension = (await service.discover("space-a")).packages[0]!
+    const anchor = {
+      packageId: extension.canonicalId!,
+      contentDigest: extension.contentDigest!,
+      permissionHash: extension.permissionHash!,
+    }
+    await service.trust("space-a", anchor)
+    await service.setGrant("space-a", {
+      ...anchor,
+      grant: { kind: "files.read", value: "**/*.md" },
+      granted: true,
+    })
+    await service.setEnabled("space-a", anchor, true)
+    const session = await service.startDevelopmentSession("space-a", anchor)
+
+    const manifestPath = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "example.task-counter",
+      "extension.json"
+    )
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    manifest.permissions.network = ["https://example.com"]
+    await writeFile(manifestPath, JSON.stringify(manifest))
+
+    await vi.waitFor(
+      () => {
+        expect(send).toHaveBeenCalledWith(
+          "file-extensions:development-changed",
+          expect.objectContaining({
+            sessionId: session.sessionId,
+            status: "permissions-changed",
+          })
+        )
+      },
+      { timeout: 3_000 }
+    )
+    await expect(service.listCommands("space-a")).resolves.toEqual([])
+    await expect(
+      service.setGrant("space-a", {
+        ...anchor,
+        grant: { kind: "files.read", value: "**/*.md" },
+        granted: false,
+      })
+    ).rejects.toThrow("Stop the extension development session")
+    await service.stopDevelopmentSession("space-a", {
+      packageId: anchor.packageId,
+      sessionId: session.sessionId,
+    })
+    service.stopWatching("space-a")
+  })
+
+  it("reports compile failures and automatically recovers after the source is fixed", async () => {
+    const root = await createFileSpace()
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const send = vi.fn()
+    const windowProvider = {
+      getWindow: () => ({ webContents: { send } }),
+    } as unknown as MainWindowProvider
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManagerStub()
+    )
+    const extension = (await service.discover("space-a")).packages[0]!
+    const anchor = {
+      packageId: extension.canonicalId!,
+      contentDigest: extension.contentDigest!,
+      permissionHash: extension.permissionHash!,
+    }
+    await service.trust("space-a", anchor)
+    await service.setEnabled("space-a", anchor, true)
+    const session = await service.startDevelopmentSession("space-a", anchor)
+    const sourcePath = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "example.task-counter",
+      "src",
+      "extension.ts"
+    )
+
+    await writeFile(sourcePath, "export const activate = (\n")
+    let invalidGeneration = 0
+    await vi.waitFor(
+      () => {
+        const invalid = send.mock.calls.find(
+          ([channel, event]) =>
+            channel === "file-extensions:development-changed" &&
+            event.sessionId === session.sessionId &&
+            event.status === "invalid" &&
+            ["compile", "inspection"].includes(event.diagnostics?.[0]?.code)
+        )?.[1]
+        expect(invalid).toBeDefined()
+        invalidGeneration = invalid.generation
+      },
+      { timeout: 3_000 }
+    )
+    await expect(service.listCommands("space-a")).resolves.toEqual([])
+
+    await writeFile(sourcePath, "export const activate = () => 'fixed'\n")
+    await vi.waitFor(
+      () => {
+        const ready = send.mock.calls.find(
+          ([channel, event]) =>
+            channel === "file-extensions:development-changed" &&
+            event.sessionId === session.sessionId &&
+            event.status === "ready" &&
+            event.generation > invalidGeneration
+        )
+        expect(ready).toBeDefined()
+      },
+      { timeout: 3_000 }
+    )
+    await expect(service.listCommands("space-a")).resolves.toHaveLength(1)
+    await service.stopDevelopmentSession("space-a", {
+      packageId: anchor.packageId,
+      sessionId: session.sessionId,
+    })
+    service.stopWatching("space-a")
+  })
+
+  it("invalidates only the changed package when the watcher identifies it", async () => {
+    const root = await createFileSpace()
+    const secondRoot = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "example.note-counter"
+    )
+    await mkdir(path.join(secondRoot, "src"), { recursive: true })
+    await writeFile(
+      path.join(secondRoot, "extension.json"),
+      JSON.stringify({
+        manifestVersion: 1,
+        publisher: "example",
+        name: "note-counter",
+        displayName: "Note Counter",
+        version: "1.0.0",
+        engines: { eidos: ">=0.33.0 <1.0.0" },
+        entrypoints: { worker: "src/extension.ts" },
+        contributes: {
+          commands: [
+            { id: "example.note-counter.count", title: "Count notes" },
+          ],
+        },
+        permissions: { files: { read: [], write: [] }, network: [] },
+      })
+    )
+    await writeFile(
+      path.join(secondRoot, "src", "extension.ts"),
+      "export const activate = () => undefined\n"
+    )
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const send = vi.fn()
+    const windowProvider = {
+      getWindow: () => ({ webContents: { send } }),
+    } as unknown as MainWindowProvider
+    const runtimeManager = runtimeManagerStub()
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManager
+    )
+    const packages = (await service.discover("space-a")).packages
+    const sessions = []
+    for (const extension of packages) {
+      const snapshot = {
+        packageId: extension.canonicalId!,
+        contentDigest: extension.contentDigest!,
+        permissionHash: extension.permissionHash!,
+      }
+      await service.trust("space-a", snapshot)
+      await service.setEnabled("space-a", snapshot, true)
+      sessions.push(await service.startDevelopmentSession("space-a", snapshot))
+    }
+    send.mockClear()
+    vi.mocked(runtimeManager.disposePackage).mockClear()
+    vi.mocked(runtimeManager.disposeSpace).mockClear()
+
+    await writeFile(
+      path.join(
+        root,
+        ".eidos",
+        "extensions",
+        "example.task-counter",
+        "src",
+        "extension.ts"
+      ),
+      "export const activate = () => 'changed'\n"
+    )
+    await vi.waitFor(
+      () => {
+        expect(send).toHaveBeenCalledWith(
+          "file-extensions:development-changed",
+          expect.objectContaining({
+            packageId: "example.task-counter",
+            status: "ready",
+            generation: expect.any(Number),
+          })
+        )
+      },
+      { timeout: 3_000 }
+    )
+    const invalidatedPackages = vi
+      .mocked(runtimeManager.disposePackage)
+      .mock.calls.map(([, packageId]) => packageId)
+    expect(invalidatedPackages).toContain("example.task-counter")
+    expect(invalidatedPackages).not.toContain("example.note-counter")
+    expect(runtimeManager.disposeSpace).not.toHaveBeenCalled()
+
+    for (const session of sessions) {
+      await service.stopDevelopmentSession("space-a", {
+        packageId: session.packageId,
+        sessionId: session.sessionId,
+      })
+    }
+    service.stopWatching("space-a")
+  })
+
+  it("clears development sessions and Workers through the shared app lifecycle", async () => {
+    const root = await createFileSpace()
+    const space = {
+      id: "space-a",
+      name: "Space A",
+      path: root,
+      mode: "file" as const,
+    }
+    const registry = {
+      getSpace: vi.fn(() => space),
+      getSpaceByPath: vi.fn(() => space),
+      getAllSpaces: vi.fn(() => [space]),
+    } as unknown as SpaceRegistry
+    const windowProvider = {
+      getWindow: () => undefined,
+    } as unknown as MainWindowProvider
+    const runtimeManager = runtimeManagerStub()
+    const register = vi.fn()
+    const resourceLifecycle = {
+      register,
+    } as unknown as SpaceResourceLifecycle
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManager,
+      undefined,
+      undefined,
+      undefined,
+      resourceLifecycle
+    )
+    const extension = (await service.discover("space-a")).packages[0]!
+    const anchor = {
+      packageId: extension.canonicalId!,
+      contentDigest: extension.contentDigest!,
+      permissionHash: extension.permissionHash!,
+    }
+    await service.trust("space-a", anchor)
+    await service.setEnabled("space-a", anchor, true)
+    await service.startDevelopmentSession("space-a", anchor)
+
+    expect(register).toHaveBeenCalledWith(
+      "file-extensions",
+      expect.any(Function),
+      expect.any(Function)
+    )
+    const cleanup = register.mock.calls[0]![2] as () => Promise<void>
+    await cleanup()
+
+    expect(runtimeManager.disposeAll).toHaveBeenCalledWith(
+      "Eidos is shutting down"
+    )
+    await expect(service.discover("space-a")).resolves.toMatchObject({
+      packages: [{ developmentSession: undefined }],
+    })
   })
 
   it("keeps local trust isolated between Spaces with identical packages", async () => {

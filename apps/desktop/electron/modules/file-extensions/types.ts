@@ -42,8 +42,48 @@ export interface FileExtensionPackageSummary {
   locallyModified?: boolean
   requestedGrants: ExtensionPermissionGrant[]
   localState?: ExtensionLocalState
+  developmentSession?: FileExtensionDevelopmentSessionSummary
   files: ExtensionPackageFile[]
   diagnostics: ExtensionDiagnostic[]
+}
+
+export type FileExtensionDevelopmentStatus =
+  | "checking"
+  | "ready"
+  | "invalid"
+  | "permissions-changed"
+  | "missing"
+
+export interface FileExtensionDevelopmentDiagnostic {
+  code: "inspection" | "compile" | "document-save"
+  message: string
+  path?: string
+}
+
+export interface FileExtensionDevelopmentSessionSummary {
+  sessionId: string
+  packageId: string
+  anchorSnapshot: ExtensionSnapshotIdentity
+  currentSnapshot?: ExtensionSnapshotIdentity
+  status: FileExtensionDevelopmentStatus
+  diagnostics: FileExtensionDevelopmentDiagnostic[]
+  granted: ExtensionPermissionGrant[]
+  startedAt: number
+  generation: number
+}
+
+export interface FileExtensionStopDevelopmentSessionRequest {
+  packageId: string
+  sessionId: string
+}
+
+export interface FileExtensionDevelopmentChangedEvent {
+  spaceId: string
+  packageId: string
+  sessionId: string
+  status: FileExtensionDevelopmentStatus | "stopped"
+  generation: number
+  diagnostics: FileExtensionDevelopmentDiagnostic[]
 }
 
 export interface FileExtensionDiscoveryResult {
