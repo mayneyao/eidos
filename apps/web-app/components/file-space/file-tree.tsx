@@ -113,8 +113,6 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const { create: createBase } = useSpaceBase(spaceId)
   const { commands: extensionCommands, execute: executeExtensionCommand } =
     useFileExtensionCommands(spaceId)
-  const { editorsFor: extensionEditorsFor, load: loadExtensionEditors } =
-    useFileExtensionEditors(spaceId)
   const versioningOperation = useActiveSpaceVersioningOperation(spaceId)
   const restoringVersion =
     isDestructiveSpaceVersioningOperation(versioningOperation)
@@ -133,6 +131,15 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const [baseDialogOpen, setBaseDialogOpen] = useState(false)
   const [baseInitialName, setBaseInitialName] = useState("Untitled.base")
   const [baseParentPath, setBaseParentPath] = useState("")
+  const reportExtensionEditorError = useCallback((filePath: string) => {
+    setOperationError(
+      `Couldn’t load extension editors for “${filePath}”. Eidos can still open the file with its built-in viewer.`
+    )
+  }, [])
+  const { editorsFor: extensionEditorsFor, load: loadExtensionEditors } =
+    useFileExtensionEditors(spaceId, {
+      onLoadError: reportExtensionEditorError,
+    })
   const treeRef = useRef<SpaceFilesTreeHandle>(null)
   const extensionSourceRevealRef = useRef<"idle" | "loading" | "done">("idle")
   const viewSettings = useFileSpaceSettings((state) => state.bySpace[spaceId])

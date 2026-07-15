@@ -8,7 +8,14 @@ export type FileExtensionEditor = Awaited<
 
 const MAX_CACHED_PATHS = 128
 
-export function useFileExtensionEditors(spaceId?: string) {
+interface FileExtensionEditorOptions {
+  onLoadError?: (filePath: string, error: unknown) => void
+}
+
+export function useFileExtensionEditors(
+  spaceId?: string,
+  { onLoadError }: FileExtensionEditorOptions = {}
+) {
   const [editorsByPath, setEditorsByPath] = useState<
     Map<string, FileExtensionEditor[]>
   >(new Map())
@@ -40,7 +47,6 @@ export function useFileExtensionEditors(spaceId?: string) {
       const generation = cacheGeneration.current
       const request = window.eidos.fileExtensions
         .listFileEditors(spaceId, filePath)
-        .catch(() => [])
         .then((editors) => {
           if (generation !== cacheGeneration.current) return []
           const next = new Map(cache.current)
@@ -55,6 +61,12 @@ export function useFileExtensionEditors(spaceId?: string) {
           setEditorsByPath(next)
           return editors
         })
+        .catch((error: unknown) => {
+          if (generation === cacheGeneration.current) {
+            onLoadError?.(filePath, error)
+          }
+          return []
+        })
         .finally(() => {
           if (inFlight.current.get(filePath) === request) {
             inFlight.current.delete(filePath)
@@ -63,7 +75,7 @@ export function useFileExtensionEditors(spaceId?: string) {
       inFlight.current.set(filePath, request)
       return request
     },
-    [spaceId]
+    [onLoadError, spaceId]
   )
 
   useEffect(() => {

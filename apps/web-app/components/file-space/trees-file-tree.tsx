@@ -275,6 +275,7 @@ function SpaceTreeContextMenu({
             type="button"
             role="menuitem"
             className={itemClassName}
+            disabled={disabled}
             onClick={() => run(() => onOpenWith?.(entry, null))}
           >
             <PanelsTopLeft className="h-3.5 w-3.5" />
@@ -286,6 +287,7 @@ function SpaceTreeContextMenu({
               type="button"
               role="menuitem"
               className={itemClassName}
+              disabled={disabled}
               onClick={() => run(() => onOpenWith?.(entry, editor.id))}
               title={`${editor.displayName} — ${editor.extensionDisplayName}`}
             >

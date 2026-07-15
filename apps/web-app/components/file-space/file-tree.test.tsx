@@ -34,6 +34,9 @@ const extensionEditorMocks = vi.hoisted(() => ({
     }>
   >,
   load: vi.fn(),
+  reportError: undefined as
+    | ((filePath: string, error: unknown) => void)
+    | undefined,
 }))
 const extensionCommandMocks = vi.hoisted(() => ({
   commands: [] as Array<{
@@ -73,11 +76,17 @@ vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
 }))
 
 vi.mock("@/apps/web-app/hooks/use-file-extension-editors", () => ({
-  useFileExtensionEditors: () => ({
-    editorsFor: (path: string) => extensionEditorMocks.byPath[path] ?? [],
-    load: extensionEditorMocks.load,
-    clear: vi.fn(),
-  }),
+  useFileExtensionEditors: (
+    _spaceId: string,
+    options?: { onLoadError?: (filePath: string, error: unknown) => void }
+  ) => {
+    extensionEditorMocks.reportError = options?.onLoadError
+    return {
+      editorsFor: (path: string) => extensionEditorMocks.byPath[path] ?? [],
+      load: extensionEditorMocks.load,
+      clear: vi.fn(),
+    }
+  },
 }))
 
 vi.mock("@/apps/web-app/hooks/use-file-extension-commands", () => ({
@@ -213,6 +222,7 @@ describe("FileSpaceTree accessibility", () => {
     preloadSpaceBaseEditorMock.mockReset()
     preloadSpaceBaseEditorMock.mockResolvedValue(() => null)
     extensionEditorMocks.byPath = {}
+    extensionEditorMocks.reportError = undefined
     extensionEditorMocks.load.mockReset()
     extensionEditorMocks.load.mockImplementation(
       async (path: string) => extensionEditorMocks.byPath[path] ?? []
@@ -595,6 +605,65 @@ describe("FileSpaceTree accessibility", () => {
 
     expect(navigateMock).toHaveBeenLastCalledWith(
       "/space-file?editor=example.task-board.editor#root.md"
+    )
+  })
+
+  it("disables extension editors during destructive versioning", async () => {
+    extensionEditorMocks.byPath["root.md"] = [
+      {
+        packageId: "example.task-board",
+        contentDigest: `sha256:${"1".repeat(64)}`,
+        permissionHash: `sha256:${"2".repeat(64)}`,
+        id: "example.task-board.editor",
+        displayName: "Task Board",
+        extensionDisplayName: "Markdown Task Board",
+        selector: [{ filenamePattern: "**/*.md" }],
+        priority: "option",
+        editable: true,
+      },
+    ]
+    await renderTree()
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("space-versioning:operation", {
+          detail: { spaceId: "test-space", operation: "restoring" },
+        })
+      )
+      getTreeItem("root.md").dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          clientX: 120,
+          clientY: 80,
+        })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const menu = document.body.querySelector<HTMLElement>(
+      '[aria-label="Actions for root.md"]'
+    )
+    const openWithButtons = Array.from(
+      menu?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []
+    ).filter((button) => button.textContent?.includes("Open with"))
+    expect(openWithButtons).toHaveLength(2)
+    expect(openWithButtons.every((button) => button.disabled)).toBe(true)
+  })
+
+  it("explains when extension editor discovery falls back to Eidos", async () => {
+    await renderTree()
+
+    act(() => {
+      extensionEditorMocks.reportError?.(
+        "root.md",
+        new Error("Extension service unavailable")
+      )
+    })
+
+    expect(container.textContent).toContain(
+      "Couldn’t load extension editors for “root.md”. Eidos can still open the file with its built-in viewer."
     )
   })
 
