@@ -79,6 +79,160 @@ afterEach(async () => {
 })
 
 describe("FileExtensionService", () => {
+  it("opens an enabled file editor from the exact trusted snapshot", async () => {
+    const root = await createFileSpace()
+    const packageRoot = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "example.task-counter"
+    )
+    await writeFile(
+      path.join(packageRoot, "extension.json"),
+      JSON.stringify({
+        manifestVersion: 1,
+        publisher: "example",
+        name: "task-counter",
+        displayName: "Task Counter",
+        version: "1.0.0",
+        engines: { eidos: ">=0.33.0 <1.0.0" },
+        entrypoints: {
+          worker: "src/extension.ts",
+          ui: "src/editor.ts",
+        },
+        contributes: {
+          commands: [{ id: "example.task-counter.count", title: "Count" }],
+          fileEditors: [
+            {
+              id: "example.task-counter.board",
+              displayName: "Task Board",
+              selector: [{ filenamePattern: "**/*.md" }],
+              priority: "option",
+            },
+          ],
+        },
+        permissions: {
+          files: { read: ["**/*.md"], write: ["**/*.md"] },
+          network: [],
+        },
+      })
+    )
+    await writeFile(
+      path.join(packageRoot, "src", "editor.ts"),
+      [
+        'import type { ExtensionFileEditorContext } from "@eidos.space/extension-sdk"',
+        "export function activate(context: ExtensionFileEditorContext) {",
+        "  context.root.textContent = context.document.snapshot.text",
+        "}",
+      ].join("\n")
+    )
+    await writeFile(path.join(root, "tasks.md"), "- [ ] Ship\n")
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const send = vi.fn()
+    const windowProvider = {
+      getWindow: () => ({ webContents: { send } }),
+    } as unknown as MainWindowProvider
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManagerStub()
+    )
+    const extension = (await service.discover("space-a")).packages[0]!
+    const snapshot = {
+      packageId: extension.canonicalId!,
+      contentDigest: extension.contentDigest!,
+      permissionHash: extension.permissionHash!,
+    }
+    await service.trust("space-a", snapshot)
+    for (const kind of ["files.read", "files.write"] as const) {
+      await service.setGrant("space-a", {
+        ...snapshot,
+        grant: { kind, value: "**/*.md" },
+        granted: true,
+      })
+    }
+    await service.setEnabled("space-a", snapshot, true)
+
+    await expect(
+      service.listFileEditors("space-a", "tasks.md")
+    ).resolves.toMatchObject([
+      {
+        id: "example.task-counter.board",
+        packageId: "example.task-counter",
+        displayName: "Task Board",
+        editable: true,
+      },
+    ])
+    const editor = await service.openFileEditor("space-a", {
+      ...snapshot,
+      editorId: "example.task-counter.board",
+      path: "tasks.md",
+    })
+    expect(editor).toMatchObject({
+      packageId: "example.task-counter",
+      editorId: "example.task-counter.board",
+      snapshot: { text: "- [ ] Ship\n", readOnly: false },
+      capabilities: { editable: true, save: true },
+    })
+    expect(editor.source).toContain("__eidosStartSurface")
+
+    await expect(
+      service.handleFileEditorRequest(
+        "space-a",
+        { sessionId: editor.sessionId, viewId: editor.viewId },
+        {
+          type: "apply-edits",
+          requestId: "edit-1",
+          documentId: editor.snapshot.documentId,
+          baseRevision: 1,
+          edits: [{ start: 3, end: 4, text: "x" }],
+        }
+      )
+    ).resolves.toMatchObject({ ok: true, revision: 2 })
+    await service.flushFileEditor("space-a", {
+      sessionId: editor.sessionId,
+      viewId: editor.viewId,
+    })
+    await expect(readFile(path.join(root, "tasks.md"), "utf8")).resolves.toBe(
+      "- [x] Ship\n"
+    )
+    await service.closeFileEditor("space-a", {
+      sessionId: editor.sessionId,
+      viewId: editor.viewId,
+    })
+    await service.setGrant("space-a", {
+      ...snapshot,
+      grant: { kind: "files.write", value: "**/*.md" },
+      granted: false,
+    })
+    await expect(
+      service.listFileEditors("space-a", "tasks.md")
+    ).resolves.toMatchObject([{ editable: false }])
+    const readOnlyEditor = await service.openFileEditor("space-a", {
+      ...snapshot,
+      editorId: "example.task-counter.board",
+      path: "tasks.md",
+    })
+    expect(readOnlyEditor).toMatchObject({
+      snapshot: { readOnly: true },
+      capabilities: { editable: false, save: false, undoRedo: false },
+    })
+    expect(readOnlyEditor.generation).not.toBe(editor.generation)
+    await service.closeFileEditor("space-a", {
+      sessionId: readOnlyEditor.sessionId,
+      viewId: readOnlyEditor.viewId,
+    })
+    service.stopWatching("space-a")
+  })
+
   it("returns sanitized, inspection-only discovery for a file Space", async () => {
     const root = await createFileSpace()
     const registry = {

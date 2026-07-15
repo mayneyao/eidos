@@ -1,5 +1,5 @@
 import { watch, type FSWatcher } from "node:fs"
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import path from "node:path"
 import { app } from "electron"
 import { IpcMethod, IpcServiceBase } from "@eidos.space/electron-ipc"
@@ -10,6 +10,7 @@ import {
 import {
   canonicalExtensionPackagePath,
   createExtensionCommandTemplate,
+  type ExtensionFileEditorSelector,
   type ExtensionPackageInspection,
   type NormalizedExtensionPermissions,
 } from "@eidos.space/extension-manifest"
@@ -18,7 +19,11 @@ import {
   inspectExtensionPackageSnapshot,
 } from "@eidos.space/extension-manifest/node"
 import { type ExtensionRuntimeRpcRequest } from "@eidos.space/extension-runtime"
-import { compileExtensionWorker } from "@eidos.space/extension-runtime/compiler"
+import {
+  compileExtensionSurface,
+  compileExtensionWorker,
+} from "@eidos.space/extension-runtime/compiler"
+import { createExtensionSurfaceSource } from "@eidos.space/extension-runtime/surface"
 import {
   assertExtensionSnapshotIdentity,
   type ExtensionLocalState,
@@ -40,6 +45,7 @@ import {
   resolveExtensionProjectPaths,
 } from "./extension-paths"
 import { FileExtensionInstallManager } from "./file-extension-install-manager"
+import { FileExtensionDocumentManager } from "./file-extension-document-manager"
 import { writeExtensionTemplate } from "./extension-template-writer"
 import {
   FileExtensionRuntimeError,
@@ -52,12 +58,18 @@ import type {
   FileExtensionCommandRequest,
   FileExtensionCommandSummary,
   FileExtensionDiscoveryResult,
+  FileExtensionEditorSessionRequest,
+  FileExtensionEditorSummary,
   FileExtensionGrantRequest,
   FileExtensionGitHubInstallRequest,
   FileExtensionInstallPreview,
   FileExtensionInstallResult,
+  FileExtensionOpenEditorRequest,
+  FileExtensionOpenEditorResult,
   FileExtensionPackageSummary,
   FileExtensionSnapshotRequest,
+  FileExtensionResolveConflictRequest,
+  FileExtensionSurfaceRequestResult,
   FileExtensionSemanticUiRequest,
   FileExtensionSemanticUiResponse,
   FileExtensionTemplateResult,
@@ -69,6 +81,27 @@ const FILE_EXTENSION_ROOT = ".eidos/extensions" as const
 const WATCH_DEBOUNCE_MS = 120
 const SEMANTIC_UI_TIMEOUT_MS = 55_000
 const LOCAL_EXTENSION_NAME_PATTERN = /^[a-z][a-z0-9-]{1,62}$/
+const FILE_EDITOR_MEDIA_TYPES: Record<string, string> = {
+  css: "text/css",
+  csv: "text/csv",
+  html: "text/html",
+  js: "text/javascript",
+  json: "application/json",
+  jsx: "text/jsx",
+  markdown: "text/markdown",
+  md: "text/markdown",
+  py: "text/x-python",
+  sh: "text/x-shellscript",
+  sql: "application/sql",
+  toml: "application/toml",
+  ts: "text/typescript",
+  tsv: "text/tab-separated-values",
+  tsx: "text/tsx",
+  txt: "text/plain",
+  xml: "application/xml",
+  yaml: "application/yaml",
+  yml: "application/yaml",
+}
 
 interface FileExtensionWatcher {
   root: string
@@ -86,6 +119,12 @@ interface PendingSemanticUiRequest {
 
 interface PreparedFileExtensionCommand {
   descriptor: FileExtensionRuntimeDescriptor
+}
+
+interface PreparedFileExtensionEditor {
+  generation: string
+  source: string
+  editable: boolean
 }
 
 function requestedGrants(
@@ -108,6 +147,41 @@ function requestedGrants(
   ]
 }
 
+function fileEditorMediaType(relativePath: string): string {
+  const extension = path.posix.extname(relativePath).slice(1).toLowerCase()
+  return FILE_EDITOR_MEDIA_TYPES[extension] ?? "text/plain"
+}
+
+function fileEditorLanguageId(relativePath: string): string | undefined {
+  const extension = path.posix.extname(relativePath).slice(1).toLowerCase()
+  if (extension === "md" || extension === "markdown") return "markdown"
+  return extension || undefined
+}
+
+function fileEditorSelectorMatches(
+  relativePath: string,
+  mediaType: string,
+  selector: ExtensionFileEditorSelector
+): boolean {
+  const patternMatches =
+    !selector.filenamePattern ||
+    minimatch(relativePath, selector.filenamePattern, {
+      dot: true,
+      matchBase: true,
+      nocomment: true,
+      nonegate: true,
+      nocase: false,
+    })
+  const mediaTypeMatches =
+    !selector.mediaType ||
+    minimatch(mediaType, selector.mediaType, {
+      nocomment: true,
+      nonegate: true,
+      nocase: true,
+    })
+  return patternMatches && mediaTypeMatches
+}
+
 @IpcInjectable("file-extensions", { exposeMode: "decorated" })
 export class FileExtensionService extends IpcServiceBase {
   private readonly watchers = new Map<string, FileExtensionWatcher>()
@@ -125,7 +199,11 @@ export class FileExtensionService extends IpcServiceBase {
     @Inject(FileExtensionRuntimeManager)
     private readonly runtimeManager: FileExtensionRuntimeManager,
     @Inject(FileExtensionInstallManager)
-    private readonly installManager: FileExtensionInstallManager = new FileExtensionInstallManager()
+    private readonly installManager: FileExtensionInstallManager = new FileExtensionInstallManager(),
+    @Inject(FileExtensionDocumentManager)
+    private readonly documentManager: FileExtensionDocumentManager = new FileExtensionDocumentManager(
+      windowProvider
+    )
   ) {
     super()
   }
@@ -143,6 +221,7 @@ export class FileExtensionService extends IpcServiceBase {
     spaceId: string,
     request: FileExtensionSnapshotRequest
   ): Promise<ExtensionLocalState> {
+    await this.documentManager.flushPackage(spaceId, request.packageId)
     const state = await this.mutateCurrentSnapshot(
       spaceId,
       request,
@@ -162,6 +241,7 @@ export class FileExtensionService extends IpcServiceBase {
     spaceId: string,
     request: FileExtensionSnapshotRequest
   ): Promise<ExtensionLocalState> {
+    await this.documentManager.flushPackage(spaceId, request.packageId)
     const state = await this.mutateCurrentSnapshot(
       spaceId,
       request,
@@ -185,6 +265,7 @@ export class FileExtensionService extends IpcServiceBase {
     if (typeof enabled !== "boolean") {
       throw new Error("Extension enablement must be a boolean")
     }
+    await this.documentManager.flushPackage(spaceId, request.packageId)
     const state = await this.mutateCurrentSnapshot(
       spaceId,
       request,
@@ -207,6 +288,7 @@ export class FileExtensionService extends IpcServiceBase {
     if (typeof request?.granted !== "boolean") {
       throw new Error("Extension grant state must be a boolean")
     }
+    await this.documentManager.flushPackage(spaceId, request.packageId)
     const state = await this.mutateCurrentSnapshot(
       spaceId,
       request,
@@ -253,6 +335,160 @@ export class FileExtensionService extends IpcServiceBase {
         ),
       }))
     })
+  }
+
+  @IpcMethod()
+  async listFileEditors(
+    spaceId: string,
+    resourcePath: string
+  ): Promise<FileExtensionEditorSummary[]> {
+    const relativePath = this.canonicalPublicSpacePath(resourcePath)
+    const mediaType = fileEditorMediaType(relativePath)
+    const discovery = await this.discover(spaceId)
+    return discovery.packages
+      .flatMap((extension) => {
+        if (
+          extension.lifecycleStatus !== "enabled" ||
+          !extension.manifest?.entrypoints.ui ||
+          !extension.canonicalId ||
+          !extension.contentDigest ||
+          !extension.permissionHash ||
+          !extension.localState ||
+          !this.hasPathGrant(extension.localState, "files.read", relativePath)
+        ) {
+          return []
+        }
+        const snapshot = {
+          packageId: extension.canonicalId,
+          contentDigest: extension.contentDigest,
+          permissionHash: extension.permissionHash,
+        }
+        const editable = this.hasPathGrant(
+          extension.localState,
+          "files.write",
+          relativePath
+        )
+        return (extension.manifest.contributes.fileEditors ?? [])
+          .filter((editor) =>
+            editor.selector.some((selector) =>
+              fileEditorSelectorMatches(relativePath, mediaType, selector)
+            )
+          )
+          .map((editor) => ({
+            ...snapshot,
+            ...editor,
+            extensionDisplayName: extension.manifest!.displayName,
+            editable,
+          }))
+      })
+      .sort(
+        (left, right) =>
+          Number(right.priority === "default") -
+            Number(left.priority === "default") ||
+          left.displayName.localeCompare(right.displayName)
+      )
+  }
+
+  @IpcMethod()
+  async openFileEditor(
+    spaceId: string,
+    request: FileExtensionOpenEditorRequest
+  ): Promise<FileExtensionOpenEditorResult> {
+    const space = this.getFileSpace(spaceId)
+    assertExtensionSnapshotIdentity(request)
+    if (typeof request.editorId !== "string" || !request.editorId) {
+      throw new Error("A file editor contribution ID is required")
+    }
+    const relativePath = this.canonicalPublicSpacePath(request.path)
+    const watcher = await this.startWatching(spaceId)
+    if (!watcher.watching) {
+      throw new Error(
+        "Extension source watching must be available before opening third-party UI"
+      )
+    }
+    return withFileSpaceReadLock(spaceId, async () => {
+      const prepared = await this.prepareFileEditor(
+        spaceId,
+        space.path,
+        request,
+        relativePath
+      )
+      return this.documentManager.open({
+        spaceId,
+        spacePath: space.path,
+        packageId: request.packageId,
+        editorId: request.editorId,
+        generation: prepared.generation,
+        source: prepared.source,
+        path: relativePath,
+        mediaType: fileEditorMediaType(relativePath),
+        languageId: fileEditorLanguageId(relativePath),
+        editable: prepared.editable,
+      })
+    })
+  }
+
+  @IpcMethod()
+  async handleFileEditorRequest(
+    spaceId: string,
+    request: FileExtensionEditorSessionRequest,
+    message: unknown
+  ): Promise<FileExtensionSurfaceRequestResult> {
+    return this.documentManager.handleRequest(
+      spaceId,
+      request.sessionId,
+      request.viewId,
+      message
+    )
+  }
+
+  @IpcMethod()
+  async flushFileEditor(
+    spaceId: string,
+    request: FileExtensionEditorSessionRequest
+  ): Promise<{ success: true }> {
+    return this.documentManager.flush(
+      spaceId,
+      request.sessionId,
+      request.viewId
+    )
+  }
+
+  @IpcMethod()
+  async refreshFileEditor(
+    spaceId: string,
+    request: FileExtensionEditorSessionRequest
+  ): Promise<{ success: true }> {
+    return this.documentManager.refresh(
+      spaceId,
+      request.sessionId,
+      request.viewId
+    )
+  }
+
+  @IpcMethod()
+  async resolveFileEditorConflict(
+    spaceId: string,
+    request: FileExtensionResolveConflictRequest
+  ): Promise<{ success: true }> {
+    return this.documentManager.resolveConflict(
+      spaceId,
+      request.sessionId,
+      request.viewId,
+      request.resolution
+    )
+  }
+
+  @IpcMethod()
+  async closeFileEditor(
+    spaceId: string,
+    request: FileExtensionEditorSessionRequest
+  ): Promise<{ success: true }> {
+    return this.documentManager.close(
+      spaceId,
+      request.sessionId,
+      request.viewId
+    )
   }
 
   @IpcMethod()
@@ -368,6 +604,7 @@ export class FileExtensionService extends IpcServiceBase {
     request: FileExtensionApplyInstallRequest
   ): Promise<FileExtensionInstallResult> {
     const space = this.getFileSpace(spaceId)
+    await this.documentManager.flushSpace(spaceId)
     const result = await withFileSpaceOperationLock(spaceId, () =>
       this.installManager.apply(spaceId, space.path, request, app.getVersion())
     )
@@ -400,6 +637,10 @@ export class FileExtensionService extends IpcServiceBase {
     if (!request || typeof request.directoryName !== "string") {
       throw new Error("An extension package directory name is required")
     }
+    await this.documentManager.flushPackage(
+      spaceId,
+      request.canonicalId ?? request.directoryName
+    )
     await withFileSpaceOperationLock(spaceId, () =>
       this.installManager.uninstall(space.path, request, app.getVersion())
     )
@@ -736,7 +977,7 @@ export class FileExtensionService extends IpcServiceBase {
       store.close()
     }
 
-    const cacheKey = this.snapshotCacheKey(spaceId, snapshot)
+    const cacheKey = this.snapshotCacheKey(spaceId, snapshot, "worker")
     let bundleCode = this.bundleCache.get(cacheKey)
     if (!bundleCode) {
       const compiled = await compileExtensionWorker({
@@ -753,6 +994,92 @@ export class FileExtensionService extends IpcServiceBase {
         bundleCode,
         commandIds,
       },
+    }
+  }
+
+  private async prepareFileEditor(
+    spaceId: string,
+    spacePath: string,
+    request: FileExtensionOpenEditorRequest,
+    relativePath: string
+  ): Promise<PreparedFileExtensionEditor> {
+    const paths = await resolveExtensionProjectPaths(spacePath)
+    if (!paths.extensionsRoot) {
+      throw new Error("Extension package is no longer installed")
+    }
+    const { inspection, files } = await inspectExtensionPackageSnapshot(
+      path.join(paths.extensionsRoot, request.packageId),
+      { hostVersion: app.getVersion() }
+    )
+    if (
+      inspection.status !== "ready" ||
+      inspection.canonicalId !== request.packageId ||
+      inspection.contentDigest !== request.contentDigest ||
+      inspection.permissionHash !== request.permissionHash ||
+      !inspection.manifest?.entrypoints.ui
+    ) {
+      throw new Error(
+        "Extension package changed; inspect the current source before opening its editor"
+      )
+    }
+    const editor = (inspection.manifest.contributes.fileEditors ?? []).find(
+      (candidate) => candidate.id === request.editorId
+    )
+    const mediaType = fileEditorMediaType(relativePath)
+    if (
+      !editor ||
+      !editor.selector.some((selector) =>
+        fileEditorSelectorMatches(relativePath, mediaType, selector)
+      )
+    ) {
+      throw new Error("Extension file editor does not match this resource")
+    }
+
+    const snapshot: ExtensionSnapshotIdentity = {
+      packageId: request.packageId,
+      contentDigest: request.contentDigest,
+      permissionHash: request.permissionHash,
+    }
+    const store = new BetterSqlite3ExtensionStateStore(
+      await ensureExtensionStateDatabasePath(spacePath)
+    )
+    let localState: ExtensionLocalState
+    try {
+      localState = store.get(snapshot)
+      if (!localState.trusted || !localState.enabled) {
+        throw new Error(
+          "Extension must be trusted and enabled before opening its editor"
+        )
+      }
+    } finally {
+      store.close()
+    }
+    if (!this.hasPathGrant(localState, "files.read", relativePath)) {
+      throw new FileExtensionRuntimeError(
+        "CAPABILITY_DENIED",
+        `Extension is not granted read access to ${relativePath}`
+      )
+    }
+    const editable = this.hasPathGrant(localState, "files.write", relativePath)
+    const cacheKey = this.snapshotCacheKey(spaceId, snapshot, "surface")
+    let bundleCode = this.bundleCache.get(cacheKey)
+    if (!bundleCode) {
+      const compiled = await compileExtensionSurface({
+        entrypoint: inspection.manifest.entrypoints.ui,
+        files,
+      })
+      bundleCode = compiled.code
+      this.bundleCache.set(cacheKey, bundleCode)
+    }
+    const generation = this.surfaceGeneration(snapshot, localState)
+    return {
+      generation,
+      source: createExtensionSurfaceSource({
+        bundleCode,
+        extensionId: snapshot.packageId,
+        generation,
+      }),
+      editable,
     }
   }
 
@@ -881,6 +1208,43 @@ export class FileExtensionService extends IpcServiceBase {
     return relativePath
   }
 
+  private hasPathGrant(
+    localState: ExtensionLocalState,
+    kind: "files.read" | "files.write",
+    relativePath: string
+  ): boolean {
+    return localState.granted.some(
+      (grant) =>
+        grant.kind === kind &&
+        minimatch(relativePath, grant.value, {
+          dot: true,
+          matchBase: true,
+          nocomment: true,
+          nonegate: true,
+          nocase: false,
+        })
+    )
+  }
+
+  private surfaceGeneration(
+    snapshot: ExtensionSnapshotIdentity,
+    localState: ExtensionLocalState
+  ): string {
+    const grants = localState.granted
+      .map((grant) => `${grant.kind}:${grant.value}`)
+      .sort()
+    return `sha256:${createHash("sha256")
+      .update(
+        JSON.stringify({
+          packageId: snapshot.packageId,
+          contentDigest: snapshot.contentDigest,
+          permissionHash: snapshot.permissionHash,
+          grants,
+        })
+      )
+      .digest("hex")}`
+  }
+
   private requestSemanticUi(
     spaceId: string,
     packageId: string,
@@ -940,6 +1304,7 @@ export class FileExtensionService extends IpcServiceBase {
     reason: string
   ): void {
     this.runtimeManager.disposePackage(spaceId, packageId, reason)
+    this.documentManager.disposePackage(spaceId, packageId, reason)
     const prefix = `${spaceId}\0${packageId}\0`
     for (const key of this.bundleCache.keys()) {
       if (key.startsWith(prefix)) this.bundleCache.delete(key)
@@ -959,6 +1324,7 @@ export class FileExtensionService extends IpcServiceBase {
 
   private invalidateSpaceRuntime(spaceId: string, reason: string): void {
     this.runtimeManager.disposeSpace(spaceId, reason)
+    void this.documentManager.flushAndDisposeSpace(spaceId, reason)
     const prefix = `${spaceId}\0`
     for (const key of this.bundleCache.keys()) {
       if (key.startsWith(prefix)) this.bundleCache.delete(key)
@@ -975,13 +1341,15 @@ export class FileExtensionService extends IpcServiceBase {
 
   private snapshotCacheKey(
     spaceId: string,
-    snapshot: ExtensionSnapshotIdentity
+    snapshot: ExtensionSnapshotIdentity,
+    target: "worker" | "surface"
   ): string {
     return [
       spaceId,
       snapshot.packageId,
       snapshot.contentDigest,
       snapshot.permissionHash,
+      target,
     ].join("\0")
   }
 }
