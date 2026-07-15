@@ -8,7 +8,7 @@ sidebar:
 
 Eidos 不完整复制某一个扩展平台，而是组合三种成熟思路：
 
-- [Pi extension](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md)
+- [Pi extension](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md)
   的单模块开发、project-local package、reload loop 和 semantic user interaction；
 - [VS Code custom editor](https://code.visualstudio.com/api/extension-guides/custom-editors)
   的声明式 contribution、lazy provider activation、webview custom UI 和 document/view 分离；
@@ -18,6 +18,11 @@ Eidos 不完整复制某一个扩展平台，而是组合三种成熟思路：
 
 安装体验可以像 Pi 一样直接，但 runtime 不继承 Pi 或 Obsidian 的 full-process trust model。从
 GitHub 下载的代码始终需要经过 Eidos capability boundary。
+
+Pi 还说明了一个重要的 portability boundary：semantic prompt 可以跨 RPC protocol，而
+`ctx.ui.custom()` 和多个依赖 TUI layout 的 hook 在非 interactive terminal 中不可用或会降级。因此
+Eidos 不把自己的 React component tree 暴露为 extension API。所有 portable interaction 都由宿主渲染；
+custom surface 使用 versioned data protocol，并且必须遵守 `initialize` 中声明的 capabilities。
 
 ## 三层 UI
 
@@ -95,6 +100,10 @@ one or more sandboxed editor surfaces
 Surface 不能直接保存整个文件，而是针对 expected version 提交 minimal edits。Eidos 负责 dirty
 state、undo/redo、autosave、external-file conflict、Graft-visible write，以及 split view 之间的同步。
 
+这条边界的可执行 contract 位于 `@eidos.space/extension-surface-protocol`；参见
+[Surface protocol reference](/zh-cn/reference/extension-surface-protocol/)。P3a 已经与 UI host 解耦实现，
+第三方 iframe activation 仍属于 preview，且不能绕过这套 contract。
+
 打开 Markdown Task Board 的完整流程是：
 
 1. `fileEditors` 让 **Task Board** 出现在 **Reopen with**。
@@ -130,7 +139,8 @@ content 或 grant，或者替换 stale build，都会关闭 capability port 并 
 
 ## 一手参考
 
-- [Pi extension API 与 project-local discovery](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md)
+- [Pi extension API 与 project-local discovery](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md)
+- [Pi RPC extension UI degradation](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md#extension-ui-protocol)
 - [VS Code Custom Editor API](https://code.visualstudio.com/api/extension-guides/custom-editors)
 - [VS Code webview UX guidance](https://code.visualstudio.com/api/ux-guidelines/webviews)
 - [Obsidian custom Bases view](https://docs.obsidian.md/plugins/guides/bases-view)

@@ -9,7 +9,7 @@ sidebar:
 Eidos combines proven ideas from three extension platforms instead of copying
 one of them:
 
-- [Pi extensions](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md):
+- [Pi extensions](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md):
   single-module authoring, project-local packages, a reload loop, and semantic
   user interaction;
 - [VS Code custom editors](https://code.visualstudio.com/api/extension-guides/custom-editors):
@@ -22,6 +22,13 @@ one of them:
 The installation experience may be as direct as Pi, but the runtime does not
 inherit Pi or Obsidian's full-process trust model. Code downloaded from GitHub
 always crosses an Eidos capability boundary.
+
+Pi also demonstrates an important portability boundary. Its semantic prompts
+can cross the RPC protocol, while `ctx.ui.custom()` and several TUI-owned layout
+hooks are unavailable or degraded outside the interactive terminal. Eidos
+therefore does not expose its React component tree as extension API. Every
+portable interaction is host-rendered; a custom surface uses a versioned data
+protocol and must honor the capabilities in `initialize`.
 
 ## Three UI tiers
 
@@ -108,6 +115,12 @@ The surface never saves a whole file directly. It submits minimal edits against
 an expected version. Eidos owns dirty state, undo/redo, autosave, external-file
 conflicts, Graft-visible writes, and synchronization between split views.
 
+The executable contract for this boundary lives in
+`@eidos.space/extension-surface-protocol`; see the
+[Surface protocol reference](/reference/extension-surface-protocol/). P3a is
+implemented independently of the UI host. Third-party iframe activation remains
+preview work and cannot bypass this contract.
+
 Opening a Markdown Task Board therefore follows this flow:
 
 1. `fileEditors` makes **Task Board** available through **Reopen with**.
@@ -149,7 +162,8 @@ direct `writeFile()` shortcut that would become permanent API debt.
 
 ## Primary references
 
-- [Pi extension API and project-local discovery](https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/docs/extensions.md)
+- [Pi extension API and project-local discovery](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md)
+- [Pi RPC extension UI degradation](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md#extension-ui-protocol)
 - [VS Code Custom Editor API](https://code.visualstudio.com/api/extension-guides/custom-editors)
 - [VS Code webview UX guidance](https://code.visualstudio.com/api/ux-guidelines/webviews)
 - [Obsidian custom Bases views](https://docs.obsidian.md/plugins/guides/bases-view)

@@ -587,6 +587,12 @@ package 文件。
 - 再通过独立 `MessagePort` capability channel 在 sandboxed iframe surface 中激活 `fileEditors`。
 - 使用可编辑 Markdown Task Board 验证，而不是只读 demo。
 
+P3a host contract 已经在独立的 `@eidos.space/extension-surface-protocol` package 中实现。Version 1
+固定 UTF-16 edit offset、精确 base revision、有界 change batch、宿主拥有的 dirty/undo state、一次性的
+compare-and-swap save token、external conflict resolution 与 multi-view broadcast。该 package 不包含
+React、Electron、iframe、filesystem 或 editor 实现。激活第三方 iframe entrypoint 仍属于 P3b，并且必须
+消费这套 contract，不能另加直接写文件路径。
+
 ### P4：GitHub 安装
 
 - 解析 immutable Git commit，在 staging tree 中验证，展示 source/permission changes，atomic vendor，

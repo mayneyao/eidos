@@ -634,6 +634,15 @@ configuration, or reopens mutable package files.
 - Prove the surface with an editable Markdown Task Board rather than a
   read-only demo.
 
+The P3a host contract is implemented in the independent
+`@eidos.space/extension-surface-protocol` package. Version 1 fixes UTF-16 edit
+offsets, exact base revisions, bounded change batches, host-owned dirty and
+undo state, single-use compare-and-swap save tokens, external conflict
+resolution, and multi-view broadcasts. This package contains no React,
+Electron, iframe, filesystem, or editor implementation. Activating third-party
+iframe entrypoints remains P3b and must consume this contract rather than add a
+direct file-write path.
+
 ### P4: GitHub installation
 
 - Resolve an immutable Git commit, validate an extracted staging tree, show

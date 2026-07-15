@@ -30,9 +30,11 @@ access、network、secret、storage 与 custom UI 继续作为保留契约，直
 UI contribution 运行在 sandboxed frame 中，只获得 serializable view model、theme token、
 localization helper 和 capability channel。它不会共享宿主 React tree，也不能访问 surface 之外的 DOM。
 
-Custom file editor 有意不进入第一个可执行切片。发布这个 API 前，Eidos 必须拥有 versioned
-`TextDocument` contract、minimal edit、dirty state、undo/redo、autosave、external-change conflict
-和 multi-view synchronization。Editor surface 不能使用直接 `writeFile()` 绕过这套契约。
+Custom file editor 有意不进入第一个可执行切片。独立的
+[`@eidos.space/extension-surface-protocol` contract](/zh-cn/reference/extension-surface-protocol/)
+已经实现 host-owned P3a model：versioned snapshot、minimal edit、dirty state、undo/redo、
+compare-and-swap save、external-change conflict 与 multi-view synchronization。P3b 必须把 sandboxed
+surface 接到该 model；editor 不能使用直接 `writeFile()` 绕过它。
 
 ## Error contract
 

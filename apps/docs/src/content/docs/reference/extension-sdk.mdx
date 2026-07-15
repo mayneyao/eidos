@@ -34,10 +34,12 @@ theme tokens, localization helpers, and a capability channel. They do not share
 the host React tree or receive direct DOM access outside their surface.
 
 Custom file editors are intentionally not part of the first executable slice.
-Before that API ships, Eidos must own a versioned `TextDocument` contract,
-minimal edits, dirty state, undo/redo, autosave, external-change conflicts, and
-multi-view synchronization. An editor surface cannot bypass that contract with
-direct `writeFile()` calls.
+Their host-owned P3a model now exists in the independent
+[`@eidos.space/extension-surface-protocol` contract](/reference/extension-surface-protocol/):
+versioned snapshots, minimal edits, dirty state, undo/redo, compare-and-swap
+save, external-change conflicts, and multi-view synchronization. P3b must wire
+sandboxed surfaces to that model; an editor cannot bypass it with direct
+`writeFile()` calls.
 
 ## Error contract
 
