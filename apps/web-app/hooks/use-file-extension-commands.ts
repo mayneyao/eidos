@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import { isDesktopMode } from "@/lib/env"
 
@@ -8,20 +8,26 @@ export type FileExtensionCommand = Awaited<
 
 export function useFileExtensionCommands(spaceId?: string) {
   const [commands, setCommands] = useState<FileExtensionCommand[]>([])
+  const refreshGeneration = useRef(0)
 
   const refresh = useCallback(async () => {
+    const generation = ++refreshGeneration.current
     if (
       !spaceId ||
       !isDesktopMode ||
       !window.eidos?.fileExtensions?.listCommands
     ) {
-      setCommands([])
+      if (generation === refreshGeneration.current) setCommands([])
       return
     }
     try {
-      setCommands(await window.eidos.fileExtensions.listCommands(spaceId))
+      const nextCommands =
+        await window.eidos.fileExtensions.listCommands(spaceId)
+      if (generation === refreshGeneration.current) {
+        setCommands(nextCommands)
+      }
     } catch {
-      setCommands([])
+      if (generation === refreshGeneration.current) setCommands([])
     }
   }, [spaceId])
 
@@ -42,6 +48,7 @@ export function useFileExtensionCommands(spaceId?: string) {
       }
     )
     return () => {
+      refreshGeneration.current += 1
       if (listenerId) window.eidos.off("file-extensions:changed", listenerId)
     }
   }, [refresh, spaceId])
