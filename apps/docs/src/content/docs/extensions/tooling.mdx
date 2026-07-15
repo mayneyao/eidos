@@ -93,6 +93,22 @@ The JSON includes status, canonical ID, source and permission digests,
 compiled entrypoints, and structured diagnostics. CI should fail on any
 non-zero exit instead of parsing terminal text.
 
+## Verify release artifacts
+
+Before publishing the developer packages, Eidos maintainers run:
+
+```bash
+pnpm smoke:extension-tooling
+```
+
+This is intentionally stronger than running the CLI inside the monorepo. It
+builds and packs the manifest, surface protocol, SDK, runtime, and CLI packages,
+installs those tarballs into a clean temporary consumer, and then exercises the
+installed binary and library API. The gate rejects leaked `workspace:`
+dependencies, missing internal packages, version drift, an incorrect CLI
+license, a broken executable, and templates that do not respect their Eidos
+engine range. Package lifecycle scripts remain disabled during installation.
+
 ## Development loop
 
 1. Scaffold outside your primary Space.

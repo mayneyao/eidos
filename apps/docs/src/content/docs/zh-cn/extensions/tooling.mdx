@@ -86,6 +86,19 @@ pnpm extension:cli check . --host-version 0.33.0 --json
 JSON 包含状态、canonical ID、source/permission digest、编译过的 entrypoint 和结构化 diagnostic。
 CI 应根据非零退出码失败，不要解析终端文案。
 
+## 验证发布产物
+
+发布开发者 package 前，Eidos 维护者运行：
+
+```bash
+pnpm smoke:extension-tooling
+```
+
+这比在 monorepo 内直接运行 CLI 更严格。它会构建并打包 manifest、surface protocol、SDK、runtime 和
+CLI，把这些 tarball 安装进一个全新的临时消费项目，然后真实运行已安装的二进制与 library API。
+门禁会拒绝泄漏的 `workspace:` 依赖、缺失的内部 package、版本漂移、错误的 CLI 许可证、不可执行的
+bin，以及没有遵守 Eidos engine 范围的模板。安装期间始终禁用 package 生命周期脚本。
+
 ## 开发循环
 
 1. 在主要 Space 之外创建 starter。

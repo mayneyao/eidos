@@ -22,3 +22,7 @@ Compiler warnings fail the check.
 During the developer preview this package is built from the Eidos monorepo. It
 is prepared for a later public npm release but should not be documented as
 published until that release exists.
+
+Maintainers can verify the packed package graph from an isolated consumer with
+`pnpm smoke:extension-tooling` at the Eidos repository root. The gate installs
+only tarballs for Eidos-owned dependencies and disables lifecycle scripts.

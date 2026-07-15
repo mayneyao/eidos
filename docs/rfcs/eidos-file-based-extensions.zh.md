@@ -639,3 +639,6 @@ pnpm --filter eidos smoke:file-extension-install
 当前 Developer Preview 已通过 `@eidos.space/extension-cli` 实现。`init` 拒绝覆盖已有 package 目录；
 `check` 接受 repository-root 与 monorepo source path，同时不放松已安装 package 的 canonical 目录名不变量。
 官方 Task Counter 与 Task Board gate 已改为使用相同检查路径。公开 npm 发布仍是独立的 release 动作。
+可重复执行的 `pnpm smoke:extension-tooling` 门禁会打包五个公开开发者 package，在禁用生命周期脚本的
+隔离消费项目中安装它们，并验证已安装 CLI 二进制、library API、两种模板、内部发布版本、许可证以及
+兼容/不兼容 host 行为，全程不依赖 workspace link。

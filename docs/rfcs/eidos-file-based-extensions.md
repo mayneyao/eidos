@@ -708,4 +708,9 @@ Implemented in the current developer preview as
 `check` accepts repository-root and monorepo source paths without weakening the
 canonical directory-name invariant used for installed packages. The official
 Task Counter and Task Board gates now consume this same check path. Public npm
-publication remains a separate release action.
+publication remains a separate release action. The repeatable
+`pnpm smoke:extension-tooling` gate packs the five public developer packages,
+installs them into an isolated consumer with lifecycle scripts disabled, and
+proves the installed CLI binary, library API, both templates, internal release
+versions, licenses, and compatible/incompatible host behavior without relying
+on workspace links.
