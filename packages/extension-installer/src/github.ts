@@ -3,6 +3,7 @@ import type {
   GitHubExtensionSnapshot,
   NormalizedGitHubExtensionRequest,
 } from "./types"
+import { canonicalExtensionPackagePath } from "@eidos.space/extension-manifest"
 
 const GITHUB_API_ORIGIN = "https://api.github.com"
 const DEFAULT_REQUESTED_REF = "HEAD"
@@ -10,6 +11,8 @@ const DEFAULT_MAX_ARCHIVE_BYTES = 40 * 1024 * 1024
 const MAX_JSON_BYTES = 1024 * 1024
 const REQUEST_TIMEOUT_MS = 30_000
 const REPOSITORY_PART_PATTERN = /^[A-Za-z0-9_.-]+$/
+const MAX_SUBDIRECTORY_LENGTH = 512
+const MAX_SUBDIRECTORY_DEPTH = 32
 
 function requestHeaders(): HeadersInit {
   return {
@@ -33,6 +36,31 @@ function safeRequestRef(value: unknown): string {
     )
   }
   return value
+}
+
+function safeSubdirectory(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined
+  if (
+    typeof value !== "string" ||
+    value.length > MAX_SUBDIRECTORY_LENGTH ||
+    value.trim() !== value
+  ) {
+    throw new Error(
+      `GitHub extension package path must be a relative path up to ${MAX_SUBDIRECTORY_LENGTH} characters`
+    )
+  }
+  let canonical: string
+  try {
+    canonical = canonicalExtensionPackagePath(value)
+  } catch {
+    throw new Error("GitHub extension package path must be a relative path")
+  }
+  if (canonical.split("/").length > MAX_SUBDIRECTORY_DEPTH) {
+    throw new Error(
+      `GitHub extension package path exceeds ${MAX_SUBDIRECTORY_DEPTH} segments`
+    )
+  }
+  return canonical
 }
 
 function parseRepository(value: unknown): { owner: string; repo: string } {
@@ -94,11 +122,13 @@ export function normalizeGitHubExtensionRequest(
     throw new Error("A GitHub extension request is required")
   }
   const { owner, repo } = parseRepository(request.repository)
+  const subdirectory = safeSubdirectory(request.subdirectory)
   return {
     repository: `https://github.com/${owner}/${repo}`,
     owner,
     repo,
     requested: safeRequestRef(request.requested),
+    ...(subdirectory ? { subdirectory } : {}),
   }
 }
 
@@ -241,7 +271,12 @@ export async function resolveGitHubExtensionSnapshot(
       repository: normalized.repository,
       requested: normalized.requested,
       commit: sha,
+      ...(normalized.subdirectory
+        ? { subdirectory: normalized.subdirectory }
+        : {}),
     },
-    files: await parseGitHubTarball(archive),
+    files: await parseGitHubTarball(archive, {
+      subdirectory: normalized.subdirectory,
+    }),
   }
 }

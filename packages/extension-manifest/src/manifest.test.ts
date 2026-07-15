@@ -240,6 +240,17 @@ describe("parseExtensionLock", () => {
       lock: validLock,
       diagnostics: [],
     })
+    const monorepoLock = {
+      ...validLock,
+      source: {
+        ...validLock.source,
+        subdirectory: "packages/task-counter",
+      },
+    }
+    expect(parseExtensionLock(JSON.stringify(monorepoLock))).toEqual({
+      lock: monorepoLock,
+      diagnostics: [],
+    })
     expect(
       parseExtensionLock(
         JSON.stringify({
@@ -248,6 +259,14 @@ describe("parseExtensionLock", () => {
             ...validLock.source,
             repository: "https://github.com/example/task-counter/",
           },
+        })
+      ).diagnostics
+    ).toContainEqual(expect.objectContaining({ code: "package-lock-invalid" }))
+    expect(
+      parseExtensionLock(
+        JSON.stringify({
+          ...validLock,
+          source: { ...validLock.source, subdirectory: "../task-counter" },
         })
       ).diagnostics
     ).toContainEqual(expect.objectContaining({ code: "package-lock-invalid" }))

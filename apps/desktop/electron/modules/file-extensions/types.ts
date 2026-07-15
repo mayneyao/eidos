@@ -70,6 +70,7 @@ export interface FileExtensionTemplateResult {
 export interface FileExtensionGitHubInstallRequest {
   repository: string
   requested?: string
+  subdirectory?: string
 }
 
 export interface FileExtensionInstallPreview {

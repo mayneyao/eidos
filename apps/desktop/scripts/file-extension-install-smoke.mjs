@@ -11,6 +11,7 @@ import {
 } from "@eidos.space/extension-installer/node"
 
 const HOST_VERSION = "0.33.0"
+const PACKAGE_PATH = "packages/task-counter"
 const FIRST_COMMIT = "1".repeat(40)
 const SECOND_COMMIT = "2".repeat(40)
 
@@ -110,7 +111,11 @@ async function prepare({
   stagingParent,
 }) {
   return prepareGitHubExtensionInstall({
-    request: { repository: "example/task-counter", requested },
+    request: {
+      repository: "example/extensions",
+      requested,
+      subdirectory: PACKAGE_PATH,
+    },
     stagingParent,
     extensionsRoot,
     hostVersion: HOST_VERSION,
@@ -140,9 +145,11 @@ try {
   await mkdir(extensionsRoot, { recursive: true })
 
   const firstArchive = githubArchive(FIRST_COMMIT, {
-    "extension.json": manifest("1.0.0"),
-    "src/extension.ts": "export const activate = () => 'first'\n",
-    "README.md": "# Task Counter\n",
+    [`${PACKAGE_PATH}/extension.json`]: manifest("1.0.0"),
+    [`${PACKAGE_PATH}/src/extension.ts`]:
+      "export const activate = () => 'first'\n",
+    [`${PACKAGE_PATH}/README.md`]: "# Task Counter\n",
+    "packages/unrelated/extension.lock.json": "ignored outside package\n",
   })
   const first = await prepare({
     commit: FIRST_COMMIT,
@@ -153,6 +160,7 @@ try {
   })
   assert.equal(first.operation, "install")
   assert.equal(first.source.commit, FIRST_COMMIT)
+  assert.equal(first.source.subdirectory, PACKAGE_PATH)
   assert.deepEqual(
     first.permissionChanges.map(({ kind, value, change }) => ({
       kind,
@@ -173,12 +181,15 @@ try {
     HOST_VERSION
   )
   assert.equal(firstTarget?.lock?.source.commit, FIRST_COMMIT)
+  assert.equal(firstTarget?.lock?.source.subdirectory, PACKAGE_PATH)
   assert.equal(firstTarget?.locallyModified, false)
 
   const secondArchive = githubArchive(SECOND_COMMIT, {
-    "extension.json": manifest("1.1.0", ["notes/*.txt"]),
-    "src/extension.ts": "export const activate = () => 'second'\n",
-    "README.md": "# Task Counter 1.1\n",
+    [`${PACKAGE_PATH}/extension.json`]: manifest("1.1.0", ["notes/*.txt"]),
+    [`${PACKAGE_PATH}/src/extension.ts`]:
+      "export const activate = () => 'second'\n",
+    [`${PACKAGE_PATH}/README.md`]: "# Task Counter 1.1\n",
+    "packages/unrelated/README.md": "not installed\n",
   })
   const update = await prepare({
     commit: SECOND_COMMIT,
@@ -235,6 +246,7 @@ try {
       ok: true,
       lifecycle: ["install", "update", "uninstall"],
       commits: [FIRST_COMMIT, SECOND_COMMIT],
+      packagePath: PACKAGE_PATH,
       finalVersion: updatedManifest.version,
     })
   )

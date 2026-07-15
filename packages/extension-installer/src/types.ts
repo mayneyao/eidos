@@ -12,6 +12,7 @@ export interface ExtensionInstallFile {
 export interface GitHubExtensionRequest {
   repository: string
   requested?: string
+  subdirectory?: string
 }
 
 export interface NormalizedGitHubExtensionRequest {
@@ -19,6 +20,7 @@ export interface NormalizedGitHubExtensionRequest {
   owner: string
   repo: string
   requested: string
+  subdirectory?: string
 }
 
 export interface ResolvedGitHubExtensionSource {
@@ -26,6 +28,7 @@ export interface ResolvedGitHubExtensionSource {
   repository: string
   requested: string
   commit: string
+  subdirectory?: string
 }
 
 export interface GitHubExtensionSnapshot {

@@ -18,6 +18,7 @@ export interface ParseGitHubTarballOptions {
   maxTotalBytes?: number
   maxEntries?: number
   maxPathDepth?: number
+  subdirectory?: string
 }
 
 function archivePathSegments(value: string): string[] {
@@ -53,6 +54,10 @@ export async function parseGitHubTarball(
   const maxTotalBytes = options.maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES
   const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES
   const maxPathDepth = options.maxPathDepth ?? DEFAULT_MAX_PATH_DEPTH
+  const subdirectory = options.subdirectory
+    ? canonicalExtensionPackagePath(options.subdirectory)
+    : undefined
+  const subdirectorySegments = subdirectory?.split("/") ?? []
   const files: ExtensionInstallFile[] = []
   const collisionKeys = new Set<string>()
   let archiveRoot: string | undefined
@@ -111,6 +116,29 @@ export async function parseGitHubTarball(
         entry.resume()
         abort(new Error("GitHub archive contains a file at the archive root"))
         return
+      }
+      if (subdirectorySegments.length > 0) {
+        const insidePackage = subdirectorySegments.every(
+          (segment, index) => segments[index] === segment
+        )
+        if (!insidePackage) {
+          entry.resume()
+          return
+        }
+        segments = segments.slice(subdirectorySegments.length)
+        if (segments.length === 0 && entry.type === "Directory") {
+          entry.resume()
+          return
+        }
+        if (segments.length === 0) {
+          entry.resume()
+          abort(
+            new Error(
+              `GitHub extension package path is not a directory: ${subdirectory}`
+            )
+          )
+          return
+        }
       }
       if (segments.length > maxPathDepth) {
         entry.resume()
@@ -201,7 +229,11 @@ export async function parseGitHubTarball(
   })
 
   if (!archiveRoot || files.length === 0) {
-    throw new Error("GitHub archive does not contain extension package files")
+    throw new Error(
+      subdirectory
+        ? `GitHub archive does not contain extension package files at ${subdirectory}`
+        : "GitHub archive does not contain extension package files"
+    )
   }
   files.sort((left, right) =>
     Buffer.compare(Buffer.from(left.path), Buffer.from(right.path))

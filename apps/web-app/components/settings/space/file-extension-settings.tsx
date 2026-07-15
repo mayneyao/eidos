@@ -80,6 +80,7 @@ export function FileExtensionSettings() {
   const [showInstaller, setShowInstaller] = useState(false)
   const [githubRepository, setGithubRepository] = useState("")
   const [githubRef, setGithubRef] = useState("")
+  const [githubSubdirectory, setGithubSubdirectory] = useState("")
   const [installPreview, setInstallPreview] =
     useState<FileExtensionInstallPreview | null>(null)
   const [installing, setInstalling] = useState(false)
@@ -221,6 +222,7 @@ export function FileExtensionSettings() {
         {
           repository: githubRepository.trim(),
           requested: githubRef.trim() || undefined,
+          subdirectory: githubSubdirectory.trim() || undefined,
         }
       )
       installPreviewRef.current = preview
@@ -241,6 +243,7 @@ export function FileExtensionSettings() {
     cancelInstallPreview,
     githubRef,
     githubRepository,
+    githubSubdirectory,
     installing,
     spaceId,
     t,
@@ -298,6 +301,7 @@ export function FileExtensionSettings() {
       void cancelInstallPreview()
       setGithubRepository(extension.lock.source.repository)
       setGithubRef(extension.lock.source.requested)
+      setGithubSubdirectory(extension.lock.source.subdirectory ?? "")
       setInstallError(null)
       setInstalledMessage(null)
       setShowInstaller(true)
@@ -467,7 +471,7 @@ export function FileExtensionSettings() {
                     )}
                   </p>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_14rem_auto] sm:items-end">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_14rem_minmax(14rem,0.7fr)_auto] xl:items-end">
                   <div className="space-y-1.5">
                     <Label htmlFor="github-extension-repository">
                       {t(
@@ -501,6 +505,31 @@ export function FileExtensionSettings() {
                       disabled={installing}
                       onChange={(event) => {
                         setGithubRef(event.target.value)
+                        setInstallError(null)
+                        void cancelInstallPreview()
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault()
+                          void prepareGitHubInstall()
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="github-extension-subdirectory">
+                      {t(
+                        "space.settings.fileExtensions.packagePath",
+                        "Package path"
+                      )}
+                    </Label>
+                    <Input
+                      id="github-extension-subdirectory"
+                      value={githubSubdirectory}
+                      placeholder="packages/my-extension"
+                      disabled={installing}
+                      onChange={(event) => {
+                        setGithubSubdirectory(event.target.value)
                         setInstallError(null)
                         void cancelInstallPreview()
                       }}
@@ -560,6 +589,11 @@ export function FileExtensionSettings() {
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
                           {installPreview.canonicalId}
+                          {installPreview.source.subdirectory && (
+                            <span className="ml-2 text-muted-foreground">
+                              · {installPreview.source.subdirectory}
+                            </span>
+                          )}
                         </p>
                       </div>
                       <code

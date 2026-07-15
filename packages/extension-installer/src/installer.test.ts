@@ -109,7 +109,23 @@ describe("GitHub source normalization", () => {
     })
   })
 
-  it("rejects non-GitHub hosts, repository subpaths, credentials, and ref newlines", () => {
+  it("normalizes an optional monorepo package path", () => {
+    expect(
+      normalizeGitHubExtensionRequest({
+        repository: "example/extensions",
+        requested: "main",
+        subdirectory: "packages/task-counter",
+      })
+    ).toEqual({
+      repository: "https://github.com/example/extensions",
+      owner: "example",
+      repo: "extensions",
+      requested: "main",
+      subdirectory: "packages/task-counter",
+    })
+  })
+
+  it("rejects non-GitHub hosts, repository URL subpaths, credentials, and unsafe values", () => {
     expect(() =>
       normalizeGitHubExtensionRequest({ repository: "https://example.com/a/b" })
     ).toThrow("github.com")
@@ -129,6 +145,18 @@ describe("GitHub source normalization", () => {
         requested: "main\nnext",
       })
     ).toThrow("ref")
+    expect(() =>
+      normalizeGitHubExtensionRequest({
+        repository: "a/b",
+        subdirectory: "../task-counter",
+      })
+    ).toThrow("package path")
+    expect(() =>
+      normalizeGitHubExtensionRequest({
+        repository: "a/b",
+        subdirectory: " packages/task-counter ",
+      })
+    ).toThrow("package path")
   })
 })
 
@@ -164,6 +192,39 @@ describe("GitHub immutable snapshot", () => {
       `https://api.github.com/repos/example/task-counter/tarball/${COMMIT}`,
       expect.objectContaining({ redirect: "follow" })
     )
+  })
+
+  it("extracts only the selected package from a monorepo snapshot", async () => {
+    const root = await temporaryRoot()
+    const archive = await createArchive(root, {
+      "README.md": "# Extensions\n",
+      "packages/other/extension.json": manifest(),
+      "packages/other/extension.lock.json": "ignored outside selection",
+      "packages/task-counter/extension.json": manifest(),
+      "packages/task-counter/src/extension.ts":
+        "export const activate = () => undefined\n",
+    })
+
+    const result = await resolveGitHubExtensionSnapshot(
+      {
+        repository: "example/extensions",
+        requested: "main",
+        subdirectory: "packages/task-counter",
+      },
+      { fetch: githubFetch(archive) }
+    )
+
+    expect(result.source).toEqual({
+      kind: "github",
+      repository: "https://github.com/example/extensions",
+      requested: "main",
+      commit: COMMIT,
+      subdirectory: "packages/task-counter",
+    })
+    expect(result.files.map((file) => file.path)).toEqual([
+      "extension.json",
+      "src/extension.ts",
+    ])
   })
 })
 
@@ -206,6 +267,16 @@ describe("GitHub tarball validation", () => {
     await expect(parseGitHubTarball(archive, { maxFiles: 1 })).rejects.toThrow(
       "more than 1 files"
     )
+  })
+
+  it("reports a missing monorepo package path", async () => {
+    const root = await temporaryRoot()
+    const archive = await createArchive(root, {
+      "extension.json": manifest(),
+    })
+    await expect(
+      parseGitHubTarball(archive, { subdirectory: "packages/missing" })
+    ).rejects.toThrow("packages/missing")
   })
 })
 
@@ -274,6 +345,91 @@ describe("atomic extension installation", () => {
       locallyModified: false,
       lock: { contentDigest: prepared.inspection.contentDigest },
     })
+  })
+
+  it("records a monorepo package path in the host-owned lock", async () => {
+    const root = await temporaryRoot()
+    const extensionsRoot = path.join(root, "space", ".eidos", "extensions")
+    const stagingParent = path.join(
+      root,
+      "space",
+      ".eidos",
+      "cache",
+      "extensions",
+      "staging"
+    )
+    await mkdir(extensionsRoot, { recursive: true })
+    const archive = await createArchive(root, {
+      "examples/task-counter/extension.json": manifest(),
+      "examples/task-counter/src/extension.ts":
+        "export const activate = () => 1\n",
+      "examples/unrelated/README.md": "not installed\n",
+    })
+
+    const prepared = await prepareGitHubExtensionInstall({
+      request: {
+        repository: "example/extensions",
+        requested: "main",
+        subdirectory: "examples/task-counter",
+      },
+      stagingParent,
+      extensionsRoot,
+      hostVersion: "0.33.0",
+      fetch: githubFetch(archive),
+    })
+
+    expect(prepared.lock.source.subdirectory).toBe("examples/task-counter")
+    expect(prepared.fileChanges.map((change) => change.path)).not.toContain(
+      "examples/unrelated/README.md"
+    )
+  })
+
+  it("does not silently update from another path in the same repository", async () => {
+    const root = await temporaryRoot()
+    const extensionsRoot = path.join(root, "space", ".eidos", "extensions")
+    const stagingParent = path.join(
+      root,
+      "space",
+      ".eidos",
+      "cache",
+      "extensions",
+      "staging"
+    )
+    await mkdir(extensionsRoot, { recursive: true })
+    const archive = await createArchive(root, {
+      "packages/first/extension.json": manifest(),
+      "packages/first/src/extension.ts": "export const activate = () => 1\n",
+      "packages/second/extension.json": manifest("1.1.0"),
+      "packages/second/src/extension.ts": "export const activate = () => 2\n",
+    })
+    const first = await prepareGitHubExtensionInstall({
+      request: {
+        repository: "example/extensions",
+        subdirectory: "packages/first",
+      },
+      stagingParent,
+      extensionsRoot,
+      hostVersion: "0.33.0",
+      fetch: githubFetch(archive),
+    })
+    await commitPreparedExtensionInstall({
+      prepared: first,
+      extensionsRoot,
+      hostVersion: "0.33.0",
+    })
+
+    await expect(
+      prepareGitHubExtensionInstall({
+        request: {
+          repository: "example/extensions",
+          subdirectory: "packages/second",
+        },
+        stagingParent,
+        extensionsRoot,
+        hostVersion: "0.33.0",
+        fetch: githubFetch(archive),
+      })
+    ).rejects.toThrow("different GitHub source location")
   })
 
   it("shows update diffs and refuses to overwrite a locally modified install", async () => {

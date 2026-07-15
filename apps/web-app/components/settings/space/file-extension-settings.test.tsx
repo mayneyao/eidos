@@ -80,6 +80,17 @@ function discoveryFixture(
         },
         contentDigest,
         permissionHash,
+        lock: {
+          lockVersion: 1,
+          source: {
+            kind: "github",
+            repository: "https://github.com/example/extensions",
+            requested: "main",
+            commit: "d".repeat(40),
+            subdirectory: "packages/task-counter",
+          },
+          contentDigest,
+        },
         requestedGrants: [{ kind: "files.read", value: "**/*.md" }],
         localState: {
           snapshot: {
@@ -155,6 +166,7 @@ describe("FileExtensionSettings", () => {
         repository: "https://github.com/example/task-counter",
         requested: "refs/tags/v1.0.0",
         commit: "c".repeat(40),
+        subdirectory: "packages/task-counter",
       },
       contentDigest,
       permissionHash,
@@ -312,11 +324,16 @@ describe("FileExtensionSettings", () => {
     const requestedRef = container.querySelector<HTMLInputElement>(
       "#github-extension-ref"
     )!
+    const subdirectory = container.querySelector<HTMLInputElement>(
+      "#github-extension-subdirectory"
+    )!
     act(() => {
       valueSetter.call(repository, "https://github.com/example/task-counter")
       repository.dispatchEvent(new Event("input", { bubbles: true }))
       valueSetter.call(requestedRef, "refs/tags/v1.0.0")
       requestedRef.dispatchEvent(new Event("input", { bubbles: true }))
+      valueSetter.call(subdirectory, "packages/task-counter")
+      subdirectory.dispatchEvent(new Event("input", { bubbles: true }))
     })
 
     const prepare = [...container.querySelectorAll("button")].find(
@@ -330,10 +347,12 @@ describe("FileExtensionSettings", () => {
     expect(prepareGitHubInstallMock).toHaveBeenCalledWith("file-space", {
       repository: "https://github.com/example/task-counter",
       requested: "refs/tags/v1.0.0",
+      subdirectory: "packages/task-counter",
     })
     expect(container.textContent).toContain("Permission changes")
     expect(container.textContent).toContain("+ files.read **/*.md")
     expect(container.textContent).toContain("cccccccccccc")
+    expect(container.textContent).toContain("packages/task-counter")
     expect(container.textContent).toContain("src/extension.ts")
 
     const install = [...container.querySelectorAll("button")].find(
@@ -352,6 +371,35 @@ describe("FileExtensionSettings", () => {
     expect(container.textContent).toContain(
       "Installed example.task-counter. Review permissions"
     )
+  })
+
+  it("keeps the recorded monorepo path when checking an update", async () => {
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const review = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Review"
+    )!
+    act(() => review.click())
+    const checkUpdate = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Check update"
+    )!
+    act(() => checkUpdate.click())
+
+    expect(
+      container.querySelector<HTMLInputElement>("#github-extension-repository")
+        ?.value
+    ).toBe("https://github.com/example/extensions")
+    expect(
+      container.querySelector<HTMLInputElement>("#github-extension-ref")?.value
+    ).toBe("main")
+    expect(
+      container.querySelector<HTMLInputElement>(
+        "#github-extension-subdirectory"
+      )?.value
+    ).toBe("packages/task-counter")
   })
 
   it("reviews trust, grants, and enablement inline without executing code", async () => {

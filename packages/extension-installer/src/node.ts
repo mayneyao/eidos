@@ -215,10 +215,11 @@ export async function prepareGitHubExtensionInstall(
     }
     if (
       current?.lock &&
-      current.lock.source.repository !== resolved.source.repository
+      (current.lock.source.repository !== resolved.source.repository ||
+        current.lock.source.subdirectory !== resolved.source.subdirectory)
     ) {
       throw new Error(
-        `Extension ${manifestAnalysis.canonicalId} was installed from a different GitHub repository`
+        `Extension ${manifestAnalysis.canonicalId} was installed from a different GitHub source location`
       )
     }
 

@@ -178,6 +178,7 @@ export interface ExtensionLockV1 {
     repository: string
     requested: string
     commit: string
+    subdirectory?: string
   }
   contentDigest: string
 }

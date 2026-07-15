@@ -1,3 +1,4 @@
+import { canonicalExtensionPackagePath } from "./digest"
 import { parseStrictJson } from "./strict-json"
 import type { ExtensionDiagnostic, ExtensionLockV1 } from "./types"
 
@@ -38,6 +39,18 @@ function isCanonicalGithubRepository(value: string): boolean {
   }
 }
 
+function isCanonicalSubdirectory(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 512) return false
+  try {
+    return (
+      canonicalExtensionPackagePath(value) === value &&
+      value.split("/").length <= 32
+    )
+  } catch {
+    return false
+  }
+}
+
 function invalidLock(message: string): {
   lock?: undefined
   diagnostics: ExtensionDiagnostic[]
@@ -72,12 +85,12 @@ export function parseExtensionLock(text: string): {
     !hasExactKeys(value, ["lockVersion", "source", "contentDigest"]) ||
     value.lockVersion !== 1 ||
     !isRecord(value.source) ||
-    !hasExactKeys(value.source, [
-      "kind",
-      "repository",
-      "requested",
-      "commit",
-    ]) ||
+    !hasExactKeys(
+      value.source,
+      "subdirectory" in value.source
+        ? ["kind", "repository", "requested", "commit", "subdirectory"]
+        : ["kind", "repository", "requested", "commit"]
+    ) ||
     value.source.kind !== "github" ||
     typeof value.source.repository !== "string" ||
     !isCanonicalGithubRepository(value.source.repository) ||
@@ -87,6 +100,8 @@ export function parseExtensionLock(text: string): {
     /[\0\r\n]/.test(value.source.requested) ||
     typeof value.source.commit !== "string" ||
     !/^[0-9a-f]{40}$/.test(value.source.commit) ||
+    ("subdirectory" in value.source &&
+      !isCanonicalSubdirectory(value.source.subdirectory)) ||
     typeof value.contentDigest !== "string" ||
     !/^sha256:[0-9a-f]{64}$/.test(value.contentDigest)
   ) {
