@@ -52,6 +52,9 @@ type FileExtensionCommand = NonNullable<
 type FileExtensionInstallPreview = Awaited<
   ReturnType<typeof window.eidos.fileExtensions.prepareGitHubInstall>
 >
+type FileExtensionLocalState = Awaited<
+  ReturnType<typeof window.eidos.fileExtensions.setEnabled>
+>
 type LocalExtensionTemplateKind = "command" | "text-editor"
 type CreatedLocalExtension = {
   canonicalId: string
@@ -89,6 +92,23 @@ function snapshotFor(extension: FileExtensionPackage) {
 
 function grantKey(grant: FileExtensionGrant): string {
   return `${grant.kind}\0${grant.value}`
+}
+
+function isFileExtensionLocalState(
+  value: unknown
+): value is FileExtensionLocalState {
+  if (!value || typeof value !== "object") return false
+  const candidate = value as Partial<FileExtensionLocalState>
+  return (
+    !!candidate.snapshot &&
+    typeof candidate.snapshot.packageId === "string" &&
+    typeof candidate.snapshot.contentDigest === "string" &&
+    typeof candidate.snapshot.permissionHash === "string" &&
+    typeof candidate.trusted === "boolean" &&
+    typeof candidate.enabled === "boolean" &&
+    Array.isArray(candidate.requestedGrants) &&
+    Array.isArray(candidate.granted)
+  )
 }
 
 function commandRunKey(
@@ -313,8 +333,34 @@ export function FileExtensionSettings() {
       setMutatingPackage(packageId)
       setMutationError(null)
       try {
-        await mutate()
-        await load()
+        const result = await mutate()
+        if (isFileExtensionLocalState(result)) {
+          requestGeneration.current += 1
+          setLoading(false)
+          setDiscovery((current) => {
+            if (!current) return current
+            return {
+              ...current,
+              packages: current.packages.map((candidate) =>
+                candidate.canonicalId === result.snapshot.packageId &&
+                candidate.contentDigest === result.snapshot.contentDigest &&
+                candidate.permissionHash === result.snapshot.permissionHash
+                  ? {
+                      ...candidate,
+                      lifecycleStatus: !result.trusted
+                        ? "untrusted"
+                        : result.enabled
+                          ? "enabled"
+                          : "disabled",
+                      localState: result,
+                    }
+                  : candidate
+              ),
+            }
+          })
+        } else {
+          await load()
+        }
       } catch (mutation) {
         setMutationError({
           packageId,

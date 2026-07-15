@@ -881,6 +881,44 @@ describe("FileExtensionSettings", () => {
     expect(useAppRuntimeStore.getState().isCmdkOpen).toBe(false)
   })
 
+  it("uses the committed mutation state while discovery is still stale", async () => {
+    discoverMock.mockResolvedValue(discoveryFixture("disabled", []))
+    setEnabledMock.mockResolvedValue({
+      snapshot: {
+        packageId: "example.task-counter",
+        contentDigest,
+        permissionHash,
+      },
+      trusted: true,
+      enabled: true,
+      requestedGrants: [{ kind: "files.read", value: "**/*.md" }],
+      granted: [{ kind: "files.read", value: "**/*.md" }],
+    })
+
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const manage = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Manage"
+    )!
+    act(() => manage.click())
+
+    const enableExtension = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Enable extension"
+    )!
+    await act(async () => {
+      enableExtension.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).toContain("1 enabled · 0 disabled")
+    expect(container.textContent).toContain("This snapshot is ready")
+    expect(container.textContent).toContain("Run")
+  })
+
   it("shows only the next usable action for a trusted file editor", async () => {
     const fixture = createdTextEditorFixture()
     fixture.packages[0]!.lifecycleStatus = "disabled"
