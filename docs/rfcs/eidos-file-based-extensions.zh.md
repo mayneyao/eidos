@@ -1,6 +1,6 @@
 # RFC：Eidos Space 的文件化扩展机制
 
-状态：草案，v1 契约已冻结；P2b 与 P4 开发者预览已实现
+状态：草案，v1 契约已冻结；P2b、P3 与 P4 开发者预览已实现
 日期：2026-07-09
 最后更新：2026-07-15
 负责人：Eidos
@@ -14,7 +14,7 @@
 ## 实施状态（2026-07-15）
 
 本 RFC 的存储、Manifest、trust、交付、最小 Worker 与 GitHub snapshot 安装边界已经冻结到
-P2b 和 P4。
+P2b、P3 和 P4。
 当前开发分支已经实现严格 package inspection、有资源上限的变更监听、拒绝符号链接逃逸的宿主发现、
 Extension Manager 诊断，以及通过内联交互创建真实本地扩展源码。结构合法的扩展显示为“未信任”，
 而不是“就绪”；P2a 本地状态切片现在已经让“已停用”和“已启用”状态可达。Trust、enablement 和逐项
@@ -29,12 +29,17 @@ command/menu、有大小上限的只读文本访问，以及宿主渲染的 noti
 变化会终止活动 runtime；activation/invocation timeout、renderer crash、旧 generation、未声明 command
 和私有路径都会默认失败。Markdown Task Counter 已接入命令面板与文件右键菜单。
 
-P4 开发者预览可以接收公开 GitHub repository 与可选 ref，把它解析为 immutable commit，在同一
+P3 开发者预览会在固定的 sandboxed iframe document 中激活声明过的 text `fileEditors`。Document
+session、revision、minimal edit、undo/redo、autosave 与 external-change conflict 全部由宿主管理；surface
+拿不到 filesystem handle 或 navigation authority。仓库中的 Markdown Task Board 验证了完整的可编辑 UI
+链路，同时仍可通过 Open With 切换到原生 Markdown editor。
+
+P4 开发者预览可以接收公开 GitHub repository、可选 ref 与可选 monorepo package path，把它解析为
+immutable commit，在同一
 Space 文件系统的私有 staging 中下载有资源上限的 archive，拒绝危险条目与无效 package，并在原子安装
 前展示 source/permission changes。被追踪的 per-package `extension.lock.json` 由 Eidos 管理。更新只手动
 触发、永不覆盖本地修改，并让新快照重新回到 disabled 和 untrusted；无效 package 仍可卸载。Private
-repository、monorepo subdirectory、自动更新、network/write capability 和自定义 iframe 文档 surface
-仍属于后续阶段。
+repository、自动更新与通用 network capability 仍属于后续阶段。
 
 现有 bundled 和 database-backed extensions 继续作为兼容路径。
 
@@ -606,7 +611,8 @@ autosave、undo、external-change 与 Graft 行为。
   并写入 per-package lock file。
 - 首个版本只做手动更新，永不静默覆盖本地修改过的 source。
 
-当前开发者预览已经为公开、package 位于 repository root 的仓库实现。Preview session 有短时限且绑定
+当前开发者预览已经为公开 repository-root package 和 monorepo package 实现。选定的 package path 会被
+规范化、在相同 archive 限额下提取并写入 lock，更新时不能静默切换。Preview session 有短时限且绑定
 Space；renderer 只能看到经过清理的 metadata 与已审阅 digest，不能接触 staging path 或 archive bytes。
 安装与更新会在 Space operation lock 内重新验证。Package 在被单独批准之前保持 disabled 和 untrusted。
 

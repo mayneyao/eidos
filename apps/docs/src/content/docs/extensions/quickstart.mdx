@@ -250,17 +250,23 @@ pnpm exec vitest run \
   apps/docs/tests/markdown-task-board-editor.test.ts
 ```
 
-## Step 5: Install it in a local Space
+## Step 5: Install it in a Space
 
-1. Copy the example directory to
-   `<space>/.eidos/extensions/example.markdown-task-board/`.
-2. Open the Space in Eidos Desktop.
-3. Open **Settings → Extensions** and select **Refresh**.
+1. Open the Space in Eidos Desktop and go to **Settings → Extensions**.
+2. Select **Install from GitHub** and enter:
+   - Repository: `mayneyao/eidos`
+   - Branch, tag, or commit: `dev`
+   - Package path: `apps/docs/examples/markdown-task-board`
+3. Select **Prepare review**, verify the resolved commit, source diff, and
+   permission diff, then select **Install reviewed source**.
 4. Review the package ID, content digest, entrypoint, contribution, and the two
    requested file grants.
 5. Select **Trust source** for the exact snapshot.
 6. Grant `files.read **/*.tasks.md` and `files.write **/*.tasks.md`.
 7. Turn on **Enablement**.
+
+For local development, you can instead copy the example directory to
+`<space>/.eidos/extensions/example.markdown-task-board/` and select **Refresh**.
 
 Installation, trust, grants, and enablement are separate decisions. The package
 does not run until all applicable decisions allow the same inspected snapshot.
@@ -283,11 +289,11 @@ changes, the extension is bypassing the intended document model.
 
 ## Publish from GitHub
 
-Put the package contents at the root of a public repository and tag an
-immutable release such as `v0.1.0`. In **Settings → Extensions**, select
-**Install from GitHub**, enter the repository and tag, prepare the review, then
-install the resolved commit. Eidos does not run `npm install` or repository
-lifecycle scripts.
+Put the package contents at the root of a public repository—or in a dedicated
+monorepo package path—and tag an immutable release such as `v0.1.0`. In
+**Settings → Extensions**, select **Install from GitHub**, enter the repository,
+tag, and optional package path, prepare the review, then install the resolved
+commit. Eidos does not run `npm install` or repository lifecycle scripts.
 
 After installation, the user still reviews trust and grants locally. Updating
 to another tag creates a new source snapshot and never silently overwrites

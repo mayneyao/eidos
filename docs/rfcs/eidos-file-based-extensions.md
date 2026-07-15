@@ -1,6 +1,6 @@
 # RFC: File-Based Extensions for Eidos Spaces
 
-Status: Draft, v1 contract frozen; P2b and P4 developer previews implemented
+Status: Draft, v1 contract frozen; P2b, P3, and P4 developer previews implemented
 Date: 2026-07-09
 Last updated: 2026-07-15
 Owner: Eidos
@@ -14,7 +14,7 @@ Related:
 ## Implementation Status (2026-07-15)
 
 The storage, manifest, trust, delivery, minimal Worker, and GitHub snapshot
-installation boundaries in this RFC are frozen through P2b and P4. The
+installation boundaries in this RFC are frozen through P2b, P3, and P4. The
 development tree now implements strict
 package inspection, bounded change watching, symlink-safe host discovery,
 Extension Manager diagnostics, and inline creation of real local package files.
@@ -37,15 +37,22 @@ renderer crashes, stale generations, undeclared commands, and private paths fail
 closed. The Markdown Task Counter is wired into the command palette and
 file-context menu.
 
-The P4 developer preview accepts a public GitHub repository and optional ref,
+The P3 developer preview activates declared text `fileEditors` in fixed,
+sandboxed iframe documents. The host owns the document session, revisions,
+minimal edits, undo/redo, autosave, and external-change conflicts; surfaces
+receive no filesystem handle or navigation authority. The checked-in Markdown
+Task Board proves the complete editable UI path and remains available through
+Open With alongside the native Markdown editor.
+
+The P4 developer preview accepts a public GitHub repository, optional ref, and
+optional monorepo package path,
 resolves it to an immutable commit, downloads a bounded archive into private
 same-filesystem staging, rejects unsafe entries and invalid packages, and shows
 source and permission changes before an atomic install. Eidos owns the tracked
 per-package `extension.lock.json`. Updates are manual, never overwrite locally
 modified source, and return the new snapshot to disabled and untrusted. Invalid
-packages remain removable. Private repositories, monorepo subdirectories,
-automatic updates, network/write capabilities, and custom iframe document
-surfaces remain future phases.
+packages remain removable. Private repositories, automatic updates, and
+general network capabilities remain future phases.
 
 Existing bundled and database-backed extensions remain compatibility paths.
 
@@ -660,8 +667,10 @@ Graft behavior.
 - Keep updates manual in the first release and never overwrite locally modified
   source silently.
 
-Implemented in the current developer preview for public, repository-root
-packages. Preview sessions are short-lived and Space-bound; the renderer sees
+Implemented in the current developer preview for public repository-root and
+monorepo packages. The selected package path is normalized, extracted under
+the same archive limits, recorded in the lock, and cannot silently change on
+update. Preview sessions are short-lived and Space-bound; the renderer sees
 only sanitized metadata and reviewed digests, never staging paths or archive
 bytes. Install and update revalidate under the Space operation lock. Packages
 remain disabled and untrusted until separately approved.

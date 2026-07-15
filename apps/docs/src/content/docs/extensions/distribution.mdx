@@ -12,7 +12,7 @@ activation.
 
 ## Repository requirements
 
-The repository root contains:
+The repository root, or the selected package path inside a monorepo, contains:
 
 ```text
 extension.json
@@ -26,18 +26,20 @@ Version 1 packages use relative modules or vendored reviewable source. Eidos
 does not install arbitrary npm dependencies and never runs install scripts or
 package-manager lifecycle hooks.
 
-The current developer preview accepts **public GitHub repositories only**. The
-package must be at the repository root; monorepo subdirectories, private
-repositories, GitHub tokens, Git submodules, and Git LFS objects are not
-resolved. Publishers must not commit `extension.lock.json`: Eidos creates and
-owns that file when it installs the snapshot.
+The current developer preview accepts **public GitHub repositories only**. A
+monorepo package path is supported, but it must point directly to the directory
+containing `extension.json`. Private repositories, GitHub tokens, Git
+submodules, and Git LFS objects are not resolved. Publishers must not commit
+`extension.lock.json`: Eidos creates and owns that file when it installs the
+snapshot.
 
 ## Install in Desktop
 
 1. Open a file Space and go to **Settings → Space → Extensions**.
 2. Select **Install from GitHub**.
 3. Enter `owner/repository` or its GitHub URL. Optionally enter a branch, tag,
-   or full commit; an empty ref means `HEAD`.
+   or full commit; an empty ref means `HEAD`. For a monorepo, also enter the
+   relative **Package path** such as `extensions/task-board`.
 4. Select **Prepare review**. Eidos resolves the ref to a 40-character commit,
    downloads it into private bounded staging, and validates the complete tree.
 5. Review the immutable commit, changed files, and every permission change.
@@ -52,7 +54,7 @@ downloaded code.
 ## Installation flow
 
 ```text
-GitHub URL + requested ref
+GitHub URL + requested ref + optional package path
           │ resolve immutable commit
           ▼
 download into private staging directory
@@ -82,7 +84,8 @@ behavior:
     "kind": "github",
     "repository": "https://github.com/example/hello-eidos",
     "requested": "refs/tags/v0.1.0",
-    "commit": "0123456789abcdef0123456789abcdef01234567"
+    "commit": "0123456789abcdef0123456789abcdef01234567",
+    "subdirectory": "extensions/hello-eidos"
   },
   "contentDigest": "sha256:..."
 }
@@ -95,6 +98,9 @@ lock that would make unrelated package updates conflict.
 package appear modified but do not invalidate it. Updates compare the current
 digest to this baseline and never overwrite a mismatch silently; runtime trust
 uses the digest recomputed from current content.
+For repository-root packages, `subdirectory` is omitted. Eidos records the
+selected path for monorepo packages and refuses to update an installed package
+from a different source location silently.
 
 ## Updates
 

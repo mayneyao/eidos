@@ -12,15 +12,22 @@ keeping Markdown as the source of truth.
 
 ## Try it in Eidos Desktop
 
-1. Copy this directory to
-   `<space>/.eidos/extensions/example.markdown-task-board/`.
-2. Open **Settings → Extensions**, refresh, and review the exact source digest.
+1. Open **Settings → Extensions → Install from GitHub** and enter:
+   - Repository: `mayneyao/eidos`
+   - Ref: `dev`
+   - Package path: `apps/docs/examples/markdown-task-board`
+2. Prepare the review, install the resolved commit, and review the exact source
+   digest.
 3. Trust the source, grant read and write access to `**/*.tasks.md`, then enable
    the extension.
 4. Create `website.tasks.md` in the Space and open it. Because the editor has
    `priority: "default"`, Eidos opens the Task Board automatically.
 5. Use the file context menu and select **Open with Eidos** whenever you want to
    inspect or edit the raw Markdown.
+
+For local development, copy this directory to
+`<space>/.eidos/extensions/example.markdown-task-board/` and refresh extension
+discovery instead.
 
 Toggling a card requests a one-character text edit for the checkbox marker.
 The host owns revisions, undo/redo, autosave, external-change conflicts, and
