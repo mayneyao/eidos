@@ -2,7 +2,7 @@
 title: 开发 Markdown Task Board
 description: 从零开发、安装并使用一个可编辑的 file-based UI 扩展。
 sidebar:
-  order: 2
+  order: 3
   badge:
     text: Experimental
     variant: caution
@@ -61,10 +61,22 @@ undo/redo、autosave、外部修改冲突，以及同一文件多个 view 的同
 
 ## 第一步：创建 package
 
-开发时先在生产 Space 之外创建：
+在 Eidos checkout 中，先在生产 Space 之外生成可编辑 text-editor starter：
+
+```bash
+pnpm extension:cli init example.markdown-task-board \
+  --template text-editor \
+  --pattern "**/*.tasks.md" \
+  --display-name "Markdown Task Board"
+```
+
+命令会拒绝覆盖已有文件。CLI 尚未完成首次 npm 发布；当前基于 checkout 的用法和精确校验边界见
+[开发工具](/zh-cn/extensions/tooling/)。
+
+生成的 package 从以下结构开始；按照本指南继续加入 `tasks.ts`：
 
 ```text
-markdown-task-board/
+example.markdown-task-board/
 ├── extension.json
 └── src/
     ├── editor.css
@@ -215,7 +227,22 @@ Appearance 改变后，宿主会更新这些变量。Package-local CSS 从 inspe
 
 ## 第四步：验证并编译示例
 
-在 Eidos checkout 中运行：
+直接使用生产 inspector 与 compiler 检查这个 package：
+
+```bash
+pnpm extension:cli check \
+  apps/docs/examples/markdown-task-board \
+  --host-version 0.33.0
+```
+
+结果会包含编译后的 UI entrypoint：
+
+```text
+✓ example.markdown-task-board · ready · v0.1.0
+  ✓ ui src/editor.ts (… bytes)
+```
+
+Eidos 仓库还会把所有官方扩展示例作为一个整体 gate：
 
 ```bash
 pnpm --filter docs check:examples
@@ -227,7 +254,7 @@ pnpm --filter docs check:examples
 Validated example.markdown-task-board
 ```
 
-这不只是 JSON 检查。命令会验证 contribution ID 和 entrypoint path，并用 Desktop 相同的固定 compiler
+这个仓库 gate 不只是 JSON 检查。它会验证 contribution ID 和 entrypoint path，并用 Desktop 相同的固定 compiler
 编译每个 worker 与 UI entrypoint；compiler warning 也会让检查失败。
 
 Task Board parser 与交互 surface 还有可执行测试：

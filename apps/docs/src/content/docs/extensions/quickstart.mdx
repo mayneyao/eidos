@@ -2,7 +2,7 @@
 title: Build a Markdown Task Board
 description: Build, install, and use an editable file-based UI extension from start to finish.
 sidebar:
-  order: 2
+  order: 3
   badge:
     text: Experimental
     variant: caution
@@ -64,10 +64,25 @@ views of the same file.
 
 ## Step 1: Create the package
 
-Create this structure outside a production Space while developing:
+From an Eidos checkout, scaffold the editable text-editor starter outside a
+production Space:
+
+```bash
+pnpm extension:cli init example.markdown-task-board \
+  --template text-editor \
+  --pattern "**/*.tasks.md" \
+  --display-name "Markdown Task Board"
+```
+
+The command refuses to overwrite existing files. The first npm release of the
+CLI has not happened yet; see [developer tooling](/extensions/tooling/) for the
+current checkout-based workflow and exact validation guarantees.
+
+The generated package starts with this structure. Add `tasks.ts` while
+following this guide:
 
 ```text
-markdown-task-board/
+example.markdown-task-board/
 ├── extension.json
 └── src/
     ├── editor.css
@@ -225,7 +240,22 @@ and images are blocked by the surface content-security policy.
 
 ## Step 4: Validate and compile the example
 
-From an Eidos checkout, run:
+Check the package directly with the production inspector and compiler:
+
+```bash
+pnpm extension:cli check \
+  apps/docs/examples/markdown-task-board \
+  --host-version 0.33.0
+```
+
+The result includes the compiled UI entrypoint:
+
+```text
+✓ example.markdown-task-board · ready · v0.1.0
+  ✓ ui src/editor.ts (… bytes)
+```
+
+The Eidos repository also runs all official extension examples as one gate:
 
 ```bash
 pnpm --filter docs check:examples
@@ -237,7 +267,7 @@ Expected output includes:
 Validated example.markdown-task-board
 ```
 
-This check now does more than validate JSON. It verifies contribution IDs and
+The repository gate does more than validate JSON. It verifies contribution IDs and
 entrypoint paths, then compiles every worker and UI entrypoint through the same
 fixed extension compiler used by Desktop. Compiler warnings fail the example
 check.

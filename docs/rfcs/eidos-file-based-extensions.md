@@ -1,6 +1,6 @@
 # RFC: File-Based Extensions for Eidos Spaces
 
-Status: Draft, v1 contract frozen; P2b, P3, and P4 developer previews implemented
+Status: Draft, v1 contract frozen; P2b through P5 developer previews implemented
 Date: 2026-07-09
 Last updated: 2026-07-15
 Owner: Eidos
@@ -53,6 +53,15 @@ per-package `extension.lock.json`. Updates are manual, never overwrite locally
 modified source, and return the new snapshot to disabled and untrusted. Invalid
 packages remain removable. Private repositories, automatic updates, and
 general network capabilities remain future phases.
+
+The P5 developer preview adds the independent
+`@eidos.space/extension-cli`. It scaffolds command and editable text-editor
+packages without overwriting existing directories, inspects source repositories
+under the production package limits, performs strict TypeScript checks against
+the public SDK, and compiles the exact inspected bytes with the Desktop
+compiler. Human output, structured JSON, and stable exit codes use one check
+implementation shared by the official examples. The package is prepared for,
+but has not yet completed, its first public npm release.
 
 Existing bundled and database-backed extensions remain compatibility paths.
 
@@ -684,3 +693,19 @@ pnpm --filter eidos smoke:file-extension-install
 It imports the built package, resolves controlled GitHub commit and tarball
 responses, then performs and verifies an actual install, update, and uninstall
 against a temporary file Space, including lock provenance and staging cleanup.
+
+### P5: Developer tooling
+
+- Provide a non-interactive command and text-editor scaffold suitable for both
+  developers and agents.
+- Validate source repositories with the production inspector, public SDK type
+  contract, and fixed Desktop compiler.
+- Expose structured diagnostics and stable exit codes for CI without executing
+  extension code or package-manager scripts.
+
+Implemented in the current developer preview as
+`@eidos.space/extension-cli`. `init` refuses to overwrite package directories;
+`check` accepts repository-root and monorepo source paths without weakening the
+canonical directory-name invariant used for installed packages. The official
+Task Counter and Task Board gates now consume this same check path. Public npm
+publication remains a separate release action.

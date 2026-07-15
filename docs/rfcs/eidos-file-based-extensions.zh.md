@@ -1,6 +1,6 @@
 # RFC：Eidos Space 的文件化扩展机制
 
-状态：草案，v1 契约已冻结；P2b、P3 与 P4 开发者预览已实现
+状态：草案，v1 契约已冻结；P2b 到 P5 开发者预览已实现
 日期：2026-07-09
 最后更新：2026-07-15
 负责人：Eidos
@@ -40,6 +40,11 @@ Space 文件系统的私有 staging 中下载有资源上限的 archive，拒绝
 前展示 source/permission changes。被追踪的 per-package `extension.lock.json` 由 Eidos 管理。更新只手动
 触发、永不覆盖本地修改，并让新快照重新回到 disabled 和 untrusted；无效 package 仍可卸载。Private
 repository、自动更新与通用 network capability 仍属于后续阶段。
+
+P5 开发者预览新增独立的 `@eidos.space/extension-cli`。它可以在不覆盖已有目录的前提下生成 command
+和可编辑 text-editor package，在生产 package 限额内检查源码仓库，根据公开 SDK 执行严格 TypeScript
+检查，并使用 Desktop compiler 编译本次 inspection 的精确 bytes。人工输出、结构化 JSON、稳定退出码和
+官方示例共用同一个 check 实现。Package 已为后续公开 npm 发布做好准备，但首次发布尚未执行。
 
 现有 bundled 和 database-backed extensions 继续作为兼容路径。
 
@@ -624,3 +629,13 @@ pnpm --filter eidos smoke:file-extension-install
 
 它导入构建后的 package，解析受控的 GitHub commit/tarball response，然后针对临时 file Space 实际执行并
 验证 install、update 和 uninstall，包括 lock provenance 与 staging cleanup。
+
+### P5：开发工具
+
+- 为开发者与 Agent 提供非交互式 command 和 text-editor scaffold。
+- 使用生产 inspector、公开 SDK 类型契约和固定 Desktop compiler 校验源码仓库。
+- 为 CI 提供结构化 diagnostic 与稳定退出码，同时不执行扩展代码或 package-manager script。
+
+当前 Developer Preview 已通过 `@eidos.space/extension-cli` 实现。`init` 拒绝覆盖已有 package 目录；
+`check` 接受 repository-root 与 monorepo source path，同时不放松已安装 package 的 canonical 目录名不变量。
+官方 Task Counter 与 Task Board gate 已改为使用相同检查路径。公开 npm 发布仍是独立的 release 动作。

@@ -1,0 +1,115 @@
+---
+title: Developer tooling
+description: Scaffold and validate file-based extensions with the production package inspector and compiler.
+sidebar:
+  order: 2
+  badge:
+    text: Preview
+    variant: caution
+---
+
+`@eidos.space/extension-cli` is the non-interactive developer entrypoint for
+both people and agents. It creates real source packages and checks them with
+the same strict inspector and fixed compiler used by Eidos Desktop.
+
+During the developer preview the CLI is built from an Eidos checkout. It is
+prepared for a public npm release, but is not documented as published until
+that release exists.
+
+## Create a project
+
+From the Eidos repository root:
+
+```bash
+pnpm extension:cli init example.hello-tools --template command
+
+pnpm extension:cli init example.notes-editor \
+  --template text-editor \
+  --pattern "**/*.notes.md" \
+  --display-name "Notes Editor"
+```
+
+The extension ID always has the form `<publisher>.<name>`. `init` creates a
+directory with that canonical ID and refuses to overwrite an existing
+directory. The text-editor starter includes an editable UI surface, minimal
+text edits, host save state, resync behavior, and Eidos theme tokens.
+
+Useful options:
+
+| Option                      | Meaning                                                  |
+| --------------------------- | -------------------------------------------------------- |
+| `--template command`        | Create a Worker command starter.                         |
+| `--template text-editor`    | Create an editable sandboxed `fileEditors` starter.      |
+| `--out-dir <directory>`     | Choose the parent directory for the new package.         |
+| `--engine <semver-range>`   | Set `engines.eidos`; the preview default is `>=0.33.0`.  |
+| `--pattern <glob>`          | Set the editor selector and matching read/write grants.  |
+| `--media-type <media-type>` | Set the text editor media type; default `text/markdown`. |
+
+## Check a package
+
+Run this from any source repository; its directory does not need to use the
+canonical ID until Eidos installs it into a Space:
+
+```bash
+pnpm extension:cli check ./example.notes-editor --host-version 0.33.0
+```
+
+A successful check reports every compiled entrypoint:
+
+```text
+✓ example.notes-editor · ready · v0.1.0
+  ✓ ui src/editor.ts (… bytes)
+```
+
+The check is deliberately stronger than TypeScript syntax validation. It:
+
+- applies package file, path, size, link, and stable-read limits;
+- strictly parses `extension.json` and validates IDs, contributions,
+  permissions, entrypoints, and Eidos compatibility;
+- rejects unsupported or missing imports;
+- performs strict TypeScript checking against the public Eidos SDK;
+- compiles declared Worker and UI entrypoints from the exact inspected bytes;
+- treats compiler warnings as failures;
+- never installs dependencies, reads package-manager configuration, executes
+  extension code, or runs lifecycle scripts.
+
+## Agent and CI output
+
+Use JSON when a script or agent needs a stable result:
+
+```bash
+pnpm extension:cli check . --host-version 0.33.0 --json
+```
+
+Exit codes are intentional:
+
+| Code | Meaning                                                      |
+| ---- | ------------------------------------------------------------ |
+| `0`  | Package inspection and all entrypoint builds passed.         |
+| `1`  | The package is invalid, incompatible, or failed compilation. |
+| `2`  | The CLI invocation or filesystem operation failed.           |
+
+The JSON includes status, canonical ID, source and permission digests,
+compiled entrypoints, and structured diagnostics. CI should fail on any
+non-zero exit instead of parsing terminal text.
+
+## Development loop
+
+1. Scaffold outside your primary Space.
+2. Edit ordinary source files and run `check` after each meaningful change.
+3. Copy the package into
+   `<test-space>/.eidos/extensions/<publisher.name>/` and refresh the Extension
+   Manager.
+4. Review the exact digest, trust it, grant only requested capabilities, and
+   enable it.
+5. Exercise commands or open a matching file. Verify saves and Graft changes
+   with the built-in UI.
+6. Run `check` again, commit the package to GitHub, and install an immutable tag
+   through **Settings → Extensions**.
+
+Do not add a fallback that directly imports Node.js, Electron, or the host
+filesystem when the sandbox rejects an operation. Declare the missing
+capability or redesign the extension around the existing host contract.
+
+Next, build the complete [Markdown Task Board](/extensions/quickstart/) and
+read the [security model](/extensions/security/).

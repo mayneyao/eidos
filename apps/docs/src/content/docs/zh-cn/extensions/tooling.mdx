@@ -1,0 +1,102 @@
+---
+title: 开发工具
+description: 使用和 Desktop 相同的 package inspector 与 compiler 创建并校验 file-based 扩展。
+sidebar:
+  order: 2
+  badge:
+    text: Preview
+    variant: caution
+---
+
+`@eidos.space/extension-cli` 是面向开发者和 Agent 的非交互式开发入口。它创建真实源码 package，
+并使用与 Eidos Desktop 相同的严格 inspector 和固定 compiler 完成检查。
+
+Developer Preview 阶段先从 Eidos checkout 构建这个 CLI。它已经为后续公开 npm 发布做好 package
+准备，但在真正发布之前，文档不会声称它已经可以从 npm 安装。
+
+## 创建项目
+
+在 Eidos 仓库根目录运行：
+
+```bash
+pnpm extension:cli init example.hello-tools --template command
+
+pnpm extension:cli init example.notes-editor \
+  --template text-editor \
+  --pattern "**/*.notes.md" \
+  --display-name "Notes Editor"
+```
+
+扩展 ID 始终使用 `<publisher>.<name>`。`init` 会用这个 canonical ID 创建目录，并拒绝覆盖已经
+存在的目录。Text-editor starter 包含可编辑 UI surface、minimal text edit、宿主保存状态、resync
+处理和 Eidos theme token。
+
+常用选项：
+
+| 选项                        | 含义                                                 |
+| --------------------------- | ---------------------------------------------------- |
+| `--template command`        | 创建 Worker command starter。                        |
+| `--template text-editor`    | 创建 sandboxed `fileEditors` 可编辑 starter。        |
+| `--out-dir <directory>`     | 指定新 package 的父目录。                            |
+| `--engine <semver-range>`   | 设置 `engines.eidos`；preview 默认值为 `>=0.33.0`。  |
+| `--pattern <glob>`          | 同时设置 editor selector 与匹配的 read/write grant。 |
+| `--media-type <media-type>` | 设置 text editor media type；默认 `text/markdown`。  |
+
+## 校验 package
+
+可以直接检查任意源码仓库；只有安装到 Space 后，目录名才必须使用 canonical ID：
+
+```bash
+pnpm extension:cli check ./example.notes-editor --host-version 0.33.0
+```
+
+成功时会列出每个经过编译的 entrypoint：
+
+```text
+✓ example.notes-editor · ready · v0.1.0
+  ✓ ui src/editor.ts (… bytes)
+```
+
+这比 TypeScript 语法检查更严格。它会：
+
+- 应用 package 文件、路径、大小、链接和稳定读取上限；
+- 严格解析 `extension.json`，检查 ID、contribution、permission、entrypoint 与 Eidos 兼容性；
+- 拒绝不支持或不存在的 import；
+- 根据公开 Eidos SDK 执行严格 TypeScript 类型检查；
+- 从本次 inspection 得到的精确 bytes 编译 Worker 与 UI entrypoint；
+- 把 compiler warning 视为失败；
+- 永不安装依赖、读取 package-manager 配置、执行扩展代码或运行 lifecycle script。
+
+## Agent 与 CI 输出
+
+脚本和 Agent 应使用结构化 JSON：
+
+```bash
+pnpm extension:cli check . --host-version 0.33.0 --json
+```
+
+退出码具有稳定含义：
+
+| 退出码 | 含义                                              |
+| ------ | ------------------------------------------------- |
+| `0`    | Package inspection 和所有 entrypoint 编译均通过。 |
+| `1`    | Package 无效、不兼容或者编译失败。                |
+| `2`    | CLI 调用方式或文件系统操作失败。                  |
+
+JSON 包含状态、canonical ID、source/permission digest、编译过的 entrypoint 和结构化 diagnostic。
+CI 应根据非零退出码失败，不要解析终端文案。
+
+## 开发循环
+
+1. 在主要 Space 之外创建 starter。
+2. 修改普通源码文件，每次有意义的变更后运行 `check`。
+3. 把 package 复制到
+   `<test-space>/.eidos/extensions/<publisher.name>/`，然后刷新 Extension Manager。
+4. 审阅精确 digest，执行 trust，只授予需要的 capability，然后 enable。
+5. 运行 command 或打开匹配文件，通过内置 UI 检查保存和 Graft changes。
+6. 再运行一次 `check`，把 package 提交到 GitHub，并通过 **Settings → Extensions** 安装 immutable tag。
+
+Sandbox 拒绝操作时，不要增加直接导入 Node.js、Electron 或宿主文件系统的 fallback。应该声明缺少的
+capability，或者围绕已有宿主契约重新设计扩展。
+
+下一步开发完整的 [Markdown Task Board](/zh-cn/extensions/quickstart/)，并阅读[安全模型](/zh-cn/extensions/security/)。
