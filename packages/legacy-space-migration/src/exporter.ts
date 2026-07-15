@@ -3,6 +3,7 @@ import {
   copyFile,
   mkdir,
   mkdtemp,
+  readFile,
   readdir,
   rename,
   rm,
@@ -34,11 +35,13 @@ import { sanitizePathSegment } from "./planner"
 import type {
   ExportLegacySpaceOptions,
   LegacyAsset,
+  LegacyExtension,
   LegacySpaceMigrationPlan,
   LegacySpaceMigrationResult,
   LegacySpaceSnapshot,
   MigrationExportProgress,
   MigrationIssue,
+  PlannedExtension,
 } from "./types"
 
 function emitProgress(
@@ -300,6 +303,7 @@ function serializeReport(result: LegacySpaceMigrationResult): string {
 - References: ${result.exportedReferenceCount}
 - Dangling references skipped: ${result.skippedReferenceCount}
 - Assets copied: ${result.copiedAssetCount}
+- Legacy extensions archived: ${result.archivedExtensionCount}
 - Lexical recovery files: ${result.recoveredLexicalDocumentCount}
 - Warnings: ${warnings.length}
 - Errors: ${errors.length}
@@ -315,11 +319,135 @@ function serializeReport(result: LegacySpaceMigrationResult): string {
 - Reference count matches: ${result.validation.referenceCountMatches ? "yes" : "no"}
 - Asset count matches: ${result.validation.assetCountMatches ? "yes" : "no"}
 - Copied assets exist: ${result.validation.copiedAssetsExist ? "yes" : "no"}
+- Extension count matches: ${result.validation.extensionCountMatches ? "yes" : "no"}
+- Archived extension files exist: ${result.validation.archivedExtensionsExist ? "yes" : "no"}
 
 ## Issues
 
 ${issueLines.join("\n")}
 `
+}
+
+function legacyExtensionMetadata(extension: LegacyExtension) {
+  return {
+    format: "eidos-legacy-extension-archive",
+    formatVersion: 1,
+    identity: {
+      id: extension.id,
+      slug: extension.slug,
+      marketplaceId: extension.marketplaceId,
+    },
+    presentation: {
+      name: extension.name,
+      description: extension.description,
+      icon: extension.icon,
+    },
+    sourceModel: {
+      type: extension.type,
+      version: extension.version,
+      enabled: extension.enabled,
+      metaJson: extension.metaJson,
+      bindingsJson: extension.bindingsJson,
+      originalTypeScriptStored: extension.tsCode !== null,
+      compiledJavaScriptStored: extension.code !== null,
+      createdAt: extension.createdAt,
+      updatedAt: extension.updatedAt,
+    },
+  }
+}
+
+function legacyExtensionReadme(
+  extension: LegacyExtension,
+  planned: PlannedExtension
+): string {
+  return `# ${extension.name ?? extension.slug ?? extension.id}
+
+This directory is a lossless archive of a database-backed Eidos extension.
+It is not an installable file-based extension and Eidos will never execute
+it automatically.
+
+- Legacy ID: \`${extension.id}\`
+- Legacy slug: \`${extension.slug ?? "(none)"}\`
+- Legacy type: \`${extension.type ?? "(unknown)"}\`
+- Previously enabled: ${extension.enabled ? "yes" : "no"}
+- Original TypeScript: ${planned.sourcePath ? `\`${path.posix.relative(planned.targetDirectory, planned.sourcePath)}\`` : "not stored"}
+- Compiled JavaScript: ${planned.compiledPath ? `\`${path.posix.relative(planned.targetDirectory, planned.compiledPath)}\`` : "not stored"}
+- Original metadata: \`${path.posix.relative(planned.targetDirectory, planned.metadataPath)}\`
+
+Before porting this code, create a new extension package under
+\`.eidos/extensions/<publisher.name>/\`, declare only the capabilities it
+needs, and replace legacy global \`eidos\` access with the file-based extension
+SDK. Trust and enable the new package only after reviewing the converted code.
+`
+}
+
+async function archiveLegacyExtension(
+  stagingRoot: string,
+  extension: LegacyExtension,
+  planned: PlannedExtension
+): Promise<void> {
+  const metadataPath = resolveOutputPath(stagingRoot, planned.metadataPath)
+  const readmePath = resolveOutputPath(stagingRoot, planned.readmePath)
+  await mkdir(path.dirname(metadataPath), { recursive: true })
+  await writeFile(
+    metadataPath,
+    `${JSON.stringify(legacyExtensionMetadata(extension), null, 2)}\n`,
+    "utf8"
+  )
+  await writeFile(readmePath, legacyExtensionReadme(extension, planned), "utf8")
+  if (planned.compiledPath && extension.code !== null) {
+    const compiledPath = resolveOutputPath(stagingRoot, planned.compiledPath)
+    await mkdir(path.dirname(compiledPath), { recursive: true })
+    await writeFile(compiledPath, extension.code, "utf8")
+  }
+  if (planned.sourcePath && extension.tsCode !== null) {
+    const sourcePath = resolveOutputPath(stagingRoot, planned.sourcePath)
+    await mkdir(path.dirname(sourcePath), { recursive: true })
+    await writeFile(sourcePath, extension.tsCode, "utf8")
+  }
+}
+
+async function archivedLegacyExtensionIsExact(
+  stagingRoot: string,
+  extension: LegacyExtension,
+  planned: PlannedExtension
+): Promise<boolean> {
+  try {
+    const [metadata, readme] = await Promise.all([
+      readFile(resolveOutputPath(stagingRoot, planned.metadataPath), "utf8"),
+      readFile(resolveOutputPath(stagingRoot, planned.readmePath), "utf8"),
+    ])
+    if (
+      metadata !==
+        `${JSON.stringify(legacyExtensionMetadata(extension), null, 2)}\n` ||
+      !readme.includes("not an installable file-based extension")
+    ) {
+      return false
+    }
+    if (planned.compiledPath) {
+      if (
+        extension.code === null ||
+        (await readFile(
+          resolveOutputPath(stagingRoot, planned.compiledPath),
+          "utf8"
+        )) !== extension.code
+      ) {
+        return false
+      }
+    } else if (extension.code !== null) {
+      return false
+    }
+    if (!planned.sourcePath) return extension.tsCode === null
+    return (
+      extension.tsCode !== null &&
+      (await readFile(
+        resolveOutputPath(stagingRoot, planned.sourcePath),
+        "utf8"
+      )) === extension.tsCode
+    )
+  } catch {
+    return false
+  }
 }
 
 function assertSourceUnchanged(
@@ -484,6 +612,7 @@ export async function exportLegacySpace(
   let exportedDocumentCount = 0
   let recoveredLexicalDocumentCount = 0
   let copiedAssetCount = 0
+  let archivedExtensionCount = 0
   let exportedRowCount = 0
   let exportedFieldCount = 0
   let exportedViewCount = 0
@@ -743,6 +872,30 @@ export async function exportLegacySpace(
       })
     }
 
+    const snapshotExtensions = new Map(
+      snapshot.extensions.map((extension) => [extension.id, extension])
+    )
+    for (const [index, plannedExtension] of plan.extensions.entries()) {
+      const sourceExtension = snapshotExtensions.get(plannedExtension.id)
+      if (!sourceExtension) {
+        throw new Error(
+          `Legacy extension disappeared after planning: ${plannedExtension.id}`
+        )
+      }
+      await archiveLegacyExtension(
+        stagingRoot,
+        sourceExtension,
+        plannedExtension
+      )
+      archivedExtensionCount += 1
+      emitProgress(options, {
+        phase: "extensions",
+        completed: index + 1,
+        total: plan.extensions.length,
+        currentPath: plannedExtension.targetDirectory,
+      })
+    }
+
     emitProgress(options, { phase: "validating", completed: 0, total: 1 })
     const baseInspection = inspectBaseFile(baseOutputPath)
     const validationBase = openBaseFile(baseOutputPath, { readonly: true })
@@ -791,6 +944,21 @@ export async function exportLegacySpace(
           })
       )
     ).every(Boolean)
+    const archivedExtensionsExist = (
+      await Promise.all(
+        plan.extensions.map(async (plannedExtension) => {
+          const sourceExtension = snapshotExtensions.get(plannedExtension.id)
+          return (
+            sourceExtension !== undefined &&
+            (await archivedLegacyExtensionIsExact(
+              stagingRoot,
+              sourceExtension,
+              plannedExtension
+            ))
+          )
+        })
+      )
+    ).every(Boolean)
     const validation = {
       baseValid: baseInspection.valid,
       documentCountMatches:
@@ -806,6 +974,9 @@ export async function exportLegacySpace(
       assetCountMatches:
         copiedAssetCount === plan.assets.filter((asset) => asset.exists).length,
       copiedAssetsExist,
+      extensionCountMatches:
+        archivedExtensionCount === plan.summary.extensionCount,
+      archivedExtensionsExist,
     }
     if (Object.values(validation).some((valid) => !valid)) {
       throw new Error(
@@ -837,6 +1008,7 @@ export async function exportLegacySpace(
       exportedReferenceCount: actualReferenceCount,
       skippedReferenceCount: plan.summary.skippedReferenceCount,
       copiedAssetCount,
+      archivedExtensionCount,
       recoveredLexicalDocumentCount,
       validation,
       issues,

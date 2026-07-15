@@ -81,6 +81,23 @@ function createLegacyFixture() {
       size INTEGER,
       mime TEXT
     );
+    CREATE TABLE eidos__extensions (
+      id TEXT PRIMARY KEY,
+      slug TEXT,
+      name TEXT,
+      description TEXT,
+      type TEXT,
+      version TEXT,
+      code TEXT,
+      ts_code TEXT,
+      meta TEXT,
+      icon TEXT,
+      marketplace_id TEXT,
+      enabled BOOLEAN,
+      bindings TEXT,
+      created_at TEXT,
+      updated_at TEXT
+    );
     CREATE TABLE tb_tasks (
       _id TEXT PRIMARY KEY,
       title TEXT,
@@ -199,6 +216,54 @@ function createLegacyFixture() {
       "INSERT INTO eidos__files (id, name, path, size, mime) VALUES (?, ?, ?, ?, ?)"
     )
     .run("missing", "missing.png", "files/missing.png", 10, "image/png")
+  database
+    .prepare(
+      `INSERT INTO eidos__extensions
+        (id, slug, name, description, type, version, code, ts_code, meta,
+         icon, marketplace_id, enabled, bindings, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      "ext-script",
+      "hello/world",
+      "Hello script",
+      "A legacy document action",
+      "script",
+      "1.2.3",
+      'exports.hello = async () => "compiled";',
+      'export async function hello() { return "source" }',
+      '{"type":"docAction","funcName":"hello"}',
+      "data:image/svg+xml;base64,PHN2Zy8+",
+      "marketplace-script",
+      1,
+      '{"folder":{"type":"text","value":"notes"}}',
+      "2026-01-01T00:00:00.000Z",
+      "2026-01-02T00:00:00.000Z"
+    )
+  database
+    .prepare(
+      `INSERT INTO eidos__extensions
+        (id, slug, name, description, type, version, code, ts_code, meta,
+         icon, marketplace_id, enabled, bindings, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      "ext-block",
+      "hello:world",
+      "Hello block",
+      null,
+      "block",
+      null,
+      "exports.default = function legacyView() {};",
+      null,
+      "{broken",
+      null,
+      null,
+      0,
+      null,
+      null,
+      null
+    )
   database.close()
   writeFileSync(path.join(filesRoot, "logo.png"), "logo")
   writeFileSync(path.join(filesRoot, "nested", "unregistered.txt"), "hello")
@@ -250,6 +315,24 @@ describe("legacy Space migration planning", () => {
         }),
       ])
     )
+    expect(snapshot.extensions).toEqual([
+      expect.objectContaining({
+        id: "ext-script",
+        slug: "hello/world",
+        type: "script",
+        enabled: true,
+        metaJson: '{"type":"docAction","funcName":"hello"}',
+        bindingsJson: '{"folder":{"type":"text","value":"notes"}}',
+      }),
+      expect.objectContaining({
+        id: "ext-block",
+        slug: "hello:world",
+        type: "block",
+        enabled: false,
+        metaJson: "{broken",
+        tsCode: null,
+      }),
+    ])
 
     const database = new Database(fixture.databasePath, { readonly: true })
     expect(
@@ -303,6 +386,25 @@ describe("legacy Space migration planning", () => {
         }),
       ])
     )
+    expect(plan.extensions).toHaveLength(2)
+    expect(
+      new Set(plan.extensions.map((extension) => extension.targetDirectory))
+        .size
+    ).toBe(2)
+    expect(plan.extensions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "ext-script",
+          sourcePath: expect.stringMatching(/src\/extension\.ts$/),
+          compiledPath: expect.stringMatching(/dist\/extension\.js$/),
+        }),
+        expect.objectContaining({
+          id: "ext-block",
+          sourcePath: null,
+          compiledPath: expect.stringMatching(/dist\/extension\.js$/),
+        }),
+      ])
+    )
     expect(plan.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ code: "document-markdown-missing" }),
@@ -310,6 +412,7 @@ describe("legacy Space migration planning", () => {
         expect.objectContaining({ code: "asset-unregistered" }),
         expect.objectContaining({ code: "orphan-document-recovered" }),
         expect.objectContaining({ code: "unsupported-node-type" }),
+        expect.objectContaining({ code: "legacy-extension-archived" }),
       ])
     )
     expect(plan.summary).toMatchObject({
@@ -320,14 +423,61 @@ describe("legacy Space migration planning", () => {
       viewCount: 1,
       assetCount: 3,
       missingAssetCount: 1,
+      extensionCount: 2,
       errorCount: 0,
     })
-    expect(plan.mappings).toHaveLength(10)
+    expect(plan.mappings).toHaveLength(12)
     expect(
       planLegacySpaceMigration(snapshot, {
         targetRoot: "/tmp/exported-space",
       })
     ).toEqual(plan)
+  })
+
+  it("preserves an extension record even when no executable code was stored", async () => {
+    const fixture = createLegacyFixture()
+    roots.push(fixture.sourceRoot)
+    const database = new Database(fixture.databasePath)
+    database
+      .prepare(
+        "UPDATE eidos__extensions SET code = NULL, ts_code = NULL WHERE id = ?"
+      )
+      .run("ext-block")
+    database.close()
+    const targetParent = mkdtempSync(
+      path.join(tmpdir(), "eidos-empty-extension-target-")
+    )
+    roots.push(targetParent)
+    const targetRoot = path.join(targetParent, "export")
+    const plan = planLegacySpaceMigration(
+      inspectLegacySpace(fixture.sourceRoot),
+      { targetRoot }
+    )
+    const archived = plan.extensions.find(
+      (extension) => extension.id === "ext-block"
+    )!
+
+    expect(archived).toMatchObject({ sourcePath: null, compiledPath: null })
+    const result = await exportLegacySpace(plan, {
+      migrationId: "empty-extension-export",
+    })
+    expect(result.validation.archivedExtensionsExist).toBe(true)
+    expect(
+      existsSync(path.join(targetRoot, archived.targetDirectory, "dist"))
+    ).toBe(false)
+    expect(
+      JSON.parse(
+        readFileSync(
+          path.join(targetRoot, ...archived.metadataPath.split("/")),
+          "utf8"
+        )
+      )
+    ).toMatchObject({
+      sourceModel: {
+        originalTypeScriptStored: false,
+        compiledJavaScriptStored: false,
+      },
+    })
   })
 
   it("remaps legacy field identifiers, system references, and missing bodies without data loss", async () => {
@@ -658,6 +808,7 @@ describe("legacy Space migration planning", () => {
       exportedViewCount: 1,
       exportedReferenceCount: 0,
       copiedAssetCount: 2,
+      archivedExtensionCount: 2,
       recoveredLexicalDocumentCount: 1,
       validation: {
         baseValid: true,
@@ -669,6 +820,8 @@ describe("legacy Space migration planning", () => {
         referenceCountMatches: true,
         assetCountMatches: true,
         copiedAssetsExist: true,
+        extensionCountMatches: true,
+        archivedExtensionsExist: true,
       },
     })
     expect(phases).toEqual(
@@ -677,6 +830,7 @@ describe("legacy Space migration planning", () => {
         "documents",
         "tables",
         "assets",
+        "extensions",
         "validating",
         "reporting",
         "finalizing",
@@ -718,6 +872,41 @@ describe("legacy Space migration planning", () => {
         "utf8"
       )
     ).toBe("hello")
+    const scriptArchive = plan.extensions.find(
+      (extension) => extension.id === "ext-script"
+    )!
+    const blockArchive = plan.extensions.find(
+      (extension) => extension.id === "ext-block"
+    )!
+    expect(
+      readFileSync(
+        path.join(targetRoot, ...scriptArchive.sourcePath!.split("/")),
+        "utf8"
+      )
+    ).toBe('export async function hello() { return "source" }')
+    expect(
+      readFileSync(
+        path.join(targetRoot, ...scriptArchive.compiledPath!.split("/")),
+        "utf8"
+      )
+    ).toBe('exports.hello = async () => "compiled";')
+    expect(
+      JSON.parse(
+        readFileSync(
+          path.join(targetRoot, ...blockArchive.metadataPath.split("/")),
+          "utf8"
+        )
+      )
+    ).toMatchObject({
+      identity: { id: "ext-block", slug: "hello:world" },
+      sourceModel: { metaJson: "{broken", enabled: false },
+    })
+    expect(
+      readFileSync(
+        path.join(targetRoot, ...blockArchive.readmePath.split("/")),
+        "utf8"
+      )
+    ).toContain("not an installable file-based extension")
     expect(existsSync(result.reportPath)).toBe(true)
     expect(readFileSync(result.reportPath, "utf8")).toContain(
       "Status: completed"

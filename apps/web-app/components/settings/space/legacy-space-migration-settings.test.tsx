@@ -53,6 +53,7 @@ function previewHandle(issues: Array<Record<string, unknown>> = []) {
         tableCount: 2,
         rowCount: 120,
         assetCount: 3,
+        extensionCount: 2,
       },
     },
   }
@@ -115,6 +116,7 @@ describe("LegacySpaceMigrationSettings", () => {
 
     expect(container.textContent).toContain("4")
     expect(container.textContent).toContain("120")
+    expect(container.textContent).toContain("Extension archives")
     expect(container.textContent).toContain(
       "Asset symlink cannot be exported safely"
     )
@@ -148,5 +150,24 @@ describe("LegacySpaceMigrationSettings", () => {
       await Promise.resolve()
     })
     expect(executePlanMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("shows legacy extension archive progress", async () => {
+    migrationState.value = {
+      ...migrationState.value,
+      operation: "exporting",
+      progress: {
+        phase: "extensions",
+        completed: 1,
+        total: 2,
+        currentPath: ".eidos/legacy-extensions/hello-world",
+      },
+    }
+    await act(async () => root.render(<LegacySpaceMigrationSettings />))
+
+    expect(container.textContent).toContain("Archiving legacy extensions…")
+    expect(container.textContent).toContain(
+      ".eidos/legacy-extensions/hello-world"
+    )
   })
 })

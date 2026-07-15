@@ -89,6 +89,31 @@ export interface LegacyAsset {
   exists: boolean
 }
 
+/**
+ * A database-backed extension from the legacy Space model.
+ *
+ * JSON fields remain as their original strings so an export never changes or
+ * discards malformed-but-recoverable metadata. The archived source is data,
+ * not an executable file-based extension package.
+ */
+export interface LegacyExtension {
+  id: string
+  slug: string | null
+  name: string | null
+  description: string | null
+  type: string | null
+  version: string | null
+  code: string | null
+  tsCode: string | null
+  metaJson: string | null
+  icon: string | null
+  marketplaceId: string | null
+  enabled: boolean
+  bindingsJson: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
 export type MigrationIssueSeverity = "warning" | "error"
 
 export interface MigrationIssue {
@@ -107,6 +132,7 @@ export interface LegacySpaceSnapshot {
   documents: LegacyDocument[]
   tables: LegacyTable[]
   assets: LegacyAsset[]
+  extensions: LegacyExtension[]
   issues: MigrationIssue[]
 }
 
@@ -157,8 +183,19 @@ export interface PlannedAsset {
   exists: boolean
 }
 
+export interface PlannedExtension {
+  id: string
+  sourceSlug: string | null
+  sourceType: string | null
+  targetDirectory: string
+  sourcePath: string | null
+  compiledPath: string | null
+  metadataPath: string
+  readmePath: string
+}
+
 export interface MigrationMapping {
-  kind: "document" | "table" | "field" | "asset"
+  kind: "document" | "table" | "field" | "asset" | "extension"
   sourceId: string
   sourcePath?: string
   targetPath: string
@@ -174,13 +211,14 @@ export interface MigrationPlanSummary {
   skippedReferenceCount: number
   assetCount: number
   missingAssetCount: number
+  extensionCount: number
   warningCount: number
   errorCount: number
 }
 
 export interface LegacySpaceMigrationPlan {
   format: "eidos-legacy-space-migration-plan"
-  formatVersion: 1
+  formatVersion: 2
   sourceRoot: string
   sourceDatabasePath: string
   sourceFingerprint: LegacySourceFingerprint
@@ -190,6 +228,7 @@ export interface LegacySpaceMigrationPlan {
   tables: PlannedTable[]
   skippedReferences: LegacyReference[]
   assets: PlannedAsset[]
+  extensions: PlannedExtension[]
   mappings: MigrationMapping[]
   issues: MigrationIssue[]
   summary: MigrationPlanSummary
@@ -200,6 +239,7 @@ export interface PlanLegacySpaceMigrationOptions {
   basePath?: string
   documentsDirectory?: string
   assetsDirectory?: string
+  legacyExtensionsDirectory?: string
 }
 
 export type MigrationExportPhase =
@@ -207,6 +247,7 @@ export type MigrationExportPhase =
   | "documents"
   | "tables"
   | "assets"
+  | "extensions"
   | "validating"
   | "reporting"
   | "finalizing"
@@ -234,6 +275,8 @@ export interface MigrationExportValidation {
   referenceCountMatches: boolean
   assetCountMatches: boolean
   copiedAssetsExist: boolean
+  extensionCountMatches: boolean
+  archivedExtensionsExist: boolean
 }
 
 export interface LegacySpaceMigrationResult {
@@ -252,6 +295,7 @@ export interface LegacySpaceMigrationResult {
   exportedReferenceCount: number
   skippedReferenceCount: number
   copiedAssetCount: number
+  archivedExtensionCount: number
   recoveredLexicalDocumentCount: number
   validation: MigrationExportValidation
   issues: MigrationIssue[]

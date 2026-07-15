@@ -6,6 +6,7 @@ import Database from "better-sqlite3"
 import type {
   LegacyAsset,
   LegacyDocument,
+  LegacyExtension,
   LegacyField,
   LegacyReference,
   LegacySpaceSnapshot,
@@ -486,6 +487,36 @@ function readAssets(
   return [...assets.values()]
 }
 
+function readExtensions(
+  database: Database.Database,
+  tableNames: Set<string>
+): LegacyExtension[] {
+  if (!tableNames.has("eidos__extensions")) return []
+  return database
+    .prepare("SELECT * FROM eidos__extensions ORDER BY rowid")
+    .all()
+    .map((row) => {
+      const value = row as DatabaseRow
+      return {
+        id: String(value.id),
+        slug: stringValue(value.slug),
+        name: stringValue(value.name),
+        description: stringValue(value.description),
+        type: stringValue(value.type),
+        version: stringValue(value.version),
+        code: stringValue(value.code),
+        tsCode: stringValue(value.ts_code),
+        metaJson: stringValue(value.meta),
+        icon: stringValue(value.icon),
+        marketplaceId: stringValue(value.marketplace_id),
+        enabled: booleanValue(value.enabled),
+        bindingsJson: stringValue(value.bindings),
+        createdAt: stringValue(value.created_at),
+        updatedAt: stringValue(value.updated_at),
+      }
+    })
+}
+
 export interface InspectLegacySpaceOptions {
   databasePath?: string
 }
@@ -542,6 +573,7 @@ export function inspectLegacySpace(
         documents: [],
         tables: [],
         assets: [],
+        extensions: [],
         issues,
       }
     }
@@ -560,6 +592,7 @@ export function inspectLegacySpace(
       issues
     )
     const assets = readAssets(database, tableNames, resolvedRoot, issues)
+    const extensions = readExtensions(database, tableNames)
     return {
       sourceRoot: resolvedRoot,
       databasePath,
@@ -568,6 +601,7 @@ export function inspectLegacySpace(
       documents,
       tables,
       assets,
+      extensions,
       issues,
     }
   } finally {

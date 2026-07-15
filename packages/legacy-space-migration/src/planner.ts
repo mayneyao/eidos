@@ -9,6 +9,7 @@ import type {
   PlanLegacySpaceMigrationOptions,
   PlannedAsset,
   PlannedDocument,
+  PlannedExtension,
   PlannedTable,
 } from "./types"
 import {
@@ -304,6 +305,70 @@ function planAssets(
     })
 }
 
+function planExtensions(
+  snapshot: LegacySpaceSnapshot,
+  directory: string,
+  issues: MigrationIssue[],
+  mappings: MigrationMapping[]
+): PlannedExtension[] {
+  const allocated = new Set<string>()
+  return [...snapshot.extensions]
+    .sort((left, right) =>
+      (left.slug ?? left.id).localeCompare(right.slug ?? right.id)
+    )
+    .map((extension) => {
+      const targetDirectory = allocatePath(
+        joinRelativePath(
+          directory,
+          sanitizePathSegment(
+            extension.slug ?? extension.name ?? extension.id,
+            extension.id
+          )
+        ),
+        extension.id,
+        allocated
+      )
+      const sourcePath = extension.tsCode
+        ? joinRelativePath(
+            targetDirectory,
+            "src",
+            extension.type === "block" ? "view.tsx" : "extension.ts"
+          )
+        : null
+      const compiledPath =
+        extension.code === null
+          ? null
+          : joinRelativePath(targetDirectory, "dist", "extension.js")
+      const metadataPath = joinRelativePath(
+        targetDirectory,
+        "legacy-extension.json"
+      )
+      const readmePath = joinRelativePath(targetDirectory, "README.md")
+      mappings.push({
+        kind: "extension",
+        sourceId: extension.id,
+        sourcePath: `eidos__extensions.${extension.slug ?? extension.id}`,
+        targetPath: targetDirectory,
+      })
+      issues.push({
+        severity: "warning",
+        code: "legacy-extension-archived",
+        message: `Extension ${extension.name ?? extension.slug ?? extension.id} will be archived as source only; it must be ported to the file-based extension API before it can run`,
+        sourceId: extension.id,
+      })
+      return {
+        id: extension.id,
+        sourceSlug: extension.slug,
+        sourceType: extension.type,
+        targetDirectory,
+        sourcePath,
+        compiledPath,
+        metadataPath,
+        readmePath,
+      }
+    })
+}
+
 export function planLegacySpaceMigration(
   snapshot: LegacySpaceSnapshot,
   options: PlanLegacySpaceMigrationOptions
@@ -318,6 +383,10 @@ export function planLegacySpaceMigration(
   const assetsDirectory = normalizeRelativeDirectory(
     options.assetsDirectory ?? "assets",
     "assets"
+  )
+  const legacyExtensionsDirectory = normalizeRelativeDirectory(
+    options.legacyExtensionsDirectory ?? ".eidos/legacy-extensions",
+    ".eidos/legacy-extensions"
   )
   const basePath = normalizeRelativeDirectory(
     options.basePath ?? "main.base",
@@ -560,6 +629,12 @@ export function planLegacySpaceMigration(
   }
 
   const assets = planAssets(snapshot.assets, assetsDirectory, issues, mappings)
+  const extensions = planExtensions(
+    snapshot,
+    legacyExtensionsDirectory,
+    issues,
+    mappings
+  )
   const warningCount = issues.filter(
     (issue) => issue.severity === "warning"
   ).length
@@ -572,7 +647,7 @@ export function planLegacySpaceMigration(
 
   return {
     format: "eidos-legacy-space-migration-plan",
-    formatVersion: 1,
+    formatVersion: 2,
     sourceRoot: snapshot.sourceRoot,
     sourceDatabasePath: snapshot.databasePath,
     sourceFingerprint: snapshot.sourceFingerprint,
@@ -582,6 +657,7 @@ export function planLegacySpaceMigration(
     tables,
     skippedReferences,
     assets,
+    extensions,
     mappings,
     issues,
     summary: {
@@ -597,6 +673,7 @@ export function planLegacySpaceMigration(
       skippedReferenceCount: skippedReferences.length,
       assetCount: assets.length,
       missingAssetCount: assets.filter((asset) => !asset.exists).length,
+      extensionCount: extensions.length,
       warningCount,
       errorCount,
     },

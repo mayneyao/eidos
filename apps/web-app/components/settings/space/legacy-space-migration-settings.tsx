@@ -7,6 +7,7 @@ import {
   FolderOutput,
   Image,
   LoaderCircle,
+  PackageOpen,
   Table2,
   TriangleAlert,
 } from "lucide-react"
@@ -24,6 +25,7 @@ const PHASE_LABELS = {
   documents: "Exporting documents…",
   tables: "Building Base…",
   assets: "Copying assets…",
+  extensions: "Archiving legacy extensions…",
   validating: "Validating result…",
   reporting: "Writing migration report…",
   finalizing: "Installing new Space…",
@@ -121,7 +123,7 @@ export function LegacySpaceMigrationSettings() {
               <p className="max-w-2xl text-sm leading-5 text-muted-foreground">
                 {t(
                   "space.settings.migration.exportDescription",
-                  "Create a new Space with Markdown documents, one main.base, and visible assets. The current database Space stays unchanged."
+                  "Create a new Space with Markdown documents, one main.base, visible assets, and a non-executable archive of legacy extensions. The current database Space stays unchanged."
                 )}
               </p>
             </div>
@@ -155,7 +157,7 @@ export function LegacySpaceMigrationSettings() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-5">
               <MigrationStat
                 icon={FileText}
                 label={t("space.settings.migration.documents", "Documents")}
@@ -175,6 +177,14 @@ export function LegacySpaceMigrationSettings() {
                 icon={Image}
                 label={t("space.settings.migration.assets", "Assets")}
                 value={plan.summary.assetCount}
+              />
+              <MigrationStat
+                icon={PackageOpen}
+                label={t(
+                  "space.settings.migration.extensions",
+                  "Extension archives"
+                )}
+                value={plan.summary.extensionCount}
               />
             </div>
 
@@ -284,7 +294,7 @@ export function LegacySpaceMigrationSettings() {
                 <p className="mt-1 text-sm text-muted-foreground">
                   {t(
                     "space.settings.migration.completeDescription",
-                    "The new Space passed Markdown, Base, row, field, view, reference, and asset validation."
+                    "The new Space passed Markdown, Base, row, field, view, reference, asset, and legacy extension archive validation."
                   )}
                 </p>
                 <p className="mt-2 truncate font-mono text-xs text-foreground/70">
