@@ -72,6 +72,16 @@ interface FileSpaceTreeProps {
   spaceId: string
 }
 
+const EXTENSION_SOURCE_ROOT = ".eidos/extensions"
+
+function isExtensionSourceTreePath(relativePath: string): boolean {
+  return (
+    relativePath === ".eidos" ||
+    relativePath === EXTENSION_SOURCE_ROOT ||
+    relativePath.startsWith(`${EXTENSION_SOURCE_ROOT}/`)
+  )
+}
+
 function updateTabsAfterMove(sourcePath: string, destinationPath: string) {
   const { tabs, updateTab } = useTabStore.getState()
   for (const tab of tabs) {
@@ -124,10 +134,14 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const [baseInitialName, setBaseInitialName] = useState("Untitled.base")
   const [baseParentPath, setBaseParentPath] = useState("")
   const treeRef = useRef<SpaceFilesTreeHandle>(null)
+  const extensionSourceRevealRef = useRef<"idle" | "loading" | "done">("idle")
   const viewSettings = useFileSpaceSettings((state) => state.bySpace[spaceId])
   const showHiddenFiles = viewSettings?.showHiddenFiles ?? false
   const showObsidianFolder = viewSettings?.showObsidianFolder ?? false
   const defaultBaseTemplate = viewSettings?.defaultBaseTemplate ?? "blank"
+  const hasExtensionSourceContainer =
+    entriesByDirectory.get("")?.some((entry) => entry.path === ".eidos") ===
+    true
 
   const blockMutationDuringRestore = useCallback(() => {
     if (!restoringVersion) return false
@@ -208,6 +222,35 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   useEffect(() => {
     void loadDirectory("")
   }, [loadDirectory])
+
+  useEffect(() => {
+    if (
+      extensionSourceRevealRef.current !== "idle" ||
+      !hasExtensionSourceContainer
+    ) {
+      return
+    }
+    extensionSourceRevealRef.current = "loading"
+    let cancelled = false
+    void loadDirectory(".eidos").then(async (entries) => {
+      if (cancelled) return
+      const hasExtensions = entries.some(
+        (entry) => entry.path === EXTENSION_SOURCE_ROOT
+      )
+      if (!hasExtensions) {
+        extensionSourceRevealRef.current = "idle"
+        return
+      }
+      setExpanded(
+        (current) => new Set([...current, ".eidos", EXTENSION_SOURCE_ROOT])
+      )
+      await loadDirectory(EXTENSION_SOURCE_ROOT)
+      if (!cancelled) extensionSourceRevealRef.current = "done"
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [hasExtensionSourceContainer, loadDirectory])
 
   useEffect(() => {
     if (!selectedPath) return
@@ -514,8 +557,9 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
 
   const openFile = useCallback(
     async (entry: SpaceFileEntry, editorId?: string | null) => {
-      const resolvedEditorId =
-        editorId === undefined
+      const resolvedEditorId = isExtensionSourceTreePath(entry.path)
+        ? undefined
+        : editorId === undefined
           ? (await loadExtensionEditors(entry.path)).find(
               (editor) => editor.priority === "default"
             )?.id
@@ -750,6 +794,8 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
             selectedPath={selectedPath}
             disabled={restoringVersion}
             canMove={(entry, destinationParent) =>
+              !isExtensionSourceTreePath(entry.path) &&
+              !isExtensionSourceTreePath(destinationParent) &&
               canMoveSpaceEntryTo(
                 entry.path,
                 entry.parentPath,
@@ -770,6 +816,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
             }}
             onImport={(parentPath) => void importInto(parentPath)}
             onIntent={(entry) => {
+              if (isExtensionSourceTreePath(entry.path)) return
               void loadExtensionEditors(entry.path)
               if (entry.path.toLowerCase().endsWith(".base")) {
                 void preloadSpaceBaseEditor().catch(() => undefined)
@@ -779,14 +826,29 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
               void moveInto(entry, destinationParent)
             }
             onOpen={(entry) => void openFile(entry)}
-            extensionEditors={(entry) => extensionEditorsFor(entry.path)}
-            loadExtensionEditors={(entry) => loadExtensionEditors(entry.path)}
+            extensionEditors={(entry) =>
+              isExtensionSourceTreePath(entry.path)
+                ? []
+                : extensionEditorsFor(entry.path)
+            }
+            loadExtensionEditors={(entry) =>
+              isExtensionSourceTreePath(entry.path)
+                ? Promise.resolve([])
+                : loadExtensionEditors(entry.path)
+            }
             onOpenWith={(entry, editorId) => void openFile(entry, editorId)}
             onRename={(entry, destinationPath) =>
               void renameEntry(entry, destinationPath)
             }
-            onReveal={(path) => void reveal(path)}
-            extensionCommands={contextCommandsForEntry}
+            onReveal={(path) =>
+              void reveal(path === ".eidos" ? EXTENSION_SOURCE_ROOT : path)
+            }
+            isProtected={(entry) => isExtensionSourceTreePath(entry.path)}
+            extensionCommands={(entry) =>
+              isExtensionSourceTreePath(entry.path)
+                ? []
+                : contextCommandsForEntry(entry)
+            }
             onExtensionCommand={(entry, command) =>
               void runExtensionCommand(entry, command)
             }

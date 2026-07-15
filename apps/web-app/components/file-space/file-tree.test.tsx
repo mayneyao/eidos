@@ -431,6 +431,73 @@ describe("FileSpaceTree accessibility", () => {
     expect(navigateMock).toHaveBeenCalledTimes(2)
   })
 
+  it("shows extension source in the Files tree without destructive actions", async () => {
+    currentEntriesByDirectory[""] = [
+      ...currentEntriesByDirectory[""],
+      entry(".eidos", "directory"),
+    ]
+    currentEntriesByDirectory[".eidos"] = [
+      entry(".eidos/extensions", "directory"),
+    ]
+    currentEntriesByDirectory[".eidos/extensions"] = [
+      entry(".eidos/extensions/local.hello-tools", "directory"),
+    ]
+    currentEntriesByDirectory[".eidos/extensions/local.hello-tools"] = [
+      entry(".eidos/extensions/local.hello-tools/src", "directory"),
+      entry(".eidos/extensions/local.hello-tools/extension.json", "file"),
+    ]
+    currentEntriesByDirectory[".eidos/extensions/local.hello-tools/src"] = [
+      entry(".eidos/extensions/local.hello-tools/src/extension.ts", "file"),
+    ]
+    await renderTree()
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(getTreeItem(".eidos").getAttribute("aria-expanded")).toBe("true")
+    expect(getTreeItem(".eidos/extensions").getAttribute("aria-expanded")).toBe(
+      "true"
+    )
+
+    for (const directory of [
+      ".eidos/extensions/local.hello-tools",
+      ".eidos/extensions/local.hello-tools/src",
+    ]) {
+      await act(async () => {
+        getTreeItem(directory).click()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+
+    const sourcePath = ".eidos/extensions/local.hello-tools/src/extension.ts"
+    await act(async () => getTreeItem(sourcePath).click())
+    expect(navigateMock).toHaveBeenLastCalledWith(
+      "/space-file#.eidos%2Fextensions%2Flocal.hello-tools%2Fsrc%2Fextension.ts"
+    )
+    expect(extensionEditorMocks.load).not.toHaveBeenCalledWith(sourcePath)
+
+    await act(async () => {
+      getTreeItem(sourcePath).dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          clientX: 120,
+          clientY: 80,
+        })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const menu = document.body.querySelector<HTMLElement>(
+      '[aria-label="Actions for extension.ts"]'
+    )
+    expect(menu?.textContent).toContain("Show in file manager")
+    expect(menu?.textContent).not.toContain("Rename")
+    expect(menu?.textContent).not.toContain("Delete")
+    expect(menu?.textContent).not.toContain("Open with")
+  })
+
   it("uses a matching default extension editor for normal file activation", async () => {
     extensionEditorMocks.byPath["root.md"] = [
       {

@@ -119,6 +119,8 @@ export class SpaceFilesError extends Error {
 }
 
 const PRIVATE_ROOTS = new Set([".eidos", ".graft"])
+const EIDOS_ROOT = ".eidos"
+const EXTENSION_SOURCE_ROOT = ".eidos/extensions"
 const DEFAULT_WATCH_DEBOUNCE_MS = 60
 const STABLE_READ_ATTEMPTS = 3
 const STABLE_READ_RETRY_MS = 8
@@ -147,6 +149,13 @@ function toPortablePath(value: string): string {
 function parentPortablePath(relativePath: string): string {
   const parent = path.posix.dirname(relativePath)
   return parent === "." ? "" : parent
+}
+
+function isExtensionSourcePath(relativePath: string): boolean {
+  return (
+    relativePath === EXTENSION_SOURCE_ROOT ||
+    relativePath.startsWith(`${EXTENSION_SOURCE_ROOT}/`)
+  )
 }
 
 function nearestExistingDirectory(
@@ -388,7 +397,7 @@ export class SpaceFiles {
     relativeDirectory = "",
     options: ListSpaceFilesOptions = {}
   ): Promise<SpaceFileEntry[]> {
-    const directory = await this.resolveExisting(relativeDirectory, true)
+    const directory = await this.resolveExisting(relativeDirectory, true, true)
     const directoryStats = await stat(directory)
     if (!directoryStats.isDirectory()) {
       throw new SpaceFilesError(
@@ -410,6 +419,12 @@ export class SpaceFiles {
       }
 
       const entryPath = path.join(directory, entry.name)
+      if (
+        relativePath === EIDOS_ROOT &&
+        !(await this.hasPublicExtensionSourceRoot(entryPath))
+      ) {
+        continue
+      }
       const entryStats = await lstat(entryPath)
       const kind: SpaceFileEntryKind = entry.isDirectory()
         ? "directory"
@@ -670,6 +685,16 @@ export class SpaceFiles {
   async move(sourcePath: string, destinationPath: string): Promise<void> {
     const normalizedSource = this.normalize(sourcePath)
     const normalizedDestination = this.normalize(destinationPath)
+    if (
+      normalizedSource === EXTENSION_SOURCE_ROOT ||
+      normalizedDestination === EXTENSION_SOURCE_ROOT
+    ) {
+      throw new SpaceFilesError(
+        "invalid-path",
+        "The extension source root cannot be moved",
+        sourcePath
+      )
+    }
     const source = await this.resolveExistingEntry(sourcePath)
     if (normalizedSource === normalizedDestination) return
     const sourceStats = await lstat(source)
@@ -737,6 +762,13 @@ export class SpaceFiles {
   }
 
   async remove(relativePath: string): Promise<void> {
+    if (this.normalize(relativePath) === EXTENSION_SOURCE_ROOT) {
+      throw new SpaceFilesError(
+        "invalid-path",
+        "The extension source root cannot be removed",
+        relativePath
+      )
+    }
     const target = await this.resolveExistingEntry(relativePath)
     const targetStats = await lstat(target)
     if (targetStats.isDirectory()) {
@@ -874,7 +906,11 @@ export class SpaceFiles {
     )
   }
 
-  private normalize(relativePath: string, allowRoot = false): string {
+  private normalize(
+    relativePath: string,
+    allowRoot = false,
+    allowEidosContainer = false
+  ): string {
     if (
       typeof relativePath !== "string" ||
       relativePath.includes("\0") ||
@@ -907,7 +943,14 @@ export class SpaceFiles {
         relativePath
       )
     }
-    if (PRIVATE_ROOTS.has(parts[0]?.toLowerCase())) {
+    const [rootName] = parts
+    const isEidosContainer = normalized === EIDOS_ROOT
+    const isPublicExtensionSource = isExtensionSourcePath(normalized)
+    if (
+      PRIVATE_ROOTS.has(rootName?.toLowerCase()) &&
+      !isPublicExtensionSource &&
+      !(allowEidosContainer && isEidosContainer)
+    ) {
       throw new SpaceFilesError(
         "invalid-path",
         `Private Space state is not available through the file API: ${relativePath}`,
@@ -919,9 +962,14 @@ export class SpaceFiles {
 
   private async resolveExisting(
     relativePath: string,
-    allowRoot = false
+    allowRoot = false,
+    allowEidosContainer = false
   ): Promise<string> {
-    const normalized = this.normalize(relativePath, allowRoot)
+    const normalized = this.normalize(
+      relativePath,
+      allowRoot,
+      allowEidosContainer
+    )
     const candidate = path.resolve(this.root, ...normalized.split("/"))
     try {
       const canonicalRoot = await realpath(this.root)
@@ -933,7 +981,11 @@ export class SpaceFiles {
           relativePath
         )
       }
-      this.assertCanonicalPathIsPublic(canonicalRoot, canonicalCandidate)
+      this.assertCanonicalPathIsPublic(
+        canonicalRoot,
+        canonicalCandidate,
+        allowEidosContainer
+      )
       return canonicalCandidate
     } catch (error) {
       if (error instanceof SpaceFilesError) throw error
@@ -998,12 +1050,19 @@ export class SpaceFiles {
 
   private assertCanonicalPathIsPublic(
     canonicalRoot: string,
-    canonicalPath: string
+    canonicalPath: string,
+    allowEidosContainer = false
   ): void {
-    const [rootName] = toPortablePath(
+    const relativePath = toPortablePath(
       path.relative(canonicalRoot, canonicalPath)
-    ).split("/")
-    if (PRIVATE_ROOTS.has(rootName.toLowerCase())) {
+    )
+    const [rootName] = relativePath.split("/")
+    const isEidosContainer = relativePath === EIDOS_ROOT
+    if (
+      PRIVATE_ROOTS.has(rootName.toLowerCase()) &&
+      !isExtensionSourcePath(relativePath) &&
+      !(allowEidosContainer && isEidosContainer)
+    ) {
       throw new SpaceFilesError(
         "invalid-path",
         "Private Space state is not available through the file API"
@@ -1015,6 +1074,35 @@ export class SpaceFiles {
     return toPortablePath(path.relative(this.root, absolutePath))
   }
 
+  private async hasPublicExtensionSourceRoot(
+    eidosDirectory: string
+  ): Promise<boolean> {
+    try {
+      const [eidosStats, extensionsStats] = await Promise.all([
+        lstat(eidosDirectory),
+        lstat(path.join(eidosDirectory, "extensions")),
+      ])
+      if (
+        eidosStats.isSymbolicLink() ||
+        !eidosStats.isDirectory() ||
+        extensionsStats.isSymbolicLink() ||
+        !extensionsStats.isDirectory()
+      ) {
+        return false
+      }
+      const [canonicalRoot, canonicalExtensions] = await Promise.all([
+        realpath(this.root),
+        realpath(path.join(eidosDirectory, "extensions")),
+      ])
+      return (
+        isWithinRoot(canonicalRoot, canonicalExtensions) &&
+        this.toRelative(canonicalExtensions) === EXTENSION_SOURCE_ROOT
+      )
+    } catch {
+      return false
+    }
+  }
+
   private shouldHide(
     relativePath: string,
     options: ListSpaceFilesOptions
@@ -1022,6 +1110,18 @@ export class SpaceFiles {
     const pathParts = relativePath.split("/")
     const [rootName] = pathParts
     const normalizedRootName = rootName.toLowerCase()
+    if (normalizedRootName === EIDOS_ROOT) {
+      if (rootName !== EIDOS_ROOT) return true
+      if (pathParts.length === 1) return false
+      if (pathParts[1] !== "extensions") return true
+      if (
+        !options.includeHidden &&
+        pathParts.slice(2).some((part) => part.startsWith("."))
+      ) {
+        return true
+      }
+      return path.basename(relativePath) === ".DS_Store"
+    }
     if (PRIVATE_ROOTS.has(normalizedRootName)) return true
     if (normalizedRootName === ".obsidian") {
       return !options.includeObsidian

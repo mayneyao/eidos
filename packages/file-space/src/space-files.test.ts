@@ -619,6 +619,73 @@ describe("SpaceFiles", () => {
     })
   })
 
+  it("exposes extension source while keeping other .eidos state private", async () => {
+    const extensionRoot = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "local.hello-tools"
+    )
+    await mkdir(path.join(extensionRoot, "src"), { recursive: true })
+    await mkdir(path.join(root, ".eidos", "state"), { recursive: true })
+    await writeFile(
+      path.join(extensionRoot, "extension.json"),
+      JSON.stringify({ manifestVersion: 1 })
+    )
+    await writeFile(
+      path.join(extensionRoot, "src", "extension.ts"),
+      "export const value = 1\n"
+    )
+    await writeFile(path.join(root, ".eidos", "state", "private.json"), "{}")
+
+    await expect(files.list()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: ".eidos",
+          path: ".eidos",
+          kind: "directory",
+        }),
+      ])
+    )
+    await expect(files.list(".eidos")).resolves.toEqual([
+      expect.objectContaining({
+        name: "extensions",
+        path: ".eidos/extensions",
+        kind: "directory",
+      }),
+    ])
+    await expect(files.list(".eidos/extensions")).resolves.toEqual([
+      expect.objectContaining({
+        name: "local.hello-tools",
+        path: ".eidos/extensions/local.hello-tools",
+        kind: "directory",
+      }),
+    ])
+
+    const sourcePath = ".eidos/extensions/local.hello-tools/src/extension.ts"
+    const source = await files.readText(sourcePath)
+    expect(source.content).toBe("export const value = 1\n")
+    await expect(
+      files.writeText(sourcePath, "export const value = 2\n", source.mtimeMs)
+    ).resolves.toMatchObject({ content: "export const value = 2\n" })
+    await expect(
+      files.getRelativeFilePath(path.join(extensionRoot, "src", "extension.ts"))
+    ).resolves.toBe(sourcePath)
+
+    await expect(
+      files.readText(".eidos/state/private.json")
+    ).rejects.toMatchObject({ code: "invalid-path" })
+    await expect(files.list(".eidos/state")).rejects.toMatchObject({
+      code: "invalid-path",
+    })
+    await expect(files.remove(".eidos/extensions")).rejects.toMatchObject({
+      code: "invalid-path",
+    })
+    await expect(
+      files.move(".eidos/extensions", "extensions-backup")
+    ).rejects.toMatchObject({ code: "invalid-path" })
+  })
+
   it("rejects lexical and symbolic-link escapes", async () => {
     await writeFile(path.join(outside, "secret.md"), "secret")
     await symlink(outside, path.join(root, "escape"))
@@ -645,7 +712,7 @@ describe("SpaceFiles", () => {
     })
   })
 
-  it("never exposes .eidos or .graft through the file API", async () => {
+  it("never exposes private .eidos state or .graft through the file API", async () => {
     await mkdir(path.join(root, ".eidos"))
     await writeFile(path.join(root, ".eidos", "state.json"), "{}")
     await symlink(path.join(root, ".eidos"), path.join(root, "private-alias"))

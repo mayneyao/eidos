@@ -64,6 +64,7 @@ interface SpaceFilesTreeProps {
   onOpenWith?: (entry: SpaceFileEntry, editorId: string | null) => void
   onRename: (entry: SpaceFileEntry, destinationPath: string) => void
   onReveal: (path: string) => void
+  isProtected?: (entry: SpaceFileEntry) => boolean
   extensionCommands?: (entry: SpaceFileEntry) => FileExtensionCommand[]
   onExtensionCommand?: (
     entry: SpaceFileEntry,
@@ -112,6 +113,7 @@ function SpaceTreeContextMenu({
   initialExtensionEditors,
   loadExtensionEditors,
   onOpenWith,
+  isProtected,
 }: {
   item: ContextMenuItem
   context: ContextMenuOpenContext
@@ -127,6 +129,7 @@ function SpaceTreeContextMenu({
   initialExtensionEditors: FileExtensionEditor[]
   loadExtensionEditors?: SpaceFilesTreeProps["loadExtensionEditors"]
   onOpenWith?: SpaceFilesTreeProps["onOpenWith"]
+  isProtected: boolean
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState(() =>
@@ -221,7 +224,7 @@ function SpaceTreeContextMenu({
         menuItems[nextIndex]?.focus()
       }}
     >
-      {item.kind === "directory" ? (
+      {item.kind === "directory" && !isProtected ? (
         <>
           <button
             type="button"
@@ -266,7 +269,7 @@ function SpaceTreeContextMenu({
           <div className="my-1 h-px bg-border" role="separator" />
         </>
       ) : null}
-      {item.kind === "file" && extensionEditors.length > 0 ? (
+      {item.kind === "file" && !isProtected && extensionEditors.length > 0 ? (
         <>
           <button
             type="button"
@@ -293,7 +296,7 @@ function SpaceTreeContextMenu({
           <div className="my-1 h-px bg-border" role="separator" />
         </>
       ) : null}
-      {extensionCommands.length > 0 ? (
+      {!isProtected && extensionCommands.length > 0 ? (
         <>
           {extensionCommands.map((command) => (
             <button
@@ -311,16 +314,18 @@ function SpaceTreeContextMenu({
           <div className="my-1 h-px bg-border" role="separator" />
         </>
       ) : null}
-      <button
-        type="button"
-        role="menuitem"
-        className={itemClassName}
-        disabled={disabled}
-        onClick={() => run(() => onRename(item.path))}
-      >
-        <PencilLine className="h-3.5 w-3.5" />
-        Rename
-      </button>
+      {!isProtected ? (
+        <button
+          type="button"
+          role="menuitem"
+          className={itemClassName}
+          disabled={disabled}
+          onClick={() => run(() => onRename(item.path))}
+        >
+          <PencilLine className="h-3.5 w-3.5" />
+          Rename
+        </button>
+      ) : null}
       <button
         type="button"
         role="menuitem"
@@ -330,16 +335,21 @@ function SpaceTreeContextMenu({
         <FolderOpen className="h-3.5 w-3.5" />
         Show in file manager
       </button>
-      <button
-        type="button"
-        role="menuitem"
-        className={cn(itemClassName, "text-destructive hover:text-destructive")}
-        disabled={disabled}
-        onClick={() => run(() => onDelete(entry))}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-        Delete
-      </button>
+      {!isProtected ? (
+        <button
+          type="button"
+          role="menuitem"
+          className={cn(
+            itemClassName,
+            "text-destructive hover:text-destructive"
+          )}
+          disabled={disabled}
+          onClick={() => run(() => onDelete(entry))}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete
+        </button>
+      ) : null}
     </div>
   )
 
@@ -404,7 +414,10 @@ export const SpaceFilesTree = forwardRef<
       canDrag: (paths) =>
         !propsRef.current.disabled &&
         paths.length === 1 &&
-        entryByPathRef.current.has(fromTreePath(paths[0])),
+        entryByPathRef.current.has(fromTreePath(paths[0])) &&
+        !propsRef.current.isProtected?.(
+          entryByPathRef.current.get(fromTreePath(paths[0]))!
+        ),
       canDrop: ({ draggedPaths, target }) => {
         if (propsRef.current.disabled || draggedPaths.length !== 1) return false
         const entry = entryByPathRef.current.get(fromTreePath(draggedPaths[0]))
@@ -431,7 +444,10 @@ export const SpaceFilesTree = forwardRef<
     renaming: {
       canRename: ({ path }) =>
         !propsRef.current.disabled &&
-        entryByPathRef.current.has(fromTreePath(path)),
+        entryByPathRef.current.has(fromTreePath(path)) &&
+        !propsRef.current.isProtected?.(
+          entryByPathRef.current.get(fromTreePath(path))!
+        ),
       onError: (error) => {
         console.error("Unable to rename Space entry:", error)
       },
@@ -618,6 +634,7 @@ export const SpaceFilesTree = forwardRef<
             initialExtensionEditors={props.extensionEditors?.(entry) ?? []}
             loadExtensionEditors={props.loadExtensionEditors}
             onOpenWith={props.onOpenWith}
+            isProtected={props.isProtected?.(entry) === true}
           />
         )
       }}
