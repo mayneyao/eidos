@@ -1,4 +1,6 @@
 export const EXTENSION_RUNTIME_PROTOCOL_VERSION = 1 as const
+export const EXTENSION_RUNTIME_BOOTSTRAP_CHANNEL =
+  "file-extension-runtime:bootstrap" as const
 
 export type ExtensionRuntimeErrorCode =
   | "RUNTIME_ACTIVATION_FAILED"
@@ -511,7 +513,7 @@ ${options.bundleCode}
 })();`
 }
 
-/** HTML loaded in a sandboxed, no-preload Electron renderer. */
+/** HTML loaded in a sandboxed renderer with a fixed transport-only preload. */
 export function createExtensionRuntimeHostHtml(): string {
   return `<!doctype html>
 <html>

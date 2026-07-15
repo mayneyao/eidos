@@ -16,12 +16,24 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { MainWindowProvider } from "../space-management/main-window.provider"
 import type { SpaceRegistry } from "../space-management/space-registry"
+import type { FileExtensionRuntimeManager } from "./runtime/file-extension-runtime-manager"
+import type { FileExtensionRuntimeExecution } from "./runtime/file-extension-runtime-manager"
 
 vi.mock("electron", () => ({
   app: { getVersion: () => "0.33.0" },
 }))
 
 const roots: string[] = []
+
+function runtimeManagerStub(): FileExtensionRuntimeManager {
+  return {
+    execute: vi.fn(),
+    disposePackage: vi.fn(),
+    disposeSpace: vi.fn(),
+    disposeAll: vi.fn(),
+    has: vi.fn(() => false),
+  } as unknown as FileExtensionRuntimeManager
+}
 
 async function createFileSpace(): Promise<string> {
   const root = await mkdtemp(path.join(tmpdir(), "eidos-file-extension-"))
@@ -80,14 +92,18 @@ describe("FileExtensionService", () => {
       getWindow: () => undefined,
     } as unknown as MainWindowProvider
     const { FileExtensionService } = await import("./file-extension.service")
-    const service = new FileExtensionService(registry, windowProvider)
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManagerStub()
+    )
 
     const result = await service.discover("space-a")
 
     expect(result).toMatchObject({
       root: ".eidos/extensions",
-      phase: "local-state",
-      executionAvailable: false,
+      phase: "runtime-preview",
+      executionAvailable: true,
       hostVersion: "0.33.0",
       packages: [
         {
@@ -124,7 +140,11 @@ describe("FileExtensionService", () => {
       getWindow: () => undefined,
     } as unknown as MainWindowProvider
     const { FileExtensionService } = await import("./file-extension.service")
-    const service = new FileExtensionService(registry, windowProvider)
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManagerStub()
+    )
 
     await expect(service.discover("missing")).rejects.toThrow("Space not found")
     await expect(service.discover("legacy")).rejects.toThrow(
@@ -147,7 +167,11 @@ describe("FileExtensionService", () => {
       getWindow: () => undefined,
     } as unknown as MainWindowProvider
     const { FileExtensionService } = await import("./file-extension.service")
-    const service = new FileExtensionService(registry, windowProvider)
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManagerStub()
+    )
 
     await expect(
       service.createTemplate("space-a", "hello-tools")
@@ -205,7 +229,11 @@ describe("FileExtensionService", () => {
       getWindow: () => undefined,
     } as unknown as MainWindowProvider
     const { FileExtensionService } = await import("./file-extension.service")
-    const service = new FileExtensionService(registry, windowProvider)
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManagerStub()
+    )
 
     const results = await Promise.allSettled([
       service.createTemplate("space-a", "same-name"),
@@ -231,7 +259,11 @@ describe("FileExtensionService", () => {
       getWindow: () => undefined,
     } as unknown as MainWindowProvider
     const { FileExtensionService } = await import("./file-extension.service")
-    const service = new FileExtensionService(registry, windowProvider)
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManagerStub()
+    )
     const initial = await service.discover("space-a")
     const extension = initial.packages[0]
     const snapshot = {
@@ -306,7 +338,11 @@ describe("FileExtensionService", () => {
       getWindow: () => undefined,
     } as unknown as MainWindowProvider
     const { FileExtensionService } = await import("./file-extension.service")
-    const service = new FileExtensionService(registry, windowProvider)
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManagerStub()
+    )
     const extension = (await service.discover("space-a")).packages[0]
     await service.trust("space-a", {
       packageId: extension.canonicalId!,
@@ -340,7 +376,11 @@ describe("FileExtensionService", () => {
       getWindow: () => undefined,
     } as unknown as MainWindowProvider
     const { FileExtensionService } = await import("./file-extension.service")
-    const service = new FileExtensionService(registry, windowProvider)
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManagerStub()
+    )
 
     await expect(service.discover("space-a")).rejects.toThrow("symbolic link")
     await expect(service.startWatching("space-a")).resolves.toMatchObject({
@@ -369,8 +409,146 @@ describe("FileExtensionService", () => {
       getWindow: () => undefined,
     } as unknown as MainWindowProvider
     const { FileExtensionService } = await import("./file-extension.service")
-    const service = new FileExtensionService(registry, windowProvider)
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManagerStub()
+    )
 
     await expect(service.discover("space-a")).rejects.toThrow("symbolic link")
+  })
+
+  it("lists enabled commands and gates readText on the exact granted snapshot", async () => {
+    const root = await createFileSpace()
+    await writeFile(path.join(root, "tasks.md"), "- [ ] open\n- [x] complete\n")
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const send = vi.fn()
+    const windowProvider = {
+      getWindow: () => ({ webContents: { send } }),
+    } as unknown as MainWindowProvider
+    const runtimeManager = runtimeManagerStub()
+    let runtimeExecution: FileExtensionRuntimeExecution | undefined
+    vi.mocked(runtimeManager.execute).mockImplementation(async (execution) => {
+      runtimeExecution = execution
+    })
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManager
+    )
+    const extension = (await service.discover("space-a")).packages[0]!
+    const snapshot = {
+      packageId: extension.canonicalId!,
+      contentDigest: extension.contentDigest!,
+      permissionHash: extension.permissionHash!,
+    }
+    await service.trust("space-a", snapshot)
+    await service.setGrant("space-a", {
+      ...snapshot,
+      grant: { kind: "files.read", value: "**/*.md" },
+      granted: true,
+    })
+    await service.setEnabled("space-a", snapshot, true)
+
+    await expect(service.listCommands("space-a")).resolves.toMatchObject([
+      {
+        id: "example.task-counter.count",
+        title: "Count tasks",
+        packageId: "example.task-counter",
+      },
+    ])
+    await expect(
+      service.executeCommand("space-a", {
+        ...snapshot,
+        commandId: "example.task-counter.count",
+        resource: { path: "tasks.md" },
+      })
+    ).resolves.toEqual({ success: true })
+    expect(runtimeExecution?.descriptor.snapshot).toEqual(snapshot)
+    await expect(
+      runtimeExecution?.handleRpc({
+        type: "rpc",
+        requestId: "read-1",
+        method: "space.files.readText",
+        params: { path: "tasks.md" },
+      })
+    ).resolves.toContain("[x] complete")
+    await expect(
+      runtimeExecution?.handleRpc({
+        type: "rpc",
+        requestId: "notice-1",
+        method: "window.showNotice",
+        params: { message: "2 open, 1 completed" },
+      })
+    ).resolves.toBeUndefined()
+    expect(send).toHaveBeenCalledWith(
+      "file-extensions:semantic-ui",
+      expect.objectContaining({
+        kind: "notice",
+        spaceId: "space-a",
+        packageId: "example.task-counter",
+        message: "2 open, 1 completed",
+      })
+    )
+
+    const confirm = runtimeExecution?.handleRpc({
+      type: "rpc",
+      requestId: "confirm-1",
+      method: "window.confirm",
+      params: { title: "Continue?", message: "Count this file?" },
+    })
+    await vi.waitFor(() =>
+      expect(send).toHaveBeenCalledWith(
+        "file-extensions:semantic-ui",
+        expect.objectContaining({ kind: "confirm", title: "Continue?" })
+      )
+    )
+    const confirmRequest = send.mock.calls.find(
+      ([channel, payload]) =>
+        channel === "file-extensions:semantic-ui" && payload.kind === "confirm"
+    )?.[1]
+    expect(confirmRequest?.id).toEqual(expect.any(String))
+    expect(
+      service.resolveSemanticUi("space-a", {
+        requestId: confirmRequest.id,
+        value: true,
+      })
+    ).toEqual({ success: true })
+    await expect(confirm).resolves.toBe(true)
+    await expect(
+      runtimeExecution?.handleRpc({
+        type: "rpc",
+        requestId: "read-private",
+        method: "space.files.readText",
+        params: { path: ".eidos/state/extensions.sqlite3" },
+      })
+    ).rejects.toMatchObject({ code: "CAPABILITY_DENIED" })
+
+    await service.setGrant("space-a", {
+      ...snapshot,
+      grant: { kind: "files.read", value: "**/*.md" },
+      granted: false,
+    })
+    await expect(
+      runtimeExecution?.handleRpc({
+        type: "rpc",
+        requestId: "read-revoked",
+        method: "space.files.readText",
+        params: { path: "tasks.md" },
+      })
+    ).rejects.toMatchObject({ code: "CAPABILITY_DENIED" })
+    expect(runtimeManager.disposePackage).toHaveBeenCalledWith(
+      "space-a",
+      "example.task-counter",
+      "Extension permission grants changed"
+    )
   })
 })

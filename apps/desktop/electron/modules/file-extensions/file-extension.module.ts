@@ -1,10 +1,16 @@
 import { Module } from "../../common/di"
 import { SpaceManagementModule } from "../space-management/space-management.module"
 import { FileExtensionService } from "./file-extension.service"
+import { ElectronFileExtensionRuntimeTransportFactory } from "./runtime/electron-runtime-transport"
+import { FileExtensionRuntimeManager } from "./runtime/file-extension-runtime-manager"
 
 @Module({
   imports: [SpaceManagementModule],
-  providers: [FileExtensionService],
+  providers: [
+    ElectronFileExtensionRuntimeTransportFactory,
+    FileExtensionRuntimeManager,
+    FileExtensionService,
+  ],
   exports: [FileExtensionService],
 })
 export class FileExtensionModule {}

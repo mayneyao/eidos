@@ -3,6 +3,7 @@ import path from "path"
 import esmShim from "@rollup/plugin-esm-shim"
 import tailwindcss from "@tailwindcss/vite"
 import { defineConfig, mergeConfig, type Plugin, type UserConfig } from "vite"
+import electronRuntime from "vite-plugin-electron"
 import electron from "vite-plugin-electron/simple"
 
 import {
@@ -20,6 +21,8 @@ const externalNodeModules = [
   "canvas",
   "oxc-parser",
   "oxc-transform",
+  "rollup",
+  "minimatch",
   "@vscode/ripgrep",
   "node-pty",
   "@eidos.space/bashkit",
@@ -138,6 +141,33 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
             },
             commonjsOptions: {
               ignoreDynamicRequires: true,
+            },
+          },
+        },
+      },
+    }),
+    electronRuntime({
+      entry:
+        "electron/modules/file-extensions/runtime/file-extension-runtime.preload.ts",
+      onstart: ({ reload }) => reload(),
+      vite: {
+        resolve: {
+          alias: sharedAlias,
+        },
+        build: {
+          // Disable vite-plugin-electron's inferred ESM library build. Vite
+          // concatenates library format arrays during config merge, which
+          // would otherwise emit ESM and CJS to the same filename. Sandboxed
+          // Electron preloads require one deterministic CommonJS artifact.
+          lib: false,
+          rollupOptions: {
+            input:
+              "electron/modules/file-extensions/runtime/file-extension-runtime.preload.ts",
+            external: ["electron"],
+            output: {
+              format: "cjs",
+              inlineDynamicImports: true,
+              entryFileNames: "file-extension-runtime-preload.cjs",
             },
           },
         },
