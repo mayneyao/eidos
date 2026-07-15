@@ -2,6 +2,7 @@ import type {
   ExtensionLockV1,
   ExtensionCommandContribution,
   ExtensionDiagnostic,
+  ExtensionFileEditorContribution,
   ExtensionManifestV1,
   ExtensionMenuContribution,
   NormalizedExtensionPermissions,
@@ -20,6 +21,13 @@ import type {
   ExtensionPermissionGrant,
   ExtensionSnapshotIdentity,
 } from "@eidos.space/extension-state"
+import type {
+  ExtensionHostToSurfaceMessage,
+  ExtensionSurfaceCapabilities,
+  ExtensionSurfaceRequestFailure,
+  ExtensionSurfaceRequestSuccess,
+  ExtensionTextDocumentSnapshot,
+} from "@eidos.space/extension-surface-protocol"
 
 export interface FileExtensionPackageSummary {
   directoryName: string
@@ -124,6 +132,49 @@ export interface FileExtensionCommandRequest extends ExtensionSnapshotIdentity {
   resource: {
     path: string
   }
+}
+
+export interface FileExtensionEditorSummary
+  extends ExtensionSnapshotIdentity, ExtensionFileEditorContribution {
+  packageId: string
+  extensionDisplayName: string
+  editable: boolean
+}
+
+export interface FileExtensionOpenEditorRequest extends ExtensionSnapshotIdentity {
+  editorId: string
+  path: string
+}
+
+export interface FileExtensionOpenEditorResult {
+  sessionId: string
+  viewId: string
+  packageId: string
+  editorId: string
+  generation: string
+  source: string
+  snapshot: ExtensionTextDocumentSnapshot
+  capabilities: ExtensionSurfaceCapabilities
+}
+
+export interface FileExtensionSurfaceMessageEvent {
+  spaceId: string
+  sessionId: string
+  viewId: string
+  message: ExtensionHostToSurfaceMessage
+}
+
+export type FileExtensionSurfaceRequestResult =
+  | ExtensionSurfaceRequestSuccess
+  | ExtensionSurfaceRequestFailure
+
+export interface FileExtensionEditorSessionRequest {
+  sessionId: string
+  viewId: string
+}
+
+export interface FileExtensionResolveConflictRequest extends FileExtensionEditorSessionRequest {
+  resolution: "reload" | "overwrite"
 }
 
 export interface FileExtensionSemanticNotice {
