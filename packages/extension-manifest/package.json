@@ -39,6 +39,19 @@
   ],
   "author": "mayneyao",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mayneyao/eidos.git",
+    "directory": "packages/extension-manifest"
+  },
+  "homepage": "https://github.com/mayneyao/eidos/tree/main/packages/extension-manifest#readme",
+  "bugs": {
+    "url": "https://github.com/mayneyao/eidos/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "dependencies": {
     "ajv": "^8.20.0",
     "jsonc-parser": "^3.3.1",

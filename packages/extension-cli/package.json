@@ -34,9 +34,23 @@
     "cli",
     "scaffold"
   ],
+  "author": "mayneyao",
   "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mayneyao/eidos.git",
+    "directory": "packages/extension-cli"
+  },
+  "homepage": "https://github.com/mayneyao/eidos/tree/main/packages/extension-cli#readme",
+  "bugs": {
+    "url": "https://github.com/mayneyao/eidos/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
     "@eidos.space/extension-manifest": "workspace:*",

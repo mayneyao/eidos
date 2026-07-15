@@ -27,7 +27,21 @@
     "extension",
     "sdk"
   ],
+  "author": "mayneyao",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mayneyao/eidos.git",
+    "directory": "packages/extension-sdk"
+  },
+  "homepage": "https://github.com/mayneyao/eidos/tree/main/packages/extension-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/mayneyao/eidos/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "dependencies": {
     "@eidos.space/extension-surface-protocol": "workspace:*"
   },

@@ -31,7 +31,21 @@
     "document",
     "protocol"
   ],
+  "author": "mayneyao",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mayneyao/eidos.git",
+    "directory": "packages/extension-surface-protocol"
+  },
+  "homepage": "https://github.com/mayneyao/eidos/tree/main/packages/extension-surface-protocol#readme",
+  "bugs": {
+    "url": "https://github.com/mayneyao/eidos/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "devDependencies": {
     "@types/node": "^20.19.1",
     "tsdown": "^0.21.7",

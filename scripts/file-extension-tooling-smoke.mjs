@@ -12,6 +12,9 @@ const workspaceRoot = path.resolve(
   ".."
 )
 const pnpmCli = process.env.npm_execpath
+const repositoryUrl = "git+https://github.com/mayneyao/eidos.git"
+const issuesUrl = "https://github.com/mayneyao/eidos/issues"
+const registryUrl = "https://registry.npmjs.org/"
 
 if (!pnpmCli) {
   throw new Error(
@@ -176,6 +179,17 @@ try {
     )
     assert.equal(installedManifest.name, packageInfo.name)
     assert.equal(installedManifest.version, packageInfo.version)
+    assert.equal(installedManifest.author, "mayneyao")
+    assert.deepEqual(installedManifest.repository, {
+      type: "git",
+      url: repositoryUrl,
+      directory: `packages/${packageInfo.directory}`,
+    })
+    assert.equal(installedManifest.bugs?.url, issuesUrl)
+    assert.deepEqual(installedManifest.publishConfig, {
+      access: "public",
+      registry: registryUrl,
+    })
     assert.equal(
       JSON.stringify(installedManifest).includes("workspace:"),
       false,
@@ -209,6 +223,19 @@ try {
     "utf8"
   )
   assert.match(cliLicense, /^ISC License/u)
+  const installedCliManifest = JSON.parse(
+    await readFile(
+      path.join(
+        consumerRoot,
+        "node_modules",
+        "@eidos.space",
+        "extension-cli",
+        "package.json"
+      ),
+      "utf8"
+    )
+  )
+  assert.equal(installedCliManifest.engines?.node, ">=18.0.0")
 
   assert.equal(
     await pnpm(["exec", "eidos-extension", "--version"], {
