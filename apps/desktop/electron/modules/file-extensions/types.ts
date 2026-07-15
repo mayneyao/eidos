@@ -107,6 +107,15 @@ export interface FileExtensionTemplateResult {
   files: string[]
 }
 
+export type FileExtensionTemplateKind = "command" | "text-editor"
+
+export interface FileExtensionTemplateRequest {
+  name: string
+  template: FileExtensionTemplateKind
+  filenamePattern?: string
+  mediaType?: string
+}
+
 export interface FileExtensionGitHubInstallRequest {
   repository: string
   requested?: string

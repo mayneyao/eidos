@@ -289,7 +289,7 @@ describe("FileExtensionSettings", () => {
     expect(discoverMock).toHaveBeenCalledTimes(2)
   })
 
-  it("creates a real local template through the inline form", async () => {
+  it("creates a text-editor template through the inline starter selector", async () => {
     await act(async () => {
       root.render(<FileExtensionSettings />)
       await Promise.resolve()
@@ -299,6 +299,18 @@ describe("FileExtensionSettings", () => {
       (button) => button.textContent?.trim() === "New extension"
     )!
     act(() => newExtension.click())
+
+    const templateOptions = [
+      ...container.querySelectorAll<HTMLInputElement>(
+        'input[name="local-extension-template"]'
+      ),
+    ]
+    expect(
+      templateOptions.map((option) => option.parentElement?.textContent?.trim())
+    ).toEqual(["Command", "Text editor"])
+    expect(templateOptions[0]?.checked).toBe(true)
+    act(() => templateOptions[1]!.click())
+    expect(templateOptions[1]?.checked).toBe(true)
 
     const input = container.querySelector<HTMLInputElement>(
       "#local-extension-name"
@@ -311,6 +323,13 @@ describe("FileExtensionSettings", () => {
       valueSetter.call(input, "hello-tools")
       input.dispatchEvent(new Event("input", { bubbles: true }))
     })
+    const pattern = container.querySelector<HTMLInputElement>(
+      "#local-extension-pattern"
+    )!
+    act(() => {
+      valueSetter.call(pattern, "**/*.tasks.md")
+      pattern.dispatchEvent(new Event("input", { bubbles: true }))
+    })
 
     const create = [...container.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "Create"
@@ -321,7 +340,12 @@ describe("FileExtensionSettings", () => {
       await Promise.resolve()
     })
 
-    expect(createTemplateMock).toHaveBeenCalledWith("file-space", "hello-tools")
+    expect(createTemplateMock).toHaveBeenCalledWith("file-space", {
+      name: "hello-tools",
+      template: "text-editor",
+      filenamePattern: "**/*.tasks.md",
+      mediaType: "text/markdown",
+    })
     expect(container.textContent).toContain(
       "Created .eidos/extensions/local.hello-tools"
     )

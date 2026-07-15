@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Code2,
   Download,
+  FilePenLine,
   FolderCog,
   Github,
   LoaderCircle,
@@ -36,6 +37,9 @@ type FileExtensionGrant = FileExtensionPackage["requestedGrants"][number]
 type FileExtensionInstallPreview = Awaited<
   ReturnType<typeof window.eidos.fileExtensions.prepareGitHubInstall>
 >
+type LocalExtensionTemplateKind = "command" | "text-editor"
+
+const DEFAULT_TEXT_EDITOR_PATTERN = "**/*.notes.md"
 
 function snapshotFor(extension: FileExtensionPackage) {
   if (
@@ -75,6 +79,11 @@ export function FileExtensionSettings() {
   const [error, setError] = useState<string | null>(null)
   const [showCreator, setShowCreator] = useState(false)
   const [templateName, setTemplateName] = useState("")
+  const [templateKind, setTemplateKind] =
+    useState<LocalExtensionTemplateKind>("command")
+  const [templatePattern, setTemplatePattern] = useState(
+    DEFAULT_TEXT_EDITOR_PATTERN
+  )
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createdPath, setCreatedPath] = useState<string | null>(null)
@@ -147,17 +156,23 @@ export function FileExtensionSettings() {
   const createTemplate = useCallback(async () => {
     if (!spaceId || creating) return
     const name = templateName.trim()
-    if (!name) return
+    const filenamePattern = templatePattern.trim()
+    if (!name || (templateKind === "text-editor" && !filenamePattern)) return
     setCreating(true)
     setCreateError(null)
     setCreatedPath(null)
     try {
-      const result = await window.eidos.fileExtensions.createTemplate(
-        spaceId,
-        name
-      )
+      const result = await window.eidos.fileExtensions.createTemplate(spaceId, {
+        name,
+        template: templateKind,
+        filenamePattern:
+          templateKind === "text-editor" ? filenamePattern : undefined,
+        mediaType: templateKind === "text-editor" ? "text/markdown" : undefined,
+      })
       setCreatedPath(result.root)
       setTemplateName("")
+      setTemplateKind("command")
+      setTemplatePattern(DEFAULT_TEXT_EDITOR_PATTERN)
       setShowCreator(false)
       await load()
     } catch (createTemplateError) {
@@ -172,7 +187,7 @@ export function FileExtensionSettings() {
     } finally {
       setCreating(false)
     }
-  }, [creating, load, spaceId, t, templateName])
+  }, [creating, load, spaceId, t, templateKind, templateName, templatePattern])
 
   const mutatePackage = useCallback(
     async (extension: FileExtensionPackage, mutate: () => Promise<unknown>) => {
@@ -774,9 +789,97 @@ export function FileExtensionSettings() {
             </div>
           )}
           {showCreator && (
-            <div className="py-4">
-              <div className="flex items-end gap-3">
-                <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="space-y-4 py-4">
+              <fieldset className="space-y-2" disabled={creating}>
+                <legend className="text-sm font-medium">
+                  {t("space.settings.fileExtensions.templateType", "Starter")}
+                </legend>
+                <div
+                  aria-describedby="local-extension-template-description"
+                  className="inline-flex rounded-md bg-muted p-0.5"
+                >
+                  <label
+                    className={cn(
+                      "inline-flex h-8 items-center gap-2 rounded-[5px] px-3 text-sm transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-ring",
+                      creating
+                        ? "cursor-not-allowed opacity-60"
+                        : "cursor-pointer",
+                      templateKind === "command"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="local-extension-template"
+                      value="command"
+                      className="sr-only"
+                      checked={templateKind === "command"}
+                      onChange={() => {
+                        setTemplateKind("command")
+                        setCreateError(null)
+                      }}
+                    />
+                    <Code2 className="h-4 w-4" />
+                    {t(
+                      "space.settings.fileExtensions.commandTemplate",
+                      "Command"
+                    )}
+                  </label>
+                  <label
+                    className={cn(
+                      "inline-flex h-8 items-center gap-2 rounded-[5px] px-3 text-sm transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-ring",
+                      creating
+                        ? "cursor-not-allowed opacity-60"
+                        : "cursor-pointer",
+                      templateKind === "text-editor"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="local-extension-template"
+                      value="text-editor"
+                      className="sr-only"
+                      checked={templateKind === "text-editor"}
+                      onChange={() => {
+                        setTemplateKind("text-editor")
+                        setCreateError(null)
+                      }}
+                    />
+                    <FilePenLine className="h-4 w-4" />
+                    {t(
+                      "space.settings.fileExtensions.textEditorTemplate",
+                      "Text editor"
+                    )}
+                  </label>
+                </div>
+                <p
+                  id="local-extension-template-description"
+                  className="text-xs text-muted-foreground"
+                >
+                  {templateKind === "command"
+                    ? t(
+                        "space.settings.fileExtensions.commandTemplateDescription",
+                        "Adds an action to the command palette and contextual menus."
+                      )
+                    : t(
+                        "space.settings.fileExtensions.textEditorTemplateDescription",
+                        "Adds a sandboxed editor for matching text files."
+                      )}
+                </p>
+              </fieldset>
+
+              <div
+                className={cn(
+                  "grid gap-3 sm:items-end",
+                  templateKind === "text-editor"
+                    ? "sm:grid-cols-[minmax(12rem,1fr)_minmax(12rem,1fr)_auto]"
+                    : "sm:grid-cols-[minmax(12rem,1fr)_auto]"
+                )}
+              >
+                <div className="min-w-0 space-y-1.5">
                   <Label htmlFor="local-extension-name">
                     {t(
                       "space.settings.fileExtensions.extensionId",
@@ -805,6 +908,9 @@ export function FileExtensionSettings() {
                         }
                         if (event.key === "Escape") {
                           setShowCreator(false)
+                          setTemplateName("")
+                          setTemplateKind("command")
+                          setTemplatePattern(DEFAULT_TEXT_EDITOR_PATTERN)
                           setCreateError(null)
                         }
                       }}
@@ -817,30 +923,75 @@ export function FileExtensionSettings() {
                     )}
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={!templateName.trim() || creating}
-                  onClick={() => void createTemplate()}
-                >
-                  {creating && <LoaderCircle className="animate-spin" />}
-                  {t("space.settings.fileExtensions.create", "Create")}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  disabled={creating}
-                  onClick={() => {
-                    setShowCreator(false)
-                    setCreateError(null)
-                  }}
-                >
-                  {t("space.settings.fileExtensions.cancel", "Cancel")}
-                </Button>
+
+                {templateKind === "text-editor" && (
+                  <div className="min-w-0 space-y-1.5">
+                    <Label htmlFor="local-extension-pattern">
+                      {t(
+                        "space.settings.fileExtensions.filePattern",
+                        "File pattern"
+                      )}
+                    </Label>
+                    <Input
+                      id="local-extension-pattern"
+                      value={templatePattern}
+                      spellCheck={false}
+                      placeholder="**/*.notes.md"
+                      disabled={creating}
+                      onChange={(event) => {
+                        setTemplatePattern(event.target.value)
+                        setCreateError(null)
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault()
+                          void createTemplate()
+                        }
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t(
+                        "space.settings.fileExtensions.filePatternDescription",
+                        "Only matching text files can be opened and edited."
+                      )}
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={
+                      !templateName.trim() ||
+                      (templateKind === "text-editor" &&
+                        !templatePattern.trim()) ||
+                      creating
+                    }
+                    onClick={() => void createTemplate()}
+                  >
+                    {creating && <LoaderCircle className="animate-spin" />}
+                    {t("space.settings.fileExtensions.create", "Create")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={creating}
+                    onClick={() => {
+                      setShowCreator(false)
+                      setTemplateName("")
+                      setTemplateKind("command")
+                      setTemplatePattern(DEFAULT_TEXT_EDITOR_PATTERN)
+                      setCreateError(null)
+                    }}
+                  >
+                    {t("space.settings.fileExtensions.cancel", "Cancel")}
+                  </Button>
+                </div>
               </div>
               {createError && (
-                <p className="mt-2 text-sm text-destructive">{createError}</p>
+                <p className="text-sm text-destructive">{createError}</p>
               )}
             </div>
           )}

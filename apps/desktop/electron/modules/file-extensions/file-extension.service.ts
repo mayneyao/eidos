@@ -10,6 +10,7 @@ import {
 import {
   canonicalExtensionPackagePath,
   createExtensionCommandTemplate,
+  createExtensionTextEditorTemplate,
   isIgnoredExtensionPackagePath,
   type ExtensionFileEditorSelector,
   type ExtensionPackageInspection,
@@ -79,6 +80,7 @@ import type {
   FileExtensionSurfaceRequestResult,
   FileExtensionSemanticUiRequest,
   FileExtensionSemanticUiResponse,
+  FileExtensionTemplateRequest,
   FileExtensionTemplateResult,
   FileExtensionUninstallRequest,
   FileExtensionWatchResult,
@@ -707,16 +709,24 @@ export class FileExtensionService extends IpcServiceBase {
   @IpcMethod()
   async createTemplate(
     spaceId: string,
-    name: string
+    request: FileExtensionTemplateRequest
   ): Promise<FileExtensionTemplateResult> {
     const space = this.getFileSpace(spaceId)
-    const packageName = this.normalizeLocalExtensionName(name)
+    const normalized = this.normalizeLocalTemplateRequest(request)
     const result = await withFileSpaceOperationLock(spaceId, async () => {
-      const template = createExtensionCommandTemplate({
+      const common = {
         publisher: "local",
-        name: packageName,
+        name: normalized.name,
         engineRange: `>=${app.getVersion()}`,
-      })
+      }
+      const template =
+        normalized.template === "text-editor"
+          ? createExtensionTextEditorTemplate({
+              ...common,
+              filenamePattern: normalized.filenamePattern,
+              mediaType: normalized.mediaType,
+            })
+          : createExtensionCommandTemplate(common)
       return writeExtensionTemplate(space.path, template)
     })
     await this.startWatching(spaceId)
@@ -897,6 +907,49 @@ export class FileExtensionService extends IpcServiceBase {
       )
     }
     return name
+  }
+
+  private normalizeLocalTemplateRequest(
+    value: unknown
+  ): FileExtensionTemplateRequest {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("Extension template request must be an object")
+    }
+    const request = value as Record<string, unknown>
+    if (request.template !== "command" && request.template !== "text-editor") {
+      throw new Error("Extension template must be command or text-editor")
+    }
+    return {
+      name: this.normalizeLocalExtensionName(request.name),
+      template: request.template,
+      filenamePattern: this.normalizeOptionalTemplateValue(
+        request.filenamePattern,
+        "File pattern",
+        512
+      ),
+      mediaType: this.normalizeOptionalTemplateValue(
+        request.mediaType,
+        "Media type",
+        128
+      ),
+    }
+  }
+
+  private normalizeOptionalTemplateValue(
+    value: unknown,
+    label: string,
+    maxLength: number
+  ): string | undefined {
+    if (value === undefined) return undefined
+    if (typeof value !== "string") {
+      throw new Error(`${label} must be a string`)
+    }
+    const normalized = value.trim()
+    if (!normalized) return undefined
+    if (normalized.length > maxLength) {
+      throw new Error(`${label} must be at most ${maxLength} characters`)
+    }
+    return normalized
   }
 
   private async discoverUnlocked(

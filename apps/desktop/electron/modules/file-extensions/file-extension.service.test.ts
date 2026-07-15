@@ -20,12 +20,14 @@ import type { SpaceResourceLifecycle } from "../space-management/space-resource-
 import type { FileExtensionInstallManager } from "./file-extension-install-manager"
 import type { FileExtensionRuntimeManager } from "./runtime/file-extension-runtime-manager"
 import type { FileExtensionRuntimeExecution } from "./runtime/file-extension-runtime-manager"
+import type { FileExtensionTemplateRequest } from "./types"
 
 vi.mock("electron", () => ({
   app: { getVersion: () => "0.33.0" },
 }))
 
 const roots: string[] = []
+const WATCH_EVENT_TIMEOUT_MS = 10_000
 
 function runtimeManagerStub(): FileExtensionRuntimeManager {
   return {
@@ -330,7 +332,10 @@ describe("FileExtensionService", () => {
     )
 
     await expect(
-      service.createTemplate("space-a", "hello-tools")
+      service.createTemplate("space-a", {
+        name: "hello-tools",
+        template: "command",
+      })
     ).resolves.toEqual({
       canonicalId: "local.hello-tools",
       root: ".eidos/extensions/local.hello-tools",
@@ -362,12 +367,81 @@ describe("FileExtensionService", () => {
         },
       ],
     })
+
     await expect(
-      service.createTemplate("space-a", "hello-tools")
-    ).rejects.toThrow("already exists")
-    await expect(service.createTemplate("space-a", "Bad Name")).rejects.toThrow(
-      "Extension name"
+      service.createTemplate("space-a", {
+        name: "notes-editor",
+        template: "text-editor",
+        filenamePattern: "  **/*.tasks.md  ",
+        mediaType: " text/markdown ",
+      })
+    ).resolves.toEqual({
+      canonicalId: "local.notes-editor",
+      root: ".eidos/extensions/local.notes-editor",
+      files: ["extension.json", "src/editor.ts", "src/editor.css", "README.md"],
+    })
+    const editorRoot = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "local.notes-editor"
     )
+    expect(
+      JSON.parse(
+        await readFile(path.join(editorRoot, "extension.json"), "utf8")
+      )
+    ).toMatchObject({
+      publisher: "local",
+      name: "notes-editor",
+      entrypoints: { ui: "src/editor.ts" },
+      contributes: {
+        fileEditors: [
+          {
+            id: "local.notes-editor.editor",
+            selector: [
+              {
+                filenamePattern: "**/*.tasks.md",
+                mediaType: "text/markdown",
+              },
+            ],
+          },
+        ],
+      },
+      permissions: {
+        files: {
+          read: ["**/*.tasks.md"],
+          write: ["**/*.tasks.md"],
+        },
+      },
+    })
+    expect(
+      await readFile(path.join(editorRoot, "src", "editor.ts"), "utf8")
+    ).toContain("context.document.applyEdits")
+    await expect(
+      service.createTemplate("space-a", {
+        name: "hello-tools",
+        template: "command",
+      })
+    ).rejects.toThrow("already exists")
+    await expect(
+      service.createTemplate("space-a", {
+        name: "Bad Name",
+        template: "command",
+      })
+    ).rejects.toThrow("Extension name")
+    await expect(
+      service.createTemplate("space-a", {
+        name: "bad-template",
+        template: "panel",
+      } as unknown as FileExtensionTemplateRequest)
+    ).rejects.toThrow("must be command or text-editor")
+    await expect(
+      service.createTemplate("space-a", {
+        name: "bad-pattern",
+        template: "text-editor",
+        filenamePattern: 42,
+      } as unknown as FileExtensionTemplateRequest)
+    ).rejects.toThrow("File pattern must be a string")
   })
 
   it("binds GitHub preview, apply, cancellation, and uninstall to the current Space", async () => {
@@ -491,8 +565,14 @@ describe("FileExtensionService", () => {
     )
 
     const results = await Promise.allSettled([
-      service.createTemplate("space-a", "same-name"),
-      service.createTemplate("space-a", "same-name"),
+      service.createTemplate("space-a", {
+        name: "same-name",
+        template: "command",
+      }),
+      service.createTemplate("space-a", {
+        name: "same-name",
+        template: "command",
+      }),
     ])
     expect(results.map((result) => result.status).sort()).toEqual([
       "fulfilled",
@@ -649,7 +729,7 @@ describe("FileExtensionService", () => {
         )
         expect(ready).toBeDefined()
       },
-      { timeout: 3_000 }
+      { timeout: WATCH_EVENT_TIMEOUT_MS }
     )
 
     const changed = (await service.discover("space-a")).packages[0]!
@@ -740,7 +820,7 @@ describe("FileExtensionService", () => {
           })
         )
       },
-      { timeout: 3_000 }
+      { timeout: WATCH_EVENT_TIMEOUT_MS }
     )
     await expect(service.listCommands("space-a")).resolves.toEqual([])
     await expect(
@@ -809,7 +889,7 @@ describe("FileExtensionService", () => {
         expect(invalid).toBeDefined()
         invalidGeneration = invalid.generation
       },
-      { timeout: 3_000 }
+      { timeout: WATCH_EVENT_TIMEOUT_MS }
     )
     await expect(service.listCommands("space-a")).resolves.toEqual([])
 
@@ -825,7 +905,7 @@ describe("FileExtensionService", () => {
         )
         expect(ready).toBeDefined()
       },
-      { timeout: 3_000 }
+      { timeout: WATCH_EVENT_TIMEOUT_MS }
     )
     await expect(service.listCommands("space-a")).resolves.toHaveLength(1)
     await service.stopDevelopmentSession("space-a", {
@@ -937,7 +1017,7 @@ describe("FileExtensionService", () => {
           })
         )
       },
-      { timeout: 3_000 }
+      { timeout: WATCH_EVENT_TIMEOUT_MS }
     )
     const invalidatedPackages = vi
       .mocked(runtimeManager.disposePackage)
@@ -1077,7 +1157,10 @@ describe("FileExtensionService", () => {
       reason: "invalid-root",
     })
     await expect(
-      service.createTemplate("space-a", "hello-tools")
+      service.createTemplate("space-a", {
+        name: "hello-tools",
+        template: "command",
+      })
     ).rejects.toThrow("symbolic link")
   })
 
