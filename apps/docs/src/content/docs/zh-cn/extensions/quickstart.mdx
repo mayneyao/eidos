@@ -226,19 +226,24 @@ content digest 和 permission hash 为键。修改任何 package 文件都会形
 自己的 UI 渲染；confirm 和 select 也使用相同的宿主语义 UI 边界。撤销信任、停用 package、移除
 grant 或修改任意源码文件，都会终止活动 runtime，并使旧快照失效。
 
-### 未来的 GitHub 安装
+### 从 GitHub 安装示例
 
-目标 runtime 的操作流程是：
+Desktop 开发者预览已经支持 GitHub 安装。安装器要求 extension 位于 repository root，而仓库内示例
+位于 Eidos monorepo 的子目录。发布这个示例时，请新建独立 repository，把
+`apps/docs/examples/markdown-task-counter` 的内容放到仓库根目录，然后推送 `v0.1.0` 这样的 tag。
+
+安装发布后的 package：
 
 1. 打开 **Settings → Extensions**。
-2. 开发阶段选择 **Install from local folder**；发布后也可以粘贴 GitHub repository URL。
-3. 审查 resolved source、package ID、changed files 和请求的权限：
+2. 点击 **Install from GitHub**，粘贴公开 repository URL，并填写 release tag。
+3. 点击 **Prepare review**，然后审查 resolved commit、package ID、changed files 和请求的权限：
    **Read Markdown files in this Space**。
-4. 选择 **Install**。Eidos 把 immutable source snapshot 复制到
+4. 点击 **Install reviewed source**。Eidos 把 immutable source snapshot 复制到
    `.eidos/extensions/example.markdown-task-counter/`。
 5. 审阅 trust、grants 和 enablement。仅仅安装 package 永远不会执行它。
 
-GitHub 安装目前还不可用。这里把操作写完整，是为了让 installer 和 acceptance test 有明确目标。
+当前预览只支持公开 repository。Eidos 不会运行 `npm install` 或 repository script；发布者仓库也不能
+包含由宿主管理的 `extension.lock.json`。
 
 ## 第六步：实际使用
 

@@ -24,6 +24,24 @@ LICENSE
 Version 1 package 使用 relative module 或可审查的 vendored source。Eidos 不安装任意 npm
 dependency，也永远不会执行 install script 或 package-manager lifecycle hook。
 
+当前开发者预览**只支持公开 GitHub repository**。Package 必须位于 repository root；暂不解析
+monorepo subdirectory、private repository、GitHub token、Git submodule 或 Git LFS object。
+发布者不能提交 `extension.lock.json`：安装快照时由 Eidos 创建并管理这个文件。
+
+## 在 Desktop 中安装
+
+1. 打开一个 file Space，进入 **Settings → Space → Extensions**；
+2. 点击 **Install from GitHub**；
+3. 输入 `owner/repository` 或完整 GitHub URL；也可以填写 branch、tag 或完整 commit，留空代表 `HEAD`；
+4. 点击 **Prepare review**。Eidos 会把 ref 解析成 40 位 commit，在有资源上限的私有 staging 中下载，
+   并验证完整文件树；
+5. 审阅 immutable commit、changed files 和每项 permission change；
+6. 点击 **Install reviewed source**；
+7. 展开新安装的 package，分别信任精确源码、授权必要 capability，再启用它。
+
+安装不会自动 activation。成功安装后 package 仍是 disabled 和 untrusted，所以仅仅粘贴 repository URL
+永远不会执行下载的代码。
+
 ## 安装流程
 
 ```text
@@ -73,10 +91,16 @@ Space-wide extension lock。
 首个版本只提供手动更新。Eidos 会解析新源码、展示 source diff 和 permission diff，并且拒绝静默
 覆盖用户在本地修改的扩展文件。新 digest 得到 trust 后才能激活。
 
+在已安装的 GitHub package 上点击 **Check update**，可以重新解析 lock file 记录的 branch、tag 或
+commit。应用审阅过的更新时会原子替换 package。如果任意 installed source 与 lock baseline 不同，
+更新按钮会被禁用；请先提交或另存本地修改，不要依赖 Eidos 自动 merge。
+
 ## 卸载
 
 卸载会停止 active runtime，并且把 installed source 作为普通的、Graft 可见的删除处理。Build cache
 异步清理；local setting 和 secret reference 进入可恢复的 grace period，需要另一个明确操作才能永久删除。
+
+Invalid package 也可以直接从诊断行移除。移除使用内联二次确认，不要求先运行或修复无效代码。
 
 ## 未来的社区目录
 

@@ -239,22 +239,30 @@ The same boundary provides host-owned confirm and select controls. Revoke trust,
 disable the package, remove the grant, or edit any source file to terminate the
 active runtime and invalidate the old snapshot.
 
-### Future GitHub installation
+### Install the example from GitHub
 
-The target runtime flow is:
+GitHub installation is available as a Desktop developer preview. The installer
+expects the extension at the repository root, while the checked-in example is a
+subdirectory of the Eidos monorepo. To publish this example, create a separate
+repository whose root is the contents of
+`apps/docs/examples/markdown-task-counter`, then push a tag such as `v0.1.0`.
+
+To install that published package:
 
 1. Open **Settings → Extensions**.
-2. Select **Install from local folder** during development, or paste the GitHub
-   repository URL for a published package.
-3. Review the resolved source, package ID, changed files, and requested
+2. Select **Install from GitHub**, paste the public repository URL, and enter
+   the release tag.
+3. Select **Prepare review**, then review the resolved commit, package ID,
+   changed files, and requested
    permission: **Read Markdown files in this Space**.
-4. Select **Install**. Eidos copies an immutable source snapshot into
+4. Select **Install reviewed source**. Eidos copies an immutable source snapshot into
    `.eidos/extensions/example.markdown-task-counter/`.
 5. Review trust, grants, and enablement. Installation alone never runs the
    package.
 
-GitHub installation is not available yet. It is described here so its installer
-and acceptance tests have a concrete target.
+The preview supports public repositories only. Eidos does not run `npm install`
+or repository scripts, and the publisher repository must not contain the
+host-managed `extension.lock.json`.
 
 ## Step 6: Use the extension
 

@@ -26,6 +26,29 @@ Version 1 packages use relative modules or vendored reviewable source. Eidos
 does not install arbitrary npm dependencies and never runs install scripts or
 package-manager lifecycle hooks.
 
+The current developer preview accepts **public GitHub repositories only**. The
+package must be at the repository root; monorepo subdirectories, private
+repositories, GitHub tokens, Git submodules, and Git LFS objects are not
+resolved. Publishers must not commit `extension.lock.json`: Eidos creates and
+owns that file when it installs the snapshot.
+
+## Install in Desktop
+
+1. Open a file Space and go to **Settings → Space → Extensions**.
+2. Select **Install from GitHub**.
+3. Enter `owner/repository` or its GitHub URL. Optionally enter a branch, tag,
+   or full commit; an empty ref means `HEAD`.
+4. Select **Prepare review**. Eidos resolves the ref to a 40-character commit,
+   downloads it into private bounded staging, and validates the complete tree.
+5. Review the immutable commit, changed files, and every permission change.
+6. Select **Install reviewed source**.
+7. Expand the newly installed package, trust that exact source, grant only the
+   capabilities it needs, and enable it.
+
+Installation is intentionally not activation. A successful install leaves the
+package disabled and untrusted, so merely pasting a repository URL never runs
+downloaded code.
+
 ## Installation flow
 
 ```text
@@ -79,12 +102,21 @@ Updates are manual in the first release. Eidos resolves the new source, shows
 source and permission differences, and refuses to overwrite locally modified
 extension files silently. The new digest requires trust before it can activate.
 
+Select **Check update** on an installed GitHub package to resolve its recorded
+branch, tag, or commit again. Applying the reviewed update atomically replaces
+the package. If any installed source file differs from the lock-file baseline,
+the update button is disabled; commit or copy those edits elsewhere instead of
+expecting Eidos to merge them.
+
 ## Uninstall
 
 Uninstall stops active runtimes and removes installed source as a normal Graft-
 visible deletion. Build caches are cleaned asynchronously. Local settings and
 secret references enter a recovery grace period and require a separate action
 to remove permanently.
+
+Invalid packages can also be removed from their diagnostic row. Removal uses
+an inline confirmation rather than running or repairing invalid code first.
 
 ## Future community directory
 

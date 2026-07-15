@@ -1,6 +1,6 @@
 # RFC: File-Based Extensions for Eidos Spaces
 
-Status: Draft, v1 contract frozen; P2b developer preview implemented
+Status: Draft, v1 contract frozen; P2b and P4 developer previews implemented
 Date: 2026-07-09
 Last updated: 2026-07-15
 Owner: Eidos
@@ -13,8 +13,9 @@ Related:
 
 ## Implementation Status (2026-07-15)
 
-The storage, manifest, trust, delivery, and minimal Worker boundaries in this
-RFC are frozen through P2b. The development tree now implements strict
+The storage, manifest, trust, delivery, minimal Worker, and GitHub snapshot
+installation boundaries in this RFC are frozen through P2b and P4. The
+development tree now implements strict
 package inspection, bounded change watching, symlink-safe host discovery,
 Extension Manager diagnostics, and inline creation of real local package files.
 Structurally valid packages are shown as `Untrusted`, not `Ready`; disabled and
@@ -34,8 +35,17 @@ digest, permission hash, trust, enablement, and exact grant. Source or local
 state changes terminate the active runtime; activation/invocation timeouts,
 renderer crashes, stale generations, undeclared commands, and private paths fail
 closed. The Markdown Task Counter is wired into the command palette and
-file-context menu. GitHub installation, network/write capabilities, and custom iframe
-document surfaces remain future phases.
+file-context menu.
+
+The P4 developer preview accepts a public GitHub repository and optional ref,
+resolves it to an immutable commit, downloads a bounded archive into private
+same-filesystem staging, rejects unsafe entries and invalid packages, and shows
+source and permission changes before an atomic install. Eidos owns the tracked
+per-package `extension.lock.json`. Updates are manual, never overwrite locally
+modified source, and return the new snapshot to disabled and untrusted. Invalid
+packages remain removable. Private repositories, monorepo subdirectories,
+automatic updates, network/write capabilities, and custom iframe document
+surfaces remain future phases.
 
 Existing bundled and database-backed extensions remain compatibility paths.
 
@@ -631,3 +641,9 @@ configuration, or reopens mutable package files.
   lock file.
 - Keep updates manual in the first release and never overwrite locally modified
   source silently.
+
+Implemented in the current developer preview for public, repository-root
+packages. Preview sessions are short-lived and Space-bound; the renderer sees
+only sanitized metadata and reviewed digests, never staging paths or archive
+bytes. Install and update revalidate under the Space operation lock. Packages
+remain disabled and untrusted until separately approved.

@@ -1,6 +1,6 @@
 # RFC：Eidos Space 的文件化扩展机制
 
-状态：草案，v1 契约已冻结；P2b 开发者预览已实现
+状态：草案，v1 契约已冻结；P2b 与 P4 开发者预览已实现
 日期：2026-07-09
 最后更新：2026-07-15
 负责人：Eidos
@@ -13,7 +13,8 @@
 
 ## 实施状态（2026-07-15）
 
-本 RFC 的存储、Manifest、trust、交付和最小 Worker 边界已经冻结到 P2b。
+本 RFC 的存储、Manifest、trust、交付、最小 Worker 与 GitHub snapshot 安装边界已经冻结到
+P2b 和 P4。
 当前开发分支已经实现严格 package inspection、有资源上限的变更监听、拒绝符号链接逃逸的宿主发现、
 Extension Manager 诊断，以及通过内联交互创建真实本地扩展源码。结构合法的扩展显示为“未信任”，
 而不是“就绪”；P2a 本地状态切片现在已经让“已停用”和“已启用”状态可达。Trust、enablement 和逐项
@@ -26,8 +27,14 @@ P2b 开发者预览使用固定 Rollup/Oxc compiler 编译检查时得到的精�
 command/menu、有大小上限的只读文本访问，以及宿主渲染的 notice、confirm、select UI。每次 capability
 调用都会重新校验 source digest、permission hash、trust、enablement 和精确 grant。源码或本地状态
 变化会终止活动 runtime；activation/invocation timeout、renderer crash、旧 generation、未声明 command
-和私有路径都会默认失败。Markdown Task Counter 已接入命令面板与文件右键菜单。GitHub 安装、network/
-write capability 和自定义 iframe 文档 surface 仍属于后续阶段。
+和私有路径都会默认失败。Markdown Task Counter 已接入命令面板与文件右键菜单。
+
+P4 开发者预览可以接收公开 GitHub repository 与可选 ref，把它解析为 immutable commit，在同一
+Space 文件系统的私有 staging 中下载有资源上限的 archive，拒绝危险条目与无效 package，并在原子安装
+前展示 source/permission changes。被追踪的 per-package `extension.lock.json` 由 Eidos 管理。更新只手动
+触发、永不覆盖本地修改，并让新快照重新回到 disabled 和 untrusted；无效 package 仍可卸载。Private
+repository、monorepo subdirectory、自动更新、network/write capability 和自定义 iframe 文档 surface
+仍属于后续阶段。
 
 现有 bundled 和 database-backed extensions 继续作为兼容路径。
 
@@ -585,3 +592,7 @@ package 文件。
 - 解析 immutable Git commit，在 staging tree 中验证，展示 source/permission changes，atomic vendor，
   并写入 per-package lock file。
 - 首个版本只做手动更新，永不静默覆盖本地修改过的 source。
+
+当前开发者预览已经为公开、package 位于 repository root 的仓库实现。Preview session 有短时限且绑定
+Space；renderer 只能看到经过清理的 metadata 与已审阅 digest，不能接触 staging path 或 archive bytes。
+安装与更新会在 Space operation lock 内重新验证。Package 在被单独批准之前保持 disabled 和 untrusted。
