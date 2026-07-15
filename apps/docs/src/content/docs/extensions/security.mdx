@@ -25,9 +25,14 @@ digest may reuse its existing trust record.
 
 ## Runtime isolation
 
-- Non-visual code runs in a per-package lazy Web Worker.
-- UI runs in sandboxed iframe surfaces.
-- A dedicated `MessagePort` carries capability requests.
+- In the current Desktop preview, non-visual code runs in a per-package lazy
+  Web Worker created inside a hidden sandboxed Electron renderer with a unique
+  in-memory session.
+- A fixed preload exposes no API; it only transfers one dedicated `MessagePort`
+  from the main process to the sandboxed host page and then to the Worker.
+- Extension UI is limited to host-owned notice, confirm, and select controls.
+  Sandboxed iframe document surfaces belong to the later UI phase and are not
+  active yet.
 - The host validates package identity, current grants, path scope, arguments,
   and runtime generation for every request.
 - Extensions never receive a raw `DataSpace`, SQL connection, Electron bridge,
@@ -38,12 +43,16 @@ digest may reuse its existing trust record.
 Patterns are relative to the Space root. Internal `.eidos` and `.graft` paths
 are denied unless a dedicated host capability explicitly handles them. A grant
 to read `notes/**` does not imply write access or access to sibling directories.
+The preview `readText` capability accepts text files up to 512 KiB; binary and
+truncated previews fail closed.
 
 ## Network permissions
 
-Network grants use explicit HTTPS origins. Redirects are rechecked at every
-hop. Cookies, host authentication, and local network access are not inherited
-from the Eidos renderer.
+Network capabilities are not active in the current preview. Ambient `fetch`,
+XHR, WebSocket, EventSource, nested Worker, cache, and IndexedDB APIs are blocked
+before extension code is evaluated, and the isolated Electron session denies
+outbound requests. A future network capability will use explicit HTTPS origins
+and recheck redirects without inheriting Eidos cookies or authentication.
 
 ## Secrets
 

@@ -7,7 +7,7 @@ sidebar:
     text: Preview
     variant: caution
 banner:
-  content: "<strong>Runtime preview:</strong> package creation, validation, local trust, enablement, and grants work in the current Desktop development tree. Extension execution is not available yet."
+  content: "<strong>Runtime preview:</strong> the current Desktop development tree runs trusted command/menu extensions in isolated lazy Workers with read-only text access and host-owned semantic UI."
 ---
 
 This guide builds **Markdown Task Counter**, a small but useful extension for
@@ -89,7 +89,7 @@ Create `extension.json`:
   "displayName": "Markdown Task Counter",
   "description": "Count open and completed tasks in a Markdown file.",
   "version": "0.1.0",
-  "engines": { "eidos": ">=0.34.0" },
+  "engines": { "eidos": ">=0.33.0" },
   "entrypoints": { "worker": "src/extension.ts" },
   "contributes": {
     "commands": [
@@ -180,10 +180,10 @@ The current check verifies that:
 
 The installer will perform these checks before any source is trusted or run.
 
-### Create or inspect it in the current Desktop development build
+### Create, approve, and run it in the current Desktop development build
 
-The non-executing foundation is available in the current development tree. To
-create a local package without a dialog:
+The worker runtime is available as a developer preview in the current
+development tree. To create a local package without a dialog:
 
 1. Open a file Space in Eidos Desktop.
 2. Open **Settings → Extensions** and select **New extension**.
@@ -204,8 +204,8 @@ To inspect the complete Task Counter example instead:
 permissions, and package digest passed inspection but no local trust decision
 exists. Select **Review** to inspect the exact content digest and every requested
 capability. **Trust source**, enablement, and each permission grant are separate
-local decisions; none of them compiles or executes the worker in the current
-build.
+local decisions. Eidos executes the worker only after all three decisions allow
+the exact inspected snapshot.
 
 These decisions live in `.eidos/state/extensions.sqlite3`, which is private and
 ignored by Version. They are keyed by package ID, content digest, and permission
@@ -213,9 +213,8 @@ hash. Editing any package file creates a different snapshot that returns to
 `Untrusted` with enablement off and all grants denied. Stale scans cannot replace
 a newer result.
 
-The checked-in example targets Eidos 0.34. A 0.33 development build therefore
-reports it as `Incompatible` by design; change only `engines.eidos` to
-`>=0.33.0` when you specifically want to exercise the `Untrusted` state locally.
+The checked-in example targets Eidos 0.33 and can run in the current Desktop
+development build.
 
 ## Step 5: Review and record local approval
 
@@ -228,9 +227,17 @@ For a package already present under `.eidos/extensions`:
 4. Grant `files.read **/*.md`. Other capabilities remain denied.
 5. Turn on **Enablement** to record local intent for this snapshot.
 
-The status now becomes `Enabled`, but the current development build still does
-not execute the extension. Revoke trust to atomically clear enablement and all
-grants for that snapshot.
+The status now becomes `Enabled`. Open the command palette and select
+**Count Markdown tasks**, or right-click a `.md` file and select the same
+command. Eidos lazily starts the package Worker, reads only the selected file
+through the granted `files.read` pattern, and shows a host-owned notification
+such as `tasks.md: 2 open, 1 completed`.
+
+The extension does not render that notification itself. It requests
+`window.showNotice`; Eidos validates the active snapshot and renders its own UI.
+The same boundary provides host-owned confirm and select controls. Revoke trust,
+disable the package, remove the grant, or edit any source file to terminate the
+active runtime and invalidate the old snapshot.
 
 ### Future GitHub installation
 

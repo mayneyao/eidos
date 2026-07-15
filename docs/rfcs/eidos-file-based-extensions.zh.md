@@ -1,6 +1,6 @@
 # RFC：Eidos Space 的文件化扩展机制
 
-状态：草案，v1 契约已冻结，可进入基础层实施
+状态：草案，v1 契约已冻结；P2b 开发者预览已实现
 日期：2026-07-09
 最后更新：2026-07-15
 负责人：Eidos
@@ -13,15 +13,23 @@
 
 ## 实施状态（2026-07-15）
 
-本 RFC 的存储、Manifest、trust 与交付边界已经冻结，可以开始不可执行的基础层切片。
+本 RFC 的存储、Manifest、trust、交付和最小 Worker 边界已经冻结到 P2b。
 当前开发分支已经实现严格 package inspection、有资源上限的变更监听、拒绝符号链接逃逸的宿主发现、
 Extension Manager 诊断，以及通过内联交互创建真实本地扩展源码。结构合法的扩展显示为“未信任”，
 而不是“就绪”；P2a 本地状态切片现在已经让“已停用”和“已启用”状态可达。Trust、enablement 和逐项
 capability grant 由独立的 `@eidos.space/extension-state` package 持久化，并精确绑定 package ID、
 content digest 和 permission hash。创建的源码会通过现有 Version Changes 边界展示，私有 cache staging
-和 `.eidos/state/extensions.sqlite3` 仍被忽略。扩展执行运行时尚未实施。现有 bundled
-和 database-backed extensions 继续作为兼容路径；在 worker capability boundary 完成并验证前，
-稳定版 Eidos 不应执行第三方 file-based extension。
+和 `.eidos/state/extensions.sqlite3` 仍被忽略。
+
+P2b 开发者预览使用固定 Rollup/Oxc compiler 编译检查时得到的精确内存快照；每个启用 package
+会按需在隐藏 sandboxed Electron renderer 与独立 session 内创建 Web Worker。当前只开放声明过的
+command/menu、有大小上限的只读文本访问，以及宿主渲染的 notice、confirm、select UI。每次 capability
+调用都会重新校验 source digest、permission hash、trust、enablement 和精确 grant。源码或本地状态
+变化会终止活动 runtime；activation/invocation timeout、renderer crash、旧 generation、未声明 command
+和私有路径都会默认失败。Markdown Task Counter 已接入命令面板与文件右键菜单。GitHub 安装、network/
+write capability 和自定义 iframe 文档 surface 仍属于后续阶段。
+
+现有 bundled 和 database-backed extensions 继续作为兼容路径。
 
 ## 摘要
 
@@ -560,6 +568,10 @@ Legacy spaces 可以继续使用旧模型，直到迁移完成。
 - 消费 P2a trust state，并补齐 timeout、termination、crash recovery，以及禁用所有第三方 package
   仍可安全启动的能力。
 - 用 Markdown Task Counter 证明完整运行链路。
+
+当前开发者预览已实现。固定的 transport-only preload 不暴露 Electron API，只负责把一条
+`MessagePort` 传入 sandboxed host page。Runtime 编译不会安装依赖、发现配置，也不会重新打开可变的
+package 文件。
 
 ### P3：UI Surface
 

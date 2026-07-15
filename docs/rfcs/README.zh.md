@@ -15,7 +15,7 @@
 | Graft 版本管理    | Desktop 验收通过 | 已验收 repository-scoped 子进程、受限的持久 fetch/pull/push、分叉文本 diff、path-first resolution、双 parent continuation 与最终 push。                                    |
 | 产品 UX           | Desktop 验收通过 | Files/Version、Diff/History、Settings、迁移、原生 Base 生命周期、双 Space row-conflict 审阅、table-view 对齐及 record tab 恢复/分屏均已验收。                              |
 | Base 格式/runtime | 交付收尾中       | 独立 package 已支持结构化查询与列聚合、多 layout views、丰富字段、强化校验、原子 range edit/undo、有界百万行视图缓存、批量删除，以及流式 CSV 导入和当前 view 导出。        |
-| 文件化扩展        | 未开始           | RFC 仍是目标设计。                                                                                                                                                         |
+| 文件化扩展        | P2b 开发者预览   | 隔离 command Worker、只读文本、菜单和宿主语义 UI 已实现；GitHub 安装与自定义视图尚未开始。                                                                                 |
 | Legacy migration  | 真实导出通过     | 独立 planning、原子 export、Desktop Settings、schema recovery 和 111 万行真实 Space 验收已完成；兼容 Formula/Lookup 会迁移为实时派生字段，不兼容定义保留物化值并明确告警。 |
 
 实施顺序已经从 Base-first 调整，前四个 milestones 现已完成：

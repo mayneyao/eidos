@@ -21,9 +21,12 @@ trust record。
 
 ## Runtime isolation
 
-- 非视觉代码运行在每个 package 独立且按需创建的 Web Worker 中。
-- UI 运行在 sandboxed iframe surface 中。
-- 独立的 `MessagePort` 传递 capability request。
+- 当前 Desktop 预览中，非视觉代码运行在每个 package 独立且按需创建的 Web Worker 中；Worker
+  位于使用独立内存 session 的隐藏 sandboxed Electron renderer 内。
+- 固定 preload 不暴露任何 API，只负责把 main process 创建的一条独立 `MessagePort` 传给
+  sandboxed host page，再转交给 Worker。
+- 扩展 UI 目前只支持宿主拥有的 notice、confirm 和 select 控件。Sandboxed iframe 文档 surface
+  属于后续 UI 阶段，当前尚未启用。
 - 宿主会为每次请求验证 package identity、当前 grant、path scope、参数和 runtime generation。
 - 扩展永远不会得到原始 `DataSpace`、SQL connection、Electron bridge、filesystem handle 或完整 secret collection。
 
@@ -31,11 +34,14 @@ trust record。
 
 Pattern 相对于 Space root。`.eidos` 和 `.graft` 内部路径默认拒绝访问，除非专用 host capability
 明确处理。允许读取 `notes/**` 不代表允许写入，也不代表可以访问相邻目录。
+预览版 `readText` 只接受不超过 512 KiB 的文本文件；binary 或被截断的预览会默认拒绝。
 
 ## 网络权限
 
-Network grant 使用显式 HTTPS origin，并且每次 redirect 都重新验证。扩展不会继承 Eidos renderer
-的 cookie、host authentication 或 local network access。
+当前预览尚未启用 network capability。在扩展代码求值前，ambient `fetch`、XHR、WebSocket、
+EventSource、嵌套 Worker、cache 和 IndexedDB 都会被阻断；独立 Electron session 也会拒绝所有
+出站请求。未来的 network capability 将只允许显式 HTTPS origin，并重新验证 redirect，且不会
+继承 Eidos 的 cookie 或认证状态。
 
 ## Secret
 

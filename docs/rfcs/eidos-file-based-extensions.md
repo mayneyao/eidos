@@ -1,6 +1,6 @@
 # RFC: File-Based Extensions for Eidos Spaces
 
-Status: Draft, v1 contract frozen for foundation work
+Status: Draft, v1 contract frozen; P2b developer preview implemented
 Date: 2026-07-09
 Last updated: 2026-07-15
 Owner: Eidos
@@ -13,8 +13,8 @@ Related:
 
 ## Implementation Status (2026-07-15)
 
-The storage, manifest, trust, and delivery boundaries in this RFC are frozen for
-the non-executing foundation slice. The development tree now implements strict
+The storage, manifest, trust, delivery, and minimal Worker boundaries in this
+RFC are frozen through P2b. The development tree now implements strict
 package inspection, bounded change watching, symlink-safe host discovery,
 Extension Manager diagnostics, and inline creation of real local package files.
 Structurally valid packages are shown as `Untrusted`, not `Ready`; disabled and
@@ -23,11 +23,21 @@ enablement, and individual capability grants are persisted by the independent
 `@eidos.space/extension-state` package and keyed to the exact package ID,
 content digest, and permission hash. Created source is visible through the
 existing Version Changes boundary while private cache staging and
-`.eidos/state/extensions.sqlite3` remain ignored. Runtime execution has not
-started.
-Existing bundled and database-backed extensions remain compatibility paths; no
-stable Eidos release should execute third-party file-based extensions until the
-worker capability boundary is implemented and verified.
+`.eidos/state/extensions.sqlite3` remain ignored.
+
+The P2b developer preview compiles the exact inspected in-memory snapshot with
+a fixed Rollup/Oxc compiler, lazily runs each enabled package in a Web Worker
+inside a hidden sandboxed Electron renderer and isolated session, and exposes
+only declared commands/menus, bounded read-only text access, and host-rendered
+notice, confirm, and select UI. Every capability call revalidates the source
+digest, permission hash, trust, enablement, and exact grant. Source or local
+state changes terminate the active runtime; activation/invocation timeouts,
+renderer crashes, stale generations, undeclared commands, and private paths fail
+closed. The Markdown Task Counter is wired into the command palette and
+file-context menu. GitHub installation, network/write capabilities, and custom iframe
+document surfaces remain future phases.
+
+Existing bundled and database-backed extensions remain compatibility paths.
 
 ## Summary
 
@@ -598,6 +608,11 @@ The following do not block the version 1 foundation and are explicitly deferred:
 - Consume the P2a trust state and add timeout, termination, crash recovery, and
   safe startup with all third-party packages disabled.
 - Prove the runtime with the Markdown Task Counter example.
+
+Implemented in the current developer preview. The fixed transport-only preload
+does not expose an Electron API; it transfers one `MessagePort` into the
+sandboxed host page. Runtime compilation never installs dependencies, discovers
+configuration, or reopens mutable package files.
 
 ### P3: UI surfaces
 
