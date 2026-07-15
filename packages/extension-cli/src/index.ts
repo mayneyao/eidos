@@ -1,4 +1,12 @@
-import { mkdir, rm, writeFile } from "node:fs/promises"
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises"
 import path from "node:path"
 import {
   createExtensionCommandTemplate,
@@ -65,6 +73,342 @@ export interface ExtensionPackageCheckResult {
 export interface CheckExtensionPackageOptions {
   packageRoot: string
   hostVersion?: string
+}
+
+export interface CreateLegacyPortingProjectOptions {
+  archiveRoot: string
+  publisher: string
+  name?: string
+  outDir?: string
+  engineRange?: string
+  filenamePattern?: string
+  mediaType?: string
+}
+
+export interface CreatedLegacyPortingProject {
+  canonicalId: string
+  packageRoot: string
+  candidateContribution: "command" | "file-editor"
+  draftManifestPath: string
+  portingGuidePath: string
+  archivedFiles: string[]
+}
+
+interface LegacyArchiveV2 {
+  format: "eidos-legacy-extension-archive"
+  formatVersion: 2
+  identity: {
+    id: string
+    slug: string | null
+  }
+  presentation: {
+    name: string | null
+    description: string | null
+  }
+  portability: {
+    readiness: string
+    reasonCode: string
+    legacyContribution: string | null
+    candidateContribution: "command" | "file-editor" | null
+    metadataState: string
+    sourceState: string
+    legacyFileExtensions: string[]
+    summary: string
+    manualSteps: string[]
+  }
+}
+
+interface InspectedLegacyArchive {
+  metadata: LegacyArchiveV2
+  files: Array<{ source: string; target: string }>
+}
+
+const MAX_LEGACY_ARCHIVE_FILE_BYTES = 16 * 1024 * 1024
+const EXTENSION_NAME_PATTERN = /^[a-z][a-z0-9-]{1,62}$/
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value)
+}
+
+function normalizeExtensionName(value: string, fallbackId: string): string {
+  const normalized = value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 63)
+    .replace(/-+$/g, "")
+  const withPrefix = /^[a-z]/.test(normalized)
+    ? normalized
+    : `legacy-${
+        normalized ||
+        fallbackId
+          .replace(/[^a-z0-9]/gi, "")
+          .slice(-8)
+          .toLowerCase() ||
+        "extension"
+      }`
+  const withMinimumLength =
+    withPrefix.length >= 2 ? withPrefix : `${withPrefix}-extension`
+  return withMinimumLength.slice(0, 63).replace(/-+$/g, "")
+}
+
+async function regularFileIfPresent(
+  root: string,
+  relativePath: string
+): Promise<string | null> {
+  const filePath = path.join(root, ...relativePath.split("/"))
+  try {
+    const stats = await lstat(filePath)
+    if (stats.isSymbolicLink() || !stats.isFile()) {
+      throw new Error(
+        `Legacy archive entry must be a regular file: ${relativePath}`
+      )
+    }
+    if (stats.size > MAX_LEGACY_ARCHIVE_FILE_BYTES) {
+      throw new Error(`Legacy archive entry is too large: ${relativePath}`)
+    }
+    return filePath
+  } catch (error) {
+    if (isNodeError(error, "ENOENT")) return null
+    throw error
+  }
+}
+
+function parseLegacyArchiveMetadata(raw: string): LegacyArchiveV2 {
+  let value: unknown
+  try {
+    value = JSON.parse(raw)
+  } catch {
+    throw new Error("Legacy extension archive metadata is not valid JSON")
+  }
+  if (
+    !isRecord(value) ||
+    value.format !== "eidos-legacy-extension-archive" ||
+    value.formatVersion !== 2 ||
+    !isRecord(value.identity) ||
+    typeof value.identity.id !== "string" ||
+    !(
+      value.identity.slug === null || typeof value.identity.slug === "string"
+    ) ||
+    !isRecord(value.presentation) ||
+    !(
+      value.presentation.name === null ||
+      typeof value.presentation.name === "string"
+    ) ||
+    !(
+      value.presentation.description === null ||
+      typeof value.presentation.description === "string"
+    ) ||
+    !isRecord(value.portability)
+  ) {
+    throw new Error("Unsupported or malformed legacy extension archive")
+  }
+  const portability = value.portability
+  const candidate = portability.candidateContribution
+  if (
+    portability.readiness !== "manual-port" ||
+    (candidate !== "command" && candidate !== "file-editor")
+  ) {
+    throw new Error(
+      `Legacy extension cannot start a v1 port: ${String(portability.reasonCode ?? portability.readiness ?? "unknown")}`
+    )
+  }
+  if (
+    typeof portability.reasonCode !== "string" ||
+    !(
+      portability.legacyContribution === null ||
+      typeof portability.legacyContribution === "string"
+    ) ||
+    typeof portability.metadataState !== "string" ||
+    typeof portability.sourceState !== "string" ||
+    typeof portability.summary !== "string" ||
+    !Array.isArray(portability.manualSteps) ||
+    !portability.manualSteps.every((step) => typeof step === "string") ||
+    !Array.isArray(portability.legacyFileExtensions) ||
+    !portability.legacyFileExtensions.every(
+      (extension) => typeof extension === "string"
+    )
+  ) {
+    throw new Error("Malformed portability assessment in legacy archive")
+  }
+  return value as unknown as LegacyArchiveV2
+}
+
+async function inspectLegacyArchive(
+  archiveRoot: string
+): Promise<InspectedLegacyArchive> {
+  const root = path.resolve(archiveRoot)
+  const rootStats = await lstat(root)
+  if (rootStats.isSymbolicLink() || !rootStats.isDirectory()) {
+    throw new Error("Legacy extension archive must be a real directory")
+  }
+  const metadataSource = await regularFileIfPresent(
+    root,
+    "legacy-extension.json"
+  )
+  if (!metadataSource) {
+    throw new Error("Legacy extension archive is missing legacy-extension.json")
+  }
+  const metadata = parseLegacyArchiveMetadata(
+    await readFile(metadataSource, "utf8")
+  )
+  const knownFiles = [
+    ["legacy-extension.json", "legacy/legacy-extension.json"],
+    ["README.md", "legacy/README.md"],
+    ["src/extension.ts", "legacy/src/extension.ts"],
+    ["src/view.tsx", "legacy/src/view.tsx"],
+    ["dist/extension.js", "legacy/dist/extension.js"],
+  ] as const
+  const files: Array<{ source: string; target: string }> = []
+  for (const [sourcePath, target] of knownFiles) {
+    const source = await regularFileIfPresent(root, sourcePath)
+    if (source) files.push({ source, target })
+  }
+  if (
+    !files.some(
+      (file) =>
+        file.target === "legacy/src/extension.ts" ||
+        file.target === "legacy/src/view.tsx" ||
+        file.target === "legacy/dist/extension.js"
+    )
+  ) {
+    throw new Error("Legacy extension archive contains no recoverable source")
+  }
+  return { metadata, files }
+}
+
+function inferredEditorPattern(metadata: LegacyArchiveV2): string | undefined {
+  const extension = metadata.portability.legacyFileExtensions[0]?.trim()
+  if (!extension) return undefined
+  if (extension.includes("*") || extension.includes("/")) return extension
+  return extension.startsWith(".") ? `**/*${extension}` : `**/*.${extension}`
+}
+
+function portingGuide(
+  metadata: LegacyArchiveV2,
+  canonicalId: string,
+  candidate: "command" | "file-editor"
+): string {
+  const steps = metadata.portability.manualSteps
+    .map((step, index) => `${index + 1}. ${step}`)
+    .join("\n")
+  return `# Port ${metadata.presentation.name ?? metadata.identity.slug ?? metadata.identity.id}
+
+This is a non-installable porting workspace for \`${canonicalId}\`.
+The legacy source under \`legacy/\` is reference material only and is not
+imported by the new ${candidate} entrypoint.
+
+## Assessment
+
+- Legacy contribution: \`${metadata.portability.legacyContribution ?? "unknown"}\`
+- v1 candidate: \`${candidate}\`
+- Source state: \`${metadata.portability.sourceState}\`
+- Metadata state: \`${metadata.portability.metadataState}\`
+
+${metadata.portability.summary}
+
+## Required work
+
+${steps}
+
+## Finalize
+
+1. Replace the starter implementation with reviewed, capability-scoped code.
+2. Review and minimize permissions in \`extension.json.draft\`.
+3. Rename \`extension.json.draft\` to \`extension.json\`.
+4. Run \`npm install\` and \`npm run check\`.
+5. Install, trust, and enable the package only after the check succeeds.
+`
+}
+
+export async function createLegacyPortingProject(
+  options: CreateLegacyPortingProjectOptions
+): Promise<CreatedLegacyPortingProject> {
+  if (!EXTENSION_NAME_PATTERN.test(options.publisher)) {
+    throw new Error(
+      "Publisher must match ^[a-z][a-z0-9-]{1,62}$ for a v1 extension"
+    )
+  }
+  const archive = await inspectLegacyArchive(options.archiveRoot)
+  const candidate = archive.metadata.portability.candidateContribution
+  if (candidate !== "command" && candidate !== "file-editor") {
+    throw new Error("Legacy archive has no supported v1 contribution candidate")
+  }
+  const name = normalizeExtensionName(
+    options.name ??
+      archive.metadata.identity.slug ??
+      archive.metadata.presentation.name ??
+      "",
+    archive.metadata.identity.id
+  )
+  if (!EXTENSION_NAME_PATTERN.test(name)) {
+    throw new Error(`Unable to derive a valid v1 extension name: ${name}`)
+  }
+  const canonicalId = `${options.publisher}.${name}`
+  const filenamePattern =
+    options.filenamePattern ?? inferredEditorPattern(archive.metadata)
+  if (candidate === "file-editor" && !filenamePattern) {
+    throw new Error(
+      "Legacy file editor archive has no usable selector; provide --pattern"
+    )
+  }
+  const created = await createExtensionProject({
+    canonicalId,
+    template: candidate === "command" ? "command" : "text-editor",
+    outDir: options.outDir,
+    displayName: (
+      archive.metadata.presentation.name ??
+      archive.metadata.identity.slug ??
+      canonicalId
+    ).slice(0, 80),
+    engineRange: options.engineRange,
+    filenamePattern,
+    mediaType: options.mediaType,
+  })
+  const draftManifestPath = path.join(
+    created.packageRoot,
+    "extension.json.draft"
+  )
+  const portingGuidePath = path.join(created.packageRoot, "PORTING.md")
+  try {
+    await rename(
+      path.join(created.packageRoot, "extension.json"),
+      draftManifestPath
+    )
+    for (const file of archive.files) {
+      const target = path.join(created.packageRoot, ...file.target.split("/"))
+      await mkdir(path.dirname(target), { recursive: true })
+      await copyFile(file.source, target)
+    }
+    const entrypoint = path.join(
+      created.packageRoot,
+      candidate === "command" ? "src/extension.ts" : "src/editor.ts"
+    )
+    const starter = await readFile(entrypoint, "utf8")
+    await writeFile(
+      entrypoint,
+      `/* Porting scaffold: legacy/ is reference-only and must never be imported directly. */\n${starter}`,
+      "utf8"
+    )
+    await writeFile(
+      portingGuidePath,
+      portingGuide(archive.metadata, canonicalId, candidate),
+      "utf8"
+    )
+    return {
+      canonicalId,
+      packageRoot: created.packageRoot,
+      candidateContribution: candidate,
+      draftManifestPath,
+      portingGuidePath,
+      archivedFiles: archive.files.map((file) => file.target),
+    }
+  } catch (error) {
+    await rm(created.packageRoot, { recursive: true, force: true })
+    throw error
+  }
 }
 
 function splitCanonicalId(canonicalId: string): {

@@ -1,6 +1,7 @@
 import {
   checkExtensionPackage,
   createExtensionProject,
+  createLegacyPortingProject,
   type ExtensionProjectTemplate,
 } from "./index"
 import packageMetadata from "../package.json" with { type: "json" }
@@ -19,10 +20,12 @@ const HELP = `Eidos file-based extension developer tools
 
 Usage:
   eidos-extension init <publisher.name> [options]
+  eidos-extension port <archive-directory> --publisher <publisher> [options]
   eidos-extension check [package-directory] [options]
 
 Commands:
   init    Create a command or editable text-editor package without overwriting files
+  port    Create a non-installable v1 porting workspace from a legacy source archive
   check   Run the same strict inspection and fixed compiler used by Eidos Desktop
 
 Init options:
@@ -32,6 +35,15 @@ Init options:
   --engine <range>                  Eidos engine range (default: >=0.33.0)
   --pattern <glob>                  Text-editor file pattern (default: **/*.notes.md)
   --media-type <type>               Text-editor media type (default: text/markdown)
+
+Port options:
+  --publisher <publisher>           Required v1 publisher ID
+  --name <name>                     Override the name derived from the legacy slug
+  --out-dir <directory>             Parent directory (default: current directory)
+  --engine <range>                  Eidos engine range (default: >=0.33.0)
+  --pattern <glob>                  Override the inferred file-editor selector
+  --media-type <type>               File-editor media type (default: text/markdown)
+  --json                            Print a machine-readable result
 
 Check options:
   --host-version <version>          Verify engines.eidos compatibility
@@ -186,6 +198,42 @@ export async function runExtensionCli(
         printDiagnostics(result, io)
       }
       return result.ok ? 0 : 1
+    }
+
+    if (command === "port") {
+      rejectUnknownOptions(parsed, [
+        "--publisher",
+        "--name",
+        "--out-dir",
+        "--engine",
+        "--pattern",
+        "--media-type",
+        "--json",
+      ])
+      if (parsed.positional.length !== 1) {
+        throw new Error("port requires one <archive-directory>")
+      }
+      const publisher = option(parsed, "--publisher")
+      if (!publisher) throw new Error("port requires --publisher <publisher>")
+      const result = await createLegacyPortingProject({
+        archiveRoot: parsed.positional[0]!,
+        publisher,
+        name: option(parsed, "--name"),
+        outDir: option(parsed, "--out-dir"),
+        engineRange: option(parsed, "--engine"),
+        filenamePattern: option(parsed, "--pattern"),
+        mediaType: option(parsed, "--media-type"),
+      })
+      if (parsed.options.has("--json")) {
+        io.stdout(JSON.stringify(result, null, 2))
+      } else {
+        io.stdout(`✓ Created porting workspace ${result.canonicalId}`)
+        io.stdout(`  ${result.packageRoot}`)
+        io.stdout(
+          "  This draft is not installable. Review PORTING.md before renaming extension.json.draft."
+        )
+      }
+      return 0
     }
 
     throw new Error(`Unknown command: ${command}`)
