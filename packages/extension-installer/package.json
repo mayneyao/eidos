@@ -1,0 +1,50 @@
+{
+  "name": "@eidos.space/extension-installer",
+  "version": "0.1.0",
+  "description": "Immutable GitHub snapshot installation for Eidos file-based extensions",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./node": {
+      "types": "./dist/node.d.mts",
+      "import": "./dist/node.mjs",
+      "default": "./dist/node.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "eidos.space",
+    "extensions",
+    "github",
+    "installer"
+  ],
+  "author": "mayneyao",
+  "license": "MIT",
+  "dependencies": {
+    "@eidos.space/extension-manifest": "workspace:*",
+    "tar": "^7.5.11"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.1",
+    "tsdown": "^0.21.7",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
