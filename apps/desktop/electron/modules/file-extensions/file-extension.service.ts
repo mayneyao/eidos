@@ -39,6 +39,7 @@ import {
   ensureExtensionStateDatabasePath,
   resolveExtensionProjectPaths,
 } from "./extension-paths"
+import { FileExtensionInstallManager } from "./file-extension-install-manager"
 import { writeExtensionTemplate } from "./extension-template-writer"
 import {
   FileExtensionRuntimeError,
@@ -47,15 +48,20 @@ import {
 } from "./runtime/file-extension-runtime-manager"
 import type {
   FileExtensionChangedEvent,
+  FileExtensionApplyInstallRequest,
   FileExtensionCommandRequest,
   FileExtensionCommandSummary,
   FileExtensionDiscoveryResult,
   FileExtensionGrantRequest,
+  FileExtensionGitHubInstallRequest,
+  FileExtensionInstallPreview,
+  FileExtensionInstallResult,
   FileExtensionPackageSummary,
   FileExtensionSnapshotRequest,
   FileExtensionSemanticUiRequest,
   FileExtensionSemanticUiResponse,
   FileExtensionTemplateResult,
+  FileExtensionUninstallRequest,
   FileExtensionWatchResult,
 } from "./types"
 
@@ -117,7 +123,9 @@ export class FileExtensionService extends IpcServiceBase {
     @Inject(MainWindowProvider)
     private readonly windowProvider: MainWindowProvider,
     @Inject(FileExtensionRuntimeManager)
-    private readonly runtimeManager: FileExtensionRuntimeManager
+    private readonly runtimeManager: FileExtensionRuntimeManager,
+    @Inject(FileExtensionInstallManager)
+    private readonly installManager: FileExtensionInstallManager = new FileExtensionInstallManager()
   ) {
     super()
   }
@@ -338,6 +346,70 @@ export class FileExtensionService extends IpcServiceBase {
     await this.startWatching(spaceId)
     this.emitChange(spaceId)
     return result
+  }
+
+  @IpcMethod()
+  async prepareGitHubInstall(
+    spaceId: string,
+    request: FileExtensionGitHubInstallRequest
+  ): Promise<FileExtensionInstallPreview> {
+    const space = this.getFileSpace(spaceId)
+    return this.installManager.prepare(
+      spaceId,
+      space.path,
+      request,
+      app.getVersion()
+    )
+  }
+
+  @IpcMethod()
+  async applyGitHubInstall(
+    spaceId: string,
+    request: FileExtensionApplyInstallRequest
+  ): Promise<FileExtensionInstallResult> {
+    const space = this.getFileSpace(spaceId)
+    const result = await withFileSpaceOperationLock(spaceId, () =>
+      this.installManager.apply(spaceId, space.path, request, app.getVersion())
+    )
+    this.invalidatePackageRuntime(
+      spaceId,
+      result.canonicalId,
+      "Extension source was installed from GitHub"
+    )
+    await this.startWatching(spaceId)
+    this.emitChange(spaceId)
+    return result
+  }
+
+  @IpcMethod()
+  async cancelGitHubInstall(
+    spaceId: string,
+    previewId: string
+  ): Promise<{ success: true }> {
+    this.getFileSpace(spaceId)
+    await this.installManager.cancel(spaceId, previewId)
+    return { success: true }
+  }
+
+  @IpcMethod()
+  async uninstall(
+    spaceId: string,
+    request: FileExtensionUninstallRequest
+  ): Promise<{ success: true }> {
+    const space = this.getFileSpace(spaceId)
+    if (!request || typeof request.directoryName !== "string") {
+      throw new Error("An extension package directory name is required")
+    }
+    await withFileSpaceOperationLock(spaceId, () =>
+      this.installManager.uninstall(space.path, request, app.getVersion())
+    )
+    this.invalidatePackageRuntime(
+      spaceId,
+      request.canonicalId ?? request.directoryName,
+      "Extension source was uninstalled"
+    )
+    this.emitChange(spaceId)
+    return { success: true }
   }
 
   @IpcMethod()

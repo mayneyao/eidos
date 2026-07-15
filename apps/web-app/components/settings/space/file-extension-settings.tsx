@@ -4,7 +4,9 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Download,
   FolderCog,
+  Github,
   LoaderCircle,
   Package,
   PauseCircle,
@@ -12,6 +14,7 @@ import {
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -29,6 +32,9 @@ type FileExtensionDiscovery = Awaited<
 >
 type FileExtensionPackage = FileExtensionDiscovery["packages"][number]
 type FileExtensionGrant = FileExtensionPackage["requestedGrants"][number]
+type FileExtensionInstallPreview = Awaited<
+  ReturnType<typeof window.eidos.fileExtensions.prepareGitHubInstall>
+>
 
 function snapshotFor(extension: FileExtensionPackage) {
   if (
@@ -71,6 +77,17 @@ export function FileExtensionSettings() {
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createdPath, setCreatedPath] = useState<string | null>(null)
+  const [showInstaller, setShowInstaller] = useState(false)
+  const [githubRepository, setGithubRepository] = useState("")
+  const [githubRef, setGithubRef] = useState("")
+  const [installPreview, setInstallPreview] =
+    useState<FileExtensionInstallPreview | null>(null)
+  const [installing, setInstalling] = useState(false)
+  const [installError, setInstallError] = useState<string | null>(null)
+  const [installedMessage, setInstalledMessage] = useState<string | null>(null)
+  const [removeConfirmation, setRemoveConfirmation] = useState<string | null>(
+    null
+  )
   const [expandedPackages, setExpandedPackages] = useState<Set<string>>(
     () => new Set()
   )
@@ -81,6 +98,11 @@ export function FileExtensionSettings() {
   } | null>(null)
   const requestGeneration = useRef(0)
   const lastEventGeneration = useRef(0)
+  const installPreviewRef = useRef<FileExtensionInstallPreview | null>(null)
+
+  useEffect(() => {
+    installPreviewRef.current = installPreview
+  }, [installPreview])
 
   const load = useCallback(async () => {
     const generation = ++requestGeneration.current
@@ -177,6 +199,117 @@ export function FileExtensionSettings() {
     [load, mutatingPackage, t]
   )
 
+  const cancelInstallPreview = useCallback(async () => {
+    const preview = installPreviewRef.current
+    installPreviewRef.current = null
+    setInstallPreview(null)
+    if (!preview || !spaceId || !window.eidos?.fileExtensions) return
+    await window.eidos.fileExtensions
+      .cancelGitHubInstall(spaceId, preview.previewId)
+      .catch(() => undefined)
+  }, [spaceId])
+
+  const prepareGitHubInstall = useCallback(async () => {
+    if (!spaceId || installing || !githubRepository.trim()) return
+    setInstalling(true)
+    setInstallError(null)
+    setInstalledMessage(null)
+    await cancelInstallPreview()
+    try {
+      const preview = await window.eidos.fileExtensions.prepareGitHubInstall(
+        spaceId,
+        {
+          repository: githubRepository.trim(),
+          requested: githubRef.trim() || undefined,
+        }
+      )
+      installPreviewRef.current = preview
+      setInstallPreview(preview)
+    } catch (install) {
+      setInstallError(
+        install instanceof Error
+          ? install.message
+          : t(
+              "space.settings.fileExtensions.prepareInstallFailed",
+              "Unable to prepare this GitHub extension."
+            )
+      )
+    } finally {
+      setInstalling(false)
+    }
+  }, [
+    cancelInstallPreview,
+    githubRef,
+    githubRepository,
+    installing,
+    spaceId,
+    t,
+  ])
+
+  const applyGitHubInstall = useCallback(async () => {
+    if (!spaceId || !installPreview || installing) return
+    setInstalling(true)
+    setInstallError(null)
+    try {
+      const result = await window.eidos.fileExtensions.applyGitHubInstall(
+        spaceId,
+        {
+          previewId: installPreview.previewId,
+          contentDigest: installPreview.contentDigest,
+          permissionHash: installPreview.permissionHash,
+        }
+      )
+      installPreviewRef.current = null
+      setInstallPreview(null)
+      setInstalledMessage(
+        result.operation === "install"
+          ? t(
+              "space.settings.fileExtensions.installed",
+              "Installed {{id}}. Review permissions and trust this exact snapshot before enabling it.",
+              { id: result.canonicalId }
+            )
+          : t(
+              "space.settings.fileExtensions.updated",
+              "Updated {{id}}. The new snapshot must be reviewed and trusted before it can run.",
+              { id: result.canonicalId }
+            )
+      )
+      setShowInstaller(false)
+      await load()
+    } catch (install) {
+      installPreviewRef.current = null
+      setInstallPreview(null)
+      setInstallError(
+        install instanceof Error
+          ? install.message
+          : t(
+              "space.settings.fileExtensions.applyInstallFailed",
+              "Unable to install this GitHub extension."
+            )
+      )
+    } finally {
+      setInstalling(false)
+    }
+  }, [installPreview, installing, load, spaceId, t])
+
+  const preparePackageUpdate = useCallback(
+    (extension: FileExtensionPackage) => {
+      if (!extension.lock) return
+      void cancelInstallPreview()
+      setGithubRepository(extension.lock.source.repository)
+      setGithubRef(extension.lock.source.requested)
+      setInstallError(null)
+      setInstalledMessage(null)
+      setShowInstaller(true)
+      requestAnimationFrame(() => {
+        document
+          .getElementById("github-extension-installer")
+          ?.scrollIntoView({ behavior: "smooth", block: "center" })
+      })
+    },
+    [cancelInstallPreview]
+  )
+
   useEffect(() => {
     setDiscovery(null)
     void load()
@@ -211,6 +344,18 @@ export function FileExtensionSettings() {
       if (listenerId) window.eidos.off("file-extensions:changed", listenerId)
     }
   }, [load, spaceId])
+
+  useEffect(
+    () => () => {
+      const preview = installPreviewRef.current
+      if (preview && spaceId && window.eidos?.fileExtensions) {
+        void window.eidos.fileExtensions
+          .cancelGitHubInstall(spaceId, preview.previewId)
+          .catch(() => undefined)
+      }
+    },
+    [spaceId]
+  )
 
   const counts = useMemo(() => {
     const result = {
@@ -257,6 +402,26 @@ export function FileExtensionSettings() {
               type="button"
               variant="outline"
               size="sm"
+              disabled={installing}
+              onClick={() => {
+                if (showInstaller) {
+                  void cancelInstallPreview()
+                  setInstallError(null)
+                }
+                setInstalledMessage(null)
+                setShowInstaller((visible) => !visible)
+              }}
+            >
+              <Github />
+              {t(
+                "space.settings.fileExtensions.installFromGitHub",
+                "Install from GitHub"
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               disabled={creating}
               onClick={() => {
                 setCreateError(null)
@@ -285,6 +450,250 @@ export function FileExtensionSettings() {
         </div>
         <hr />
         <div className="divide-y divide-border/70">
+          {showInstaller && (
+            <div id="github-extension-installer" className="py-4">
+              <div className="space-y-4 rounded-md bg-muted/30 p-4">
+                <div>
+                  <Label>
+                    {t(
+                      "space.settings.fileExtensions.githubSource",
+                      "GitHub source"
+                    )}
+                  </Label>
+                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                    {t(
+                      "space.settings.fileExtensions.githubSourceDescription",
+                      "Public repositories only in this preview. Eidos resolves the ref to an immutable commit, validates the complete source, and never runs install scripts."
+                    )}
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_14rem_auto] sm:items-end">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="github-extension-repository">
+                      {t(
+                        "space.settings.fileExtensions.repository",
+                        "Repository"
+                      )}
+                    </Label>
+                    <Input
+                      id="github-extension-repository"
+                      value={githubRepository}
+                      placeholder="https://github.com/example/task-counter"
+                      disabled={installing}
+                      onChange={(event) => {
+                        setGithubRepository(event.target.value)
+                        setInstallError(null)
+                        void cancelInstallPreview()
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="github-extension-ref">
+                      {t(
+                        "space.settings.fileExtensions.requestedRef",
+                        "Branch, tag, or commit"
+                      )}
+                    </Label>
+                    <Input
+                      id="github-extension-ref"
+                      value={githubRef}
+                      placeholder="HEAD"
+                      disabled={installing}
+                      onChange={(event) => {
+                        setGithubRef(event.target.value)
+                        setInstallError(null)
+                        void cancelInstallPreview()
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault()
+                          void prepareGitHubInstall()
+                        }
+                      }}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!githubRepository.trim() || installing}
+                    onClick={() => void prepareGitHubInstall()}
+                  >
+                    {installing ? (
+                      <LoaderCircle className="animate-spin" />
+                    ) : (
+                      <Download />
+                    )}
+                    {t(
+                      "space.settings.fileExtensions.prepareReview",
+                      "Prepare review"
+                    )}
+                  </Button>
+                </div>
+
+                {installError && (
+                  <div className="flex items-start gap-2 text-sm text-destructive">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{installError}</span>
+                  </div>
+                )}
+
+                {installPreview && (
+                  <div className="space-y-4 border-t pt-4">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Label>{installPreview.displayName}</Label>
+                          <Badge variant="outline" className="font-normal">
+                            v{installPreview.version}
+                          </Badge>
+                          <Badge variant="outline" className="font-normal">
+                            {installPreview.operation === "install"
+                              ? t(
+                                  "space.settings.fileExtensions.newInstall",
+                                  "New install"
+                                )
+                              : t(
+                                  "space.settings.fileExtensions.updateInstall",
+                                  "Update"
+                                )}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {installPreview.canonicalId}
+                        </p>
+                      </div>
+                      <code
+                        className="rounded bg-background px-2 py-1 text-xs text-muted-foreground"
+                        title={installPreview.source.commit}
+                      >
+                        {installPreview.source.commit.slice(0, 12)}
+                      </code>
+                    </div>
+
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          {t(
+                            "space.settings.fileExtensions.permissionChanges",
+                            "Permission changes"
+                          )}
+                        </p>
+                        {installPreview.permissionChanges.length === 0 ? (
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            {t(
+                              "space.settings.fileExtensions.noPermissionChanges",
+                              "No permission changes."
+                            )}
+                          </p>
+                        ) : (
+                          <ul className="mt-2 max-h-40 space-y-1 overflow-auto text-xs">
+                            {installPreview.permissionChanges.map((change) => (
+                              <li
+                                key={`${change.change}-${change.kind}-${change.value}`}
+                                className={cn(
+                                  "break-all",
+                                  change.change === "added"
+                                    ? "text-amber-700 dark:text-amber-400"
+                                    : "text-muted-foreground"
+                                )}
+                              >
+                                {change.change === "added" ? "+" : "−"}{" "}
+                                {change.kind} <code>{change.value}</code>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          {t(
+                            "space.settings.fileExtensions.sourceChanges",
+                            "Source changes"
+                          )}{" "}
+                          · {installPreview.fileChanges.length}
+                        </p>
+                        {installPreview.fileChanges.length === 0 ? (
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            {t(
+                              "space.settings.fileExtensions.upToDate",
+                              "Already at this exact snapshot."
+                            )}
+                          </p>
+                        ) : (
+                          <ul className="mt-2 max-h-40 space-y-1 overflow-auto font-mono text-xs">
+                            {installPreview.fileChanges.map((change) => (
+                              <li key={`${change.kind}-${change.path}`}>
+                                <span
+                                  className={cn(
+                                    "mr-2 inline-block w-4",
+                                    change.kind === "added" &&
+                                      "text-emerald-600",
+                                    change.kind === "modified" &&
+                                      "text-amber-600",
+                                    change.kind === "removed" &&
+                                      "text-destructive"
+                                  )}
+                                >
+                                  {change.kind === "added"
+                                    ? "A"
+                                    : change.kind === "modified"
+                                      ? "M"
+                                      : "D"}
+                                </span>
+                                {change.path}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+                      <p className="max-w-2xl text-xs leading-5 text-muted-foreground">
+                        {t(
+                          "space.settings.fileExtensions.installTrustNotice",
+                          "Installation only vendors reviewed source. The package remains disabled and untrusted until you separately approve its exact digest and grants."
+                        )}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          disabled={installing}
+                          onClick={() => void cancelInstallPreview()}
+                        >
+                          {t("space.settings.fileExtensions.cancel", "Cancel")}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={
+                            installing ||
+                            installPreview.fileChanges.length === 0
+                          }
+                          onClick={() => void applyGitHubInstall()}
+                        >
+                          {installing && (
+                            <LoaderCircle className="animate-spin" />
+                          )}
+                          {installPreview.operation === "install"
+                            ? t(
+                                "space.settings.fileExtensions.installReviewed",
+                                "Install reviewed source"
+                              )
+                            : t(
+                                "space.settings.fileExtensions.applyUpdate",
+                                "Apply reviewed update"
+                              )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           {showCreator && (
             <div className="py-4">
               <div className="flex items-end gap-3">
@@ -413,6 +822,11 @@ export function FileExtensionSettings() {
             )}
           </p>
         )}
+        {installedMessage && (
+          <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-400">
+            {installedMessage}
+          </p>
+        )}
       </section>
 
       <section>
@@ -480,6 +894,11 @@ export function FileExtensionSettings() {
               const diagnostics = extension.diagnostics
               const snapshot = snapshotFor(extension)
               const packageId = extension.canonicalId ?? extension.directoryName
+              const uninstallRequest = {
+                directoryName: extension.directoryName,
+                canonicalId: extension.canonicalId,
+                contentDigest: extension.contentDigest,
+              }
               const expanded = expandedPackages.has(packageId)
               const manageable = extension.status === "ready" && !!snapshot
               const busy = mutatingPackage === packageId
@@ -535,6 +954,24 @@ export function FileExtensionSettings() {
                             }
                           )}
                         </p>
+                        {extension.lock && (
+                          <p className="text-xs text-muted-foreground">
+                            <Github className="mr-1 inline h-3 w-3" />
+                            {extension.lock.source.repository.replace(
+                              "https://github.com/",
+                              ""
+                            )}{" "}
+                            · {extension.lock.source.commit.slice(0, 8)}
+                            {extension.locallyModified && (
+                              <span className="ml-2 text-amber-700 dark:text-amber-400">
+                                {t(
+                                  "space.settings.fileExtensions.locallyModified",
+                                  "Locally modified"
+                                )}
+                              </span>
+                            )}
+                          </p>
+                        )}
                         {diagnostics.length > 0 && (
                           <ul className="space-y-1 pt-1 text-xs text-muted-foreground">
                             {diagnostics.map((diagnostic, index) => (
@@ -596,8 +1033,70 @@ export function FileExtensionSettings() {
                               )}
                         </Button>
                       )}
+                      {!manageable && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          disabled={!!mutatingPackage}
+                          onClick={() => setRemoveConfirmation(packageId)}
+                        >
+                          <Trash2 />
+                          {t(
+                            "space.settings.fileExtensions.removeInvalid",
+                            "Remove"
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </div>
+                  {!manageable && removeConfirmation === packageId && (
+                    <div className="ml-7 mt-3 flex flex-wrap items-center justify-between gap-4 rounded-md bg-destructive/5 px-3 py-2">
+                      <p className="max-w-xl text-xs leading-5 text-destructive">
+                        {t(
+                          "space.settings.fileExtensions.removeInvalidConfirmation",
+                          "Remove this invalid package source from the Space? Version will record the deletion; no extension code will run."
+                        )}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          disabled={!!mutatingPackage}
+                          onClick={() => setRemoveConfirmation(null)}
+                        >
+                          {t("space.settings.fileExtensions.cancel", "Cancel")}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          disabled={!!mutatingPackage}
+                          onClick={() =>
+                            void mutatePackage(extension, async () => {
+                              await window.eidos.fileExtensions.uninstall(
+                                spaceId,
+                                uninstallRequest
+                              )
+                              setRemoveConfirmation(null)
+                            })
+                          }
+                        >
+                          {busy ? (
+                            <LoaderCircle className="animate-spin" />
+                          ) : (
+                            <Trash2 />
+                          )}
+                          {t(
+                            "space.settings.fileExtensions.removeSource",
+                            "Remove source"
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                   {expanded && manageable && snapshot && (
                     <div className="ml-7 mt-4 border-l pl-4">
                       <div className="divide-y divide-border/70 rounded-md bg-muted/30 px-4">
@@ -765,6 +1264,110 @@ export function FileExtensionSettings() {
                                 </div>
                               ))}
                             </div>
+                          )}
+                        </div>
+                        {extension.lock && (
+                          <div className="flex min-h-[68px] items-center justify-between gap-6 py-3">
+                            <div>
+                              <Label>
+                                {t(
+                                  "space.settings.fileExtensions.githubUpdate",
+                                  "GitHub update"
+                                )}
+                              </Label>
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                {extension.locallyModified
+                                  ? t(
+                                      "space.settings.fileExtensions.updateBlockedByLocalChanges",
+                                      "Local source differs from the installed baseline. Eidos will not overwrite it."
+                                    )
+                                  : t(
+                                      "space.settings.fileExtensions.updateDescription",
+                                      "Resolve the recorded branch, tag, or commit again and review every change before applying it."
+                                    )}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={
+                                !!mutatingPackage || extension.locallyModified
+                              }
+                              onClick={() => preparePackageUpdate(extension)}
+                            >
+                              <Github />
+                              {t(
+                                "space.settings.fileExtensions.checkUpdate",
+                                "Check update"
+                              )}
+                            </Button>
+                          </div>
+                        )}
+                        <div className="py-3">
+                          {removeConfirmation === packageId ? (
+                            <div className="flex flex-wrap items-center justify-between gap-4 rounded-md bg-destructive/5 px-3 py-2">
+                              <p className="max-w-xl text-xs leading-5 text-destructive">
+                                {t(
+                                  "space.settings.fileExtensions.removeConfirmation",
+                                  "Remove this package source from the Space? Version will record the deletion; local trust state is retained for recovery."
+                                )}
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  disabled={!!mutatingPackage}
+                                  onClick={() => setRemoveConfirmation(null)}
+                                >
+                                  {t(
+                                    "space.settings.fileExtensions.cancel",
+                                    "Cancel"
+                                  )}
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="destructive"
+                                  disabled={!!mutatingPackage}
+                                  onClick={() =>
+                                    void mutatePackage(extension, async () => {
+                                      await window.eidos.fileExtensions.uninstall(
+                                        spaceId,
+                                        uninstallRequest
+                                      )
+                                      setRemoveConfirmation(null)
+                                    })
+                                  }
+                                >
+                                  {busy ? (
+                                    <LoaderCircle className="animate-spin" />
+                                  ) : (
+                                    <Trash2 />
+                                  )}
+                                  {t(
+                                    "space.settings.fileExtensions.removeSource",
+                                    "Remove source"
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              disabled={!!mutatingPackage}
+                              onClick={() => setRemoveConfirmation(packageId)}
+                            >
+                              <Trash2 />
+                              {t(
+                                "space.settings.fileExtensions.uninstall",
+                                "Uninstall extension"
+                              )}
+                            </Button>
                           )}
                         </div>
                       </div>

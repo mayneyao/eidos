@@ -68,6 +68,9 @@ importers:
       '@eidos.space/ext-server':
         specifier: workspace:*
         version: link:../../packages/ext-server
+      '@eidos.space/extension-installer':
+        specifier: workspace:*
+        version: link:../../packages/extension-installer
       '@eidos.space/extension-manifest':
         specifier: workspace:*
         version: link:../../packages/extension-manifest

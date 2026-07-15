@@ -58,7 +58,7 @@ export interface PreparedExtensionInstall {
   source: ResolvedGitHubExtensionSource
   lock: ExtensionLockV1
   inspection: ExtensionPackageInspection
-  files: ExtensionInstallFile[]
+  fileCount: number
   previousContentDigest?: string
   previousLock?: ExtensionLockV1
   fileChanges: ExtensionFileChange[]

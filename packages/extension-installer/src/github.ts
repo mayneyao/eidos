@@ -36,7 +36,7 @@ function safeRequestRef(value: unknown): string {
 }
 
 function parseRepository(value: unknown): { owner: string; repo: string } {
-  if (typeof value !== "string" || !value.trim()) {
+  if (typeof value !== "string" || !value.trim() || value.length > 300) {
     throw new Error("A GitHub repository is required")
   }
   const input = value.trim()
@@ -77,6 +77,8 @@ function parseRepository(value: unknown): { owner: string; repo: string } {
   if (
     !owner ||
     !repo ||
+    owner.length > 100 ||
+    repo.length > 100 ||
     !REPOSITORY_PART_PATTERN.test(owner) ||
     !REPOSITORY_PART_PATTERN.test(repo)
   ) {

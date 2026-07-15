@@ -140,6 +140,13 @@ describe("inspectExtensionPackage", () => {
     const locked = await inspectExtensionPackage(packageRoot)
     expect(locked.status).toBe("ready")
     expect(locked.contentDigest).toBe(initial.contentDigest)
+    expect(locked.lock).toMatchObject({
+      source: {
+        repository: "https://github.com/example/task-counter",
+        requested: "v1.0.0",
+      },
+    })
+    expect(locked.locallyModified).toBe(false)
     expect(codes(locked)).not.toContain("package-locally-modified")
 
     await writeFile(
@@ -149,6 +156,7 @@ describe("inspectExtensionPackage", () => {
     const modified = await inspectExtensionPackage(packageRoot)
     expect(modified.status).toBe("ready")
     expect(modified.contentDigest).not.toBe(initial.contentDigest)
+    expect(modified.locallyModified).toBe(true)
     expect(modified.diagnostics).toContainEqual(
       expect.objectContaining({
         code: "package-locally-modified",

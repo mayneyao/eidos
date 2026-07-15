@@ -508,6 +508,7 @@ function inspectPackageTree(
       directoryName,
       status: "invalid",
       contentDigest,
+      locallyModified: false,
       files: publicFiles,
       diagnostics,
     }
@@ -525,6 +526,7 @@ function inspectPackageTree(
       directoryName,
       status: "invalid",
       contentDigest,
+      locallyModified: false,
       files: publicFiles,
       diagnostics,
     }
@@ -568,6 +570,8 @@ function inspectPackageTree(
   }
 
   const lockFile = filesByPath.get(EXTENSION_LOCK_FILENAME)
+  let parsedLock: ReturnType<typeof parseExtensionLock>["lock"]
+  let locallyModified = false
   if (lockFile) {
     const decoded = decodeText(
       lockFile.content,
@@ -577,11 +581,13 @@ function inspectPackageTree(
     if (decoded.text) {
       const lock = parseExtensionLock(decoded.text)
       diagnostics.push(...lock.diagnostics)
+      parsedLock = lock.lock
       if (
         lock.lock &&
         contentDigest &&
         lock.lock.contentDigest !== contentDigest
       ) {
+        locallyModified = true
         diagnostics.push({
           code: "package-locally-modified",
           severity: "warning",
@@ -613,6 +619,8 @@ function inspectPackageTree(
       analysis.valid && analysis.normalizedPermissions
         ? calculateExtensionPermissionHash(analysis.normalizedPermissions)
         : undefined,
+    lock: parsedLock,
+    locallyModified,
     files: publicFiles,
     diagnostics,
   }
@@ -665,6 +673,7 @@ function invalidCandidate(
     packageRoot,
     directoryName,
     status: "invalid",
+    locallyModified: false,
     files: [],
     diagnostics: [diagnostic(code, message, directoryName)],
   }

@@ -230,7 +230,7 @@ export async function prepareGitHubExtensionInstall(
       source: resolved.source,
       lock,
       inspection: candidate.inspection,
-      files: candidate.files,
+      fileCount: candidate.files.length,
       previousContentDigest: current?.inspection.contentDigest,
       previousLock: current?.lock,
       fileChanges: diffExtensionFiles(current?.files ?? [], candidate.files),
@@ -351,7 +351,7 @@ export async function discardPreparedExtensionInstall(
 export async function uninstallExtensionPackage(
   packageRoot: string,
   stagingParent: string,
-  expectedContentDigest: string,
+  expectedContentDigest: string | undefined,
   hostVersion: string
 ): Promise<void> {
   const current = await readExtensionInstallTarget(packageRoot, hostVersion)

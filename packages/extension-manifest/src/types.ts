@@ -143,6 +143,8 @@ export interface ExtensionPackageInspection {
   normalizedPermissions?: NormalizedExtensionPermissions
   contentDigest?: string
   permissionHash?: string
+  lock?: ExtensionLockV1
+  locallyModified?: boolean
   files: ExtensionPackageFile[]
   diagnostics: ExtensionDiagnostic[]
 }

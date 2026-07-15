@@ -13,6 +13,10 @@ const trustMock = vi.hoisted(() => vi.fn())
 const revokeTrustMock = vi.hoisted(() => vi.fn())
 const setEnabledMock = vi.hoisted(() => vi.fn())
 const setGrantMock = vi.hoisted(() => vi.fn())
+const prepareGitHubInstallMock = vi.hoisted(() => vi.fn())
+const applyGitHubInstallMock = vi.hoisted(() => vi.fn())
+const cancelGitHubInstallMock = vi.hoisted(() => vi.fn())
+const uninstallMock = vi.hoisted(() => vi.fn())
 const startWatchingMock = vi.hoisted(() => vi.fn())
 const stopWatchingMock = vi.hoisted(() => vi.fn())
 const onMock = vi.hoisted(() => vi.fn())
@@ -139,6 +143,39 @@ describe("FileExtensionSettings", () => {
     setGrantMock
       .mockReset()
       .mockResolvedValue({ trusted: true, enabled: false })
+    prepareGitHubInstallMock.mockReset().mockResolvedValue({
+      previewId: "preview-a",
+      expiresAt: Date.now() + 60_000,
+      operation: "install",
+      canonicalId: "example.task-counter",
+      displayName: "Task Counter",
+      version: "1.0.0",
+      source: {
+        kind: "github",
+        repository: "https://github.com/example/task-counter",
+        requested: "refs/tags/v1.0.0",
+        commit: "c".repeat(40),
+      },
+      contentDigest,
+      permissionHash,
+      fileCount: 3,
+      fileChanges: [
+        { path: "extension.json", kind: "added", afterSize: 200 },
+        { path: "src/extension.ts", kind: "added", afterSize: 80 },
+      ],
+      permissionChanges: [
+        { kind: "files.read", value: "**/*.md", change: "added" },
+      ],
+    })
+    applyGitHubInstallMock.mockReset().mockResolvedValue({
+      canonicalId: "example.task-counter",
+      operation: "install",
+      root: ".eidos/extensions/example.task-counter",
+      contentDigest,
+      permissionHash,
+    })
+    cancelGitHubInstallMock.mockReset().mockResolvedValue({ success: true })
+    uninstallMock.mockReset().mockResolvedValue({ success: true })
     startWatchingMock.mockReset().mockResolvedValue({
       watching: true,
       generation: 0,
@@ -162,6 +199,10 @@ describe("FileExtensionSettings", () => {
           revokeTrust: revokeTrustMock,
           setEnabled: setEnabledMock,
           setGrant: setGrantMock,
+          prepareGitHubInstall: prepareGitHubInstallMock,
+          applyGitHubInstall: applyGitHubInstallMock,
+          cancelGitHubInstall: cancelGitHubInstallMock,
+          uninstall: uninstallMock,
           startWatching: startWatchingMock,
           stopWatching: stopWatchingMock,
         },
@@ -196,7 +237,7 @@ describe("FileExtensionSettings", () => {
       [...container.querySelectorAll("button")].map((button) =>
         button.textContent?.trim()
       )
-    ).toEqual(["New extension", "Refresh", "Review"])
+    ).toEqual(["Install from GitHub", "New extension", "Refresh", "Review"])
 
     const listener = onMock.mock.calls[0]?.[1]
     await act(async () => {
@@ -249,6 +290,68 @@ describe("FileExtensionSettings", () => {
       "Created .eidos/extensions/local.hello-tools"
     )
     expect(discoverMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("reviews an immutable GitHub snapshot before installing it", async () => {
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const installFromGitHub = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Install from GitHub"
+    )!
+    act(() => installFromGitHub.click())
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )!.set!
+    const repository = container.querySelector<HTMLInputElement>(
+      "#github-extension-repository"
+    )!
+    const requestedRef = container.querySelector<HTMLInputElement>(
+      "#github-extension-ref"
+    )!
+    act(() => {
+      valueSetter.call(repository, "https://github.com/example/task-counter")
+      repository.dispatchEvent(new Event("input", { bubbles: true }))
+      valueSetter.call(requestedRef, "refs/tags/v1.0.0")
+      requestedRef.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+
+    const prepare = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Prepare review"
+    )!
+    await act(async () => {
+      prepare.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(prepareGitHubInstallMock).toHaveBeenCalledWith("file-space", {
+      repository: "https://github.com/example/task-counter",
+      requested: "refs/tags/v1.0.0",
+    })
+    expect(container.textContent).toContain("Permission changes")
+    expect(container.textContent).toContain("+ files.read **/*.md")
+    expect(container.textContent).toContain("cccccccccccc")
+    expect(container.textContent).toContain("src/extension.ts")
+
+    const install = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Install reviewed source"
+    )!
+    await act(async () => {
+      install.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(applyGitHubInstallMock).toHaveBeenCalledWith("file-space", {
+      previewId: "preview-a",
+      contentDigest,
+      permissionHash,
+    })
+    expect(container.textContent).toContain(
+      "Installed example.task-counter. Review permissions"
+    )
   })
 
   it("reviews trust, grants, and enablement inline without executing code", async () => {
@@ -313,5 +416,73 @@ describe("FileExtensionSettings", () => {
       await Promise.resolve()
     })
     expect(setEnabledMock).toHaveBeenCalledWith("file-space", snapshot, true)
+
+    const uninstall = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Uninstall extension"
+    )!
+    act(() => uninstall.click())
+    expect(container.textContent).toContain(
+      "Remove this package source from the Space?"
+    )
+    const removeSource = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Remove source"
+    )!
+    await act(async () => {
+      removeSource.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(uninstallMock).toHaveBeenCalledWith("file-space", {
+      directoryName: "example.task-counter",
+      canonicalId: "example.task-counter",
+      contentDigest,
+    })
+  })
+
+  it("can remove an invalid package that has no snapshot identity", async () => {
+    discoverMock.mockResolvedValue({
+      ...discoveryFixture(),
+      packages: [
+        {
+          directoryName: "broken-package",
+          status: "invalid",
+          lifecycleStatus: "invalid",
+          requestedGrants: [],
+          files: [],
+          diagnostics: [
+            {
+              code: "package-manifest-missing",
+              severity: "error",
+              message: "extension.json is missing",
+            },
+          ],
+        },
+      ],
+    })
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const remove = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Remove"
+    )!
+    act(() => remove.click())
+    expect(container.textContent).toContain(
+      "Remove this invalid package source from the Space?"
+    )
+    const removeSource = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Remove source"
+    )!
+    await act(async () => {
+      removeSource.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(uninstallMock).toHaveBeenCalledWith("file-space", {
+      directoryName: "broken-package",
+      canonicalId: undefined,
+      contentDigest: undefined,
+    })
   })
 })

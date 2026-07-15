@@ -1,4 +1,5 @@
 import type {
+  ExtensionLockV1,
   ExtensionCommandContribution,
   ExtensionDiagnostic,
   ExtensionManifestV1,
@@ -7,6 +8,12 @@ import type {
   ExtensionPackageFile,
   ExtensionPackageInspectionStatus,
 } from "@eidos.space/extension-manifest"
+import type {
+  ExtensionFileChange,
+  ExtensionInstallOperation,
+  ExtensionPermissionChange,
+  ResolvedGitHubExtensionSource,
+} from "@eidos.space/extension-installer"
 import type {
   ExtensionLifecycleStatus,
   ExtensionLocalState,
@@ -23,6 +30,8 @@ export interface FileExtensionPackageSummary {
   normalizedPermissions?: NormalizedExtensionPermissions
   contentDigest?: string
   permissionHash?: string
+  lock?: ExtensionLockV1
+  locallyModified?: boolean
   requestedGrants: ExtensionPermissionGrant[]
   localState?: ExtensionLocalState
   files: ExtensionPackageFile[]
@@ -48,6 +57,47 @@ export interface FileExtensionTemplateResult {
   canonicalId: string
   root: `.eidos/extensions/${string}`
   files: string[]
+}
+
+export interface FileExtensionGitHubInstallRequest {
+  repository: string
+  requested?: string
+}
+
+export interface FileExtensionInstallPreview {
+  previewId: string
+  expiresAt: number
+  operation: ExtensionInstallOperation
+  canonicalId: string
+  displayName: string
+  description?: string
+  version: string
+  source: ResolvedGitHubExtensionSource
+  contentDigest: string
+  permissionHash: string
+  fileCount: number
+  fileChanges: ExtensionFileChange[]
+  permissionChanges: ExtensionPermissionChange[]
+}
+
+export interface FileExtensionApplyInstallRequest {
+  previewId: string
+  contentDigest: string
+  permissionHash: string
+}
+
+export interface FileExtensionInstallResult {
+  canonicalId: string
+  operation: ExtensionInstallOperation
+  root: `.eidos/extensions/${string}`
+  contentDigest: string
+  permissionHash: string
+}
+
+export interface FileExtensionUninstallRequest {
+  directoryName: string
+  canonicalId?: string
+  contentDigest?: string
 }
 
 export type FileExtensionSnapshotRequest = ExtensionSnapshotIdentity

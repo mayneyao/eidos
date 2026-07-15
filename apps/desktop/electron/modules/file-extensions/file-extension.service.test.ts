@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { MainWindowProvider } from "../space-management/main-window.provider"
 import type { SpaceRegistry } from "../space-management/space-registry"
+import type { FileExtensionInstallManager } from "./file-extension-install-manager"
 import type { FileExtensionRuntimeManager } from "./runtime/file-extension-runtime-manager"
 import type { FileExtensionRuntimeExecution } from "./runtime/file-extension-runtime-manager"
 
@@ -211,6 +212,105 @@ describe("FileExtensionService", () => {
     ).rejects.toThrow("already exists")
     await expect(service.createTemplate("space-a", "Bad Name")).rejects.toThrow(
       "Extension name"
+    )
+  })
+
+  it("binds GitHub preview, apply, cancellation, and uninstall to the current Space", async () => {
+    const root = await createFileSpace()
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const windowProvider = {
+      getWindow: () => undefined,
+    } as unknown as MainWindowProvider
+    const runtimeManager = runtimeManagerStub()
+    const preview = {
+      previewId: "preview-a",
+      expiresAt: Date.now() + 60_000,
+      operation: "update" as const,
+      canonicalId: "example.task-counter",
+      displayName: "Task Counter",
+      version: "1.1.0",
+      source: {
+        kind: "github" as const,
+        repository: "https://github.com/example/task-counter",
+        requested: "refs/heads/main",
+        commit: "a".repeat(40),
+      },
+      contentDigest: `sha256:${"b".repeat(64)}`,
+      permissionHash: `sha256:${"c".repeat(64)}`,
+      fileCount: 3,
+      fileChanges: [
+        {
+          path: "src/extension.ts",
+          kind: "modified" as const,
+          beforeSize: 10,
+          afterSize: 12,
+        },
+      ],
+      permissionChanges: [],
+    }
+    const installManager = {
+      prepare: vi.fn(async () => preview),
+      apply: vi.fn(async () => ({
+        canonicalId: preview.canonicalId,
+        operation: preview.operation,
+        root: `.eidos/extensions/${preview.canonicalId}` as const,
+        contentDigest: preview.contentDigest,
+        permissionHash: preview.permissionHash,
+      })),
+      cancel: vi.fn(async () => undefined),
+      uninstall: vi.fn(async () => undefined),
+    } as unknown as FileExtensionInstallManager
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManager,
+      installManager
+    )
+
+    await expect(
+      service.prepareGitHubInstall("space-a", {
+        repository: "example/task-counter",
+        requested: "refs/heads/main",
+      })
+    ).resolves.toBe(preview)
+    await expect(
+      service.applyGitHubInstall("space-a", {
+        previewId: preview.previewId,
+        contentDigest: preview.contentDigest,
+        permissionHash: preview.permissionHash,
+      })
+    ).resolves.toMatchObject({ canonicalId: preview.canonicalId })
+    expect(runtimeManager.disposePackage).toHaveBeenCalledWith(
+      "space-a",
+      preview.canonicalId,
+      expect.stringContaining("installed")
+    )
+
+    await expect(
+      service.cancelGitHubInstall("space-a", "preview-b")
+    ).resolves.toEqual({ success: true })
+    expect(installManager.cancel).toHaveBeenCalledWith("space-a", "preview-b")
+
+    const installed = (await service.discover("space-a")).packages[0]
+    await expect(
+      service.uninstall("space-a", {
+        directoryName: installed.directoryName,
+        canonicalId: installed.canonicalId,
+        contentDigest: installed.contentDigest!,
+      })
+    ).resolves.toEqual({ success: true })
+    expect(installManager.uninstall).toHaveBeenCalledWith(
+      root,
+      expect.objectContaining({ directoryName: "example.task-counter" }),
+      "0.33.0"
     )
   })
 

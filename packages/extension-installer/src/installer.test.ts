@@ -240,6 +240,7 @@ describe("atomic extension installation", () => {
       operation: "install",
       canonicalId: "example.task-counter",
       source: { requested: "v1.0.0", commit: COMMIT },
+      fileCount: 4,
       permissionChanges: [
         { kind: "files.read", value: "**/*.md", change: "added" },
       ],
