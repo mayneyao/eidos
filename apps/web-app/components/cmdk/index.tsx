@@ -37,6 +37,7 @@ import { useCurrentNode } from "@/apps/web-app/hooks/use-current-node"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useFavBlocks } from "@/apps/web-app/hooks/use-fav-blocks"
+import { useFileExtensionCommands } from "@/apps/web-app/hooks/use-file-extension-commands"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSpaceFiles } from "@/apps/web-app/hooks/use-space-files"
 import { flushPendingFileWrites } from "@/apps/web-app/components/file-space/pending-writes"
@@ -59,9 +60,17 @@ import {
 } from "@/components/settings/stores/browser-settings-store"
 
 import { DocActionCommandItems } from "./doc-actions"
-import { FileExtensionCommandItems } from "./file-extension-commands"
+import {
+  FileExtensionCommandItems,
+  getFileExtensionCommandValue,
+} from "./file-extension-commands"
 import { useCMDKGoto, useInput, useCMDKStore } from "./hooks"
 import { ImportSchema } from "./import-schema"
+import {
+  getPreferredCommandValue,
+  isUrlLike,
+  shouldPrioritizeFileExtensionCommands,
+} from "./command-order"
 import { SecondaryView } from "./secondary-view"
 import { TabCommandItems } from "./tabs"
 
@@ -86,6 +95,19 @@ export function CommandDialogDemo() {
   const { space } = useCurrentPathInfo()
   const { currentSpace } = useCurrentSpace()
   const isFileSpace = currentSpace?.mode === "file"
+  const {
+    commands: fileExtensionCommands,
+    execute: executeFileExtensionCommand,
+  } = useFileExtensionCommands(isFileSpace ? currentSpace.id : undefined)
+  const prioritizeFileExtensionCommands = shouldPrioritizeFileExtensionCommands(
+    input,
+    isFileSpace
+  )
+  const preferredFileExtensionCommandValue = getPreferredCommandValue(
+    input,
+    fileExtensionCommands.map(getFileExtensionCommandValue)
+  )
+  const [selectedCommandValue, setSelectedCommandValue] = useState("")
   const legacyRuntimeEnabled = shouldEnableLegacySpaceRuntime(
     currentSpace?.mode
   )
@@ -99,8 +121,23 @@ export function CommandDialogDemo() {
   useEffect(() => {
     if (!isCmdkOpen) {
       setInput("")
+      setSelectedCommandValue("")
     }
   }, [isCmdkOpen, setInput])
+
+  useEffect(() => {
+    if (
+      isCmdkOpen &&
+      prioritizeFileExtensionCommands &&
+      preferredFileExtensionCommandValue
+    ) {
+      setSelectedCommandValue(preferredFileExtensionCommandValue)
+    }
+  }, [
+    isCmdkOpen,
+    preferredFileExtensionCommandValue,
+    prioritizeFileExtensionCommands,
+  ])
 
   // Initialize browser settings
   const { initialize: initializeBrowserSettings } = useBrowserSettingsStore()
@@ -153,14 +190,6 @@ export function CommandDialogDemo() {
   const switchTheme = () => {
     const newTheme = resolvedTheme === "light" ? "dark" : "light"
     setTheme(newTheme)
-  }
-
-  const isUrlLike = (value: string) => {
-    if (!value || value.length < 3) return false
-    // Matches https://example.com, http://example.com, or domain-like strings like google.com
-    return /^https?:\/\/[^\s]+|^[a-z0-9]+([\-.]{1}[a-z0-9]+)*\.[a-z]{2,}(:[0-9]{1,5})?(\/.*)?$/i.test(
-      value.trim()
-    )
   }
 
   const { location, navigate } = useRouterAdapter()
@@ -660,7 +689,12 @@ export function CommandDialogDemo() {
   }
 
   return (
-    <CommandDialog open={isCmdkOpen} onOpenChange={setCmdkOpen}>
+    <CommandDialog
+      open={isCmdkOpen}
+      onOpenChange={setCmdkOpen}
+      commandValue={selectedCommandValue}
+      onCommandValueChange={setSelectedCommandValue}
+    >
       {secondaryView ? (
         <SecondaryView
           component={secondaryView.component}
@@ -682,6 +716,13 @@ export function CommandDialogDemo() {
 
             {mode === "search" && (
               <>
+                {prioritizeFileExtensionCommands ? (
+                  <FileExtensionCommandItems
+                    commands={fileExtensionCommands}
+                    execute={executeFileExtensionCommand}
+                    onExecute={() => setCmdkOpen(false)}
+                  />
+                ) : null}
                 {!isInkServiceMode && (
                   <CommandGroup heading={t("cmdk.suggestions")}>
                     {isUrlLike(input) && (
@@ -854,8 +895,10 @@ export function CommandDialogDemo() {
                     <DocActionCommandItems />
                   </>
                 )}
-                {isFileSpace ? (
+                {isFileSpace && !prioritizeFileExtensionCommands ? (
                   <FileExtensionCommandItems
+                    commands={fileExtensionCommands}
+                    execute={executeFileExtensionCommand}
                     onExecute={() => setCmdkOpen(false)}
                   />
                 ) : null}

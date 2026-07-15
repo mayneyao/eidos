@@ -1,23 +1,25 @@
 import { Blocks } from "lucide-react"
 
 import { filePathFromSpaceUrl } from "@/apps/web-app/components/file-space/file-path"
-import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
-import { useFileExtensionCommands } from "@/apps/web-app/hooks/use-file-extension-commands"
+import type { FileExtensionCommand } from "@/apps/web-app/hooks/use-file-extension-commands"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { CommandGroup, CommandItem } from "@/components/ui/command"
 import { useToast } from "@/components/ui/use-toast"
 
 export function FileExtensionCommandItems({
+  commands,
+  execute,
   onExecute,
 }: {
+  commands: FileExtensionCommand[]
+  execute: (
+    command: FileExtensionCommand,
+    resourcePath: string
+  ) => Promise<unknown>
   onExecute: () => void
 }) {
-  const { currentSpace } = useCurrentSpace()
   const { location } = useRouterAdapter()
   const { toast } = useToast()
-  const { commands, execute } = useFileExtensionCommands(
-    currentSpace?.mode === "file" ? currentSpace.id : undefined
-  )
   if (commands.length === 0) return null
 
   const resourcePath =
@@ -29,7 +31,7 @@ export function FileExtensionCommandItems({
       {commands.map((command) => (
         <CommandItem
           key={`${command.packageId}:${command.id}`}
-          value={`${command.title} ${command.category ?? ""} ${command.extensionDisplayName}`}
+          value={getFileExtensionCommandValue(command)}
           onSelect={() => {
             onExecute()
             void execute(command, resourcePath).catch((error) => {
@@ -55,4 +57,8 @@ export function FileExtensionCommandItems({
       ))}
     </CommandGroup>
   )
+}
+
+export function getFileExtensionCommandValue(command: FileExtensionCommand) {
+  return `${command.title} ${command.category ?? ""} ${command.extensionDisplayName}`
 }
