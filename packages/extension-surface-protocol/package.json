@@ -1,0 +1,41 @@
+{
+  "name": "@eidos.space/extension-surface-protocol",
+  "version": "0.1.0",
+  "description": "Versioned document and MessagePort protocol for sandboxed Eidos extension surfaces",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "eidos",
+    "extension",
+    "surface",
+    "document",
+    "protocol"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.19.1",
+    "tsdown": "^0.21.7",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

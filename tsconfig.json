@@ -75,6 +75,12 @@
       "@eidos.space/extension-runtime/*": [
         "./packages/extension-runtime/src/*"
       ],
+      "@eidos.space/extension-surface-protocol": [
+        "./packages/extension-surface-protocol/src/index.ts"
+      ],
+      "@eidos.space/extension-surface-protocol/*": [
+        "./packages/extension-surface-protocol/src/*"
+      ],
       "@eidos.space/extension-sdk": ["./packages/extension-sdk/src/index.ts"],
       "@eidos.space/extension-sdk/*": ["./packages/extension-sdk/src/*"],
       "@eidos.space/extension-state": [
