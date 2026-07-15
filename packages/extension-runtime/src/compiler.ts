@@ -16,6 +16,9 @@ const MODULE_EXTENSIONS = [
   ".mjs",
   ".json",
 ] as const
+const STYLE_EXTENSION = ".css"
+
+type ExtensionBundleTarget = "worker" | "surface"
 
 export interface ExtensionRuntimeSourceFile {
   path: string
@@ -32,6 +35,9 @@ export interface CompiledExtensionWorker {
   entrypoint: string
   warnings: string[]
 }
+
+export type CompileExtensionSurfaceOptions = CompileExtensionWorkerOptions
+export type CompiledExtensionSurface = CompiledExtensionWorker
 
 function moduleCandidates(base: string): string[] {
   const extension = path.posix.extname(base)
@@ -72,8 +78,27 @@ function resolvePackageModule(
   return moduleCandidates(target).find((candidate) => available.has(candidate))
 }
 
-function transformModule(filename: string, source: string): string {
+function transformModule(
+  filename: string,
+  source: string,
+  target: ExtensionBundleTarget
+): string {
   const extension = path.posix.extname(filename)
+  if (extension === STYLE_EXTENSION) {
+    if (target !== "surface") {
+      throw new Error(
+        `Worker modules do not support ${extension} files: ${filename}`
+      )
+    }
+    const css = JSON.stringify(source)
+    return [
+      `const css = ${css};`,
+      'const style = document.createElement("style");',
+      "style.textContent = css;",
+      "document.head.append(style);",
+      "export default css;",
+    ].join("\n")
+  }
   if (extension === ".json") {
     let value: unknown
     try {
@@ -110,7 +135,10 @@ function transformModule(filename: string, source: string): string {
   return result.code
 }
 
-function packageSnapshotPlugin(files: ReadonlyMap<string, Uint8Array>): Plugin {
+function packageSnapshotPlugin(
+  files: ReadonlyMap<string, Uint8Array>,
+  target: ExtensionBundleTarget
+): Plugin {
   const available = new Set(files.keys())
   return {
     name: "eidos-extension-package-snapshot",
@@ -147,7 +175,7 @@ function packageSnapshotPlugin(files: ReadonlyMap<string, Uint8Array>): Plugin {
       } catch {
         throw new Error(`Extension module must be valid UTF-8: ${filename}`)
       }
-      return transformModule(filename, source)
+      return transformModule(filename, source, target)
     },
   }
 }
@@ -157,8 +185,9 @@ function packageSnapshotPlugin(files: ReadonlyMap<string, Uint8Array>): Plugin {
  * deliberately has no filesystem access, configuration discovery, or plugin
  * loading surface.
  */
-export async function compileExtensionWorker(
-  options: CompileExtensionWorkerOptions
+async function compileExtensionBundle(
+  options: CompileExtensionWorkerOptions,
+  target: ExtensionBundleTarget
 ): Promise<CompiledExtensionWorker> {
   const entrypoint = canonicalExtensionPackagePath(options.entrypoint)
   const files = new Map<string, Uint8Array>()
@@ -172,7 +201,7 @@ export async function compileExtensionWorker(
   const warnings: string[] = []
   const bundle = await rollup({
     input: entrypoint,
-    plugins: [packageSnapshotPlugin(files)],
+    plugins: [packageSnapshotPlugin(files, target)],
     treeshake: true,
     onwarn(warning) {
       warnings.push(warning.message)
@@ -194,4 +223,17 @@ export async function compileExtensionWorker(
   } finally {
     await bundle.close()
   }
+}
+
+export function compileExtensionWorker(
+  options: CompileExtensionWorkerOptions
+): Promise<CompiledExtensionWorker> {
+  return compileExtensionBundle(options, "worker")
+}
+
+/** Compile a UI entrypoint from the exact inspected package snapshot. */
+export function compileExtensionSurface(
+  options: CompileExtensionSurfaceOptions
+): Promise<CompiledExtensionSurface> {
+  return compileExtensionBundle(options, "surface")
 }

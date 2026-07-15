@@ -14,6 +14,10 @@
     "./compiler": {
       "types": "./dist/compiler.d.mts",
       "import": "./dist/compiler.mjs"
+    },
+    "./surface": {
+      "types": "./dist/surface.d.mts",
+      "import": "./dist/surface.mjs"
     }
   },
   "files": [
@@ -36,6 +40,7 @@
   "license": "ISC",
   "dependencies": {
     "@eidos.space/extension-manifest": "workspace:*",
+    "@eidos.space/extension-surface-protocol": "workspace:*",
     "oxc-transform": "^0.74.0",
     "rollup": "^4.60.1"
   },

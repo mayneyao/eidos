@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { compileExtensionWorker } from "./compiler"
+import { compileExtensionSurface, compileExtensionWorker } from "./compiler"
 
 const bytes = (value: string) => new TextEncoder().encode(value)
 
@@ -61,5 +61,36 @@ describe("compileExtensionWorker", () => {
         ],
       })
     ).rejects.toThrow("Worker modules do not support .css")
+  })
+})
+
+describe("compileExtensionSurface", () => {
+  it("bundles DOM UI and package-local CSS from the inspected snapshot", async () => {
+    const result = await compileExtensionSurface({
+      entrypoint: "src/editor.ts",
+      files: [
+        {
+          path: "src/editor.ts",
+          content: bytes(
+            [
+              'import type { ExtensionFileEditorContext } from "@eidos.space/extension-sdk"',
+              'import "./editor.css"',
+              "export function activate(context: ExtensionFileEditorContext) {",
+              "  context.root.textContent = context.document.snapshot.text",
+              "}",
+            ].join("\n")
+          ),
+        },
+        {
+          path: "src/editor.css",
+          content: bytes(".task { color: var(--eidos-color-foreground); }"),
+        },
+      ],
+    })
+
+    expect(result.code).toContain("document.createElement")
+    expect(result.code).toContain("--eidos-color-foreground")
+    expect(result.code).toContain("context.document.snapshot.text")
+    expect(result.code).not.toContain("@eidos.space/extension-sdk")
   })
 })

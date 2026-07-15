@@ -28,6 +28,9 @@
     "sdk"
   ],
   "license": "MIT",
+  "dependencies": {
+    "@eidos.space/extension-surface-protocol": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^20.19.1",
     "tsdown": "^0.21.7",

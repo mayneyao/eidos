@@ -1,3 +1,14 @@
+import type {
+  ExtensionSurfaceAppearance,
+  ExtensionSurfaceCapabilities,
+  ExtensionSurfaceSaveStateMessage,
+  ExtensionTextDocumentChangedMessage,
+  ExtensionTextDocumentReplacedMessage,
+  ExtensionTextDocumentSnapshot,
+  ExtensionTextDocumentStateMessage,
+  ExtensionTextEdit,
+} from "@eidos.space/extension-surface-protocol"
+
 export interface ExtensionCommandResource {
   /** Portable path relative to the current Space root. */
   path: string
@@ -69,3 +80,49 @@ export interface ExtensionContext {
 export type ExtensionActivate = (
   context: ExtensionContext
 ) => void | Promise<void>
+
+export interface ExtensionFileEditorDocument {
+  /** Latest immutable host snapshot known to this surface. */
+  readonly snapshot: ExtensionTextDocumentSnapshot
+  applyEdits(edits: readonly ExtensionTextEdit[]): Promise<number>
+  save(): Promise<number>
+  undo(): Promise<number>
+  redo(): Promise<number>
+  resync(): Promise<number>
+  onDidChange(
+    listener: (
+      event:
+        | ExtensionTextDocumentChangedMessage
+        | ExtensionTextDocumentReplacedMessage
+    ) => void
+  ): ExtensionDisposable
+  onDidChangeState(
+    listener: (event: ExtensionTextDocumentStateMessage) => void
+  ): ExtensionDisposable
+  onDidChangeSaveState(
+    listener: (event: ExtensionSurfaceSaveStateMessage) => void
+  ): ExtensionDisposable
+}
+
+export interface ExtensionFileEditorAppearance {
+  readonly current: ExtensionSurfaceAppearance
+  onDidChange(
+    listener: (appearance: ExtensionSurfaceAppearance) => void
+  ): ExtensionDisposable
+}
+
+export interface ExtensionFileEditorContext {
+  readonly extensionId: string
+  readonly editorId: string
+  readonly viewId: string
+  /** The only host-provided DOM mount point. */
+  readonly root: HTMLElement
+  readonly document: ExtensionFileEditorDocument
+  readonly appearance: ExtensionFileEditorAppearance
+  readonly capabilities: ExtensionSurfaceCapabilities
+  readonly subscriptions: ExtensionSubscriptionStore
+}
+
+export type ExtensionFileEditorActivate = (
+  context: ExtensionFileEditorContext
+) => void | ExtensionDisposable | Promise<void | ExtensionDisposable>

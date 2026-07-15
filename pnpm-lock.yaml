@@ -80,6 +80,9 @@ importers:
       '@eidos.space/extension-state':
         specifier: workspace:*
         version: link:../../packages/extension-state
+      '@eidos.space/extension-surface-protocol':
+        specifier: workspace:*
+        version: link:../../packages/extension-surface-protocol
       '@eidos.space/file-space':
         specifier: workspace:*
         version: link:../../packages/file-space
@@ -1302,6 +1305,9 @@ importers:
       '@eidos.space/extension-manifest':
         specifier: workspace:*
         version: link:../extension-manifest
+      '@eidos.space/extension-surface-protocol':
+        specifier: workspace:*
+        version: link:../extension-surface-protocol
       oxc-transform:
         specifier: ^0.74.0
         version: 0.74.0
@@ -1323,6 +1329,10 @@ importers:
         version: 3.2.4(@types/debug@4.1.12)(@types/node@20.19.1)(happy-dom@20.10.6(bufferutil@4.0.9)(utf-8-validate@6.0.5))(jiti@2.6.1)(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/extension-sdk:
+    dependencies:
+      '@eidos.space/extension-surface-protocol':
+        specifier: workspace:*
+        version: link:../extension-surface-protocol
     devDependencies:
       '@types/node':
         specifier: ^20.19.1

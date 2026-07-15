@@ -6,6 +6,7 @@ sandboxed Eidos extension UI surfaces.
 Version 1 deliberately supports text documents only. It defines:
 
 - immutable initialization snapshots and monotonic in-memory revisions;
+- host-resolved appearance and theme tokens without host DOM coupling;
 - bounded UTF-16 offset edits against an exact base revision;
 - shared undo/redo with minimal inverse edits for multiple views;
 - bounded, single-use compare-and-swap save tokens so an older autosave cannot

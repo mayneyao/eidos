@@ -33,6 +33,15 @@ describe("extension surface message parsing", () => {
       baseRevision: 7,
       edits: [{ start: 2, end: 3, text: "x" }],
     })
+    expect(parseExtensionSurfaceMessage({ type: "activated" })).toEqual({
+      type: "activated",
+    })
+    expect(
+      parseExtensionSurfaceMessage({
+        type: "activation-error",
+        message: "Unable to activate",
+      })
+    ).toEqual({ type: "activation-error", message: "Unable to activate" })
   })
 
   it("rejects unsupported, unbounded, and malformed surface messages", () => {
@@ -51,6 +60,9 @@ describe("extension surface message parsing", () => {
     expect(() => parseExtensionSurfaceMessage({ type: "open-socket" })).toThrow(
       "Unsupported surface message"
     )
+    expect(() =>
+      parseExtensionSurfaceMessage({ type: "activation-error", message: "" })
+    ).toThrow("non-empty string")
   })
 })
 

@@ -45,7 +45,9 @@ the surface sends `ready`, the host sends one `initialize` message containing:
 - immutable package `generation`;
 - `editorId` and unique `viewId`;
 - a complete initial document snapshot;
-- capabilities such as `editable`, `save`, `undoRedo`, and `savePolicy`.
+- capabilities such as `editable`, `save`, `undoRedo`, and `savePolicy`;
+- `appearance`, containing locale, light/dark color scheme, and a fixed set of
+  resolved theme values.
 
 The surface must not infer a capability from its own manifest. For example, it
 must render read-only UI when `editable` is false even if the package requested
@@ -55,6 +57,13 @@ back to another compatible or native editor.
 Only the bootstrap transfers the port through `window.postMessage`. Document
 traffic stays on that port. A surface never receives an Electron bridge, host
 DOM, raw filesystem handle, SQLite connection, or unrestricted network client.
+
+The runtime maps appearance values to stable CSS custom properties such as
+`--eidos-color-background`, `--eidos-color-foreground`,
+`--eidos-color-border`, `--eidos-color-accent`, `--eidos-color-focus-ring`,
+`--eidos-font-family`, and `--eidos-font-family-mono`. A later
+`appearance-changed` message updates them without reactivating the extension.
+Extension UI must not depend on Eidos classes or inspect host DOM.
 
 ## Apply one edit
 
@@ -120,6 +129,8 @@ The extension cannot dismiss or resolve this conflict itself.
 | Message                         | Purpose                                               |
 | ------------------------------- | ----------------------------------------------------- |
 | `ready`                         | Complete protocol handshake                           |
+| `activated`                     | Confirm successful UI activation                      |
+| `activation-error`              | Report a bounded activation failure                   |
 | `apply-edits`                   | Submit one bounded batch against an exact revision    |
 | `request-save`                  | Ask the host to persist the current revision          |
 | `request-undo` / `request-redo` | Operate on shared document history                    |

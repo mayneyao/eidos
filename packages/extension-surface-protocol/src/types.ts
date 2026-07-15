@@ -61,6 +61,34 @@ export interface ExtensionSurfaceCapabilities {
   savePolicy: ExtensionSurfaceSavePolicy
 }
 
+export type ExtensionSurfaceColorScheme = "light" | "dark"
+
+/**
+ * A deliberately small, host-owned token set. Surfaces receive resolved CSS
+ * values instead of class names so they cannot depend on Eidos' internal DOM
+ * or Tailwind configuration.
+ */
+export interface ExtensionSurfaceThemeTokens {
+  background: string
+  foreground: string
+  mutedBackground: string
+  mutedForeground: string
+  border: string
+  accent: string
+  accentForeground: string
+  destructive: string
+  destructiveForeground: string
+  focusRing: string
+  fontFamily: string
+  monoFontFamily: string
+}
+
+export interface ExtensionSurfaceAppearance {
+  colorScheme: ExtensionSurfaceColorScheme
+  locale: string
+  theme: ExtensionSurfaceThemeTokens
+}
+
 export interface ExtensionSurfaceInitializeMessage {
   type: "initialize"
   protocolVersion: typeof EXTENSION_SURFACE_PROTOCOL_VERSION
@@ -70,6 +98,12 @@ export interface ExtensionSurfaceInitializeMessage {
   viewId: string
   snapshot: ExtensionTextDocumentSnapshot
   capabilities: ExtensionSurfaceCapabilities
+  appearance: ExtensionSurfaceAppearance
+}
+
+export interface ExtensionSurfaceAppearanceChangedMessage {
+  type: "appearance-changed"
+  appearance: ExtensionSurfaceAppearance
 }
 
 export interface ExtensionTextDocumentChangedMessage extends ExtensionTextDocumentState {
@@ -89,6 +123,7 @@ export interface ExtensionTextDocumentReplacedMessage {
 export interface ExtensionTextDocumentStateMessage extends ExtensionTextDocumentState {
   type: "document-state"
   documentId: string
+  persistedContentDigest: string
 }
 
 export interface ExtensionSurfaceSaveStateMessage {
@@ -135,6 +170,7 @@ export interface ExtensionSurfaceDisposeMessage {
 
 export type ExtensionHostToSurfaceMessage =
   | ExtensionSurfaceInitializeMessage
+  | ExtensionSurfaceAppearanceChangedMessage
   | ExtensionTextDocumentChangedMessage
   | ExtensionTextDocumentReplacedMessage
   | ExtensionTextDocumentStateMessage
@@ -146,6 +182,15 @@ export type ExtensionHostToSurfaceMessage =
 export interface ExtensionSurfaceReadyMessage {
   type: "ready"
   protocolVersion: typeof EXTENSION_SURFACE_PROTOCOL_VERSION
+}
+
+export interface ExtensionSurfaceActivatedMessage {
+  type: "activated"
+}
+
+export interface ExtensionSurfaceActivationErrorMessage {
+  type: "activation-error"
+  message: string
 }
 
 export interface ExtensionSurfaceApplyEditsRequest {
@@ -169,6 +214,8 @@ export interface ExtensionSurfaceClosedMessage {
 
 export type ExtensionSurfaceToHostMessage =
   | ExtensionSurfaceReadyMessage
+  | ExtensionSurfaceActivatedMessage
+  | ExtensionSurfaceActivationErrorMessage
   | ExtensionSurfaceApplyEditsRequest
   | ExtensionSurfaceDocumentRequest
   | ExtensionSurfaceClosedMessage

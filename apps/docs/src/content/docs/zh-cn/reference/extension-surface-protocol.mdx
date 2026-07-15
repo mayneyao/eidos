@@ -42,7 +42,8 @@ streaming contract 可用。
 - immutable package `generation`；
 - `editorId` 与唯一 `viewId`；
 - 完整 initial document snapshot；
-- `editable`、`save`、`undoRedo` 与 `savePolicy` 等 capability。
+- `editable`、`save`、`undoRedo` 与 `savePolicy` 等 capability；
+- `appearance`，包含 locale、明暗配色和一组固定的已解析主题值。
 
 Surface 不能根据自己的 Manifest 猜测 capability。例如，即使 package 请求了 write access，只要
 `editable` 为 false 就必须展示 read-only UI。不支持的 protocol version 会关闭 port，Eidos 回退到其他
@@ -50,6 +51,13 @@ compatible editor 或 native editor。
 
 只有 bootstrap 使用 `window.postMessage` 转移 port，document traffic 全部留在该 port。Surface 不会获得
 Electron bridge、host DOM、raw filesystem handle、SQLite connection 或 unrestricted network client。
+
+Runtime 会把外观值映射为稳定的 CSS 自定义属性，例如
+`--eidos-color-background`、`--eidos-color-foreground`、
+`--eidos-color-border`、`--eidos-color-accent`、
+`--eidos-color-focus-ring`、`--eidos-font-family` 和
+`--eidos-font-family-mono`。后续 `appearance-changed` 消息会在不重新激活
+扩展的情况下更新这些值。扩展 UI 不应依赖 Eidos class，也不能检查宿主 DOM。
 
 ## 应用一条 edit
 
@@ -108,6 +116,8 @@ Extension 不能自行隐藏或解决该 conflict。
 | Message                         | 用途                                            |
 | ------------------------------- | ----------------------------------------------- |
 | `ready`                         | 完成 protocol handshake                         |
+| `activated`                     | 确认 UI 已成功激活                              |
+| `activation-error`              | 报告有长度限制的激活错误                        |
 | `apply-edits`                   | 针对 exact revision 提交一个 bounded batch      |
 | `request-save`                  | 请求宿主 persist current revision               |
 | `request-undo` / `request-redo` | 操作 shared document history                    |

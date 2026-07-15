@@ -455,6 +455,7 @@ export class ExtensionTextDocumentModel {
     return {
       type: "document-state",
       documentId: this.documentId,
+      persistedContentDigest: this.persistedContentDigest,
       ...this.state(),
     }
   }

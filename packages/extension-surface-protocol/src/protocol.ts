@@ -248,6 +248,13 @@ export function parseExtensionSurfaceMessage(
     }
     return { type, protocolVersion: EXTENSION_SURFACE_PROTOCOL_VERSION }
   }
+  if (type === "activated") return { type }
+  if (type === "activation-error") {
+    return {
+      type,
+      message: text(input.message, "Surface activation error", 4096),
+    }
+  }
   if (type === "closed") return { type }
 
   if (
