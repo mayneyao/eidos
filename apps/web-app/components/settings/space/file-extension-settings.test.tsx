@@ -40,9 +40,14 @@ const translate = vi.hoisted(
 
 const contentDigest = `sha256:${"a".repeat(64)}`
 const permissionHash = `sha256:${"b".repeat(64)}`
+type FixtureGrant = {
+  kind: "files.read" | "files.write" | "network"
+  value: string
+}
 
 function discoveryFixture(
-  lifecycleStatus: "untrusted" | "disabled" | "enabled" = "untrusted"
+  lifecycleStatus: "untrusted" | "disabled" | "enabled" = "untrusted",
+  granted: FixtureGrant[] = []
 ) {
   const trusted = lifecycleStatus !== "untrusted"
   return {
@@ -105,9 +110,9 @@ function discoveryFixture(
           trusted,
           enabled: lifecycleStatus === "enabled",
           requestedGrants: trusted
-            ? [{ kind: "files.read", value: "**/*.md" }]
+            ? [{ kind: "files.read" as const, value: "**/*.md" }]
             : [],
-          granted: [],
+          granted,
         },
         files: [
           { path: "extension.json", size: 200 },
@@ -405,7 +410,7 @@ describe("FileExtensionSettings", () => {
       "Created .eidos/extensions/local.hello-tools"
     )
     expect(container.textContent).toContain(
-      "Next: review permissions and enable it below"
+      "Next: review its source, grant matching file access, and enable it below"
     )
     expect(container.textContent).toContain("Source trust")
     expect(container.textContent).toContain("How to use")
@@ -431,12 +436,41 @@ describe("FileExtensionSettings", () => {
     expect(container.textContent).toContain("How to use")
     expect(container.textContent).toContain("Count tasks")
     expect(container.textContent).toContain("example.task-counter.count")
+    expect(container.textContent).toContain(
+      "some requested capabilities are still denied (1)"
+    )
+    expect(container.textContent).not.toContain(
+      "This snapshot is ready. Use any contribution below"
+    )
     const openCommandPalette = [...container.querySelectorAll("button")].find(
       (button) => button.textContent?.includes("Open Command Palette")
     )!
     expect(openCommandPalette.disabled).toBe(false)
     act(() => openCommandPalette.click())
     expect(useAppRuntimeStore.getState().isCmdkOpen).toBe(true)
+  })
+
+  it("only reports a contribution as ready after requested grants are approved", async () => {
+    const fixture = discoveryFixture("enabled", [
+      { kind: "files.read", value: "**/*.md" },
+    ])
+    discoverMock.mockResolvedValue(fixture)
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const manage = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Manage"
+    )!
+    act(() => manage.click())
+
+    expect(container.textContent).toContain(
+      "This snapshot is ready. Use any contribution below"
+    )
+    expect(container.textContent).not.toContain(
+      "some requested capabilities are still denied"
+    )
   })
 
   it("reviews an immutable GitHub snapshot before installing it", async () => {

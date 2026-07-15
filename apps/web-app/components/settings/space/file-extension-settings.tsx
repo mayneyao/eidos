@@ -1125,7 +1125,7 @@ export function FileExtensionSettings() {
                       )
                     : t(
                         "space.settings.fileExtensions.editorCreatedNextStep",
-                        "Next: review permissions and enable it below, then open a matching file with the contributed editor."
+                        "Next: review its source, grant matching file access, and enable it below. Then open a matching file with the contributed editor."
                       )}
                 </p>
               </div>
@@ -1230,12 +1230,22 @@ export function FileExtensionSettings() {
               const trusted = extension.localState?.trusted === true
               const enabled = extension.localState?.enabled === true
               const granted = new Set(
-                extension.localState?.granted.map(grantKey) ?? []
+                (
+                  development?.granted ??
+                  extension.localState?.granted ??
+                  []
+                ).map(grantKey)
+              )
+              const missingGrants = extension.requestedGrants.filter(
+                (grant) => !granted.has(grantKey(grant))
+              )
+              const missingReadGrant = missingGrants.some(
+                (grant) => grant.kind === "files.read"
               )
               const commands = extension.manifest?.contributes.commands ?? []
               const fileEditors =
                 extension.manifest?.contributes.fileEditors ?? []
-              const activationReady =
+              const executionEnabled =
                 extension.lifecycleStatus === "enabled" ||
                 development?.status === "ready"
               return (
@@ -1688,15 +1698,21 @@ export function FileExtensionSettings() {
                               )}
                             </Label>
                             <p className="mt-0.5 text-xs text-muted-foreground">
-                              {activationReady
+                              {!executionEnabled
                                 ? t(
-                                    "space.settings.fileExtensions.contributionsReady",
-                                    "This snapshot is ready. Use any contribution below to activate it."
-                                  )
-                                : t(
                                     "space.settings.fileExtensions.contributionsNotReady",
                                     "Trust and enable this snapshot before using its contributions."
-                                  )}
+                                  )
+                                : missingGrants.length > 0
+                                  ? t(
+                                      "space.settings.fileExtensions.contributionsMissingGrants",
+                                      "Enabled, but some requested capabilities are still denied ({{count}}). Grant them below before relying on this extension.",
+                                      { count: missingGrants.length }
+                                    )
+                                  : t(
+                                      "space.settings.fileExtensions.contributionsReady",
+                                      "This snapshot is ready. Use any contribution below to activate it."
+                                    )}
                             </p>
                             <div className="mt-2 divide-y divide-border/60">
                               {commands.map((command) => (
@@ -1719,7 +1735,7 @@ export function FileExtensionSettings() {
                                     type="button"
                                     size="sm"
                                     variant="outline"
-                                    disabled={!activationReady}
+                                    disabled={!executionEnabled}
                                     onClick={() => setCmdkOpen(true)}
                                   >
                                     <CommandIcon />
@@ -1763,11 +1779,27 @@ export function FileExtensionSettings() {
                                   <p
                                     className={cn(
                                       "max-w-64 text-right text-xs leading-5",
-                                      activationReady
+                                      executionEnabled && !missingReadGrant
                                         ? "text-foreground"
                                         : "text-muted-foreground"
                                     )}
                                   >
+                                    {!executionEnabled && (
+                                      <>
+                                        {t(
+                                          "space.settings.fileExtensions.editorNotEnabledInstructions",
+                                          "Trust and enable this extension first."
+                                        )}{" "}
+                                      </>
+                                    )}
+                                    {executionEnabled && missingReadGrant && (
+                                      <>
+                                        {t(
+                                          "space.settings.fileExtensions.editorMissingReadGrantInstructions",
+                                          "Grant matching files.read access below."
+                                        )}{" "}
+                                      </>
+                                    )}
                                     {editor.priority === "option"
                                       ? t(
                                           "space.settings.fileExtensions.openEditorInstructions",
