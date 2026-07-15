@@ -477,6 +477,11 @@ describe("legacy Space migration planning", () => {
         originalTypeScriptStored: false,
         compiledJavaScriptStored: false,
       },
+      portability: {
+        readiness: "source-missing",
+        reasonCode: "source-missing",
+        sourceState: "missing",
+      },
     })
   })
 
@@ -898,8 +903,15 @@ describe("legacy Space migration planning", () => {
         )
       )
     ).toMatchObject({
+      format: "eidos-legacy-extension-archive",
+      formatVersion: 2,
       identity: { id: "ext-block", slug: "hello:world" },
       sourceModel: { metaJson: "{broken", enabled: false },
+      portability: {
+        readiness: "needs-review",
+        reasonCode: "metadata-invalid",
+        metadataState: "invalid",
+      },
     })
     expect(
       readFileSync(

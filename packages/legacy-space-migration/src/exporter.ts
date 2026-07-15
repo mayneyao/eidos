@@ -23,6 +23,7 @@ import Database from "better-sqlite3"
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml"
 
 import { inspectLegacySpace } from "./better-sqlite3"
+import { assessLegacyExtensionPortability } from "./extension-portability"
 import {
   baseFieldTypeForLegacyField,
   buildLegacyFieldImportStrategies,
@@ -331,7 +332,7 @@ ${issueLines.join("\n")}
 function legacyExtensionMetadata(extension: LegacyExtension) {
   return {
     format: "eidos-legacy-extension-archive",
-    formatVersion: 1,
+    formatVersion: 2,
     identity: {
       id: extension.id,
       slug: extension.slug,
@@ -353,6 +354,7 @@ function legacyExtensionMetadata(extension: LegacyExtension) {
       createdAt: extension.createdAt,
       updatedAt: extension.updatedAt,
     },
+    portability: assessLegacyExtensionPortability(extension),
   }
 }
 
@@ -360,6 +362,10 @@ function legacyExtensionReadme(
   extension: LegacyExtension,
   planned: PlannedExtension
 ): string {
+  const portability = assessLegacyExtensionPortability(extension)
+  const steps = portability.manualSteps
+    .map((step, index) => `${index + 1}. ${step}`)
+    .join("\n")
   return `# ${extension.name ?? extension.slug ?? extension.id}
 
 This directory is a lossless archive of a database-backed Eidos extension.
@@ -373,6 +379,20 @@ it automatically.
 - Original TypeScript: ${planned.sourcePath ? `\`${path.posix.relative(planned.targetDirectory, planned.sourcePath)}\`` : "not stored"}
 - Compiled JavaScript: ${planned.compiledPath ? `\`${path.posix.relative(planned.targetDirectory, planned.compiledPath)}\`` : "not stored"}
 - Original metadata: \`${path.posix.relative(planned.targetDirectory, planned.metadataPath)}\`
+
+## Portability assessment
+
+- Readiness: \`${portability.readiness}\`
+- Legacy contribution: \`${portability.legacyContribution ?? "(unknown)"}\`
+- v1 candidate: \`${portability.candidateContribution ?? "(none)"}\`
+- Source state: \`${portability.sourceState}\`
+- Metadata state: \`${portability.metadataState}\`
+
+${portability.summary}
+
+### Next steps
+
+${steps}
 
 Before porting this code, create a new extension package under
 \`.eidos/extensions/<publisher.name>/\`, declare only the capabilities it
