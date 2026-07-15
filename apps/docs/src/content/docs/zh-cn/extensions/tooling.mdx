@@ -99,6 +99,13 @@ CLI，把这些 tarball 安装进一个全新的临时消费项目，然后真�
 门禁会拒绝泄漏的 `workspace:` 依赖、缺失的内部 package、版本漂移、错误的 CLI 许可证、不可执行的
 bin，以及没有遵守 Eidos engine 范围的模板。安装期间始终禁用 package 生命周期脚本。
 
+可复用的 **Extension Delivery** workflow 会在 Node 22 下执行 package metadata 校验、CLI 类型检查与
+测试、隔离消费项目 smoke test，以及官方示例和文档构建。Tooling 与 packed-consumer 检查覆盖 Linux、
+macOS 和 Windows；Desktop release build 必须等待该 workflow，因此损坏的 scaffold 或 SDK 会阻断发布。
+
+这是一道交付门禁，不代表 API 已经稳定。Preview 阶段的扩展必须声明 `engines.eidos`、固定 immutable
+release，并预期已记录的 capability 与 surface contract 在稳定 v1 前仍可能演进。
+
 ## 开发循环
 
 1. 在主要 Space 之外创建 starter。

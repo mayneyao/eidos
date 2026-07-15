@@ -641,4 +641,8 @@ pnpm --filter eidos smoke:file-extension-install
 官方 Task Counter 与 Task Board gate 已改为使用相同检查路径。公开 npm 发布仍是独立的 release 动作。
 可重复执行的 `pnpm smoke:extension-tooling` 门禁会打包五个公开开发者 package，在禁用生命周期脚本的
 隔离消费项目中安装它们，并验证已安装 CLI 二进制、library API、两种模板、内部发布版本、许可证以及
-兼容/不兼容 host 行为，全程不依赖 workspace link。
+兼容/不兼容 host 行为，全程不依赖 workspace link。可复用的 `Extension Delivery` workflow 会在
+Node 22 下重复 metadata、类型检查、测试、packed-consumer、示例和文档门禁；package 与 consumer
+检查覆盖 Linux、macOS 和 Windows，Desktop release build 必须依赖该 workflow。这补齐了开发工具的
+交付闭环，但不代表 v1 API 已稳定：扩展仍须声明 `engines.eidos`、使用 immutable release provenance，
+并在 preview contract 变化时迁移。

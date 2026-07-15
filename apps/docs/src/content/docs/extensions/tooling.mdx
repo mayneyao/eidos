@@ -109,6 +109,17 @@ dependencies, missing internal packages, version drift, an incorrect CLI
 license, a broken executable, and templates that do not respect their Eidos
 engine range. Package lifecycle scripts remain disabled during installation.
 
+The reusable **Extension Delivery** workflow runs package metadata validation,
+CLI type-checking and tests, the packed-consumer smoke test, and the official
+example/documentation build on Node 22. The tooling and packed-consumer checks
+run on Linux, macOS, and Windows. Desktop release builds wait for this workflow,
+so a developer-kit regression blocks a release instead of shipping an
+unusable scaffold or SDK.
+
+This is a delivery gate, not an API-stability promise. During the preview,
+extensions must declare `engines.eidos`, pin immutable releases, and expect
+documented capability and surface contracts to evolve before a stable v1.
+
 ## Development loop
 
 1. Scaffold outside your primary Space.

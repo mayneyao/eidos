@@ -713,4 +713,10 @@ publication remains a separate release action. The repeatable
 installs them into an isolated consumer with lifecycle scripts disabled, and
 proves the installed CLI binary, library API, both templates, internal release
 versions, licenses, and compatible/incompatible host behavior without relying
-on workspace links.
+on workspace links. The reusable `Extension Delivery` workflow repeats the
+metadata, type-check, test, packed-consumer, example, and documentation gates on
+Node 22; package and consumer checks run on Linux, macOS, and Windows. Desktop
+release builds depend on this workflow. This closes the developer-kit delivery
+loop without claiming a stable v1 API: extensions must still declare
+`engines.eidos`, use immutable release provenance, and migrate when preview
+contracts change.

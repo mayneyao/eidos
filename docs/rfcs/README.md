@@ -15,7 +15,7 @@ This directory contains draft RFCs for moving Eidos toward a file-based storage 
 | Graft versioning      | Desktop accepted      | Repository-scoped subprocess execution, bounded persistent fetch/pull/push, diverged text diff, path-first resolution, two-parent continuation, clean reconciliation, and final push are accepted.                                          |
 | Product UX            | Desktop accepted      | Files/Version, Diff/History, Settings, migration, native Base lifecycle, two-Space row-conflict review, Base v1 table-view parity, and native record-tab restore/split flows are accepted.                                                  |
 | Base format/runtime   | Base v1 accepted      | The standalone package supports structured queries and column aggregates, persisted Grid/Gallery/Kanban views, bounded virtual paging, rich fields, hardened validation, atomic range edits and undo, batch deletion, and streamed imports. |
-| File-based extensions | P2b developer preview | Isolated command Workers, read-only text access, menus, and host semantic UI work; GitHub install and custom views remain.                                                                                                                  |
+| File-based extensions | P5 developer preview  | Isolated command Workers, text editors, semantic UI surfaces, public GitHub install/update, strict CLI scaffolding/checks, and cross-platform packed-package delivery gates work; stable v1 publication remains.                            |
 | Legacy migration      | Real exports accepted | Standalone planning, atomic export, Desktop Settings, schema recovery, and 1.1M-row real-Space acceptance are complete; live derived recomputation remains.                                                                                 |
 
 The implementation order has intentionally changed from Base-first. The first
@@ -27,7 +27,7 @@ four milestones are now complete:
 4. implement and accept legacy migration exports.
 
 The Base v1 delivery gate is now closed. File-based extensions remain a
-separate, currently deferred RFC rather than a blocker for the Base release.
+separate developer preview rather than a blocker for the Base release.
 
 Recommended reading order:
 
