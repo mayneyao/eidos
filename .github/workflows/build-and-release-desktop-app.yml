@@ -9,14 +9,18 @@ env:
   GRAFT_RELEASE_VERSION: v0.5.5
 
 jobs:
+  extension-delivery:
+    uses: ./.github/workflows/extension-delivery.yml
+
   build-frontend:
+    needs: extension-delivery
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: "20.19.0"
 
@@ -95,10 +99,10 @@ jobs:
             list_command: ls -la apps/desktop/dist-app
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: "20.19.0"
 
@@ -187,7 +191,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Download all platform artifacts
         uses: actions/download-artifact@v4
