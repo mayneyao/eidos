@@ -17,6 +17,7 @@ import type { AppLifecycleService } from "./app-lifecycle.service"
 import { setupGeolocationHandler } from "./geolocation"
 import { BrowserService } from "../browser/browser.service"
 import type { OverlayService as OverlayServiceInstance } from "../browser/services/overlay.service"
+import { shouldBlockExtensionSurfaceFrameNavigation } from "../file-extensions/extension-surface-navigation"
 
 const defaultViewOptions = {
   webPreferences: {
@@ -326,6 +327,17 @@ export class WindowService {
       }
       // Deny other types of window open requests to maintain app security
       return { action: "deny" }
+    })
+
+    win.webContents.on("will-frame-navigate", (details) => {
+      if (
+        shouldBlockExtensionSurfaceFrameNavigation({
+          isMainFrame: details.isMainFrame,
+          currentFrameUrl: details.frame?.url,
+        })
+      ) {
+        details.preventDefault()
+      }
     })
 
     // Clean up reference when window is closed

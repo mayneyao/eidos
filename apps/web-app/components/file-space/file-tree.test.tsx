@@ -18,6 +18,23 @@ const navigateMock = vi.hoisted(() => vi.fn())
 const setGlobalSearchOpenMock = vi.hoisted(() => vi.fn())
 const createBaseMock = vi.hoisted(() => vi.fn())
 const preloadSpaceBaseEditorMock = vi.hoisted(() => vi.fn())
+const extensionEditorMocks = vi.hoisted(() => ({
+  byPath: {} as Record<
+    string,
+    Array<{
+      packageId: string
+      contentDigest: string
+      permissionHash: string
+      id: string
+      displayName: string
+      extensionDisplayName: string
+      selector: Array<{ filenamePattern: string }>
+      priority: "default" | "option"
+      editable: boolean
+    }>
+  >,
+  load: vi.fn(),
+}))
 
 vi.mock("./base/space-base-editor-loader", () => ({
   preloadSpaceBaseEditor: preloadSpaceBaseEditorMock,
@@ -38,6 +55,14 @@ vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
     reveal: vi.fn(),
   }),
   useSpaceFileChanges: () => undefined,
+}))
+
+vi.mock("@/apps/web-app/hooks/use-file-extension-editors", () => ({
+  useFileExtensionEditors: () => ({
+    editorsFor: (path: string) => extensionEditorMocks.byPath[path] ?? [],
+    load: extensionEditorMocks.load,
+    clear: vi.fn(),
+  }),
 }))
 
 vi.mock("@/apps/web-app/hooks/use-router-adapter", () => ({
@@ -140,6 +165,14 @@ describe("FileSpaceTree accessibility", () => {
   let root: Root
 
   beforeEach(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class ResizeObserverStub {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
     useFileSpaceSettings.setState({ bySpace: {} })
     currentEntriesByDirectory = Object.fromEntries(
       Object.entries(entriesByDirectory).map(([directory, entries]) => [
@@ -156,6 +189,11 @@ describe("FileSpaceTree accessibility", () => {
     createBaseMock.mockReset()
     preloadSpaceBaseEditorMock.mockReset()
     preloadSpaceBaseEditorMock.mockResolvedValue(() => null)
+    extensionEditorMocks.byPath = {}
+    extensionEditorMocks.load.mockReset()
+    extensionEditorMocks.load.mockImplementation(
+      async (path: string) => extensionEditorMocks.byPath[path] ?? []
+    )
     moveMock.mockReset()
     createTextMock.mockImplementation(async (path: string) => {
       const created = entry(path, "file")
@@ -182,6 +220,7 @@ describe("FileSpaceTree accessibility", () => {
     act(() => root.unmount())
     container.remove()
     useFileSpaceSettings.setState({ bySpace: {} })
+    vi.unstubAllGlobals()
   })
 
   const getTreeItem = (path: string) => {
@@ -390,6 +429,79 @@ describe("FileSpaceTree accessibility", () => {
     act(() => item.focus())
     await press("Enter")
     expect(navigateMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("uses a matching default extension editor for normal file activation", async () => {
+    extensionEditorMocks.byPath["root.md"] = [
+      {
+        packageId: "example.task-board",
+        contentDigest: `sha256:${"1".repeat(64)}`,
+        permissionHash: `sha256:${"2".repeat(64)}`,
+        id: "example.task-board.editor",
+        displayName: "Task Board",
+        extensionDisplayName: "Markdown Task Board",
+        selector: [{ filenamePattern: "**/*.md" }],
+        priority: "default",
+        editable: true,
+      },
+    ]
+    await renderTree()
+
+    await act(async () => {
+      getTreeItem("root.md").click()
+      await Promise.resolve()
+    })
+
+    expect(navigateMock).toHaveBeenLastCalledWith(
+      "/space-file?editor=example.task-board.editor#root.md"
+    )
+  })
+
+  it("offers optional extension editors through the file context menu", async () => {
+    extensionEditorMocks.byPath["root.md"] = [
+      {
+        packageId: "example.task-board",
+        contentDigest: `sha256:${"1".repeat(64)}`,
+        permissionHash: `sha256:${"2".repeat(64)}`,
+        id: "example.task-board.editor",
+        displayName: "Task Board",
+        extensionDisplayName: "Markdown Task Board",
+        selector: [{ filenamePattern: "**/*.md" }],
+        priority: "option",
+        editable: true,
+      },
+    ]
+    await renderTree()
+
+    await act(async () => {
+      getTreeItem("root.md").dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          clientX: 120,
+          clientY: 80,
+        })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const menu = document.body.querySelector<HTMLElement>(
+      '[aria-label="Actions for root.md"]'
+    )
+    expect(menu?.textContent).toContain("Open with Eidos")
+    const extensionButton = Array.from(
+      menu?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []
+    ).find((button) => button.textContent?.includes("Open with Task Board"))
+
+    await act(async () => {
+      extensionButton?.click()
+      await Promise.resolve()
+    })
+
+    expect(navigateMock).toHaveBeenLastCalledWith(
+      "/space-file?editor=example.task-board.editor#root.md"
+    )
   })
 
   it("preloads the Base workspace on file intent only", async () => {

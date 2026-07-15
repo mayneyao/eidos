@@ -5,6 +5,7 @@ import {
   baseRecordFromSpaceUrl,
   canMoveSpaceEntryTo,
   filePathFromSpaceUrl,
+  fileEditorFromSpaceUrl,
   headingFromSpaceLink,
   headingFromSpaceUrl,
   isSameOrDescendant,
@@ -13,6 +14,7 @@ import {
   toSpaceAssetUrl,
   toSpaceBaseRecordUrl,
   toSpaceFileUrl,
+  toSpaceFileEditorUrl,
   uniqueSpaceEntryName,
   validateSpaceEntryName,
 } from "./file-path"
@@ -25,6 +27,15 @@ describe("file Space paths", () => {
     expect(filePathFromSpaceUrl(headingUrl)).toBe(path)
     expect(headingFromSpaceUrl(headingUrl)).toBe("下一步 & Review")
     expect(headingFromSpaceUrl(toSpaceFileUrl(path))).toBeNull()
+  })
+
+  it("round-trips custom editor IDs through stable tab URLs", () => {
+    const url = toSpaceFileEditorUrl("projects/tasks.md", "example.tasks.board")
+    expect(filePathFromSpaceUrl(url)).toBe("projects/tasks.md")
+    expect(fileEditorFromSpaceUrl(url)).toBe("example.tasks.board")
+    expect(
+      fileEditorFromSpaceUrl(toSpaceFileUrl("projects/tasks.md"))
+    ).toBeNull()
   })
 
   it("round-trips Base record targets through stable tab URLs", () => {
@@ -83,6 +94,16 @@ describe("file Space paths", () => {
       )
     ).toBe(toSpaceFileUrl("archive/project.md", "Next step"))
     expect(moveSpaceFileUrl("/settings", "notes", "archive")).toBeNull()
+  })
+
+  it("moves custom editor tab URLs without losing the editor", () => {
+    expect(
+      moveSpaceFileUrl(
+        toSpaceFileEditorUrl("notes/tasks.md", "example.tasks.board"),
+        "notes",
+        "archive"
+      )
+    ).toBe(toSpaceFileEditorUrl("archive/tasks.md", "example.tasks.board"))
   })
 
   it("moves Base record tab URLs without losing the record target", () => {

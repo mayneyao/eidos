@@ -396,6 +396,12 @@ importers:
       '@eidos.space/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@eidos.space/extension-runtime':
+        specifier: workspace:*
+        version: link:../../packages/extension-runtime
+      '@eidos.space/extension-surface-protocol':
+        specifier: workspace:*
+        version: link:../../packages/extension-surface-protocol
       '@eidos.space/file-space':
         specifier: workspace:*
         version: link:../../packages/file-space

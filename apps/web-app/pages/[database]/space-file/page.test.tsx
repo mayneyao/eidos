@@ -66,6 +66,25 @@ vi.mock("@/apps/web-app/components/file-space/space-markdown-editor", () => ({
   ),
 }))
 
+vi.mock(
+  "@/apps/web-app/components/file-extensions/extension-file-editor-surface",
+  () => ({
+    ExtensionFileEditorSurface: ({
+      filePath,
+      editorId,
+    }: {
+      filePath: string
+      editorId: string
+    }) => (
+      <div
+        data-testid="extension-file-editor"
+        data-path={filePath}
+        data-editor={editorId}
+      />
+    ),
+  })
+)
+
 vi.mock("@/apps/web-app/components/file-space/pending-writes", () => ({
   registerPendingWriteFlusher: mocks.registerPendingWriteFlusher,
 }))
@@ -176,6 +195,32 @@ describe("SpaceFilePage editor selection", () => {
     expect(container.querySelector('[data-testid="monaco-editor"]')).toBeNull()
     expect(container.textContent).not.toContain("notes/today.md")
     expect(container.textContent).not.toContain("Saved")
+  })
+
+  it("routes an explicit editor URL to the extension surface before native handlers", async () => {
+    await act(async () => {
+      root.render(
+        <MemoryRouter
+          initialEntries={[
+            "/space-file?editor=example.tasks-board#notes%2Ftoday.md",
+          ]}
+        >
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+
+    const editor = container.querySelector<HTMLElement>(
+      '[data-testid="extension-file-editor"]'
+    )
+    expect(editor?.dataset.path).toBe("notes/today.md")
+    expect(editor?.dataset.editor).toBe("example.tasks-board")
+    expect(mocks.readText).not.toHaveBeenCalled()
+    expect(container.querySelector('[data-testid="monaco-editor"]')).toBeNull()
+    expect(
+      container.querySelector('[data-testid="lexical-markdown-editor"]')
+    ).toBeNull()
   })
 
   it("keeps Monaco for non-Markdown text files", async () => {

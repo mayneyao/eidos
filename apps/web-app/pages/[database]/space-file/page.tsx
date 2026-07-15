@@ -6,12 +6,14 @@ import { useLocation } from "react-router-dom"
 
 import {
   baseRecordFromSpaceUrl,
+  fileEditorFromSpaceUrl,
   headingFromSpaceUrl,
   isSameOrDescendant,
   joinSpacePath,
   parentSpacePath,
   toSpaceAssetUrl,
 } from "@/apps/web-app/components/file-space/file-path"
+import { ExtensionFileEditorSurface } from "@/apps/web-app/components/file-extensions/extension-file-editor-surface"
 import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-space/pending-writes"
 import { SpaceBaseEditorLoader } from "@/apps/web-app/components/file-space/base/space-base-editor-loader"
 import { SpaceFileFallbackPreview } from "@/apps/web-app/components/file-space/space-file-fallback-preview"
@@ -121,6 +123,7 @@ export function SpaceFilePage() {
   const location = useLocation()
   const locationUrl = location.pathname + location.search + location.hash
   const filePath = decodeFilePath(location.hash)
+  const fileEditorId = fileEditorFromSpaceUrl(locationUrl)
   const heading = headingFromSpaceUrl(locationUrl) ?? undefined
   const baseRecordTarget = baseRecordFromSpaceUrl(locationUrl) ?? undefined
   const extension = extensionOf(filePath)
@@ -129,6 +132,15 @@ export function SpaceFilePage() {
 
   if (!filePath) {
     return <FileState message="No file selected" />
+  }
+  if (fileEditorId) {
+    return (
+      <ExtensionFileEditorSurface
+        key={`${filePath}:${fileEditorId}`}
+        filePath={filePath}
+        editorId={fileEditorId}
+      />
+    )
   }
   if (extension === "base") {
     return (

@@ -34,6 +34,7 @@ import {
   useFileExtensionCommands,
   type FileExtensionCommand,
 } from "@/apps/web-app/hooks/use-file-extension-commands"
+import { useFileExtensionEditors } from "@/apps/web-app/hooks/use-file-extension-editors"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -51,6 +52,7 @@ import {
   joinSpacePath,
   moveSpaceFileUrl,
   parentSpacePath,
+  toSpaceFileEditorUrl,
   toSpaceFileUrl,
   uniqueSpaceEntryName,
   validateSpaceEntryName,
@@ -101,6 +103,8 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const { create: createBase } = useSpaceBase(spaceId)
   const { commands: extensionCommands, execute: executeExtensionCommand } =
     useFileExtensionCommands(spaceId)
+  const { editorsFor: extensionEditorsFor, load: loadExtensionEditors } =
+    useFileExtensionEditors(spaceId)
   const versioningOperation = useActiveSpaceVersioningOperation(spaceId)
   const restoringVersion =
     isDestructiveSpaceVersioningOperation(versioningOperation)
@@ -509,11 +513,19 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   )
 
   const openFile = useCallback(
-    async (entry: SpaceFileEntry) => {
+    async (entry: SpaceFileEntry, editorId?: string | null) => {
+      const resolvedEditorId =
+        editorId === undefined
+          ? (await loadExtensionEditors(entry.path)).find(
+              (editor) => editor.priority === "default"
+            )?.id
+          : (editorId ?? undefined)
       const navigated = await navigateAfterFlushingSpaceFile({
         spaceId,
         currentFilePath: selectedPath,
-        destination: toSpaceFileUrl(entry.path),
+        destination: resolvedEditorId
+          ? toSpaceFileEditorUrl(entry.path, resolvedEditorId)
+          : toSpaceFileUrl(entry.path),
         navigate,
       })
       if (!navigated) {
@@ -522,7 +534,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
         )
       }
     },
-    [navigate, selectedPath, spaceId]
+    [loadExtensionEditors, navigate, selectedPath, spaceId]
   )
 
   const renameEntry = useCallback(
@@ -758,13 +770,18 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
             }}
             onImport={(parentPath) => void importInto(parentPath)}
             onIntent={(entry) => {
-              if (!entry.path.toLowerCase().endsWith(".base")) return
-              void preloadSpaceBaseEditor().catch(() => undefined)
+              void loadExtensionEditors(entry.path)
+              if (entry.path.toLowerCase().endsWith(".base")) {
+                void preloadSpaceBaseEditor().catch(() => undefined)
+              }
             }}
             onMove={(entry, destinationParent) =>
               void moveInto(entry, destinationParent)
             }
             onOpen={(entry) => void openFile(entry)}
+            extensionEditors={(entry) => extensionEditorsFor(entry.path)}
+            loadExtensionEditors={(entry) => loadExtensionEditors(entry.path)}
+            onOpenWith={(entry, editorId) => void openFile(entry, editorId)}
             onRename={(entry, destinationPath) =>
               void renameEntry(entry, destinationPath)
             }

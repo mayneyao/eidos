@@ -20,6 +20,7 @@ import {
   FolderOpen,
   FolderPlus,
   Blocks,
+  PanelsTopLeft,
   PencilLine,
   Table2,
   Trash2,
@@ -30,6 +31,7 @@ import type { SpaceFileEntry } from "@eidos.space/file-space"
 
 import { cn } from "@/lib/utils"
 import type { FileExtensionCommand } from "@/apps/web-app/hooks/use-file-extension-commands"
+import type { FileExtensionEditor } from "@/apps/web-app/hooks/use-file-extension-editors"
 
 import { resolveTreeContextMenuPosition } from "./tree-context-menu-position"
 
@@ -55,6 +57,11 @@ interface SpaceFilesTreeProps {
   onIntent?: (entry: SpaceFileEntry) => void
   onMove: (entry: SpaceFileEntry, destinationParent: string) => void
   onOpen: (entry: SpaceFileEntry) => void
+  extensionEditors?: (entry: SpaceFileEntry) => FileExtensionEditor[]
+  loadExtensionEditors?: (
+    entry: SpaceFileEntry
+  ) => Promise<FileExtensionEditor[]>
+  onOpenWith?: (entry: SpaceFileEntry, editorId: string | null) => void
   onRename: (entry: SpaceFileEntry, destinationPath: string) => void
   onReveal: (path: string) => void
   extensionCommands?: (entry: SpaceFileEntry) => FileExtensionCommand[]
@@ -102,6 +109,9 @@ function SpaceTreeContextMenu({
   onReveal,
   extensionCommands,
   onExtensionCommand,
+  initialExtensionEditors,
+  loadExtensionEditors,
+  onOpenWith,
 }: {
   item: ContextMenuItem
   context: ContextMenuOpenContext
@@ -114,6 +124,9 @@ function SpaceTreeContextMenu({
   onReveal: SpaceFilesTreeProps["onReveal"]
   extensionCommands: FileExtensionCommand[]
   onExtensionCommand?: SpaceFilesTreeProps["onExtensionCommand"]
+  initialExtensionEditors: FileExtensionEditor[]
+  loadExtensionEditors?: SpaceFilesTreeProps["loadExtensionEditors"]
+  onOpenWith?: SpaceFilesTreeProps["onOpenWith"]
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState(() =>
@@ -126,6 +139,20 @@ function SpaceTreeContextMenu({
       }
     )
   )
+  const [extensionEditors, setExtensionEditors] = useState(
+    initialExtensionEditors
+  )
+
+  useEffect(() => {
+    if (entry.kind !== "file" || !loadExtensionEditors) return
+    let cancelled = false
+    void loadExtensionEditors(entry).then((editors) => {
+      if (!cancelled) setExtensionEditors(editors)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [entry, loadExtensionEditors])
 
   useLayoutEffect(() => {
     const menu = menuRef.current
@@ -236,6 +263,33 @@ function SpaceTreeContextMenu({
             <Upload className="h-3.5 w-3.5" />
             Import files…
           </button>
+          <div className="my-1 h-px bg-border" role="separator" />
+        </>
+      ) : null}
+      {item.kind === "file" && extensionEditors.length > 0 ? (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            className={itemClassName}
+            onClick={() => run(() => onOpenWith?.(entry, null))}
+          >
+            <PanelsTopLeft className="h-3.5 w-3.5" />
+            Open with Eidos
+          </button>
+          {extensionEditors.map((editor) => (
+            <button
+              key={`${editor.packageId}:${editor.id}`}
+              type="button"
+              role="menuitem"
+              className={itemClassName}
+              onClick={() => run(() => onOpenWith?.(entry, editor.id))}
+              title={`${editor.displayName} — ${editor.extensionDisplayName}`}
+            >
+              <Blocks className="h-3.5 w-3.5" />
+              <span className="truncate">Open with {editor.displayName}</span>
+            </button>
+          ))}
           <div className="my-1 h-px bg-border" role="separator" />
         </>
       ) : null}
@@ -561,6 +615,9 @@ export const SpaceFilesTree = forwardRef<
             onReveal={props.onReveal}
             extensionCommands={props.extensionCommands?.(entry) ?? []}
             onExtensionCommand={props.onExtensionCommand}
+            initialExtensionEditors={props.extensionEditors?.(entry) ?? []}
+            loadExtensionEditors={props.loadExtensionEditors}
+            onOpenWith={props.onOpenWith}
           />
         )
       }}

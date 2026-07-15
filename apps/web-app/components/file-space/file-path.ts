@@ -30,8 +30,25 @@ export function uniqueSpaceEntryName(
 }
 
 export function toSpaceFileUrl(relativePath: string, heading?: string): string {
-  const search = heading ? `?heading=${encodeURIComponent(heading)}` : ""
-  return `/space-file${search}#${encodeURIComponent(relativePath)}`
+  return createSpaceFileUrl(relativePath, { heading })
+}
+
+export function toSpaceFileEditorUrl(
+  relativePath: string,
+  editorId: string
+): string {
+  return createSpaceFileUrl(relativePath, { editorId })
+}
+
+function createSpaceFileUrl(
+  relativePath: string,
+  options: { heading?: string; editorId?: string }
+): string {
+  const search = new URLSearchParams()
+  if (options.heading) search.set("heading", options.heading)
+  if (options.editorId) search.set("editor", options.editorId)
+  const query = search.size > 0 ? `?${search.toString()}` : ""
+  return `/space-file${query}#${encodeURIComponent(relativePath)}`
 }
 
 export interface SpaceBaseRecordTarget {
@@ -75,6 +92,16 @@ export function headingFromSpaceUrl(url: string): string | null {
     const parsed = new URL(url, "https://eidos.local")
     if (parsed.pathname !== "/space-file") return null
     return parsed.searchParams.get("heading")
+  } catch {
+    return null
+  }
+}
+
+export function fileEditorFromSpaceUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url, "https://eidos.local")
+    if (parsed.pathname !== "/space-file") return null
+    return parsed.searchParams.get("editor")
   } catch {
     return null
   }
@@ -127,6 +154,7 @@ export function moveSpaceFileUrl(
   if (!filePath || !isSameOrDescendant(filePath, sourcePath)) return null
   const suffix = filePath.slice(sourcePath.length)
   const heading = headingFromSpaceUrl(url) ?? undefined
+  const editorId = fileEditorFromSpaceUrl(url) ?? undefined
   const baseRecord = baseRecordFromSpaceUrl(url)
   return baseRecord
     ? toSpaceBaseRecordUrl(
@@ -134,7 +162,7 @@ export function moveSpaceFileUrl(
         baseRecord.tableId,
         baseRecord.recordId
       )
-    : toSpaceFileUrl(`${destinationPath}${suffix}`, heading)
+    : createSpaceFileUrl(`${destinationPath}${suffix}`, { heading, editorId })
 }
 
 export function canMoveSpaceEntryTo(
