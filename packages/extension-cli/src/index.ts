@@ -126,6 +126,17 @@ interface InspectedLegacyArchive {
 const MAX_LEGACY_ARCHIVE_FILE_BYTES = 16 * 1024 * 1024
 const EXTENSION_NAME_PATTERN = /^[a-z][a-z0-9-]{1,62}$/
 
+function isRuntimeExtensionsPath(candidate: string): boolean {
+  const segments = path
+    .resolve(candidate)
+    .split(path.sep)
+    .map((segment) => segment.toLocaleLowerCase("en-US"))
+  return segments.some(
+    (segment, index) =>
+      segment === ".eidos" && segments[index + 1] === "extensions"
+  )
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value)
 }
@@ -331,6 +342,12 @@ export async function createLegacyPortingProject(
       "Publisher must match ^[a-z][a-z0-9-]{1,62}$ for a v1 extension"
     )
   }
+  const outDir = path.resolve(options.outDir ?? ".")
+  if (isRuntimeExtensionsPath(outDir)) {
+    throw new Error(
+      "Porting workspaces cannot be created under .eidos/extensions; finalize them outside the live Space first"
+    )
+  }
   const archive = await inspectLegacyArchive(options.archiveRoot)
   const candidate = archive.metadata.portability.candidateContribution
   if (candidate !== "command" && candidate !== "file-editor") {
@@ -357,7 +374,7 @@ export async function createLegacyPortingProject(
   const created = await createExtensionProject({
     canonicalId,
     template: candidate === "command" ? "command" : "text-editor",
-    outDir: options.outDir,
+    outDir,
     displayName: (
       archive.metadata.presentation.name ??
       archive.metadata.identity.slug ??

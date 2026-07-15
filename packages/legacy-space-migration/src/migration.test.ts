@@ -970,6 +970,12 @@ describe("legacy Space migration planning", () => {
         "utf8"
       )
     ).toContain("not an installable file-based extension")
+    expect(
+      readFileSync(
+        path.join(targetRoot, ...scriptArchive.readmePath.split("/")),
+        "utf8"
+      )
+    ).toContain("@eidos.space/extension-cli port .")
     expect(existsSync(result.reportPath)).toBe(true)
     expect(readFileSync(result.reportPath, "utf8")).toContain(
       "Status: completed"

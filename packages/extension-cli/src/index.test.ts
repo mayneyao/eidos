@@ -403,6 +403,23 @@ describe("extension developer workflow", () => {
     ).rejects.toMatchObject({ code: "ENOENT" })
   })
 
+  it("never creates a porting draft inside the live runtime extension root", async () => {
+    const root = await temporaryRoot()
+    const archiveRoot = await createLegacyArchive(root)
+    const runtimeRoot = path.join(root, ".eidos", "extensions")
+
+    await expect(
+      createLegacyPortingProject({
+        archiveRoot,
+        publisher: "example",
+        outDir: runtimeRoot,
+      })
+    ).rejects.toThrow("cannot be created under .eidos/extensions")
+    await expect(
+      lstat(path.join(runtimeRoot, "example.task-counter"))
+    ).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
   it("supports an agent-friendly port command", async () => {
     const root = await temporaryRoot()
     const archiveRoot = await createLegacyArchive(root)

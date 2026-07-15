@@ -369,6 +369,21 @@ function legacyExtensionReadme(
   const steps = portability.manualSteps
     .map((step, index) => `${index + 1}. ${step}`)
     .join("\n")
+  const portingCommand =
+    portability.readiness === "manual-port"
+      ? `
+### Create a porting workspace
+
+From this archive directory, run:
+
+\`\`\`sh
+npx @eidos.space/extension-cli port . --publisher your-publisher --out-dir ../ports
+\`\`\`
+
+The command creates a non-installable draft. The legacy source remains under
+\`legacy/\` as reference-only material and is never imported automatically.
+`
+      : ""
   return `# ${extension.name ?? extension.slug ?? extension.id}
 
 This directory is a lossless archive of a database-backed Eidos extension.
@@ -396,6 +411,7 @@ ${portability.summary}
 ### Next steps
 
 ${steps}
+${portingCommand}
 
 Before porting this code, create a new extension package under
 \`.eidos/extensions/<publisher.name>/\`, declare only the capabilities it
