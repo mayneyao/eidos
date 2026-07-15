@@ -9,6 +9,7 @@ inside the folder.
 ## Responsibilities
 
 - safe Space-relative file reads and writes,
+- SHA-256 content identities and compare-and-swap writes for editor sessions,
 - bounded text/binary inspection for unknown-file previews,
 - file and directory creation, move, and removal,
 - coalesced filesystem change notifications and stable read snapshots,

@@ -112,6 +112,28 @@ describe("SpaceFiles", () => {
     ).rejects.toMatchObject({ code: "file-changed" })
   })
 
+  it("uses a content digest as a compare-and-swap baseline", async () => {
+    await writeFile(path.join(root, "digest.md"), "first")
+    const original = await files.readText("digest.md")
+
+    expect(original.contentDigest).toMatch(/^sha256:[a-f0-9]{64}$/)
+    const saved = await files.writeText(
+      "digest.md",
+      "second",
+      undefined,
+      original.contentDigest
+    )
+    expect(saved).toMatchObject({ content: "second" })
+
+    await writeFile(path.join(root, "digest.md"), "third")
+    await expect(
+      files.writeText("digest.md", "stale", undefined, saved.contentDigest)
+    ).rejects.toMatchObject({ code: "file-changed" })
+    await expect(readFile(path.join(root, "digest.md"), "utf8")).resolves.toBe(
+      "third"
+    )
+  })
+
   it("rejects invalid UTF-8 text without changing its bytes", async () => {
     const filename = path.join(root, "legacy.md")
     const original = Buffer.from([0x66, 0x6f, 0x80])

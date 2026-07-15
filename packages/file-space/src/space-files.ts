@@ -7,7 +7,7 @@ import {
   type Stats,
 } from "node:fs"
 import { execFile } from "node:child_process"
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import {
   copyFile,
   lstat,
@@ -41,6 +41,7 @@ export interface SpaceFileEntry {
 export interface SpaceTextFile {
   path: string
   content: string
+  contentDigest: string
   size: number
   mtimeMs: number
 }
@@ -123,6 +124,10 @@ const STABLE_READ_RETRY_MS = 8
 export const SPACE_FILE_PREVIEW_MAX_BYTES = 512 * 1024
 const STRICT_UTF8_DECODER = new TextDecoder("utf-8", { fatal: true })
 const execFileAsync = promisify(execFile)
+
+function digestContent(content: Uint8Array): string {
+  return `sha256:${createHash("sha256").update(content).digest("hex")}`
+}
 
 function isWithinRoot(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate)
@@ -436,6 +441,7 @@ export class SpaceFiles {
     return {
       path: this.toRelative(filename),
       content: decodeUtf8(content, relativePath),
+      contentDigest: digestContent(content),
       size: fileStats.size,
       mtimeMs: fileStats.mtimeMs,
     }
@@ -481,7 +487,8 @@ export class SpaceFiles {
   async writeText(
     relativePath: string,
     content: string,
-    expectedMtimeMs?: number
+    expectedMtimeMs?: number,
+    expectedContentDigest?: string
   ): Promise<SpaceTextFile> {
     const {
       filename,
@@ -496,6 +503,16 @@ export class SpaceFiles {
       throw new SpaceFilesError(
         "file-changed",
         `Space file changed outside Eidos: ${relativePath}`,
+        relativePath
+      )
+    }
+    if (
+      expectedContentDigest !== undefined &&
+      digestContent(currentContent) !== expectedContentDigest
+    ) {
+      throw new SpaceFilesError(
+        "file-changed",
+        `Space file content changed outside Eidos: ${relativePath}`,
         relativePath
       )
     }
