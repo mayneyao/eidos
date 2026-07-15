@@ -18,6 +18,7 @@ import { WindowControls } from "@/components/window-controls"
 import { useWorker } from "@/apps/web-app/hooks/use-worker"
 import { useAppStoreBase } from "@/apps/web-app/store/app-store"
 import { flushPendingFileWrites } from "@/apps/web-app/components/file-space/pending-writes"
+import { ExtensionSemanticUiHost } from "@/apps/web-app/components/file-extensions/extension-semantic-ui-host"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { shouldEnableLegacySpaceRuntime } from "@/apps/web-app/space-runtime-policy"
 
@@ -74,6 +75,7 @@ export default function RootLayout({
           <CommandDialogDemo />
           <ShortCuts />
           <GlobalSearch />
+          <ExtensionSemanticUiHost />
         </SidebarProvider>
         <DevTools />
 

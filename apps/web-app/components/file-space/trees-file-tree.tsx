@@ -19,6 +19,7 @@ import {
   FilePlus2,
   FolderOpen,
   FolderPlus,
+  Blocks,
   PencilLine,
   Table2,
   Trash2,
@@ -28,6 +29,7 @@ import { FileTree, useFileTree } from "@pierre/trees/react"
 import type { SpaceFileEntry } from "@eidos.space/file-space"
 
 import { cn } from "@/lib/utils"
+import type { FileExtensionCommand } from "@/apps/web-app/hooks/use-file-extension-commands"
 
 import { resolveTreeContextMenuPosition } from "./tree-context-menu-position"
 
@@ -55,6 +57,11 @@ interface SpaceFilesTreeProps {
   onOpen: (entry: SpaceFileEntry) => void
   onRename: (entry: SpaceFileEntry, destinationPath: string) => void
   onReveal: (path: string) => void
+  extensionCommands?: (entry: SpaceFileEntry) => FileExtensionCommand[]
+  onExtensionCommand?: (
+    entry: SpaceFileEntry,
+    command: FileExtensionCommand
+  ) => void
   canMove: (entry: SpaceFileEntry, destinationParent: string) => boolean
 }
 
@@ -93,6 +100,8 @@ function SpaceTreeContextMenu({
   onImport,
   onRename,
   onReveal,
+  extensionCommands,
+  onExtensionCommand,
 }: {
   item: ContextMenuItem
   context: ContextMenuOpenContext
@@ -103,6 +112,8 @@ function SpaceTreeContextMenu({
   onImport: SpaceFilesTreeProps["onImport"]
   onRename: (path: string) => void
   onReveal: SpaceFilesTreeProps["onReveal"]
+  extensionCommands: FileExtensionCommand[]
+  onExtensionCommand?: SpaceFilesTreeProps["onExtensionCommand"]
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState(() =>
@@ -225,6 +236,24 @@ function SpaceTreeContextMenu({
             <Upload className="h-3.5 w-3.5" />
             Import files…
           </button>
+          <div className="my-1 h-px bg-border" role="separator" />
+        </>
+      ) : null}
+      {extensionCommands.length > 0 ? (
+        <>
+          {extensionCommands.map((command) => (
+            <button
+              key={`${command.packageId}:${command.id}`}
+              type="button"
+              role="menuitem"
+              className={itemClassName}
+              disabled={disabled}
+              onClick={() => run(() => onExtensionCommand?.(entry, command))}
+            >
+              <Blocks className="h-3.5 w-3.5" />
+              {command.title}
+            </button>
+          ))}
           <div className="my-1 h-px bg-border" role="separator" />
         </>
       ) : null}
@@ -530,6 +559,8 @@ export const SpaceFilesTree = forwardRef<
               if (renameEntry) model.startRenaming(toTreePath(renameEntry))
             }}
             onReveal={props.onReveal}
+            extensionCommands={props.extensionCommands?.(entry) ?? []}
+            onExtensionCommand={props.onExtensionCommand}
           />
         )
       }}

@@ -30,6 +30,10 @@ import {
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useFileSpaceSettings } from "@/apps/web-app/store/file-space-settings"
+import {
+  useFileExtensionCommands,
+  type FileExtensionCommand,
+} from "@/apps/web-app/hooks/use-file-extension-commands"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -60,6 +64,7 @@ import { flushPendingFileWrites } from "./pending-writes"
 import { SpaceFilesTree, type SpaceFilesTreeHandle } from "./trees-file-tree"
 import { BaseCreatePopover } from "./base/base-create-dialog"
 import { preloadSpaceBaseEditor } from "./base/space-base-editor-loader"
+import { matchesFileExtensionMenuWhen } from "../file-extensions/extension-menu-context"
 
 interface FileSpaceTreeProps {
   spaceId: string
@@ -94,6 +99,8 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     reveal,
   } = useSpaceFiles(spaceId)
   const { create: createBase } = useSpaceBase(spaceId)
+  const { commands: extensionCommands, execute: executeExtensionCommand } =
+    useFileExtensionCommands(spaceId)
   const versioningOperation = useActiveSpaceVersioningOperation(spaceId)
   const restoringVersion =
     isDestructiveSpaceVersioningOperation(versioningOperation)
@@ -127,6 +134,31 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     )
     return true
   }, [restoringVersion, versioningOperation])
+
+  const contextCommandsForEntry = useCallback(
+    (entry: SpaceFileEntry): FileExtensionCommand[] =>
+      extensionCommands.filter((command) =>
+        (command.menus["files/context"] ?? []).some((item) =>
+          matchesFileExtensionMenuWhen(item.when, entry)
+        )
+      ),
+    [extensionCommands]
+  )
+
+  const runExtensionCommand = useCallback(
+    async (entry: SpaceFileEntry, command: FileExtensionCommand) => {
+      try {
+        await executeExtensionCommand(command, entry.path)
+      } catch (error) {
+        setOperationError(
+          error instanceof Error
+            ? error.message
+            : "The extension command failed."
+        )
+      }
+    },
+    [executeExtensionCommand]
+  )
 
   const selectedPath = useMemo(() => {
     if (!location.pathname.endsWith("/space-file")) return null
@@ -737,6 +769,10 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
               void renameEntry(entry, destinationPath)
             }
             onReveal={(path) => void reveal(path)}
+            extensionCommands={contextCommandsForEntry}
+            onExtensionCommand={(entry, command) =>
+              void runExtensionCommand(entry, command)
+            }
           />
         </div>
       )}

@@ -105,9 +105,6 @@ export function FileExtensionSettings() {
       const nextDiscovery = await window.eidos.fileExtensions.discover(spaceId)
       if (generation !== requestGeneration.current) return
       setDiscovery(nextDiscovery)
-      void window.eidos.fileExtensions.startWatching(spaceId).catch(() => {
-        // A missing extension root remains valid and can be retried on Refresh.
-      })
     } catch (loadError) {
       if (generation !== requestGeneration.current) return
       setError(
@@ -212,9 +209,6 @@ export function FileExtensionSettings() {
 
     return () => {
       if (listenerId) window.eidos.off("file-extensions:changed", listenerId)
-      void window.eidos.fileExtensions.stopWatching(spaceId).catch(() => {
-        // Renderer teardown is best-effort; process teardown closes any remainder.
-      })
     }
   }, [load, spaceId])
 
@@ -397,7 +391,7 @@ export function FileExtensionSettings() {
                 <p className="text-sm leading-5 text-muted-foreground">
                   {t(
                     "space.settings.fileExtensions.runtimeDescription",
-                    "Trust, enablement, and grants are stored locally and bound to exact package bytes. Extension execution is not available yet."
+                    "Enabled packages run in an isolated Worker bound to exact source bytes. This preview exposes read-only text access and host-owned notices, confirmations, and selections."
                   )}
                 </p>
               </div>
@@ -405,7 +399,7 @@ export function FileExtensionSettings() {
             <Badge variant="outline" className="shrink-0 font-normal">
               {t(
                 "space.settings.fileExtensions.localStateOnly",
-                "Local state only"
+                "Developer preview"
               )}
             </Badge>
           </div>
@@ -693,7 +687,7 @@ export function FileExtensionSettings() {
                             <p className="mt-0.5 text-xs text-muted-foreground">
                               {t(
                                 "space.settings.fileExtensions.enablementDescription",
-                                "Records local intent for this snapshot. This build still cannot execute it."
+                                "Allows this exact trusted snapshot to run when a command is invoked."
                               )}
                             </p>
                           </div>

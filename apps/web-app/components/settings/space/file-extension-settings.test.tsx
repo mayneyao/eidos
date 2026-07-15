@@ -39,8 +39,8 @@ function discoveryFixture(
   const trusted = lifecycleStatus !== "untrusted"
   return {
     root: ".eidos/extensions",
-    phase: "local-state",
-    executionAvailable: false,
+    phase: "runtime-preview",
+    executionAvailable: true,
     hostVersion: "0.33.0",
     packages: [
       {
@@ -178,15 +178,15 @@ describe("FileExtensionSettings", () => {
     Reflect.deleteProperty(window, "eidos")
   })
 
-  it("shows inspection status without exposing an execution control", async () => {
+  it("shows inspection status and the runtime preview boundary", async () => {
     await act(async () => {
       root.render(<FileExtensionSettings />)
       await Promise.resolve()
     })
 
     expect(discoverMock).toHaveBeenCalledWith("file-space")
-    expect(startWatchingMock).toHaveBeenCalledWith("file-space")
-    expect(container.textContent).toContain("Local state only")
+    expect(startWatchingMock).not.toHaveBeenCalled()
+    expect(container.textContent).toContain("Developer preview")
     expect(container.textContent).toContain("Task Counter")
     expect(container.textContent).toContain("Untrusted")
     expect(container.textContent).toContain(
@@ -268,7 +268,7 @@ describe("FileExtensionSettings", () => {
     expect(container.textContent).toContain("Source trust")
     expect(container.textContent).toContain("files.read")
     expect(container.textContent).toContain(
-      "Extension execution is not available yet"
+      "Enabled packages run in an isolated Worker bound to exact source bytes"
     )
     expect(
       [

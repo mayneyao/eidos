@@ -59,6 +59,7 @@ import {
 } from "@/components/settings/stores/browser-settings-store"
 
 import { DocActionCommandItems } from "./doc-actions"
+import { FileExtensionCommandItems } from "./file-extension-commands"
 import { useCMDKGoto, useInput, useCMDKStore } from "./hooks"
 import { ImportSchema } from "./import-schema"
 import { SecondaryView } from "./secondary-view"
@@ -853,6 +854,11 @@ export function CommandDialogDemo() {
                     <DocActionCommandItems />
                   </>
                 )}
+                {isFileSpace ? (
+                  <FileExtensionCommandItems
+                    onExecute={() => setCmdkOpen(false)}
+                  />
+                ) : null}
               </>
             )}
 
