@@ -1,0 +1,48 @@
+{
+  "name": "@eidos.space/extension-runtime",
+  "version": "0.1.0",
+  "description": "Fixed compiler and isolated worker protocol for Eidos file-based extensions",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./compiler": {
+      "types": "./dist/compiler.d.mts",
+      "import": "./dist/compiler.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "eidos",
+    "extension",
+    "runtime",
+    "sandbox"
+  ],
+  "license": "ISC",
+  "dependencies": {
+    "@eidos.space/extension-manifest": "workspace:*",
+    "oxc-transform": "^0.74.0",
+    "rollup": "^4.60.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.1",
+    "tsdown": "^0.21.7",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

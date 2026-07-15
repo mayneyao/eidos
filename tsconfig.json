@@ -63,6 +63,14 @@
       "@eidos.space/extension-manifest/*": [
         "./packages/extension-manifest/src/*"
       ],
+      "@eidos.space/extension-runtime": [
+        "./packages/extension-runtime/src/index.ts"
+      ],
+      "@eidos.space/extension-runtime/*": [
+        "./packages/extension-runtime/src/*"
+      ],
+      "@eidos.space/extension-sdk": ["./packages/extension-sdk/src/index.ts"],
+      "@eidos.space/extension-sdk/*": ["./packages/extension-sdk/src/*"],
       "@eidos.space/extension-state": [
         "./packages/extension-state/src/index.ts"
       ],

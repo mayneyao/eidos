@@ -2,7 +2,11 @@ import { link, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { discoverExtensionPackages, inspectExtensionPackage } from "./node"
+import {
+  discoverExtensionPackages,
+  inspectExtensionPackage,
+  inspectExtensionPackageSnapshot,
+} from "./node"
 import type { ExtensionManifestV1 } from "./index"
 
 const temporaryRoots: string[] = []
@@ -87,6 +91,31 @@ describe("inspectExtensionPackage", () => {
       "src/helper.ts",
     ])
     expect(result.diagnostics).toEqual([])
+  })
+
+  it("returns the exact stable bytes used for the inspected digest", async () => {
+    const { packageRoot } = await createPackage()
+
+    const snapshot = await inspectExtensionPackageSnapshot(packageRoot, {
+      hostVersion: "0.34.0",
+    })
+
+    expect(snapshot.inspection.status).toBe("ready")
+    expect(
+      new TextDecoder().decode(
+        snapshot.files.find(({ path }) => path === "src/helper.ts")?.content
+      )
+    ).toBe("export const helper = () => 1\n")
+
+    await writeFile(
+      path.join(packageRoot, "src", "helper.ts"),
+      "export const helper = () => 999\n"
+    )
+    expect(
+      new TextDecoder().decode(
+        snapshot.files.find(({ path }) => path === "src/helper.ts")?.content
+      )
+    ).toBe("export const helper = () => 1\n")
   })
 
   it("excludes the lock from content identity and reports local changes", async () => {

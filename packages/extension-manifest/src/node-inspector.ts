@@ -467,11 +467,11 @@ function decodeText(
   }
 }
 
-export async function inspectExtensionPackage(
+function inspectPackageTree(
   packageRoot: string,
-  options: InspectExtensionPackageOptions = {}
-): Promise<ExtensionPackageInspection> {
-  const tree = await scanPackageTree(packageRoot, options)
+  tree: ScanPackageTreeResult,
+  options: InspectExtensionPackageOptions
+): ExtensionPackageInspection {
   const directoryName = path.basename(path.resolve(packageRoot))
   const diagnostics = [...tree.diagnostics]
   const filesByPath = new Map(tree.files.map((file) => [file.path, file]))
@@ -615,6 +615,43 @@ export async function inspectExtensionPackage(
         : undefined,
     files: publicFiles,
     diagnostics,
+  }
+}
+
+export async function inspectExtensionPackage(
+  packageRoot: string,
+  options: InspectExtensionPackageOptions = {}
+): Promise<ExtensionPackageInspection> {
+  const tree = await scanPackageTree(packageRoot, options)
+  return inspectPackageTree(packageRoot, tree, options)
+}
+
+export interface ExtensionPackageSnapshotFile {
+  path: string
+  content: Uint8Array
+}
+
+export interface ExtensionPackageSnapshot {
+  inspection: ExtensionPackageInspection
+  /** Stable bytes from the exact scan used to calculate `contentDigest`. */
+  files: ExtensionPackageSnapshotFile[]
+}
+
+/**
+ * Inspect and retain one immutable in-memory package snapshot. Runtime
+ * compilation must consume these bytes instead of reopening the mutable tree.
+ */
+export async function inspectExtensionPackageSnapshot(
+  packageRoot: string,
+  options: InspectExtensionPackageOptions = {}
+): Promise<ExtensionPackageSnapshot> {
+  const tree = await scanPackageTree(packageRoot, options)
+  return {
+    inspection: inspectPackageTree(packageRoot, tree, options),
+    files: tree.files.map((file) => ({
+      path: file.path,
+      content: new Uint8Array(file.content),
+    })),
   }
 }
 
