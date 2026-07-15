@@ -62,6 +62,14 @@ jobs:
           NODE_OPTIONS: "--max_old_space_size=8192"
         run: pnpm run build:desktop
 
+      - name: Verify generated extension runtime
+        run: |
+          if ! command -v xvfb-run >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+          xvfb-run --auto-servernum pnpm --filter eidos smoke:file-extension-runtime
+
       - name: Upload frontend build artifacts
         uses: actions/upload-artifact@v4
         with:
