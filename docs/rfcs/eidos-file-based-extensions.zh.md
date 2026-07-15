@@ -16,8 +16,10 @@
 本 RFC 的存储、Manifest、trust 与交付边界已经冻结，可以开始不可执行的基础层切片。
 当前开发分支已经实现严格 package inspection、有资源上限的变更监听、拒绝符号链接逃逸的宿主发现、
 Extension Manager 诊断，以及通过内联交互创建真实本地扩展源码。结构合法的扩展显示为“未信任”，
-而不是“就绪”；“禁用”和“就绪”要等 P2 加入本地 trust 与 enablement 后才会出现。创建的源码会通过
-现有 Version Changes 边界展示，私有 cache staging 仍被忽略。扩展执行运行时尚未实施。现有 bundled
+而不是“就绪”；P2a 本地状态切片现在已经让“已停用”和“已启用”状态可达。Trust、enablement 和逐项
+capability grant 由独立的 `@eidos.space/extension-state` package 持久化，并精确绑定 package ID、
+content digest 和 permission hash。创建的源码会通过现有 Version Changes 边界展示，私有 cache staging
+和 `.eidos/state/extensions.sqlite3` 仍被忽略。扩展执行运行时尚未实施。现有 bundled
 和 database-backed extensions 继续作为兼容路径；在 worker capability boundary 完成并验证前，
 稳定版 Eidos 不应执行第三方 file-based extension。
 
@@ -317,6 +319,11 @@ blocked
   并使该 digest 的 trust 失效。
 - Marketplace-installed extensions 应该通过 ID/version 或 lock metadata 固定。
 
+已经实现的本地状态格式使用独立的 `trusted_snapshots`、`snapshot_enablements` 和
+`permission_grants` 表。Enablement 绑定 snapshot 而不是只绑定 package：信任变化后的源码不能静默恢复
+旧快照的 enabled flag 或 grants；撤销 trust 会级联清除二者。遇到未知 application ID 或 schema version
+时不会删除或重建数据库，因为 trust decision 不是可丢弃的 cache。
+
 这也是为什么不应该把执行状态全部放进被追踪文件。
 
 ## Graft 语义
@@ -539,11 +546,18 @@ Legacy spaces 可以继续使用旧模型，直到迁移完成。
 - Extension Manager 展示 invalid、incompatible、untrusted、disabled 或 ready 状态。
 - 创建扩展模板时生成真实文件，并通过现有 Graft Changes UI 显示变更。
 
-### P2：最小可执行 Worker
+### P2a：本地信任状态
+
+- 在 `.eidos/state/extensions.sqlite3` 中持久化 snapshot-bound trust、enablement 和逐项 capability grant。
+- 每次状态变更前由宿主重新检查 package bytes，renderer 携带旧 digest 的请求必须失败。
+- 所有 capability 默认拒绝；源码或请求权限变化后，旧 trust、enablement 和 grants 不再生效。
+- 提供内联审阅和管理，但不编译、不执行代码。
+
+### P2b：最小可执行 Worker
 
 - 增加 per-package lazy worker 与 capability gateway。
 - 支持声明式 command/menu、read-only file access，以及宿主渲染的 notice、select、confirm UI。
-- 补齐 trust、grant、enablement、timeout、termination、crash recovery，以及禁用所有第三方 package
+- 消费 P2a trust state，并补齐 timeout、termination、crash recovery，以及禁用所有第三方 package
   仍可安全启动的能力。
 - 用 Markdown Task Counter 证明完整运行链路。
 

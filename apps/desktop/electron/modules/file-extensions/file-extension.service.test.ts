@@ -86,7 +86,7 @@ describe("FileExtensionService", () => {
 
     expect(result).toMatchObject({
       root: ".eidos/extensions",
-      phase: "inspection-only",
+      phase: "local-state",
       executionAvailable: false,
       hostVersion: "0.33.0",
       packages: [
@@ -94,6 +94,8 @@ describe("FileExtensionService", () => {
           directoryName: "example.task-counter",
           canonicalId: "example.task-counter",
           status: "ready",
+          lifecycleStatus: "untrusted",
+          localState: { trusted: false, enabled: false },
         },
       ],
     })
@@ -215,6 +217,111 @@ describe("FileExtensionService", () => {
     ])
   })
 
+  it("binds trust, grants, and enablement to the inspected snapshot", async () => {
+    const root = await createFileSpace()
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const windowProvider = {
+      getWindow: () => undefined,
+    } as unknown as MainWindowProvider
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(registry, windowProvider)
+    const initial = await service.discover("space-a")
+    const extension = initial.packages[0]
+    const snapshot = {
+      packageId: extension.canonicalId!,
+      contentDigest: extension.contentDigest!,
+      permissionHash: extension.permissionHash!,
+    }
+
+    await expect(service.trust("space-a", snapshot)).resolves.toMatchObject({
+      trusted: true,
+      enabled: false,
+    })
+    await expect(
+      service.setGrant("space-a", {
+        ...snapshot,
+        grant: { kind: "files.read", value: "**/*.md" },
+        granted: true,
+      })
+    ).resolves.toMatchObject({
+      granted: [{ kind: "files.read", value: "**/*.md" }],
+    })
+    await expect(
+      service.setEnabled("space-a", snapshot, true)
+    ).resolves.toMatchObject({ trusted: true, enabled: true })
+    await expect(service.discover("space-a")).resolves.toMatchObject({
+      packages: [
+        {
+          lifecycleStatus: "enabled",
+          localState: {
+            trusted: true,
+            enabled: true,
+            granted: [{ kind: "files.read", value: "**/*.md" }],
+          },
+        },
+      ],
+    })
+
+    const sourcePath = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "example.task-counter",
+      "src",
+      "extension.ts"
+    )
+    await writeFile(sourcePath, "export const activate = () => 'changed'\n")
+    await expect(service.discover("space-a")).resolves.toMatchObject({
+      packages: [
+        {
+          lifecycleStatus: "untrusted",
+          localState: { trusted: false, enabled: false, granted: [] },
+        },
+      ],
+    })
+    await expect(
+      service.setEnabled("space-a", snapshot, false)
+    ).rejects.toThrow("package changed")
+  })
+
+  it("keeps local trust isolated between Spaces with identical packages", async () => {
+    const firstRoot = await createFileSpace()
+    const secondRoot = await createFileSpace()
+    const registry = {
+      getSpace: vi.fn((spaceId: string) => ({
+        id: spaceId,
+        name: spaceId,
+        path: spaceId === "space-a" ? firstRoot : secondRoot,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const windowProvider = {
+      getWindow: () => undefined,
+    } as unknown as MainWindowProvider
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(registry, windowProvider)
+    const extension = (await service.discover("space-a")).packages[0]
+    await service.trust("space-a", {
+      packageId: extension.canonicalId!,
+      contentDigest: extension.contentDigest!,
+      permissionHash: extension.permissionHash!,
+    })
+
+    await expect(service.discover("space-a")).resolves.toMatchObject({
+      packages: [{ lifecycleStatus: "disabled" }],
+    })
+    await expect(service.discover("space-b")).resolves.toMatchObject({
+      packages: [{ lifecycleStatus: "untrusted" }],
+    })
+  })
+
   it("rejects an extensions path that escapes through .eidos", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "eidos-file-extension-"))
     const outside = await mkdtemp(path.join(tmpdir(), "eidos-file-extension-"))
@@ -243,5 +350,27 @@ describe("FileExtensionService", () => {
     await expect(
       service.createTemplate("space-a", "hello-tools")
     ).rejects.toThrow("symbolic link")
+  })
+
+  it("rejects a private state path that escapes through a symbolic link", async () => {
+    const root = await createFileSpace()
+    const outside = await mkdtemp(path.join(tmpdir(), "eidos-file-extension-"))
+    roots.push(outside)
+    await symlink(outside, path.join(root, ".eidos", "state"), "dir")
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const windowProvider = {
+      getWindow: () => undefined,
+    } as unknown as MainWindowProvider
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(registry, windowProvider)
+
+    await expect(service.discover("space-a")).rejects.toThrow("symbolic link")
   })
 })

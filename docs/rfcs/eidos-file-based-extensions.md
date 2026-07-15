@@ -18,9 +18,13 @@ the non-executing foundation slice. The development tree now implements strict
 package inspection, bounded change watching, symlink-safe host discovery,
 Extension Manager diagnostics, and inline creation of real local package files.
 Structurally valid packages are shown as `Untrusted`, not `Ready`; disabled and
-ready states become reachable only after P2 adds local trust and enablement.
-Created source is visible through the existing Version Changes boundary while
-private cache staging remains ignored. Runtime execution has not started.
+enabled states now become reachable through the P2a local-state slice. Trust,
+enablement, and individual capability grants are persisted by the independent
+`@eidos.space/extension-state` package and keyed to the exact package ID,
+content digest, and permission hash. Created source is visible through the
+existing Version Changes boundary while private cache staging and
+`.eidos/state/extensions.sqlite3` remain ignored. Runtime execution has not
+started.
 Existing bundled and database-backed extensions remain compatibility paths; no
 stable Eidos release should execute third-party file-based extensions until the
 worker capability boundary is implemented and verified.
@@ -334,6 +338,14 @@ Rules:
   the version 1 content digest and invalidates trust for that digest.
 - Marketplace-installed extensions should be pinned by ID/version or lock metadata.
 
+The implemented local-state format uses separate `trusted_snapshots`,
+`snapshot_enablements`, and `permission_grants` tables. Enablement is
+snapshot-bound rather than package-bound: trusting a changed package cannot
+silently revive the previous snapshot's enabled flag or grants. Revoking trust
+cascades to both. The state database is never deleted or recreated when its
+application ID or schema version is unknown, because trust decisions are not a
+disposable cache.
+
 This is the main reason not to store execution state purely in tracked files.
 
 ## Graft Semantics
@@ -568,13 +580,23 @@ The following do not block the version 1 foundation and are explicitly deferred:
 - Create extension templates as real files and show those changes through the
   existing Graft Changes UI.
 
-### P2: Minimal executable worker
+### P2a: Local trust state
+
+- Persist snapshot-bound trust, enablement, and per-capability grants under
+  `.eidos/state/extensions.sqlite3`.
+- Re-inspect package bytes in the host before every state mutation; renderer
+  requests carrying stale digests must fail.
+- Keep all capabilities denied by default and clear effective trust,
+  enablement, and grants when source or requested permissions change.
+- Expose inline review and management without compiling or executing code.
+
+### P2b: Minimal executable worker
 
 - Add a per-package lazy worker and capability gateway.
 - Support declared commands and menus with read-only file access plus
   host-rendered notice, select, and confirm UI.
-- Add trust, grants, enablement, timeout, termination, crash recovery, and safe
-  startup with all third-party packages disabled.
+- Consume the P2a trust state and add timeout, termination, crash recovery, and
+  safe startup with all third-party packages disabled.
 - Prove the runtime with the Markdown Task Counter example.
 
 ### P3: UI surfaces

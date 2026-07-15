@@ -7,7 +7,7 @@ sidebar:
     text: Preview
     variant: caution
 banner:
-  content: "<strong>Design preview：</strong>仓库中的 package 和验证步骤已经可以使用，但安装和执行仍依赖正在实现的 file-based extension runtime。"
+  content: "<strong>Runtime preview：</strong>当前 Desktop 开发分支已经支持创建、校验、本地信任、启用和授权 package；扩展执行能力尚未开放。"
 ---
 
 本指南开发 **Markdown Task Counter**。它解决的是一个具体问题：用户在 Markdown 笔记中管理任务，
@@ -196,14 +196,30 @@ Validated example.markdown-task-counter
 3. 打开 **Settings → Extensions**，点击 **刷新**；
 4. 查看扩展包状态与诊断信息。
 
-当前的“未信任”表示 Manifest、兼容范围、entrypoint、import、permission 和 package digest
-已经通过检查，但还不存在本地 trust decision。宿主不会编译或执行 worker。修改扩展包文件会触发
-一次有资源上限的新扫描，旧扫描结果不能覆盖更新的结果。
+“未信任”表示 Manifest、兼容范围、entrypoint、import、permission 和 package digest 已经通过检查，
+但还不存在本地 trust decision。点击 **审阅** 可以查看精确 content digest 和每项 capability request。
+**信任源码**、启用状态和每项 permission grant 是彼此独立的本地决定；当前版本不会因此编译或执行 worker。
+
+这些决定保存在 `.eidos/state/extensions.sqlite3` 中，它属于私有状态，不会出现在 Version。状态以 package ID、
+content digest 和 permission hash 为键。修改任何 package 文件都会形成新快照：状态重新变为“未信任”，
+启用关闭，所有权限重新默认拒绝。旧扫描结果也不能覆盖更新后的结果。
 
 仓库内的示例面向 Eidos 0.34，因此 0.33 开发版本会按设计显示为“不兼容”。如果只是希望在
 本地验证“未信任”状态，只修改示例中的 `engines.eidos` 为 `>=0.33.0` 即可。
 
-## 第五步：安装和批准
+## 第五步：审阅并记录本地批准
+
+对于已经位于 `.eidos/extensions` 下的 package：
+
+1. 先在 **Version** 中审阅被追踪的源码文件；
+2. 打开 **Settings → Extensions**，点击 **审阅**，核对 package ID、content digest 和申请的 capability；
+3. 点击 **信任源码**，它只批准当前检查到的精确快照；
+4. 授权 `files.read **/*.md`，其他 capability 仍保持拒绝；
+5. 打开 **启用状态**，记录当前快照在本机的启用意图。
+
+此时状态会变为“已启用”，但当前开发版本仍不会执行扩展。撤销信任会同时清除该快照的启用状态和全部授权。
+
+### 未来的 GitHub 安装
 
 目标 runtime 的操作流程是：
 
@@ -213,9 +229,9 @@ Validated example.markdown-task-counter
    **Read Markdown files in this Space**。
 4. 选择 **Install**。Eidos 把 immutable source snapshot 复制到
    `.eidos/extensions/example.markdown-task-counter/`。
-5. 选择 **Trust and enable**。仅仅安装 package 永远不会执行它。
+5. 审阅 trust、grants 和 enablement。仅仅安装 package 永远不会执行它。
 
-稳定版目前还没有这些 UI。这里把操作写完整，是为了让后续实现和 acceptance test 有明确目标。
+GitHub 安装目前还不可用。这里把操作写完整，是为了让 installer 和 acceptance test 有明确目标。
 
 ## 第六步：实际使用
 

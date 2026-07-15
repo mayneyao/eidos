@@ -9,6 +9,10 @@ import { FileExtensionSettings } from "./file-extension-settings"
 
 const discoverMock = vi.hoisted(() => vi.fn())
 const createTemplateMock = vi.hoisted(() => vi.fn())
+const trustMock = vi.hoisted(() => vi.fn())
+const revokeTrustMock = vi.hoisted(() => vi.fn())
+const setEnabledMock = vi.hoisted(() => vi.fn())
+const setGrantMock = vi.hoisted(() => vi.fn())
 const startWatchingMock = vi.hoisted(() => vi.fn())
 const stopWatchingMock = vi.hoisted(() => vi.fn())
 const onMock = vi.hoisted(() => vi.fn())
@@ -25,6 +29,77 @@ const translate = vi.hoisted(
         fallback
       )
 )
+
+const contentDigest = `sha256:${"a".repeat(64)}`
+const permissionHash = `sha256:${"b".repeat(64)}`
+
+function discoveryFixture(
+  lifecycleStatus: "untrusted" | "disabled" | "enabled" = "untrusted"
+) {
+  const trusted = lifecycleStatus !== "untrusted"
+  return {
+    root: ".eidos/extensions",
+    phase: "local-state",
+    executionAvailable: false,
+    hostVersion: "0.33.0",
+    packages: [
+      {
+        directoryName: "example.task-counter",
+        status: "ready",
+        lifecycleStatus,
+        canonicalId: "example.task-counter",
+        manifest: {
+          manifestVersion: 1,
+          publisher: "example",
+          name: "task-counter",
+          displayName: "Task Counter",
+          description: "Count Markdown tasks.",
+          version: "1.0.0",
+          engines: { eidos: ">=0.33.0" },
+          entrypoints: { worker: "src/extension.ts" },
+          contributes: {
+            commands: [
+              {
+                id: "example.task-counter.count",
+                title: "Count tasks",
+              },
+            ],
+          },
+          permissions: {
+            files: { read: ["**/*.md"], write: [] },
+            network: [],
+          },
+        },
+        normalizedPermissions: {
+          files: { read: ["**/*.md"], write: [] },
+          network: [],
+        },
+        contentDigest,
+        permissionHash,
+        requestedGrants: [{ kind: "files.read", value: "**/*.md" }],
+        localState: {
+          snapshot: {
+            packageId: "example.task-counter",
+            contentDigest,
+            permissionHash,
+          },
+          trusted,
+          enabled: lifecycleStatus === "enabled",
+          requestedGrants: trusted
+            ? [{ kind: "files.read", value: "**/*.md" }]
+            : [],
+          granted: [],
+        },
+        files: [
+          { path: "extension.json", size: 200 },
+          { path: "src/extension.ts", size: 80 },
+        ],
+        diagnostics: [],
+      },
+    ],
+    diagnostics: [],
+  }
+}
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: translate }),
@@ -54,6 +129,16 @@ describe("FileExtensionSettings", () => {
       root: ".eidos/extensions/local.hello-tools",
       files: ["extension.json", "src/extension.ts", "README.md"],
     })
+    trustMock.mockReset().mockResolvedValue({ trusted: true, enabled: false })
+    revokeTrustMock
+      .mockReset()
+      .mockResolvedValue({ trusted: false, enabled: false })
+    setEnabledMock
+      .mockReset()
+      .mockResolvedValue({ trusted: true, enabled: true })
+    setGrantMock
+      .mockReset()
+      .mockResolvedValue({ trusted: true, enabled: false })
     startWatchingMock.mockReset().mockResolvedValue({
       watching: true,
       generation: 0,
@@ -64,49 +149,7 @@ describe("FileExtensionSettings", () => {
     })
     onMock.mockReset().mockReturnValue("listener-1")
     offMock.mockReset()
-    discoverMock.mockResolvedValue({
-      root: ".eidos/extensions",
-      phase: "inspection-only",
-      executionAvailable: false,
-      hostVersion: "0.33.0",
-      packages: [
-        {
-          directoryName: "example.task-counter",
-          status: "ready",
-          canonicalId: "example.task-counter",
-          manifest: {
-            manifestVersion: 1,
-            publisher: "example",
-            name: "task-counter",
-            displayName: "Task Counter",
-            description: "Count Markdown tasks.",
-            version: "1.0.0",
-            engines: { eidos: ">=0.33.0" },
-            entrypoints: { worker: "src/extension.ts" },
-            contributes: {
-              commands: [
-                {
-                  id: "example.task-counter.count",
-                  title: "Count tasks",
-                },
-              ],
-            },
-            permissions: {
-              files: { read: ["**/*.md"], write: [] },
-              network: [],
-            },
-          },
-          contentDigest: `sha256:${"a".repeat(64)}`,
-          permissionHash: `sha256:${"b".repeat(64)}`,
-          files: [
-            { path: "extension.json", size: 200 },
-            { path: "src/extension.ts", size: 80 },
-          ],
-          diagnostics: [],
-        },
-      ],
-      diagnostics: [],
-    })
+    discoverMock.mockResolvedValue(discoveryFixture())
     Object.defineProperty(window, "eidos", {
       configurable: true,
       value: {
@@ -115,6 +158,10 @@ describe("FileExtensionSettings", () => {
         fileExtensions: {
           discover: discoverMock,
           createTemplate: createTemplateMock,
+          trust: trustMock,
+          revokeTrust: revokeTrustMock,
+          setEnabled: setEnabledMock,
+          setGrant: setGrantMock,
           startWatching: startWatchingMock,
           stopWatching: stopWatchingMock,
         },
@@ -139,15 +186,17 @@ describe("FileExtensionSettings", () => {
 
     expect(discoverMock).toHaveBeenCalledWith("file-space")
     expect(startWatchingMock).toHaveBeenCalledWith("file-space")
-    expect(container.textContent).toContain("Inspection only")
+    expect(container.textContent).toContain("Local state only")
     expect(container.textContent).toContain("Task Counter")
     expect(container.textContent).toContain("Untrusted")
-    expect(container.textContent).toContain("2 files · 1 contributions")
+    expect(container.textContent).toContain(
+      "2 files · 1 contributions · 1 permissions"
+    )
     expect(
       [...container.querySelectorAll("button")].map((button) =>
         button.textContent?.trim()
       )
-    ).toEqual(["New extension", "Refresh"])
+    ).toEqual(["New extension", "Refresh", "Review"])
 
     const listener = onMock.mock.calls[0]?.[1]
     await act(async () => {
@@ -200,5 +249,69 @@ describe("FileExtensionSettings", () => {
       "Created .eidos/extensions/local.hello-tools"
     )
     expect(discoverMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("reviews trust, grants, and enablement inline without executing code", async () => {
+    discoverMock
+      .mockReset()
+      .mockResolvedValueOnce(discoveryFixture("untrusted"))
+      .mockResolvedValue(discoveryFixture("disabled"))
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const review = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Review"
+    )!
+    act(() => review.click())
+    expect(container.textContent).toContain("Source trust")
+    expect(container.textContent).toContain("files.read")
+    expect(container.textContent).toContain(
+      "Extension execution is not available yet"
+    )
+    expect(
+      [
+        ...container.querySelectorAll<HTMLButtonElement>("[role='switch']"),
+      ].every((control) => control.disabled)
+    ).toBe(true)
+
+    const trustSource = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Trust source"
+    )!
+    await act(async () => {
+      trustSource.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const snapshot = {
+      packageId: "example.task-counter",
+      contentDigest,
+      permissionHash,
+    }
+    expect(trustMock).toHaveBeenCalledWith("file-space", snapshot)
+    expect(container.textContent).toContain("Revoke trust")
+
+    let switches = [
+      ...container.querySelectorAll<HTMLElement>("[role='switch']"),
+    ]
+    await act(async () => {
+      switches[1].click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(setGrantMock).toHaveBeenCalledWith("file-space", {
+      ...snapshot,
+      grant: { kind: "files.read", value: "**/*.md" },
+      granted: true,
+    })
+
+    switches = [...container.querySelectorAll<HTMLElement>("[role='switch']")]
+    await act(async () => {
+      switches[0].click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(setEnabledMock).toHaveBeenCalledWith("file-space", snapshot, true)
   })
 })

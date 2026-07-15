@@ -77,6 +77,10 @@ describe("inspectExtensionPackage", () => {
     expect(result.canonicalId).toBe("example.task-counter")
     expect(result.contentDigest).toMatch(/^sha256:[0-9a-f]{64}$/)
     expect(result.permissionHash).toMatch(/^sha256:[0-9a-f]{64}$/)
+    expect(result.normalizedPermissions).toEqual({
+      files: { read: ["**/*.md"], write: [] },
+      network: [],
+    })
     expect(result.files.map(({ path: filePath }) => filePath)).toEqual([
       "extension.json",
       "src/extension.ts",

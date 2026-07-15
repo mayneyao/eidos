@@ -607,6 +607,7 @@ export async function inspectExtensionPackage(
     status,
     canonicalId: analysis.canonicalId,
     manifest: analysis.manifest,
+    normalizedPermissions: analysis.normalizedPermissions,
     contentDigest,
     permissionHash:
       analysis.valid && analysis.normalizedPermissions

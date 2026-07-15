@@ -1,0 +1,59 @@
+{
+  "name": "@eidos.space/extension-state",
+  "version": "0.1.0",
+  "description": "Local trust, enablement, and permission state for Eidos extensions",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./better-sqlite3": {
+      "types": "./dist/better-sqlite3.d.mts",
+      "import": "./dist/better-sqlite3.mjs",
+      "default": "./dist/better-sqlite3.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run --config vitest.config.ts",
+    "test:sqlite": "cross-env ELECTRON_RUN_AS_NODE=1 electron ../../node_modules/vitest/vitest.mjs run --config vitest.sqlite.config.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "eidos.space",
+    "extensions",
+    "trust",
+    "local-first"
+  ],
+  "author": "mayneyao",
+  "license": "MIT",
+  "peerDependencies": {
+    "better-sqlite3": ">=11.0.0"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20.19.1",
+    "better-sqlite3": "^12.0.0",
+    "cross-env": "^7.0.3",
+    "electron": "^40.8.5",
+    "tsdown": "^0.21.7",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

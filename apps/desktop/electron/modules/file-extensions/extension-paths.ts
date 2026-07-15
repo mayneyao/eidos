@@ -128,6 +128,39 @@ export async function ensureExtensionStagingRoot(
   return current
 }
 
+export async function ensureExtensionStateDatabasePath(
+  spacePath: string
+): Promise<string> {
+  const paths = await resolveExtensionProjectPaths(spacePath, true)
+  if (!paths.eidosRoot) {
+    throw new Error("Unable to prepare the extension state directory")
+  }
+  const stateRoot = await realChildDirectory(
+    paths.spaceRoot,
+    paths.eidosRoot,
+    "state",
+    true,
+    0o700
+  )
+  if (!stateRoot) {
+    throw new Error("Unable to prepare the extension state directory")
+  }
+  const databasePath = path.join(stateRoot, "extensions.sqlite3")
+  try {
+    const stats = await lstat(databasePath)
+    if (stats.isSymbolicLink() || !stats.isFile()) {
+      throw new Error("Extension state path must be a regular file")
+    }
+    const canonical = await realpath(databasePath)
+    if (!isWithinRoot(paths.spaceRoot, canonical)) {
+      throw new Error("Extension state path resolves outside its Space")
+    }
+  } catch (error) {
+    if (!isMissing(error)) throw error
+  }
+  return databasePath
+}
+
 export async function extensionRootIsUnchanged(
   spacePath: string,
   expected: Required<ExtensionProjectPaths>

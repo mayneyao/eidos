@@ -140,6 +140,7 @@ export interface ExtensionPackageInspection {
   status: ExtensionPackageInspectionStatus
   canonicalId?: string
   manifest?: ExtensionManifestV1
+  normalizedPermissions?: NormalizedExtensionPermissions
   contentDigest?: string
   permissionHash?: string
   files: ExtensionPackageFile[]

@@ -63,6 +63,10 @@
       "@eidos.space/extension-manifest/*": [
         "./packages/extension-manifest/src/*"
       ],
+      "@eidos.space/extension-state": [
+        "./packages/extension-state/src/index.ts"
+      ],
+      "@eidos.space/extension-state/*": ["./packages/extension-state/src/*"],
       "@/locales/*": ["./packages/locales/*"],
       "@/worker/*": ["./packages/worker/*"],
       "@/lib/*": ["./packages/lib/*"],

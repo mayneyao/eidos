@@ -7,7 +7,7 @@ sidebar:
     text: Preview
     variant: caution
 banner:
-  content: "<strong>Design preview:</strong> the package and validation steps work in this repository, but installation and execution require the file-based extension runtime that is still being implemented."
+  content: "<strong>Runtime preview:</strong> package creation, validation, local trust, enablement, and grants work in the current Desktop development tree. Extension execution is not available yet."
 ---
 
 This guide builds **Markdown Task Counter**, a small but useful extension for
@@ -200,17 +200,39 @@ To inspect the complete Task Counter example instead:
 3. Open **Settings → Extensions** and select **Refresh**.
 4. Inspect the package status and diagnostics.
 
-`Untrusted` currently means that the manifest, compatibility range,
-entrypoints, imports, permissions, and package digest passed inspection but no
-local trust decision exists. The host does not compile or execute the worker.
-Editing a package file triggers a new bounded scan; stale scans cannot replace
+`Untrusted` means that the manifest, compatibility range, entrypoints, imports,
+permissions, and package digest passed inspection but no local trust decision
+exists. Select **Review** to inspect the exact content digest and every requested
+capability. **Trust source**, enablement, and each permission grant are separate
+local decisions; none of them compiles or executes the worker in the current
+build.
+
+These decisions live in `.eidos/state/extensions.sqlite3`, which is private and
+ignored by Version. They are keyed by package ID, content digest, and permission
+hash. Editing any package file creates a different snapshot that returns to
+`Untrusted` with enablement off and all grants denied. Stale scans cannot replace
 a newer result.
 
 The checked-in example targets Eidos 0.34. A 0.33 development build therefore
 reports it as `Incompatible` by design; change only `engines.eidos` to
 `>=0.33.0` when you specifically want to exercise the `Untrusted` state locally.
 
-## Step 5: Install and approve it
+## Step 5: Review and record local approval
+
+For a package already present under `.eidos/extensions`:
+
+1. Review its tracked source files in **Version**.
+2. Open **Settings → Extensions**, select **Review**, and compare the package ID,
+   content digest, and requested capabilities.
+3. Select **Trust source**. This approves only the exact inspected snapshot.
+4. Grant `files.read **/*.md`. Other capabilities remain denied.
+5. Turn on **Enablement** to record local intent for this snapshot.
+
+The status now becomes `Enabled`, but the current development build still does
+not execute the extension. Revoke trust to atomically clear enablement and all
+grants for that snapshot.
+
+### Future GitHub installation
 
 The target runtime flow is:
 
@@ -221,10 +243,11 @@ The target runtime flow is:
    permission: **Read Markdown files in this Space**.
 4. Select **Install**. Eidos copies an immutable source snapshot into
    `.eidos/extensions/example.markdown-task-counter/`.
-5. Select **Trust and enable**. Installation alone never runs the package.
+5. Review trust, grants, and enablement. Installation alone never runs the
+   package.
 
-These UI actions are not available in stable builds yet. They are described
-here so the implementation and its acceptance tests have a concrete target.
+GitHub installation is not available yet. It is described here so its installer
+and acceptance tests have a concrete target.
 
 ## Step 6: Use the extension
 
