@@ -1,6 +1,7 @@
 {
   "name": "@eidos.space/extension-state",
   "version": "0.1.0",
+  "private": true,
   "description": "Local trust, enablement, and permission state for Eidos extensions",
   "type": "module",
   "main": "./dist/index.mjs",

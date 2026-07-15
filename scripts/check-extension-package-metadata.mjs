@@ -59,7 +59,15 @@ for (const directoryName of extensionPackages) {
   }
   console.log(`Validated ${manifest.name} license (${manifest.license})`)
 
-  if (!publicExtensionPackageDirectories.has(directoryName)) continue
+  if (!publicExtensionPackageDirectories.has(directoryName)) {
+    if (manifest.private !== true) {
+      throw new Error(
+        `${manifest.name} is outside the public extension package catalog and must be private`
+      )
+    }
+    console.log(`Validated ${manifest.name} internal publish boundary`)
+    continue
+  }
   const expectedHomepage = `https://github.com/mayneyao/eidos/tree/main/packages/${directoryName}#readme`
   const failures = [
     [manifest.private === true, "must not be private"],
