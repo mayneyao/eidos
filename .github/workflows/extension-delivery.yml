@@ -6,6 +6,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/extension-delivery.yml"
+      - ".github/workflows/extension-package-release.yml"
       - ".github/workflows/build-and-release-desktop-app.yml"
       - "apps/docs/examples/**"
       - "apps/docs/package.json"
@@ -16,12 +17,16 @@ on:
       - "packages/extension-*/**"
       - "pnpm-lock.yaml"
       - "scripts/check-extension-package-metadata.mjs"
+      - "scripts/file-extension-public-packages.mjs"
+      - "scripts/file-extension-release.mjs"
+      - "scripts/file-extension-release.test.mjs"
       - "scripts/file-extension-tooling-smoke.mjs"
   push:
     branches:
       - dev
     paths:
       - ".github/workflows/extension-delivery.yml"
+      - ".github/workflows/extension-package-release.yml"
       - ".github/workflows/build-and-release-desktop-app.yml"
       - "apps/docs/examples/**"
       - "apps/docs/package.json"
@@ -32,6 +37,9 @@ on:
       - "packages/extension-*/**"
       - "pnpm-lock.yaml"
       - "scripts/check-extension-package-metadata.mjs"
+      - "scripts/file-extension-public-packages.mjs"
+      - "scripts/file-extension-release.mjs"
+      - "scripts/file-extension-release.test.mjs"
       - "scripts/file-extension-tooling-smoke.mjs"
 
 permissions:
@@ -79,6 +87,9 @@ jobs:
 
       - name: Test extension CLI
         run: pnpm --filter @eidos.space/extension-cli test
+
+      - name: Test extension release planner
+        run: pnpm test:extension-release
 
       - name: Verify packed developer tooling
         run: pnpm smoke:extension-tooling

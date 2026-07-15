@@ -29,6 +29,8 @@
     "extension:cli": "pnpm --filter @eidos.space/extension-cli build && node packages/extension-cli/dist/cli.mjs",
     "check:extension-packages": "node scripts/check-extension-package-metadata.mjs",
     "smoke:extension-tooling": "node scripts/file-extension-tooling-smoke.mjs",
+    "test:extension-release": "node --test scripts/file-extension-release.test.mjs",
+    "release:extension-packages": "node scripts/file-extension-release.mjs",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
     "typecheck:ts": "pnpm run --recursive typecheck",
