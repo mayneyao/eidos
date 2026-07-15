@@ -340,6 +340,36 @@ describe("discoverExtensionPackages", () => {
     ])
   })
 
+  it("ignores operating-system metadata at the root and inside packages", async () => {
+    const { extensionsRoot, packageRoot } = await createPackage()
+    const initial = await inspectExtensionPackage(packageRoot, {
+      hostVersion: "0.34.0",
+    })
+    await writeFile(path.join(extensionsRoot, ".DS_Store"), "finder-root\n")
+    await writeFile(path.join(packageRoot, ".DS_Store"), "finder-package\n")
+    await writeFile(
+      path.join(packageRoot, "src", ".DS_Store"),
+      "finder-source\n"
+    )
+
+    const discovered = await discoverExtensionPackages(extensionsRoot, {
+      hostVersion: "0.34.0",
+      maxPackages: 1,
+    })
+
+    expect(discovered.diagnostics).toEqual([])
+    expect(discovered.packages).toHaveLength(1)
+    expect(discovered.packages[0]).toMatchObject({
+      directoryName: "example.task-counter",
+      status: "ready",
+      contentDigest: initial.contentDigest,
+      diagnostics: [],
+    })
+    expect(
+      discovered.packages[0]?.files.map(({ path: filePath }) => filePath)
+    ).toEqual(["extension.json", "src/extension.ts", "src/helper.ts"])
+  })
+
   it("stops discovery before an oversized root can allocate unbounded state", async () => {
     const { extensionsRoot } = await createPackage()
     await writeFile(path.join(extensionsRoot, "README.md"), "one\n")

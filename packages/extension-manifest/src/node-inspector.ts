@@ -5,9 +5,10 @@ import {
   calculateExtensionContentDigest,
   calculateExtensionPermissionHash,
   canonicalExtensionPackagePath,
-  isIgnoredExtensionPackagePath,
+  EXTENSION_IGNORED_METADATA_FILENAMES,
   EXTENSION_LOCK_FILENAME,
   extensionPackagePathCollisionKey,
+  isIgnoredExtensionPackagePath,
   type ExtensionPackageContentRecord,
 } from "./digest"
 import { analyzeExtensionModuleImports } from "./imports"
@@ -725,8 +726,14 @@ export async function discoverExtensionPackages(
   const maxPackages = options.maxPackages ?? DEFAULT_MAX_PACKAGES
   let entries: Dirent[]
   try {
-    const result = await readDirectoryEntries(resolvedRoot, maxPackages)
-    if (result.exceeded) {
+    const result = await readDirectoryEntries(
+      resolvedRoot,
+      maxPackages + EXTENSION_IGNORED_METADATA_FILENAMES.length
+    )
+    entries = result.entries.filter(
+      (entry) => !isIgnoredExtensionPackagePath(entry.name)
+    )
+    if (result.exceeded || entries.length > maxPackages) {
       return {
         extensionsRoot: resolvedRoot,
         packages: [],
@@ -738,7 +745,6 @@ export async function discoverExtensionPackages(
         ],
       }
     }
-    entries = result.entries
   } catch (error) {
     return {
       extensionsRoot: resolvedRoot,

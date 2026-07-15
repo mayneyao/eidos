@@ -8,8 +8,16 @@ export const EXTENSION_IGNORED_ROOT_PATHS = [
   "dist",
   "node_modules",
 ] as const
+export const EXTENSION_IGNORED_METADATA_FILENAMES = [
+  ".DS_Store",
+  "Thumbs.db",
+  "desktop.ini",
+] as const
 
 const IGNORED_ROOT_PATHS = new Set<string>(EXTENSION_IGNORED_ROOT_PATHS)
+const IGNORED_METADATA_FILENAMES = new Set(
+  EXTENSION_IGNORED_METADATA_FILENAMES.map((filename) => filename.toLowerCase())
+)
 
 export interface ExtensionPackageContentRecord {
   path: string
@@ -43,14 +51,21 @@ export function canonicalExtensionPackagePath(value: string): string {
 
 /**
  * Returns whether a canonical package-relative path belongs to a root-level
- * local development artifact. These paths are neither installed nor part of
- * the trusted package digest. Source metadata such as package.json,
- * tsconfig.json, and package-manager lock files remains part of the package.
+ * local development artifact or well-known operating-system metadata. These
+ * paths are neither installed nor part of the trusted package digest. Source
+ * metadata such as package.json, tsconfig.json, and package-manager lock files
+ * remains part of the package.
  */
 export function isIgnoredExtensionPackagePath(value: string): boolean {
   const canonical = canonicalExtensionPackagePath(value)
-  const root = canonical.split("/", 1)[0]
-  return root !== undefined && IGNORED_ROOT_PATHS.has(root)
+  const segments = canonical.split("/")
+  const root = segments[0]
+  return (
+    (root !== undefined && IGNORED_ROOT_PATHS.has(root)) ||
+    segments.some((segment) =>
+      IGNORED_METADATA_FILENAMES.has(segment.toLowerCase())
+    )
+  )
 }
 
 export function extensionPackagePathCollisionKey(value: string): string {
