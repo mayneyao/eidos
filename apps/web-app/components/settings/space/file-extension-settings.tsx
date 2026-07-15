@@ -2013,42 +2013,70 @@ export function FileExtensionSettings() {
                                       </div>
                                     </div>
                                   </div>
-                                  <p
-                                    className={cn(
-                                      "max-w-64 text-right text-xs leading-5",
-                                      executionEnabled && !missingReadGrant
-                                        ? "text-foreground"
-                                        : "text-muted-foreground"
-                                    )}
-                                  >
-                                    {!executionEnabled && (
-                                      <>
-                                        {t(
-                                          "space.settings.fileExtensions.editorNotEnabledInstructions",
-                                          "Trust and enable this extension first."
-                                        )}{" "}
-                                      </>
-                                    )}
-                                    {executionEnabled && missingReadGrant && (
-                                      <>
-                                        {t(
-                                          "space.settings.fileExtensions.editorMissingReadGrantInstructions",
-                                          "Grant matching files.read access below."
-                                        )}{" "}
-                                      </>
-                                    )}
-                                    {editor.priority === "option"
-                                      ? t(
-                                          "space.settings.fileExtensions.openEditorInstructions",
-                                          "Right-click a matching file → Open with → {{name}}",
-                                          { name: editor.displayName }
+                                  {!trusted ? (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      disabled
+                                    >
+                                      {t(
+                                        "space.settings.fileExtensions.trustSourceFirst",
+                                        "Trust source first"
+                                      )}
+                                    </Button>
+                                  ) : !executionEnabled ? (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      disabled={
+                                        !!mutatingPackage || !!development
+                                      }
+                                      onClick={() =>
+                                        void mutatePackage(extension, () =>
+                                          window.eidos.fileExtensions.setEnabled(
+                                            spaceId,
+                                            snapshot,
+                                            true
+                                          )
                                         )
-                                      : t(
-                                          "space.settings.fileExtensions.defaultEditorInstructions",
-                                          "Open a matching file to use {{name}}",
-                                          { name: editor.displayName }
-                                        )}
-                                  </p>
+                                      }
+                                    >
+                                      {busy && (
+                                        <LoaderCircle className="animate-spin" />
+                                      )}
+                                      {t(
+                                        "space.settings.fileExtensions.enableExtension",
+                                        "Enable extension"
+                                      )}
+                                    </Button>
+                                  ) : (
+                                    <p
+                                      className={cn(
+                                        "max-w-64 text-right text-xs leading-5",
+                                        missingReadGrant
+                                          ? "text-muted-foreground"
+                                          : "text-foreground"
+                                      )}
+                                    >
+                                      {missingReadGrant
+                                        ? t(
+                                            "space.settings.fileExtensions.editorMissingReadGrantInstructions",
+                                            "Grant matching file read access below."
+                                          )
+                                        : editor.priority === "option"
+                                          ? t(
+                                              "space.settings.fileExtensions.openEditorInstructions",
+                                              "Right-click a matching file → Open with → {{name}}",
+                                              { name: editor.displayName }
+                                            )
+                                          : t(
+                                              "space.settings.fileExtensions.defaultEditorInstructions",
+                                              "Open a matching file to use {{name}}",
+                                              { name: editor.displayName }
+                                            )}
+                                    </p>
+                                  )}
                                 </div>
                               ))}
                             </div>

@@ -451,7 +451,8 @@ describe("FileExtensionSettings", () => {
     )
     expect(container.textContent).toContain("Source trust")
     expect(container.textContent).toContain("How to use")
-    expect(container.textContent).toContain(
+    expect(container.textContent).toContain("Trust source first")
+    expect(container.textContent).not.toContain(
       "Right-click a matching file → Open with → Hello Tools"
     )
     expect(container.textContent).toContain("**/*.tasks.md · text/markdown")
@@ -761,6 +762,48 @@ describe("FileExtensionSettings", () => {
       true
     )
     expect(useAppRuntimeStore.getState().isCmdkOpen).toBe(false)
+  })
+
+  it("shows only the next usable action for a trusted file editor", async () => {
+    const fixture = createdTextEditorFixture()
+    fixture.packages[0]!.lifecycleStatus = "disabled"
+    fixture.packages[0]!.localState = {
+      ...fixture.packages[0]!.localState,
+      trusted: true,
+      enabled: false,
+    }
+    discoverMock.mockResolvedValue(fixture)
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const manage = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Manage"
+    )!
+    act(() => manage.click())
+
+    expect(container.textContent).not.toContain(
+      "Right-click a matching file → Open with → Hello Tools"
+    )
+    const enableExtension = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Enable extension"
+    )!
+    await act(async () => {
+      enableExtension.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(setEnabledMock).toHaveBeenCalledWith(
+      "file-space",
+      {
+        packageId: "local.hello-tools",
+        contentDigest,
+        permissionHash,
+      },
+      true
+    )
   })
 
   it("starts and stops an inline development session from an enabled snapshot", async () => {
