@@ -6,6 +6,7 @@ import {
   createExtensionCommandTemplate,
   createExtensionTextEditorTemplate,
 } from "@eidos.space/extension-manifest"
+import { inspectExtensionPackageSnapshot } from "@eidos.space/extension-manifest/node"
 import {
   EXTENSION_RUNTIME_BOOTSTRAP_CHANNEL,
   createExtensionWorkerSource,
@@ -40,6 +41,13 @@ const exampleRoot = path.join(
   "docs",
   "examples",
   "markdown-task-counter"
+)
+const taskBoardRoot = path.join(
+  workspaceRoot,
+  "apps",
+  "docs",
+  "examples",
+  "markdown-task-board"
 )
 
 // The smoke opens one isolated renderer per scenario. Keep Electron alive
@@ -227,6 +235,11 @@ async function runSurfaceScenario({
   editorId,
   entrypoint,
   files,
+  interaction,
+  resourcePath,
+  initialText,
+  expectedText,
+  cssMarker,
 }) {
   const generation = `smoke-${scenarioId}`
   const bundle = await compileExtensionSurface({ entrypoint, files })
@@ -250,8 +263,6 @@ async function runSurfaceScenario({
   })
   observeRuntimeWindow(runtimeWindow, `${scenarioId} surface`)
 
-  const initialText = "- [ ] Ship the editor\n"
-  const expectedText = `${initialText}Second line\n`
   const initialize = {
     type: "initialize",
     protocolVersion: EXTENSION_SURFACE_PROTOCOL_VERSION,
@@ -262,7 +273,7 @@ async function runSurfaceScenario({
     snapshot: {
       documentId: `${scenarioId}-document`,
       resource: {
-        path: "notes.notes.md",
+        path: resourcePath,
         mediaType: "text/markdown",
         languageId: "markdown",
         encoding: "utf-8",
@@ -310,6 +321,8 @@ async function runSurfaceScenario({
         const generation = ${JSON.stringify(generation)};
         const initialize = ${JSON.stringify(initialize)};
         const expectedText = ${JSON.stringify(expectedText)};
+        const interaction = ${JSON.stringify(interaction)};
+        const cssMarker = ${JSON.stringify(cssMarker)};
         const channel = new MessageChannel();
         const port = channel.port1;
         let settled = false;
@@ -350,18 +363,36 @@ async function runSurfaceScenario({
               return;
             }
             if (message?.type === "activated") {
-              const textarea = document.querySelector('textarea[aria-label="Document text"]');
-              if (!(textarea instanceof HTMLTextAreaElement)) {
-                throw new Error("Generated surface did not render its text editor");
-              }
-              if (textarea.value !== initialize.snapshot.text) {
-                throw new Error("Generated surface did not render the initial document");
-              }
               if (typeof fetch !== "undefined" || typeof XMLHttpRequest !== "undefined") {
                 throw new Error("Blocked network globals are still available");
               }
-              textarea.value = expectedText;
-              textarea.dispatchEvent(new Event("input", { bubbles: true }));
+              if (interaction === "textarea") {
+                const textarea = document.querySelector('textarea[aria-label="Document text"]');
+                if (!(textarea instanceof HTMLTextAreaElement)) {
+                  throw new Error("Generated surface did not render its text editor");
+                }
+                if (textarea.value !== initialize.snapshot.text) {
+                  throw new Error("Generated surface did not render the initial document");
+                }
+                textarea.value = expectedText;
+                textarea.dispatchEvent(new Event("input", { bubbles: true }));
+                return;
+              }
+              if (interaction === "task-board") {
+                const progress = document.querySelector(".progress-label");
+                const task = Array.from(document.querySelectorAll(".task-card")).find(
+                  (candidate) => candidate.textContent?.includes("Finish UI")
+                );
+                if (progress?.textContent !== "1 to do · 1 completed · 50%") {
+                  throw new Error("Task Board did not render its initial counts");
+                }
+                if (!(task instanceof HTMLButtonElement)) {
+                  throw new Error("Task Board did not render the open task");
+                }
+                task.click();
+                return;
+              }
+              throw new Error("Unknown surface smoke interaction: " + interaction);
               return;
             }
             if (message?.type === "request-resync") {
@@ -398,18 +429,35 @@ async function runSurfaceScenario({
             setTimeout(() => {
               try {
                 const textarea = document.querySelector('textarea[aria-label="Document text"]');
-                const status = document.querySelector("header span");
-                if (!(textarea instanceof HTMLTextAreaElement) || textarea.value !== expectedText) {
+                const status = interaction === "task-board"
+                  ? document.querySelector(".save-status")
+                  : document.querySelector("header span");
+                const progress = document.querySelector(".progress-label");
+                if (
+                  interaction === "textarea" &&
+                  (!(textarea instanceof HTMLTextAreaElement) || textarea.value !== expectedText)
+                ) {
                   throw new Error("Generated surface lost the accepted document edit");
                 }
-                if (status?.textContent !== "Unsaved") {
-                  throw new Error("Generated surface did not reflect the dirty document state");
+                if (
+                  interaction === "task-board" &&
+                  progress?.textContent !== "0 to do · 2 completed · 100%"
+                ) {
+                  throw new Error("Task Board did not move the edited task to completed");
                 }
+                if (status?.textContent !== "Unsaved") {
+                  throw new Error("Surface did not reflect the dirty document state");
+                }
+                const cssLoaded = Array.from(document.querySelectorAll("style")).some(
+                  (style) => style.textContent?.includes(cssMarker)
+                );
                 finish({
-                  text: textarea.value,
+                  interaction,
+                  text: textarea?.value ?? expectedText,
                   status: status.textContent,
                   edits: message.edits,
-                  borderRadius: getComputedStyle(textarea).borderRadius,
+                  cssLoaded,
+                  progress: progress?.textContent,
                   background: document.documentElement.style.getPropertyValue("--eidos-color-background"),
                 });
               } catch (error) {
@@ -435,8 +483,9 @@ async function runSurfaceScenario({
     )
     if (
       result?.text !== expectedText ||
+      result?.interaction !== interaction ||
       result?.status !== "Unsaved" ||
-      result?.borderRadius !== "10px" ||
+      result?.cssLoaded !== true ||
       result?.background !== initialize.appearance.theme.background ||
       !Array.isArray(result?.edits) ||
       result.edits.length !== 1
@@ -542,6 +591,42 @@ async function run() {
       path: file.path,
       content: bytes(file.content),
     })),
+    interaction: "textarea",
+    resourcePath: "notes.notes.md",
+    initialText: "- [ ] Ship the editor\n",
+    expectedText: "- [ ] Ship the editor\nSecond line\n",
+    cssMarker: ".editor-shell",
+  })
+
+  const taskBoard = await inspectExtensionPackageSnapshot(taskBoardRoot, {
+    hostVersion: "0.33.0",
+    requireCanonicalDirectoryName: false,
+  })
+  const taskBoardEditor =
+    taskBoard.inspection.manifest?.contributes.fileEditors?.[0]
+  if (
+    taskBoard.inspection.status !== "ready" ||
+    !taskBoard.inspection.canonicalId ||
+    !taskBoardEditor ||
+    !taskBoard.inspection.manifest?.entrypoints.ui
+  ) {
+    throw new Error("Markdown Task Board package is not runtime-ready")
+  }
+  const taskBoardInitial = "# Launch\n\n- [ ] Finish UI\n- [x] Write docs\n"
+  await runSurfaceScenario({
+    scenarioId: "markdown-task-board",
+    extensionId: taskBoard.inspection.canonicalId,
+    editorId: taskBoardEditor.id,
+    entrypoint: taskBoard.inspection.manifest.entrypoints.ui,
+    files: taskBoard.files,
+    interaction: "task-board",
+    resourcePath: "projects/launch.tasks.md",
+    initialText: taskBoardInitial,
+    expectedText: taskBoardInitial.replace(
+      "- [ ] Finish UI",
+      "- [x] Finish UI"
+    ),
+    cssMarker: ".task-board",
   })
 
   console.log("File extension runtime smoke passed")
