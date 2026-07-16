@@ -486,6 +486,9 @@ describe("FileExtensionSettings", () => {
     expect(discoverMock).toHaveBeenCalledWith("file-space")
     expect(startWatchingMock).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Developer preview")
+    expect(container.textContent).toContain(
+      "Extension source is visible and editable in Files"
+    )
     expect(container.textContent).toContain("Task Counter")
     expect(container.textContent).toContain("Untrusted")
     expect(container.textContent).toContain(

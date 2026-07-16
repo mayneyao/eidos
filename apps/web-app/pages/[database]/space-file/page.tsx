@@ -14,6 +14,7 @@ import {
   toSpaceAssetUrl,
 } from "@/apps/web-app/components/file-space/file-path"
 import { ExtensionFileEditorSurface } from "@/apps/web-app/components/file-extensions/extension-file-editor-surface"
+import { configureFileExtensionEditorTypes } from "@/apps/web-app/components/file-space/file-extension-editor-types"
 import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-space/pending-writes"
 import { SpaceBaseEditorLoader } from "@/apps/web-app/components/file-space/base/space-base-editor-loader"
 import { SpaceFileFallbackPreview } from "@/apps/web-app/components/file-space/space-file-fallback-preview"
@@ -580,6 +581,7 @@ function SpaceTextEditor({
               setContent(nextContent)
             }}
             onMount={(editor, monaco) => {
+              configureFileExtensionEditorTypes(monaco, filePath)
               editor.onDidBlurEditorText(() => {
                 void flushPendingWrite()
               })

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   readText: vi.fn(),
   readPreview: vi.fn(),
   createText: vi.fn(),
+  configureFileExtensionEditorTypes: vi.fn(),
   list: vi.fn(),
   fetch: vi.fn(async () => ({ ok: true, status: 200 })),
   registerPendingWriteFlusher: vi.fn(
@@ -22,8 +23,29 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock("@monaco-editor/react", () => ({
-  default: () => <div data-testid="monaco-editor" />,
+  default: ({
+    onMount,
+  }: {
+    onMount?: (editor: object, monaco: object) => void
+  }) => {
+    onMount?.(
+      {
+        getValue: () => "",
+        onDidBlurEditorText: vi.fn(),
+        onKeyDown: vi.fn(),
+      },
+      { KeyCode: { KeyS: 49 } }
+    )
+    return <div data-testid="monaco-editor" />
+  },
 }))
+
+vi.mock(
+  "@/apps/web-app/components/file-space/file-extension-editor-types",
+  () => ({
+    configureFileExtensionEditorTypes: mocks.configureFileExtensionEditorTypes,
+  })
+)
 
 vi.mock("@/apps/web-app/components/file-space/base/space-base-editor", () => ({
   SpaceBaseEditor: ({
@@ -150,6 +172,7 @@ describe("SpaceFilePage editor selection", () => {
 
   beforeEach(() => {
     mocks.createText.mockReset()
+    mocks.configureFileExtensionEditorTypes.mockClear()
     mocks.list.mockReset()
     mocks.list.mockResolvedValue([])
     mocks.readText.mockReset()
@@ -246,6 +269,35 @@ describe("SpaceFilePage editor selection", () => {
     expect(
       container.querySelector('[data-testid="lexical-markdown-editor"]')
     ).toBeNull()
+  })
+
+  it("configures SDK types when an extension source file mounts", async () => {
+    const filePath = ".eidos/extensions/local.task-counter/src/extension.ts"
+    mocks.readText.mockResolvedValue({
+      path: filePath,
+      content:
+        'import type { ExtensionContext } from "@eidos.space/extension-sdk"\n',
+      size: 76,
+      mtimeMs: 1,
+    })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter
+          initialEntries={[
+            "/space-file#.eidos%2Fextensions%2Flocal.task-counter%2Fsrc%2Fextension.ts",
+          ]}
+        >
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+
+    expect(mocks.configureFileExtensionEditorTypes).toHaveBeenCalledWith(
+      expect.any(Object),
+      filePath
+    )
   })
 
   it("opens .base files in the standalone Base editor", async () => {

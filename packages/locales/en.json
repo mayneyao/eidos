@@ -1292,7 +1292,7 @@
   "space.settings.fileExtensions.openSource": "Open source",
   "space.settings.fileExtensions.reviewCreatedExtension": "Review extension",
   "space.settings.fileExtensions.location": "Package location",
-  "space.settings.fileExtensions.locationDescription": "Each direct child is one publisher.name package. Private Space paths stay hidden from normal file APIs.",
+  "space.settings.fileExtensions.locationDescription": "Each direct child is one publisher.name package. Extension source is visible and editable in Files; other .eidos state stays private.",
   "space.settings.fileExtensions.runtime": "Runtime boundary",
   "space.settings.fileExtensions.runtimeDescription": "Enabled packages run from exact trusted source bytes. Logic executes in an isolated Worker, while panels and file editors render in sandboxed frames. Data access remains limited to host capabilities you explicitly grant.",
   "space.settings.fileExtensions.localStateOnly": "Developer preview",

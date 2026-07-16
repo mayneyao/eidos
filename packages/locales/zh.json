@@ -1591,7 +1591,7 @@
   "space.settings.fileExtensions.openSource": "打开源码",
   "space.settings.fileExtensions.reviewCreatedExtension": "审阅扩展",
   "space.settings.fileExtensions.location": "扩展包位置",
-  "space.settings.fileExtensions.locationDescription": "每个直接子目录对应一个 publisher.name 扩展包。Space 私有路径仍不会通过常规文件 API 暴露。",
+  "space.settings.fileExtensions.locationDescription": "每个直接子目录对应一个 publisher.name 扩展包。扩展源码会显示在“文件”中并可直接编辑；其他 .eidos 状态仍保持私有。",
   "space.settings.fileExtensions.runtime": "运行时边界",
   "space.settings.fileExtensions.runtimeDescription": "已启用的扩展包会从已信任的精确源码快照运行。逻辑在隔离 Worker 中执行，面板和文件编辑器在沙箱框架中渲染；数据访问仍仅限于你显式授予的宿主能力。",
   "space.settings.fileExtensions.localStateOnly": "开发者预览",

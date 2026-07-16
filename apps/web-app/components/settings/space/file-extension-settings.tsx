@@ -1955,7 +1955,7 @@ export function FileExtensionSettings() {
                 <p className="text-sm leading-5 text-muted-foreground">
                   {t(
                     "space.settings.fileExtensions.locationDescription",
-                    "Each direct child is one publisher.name package. Private Space paths stay hidden from normal file APIs."
+                    "Each direct child is one publisher.name package. Extension source is visible and editable in Files; other .eidos state stays private."
                   )}
                 </p>
               </div>
