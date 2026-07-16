@@ -19,6 +19,7 @@ const setGrantMock = vi.hoisted(() => vi.fn())
 const confirmLegacyPortingMock = vi.hoisted(() => vi.fn())
 const retireLegacyPortingMock = vi.hoisted(() => vi.fn())
 const executeCommandMock = vi.hoisted(() => vi.fn())
+const clearRuntimeOutputMock = vi.hoisted(() => vi.fn())
 const openPanelMock = vi.hoisted(() => vi.fn())
 const prepareGitHubInstallMock = vi.hoisted(() => vi.fn())
 const applyGitHubInstallMock = vi.hoisted(() => vi.fn())
@@ -121,6 +122,7 @@ function discoveryFixture(
           contentDigest,
         },
         requestedGrants: [{ kind: "files.read", value: "**/*.md" }],
+        runtimeOutput: [],
         legacyMappings: [],
         localState: {
           snapshot: {
@@ -297,6 +299,7 @@ describe("FileExtensionSettings", () => {
       conflict: "none",
     })
     executeCommandMock.mockReset().mockResolvedValue({ success: true })
+    clearRuntimeOutputMock.mockReset().mockResolvedValue({ success: true })
     prepareGitHubInstallMock.mockReset().mockResolvedValue({
       previewId: "preview-a",
       expiresAt: Date.now() + 60_000,
@@ -390,6 +393,7 @@ describe("FileExtensionSettings", () => {
           confirmLegacyPorting: confirmLegacyPortingMock,
           retireLegacyPorting: retireLegacyPortingMock,
           executeCommand: executeCommandMock,
+          clearRuntimeOutput: clearRuntimeOutputMock,
           openPanel: openPanelMock,
           prepareGitHubInstall: prepareGitHubInstallMock,
           applyGitHubInstall: applyGitHubInstallMock,
@@ -552,6 +556,7 @@ describe("FileExtensionSettings", () => {
           status: "invalid",
           lifecycleStatus: "invalid",
           requestedGrants: [],
+          runtimeOutput: [],
           legacyMappings: [],
           files: [],
           diagnostics: [
@@ -766,6 +771,52 @@ describe("FileExtensionSettings", () => {
     act(() => openCommandPalette.click())
     expect(useAppRuntimeStore.getState().isCmdkOpen).toBe(true)
     expect(useCMDKStore.getState().input).toBe("Count tasks")
+  })
+
+  it("shows live bounded Worker output and clears it without reloading discovery", async () => {
+    discoverMock.mockResolvedValue(discoveryFixture("enabled"))
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Manage")!
+        .click()
+    )
+
+    const outputListener = onMock.mock.calls.find(
+      ([channel]) => channel === "file-extensions:runtime-output"
+    )?.[1] as ((_event: unknown, payload: unknown) => void) | undefined
+    expect(outputListener).toBeDefined()
+    act(() =>
+      outputListener?.(undefined, {
+        spaceId: "file-space",
+        packageId: "example.task-counter",
+        entry: {
+          sequence: 1,
+          timestamp: 1_700_000_000_000,
+          level: "info",
+          message: "Found 3 Markdown tasks",
+        },
+      })
+    )
+
+    expect(container.textContent).toContain("Runtime output")
+    expect(container.textContent).toContain("Found 3 Markdown tasks")
+    const clear = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Clear"
+    )!
+    await act(async () => {
+      clear.click()
+      await Promise.resolve()
+    })
+    expect(clearRuntimeOutputMock).toHaveBeenCalledWith(
+      "file-space",
+      "example.task-counter"
+    )
+    expect(container.textContent).not.toContain("Found 3 Markdown tasks")
+    expect(discoverMock).toHaveBeenCalledTimes(1)
   })
 
   it("requires explicit legacy linking and blocks controls on a mapping conflict", async () => {
@@ -1326,6 +1377,8 @@ describe("FileExtensionSettings", () => {
           status: "invalid",
           lifecycleStatus: "invalid",
           requestedGrants: [],
+          runtimeOutput: [],
+          legacyMappings: [],
           files: [{ path: "src/extension.ts", size: 80 }],
           diagnostics: [
             {

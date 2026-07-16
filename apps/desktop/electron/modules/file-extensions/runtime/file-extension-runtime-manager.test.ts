@@ -208,6 +208,45 @@ describe("FileExtensionRuntimeManager", () => {
     expect(factory.transports[0]!.disposed).toBe(true)
   })
 
+  it("routes bounded console output for the active generation", async () => {
+    const { manager, factory, handleRpc, descriptor } = await setup()
+    const handleLog = vi.fn()
+    const execution = manager.execute({
+      descriptor,
+      commandId: descriptor.commandIds[0]!,
+      resource: { path: "tasks.md" },
+      handleRpc,
+      handleLog,
+    })
+    const transport = await activate(factory, execution)
+    transport.emit({
+      type: "log",
+      generation: factory.calls[0]!.generation,
+      level: "info",
+      message: "Found 3 tasks",
+    })
+    expect(handleLog).toHaveBeenCalledWith({
+      type: "log",
+      generation: factory.calls[0]!.generation,
+      level: "info",
+      message: "Found 3 tasks",
+    })
+
+    const invoke = transport.outbound.find(
+      (message) =>
+        typeof message === "object" &&
+        message !== null &&
+        "type" in message &&
+        message.type === "invoke"
+    ) as { requestId: string }
+    transport.emit({
+      type: "invoke-result",
+      requestId: invoke.requestId,
+      ok: true,
+    })
+    await expect(execution).resolves.toBeUndefined()
+  })
+
   it("rejects pending work when a package is invalidated", async () => {
     const { manager, factory, handleRpc, descriptor } = await setup()
     const execution = manager.execute({

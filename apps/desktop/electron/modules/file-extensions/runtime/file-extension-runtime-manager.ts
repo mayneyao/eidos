@@ -4,6 +4,7 @@ import {
   parseExtensionWorkerMessage,
   type ExtensionHostToWorkerMessage,
   type ExtensionRuntimeError,
+  type ExtensionRuntimeLog,
   type ExtensionRuntimeResource,
   type ExtensionRuntimeRpcRequest,
 } from "@eidos.space/extension-runtime"
@@ -32,6 +33,7 @@ export interface FileExtensionRuntimeExecution {
   commandId: string
   resource: ExtensionRuntimeResource
   handleRpc(request: ExtensionRuntimeRpcRequest): Promise<unknown>
+  handleLog?(log: ExtensionRuntimeLog): void
 }
 
 interface PendingRequest {
@@ -51,6 +53,7 @@ interface RuntimeHandle {
   activationTimer: ReturnType<typeof setTimeout>
   pending: Map<string, PendingRequest>
   handleRpc(request: ExtensionRuntimeRpcRequest): Promise<unknown>
+  handleLog?: (log: ExtensionRuntimeLog) => void
   ready: boolean
   disposed: boolean
 }
@@ -182,6 +185,7 @@ export class FileExtensionRuntimeManager {
     const existing = this.handles.get(key)
     if (existing && !existing.disposed) {
       existing.handleRpc = execution.handleRpc
+      existing.handleLog = execution.handleLog
       return existing
     }
     this.disposePackage(
@@ -225,6 +229,7 @@ export class FileExtensionRuntimeManager {
       }, ACTIVATION_TIMEOUT_MS),
       pending: new Map(),
       handleRpc: execution.handleRpc,
+      handleLog: execution.handleLog,
       ready: false,
       disposed: false,
     }
@@ -258,7 +263,9 @@ export class FileExtensionRuntimeManager {
       return
     }
     if (
-      (message.type === "ready" || message.type === "activation-error") &&
+      (message.type === "ready" ||
+        message.type === "activation-error" ||
+        message.type === "log") &&
       message.generation !== handle.generation
     ) {
       this.disposeHandle(
@@ -268,6 +275,10 @@ export class FileExtensionRuntimeManager {
           "Extension worker replied from a stale generation"
         )
       )
+      return
+    }
+    if (message.type === "log") {
+      handle.handleLog?.(message)
       return
     }
     if (message.type === "ready") {

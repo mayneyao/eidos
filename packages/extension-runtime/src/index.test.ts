@@ -20,6 +20,8 @@ describe("extension runtime bootstrap", () => {
     expect(source.indexOf('"WebSocket"')).toBeLessThan(source.indexOf(marker))
     expect(source).toContain("Command is not declared by this extension")
     expect(source).toContain("Panel is not declared by this extension")
+    expect(source).toContain('type: "log"')
+    expect(source).toContain('Object.defineProperty(globalThis, "console"')
     expect(source).toContain('type: "ready"')
   })
 
@@ -65,6 +67,31 @@ describe("extension runtime bootstrap", () => {
         params: { message: "x".repeat(4097) },
       })
     ).toThrow("Notice must be")
+  })
+
+  it("parses bounded runtime output and rejects unknown levels", () => {
+    expect(
+      parseExtensionWorkerMessage({
+        type: "log",
+        generation: "sha256:test",
+        level: "warn",
+        message: "Task file is empty",
+      })
+    ).toEqual({
+      type: "log",
+      generation: "sha256:test",
+      level: "warn",
+      message: "Task file is empty",
+    })
+
+    expect(() =>
+      parseExtensionWorkerMessage({
+        type: "log",
+        generation: "sha256:test",
+        level: "trace",
+        message: "hidden",
+      })
+    ).toThrow("Runtime log level is invalid")
   })
 
   it("parses bounded panel requests and rejects non-JSON state", () => {

@@ -20,6 +20,7 @@ import {
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
+  SquareTerminal,
   Trash2,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -46,6 +47,7 @@ type FileExtensionDiscovery = Awaited<
 >
 type FileExtensionPackage = FileExtensionDiscovery["packages"][number]
 type FileExtensionGrant = FileExtensionPackage["requestedGrants"][number]
+type FileExtensionRuntimeOutput = FileExtensionPackage["runtimeOutput"][number]
 type FileExtensionCommand = NonNullable<
   NonNullable<FileExtensionPackage["manifest"]>["contributes"]["commands"]
 >[number]
@@ -89,6 +91,7 @@ type EditorSampleState = {
 }
 
 const DEFAULT_TEXT_EDITOR_PATTERN = "**/*.notes.md"
+const MAX_RUNTIME_OUTPUT_ENTRIES = 100
 
 function snapshotFor(extension: FileExtensionPackage) {
   if (
@@ -679,6 +682,42 @@ export function FileExtensionSettings() {
     [spaceId, t]
   )
 
+  const clearRuntimeOutput = useCallback(
+    async (extension: FileExtensionPackage) => {
+      if (!spaceId || !extension.canonicalId) return
+      try {
+        await window.eidos.fileExtensions.clearRuntimeOutput(
+          spaceId,
+          extension.canonicalId
+        )
+        setDiscovery((current) =>
+          current
+            ? {
+                ...current,
+                packages: current.packages.map((candidate) =>
+                  candidate.canonicalId === extension.canonicalId
+                    ? { ...candidate, runtimeOutput: [] }
+                    : candidate
+                ),
+              }
+            : current
+        )
+      } catch (error) {
+        setMutationError({
+          packageId: extension.canonicalId,
+          message:
+            error instanceof Error
+              ? error.message
+              : t(
+                  "space.settings.fileExtensions.clearOutputFailed",
+                  "Unable to clear extension output."
+                ),
+        })
+      }
+    },
+    [spaceId, t]
+  )
+
   const openPanel = useCallback(
     async (extension: FileExtensionPackage, panel: FileExtensionPanel) => {
       if (!spaceId) return
@@ -759,6 +798,75 @@ export function FileExtensionSettings() {
       if (listenerId) window.eidos.off("file-extensions:changed", listenerId)
     }
   }, [load, spaceId])
+
+  useEffect(() => {
+    if (!spaceId || !isDesktopMode || !window.eidos?.fileExtensions) return
+    const listenerId = window.eidos.on(
+      "file-extensions:runtime-output",
+      (_event: unknown, payload: unknown) => {
+        if (
+          !payload ||
+          typeof payload !== "object" ||
+          !("spaceId" in payload) ||
+          !("packageId" in payload) ||
+          payload.spaceId !== spaceId ||
+          typeof payload.packageId !== "string"
+        ) {
+          return
+        }
+        const packageId = payload.packageId
+        const cleared = "cleared" in payload && payload.cleared === true
+        const entry = "entry" in payload ? payload.entry : undefined
+        if (
+          !cleared &&
+          (!entry ||
+            typeof entry !== "object" ||
+            !("sequence" in entry) ||
+            !("timestamp" in entry) ||
+            !("level" in entry) ||
+            !("message" in entry) ||
+            typeof entry.sequence !== "number" ||
+            typeof entry.timestamp !== "number" ||
+            !["debug", "info", "log", "warn", "error"].includes(
+              String(entry.level)
+            ) ||
+            typeof entry.message !== "string")
+        ) {
+          return
+        }
+        const runtimeEntry = entry as FileExtensionRuntimeOutput
+        setDiscovery((current) => {
+          if (!current) return current
+          return {
+            ...current,
+            packages: current.packages.map((candidate) => {
+              if (candidate.canonicalId !== packageId) return candidate
+              if (cleared) return { ...candidate, runtimeOutput: [] }
+              if (
+                (candidate.runtimeOutput ?? []).some(
+                  (output) => output.sequence === runtimeEntry.sequence
+                )
+              ) {
+                return candidate
+              }
+              return {
+                ...candidate,
+                runtimeOutput: [
+                  ...(candidate.runtimeOutput ?? []),
+                  runtimeEntry,
+                ].slice(-MAX_RUNTIME_OUTPUT_ENTRIES),
+              }
+            }),
+          }
+        })
+      }
+    )
+    return () => {
+      if (listenerId) {
+        window.eidos.off("file-extensions:runtime-output", listenerId)
+      }
+    }
+  }, [spaceId])
 
   useEffect(() => {
     if (!spaceId || !isDesktopMode || !window.eidos?.fileExtensions) return
@@ -1641,6 +1749,7 @@ export function FileExtensionSettings() {
               const expanded = expandedPackages.has(packageId)
               const manageable = extension.status === "ready" && !!snapshot
               const development = extension.developmentSession
+              const runtimeOutput = extension.runtimeOutput ?? []
               const canManage = manageable || !!development
               const busy = mutatingPackage === packageId
               const trusted = extension.localState?.trusted === true
@@ -2378,6 +2487,80 @@ export function FileExtensionSettings() {
                                       "Open"
                                     )}
                                   </Button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {runtimeOutput.length > 0 && (
+                          <div className="py-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <Label className="flex items-center gap-2">
+                                  <SquareTerminal className="h-4 w-4 text-muted-foreground" />
+                                  {t(
+                                    "space.settings.fileExtensions.runtimeOutput",
+                                    "Runtime output"
+                                  )}
+                                </Label>
+                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                  {t(
+                                    "space.settings.fileExtensions.runtimeOutputDescription",
+                                    "Recent console output from the sandboxed Worker. Kept in memory for this app session."
+                                  )}
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() =>
+                                  void clearRuntimeOutput(extension)
+                                }
+                              >
+                                {t(
+                                  "space.settings.fileExtensions.clearOutput",
+                                  "Clear"
+                                )}
+                              </Button>
+                            </div>
+                            <div
+                              role="log"
+                              aria-label={t(
+                                "space.settings.fileExtensions.runtimeOutput",
+                                "Runtime output"
+                              )}
+                              className="mt-2 max-h-48 overflow-y-auto border-y border-border/60 font-mono text-[11px]"
+                            >
+                              {runtimeOutput.map((entry) => (
+                                <div
+                                  key={entry.sequence}
+                                  className="grid grid-cols-[4.5rem_3.5rem_minmax(0,1fr)] gap-2 border-b border-border/40 py-1.5 last:border-b-0"
+                                >
+                                  <time className="text-muted-foreground">
+                                    {new Date(
+                                      entry.timestamp
+                                    ).toLocaleTimeString(undefined, {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                      second: "2-digit",
+                                    })}
+                                  </time>
+                                  <span
+                                    className={cn(
+                                      "uppercase text-muted-foreground",
+                                      entry.level === "error" &&
+                                        "text-destructive",
+                                      entry.level === "warn" &&
+                                        "text-amber-700 dark:text-amber-400"
+                                    )}
+                                  >
+                                    {entry.level}
+                                  </span>
+                                  <pre className="min-w-0 whitespace-pre-wrap break-words text-foreground">
+                                    {entry.message}
+                                  </pre>
                                 </div>
                               ))}
                             </div>

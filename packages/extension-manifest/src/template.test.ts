@@ -60,6 +60,7 @@ describe("createExtensionCommandTemplate", () => {
       )
     ).toEqual([])
     expect(source).toContain("local.hello-tools.hello")
+    expect(source).toContain("console.info")
     expect(
       template.files.find((file) => file.path === "README.md")!.content
     ).toContain("Command Palette and file context menu")

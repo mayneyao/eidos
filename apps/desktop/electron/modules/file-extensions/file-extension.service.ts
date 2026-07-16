@@ -68,6 +68,8 @@ import type {
   FileExtensionDevelopmentChangedEvent,
   FileExtensionDevelopmentDiagnostic,
   FileExtensionDevelopmentSessionSummary,
+  FileExtensionRuntimeOutputChangedEvent,
+  FileExtensionRuntimeOutputEntry,
   FileExtensionApplyInstallRequest,
   FileExtensionCommandPalette,
   FileExtensionCommandRequest,
@@ -103,6 +105,7 @@ const FILE_EXTENSION_ROOT = ".eidos/extensions" as const
 const WATCH_DEBOUNCE_MS = 120
 const SEMANTIC_UI_TIMEOUT_MS = 55_000
 const MAX_OPEN_EXTENSION_PANELS_PER_SPACE = 32
+const MAX_RUNTIME_OUTPUT_ENTRIES = 100
 const LOCAL_EXTENSION_NAME_PATTERN = /^[a-z][a-z0-9-]{1,62}$/
 const FILE_EDITOR_MEDIA_TYPES: Record<string, string> = {
   css: "text/css",
@@ -236,6 +239,11 @@ export class FileExtensionService extends IpcServiceBase {
   >()
   private readonly panelSessions = new Map<string, FileExtensionPanelSession>()
   private readonly panelSessionIdsByKey = new Map<string, string>()
+  private readonly runtimeOutput = new Map<
+    string,
+    FileExtensionRuntimeOutputEntry[]
+  >()
+  private runtimeOutputSequence = 0
 
   constructor(
     @Inject(SpaceRegistry) private readonly registry: SpaceRegistry,
@@ -276,6 +284,21 @@ export class FileExtensionService extends IpcServiceBase {
     return withFileSpaceOperationLock(spaceId, () =>
       this.discoverUnlocked(spaceId, space.path)
     )
+  }
+
+  @IpcMethod()
+  clearRuntimeOutput(spaceId: string, packageId: string): { success: true } {
+    this.getFileSpace(spaceId)
+    if (
+      typeof packageId !== "string" ||
+      packageId.length === 0 ||
+      packageId.length > 256
+    ) {
+      throw new Error("A valid extension package ID is required")
+    }
+    this.runtimeOutput.delete(this.runtimeOutputKey(spaceId, packageId))
+    this.emitRuntimeOutput({ spaceId, packageId, cleared: true })
+    return { success: true }
   }
 
   @IpcMethod()
@@ -907,13 +930,28 @@ export class FileExtensionService extends IpcServiceBase {
     const prepared = await withFileSpaceOperationLock(spaceId, () =>
       this.prepareCommand(space.path, spaceId, request)
     )
-    await this.runtimeManager.execute({
-      descriptor: prepared.descriptor,
-      commandId: request.commandId,
-      resource: { path: request.resource.path },
-      handleRpc: (rpc) =>
-        this.handleRuntimeRpc(spaceId, prepared.descriptor.snapshot, rpc),
-    })
+    try {
+      await this.runtimeManager.execute({
+        descriptor: prepared.descriptor,
+        commandId: request.commandId,
+        resource: { path: request.resource.path },
+        handleRpc: (rpc) =>
+          this.handleRuntimeRpc(spaceId, prepared.descriptor.snapshot, rpc),
+        handleLog: (log) =>
+          this.recordRuntimeOutput(spaceId, request.packageId, log),
+      })
+    } catch (error) {
+      const code =
+        error instanceof FileExtensionRuntimeError
+          ? error.code
+          : "RUNTIME_COMMAND_FAILED"
+      const message = error instanceof Error ? error.message : String(error)
+      this.recordRuntimeOutput(spaceId, request.packageId, {
+        level: "error",
+        message: `${code}: ${message}`,
+      })
+      throw error
+    }
     return { success: true }
   }
 
@@ -1060,6 +1098,12 @@ export class FileExtensionService extends IpcServiceBase {
       spaceId,
       request.canonicalId ?? request.directoryName,
       "Extension source was uninstalled"
+    )
+    this.runtimeOutput.delete(
+      this.runtimeOutputKey(
+        spaceId,
+        request.canonicalId ?? request.directoryName
+      )
     )
     this.emitChange(spaceId)
     return { success: true }
@@ -1286,6 +1330,9 @@ export class FileExtensionService extends IpcServiceBase {
         normalizedPermissions,
         requestedGrants: grants,
         legacyMappings,
+        runtimeOutput: extension.canonicalId
+          ? this.runtimeOutputFor(spaceId, extension.canonicalId)
+          : [],
         lifecycleStatus: extension.status,
         developmentSession:
           (extension.canonicalId
@@ -1308,6 +1355,9 @@ export class FileExtensionService extends IpcServiceBase {
         normalizedPermissions,
         requestedGrants: grants,
         legacyMappings,
+        runtimeOutput: extension.canonicalId
+          ? this.runtimeOutputFor(spaceId, extension.canonicalId)
+          : [],
         lifecycleStatus: "invalid",
         developmentSession:
           (extension.canonicalId
@@ -1330,6 +1380,7 @@ export class FileExtensionService extends IpcServiceBase {
       normalizedPermissions,
       requestedGrants: grants,
       legacyMappings,
+      runtimeOutput: this.runtimeOutputFor(spaceId, extension.canonicalId),
       localState,
       developmentSession:
         this.developmentManager.get(spaceId, extension.canonicalId) ??
@@ -1737,6 +1788,46 @@ export class FileExtensionService extends IpcServiceBase {
     this.windowProvider
       .getWindow()
       ?.webContents.send("file-extensions:changed", event)
+  }
+
+  private runtimeOutputKey(spaceId: string, packageId: string): string {
+    return `${spaceId}\0${packageId}`
+  }
+
+  private runtimeOutputFor(
+    spaceId: string,
+    packageId: string
+  ): FileExtensionRuntimeOutputEntry[] {
+    return (
+      this.runtimeOutput.get(this.runtimeOutputKey(spaceId, packageId)) ?? []
+    ).map((entry) => ({ ...entry }))
+  }
+
+  private recordRuntimeOutput(
+    spaceId: string,
+    packageId: string,
+    log: { level: FileExtensionRuntimeOutputEntry["level"]; message: string }
+  ): void {
+    const key = this.runtimeOutputKey(spaceId, packageId)
+    const entry: FileExtensionRuntimeOutputEntry = {
+      sequence: ++this.runtimeOutputSequence,
+      timestamp: Date.now(),
+      level: log.level,
+      message: log.message.slice(0, 4096),
+    }
+    const entries = [...(this.runtimeOutput.get(key) ?? []), entry].slice(
+      -MAX_RUNTIME_OUTPUT_ENTRIES
+    )
+    this.runtimeOutput.set(key, entries)
+    this.emitRuntimeOutput({ spaceId, packageId, entry })
+  }
+
+  private emitRuntimeOutput(
+    event: FileExtensionRuntimeOutputChangedEvent
+  ): void {
+    this.windowProvider
+      .getWindow()
+      ?.webContents.send("file-extensions:runtime-output", event)
   }
 
   private async prepareCommand(
@@ -2473,6 +2564,10 @@ export class FileExtensionService extends IpcServiceBase {
     this.disposePanelSessions((session) => session.spaceId === spaceId, reason)
     await this.documentManager.flushAndDisposeSpace(spaceId, reason)
     this.packageDirectories.delete(spaceId)
+    const runtimeOutputPrefix = `${spaceId}\0`
+    for (const key of this.runtimeOutput.keys()) {
+      if (key.startsWith(runtimeOutputPrefix)) this.runtimeOutput.delete(key)
+    }
     for (const key of this.pendingDocumentFlushes.keys()) {
       if (key.startsWith(`${spaceId}\0`))
         this.pendingDocumentFlushes.delete(key)
@@ -2507,6 +2602,7 @@ export class FileExtensionService extends IpcServiceBase {
     this.packageDirectories.clear()
     this.pendingDocumentFlushes.clear()
     this.bundleCache.clear()
+    this.runtimeOutput.clear()
     for (const [id, pending] of this.pendingSemanticUi) {
       clearTimeout(pending.timer)
       this.pendingSemanticUi.delete(id)

@@ -32,6 +32,7 @@ import type {
   ExtensionSurfaceRequestSuccess,
   ExtensionTextDocumentSnapshot,
 } from "@eidos.space/extension-surface-protocol"
+import type { ExtensionRuntimeLogLevel } from "@eidos.space/extension-runtime"
 
 export interface FileExtensionPackageSummary {
   directoryName: string
@@ -47,10 +48,25 @@ export interface FileExtensionPackageSummary {
   requestedGrants: ExtensionPermissionGrant[]
   localState?: ExtensionLocalState
   developmentSession?: FileExtensionDevelopmentSessionSummary
+  runtimeOutput: FileExtensionRuntimeOutputEntry[]
   legacyPorting?: LegacyExtensionPortingReceiptAnalysis
   legacyMappings: LegacyExtensionMapping[]
   files: ExtensionPackageFile[]
   diagnostics: ExtensionDiagnostic[]
+}
+
+export interface FileExtensionRuntimeOutputEntry {
+  sequence: number
+  timestamp: number
+  level: ExtensionRuntimeLogLevel
+  message: string
+}
+
+export interface FileExtensionRuntimeOutputChangedEvent {
+  spaceId: string
+  packageId: string
+  entry?: FileExtensionRuntimeOutputEntry
+  cleared?: true
 }
 
 export type FileExtensionDevelopmentStatus =
