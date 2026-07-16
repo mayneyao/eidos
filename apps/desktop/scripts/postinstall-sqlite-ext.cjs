@@ -14,7 +14,7 @@ const GRAFT_REPO =
 const GRAFT_VERSION = normalizeTag(
   process.env.GRAFT_RELEASE_VERSION ||
     process.env.GRAFT_SQLITE_EXTENSION_VERSION ||
-    "v0.5.6"
+    "v0.5.7"
 )
 
 const platformInfoByKey = {
