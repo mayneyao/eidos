@@ -58,6 +58,9 @@ type FileExtensionCommand = NonNullable<
 type FileExtensionPanel = NonNullable<
   NonNullable<FileExtensionPackage["manifest"]>["contributes"]["panels"]
 >[number]
+type FileExtensionBaseView = NonNullable<
+  NonNullable<FileExtensionPackage["manifest"]>["contributes"]["baseViews"]
+>[number]
 type FileExtensionInstallPreview = Awaited<
   ReturnType<typeof window.eidos.fileExtensions.prepareGitHubInstall>
 >
@@ -97,6 +100,7 @@ type EditorSampleState = {
   status: "creating" | "error"
   message?: string
 }
+type BaseSampleState = EditorSampleState
 
 const DEFAULT_TEXT_EDITOR_PATTERN = "**/*.notes.md"
 const MAX_RUNTIME_OUTPUT_ENTRIES = 100
@@ -208,6 +212,17 @@ function sampleFilePartsForPattern(
       }
 }
 
+function baseSampleFileParts(
+  extension: FileExtensionPackage
+): { stem: string; extension: string } | null {
+  for (const grant of extension.requestedGrants) {
+    if (grant.kind !== "files.read") continue
+    const parts = sampleFilePartsForPattern(grant.value)
+    if (parts?.extension.toLowerCase() === ".base") return parts
+  }
+  return null
+}
+
 function sourceFilesForPackage(
   root: string,
   extension: FileExtensionPackage
@@ -315,6 +330,7 @@ export function FileExtensionSettings() {
   const [editorSample, setEditorSample] = useState<EditorSampleState | null>(
     null
   )
+  const [baseSample, setBaseSample] = useState<BaseSampleState | null>(null)
   const [mutationError, setMutationError] = useState<{
     packageId: string
     message: string
@@ -659,6 +675,102 @@ export function FileExtensionSettings() {
       }
     },
     [editorSample, openTab, spaceId, t]
+  )
+
+  const createBaseSample = useCallback(
+    async (
+      extension: FileExtensionPackage,
+      baseView: FileExtensionBaseView,
+      parts: { stem: string; extension: string }
+    ) => {
+      if (!spaceId || !window.eidos?.spaceMgmt || baseSample) return
+      const key = `${extension.canonicalId ?? extension.directoryName}\0${baseView.id}`
+      setBaseSample({ key, status: "creating" })
+      try {
+        const rootEntries = await window.eidos.spaceMgmt.listFiles(spaceId, "")
+        const fileName = uniqueSpaceEntryName(
+          rootEntries.map((entry) => entry.name),
+          parts.stem,
+          parts.extension
+        )
+        const tableId = "records"
+        await window.eidos.spaceMgmt.createBase(spaceId, fileName, {
+          title: `${baseView.displayName} preview`,
+          defaultTable: {
+            id: tableId,
+            name: "Records",
+            createDefaultView: false,
+            fields: [
+              {
+                name: "Status",
+                columnName: "status",
+                type: "select",
+                property: {
+                  options: [
+                    { id: "planned", name: "Planned", color: "gray" },
+                    { id: "active", name: "Active", color: "blue" },
+                    { id: "done", name: "Done", color: "green" },
+                  ],
+                },
+              },
+              {
+                name: "Notes",
+                columnName: "notes",
+                type: "text",
+              },
+            ],
+          },
+        })
+        await window.eidos.spaceMgmt.createBaseView(
+          spaceId,
+          fileName,
+          tableId,
+          {
+            name: baseView.displayName,
+            type: `extension:${baseView.id}`,
+          }
+        )
+        for (const row of [
+          {
+            title: "Explore this extension view",
+            status: "active",
+            notes: "Edit the extension source and start a development session.",
+          },
+          {
+            title: "Add another record",
+            status: "planned",
+            notes: "The view receives paginated Base records from Eidos.",
+          },
+          {
+            title: "Verify the interaction",
+            status: "done",
+            notes: "Switch back to Grid from the view picker when needed.",
+          },
+        ]) {
+          await window.eidos.spaceMgmt.insertBaseRow(
+            spaceId,
+            fileName,
+            tableId,
+            row
+          )
+        }
+        openTab(toSpaceFileUrl(fileName), fileName)
+        setBaseSample(null)
+      } catch (sampleError) {
+        setBaseSample({
+          key,
+          status: "error",
+          message:
+            sampleError instanceof Error
+              ? sampleError.message
+              : t(
+                  "space.settings.fileExtensions.createBaseSampleFailed",
+                  "Unable to create the sample Base."
+                ),
+        })
+      }
+    },
+    [baseSample, openTab, spaceId, t]
   )
 
   const runCommand = useCallback(
@@ -2939,7 +3051,8 @@ export function FileExtensionSettings() {
 
                         {(commands.length > 0 ||
                           panels.length > 0 ||
-                          fileEditors.length > 0) && (
+                          fileEditors.length > 0 ||
+                          baseViews.length > 0) && (
                           <div className="py-3">
                             <Label>
                               {t(
@@ -3263,6 +3376,133 @@ export function FileExtensionSettings() {
                                           "Trust source first"
                                         )}
                                       </Button>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                              {baseViews.map((baseView) => {
+                                const sampleParts =
+                                  baseSampleFileParts(extension)
+                                const sampleKey = `${packageId}\0${baseView.id}`
+                                return (
+                                  <div
+                                    key={baseView.id}
+                                    className="flex min-h-[56px] items-center justify-between gap-4 py-2"
+                                  >
+                                    <div className="flex min-w-0 items-start gap-2">
+                                      <LayoutGrid className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-medium">
+                                          {baseView.displayName}
+                                        </p>
+                                        <code className="block truncate text-[11px] text-muted-foreground">
+                                          {baseView.id}
+                                        </code>
+                                      </div>
+                                    </div>
+                                    {!trusted ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled
+                                      >
+                                        {t(
+                                          "space.settings.fileExtensions.trustSourceFirst",
+                                          "Trust source first"
+                                        )}
+                                      </Button>
+                                    ) : legacyConflict ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled
+                                      >
+                                        {t(
+                                          "space.settings.fileExtensions.resolveMigration",
+                                          "Resolve migration link"
+                                        )}
+                                      </Button>
+                                    ) : !executionEnabled ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        disabled={
+                                          !!mutatingPackage || !!development
+                                        }
+                                        onClick={() =>
+                                          void mutatePackage(extension, () =>
+                                            window.eidos.fileExtensions.setEnabled(
+                                              spaceId,
+                                              snapshot,
+                                              true
+                                            )
+                                          )
+                                        }
+                                      >
+                                        {busy && (
+                                          <LoaderCircle className="animate-spin" />
+                                        )}
+                                        {t(
+                                          "space.settings.fileExtensions.enableExtension",
+                                          "Enable extension"
+                                        )}
+                                      </Button>
+                                    ) : missingReadGrant ? (
+                                      <p className="max-w-64 text-right text-xs leading-5 text-muted-foreground">
+                                        {t(
+                                          "space.settings.fileExtensions.baseViewMissingReadGrantInstructions",
+                                          "Grant matching .base file read access below."
+                                        )}
+                                      </p>
+                                    ) : (
+                                      <div className="flex max-w-96 shrink-0 items-center justify-end gap-2">
+                                        <p className="text-right text-xs leading-5 text-foreground">
+                                          {t(
+                                            "space.settings.fileExtensions.openBaseViewInstructions",
+                                            "Open a .base file, add a view, then choose {{name}}",
+                                            { name: baseView.displayName }
+                                          )}
+                                        </p>
+                                        {sampleParts && (
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={
+                                              baseSample?.status === "creating"
+                                            }
+                                            onClick={() =>
+                                              void createBaseSample(
+                                                extension,
+                                                baseView,
+                                                sampleParts
+                                              )
+                                            }
+                                          >
+                                            {baseSample?.key === sampleKey &&
+                                            baseSample.status === "creating" ? (
+                                              <LoaderCircle className="animate-spin" />
+                                            ) : (
+                                              <FilePlus2 />
+                                            )}
+                                            {t(
+                                              "space.settings.fileExtensions.createSampleBase",
+                                              "Create sample Base"
+                                            )}
+                                          </Button>
+                                        )}
+                                        {baseSample?.key === sampleKey &&
+                                          baseSample.status === "error" && (
+                                            <p
+                                              role="alert"
+                                              className="max-w-56 text-xs text-destructive"
+                                            >
+                                              {baseSample.message}
+                                            </p>
+                                          )}
+                                      </div>
                                     )}
                                   </div>
                                 )

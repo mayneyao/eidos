@@ -34,6 +34,9 @@ const offMock = vi.hoisted(() => vi.fn())
 const openTabMock = vi.hoisted(() => vi.fn())
 const listSpaceFilesMock = vi.hoisted(() => vi.fn())
 const createSpaceFileMock = vi.hoisted(() => vi.fn())
+const createSpaceBaseMock = vi.hoisted(() => vi.fn())
+const createSpaceBaseViewMock = vi.hoisted(() => vi.fn())
+const insertSpaceBaseRowMock = vi.hoisted(() => vi.fn())
 const translate = vi.hoisted(
   () =>
     (
@@ -239,6 +242,55 @@ function panelFixture() {
   } as FileExtensionDiscoveryFixture
 }
 
+function baseViewFixture() {
+  const readGrant = { kind: "files.read" as const, value: "**/*.base" }
+  const fixture = discoveryFixture("enabled", [readGrant])
+  const extension = fixture.packages[0]
+  if (!extension?.manifest || !extension.localState) {
+    throw new Error(
+      "Expected the discovery fixture to contain an extension manifest"
+    )
+  }
+  return {
+    ...fixture,
+    packages: [
+      {
+        ...extension,
+        manifest: {
+          ...extension.manifest,
+          entrypoints: { ui: "src/base-view.ts" },
+          contributes: {
+            baseViews: [
+              {
+                id: "example.task-counter.cards",
+                displayName: "Task cards",
+              },
+            ],
+          },
+          permissions: {
+            files: { read: ["**/*.base"], write: [] },
+            network: [],
+          },
+        },
+        normalizedPermissions: {
+          files: { read: ["**/*.base"], write: [] },
+          network: [],
+        },
+        requestedGrants: [readGrant],
+        localState: {
+          ...extension.localState,
+          requestedGrants: [readGrant],
+          granted: [readGrant],
+        },
+        files: [
+          { path: "extension.json", size: 200 },
+          { path: "src/base-view.ts", size: 120 },
+        ],
+      },
+    ],
+  } as FileExtensionDiscoveryFixture
+}
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: translate }),
 }))
@@ -274,6 +326,11 @@ describe("FileExtensionSettings", () => {
     createSpaceFileMock.mockReset().mockResolvedValue({
       path: "Extension preview.tasks.md",
     })
+    createSpaceBaseMock.mockReset().mockResolvedValue({ path: "preview.base" })
+    createSpaceBaseViewMock
+      .mockReset()
+      .mockResolvedValue({ path: "preview.base" })
+    insertSpaceBaseRowMock.mockReset().mockResolvedValue({ rowCount: 1 })
     discoverMock.mockReset()
     createTemplateMock.mockReset().mockResolvedValue({
       canonicalId: "local.hello-tools",
@@ -382,6 +439,9 @@ describe("FileExtensionSettings", () => {
         spaceMgmt: {
           listFiles: listSpaceFilesMock,
           createFile: createSpaceFileMock,
+          createBase: createSpaceBaseMock,
+          createBaseView: createSpaceBaseViewMock,
+          insertBaseRow: insertSpaceBaseRowMock,
         },
         fileExtensions: {
           discover: discoverMock,
@@ -1436,6 +1496,86 @@ describe("FileExtensionSettings", () => {
     expect(openTabMock).toHaveBeenLastCalledWith(
       "/space-file?editor=local.hello-tools.editor#Extension%20preview%202.tasks.md",
       "Extension preview 2.tasks.md"
+    )
+  })
+
+  it("creates and opens a populated sample for a ready Base view", async () => {
+    listSpaceFilesMock.mockResolvedValue([{ name: "Extension preview.base" }])
+    discoverMock.mockResolvedValue(baseViewFixture())
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Manage")!
+        .click()
+    )
+    expect(container.textContent).toContain(
+      "Open a .base file, add a view, then choose Task cards"
+    )
+    const createSample = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Create sample Base"
+    )!
+    await act(async () => {
+      createSample.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(listSpaceFilesMock).toHaveBeenCalledWith("file-space", "")
+    expect(createSpaceBaseMock).toHaveBeenCalledWith(
+      "file-space",
+      "Extension preview 2.base",
+      {
+        title: "Task cards preview",
+        defaultTable: {
+          id: "records",
+          name: "Records",
+          createDefaultView: false,
+          fields: [
+            {
+              name: "Status",
+              columnName: "status",
+              type: "select",
+              property: {
+                options: [
+                  { id: "planned", name: "Planned", color: "gray" },
+                  { id: "active", name: "Active", color: "blue" },
+                  { id: "done", name: "Done", color: "green" },
+                ],
+              },
+            },
+            { name: "Notes", columnName: "notes", type: "text" },
+          ],
+        },
+      }
+    )
+    expect(createSpaceBaseViewMock).toHaveBeenCalledWith(
+      "file-space",
+      "Extension preview 2.base",
+      "records",
+      {
+        name: "Task cards",
+        type: "extension:example.task-counter.cards",
+      }
+    )
+    expect(insertSpaceBaseRowMock).toHaveBeenCalledTimes(3)
+    expect(insertSpaceBaseRowMock).toHaveBeenNthCalledWith(
+      1,
+      "file-space",
+      "Extension preview 2.base",
+      "records",
+      {
+        title: "Explore this extension view",
+        status: "active",
+        notes: "Edit the extension source and start a development session.",
+      }
+    )
+    expect(openTabMock).toHaveBeenLastCalledWith(
+      "/space-file#Extension%20preview%202.base",
+      "Extension preview 2.base"
     )
   })
 
