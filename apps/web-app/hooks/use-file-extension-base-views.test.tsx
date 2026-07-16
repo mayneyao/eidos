@@ -8,7 +8,14 @@ import { useFileExtensionBaseViews } from "./use-file-extension-base-views"
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const listBaseViews = vi.hoisted(() => vi.fn())
-const on = vi.hoisted(() => vi.fn(() => "listener-1"))
+const on = vi.hoisted(() =>
+  vi.fn(
+    (
+      _eventName: string,
+      _listener: (event: unknown, payload: unknown) => void
+    ) => "listener-1"
+  )
+)
 const off = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/env", () => ({ isDesktopMode: true }))
