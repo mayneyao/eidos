@@ -31,6 +31,11 @@ import {
 } from "@/apps/web-app/components/file-space/versioning/versioning-utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable"
 
 const HISTORY_ROW_HEIGHT = 48
 const STACKED_LAYOUT_BREAKPOINT = 960
@@ -433,21 +438,26 @@ export function SpaceVersionHistoryPage() {
         </div>
       ) : null}
 
-      <div
+      <ResizablePanelGroup
+        key={stackedLayout ? "stacked" : "columns"}
         data-testid="version-history-workspace"
-        className={cn(
-          "flex min-h-0 min-w-0 flex-1",
-          stackedLayout && "flex-col"
-        )}
+        direction={stackedLayout ? "vertical" : "horizontal"}
+        autoSaveId={
+          stackedLayout
+            ? "eidos-version-history-stacked"
+            : "eidos-version-history-columns"
+        }
+        className="min-h-0 min-w-0 flex-1"
       >
-        <section
+        <ResizablePanel
+          id={stackedLayout ? "history-log-stacked" : "history-log-columns"}
+          order={1}
+          defaultSize={stackedLayout ? 36 : 26}
+          minSize={stackedLayout ? 20 : 18}
+          maxSize={stackedLayout ? 65 : 44}
+          tagName="section"
           data-testid="version-history-log-pane"
-          className={cn(
-            "flex min-h-0 min-w-0 flex-col overflow-hidden",
-            stackedLayout
-              ? "flex-[0.8_1_0%]"
-              : "w-[clamp(320px,28vw,460px)] shrink-0"
-          )}
+          className="flex min-h-0 min-w-0 flex-col overflow-hidden"
         >
           <div className="flex h-7 shrink-0 items-center border-b bg-muted/35 text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
             <span className="shrink-0 px-2" style={{ width: graphWidth }}>
@@ -561,14 +571,28 @@ export function SpaceVersionHistoryPage() {
               </button>
             </div>
           ) : null}
-        </section>
+        </ResizablePanel>
 
-        <div
+        <ResizableHandle
+          data-testid="version-history-log-resize-handle"
+          aria-label={
+            stackedLayout
+              ? "Resize version list and commit details vertically"
+              : "Resize version list and commit details"
+          }
+          title="Drag to resize"
+          className="z-10 shrink-0 transition-colors hover:bg-primary/60 focus-visible:bg-primary/60 data-[resize-handle-active]:bg-primary/60"
+        />
+
+        <ResizablePanel
+          id={
+            stackedLayout ? "history-detail-stacked" : "history-detail-columns"
+          }
+          order={2}
+          defaultSize={stackedLayout ? 64 : 74}
+          minSize={stackedLayout ? 35 : 45}
           data-testid="version-history-detail-pane"
-          className={cn(
-            "min-h-0 min-w-0",
-            stackedLayout ? "flex-[1.2_1_0%]" : "flex-1"
-          )}
+          className="min-h-0 min-w-0"
         >
           <CommitInspector
             key={selectedCommit?.id ?? "empty"}
@@ -581,8 +605,8 @@ export function SpaceVersionHistoryPage() {
             restoreVersion={restoreVersion}
             placement={stackedLayout ? "below" : "side"}
           />
-        </div>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   )
 }

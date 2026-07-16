@@ -36,6 +36,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable"
 
 import { BaseDiffView } from "./base-diff-view"
 
@@ -716,7 +721,7 @@ export function CommitInspector({
       <aside
         className={cn(
           "flex h-full min-h-0 items-center justify-center overflow-hidden bg-background px-6 text-center text-xs text-muted-foreground",
-          placement === "side" ? "border-l" : "border-t"
+          placement === "below" && "border-t"
         )}
       >
         Select a version to inspect its changed paths.
@@ -728,7 +733,7 @@ export function CommitInspector({
     <aside
       className={cn(
         "flex h-full min-h-0 flex-col overflow-hidden bg-background",
-        placement === "side" ? "border-l" : "border-t"
+        placement === "below" && "border-t"
       )}
     >
       <header className="shrink-0 border-b px-3 py-2.5">
@@ -799,20 +804,21 @@ export function CommitInspector({
         ) : null}
       </header>
 
-      <div
-        className={cn(
-          "flex min-h-0 min-w-0 flex-1",
-          placement === "below" && "flex-col"
-        )}
+      <ResizablePanelGroup
+        key={placement}
+        direction={placement === "side" ? "horizontal" : "vertical"}
+        autoSaveId={`eidos-version-history-inspector-${placement}`}
+        className="min-h-0 min-w-0 flex-1"
       >
-        <section
+        <ResizablePanel
+          id={`commit-changed-paths-${placement}`}
+          order={1}
+          defaultSize={placement === "side" ? 28 : 34}
+          minSize={placement === "side" ? 18 : 20}
+          maxSize={placement === "side" ? 52 : 60}
+          tagName="section"
           data-testid="commit-changed-paths-pane"
-          className={cn(
-            "flex shrink-0 flex-col",
-            placement === "side"
-              ? "w-[clamp(240px,26%,340px)] min-w-[240px] border-r"
-              : "max-h-[42%] min-h-[84px] border-b"
-          )}
+          className="flex min-h-0 min-w-0 flex-col overflow-hidden"
         >
           <div className="flex h-7 shrink-0 items-center justify-between bg-muted/45 px-3 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
             <span>Changed paths</span>
@@ -859,9 +865,25 @@ export function CommitInspector({
               </ul>
             )}
           </div>
-        </section>
+        </ResizablePanel>
 
-        <section
+        <ResizableHandle
+          data-testid="commit-inspector-resize-handle"
+          aria-label={
+            placement === "side"
+              ? "Resize changed paths and change details"
+              : "Resize changed paths and change details vertically"
+          }
+          title="Drag to resize"
+          className="z-10 shrink-0 transition-colors hover:bg-primary/60 focus-visible:bg-primary/60 data-[resize-handle-active]:bg-primary/60"
+        />
+
+        <ResizablePanel
+          id={`commit-change-details-${placement}`}
+          order={2}
+          defaultSize={placement === "side" ? 72 : 66}
+          minSize={placement === "side" ? 40 : 35}
+          tagName="section"
           data-testid="commit-change-details-pane"
           className="flex min-h-0 min-w-0 flex-1 flex-col"
         >
@@ -934,8 +956,8 @@ export function CommitInspector({
               baseError={baseError}
             />
           </div>
-        </section>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       <AlertDialog
         open={restoreDialogOpen}

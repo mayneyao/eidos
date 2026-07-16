@@ -117,7 +117,7 @@ describe("SpaceVersionHistoryPage layout", () => {
     })
   }
 
-  it("keeps the history log bounded and gives the review pane the remaining width", async () => {
+  it("lets the history log resize while giving review the larger default pane", async () => {
     await renderPage()
 
     const workspace = container.querySelector(
@@ -133,9 +133,16 @@ describe("SpaceVersionHistoryPage layout", () => {
       '[data-testid="mock-commit-inspector"]'
     )
 
-    expect(workspace?.className).not.toContain("flex-col")
-    expect(logPane?.className).toContain("w-[clamp(320px,28vw,460px)]")
-    expect(detailPane?.className).toContain("flex-1")
+    expect(workspace?.getAttribute("data-panel-group-direction")).toBe(
+      "horizontal"
+    )
+    expect(logPane?.getAttribute("data-panel")).toBe("")
+    expect(detailPane?.getAttribute("data-panel")).toBe("")
+    expect(
+      container
+        .querySelector('[data-testid="version-history-log-resize-handle"]')
+        ?.getAttribute("aria-label")
+    ).toBe("Resize version list and commit details")
     expect(inspector?.getAttribute("data-placement")).toBe("side")
     expect(container.textContent).toContain("Graph")
     expect(container.textContent).not.toContain("PathsWhen")
@@ -146,17 +153,15 @@ describe("SpaceVersionHistoryPage layout", () => {
     await renderPage()
 
     expect(
-      container.querySelector('[data-testid="version-history-workspace"]')
-        ?.className
-    ).toContain("flex-col")
+      container
+        .querySelector('[data-testid="version-history-workspace"]')
+        ?.getAttribute("data-panel-group-direction")
+    ).toBe("vertical")
     expect(
-      container.querySelector('[data-testid="version-history-log-pane"]')
-        ?.className
-    ).toContain("flex-[0.8_1_0%]")
-    expect(
-      container.querySelector('[data-testid="version-history-detail-pane"]')
-        ?.className
-    ).toContain("flex-[1.2_1_0%]")
+      container
+        .querySelector('[data-testid="version-history-log-resize-handle"]')
+        ?.getAttribute("aria-label")
+    ).toBe("Resize version list and commit details vertically")
     expect(
       container
         .querySelector('[data-testid="mock-commit-inspector"]')

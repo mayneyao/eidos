@@ -182,14 +182,19 @@ describe("CommitInspector", () => {
     expect(
       container.querySelector('[data-testid="mock-diff-view"]')?.textContent
     ).toContain("before")
+    const changedPathsPane = container.querySelector(
+      '[data-testid="commit-changed-paths-pane"]'
+    )
     expect(
-      container.querySelector('[data-testid="commit-changed-paths-pane"]')
-        ?.className
-    ).toContain("w-[clamp(240px,26%,340px)]")
+      changedPathsPane?.parentElement?.getAttribute(
+        "data-panel-group-direction"
+      )
+    ).toBe("horizontal")
     expect(
-      container.querySelector('[data-testid="commit-change-details-pane"]')
-        ?.className
-    ).toContain("flex-1")
+      container
+        .querySelector('[data-testid="commit-inspector-resize-handle"]')
+        ?.getAttribute("aria-label")
+    ).toBe("Resize changed paths and change details")
 
     const secondPath = [...container.querySelectorAll("button")].find(
       (button) => button.title === "notes/b.md"
@@ -208,6 +213,32 @@ describe("CommitInspector", () => {
     })
     expect(container.textContent).toContain("Added")
     expect(container.textContent).toContain("notes/b.md")
+
+    await act(async () => {
+      root.render(
+        <CommitInspector
+          commit={commit}
+          getCommit={getCommit}
+          getDiff={getDiff}
+          status={status}
+          operation={null}
+          restorePath={restorePath}
+          restoreVersion={restoreVersion}
+          placement="below"
+        />
+      )
+      await Promise.resolve()
+    })
+    expect(
+      container
+        .querySelector('[data-testid="commit-changed-paths-pane"]')
+        ?.parentElement?.getAttribute("data-panel-group-direction")
+    ).toBe("vertical")
+    expect(
+      container
+        .querySelector('[data-testid="commit-inspector-resize-handle"]')
+        ?.getAttribute("aria-label")
+    ).toBe("Resize changed paths and change details vertically")
   })
 
   it("shows file details and content for the first version", async () => {
