@@ -970,8 +970,8 @@ async function run(): Promise<void> {
     }, "Invalid local extension source did not produce a compile diagnostic")
     assert.equal(
       failedDevelopment.diagnostics[0]?.path,
-      "src/extension.ts",
-      "Compile diagnostics should identify the failing entrypoint"
+      "src/style.css",
+      "Compile diagnostics should identify the failing module"
     )
     await writeFile(
       localSourcePath,
