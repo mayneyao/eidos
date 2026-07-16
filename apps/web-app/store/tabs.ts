@@ -3,6 +3,7 @@ import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
 import {
+  isTransientTabUrl,
   normalizePersistedTabState,
   TAB_STORAGE_VERSION,
 } from "./tabs-persistence"
@@ -64,7 +65,7 @@ function tabsToClosedStack(
 ): ClosedTab[] {
   return tabIds.flatMap((tabId) => {
     const tab = tabs.find((candidate) => candidate.id === tabId)
-    return tab
+    return tab && !isTransientTabUrl(tab.url)
       ? [
           {
             url: tab.url,
@@ -260,7 +261,7 @@ export const useTabStore = create<TabState>()(
         const newTabs = tabs.filter((t) => t.id !== id)
 
         // Save the closed tab to the stack for potential restoration
-        if (closedTab) {
+        if (closedTab && !isTransientTabUrl(closedTab.url)) {
           const closedTabInfo: ClosedTab = {
             url: closedTab.url,
             title: closedTab.title,

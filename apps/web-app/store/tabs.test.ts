@@ -29,6 +29,13 @@ const thirdTab = {
   lastAccessTime: 3,
 }
 
+const extensionPanelTab = {
+  id: "extension-panel-tab",
+  url: "/extension-panel?session=runtime-session-1",
+  title: "Task summary",
+  lastAccessTime: 4,
+}
+
 const firstHistory = {
   entries: [{ key: "history-1", url: firstTab.url }],
   index: 0,
@@ -172,6 +179,43 @@ describe("tab persistence migration", () => {
       splitDirection: "vertical",
     })
   })
+
+  it("drops transient extension panel sessions from restored tabs and history", () => {
+    const migrated = normalizePersistedTabState({
+      tabs: [firstTab, extensionPanelTab, secondTab],
+      panels: [
+        {
+          id: "panel-1",
+          tabIds: [firstTab.id, extensionPanelTab.id],
+          activeTabId: extensionPanelTab.id,
+        },
+        {
+          id: "panel-2",
+          tabIds: [secondTab.id],
+          activeTabId: secondTab.id,
+        },
+      ],
+      activePanelId: "panel-1",
+      history: {
+        [extensionPanelTab.id]: {
+          entries: [{ key: "panel", url: extensionPanelTab.url }],
+          index: 0,
+        },
+      },
+      closedTabsStack: [
+        { url: extensionPanelTab.url, title: extensionPanelTab.title },
+      ],
+    })
+
+    expect(migrated.tabs).toEqual([firstTab, secondTab])
+    expect(migrated.panels[0]).toEqual({
+      id: "panel-1",
+      tabIds: [firstTab.id],
+      activeTabId: firstTab.id,
+    })
+    expect(migrated.history).toEqual({})
+    expect(migrated.closedTabsStack).toEqual([])
+  })
 })
 
 describe("tab lifecycle persistence", () => {
@@ -251,6 +295,25 @@ describe("tab lifecycle persistence", () => {
     expect(reopenedTab).toBeDefined()
     expect(state.history[reopenedTab!.id]).toEqual(secondHistory)
     expect(state.closedTabsStack).toEqual([])
+  })
+
+  it("does not offer a closed runtime panel session for reopening", () => {
+    useTabStore.setState((state) => ({
+      tabs: [...state.tabs, extensionPanelTab],
+      panels: state.panels.map((panel) =>
+        panel.id === "panel-1"
+          ? {
+              ...panel,
+              tabIds: [...panel.tabIds, extensionPanelTab.id],
+              activeTabId: extensionPanelTab.id,
+            }
+          : panel
+      ),
+    }))
+
+    useTabStore.getState().closeTab(extensionPanelTab.id)
+
+    expect(useTabStore.getState().closedTabsStack).toEqual([])
   })
 
   it("closes tabs to the right without changing another split panel", () => {

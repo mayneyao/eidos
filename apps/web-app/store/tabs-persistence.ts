@@ -13,6 +13,14 @@ export interface PersistedTabState {
   splitDirection: "horizontal" | "vertical"
 }
 
+export function isTransientTabUrl(url: string): boolean {
+  try {
+    return new URL(url, "https://eidos.local").pathname === "/extension-panel"
+  } catch {
+    return false
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
@@ -25,6 +33,8 @@ function persistedTabs(value: unknown): Tab[] {
       !isRecord(tab) ||
       typeof tab.id !== "string" ||
       !tab.id ||
+      typeof tab.url !== "string" ||
+      isTransientTabUrl(tab.url) ||
       ids.has(tab.id)
     ) {
       return false
@@ -40,6 +50,7 @@ function persistedClosedTabs(value: unknown): ClosedTab[] {
     (tab): tab is ClosedTab =>
       isRecord(tab) &&
       typeof tab.url === "string" &&
+      !isTransientTabUrl(tab.url) &&
       typeof tab.title === "string"
   )
 }
