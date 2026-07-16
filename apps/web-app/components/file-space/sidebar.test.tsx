@@ -119,16 +119,21 @@ describe("FileSpaceSidebar layout", () => {
     await renderSidebar()
 
     const modeNavigation = container.querySelector(
-      '[aria-label="Space sidebar views"]'
+      '[aria-label="Space sidebar navigation"]'
     )
     const footerSpaceSelect = container.querySelector(
       '[data-space-select-variant="sidebar-footer"]'
     )
 
     expect(modeNavigation).not.toBeNull()
-    expect(modeNavigation?.textContent).toContain("Files")
     expect(modeNavigation?.textContent).toContain("Version")
     expect(modeNavigation?.textContent).not.toContain("Logs")
+    expect(
+      modeNavigation?.querySelector('button[aria-label="Hide sidebar"]')
+    ).not.toBeNull()
+    expect(
+      modeNavigation?.querySelector('button[aria-label="Open Version"]')
+    ).not.toBeNull()
     expect(footerSpaceSelect?.textContent).toBe("new-base")
     expect(
       container.querySelector('button[aria-label="Space settings"]')
@@ -143,7 +148,7 @@ describe("FileSpaceSidebar layout", () => {
     expect(modeNavigation?.parentElement?.className).toContain("!pl-[72px]")
   })
 
-  it("switches between Files and Version panels", async () => {
+  it("opens Version as a destination and returns to Files", async () => {
     await renderSidebar()
 
     expect(
@@ -151,34 +156,35 @@ describe("FileSpaceSidebar layout", () => {
     ).not.toBeNull()
 
     const versionButton = container.querySelector<HTMLButtonElement>(
-      'button[title="Version"]'
+      'button[aria-label="Open Version"]'
     )
     await act(async () => versionButton?.click())
 
     expect(
       container.querySelector('[data-version-panel-space-id="new-base"]')
     ).not.toBeNull()
-    expect(versionButton?.getAttribute("aria-pressed")).toBe("true")
     expect(
       container.querySelector('[data-file-tree-space-id="new-base"]')
     ).toBeNull()
 
     const filesButton = container.querySelector<HTMLButtonElement>(
-      'button[title="Files"]'
+      'button[aria-label="Back to Files"]'
     )
     await act(async () => filesButton?.click())
 
     expect(
       container.querySelector('[data-file-tree-space-id="new-base"]')
     ).not.toBeNull()
-    expect(filesButton?.getAttribute("aria-pressed")).toBe("true")
+    expect(
+      container.querySelector('button[aria-label="Open Version"]')
+    ).not.toBeNull()
   })
 
   it("replaces the entire file Space sidebar while Settings is active", async () => {
     await renderSidebar()
     await act(async () => {
       container
-        .querySelector<HTMLButtonElement>('button[title="Version"]')
+        .querySelector<HTMLButtonElement>('button[aria-label="Open Version"]')
         ?.click()
     })
 
@@ -190,7 +196,7 @@ describe("FileSpaceSidebar layout", () => {
       container.querySelector('[data-settings-sidebar="true"]')
     ).not.toBeNull()
     expect(
-      container.querySelector('[aria-label="Space sidebar views"]')
+      container.querySelector('[aria-label="Space sidebar navigation"]')
     ).toBeNull()
     expect(
       container.querySelector('[data-space-select-variant="sidebar-footer"]')
@@ -206,10 +212,10 @@ describe("FileSpaceSidebar layout", () => {
       container.querySelector('[data-version-panel-space-id="new-base"]')
     ).not.toBeNull()
     expect(
-      container
-        .querySelector<HTMLButtonElement>('button[title="Version"]')
-        ?.getAttribute("aria-pressed")
-    ).toBe("true")
+      container.querySelector<HTMLButtonElement>(
+        'button[aria-label="Back to Files"]'
+      )
+    ).not.toBeNull()
   })
 
   it("keeps the editor open when settings navigation cannot save it", async () => {

@@ -1,5 +1,5 @@
-import { useState, type ComponentType, type CSSProperties } from "react"
-import { Files, GitBranch, Settings } from "lucide-react"
+import { useState, type CSSProperties } from "react"
+import { ArrowLeft, GitBranch, PanelLeftClose, Settings } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { isMacDesktop } from "@/lib/web/helper"
@@ -25,20 +25,11 @@ import { VersionPanel } from "./versioning/version-panel"
 
 type FileSpaceSidebarView = "files" | "version"
 
-const SIDEBAR_VIEWS: Array<{
-  id: FileSpaceSidebarView
-  label: string
-  icon: ComponentType<{ className?: string }>
-}> = [
-  { id: "files", label: "Files", icon: Files },
-  { id: "version", label: "Version", icon: GitBranch },
-]
-
 export function FileSpaceSidebar() {
   const { currentSpace } = useCurrentSpace()
   const { spaceList } = useSpace()
   const { navigate, location } = useRouterAdapter()
-  const { width } = useSidebar()
+  const { toggle: toggleSidebar, width } = useSidebar()
   const [activeView, setActiveView] = useState<FileSpaceSidebarView>("files")
   const showViewLabels = width >= 280
   if (!currentSpace) return null
@@ -72,39 +63,54 @@ export function FileSpaceSidebar() {
     <Sidebar>
       <SidebarHeader
         className={cn(
-          "eidos-shell-titlebar drag-region shrink-0 justify-center border-b border-sidebar-border/60 bg-muted/60 px-1 py-0",
+          "eidos-shell-titlebar drag-region shrink-0 border-b border-sidebar-border/60 bg-muted/60 px-1 py-0",
           isMacDesktop() && "!pl-[72px]"
         )}
       >
         <nav
-          className="flex h-full min-w-0 items-center gap-0.5"
-          aria-label="Space sidebar views"
+          className="flex h-full min-w-0 items-center gap-1"
+          aria-label="Space sidebar navigation"
         >
-          {SIDEBAR_VIEWS.map(({ id, label, icon: Icon }) => {
-            const isActive = activeView === id
-            return (
-              <button
-                key={id}
-                type="button"
-                className={cn(
-                  "relative flex h-[30px] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-[3px] px-2 text-[11px] font-medium text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-sidebar-ring",
-                  isActive &&
-                    "bg-sidebar-accent/80 text-sidebar-accent-foreground after:absolute after:inset-x-2 after:bottom-0 after:h-px after:bg-sidebar-foreground/70"
-                )}
-                style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
-                aria-pressed={isActive}
-                title={label}
-                onClick={() => setActiveView(id)}
-              >
-                <Icon className="h-3.5 w-3.5 shrink-0" />
-                {showViewLabels ? (
-                  <span className="truncate">{label}</span>
-                ) : (
-                  <span className="sr-only">{label}</span>
-                )}
-              </button>
-            )
-          })}
+          <button
+            type="button"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[3px] text-sidebar-foreground/55 outline-hidden transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-sidebar-ring"
+            style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+            aria-label="Hide sidebar"
+            title="Hide sidebar"
+            onClick={toggleSidebar}
+          >
+            <PanelLeftClose className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            className={cn(
+              "ml-auto flex h-7 min-w-0 items-center justify-center gap-1.5 rounded-[3px] px-1.5 text-[11px] font-medium text-sidebar-foreground/65 outline-hidden transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-sidebar-ring",
+              !showViewLabels && "w-7 px-0"
+            )}
+            style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+            aria-label={
+              activeView === "files" ? "Open Version" : "Back to Files"
+            }
+            title={activeView === "files" ? "Open Version" : "Back to Files"}
+            onClick={() =>
+              setActiveView(activeView === "files" ? "version" : "files")
+            }
+          >
+            {activeView === "files" ? (
+              <GitBranch className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+            )}
+            {showViewLabels ? (
+              <span className="truncate">
+                {activeView === "files" ? "Version" : "Files"}
+              </span>
+            ) : (
+              <span className="sr-only">
+                {activeView === "files" ? "Version" : "Files"}
+              </span>
+            )}
+          </button>
         </nav>
       </SidebarHeader>
       <SidebarContent className="px-0 py-0">
