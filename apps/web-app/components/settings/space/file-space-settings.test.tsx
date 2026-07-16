@@ -19,6 +19,18 @@ const refreshVersioningMock = vi.hoisted(() => vi.fn())
 const getRemotesMock = vi.hoisted(() => vi.fn(async () => []))
 const configureRemoteMock = vi.hoisted(() => vi.fn(async () => undefined))
 const removeRemoteMock = vi.hoisted(() => vi.fn(async () => undefined))
+const getAgentConversationVersioningMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    enabled: false,
+    path: ".eidos/agent/sessions/" as const,
+  }))
+)
+const setAgentConversationVersioningMock = vi.hoisted(() =>
+  vi.fn(async (enabled: boolean) => ({
+    enabled,
+    path: ".eidos/agent/sessions/" as const,
+  }))
+)
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -69,6 +81,8 @@ vi.mock("@/apps/web-app/hooks/use-space-versioning", () => ({
     error: null,
     available: true,
     enable: vi.fn(),
+    getAgentConversationVersioning: getAgentConversationVersioningMock,
+    setAgentConversationVersioning: setAgentConversationVersioningMock,
     getRemotes: getRemotesMock,
     configureRemote: configureRemoteMock,
     removeRemote: removeRemoteMock,
@@ -89,6 +103,8 @@ describe("file Space settings", () => {
     getRemotesMock.mockClear()
     configureRemoteMock.mockClear()
     removeRemoteMock.mockClear()
+    getAgentConversationVersioningMock.mockClear()
+    setAgentConversationVersioningMock.mockClear()
     getIndexStatusMock.mockResolvedValue({
       indexedAt: new Date("2026-07-11T10:00:00Z").getTime(),
       fileCount: 12,
@@ -230,5 +246,25 @@ describe("file Space settings", () => {
     expect(configureRemoteMock).toHaveBeenCalledWith({
       url: "fs:///tmp/eidos-remote",
     })
+  })
+
+  it("only versions Agent conversations after explicit opt-in", async () => {
+    await act(async () => {
+      root.render(<FileSpaceVersioningSettings />)
+      await Promise.resolve()
+    })
+
+    expect(getAgentConversationVersioningMock).toHaveBeenCalledTimes(1)
+    expect(container.textContent).toContain("Private")
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>("#version-agent-conversations")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(setAgentConversationVersioningMock).toHaveBeenCalledWith(true)
+    expect(container.textContent).toContain("Included")
   })
 })

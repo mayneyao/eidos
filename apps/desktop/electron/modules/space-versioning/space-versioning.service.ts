@@ -32,6 +32,8 @@ import type {
   SpaceVersionSyncResult,
   SpaceVersionUnstagePathOptions,
   SpaceVersionUnstagePathResult,
+  SpaceVersionAgentConversationPolicy,
+  SpaceVersionAgentConversationPolicyOptions,
 } from "./types"
 
 function notifySpaceFilesChanged(
@@ -59,6 +61,19 @@ export class SpaceVersioningService extends IpcServiceBase {
 
   getStatus(spaceId: string): Promise<SpaceVersionStatus> {
     return this.coordinator.getStatus(spaceId)
+  }
+
+  getAgentConversationVersioning(
+    spaceId: string
+  ): Promise<SpaceVersionAgentConversationPolicy> {
+    return this.coordinator.getAgentConversationVersioning(spaceId)
+  }
+
+  setAgentConversationVersioning(
+    spaceId: string,
+    options: SpaceVersionAgentConversationPolicyOptions
+  ): Promise<SpaceVersionAgentConversationPolicy> {
+    return this.coordinator.setAgentConversationVersioning(spaceId, options)
   }
 
   enable(spaceId: string): Promise<SpaceVersionStatus> {

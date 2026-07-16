@@ -28,6 +28,7 @@ import { ExampleModule } from "./modules/example/example.module"
 import { MarketModule } from "./modules/market/market.module"
 import { AgentChannelModule } from "./modules/agent-channel/agent-channel.module"
 import { FileExtensionModule } from "./modules/file-extensions/file-extension.module"
+import { FileSpaceAgentModule } from "./modules/file-space-agent/file-space-agent.module"
 
 /**
  * App Module - Root module
@@ -74,6 +75,7 @@ import { FileExtensionModule } from "./modules/file-extensions/file-extension.mo
     MarketModule,
     AgentChannelModule,
     FileExtensionModule,
+    FileSpaceAgentModule,
   ],
   providers: [],
   exports: [],

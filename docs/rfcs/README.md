@@ -2,7 +2,7 @@
 
 Status: Draft set, implementation in progress
 Date: 2026-07-08
-Implementation snapshot: 2026-07-14
+Implementation snapshot: 2026-07-17
 
 This directory contains draft RFCs for moving Eidos toward a file-based storage model.
 
@@ -17,6 +17,7 @@ This directory contains draft RFCs for moving Eidos toward a file-based storage 
 | Base format/runtime   | Base v1 accepted      | The standalone package supports structured queries and column aggregates, persisted Grid/Gallery/Kanban views, bounded virtual paging, rich fields, hardened validation, atomic range edits and undo, batch deletion, and streamed imports. |
 | File-based extensions | P5 developer preview  | Isolated command Workers, text editors, semantic UI surfaces, public GitHub install/update, strict CLI scaffolding/checks, and cross-platform packed-package delivery gates work; stable v1 publication remains.                            |
 | Legacy migration      | Real exports accepted | Standalone planning, atomic export, Desktop Settings, schema recovery, and 1.1M-row real-Space acceptance are complete; live derived recomputation remains.                                                                                 |
+| Agent integration     | P1 developer preview  | The file-Space-native contract and first vertical slice now work: main-process run ownership, durable context/tool events, bounded built-in tools, and approved Markdown patches. Real credentialed Desktop acceptance remains.             |
 
 The implementation order has intentionally changed from Base-first. The first
 four milestones are now complete:
@@ -45,5 +46,7 @@ Recommended reading order:
    - Migration from current `.eidos/db.sqlite3` spaces.
 7. `eidos-space-base-product-ux.md`
    - Product interaction model for files, Base, Changes, history, and migration.
+8. `eidos-agent-integration.md`
+   - Agent conversations, per-Space versioning consent, resource context, tools, permissions, and recovery for file-based Spaces.
 
 Chinese versions use the `.zh.md` suffix.

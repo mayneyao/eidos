@@ -8,6 +8,7 @@ import {
 } from "react"
 import {
   MarkdownEditor,
+  type MarkdownEditorSelection,
   type MarkdownImageUpload,
   type MarkdownLinkActivation,
   type MarkdownRenderingOptions,
@@ -44,6 +45,7 @@ export interface SpaceMarkdownEditorProps {
   onBlur?: () => void
   onSave?: () => void
   readOnly?: boolean
+  onSelectionChange?: (selection: MarkdownEditorSelection | null) => void
 }
 
 const EXTERNAL_LINK = /^(?:https?:|mailto:|tel:)/i
@@ -80,6 +82,7 @@ export function SpaceMarkdownEditor({
   onBlur,
   onSave,
   readOnly = false,
+  onSelectionChange,
 }: SpaceMarkdownEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const { currentSpace } = useCurrentSpace()
@@ -279,6 +282,7 @@ export function SpaceMarkdownEditor({
             variant: "destructive",
           })
         }}
+        onSelectionChange={onSelectionChange}
         readOnly={readOnly}
         rendering={rendering}
         uploadImages={readOnly ? undefined : uploadImages}

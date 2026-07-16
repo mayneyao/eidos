@@ -84,6 +84,7 @@ describe("existing repository ignore ownership", () => {
 
     expect(update.changed).toBe(true)
     expect(result).not.toContain("obsolete-rule/")
+    expect(result).toContain(".eidos/agent/")
     expect(result).toContain(".eidos/sessions/")
   })
 })

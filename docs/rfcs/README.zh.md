@@ -2,7 +2,7 @@
 
 状态：草案集合，实施中
 日期：2026-07-08
-实施快照：2026-07-14
+实施快照：2026-07-17
 
 本目录包含 Eidos 转向 file-based 存储模型的一组草案 RFC。
 
@@ -17,6 +17,7 @@
 | Base 格式/runtime | 交付收尾中       | 独立 package 已支持结构化查询与列聚合、多 layout views、丰富字段、强化校验、原子 range edit/undo、有界百万行视图缓存、批量删除，以及流式 CSV 导入和当前 view 导出。        |
 | 文件化扩展        | P2b 开发者预览   | 隔离 command Worker、只读文本、菜单和宿主语义 UI 已实现；GitHub 安装与自定义视图尚未开始。                                                                                 |
 | Legacy migration  | 真实导出通过     | 独立 planning、原子 export、Desktop Settings、schema recovery 和 111 万行真实 Space 验收已完成；兼容 Formula/Lookup 会迁移为实时派生字段，不兼容定义保留物化值并明确告警。 |
+| Agent 集成        | P1 开发者预览    | file Space 原生契约与首个切片已实现：主进程 run ownership、durable context/tool events、有界内建工具和需审批的 Markdown patch；仍待带真实凭据的 Desktop 验收。             |
 
 实施顺序已经从 Base-first 调整，前四个 milestones 现已完成：
 
@@ -43,5 +44,7 @@ Base v1 交付 gate 现已关闭。文件化扩展是独立且当前暂缓的 RF
    - 从当前 `.eidos/db.sqlite3` spaces 迁移。
 7. `eidos-space-base-product-ux.zh.md`
    - 文件、Base、Changes、history 和 migration 的产品交互模型。
+8. `eidos-agent-integration.zh.md`
+   - file-based Space 的 Agent conversation、每 Space 版本管理同意、resource context、tools、权限与恢复。
 
 英文版本不带 `.zh` 后缀。

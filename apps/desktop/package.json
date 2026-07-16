@@ -30,6 +30,7 @@
     "presmoke:file-extension-app": "pnpm run native:electron && pnpm --filter @eidos.space/file-space build && pnpm --filter @eidos.space/electron-ipc build && pnpm --filter @eidos.space/space-manager build && pnpm --filter @eidos.space/extension-manifest build && pnpm --filter @eidos.space/extension-installer build && pnpm --filter @eidos.space/extension-state build && pnpm --filter @eidos.space/extension-surface-protocol build && pnpm --filter @eidos.space/extension-sdk build && pnpm --filter @eidos.space/extension-runtime build",
     "smoke:file-extension-app": "node scripts/build-file-extension-app-smoke.mjs && electron dist-electron/file-extension-app-smoke/file-extension-app-smoke.mjs",
     "smoke:file-extension-porting": "cross-env ELECTRON_RUN_AS_NODE=1 electron ../../node_modules/vitest/vitest.mjs run apps/desktop/electron/modules/file-extensions/file-extension-porting.e2e.test.ts --root ../.. --environment node --maxWorkers 1",
+    "smoke:file-agent": "cross-env ELECTRON_RUN_AS_NODE=1 electron ../../node_modules/vitest/vitest.mjs run apps/desktop/electron/modules/file-space-agent/file-space-agent-session-store.test.ts apps/desktop/electron/modules/file-space-agent/file-space-agent.service.test.ts --root ../.. --environment node --maxWorkers 1",
     "audit:legacy-migration": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/legacy-migration-audit.mjs",
     "smoke:legacy-migration": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/legacy-migration-smoke.mjs",
     "typecheck": "tsc --noEmit",

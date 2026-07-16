@@ -90,6 +90,8 @@ describe("SpaceVersioningCoordinator.getStatus", () => {
       ".eidos/inbox.sqlite3",
       ".eidos/raw.sqlite3",
       ".eidos/extensions/kanban/index.tsx",
+      ".eidos/agent/sessions/conversation-a/events.jsonl",
+      ".eidos/agent/local/state.sqlite3",
       ".graftignore",
       "todo.md",
     ].map((changedPath) => ({
@@ -123,6 +125,132 @@ describe("SpaceVersioningCoordinator.getStatus", () => {
     )
     expect(await fs.readFile(ignorePath, "utf8")).toContain(
       ".eidos/raw.sqlite3"
+    )
+  })
+})
+
+describe("SpaceVersioningCoordinator Agent conversation policy", () => {
+  it("keeps conversations private by default and preserves explicit opt-in", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn(async () =>
+      statusPayload([
+        {
+          path: ".eidos/agent/sessions/conversation-a/events.jsonl",
+          kind: "text_file",
+          storage: "inline",
+          index_status: "none",
+          worktree_status: "untracked",
+        },
+        {
+          path: ".eidos/agent/local/state.sqlite3",
+          kind: "sqlite",
+          storage: "inline",
+          index_status: "none",
+          worktree_status: "untracked",
+        },
+      ])
+    )
+    const coordinator = createCoordinator(root, runJson)
+
+    await expect(
+      coordinator.getAgentConversationVersioning("space-a")
+    ).resolves.toEqual({
+      enabled: false,
+      path: ".eidos/agent/sessions/",
+    })
+
+    await expect(
+      coordinator.setAgentConversationVersioning("space-a", { enabled: true })
+    ).resolves.toEqual({
+      enabled: true,
+      path: ".eidos/agent/sessions/",
+    })
+    const ignorePath = path.join(root, ".graftignore")
+    const optedIn = await fs.readFile(ignorePath, "utf8")
+    expect(optedIn).toContain(".eidos/agent/local/\n")
+    expect(optedIn).not.toMatch(/(?:^|\n)\.eidos\/agent\/(?:\r?\n|$)/)
+
+    const status = await coordinator.getStatus("space-a")
+    expect(status.paths.map((entry) => entry.path)).toEqual([
+      ".eidos/agent/sessions/conversation-a/events.jsonl",
+    ])
+    expect(await fs.readFile(ignorePath, "utf8")).toBe(optedIn)
+
+    await expect(
+      coordinator.setAgentConversationVersioning("space-a", { enabled: false })
+    ).resolves.toEqual({
+      enabled: false,
+      path: ".eidos/agent/sessions/",
+    })
+    expect(await fs.readFile(ignorePath, "utf8")).toContain(".eidos/agent/\n")
+  })
+
+  it("rejects malformed policy updates before editing the Space", async () => {
+    const root = await createSpace()
+    const coordinator = createCoordinator(root, vi.fn())
+
+    await expect(
+      coordinator.setAgentConversationVersioning("space-a", {
+        enabled: "yes",
+      })
+    ).rejects.toThrow("enabled boolean")
+    await expect(
+      fs.stat(path.join(root, ".graftignore"))
+    ).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
+  it("refuses to stage conversations until the user opts in", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn()
+    const coordinator = createCoordinator(root, runJson)
+
+    await expect(
+      coordinator.stagePath("space-a", {
+        path: ".eidos/agent/sessions/conversation-a/events.jsonl",
+        expectedHead: "head-2",
+      })
+    ).rejects.toThrow("Enable Agent conversation versioning")
+    expect(runJson).not.toHaveBeenCalled()
+  })
+
+  it("unstages conversations before turning the policy off", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn(async (_root: string, args: string[]) => {
+      if (args[0] === "status") {
+        return statusPayload([
+          {
+            path: ".eidos/agent/sessions/conversation-a/events.jsonl",
+            kind: "text_file",
+            storage: "inline",
+            index_status: "added",
+            worktree_status: "none",
+          },
+        ])
+      }
+      if (args[0] === "restore") return {}
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+    await coordinator.setAgentConversationVersioning("space-a", {
+      enabled: true,
+    })
+
+    await coordinator.setAgentConversationVersioning("space-a", {
+      enabled: false,
+    })
+
+    expect(runJson).toHaveBeenCalledWith(
+      await fs.realpath(root),
+      [
+        "restore",
+        "--json",
+        "--staged",
+        "--expected-head",
+        "head-2",
+        "--",
+        ".eidos/agent/sessions",
+      ],
+      { timeoutMs: 120_000 }
     )
   })
 })

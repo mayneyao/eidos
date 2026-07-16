@@ -175,6 +175,9 @@ Eidos 可以直接打开一个 Base 文件，将其渲染成表格和视图，�
 ```txt
 .eidos/
   extensions/
+  agent/
+    sessions/
+    local/
   indexes/
   cache/
   state/
@@ -217,6 +220,9 @@ my-space/
     workspace.json
 
   .eidos/
+    agent/
+      sessions/
+      local/
     indexes/
     sessions/
     cache/
@@ -237,6 +243,8 @@ Canonical user state：
 
 非 canonical / 私有状态：
 
+- `.eidos/agent/local/**`,
+- `.eidos/agent/sessions/**`，除非用户为此 Space 明确开启 conversation 版本管理，
 - `.eidos/indexes/**`,
 - `.eidos/cache/**`,
 - `.eidos/sessions/**`,
@@ -269,6 +277,7 @@ track.default_roots:
 ignore:
   .graft/**
   .eidos/db.sqlite3
+  .eidos/agent/**
   .eidos/cache/**
   .eidos/indexes/**
   .eidos/sessions/**
@@ -277,6 +286,10 @@ ignore:
   **/.DS_Store
   **/*.tmp
 ```
+
+`.eidos/agent/**` 是 conversation 默认关闭时的规则。用户为此 Space 开启
+conversation 版本管理后，Eidos 将它替换为 `.eidos/agent/local/**`；此时只有
+`.eidos/agent/sessions/**` 可以进入显式 stage、commit 与 push 流程。
 
 Eidos 也可以选择更保守的默认值：
 

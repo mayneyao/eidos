@@ -1,5 +1,11 @@
 import { useState, type CSSProperties } from "react"
-import { ArrowLeft, GitBranch, PanelLeftClose, Settings } from "lucide-react"
+import {
+  ArrowLeft,
+  Bot,
+  GitBranch,
+  PanelLeftClose,
+  Settings,
+} from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { isMacDesktop } from "@/lib/web/helper"
@@ -22,6 +28,7 @@ import { DocumentNavigationPanel } from "./document-navigation-panel"
 import { filePathFromSpaceUrl } from "./file-path"
 import { navigateAfterFlushingSpaceFile } from "./file-navigation"
 import { VersionPanel } from "./versioning/version-panel"
+import { openFileSpaceAgent } from "../file-space-agent/open-agent"
 
 type FileSpaceSidebarView = "files" | "version"
 
@@ -130,6 +137,20 @@ export function FileSpaceSidebar() {
           <div className="min-w-0 flex-1">
             <SpaceSelect spaces={spaceList} variant="sidebar-footer" />
           </div>
+          <button
+            type="button"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-sidebar-foreground/60 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring"
+            title="Open Agent with current context"
+            aria-label="Open Agent with current context"
+            onClick={() =>
+              void openFileSpaceAgent({
+                openInRightPanel: true,
+                spaceId: currentSpace.id,
+              })
+            }
+          >
+            <Bot className="h-3.5 w-3.5" />
+          </button>
           <button
             type="button"
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm text-sidebar-foreground/60 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring"

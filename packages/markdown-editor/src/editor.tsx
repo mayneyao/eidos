@@ -23,7 +23,13 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin"
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin"
 import { autoLinkEmailMatcher, autoLinkUrlMatcher } from "@lexical/link"
-import type { EditorState, EditorThemeClasses, LexicalEditor } from "lexical"
+import {
+  $getSelection,
+  $isRangeSelection,
+  type EditorState,
+  type EditorThemeClasses,
+  type LexicalEditor,
+} from "lexical"
 
 import { BlockCommandMenuPlugin } from "./block-menu"
 import {
@@ -72,6 +78,11 @@ export interface MarkdownEditorChange {
   readonly sourcePreserved: boolean
 }
 
+export interface MarkdownEditorSelection {
+  readonly text: string
+  readonly collapsed: boolean
+}
+
 export interface UnsupportedMarkdownViewProps {
   markdown: string
   compatibility: MarkdownCompatibility
@@ -84,6 +95,7 @@ export interface MarkdownEditorProps {
   /** Initial value for an uncontrolled editor. */
   defaultValue?: string
   onChange?: (markdown: string, change: MarkdownEditorChange) => void
+  onSelectionChange?: (selection: MarkdownEditorSelection | null) => void
   onBlur?: React.FocusEventHandler<HTMLDivElement>
   onFocus?: React.FocusEventHandler<HTMLDivElement>
   readOnly?: boolean
@@ -121,6 +133,7 @@ interface EditorBridgeProps {
   lastEmittedRef: React.MutableRefObject<string | null>
   editorRef: React.MutableRefObject<LexicalEditor | null>
   onChange: MarkdownEditorProps["onChange"]
+  onSelectionChange: MarkdownEditorProps["onSelectionChange"]
   onInternalSourceChange: (markdown: string) => void
 }
 
@@ -131,6 +144,7 @@ function EditorBridge({
   lastEmittedRef,
   editorRef,
   onChange,
+  onSelectionChange,
   onInternalSourceChange,
 }: EditorBridgeProps) {
   const [editor] = useLexicalComposerContext()
@@ -179,6 +193,20 @@ function EditorBridge({
     (editorState: EditorState, _editor: LexicalEditor, tags: Set<string>) => {
       if (tags.has(MARKDOWN_IMPORT_TAG)) return
 
+      if (onSelectionChange) {
+        editorState.read(() => {
+          const selection = $getSelection()
+          onSelectionChange(
+            $isRangeSelection(selection)
+              ? {
+                  text: selection.getTextContent(),
+                  collapsed: selection.isCollapsed(),
+                }
+              : null
+          )
+        })
+      }
+
       const result = editorStateToMarkdown(
         editorState,
         _editor,
@@ -194,10 +222,21 @@ function EditorBridge({
         sourcePreserved: result.sourcePreserved,
       })
     },
-    [lastEmittedRef, onChange, onInternalSourceChange, sourceRef]
+    [
+      lastEmittedRef,
+      onChange,
+      onInternalSourceChange,
+      onSelectionChange,
+      sourceRef,
+    ]
   )
 
-  return <OnChangePlugin onChange={handleChange} ignoreSelectionChange />
+  return (
+    <OnChangePlugin
+      onChange={handleChange}
+      ignoreSelectionChange={!onSelectionChange}
+    />
+  )
 }
 
 export const MarkdownEditor = forwardRef<
@@ -208,6 +247,7 @@ export const MarkdownEditor = forwardRef<
     value,
     defaultValue = "",
     onChange,
+    onSelectionChange,
     onBlur,
     onFocus,
     readOnly = false,
@@ -437,6 +477,7 @@ export const MarkdownEditor = forwardRef<
               lastEmittedRef={lastEmittedRef}
               editorRef={editorRef}
               onChange={onChange}
+              onSelectionChange={onSelectionChange}
               onInternalSourceChange={setUncontrolledSource}
             />
             <ListPlugin />

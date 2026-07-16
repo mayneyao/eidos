@@ -328,6 +328,7 @@ function main() {
     spaceMigration: createPreloadApiByNamespace("space-migration"),
     spaceVersioning: createPreloadApiByNamespace("space-versioning"),
     fileExtensions: createPreloadApiByNamespace("file-extensions"),
+    fileSpaceAgent: createPreloadApiByNamespace("file-space-agent"),
 
     // AI helper functions
     fetchAvailableModels: (

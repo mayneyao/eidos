@@ -30,6 +30,10 @@ import { SpaceBaseEditorLoader } from "@/apps/web-app/components/file-space/base
 import { SpaceFileFallbackPreview } from "@/apps/web-app/components/file-space/space-file-fallback-preview"
 import { SpaceMarkdownEditor } from "@/apps/web-app/components/file-space/space-markdown-editor"
 import {
+  clearMarkdownSelection,
+  rememberMarkdownSelection,
+} from "@/apps/web-app/components/file-space-agent/resource-context"
+import {
   isDestructiveSpaceVersioningOperation,
   useActiveSpaceVersioningOperation,
 } from "@/apps/web-app/hooks/use-space-versioning"
@@ -278,6 +282,13 @@ function SpaceTextEditor({
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(
+    () => () => {
+      clearMarkdownSelection(filePath)
+    },
+    [filePath]
+  )
 
   const refreshExtensionEditorPackage = useCallback(async () => {
     if (!extensionPackageRootPath) return
@@ -630,6 +641,12 @@ function SpaceTextEditor({
               setRecoveredDraftPath(null)
               editorContentRef.current = nextContent
               setContent(nextContent)
+            }}
+            onSelectionChange={(selection) => {
+              rememberMarkdownSelection(
+                filePath,
+                selection && !selection.collapsed ? selection.text : ""
+              )
             }}
             onSave={() => {
               if (!destructiveVersionMutation) {

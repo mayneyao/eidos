@@ -48,6 +48,7 @@ import {
   uniqueSpaceEntryName,
 } from "@/apps/web-app/components/file-space/file-path"
 import { flushCurrentSpaceFile } from "@/apps/web-app/components/file-space/file-navigation"
+import { openFileSpaceAgent } from "@/apps/web-app/components/file-space-agent/open-agent"
 import { useSpaceAppStore } from "@/apps/web-app/pages/[database]/store"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useDevToolsStore } from "@/components/dev-tools"
@@ -189,7 +190,18 @@ export function CommandDialogDemo() {
   const goToday = goto(`/journals/${today}`)
   const goShare = goto("/share")
   const goPipeline = goto("/pipeline")
-  const goAgent = goto("/agent")
+  const goLegacyAgent = goto("/agent")
+  const goAgent = () => {
+    if (isFileSpace) {
+      setCmdkOpen(false)
+      void openFileSpaceAgent({
+        openInRightPanel: true,
+        spaceId: currentSpace.id,
+      })
+      return
+    }
+    goLegacyAgent()
+  }
 
   const switchTheme = () => {
     const newTheme = resolvedTheme === "light" ? "dark" : "light"
@@ -774,12 +786,10 @@ export function CommandDialogDemo() {
                       <FilePlus2Icon className="mr-2 h-4 w-4" />
                       <span>{t("cmdk.newDraftDoc")}</span>
                     </CommandItem>
-                    {!isFileSpace ? (
-                      <CommandItem onSelect={goAgent} value="agent ai">
-                        <Bot className="mr-2 h-4 w-4" />
-                        <span>{t("common.ai")}</span>
-                      </CommandItem>
-                    ) : null}
+                    <CommandItem onSelect={goAgent} value="agent ai">
+                      <Bot className="mr-2 h-4 w-4" />
+                      <span>{t("common.ai")}</span>
+                    </CommandItem>
                     {/* <CommandItem onSelect={goPipeline} value="pipeline runner">
                       <Terminal className="mr-2 h-4 w-4" />
                       <div className="flex flex-col">

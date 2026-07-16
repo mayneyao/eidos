@@ -387,9 +387,16 @@ export class SpaceManagementService extends IpcServiceBase {
 
   async readFile(
     spaceId: string,
-    relativePath: string
+    relativePath: string,
+    maxBytes?: number
   ): Promise<SpaceTextFile> {
-    return this._getFileSpace(spaceId).readText(relativePath)
+    if (
+      maxBytes !== undefined &&
+      (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 16_777_216)
+    ) {
+      throw new Error("Space text read limit must be between 1 byte and 16 MiB")
+    }
+    return this._getFileSpace(spaceId).readText(relativePath, maxBytes)
   }
 
   async readBinaryFile(
@@ -417,13 +424,27 @@ export class SpaceManagementService extends IpcServiceBase {
     spaceId: string,
     relativePath: string,
     content: string,
-    expectedMtimeMs?: number
+    expectedMtimeMs?: number,
+    expectedContentDigest?: string
   ): Promise<SpaceTextFile> {
+    if (
+      expectedMtimeMs !== undefined &&
+      (!Number.isFinite(expectedMtimeMs) || expectedMtimeMs < 0)
+    ) {
+      throw new Error("Space file modification time is invalid")
+    }
+    if (
+      expectedContentDigest !== undefined &&
+      !/^sha256:[a-f0-9]{64}$/.test(expectedContentDigest)
+    ) {
+      throw new Error("Space file content digest is invalid")
+    }
     return withFileSpaceOperationLock(spaceId, async () => {
       const file = await this._getFileSpace(spaceId).writeText(
         relativePath,
         content,
-        expectedMtimeMs
+        expectedMtimeMs,
+        expectedContentDigest
       )
       this.fileSpaceIndexes.get(spaceId)?.updateTextFile(file)
       return file
@@ -496,6 +517,15 @@ export class SpaceManagementService extends IpcServiceBase {
   ): Promise<BaseSnapshot> {
     return withFileSpaceOperationLock(spaceId, () =>
       this._getBaseSnapshot(spaceId, relativePath, true)
+    )
+  }
+
+  async getBaseSnapshotReadOnly(
+    spaceId: string,
+    relativePath: string
+  ): Promise<BaseSnapshot> {
+    return withFileSpaceReadLock(spaceId, () =>
+      this._getBaseSnapshot(spaceId, relativePath, false, true)
     )
   }
 
@@ -1415,19 +1445,21 @@ export class SpaceManagementService extends IpcServiceBase {
   private async _openBase(
     spaceId: string,
     relativePath: string,
-    migrate = false
+    migrate = false,
+    readonly = false
   ) {
     const systemPath =
       await this._getFileSpace(spaceId).getSystemPath(relativePath)
-    return openBaseFile(systemPath, { migrate })
+    return openBaseFile(systemPath, { migrate, readonly })
   }
 
   private async _getBaseSnapshot(
     spaceId: string,
     relativePath: string,
-    migrate = false
+    migrate = false,
+    readonly = false
   ): Promise<BaseSnapshot> {
-    const base = await this._openBase(spaceId, relativePath, migrate)
+    const base = await this._openBase(spaceId, relativePath, migrate, readonly)
     try {
       const metadata = base.info()
       return {

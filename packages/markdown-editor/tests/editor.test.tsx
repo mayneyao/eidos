@@ -487,6 +487,30 @@ describe("MarkdownEditor", () => {
     expect(ref.current?.getMarkdown().markdown).toContain("**Format me**")
   })
 
+  it("reports selected text through the host context adapter", async () => {
+    const onSelectionChange = vi.fn()
+    const container = render(
+      <MarkdownEditor
+        defaultValue="Context for Agent"
+        onSelectionChange={onSelectionChange}
+      />
+    )
+    await settle()
+
+    const root = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const text = lastTextNode(root)
+    act(() => {
+      root.focus()
+      selectText(text, 0, 7)
+    })
+    await settle()
+
+    expect(onSelectionChange).toHaveBeenLastCalledWith({
+      text: "Context",
+      collapsed: false,
+    })
+  })
+
   it("creates a Markdown link from the floating toolbar", async () => {
     const ref = createRef<MarkdownEditorHandle>()
     const container = render(

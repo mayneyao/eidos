@@ -353,8 +353,14 @@ Space mode should replace it with:
 
 ```txt
 track.default_roots = ["**/*", ".eidos/extensions/**"]
-ignore = [".graft/**", ".eidos/cache/**", ".eidos/sessions/**", ".eidos/indexes/**", ".eidos/state/**", ...]
+ignore = [".graft/**", ".eidos/agent/**", ".eidos/cache/**", ".eidos/sessions/**", ".eidos/indexes/**", ".eidos/state/**", ...]
 ```
+
+Agent conversations are a per-Space, default-off exception. Explicit user
+consent replaces `.eidos/agent/**` with `.eidos/agent/local/**`, so only
+`.eidos/agent/sessions/**` can enter normal stage, commit, and push flows.
+Disabling the setting first unstages current conversation changes; it does not
+redact already committed or remote history.
 
 Existing repos may need a cleanup migration if they previously tracked `.eidos/sessions/**` or other private paths.
 

@@ -6,7 +6,10 @@ import { Injectable, Inject } from "../../common/di"
 import { withFileSpaceOperationLock } from "../space-management/file-space-operation-lock"
 import { SpaceRegistry } from "../space-management/space-management.module"
 import { GraftRunner } from "./graft-runner"
-import { ensureEidosGraftIgnore } from "./graft-ignore"
+import {
+  ensureEidosGraftIgnore,
+  getAgentConversationVersioningEnabled,
+} from "./graft-ignore"
 import {
   disabledSpaceVersionStatus,
   parseGraftCommit,
@@ -53,6 +56,8 @@ import type {
   SpaceVersionSyncOptions,
   SpaceVersionSyncResult,
   SpaceVersionUnstagePathResult,
+  SpaceVersionAgentConversationPolicy,
+  SpaceVersionAgentConversationPolicyOptions,
 } from "./types"
 
 const MUTATION_TIMEOUT_MS = 120_000
@@ -322,6 +327,15 @@ function normalizeSyncOptions(value: unknown): NormalizedSyncOptions {
   }
 }
 
+function normalizeAgentConversationPolicyOptions(
+  value: unknown
+): SpaceVersionAgentConversationPolicyOptions {
+  if (!isObject(value) || typeof value.enabled !== "boolean") {
+    throw new Error("Agent conversation versioning requires an enabled boolean")
+  }
+  return { enabled: value.enabled }
+}
+
 function normalizeResolveConflictOptions(
   value: unknown
 ): SpaceVersionResolveConflictOptions {
@@ -482,14 +496,28 @@ function normalizeDiffOptions(value: unknown): SpaceVersionDiffOptions {
   }
 }
 
-function isPrivateVersionPath(repositoryPath: string): boolean {
+function isAgentConversationPath(repositoryPath: string): boolean {
+  const candidate = repositoryPath.toLowerCase()
+  return (
+    candidate === ".eidos/agent/sessions" ||
+    candidate.startsWith(".eidos/agent/sessions/")
+  )
+}
+
+function isPrivateVersionPath(
+  repositoryPath: string,
+  versionAgentConversations = true
+): boolean {
   const privatePath = repositoryPath.toLowerCase()
-  const isProductExtension = privatePath.startsWith(".eidos/extensions/")
+  const isVersionedProductPath =
+    privatePath === ".eidos/extensions" ||
+    privatePath.startsWith(".eidos/extensions/") ||
+    (versionAgentConversations && isAgentConversationPath(privatePath))
   return (
     privatePath === ".graft" ||
     privatePath.startsWith(".graft/") ||
     privatePath === ".eidos" ||
-    (privatePath.startsWith(".eidos/") && !isProductExtension)
+    (privatePath.startsWith(".eidos/") && !isVersionedProductPath)
   )
 }
 
@@ -623,12 +651,15 @@ function isPrivateRuntimePath(repositoryPath: string): boolean {
   return candidate.startsWith(".eidos/secrets")
 }
 
-function visibleVersionStatus(status: SpaceVersionStatus): SpaceVersionStatus {
+function visibleVersionStatus(
+  status: SpaceVersionStatus,
+  versionAgentConversations = true
+): SpaceVersionStatus {
   const privatePaths = status.paths.filter((entry) =>
-    isPrivateVersionPath(entry.path)
+    isPrivateVersionPath(entry.path, versionAgentConversations)
   )
   const paths = status.paths.filter(
-    (entry) => !isPrivateVersionPath(entry.path)
+    (entry) => !isPrivateVersionPath(entry.path, versionAgentConversations)
   )
   const counts = {
     unstaged: Math.max(
@@ -711,6 +742,72 @@ export class SpaceVersioningCoordinator {
       return this.withRepositoryOperationLock(spacePath, async () => {
         await ensureEidosGraftIgnore(spacePath, { appendToExisting: false })
         return this.readStatus(spaceId, spacePath)
+      })
+    })
+  }
+
+  async getAgentConversationVersioning(
+    spaceIdValue: unknown
+  ): Promise<SpaceVersionAgentConversationPolicy> {
+    const spaceId = requireSpaceId(spaceIdValue)
+    return this.withSpaceLock(spaceId, async () => {
+      const spacePath = await this.resolveFileSpace(spaceId)
+      return {
+        enabled: await getAgentConversationVersioningEnabled(spacePath),
+        path: ".eidos/agent/sessions/",
+      }
+    })
+  }
+
+  async setAgentConversationVersioning(
+    spaceIdValue: unknown,
+    optionsValue: unknown
+  ): Promise<SpaceVersionAgentConversationPolicy> {
+    const spaceId = requireSpaceId(spaceIdValue)
+    const options = normalizeAgentConversationPolicyOptions(optionsValue)
+    return this.withSpaceLock(spaceId, async () => {
+      const spacePath = await this.resolveFileSpace(spaceId)
+      await this.requireRepository(spacePath)
+      return this.withRepositoryOperationLock(spacePath, async () => {
+        const currentPolicy =
+          await getAgentConversationVersioningEnabled(spacePath)
+        if (!options.enabled && currentPolicy) {
+          const before = await this.readStatus(spaceId, spacePath)
+          const conversationChanges = before.paths.filter((entry) =>
+            isAgentConversationPath(entry.path)
+          )
+          if (conversationChanges.some((entry) => entry.conflicted)) {
+            throw new Error(
+              "Resolve Agent conversation conflicts before excluding conversations from versioning"
+            )
+          }
+          if (conversationChanges.some((entry) => entry.staged)) {
+            await this.runner.runJson(
+              spacePath,
+              [
+                "restore",
+                "--json",
+                "--staged",
+                ...(before.currentHead
+                  ? ["--expected-head", before.currentHead]
+                  : []),
+                "--",
+                ".eidos/agent/sessions",
+              ],
+              { timeoutMs: MUTATION_TIMEOUT_MS }
+            )
+          }
+        }
+        await ensureEidosGraftIgnore(spacePath, {
+          versionAgentConversations: options.enabled,
+        })
+        const enabled = await getAgentConversationVersioningEnabled(spacePath)
+        if (enabled !== options.enabled) {
+          throw new Error(
+            "Eidos could not persist the Agent conversation versioning policy"
+          )
+        }
+        return { enabled, path: ".eidos/agent/sessions/" }
       })
     })
   }
@@ -1105,6 +1202,16 @@ export class SpaceVersioningCoordinator {
       const spacePath = await this.resolveFileSpace(spaceId)
       await this.requireRepository(spacePath)
       return this.withRepositoryOperationLock(spacePath, async () => {
+        const versionAgentConversations =
+          await getAgentConversationVersioningEnabled(spacePath)
+        if (
+          isAgentConversationPath(options.path) &&
+          !versionAgentConversations
+        ) {
+          throw new Error(
+            "Enable Agent conversation versioning before including this path"
+          )
+        }
         let raw: unknown
         try {
           raw = await this.runner.runJson(
@@ -1129,7 +1236,8 @@ export class SpaceVersioningCoordinator {
           )
         }
         const status = visibleVersionStatus(
-          parseGraftStatus(raw.status, spaceId)
+          parseGraftStatus(raw.status, spaceId),
+          versionAgentConversations
         )
         if (status.currentHead !== options.expectedHead) {
           throw new Error(
@@ -1666,11 +1774,14 @@ export class SpaceVersioningCoordinator {
     spaceId: string,
     spacePath: string
   ): Promise<SpaceVersionStatus> {
+    const versionAgentConversations =
+      await getAgentConversationVersioningEnabled(spacePath)
     return visibleVersionStatus(
       parseGraftStatus(
         await this.runner.runJson(spacePath, ["status", "--json"]),
         spaceId
-      )
+      ),
+      versionAgentConversations
     )
   }
 

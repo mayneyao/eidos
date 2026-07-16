@@ -7,9 +7,11 @@ import path from "path"
 import { afterEach, describe, expect, it } from "vitest"
 
 import {
+  EIDOS_AGENT_CONVERSATIONS_VERSIONED,
   EIDOS_GRAFT_IGNORE_END,
   EIDOS_GRAFT_IGNORE_START,
   ensureEidosGraftIgnore,
+  isAgentConversationVersioningEnabled,
   mergeEidosGraftIgnore,
 } from "./graft-ignore"
 
@@ -32,6 +34,9 @@ describe("mergeEidosGraftIgnore", () => {
     expect(result).toContain(".graftignore\n")
     expect(result).toContain(".eidos/inbox.sqlite3\n")
     expect(result).toContain(".eidos/raw.sqlite3\n")
+    expect(result).toContain(".eidos/agent/\n")
+    expect(result).not.toContain(".eidos/agent/local/\n")
+    expect(isAgentConversationVersioningEnabled(result)).toBe(false)
     expect(result).toContain(".eidos/cache/\n")
     expect(result).toContain(".eidos/state/\n")
     expect(result).toContain(".eidos/sessions/\n")
@@ -47,6 +52,25 @@ describe("mergeEidosGraftIgnore", () => {
 
     expect(once.startsWith(original)).toBe(true)
     expect(mergeEidosGraftIgnore(once)).toBe(once)
+  })
+
+  it("includes only Agent conversations after explicit opt-in", () => {
+    const enabled = mergeEidosGraftIgnore("", {
+      versionAgentConversations: true,
+    })
+
+    expect(enabled).toContain(`${EIDOS_AGENT_CONVERSATIONS_VERSIONED}\n`)
+    expect(enabled).toContain(".eidos/agent/local/\n")
+    expect(enabled).not.toMatch(/(?:^|\n)\.eidos\/agent\/(?:\r?\n|$)/)
+    expect(isAgentConversationVersioningEnabled(enabled)).toBe(true)
+    expect(mergeEidosGraftIgnore(enabled)).toBe(enabled)
+
+    const disabled = mergeEidosGraftIgnore(enabled, {
+      versionAgentConversations: false,
+    })
+    expect(disabled).toContain(".eidos/agent/\n")
+    expect(disabled).not.toContain(EIDOS_AGENT_CONVERSATIONS_VERSIONED)
+    expect(isAgentConversationVersioningEnabled(disabled)).toBe(false)
   })
 
   it("updates only a complete managed block and preserves CRLF", () => {
@@ -111,5 +135,20 @@ describe("mergeEidosGraftIgnore", () => {
     await update.rollback()
 
     await expect(fs.stat(ignorePath)).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
+  it("preserves the conversation policy during routine ignore refreshes", async () => {
+    const spacePath = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-space-"))
+    temporarySpaces.push(spacePath)
+    const ignorePath = path.join(spacePath, ".graftignore")
+
+    await ensureEidosGraftIgnore(spacePath, {
+      versionAgentConversations: true,
+    })
+    const optedIn = await fs.readFile(ignorePath, "utf8")
+    await ensureEidosGraftIgnore(spacePath)
+
+    expect(await fs.readFile(ignorePath, "utf8")).toBe(optedIn)
+    expect(isAgentConversationVersioningEnabled(optedIn)).toBe(true)
   })
 })

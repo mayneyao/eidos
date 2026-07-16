@@ -183,6 +183,9 @@ Examples:
 ```txt
 .eidos/
   extensions/
+  agent/
+    sessions/
+    local/
   indexes/
   cache/
   state/
@@ -225,6 +228,9 @@ my-space/
     workspace.json
 
   .eidos/
+    agent/
+      sessions/
+      local/
     indexes/
     sessions/
     cache/
@@ -245,6 +251,9 @@ Canonical user state:
 
 Non-canonical/private state:
 
+- `.eidos/agent/local/**`,
+- `.eidos/agent/sessions/**` unless the user explicitly enables conversation
+  versioning for this Space,
 - `.eidos/indexes/**`,
 - `.eidos/cache/**`,
 - `.eidos/sessions/**`,
@@ -277,6 +286,7 @@ track.default_roots:
 ignore:
   .graft/**
   .eidos/db.sqlite3
+  .eidos/agent/**
   .eidos/cache/**
   .eidos/indexes/**
   .eidos/sessions/**
@@ -285,6 +295,11 @@ ignore:
   **/.DS_Store
   **/*.tmp
 ```
+
+`.eidos/agent/**` is the default-off conversation policy. When a user enables
+conversation versioning for this Space, Eidos replaces that rule with
+`.eidos/agent/local/**`; only `.eidos/agent/sessions/**` then becomes eligible
+for explicit stage, commit, and push.
 
 Optionally, Eidos may choose a stricter default:
 

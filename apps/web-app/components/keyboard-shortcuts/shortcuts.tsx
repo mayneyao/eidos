@@ -14,6 +14,7 @@ import {
   uniqueSpaceEntryName,
 } from "@/apps/web-app/components/file-space/file-path"
 import { flushCurrentSpaceFile } from "@/apps/web-app/components/file-space/file-navigation"
+import { openFileSpaceAgent } from "@/apps/web-app/components/file-space-agent/open-agent"
 import { useCurrentPathInfo } from "@/apps/web-app/hooks/use-current-pathinfo"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useMblocksBatch } from "@/apps/web-app/hooks/use-mblocks-batch"
@@ -464,7 +465,14 @@ export function ShortCuts() {
   // Add shortcut for AI Agent
   useKeyPress(["ctrl.j", "meta.j"], (e) => {
     e.preventDefault()
-    if (!isFileSpace) navigate("/agent")
+    if (isFileSpace) {
+      void openFileSpaceAgent({
+        openInRightPanel: true,
+        spaceId: currentSpace?.id,
+      })
+    } else {
+      navigate("/agent")
+    }
   })
 
   return null

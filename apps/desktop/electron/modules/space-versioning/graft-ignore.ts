@@ -4,13 +4,18 @@ import path from "path"
 
 export const EIDOS_GRAFT_IGNORE_START = "# >>> Eidos managed versioning ignores"
 export const EIDOS_GRAFT_IGNORE_END = "# <<< Eidos managed versioning ignores"
+export const EIDOS_AGENT_CONVERSATIONS_VERSIONED =
+  "# Agent conversations are included in Space versions"
 
-const EIDOS_GRAFT_IGNORE_RULES = [
+const EIDOS_GRAFT_IGNORE_RULES_BEFORE_AGENT = [
   ".graft/",
   ".graftignore",
   ".eidos/db.sqlite3",
   ".eidos/inbox.sqlite3",
   ".eidos/raw.sqlite3",
+] as const
+
+const EIDOS_GRAFT_IGNORE_RULES_AFTER_AGENT = [
   ".eidos/cache/",
   ".eidos/indexes/",
   ".eidos/sessions/",
@@ -29,12 +34,28 @@ export interface EidosGraftIgnoreUpdate {
 
 export interface EnsureEidosGraftIgnoreOptions {
   appendToExisting?: boolean
+  versionAgentConversations?: boolean
 }
 
-function managedBlock(eol: string): string {
+interface ManagedBlockRange {
+  start: number
+  end: number
+}
+
+function managedRules(versionAgentConversations: boolean): readonly string[] {
+  return [
+    ...EIDOS_GRAFT_IGNORE_RULES_BEFORE_AGENT,
+    ...(versionAgentConversations
+      ? [EIDOS_AGENT_CONVERSATIONS_VERSIONED, ".eidos/agent/local/"]
+      : [".eidos/agent/"]),
+    ...EIDOS_GRAFT_IGNORE_RULES_AFTER_AGENT,
+  ]
+}
+
+function managedBlock(eol: string, versionAgentConversations: boolean): string {
   return [
     EIDOS_GRAFT_IGNORE_START,
-    ...EIDOS_GRAFT_IGNORE_RULES,
+    ...managedRules(versionAgentConversations),
     EIDOS_GRAFT_IGNORE_END,
   ].join(eol)
 }
@@ -64,9 +85,7 @@ function markerLineIndex(
   return -1
 }
 
-export function mergeEidosGraftIgnore(content: string): string {
-  const eol = detectEol(content)
-  const block = managedBlock(eol)
+function managedBlockRange(content: string): ManagedBlockRange | null {
   let start = markerLineIndex(content, EIDOS_GRAFT_IGNORE_START)
   let end = -1
 
@@ -88,9 +107,33 @@ export function mergeEidosGraftIgnore(content: string): string {
     break
   }
 
-  if (start !== -1 && end !== -1) {
-    const afterEnd = end + EIDOS_GRAFT_IGNORE_END.length
-    return `${content.slice(0, start)}${block}${content.slice(afterEnd)}`
+  return start !== -1 && end !== -1 ? { start, end } : null
+}
+
+export function isAgentConversationVersioningEnabled(content: string): boolean {
+  const range = managedBlockRange(content)
+  if (!range) return false
+  const block = content.slice(
+    range.start,
+    range.end + EIDOS_GRAFT_IGNORE_END.length
+  )
+  return markerLineIndex(block, EIDOS_AGENT_CONVERSATIONS_VERSIONED) !== -1
+}
+
+export function mergeEidosGraftIgnore(
+  content: string,
+  options: Pick<EnsureEidosGraftIgnoreOptions, "versionAgentConversations"> = {}
+): string {
+  const eol = detectEol(content)
+  const versionAgentConversations =
+    options.versionAgentConversations ??
+    isAgentConversationVersioningEnabled(content)
+  const block = managedBlock(eol, versionAgentConversations)
+  const range = managedBlockRange(content)
+
+  if (range) {
+    const afterEnd = range.end + EIDOS_GRAFT_IGNORE_END.length
+    return `${content.slice(0, range.start)}${block}${content.slice(afterEnd)}`
   }
 
   if (!content) {
@@ -156,7 +199,7 @@ export async function ensureEidosGraftIgnore(
     return { changed: false, rollback: async () => undefined }
   }
 
-  const next = mergeEidosGraftIgnore(existing)
+  const next = mergeEidosGraftIgnore(existing, options)
   if (next === existing) {
     return { changed: false, rollback: async () => undefined }
   }
@@ -197,5 +240,23 @@ export async function ensureEidosGraftIgnore(
         mode ?? 0o644
       )
     },
+  }
+}
+
+export async function getAgentConversationVersioningEnabled(
+  spacePath: string
+): Promise<boolean> {
+  const ignorePath = path.join(spacePath, ".graftignore")
+  try {
+    const stats = await fs.lstat(ignorePath)
+    if (stats.isSymbolicLink()) {
+      throw new Error("The Space .graftignore path cannot be a symbolic link")
+    }
+    return isAgentConversationVersioningEnabled(
+      await fs.readFile(ignorePath, "utf8")
+    )
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false
+    throw error
   }
 }

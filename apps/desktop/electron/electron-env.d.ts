@@ -206,6 +206,9 @@ interface Window {
     fileExtensions: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./modules/file-extensions/file-extension.service").FileExtensionService
     >
+    fileSpaceAgent: import("@eidos.space/electron-ipc").ExtractIpcApi<
+      typeof import("./modules/file-space-agent/file-space-agent.service").FileSpaceAgentService
+    >
     terminal: import("@eidos.space/electron-ipc").ExtractIpcApi<
       typeof import("./modules/terminal/terminal.service").TerminalService
     > & {

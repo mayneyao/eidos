@@ -71,6 +71,15 @@ export interface SpaceVersionStatus {
   behind?: number
 }
 
+export interface SpaceVersionAgentConversationPolicy {
+  enabled: boolean
+  path: ".eidos/agent/sessions/"
+}
+
+export interface SpaceVersionAgentConversationPolicyOptions {
+  enabled: boolean
+}
+
 export interface SpaceVersionRemote {
   name: string
   url: string

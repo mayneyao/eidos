@@ -12,6 +12,8 @@ describe("file Space route policy", () => {
     "/version/history",
     "/version/diff?path=Notes%2FToday.md",
     "/version/conflicts?path=Tasks.base",
+    "/agent",
+    "/agent/conversation-1",
     "/settings",
     "/settings/space-general",
     "https://example.com/reference",
@@ -21,7 +23,7 @@ describe("file Space route policy", () => {
 
   it.each([
     "/editor#legacy",
-    "/agent",
+    "/agent/conversation/extra",
     "/journals/2026-07-10",
     "/trash",
     "/graft/conflicts",

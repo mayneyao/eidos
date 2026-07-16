@@ -43,6 +43,11 @@ export interface SpaceVersionStatus {
   behind: number
 }
 
+export interface SpaceVersionAgentConversationPolicy {
+  enabled: boolean
+  path: ".eidos/agent/sessions/"
+}
+
 export type SpaceVersionUpstreamState =
   | "up_to_date"
   | "ahead"
@@ -371,6 +376,11 @@ export function isDestructiveSpaceVersioningOperation(
 interface SpaceVersioningBridge {
   getStatus: (spaceId: string) => Promise<unknown>
   enable: (spaceId: string) => Promise<unknown>
+  getAgentConversationVersioning: (spaceId: string) => Promise<unknown>
+  setAgentConversationVersioning: (
+    spaceId: string,
+    options: { enabled: boolean }
+  ) => Promise<unknown>
   getRemotes: (spaceId: string) => Promise<unknown>
   configureRemote: (
     spaceId: string,
@@ -511,6 +521,21 @@ function asNonNegativeInteger(value: unknown): number | null {
 
 function asSafeInteger(value: unknown): number | null {
   return typeof value === "number" && Number.isSafeInteger(value) ? value : null
+}
+
+function normalizeAgentConversationPolicy(
+  value: unknown
+): SpaceVersionAgentConversationPolicy {
+  const payload = unwrapPayload(value)
+  if (!isRecord(payload) || typeof payload.enabled !== "boolean") {
+    throw new Error(
+      "Desktop returned an invalid Agent conversation versioning policy"
+    )
+  }
+  return {
+    enabled: payload.enabled,
+    path: ".eidos/agent/sessions/",
+  }
 }
 
 function firstValue(record: UnknownRecord, keys: string[]): unknown {
@@ -2032,6 +2057,37 @@ export function useSpaceVersioning(
     }
   }, [refresh, requireSpaceId])
 
+  const getAgentConversationVersioning = useCallback(async () => {
+    return normalizeAgentConversationPolicy(
+      await requireSpaceVersioningBridge().getAgentConversationVersioning(
+        requireSpaceId()
+      )
+    )
+  }, [requireSpaceId])
+
+  const setAgentConversationVersioning = useCallback(
+    async (enabled: boolean) => {
+      setError(null)
+      const activeSpaceId = requireSpaceId()
+      try {
+        const policy = normalizeAgentConversationPolicy(
+          await requireSpaceVersioningBridge().setAgentConversationVersioning(
+            activeSpaceId,
+            { enabled }
+          )
+        )
+        await refresh()
+        announceSpaceVersioningChange(activeSpaceId, instanceTokenRef.current)
+        return policy
+      } catch (requestError) {
+        const nextError = errorFrom(requestError)
+        if (mountedRef.current) setError(nextError)
+        throw nextError
+      }
+    },
+    [refresh, requireSpaceId]
+  )
+
   const getRemotes = useCallback(async () => {
     const raw =
       await requireSpaceVersioningBridge().getRemotes(requireSpaceId())
@@ -2611,6 +2667,8 @@ export function useSpaceVersioning(
     error,
     available: getSpaceVersioningBridge() !== null,
     enable,
+    getAgentConversationVersioning,
+    setAgentConversationVersioning,
     getRemotes,
     configureRemote,
     removeRemote,

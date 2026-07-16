@@ -14,6 +14,7 @@ export {
   type MarkdownEditorChange,
   type MarkdownEditorHandle,
   type MarkdownEditorProps,
+  type MarkdownEditorSelection,
   type MarkdownViewerProps,
 } from "./editor"
 export type {

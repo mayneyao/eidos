@@ -5,6 +5,7 @@ import {
   History,
   Link2Off,
   LoaderCircle,
+  MessageSquareText,
   RefreshCw,
   ShieldCheck,
 } from "lucide-react"
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 
 export function FileSpaceVersioningSettings() {
   const { t } = useTranslation()
@@ -30,6 +32,8 @@ export function FileSpaceVersioningSettings() {
     error,
     available,
     enable,
+    getAgentConversationVersioning,
+    setAgentConversationVersioning,
     getRemotes,
     configureRemote,
     removeRemote,
@@ -38,6 +42,11 @@ export function FileSpaceVersioningSettings() {
   const [remoteUrl, setRemoteUrl] = useState("")
   const [savedRemoteUrl, setSavedRemoteUrl] = useState("")
   const [remoteError, setRemoteError] = useState<string | null>(null)
+  const [agentConversationsVersioned, setAgentConversationsVersioned] =
+    useState(false)
+  const [agentPolicyLoading, setAgentPolicyLoading] = useState(true)
+  const [agentPolicySaving, setAgentPolicySaving] = useState(false)
+  const [agentPolicyError, setAgentPolicyError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -64,6 +73,38 @@ export function FileSpaceVersioningSettings() {
       cancelled = true
     }
   }, [getRemotes, spaceId, status?.enabled, status?.remoteNames?.length])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!spaceId || !available) {
+      setAgentPolicyLoading(false)
+      setAgentConversationsVersioned(false)
+      return
+    }
+    setAgentPolicyLoading(true)
+    void getAgentConversationVersioning()
+      .then((policy) => {
+        if (!cancelled) {
+          setAgentConversationsVersioned(policy.enabled)
+          setAgentPolicyError(null)
+        }
+      })
+      .catch((policyError) => {
+        if (!cancelled) {
+          setAgentPolicyError(
+            policyError instanceof Error
+              ? policyError.message
+              : String(policyError)
+          )
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setAgentPolicyLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [available, getAgentConversationVersioning, spaceId])
 
   if (!spaceId || currentSpace?.mode !== "file") return null
 
@@ -95,6 +136,23 @@ export function FileSpaceVersioningSettings() {
           ? remoteRequestError.message
           : String(remoteRequestError)
       )
+    }
+  }
+  const updateAgentConversationVersioning = async (enabled: boolean) => {
+    const previous = agentConversationsVersioned
+    setAgentConversationsVersioned(enabled)
+    setAgentPolicySaving(true)
+    setAgentPolicyError(null)
+    try {
+      const policy = await setAgentConversationVersioning(enabled)
+      setAgentConversationsVersioned(policy.enabled)
+    } catch (policyError) {
+      setAgentConversationsVersioned(previous)
+      setAgentPolicyError(
+        policyError instanceof Error ? policyError.message : String(policyError)
+      )
+    } finally {
+      setAgentPolicySaving(false)
     }
   }
 
@@ -191,7 +249,7 @@ export function FileSpaceVersioningSettings() {
                 <p className="text-sm leading-5 text-muted-foreground">
                   {t(
                     "space.settings.fileSpace.versioning.policyDescription",
-                    "User files are tracked broadly. Private caches, sessions, indexes, state, and secrets under .eidos are excluded."
+                    "User files are tracked broadly. Private runtime data under .eidos stays excluded; Agent conversations are controlled separately below."
                   )}
                 </p>
               </div>
@@ -206,6 +264,76 @@ export function FileSpaceVersioningSettings() {
               <RefreshCw className="h-4 w-4" />
               {t("space.settings.fileSpace.versioning.refresh", "Refresh")}
             </Button>
+          </div>
+          <div className="flex min-h-[92px] items-center justify-between gap-6 py-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <MessageSquareText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="version-agent-conversations">
+                    {t(
+                      "space.settings.fileSpace.versioning.agentConversations",
+                      "Version Agent conversations"
+                    )}
+                  </Label>
+                  <Badge
+                    variant={
+                      agentConversationsVersioned ? "secondary" : "outline"
+                    }
+                  >
+                    {agentConversationsVersioned
+                      ? t(
+                          "space.settings.fileSpace.versioning.agentConversationsIncluded",
+                          "Included"
+                        )
+                      : t(
+                          "space.settings.fileSpace.versioning.agentConversationsPrivate",
+                          "Private"
+                        )}
+                  </Badge>
+                  {agentPolicySaving ? (
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                  ) : null}
+                </div>
+                <p className="max-w-3xl text-sm leading-5 text-muted-foreground">
+                  {t(
+                    "space.settings.fileSpace.versioning.agentConversationsDescription",
+                    "Off by default. When enabled, transcripts, attached context, tool results, approvals, and attachments become regular Space changes and may be pushed to remotes. Turning this off removes them from the current staged selection but does not erase versions already committed."
+                  )}
+                </p>
+                {!enabled ? (
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      "space.settings.fileSpace.versioning.agentConversationsRequiresVersioning",
+                      "Enable versioning for this Space before including conversations."
+                    )}
+                  </p>
+                ) : agentPolicyError ? (
+                  <p className="text-xs text-destructive" role="alert">
+                    {agentPolicyError}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <Switch
+              id="version-agent-conversations"
+              checked={agentConversationsVersioned}
+              disabled={
+                !available ||
+                !enabled ||
+                busy ||
+                agentPolicyLoading ||
+                agentPolicySaving
+              }
+              aria-label={t(
+                "space.settings.fileSpace.versioning.agentConversations",
+                "Version Agent conversations"
+              )}
+              aria-busy={agentPolicySaving}
+              onCheckedChange={(checked) =>
+                void updateAgentConversationVersioning(checked)
+              }
+            />
           </div>
         </div>
         {!available ? (

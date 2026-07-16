@@ -341,8 +341,13 @@ Space mode 应替换为：
 
 ```txt
 track.default_roots = ["**/*", ".eidos/extensions/**"]
-ignore = [".graft/**", ".eidos/cache/**", ".eidos/sessions/**", ".eidos/indexes/**", ".eidos/state/**", ...]
+ignore = [".graft/**", ".eidos/agent/**", ".eidos/cache/**", ".eidos/sessions/**", ".eidos/indexes/**", ".eidos/state/**", ...]
 ```
+
+Agent conversation 是每 Space、默认关闭的例外。用户明确同意后，
+`.eidos/agent/**` 会替换为 `.eidos/agent/local/**`，只有
+`.eidos/agent/sessions/**` 可以进入普通 stage、commit 与 push 流程。关闭设置
+会先撤销当前 conversation 变更的暂存选择，但不会抹除已提交或远端历史。
 
 如果旧 repo 曾经追踪 `.eidos/sessions/**` 或其它私有路径，可能需要 cleanup migration。
 

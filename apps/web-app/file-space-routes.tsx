@@ -2,6 +2,7 @@ import { Navigate, type RouteObject } from "react-router-dom"
 
 import {
   FILE_SPACE_FILE_ROUTE,
+  FILE_SPACE_AGENT_ROUTE,
   FILE_SPACE_EXTENSION_PANEL_ROUTE,
   FILE_SPACE_SETTINGS_ROUTE,
   FILE_SPACE_VERSION_DIFF_ROUTE,
@@ -15,11 +16,16 @@ import { SpaceVersionConflictsPage } from "@/apps/web-app/pages/[database]/space
 import { SpaceVersionHistoryPage } from "@/apps/web-app/pages/[database]/space-version-history/page"
 import SettingsPage from "@/apps/web-app/pages/[database]/settings/page"
 import SpaceHomePage from "@/apps/web-app/pages/[database]/page"
+import { FileSpaceAgentPage } from "@/apps/web-app/pages/[database]/file-agent/page"
 
 export const fileSpaceRoutes: RouteObject[] = [
   {
     index: true,
     element: <SpaceHomePage />,
+  },
+  {
+    path: FILE_SPACE_AGENT_ROUTE,
+    element: <FileSpaceAgentPage />,
   },
   {
     path: FILE_SPACE_FILE_ROUTE,
