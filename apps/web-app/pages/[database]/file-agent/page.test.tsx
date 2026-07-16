@@ -8,6 +8,7 @@ import type {
   FileSpaceAgentConversationSnapshot,
   FileSpaceAgentEvent,
 } from "@/apps/desktop/electron/modules/file-space-agent/types"
+import { getFileSpaceAgentSessionActivities } from "@/apps/web-app/components/file-space-agent/session-activity"
 
 import { FileSpaceAgentPage } from "./page"
 
@@ -210,6 +211,9 @@ describe("FileSpaceAgentPage", () => {
     expect(container.textContent).toContain("Modify Space file")
     expect(container.textContent).toContain("Append a summary")
     expect(container.textContent).toContain("Allow once")
+    expect(getFileSpaceAgentSessionActivities()["conversation-1"]?.status).toBe(
+      "waiting-approval"
+    )
 
     const allow = [...container.querySelectorAll("button")].find((button) =>
       button.textContent?.includes("Allow once")

@@ -103,7 +103,8 @@ export function Sidebar({ children, className }: SidebarProps) {
     <div
       className={cn(
         "relative h-full overflow-hidden shrink-0",
-        !isResizing && "transition-[width] duration-300 ease-in-out"
+        !isResizing &&
+          "transition-[width] duration-300 ease-in-out motion-reduce:transition-none"
       )}
       style={{ width: open ? width : 0 }}
     >
@@ -111,7 +112,8 @@ export function Sidebar({ children, className }: SidebarProps) {
         data-state={open ? "expanded" : "collapsed"}
         className={cn(
           "group/sidebar absolute inset-0 flex h-full flex-col overflow-hidden bg-sidebar",
-          !isResizing && "transition-transform duration-300 ease-in-out",
+          !isResizing &&
+            "transition-transform duration-300 ease-in-out motion-reduce:transition-none",
           !open && "-translate-x-full",
           className
         )}
@@ -171,19 +173,44 @@ function SidebarRail() {
     [width, setWidth, setIsResizing]
   )
 
+  const handleKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      let nextWidth: number | null = null
+      const step = event.shiftKey ? 32 : 16
+      if (event.key === "ArrowLeft") nextWidth = width - step
+      if (event.key === "ArrowRight") nextWidth = width + step
+      if (event.key === "Home") nextWidth = MIN_WIDTH
+      if (event.key === "End") nextWidth = getMaxWidth()
+      if (nextWidth === null) return
+      event.preventDefault()
+      setWidth(nextWidth)
+    },
+    [setWidth, width]
+  )
+
   if (!open) return null
 
   return (
     <div
       onMouseDown={handleMouseDown}
+      onDoubleClick={() => setWidth(DEFAULT_WIDTH)}
+      onKeyDown={handleKeyDown}
+      role="separator"
+      aria-label="Resize sidebar"
+      aria-orientation="vertical"
+      aria-valuemin={MIN_WIDTH}
+      aria-valuemax={getMaxWidth()}
+      aria-valuenow={width}
+      tabIndex={0}
       className={cn(
         "absolute right-0 top-0 bottom-0 z-50 w-[2px] cursor-col-resize",
         "hover:bg-primary/20 hover:w-1",
         "active:bg-primary/30 active:w-1",
-        "transition-all duration-150"
+        "focus-visible:w-1 focus-visible:bg-primary/30 focus-visible:outline-none",
+        "transition-all duration-150 motion-reduce:transition-none"
       )}
       style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-      title="拖拽调整宽度"
+      title="Drag or use arrow keys to resize sidebar"
     >
       {/* Visual line indicator */}
       <div className="absolute right-0 top-0 bottom-0 w-px bg-border" />

@@ -14,6 +14,11 @@ import {
 } from "lucide-react"
 
 import { uuidv7 } from "@/lib/utils"
+import {
+  clearFileSpaceAgentSessionActivity,
+  setFileSpaceAgentSessionActivity,
+  type FileSpaceAgentSessionStatus,
+} from "@/apps/web-app/components/file-space-agent/session-activity"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useTabTitle } from "@/hooks/use-tab-title"
@@ -142,6 +147,27 @@ export function FileSpaceAgentPage() {
   const selectedModel = modelOptions.some((option) => option.value === aiModel)
     ? aiModel
     : (modelOptions[0]?.value ?? "")
+
+  useEffect(() => {
+    if (!conversationId) return
+    const activeStatus = activeRun?.status
+    const status: FileSpaceAgentSessionStatus =
+      activeStatus === "queued" ||
+      activeStatus === "running" ||
+      activeStatus === "waiting-approval"
+        ? activeStatus
+        : requestError || activeStatus === "failed"
+          ? "failed"
+          : "idle"
+    setFileSpaceAgentSessionActivity(conversationId, { status })
+  }, [activeRun?.status, conversationId, requestError])
+
+  useEffect(
+    () => () => {
+      if (conversationId) clearFileSpaceAgentSessionActivity(conversationId)
+    },
+    [conversationId]
+  )
 
   useEffect(() => {
     if (!conversationId) {

@@ -2,9 +2,15 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 
 import { SidebarProvider } from "@/components/ui/sidebar"
+import {
+  clearFileSpaceAgentSessionActivity,
+  setFileSpaceAgentSessionActivity,
+} from "@/apps/web-app/components/file-space-agent/session-activity"
+import { useTabStore } from "@/apps/web-app/store/tabs"
 
 import { registerPendingWriteFlusher } from "./pending-writes"
 import { FileSpaceSidebar } from "./sidebar"
+import { fileSpaceAgentConversationId } from "./work-modes"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -16,6 +22,26 @@ const routeState = vi.hoisted(() => ({
   pathname: "/space-file",
   search: "",
   hash: "#notes%2Fdraft.md",
+}))
+const versioningState = vi.hoisted(() => ({
+  status: {
+    enabled: true,
+    clean: false,
+    hasConflicts: false,
+    branch: "main",
+    mergeHead: null,
+    head: null,
+    changes: [{ path: "notes/draft.md", status: "modified" }] as Array<{
+      path: string
+      status: string
+      conflicted?: boolean
+    }>,
+    remoteNames: [],
+    upstream: null,
+    ahead: 0,
+    behind: 0,
+  },
+  operation: null as string | null,
 }))
 
 vi.mock("@/lib/web/helper", () => ({
@@ -46,6 +72,10 @@ vi.mock("@/apps/web-app/hooks/use-space", () => ({
   }),
 }))
 
+vi.mock("@/apps/web-app/hooks/use-space-versioning", () => ({
+  useSpaceVersioning: () => versioningState,
+}))
+
 vi.mock("@/apps/web-app/hooks/use-router-adapter", () => ({
   useRouterAdapter: () => ({
     navigate: navigateMock,
@@ -69,7 +99,7 @@ vi.mock("@/components/space-select", () => ({
 
 vi.mock("./file-tree", () => ({
   FileSpaceTree: ({ spaceId }: { spaceId: string }) => (
-    <div data-file-tree-space-id={spaceId}>File tree</div>
+    <input data-file-tree-space-id={spaceId} defaultValue="File tree state" />
   ),
 }))
 
@@ -81,28 +111,82 @@ vi.mock("./document-navigation-panel", () => ({
 
 vi.mock("./versioning/version-panel", () => ({
   VersionPanel: ({ spaceId }: { spaceId: string }) => (
-    <div data-version-panel-space-id={spaceId}>Version panel</div>
+    <input data-version-panel-space-id={spaceId} defaultValue="Version state" />
   ),
 }))
 
-describe("FileSpaceSidebar layout", () => {
+function modeButton(container: HTMLElement, label: string) {
+  return container.querySelector<HTMLButtonElement>(
+    `button[role="tab"][aria-label^="${label} mode"]`
+  )
+}
+
+describe("FileSpaceSidebar work modes", () => {
   let container: HTMLDivElement
   let root: Root
+  const originalEidosDescriptor = Object.getOwnPropertyDescriptor(
+    window,
+    "eidos"
+  )
 
   beforeEach(() => {
     isMacDesktopMock.mockReturnValue(true)
     navigateMock.mockClear()
+    versioningState.status.hasConflicts = false
+    versioningState.status.changes = [
+      { path: "notes/draft.md", status: "modified" },
+    ]
+    versioningState.operation = null
     routeState.pathname = "/space-file"
     routeState.search = ""
     routeState.hash = "#notes%2Fdraft.md"
+    Object.defineProperty(window, "eidos", {
+      configurable: true,
+      value: {
+        fileSpaceAgent: {},
+        spaceVersioning: {},
+      },
+    })
+    useTabStore.setState({
+      tabs: [
+        {
+          id: "file-tab",
+          url: "/space-file#notes%2Fdraft.md",
+          title: "draft.md",
+          lastAccessTime: 1,
+        },
+      ],
+      panels: [
+        {
+          id: "main-panel",
+          tabIds: ["file-tab"],
+          activeTabId: "file-tab",
+        },
+      ],
+      activePanelId: "main-panel",
+    })
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
   })
 
   afterEach(() => {
-    act(() => root.unmount())
+    act(() => {
+      for (const tab of useTabStore.getState().tabs) {
+        const conversationId = fileSpaceAgentConversationId(tab.url)
+        if (conversationId) clearFileSpaceAgentSessionActivity(conversationId)
+      }
+      root.unmount()
+    })
     container.remove()
+  })
+
+  afterAll(() => {
+    if (originalEidosDescriptor) {
+      Object.defineProperty(window, "eidos", originalEidosDescriptor)
+    } else {
+      Reflect.deleteProperty(window, "eidos")
+    }
   })
 
   async function renderSidebar() {
@@ -115,107 +199,228 @@ describe("FileSpaceSidebar layout", () => {
     })
   }
 
-  it("puts work modes at the top and the current Space at the bottom", async () => {
+  async function clickMode(label: string) {
+    await act(async () => {
+      modeButton(container, label)?.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+  }
+
+  it("uses one stable top mode rail and reserves the footer for the Space", async () => {
     await renderSidebar()
 
     const modeNavigation = container.querySelector(
-      '[aria-label="Space sidebar navigation"]'
+      'nav[aria-label="Space work modes"]'
     )
     const footerSpaceSelect = container.querySelector(
       '[data-space-select-variant="sidebar-footer"]'
     )
 
     expect(modeNavigation).not.toBeNull()
-    expect(modeNavigation?.textContent).toContain("Version")
-    expect(modeNavigation?.textContent).not.toContain("Logs")
-    expect(
-      modeNavigation?.querySelector('button[aria-label="Hide sidebar"]')
-    ).not.toBeNull()
-    expect(
-      modeNavigation?.querySelector('button[aria-label="Open Version"]')
-    ).not.toBeNull()
+    expect(modeButton(container, "Files")?.ariaSelected).toBe("true")
+    expect(modeButton(container, "Version")?.ariaSelected).toBe("false")
+    expect(modeButton(container, "Agent")?.ariaSelected).toBe("false")
+    expect(modeButton(container, "Files")?.textContent).toContain("Files")
+    expect(modeButton(container, "Version")?.textContent).toContain("Version")
+    expect(modeButton(container, "Agent")?.textContent).toContain("Agent")
+    expect(modeButton(container, "Version")?.textContent).toContain("1")
     expect(footerSpaceSelect?.textContent).toBe("new-base")
     expect(
       container.querySelector('button[aria-label="Space settings"]')
     ).not.toBeNull()
     expect(
-      container.querySelector('[data-space-select-variant="titlebar"]')
+      container.querySelector(
+        'button[aria-label="Open Agent with current context"]'
+      )
     ).toBeNull()
+    expect(
+      container.querySelector('[role="separator"][aria-label="Resize sidebar"]')
+    ).not.toBeNull()
     expect(modeNavigation?.parentElement?.className).toContain(
       "eidos-shell-titlebar"
     )
-    expect(footerSpaceSelect?.closest(".eidos-shell-statusbar")).not.toBeNull()
     expect(modeNavigation?.parentElement?.className).toContain("!pl-[72px]")
+    expect(footerSpaceSelect?.closest(".eidos-shell-statusbar")).not.toBeNull()
   })
 
-  it("opens Version as a destination and returns to Files", async () => {
+  it("keeps Files and Version panel state mounted across round trips", async () => {
     await renderSidebar()
 
+    const fileTree = container.querySelector<HTMLInputElement>(
+      '[data-file-tree-space-id="new-base"]'
+    )!
+    fileTree.value = "preserved Files state"
+
+    await clickMode("Version")
+
+    const versionPanel = container.querySelector<HTMLInputElement>(
+      '[data-version-panel-space-id="new-base"]'
+    )!
+    expect(versionPanel).not.toBeNull()
+    expect(fileTree.closest('[role="tabpanel"]')?.className).toContain("hidden")
+    versionPanel.value = "preserved Version state"
+
+    await clickMode("Files")
+    expect(fileTree.value).toBe("preserved Files state")
+
+    await clickMode("Version")
+    expect(
+      container.querySelector<HTMLInputElement>(
+        '[data-version-panel-space-id="new-base"]'
+      )?.value
+    ).toBe("preserved Version state")
+  })
+
+  it("opens Agent in the main tab area and returns to the prior file tab", async () => {
+    await renderSidebar()
+    await clickMode("Agent")
+
+    const agentTab = useTabStore
+      .getState()
+      .tabs.find((tab) => fileSpaceAgentConversationId(tab.url))
+    expect(agentTab).toBeDefined()
+    expect(useTabStore.getState().getActiveTabId()).toBe(agentTab?.id)
+    expect(modeButton(container, "Agent")?.ariaSelected).toBe("true")
+    expect(
+      container.querySelector('[aria-label="Open Agent sessions"]')
+    ).not.toBeNull()
     expect(
       container.querySelector('[data-file-tree-space-id="new-base"]')
     ).not.toBeNull()
 
-    const versionButton = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Open Version"]'
-    )
-    await act(async () => versionButton?.click())
+    const conversationId = fileSpaceAgentConversationId(agentTab!.url)!
+    await act(async () => {
+      setFileSpaceAgentSessionActivity(conversationId, { status: "running" })
+    })
+    expect(
+      container.querySelector('[aria-label="1 Agent sessions running"]')
+    ).not.toBeNull()
 
+    await clickMode("Files")
+    expect(useTabStore.getState().getActiveTabId()).toBe("file-tab")
+    expect(modeButton(container, "Files")?.ariaSelected).toBe("true")
+    expect(
+      useTabStore.getState().tabs.some((tab) => tab.id === agentTab?.id)
+    ).toBe(true)
+  })
+
+  it("cancels a mode switch when the active file cannot be saved", async () => {
+    const unregister = registerPendingWriteFlusher(
+      "sidebar-mode-save",
+      async () => false,
+      { spaceId: "new-base", filePath: "notes/draft.md" }
+    )
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => undefined)
+    await renderSidebar()
+
+    await clickMode("Version")
+
+    expect(modeButton(container, "Files")?.ariaSelected).toBe("true")
     expect(
       container.querySelector('[data-version-panel-space-id="new-base"]')
-    ).not.toBeNull()
-    expect(
-      container.querySelector('[data-file-tree-space-id="new-base"]')
     ).toBeNull()
-
-    const filesButton = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Back to Files"]'
+    expect(alert).toHaveBeenCalledWith(
+      "Eidos could not save the current file. Resolve the error before opening Version."
     )
-    await act(async () => filesButton?.click())
-
-    expect(
-      container.querySelector('[data-file-tree-space-id="new-base"]')
-    ).not.toBeNull()
-    expect(
-      container.querySelector('button[aria-label="Open Version"]')
-    ).not.toBeNull()
+    alert.mockRestore()
+    unregister()
   })
 
-  it("replaces the entire file Space sidebar while Settings is active", async () => {
+  it("supports mode shortcuts, arrow navigation, and collapsed recovery", async () => {
     await renderSidebar()
+    const legacySidebarShortcut = vi.fn()
+    document.addEventListener("keydown", legacySidebarShortcut)
+    const resizeHandle = container.querySelector<HTMLDivElement>(
+      '[role="separator"][aria-label="Resize sidebar"]'
+    )!
+    await act(async () => {
+      resizeHandle.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Home", bubbles: true })
+      )
+    })
+    expect(resizeHandle.getAttribute("aria-valuenow")).toBe("200")
+    expect(
+      modeButton(container, "Agent")?.querySelector(".sr-only")
+    ).not.toBeNull()
+
     await act(async () => {
       container
-        .querySelector<HTMLButtonElement>('button[aria-label="Open Version"]')
+        .querySelector<HTMLButtonElement>('button[aria-label="Hide sidebar"]')
         ?.click()
     })
+    legacySidebarShortcut.mockClear()
+
+    await act(async () => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "2", metaKey: true, bubbles: true })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(modeButton(container, "Version")?.ariaSelected).toBe("true")
+    expect(container.querySelector('[data-state="expanded"]')).not.toBeNull()
+    expect(legacySidebarShortcut).not.toHaveBeenCalled()
+    document.removeEventListener("keydown", legacySidebarShortcut)
+
+    await act(async () => {
+      modeButton(container, "Version")?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(modeButton(container, "Files")?.ariaSelected).toBe("true")
+    expect(document.activeElement).toBe(modeButton(container, "Files"))
+  })
+
+  it("keeps unavailable Desktop modes visible but disabled", async () => {
+    Object.defineProperty(window, "eidos", {
+      configurable: true,
+      value: { spaceVersioning: {} },
+    })
+    await renderSidebar()
+
+    expect(modeButton(container, "Files")?.disabled).toBe(false)
+    expect(modeButton(container, "Version")?.disabled).toBe(false)
+    expect(modeButton(container, "Agent")?.disabled).toBe(true)
+    expect(modeButton(container, "Agent")?.title).toContain(
+      "Desktop Agent unavailable"
+    )
+  })
+
+  it("labels Version conflicts without relying on color", async () => {
+    versioningState.status.hasConflicts = true
+    versioningState.status.changes = [
+      {
+        path: "notes/draft.md",
+        status: "conflicted",
+        conflicted: true,
+      },
+    ]
+    await renderSidebar()
+
+    expect(
+      container.querySelector('[aria-label="1 version conflicts"]')
+    ).not.toBeNull()
+    expect(modeButton(container, "Version")?.title).toContain("1 conflict")
+  })
+
+  it("preserves the selected work mode while Settings owns the sidebar", async () => {
+    await renderSidebar()
+    await clickMode("Version")
 
     routeState.pathname = "/settings/space-general"
     routeState.hash = ""
     await renderSidebar()
-
     expect(
       container.querySelector('[data-settings-sidebar="true"]')
     ).not.toBeNull()
     expect(
-      container.querySelector('[aria-label="Space sidebar navigation"]')
-    ).toBeNull()
-    expect(
-      container.querySelector('[data-space-select-variant="sidebar-footer"]')
-    ).toBeNull()
-    expect(
-      container.querySelector('[data-file-tree-space-id="new-base"]')
+      container.querySelector('[aria-label="Space work modes"]')
     ).toBeNull()
 
     routeState.pathname = "/space-file"
     await renderSidebar()
-
-    expect(
-      container.querySelector('[data-version-panel-space-id="new-base"]')
-    ).not.toBeNull()
-    expect(
-      container.querySelector<HTMLButtonElement>(
-        'button[aria-label="Back to Files"]'
-      )
-    ).not.toBeNull()
+    expect(modeButton(container, "Version")?.ariaSelected).toBe("true")
   })
 
   it("keeps the editor open when settings navigation cannot save it", async () => {
