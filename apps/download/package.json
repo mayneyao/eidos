@@ -2,9 +2,9 @@
   "name": "download",
   "version": "0.0.0",
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260111.0",
+    "@cloudflare/workers-types": "^4.20260617.1",
     "typescript": "^5.6.3",
-    "wrangler": "4.59.1"
+    "wrangler": "4.102.0"
   },
   "private": true,
   "scripts": {

@@ -22,6 +22,6 @@
     "starlight-theme-flexoki": "^0.1.0"
   },
   "devDependencies": {
-    "wrangler": "4.59.1"
+    "wrangler": "4.102.0"
   }
 }
