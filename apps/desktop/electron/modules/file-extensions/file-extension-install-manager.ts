@@ -91,13 +91,17 @@ export class FileExtensionInstallManager {
     ) {
       throw new Error("Extension install preview changed; prepare it again")
     }
-    const paths = await resolveExtensionProjectPaths(spacePath)
-    if (!paths.extensionsRoot) {
-      throw new Error("Extension project directory is no longer available")
-    }
+
+    // Claim the reviewed snapshot before the first async boundary. Otherwise a
+    // concurrent apply or cancel can observe the same session and either
+    // commit it twice or discard its staging directory while it is installing.
     this.sessions.delete(session.id)
     clearTimeout(session.timer)
     try {
+      const paths = await resolveExtensionProjectPaths(spacePath)
+      if (!paths.extensionsRoot) {
+        throw new Error("Extension project directory is no longer available")
+      }
       const result = await commitPreparedExtensionInstall({
         prepared: session.prepared,
         extensionsRoot: paths.extensionsRoot,

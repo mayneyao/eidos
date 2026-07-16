@@ -167,6 +167,66 @@ describe("FileExtensionInstallManager", () => {
     ).rejects.toThrow("expired")
   })
 
+  it("claims a preview before yielding so concurrent apply cannot commit twice", async () => {
+    const root = await createSpace()
+    const { FileExtensionInstallManager } =
+      await import("./file-extension-install-manager")
+    const manager = new FileExtensionInstallManager()
+    const preview = await manager.prepare(
+      "space-a",
+      root,
+      { repository: "example/task-counter" },
+      "0.33.0"
+    )
+    const request = {
+      previewId: preview.previewId,
+      contentDigest,
+      permissionHash,
+    }
+
+    const firstApply = manager.apply("space-a", root, request, "0.33.0")
+    const secondApply = manager.apply("space-a", root, request, "0.33.0")
+    const secondApplyExpectation =
+      expect(secondApply).rejects.toThrow("expired")
+
+    await expect(firstApply).resolves.toMatchObject({
+      canonicalId: "example.task-counter",
+    })
+    await secondApplyExpectation
+    expect(commitMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not let cancellation discard a preview after apply claims it", async () => {
+    const root = await createSpace()
+    const { FileExtensionInstallManager } =
+      await import("./file-extension-install-manager")
+    const manager = new FileExtensionInstallManager()
+    const preview = await manager.prepare(
+      "space-a",
+      root,
+      { repository: "example/task-counter" },
+      "0.33.0"
+    )
+
+    const applying = manager.apply(
+      "space-a",
+      root,
+      {
+        previewId: preview.previewId,
+        contentDigest,
+        permissionHash,
+      },
+      "0.33.0"
+    )
+    await manager.cancel("space-a", preview.previewId)
+
+    await expect(applying).resolves.toMatchObject({
+      canonicalId: "example.task-counter",
+    })
+    expect(discardMock).not.toHaveBeenCalled()
+    expect(commitMock).toHaveBeenCalledTimes(1)
+  })
+
   it("binds a preview to its Space and reviewed digests", async () => {
     const root = await createSpace()
     const { FileExtensionInstallManager } =
