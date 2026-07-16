@@ -1508,7 +1508,9 @@ describe("FileExtensionSettings", () => {
       await Promise.resolve()
     })
 
-    expect(container.textContent).toContain("Source-only changes reload")
+    expect(container.textContent).toContain(
+      "Generation 1 is running from the current source. Source-only saves compile and reload automatically."
+    )
     expect(
       [
         ...container.querySelectorAll<HTMLButtonElement>("[role='switch']"),
@@ -1526,6 +1528,121 @@ describe("FileExtensionSettings", () => {
       packageId: "example.task-counter",
       sessionId: "development-1",
     })
+  })
+
+  it("makes development compile failures actionable and announces recovery", async () => {
+    const anchor = discoveryFixture("enabled")
+    const invalidDigest = `sha256:${"c".repeat(64)}`
+    const developmentSession = {
+      sessionId: "development-1",
+      packageId: "example.task-counter",
+      anchorSnapshot: {
+        packageId: "example.task-counter",
+        contentDigest,
+        permissionHash,
+      },
+      currentSnapshot: {
+        packageId: "example.task-counter",
+        contentDigest: invalidDigest,
+        permissionHash,
+      },
+      status: "invalid" as const,
+      diagnostics: [
+        {
+          code: "compile" as const,
+          message: "Unexpected token",
+          path: "src/extension.ts",
+        },
+      ],
+      granted: [{ kind: "files.read" as const, value: "**/*.md" }],
+      startedAt: 1,
+      generation: 2,
+    }
+    const invalid = {
+      ...anchor,
+      packages: [
+        {
+          ...anchor.packages[0],
+          lifecycleStatus: "untrusted" as const,
+          contentDigest: invalidDigest,
+          localState: {
+            snapshot: {
+              packageId: "example.task-counter",
+              contentDigest: invalidDigest,
+              permissionHash,
+            },
+            trusted: false,
+            enabled: false,
+            requestedGrants: [],
+            granted: [],
+          },
+          developmentSession,
+        },
+      ],
+    }
+    discoverMock.mockResolvedValue(invalid)
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Manage")!
+        .click()
+    )
+    const developmentStatus = container.querySelector('[role="status"]')!
+    expect(developmentStatus.textContent).toContain("Fix required")
+    expect(developmentStatus.textContent).toContain(
+      "Generation 2 could not compile. Fix the diagnostics below and save; this session will recover automatically."
+    )
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      "compile: Unexpected token"
+    )
+    const openSource = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Open source"
+    )!
+    act(() => openSource.click())
+    expect(openTabMock).toHaveBeenLastCalledWith(
+      "/space-file#.eidos%2Fextensions%2Fexample.task-counter%2Fsrc%2Fextension.ts",
+      "extension.ts"
+    )
+
+    const recoveredDigest = `sha256:${"d".repeat(64)}`
+    discoverMock.mockResolvedValue({
+      ...invalid,
+      packages: [
+        {
+          ...invalid.packages[0],
+          contentDigest: recoveredDigest,
+          developmentSession: {
+            ...developmentSession,
+            currentSnapshot: {
+              packageId: "example.task-counter",
+              contentDigest: recoveredDigest,
+              permissionHash,
+            },
+            status: "ready" as const,
+            diagnostics: [],
+            generation: 3,
+          },
+        },
+      ],
+    })
+    const developmentListener = onMock.mock.calls.find(
+      ([channel]) => channel === "file-extensions:development-changed"
+    )?.[1] as ((_event: unknown, payload: unknown) => void) | undefined
+    await act(async () => {
+      developmentListener?.(undefined, { spaceId: "file-space" })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      "Generation 3 is running from the current source. Source-only saves compile and reload automatically."
+    )
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+    expect(container.textContent).not.toContain("Unexpected token")
   })
 
   it("can remove an invalid package that has no snapshot identity", async () => {

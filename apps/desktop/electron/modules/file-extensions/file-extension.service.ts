@@ -1804,8 +1804,10 @@ export class FileExtensionService extends IpcServiceBase {
       }
 
       let surfaceBundleCode: string | undefined
+      let compilingPath: string | undefined
       try {
         if (inspection.manifest.entrypoints.worker) {
+          compilingPath = inspection.manifest.entrypoints.worker
           const compiled = await compileExtensionWorker({
             entrypoint: inspection.manifest.entrypoints.worker,
             files,
@@ -1816,6 +1818,7 @@ export class FileExtensionService extends IpcServiceBase {
           )
         }
         if (inspection.manifest.entrypoints.ui) {
+          compilingPath = inspection.manifest.entrypoints.ui
           const compiled = await compileExtensionSurface({
             entrypoint: inspection.manifest.entrypoints.ui,
             files,
@@ -1839,6 +1842,7 @@ export class FileExtensionService extends IpcServiceBase {
                   error instanceof Error
                     ? error.message
                     : "The extension could not be compiled.",
+                path: compilingPath,
               },
             ],
             snapshot

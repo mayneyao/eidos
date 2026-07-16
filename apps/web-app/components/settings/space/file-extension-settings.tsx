@@ -49,6 +49,9 @@ type FileExtensionDiscovery = Awaited<
 type FileExtensionPackage = FileExtensionDiscovery["packages"][number]
 type FileExtensionGrant = FileExtensionPackage["requestedGrants"][number]
 type FileExtensionRuntimeOutput = FileExtensionPackage["runtimeOutput"][number]
+type FileExtensionDevelopmentSession = NonNullable<
+  FileExtensionPackage["developmentSession"]
+>
 type FileExtensionCommand = NonNullable<
   NonNullable<FileExtensionPackage["manifest"]>["contributes"]["commands"]
 >[number]
@@ -946,7 +949,7 @@ export function FileExtensionSettings() {
   }
 
   const developmentStatusLabel = (
-    status: NonNullable<FileExtensionPackage["developmentSession"]>["status"]
+    status: FileExtensionDevelopmentSession["status"]
   ): string => {
     switch (status) {
       case "checking":
@@ -962,6 +965,41 @@ export function FileExtensionSettings() {
         )
       case "missing":
         return t("space.settings.fileExtensions.devMissing", "Source missing")
+    }
+  }
+
+  const developmentStatusDescription = (
+    development: FileExtensionDevelopmentSession
+  ): string => {
+    switch (development.status) {
+      case "checking":
+        return t(
+          "space.settings.fileExtensions.devCheckingDescription",
+          "Checking generation {{generation}} against the trusted development anchor.",
+          { generation: development.generation }
+        )
+      case "ready":
+        return t(
+          "space.settings.fileExtensions.devReadyDescription",
+          "Generation {{generation}} is running from the current source. Source-only saves compile and reload automatically.",
+          { generation: development.generation }
+        )
+      case "invalid":
+        return t(
+          "space.settings.fileExtensions.devInvalidDescription",
+          "Generation {{generation}} could not compile. Fix the diagnostics below and save; this session will recover automatically.",
+          { generation: development.generation }
+        )
+      case "permissions-changed":
+        return t(
+          "space.settings.fileExtensions.devPermissionsChangedDescription",
+          "The extension ID or requested permissions changed. Stop development, review the new source, and trust the new snapshot before running it."
+        )
+      case "missing":
+        return t(
+          "space.settings.fileExtensions.devMissingDescription",
+          "The package source is missing. Restore it in the Space or stop this development session."
+        )
     }
   }
 
@@ -1795,6 +1833,11 @@ export function FileExtensionSettings() {
               const expanded = expandedPackages.has(packageId)
               const manageable = extension.status === "ready" && !!snapshot
               const development = extension.developmentSession
+              const developmentSource =
+                development?.status === "permissions-changed"
+                  ? (sourceFiles.find((source) => source.kind === "manifest") ??
+                    primarySource)
+                  : primarySource
               const runtimeOutput = extension.runtimeOutput ?? []
               const canManage = manageable || !!development
               const busy = mutatingPackage === packageId
@@ -2153,7 +2196,12 @@ export function FileExtensionSettings() {
                     <div className="ml-7 mt-4 border-l pl-4">
                       <div className="rounded-md bg-sky-500/5 px-4">
                         <div className="flex min-h-[76px] items-center justify-between gap-6 py-3">
-                          <div className="min-w-0">
+                          <div
+                            className="min-w-0"
+                            role="status"
+                            aria-live="polite"
+                            aria-atomic="true"
+                          >
                             <div className="flex items-center gap-2">
                               <Label>
                                 {t(
@@ -2169,10 +2217,7 @@ export function FileExtensionSettings() {
                               </Badge>
                             </div>
                             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                              {t(
-                                "space.settings.fileExtensions.developmentSessionDescription",
-                                "Source-only changes reload automatically. The permission set and grants remain frozen to the trusted anchor snapshot."
-                              )}
+                              {developmentStatusDescription(development)}
                             </p>
                             <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
                               {t(
@@ -2193,32 +2238,56 @@ export function FileExtensionSettings() {
                               )}
                             </p>
                           </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={!!mutatingPackage}
-                            onClick={() =>
-                              void mutatePackage(extension, () =>
-                                window.eidos.fileExtensions.stopDevelopmentSession(
-                                  spaceId,
-                                  {
-                                    packageId: development.packageId,
-                                    sessionId: development.sessionId,
+                          <div className="flex shrink-0 items-center gap-1">
+                            {development.status !== "ready" &&
+                              developmentSource && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() =>
+                                    openSource(developmentSource.path)
                                   }
+                                >
+                                  <FileCode2 />
+                                  {t(
+                                    "space.settings.fileExtensions.openDevelopmentSource",
+                                    "Open source"
+                                  )}
+                                </Button>
+                              )}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={!!mutatingPackage}
+                              onClick={() =>
+                                void mutatePackage(extension, () =>
+                                  window.eidos.fileExtensions.stopDevelopmentSession(
+                                    spaceId,
+                                    {
+                                      packageId: development.packageId,
+                                      sessionId: development.sessionId,
+                                    }
+                                  )
                                 )
-                              )
-                            }
-                          >
-                            {busy && <LoaderCircle className="animate-spin" />}
-                            {t(
-                              "space.settings.fileExtensions.stopDevelopment",
-                              "Stop development"
-                            )}
-                          </Button>
+                              }
+                            >
+                              {busy && (
+                                <LoaderCircle className="animate-spin" />
+                              )}
+                              {t(
+                                "space.settings.fileExtensions.stopDevelopment",
+                                "Stop development"
+                              )}
+                            </Button>
+                          </div>
                         </div>
                         {development.diagnostics.length > 0 && (
-                          <div className="border-t border-sky-500/20 py-3 text-xs text-destructive">
+                          <div
+                            className="border-t border-sky-500/20 py-3 text-xs text-destructive"
+                            role="alert"
+                          >
                             {development.diagnostics.map(
                               (diagnostic, index) => {
                                 const diagnosticSource = diagnosticSourceFile(

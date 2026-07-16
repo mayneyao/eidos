@@ -733,6 +733,17 @@ async function run(): Promise<void> {
       "extension.json",
       "src/extension.ts",
     ])
+    const localPackageRoot = path.join(
+      spacePath,
+      ".eidos",
+      "extensions",
+      localTemplate.canonicalId
+    )
+    const localSourcePath = path.join(localPackageRoot, "src", "extension.ts")
+    await writeFile(
+      path.join(localPackageRoot, "src", "style.css"),
+      ".command { color: currentColor; }\n"
+    )
     const localPackage = await waitForValue(
       async () =>
         (await service.discover(SPACE_ID)).packages.find(
@@ -778,14 +789,27 @@ async function run(): Promise<void> {
       localSnapshot
     )
     await writeFile(
-      path.join(
-        spacePath,
-        ".eidos",
-        "extensions",
-        localTemplate.canonicalId,
-        "src",
-        "extension.ts"
-      ),
+      localSourcePath,
+      'import "./style.css"\nexport const activate = () => undefined\n'
+    )
+    const failedDevelopment = await waitForValue(async () => {
+      const candidate = (await service.discover(SPACE_ID)).packages.find(
+        (entry) => entry.canonicalId === localTemplate.canonicalId
+      )
+      const session = candidate?.developmentSession
+      return session?.status === "invalid" &&
+        session.sessionId === development.sessionId &&
+        session.diagnostics[0]?.code === "compile"
+        ? session
+        : undefined
+    }, "Invalid local extension source did not produce a compile diagnostic")
+    assert.equal(
+      failedDevelopment.diagnostics[0]?.path,
+      "src/extension.ts",
+      "Compile diagnostics should identify the failing entrypoint"
+    )
+    await writeFile(
+      localSourcePath,
       [
         'import type { ExtensionContext } from "@eidos.space/extension-sdk"',
         "",
@@ -810,6 +834,7 @@ async function run(): Promise<void> {
       const session = candidate?.developmentSession
       return session?.status === "ready" &&
         session.sessionId === development.sessionId &&
+        session.generation > failedDevelopment.generation &&
         session.currentSnapshot?.contentDigest !== localSnapshot.contentDigest
         ? candidate
         : undefined
@@ -910,6 +935,7 @@ async function run(): Promise<void> {
           "base-view-render",
           "local-create",
           "local-command",
+          "development-failure",
           "development-reload",
           "development-trust-reset",
           "uninstall",

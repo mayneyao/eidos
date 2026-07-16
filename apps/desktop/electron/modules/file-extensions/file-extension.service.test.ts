@@ -1480,6 +1480,17 @@ describe("FileExtensionService", () => {
 
   it("reports compile failures and automatically recovers after the source is fixed", async () => {
     const root = await createFileSpace()
+    await writeFile(
+      path.join(
+        root,
+        ".eidos",
+        "extensions",
+        "example.task-counter",
+        "src",
+        "style.css"
+      ),
+      ".task { color: currentColor; }\n"
+    )
     const registry = {
       getSpace: vi.fn(() => ({
         id: "space-a",
@@ -1516,7 +1527,10 @@ describe("FileExtensionService", () => {
       "extension.ts"
     )
 
-    await writeFile(sourcePath, "export const activate = (\n")
+    await writeFile(
+      sourcePath,
+      'import "./style.css"\nexport const activate = () => undefined\n'
+    )
     let invalidGeneration = 0
     await vi.waitFor(
       () => {
@@ -1525,9 +1539,13 @@ describe("FileExtensionService", () => {
             channel === "file-extensions:development-changed" &&
             event.sessionId === session.sessionId &&
             event.status === "invalid" &&
-            ["compile", "inspection"].includes(event.diagnostics?.[0]?.code)
+            event.diagnostics?.[0]?.code === "compile"
         )?.[1]
         expect(invalid).toBeDefined()
+        expect(invalid.diagnostics[0]).toMatchObject({
+          code: "compile",
+          path: "src/extension.ts",
+        })
         invalidGeneration = invalid.generation
       },
       { timeout: WATCH_EVENT_TIMEOUT_MS }
