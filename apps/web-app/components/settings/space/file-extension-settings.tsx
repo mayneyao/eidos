@@ -1830,6 +1830,12 @@ export function FileExtensionSettings() {
                                       {diagnosticSource.relativePath}
                                     </button>
                                   )}
+                                  {!diagnosticSource && diagnostic.path && (
+                                    <span className="ml-2 font-mono text-[11px]">
+                                      {" · "}
+                                      <code>{diagnostic.path}</code>
+                                    </span>
+                                  )}
                                 </li>
                               )
                             })}

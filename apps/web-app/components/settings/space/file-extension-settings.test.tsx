@@ -543,6 +543,39 @@ describe("FileExtensionSettings", () => {
     )
   })
 
+  it("identifies a non-package entry at the extensions root", async () => {
+    discoverMock.mockResolvedValue({
+      ...discoveryFixture(),
+      packages: [
+        {
+          directoryName: "README.md",
+          status: "invalid",
+          lifecycleStatus: "invalid",
+          requestedGrants: [],
+          legacyMappings: [],
+          files: [],
+          diagnostics: [
+            {
+              code: "package-not-directory",
+              severity: "error",
+              message:
+                "Entries under the extensions root must be package directories",
+              path: "README.md",
+            },
+          ],
+        },
+      ],
+    })
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).toContain(
+      "package-not-directory: Entries under the extensions root must be package directories · README.md"
+    )
+  })
+
   it("creates a text-editor template through the inline starter selector", async () => {
     discoverMock
       .mockReset()
