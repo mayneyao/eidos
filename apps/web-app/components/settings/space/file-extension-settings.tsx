@@ -2402,45 +2402,46 @@ export function FileExtensionSettings() {
                             </span>
                           </p>
                         )}
-                        {diagnostics.length > 0 && (
-                          <ul className="space-y-1 pt-1 text-xs text-muted-foreground">
-                            {diagnostics.map((diagnostic, index) => {
-                              const diagnosticSource = diagnosticSourceFile(
-                                sourceFiles,
-                                diagnostic.path
-                              )
-                              return (
-                                <li
-                                  key={`${diagnostic.code}-${diagnostic.path ?? diagnostic.pointer ?? index}`}
-                                  className={cn(
-                                    diagnostic.severity === "error" &&
-                                      "text-destructive"
-                                  )}
-                                >
-                                  <code>{diagnostic.code}</code>:{" "}
-                                  {diagnostic.message}
-                                  {diagnosticSource && (
-                                    <button
-                                      type="button"
-                                      className="ml-2 font-mono underline underline-offset-2 hover:text-foreground"
-                                      onClick={() =>
-                                        openSource(diagnosticSource.path)
-                                      }
-                                    >
-                                      {diagnosticSource.relativePath}
-                                    </button>
-                                  )}
-                                  {!diagnosticSource && diagnostic.path && (
-                                    <span className="ml-2 font-mono text-[11px]">
-                                      {" · "}
-                                      <code>{diagnostic.path}</code>
-                                    </span>
-                                  )}
-                                </li>
-                              )
-                            })}
-                          </ul>
-                        )}
+                        {diagnostics.length > 0 &&
+                          (!development || !expanded) && (
+                            <ul className="space-y-1 pt-1 text-xs text-muted-foreground">
+                              {diagnostics.map((diagnostic, index) => {
+                                const diagnosticSource = diagnosticSourceFile(
+                                  sourceFiles,
+                                  diagnostic.path
+                                )
+                                return (
+                                  <li
+                                    key={`${diagnostic.code}-${diagnostic.path ?? diagnostic.pointer ?? index}`}
+                                    className={cn(
+                                      diagnostic.severity === "error" &&
+                                        "text-destructive"
+                                    )}
+                                  >
+                                    <code>{diagnostic.code}</code>:{" "}
+                                    {diagnostic.message}
+                                    {diagnosticSource && (
+                                      <button
+                                        type="button"
+                                        className="ml-2 font-mono underline underline-offset-2 hover:text-foreground"
+                                        onClick={() =>
+                                          openSource(diagnosticSource.path)
+                                        }
+                                      >
+                                        {diagnosticSource.relativePath}
+                                      </button>
+                                    )}
+                                    {!diagnosticSource && diagnostic.path && (
+                                      <span className="ml-2 font-mono text-[11px]">
+                                        {" · "}
+                                        <code>{diagnostic.path}</code>
+                                      </span>
+                                    )}
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          )}
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">

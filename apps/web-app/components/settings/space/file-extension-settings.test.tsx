@@ -1976,6 +1976,14 @@ describe("FileExtensionSettings", () => {
           ...anchor.packages[0],
           lifecycleStatus: "untrusted" as const,
           contentDigest: invalidDigest,
+          diagnostics: [
+            {
+              code: "package-import-syntax" as const,
+              severity: "error" as const,
+              message: "Unexpected token",
+              path: "src/extension.ts",
+            },
+          ],
           localState: {
             snapshot: {
               packageId: "example.task-counter",
@@ -2010,6 +2018,7 @@ describe("FileExtensionSettings", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "compile: Unexpected token"
     )
+    expect(container.textContent?.match(/Unexpected token/g)).toHaveLength(1)
     const diagnosticSource = [...container.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "src/extension.ts:3:17"
     )!
