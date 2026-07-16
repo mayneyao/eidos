@@ -1,6 +1,6 @@
 # RFC: File-Based Extensions for Eidos Spaces
 
-Status: Draft, v1 contract frozen; P2b through P5 developer previews implemented
+Status: Draft, v1 contract frozen; P2b through P6 developer previews implemented
 Date: 2026-07-09
 Last updated: 2026-07-15
 Owner: Eidos
@@ -55,13 +55,24 @@ packages remain removable. Private repositories, automatic updates, and
 general network capabilities remain future phases.
 
 The P5 developer preview adds the independent
-`@eidos.space/extension-cli`. It scaffolds command and editable text-editor
+`@eidos.space/extension-cli`. It scaffolds command, panel, Base-view, and editable text-editor
 packages without overwriting existing directories, inspects source repositories
 under the production package limits, performs strict TypeScript checks against
 the public SDK, and compiles the exact inspected bytes with the Desktop
 compiler. Human output, structured JSON, and stable exit codes use one check
 implementation shared by the official examples. The package is prepared for,
 but has not yet completed, its first public npm release.
+
+The P6 developer preview adds an explicit, memory-only Development Session for
+the local edit/compile/reload loop. A session can start only from one exact
+persistently trusted and enabled snapshot. It freezes that anchor's grants and
+allows only source digests with the same package ID and permission hash; changed
+permissions fail closed and no new trusted-snapshot row is written. Watcher
+events invalidate only the identified package when possible, dispose its Worker,
+save and close host-owned documents, compile the newest generation, and
+automatically reopen matching UI surfaces. Invalid source remains diagnosable
+and recovers after the next valid save. Space release, app shutdown, watcher
+failure, install, update, uninstall, or explicit stop clears the session.
 
 Existing bundled and database-backed extensions remain compatibility paths.
 
@@ -273,21 +284,26 @@ reproducibility semantics.
 ### Canonical digests
 
 Version 1 intentionally uses a conservative content digest. It hashes the
-normalized relative path and bytes of every installed package file except the
-host-managed `extension.lock.json`. Changing a README therefore changes the
-content digest and requires review. This is noisier than dependency-graph-only
-hashing, but it is explicit and avoids an executable asset being omitted from
-the trust boundary.
+normalized relative path and bytes of every canonical source file in the
+installed snapshot except the host-managed `extension.lock.json`. Root-level
+`.git`, `node_modules`, `dist`, and `coverage` paths are local development
+artifacts rather than package source, so scanners and installers skip them.
+Changing a README, `package.json`, `tsconfig.json`, or package-manager lock file
+therefore changes the content digest and requires review. This is noisier than
+dependency-graph-only hashing, but it is explicit and avoids an executable
+asset being omitted from the trust boundary.
 
 The canonical algorithm is deliberately implementable outside Eidos:
 
-1. Accept regular files and directories only. Reject symbolic links and special
-   files before copying or hashing.
-2. Convert each file path relative to the package root to UTF-8 NFC with `/`
+1. Convert each entry path relative to the package root to UTF-8 NFC with `/`
    separators. Reject empty, `.`, `..`, NUL, NFC-colliding, and case-folding-
    colliding paths.
-3. Exclude exactly the root-level, host-managed `extension.lock.json`. Empty
-   directories do not participate.
+2. Exclude the root-level, host-managed `extension.lock.json` and any path whose
+   first segment is exactly `.git`, `node_modules`, `dist`, or `coverage`.
+   Ignored archive bytes still count toward extraction resource limits.
+3. For every remaining entry, accept regular files and directories only. Reject
+   symbolic links and special files before copying or hashing. Empty directories
+   do not participate.
 4. Sort paths by unsigned UTF-8 byte order.
 5. Feed SHA-256 one record per file:
    `[u32be pathLength][pathBytes][u64be contentLength][contentBytes]`.
@@ -314,6 +330,10 @@ These files are part of the Space and should be tracked:
 .eidos/extensions/<publisher.name>/src/**
 .eidos/extensions/<publisher.name>/assets/**
 .eidos/extensions/<publisher.name>/README.md
+.eidos/extensions/<publisher.name>/.gitignore
+.eidos/extensions/<publisher.name>/package.json
+.eidos/extensions/<publisher.name>/tsconfig.json
+.eidos/extensions/<publisher.name>/{package-lock.json,pnpm-lock.yaml,yarn.lock}
 ```
 
 They answer:
@@ -370,8 +390,9 @@ Rules:
 - Trust is local user state.
 - Enabled/disabled is local by default.
 - Permission grants are local by default.
-- Any installed package-file change except the host-managed lock file changes
-  the version 1 content digest and invalidates trust for that digest.
+- Any installed canonical source-file change changes the version 1 content
+  digest and invalidates trust for that digest; host lock and the four explicit
+  local artifact roots are outside that identity.
 - Marketplace-installed extensions should be pinned by ID/version or lock metadata.
 
 The implemented local-state format uses separate `trusted_snapshots`,
@@ -580,9 +601,10 @@ Legacy spaces can keep using the old model until migrated.
    never executes package-manager scripts.
 9. GitHub provenance is stored in a tracked per-package
    `extension.lock.json`.
-10. Any installed package-file change except the host-managed lock file
-    produces a new version 1 content digest; trust remains keyed by ID, content
-    digest, and permission hash.
+10. Any installed canonical source-file change produces a new version 1
+    content digest; the host lock and four explicit local artifact roots are
+    excluded, and trust remains keyed by ID, content digest, and permission
+    hash.
 
 ## Deferred Questions
 
@@ -696,8 +718,8 @@ against a temporary file Space, including lock provenance and staging cleanup.
 
 ### P5: Developer tooling
 
-- Provide a non-interactive command and text-editor scaffold suitable for both
-  developers and agents.
+- Provide non-interactive command, panel, Base-view, and text-editor scaffolds
+  suitable for both developers and agents.
 - Validate source repositories with the production inspector, public SDK type
   contract, and fixed Desktop compiler.
 - Expose structured diagnostics and stable exit codes for CI without executing
@@ -711,7 +733,7 @@ Task Counter and Task Board gates now consume this same check path. Public npm
 publication remains a separate release action. The repeatable
 `pnpm smoke:extension-tooling` gate packs the five public developer packages,
 installs them into an isolated consumer with lifecycle scripts disabled, and
-proves the installed CLI binary, library API, both templates, internal release
+proves the installed CLI binary, library API, all four templates, internal release
 versions, licenses, and compatible/incompatible host behavior without relying
 on workspace links. The reusable `Extension Delivery` workflow repeats the
 metadata, type-check, test, packed-consumer, example, and documentation gates on
@@ -733,3 +755,28 @@ First publication remains an explicit bootstrap because npm staged publishing
 cannot create packages; later versions use OIDC trusted publishing and npm's
 staged approval flow. No package has been published merely by implementing this
 gate.
+
+### P6: Local development sessions
+
+- Start only from an exact trusted and enabled snapshot; keep the session in
+  memory and never persist trust for edited digests.
+- Freeze the anchor permission hash and granted capabilities. Package-ID or
+  permission changes must stop execution and return to normal review.
+- Invalidate, save, compile, and reload only the changed package when the file
+  watcher identifies it; keep a conservative Space-wide fallback for unknown
+  watcher events.
+- Automatically reopen matching UI surfaces after a successful build, retain
+  diagnostics across invalid saves, and prevent document loss when a pre-reload
+  save fails.
+- Clear Workers, UI documents, watchers, caches, and development authorization
+  through the shared Space/app resource lifecycle.
+
+Implemented in the current developer preview. The Settings package row exposes
+inline start/stop controls and the checking, development, fix-required,
+permission-review, and missing-source states. Runtime commands, file editors,
+and every capability RPC still re-inspect the current bytes. Source-only edits
+reuse frozen grants only while the current snapshot matches the active session;
+normal snapshot-bound trust semantics remain unchanged outside that in-memory
+authorization. Generation checks prevent an older compilation from replacing a
+newer save, and dirty documents must finish a host-owned save before a UI surface
+is reopened.

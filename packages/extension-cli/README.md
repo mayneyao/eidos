@@ -6,6 +6,7 @@ compiler used by Eidos Desktop.
 
 ```bash
 eidos-extension init example.hello-tools --template command
+eidos-extension init example.task-cards --template base-view
 eidos-extension init example.notes-editor --template text-editor \
   --pattern "**/*.notes.md"
 eidos-extension check example.notes-editor --host-version 0.33.0

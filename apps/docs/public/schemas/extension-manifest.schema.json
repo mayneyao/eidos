@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://docs.eidos.space/schemas/extension-manifest.schema.json",
-  "$comment": "Version 1 contract frozen for foundation work; third-party runtime execution is not available yet.",
+  "$comment": "Version 1 developer preview contract for sandboxed third-party extension execution.",
   "title": "Eidos Extension Manifest",
   "type": "object",
   "additionalProperties": false,
@@ -91,6 +91,14 @@
         "fileEditors": {
           "type": "array",
           "items": { "$ref": "#/$defs/fileEditor" }
+        },
+        "panels": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/panel" }
+        },
+        "baseViews": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/baseView" }
         }
       }
     },
@@ -192,6 +200,36 @@
         },
         "priority": {
           "enum": ["default", "option"]
+        }
+      }
+    },
+    "panel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      }
+    },
+    "baseView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 160
         }
       }
     },

@@ -77,12 +77,28 @@ pnpm extension:cli init example.markdown-task-board \
 
 ```text
 example.markdown-task-board/
+├── .gitignore
+├── README.md
 ├── extension.json
+├── package.json
+├── tsconfig.json
 └── src/
     ├── editor.css
     ├── editor.ts
     └── tasks.ts
 ```
+
+仓库 scaffold 会固定匹配的 preview CLI 与 SDK 版本范围，提供 IDE TypeScript 配置，并暴露
+`npm run check`。首次公开发布完成后，独立 clone 的正常开发循环是：
+
+```bash
+npm install
+npm run check
+```
+
+本地 inspector 与 GitHub installer 都会忽略 root `.git`、`node_modules`、`dist` 和 `coverage`。
+`package.json`、`tsconfig.json`、README 和 package-manager lock 仍属于被审阅的源码，会参与 content
+digest。
 
 创建 `extension.json`：
 
@@ -285,7 +301,23 @@ pnpm exec vitest run \
 安装、trust、grant 与 enablement 是不同决定。只有所有适用决定都允许同一个 inspected snapshot，package
 才会运行。
 
-## 第六步：实际使用并验收
+## 第六步：开始开发会话
+
+对于正在修改的 package：
+
+1. 完成上面的 trust、grant 与 enablement 后，在 **Settings → Extensions** 保持 package 展开。
+2. 点击 **开始开发**。状态会变成 **开发中**，并显示已信任的锚点 digest 和当前源码 digest。
+3. 修改 `src/editor.ts` 或 `src/editor.css` 中的文案或样式并保存。Eidos 会显示 **正在检查**，安全保存
+   尚未落盘的 Task Board 文档，编译当前精确源码，并自动重新打开看板。
+4. 临时加入一个 TypeScript 语法错误。状态会变成 **需要修复**并显示诊断；修复后会在同一个会话中
+   恢复，无需再次授予 trust。
+5. 在 `extension.json` 中增加一项权限。Eidos 会切换到 **需要审核权限**并拒绝运行。点击
+   **停止开发**，再通过正常流程审核并信任新快照。
+
+开发会话只存在于内存中：它不会永久信任变化后的内容，不会扩大锚点 grants，并且会在 App 或 Space
+关闭后结束。精确安全边界见[生命周期与激活](/zh-cn/extensions/lifecycle/#开发会话)。
+
+## 第七步：实际使用并验收
 
 1. 创建 `website.tasks.md`，加入本页示例 Markdown。
 2. 打开文件；默认匹配 editor 应为 **Task Board**。

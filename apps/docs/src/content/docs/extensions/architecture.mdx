@@ -137,10 +137,15 @@ binary previews can arrive earlier because they do not own save or undo state.
 
 ## Base views
 
-A Base view receives a host-produced, serializable query result and view
-configuration. The extension renders and emits typed row/view actions; it does
-not receive a raw SQLite handle. Eidos persists view configuration and notifies
-the surface when data or configuration changes.
+A Base view receives serializable context plus bounded result pages produced by
+the host. It requests pages through `context.base.getPage()` and observes
+context changes without receiving a raw SQLite handle. Eidos persists the
+selected saved-view type and owns query execution, filtering, sorting, and
+paging.
+
+The current preview contract is read-only. It proves that a third-party layout
+can render real Base data through a bounded protocol; row mutation and custom
+view actions are deliberately not exposed yet.
 
 Large-result views must support incremental updates and virtualized rendering.
 The host may suspend a hidden surface and recreate it from serialized state.
@@ -156,11 +161,12 @@ current data.
 ## First delivery boundary
 
 The current experimental slice implements commands, menus, read-only worker
-file access, host-rendered semantic UI, and text `fileEditors`. The Task Board
-proves activation, minimal edits, autosave, undo, conflict handling, and
-multi-view broadcasts without a direct `writeFile()` shortcut. Binary custom
-documents, Base views, and general-purpose network/storage capabilities remain
-outside this boundary.
+file access, host-rendered semantic UI, panels, text `fileEditors`, and read-only
+`baseViews`. The Task Board proves activation, minimal edits, autosave, undo,
+conflict handling, and multi-view broadcasts without a direct `writeFile()`
+shortcut. The Base View starter proves bounded host paging. Binary custom
+documents, mutable Base actions, and general-purpose network/storage
+capabilities remain outside this boundary.
 
 ## Primary references
 

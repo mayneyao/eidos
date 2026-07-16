@@ -118,9 +118,12 @@ Editable binary format 需要未来的 custom-document contract。Readonly binar
 
 ## Base view
 
-Base view 接收宿主生成的 serializable query result 与 view configuration。扩展负责 render 并发出 typed
-row/view action，不获得 raw SQLite handle。Eidos 持久化 view configuration，并在数据或配置变化时
-通知 surface。
+Base view 接收 serializable context 与宿主生成的有界结果分页。它通过 `context.base.getPage()` 请求
+分页，并监听 context change，不获得 raw SQLite handle。Eidos 持久化选中的 saved-view type，并拥有
+query execution、filtering、sorting 与 paging。
+
+当前 preview contract 是只读的。它验证第三方 layout 可以通过有界协议渲染真实 Base 数据；row mutation
+与 custom view action 尚未暴露。
 
 大结果集 view 必须支持 incremental update 与 virtualized rendering。宿主可以 suspend hidden surface，
 再从 serialized state 重新创建。
@@ -133,10 +136,11 @@ content 或 grant，或者替换 stale build，都会关闭 capability port 并 
 
 ## 首期交付边界
 
-当前 experimental slice 已实现 command、menu、worker read-only file access、宿主 semantic UI 与
-text `fileEditors`。Task Board 在没有 direct `writeFile()` 捷径的前提下，验证 activation、minimal edit、
-autosave、undo、conflict 与 multi-view broadcast。Binary custom document、Base view 和通用
-network/storage capability 仍不在本阶段边界内。
+当前 experimental slice 已实现 command、menu、worker read-only file access、宿主 semantic UI、
+panel、text `fileEditors` 与只读 `baseViews`。Task Board 在没有 direct `writeFile()` 捷径的前提下，
+验证 activation、minimal edit、autosave、undo、conflict 与 multi-view broadcast；Base View starter
+验证宿主控制的有界分页。Binary custom document、可变 Base action 和通用 network/storage capability
+仍不在本阶段边界内。
 
 ## 一手参考
 

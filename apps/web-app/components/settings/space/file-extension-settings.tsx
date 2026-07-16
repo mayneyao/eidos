@@ -118,6 +118,13 @@ type EditorSampleState = {
   message?: string
 }
 type BaseSampleState = EditorSampleState
+type ExtensionOperationToken = {
+  id: number
+  spaceId: string
+}
+type PackageMutationToken = ExtensionOperationToken & {
+  packageId: string
+}
 
 const DEFAULT_TEXT_EDITOR_PATTERN = "**/*.notes.md"
 const MAX_RUNTIME_OUTPUT_ENTRIES = 100
@@ -478,6 +485,12 @@ export function FileExtensionSettings() {
     packageId: string
     message: string
   } | null>(null)
+  const currentSpaceIdRef = useRef(spaceId)
+  currentSpaceIdRef.current = spaceId
+  const operationSequence = useRef(0)
+  const createOperationRef = useRef<ExtensionOperationToken | null>(null)
+  const installOperationRef = useRef<ExtensionOperationToken | null>(null)
+  const packageMutationRef = useRef<PackageMutationToken | null>(null)
   const requestGeneration = useRef(0)
   const foregroundRequestGeneration = useRef(0)
   const lastEventGeneration = useRef(0)
@@ -539,10 +552,15 @@ export function FileExtensionSettings() {
   )
 
   const createTemplate = useCallback(async () => {
-    if (!spaceId || creating) return
+    if (!spaceId || createOperationRef.current) return
     const name = templateName.trim()
     const filenamePattern = templatePattern.trim()
     if (!name || (templateKind === "text-editor" && !filenamePattern)) return
+    const operation = {
+      id: ++operationSequence.current,
+      spaceId,
+    }
+    createOperationRef.current = operation
     setCreating(true)
     setCreateError(null)
     setCreatedExtension(null)
@@ -555,6 +573,12 @@ export function FileExtensionSettings() {
           templateKind === "text-editor" ? filenamePattern : undefined,
         mediaType: templateKind === "text-editor" ? "text/markdown" : undefined,
       })
+      if (
+        createOperationRef.current !== operation ||
+        currentSpaceIdRef.current !== spaceId
+      ) {
+        return
+      }
       revealedCreatedPackage.current = null
       setCreatedExtension({
         canonicalId: result.canonicalId,
@@ -577,6 +601,12 @@ export function FileExtensionSettings() {
       setShowCreator(false)
       await load()
     } catch (createTemplateError) {
+      if (
+        createOperationRef.current !== operation ||
+        currentSpaceIdRef.current !== spaceId
+      ) {
+        return
+      }
       setCreateError(
         createTemplateError instanceof Error
           ? createTemplateError.message
@@ -586,18 +616,33 @@ export function FileExtensionSettings() {
             )
       )
     } finally {
-      setCreating(false)
+      if (createOperationRef.current === operation) {
+        createOperationRef.current = null
+        if (currentSpaceIdRef.current === spaceId) setCreating(false)
+      }
     }
-  }, [creating, load, spaceId, t, templateKind, templateName, templatePattern])
+  }, [load, spaceId, t, templateKind, templateName, templatePattern])
 
   const mutatePackage = useCallback(
     async (extension: FileExtensionPackage, mutate: () => Promise<unknown>) => {
+      if (!spaceId || packageMutationRef.current) return
       const packageId = extension.canonicalId ?? extension.directoryName
-      if (mutatingPackage) return
+      const operation = {
+        id: ++operationSequence.current,
+        spaceId,
+        packageId,
+      }
+      packageMutationRef.current = operation
       setMutatingPackage(packageId)
       setMutationError(null)
       try {
         const result = await mutate()
+        if (
+          packageMutationRef.current !== operation ||
+          currentSpaceIdRef.current !== spaceId
+        ) {
+          return
+        }
         if (isFileExtensionLocalState(result)) {
           requestGeneration.current += 1
           setLoading(false)
@@ -626,6 +671,12 @@ export function FileExtensionSettings() {
           await load()
         }
       } catch (mutation) {
+        if (
+          packageMutationRef.current !== operation ||
+          currentSpaceIdRef.current !== spaceId
+        ) {
+          return
+        }
         setMutationError({
           packageId,
           message:
@@ -637,10 +688,13 @@ export function FileExtensionSettings() {
                 ),
         })
       } finally {
-        setMutatingPackage(null)
+        if (packageMutationRef.current === operation) {
+          packageMutationRef.current = null
+          if (currentSpaceIdRef.current === spaceId) setMutatingPackage(null)
+        }
       }
     },
-    [load, mutatingPackage, t]
+    [load, spaceId, t]
   )
 
   const cancelInstallPreview = useCallback(async () => {
@@ -654,13 +708,26 @@ export function FileExtensionSettings() {
   }, [spaceId])
 
   const prepareGitHubInstall = useCallback(async () => {
-    if (!spaceId || installing || !githubRepository.trim()) return
+    if (!spaceId || installOperationRef.current || !githubRepository.trim()) {
+      return
+    }
+    const operation = {
+      id: ++operationSequence.current,
+      spaceId,
+    }
+    installOperationRef.current = operation
     setInstalling(true)
     setInstallError(null)
     setInstalledMessage(null)
     setInstalledPackageId(null)
     await cancelInstallPreview()
     try {
+      if (
+        installOperationRef.current !== operation ||
+        currentSpaceIdRef.current !== spaceId
+      ) {
+        return
+      }
       const preview = await window.eidos.fileExtensions.prepareGitHubInstall(
         spaceId,
         {
@@ -669,9 +736,24 @@ export function FileExtensionSettings() {
           subdirectory: githubSubdirectory.trim() || undefined,
         }
       )
+      if (
+        installOperationRef.current !== operation ||
+        currentSpaceIdRef.current !== spaceId
+      ) {
+        await window.eidos.fileExtensions
+          .cancelGitHubInstall(spaceId, preview.previewId)
+          .catch(() => undefined)
+        return
+      }
       installPreviewRef.current = preview
       setInstallPreview(preview)
     } catch (install) {
+      if (
+        installOperationRef.current !== operation ||
+        currentSpaceIdRef.current !== spaceId
+      ) {
+        return
+      }
       setInstallError(
         install instanceof Error
           ? install.message
@@ -681,20 +763,27 @@ export function FileExtensionSettings() {
             )
       )
     } finally {
-      setInstalling(false)
+      if (installOperationRef.current === operation) {
+        installOperationRef.current = null
+        if (currentSpaceIdRef.current === spaceId) setInstalling(false)
+      }
     }
   }, [
     cancelInstallPreview,
     githubRef,
     githubRepository,
     githubSubdirectory,
-    installing,
     spaceId,
     t,
   ])
 
   const applyGitHubInstall = useCallback(async () => {
-    if (!spaceId || !installPreview || installing) return
+    if (!spaceId || !installPreview || installOperationRef.current) return
+    const operation = {
+      id: ++operationSequence.current,
+      spaceId,
+    }
+    installOperationRef.current = operation
     setInstalling(true)
     setInstallError(null)
     try {
@@ -706,6 +795,12 @@ export function FileExtensionSettings() {
           permissionHash: installPreview.permissionHash,
         }
       )
+      if (
+        installOperationRef.current !== operation ||
+        currentSpaceIdRef.current !== spaceId
+      ) {
+        return
+      }
       installPreviewRef.current = null
       setInstallPreview(null)
       setInstalledMessage(
@@ -726,6 +821,12 @@ export function FileExtensionSettings() {
       setShowInstaller(false)
       await load()
     } catch (install) {
+      if (
+        installOperationRef.current !== operation ||
+        currentSpaceIdRef.current !== spaceId
+      ) {
+        return
+      }
       installPreviewRef.current = null
       setInstallPreview(null)
       setInstallError(
@@ -737,9 +838,12 @@ export function FileExtensionSettings() {
             )
       )
     } finally {
-      setInstalling(false)
+      if (installOperationRef.current === operation) {
+        installOperationRef.current = null
+        if (currentSpaceIdRef.current === spaceId) setInstalling(false)
+      }
     }
-  }, [installPreview, installing, load, spaceId, t])
+  }, [installPreview, load, spaceId, t])
 
   const preparePackageUpdate = useCallback(
     (extension: FileExtensionPackage) => {
@@ -763,7 +867,55 @@ export function FileExtensionSettings() {
 
   useEffect(() => {
     lastDevelopmentEventGeneration.current.clear()
+    createOperationRef.current = null
+    installOperationRef.current = null
+    packageMutationRef.current = null
+    installPreviewRef.current = null
     setDiscovery(null)
+    setLoading(Boolean(spaceId && currentSpace?.mode === "file"))
+    setError(null)
+    setShowCreator(false)
+    setTemplateName("")
+    setTemplateKind("command")
+    setTemplatePattern(DEFAULT_TEXT_EDITOR_PATTERN)
+    setCreating(false)
+    setCreateError(null)
+    setCreatedExtension(null)
+    setShowInstaller(false)
+    setGithubRepository("")
+    setGithubRef("")
+    setGithubSubdirectory("")
+    setInstallPreview(null)
+    setInstalling(false)
+    setInstallError(null)
+    setInstalledMessage(null)
+    setInstalledPackageId(null)
+    setRemoveConfirmation(null)
+    setExpandedPackages(new Set())
+    setPackageFocusId(null)
+    setMutatingPackage(null)
+    setMutationError(null)
+    setCommandRun(null)
+    setPanelOpen(null)
+    setEditorSample(null)
+    setBaseSample(null)
+
+    return () => {
+      requestGeneration.current += 1
+      createOperationRef.current = null
+      installOperationRef.current = null
+      packageMutationRef.current = null
+      const preview = installPreviewRef.current
+      installPreviewRef.current = null
+      if (preview && spaceId && window.eidos?.fileExtensions) {
+        void window.eidos.fileExtensions
+          .cancelGitHubInstall(spaceId, preview.previewId)
+          .catch(() => undefined)
+      }
+    }
+  }, [currentSpace?.mode, spaceId])
+
+  useEffect(() => {
     void load()
     return () => {
       requestGeneration.current += 1

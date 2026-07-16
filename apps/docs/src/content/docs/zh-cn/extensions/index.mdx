@@ -7,7 +7,7 @@ sidebar:
     text: Preview
     variant: caution
 banner:
-  content: "<strong>Experimental developer preview：</strong>当前 Desktop 开发分支可以运行受信任的 command 与 file-editor 扩展；稳定发布前 public API 仍可能变化。"
+  content: "<strong>Experimental developer preview：</strong>当前 Desktop 开发分支可以运行受信任的 command、panel、文本 file editor 与只读 Base view 扩展；稳定发布前 public API 仍可能变化。"
 ---
 
 Eidos 扩展是安装在 Space 内的自包含 package。Manifest 会在任何扩展代码执行之前告诉 Eidos
@@ -20,9 +20,10 @@ Node.js、SQLite 或宿主文件系统的原始访问权限。
 | --------------- | ------------------------------------------------- | ------------ |
 | `commands`      | 可放入菜单和命令面板的具名操作                    | 是           |
 | `menus`         | 把 command 放入上下文菜单                         | 是           |
+| `panels`        | 在编辑区域 tab 中运行的 sandboxed 独立 UI         | Experimental |
 | `fileEditors`   | 根据文件 pattern 或 media type 选择编辑器和预览器 | Experimental |
 | `folderViews`   | 面向文件夹的专用视图                              | 后续         |
-| `baseViews`     | Gallery、kanban、timeline 等 Base 视图            | 后续         |
+| `baseViews`     | 由宿主分页供数的只读 Base grid 替代视图           | Experimental |
 | `agentTools`    | 可由 Agent 调用且经过权限检查的工具               | 后续         |
 | `configuration` | 由宿主渲染并具有明确存储 scope 的设置             | 后续         |
 

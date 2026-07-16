@@ -52,9 +52,9 @@ terminated.
 
 ## Package content changes
 
-Trust is keyed by canonical ID, content digest, and permission hash. When an
-installed package file other than the host-managed `extension.lock.json`
-changes, Eidos:
+Trust is keyed by canonical ID, content digest, and permission hash. Outside an
+active development session, when an installed package file other than the
+host-managed `extension.lock.json` changes, Eidos:
 
 1. terminates the active worker and closes its capability channel;
 2. marks the old build stale;
@@ -63,6 +63,36 @@ changes, Eidos:
 
 Rapid saves use generation tokens. Results from an older build generation are
 discarded and can never replace a newer source build.
+
+### Development sessions
+
+During local development, repeatedly trusting every new content digest would
+make the normal security rule unusable. Eidos therefore provides an explicit,
+Space-bound **Development session**:
+
+1. Trust the exact source snapshot, grant only the capabilities it needs, and
+   enable it.
+2. Expand the package in **Settings → Extensions** and select **Start
+   development**.
+3. Edit package files under `.eidos/extensions/<publisher.name>/` with any
+   editor. Eidos inspects and compiles the new bytes, disposes the previous
+   Worker or UI surface, and reloads only that package.
+4. Select **Stop development** before reviewing a permission or package-ID
+   change.
+
+The session exists only in Desktop memory. It is anchored to the trusted
+snapshot and freezes that snapshot's granted capabilities. A source-only
+change can run when the package ID and permission hash remain identical, but
+the new digest is **not** written to the trusted-snapshot database. Changing
+the package ID or requested permissions blocks execution until the session is
+stopped and the new snapshot is reviewed normally.
+
+Invalid TypeScript or manifest edits put the session into **Fix required**.
+Fixing the source triggers another bounded build and automatically reopens a
+matching file editor. Open dirty documents are saved before reload; a failed
+save blocks reload and keeps the previous document session recoverable. App
+restart, Space release, watcher failure, uninstall, or update clears the
+development session.
 
 ## Failure behavior
 

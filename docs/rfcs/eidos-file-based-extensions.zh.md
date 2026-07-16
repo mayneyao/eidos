@@ -1,6 +1,6 @@
 # RFC：Eidos Space 的文件化扩展机制
 
-状态：草案，v1 契约已冻结；P2b 到 P5 开发者预览已实现
+状态：草案，v1 契约已冻结；P2b 到 P6 开发者预览已实现
 日期：2026-07-09
 最后更新：2026-07-15
 负责人：Eidos
@@ -41,10 +41,17 @@ Space 文件系统的私有 staging 中下载有资源上限的 archive，拒绝
 触发、永不覆盖本地修改，并让新快照重新回到 disabled 和 untrusted；无效 package 仍可卸载。Private
 repository、自动更新与通用 network capability 仍属于后续阶段。
 
-P5 开发者预览新增独立的 `@eidos.space/extension-cli`。它可以在不覆盖已有目录的前提下生成 command
-和可编辑 text-editor package，在生产 package 限额内检查源码仓库，根据公开 SDK 执行严格 TypeScript
+P5 开发者预览新增独立的 `@eidos.space/extension-cli`。它可以在不覆盖已有目录的前提下生成 command、
+panel、Base view 和可编辑 text-editor package，在生产 package 限额内检查源码仓库，根据公开 SDK 执行严格 TypeScript
 检查，并使用 Desktop compiler 编译本次 inspection 的精确 bytes。人工输出、结构化 JSON、稳定退出码和
 官方示例共用同一个 check 实现。Package 已为后续公开 npm 发布做好准备，但首次发布尚未执行。
+
+P6 开发者预览新增显式、仅存在于内存的开发会话，用于本地编辑、编译和重载循环。会话只能从一个
+持久化状态中精确信任且启用的快照开始；它会冻结锚点 grants，只允许 package ID 与 permission hash
+不变的源码 digest。权限变化会默认失败，也不会写入新的 trusted-snapshot 记录。Watcher 能确定 package
+时只失效该 package，释放对应 Worker，保存并关闭宿主管理的文档，编译最新 generation，再自动打开匹配
+的 UI surface。无效源码会保留可读诊断，并在下一次有效保存后恢复。Space 释放、App 退出、watcher
+失败、安装、更新、卸载或显式停止都会清除会话。
 
 现有 bundled 和 database-backed extensions 继续作为兼容路径。
 
@@ -249,16 +256,20 @@ Eidos 永远不会为扩展运行 `npm install`。更广泛的 dependency resolu
 
 ### Canonical digests
 
-Version 1 有意采用保守 content digest：对除宿主管理的 `extension.lock.json` 之外，每个 installed
-package file 的规范化相对路径和内容字节做 hash。因此只修改 README 也需要重新 review。这个规则
-比仅 hash dependency graph 更严格，但边界显式，不会漏掉可执行 asset。
+Version 1 有意采用保守 content digest：对 installed snapshot 中除宿主管理的
+`extension.lock.json` 之外，每个 canonical source file 的规范化相对路径和内容字节做 hash。
+Root-level `.git`、`node_modules`、`dist` 和 `coverage` 属于本地开发产物而不是 package source，scanner
+和 installer 会跳过它们。因此修改 README、`package.json`、`tsconfig.json` 或 package-manager lock
+仍然需要重新 review。这个规则比仅 hash dependency graph 更严格，但边界显式，不会漏掉可执行 asset。
 
 Canonical algorithm 有意保持可在 Eidos 之外实现：
 
-1. 只接受 regular file 与 directory；复制或 hash 前拒绝 symbolic link 和 special file。
-2. 把相对 package root 的每个 file path 转为 UTF-8 NFC，并统一使用 `/` separator；拒绝空 segment、
+1. 把相对 package root 的每个 entry path 转为 UTF-8 NFC，并统一使用 `/` separator；拒绝空 segment、
    `.`、`..`、NUL、NFC collision 和 case-folding collision。
-3. 只排除 root-level、由宿主管理的 `extension.lock.json`；空 directory 不参与。
+2. 排除 root-level、由宿主管理的 `extension.lock.json`，以及首个 segment 精确为 `.git`、
+   `node_modules`、`dist` 或 `coverage` 的路径；被忽略的 archive bytes 仍计入解压资源上限。
+3. 对剩余 entry 只接受 regular file 与 directory；复制或 hash 前拒绝 symbolic link 和 special file；
+   空 directory 不参与。
 4. 按 unsigned UTF-8 byte order 排序 path。
 5. 每个文件向 SHA-256 输入一条 record：
    `[u32be pathLength][pathBytes][u64be contentLength][contentBytes]`。
@@ -284,6 +295,10 @@ cache key 还会包含 host runtime ABI。
 .eidos/extensions/<publisher.name>/src/**
 .eidos/extensions/<publisher.name>/assets/**
 .eidos/extensions/<publisher.name>/README.md
+.eidos/extensions/<publisher.name>/.gitignore
+.eidos/extensions/<publisher.name>/package.json
+.eidos/extensions/<publisher.name>/tsconfig.json
+.eidos/extensions/<publisher.name>/{package-lock.json,pnpm-lock.yaml,yarn.lock}
 ```
 
 它们回答的是：
@@ -340,8 +355,8 @@ blocked
 - Trust 是本地用户状态。
 - Enabled/disabled 默认是本地状态。
 - Permission grants 默认是本地状态。
-- 除宿主管理的 lock file 外，installed package 内任何文件变化都会改变 version 1 content digest，
-  并使该 digest 的 trust 失效。
+- Installed package 内任何 canonical source file 变化都会改变 version 1 content digest，并使该
+  digest 的 trust 失效；宿主管理的 lock 与四个显式本地产物 root 不参与 identity。
 - Marketplace-installed extensions 应该通过 ID/version 或 lock metadata 固定。
 
 已经实现的本地状态格式使用独立的 `trusted_snapshots`、`snapshot_enablements` 和
@@ -541,8 +556,8 @@ Legacy spaces 可以继续使用旧模型，直到迁移完成。
    capability-oriented `permissions`。
 8. Version 1 只支持 relative package module 与 Eidos SDK，Eidos 永不执行 package-manager script。
 9. GitHub provenance 存放在被追踪的 per-package `extension.lock.json`。
-10. 除宿主管理的 lock file 外，installed package 内任何文件变化都会产生新的 version 1 content
-    digest；trust 由 ID、content digest 和 permission hash 共同决定。
+10. Installed package 内任何 canonical source file 变化都会产生新的 version 1 content digest；宿主
+    lock 与四个显式本地产物 root 被排除，trust 由 ID、content digest 和 permission hash 共同决定。
 
 ## 延后问题
 
@@ -632,7 +647,7 @@ pnpm --filter eidos smoke:file-extension-install
 
 ### P5：开发工具
 
-- 为开发者与 Agent 提供非交互式 command 和 text-editor scaffold。
+- 为开发者与 Agent 提供非交互式 command、panel、Base view 和 text-editor scaffold。
 - 使用生产 inspector、公开 SDK 类型契约和固定 Desktop compiler 校验源码仓库。
 - 为 CI 提供结构化 diagnostic 与稳定退出码，同时不执行扩展代码或 package-manager script。
 
@@ -640,7 +655,7 @@ pnpm --filter eidos smoke:file-extension-install
 `check` 接受 repository-root 与 monorepo source path，同时不放松已安装 package 的 canonical 目录名不变量。
 官方 Task Counter 与 Task Board gate 已改为使用相同检查路径。公开 npm 发布仍是独立的 release 动作。
 可重复执行的 `pnpm smoke:extension-tooling` 门禁会打包五个公开开发者 package，在禁用生命周期脚本的
-隔离消费项目中安装它们，并验证已安装 CLI 二进制、library API、两种模板、内部发布版本、许可证以及
+隔离消费项目中安装它们，并验证已安装 CLI 二进制、library API、四种模板、内部发布版本、许可证以及
 兼容/不兼容 host 行为，全程不依赖 workspace link。可复用的 `Extension Delivery` workflow 会在
 Node 22 下重复 metadata、类型检查、测试、packed-consumer、示例和文档门禁；package 与 consumer
 检查覆盖 Linux、macOS 和 Windows，Desktop release build 必须依赖该 workflow。这补齐了开发工具的
@@ -654,3 +669,18 @@ workflow 只允许精确 `extension-tooling-v<version>` tag 与受保护 `npm` e
 发布 job 会验证并直接使用 planning job 生成的已审阅 artifact，而不是重新构建另一组 bytes。由于 npm
 staged publishing 不能创建 package，首次发布仍需要显式 bootstrap；后续版本使用 OIDC trusted
 publishing 与 npm staged approval。实现这道门禁本身不会发布任何 package。
+
+### P6：本地开发会话
+
+- 只能从精确信任且启用的快照开始；会话只存在于内存，不为编辑后的 digest 持久化 trust。
+- 冻结锚点 permission hash 与已授予能力。package ID 或权限变化必须停止执行，并回到正常审核流程。
+- Watcher 能识别 package 时，只失效、保存、编译和重载发生变化的 package；未知 watcher event 仍使用
+  保守的 Space 级 fallback。
+- 构建成功后自动重新打开匹配 UI surface；无效保存保留诊断；重载前保存失败时不能丢失文档。
+- 通过统一 Space/App resource lifecycle 清理 Worker、UI document、watcher、cache 和开发授权。
+
+当前 Developer Preview 已实现这一阶段。Settings 的 package 行提供内联开始/停止操作，并展示正在检查、
+开发中、需要修复、需要审核权限和源码缺失状态。Runtime command、file editor 和每次 capability RPC 仍会
+重新检查当前精确内容；只有当前快照与活动会话一致时，纯源码修改才能临时复用冻结 grants。会话之外的
+snapshot-bound trust 语义没有变化。Generation 校验会阻止旧编译覆盖新保存；UI surface 重新打开前，
+dirty document 必须先完成宿主管理的保存。

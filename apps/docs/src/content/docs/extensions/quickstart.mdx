@@ -83,12 +83,30 @@ following this guide:
 
 ```text
 example.markdown-task-board/
+├── .gitignore
+├── README.md
 ├── extension.json
+├── package.json
+├── tsconfig.json
 └── src/
     ├── editor.css
     ├── editor.ts
     └── tasks.ts
 ```
+
+The repository scaffold pins the matching preview CLI and SDK range, provides
+IDE TypeScript settings, and exposes `npm run check`. After the first public
+tooling release, a standalone clone uses the normal loop:
+
+```bash
+npm install
+npm run check
+```
+
+Root `.git`, `node_modules`, `dist`, and `coverage` artifacts are ignored by
+both the local inspector and GitHub installer. `package.json`, `tsconfig.json`,
+the README, and package-manager lock files remain reviewed source and therefore
+participate in the content digest.
 
 Create `extension.json`:
 
@@ -301,7 +319,31 @@ For local development, you can instead copy the example directory to
 Installation, trust, grants, and enablement are separate decisions. The package
 does not run until all applicable decisions allow the same inspected snapshot.
 
-## Step 6: Use and verify it
+## Step 6: Start a development session
+
+For a package you are actively editing:
+
+1. Keep the package expanded in **Settings → Extensions** after completing the
+   trust, grant, and enablement steps above.
+2. Select **Start development**. The row changes to **Development** and shows
+   the trusted anchor digest and current source digest.
+3. Change a label or style in `src/editor.ts` or `src/editor.css` and save it.
+   Eidos shows **Checking**, safely saves any dirty Task Board document,
+   recompiles the exact source bytes, and reopens the board automatically.
+4. Introduce a TypeScript syntax error. The row changes to **Fix required** and
+   displays the diagnostic. Fixing the error resumes the same session without
+   another trust prompt.
+5. Add a new permission to `extension.json`. Eidos changes the state to
+   **Review permissions** and refuses to run the package. Select **Stop
+   development**, then review and trust the new snapshot through the normal
+   flow.
+
+The development session is memory-only. It never trusts changed bytes
+permanently, never expands the anchor grants, and ends when the app or Space is
+closed. See [Lifecycle and activation](/extensions/lifecycle/#development-sessions)
+for the exact safety boundary.
+
+## Step 7: Use and verify it
 
 1. Create `website.tasks.md` and add the sample Markdown from this page.
 2. Open the file. The default matching editor should be **Task Board**.

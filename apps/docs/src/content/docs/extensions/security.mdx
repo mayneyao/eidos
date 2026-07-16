@@ -30,9 +30,10 @@ digest may reuse its existing trust record.
   in-memory session.
 - A fixed preload exposes no API; it only transfers one dedicated `MessagePort`
   from the main process to the sandboxed host page and then to the Worker.
-- Extension UI is limited to host-owned notice, confirm, and select controls.
-  Sandboxed iframe document surfaces belong to the later UI phase and are not
-  active yet.
+- Panels, text file editors, and Base views run in fixed, opaque sandboxed
+  iframe documents over dedicated `MessagePort` connections. The host owns
+  document state and Base query/paging; surfaces never receive raw files or a
+  SQLite connection.
 - The host validates package identity, current grants, path scope, arguments,
   and runtime generation for every request.
 - Extensions never receive a raw `DataSpace`, SQL connection, Electron bridge,

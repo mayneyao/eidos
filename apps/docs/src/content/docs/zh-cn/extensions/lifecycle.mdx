@@ -50,8 +50,8 @@ export function deactivate(): void | Promise<void>
 
 ## Package 内容变化
 
-Trust 由 canonical ID、content digest 和 permission hash 共同确定。已安装 package 中除宿主管理的
-`extension.lock.json` 外，任何文件变化后，Eidos 会：
+Trust 由 canonical ID、content digest 和 permission hash 共同确定。在没有活动开发会话时，已安装
+package 中除宿主管理的 `extension.lock.json` 外，任何文件变化后，Eidos 会：
 
 1. 终止 active worker 并关闭 capability channel；
 2. 把旧 build 标记为 stale；
@@ -59,6 +59,26 @@ Trust 由 canonical ID、content digest 和 permission hash 共同确定。已�
 4. 得到新 digest 的 trust 后才允许重新构建和激活。
 
 连续快速保存使用 generation token。旧 generation 的构建结果会被丢弃，不能覆盖更新的源码。
+
+### 开发会话
+
+本地开发时，如果每次 content digest 变化都重新授予 trust，正常的安全规则会让开发循环无法使用。
+因此 Eidos 提供了显式、绑定当前 Space 的 **开发会话**：
+
+1. 先信任精确源码快照，只授予必要能力，并启用扩展。
+2. 在 **Settings → Extensions** 展开 package，点击 **开始开发**。
+3. 使用任意编辑器修改 `.eidos/extensions/<publisher.name>/` 下的 package 文件。Eidos 会检查并
+   编译新的精确内容，释放旧 Worker 或 UI surface，并且只重载这个 package。
+4. 在审核权限或 package ID 变化前，先点击 **停止开发**。
+
+开发会话只存在于 Desktop 内存中。它锚定一个已信任快照，并冻结该快照已有的 capability grant。
+只修改源码且 package ID、permission hash 保持一致时，新内容可以运行，但新 digest **不会**写入
+trusted-snapshot 数据库。package ID 或申请权限发生变化会立即阻止执行，必须停止会话并按正常流程
+审核新快照。
+
+无效 TypeScript 或 Manifest 会让会话进入 **需要修复**。修复源码后，Eidos 会再次执行有界构建，
+并自动重新打开匹配的 file editor。打开且未保存的文档会在重载前保存；保存失败会阻止重载，并保留
+可恢复的旧 document session。App 重启、Space 释放、watcher 失败、卸载或更新扩展都会清除开发会话。
 
 ## 失败行为
 

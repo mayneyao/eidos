@@ -41,7 +41,7 @@ package import。Dependency 可以作为可审查源码 vendoring 进 package，
 ## Contribution
 
 Contribution 是声明式数据。宿主可以在不激活 worker 的情况下索引 command，也可以在不加载
-UI bundle 的情况下把 file editor 放入 **Open with**。
+UI bundle 的情况下发现 panel、file editor 与 Base view。
 
 File editor contribution 的 `id` 同时也是传给 UI entrypoint 的稳定 activation identity；不存在第二个
 component ID。当前 Desktop developer preview 会通过 host-owned TextDocument lifecycle 与 sandboxed
@@ -50,9 +50,10 @@ UI surface 打开匹配且受信任的 editor。
 Menu condition 使用宿主解析的表达式子集，例如：
 
 ```text
-resourceExtname == .md && resourceScheme == space
+resourceExtname == .md && resourceIsDirectory == false
 ```
 
+Version 1 支持 `resourceExtname`、`resourceIsDirectory` 与 `&&`。未知 key 或不支持的语法会默认拒绝。
 Condition 是数据，宿主永远不会把它作为 JavaScript 执行。
 
 ## Permission

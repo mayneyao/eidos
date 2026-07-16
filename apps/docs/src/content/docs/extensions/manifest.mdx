@@ -47,8 +47,8 @@ relatively.
 ## Contributions
 
 Contributions are declarative. A command can be indexed without activating the
-worker, and a file editor can be offered in **Open with** without loading its UI
-bundle.
+worker; panels, file editors, and Base views can be discovered without loading
+their UI bundle.
 
 The file editor contribution `id` is also the stable activation identity passed
 to the UI entrypoint; there is no second component ID. In the current Desktop
@@ -58,10 +58,12 @@ TextDocument lifecycle and a sandboxed UI surface.
 Menu conditions use a host-parsed expression subset such as:
 
 ```text
-resourceExtname == .md && resourceScheme == space
+resourceExtname == .md && resourceIsDirectory == false
 ```
 
-Conditions are data, never JavaScript evaluated by the host.
+Version 1 supports `resourceExtname`, `resourceIsDirectory`, and `&&`. Unknown
+keys or unsupported syntax fail closed. Conditions are data, never JavaScript
+evaluated by the host.
 
 ## Permissions
 

@@ -25,8 +25,9 @@ trust record。
   位于使用独立内存 session 的隐藏 sandboxed Electron renderer 内。
 - 固定 preload 不暴露任何 API，只负责把 main process 创建的一条独立 `MessagePort` 传给
   sandboxed host page，再转交给 Worker。
-- 扩展 UI 目前只支持宿主拥有的 notice、confirm 和 select 控件。Sandboxed iframe 文档 surface
-  属于后续 UI 阶段，当前尚未启用。
+- Panel、文本 file editor 与 Base view 运行在固定且 opaque 的 sandboxed iframe document 中，并通过
+  独立 `MessagePort` 通信。宿主拥有 document state 与 Base query/paging；surface 永远不会得到原始
+  文件或 SQLite connection。
 - 宿主会为每次请求验证 package identity、当前 grant、path scope、参数和 runtime generation。
 - 扩展永远不会得到原始 `DataSpace`、SQL connection、Electron bridge、filesystem handle 或完整 secret collection。
 
