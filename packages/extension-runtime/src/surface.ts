@@ -58,6 +58,7 @@ export function createExtensionSurfaceSource(
   let initialized = false;
   let sequence = 0;
   let snapshot;
+  let baseContext;
   let appearance;
   let capabilities;
   let activationDisposable;
@@ -67,6 +68,7 @@ export function createExtensionSurfaceSource(
   const stateListeners = new Set();
   const saveStateListeners = new Set();
   const appearanceListeners = new Set();
+  const baseContextListeners = new Set();
 
   const runtimeError = (error) => error instanceof Error ? error.message : String(error);
   const deepFreeze = (value) => {
@@ -171,6 +173,18 @@ export function createExtensionSurfaceSource(
       ...extra,
     });
   });
+  const requestBasePage = (options = {}) => new Promise((resolve, reject) => {
+    if (!baseContext) return reject(new Error("Extension Base view is not initialized"));
+    const requestId = "base-page-" + (++sequence);
+    pending.set(requestId, { resolve, reject });
+    send({
+      type: "base-page-request",
+      requestId,
+      generation: GENERATION,
+      offset: options.offset ?? 0,
+      limit: options.limit ?? 100,
+    });
+  });
   const documentApi = Object.freeze({
     get snapshot() { return snapshot; },
     applyEdits(edits) { return request("apply-edits", { edits }); },
@@ -185,6 +199,11 @@ export function createExtensionSurfaceSource(
   const appearanceApi = Object.freeze({
     get current() { return appearance; },
     onDidChange(listener) { return listen(appearanceListeners, listener); },
+  });
+  const baseApi = Object.freeze({
+    get context() { return baseContext; },
+    getPage(options) { return requestBasePage(options); },
+    onDidChangeContext(listener) { return listen(baseContextListeners, listener); },
   });
   const subscriptionStore = Object.freeze({
     add(value) {
@@ -209,6 +228,7 @@ export function createExtensionSurfaceSource(
     stateListeners.clear();
     saveStateListeners.clear();
     appearanceListeners.clear();
+    baseContextListeners.clear();
     try { port && port.close(); } catch {}
   };
 
@@ -258,6 +278,17 @@ ${options.bundleCode}
         capabilities,
         subscriptions: subscriptionStore,
       });
+    } else if (message.surfaceKind === "base-view") {
+      baseContext = deepFreeze(message.context);
+      context = Object.freeze({
+        extensionId: EXTENSION_ID,
+        baseViewId: message.baseViewId,
+        viewId: message.viewId,
+        root,
+        base: baseApi,
+        appearance: appearanceApi,
+        subscriptions: subscriptionStore,
+      });
     } else {
       throw new Error("Extension surface kind is unsupported");
     }
@@ -287,8 +318,21 @@ ${options.bundleCode}
       else waiter.reject(Object.assign(new Error(message.error && message.error.message || "Host request failed"), { code: message.error && message.error.code }));
       return;
     }
+    if (message.type === "base-page-result") {
+      const waiter = pending.get(message.requestId);
+      if (!waiter) return;
+      pending.delete(message.requestId);
+      if (message.ok) waiter.resolve(deepFreeze(message.page));
+      else waiter.reject(new Error(message.error && message.error.message || "Unable to load Base rows"));
+      return;
+    }
     if (message.type === "appearance-changed") {
       setAppearance(message.appearance);
+      return;
+    }
+    if (message.type === "base-context-changed") {
+      baseContext = deepFreeze(message.context);
+      emit(baseContextListeners, baseContext);
       return;
     }
     if (message.type === "dispose") {

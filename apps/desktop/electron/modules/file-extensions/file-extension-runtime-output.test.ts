@@ -139,7 +139,7 @@ describe("FileExtensionService runtime output", () => {
       })
     )
 
-    expect(() =>
+    await expect(
       service.reportSurfaceOutput("space-a", {
         surfaceKind: "file-editor",
         sessionId: "editor-session-1",
@@ -148,8 +148,8 @@ describe("FileExtensionService runtime output", () => {
         level: "warn",
         message: "Stale surface output",
       })
-    ).toThrow("stale generation")
-    expect(
+    ).rejects.toThrow("stale generation")
+    await expect(
       service.reportSurfaceOutput("space-a", {
         surfaceKind: "file-editor",
         sessionId: "editor-session-1",
@@ -158,7 +158,7 @@ describe("FileExtensionService runtime output", () => {
         level: "warn",
         message: "Task has no title",
       })
-    ).toEqual({ success: true })
+    ).resolves.toEqual({ success: true })
 
     vi.mocked(runtimeManager.execute).mockRejectedValueOnce(
       new Error("The task parser crashed")

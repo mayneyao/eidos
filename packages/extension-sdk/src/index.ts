@@ -1,5 +1,7 @@
 import type {
   ExtensionSurfaceAppearance,
+  ExtensionBaseViewContextSnapshot,
+  ExtensionBasePageResultSuccess,
   ExtensionSurfaceCapabilities,
   ExtensionJsonValue,
   ExtensionSurfaceSaveStateMessage,
@@ -152,4 +154,32 @@ export interface ExtensionPanelContext {
 
 export type ExtensionPanelActivate = (
   context: ExtensionPanelContext
+) => void | ExtensionDisposable | Promise<void | ExtensionDisposable>
+
+export interface ExtensionBaseViewData {
+  readonly context: ExtensionBaseViewContextSnapshot
+  getPage(options?: {
+    offset?: number
+    limit?: number
+  }): Promise<ExtensionBasePageResultSuccess["page"]>
+  onDidChangeContext(
+    listener: (context: ExtensionBaseViewContextSnapshot) => void
+  ): ExtensionDisposable
+}
+
+export interface ExtensionBaseViewContext {
+  readonly extensionId: string
+  /** A namespaced ID declared in `contributes.baseViews`. */
+  readonly baseViewId: string
+  /** The saved view ID inside the current `.base` file. */
+  readonly viewId: string
+  /** The only host-provided DOM mount point. */
+  readonly root: HTMLElement
+  readonly base: ExtensionBaseViewData
+  readonly appearance: ExtensionFileEditorAppearance
+  readonly subscriptions: ExtensionSubscriptionStore
+}
+
+export type ExtensionBaseViewActivate = (
+  context: ExtensionBaseViewContext
 ) => void | ExtensionDisposable | Promise<void | ExtensionDisposable>

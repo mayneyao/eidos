@@ -38,6 +38,7 @@ import {
 } from "@/apps/web-app/components/file-space/file-path"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useSpaceBase } from "@/apps/web-app/hooks/use-space-base"
+import { useFileExtensionBaseViews } from "@/apps/web-app/hooks/use-file-extension-base-views"
 import {
   useSpaceFileChanges,
   useSpaceFiles,
@@ -87,10 +88,14 @@ import { BaseSheetTabs } from "./base-sheet-tabs"
 import { BaseStructureDialog } from "./base-structure-dialog"
 import { BaseStructureMenu } from "./base-structure-menu"
 import { BaseViewMenu } from "./base-view-menu"
-import { type BaseBuiltInViewType } from "./base-view-selector"
+import {
+  baseExtensionContributionId,
+  isBaseBuiltInViewType,
+} from "./base-view-selector"
 import { BaseViewTabs } from "./base-view-tabs"
 import { orderedBaseFields } from "./base-view-layout"
 import { useBaseRecordInspectorRow } from "./use-base-record-inspector-row"
+import { ExtensionBaseViewSurface } from "../../file-extensions/extension-base-view-surface"
 
 interface SpaceBaseEditorProps {
   filePath: string
@@ -108,7 +113,11 @@ type DeleteTarget =
       name: string
     }
 
-const SUPPORTED_BASE_VIEW_TYPES = new Set(["grid", "gallery", "kanban"])
+function isSupportedBaseViewType(type: string): boolean {
+  return (
+    isBaseBuiltInViewType(type) || Boolean(baseExtensionContributionId(type))
+  )
+}
 
 interface BaseMutationOptions {
   statusKey: string
@@ -189,6 +198,10 @@ export function SpaceBaseEditor({
     (state) => state.unregisterSection
   )
   const { currentSpace } = useCurrentSpace()
+  const { baseViews: extensionBaseViews } = useFileExtensionBaseViews(
+    currentSpace?.id,
+    filePath
+  )
   const baseAssetFolder = useFileSpaceSettings(
     (state) =>
       (currentSpace?.id
@@ -451,12 +464,18 @@ export function SpaceBaseEditor({
     const selectedId = activeViewIds[activeTable.table.id]
     return (
       activeTable.views.find(
-        (view) =>
-          view.id === selectedId && SUPPORTED_BASE_VIEW_TYPES.has(view.type)
-      ) ??
-      activeTable.views.find((view) => SUPPORTED_BASE_VIEW_TYPES.has(view.type))
+        (view) => view.id === selectedId && isSupportedBaseViewType(view.type)
+      ) ?? activeTable.views.find((view) => isSupportedBaseViewType(view.type))
     )
   }, [activeTable, activeViewIds])
+  const activeExtensionView = useMemo(() => {
+    const contributionId = activeView
+      ? baseExtensionContributionId(activeView.type)
+      : null
+    return contributionId
+      ? extensionBaseViews.find((candidate) => candidate.id === contributionId)
+      : undefined
+  }, [activeView, extensionBaseViews])
   const activeQuery = useMemo<BaseRowQuery>(
     () => ({
       ...(search ? { search } : {}),
@@ -1509,7 +1528,7 @@ export function SpaceBaseEditor({
   )
 
   const createViewInBase = useCallback(
-    (name: string, type: BaseBuiltInViewType): Promise<void> => {
+    (name: string, type: string): Promise<void> => {
       if (!activeTable) return Promise.resolve()
       const tableId = activeTable.table.id
       const existingIds = new Set(activeTable.views.map((view) => view.id))
@@ -1812,6 +1831,7 @@ export function SpaceBaseEditor({
         {activeTable ? (
           <BaseViewTabs
             views={activeTable.views}
+            extensionViews={extensionBaseViews}
             fields={activeTable.fields}
             activeView={activeView}
             disabled={blockingMutations > 0}
@@ -2008,7 +2028,31 @@ export function SpaceBaseEditor({
         />
       ) : (
         <div className="relative min-h-0 flex-1">
-          {activeView?.type === "gallery" ? (
+          {activeView && baseExtensionContributionId(activeView.type) ? (
+            activeExtensionView ? (
+              <ExtensionBaseViewSurface
+                key={`${activeTable.table.id}:${activeView.id}:${activeExtensionView.contentDigest}`}
+                extension={activeExtensionView}
+                filePath={filePath}
+                table={activeTable}
+                view={activeView}
+                loadPage={loadActiveTablePage}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center p-6 text-center">
+                <div className="max-w-md">
+                  <AlertTriangle className="mx-auto mb-3 h-5 w-5 text-amber-500" />
+                  <p className="text-sm font-medium">
+                    Extension Base view unavailable
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Install, trust, enable, and grant this extension read access
+                    to {filePath} to restore the saved view.
+                  </p>
+                </div>
+              </div>
+            )
+          ) : activeView?.type === "gallery" ? (
             <BaseGalleryView
               key={`${activeTable.table.id}:${activeView.id}`}
               table={activeTable}

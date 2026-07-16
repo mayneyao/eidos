@@ -4,6 +4,7 @@ import { analyzeExtensionModuleImports } from "./imports"
 import { analyzeExtensionManifest } from "./manifest"
 import {
   createExtensionCommandTemplate,
+  createExtensionBaseViewTemplate,
   createExtensionPanelTemplate,
   createExtensionTextEditorTemplate,
 } from "./template"
@@ -143,6 +144,50 @@ describe("createExtensionPanelTemplate", () => {
     expect(
       template.files.find((file) => file.path === "src/panel.ts")!.content
     ).toContain("Task Counter panel activated")
+  })
+})
+
+describe("createExtensionBaseViewTemplate", () => {
+  it("creates a paged sandboxed Base view package", () => {
+    const template = createExtensionBaseViewTemplate({
+      publisher: "local",
+      name: "record-cards",
+      engineRange: ">=0.33.0",
+    })
+
+    expect(template.files.map((file) => file.path)).toEqual([
+      "extension.json",
+      "src/base-view.ts",
+      "src/base-view.css",
+      "README.md",
+    ])
+    expect(template.manifest).toMatchObject({
+      entrypoints: { ui: "src/base-view.ts" },
+      contributes: {
+        baseViews: [
+          {
+            id: "local.record-cards.cards",
+            displayName: "Record Cards",
+          },
+        ],
+      },
+      permissions: {
+        files: { read: ["**/*.base"], write: [] },
+      },
+    })
+    const source = template.files.find(
+      (file) => file.path === "src/base-view.ts"
+    )!.content
+    expect(source).toContain("ExtensionBaseViewContext")
+    expect(source).toContain("context.base.getPage")
+    expect(source).toContain("IntersectionObserver")
+    expect(
+      analyzeExtensionModuleImports(
+        "src/base-view.ts",
+        source,
+        new Set(template.files.map((file) => file.path))
+      )
+    ).toEqual([])
   })
 })
 

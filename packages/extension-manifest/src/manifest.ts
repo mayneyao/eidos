@@ -248,11 +248,13 @@ function validateManifestSemantics(
   const commands = manifest.contributes.commands ?? []
   const fileEditors = manifest.contributes.fileEditors ?? []
   const panels = manifest.contributes.panels ?? []
+  const baseViews = manifest.contributes.baseViews ?? []
   const menus = manifest.contributes.menus ?? {}
   if (
     commands.length === 0 &&
     fileEditors.length === 0 &&
-    panels.length === 0
+    panels.length === 0 &&
+    baseViews.length === 0
   ) {
     diagnostics.push({
       code: "manifest-no-contributions",
@@ -285,6 +287,14 @@ function validateManifestSemantics(
       pointer: "/entrypoints/ui",
     })
   }
+  if (baseViews.length > 0 && !manifest.entrypoints.ui) {
+    diagnostics.push({
+      code: "manifest-entrypoint-required",
+      severity: "error",
+      message: "Base view contributions require entrypoints.ui",
+      pointer: "/entrypoints/ui",
+    })
+  }
 
   const contributionIds = new Set<string>()
   const commandIds = new Set<string>()
@@ -292,6 +302,7 @@ function validateManifestSemantics(
     ["commands", commands],
     ["fileEditors", fileEditors],
     ["panels", panels],
+    ["baseViews", baseViews],
   ] as const) {
     contributions.forEach((contribution, index) => {
       if (!contribution.id.startsWith(`${canonicalId}.`)) {

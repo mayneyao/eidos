@@ -14,6 +14,7 @@ import {
   LayoutGrid,
   MoreHorizontal,
   Plus,
+  Puzzle,
   SquareKanban,
   Table2,
   Trash2,
@@ -35,11 +36,23 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import type { FileExtensionBaseView } from "@/apps/web-app/hooks/use-file-extension-base-views"
 
 import { isBaseRecordCoverField } from "./base-record-card-layout"
 
 type Panel = "list" | "create" | "manage" | "delete"
 export type BaseBuiltInViewType = "grid" | "gallery" | "kanban"
+export const BASE_EXTENSION_VIEW_PREFIX = "extension:"
+
+export function baseExtensionViewType(contributionId: string): string {
+  return `${BASE_EXTENSION_VIEW_PREFIX}${contributionId}`
+}
+
+export function baseExtensionContributionId(type: string): string | null {
+  return type.startsWith(BASE_EXTENSION_VIEW_PREFIX)
+    ? type.slice(BASE_EXTENSION_VIEW_PREFIX.length) || null
+    : null
+}
 
 const VIEW_TYPES: Array<{
   type: BaseBuiltInViewType
@@ -78,6 +91,7 @@ export function BaseViewTypeIcon({
 }) {
   if (type === "gallery") return <LayoutGrid className={className} />
   if (type === "kanban") return <SquareKanban className={className} />
+  if (baseExtensionContributionId(type)) return <Puzzle className={className} />
   return <Table2 className={className} />
 }
 
@@ -87,7 +101,7 @@ function BaseViewLayoutPicker({
   hasSelectField,
   onChange,
 }: {
-  value: BaseBuiltInViewType
+  value: BaseBuiltInViewType | null
   disabled: boolean
   hasSelectField: boolean
   onChange: (type: BaseBuiltInViewType) => void
@@ -131,6 +145,7 @@ function BaseViewLayoutPicker({
 
 export function BaseViewSelector({
   views,
+  extensionViews = [],
   fields,
   activeView,
   disabled,
@@ -144,11 +159,12 @@ export function BaseViewSelector({
   triggerMode = "current",
 }: {
   views: BaseViewInfo[]
+  extensionViews?: FileExtensionBaseView[]
   fields: BaseFieldInfo[]
   activeView?: BaseViewInfo
   disabled?: boolean
   onSelect: (viewId: string) => void
-  onCreate: (name: string, type: BaseBuiltInViewType) => Promise<void>
+  onCreate: (name: string, type: string) => Promise<void>
   onRename: (viewId: string, name: string) => Promise<void>
   onDuplicate: (viewId: string) => Promise<void>
   onDelete: (viewId: string) => Promise<void>
@@ -161,7 +177,7 @@ export function BaseViewSelector({
   const [managedViewId, setManagedViewId] = useState<string | null>(null)
   const [name, setName] = useState("")
   const [isDefaultName, setIsDefaultName] = useState(false)
-  const [createType, setCreateType] = useState<BaseBuiltInViewType>("grid")
+  const [createType, setCreateType] = useState<string>("grid")
   const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const fitImageId = useId()
@@ -224,6 +240,16 @@ export function BaseViewSelector({
         reset()
       }
     )
+  }
+  const selectCreateType = (type: string, label: string) => {
+    setCreateType(type)
+    if (isDefaultName) {
+      setName(
+        isBaseBuiltInViewType(type)
+          ? defaultViewName(type, views)
+          : `${label} ${views.filter((view) => view.type === type).length + 1}`
+      )
+    }
   }
   const saveName = () => {
     const nextName = name.trim()
@@ -333,7 +359,9 @@ export function BaseViewSelector({
             </div>
             <div className="max-h-64 space-y-0.5 overflow-y-auto">
               {views.map((view) => {
-                const supported = isBaseBuiltInViewType(view.type)
+                const supported =
+                  isBaseBuiltInViewType(view.type) ||
+                  Boolean(baseExtensionContributionId(view.type))
                 return (
                   <div
                     key={view.id}
@@ -422,16 +450,56 @@ export function BaseViewSelector({
             <div className="mt-3 grid gap-1.5">
               <p className="text-xs font-medium">Layout</p>
               <BaseViewLayoutPicker
-                value={createType}
+                value={isBaseBuiltInViewType(createType) ? createType : null}
                 disabled={busy}
                 hasSelectField={selectFields.length > 0}
                 onChange={(type) => {
-                  setCreateType(type)
-                  if (isDefaultName) {
-                    setName(defaultViewName(type, views))
-                  }
+                  selectCreateType(
+                    type,
+                    VIEW_TYPES.find((candidate) => candidate.type === type)
+                      ?.label ?? "View"
+                  )
                 }}
               />
+              {extensionViews.length > 0 ? (
+                <div className="mt-2 border-t pt-2">
+                  <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Extensions
+                  </p>
+                  <div className="grid gap-1">
+                    {extensionViews.map((extensionView) => {
+                      const type = baseExtensionViewType(extensionView.id)
+                      return (
+                        <button
+                          key={extensionView.id}
+                          type="button"
+                          className={cn(
+                            "flex min-h-10 items-center gap-2 rounded-md border px-2 text-left outline-hidden hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring",
+                            createType === type &&
+                              "border-foreground/30 bg-accent"
+                          )}
+                          aria-pressed={createType === type}
+                          disabled={busy}
+                          onClick={() =>
+                            selectCreateType(type, extensionView.displayName)
+                          }
+                        >
+                          <Puzzle className="h-4 w-4 shrink-0" />
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-medium">
+                              {extensionView.displayName}
+                            </span>
+                            <span className="block truncate text-[10px] text-muted-foreground">
+                              {extensionView.description ??
+                                extensionView.extensionDisplayName}
+                            </span>
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </div>
             <div className="mt-3 flex justify-end gap-1.5">
               <Button

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import {
   BaseViewSelector,
   BaseViewTypeIcon,
+  baseExtensionContributionId,
   isBaseBuiltInViewType,
 } from "./base-view-selector"
 import { useBaseTabStrip } from "./use-base-tab-strip"
@@ -15,8 +16,9 @@ type BaseViewTabsProps = ComponentProps<typeof BaseViewSelector>
 
 export function BaseViewTabs(props: BaseViewTabsProps) {
   const { views, activeView, disabled, onSelect } = props
-  const supportedViews = views.filter((view) =>
-    isBaseBuiltInViewType(view.type)
+  const supportedViews = views.filter(
+    (view) =>
+      isBaseBuiltInViewType(view.type) || baseExtensionContributionId(view.type)
   )
   const {
     activeTabRef,

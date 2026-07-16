@@ -13,6 +13,7 @@ import {
   FolderCog,
   Github,
   LoaderCircle,
+  LayoutGrid,
   Package,
   PauseCircle,
   Play,
@@ -60,7 +61,11 @@ type FileExtensionInstallPreview = Awaited<
 type FileExtensionLocalState = Awaited<
   ReturnType<typeof window.eidos.fileExtensions.setEnabled>
 >
-type LocalExtensionTemplateKind = "command" | "panel" | "text-editor"
+type LocalExtensionTemplateKind =
+  | "command"
+  | "panel"
+  | "text-editor"
+  | "base-view"
 type ExtensionSourceKind = "manifest" | "worker" | "ui" | "source"
 type ExtensionSourceFile = {
   kind: ExtensionSourceKind
@@ -155,7 +160,8 @@ function contributionCount(extension: FileExtensionPackage): number {
   return (
     (contributes.commands?.length ?? 0) +
     (contributes.panels?.length ?? 0) +
-    (contributes.fileEditors?.length ?? 0)
+    (contributes.fileEditors?.length ?? 0) +
+    (contributes.baseViews?.length ?? 0)
   )
 }
 
@@ -383,7 +389,9 @@ export function FileExtensionSettings() {
             ? "src/editor.ts"
             : createdTemplate === "panel"
               ? "src/panel.ts"
-              : "src/extension.ts"
+              : createdTemplate === "base-view"
+                ? "src/base-view.ts"
+                : "src/extension.ts"
         }`,
         sourceKind: createdTemplate === "command" ? "worker" : "ui",
         template: createdTemplate,
@@ -1411,6 +1419,34 @@ export function FileExtensionSettings() {
                       "Text editor"
                     )}
                   </label>
+                  <label
+                    className={cn(
+                      "inline-flex h-8 items-center gap-2 rounded-[5px] px-3 text-sm transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-ring",
+                      creating
+                        ? "cursor-not-allowed opacity-60"
+                        : "cursor-pointer",
+                      templateKind === "base-view"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="local-extension-template"
+                      value="base-view"
+                      className="sr-only"
+                      checked={templateKind === "base-view"}
+                      onChange={() => {
+                        setTemplateKind("base-view")
+                        setCreateError(null)
+                      }}
+                    />
+                    <LayoutGrid className="h-4 w-4" />
+                    {t(
+                      "space.settings.fileExtensions.baseViewTemplate",
+                      "Base view"
+                    )}
+                  </label>
                 </div>
                 <p
                   id="local-extension-template-description"
@@ -1426,10 +1462,15 @@ export function FileExtensionSettings() {
                           "space.settings.fileExtensions.panelTemplateDescription",
                           "Adds a Task Counter command that opens a sandboxed UI tab."
                         )
-                      : t(
-                          "space.settings.fileExtensions.textEditorTemplateDescription",
-                          "Adds a sandboxed editor for matching text files."
-                        )}
+                      : templateKind === "base-view"
+                        ? t(
+                            "space.settings.fileExtensions.baseViewTemplateDescription",
+                            "Adds a sandboxed, infinitely scrolling layout to the Base view picker."
+                          )
+                        : t(
+                            "space.settings.fileExtensions.textEditorTemplateDescription",
+                            "Adds a sandboxed editor for matching text files."
+                          )}
                 </p>
               </fieldset>
 
@@ -1631,10 +1672,15 @@ export function FileExtensionSettings() {
                           "space.settings.fileExtensions.panelCreatedNextStep",
                           "Next: review and enable it below. Open the panel directly, or grant Markdown read access and run its command from a Markdown file to populate task counts."
                         )
-                      : t(
-                          "space.settings.fileExtensions.editorCreatedNextStep",
-                          "Next: review its source, grant matching file access, and enable it below. Then open a matching file with the contributed editor."
-                        )}
+                      : createdExtension.template === "base-view"
+                        ? t(
+                            "space.settings.fileExtensions.baseViewCreatedNextStep",
+                            "Next: review its source, grant Base file read access, and enable it below. Open a .base file, add a view, then choose this extension layout."
+                          )
+                        : t(
+                            "space.settings.fileExtensions.editorCreatedNextStep",
+                            "Next: review its source, grant matching file access, and enable it below. Then open a matching file with the contributed editor."
+                          )}
                 </p>
               </div>
             </div>
@@ -1771,6 +1817,7 @@ export function FileExtensionSettings() {
               const fileEditors =
                 extension.manifest?.contributes.fileEditors ?? []
               const panels = extension.manifest?.contributes.panels ?? []
+              const baseViews = extension.manifest?.contributes.baseViews ?? []
               const legacyMappings = extension.legacyMappings ?? []
               const legacyConflict = legacyMappings.some(
                 (mapping) => mapping.conflict !== "none"
@@ -1875,6 +1922,21 @@ export function FileExtensionSettings() {
                                     "space.settings.fileExtensions.opensAutomatically",
                                     "Opens automatically"
                                   )}
+                            </span>
+                          </p>
+                        )}
+                        {baseViews[0] && (
+                          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <LayoutGrid className="h-3 w-3" />
+                            <span className="truncate">
+                              {baseViews[0].displayName}
+                            </span>
+                            <span aria-hidden="true">·</span>
+                            <span>
+                              {t(
+                                "space.settings.fileExtensions.baseViewPickerTrigger",
+                                "Base view picker"
+                              )}
                             </span>
                           </p>
                         )}

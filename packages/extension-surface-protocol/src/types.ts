@@ -120,9 +120,38 @@ export interface ExtensionPanelSurfaceInitializeMessage extends ExtensionSurface
   state?: ExtensionJsonValue
 }
 
+export interface ExtensionBaseFieldSnapshot {
+  name: string
+  columnName: string
+  type: string
+  property: ExtensionJsonValue
+}
+
+export interface ExtensionBaseViewContextSnapshot {
+  resourcePath: string
+  table: {
+    id: string
+    name: string
+    rowCount: number
+  }
+  view: {
+    id: string
+    name: string
+  }
+  fields: ExtensionBaseFieldSnapshot[]
+}
+
+export interface ExtensionBaseViewSurfaceInitializeMessage extends ExtensionSurfaceInitializeBase {
+  surfaceKind: "base-view"
+  baseViewId: string
+  viewId: string
+  context: ExtensionBaseViewContextSnapshot
+}
+
 export type ExtensionSurfaceInitializeMessage =
   | ExtensionFileEditorSurfaceInitializeMessage
   | ExtensionPanelSurfaceInitializeMessage
+  | ExtensionBaseViewSurfaceInitializeMessage
 
 export interface ExtensionSurfaceAppearanceChangedMessage {
   type: "appearance-changed"
@@ -191,6 +220,34 @@ export interface ExtensionSurfaceDisposeMessage {
   reason: string
 }
 
+export interface ExtensionBaseViewContextChangedMessage {
+  type: "base-context-changed"
+  context: ExtensionBaseViewContextSnapshot
+}
+
+export interface ExtensionBasePageResultSuccess {
+  type: "base-page-result"
+  requestId: string
+  ok: true
+  page: {
+    offset: number
+    limit: number
+    total: number
+    rows: Array<Record<string, ExtensionJsonValue>>
+  }
+}
+
+export interface ExtensionBasePageResultFailure {
+  type: "base-page-result"
+  requestId: string
+  ok: false
+  error: { message: string }
+}
+
+export type ExtensionBasePageResult =
+  | ExtensionBasePageResultSuccess
+  | ExtensionBasePageResultFailure
+
 export type ExtensionHostToSurfaceMessage =
   | ExtensionSurfaceInitializeMessage
   | ExtensionSurfaceAppearanceChangedMessage
@@ -200,6 +257,8 @@ export type ExtensionHostToSurfaceMessage =
   | ExtensionSurfaceSaveStateMessage
   | ExtensionSurfaceRequestSuccess
   | ExtensionSurfaceRequestFailure
+  | ExtensionBaseViewContextChangedMessage
+  | ExtensionBasePageResult
   | ExtensionSurfaceDisposeMessage
 
 export interface ExtensionSurfaceReadyMessage {
@@ -249,11 +308,20 @@ export interface ExtensionSurfaceClosedMessage {
   type: "closed"
 }
 
+export interface ExtensionBasePageRequest {
+  type: "base-page-request"
+  requestId: string
+  generation: string
+  offset: number
+  limit: number
+}
+
 export type ExtensionSurfaceToHostMessage =
   | ExtensionSurfaceReadyMessage
   | ExtensionSurfaceActivatedMessage
   | ExtensionSurfaceActivationErrorMessage
   | ExtensionSurfaceLogMessage
+  | ExtensionBasePageRequest
   | ExtensionSurfaceApplyEditsRequest
   | ExtensionSurfaceDocumentRequest
   | ExtensionSurfaceClosedMessage

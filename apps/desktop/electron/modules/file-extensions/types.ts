@@ -1,5 +1,6 @@
 import type {
   ExtensionLockV1,
+  ExtensionBaseViewContribution,
   ExtensionCommandContribution,
   ExtensionDiagnostic,
   ExtensionFileEditorContribution,
@@ -59,7 +60,7 @@ export interface FileExtensionPackageSummary {
 export interface FileExtensionRuntimeOutputEntry {
   sequence: number
   timestamp: number
-  source: "worker" | "panel" | "file-editor"
+  source: "worker" | "panel" | "file-editor" | "base-view"
   level: ExtensionRuntimeLogLevel
   message: string
 }
@@ -82,6 +83,7 @@ export type FileExtensionSurfaceOutputRequest = {
       sessionId: string
       viewId: string
     }
+  | ({ surfaceKind: "base-view" } & ExtensionSnapshotIdentity)
 )
 
 export type FileExtensionDevelopmentStatus =
@@ -144,7 +146,11 @@ export interface FileExtensionTemplateResult {
   files: string[]
 }
 
-export type FileExtensionTemplateKind = "command" | "panel" | "text-editor"
+export type FileExtensionTemplateKind =
+  | "command"
+  | "panel"
+  | "text-editor"
+  | "base-view"
 
 export interface FileExtensionTemplateRequest {
   name: string
@@ -244,6 +250,24 @@ export interface FileExtensionEditorSummary
   packageId: string
   extensionDisplayName: string
   editable: boolean
+}
+
+export interface FileExtensionBaseViewSummary
+  extends ExtensionSnapshotIdentity, ExtensionBaseViewContribution {
+  packageId: string
+  extensionDisplayName: string
+}
+
+export interface FileExtensionOpenBaseViewRequest extends ExtensionSnapshotIdentity {
+  baseViewId: string
+  path: string
+}
+
+export interface FileExtensionOpenBaseViewResult {
+  packageId: string
+  baseViewId: string
+  generation: string
+  source: string
 }
 
 export interface FileExtensionOpenEditorRequest extends ExtensionSnapshotIdentity {

@@ -10,6 +10,7 @@ import {
 import {
   canonicalExtensionPackagePath,
   createExtensionCommandTemplate,
+  createExtensionBaseViewTemplate,
   createExtensionPanelTemplate,
   createExtensionTextEditorTemplate,
   isIgnoredExtensionPackagePath,
@@ -64,6 +65,7 @@ import {
 } from "./runtime/file-extension-runtime-manager"
 import type {
   FileExtensionChangedEvent,
+  FileExtensionBaseViewSummary,
   FileExtensionConfirmLegacyPortingRequest,
   FileExtensionDevelopmentChangedEvent,
   FileExtensionDevelopmentDiagnostic,
@@ -83,6 +85,8 @@ import type {
   FileExtensionInstallResult,
   FileExtensionOpenEditorRequest,
   FileExtensionOpenEditorResult,
+  FileExtensionOpenBaseViewRequest,
+  FileExtensionOpenBaseViewResult,
   FileExtensionOpenPanelRequest,
   FileExtensionOpenPanelResult,
   FileExtensionPanelSummary,
@@ -161,6 +165,11 @@ interface PreparedFileExtensionPanel {
   generation: string
   source: string
   title: string
+}
+
+interface PreparedFileExtensionBaseView {
+  generation: string
+  source: string
 }
 
 interface FileExtensionPanelSession extends FileExtensionOpenPanelResult {
@@ -304,11 +313,11 @@ export class FileExtensionService extends IpcServiceBase {
   }
 
   @IpcMethod()
-  reportSurfaceOutput(
+  async reportSurfaceOutput(
     spaceId: string,
     request: FileExtensionSurfaceOutputRequest
-  ): { success: true } {
-    this.getFileSpace(spaceId)
+  ): Promise<{ success: true }> {
+    const space = this.getFileSpace(spaceId)
     if (
       !request ||
       typeof request.generation !== "string" ||
@@ -322,7 +331,7 @@ export class FileExtensionService extends IpcServiceBase {
       throw new Error("A valid bounded extension surface output is required")
     }
 
-    let target: { packageId: string; generation: string }
+    let target: { packageId: string; generation: string } | undefined
     if (request.surfaceKind === "panel") {
       const session = this.requirePanelSession(spaceId, {
         sessionId: request.sessionId,
@@ -343,9 +352,19 @@ export class FileExtensionService extends IpcServiceBase {
         request.sessionId,
         request.viewId
       )
-    } else {
-      throw new Error("Extension surface kind is invalid")
+    } else if (request.surfaceKind === "base-view") {
+      assertExtensionSnapshotIdentity(request)
+      const localState = await this.requireCurrentEnabledSnapshot(
+        spaceId,
+        space.path,
+        request
+      )
+      target = {
+        packageId: request.packageId,
+        generation: this.surfaceGeneration(request, localState),
+      }
     }
+    if (!target) throw new Error("Extension surface kind is invalid")
     if (target.generation !== request.generation) {
       throw new FileExtensionRuntimeError(
         "RUNTIME_STALE",
@@ -791,6 +810,85 @@ export class FileExtensionService extends IpcServiceBase {
   }
 
   @IpcMethod()
+  async listBaseViews(
+    spaceId: string,
+    resourcePath: string
+  ): Promise<FileExtensionBaseViewSummary[]> {
+    const relativePath = this.canonicalPublicSpacePath(resourcePath)
+    const discovery = await this.discover(spaceId)
+    return discovery.packages
+      .flatMap((extension) => {
+        const effectiveState = this.effectiveStateForSummary(spaceId, extension)
+        if (
+          !effectiveState ||
+          !extension.manifest?.entrypoints.ui ||
+          !extension.canonicalId ||
+          !extension.contentDigest ||
+          !extension.permissionHash ||
+          !this.hasPathGrant(effectiveState, "files.read", relativePath)
+        ) {
+          return []
+        }
+        const snapshot = {
+          packageId: extension.canonicalId,
+          contentDigest: extension.contentDigest,
+          permissionHash: extension.permissionHash,
+        }
+        return (extension.manifest.contributes.baseViews ?? []).map(
+          (baseView) => ({
+            ...snapshot,
+            ...baseView,
+            extensionDisplayName: extension.manifest!.displayName,
+          })
+        )
+      })
+      .sort(
+        (left, right) =>
+          left.displayName.localeCompare(right.displayName) ||
+          left.id.localeCompare(right.id)
+      )
+  }
+
+  @IpcMethod()
+  async openBaseView(
+    spaceId: string,
+    request: FileExtensionOpenBaseViewRequest
+  ): Promise<FileExtensionOpenBaseViewResult> {
+    const space = this.getFileSpace(spaceId)
+    assertExtensionSnapshotIdentity(request)
+    if (
+      typeof request.baseViewId !== "string" ||
+      !request.baseViewId ||
+      request.baseViewId.length > 256
+    ) {
+      throw new Error("A valid extension Base view ID is required")
+    }
+    const relativePath = this.canonicalPublicSpacePath(request.path)
+    const watcher = await this.startWatching(spaceId)
+    if (!watcher.watching) {
+      throw new FileExtensionRuntimeError(
+        "CAPABILITY_DENIED",
+        "Extension source watching must be available before opening third-party UI"
+      )
+    }
+    return withFileSpaceReadLock(spaceId, async () => {
+      const prepared = await this.prepareBaseView(
+        spaceId,
+        space.path,
+        request,
+        request.baseViewId,
+        relativePath
+      )
+      return {
+        packageId: request.packageId,
+        baseViewId: request.baseViewId,
+        generation: prepared.generation,
+        source: prepared.source,
+      }
+    })
+  }
+
+  @IpcMethod()
   async openFileEditor(
     spaceId: string,
     request: FileExtensionOpenEditorRequest
@@ -1080,7 +1178,9 @@ export class FileExtensionService extends IpcServiceBase {
             })
           : normalized.template === "panel"
             ? createExtensionPanelTemplate(common)
-            : createExtensionCommandTemplate(common)
+            : normalized.template === "base-view"
+              ? createExtensionBaseViewTemplate(common)
+              : createExtensionCommandTemplate(common)
       return writeExtensionTemplate(space.path, template)
     })
     await this.startWatching(spaceId)
@@ -1279,10 +1379,11 @@ export class FileExtensionService extends IpcServiceBase {
     if (
       request.template !== "command" &&
       request.template !== "panel" &&
-      request.template !== "text-editor"
+      request.template !== "text-editor" &&
+      request.template !== "base-view"
     ) {
       throw new Error(
-        "Extension template must be command, panel, or text-editor"
+        "Extension template must be command, panel, text-editor, or base-view"
       )
     }
     return {
@@ -2134,6 +2235,79 @@ export class FileExtensionService extends IpcServiceBase {
         generation,
       }),
       title: panel.displayName,
+    }
+  }
+
+  private async prepareBaseView(
+    spaceId: string,
+    spacePath: string,
+    snapshot: ExtensionSnapshotIdentity,
+    baseViewId: string,
+    relativePath: string
+  ): Promise<PreparedFileExtensionBaseView> {
+    const paths = await resolveExtensionProjectPaths(spacePath)
+    if (!paths.extensionsRoot) {
+      throw new Error("Extension package is no longer installed")
+    }
+    const { inspection, files } = await inspectExtensionPackageSnapshot(
+      path.join(paths.extensionsRoot, snapshot.packageId),
+      { hostVersion: app.getVersion() }
+    )
+    if (
+      inspection.status !== "ready" ||
+      inspection.canonicalId !== snapshot.packageId ||
+      inspection.contentDigest !== snapshot.contentDigest ||
+      inspection.permissionHash !== snapshot.permissionHash ||
+      !inspection.manifest?.entrypoints.ui
+    ) {
+      throw new FileExtensionRuntimeError(
+        "RUNTIME_STALE",
+        "Extension package changed before its Base view could open"
+      )
+    }
+    const contribution = (inspection.manifest.contributes.baseViews ?? []).find(
+      (candidate) => candidate.id === baseViewId
+    )
+    if (!contribution) {
+      throw new FileExtensionRuntimeError(
+        "CAPABILITY_DENIED",
+        "Extension Base view is not declared by this package"
+      )
+    }
+    let localState = await this.requireCurrentEnabledSnapshot(
+      spaceId,
+      spacePath,
+      snapshot
+    )
+    if (!this.hasPathGrant(localState, "files.read", relativePath)) {
+      throw new FileExtensionRuntimeError(
+        "CAPABILITY_DENIED",
+        `Extension is not granted read access to ${relativePath}`
+      )
+    }
+    const cacheKey = this.snapshotCacheKey(spaceId, snapshot, "surface")
+    let bundleCode = this.bundleCache.get(cacheKey)
+    if (!bundleCode) {
+      const compiled = await compileExtensionSurface({
+        entrypoint: inspection.manifest.entrypoints.ui,
+        files,
+      })
+      bundleCode = compiled.code
+      this.bundleCache.set(cacheKey, bundleCode)
+    }
+    localState = await this.requireCurrentEnabledSnapshot(
+      spaceId,
+      spacePath,
+      snapshot
+    )
+    const generation = this.surfaceGeneration(snapshot, localState)
+    return {
+      generation,
+      source: createExtensionSurfaceSource({
+        bundleCode,
+        extensionId: snapshot.packageId,
+        generation,
+      }),
     }
   }
 

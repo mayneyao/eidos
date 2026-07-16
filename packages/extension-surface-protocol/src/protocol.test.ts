@@ -55,6 +55,21 @@ describe("extension surface message parsing", () => {
       level: "warn",
       message: "Missing task title",
     })
+    expect(
+      parseExtensionSurfaceMessage({
+        type: "base-page-request",
+        requestId: "page-1",
+        generation: "generation-1",
+        offset: 200,
+        limit: 100,
+      })
+    ).toEqual({
+      type: "base-page-request",
+      requestId: "page-1",
+      generation: "generation-1",
+      offset: 200,
+      limit: 100,
+    })
   })
 
   it("rejects unsupported, unbounded, and malformed surface messages", () => {
@@ -92,6 +107,24 @@ describe("extension surface message parsing", () => {
         message: "x".repeat(4097),
       })
     ).toThrow("Surface log message")
+    expect(() =>
+      parseExtensionSurfaceMessage({
+        type: "base-page-request",
+        requestId: "page-1",
+        generation: "generation-1",
+        offset: -1,
+        limit: 100,
+      })
+    ).toThrow("Base page offset")
+    expect(() =>
+      parseExtensionSurfaceMessage({
+        type: "base-page-request",
+        requestId: "page-1",
+        generation: "generation-1",
+        offset: 0,
+        limit: 201,
+      })
+    ).toThrow("Base page limit")
   })
 })
 

@@ -621,6 +621,102 @@ describe("FileExtensionService", () => {
     service.stopWatching("space-a")
   })
 
+  it("lists and opens a trusted Base view for a granted Base file", async () => {
+    const root = await createFileSpace()
+    const packageRoot = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "example.task-counter"
+    )
+    await writeFile(
+      path.join(packageRoot, "extension.json"),
+      JSON.stringify({
+        manifestVersion: 1,
+        publisher: "example",
+        name: "task-counter",
+        displayName: "Task Counter",
+        version: "1.0.0",
+        engines: { eidos: ">=0.33.0 <1.0.0" },
+        entrypoints: { ui: "src/base-view.ts" },
+        contributes: {
+          baseViews: [
+            {
+              id: "example.task-counter.cards",
+              displayName: "Task cards",
+            },
+          ],
+        },
+        permissions: {
+          files: { read: ["**/*.base"], write: [] },
+          network: [],
+        },
+      })
+    )
+    await writeFile(
+      path.join(packageRoot, "src", "base-view.ts"),
+      "export function activate(context) { context.root.textContent = context.base.context.table.name }\n"
+    )
+    await writeFile(path.join(root, "tasks.base"), "")
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(
+      registry,
+      { getWindow: () => undefined } as unknown as MainWindowProvider,
+      runtimeManagerStub()
+    )
+    const extension = (await service.discover("space-a")).packages[0]!
+    const snapshot = {
+      packageId: extension.canonicalId!,
+      contentDigest: extension.contentDigest!,
+      permissionHash: extension.permissionHash!,
+    }
+    await service.trust("space-a", snapshot)
+    await service.setGrant("space-a", {
+      ...snapshot,
+      grant: { kind: "files.read", value: "**/*.base" },
+      granted: true,
+    })
+    await service.setEnabled("space-a", snapshot, true)
+
+    await expect(
+      service.listBaseViews("space-a", "tasks.base")
+    ).resolves.toMatchObject([
+      {
+        id: "example.task-counter.cards",
+        packageId: "example.task-counter",
+        displayName: "Task cards",
+      },
+    ])
+    const opened = await service.openBaseView("space-a", {
+      ...snapshot,
+      baseViewId: "example.task-counter.cards",
+      path: "tasks.base",
+    })
+    expect(opened).toMatchObject({
+      packageId: "example.task-counter",
+      baseViewId: "example.task-counter.cards",
+    })
+    expect(opened.source).toContain("__eidosStartSurface")
+    await expect(
+      service.reportSurfaceOutput("space-a", {
+        surfaceKind: "base-view",
+        ...snapshot,
+        generation: opened.generation,
+        level: "info",
+        message: "Base view ready",
+      })
+    ).resolves.toEqual({ success: true })
+    service.stopWatching("space-a")
+  })
+
   it("opens a UI-only panel without creating a worker runtime", async () => {
     const root = await createFileSpace()
     const packageRoot = path.join(
@@ -930,6 +1026,40 @@ describe("FileExtensionService", () => {
     })
     await expect(
       service.createTemplate("space-a", {
+        name: "record-cards",
+        template: "base-view",
+      })
+    ).resolves.toEqual({
+      canonicalId: "local.record-cards",
+      root: ".eidos/extensions/local.record-cards",
+      files: [
+        "extension.json",
+        "src/base-view.ts",
+        "src/base-view.css",
+        "README.md",
+      ],
+    })
+    expect(
+      JSON.parse(
+        await readFile(
+          path.join(
+            root,
+            ".eidos",
+            "extensions",
+            "local.record-cards",
+            "extension.json"
+          ),
+          "utf8"
+        )
+      )
+    ).toMatchObject({
+      entrypoints: { ui: "src/base-view.ts" },
+      contributes: {
+        baseViews: [{ id: "local.record-cards.cards" }],
+      },
+    })
+    await expect(
+      service.createTemplate("space-a", {
         name: "hello-tools",
         template: "command",
       })
@@ -945,7 +1075,7 @@ describe("FileExtensionService", () => {
         name: "bad-template",
         template: "widget",
       } as unknown as FileExtensionTemplateRequest)
-    ).rejects.toThrow("must be command, panel, or text-editor")
+    ).rejects.toThrow("must be command, panel, text-editor, or base-view")
     await expect(
       service.createTemplate("space-a", {
         name: "bad-pattern",

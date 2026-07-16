@@ -16,6 +16,7 @@ export interface ExtensionTextEditorTemplateOptions extends ExtensionCommandTemp
 }
 
 export type ExtensionPanelTemplateOptions = ExtensionCommandTemplateOptions
+export type ExtensionBaseViewTemplateOptions = ExtensionCommandTemplateOptions
 
 export interface ExtensionTemplateFile {
   path: string
@@ -293,6 +294,175 @@ export function createExtensionPanelTemplate(
         `# ${displayName}`,
         "",
         `Run the ${commandId} command from a Markdown file to count its tasks and open the ${panelId} panel.`,
+        "",
+        "Run `eidos-extension check .` before installing this package into a Space.",
+        "",
+      ].join("\n"),
+    },
+  ])
+}
+
+export function createExtensionBaseViewTemplate(
+  options: ExtensionBaseViewTemplateOptions
+): ExtensionTemplate {
+  assertPackageSegment(options.publisher, "Publisher")
+  assertPackageSegment(options.name, "Extension name")
+  if (typeof options.engineRange !== "string" || !options.engineRange.trim()) {
+    throw new Error("Eidos engine range is required")
+  }
+
+  const canonicalId = `${options.publisher}.${options.name}`
+  const displayName =
+    options.displayName?.trim() || defaultDisplayName(options.name)
+  const baseViewId = `${canonicalId}.cards`
+  const manifest: ExtensionManifestV1 = {
+    $schema: "https://docs.eidos.space/schemas/extension-manifest.schema.json",
+    manifestVersion: 1,
+    publisher: options.publisher,
+    name: options.name,
+    displayName,
+    description: `Render Base records with the sandboxed ${displayName} layout.`,
+    version: "0.1.0",
+    engines: { eidos: options.engineRange },
+    entrypoints: { ui: "src/base-view.ts" },
+    contributes: {
+      baseViews: [
+        {
+          id: baseViewId,
+          displayName,
+          description: "A responsive, infinitely scrolling card view",
+        },
+      ],
+    },
+    permissions: {
+      files: { read: ["**/*.base"], write: [] },
+      network: [],
+    },
+  }
+
+  return createTemplate(manifest, [
+    {
+      path: "src/base-view.ts",
+      content: [
+        'import type { ExtensionBaseViewContext } from "@eidos.space/extension-sdk"',
+        "",
+        'import "./base-view.css"',
+        "",
+        "export function activate(context: ExtensionBaseViewContext) {",
+        `  console.info(${JSON.stringify(`${displayName} Base view activated`)}, { viewId: context.viewId })`,
+        '  const shell = document.createElement("main")',
+        '  const header = document.createElement("header")',
+        '  const title = document.createElement("strong")',
+        '  const count = document.createElement("span")',
+        '  const grid = document.createElement("section")',
+        '  const sentinel = document.createElement("div")',
+        '  shell.className = "base-view-shell"',
+        '  grid.className = "record-grid"',
+        '  sentinel.className = "sentinel"',
+        "  header.append(title, count)",
+        "  shell.append(header, grid, sentinel)",
+        "  context.root.replaceChildren(shell)",
+        "",
+        "  let offset = 0",
+        "  let loading = false",
+        "  let complete = false",
+        "  let generation = 0",
+        "",
+        "  function renderHeader() {",
+        "    title.textContent = context.base.context.table.name",
+        "    count.textContent = `${context.base.context.table.rowCount.toLocaleString()} records`",
+        "  }",
+        "",
+        "  async function loadMore() {",
+        "    if (loading || complete) return",
+        "    loading = true",
+        "    const requestGeneration = generation",
+        '    sentinel.textContent = "Loading…"',
+        "    try {",
+        "      const page = await context.base.getPage({ offset, limit: 60 })",
+        "      if (requestGeneration !== generation) return",
+        '      const titleField = context.base.context.fields.find((field) => field.type === "title")?.columnName',
+        "      for (const row of page.rows) {",
+        '        const card = document.createElement("article")',
+        '        const heading = document.createElement("strong")',
+        '        const metadata = document.createElement("dl")',
+        '        heading.textContent = String((titleField && row[titleField]) ?? row.title ?? "Untitled")',
+        "        for (const field of context.base.context.fields.filter((field) => field.columnName !== titleField).slice(0, 4)) {",
+        "          const value = row[field.columnName]",
+        '          if (value === null || value === undefined || value === "") continue',
+        '          const term = document.createElement("dt")',
+        '          const detail = document.createElement("dd")',
+        "          term.textContent = field.name",
+        "          detail.textContent = String(value)",
+        "          metadata.append(term, detail)",
+        "        }",
+        "        card.append(heading, metadata)",
+        "        grid.append(card)",
+        "      }",
+        "      offset += page.rows.length",
+        "      complete = offset >= page.total || page.rows.length === 0",
+        '      sentinel.textContent = complete ? `${page.total.toLocaleString()} records` : "Scroll for more"',
+        "    } catch (error) {",
+        '      sentinel.textContent = error instanceof Error ? error.message : "Unable to load records"',
+        "    } finally {",
+        "      loading = false",
+        "    }",
+        "  }",
+        "",
+        "  function reset() {",
+        "    generation += 1",
+        "    offset = 0",
+        "    complete = false",
+        "    grid.replaceChildren()",
+        "    renderHeader()",
+        "    void loadMore()",
+        "  }",
+        "",
+        "  const observer = new IntersectionObserver((entries) => {",
+        "    if (entries.some((entry) => entry.isIntersecting)) void loadMore()",
+        '  }, { rootMargin: "320px" })',
+        "  observer.observe(sentinel)",
+        "  context.subscriptions.add(context.base.onDidChangeContext(reset))",
+        "  reset()",
+        "",
+        "  return {",
+        "    dispose() {",
+        "      observer.disconnect()",
+        "      context.root.replaceChildren()",
+        "    },",
+        "  }",
+        "}",
+        "",
+      ].join("\n"),
+    },
+    {
+      path: "src/base-view.css",
+      content: [
+        ":root { color: var(--eidos-color-foreground); background: var(--eidos-color-background); font-family: var(--eidos-font-family); }",
+        "* { box-sizing: border-box; }",
+        "html, body { min-height: 100%; margin: 0; }",
+        ".base-view-shell { padding: 20px; }",
+        "header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 16px; }",
+        "header strong { font-size: 18px; }",
+        "header span, .sentinel { color: var(--eidos-color-muted-foreground); font-size: 12px; }",
+        ".record-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }",
+        "article { min-width: 0; padding: 14px; border: 1px solid var(--eidos-color-border); border-radius: 10px; background: var(--eidos-color-background); }",
+        "article > strong { display: block; overflow: hidden; margin-bottom: 12px; text-overflow: ellipsis; white-space: nowrap; }",
+        "dl { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1fr); gap: 6px 10px; margin: 0; font-size: 12px; }",
+        "dt { overflow: hidden; color: var(--eidos-color-muted-foreground); text-overflow: ellipsis; white-space: nowrap; }",
+        "dd { overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; }",
+        ".sentinel { display: grid; min-height: 72px; place-items: center; }",
+        "",
+      ].join("\n"),
+    },
+    {
+      path: "README.md",
+      content: [
+        `# ${displayName}`,
+        "",
+        `This extension contributes the \`${baseViewId}\` layout to the Base view picker.`,
+        "",
+        "Create a view in any `.base` file, select this extension layout, and scroll to load records in bounded pages.",
         "",
         "Run `eidos-extension check .` before installing this package into a Space.",
         "",

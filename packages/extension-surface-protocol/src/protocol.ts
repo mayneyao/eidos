@@ -5,6 +5,7 @@ export const EXTENSION_SURFACE_MAX_EDITS = 128
 export const EXTENSION_SURFACE_MAX_INSERTED_CODE_UNITS = 256 * 1024
 export const EXTENSION_SURFACE_MAX_CHANGED_CODE_UNITS = 256 * 1024
 export const EXTENSION_SURFACE_MAX_TEXT_CODE_UNITS = 512 * 1024
+export const EXTENSION_SURFACE_MAX_BASE_PAGE_SIZE = 200
 
 const EXTENSION_SURFACE_LOG_LEVELS = new Set([
   "debug",
@@ -276,6 +277,23 @@ export function parseExtensionSurfaceMessage(
     }
   }
   if (type === "closed") return { type }
+  if (type === "base-page-request") {
+    return {
+      type,
+      requestId: text(input.requestId, "Surface request ID", 128),
+      generation: text(input.generation, "Surface generation", 256),
+      offset: nonNegativeSafeInteger(
+        input.offset as number,
+        "Base page offset"
+      ),
+      limit: nonNegativeSafeInteger(
+        input.limit as number,
+        "Base page limit",
+        1,
+        EXTENSION_SURFACE_MAX_BASE_PAGE_SIZE
+      ),
+    }
+  }
 
   if (
     type !== "apply-edits" &&

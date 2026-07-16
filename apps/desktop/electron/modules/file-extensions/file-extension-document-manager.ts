@@ -186,6 +186,7 @@ export class FileExtensionDocumentManager {
       message.type === "activated" ||
       message.type === "activation-error" ||
       message.type === "surface-log" ||
+      message.type === "base-page-request" ||
       message.type === "closed"
     ) {
       return this.failure(

@@ -229,6 +229,48 @@ describe("BaseViewSelector", () => {
     ).toBe("Grid 3")
   })
 
+  it("creates a saved view backed by an enabled file extension", async () => {
+    await act(async () => {
+      root.render(
+        <BaseViewSelector
+          views={views}
+          fields={fields}
+          activeView={views[0]}
+          extensionViews={[
+            {
+              packageId: "example.tasks",
+              contentDigest: `sha256:${"1".repeat(64)}`,
+              permissionHash: `sha256:${"2".repeat(64)}`,
+              id: "example.tasks.cards",
+              displayName: "Task cards",
+              description: "Extension cards",
+              extensionDisplayName: "Tasks",
+            },
+          ]}
+          triggerMode="create"
+          onSelect={onSelect}
+          onCreate={onCreate}
+          onRename={onRename}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onReorder={onReorder}
+          onUpdate={onUpdate}
+        />
+      )
+    })
+    await act(async () => {
+      document
+        .querySelector<HTMLButtonElement>('[aria-label="Add Base view"]')
+        ?.click()
+    })
+    await act(async () => exactButton("Task cardsExtension cards")?.click())
+    await act(async () => exactButton("Create")?.click())
+    expect(onCreate).toHaveBeenCalledWith(
+      "Task cards 1",
+      "extension:example.tasks.cards"
+    )
+  })
+
   it("uses layout-specific defaults without overwriting a name the user typed", async () => {
     await act(async () => exactButton("All tasks")?.click())
     await act(async () => exactButton("New view")?.click())

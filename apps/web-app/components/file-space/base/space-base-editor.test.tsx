@@ -54,6 +54,10 @@ const spaceFileChanges = vi.hoisted(() => ({
     | ((event: { eventType: "change" | "rescan"; path: string }) => void)
     | undefined,
 }))
+const extensionBaseViewState = vi.hoisted(() => ({
+  items: [] as Array<Record<string, unknown>>,
+  rendered: [] as Array<Record<string, unknown>>,
+}))
 const baseViewHostProps = vi.hoisted(() => ({
   grid: [] as Array<{
     table: object
@@ -104,6 +108,22 @@ const baseViewHostProps = vi.hoisted(() => ({
 
 vi.mock("@/apps/web-app/hooks/use-current-space", () => ({
   useCurrentSpace: () => ({ currentSpace: { id: "space-a", mode: "file" } }),
+}))
+
+vi.mock("@/apps/web-app/hooks/use-file-extension-base-views", () => ({
+  useFileExtensionBaseViews: () => ({
+    baseViews: extensionBaseViewState.items,
+    loading: false,
+    error: null,
+    reload: vi.fn(),
+  }),
+}))
+
+vi.mock("../../file-extensions/extension-base-view-surface", () => ({
+  ExtensionBaseViewSurface: (props: Record<string, unknown>) => {
+    extensionBaseViewState.rendered.push(props)
+    return <div>Extension Base view</div>
+  },
 }))
 
 vi.mock("@/apps/web-app/hooks/use-space-base", () => ({
@@ -667,6 +687,8 @@ vi.mock("./base-grid", async () => {
 })
 
 vi.mock("./base-view-selector", () => ({
+  baseExtensionContributionId: (type: string) =>
+    type.startsWith("extension:") ? type.slice("extension:".length) : null,
   isBaseBuiltInViewType: (type: string) =>
     type === "grid" || type === "gallery" || type === "kanban",
   BaseViewTypeIcon: ({ type }: { type: string }) => <span>{type}</span>,
@@ -1032,6 +1054,8 @@ describe("SpaceBaseEditor", () => {
     baseViewHostProps.grid.length = 0
     baseViewHostProps.gallery.length = 0
     baseViewHostProps.kanban.length = 0
+    extensionBaseViewState.items = []
+    extensionBaseViewState.rendered = []
     useFileSpaceSettings.setState({ bySpace: {} })
     useQuickOpenStore.setState({ sectionsByTab: {} })
     spaceFileChanges.handler = undefined
@@ -1196,6 +1220,45 @@ describe("SpaceBaseEditor", () => {
     expect(container.textContent).not.toContain("_id")
     expect(container.textContent).toContain("Write RFC")
     expect(container.textContent).toContain("todo")
+  })
+
+  it("renders a saved extension Base view with a host-owned page loader", async () => {
+    const extensionView = {
+      ...snapshot.tables[0].views[0],
+      id: "view_extension",
+      name: "Task cards",
+      type: "extension:example.tasks.cards",
+    }
+    extensionBaseViewState.items = [
+      {
+        packageId: "example.tasks",
+        contentDigest: `sha256:${"1".repeat(64)}`,
+        permissionHash: `sha256:${"2".repeat(64)}`,
+        id: "example.tasks.cards",
+        displayName: "Task cards",
+        extensionDisplayName: "Tasks",
+      },
+    ]
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      tables: [
+        {
+          ...snapshot.tables[0],
+          views: [extensionView],
+        },
+      ],
+    })
+
+    await renderEditor()
+
+    expect(container.textContent).toContain("Extension Base view")
+    expect(extensionBaseViewState.rendered.at(-1)).toMatchObject({
+      extension: { id: "example.tasks.cards" },
+      filePath: "projects/tasks.base",
+      table: { table: { id: "tasks" } },
+      view: { id: "view_extension" },
+      loadPage: expect.any(Function),
+    })
   })
 
   it("opens a selected row in a stable record tab URL", async () => {

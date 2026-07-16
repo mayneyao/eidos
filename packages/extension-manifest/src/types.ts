@@ -31,6 +31,17 @@ export interface ExtensionPanelContribution {
   displayName: string
 }
 
+/**
+ * A sandboxed, read-only renderer that can be selected as a saved view inside
+ * a file-based Base. The host owns querying and paging; the extension only
+ * receives the active table/view context and bounded result pages.
+ */
+export interface ExtensionBaseViewContribution {
+  id: string
+  displayName: string
+  description?: string
+}
+
 export interface ExtensionManifestV1 {
   $schema?: string
   manifestVersion: 1
@@ -51,6 +62,7 @@ export interface ExtensionManifestV1 {
     menus?: Record<string, ExtensionMenuContribution[]>
     fileEditors?: ExtensionFileEditorContribution[]
     panels?: ExtensionPanelContribution[]
+    baseViews?: ExtensionBaseViewContribution[]
   }
   permissions: ExtensionPermissions
 }

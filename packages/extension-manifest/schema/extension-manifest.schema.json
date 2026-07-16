@@ -95,6 +95,10 @@
         "panels": {
           "type": "array",
           "items": { "$ref": "#/$defs/panel" }
+        },
+        "baseViews": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/baseView" }
         }
       }
     },
@@ -209,6 +213,23 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 80
+        }
+      }
+    },
+    "baseView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 160
         }
       }
     },

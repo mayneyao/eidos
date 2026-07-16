@@ -189,6 +189,33 @@ describe("analyzeExtensionManifest", () => {
     ).toContain("manifest-id-namespace")
   })
 
+  it("accepts UI-only Base views and requires a UI entrypoint", () => {
+    const baseViewManifest = manifest({
+      entrypoints: { ui: "src/base-view.ts" },
+      contributes: {
+        baseViews: [
+          {
+            id: "example.task-counter.cards",
+            displayName: "Task cards",
+            description: "A compact read-only card layout",
+          },
+        ],
+      },
+    })
+    expect(diagnosticCodes(JSON.stringify(baseViewManifest))).toEqual([])
+
+    expect(
+      diagnosticCodes(
+        JSON.stringify(
+          manifest({
+            entrypoints: { worker: "src/extension.ts" },
+            contributes: baseViewManifest.contributes,
+          })
+        )
+      )
+    ).toContain("manifest-entrypoint-required")
+  })
+
   it("rejects duplicate contribution IDs across panels and other surfaces", () => {
     const duplicate = manifest({
       entrypoints: { worker: "src/extension.ts", ui: "src/ui.ts" },

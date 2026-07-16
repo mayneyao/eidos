@@ -603,7 +603,7 @@ describe("FileExtensionSettings", () => {
     ]
     expect(
       templateOptions.map((option) => option.parentElement?.textContent?.trim())
-    ).toEqual(["Command", "Panel", "Text editor"])
+    ).toEqual(["Command", "Panel", "Text editor", "Base view"])
     expect(templateOptions[0]?.checked).toBe(true)
     act(() => templateOptions[2]!.click())
     expect(templateOptions[2]?.checked).toBe(true)
@@ -722,6 +722,77 @@ describe("FileExtensionSettings", () => {
     expect(openTabMock).toHaveBeenLastCalledWith(
       "/space-file#.eidos%2Fextensions%2Flocal.hello-tools%2Fsrc%2Fpanel.ts",
       "panel.ts"
+    )
+  })
+
+  it("creates a Base view starter and opens its UI source", async () => {
+    createTemplateMock.mockResolvedValue({
+      canonicalId: "local.record-cards",
+      root: ".eidos/extensions/local.record-cards",
+      files: [
+        "extension.json",
+        "src/base-view.ts",
+        "src/base-view.css",
+        "README.md",
+      ],
+    })
+    discoverMock
+      .mockReset()
+      .mockResolvedValueOnce(discoveryFixture())
+      .mockResolvedValue(discoveryFixture())
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "New extension")!
+        .click()
+    )
+    const templateOptions = [
+      ...container.querySelectorAll<HTMLInputElement>(
+        'input[name="local-extension-template"]'
+      ),
+    ]
+    act(() => templateOptions[3]!.click())
+    const input = container.querySelector<HTMLInputElement>(
+      "#local-extension-name"
+    )!
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )!.set!
+    act(() => {
+      valueSetter.call(input, "record-cards")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => {
+      ;[...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Create")!
+        .click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(createTemplateMock).toHaveBeenCalledWith("file-space", {
+      name: "record-cards",
+      template: "base-view",
+      filenamePattern: undefined,
+      mediaType: undefined,
+    })
+    expect(container.textContent).toContain(
+      "Open a .base file, add a view, then choose this extension layout"
+    )
+    const createdStatus =
+      container.querySelector<HTMLElement>("[role='status']")!
+    act(() =>
+      [...createdStatus.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Open UI")!
+        .click()
+    )
+    expect(openTabMock).toHaveBeenLastCalledWith(
+      "/space-file#.eidos%2Fextensions%2Flocal.record-cards%2Fsrc%2Fbase-view.ts",
+      "base-view.ts"
     )
   })
 

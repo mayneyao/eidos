@@ -3,6 +3,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { app, BrowserWindow, MessageChannelMain, session } from "electron"
 import {
+  createExtensionBaseViewTemplate,
   createExtensionCommandTemplate,
   createExtensionPanelTemplate,
   createExtensionTextEditorTemplate,
@@ -698,6 +699,171 @@ async function runPanelScenario({
   }
 }
 
+async function runBaseViewScenario({
+  scenarioId,
+  extensionId,
+  baseViewId,
+  entrypoint,
+  files,
+  expectedLog,
+}) {
+  const generation = `smoke-${scenarioId}`
+  const bundle = await compileExtensionSurface({ entrypoint, files })
+  const source = createExtensionSurfaceSource({
+    bundleCode: bundle.code,
+    extensionId,
+    generation,
+  })
+  const runtimeSession = createRuntimeSession(scenarioId)
+  const runtimeWindow = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      session: runtimeSession,
+      sandbox: true,
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true,
+      devTools: false,
+    },
+  })
+  observeRuntimeWindow(runtimeWindow, `${scenarioId} Base view`)
+  const initialize = {
+    type: "initialize",
+    surfaceKind: "base-view",
+    protocolVersion: EXTENSION_SURFACE_PROTOCOL_VERSION,
+    packageId: extensionId,
+    generation,
+    baseViewId,
+    viewId: "view-cards",
+    context: {
+      resourcePath: "tasks.base",
+      table: { id: "tasks", name: "Tasks", rowCount: 2 },
+      view: { id: "view-cards", name: "Cards" },
+      fields: [
+        { name: "Title", columnName: "title", type: "title", property: null },
+        {
+          name: "Status",
+          columnName: "status",
+          type: "select",
+          property: null,
+        },
+      ],
+    },
+    appearance: SMOKE_APPEARANCE,
+  }
+
+  try {
+    await runtimeWindow.loadURL(extensionSurfaceDataUrl())
+    const result = await runtimeWindow.webContents.executeJavaScript(
+      `new Promise((resolve, reject) => {
+        const source = ${JSON.stringify(source)};
+        const generation = ${JSON.stringify(generation)};
+        const initialize = ${JSON.stringify(initialize)};
+        const channel = new MessageChannel();
+        const port = channel.port1;
+        const surfaceLogs = [];
+        let settled = false;
+        let activated = false;
+        let pageLoaded = false;
+        const timeout = setTimeout(() => fail(new Error("Base view smoke timed out")), 10000);
+        const fail = (error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          try { port.close(); } catch {}
+          reject(error);
+        };
+        const finish = () => {
+          if (settled || !activated || !pageLoaded) return;
+          setTimeout(() => {
+            try {
+              const title = document.querySelector("header strong");
+              const cards = document.querySelectorAll(".record-grid article");
+              const cssLoaded = Array.from(document.querySelectorAll("style")).some(
+                (style) => style.textContent?.includes(".record-grid")
+              );
+              if (title?.textContent !== "Tasks" || cards.length !== 2) {
+                throw new Error("Generated Base view did not render its page");
+              }
+              settled = true;
+              clearTimeout(timeout);
+              try { port.close(); } catch {}
+              resolve({ title: title.textContent, cards: cards.length, cssLoaded, surfaceLogs });
+            } catch (error) {
+              fail(error);
+            }
+          }, 0);
+        };
+        port.onmessage = (event) => {
+          try {
+            const message = event.data;
+            if (message?.type === "activation-error") {
+              throw new Error("Base view activation failed: " + message.message);
+            }
+            if (message?.type === "surface-log") {
+              surfaceLogs.push(message);
+              return;
+            }
+            if (message?.type === "ready") {
+              port.postMessage(initialize);
+              return;
+            }
+            if (message?.type === "activated") {
+              activated = true;
+              finish();
+              return;
+            }
+            if (message?.type === "base-page-request") {
+              if (message.generation !== generation || message.offset !== 0 || message.limit !== 60) {
+                throw new Error("Generated Base view requested an invalid page");
+              }
+              port.postMessage({
+                type: "base-page-result",
+                requestId: message.requestId,
+                ok: true,
+                page: {
+                  offset: 0,
+                  limit: 60,
+                  total: 2,
+                  rows: [
+                    { _id: "row-1", title: "Ship Base views", status: "Doing" },
+                    { _id: "row-2", title: "Run smoke", status: "Done" },
+                  ],
+                },
+              });
+              pageLoaded = true;
+              finish();
+            }
+          } catch (error) {
+            fail(error);
+          }
+        };
+        port.start();
+        window.postMessage(
+          { type: ${JSON.stringify(EXTENSION_SURFACE_BOOTSTRAP_CHANNEL)}, source, generation },
+          "*",
+          [channel.port2]
+        );
+      })`,
+      true
+    )
+    if (
+      result?.title !== "Tasks" ||
+      result?.cards !== 2 ||
+      result?.cssLoaded !== true ||
+      !result?.surfaceLogs?.some(
+        (log) => log.level === "info" && log.message.includes(expectedLog)
+      )
+    ) {
+      throw new Error("Generated Base view returned an unexpected result")
+    }
+    console.log(`${scenarioId} extension smoke passed`)
+  } finally {
+    if (!runtimeWindow.isDestroyed()) runtimeWindow.destroy()
+    await runtimeSession.clearStorageData()
+  }
+}
+
 async function run() {
   await app.whenReady()
 
@@ -801,6 +967,30 @@ async function run() {
     expectedTitle: "Panel Smoke",
     cssMarker: ".task-summary",
     expectedLog: "Panel Smoke panel activated",
+  })
+
+  const generatedBaseView = createExtensionBaseViewTemplate({
+    publisher: "local",
+    name: "base-view-smoke",
+    displayName: "Base View Smoke",
+    engineRange: ">=0.33.0",
+  })
+  const baseView = generatedBaseView.manifest.contributes.baseViews?.[0]
+  if (!baseView || !generatedBaseView.manifest.entrypoints.ui) {
+    throw new Error(
+      "Generated Base view template is missing its surface contract"
+    )
+  }
+  await runBaseViewScenario({
+    scenarioId: "generated-base-view",
+    extensionId: generatedBaseView.canonicalId,
+    baseViewId: baseView.id,
+    entrypoint: generatedBaseView.manifest.entrypoints.ui,
+    files: generatedBaseView.files.map((file) => ({
+      path: file.path,
+      content: bytes(file.content),
+    })),
+    expectedLog: "Base View Smoke Base view activated",
   })
 
   const generated = createExtensionCommandTemplate({
