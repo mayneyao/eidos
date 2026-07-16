@@ -16,6 +16,7 @@ import {
   EXTENSION_SURFACE_BOOTSTRAP_CHANNEL,
   EXTENSION_SURFACE_PROTOCOL_VERSION,
   type ExtensionBaseViewContextSnapshot,
+  type ExtensionJsonValue,
   type ExtensionSurfaceAppearance,
 } from "@eidos.space/extension-surface-protocol"
 
@@ -52,6 +53,16 @@ const SMOKE_APPEARANCE: ExtensionSurfaceAppearance = {
 interface SentEvent {
   channel: string
   payload: unknown
+}
+
+function asPlainJsonObject(
+  value: ExtensionJsonValue | undefined
+): Record<string, ExtensionJsonValue> {
+  assert.ok(
+    value && typeof value === "object" && !Array.isArray(value),
+    "Expected extension state to be a JSON object"
+  )
+  return { ...value }
 }
 
 function writeString(
@@ -350,6 +361,160 @@ async function renderInstalledBaseView({
       title: string
       cards: string[]
       cssLoaded: boolean
+      surfaceLogs: Array<{
+        generation: string
+        level: "debug" | "info" | "log" | "warn" | "error"
+        message: string
+      }>
+      networkGlobalsBlocked: boolean
+    }
+  } finally {
+    if (!runtimeWindow.isDestroyed()) runtimeWindow.destroy()
+    await runtimeSession.clearStorageData()
+  }
+}
+
+async function renderDevelopmentPanel({
+  source,
+  generation,
+  packageId,
+  panelId,
+  sessionId,
+  state,
+}: {
+  source: string
+  generation: string
+  packageId: string
+  panelId: string
+  sessionId: string
+  state?: ExtensionJsonValue
+}) {
+  const runtimeSession = session.fromPartition(
+    `eidos-file-extension-app-panel-${Date.now()}`,
+    { cache: false }
+  )
+  runtimeSession.setPermissionCheckHandler(() => false)
+  runtimeSession.setPermissionRequestHandler(
+    (_contents, _permission, callback) => callback(false)
+  )
+  runtimeSession.webRequest.onBeforeRequest(
+    {
+      urls: [
+        "http://*/*",
+        "https://*/*",
+        "file://*/*",
+        "ws://*/*",
+        "wss://*/*",
+      ],
+    },
+    (_details, callback) => callback({ cancel: true })
+  )
+  const runtimeWindow = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      session: runtimeSession,
+      sandbox: true,
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true,
+      devTools: false,
+    },
+  })
+  runtimeWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
+  const initialize = {
+    type: "initialize",
+    surfaceKind: "panel",
+    protocolVersion: EXTENSION_SURFACE_PROTOCOL_VERSION,
+    packageId,
+    generation,
+    panelId,
+    sessionId,
+    state,
+    appearance: SMOKE_APPEARANCE,
+  }
+
+  try {
+    await runtimeWindow.loadURL(extensionSurfaceDataUrl())
+    return (await runtimeWindow.webContents.executeJavaScript(
+      `new Promise((resolve, reject) => {
+        const source = ${JSON.stringify(source)};
+        const generation = ${JSON.stringify(generation)};
+        const initialize = ${JSON.stringify(initialize)};
+        const channel = new MessageChannel();
+        const port = channel.port1;
+        const surfaceLogs = [];
+        let settled = false;
+        const timeout = setTimeout(
+          () => fail(new Error("Development panel timed out")),
+          10000
+        );
+        const fail = (error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          try { port.close(); } catch {}
+          reject(error);
+        };
+        port.onmessage = (event) => {
+          try {
+            const message = event.data;
+            if (message?.type === "activation-error") {
+              throw new Error(
+                "Development panel activation failed: " + message.message
+              );
+            }
+            if (message?.type === "surface-log") {
+              surfaceLogs.push(message);
+              return;
+            }
+            if (message?.type === "ready") {
+              if (message.protocolVersion !== initialize.protocolVersion) {
+                throw new Error("Development panel protocol mismatch");
+              }
+              port.postMessage(initialize);
+              return;
+            }
+            if (message?.type !== "activated" || settled) return;
+            setTimeout(() => {
+              try {
+                const marker = document.querySelector(
+                  '[data-development-panel="version-two"]'
+                );
+                if (!marker) {
+                  throw new Error("Development panel did not render new source");
+                }
+                settled = true;
+                clearTimeout(timeout);
+                try { port.close(); } catch {}
+                resolve({
+                  text: marker.textContent,
+                  surfaceLogs,
+                  networkGlobalsBlocked:
+                    typeof fetch === "undefined" &&
+                    typeof XMLHttpRequest === "undefined",
+                });
+              } catch (error) {
+                fail(error);
+              }
+            }, 0);
+          } catch (error) {
+            fail(error);
+          }
+        };
+        port.start();
+        window.postMessage(
+          {
+            type: ${JSON.stringify(EXTENSION_SURFACE_BOOTSTRAP_CHANNEL)},
+            source,
+            generation,
+          },
+          "*",
+          [channel.port2]
+        );
+      })`,
+      true
+    )) as {
+      text: string
       surfaceLogs: Array<{
         generation: string
         level: "debug" | "info" | "log" | "warn" | "error"
@@ -893,6 +1058,152 @@ async function run(): Promise<void> {
       contentDigest: reloadedSnapshot.contentDigest,
     })
 
+    const localPanelTemplate = await service.createTemplate(SPACE_ID, {
+      name: "development-panel",
+      template: "panel",
+    })
+    assert.equal(localPanelTemplate.canonicalId, "local.development-panel")
+    assert.deepEqual(localPanelTemplate.files.sort(), [
+      "README.md",
+      "extension.json",
+      "src/extension.ts",
+      "src/panel.css",
+      "src/panel.ts",
+    ])
+    const localPanelPackage = await waitForValue(
+      async () =>
+        (await service.discover(SPACE_ID)).packages.find(
+          (candidate) =>
+            candidate.canonicalId === localPanelTemplate.canonicalId
+        ),
+      "Created local panel extension was not discovered"
+    )
+    assert.ok(localPanelPackage.contentDigest)
+    assert.ok(localPanelPackage.permissionHash)
+    const localPanelSnapshot = {
+      packageId: localPanelTemplate.canonicalId,
+      contentDigest: localPanelPackage.contentDigest,
+      permissionHash: localPanelPackage.permissionHash,
+    }
+    const localPanelTrusted = await service.trust(SPACE_ID, localPanelSnapshot)
+    for (const grant of localPanelTrusted.requestedGrants) {
+      await service.setGrant(SPACE_ID, {
+        ...localPanelSnapshot,
+        grant,
+        granted: true,
+      })
+    }
+    await service.setEnabled(SPACE_ID, localPanelSnapshot, true)
+
+    const localPanelCommandId = `${localPanelTemplate.canonicalId}.open-summary`
+    const localPanelEventOffset = events.length
+    await service.executeCommand(SPACE_ID, {
+      ...localPanelSnapshot,
+      commandId: localPanelCommandId,
+      resource: { path: "tasks.md" },
+    })
+    const localPanelEvent = events
+      .slice(localPanelEventOffset)
+      .find((event) => event.channel === "file-extensions:open-panel")
+      ?.payload as { sessionId?: string; revision?: number } | undefined
+    assert.ok(
+      localPanelEvent?.sessionId,
+      "Created local panel command should open its UI"
+    )
+    const localPanelSession = await service.getPanelSession(SPACE_ID, {
+      sessionId: localPanelEvent.sessionId,
+    })
+    assert.deepEqual(asPlainJsonObject(localPanelSession.state), {
+      path: "tasks.md",
+      total: 3,
+      completed: 1,
+      pending: 2,
+    })
+
+    const localPanelDevelopment = await service.startDevelopmentSession(
+      SPACE_ID,
+      localPanelSnapshot
+    )
+    const localPanelSourcePath = path.join(
+      spacePath,
+      ".eidos",
+      "extensions",
+      localPanelTemplate.canonicalId,
+      "src",
+      "panel.ts"
+    )
+    await writeFile(
+      localPanelSourcePath,
+      [
+        'import type { ExtensionPanelContext } from "@eidos.space/extension-sdk"',
+        'import "./panel.css"',
+        "",
+        "export function activate(context: ExtensionPanelContext) {",
+        "  const state = (context.state ?? {}) as { pending?: number; completed?: number }",
+        '  const shell = document.createElement("main")',
+        '  shell.dataset.developmentPanel = "version-two"',
+        "  shell.innerHTML = `<h1>development-version-two</h1><p>${String(state.pending ?? 0)} pending</p>`",
+        "  context.root.replaceChildren(shell)",
+        "}",
+        "",
+      ].join("\n")
+    )
+    const reloadedLocalPanelPackage = await waitForValue(async () => {
+      const candidate = (await service.discover(SPACE_ID)).packages.find(
+        (entry) => entry.canonicalId === localPanelTemplate.canonicalId
+      )
+      const developmentSession = candidate?.developmentSession
+      const refreshedPanel = events.find(
+        (event) =>
+          event.channel === "file-extensions:open-panel" &&
+          (event.payload as { sessionId?: string }).sessionId ===
+            localPanelSession.sessionId &&
+          ((event.payload as { revision?: number }).revision ?? 0) >
+            localPanelSession.revision
+      )
+      return developmentSession?.status === "ready" &&
+        developmentSession.sessionId === localPanelDevelopment.sessionId &&
+        developmentSession.generation > localPanelDevelopment.generation &&
+        refreshedPanel
+        ? candidate
+        : undefined
+    }, "Local panel source did not refresh its open UI session")
+    assert.ok(reloadedLocalPanelPackage.contentDigest)
+    assert.ok(reloadedLocalPanelPackage.permissionHash)
+    const reloadedLocalPanelSession = await service.getPanelSession(SPACE_ID, {
+      sessionId: localPanelSession.sessionId,
+    })
+    assert.ok(
+      reloadedLocalPanelSession.revision > localPanelSession.revision,
+      "Panel hot reload should advance the open surface revision"
+    )
+    assert.deepEqual(
+      asPlainJsonObject(reloadedLocalPanelSession.state),
+      { path: "tasks.md", total: 3, completed: 1, pending: 2 },
+      "Panel hot reload should preserve its command-produced state"
+    )
+    assert.match(reloadedLocalPanelSession.source, /development-version-two/)
+    const renderedDevelopmentPanel = await renderDevelopmentPanel({
+      source: reloadedLocalPanelSession.source,
+      generation: reloadedLocalPanelSession.generation,
+      packageId: reloadedLocalPanelSession.packageId,
+      panelId: reloadedLocalPanelSession.panelId,
+      sessionId: reloadedLocalPanelSession.sessionId,
+      state: reloadedLocalPanelSession.state,
+    })
+    assert.match(renderedDevelopmentPanel.text, /development-version-two/)
+    assert.match(renderedDevelopmentPanel.text, /2 pending/)
+    assert.equal(renderedDevelopmentPanel.networkGlobalsBlocked, true)
+    await service.stopDevelopmentSession(SPACE_ID, {
+      packageId: localPanelTemplate.canonicalId,
+      sessionId: localPanelDevelopment.sessionId,
+    })
+    await service.uninstall(SPACE_ID, {
+      directoryName: localPanelTemplate.canonicalId,
+      canonicalId: localPanelTemplate.canonicalId,
+      contentDigest: reloadedLocalPanelPackage.contentDigest,
+    })
+
     await service.uninstall(SPACE_ID, {
       directoryName: baseViewTemplate.canonicalId,
       canonicalId: baseViewTemplate.canonicalId,
@@ -935,8 +1246,12 @@ async function run(): Promise<void> {
           "base-view-render",
           "local-create",
           "local-command",
+          "local-panel-create",
+          "local-panel-open",
           "development-failure",
           "development-reload",
+          "panel-development-reload",
+          "panel-development-render",
           "development-trust-reset",
           "uninstall",
           "staging-cleanup",

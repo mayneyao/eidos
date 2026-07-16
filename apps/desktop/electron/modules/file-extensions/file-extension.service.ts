@@ -1627,7 +1627,10 @@ export class FileExtensionService extends IpcServiceBase {
     if (packageId) {
       const firstChange = !state.pendingPackageIds.has(packageId)
       state.pendingPackageIds.add(packageId)
-      if (firstChange) {
+      const development = this.developmentManager.get(spaceId, packageId)
+      const developmentNeedsChecking =
+        development !== undefined && development.status !== "checking"
+      if (firstChange || developmentNeedsChecking) {
         const session = this.developmentManager.markChecking(spaceId, packageId)
         if (session) this.emitDevelopmentChange(spaceId, session)
         this.invalidatePackageRuntimeSafely(
