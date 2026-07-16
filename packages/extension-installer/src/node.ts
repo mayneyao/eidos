@@ -355,6 +355,35 @@ export async function uninstallExtensionPackage(
   expectedContentDigest: string | undefined,
   hostVersion: string
 ): Promise<void> {
+  let targetStats: Awaited<ReturnType<typeof lstat>>
+  try {
+    targetStats = await lstat(packageRoot)
+  } catch (error) {
+    if (isMissing(error)) {
+      throw new Error("Extension package is no longer installed")
+    }
+    throw error
+  }
+  if (targetStats.isSymbolicLink() || !targetStats.isDirectory()) {
+    if (expectedContentDigest !== undefined) {
+      throw new Error(
+        "Extension changed after review; inspect it before uninstalling"
+      )
+    }
+    const canonicalStaging = await assertRealDirectory(
+      stagingParent,
+      "Extension staging root"
+    )
+    const quarantine = path.join(
+      canonicalStaging,
+      `invalid-entry.uninstall-${randomUUID()}`
+    )
+    await rename(packageRoot, quarantine)
+    await rm(quarantine, { recursive: true, force: true }).catch(
+      () => undefined
+    )
+    return
+  }
   const current = await readExtensionInstallTarget(packageRoot, hostVersion)
   if (!current || current.inspection.contentDigest !== expectedContentDigest) {
     throw new Error(

@@ -14,6 +14,7 @@ import {
   commitPreparedExtensionInstall,
   prepareGitHubExtensionInstall,
   readExtensionInstallTarget,
+  uninstallExtensionPackage,
 } from "./node"
 import {
   normalizeGitHubExtensionRequest,
@@ -325,6 +326,65 @@ describe("GitHub tarball validation", () => {
 })
 
 describe("atomic extension installation", () => {
+  it("removes a misplaced file from the extensions root", async () => {
+    const root = await temporaryRoot()
+    const extensionsRoot = path.join(root, "space", ".eidos", "extensions")
+    const stagingParent = path.join(
+      root,
+      "space",
+      ".eidos",
+      "cache",
+      "extensions",
+      "staging"
+    )
+    await mkdir(extensionsRoot, { recursive: true })
+    await mkdir(stagingParent, { recursive: true })
+    const misplacedManifest = path.join(extensionsRoot, "extension.json")
+    await writeFile(misplacedManifest, manifest())
+
+    await uninstallExtensionPackage(
+      misplacedManifest,
+      stagingParent,
+      undefined,
+      "0.33.0"
+    )
+
+    await expect(readFile(misplacedManifest)).rejects.toMatchObject({
+      code: "ENOENT",
+    })
+  })
+
+  it("removes an invalid symlink without following its target", async () => {
+    const root = await temporaryRoot()
+    const extensionsRoot = path.join(root, "space", ".eidos", "extensions")
+    const stagingParent = path.join(
+      root,
+      "space",
+      ".eidos",
+      "cache",
+      "extensions",
+      "staging"
+    )
+    await mkdir(extensionsRoot, { recursive: true })
+    await mkdir(stagingParent, { recursive: true })
+    const externalSource = path.join(root, "external-extension.json")
+    const invalidLink = path.join(extensionsRoot, "linked-extension")
+    await writeFile(externalSource, manifest())
+    await symlink(externalSource, invalidLink)
+
+    await uninstallExtensionPackage(
+      invalidLink,
+      stagingParent,
+      undefined,
+      "0.33.0"
+    )
+
+    await expect(readFile(invalidLink)).rejects.toMatchObject({
+      code: "ENOENT",
+    })
+    await expect(readFile(externalSource, "utf8")).resolves.toBe(manifest())
+  })
+
   it("previews, locks, and atomically installs an immutable package", async () => {
     const root = await temporaryRoot()
     const spaceRoot = path.join(root, "space")
