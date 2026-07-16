@@ -10,6 +10,10 @@ import { FileExtensionSettings } from "./file-extension-settings"
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = vi.fn()
+}
+
 const discoverMock = vi.hoisted(() => vi.fn())
 const createTemplateMock = vi.hoisted(() => vi.fn())
 const trustMock = vi.hoisted(() => vi.fn())
@@ -1290,6 +1294,10 @@ describe("FileExtensionSettings", () => {
   })
 
   it("reviews an immutable GitHub snapshot before installing it", async () => {
+    discoverMock
+      .mockReset()
+      .mockResolvedValueOnce({ ...discoveryFixture(), packages: [] })
+      .mockResolvedValue(discoveryFixture())
     await act(async () => {
       root.render(<FileExtensionSettings />)
       await Promise.resolve()
@@ -1356,18 +1364,72 @@ describe("FileExtensionSettings", () => {
     expect(container.textContent).toContain(
       "Installed example.task-counter. Review permissions"
     )
+    expect(container.textContent).toContain(
+      "Step 1 of 3 · Review the source, then trust this exact snapshot below."
+    )
+    expect(container.textContent).toContain("Source trust")
   })
 
-  it("keeps the recorded monorepo path when checking an update", async () => {
+  it("keeps the recorded monorepo path and reveals the reviewed update", async () => {
+    const updatedDigest = `sha256:${"e".repeat(64)}`
+    const updatedDiscovery = discoveryFixture("untrusted")
+    const updatedPackage = updatedDiscovery.packages[0]!
+    updatedPackage.contentDigest = updatedDigest
+    updatedPackage.lock = {
+      ...updatedPackage.lock!,
+      contentDigest: updatedDigest,
+    }
+    updatedPackage.localState = {
+      ...updatedPackage.localState!,
+      snapshot: {
+        ...updatedPackage.localState!.snapshot,
+        contentDigest: updatedDigest,
+      },
+    }
+    discoverMock
+      .mockReset()
+      .mockResolvedValueOnce(
+        discoveryFixture("enabled", [{ kind: "files.read", value: "**/*.md" }])
+      )
+      .mockResolvedValue(updatedDiscovery)
+    prepareGitHubInstallMock.mockResolvedValue({
+      previewId: "preview-update",
+      expiresAt: Date.now() + 60_000,
+      operation: "update",
+      canonicalId: "example.task-counter",
+      displayName: "Task Counter",
+      version: "1.1.0",
+      source: {
+        kind: "github",
+        repository: "https://github.com/example/extensions",
+        requested: "main",
+        commit: "e".repeat(40),
+        subdirectory: "packages/task-counter",
+      },
+      contentDigest: updatedDigest,
+      permissionHash,
+      fileCount: 3,
+      fileChanges: [
+        { path: "src/extension.ts", kind: "modified", afterSize: 96 },
+      ],
+      permissionChanges: [],
+    })
+    applyGitHubInstallMock.mockResolvedValue({
+      canonicalId: "example.task-counter",
+      operation: "update",
+      root: ".eidos/extensions/example.task-counter",
+      contentDigest: updatedDigest,
+      permissionHash,
+    })
     await act(async () => {
       root.render(<FileExtensionSettings />)
       await Promise.resolve()
     })
 
-    const review = [...container.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === "Review"
+    const manage = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Manage"
     )!
-    act(() => review.click())
+    act(() => manage.click())
     const checkUpdate = [...container.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "Check update"
     )!
@@ -1385,6 +1447,45 @@ describe("FileExtensionSettings", () => {
         "#github-extension-subdirectory"
       )?.value
     ).toBe("packages/task-counter")
+
+    const prepare = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Prepare review"
+    )!
+    await act(async () => {
+      prepare.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(prepareGitHubInstallMock).toHaveBeenCalledWith("file-space", {
+      repository: "https://github.com/example/extensions",
+      requested: "main",
+      subdirectory: "packages/task-counter",
+    })
+
+    const applyUpdate = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Apply reviewed update"
+    )!
+    await act(async () => {
+      applyUpdate.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(applyGitHubInstallMock).toHaveBeenCalledWith("file-space", {
+      previewId: "preview-update",
+      contentDigest: updatedDigest,
+      permissionHash,
+    })
+    expect(container.textContent).toContain(
+      "Updated example.task-counter. The new snapshot must be reviewed"
+    )
+    expect(container.textContent).toContain(
+      "Step 1 of 3 · Review the source, then trust this exact snapshot below."
+    )
+    expect(container.textContent).toContain(
+      "0 enabled · 0 disabled · 1 untrusted"
+    )
+    expect(trustMock).not.toHaveBeenCalled()
+    expect(setEnabledMock).not.toHaveBeenCalled()
   })
 
   it("reviews trust, grants, and enablement inline without executing code", async () => {

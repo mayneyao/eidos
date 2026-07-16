@@ -436,6 +436,9 @@ export function FileExtensionSettings() {
   const [installing, setInstalling] = useState(false)
   const [installError, setInstallError] = useState<string | null>(null)
   const [installedMessage, setInstalledMessage] = useState<string | null>(null)
+  const [installedPackageId, setInstalledPackageId] = useState<string | null>(
+    null
+  )
   const [removeConfirmation, setRemoveConfirmation] = useState<string | null>(
     null
   )
@@ -459,6 +462,7 @@ export function FileExtensionSettings() {
   const lastDevelopmentEventGeneration = useRef(new Map<string, number>())
   const installPreviewRef = useRef<FileExtensionInstallPreview | null>(null)
   const revealedCreatedPackage = useRef<string | null>(null)
+  const revealedInstalledPackage = useRef<string | null>(null)
 
   useEffect(() => {
     installPreviewRef.current = installPreview
@@ -632,6 +636,7 @@ export function FileExtensionSettings() {
     setInstalling(true)
     setInstallError(null)
     setInstalledMessage(null)
+    setInstalledPackageId(null)
     await cancelInstallPreview()
     try {
       const preview = await window.eidos.fileExtensions.prepareGitHubInstall(
@@ -694,6 +699,8 @@ export function FileExtensionSettings() {
               { id: result.canonicalId }
             )
       )
+      revealedInstalledPackage.current = null
+      setInstalledPackageId(result.canonicalId)
       setShowInstaller(false)
       await load()
     } catch (install) {
@@ -721,6 +728,7 @@ export function FileExtensionSettings() {
       setGithubSubdirectory(extension.lock.source.subdirectory ?? "")
       setInstallError(null)
       setInstalledMessage(null)
+      setInstalledPackageId(null)
       setShowInstaller(true)
       requestAnimationFrame(() => {
         document
@@ -1051,6 +1059,21 @@ export function FileExtensionSettings() {
   }, [createdExtension?.canonicalId, discovery, revealPackage])
 
   useEffect(() => {
+    const packageId = installedPackageId
+    if (
+      !packageId ||
+      revealedInstalledPackage.current === packageId ||
+      !discovery?.packages.some(
+        (extension) => extension.canonicalId === packageId
+      )
+    ) {
+      return
+    }
+    revealedInstalledPackage.current = packageId
+    revealPackage(packageId)
+  }, [discovery, installedPackageId, revealPackage])
+
+  useEffect(() => {
     if (!spaceId || !isDesktopMode || !window.eidos?.fileExtensions) return
     lastEventGeneration.current = 0
     const listenerId = window.eidos.on(
@@ -1360,6 +1383,7 @@ export function FileExtensionSettings() {
                   setInstallError(null)
                 }
                 setInstalledMessage(null)
+                setInstalledPackageId(null)
                 setShowInstaller((visible) => !visible)
               }}
             >
@@ -2057,9 +2081,26 @@ export function FileExtensionSettings() {
           </div>
         )}
         {installedMessage && (
-          <p className="mt-3 text-sm text-emerald-700 dark:text-emerald-400">
-            {installedMessage}
-          </p>
+          <div
+            role="status"
+            className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-emerald-700 dark:text-emerald-400"
+          >
+            <p>{installedMessage}</p>
+            {installedPackageId && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => revealPackage(installedPackageId)}
+              >
+                {t(
+                  "space.settings.fileExtensions.reviewCreatedExtension",
+                  "Review extension"
+                )}
+                <ChevronRight />
+              </Button>
+            )}
+          </div>
         )}
       </section>
 
@@ -2143,6 +2184,7 @@ export function FileExtensionSettings() {
                 variant="outline"
                 onClick={() => {
                   setInstalledMessage(null)
+                  setInstalledPackageId(null)
                   setInstallError(null)
                   setShowInstaller(true)
                 }}
