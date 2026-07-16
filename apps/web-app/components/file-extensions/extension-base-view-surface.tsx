@@ -97,12 +97,14 @@ export function ExtensionBaseViewSurface({
   table,
   view,
   loadPage,
+  onFallback,
 }: {
   extension: FileExtensionBaseView
   filePath: string
   table: BaseTableSnapshot
   view: BaseViewInfo
   loadPage: (offset: number, limit: number) => Promise<BaseRowPage>
+  onFallback?: () => void
 }) {
   const { currentSpace } = useCurrentSpace()
   const { resolvedTheme } = useTheme()
@@ -401,14 +403,20 @@ export function ExtensionBaseViewSurface({
           <p className="mt-1 text-sm text-muted-foreground">
             {error ?? "The extension Base view could not be initialized."}
           </p>
-          <Button
-            className="mt-4"
-            size="sm"
-            onClick={() => setRevision((current) => current + 1)}
-          >
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            Retry
-          </Button>
+          <div className="mt-4 flex items-center justify-center gap-2">
+            {onFallback ? (
+              <Button variant="outline" size="sm" onClick={onFallback}>
+                Show Grid
+              </Button>
+            ) : null}
+            <Button
+              size="sm"
+              onClick={() => setRevision((current) => current + 1)}
+            >
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              Retry
+            </Button>
+          </div>
         </div>
       </div>
     )

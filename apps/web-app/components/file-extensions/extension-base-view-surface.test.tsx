@@ -1,5 +1,6 @@
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
+import type { BaseTableSnapshot, BaseViewInfo } from "@eidos.space/base"
 import { EXTENSION_SURFACE_PROTOCOL_VERSION } from "@eidos.space/extension-surface-protocol"
 
 import { ExtensionBaseViewSurface } from "./extension-base-view-surface"
@@ -25,6 +26,61 @@ const appearance = {
     fontFamily: "system-ui",
     monoFontFamily: "monospace",
   },
+}
+
+const extension = {
+  packageId: "example.tasks",
+  contentDigest: `sha256:${"1".repeat(64)}`,
+  permissionHash: `sha256:${"2".repeat(64)}`,
+  id: "example.tasks.cards",
+  displayName: "Task cards",
+  extensionDisplayName: "Tasks",
+}
+
+const table: BaseTableSnapshot = {
+  table: {
+    id: "tasks",
+    name: "Tasks",
+    rawTableName: "tb_tasks",
+    icon: null,
+    description: null,
+    position: null,
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-01",
+  },
+  fields: [
+    {
+      name: "Title",
+      type: "title",
+      tableName: "tb_tasks",
+      tableColumnName: "title",
+      property: null,
+      storageCodec: "scalar",
+      valueKind: "source",
+      isHidden: false,
+      isDerived: false,
+      sourceTableColumnName: null,
+      dependsOn: null,
+    },
+  ],
+  views: [],
+  rowCount: 1,
+}
+
+const view: BaseViewInfo = {
+  id: "view-1",
+  name: "Cards",
+  type: "extension:example.tasks.cards",
+  tableId: "tasks",
+  query: "",
+  properties: null,
+  filter: null,
+  sorts: [],
+  orderMap: null,
+  hiddenFields: [],
+  position: 0,
+  createdAt: "2026-01-01",
+  updatedAt: "2026-01-01",
 }
 
 const mocks = vi.hoisted(() => ({
@@ -129,59 +185,10 @@ describe("ExtensionBaseViewSurface", () => {
     await act(async () => {
       root.render(
         <ExtensionBaseViewSurface
-          extension={{
-            packageId: "example.tasks",
-            contentDigest: `sha256:${"1".repeat(64)}`,
-            permissionHash: `sha256:${"2".repeat(64)}`,
-            id: "example.tasks.cards",
-            displayName: "Task cards",
-            extensionDisplayName: "Tasks",
-          }}
+          extension={extension}
           filePath="tasks.base"
-          table={{
-            table: {
-              id: "tasks",
-              name: "Tasks",
-              rawTableName: "tb_tasks",
-              icon: null,
-              description: null,
-              position: null,
-              createdAt: "2026-01-01",
-              updatedAt: "2026-01-01",
-            },
-            fields: [
-              {
-                name: "Title",
-                type: "title",
-                tableName: "tb_tasks",
-                tableColumnName: "title",
-                property: null,
-                storageCodec: "scalar",
-                valueKind: "source",
-                isHidden: false,
-                isDerived: false,
-                sourceTableColumnName: null,
-                dependsOn: null,
-              },
-            ],
-            views: [],
-            rowCount: 1,
-          }}
-          view={{
-            id: "view-1",
-            name: "Cards",
-            type: "extension:example.tasks.cards",
-            tableId: "tasks",
-            query: "",
-            properties: null,
-            filter: null,
-            sorts: [],
-            orderMap: null,
-            hiddenFields: [],
-            position: 0,
-            createdAt: "2026-01-01",
-            updatedAt: "2026-01-01",
-          }}
+          table={table}
+          view={view}
           loadPage={loadPage}
         />
       )
@@ -234,5 +241,35 @@ describe("ExtensionBaseViewSurface", () => {
         rows: [{ _id: "row-1", title: "Ship", estimate: "12" }],
       },
     })
+  })
+
+  it("offers a Grid fallback when the extension view cannot start", async () => {
+    mocks.openBaseView.mockRejectedValueOnce(
+      new Error("Extension source failed to compile")
+    )
+    const onFallback = vi.fn()
+    await act(async () => {
+      root.render(
+        <ExtensionBaseViewSurface
+          extension={extension}
+          filePath="tasks.base"
+          table={table}
+          view={view}
+          loadPage={vi.fn()}
+          onFallback={onFallback}
+        />
+      )
+      await flushEffects()
+    })
+
+    expect(container.textContent).toContain(
+      "Extension source failed to compile"
+    )
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Show Grid")
+        ?.click()
+    })
+    expect(onFallback).toHaveBeenCalledTimes(1)
   })
 })

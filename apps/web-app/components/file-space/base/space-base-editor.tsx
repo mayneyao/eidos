@@ -47,6 +47,7 @@ import { Button } from "@/components/ui/button"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useQuickOpenStore } from "@/apps/web-app/store/quick-open-store"
 import { useFileSpaceSettings } from "@/apps/web-app/store/file-space-settings"
+import { openSettings } from "@/components/settings/settings-events"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -283,6 +284,8 @@ export function SpaceBaseEditor({
     "table" | "field" | null
   >(null)
   const [fieldInsertIndex, setFieldInsertIndex] = useState<number | null>(null)
+  const [extensionGridFallbackViewId, setExtensionGridFallbackViewId] =
+    useState<string | null>(null)
   const [creatingFirstTemplate, setCreatingFirstTemplate] =
     useState<BaseTemplateId | null>(null)
   const creatingFirstTemplateRef = useRef(false)
@@ -468,14 +471,30 @@ export function SpaceBaseEditor({
       ) ?? activeTable.views.find((view) => isSupportedBaseViewType(view.type))
     )
   }, [activeTable, activeViewIds])
+  const activeExtensionContributionId = activeView
+    ? baseExtensionContributionId(activeView.type)
+    : null
   const activeExtensionView = useMemo(() => {
-    const contributionId = activeView
-      ? baseExtensionContributionId(activeView.type)
-      : null
-    return contributionId
-      ? extensionBaseViews.find((candidate) => candidate.id === contributionId)
+    return activeExtensionContributionId
+      ? extensionBaseViews.find(
+          (candidate) => candidate.id === activeExtensionContributionId
+        )
       : undefined
-  }, [activeView, extensionBaseViews])
+  }, [activeExtensionContributionId, extensionBaseViews])
+  const useExtensionGridFallback = Boolean(
+    activeExtensionContributionId &&
+    (!activeExtensionView || extensionGridFallbackViewId === activeView?.id)
+  )
+  const renderedGridView = useMemo(
+    () =>
+      useExtensionGridFallback && activeView
+        ? { ...activeView, type: "grid" }
+        : activeView,
+    [activeView, useExtensionGridFallback]
+  )
+  useEffect(() => {
+    setExtensionGridFallbackViewId(null)
+  }, [activeExtensionView?.contentDigest, activeView?.id])
   const activeQuery = useMemo<BaseRowQuery>(
     () => ({
       ...(search ? { search } : {}),
@@ -2028,30 +2047,21 @@ export function SpaceBaseEditor({
         />
       ) : (
         <div className="relative min-h-0 flex-1">
-          {activeView && baseExtensionContributionId(activeView.type) ? (
-            activeExtensionView ? (
-              <ExtensionBaseViewSurface
-                key={`${activeTable.table.id}:${activeView.id}:${activeExtensionView.contentDigest}`}
-                extension={activeExtensionView}
-                filePath={filePath}
-                table={activeTable}
-                view={activeView}
-                loadPage={loadActiveTablePage}
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center p-6 text-center">
-                <div className="max-w-md">
-                  <AlertTriangle className="mx-auto mb-3 h-5 w-5 text-amber-500" />
-                  <p className="text-sm font-medium">
-                    Extension Base view unavailable
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Install, trust, enable, and grant this extension read access
-                    to {filePath} to restore the saved view.
-                  </p>
-                </div>
-              </div>
-            )
+          {activeView &&
+          activeExtensionContributionId &&
+          activeExtensionView &&
+          !useExtensionGridFallback ? (
+            <ExtensionBaseViewSurface
+              key={`${activeTable.table.id}:${activeView?.id}:${activeExtensionView.contentDigest}`}
+              extension={activeExtensionView}
+              filePath={filePath}
+              table={activeTable}
+              view={activeView}
+              loadPage={loadActiveTablePage}
+              onFallback={() =>
+                setExtensionGridFallbackViewId(activeView?.id ?? null)
+              }
+            />
           ) : activeView?.type === "gallery" ? (
             <BaseGalleryView
               key={`${activeTable.table.id}:${activeView.id}`}
@@ -2099,39 +2109,91 @@ export function SpaceBaseEditor({
               sidePanel={fieldPropertySidePanel}
             />
           ) : (
-            <BaseGrid
-              key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
-              table={activeTable}
-              view={activeView}
-              disabled={blockingMutations > 0}
-              reloadToken={gridReloadToken}
-              loadPage={loadActiveTablePage}
-              loadColumnStats={loadActiveColumnStats}
-              onAddRow={createRow}
-              onCellEdit={saveGridCell}
-              onInspectorCellEdit={saveInspectorCell}
-              onRowsEdit={saveRows}
-              onSelectedRowsChange={setSelectedRowRanges}
-              onRowCountChange={handleSearchResultCountChange}
-              searchResultIndex={activeSearchResultIndex}
-              onImportFiles={importBaseFiles}
-              onImportDroppedFiles={importDroppedBaseFiles}
-              onOpenRecordInTab={openRecordInTab}
-              onOpenFile={openBaseFileReference}
-              onRevealFile={revealBaseFileReference}
-              onSearchRelation={searchRelationRecords}
-              propertyField={fieldPropertyTarget}
-              onPropertyFieldOpen={openFieldProperty}
-              onPropertyFieldClose={closeFieldProperty}
-              onFieldUpdate={updateFieldInBase}
-              onAddField={openFieldCreator}
-              onEditFormula={setFormulaTarget}
-              onEditLookup={setLookupTarget}
-              onDeleteField={requestFieldDelete}
-              onRequestDeleteRows={requestRowRangeDelete}
-              onViewUpdate={updateActiveView}
-              onError={handleGridError}
-            />
+            <div className="flex h-full min-h-0 flex-col">
+              {activeExtensionContributionId ? (
+                <div
+                  className="flex shrink-0 items-center gap-3 border-b border-amber-500/20 bg-amber-500/5 px-3 py-2"
+                  data-extension-base-view-fallback
+                  role="status"
+                >
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium">
+                      Showing Grid instead of {activeView?.name}
+                    </p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {activeExtensionView
+                        ? "The extension view could not start. Your Base remains fully editable in the built-in Grid."
+                        : `Restore ${activeExtensionContributionId} in Extensions to use this saved layout.`}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {activeExtensionView ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setExtensionGridFallbackViewId(null)}
+                      >
+                        Retry view
+                      </Button>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() =>
+                        openSettings({
+                          section: "space-extensions",
+                          showSpaceSettings: true,
+                        })
+                      }
+                    >
+                      Manage extensions
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+              <div className="relative min-h-0 flex-1">
+                <BaseGrid
+                  key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
+                  table={activeTable}
+                  view={renderedGridView}
+                  disabled={blockingMutations > 0}
+                  reloadToken={gridReloadToken}
+                  loadPage={loadActiveTablePage}
+                  loadColumnStats={loadActiveColumnStats}
+                  onAddRow={createRow}
+                  onCellEdit={saveGridCell}
+                  onInspectorCellEdit={saveInspectorCell}
+                  onRowsEdit={saveRows}
+                  onSelectedRowsChange={setSelectedRowRanges}
+                  onRowCountChange={handleSearchResultCountChange}
+                  searchResultIndex={activeSearchResultIndex}
+                  onImportFiles={importBaseFiles}
+                  onImportDroppedFiles={importDroppedBaseFiles}
+                  onOpenRecordInTab={openRecordInTab}
+                  onOpenFile={openBaseFileReference}
+                  onRevealFile={revealBaseFileReference}
+                  onSearchRelation={searchRelationRecords}
+                  propertyField={fieldPropertyTarget}
+                  onPropertyFieldOpen={openFieldProperty}
+                  onPropertyFieldClose={closeFieldProperty}
+                  onFieldUpdate={updateFieldInBase}
+                  onAddField={openFieldCreator}
+                  onEditFormula={setFormulaTarget}
+                  onEditLookup={setLookupTarget}
+                  onDeleteField={requestFieldDelete}
+                  onRequestDeleteRows={requestRowRangeDelete}
+                  onViewUpdate={
+                    useExtensionGridFallback ? undefined : updateActiveView
+                  }
+                  onError={handleGridError}
+                />
+              </div>
+            </div>
           )}
           {activeTable.rowCount === 0 ||
           (hasActiveQuery && visibleRowCount === 0) ? (

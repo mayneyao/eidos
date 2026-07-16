@@ -12,6 +12,7 @@ import type {
 import { TabProvider } from "@/apps/web-app/components/tab-manager/tab-context"
 import { useFileSpaceSettings } from "@/apps/web-app/store/file-space-settings"
 import { useQuickOpenStore } from "@/apps/web-app/store/quick-open-store"
+import { SETTINGS_OPEN_EVENT } from "@/components/settings/settings-events"
 
 import { SpaceBaseEditor } from "./space-base-editor"
 
@@ -61,6 +62,7 @@ const extensionBaseViewState = vi.hoisted(() => ({
 const baseViewHostProps = vi.hoisted(() => ({
   grid: [] as Array<{
     table: object
+    view?: { id: string; type: string }
     onOpenRecordInTab?: (row: BaseRow) => void
     onRevealFile: unknown
     onPropertyFieldOpen: unknown
@@ -397,6 +399,7 @@ vi.mock("./base-grid", async () => {
   return {
     BaseGrid: memo(function BaseGrid({
       table,
+      view,
       onCellEdit,
       onInspectorCellEdit,
       onRowsEdit,
@@ -422,6 +425,7 @@ vi.mock("./base-grid", async () => {
       reloadToken,
     }: {
       table: (typeof snapshot)["tables"][number]
+      view?: { id: string; type: string }
       onCellEdit: (
         row: { _id: string; title: string; status: string },
         field: (typeof snapshot)["tables"][number]["fields"][number],
@@ -481,6 +485,7 @@ vi.mock("./base-grid", async () => {
     }) {
       baseViewHostProps.grid.push({
         table,
+        view,
         onOpenRecordInTab,
         onRevealFile,
         onPropertyFieldOpen,
@@ -1258,7 +1263,80 @@ describe("SpaceBaseEditor", () => {
       table: { table: { id: "tasks" } },
       view: { id: "view_extension" },
       loadPage: expect.any(Function),
+      onFallback: expect.any(Function),
     })
+
+    await act(async () => {
+      ;(
+        extensionBaseViewState.rendered.at(-1)?.onFallback as
+          | (() => void)
+          | undefined
+      )?.()
+    })
+    expect(container.textContent).toContain(
+      "Showing Grid instead of Task cards"
+    )
+    expect(baseViewHostProps.grid.at(-1)?.view).toMatchObject({
+      id: "view_extension",
+      type: "grid",
+    })
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Retry view")
+        ?.click()
+    })
+    expect(container.textContent).toContain("Extension Base view")
+  })
+
+  it("keeps Base data usable when a saved extension view is unavailable", async () => {
+    const extensionView = {
+      ...snapshot.tables[0].views[0],
+      id: "view_extension",
+      name: "Task cards",
+      type: "extension:example.tasks.cards",
+    }
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      tables: [
+        {
+          ...snapshot.tables[0],
+          views: [extensionView],
+        },
+      ],
+    })
+    const settingsOpened = vi.fn()
+    window.addEventListener(SETTINGS_OPEN_EVENT, settingsOpened)
+
+    try {
+      await renderEditor()
+
+      expect(
+        container.querySelector("[data-extension-base-view-fallback]")
+          ?.textContent
+      ).toContain("Showing Grid instead of Task cards")
+      expect(
+        container.querySelector('[data-testid="base-grid"]')
+      ).not.toBeNull()
+      expect(baseViewHostProps.grid.at(-1)?.view).toMatchObject({
+        id: "view_extension",
+        type: "grid",
+      })
+      expect(extensionBaseViewState.rendered).toHaveLength(0)
+
+      await act(async () => {
+        Array.from(container.querySelectorAll("button"))
+          .find((button) => button.textContent === "Manage extensions")
+          ?.click()
+      })
+      const event = settingsOpened.mock.calls[0]?.[0] as CustomEvent | undefined
+      expect(event?.detail).toEqual({
+        section: "space-extensions",
+        showSpaceSettings: true,
+      })
+    } finally {
+      window.removeEventListener(SETTINGS_OPEN_EVENT, settingsOpened)
+    }
   })
 
   it("opens a selected row in a stable record tab URL", async () => {
