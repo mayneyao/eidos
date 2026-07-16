@@ -1042,6 +1042,96 @@ describe("FileExtensionSettings", () => {
     expect(discoverMock).toHaveBeenCalledTimes(1)
   })
 
+  it("surfaces runtime issues and expands new errors without accepting malformed output", async () => {
+    discoverMock.mockResolvedValue(discoveryFixture("enabled"))
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const outputListener = onMock.mock.calls.find(
+      ([channel]) => channel === "file-extensions:runtime-output"
+    )?.[1] as ((_event: unknown, payload: unknown) => void) | undefined
+    act(() =>
+      outputListener?.(undefined, {
+        spaceId: "file-space",
+        packageId: "example.task-counter",
+        entry: {
+          sequence: 1,
+          timestamp: 1_700_000_000_000,
+          source: "panel",
+          level: "warn",
+          message: "Task data is incomplete",
+        },
+      })
+    )
+    expect(container.textContent).toContain("Runtime warning")
+    expect(container.textContent).toContain("Task data is incomplete")
+    expect(container.textContent).not.toContain("Runtime output")
+
+    act(() =>
+      outputListener?.(undefined, {
+        spaceId: "file-space",
+        packageId: "example.task-counter",
+        entry: {
+          sequence: 2,
+          timestamp: 1_700_000_001_000,
+          level: "error",
+          message: "Malformed event should be ignored",
+        },
+      })
+    )
+    expect(container.textContent).not.toContain(
+      "Malformed event should be ignored"
+    )
+    expect(container.textContent).not.toContain("Runtime output")
+
+    const errorMessage = `加载失败 🚨 ${"x".repeat(300)}`
+    const errorPayload = {
+      spaceId: "file-space",
+      packageId: "example.task-counter",
+      entry: {
+        sequence: 2,
+        timestamp: 1_700_000_002_000,
+        source: "worker",
+        level: "error",
+        message: errorMessage,
+      },
+    }
+    act(() => outputListener?.(undefined, errorPayload))
+
+    expect(container.textContent).toContain("Runtime error")
+    expect(container.textContent).toContain("Runtime output")
+    const issueSummary = [...container.querySelectorAll('[role="alert"]')].find(
+      (element) => element.textContent?.includes("Runtime error")
+    )!
+    expect(issueSummary.querySelector(".line-clamp-2")?.textContent).toBe(
+      errorMessage
+    )
+    expect(
+      [...container.querySelectorAll("pre")].filter(
+        (element) => element.textContent === errorMessage
+      )
+    ).toHaveLength(1)
+
+    act(() => outputListener?.(undefined, errorPayload))
+    expect(
+      [...container.querySelectorAll("pre")].filter(
+        (element) => element.textContent === errorMessage
+      )
+    ).toHaveLength(1)
+
+    const clear = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Clear"
+    )!
+    await act(async () => {
+      clear.click()
+      await Promise.resolve()
+    })
+    expect(container.textContent).not.toContain("Runtime error")
+    expect(container.textContent).not.toContain(errorMessage)
+  })
+
   it("requires explicit legacy linking and blocks controls on a mapping conflict", async () => {
     const candidate = discoveryFixture("enabled")
     candidate.packages[0]!.legacyPorting = {

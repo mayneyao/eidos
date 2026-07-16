@@ -224,6 +224,18 @@ function panelOpenKey(
     : null
 }
 
+function latestRuntimeIssue(
+  output: readonly FileExtensionRuntimeOutput[]
+): FileExtensionRuntimeOutput | null {
+  for (let index = output.length - 1; index >= 0; index -= 1) {
+    const entry = output[index]
+    if (entry && (entry.level === "error" || entry.level === "warn")) {
+      return entry
+    }
+  }
+  return null
+}
+
 function contributionCount(extension: FileExtensionPackage): number {
   const contributes = extension.manifest?.contributes
   if (!contributes) return 0
@@ -1086,10 +1098,14 @@ export function FileExtensionSettings() {
             typeof entry !== "object" ||
             !("sequence" in entry) ||
             !("timestamp" in entry) ||
+            !("source" in entry) ||
             !("level" in entry) ||
             !("message" in entry) ||
             typeof entry.sequence !== "number" ||
             typeof entry.timestamp !== "number" ||
+            !["worker", "panel", "file-editor", "base-view"].includes(
+              String(entry.source)
+            ) ||
             !["debug", "info", "log", "warn", "error"].includes(
               String(entry.level)
             ) ||
@@ -1098,6 +1114,12 @@ export function FileExtensionSettings() {
           return
         }
         const runtimeEntry = entry as FileExtensionRuntimeOutput
+        if (runtimeEntry.level === "error") {
+          setExpandedPackages((current) => {
+            if (current.has(packageId)) return current
+            return new Set([...current, packageId])
+          })
+        }
         setDiscovery((current) => {
           if (!current) return current
           return {
@@ -2123,6 +2145,7 @@ export function FileExtensionSettings() {
                     primarySource)
                   : primarySource
               const runtimeOutput = extension.runtimeOutput ?? []
+              const runtimeIssue = latestRuntimeIssue(runtimeOutput)
               const canManage = manageable || !!development
               const busy = mutatingPackage === packageId
               const trusted = extension.localState?.trusted === true
@@ -2298,6 +2321,38 @@ export function FileExtensionSettings() {
                                 )}
                               </span>
                             )}
+                          </p>
+                        )}
+                        {runtimeIssue && (
+                          <p
+                            role={
+                              runtimeIssue.level === "error"
+                                ? "alert"
+                                : "status"
+                            }
+                            className={cn(
+                              "flex min-w-0 items-start gap-1.5 text-xs leading-5",
+                              runtimeIssue.level === "error"
+                                ? "text-destructive"
+                                : "text-amber-700 dark:text-amber-400"
+                            )}
+                          >
+                            <SquareTerminal className="mt-0.5 h-3 w-3 shrink-0" />
+                            <span className="shrink-0 font-medium">
+                              {runtimeIssue.level === "error"
+                                ? t(
+                                    "space.settings.fileExtensions.runtimeError",
+                                    "Runtime error"
+                                  )
+                                : t(
+                                    "space.settings.fileExtensions.runtimeWarning",
+                                    "Runtime warning"
+                                  )}
+                            </span>
+                            <span aria-hidden="true">·</span>
+                            <span className="line-clamp-2 min-w-0 break-all">
+                              {runtimeIssue.message}
+                            </span>
                           </p>
                         )}
                         {diagnostics.length > 0 && (
