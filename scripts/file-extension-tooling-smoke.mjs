@@ -352,6 +352,39 @@ try {
     )
   }
 
+  const uiOnlyPanelRoot = path.join(consumerRoot, "example.external-panel")
+  const uiOnlyManifestPath = path.join(uiOnlyPanelRoot, "extension.json")
+  const uiOnlyManifest = JSON.parse(await readFile(uiOnlyManifestPath, "utf8"))
+  delete uiOnlyManifest.entrypoints.worker
+  delete uiOnlyManifest.contributes.commands
+  delete uiOnlyManifest.contributes.menus
+  await writeFile(
+    uiOnlyManifestPath,
+    `${JSON.stringify(uiOnlyManifest, null, 2)}\n`,
+    "utf8"
+  )
+  await rm(path.join(uiOnlyPanelRoot, "src", "extension.ts"))
+  const uiOnlyOutput = await pnpm(
+    [
+      "exec",
+      "eidos-extension",
+      "check",
+      uiOnlyPanelRoot,
+      "--host-version",
+      "0.33.0",
+      "--json",
+    ],
+    { cwd: consumerRoot, capture: true }
+  )
+  const uiOnlyResult = JSON.parse(uiOnlyOutput)
+  assert.equal(uiOnlyResult.ok, true)
+  assert.equal(uiOnlyResult.status, "ready")
+  assert.equal(uiOnlyResult.canonicalId, "example.external-panel")
+  assert.deepEqual(
+    uiOnlyResult.entrypoints.map(({ kind }) => kind),
+    ["ui"]
+  )
+
   await run(
     process.execPath,
     [

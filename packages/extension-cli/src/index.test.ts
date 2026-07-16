@@ -192,6 +192,36 @@ describe("extension developer workflow", () => {
     }
   )
 
+  it("checks a UI-only panel without requiring a worker entrypoint", async () => {
+    const outDir = await temporaryRoot()
+    const created = await createExtensionProject({
+      canonicalId: "example.ui-only-panel",
+      template: "panel",
+      outDir,
+      engineRange: ">=0.33.0",
+    })
+    const manifestPath = path.join(created.packageRoot, "extension.json")
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"))
+    delete manifest.entrypoints.worker
+    delete manifest.contributes.commands
+    delete manifest.contributes.menus
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
+    await rm(path.join(created.packageRoot, "src", "extension.ts"))
+
+    await expect(
+      checkExtensionPackage({
+        packageRoot: created.packageRoot,
+        hostVersion: "0.33.0",
+      })
+    ).resolves.toMatchObject({
+      ok: true,
+      status: "ready",
+      canonicalId: "example.ui-only-panel",
+      entrypoints: [{ kind: "ui", path: "src/panel.ts" }],
+      diagnostics: [],
+    })
+  })
+
   it("reports compiler failures and exits non-zero", async () => {
     const outDir = await temporaryRoot()
     const created = await createExtensionProject({

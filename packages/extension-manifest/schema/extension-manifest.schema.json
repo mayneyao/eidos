@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://docs.eidos.space/schemas/extension-manifest.schema.json",
-  "$comment": "Version 1 contract frozen for foundation work; third-party runtime execution is not available yet.",
+  "$comment": "Version 1 developer preview contract for sandboxed third-party extension execution.",
   "title": "Eidos Extension Manifest",
   "type": "object",
   "additionalProperties": false,
