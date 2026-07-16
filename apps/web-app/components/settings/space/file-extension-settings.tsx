@@ -445,6 +445,7 @@ export function FileExtensionSettings() {
   const [expandedPackages, setExpandedPackages] = useState<Set<string>>(
     () => new Set()
   )
+  const [packageFocusId, setPackageFocusId] = useState<string | null>(null)
   const [mutatingPackage, setMutatingPackage] = useState<string | null>(null)
   const [commandRun, setCommandRun] = useState<CommandRunState | null>(null)
   const [panelOpen, setPanelOpen] = useState<PanelOpenState | null>(null)
@@ -755,12 +756,20 @@ export function FileExtensionSettings() {
       next.add(packageId)
       return next
     })
-    requestAnimationFrame(() => {
-      document
-        .getElementById(packageElementId(packageId))
-        ?.scrollIntoView?.({ block: "center" })
-    })
+    setPackageFocusId(packageId)
   }, [])
+
+  useEffect(() => {
+    if (!packageFocusId || !expandedPackages.has(packageFocusId)) return
+    const packageId = packageElementId(packageFocusId)
+    const packageElement = document.getElementById(packageId)
+    const focusTarget =
+      document.getElementById(`${packageId}-next-action`) ??
+      document.getElementById(`${packageId}-manage`)
+    packageElement?.scrollIntoView?.({ block: "center" })
+    focusTarget?.focus({ preventScroll: true })
+    setPackageFocusId(null)
+  }, [expandedPackages, packageFocusId])
 
   const openSource = useCallback(
     (sourcePath: string, position?: { line: number; column: number }) => {
@@ -2642,9 +2651,12 @@ export function FileExtensionSettings() {
                       </Badge>
                       {canManage && (
                         <Button
+                          id={`${packageElementId(packageId)}-manage`}
                           type="button"
                           size="sm"
                           variant="ghost"
+                          aria-controls={`${packageElementId(packageId)}-details`}
+                          aria-expanded={expanded}
                           onClick={() => {
                             setExpandedPackages((current) => {
                               const next = new Set(current)
@@ -2684,6 +2696,9 @@ export function FileExtensionSettings() {
                       )}
                     </div>
                   </div>
+                  {canManage && !expanded && (
+                    <div id={`${packageElementId(packageId)}-details`} hidden />
+                  )}
                   {!canManage && removeConfirmation === packageId && (
                     <div className="ml-7 mt-3 flex flex-wrap items-center justify-between gap-4 rounded-md bg-destructive/5 px-3 py-2">
                       <p className="max-w-xl text-xs leading-5 text-destructive">
@@ -2731,7 +2746,10 @@ export function FileExtensionSettings() {
                     </div>
                   )}
                   {expanded && development && (
-                    <div className="ml-7 mt-4 border-l pl-4">
+                    <div
+                      id={`${packageElementId(packageId)}-details`}
+                      className="ml-7 mt-4 border-l pl-4"
+                    >
                       <div className="rounded-md bg-sky-500/5 px-4">
                         <div className="flex min-h-[76px] items-center justify-between gap-6 py-3">
                           <div
@@ -2873,7 +2891,10 @@ export function FileExtensionSettings() {
                     </div>
                   )}
                   {expanded && manageable && snapshot && (
-                    <div className="ml-7 mt-4 border-l pl-4">
+                    <div
+                      id={`${packageElementId(packageId)}-details`}
+                      className="ml-7 mt-4 border-l pl-4"
+                    >
                       <div className="divide-y divide-border/70 rounded-md bg-muted/30 px-4">
                         {(extension.legacyPorting ||
                           legacyMappings.length > 0) && (
@@ -3273,6 +3294,7 @@ export function FileExtensionSettings() {
                             </Button>
                           ) : (
                             <Button
+                              id={`${packageElementId(packageId)}-next-action`}
                               type="button"
                               size="sm"
                               disabled={!!mutatingPackage || !!development}

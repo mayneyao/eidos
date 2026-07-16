@@ -779,6 +779,7 @@ describe("FileExtensionSettings", () => {
       "Right-click a matching file → Open with → Hello Tools"
     )
     expect(container.textContent).toContain("**/*.tasks.md · text/markdown")
+    expect(document.activeElement?.textContent?.trim()).toBe("Trust source")
     const openCreatedSource = [...container.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "Open source"
     )!
@@ -1368,6 +1369,7 @@ describe("FileExtensionSettings", () => {
       "Step 1 of 3 · Review the source, then trust this exact snapshot below."
     )
     expect(container.textContent).toContain("Source trust")
+    expect(document.activeElement?.textContent?.trim()).toBe("Trust source")
   })
 
   it("keeps the recorded monorepo path and reveals the reviewed update", async () => {
@@ -1484,6 +1486,7 @@ describe("FileExtensionSettings", () => {
     expect(container.textContent).toContain(
       "0 enabled · 0 disabled · 1 untrusted"
     )
+    expect(document.activeElement?.textContent?.trim()).toBe("Trust source")
     expect(trustMock).not.toHaveBeenCalled()
     expect(setEnabledMock).not.toHaveBeenCalled()
   })
@@ -1501,7 +1504,12 @@ describe("FileExtensionSettings", () => {
     const review = [...container.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "Review"
     )!
+    const detailsId = review.getAttribute("aria-controls")
+    expect(review.getAttribute("aria-expanded")).toBe("false")
+    expect(detailsId).toBeTruthy()
+    expect(document.getElementById(detailsId!)).not.toBeNull()
     act(() => review.click())
+    expect(review.getAttribute("aria-expanded")).toBe("true")
     expect(container.textContent).toContain(
       "Step 1 of 3 · Review the source, then trust this exact snapshot below."
     )
