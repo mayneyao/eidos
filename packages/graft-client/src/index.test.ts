@@ -45,6 +45,15 @@ describe("GraftClient", () => {
 
     await client.runJson("/space", ["add", "--json", "--", "notes/a b.md"])
     await client.runJson("/space", [
+      "add",
+      "--json",
+      "--with-status",
+      "--expected-head",
+      "head-2",
+      "--",
+      "notes/a b.md",
+    ])
+    await client.runJson("/space", [
       "restore",
       "--json",
       "--staged",
@@ -63,6 +72,13 @@ describe("GraftClient", () => {
     )
     expect(execute).toHaveBeenNthCalledWith(
       2,
+      "/space",
+      "json_add",
+      '--with-status --expected-head "head-2" -- "notes/a b.md"',
+      {}
+    )
+    expect(execute).toHaveBeenNthCalledWith(
+      3,
       "/space",
       "json_restore",
       '--staged --expected-head "head-2" -- "notes/a b.md"',

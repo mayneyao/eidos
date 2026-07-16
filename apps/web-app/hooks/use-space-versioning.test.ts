@@ -836,6 +836,7 @@ describe("useSpaceVersioning history coordination", () => {
       path: "notes/today.md",
       expectedHead: "commit-3",
     }
+    bridge.getStatus.mockClear()
     await act(async () => {
       await hookResults.get("changes")?.stagePath(request)
       await flushEffects()
@@ -844,6 +845,14 @@ describe("useSpaceVersioning history coordination", () => {
     expect(targetFlush).toHaveBeenCalledOnce()
     expect(siblingFlush).not.toHaveBeenCalled()
     expect(bridge.stagePath).toHaveBeenCalledWith("space-a", request)
+    expect(bridge.getStatus).not.toHaveBeenCalled()
+    expect(hookResults.get("changes")?.status?.changes).toEqual([
+      {
+        path: "notes/today.md",
+        status: "modified",
+        staged: true,
+      },
+    ])
     expect(targetFlush.mock.invocationCallOrder[0]).toBeLessThan(
       bridge.stagePath.mock.invocationCallOrder[0]
     )
@@ -1005,7 +1014,7 @@ describe("useSpaceVersioning history coordination", () => {
     unregisterSecond()
   })
 
-  it("keeps the authoritative restore status when the follow-up refresh fails", async () => {
+  it("uses the authoritative restore status without a follow-up status query", async () => {
     const bridge = createBridge()
     installBridge(bridge)
 
@@ -1030,7 +1039,7 @@ describe("useSpaceVersioning history coordination", () => {
         paths: [{ path: "notes/today.md", state: "modified" }],
       },
     })
-    bridge.getStatus.mockRejectedValueOnce(new Error("status unavailable"))
+    bridge.getStatus.mockClear()
 
     await act(async () => {
       await hookResults.get("history")?.restorePath({
@@ -1044,9 +1053,8 @@ describe("useSpaceVersioning history coordination", () => {
     expect(hookResults.get("history")?.status?.changes).toEqual([
       { path: "notes/today.md", status: "modified" },
     ])
-    expect(hookResults.get("history")?.error?.message).toBe(
-      "status unavailable"
-    )
+    expect(bridge.getStatus).not.toHaveBeenCalled()
+    expect(hookResults.get("history")?.error).toBeNull()
   })
 
   it("reconciles status after a restore error that may follow file changes", async () => {

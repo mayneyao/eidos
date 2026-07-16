@@ -117,6 +117,22 @@ function discardReconciliationError(error: unknown): Error {
   )
 }
 
+function stagePathMutationError(error: unknown): Error {
+  const message = errorMessage(error)
+  if (message.includes("[graft:add:expected-head-mismatch]")) {
+    return new Error(
+      "The Space history changed. Refresh Changes before including this file."
+    )
+  }
+  if (message.includes("[graft:add:path-no-changes]")) {
+    return new Error("This path no longer has changes to include")
+  }
+  if (message.includes("[graft:add:path-conflicted]")) {
+    return new Error("Resolve conflicts in this path before including it")
+  }
+  return error instanceof Error ? error : new Error(message)
+}
+
 function repositoryLockOwner(value: unknown): RepositoryLockOwner | null {
   if (
     !isObject(value) ||
@@ -1089,38 +1105,33 @@ export class SpaceVersioningCoordinator {
       const spacePath = await this.resolveFileSpace(spaceId)
       await this.requireRepository(spacePath)
       return this.withRepositoryOperationLock(spacePath, async () => {
-        const before = await this.readStatus(spaceId, spacePath)
-        if (before.currentHead !== options.expectedHead) {
+        let raw: unknown
+        try {
+          raw = await this.runner.runJson(
+            spacePath,
+            [
+              "add",
+              "--json",
+              "--with-status",
+              "--expected-head",
+              options.expectedHead ?? "unborn",
+              "--",
+              options.path,
+            ],
+            { timeoutMs: MUTATION_TIMEOUT_MS }
+          )
+        } catch (error) {
+          throw stagePathMutationError(error)
+        }
+        if (!isObject(raw) || !("status" in raw)) {
           throw new Error(
-            "The Space history changed. Refresh Changes before including this file."
+            "Graft add did not return the final repository status"
           )
         }
-        const changes = before.paths.filter(
-          (entry) =>
-            entry.path === options.path ||
-            entry.path.startsWith(`${options.path}/`)
+        const status = visibleVersionStatus(
+          parseGraftStatus(raw.status, spaceId)
         )
-        if (changes.length === 0) {
-          throw new Error("This path no longer has changes to include")
-        }
-        if (changes.some((change) => change.conflicted)) {
-          throw new Error("Resolve conflicts in this path before including it")
-        }
-        if (
-          changes.every(
-            (change) => change.worktreeState === "none" && change.staged
-          )
-        ) {
-          return { path: options.path, status: before }
-        }
-
-        await this.runner.runJson(
-          spacePath,
-          ["add", "--json", "--", options.path],
-          { timeoutMs: MUTATION_TIMEOUT_MS }
-        )
-        const status = await this.readStatus(spaceId, spacePath)
-        if (status.currentHead !== before.currentHead) {
+        if (status.currentHead !== options.expectedHead) {
           throw new Error(
             "The current version changed while the file was being included"
           )

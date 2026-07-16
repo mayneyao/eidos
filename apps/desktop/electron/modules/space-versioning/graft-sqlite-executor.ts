@@ -15,7 +15,7 @@ import type {
 
 const DEFAULT_TIMEOUT_MS = 30_000
 const DEFAULT_MAX_BUFFER_BYTES = 16 * 1024 * 1024
-const IDLE_CLOSE_MS = 5_000
+const IDLE_CLOSE_MS = 60_000
 
 interface PendingRequest {
   resolve(value: unknown): void

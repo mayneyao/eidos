@@ -1847,41 +1847,46 @@ export function useSpaceVersioning(
     }
   }, [spaceId])
 
+  const refreshRelatedState = useCallback(
+    async (nextStatus: SpaceVersionStatus | null) => {
+      if (nextStatus?.hasConflicts) {
+        await refreshConflicts()
+      } else if (mountedRef.current) {
+        conflictsRequestRef.current += 1
+        setConflicts(null)
+        setConflictsLoading(false)
+      }
+      const shouldLoadHistory = loadHistory || historyLoadedRef.current
+      if (shouldLoadHistory && nextStatus?.enabled) {
+        await refreshHistory()
+      } else if (shouldLoadHistory && mountedRef.current) {
+        if (nextStatus && !nextStatus.enabled) {
+          applyHistorySnapshot({
+            commits: [],
+            nextCursor: null,
+            hasMore: false,
+          })
+        }
+        setHistoryLoading(false)
+        setHistoryLoadingMore(false)
+      }
+    },
+    [applyHistorySnapshot, loadHistory, refreshConflicts, refreshHistory]
+  )
+
   const refresh = useCallback(async () => {
     const nextStatus = await refreshStatus()
-    if (nextStatus?.hasConflicts) {
-      await refreshConflicts()
-    } else if (mountedRef.current) {
-      conflictsRequestRef.current += 1
-      setConflicts(null)
-      setConflictsLoading(false)
-    }
-    const shouldLoadHistory = loadHistory || historyLoadedRef.current
-    if (shouldLoadHistory && nextStatus?.enabled) {
-      await refreshHistory()
-    } else if (shouldLoadHistory && mountedRef.current) {
-      if (nextStatus && !nextStatus.enabled) {
-        applyHistorySnapshot({
-          commits: [],
-          nextCursor: null,
-          hasMore: false,
-        })
-      }
-      setHistoryLoading(false)
-      setHistoryLoadingMore(false)
-    }
-  }, [
-    applyHistorySnapshot,
-    loadHistory,
-    refreshConflicts,
-    refreshHistory,
-    refreshStatus,
-  ])
+    await refreshRelatedState(nextStatus)
+  }, [refreshRelatedState, refreshStatus])
 
   const reconcileAfterPossibleMutation = useCallback(
-    async (activeSpaceId: string) => {
+    async (activeSpaceId: string, authoritativeStatus?: SpaceVersionStatus) => {
       try {
-        await refresh()
+        if (authoritativeStatus) {
+          await refreshRelatedState(authoritativeStatus)
+        } else {
+          await refresh()
+        }
       } catch {
         // Reconciliation is best-effort and must never hide the mutation result.
       }
@@ -1891,7 +1896,7 @@ export function useSpaceVersioning(
         // A failed notification must not replace the original mutation error.
       }
     },
-    [refresh]
+    [refresh, refreshRelatedState]
   )
 
   useEffect(() => {
@@ -2060,7 +2065,7 @@ export function useSpaceVersioning(
           setStatus(nextStatus)
           setStatusLoading(false)
         }
-        await reconcileAfterPossibleMutation(activeSpaceId)
+        await reconcileAfterPossibleMutation(activeSpaceId, nextStatus)
         return nextStatus
       } catch (requestError) {
         const nextError = errorFrom(requestError)
@@ -2107,7 +2112,7 @@ export function useSpaceVersioning(
           setStatus(nextStatus)
           setStatusLoading(false)
         }
-        await reconcileAfterPossibleMutation(activeSpaceId)
+        await reconcileAfterPossibleMutation(activeSpaceId, nextStatus)
         return nextStatus
       } catch (requestError) {
         const nextError = errorFrom(requestError)
@@ -2170,7 +2175,7 @@ export function useSpaceVersioning(
           setStatus(result.status)
           setStatusLoading(false)
         }
-        await reconcileAfterPossibleMutation(activeSpaceId)
+        await reconcileAfterPossibleMutation(activeSpaceId, result.status)
         return result
       } catch (requestError) {
         const nextError = errorFrom(requestError)
@@ -2239,7 +2244,7 @@ export function useSpaceVersioning(
           setStatus(result.status)
           setStatusLoading(false)
         }
-        await reconcileAfterPossibleMutation(activeSpaceId)
+        await reconcileAfterPossibleMutation(activeSpaceId, result.status)
         return result
       } catch (requestError) {
         const nextError = errorFrom(requestError)
@@ -2360,7 +2365,7 @@ export function useSpaceVersioning(
           setStatus(result.status)
           setStatusLoading(false)
         }
-        await reconcileAfterPossibleMutation(activeSpaceId)
+        await reconcileAfterPossibleMutation(activeSpaceId, result.status)
         return result
       } catch (requestError) {
         const nextError = errorFrom(requestError)
@@ -2406,7 +2411,7 @@ export function useSpaceVersioning(
           setStatus(result.status)
           setStatusLoading(false)
         }
-        await reconcileAfterPossibleMutation(activeSpaceId)
+        await reconcileAfterPossibleMutation(activeSpaceId, result.status)
         return result
       } catch (requestError) {
         const nextError = errorFrom(requestError)
@@ -2462,7 +2467,7 @@ export function useSpaceVersioning(
           setStatus(result.status)
           setStatusLoading(false)
         }
-        await reconcileAfterPossibleMutation(activeSpaceId)
+        await reconcileAfterPossibleMutation(activeSpaceId, result.status)
         return result
       } catch (requestError) {
         const nextError = errorFrom(requestError)
@@ -2518,7 +2523,7 @@ export function useSpaceVersioning(
           setStatus(result.status)
           setStatusLoading(false)
         }
-        await reconcileAfterPossibleMutation(activeSpaceId)
+        await reconcileAfterPossibleMutation(activeSpaceId, result.status)
         return result
       } catch (requestError) {
         const nextError = errorFrom(requestError)
@@ -2569,7 +2574,7 @@ export function useSpaceVersioning(
           setStatus(result.status)
           setStatusLoading(false)
         }
-        await reconcileAfterPossibleMutation(activeSpaceId)
+        await reconcileAfterPossibleMutation(activeSpaceId, result.status)
         return result
       } catch (requestError) {
         const nextError = errorFrom(requestError)
