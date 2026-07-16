@@ -1451,6 +1451,12 @@ describe("FileExtensionSettings", () => {
       (button) => button.textContent?.trim() === "Manage"
     )!
     act(() => manage.click())
+    expect(container.textContent).toContain(
+      "Start development before editing source. Source-only saves will compile and reload without trusting every new digest; permission changes remain blocked."
+    )
+    expect(
+      (container.textContent ?? "").indexOf("Development session")
+    ).toBeLessThan((container.textContent ?? "").indexOf("Source trust"))
     const start = [...container.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "Start development"
     )!

@@ -2523,6 +2523,48 @@ export function FileExtensionSettings() {
                               )}
                           </div>
                         )}
+                        {!development && trusted && enabled && (
+                          <div className="flex min-h-[72px] items-center justify-between gap-6 py-3">
+                            <div>
+                              <Label>
+                                {t(
+                                  "space.settings.fileExtensions.developmentSession",
+                                  "Development session"
+                                )}
+                              </Label>
+                              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                                {t(
+                                  "space.settings.fileExtensions.startDevelopmentDescription",
+                                  "Start development before editing source. Source-only saves will compile and reload without trusting every new digest; permission changes remain blocked."
+                                )}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={!!mutatingPackage}
+                              onClick={() =>
+                                void mutatePackage(extension, () =>
+                                  window.eidos.fileExtensions.startDevelopmentSession(
+                                    spaceId,
+                                    snapshot
+                                  )
+                                )
+                              }
+                            >
+                              {busy ? (
+                                <LoaderCircle className="animate-spin" />
+                              ) : (
+                                <Code2 />
+                              )}
+                              {t(
+                                "space.settings.fileExtensions.startDevelopment",
+                                "Start development"
+                              )}
+                            </Button>
+                          </div>
+                        )}
                         <div className="flex min-h-[72px] items-center justify-between gap-6 py-3">
                           <div className="min-w-0">
                             <Label>
@@ -3304,49 +3346,6 @@ export function FileExtensionSettings() {
                                 )
                               })}
                             </div>
-                          </div>
-                        )}
-
-                        {!development && trusted && enabled && (
-                          <div className="flex min-h-[72px] items-center justify-between gap-6 py-3">
-                            <div>
-                              <Label>
-                                {t(
-                                  "space.settings.fileExtensions.developmentSession",
-                                  "Development session"
-                                )}
-                              </Label>
-                              <p className="mt-0.5 text-xs text-muted-foreground">
-                                {t(
-                                  "space.settings.fileExtensions.startDevelopmentDescription",
-                                  "Temporarily allow source-only edits to reload without persisting trust for each new digest. Permission changes remain blocked."
-                                )}
-                              </p>
-                            </div>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              disabled={!!mutatingPackage}
-                              onClick={() =>
-                                void mutatePackage(extension, () =>
-                                  window.eidos.fileExtensions.startDevelopmentSession(
-                                    spaceId,
-                                    snapshot
-                                  )
-                                )
-                              }
-                            >
-                              {busy ? (
-                                <LoaderCircle className="animate-spin" />
-                              ) : (
-                                <Code2 />
-                              )}
-                              {t(
-                                "space.settings.fileExtensions.startDevelopment",
-                                "Start development"
-                              )}
-                            </Button>
                           </div>
                         )}
 
