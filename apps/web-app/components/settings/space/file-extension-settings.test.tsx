@@ -856,8 +856,11 @@ describe("FileExtensionSettings", () => {
     )
   })
 
-  it("runs an enabled command directly and opens a filtered command palette", async () => {
-    discoverMock.mockResolvedValue(discoveryFixture("enabled"))
+  it("runs an enabled file command with a real sample resource", async () => {
+    discoverMock.mockResolvedValue(
+      discoveryFixture("enabled", [{ kind: "files.read", value: "**/*.md" }])
+    )
+    listSpaceFilesMock.mockResolvedValue([{ name: "Extension preview.md" }])
     await act(async () => {
       root.render(<FileExtensionSettings />)
       await Promise.resolve()
@@ -873,25 +876,31 @@ describe("FileExtensionSettings", () => {
     expect(container.textContent).toContain("example.task-counter.count")
     expect(container.textContent).toContain("Command Palette ⌘K · File menu")
     expect(container.textContent).toContain(
-      "some requested capabilities are still denied (1)"
-    )
-    expect(container.textContent).not.toContain(
       "This snapshot is ready. Use any contribution below"
     )
     const run = [...container.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === "Run"
+      (button) => button.textContent?.trim() === "Run with sample file"
     )!
     await act(async () => {
       run.click()
       await Promise.resolve()
       await Promise.resolve()
     })
+    expect(createSpaceFileMock).toHaveBeenCalledWith(
+      "file-space",
+      "Extension preview 2.md",
+      "# Count tasks\n\n- [ ] Try the extension command\n- [x] Create a real resource context\n"
+    )
+    expect(openTabMock).toHaveBeenLastCalledWith(
+      "/space-file#Extension%20preview%202.md",
+      "Extension preview 2.md"
+    )
     expect(executeCommandMock).toHaveBeenCalledWith("file-space", {
       packageId: "example.task-counter",
       contentDigest,
       permissionHash,
       commandId: "example.task-counter.count",
-      resource: { path: "" },
+      resource: { path: "Extension preview 2.md" },
     })
     expect(container.textContent).toContain("Command completed.")
 
@@ -902,6 +911,70 @@ describe("FileExtensionSettings", () => {
     act(() => openCommandPalette.click())
     expect(useAppRuntimeStore.getState().isCmdkOpen).toBe(true)
     expect(useCMDKStore.getState().input).toBe("Count tasks")
+  })
+
+  it("does not run a file command before its read grant is approved", async () => {
+    discoverMock.mockResolvedValue(discoveryFixture("enabled"))
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Manage")!
+        .click()
+    )
+
+    expect(container.textContent).toContain(
+      "Grant matching file read access below before running this command."
+    )
+    expect(
+      [...container.querySelectorAll("button")].some((button) =>
+        button.textContent?.includes("Run")
+      )
+    ).toBe(false)
+    expect(executeCommandMock).not.toHaveBeenCalled()
+  })
+
+  it("routes a scoped file command to the matching file context menu", async () => {
+    const readGrant = {
+      kind: "files.read" as const,
+      value: "projects/*.md",
+    }
+    const fixture = discoveryFixture("enabled", [readGrant])
+    const extension = fixture.packages[0]!
+    extension.requestedGrants = [readGrant]
+    extension.manifest!.permissions = {
+      files: { read: [readGrant.value], write: [] },
+      network: [],
+    }
+    extension.normalizedPermissions = extension.manifest!.permissions
+    extension.localState = {
+      ...extension.localState!,
+      requestedGrants: [readGrant],
+      granted: [readGrant],
+    }
+    discoverMock.mockResolvedValue(fixture)
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Manage")!
+        .click()
+    )
+
+    expect(container.textContent).toContain(
+      "Right-click a matching file in Files to run this command with its resource context."
+    )
+    expect(
+      [...container.querySelectorAll("button")].some((button) =>
+        button.textContent?.includes("Run")
+      )
+    ).toBe(false)
+    expect(createSpaceFileMock).not.toHaveBeenCalled()
+    expect(executeCommandMock).not.toHaveBeenCalled()
   })
 
   it("shows live bounded Worker output and clears it without reloading discovery", async () => {
@@ -1333,6 +1406,22 @@ describe("FileExtensionSettings", () => {
     expect(container.textContent).toContain(
       "Ready · This exact snapshot is trusted, permitted, and enabled."
     )
+    const run = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Run"
+    )!
+    await act(async () => {
+      run.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(createSpaceFileMock).not.toHaveBeenCalled()
+    expect(executeCommandMock).toHaveBeenCalledWith("file-space", {
+      packageId: "example.task-counter",
+      contentDigest,
+      permissionHash,
+      commandId: "example.task-counter.count",
+      resource: { path: "" },
+    })
   })
 
   it("offers an explicit enable action before registering a trusted command", async () => {

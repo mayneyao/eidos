@@ -223,6 +223,48 @@ function baseSampleFileParts(
   return null
 }
 
+function commandUsesFileContext(
+  extension: FileExtensionPackage,
+  commandId: string
+): boolean {
+  return (extension.manifest?.contributes.menus?.["files/context"] ?? []).some(
+    (item) => item.command === commandId
+  )
+}
+
+function commandSampleFileParts(
+  extension: FileExtensionPackage,
+  commandId: string
+): { stem: string; extension: string } | null {
+  if (!commandUsesFileContext(extension, commandId)) return null
+  for (const grant of extension.requestedGrants) {
+    if (grant.kind !== "files.read") continue
+    const parts = sampleFilePartsForPattern(grant.value)
+    if (parts && parts.extension.toLowerCase() !== ".base") return parts
+  }
+  return null
+}
+
+function commandSampleContent(
+  command: FileExtensionCommand,
+  extension: string
+): string {
+  switch (extension.toLowerCase()) {
+    case ".md":
+    case ".markdown":
+      return `# ${command.title}\n\n- [ ] Try the extension command\n- [x] Create a real resource context\n`
+    case ".json":
+      return `${JSON.stringify({ title: command.title, status: "sample" }, null, 2)}\n`
+    case ".csv":
+      return `title,status\n${JSON.stringify(command.title)},sample\n`
+    case ".yaml":
+    case ".yml":
+      return `title: ${JSON.stringify(command.title)}\nstatus: sample\n`
+    default:
+      return `${command.title}\n\nSample resource created by Eidos.\n`
+  }
+}
+
 function sourceFilesForPackage(
   root: string,
   extension: FileExtensionPackage
@@ -774,7 +816,11 @@ export function FileExtensionSettings() {
   )
 
   const runCommand = useCallback(
-    async (extension: FileExtensionPackage, command: FileExtensionCommand) => {
+    async (
+      extension: FileExtensionPackage,
+      command: FileExtensionCommand,
+      sampleParts?: { stem: string; extension: string }
+    ) => {
       if (!spaceId) return
       const snapshot = snapshotFor(extension)
       if (!snapshot) return
@@ -782,10 +828,28 @@ export function FileExtensionSettings() {
       if (!key) return
       setCommandRun({ key, status: "running" })
       try {
+        let resourcePath = ""
+        if (sampleParts) {
+          const rootEntries = await window.eidos.spaceMgmt.listFiles(
+            spaceId,
+            ""
+          )
+          resourcePath = uniqueSpaceEntryName(
+            rootEntries.map((entry) => entry.name),
+            sampleParts.stem,
+            sampleParts.extension
+          )
+          await window.eidos.spaceMgmt.createFile(
+            spaceId,
+            resourcePath,
+            commandSampleContent(command, sampleParts.extension)
+          )
+          openTab(toSpaceFileUrl(resourcePath), resourcePath)
+        }
         await window.eidos.fileExtensions.executeCommand(spaceId, {
           ...snapshot,
           commandId: command.id,
-          resource: { path: "" },
+          resource: { path: resourcePath },
         })
         setCommandRun({ key, status: "success" })
       } catch (error) {
@@ -802,7 +866,7 @@ export function FileExtensionSettings() {
         })
       }
     },
-    [spaceId, t]
+    [openTab, spaceId, t]
   )
 
   const clearRuntimeOutput = useCallback(
@@ -3088,151 +3152,202 @@ export function FileExtensionSettings() {
                                         )}
                             </p>
                             <div className="mt-2 divide-y divide-border/60">
-                              {commands.map((command) => (
-                                <div
-                                  key={command.id}
-                                  className="flex min-h-[52px] items-center justify-between gap-4 py-2"
-                                >
-                                  <div className="flex min-w-0 items-start gap-2">
-                                    <CommandIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                                    <div className="min-w-0">
-                                      <p className="truncate text-sm font-medium">
-                                        {command.title}
-                                      </p>
-                                      <code className="block truncate text-[11px] text-muted-foreground">
-                                        {command.id}
-                                      </code>
-                                      {commandRun?.key ===
-                                        commandRunKey(extension, command.id) &&
-                                        commandRun.status === "success" && (
-                                          <p
-                                            role="status"
-                                            className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-400"
-                                          >
-                                            {t(
-                                              "space.settings.fileExtensions.commandCompleted",
-                                              "Command completed."
-                                            )}
-                                          </p>
-                                        )}
-                                      {commandRun?.key ===
-                                        commandRunKey(extension, command.id) &&
-                                        commandRun.status === "error" && (
-                                          <p
-                                            role="alert"
-                                            className="mt-0.5 max-w-xl text-xs text-destructive"
-                                          >
-                                            {commandRun.message}
-                                          </p>
-                                        )}
-                                    </div>
-                                  </div>
-                                  {executionEnabled ? (
-                                    <div className="flex shrink-0 items-center gap-1">
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        disabled={
-                                          commandRun?.status === "running"
-                                        }
-                                        onClick={() =>
-                                          void runCommand(extension, command)
-                                        }
-                                      >
+                              {commands.map((command) => {
+                                const requiresFileResource =
+                                  commandUsesFileContext(
+                                    extension,
+                                    command.id
+                                  ) &&
+                                  extension.requestedGrants.some(
+                                    (grant) => grant.kind === "files.read"
+                                  )
+                                const sampleParts = commandSampleFileParts(
+                                  extension,
+                                  command.id
+                                )
+                                const canRunFromSettings =
+                                  !requiresFileResource || !!sampleParts
+                                const commandReadGrantMissing =
+                                  requiresFileResource && missingReadGrant
+                                return (
+                                  <div
+                                    key={command.id}
+                                    className="flex min-h-[52px] items-center justify-between gap-4 py-2"
+                                  >
+                                    <div className="flex min-w-0 items-start gap-2">
+                                      <CommandIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-medium">
+                                          {command.title}
+                                        </p>
+                                        <code className="block truncate text-[11px] text-muted-foreground">
+                                          {command.id}
+                                        </code>
                                         {commandRun?.key ===
                                           commandRunKey(
                                             extension,
                                             command.id
                                           ) &&
-                                        commandRun.status === "running" ? (
-                                          <LoaderCircle className="animate-spin" />
-                                        ) : (
-                                          <Play />
-                                        )}
+                                          commandRun.status === "success" && (
+                                            <p
+                                              role="status"
+                                              className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-400"
+                                            >
+                                              {t(
+                                                "space.settings.fileExtensions.commandCompleted",
+                                                "Command completed."
+                                              )}
+                                            </p>
+                                          )}
                                         {commandRun?.key ===
                                           commandRunKey(
                                             extension,
                                             command.id
-                                          ) && commandRun.status === "running"
-                                          ? t(
-                                              "space.settings.fileExtensions.runningCommand",
-                                              "Running…"
+                                          ) &&
+                                          commandRun.status === "error" && (
+                                            <p
+                                              role="alert"
+                                              className="mt-0.5 max-w-xl text-xs text-destructive"
+                                            >
+                                              {commandRun.message}
+                                            </p>
+                                          )}
+                                      </div>
+                                    </div>
+                                    {executionEnabled &&
+                                    !commandReadGrantMissing &&
+                                    canRunFromSettings ? (
+                                      <div className="flex shrink-0 items-center gap-1">
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          disabled={
+                                            commandRun?.status === "running"
+                                          }
+                                          onClick={() =>
+                                            void runCommand(
+                                              extension,
+                                              command,
+                                              sampleParts ?? undefined
                                             )
-                                          : t(
-                                              "space.settings.fileExtensions.runCommand",
-                                              "Run"
-                                            )}
-                                      </Button>
+                                          }
+                                        >
+                                          {commandRun?.key ===
+                                            commandRunKey(
+                                              extension,
+                                              command.id
+                                            ) &&
+                                          commandRun.status === "running" ? (
+                                            <LoaderCircle className="animate-spin" />
+                                          ) : (
+                                            <Play />
+                                          )}
+                                          {commandRun?.key ===
+                                            commandRunKey(
+                                              extension,
+                                              command.id
+                                            ) && commandRun.status === "running"
+                                            ? t(
+                                                "space.settings.fileExtensions.runningCommand",
+                                                "Running…"
+                                              )
+                                            : t(
+                                                sampleParts
+                                                  ? "space.settings.fileExtensions.runCommandWithSample"
+                                                  : "space.settings.fileExtensions.runCommand",
+                                                sampleParts
+                                                  ? "Run with sample file"
+                                                  : "Run"
+                                              )}
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                            openContributionPalette(
+                                              command.title
+                                            )
+                                          }
+                                        >
+                                          <CommandIcon />
+                                          {t(
+                                            "space.settings.fileExtensions.openCommandPalette",
+                                            "Command Palette"
+                                          )}
+                                          <kbd className="ml-1 text-[10px] text-muted-foreground">
+                                            ⌘K
+                                          </kbd>
+                                        </Button>
+                                      </div>
+                                    ) : executionEnabled &&
+                                      commandReadGrantMissing ? (
+                                      <p className="max-w-64 text-right text-xs leading-5 text-muted-foreground">
+                                        {t(
+                                          "space.settings.fileExtensions.commandMissingReadGrantInstructions",
+                                          "Grant matching file read access below before running this command."
+                                        )}
+                                      </p>
+                                    ) : executionEnabled ? (
+                                      <p className="max-w-72 text-right text-xs leading-5 text-muted-foreground">
+                                        {t(
+                                          "space.settings.fileExtensions.runCommandFromMatchingFileInstructions",
+                                          "Right-click a matching file in Files to run this command with its resource context."
+                                        )}
+                                      </p>
+                                    ) : legacyConflict ? (
                                       <Button
                                         type="button"
                                         size="sm"
                                         variant="outline"
+                                        disabled
+                                      >
+                                        {t(
+                                          "space.settings.fileExtensions.resolveMigration",
+                                          "Resolve migration link"
+                                        )}
+                                      </Button>
+                                    ) : trusted ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        disabled={
+                                          !!mutatingPackage || !!development
+                                        }
                                         onClick={() =>
-                                          openContributionPalette(command.title)
+                                          void mutatePackage(extension, () =>
+                                            window.eidos.fileExtensions.setEnabled(
+                                              spaceId,
+                                              snapshot,
+                                              true
+                                            )
+                                          )
                                         }
                                       >
-                                        <CommandIcon />
-                                        {t(
-                                          "space.settings.fileExtensions.openCommandPalette",
-                                          "Command Palette"
+                                        {busy && (
+                                          <LoaderCircle className="animate-spin" />
                                         )}
-                                        <kbd className="ml-1 text-[10px] text-muted-foreground">
-                                          ⌘K
-                                        </kbd>
+                                        {t(
+                                          "space.settings.fileExtensions.enableExtension",
+                                          "Enable extension"
+                                        )}
                                       </Button>
-                                    </div>
-                                  ) : legacyConflict ? (
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      disabled
-                                    >
-                                      {t(
-                                        "space.settings.fileExtensions.resolveMigration",
-                                        "Resolve migration link"
-                                      )}
-                                    </Button>
-                                  ) : trusted ? (
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      disabled={
-                                        !!mutatingPackage || !!development
-                                      }
-                                      onClick={() =>
-                                        void mutatePackage(extension, () =>
-                                          window.eidos.fileExtensions.setEnabled(
-                                            spaceId,
-                                            snapshot,
-                                            true
-                                          )
-                                        )
-                                      }
-                                    >
-                                      {busy && (
-                                        <LoaderCircle className="animate-spin" />
-                                      )}
-                                      {t(
-                                        "space.settings.fileExtensions.enableExtension",
-                                        "Enable extension"
-                                      )}
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="outline"
-                                      disabled
-                                    >
-                                      {t(
-                                        "space.settings.fileExtensions.trustSourceFirst",
-                                        "Trust source first"
-                                      )}
-                                    </Button>
-                                  )}
-                                </div>
-                              ))}
+                                    ) : (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled
+                                      >
+                                        {t(
+                                          "space.settings.fileExtensions.trustSourceFirst",
+                                          "Trust source first"
+                                        )}
+                                      </Button>
+                                    )}
+                                  </div>
+                                )
+                              })}
                               {panels.map((panel) => {
                                 const openKey = panelOpenKey(
                                   extension,
