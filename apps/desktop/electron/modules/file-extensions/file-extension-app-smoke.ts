@@ -5,8 +5,19 @@ import { gzipSync } from "node:zlib"
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { app } from "electron"
-import { createExtensionPanelTemplate } from "@eidos.space/extension-manifest"
+import { app, BrowserWindow, session } from "electron"
+import { createBaseFile } from "@eidos.space/base/better-sqlite3"
+import {
+  createExtensionBaseViewTemplate,
+  createExtensionPanelTemplate,
+} from "@eidos.space/extension-manifest"
+import { extensionSurfaceDataUrl } from "@eidos.space/extension-runtime/surface"
+import {
+  EXTENSION_SURFACE_BOOTSTRAP_CHANNEL,
+  EXTENSION_SURFACE_PROTOCOL_VERSION,
+  type ExtensionBaseViewContextSnapshot,
+  type ExtensionSurfaceAppearance,
+} from "@eidos.space/extension-surface-protocol"
 
 import type { MainWindowProvider } from "../space-management/main-window.provider"
 import type { SpaceRegistry } from "../space-management/space-registry"
@@ -16,7 +27,27 @@ import { FileExtensionRuntimeManager } from "./runtime/file-extension-runtime-ma
 
 const SPACE_ID = "file-extension-app-smoke"
 const COMMIT = "a".repeat(40)
-const PACKAGE_PATH = "packages/lifecycle-panel"
+const PANEL_PACKAGE_PATH = "packages/lifecycle-panel"
+const BASE_VIEW_PACKAGE_PATH = "packages/lifecycle-base-view"
+
+const SMOKE_APPEARANCE: ExtensionSurfaceAppearance = {
+  colorScheme: "light",
+  locale: "en",
+  theme: {
+    background: "rgb(255, 255, 255)",
+    foreground: "rgb(17, 24, 39)",
+    mutedBackground: "rgb(249, 250, 251)",
+    mutedForeground: "rgb(107, 114, 128)",
+    border: "rgb(209, 213, 219)",
+    accent: "rgb(37, 99, 235)",
+    accentForeground: "rgb(255, 255, 255)",
+    destructive: "rgb(220, 38, 38)",
+    destructiveForeground: "rgb(255, 255, 255)",
+    focusRing: "rgb(59, 130, 246)",
+    fontFamily: "system-ui, sans-serif",
+    monoFontFamily: "ui-monospace, monospace",
+  },
+}
 
 interface SentEvent {
   channel: string
@@ -102,6 +133,222 @@ function githubFetch(archive: Uint8Array): typeof globalThis.fetch {
   }
 }
 
+async function prepareGitHubPackage(
+  service: FileExtensionService,
+  archive: Uint8Array,
+  subdirectory: string
+) {
+  const originalFetch = globalThis.fetch
+  try {
+    globalThis.fetch = githubFetch(archive)
+    return await service.prepareGitHubInstall(SPACE_ID, {
+      repository: "example/eidos-extensions",
+      requested: "v0.1.0",
+      subdirectory,
+    })
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+}
+
+async function renderInstalledBaseView({
+  source,
+  generation,
+  packageId,
+  baseViewId,
+  viewId,
+  context,
+  page,
+}: {
+  source: string
+  generation: string
+  packageId: string
+  baseViewId: string
+  viewId: string
+  context: ExtensionBaseViewContextSnapshot
+  page: {
+    offset: number
+    limit: number
+    total: number
+    rows: Array<Record<string, string | number | boolean | null>>
+  }
+}) {
+  const runtimeSession = session.fromPartition(
+    `eidos-file-extension-app-base-view-${Date.now()}`,
+    { cache: false }
+  )
+  runtimeSession.setPermissionCheckHandler(() => false)
+  runtimeSession.setPermissionRequestHandler(
+    (_contents, _permission, callback) => callback(false)
+  )
+  runtimeSession.webRequest.onBeforeRequest(
+    {
+      urls: [
+        "http://*/*",
+        "https://*/*",
+        "file://*/*",
+        "ws://*/*",
+        "wss://*/*",
+      ],
+    },
+    (_details, callback) => callback({ cancel: true })
+  )
+  const runtimeWindow = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      session: runtimeSession,
+      sandbox: true,
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: true,
+      devTools: false,
+    },
+  })
+  runtimeWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
+  const initialize = {
+    type: "initialize",
+    surfaceKind: "base-view",
+    protocolVersion: EXTENSION_SURFACE_PROTOCOL_VERSION,
+    packageId,
+    generation,
+    baseViewId,
+    viewId,
+    context,
+    appearance: SMOKE_APPEARANCE,
+  }
+
+  try {
+    await runtimeWindow.loadURL(extensionSurfaceDataUrl())
+    return (await runtimeWindow.webContents.executeJavaScript(
+      `new Promise((resolve, reject) => {
+        const source = ${JSON.stringify(source)};
+        const generation = ${JSON.stringify(generation)};
+        const initialize = ${JSON.stringify(initialize)};
+        const page = ${JSON.stringify(page)};
+        const channel = new MessageChannel();
+        const port = channel.port1;
+        const surfaceLogs = [];
+        let activated = false;
+        let pageLoaded = false;
+        let settled = false;
+        const timeout = setTimeout(
+          () => fail(new Error("Installed Base view timed out")),
+          10000
+        );
+        const fail = (error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          try { port.close(); } catch {}
+          reject(error);
+        };
+        const finish = () => {
+          if (settled || !activated || !pageLoaded) return;
+          setTimeout(() => {
+            try {
+              const title = document.querySelector("header strong");
+              const cards = Array.from(
+                document.querySelectorAll(".record-grid article")
+              );
+              const cssLoaded = Array.from(
+                document.querySelectorAll("style")
+              ).some((style) => style.textContent?.includes(".record-grid"));
+              if (title?.textContent !== initialize.context.table.name) {
+                throw new Error("Installed Base view did not render its table");
+              }
+              if (cards.length !== page.rows.length) {
+                throw new Error("Installed Base view did not render its rows");
+              }
+              settled = true;
+              clearTimeout(timeout);
+              try { port.close(); } catch {}
+              resolve({
+                title: title.textContent,
+                cards: cards.map((card) => card.textContent),
+                cssLoaded,
+                surfaceLogs,
+                networkGlobalsBlocked:
+                  typeof fetch === "undefined" &&
+                  typeof XMLHttpRequest === "undefined",
+              });
+            } catch (error) {
+              fail(error);
+            }
+          }, 0);
+        };
+        port.onmessage = (event) => {
+          try {
+            const message = event.data;
+            if (message?.type === "activation-error") {
+              throw new Error(
+                "Installed Base view activation failed: " + message.message
+              );
+            }
+            if (message?.type === "surface-log") {
+              surfaceLogs.push(message);
+              return;
+            }
+            if (message?.type === "ready") {
+              if (message.protocolVersion !== initialize.protocolVersion) {
+                throw new Error("Installed Base view protocol mismatch");
+              }
+              port.postMessage(initialize);
+              return;
+            }
+            if (message?.type === "activated") {
+              activated = true;
+              finish();
+              return;
+            }
+            if (message?.type !== "base-page-request") return;
+            if (
+              message.generation !== generation ||
+              message.offset !== 0 ||
+              message.limit !== 60
+            ) {
+              throw new Error("Installed Base view requested an invalid page");
+            }
+            port.postMessage({
+              type: "base-page-result",
+              requestId: message.requestId,
+              ok: true,
+              page,
+            });
+            pageLoaded = true;
+            finish();
+          } catch (error) {
+            fail(error);
+          }
+        };
+        port.start();
+        window.postMessage(
+          {
+            type: ${JSON.stringify(EXTENSION_SURFACE_BOOTSTRAP_CHANNEL)},
+            source,
+            generation,
+          },
+          "*",
+          [channel.port2]
+        );
+      })`,
+      true
+    )) as {
+      title: string
+      cards: string[]
+      cssLoaded: boolean
+      surfaceLogs: Array<{
+        generation: string
+        level: "debug" | "info" | "log" | "warn" | "error"
+        message: string
+      }>
+      networkGlobalsBlocked: boolean
+    }
+  } finally {
+    if (!runtimeWindow.isDestroyed()) runtimeWindow.destroy()
+    await runtimeSession.clearStorageData()
+  }
+}
+
 async function run(): Promise<void> {
   await app.whenReady()
   const temporaryRoot = await mkdtemp(
@@ -153,78 +400,235 @@ async function run(): Promise<void> {
       ].join("\n")
     )
 
-    const template = createExtensionPanelTemplate({
+    const panelTemplate = createExtensionPanelTemplate({
       publisher: "example",
       name: "lifecycle-panel",
       engineRange: ">=0.0.0",
     })
-    const archive = githubArchive(
-      Object.fromEntries(
-        template.files.map((file) => [
-          `${PACKAGE_PATH}/${file.path}`,
-          file.content,
-        ])
-      )
-    )
-    const originalFetch = globalThis.fetch
-    let preview
-    try {
-      globalThis.fetch = githubFetch(archive)
-      preview = await service.prepareGitHubInstall(SPACE_ID, {
-        repository: "example/eidos-extensions",
-        requested: "v0.1.0",
-        subdirectory: PACKAGE_PATH,
-      })
-    } finally {
-      globalThis.fetch = originalFetch
-    }
-
-    assert.equal(preview.operation, "install")
-    assert.equal(preview.canonicalId, template.canonicalId)
-    assert.equal(preview.source.commit, COMMIT)
-    const installed = await service.applyGitHubInstall(SPACE_ID, {
-      previewId: preview.previewId,
-      contentDigest: preview.contentDigest,
-      permissionHash: preview.permissionHash,
+    const baseViewTemplate = createExtensionBaseViewTemplate({
+      publisher: "example",
+      name: "lifecycle-base-view",
+      displayName: "Lifecycle Base View",
+      engineRange: ">=0.0.0",
     })
-    assert.equal(installed.canonicalId, template.canonicalId)
+    const baseViewContribution =
+      baseViewTemplate.manifest.contributes.baseViews?.[0]
+    assert.ok(
+      baseViewContribution,
+      "Base view template should declare its contribution"
+    )
 
-    const snapshot = {
-      packageId: installed.canonicalId,
-      contentDigest: installed.contentDigest,
-      permissionHash: installed.permissionHash,
+    const base = createBaseFile(path.join(spacePath, "tasks.base"), {
+      title: "Release Tasks",
+      defaultTable: {
+        id: "tasks",
+        name: "Tasks",
+        fields: [
+          {
+            name: "Status",
+            columnName: "status",
+            type: "select",
+            property: {
+              options: [
+                { id: "doing", name: "Doing", color: "blue" },
+                { id: "done", name: "Done", color: "green" },
+              ],
+            },
+          },
+        ],
+      },
+    })
+    base.insertRow("tasks", {
+      title: "Ship Base views",
+      status: "doing",
+    })
+    base.insertRow("tasks", {
+      title: "Run app smoke",
+      status: "done",
+    })
+    const savedView = base.createView("tasks", {
+      name: "Extension Cards",
+      type: `extension:${baseViewContribution.id}`,
+    })
+    const baseTable = base.getTable("tasks")
+    const baseFields = base.listFields("tasks")
+    const rawBasePage = base.getRowPage("tasks", 0, 60)
+    const baseContext: ExtensionBaseViewContextSnapshot = {
+      resourcePath: "tasks.base",
+      table: {
+        id: baseTable.id,
+        name: baseTable.name,
+        rowCount: rawBasePage.total,
+      },
+      view: { id: savedView.id, name: savedView.name },
+      fields: baseFields.map((field) => ({
+        name: field.name,
+        columnName: field.tableColumnName,
+        type: field.type,
+        property: null,
+      })),
     }
-    const trusted = await service.trust(SPACE_ID, snapshot)
-    assert.equal(trusted.trusted, true)
-    assert.equal(trusted.enabled, false)
-    assert.deepEqual(trusted.requestedGrants, [
+    const basePage = {
+      offset: rawBasePage.offset,
+      limit: rawBasePage.limit,
+      total: rawBasePage.total,
+      rows: rawBasePage.rows.map((row) =>
+        Object.fromEntries(
+          Object.entries(row).map(([key, value]) => [
+            key,
+            typeof value === "bigint"
+              ? value.toString()
+              : value instanceof Uint8Array
+                ? `[binary ${value.byteLength} bytes]`
+                : value,
+          ])
+        )
+      ) as Array<Record<string, string | number | boolean | null>>,
+    }
+    base.close()
+    assert.equal(
+      savedView.type,
+      `extension:${baseViewContribution.id}`,
+      "Base should persist the selected extension view type"
+    )
+
+    const archive = githubArchive(
+      Object.fromEntries([
+        ...panelTemplate.files.map(
+          (file) =>
+            [`${PANEL_PACKAGE_PATH}/${file.path}`, file.content] as const
+        ),
+        ...baseViewTemplate.files.map(
+          (file) =>
+            [`${BASE_VIEW_PACKAGE_PATH}/${file.path}`, file.content] as const
+        ),
+      ])
+    )
+
+    const panelPreview = await prepareGitHubPackage(
+      service,
+      archive,
+      PANEL_PACKAGE_PATH
+    )
+    assert.equal(panelPreview.operation, "install")
+    assert.equal(panelPreview.canonicalId, panelTemplate.canonicalId)
+    assert.equal(panelPreview.source.commit, COMMIT)
+    const panelInstalled = await service.applyGitHubInstall(SPACE_ID, {
+      previewId: panelPreview.previewId,
+      contentDigest: panelPreview.contentDigest,
+      permissionHash: panelPreview.permissionHash,
+    })
+    assert.equal(panelInstalled.canonicalId, panelTemplate.canonicalId)
+
+    const panelSnapshot = {
+      packageId: panelInstalled.canonicalId,
+      contentDigest: panelInstalled.contentDigest,
+      permissionHash: panelInstalled.permissionHash,
+    }
+    const panelTrusted = await service.trust(SPACE_ID, panelSnapshot)
+    assert.equal(panelTrusted.trusted, true)
+    assert.equal(panelTrusted.enabled, false)
+    assert.deepEqual(panelTrusted.requestedGrants, [
       { kind: "files.read", value: "**/*.markdown" },
       { kind: "files.read", value: "**/*.md" },
     ])
-    for (const grant of trusted.requestedGrants) {
+    for (const grant of panelTrusted.requestedGrants) {
       await service.setGrant(SPACE_ID, {
-        ...snapshot,
+        ...panelSnapshot,
         grant,
         granted: true,
       })
     }
-    const enabled = await service.setEnabled(SPACE_ID, snapshot, true)
-    assert.equal(enabled.enabled, true)
-    assert.deepEqual(enabled.granted, trusted.requestedGrants)
+    const panelEnabled = await service.setEnabled(SPACE_ID, panelSnapshot, true)
+    assert.equal(panelEnabled.enabled, true)
+    assert.deepEqual(panelEnabled.granted, panelTrusted.requestedGrants)
+
+    const baseViewPreview = await prepareGitHubPackage(
+      service,
+      archive,
+      BASE_VIEW_PACKAGE_PATH
+    )
+    assert.equal(baseViewPreview.operation, "install")
+    assert.equal(baseViewPreview.canonicalId, baseViewTemplate.canonicalId)
+    assert.equal(baseViewPreview.source.commit, COMMIT)
+    assert.deepEqual(
+      baseViewPreview.permissionChanges.map(({ kind, value, change }) => ({
+        kind,
+        value,
+        change,
+      })),
+      [{ kind: "files.read", value: "**/*.base", change: "added" }]
+    )
+    const baseViewInstalled = await service.applyGitHubInstall(SPACE_ID, {
+      previewId: baseViewPreview.previewId,
+      contentDigest: baseViewPreview.contentDigest,
+      permissionHash: baseViewPreview.permissionHash,
+    })
+    assert.equal(baseViewInstalled.canonicalId, baseViewTemplate.canonicalId)
+    const baseViewSnapshot = {
+      packageId: baseViewInstalled.canonicalId,
+      contentDigest: baseViewInstalled.contentDigest,
+      permissionHash: baseViewInstalled.permissionHash,
+    }
+    assert.deepEqual(
+      await service.listBaseViews(SPACE_ID, "tasks.base"),
+      [],
+      "Untrusted Base views must not be discoverable"
+    )
+    const baseViewTrusted = await service.trust(SPACE_ID, baseViewSnapshot)
+    assert.deepEqual(baseViewTrusted.requestedGrants, [
+      { kind: "files.read", value: "**/*.base" },
+    ])
+    for (const grant of baseViewTrusted.requestedGrants) {
+      await service.setGrant(SPACE_ID, {
+        ...baseViewSnapshot,
+        grant,
+        granted: true,
+      })
+    }
+    assert.deepEqual(
+      await service.listBaseViews(SPACE_ID, "tasks.base"),
+      [],
+      "Disabled Base views must not be discoverable"
+    )
+    const baseViewEnabled = await service.setEnabled(
+      SPACE_ID,
+      baseViewSnapshot,
+      true
+    )
+    assert.equal(baseViewEnabled.enabled, true)
+    const discoveredBaseViews = await service.listBaseViews(
+      SPACE_ID,
+      "tasks.base"
+    )
+    assert.deepEqual(
+      discoveredBaseViews.map(({ id, packageId, displayName }) => ({
+        id,
+        packageId,
+        displayName,
+      })),
+      [
+        {
+          id: baseViewContribution.id,
+          packageId: baseViewTemplate.canonicalId,
+          displayName: baseViewContribution.displayName,
+        },
+      ]
+    )
 
     const palette = await service.listCommandPalette(SPACE_ID)
     assert.deepEqual(
       palette.commands.map((command) => command.id),
-      [`${template.canonicalId}.open-summary`]
+      [`${panelTemplate.canonicalId}.open-summary`]
     )
     assert.deepEqual(
       palette.panels.map((panel) => panel.id),
-      [`${template.canonicalId}.summary`]
+      [`${panelTemplate.canonicalId}.summary`]
     )
 
     await service.executeCommand(SPACE_ID, {
-      ...snapshot,
-      commandId: `${template.canonicalId}.open-summary`,
+      ...panelSnapshot,
+      commandId: `${panelTemplate.canonicalId}.open-summary`,
       resource: { path: "tasks.md" },
     })
     const panelEvent = events.find(
@@ -234,8 +638,8 @@ async function run(): Promise<void> {
     const panel = await service.getPanelSession(SPACE_ID, {
       sessionId: panelEvent.sessionId,
     })
-    assert.equal(panel.packageId, template.canonicalId)
-    assert.equal(panel.panelId, `${template.canonicalId}.summary`)
+    assert.equal(panel.packageId, panelTemplate.canonicalId)
+    assert.equal(panel.panelId, `${panelTemplate.canonicalId}.summary`)
     assert.equal(panel.title, "Lifecycle Panel")
     assert.ok(panel.state && typeof panel.state === "object")
     assert.deepEqual(
@@ -249,10 +653,72 @@ async function run(): Promise<void> {
     )
     assert.match(panel.source, /__eidosStartSurface/)
 
+    const openedBaseView = await service.openBaseView(SPACE_ID, {
+      ...baseViewSnapshot,
+      baseViewId: baseViewContribution.id,
+      path: "tasks.base",
+    })
+    assert.equal(openedBaseView.packageId, baseViewTemplate.canonicalId)
+    assert.equal(openedBaseView.baseViewId, baseViewContribution.id)
+    assert.match(openedBaseView.source, /__eidosStartSurface/)
+    const renderedBaseView = await renderInstalledBaseView({
+      source: openedBaseView.source,
+      generation: openedBaseView.generation,
+      packageId: baseViewSnapshot.packageId,
+      baseViewId: baseViewContribution.id,
+      viewId: savedView.id,
+      context: baseContext,
+      page: basePage,
+    })
+    assert.equal(renderedBaseView.title, "Tasks")
+    assert.equal(renderedBaseView.cards.length, 2)
+    assert.ok(
+      renderedBaseView.cards.some((card) => card.includes("Ship Base views"))
+    )
+    assert.ok(
+      renderedBaseView.cards.some((card) => card.includes("Run app smoke"))
+    )
+    assert.equal(renderedBaseView.cssLoaded, true)
+    assert.equal(renderedBaseView.networkGlobalsBlocked, true)
+    assert.ok(
+      renderedBaseView.surfaceLogs.some(
+        (entry) =>
+          entry.level === "info" &&
+          entry.message.includes("Lifecycle Base View Base view activated")
+      )
+    )
+    for (const entry of renderedBaseView.surfaceLogs) {
+      await service.reportSurfaceOutput(SPACE_ID, {
+        surfaceKind: "base-view",
+        ...baseViewSnapshot,
+        generation: openedBaseView.generation,
+        level: entry.level,
+        message: entry.message,
+      })
+    }
+    const discovery = await service.discover(SPACE_ID)
+    const baseViewSummary = discovery.packages.find(
+      (candidate) => candidate.canonicalId === baseViewTemplate.canonicalId
+    )
+    assert.ok(
+      baseViewSummary?.runtimeOutput.some(
+        (entry) =>
+          entry.source === "base-view" &&
+          entry.message.includes("Lifecycle Base View Base view activated")
+      ),
+      "Installed Base view logs should reach the extension runtime output"
+    )
+
     await service.uninstall(SPACE_ID, {
-      directoryName: template.canonicalId,
-      canonicalId: template.canonicalId,
-      contentDigest: installed.contentDigest,
+      directoryName: baseViewTemplate.canonicalId,
+      canonicalId: baseViewTemplate.canonicalId,
+      contentDigest: baseViewInstalled.contentDigest,
+    })
+    assert.deepEqual(await service.listBaseViews(SPACE_ID, "tasks.base"), [])
+    await service.uninstall(SPACE_ID, {
+      directoryName: panelTemplate.canonicalId,
+      canonicalId: panelTemplate.canonicalId,
+      contentDigest: panelInstalled.contentDigest,
     })
     assert.deepEqual(await service.listCommandPalette(SPACE_ID), {
       commands: [],
@@ -262,22 +728,37 @@ async function run(): Promise<void> {
       await readdir(path.join(spacePath, ".eidos", "extensions")),
       []
     )
+    assert.deepEqual(
+      await readdir(
+        path.join(spacePath, ".eidos", "cache", "extensions", "staging")
+      ),
+      []
+    )
 
     console.log(
       JSON.stringify({
         ok: true,
         lifecycle: [
-          "install",
+          "install-panel",
+          "install-base-view",
           "trust",
           "grant",
           "enable",
           "command-palette",
           "worker",
           "panel",
+          "base-view-discovery",
+          "base-view-render",
           "uninstall",
+          "staging-cleanup",
         ],
-        packageId: template.canonicalId,
+        packageIds: [panelTemplate.canonicalId, baseViewTemplate.canonicalId],
         panelState: panel.state,
+        baseView: {
+          viewId: savedView.id,
+          title: renderedBaseView.title,
+          cards: renderedBaseView.cards.length,
+        },
       })
     )
   } finally {
