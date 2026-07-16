@@ -193,6 +193,49 @@ function createdTextEditorFixture() {
   }
 }
 
+function panelFixture() {
+  const fixture = discoveryFixture("enabled", [
+    { kind: "files.read", value: "**/*.md" },
+  ])
+  const extension = fixture.packages[0]
+  if (!extension?.manifest) {
+    throw new Error(
+      "Expected the discovery fixture to contain an extension manifest"
+    )
+  }
+  return {
+    ...fixture,
+    packages: [
+      {
+        ...extension,
+        manifest: {
+          ...extension.manifest,
+          entrypoints: {
+            worker: "src/extension.ts",
+            ui: "src/panel.ts",
+          },
+          contributes: {
+            ...extension.manifest.contributes,
+            panels: [
+              {
+                id: "example.task-counter.summary",
+                displayName: "Task summary",
+              },
+            ],
+          },
+        },
+        files: [
+          { path: "extension.json", size: 200 },
+          { path: "src/extension.ts", size: 80 },
+          { path: "src/panel.ts", size: 120 },
+          { path: "src/panel.css", size: 40 },
+          { path: "README.md", size: 60 },
+        ],
+      },
+    ],
+  } as FileExtensionDiscoveryFixture
+}
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: translate }),
 }))
@@ -381,12 +424,12 @@ describe("FileExtensionSettings", () => {
       "Install from GitHub",
       "New extension",
       "Refresh",
-      "Open source",
+      "Open worker",
       "Review",
     ])
 
     const openSource = [...container.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === "Open source"
+      (button) => button.textContent?.trim() === "Open worker"
     )!
     act(() => openSource.click())
     expect(openTabMock).toHaveBeenCalledWith(
@@ -406,6 +449,72 @@ describe("FileExtensionSettings", () => {
       await Promise.resolve()
     })
     expect(discoverMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("opens panel UI first and exposes each source entrypoint inline", async () => {
+    discoverMock.mockResolvedValue(panelFixture())
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const openUi = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Open UI"
+    )!
+    act(() => openUi.click())
+    expect(openTabMock).toHaveBeenLastCalledWith(
+      "/space-file#.eidos%2Fextensions%2Fexample.task-counter%2Fsrc%2Fpanel.ts",
+      "panel.ts"
+    )
+
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Manage")!
+        .click()
+    )
+    expect(container.textContent).toContain("Source files")
+    expect(container.textContent).toContain("Manifestextension.json")
+    expect(container.textContent).toContain("Worker entrypointsrc/extension.ts")
+    expect(container.textContent).toContain("UI entrypointsrc/panel.ts")
+    expect(container.textContent).toContain("Source filesrc/panel.css")
+    expect(container.textContent).not.toContain("Source fileREADME.md")
+
+    const openWorker = [...container.querySelectorAll("button")].find(
+      (button) =>
+        button.textContent?.trim() === "Open" &&
+        button.parentElement?.textContent?.includes("Worker entrypoint")
+    )!
+    act(() => openWorker.click())
+    expect(openTabMock).toHaveBeenLastCalledWith(
+      "/space-file#.eidos%2Fextensions%2Fexample.task-counter%2Fsrc%2Fextension.ts",
+      "extension.ts"
+    )
+  })
+
+  it("opens an inspection diagnostic at its exact source file", async () => {
+    const fixture = discoveryFixture()
+    fixture.packages[0]!.diagnostics = [
+      {
+        code: "package-import-syntax",
+        severity: "error",
+        message: "Unexpected token",
+        path: "src/extension.ts",
+      },
+    ]
+    discoverMock.mockResolvedValue(fixture)
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const diagnosticSource = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "src/extension.ts"
+    )!
+    act(() => diagnosticSource.click())
+    expect(openTabMock).toHaveBeenLastCalledWith(
+      "/space-file#.eidos%2Fextensions%2Fexample.task-counter%2Fsrc%2Fextension.ts",
+      "extension.ts"
+    )
   })
 
   it("creates a text-editor template through the inline starter selector", async () => {
@@ -483,7 +592,7 @@ describe("FileExtensionSettings", () => {
     )
     expect(container.textContent).toContain("**/*.tasks.md · text/markdown")
     const openCreatedSource = [...container.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === "Open source"
+      (button) => button.textContent?.trim() === "Open UI"
     )!
     act(() => openCreatedSource.click())
     expect(openTabMock).toHaveBeenLastCalledWith(
@@ -491,6 +600,65 @@ describe("FileExtensionSettings", () => {
       "editor.ts"
     )
     expect(discoverMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("opens the UI entrypoint after creating a panel starter", async () => {
+    discoverMock
+      .mockReset()
+      .mockResolvedValueOnce(discoveryFixture())
+      .mockResolvedValue(discoveryFixture())
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "New extension")!
+        .click()
+    )
+    const templateOptions = [
+      ...container.querySelectorAll<HTMLInputElement>(
+        'input[name="local-extension-template"]'
+      ),
+    ]
+    act(() => templateOptions[1]!.click())
+    const input = container.querySelector<HTMLInputElement>(
+      "#local-extension-name"
+    )!
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )!.set!
+    act(() => {
+      valueSetter.call(input, "hello-tools")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+
+    await act(async () => {
+      ;[...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Create")!
+        .click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(createTemplateMock).toHaveBeenCalledWith("file-space", {
+      name: "hello-tools",
+      template: "panel",
+      filenamePattern: undefined,
+      mediaType: undefined,
+    })
+
+    const createdStatus =
+      container.querySelector<HTMLElement>("[role='status']")!
+    const openCreatedUi = [...createdStatus.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Open UI"
+    )!
+    act(() => openCreatedUi.click())
+    expect(openTabMock).toHaveBeenLastCalledWith(
+      "/space-file#.eidos%2Fextensions%2Flocal.hello-tools%2Fsrc%2Fpanel.ts",
+      "panel.ts"
+    )
   })
 
   it("runs an enabled command directly and opens a filtered command palette", async () => {

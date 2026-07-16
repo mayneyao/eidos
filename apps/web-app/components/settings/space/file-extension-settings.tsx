@@ -56,10 +56,17 @@ type FileExtensionLocalState = Awaited<
   ReturnType<typeof window.eidos.fileExtensions.setEnabled>
 >
 type LocalExtensionTemplateKind = "command" | "panel" | "text-editor"
+type ExtensionSourceKind = "manifest" | "worker" | "ui" | "source"
+type ExtensionSourceFile = {
+  kind: ExtensionSourceKind
+  path: string
+  relativePath: string
+}
 type CreatedLocalExtension = {
   canonicalId: string
   root: string
   sourcePath: string
+  sourceKind: "worker" | "ui"
   template: LocalExtensionTemplateKind
 }
 type CommandRunState = {
@@ -171,23 +178,68 @@ function sampleFilePartsForPattern(
       }
 }
 
-function sourcePathForPackage(
+function sourceFilesForPackage(
   root: string,
   extension: FileExtensionPackage
-): string | null {
+): ExtensionSourceFile[] {
   const filePaths = new Set(extension.files.map((file) => file.path))
-  const candidates = [
-    extension.manifest?.entrypoints.worker,
-    extension.manifest?.entrypoints.ui,
-    "extension.json",
-    ...extension.files.map((file) => file.path),
+  const candidates: Array<{
+    kind: ExtensionSourceKind
+    relativePath: string | undefined
+  }> = [
+    { kind: "manifest", relativePath: "extension.json" },
+    {
+      kind: "worker",
+      relativePath: extension.manifest?.entrypoints.worker,
+    },
+    { kind: "ui", relativePath: extension.manifest?.entrypoints.ui },
+    ...extension.files
+      .filter((file) => /\.(?:[cm]?[jt]sx?|css)$/i.test(file.path))
+      .map((file) => ({
+        kind: "source" as const,
+        relativePath: file.path,
+      })),
   ]
-  const relativePath = candidates.find(
-    (candidate): candidate is string => !!candidate && filePaths.has(candidate)
+  const seen = new Set<string>()
+  return candidates.flatMap(({ kind, relativePath }) => {
+    if (
+      !relativePath ||
+      !filePaths.has(relativePath) ||
+      seen.has(relativePath)
+    ) {
+      return []
+    }
+    seen.add(relativePath)
+    return [
+      {
+        kind,
+        relativePath,
+        path: `${root}/${extension.directoryName}/${relativePath}`,
+      },
+    ]
+  })
+}
+
+function primarySourceFile(
+  sourceFiles: readonly ExtensionSourceFile[]
+): ExtensionSourceFile | null {
+  return (
+    sourceFiles.find((source) => source.kind === "ui") ??
+    sourceFiles.find((source) => source.kind === "worker") ??
+    sourceFiles.find((source) => source.kind === "source") ??
+    sourceFiles.find((source) => source.kind === "manifest") ??
+    null
   )
-  return relativePath
-    ? `${root}/${extension.directoryName}/${relativePath}`
-    : null
+}
+
+function diagnosticSourceFile(
+  sourceFiles: readonly ExtensionSourceFile[],
+  relativePath: string | undefined
+): ExtensionSourceFile | null {
+  if (!relativePath) return null
+  return (
+    sourceFiles.find((source) => source.relativePath === relativePath) ?? null
+  )
 }
 
 export function FileExtensionSettings() {
@@ -307,8 +359,11 @@ export function FileExtensionSettings() {
         sourcePath: `${result.root}/${
           createdTemplate === "text-editor"
             ? "src/editor.ts"
-            : "src/extension.ts"
+            : createdTemplate === "panel"
+              ? "src/panel.ts"
+              : "src/extension.ts"
         }`,
+        sourceKind: createdTemplate === "command" ? "worker" : "ui",
         template: createdTemplate,
       })
       setTemplateName("")
@@ -741,6 +796,35 @@ export function FileExtensionSettings() {
         )
       case "missing":
         return t("space.settings.fileExtensions.devMissing", "Source missing")
+    }
+  }
+
+  const sourceKindLabel = (kind: ExtensionSourceKind): string => {
+    switch (kind) {
+      case "ui":
+        return t("space.settings.fileExtensions.uiEntrypoint", "UI entrypoint")
+      case "worker":
+        return t(
+          "space.settings.fileExtensions.workerEntrypoint",
+          "Worker entrypoint"
+        )
+      case "manifest":
+        return t("space.settings.fileExtensions.manifest", "Manifest")
+      case "source":
+        return t("space.settings.fileExtensions.sourceFile", "Source file")
+    }
+  }
+
+  const openSourceLabel = (kind: ExtensionSourceKind): string => {
+    switch (kind) {
+      case "ui":
+        return t("space.settings.fileExtensions.openUi", "Open UI")
+      case "worker":
+        return t("space.settings.fileExtensions.openWorker", "Open worker")
+      case "manifest":
+        return t("space.settings.fileExtensions.openManifest", "Open manifest")
+      case "source":
+        return t("space.settings.fileExtensions.openSource", "Open source")
     }
   }
 
@@ -1404,7 +1488,7 @@ export function FileExtensionSettings() {
                 onClick={() => openSource(createdExtension.sourcePath)}
               >
                 <FileCode2 />
-                {t("space.settings.fileExtensions.openSource", "Open source")}
+                {openSourceLabel(createdExtension.sourceKind)}
               </Button>
               <Button
                 type="button"
@@ -1494,7 +1578,11 @@ export function FileExtensionSettings() {
               const diagnostics = extension.diagnostics
               const snapshot = snapshotFor(extension)
               const packageId = extension.canonicalId ?? extension.directoryName
-              const sourcePath = sourcePathForPackage(discovery.root, extension)
+              const sourceFiles = sourceFilesForPackage(
+                discovery.root,
+                extension
+              )
+              const primarySource = primarySourceFile(sourceFiles)
               const uninstallRequest = {
                 directoryName: extension.directoryName,
                 canonicalId: extension.canonicalId,
@@ -1666,35 +1754,49 @@ export function FileExtensionSettings() {
                         )}
                         {diagnostics.length > 0 && (
                           <ul className="space-y-1 pt-1 text-xs text-muted-foreground">
-                            {diagnostics.map((diagnostic, index) => (
-                              <li
-                                key={`${diagnostic.code}-${diagnostic.path ?? diagnostic.pointer ?? index}`}
-                                className={cn(
-                                  diagnostic.severity === "error" &&
-                                    "text-destructive"
-                                )}
-                              >
-                                <code>{diagnostic.code}</code>:{" "}
-                                {diagnostic.message}
-                              </li>
-                            ))}
+                            {diagnostics.map((diagnostic, index) => {
+                              const diagnosticSource = diagnosticSourceFile(
+                                sourceFiles,
+                                diagnostic.path
+                              )
+                              return (
+                                <li
+                                  key={`${diagnostic.code}-${diagnostic.path ?? diagnostic.pointer ?? index}`}
+                                  className={cn(
+                                    diagnostic.severity === "error" &&
+                                      "text-destructive"
+                                  )}
+                                >
+                                  <code>{diagnostic.code}</code>:{" "}
+                                  {diagnostic.message}
+                                  {diagnosticSource && (
+                                    <button
+                                      type="button"
+                                      className="ml-2 font-mono underline underline-offset-2 hover:text-foreground"
+                                      onClick={() =>
+                                        openSource(diagnosticSource.path)
+                                      }
+                                    >
+                                      {diagnosticSource.relativePath}
+                                    </button>
+                                  )}
+                                </li>
+                              )
+                            })}
                           </ul>
                         )}
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      {sourcePath && (
+                      {primarySource && (
                         <Button
                           type="button"
                           size="sm"
                           variant="ghost"
-                          onClick={() => openSource(sourcePath)}
+                          onClick={() => openSource(primarySource.path)}
                         >
                           <FileCode2 />
-                          {t(
-                            "space.settings.fileExtensions.openSource",
-                            "Open source"
-                          )}
+                          {openSourceLabel(primarySource.kind)}
                         </Button>
                       )}
                       <Badge
@@ -1891,12 +1993,29 @@ export function FileExtensionSettings() {
                         {development.diagnostics.length > 0 && (
                           <div className="border-t border-sky-500/20 py-3 text-xs text-destructive">
                             {development.diagnostics.map(
-                              (diagnostic, index) => (
-                                <p key={`${diagnostic.code}-${index}`}>
-                                  <code>{diagnostic.code}</code>:{" "}
-                                  {diagnostic.message}
-                                </p>
-                              )
+                              (diagnostic, index) => {
+                                const diagnosticSource = diagnosticSourceFile(
+                                  sourceFiles,
+                                  diagnostic.path
+                                )
+                                return (
+                                  <p key={`${diagnostic.code}-${index}`}>
+                                    <code>{diagnostic.code}</code>:{" "}
+                                    {diagnostic.message}
+                                    {diagnosticSource && (
+                                      <button
+                                        type="button"
+                                        className="ml-2 font-mono underline underline-offset-2 hover:text-foreground"
+                                        onClick={() =>
+                                          openSource(diagnosticSource.path)
+                                        }
+                                      >
+                                        {diagnosticSource.relativePath}
+                                      </button>
+                                    )}
+                                  </p>
+                                )
+                              }
                             )}
                           </div>
                         )}
@@ -2160,6 +2279,54 @@ export function FileExtensionSettings() {
                             }
                           />
                         </div>
+
+                        {sourceFiles.length > 0 && (
+                          <div className="py-3">
+                            <Label>
+                              {t(
+                                "space.settings.fileExtensions.sourceFiles",
+                                "Source files"
+                              )}
+                            </Label>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {t(
+                                "space.settings.fileExtensions.sourceFilesDescription",
+                                "Open the manifest, Worker, and UI entrypoints directly in the Space editor."
+                              )}
+                            </p>
+                            <div className="mt-2 divide-y divide-border/60">
+                              {sourceFiles.map((source) => (
+                                <div
+                                  key={source.relativePath}
+                                  className="flex min-h-11 items-center justify-between gap-4 py-2"
+                                >
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    <FileCode2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-medium">
+                                        {sourceKindLabel(source.kind)}
+                                      </p>
+                                      <code className="block truncate text-[11px] text-muted-foreground">
+                                        {source.relativePath}
+                                      </code>
+                                    </div>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => openSource(source.path)}
+                                  >
+                                    {t(
+                                      "space.settings.fileExtensions.openFile",
+                                      "Open"
+                                    )}
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         {(commands.length > 0 ||
                           panels.length > 0 ||
