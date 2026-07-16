@@ -550,6 +550,56 @@ describe("FileExtensionSettings", () => {
     expect(discoverMock).toHaveBeenCalledTimes(2)
   })
 
+  it("keeps long localized package metadata semantic and fully available", async () => {
+    const fixture = discoveryFixture()
+    const displayName =
+      "长期项目状态与自动化工作台 🚀 — فريق التسليم — Project Delivery Observatory".slice(
+        0,
+        80
+      )
+    const description =
+      "用于验证很长的本地化扩展说明不会被错误地当作表单标签，也不会从可访问内容中消失。"
+        .repeat(6)
+        .slice(0, 240)
+    fixture.packages[0]!.manifest!.displayName = displayName
+    fixture.packages[0]!.manifest!.description = description
+    discoverMock.mockResolvedValue(fixture)
+
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "New extension")!
+        .click()
+    )
+    const labels = [...container.querySelectorAll<HTMLLabelElement>("label")]
+    expect(labels.length).toBeGreaterThan(0)
+    expect(
+      labels.every(
+        (label) =>
+          (!!label.htmlFor &&
+            document.getElementById(label.htmlFor) !== null) ||
+          label.querySelector("input, select, textarea") !== null
+      )
+    ).toBe(true)
+    const packageHeading = [...container.querySelectorAll("h4")].find(
+      (heading) => heading.textContent === displayName
+    )
+    expect(packageHeading).toBeTruthy()
+    expect(packageHeading?.classList.contains("break-words")).toBe(true)
+    const packageDescription = [...container.querySelectorAll("p")].find(
+      (paragraph) => paragraph.textContent === description
+    )
+    expect(packageDescription?.classList.contains("break-words")).toBe(true)
+    const review = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Review"
+    )
+    expect(review?.parentElement?.classList.contains("flex-wrap")).toBe(true)
+  })
+
   it("offers creation and GitHub installation directly from the empty state", async () => {
     discoverMock.mockResolvedValue({
       ...discoveryFixture(),

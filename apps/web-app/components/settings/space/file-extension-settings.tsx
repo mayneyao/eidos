@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import {
   AlertCircle,
   CheckCircle2,
@@ -114,6 +121,20 @@ type BaseSampleState = EditorSampleState
 
 const DEFAULT_TEXT_EDITOR_PATTERN = "**/*.notes.md"
 const MAX_RUNTIME_OUTPUT_ENTRIES = 100
+
+function ExtensionSettingTitle({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <p className={cn("text-sm font-medium leading-none", className)}>
+      {children}
+    </p>
+  )
+}
 
 function snapshotFor(extension: FileExtensionPackage) {
   if (
@@ -1376,11 +1397,11 @@ export function FileExtensionSettings() {
   return (
     <div className="space-y-8" data-settings-row-groups="true">
       <section>
-        <div className="flex items-center justify-between gap-4 pb-2">
+        <div className="flex flex-col items-stretch gap-3 pb-2 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
           <h3>
             {t("space.settings.fileExtensions.packages", "Extension packages")}
           </h3>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
               type="button"
               variant="outline"
@@ -1438,12 +1459,12 @@ export function FileExtensionSettings() {
             <div id="github-extension-installer" className="py-4">
               <div className="space-y-4 rounded-md bg-muted/30 p-4">
                 <div>
-                  <Label>
+                  <ExtensionSettingTitle>
                     {t(
                       "space.settings.fileExtensions.githubSource",
                       "GitHub source"
                     )}
-                  </Label>
+                  </ExtensionSettingTitle>
                   <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
                     {t(
                       "space.settings.fileExtensions.githubSourceDescription",
@@ -1549,9 +1570,11 @@ export function FileExtensionSettings() {
                 {installPreview && (
                   <div className="space-y-4 border-t pt-4">
                     <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Label>{installPreview.displayName}</Label>
+                          <h4 className="min-w-0 break-words text-sm font-medium leading-none">
+                            {installPreview.displayName}
+                          </h4>
                           <Badge variant="outline" className="font-normal">
                             v{installPreview.version}
                           </Badge>
@@ -1567,7 +1590,7 @@ export function FileExtensionSettings() {
                                 )}
                           </Badge>
                         </div>
-                        <p className="mt-1 text-sm text-muted-foreground">
+                        <p className="mt-1 break-all text-sm text-muted-foreground">
                           {installPreview.canonicalId}
                           {installPreview.source.subdirectory && (
                             <span className="ml-2 text-muted-foreground">
@@ -1978,16 +2001,16 @@ export function FileExtensionSettings() {
               )}
             </div>
           )}
-          <div className="flex min-h-[76px] items-center justify-between gap-6 py-4">
-            <div className="flex min-w-0 items-start gap-3">
+          <div className="flex min-h-[76px] flex-col items-stretch gap-3 py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
               <FolderCog className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <Label>
+              <div className="min-w-0 space-y-0.5">
+                <ExtensionSettingTitle>
                   {t(
                     "space.settings.fileExtensions.location",
                     "Package location"
                   )}
-                </Label>
+                </ExtensionSettingTitle>
                 <p className="text-sm leading-5 text-muted-foreground">
                   {t(
                     "space.settings.fileExtensions.locationDescription",
@@ -1996,20 +2019,20 @@ export function FileExtensionSettings() {
                 </p>
               </div>
             </div>
-            <code className="shrink-0 rounded-md bg-muted px-2 py-1 text-xs">
+            <code className="max-w-full break-all rounded-md bg-muted px-2 py-1 text-xs lg:shrink-0">
               {discovery?.root ?? ".eidos/extensions"}
             </code>
           </div>
-          <div className="flex min-h-[76px] items-center justify-between gap-6 py-4">
-            <div className="flex min-w-0 items-start gap-3">
+          <div className="flex min-h-[76px] flex-col items-stretch gap-3 py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <Label>
+              <div className="min-w-0 space-y-0.5">
+                <ExtensionSettingTitle>
                   {t(
                     "space.settings.fileExtensions.runtime",
                     "Runtime boundary"
                   )}
-                </Label>
+                </ExtensionSettingTitle>
                 <p className="text-sm leading-5 text-muted-foreground">
                   {t(
                     "space.settings.fileExtensions.runtimeDescription",
@@ -2365,7 +2388,7 @@ export function FileExtensionSettings() {
                   key={extension.directoryName}
                   className="scroll-m-8 py-4"
                 >
-                  <div className="flex min-h-[56px] items-start justify-between gap-6">
+                  <div className="flex min-h-[56px] flex-col gap-3 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
                     <div className="flex min-w-0 flex-1 items-start gap-3">
                       {legacyConflict ? (
                         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
@@ -2389,14 +2412,16 @@ export function FileExtensionSettings() {
                       )}
                       <div className="min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <Label>{displayName}</Label>
+                          <h4 className="min-w-0 break-words text-sm font-medium leading-none">
+                            {displayName}
+                          </h4>
                           <span className="text-xs text-muted-foreground">
                             {extension.manifest
                               ? `v${extension.manifest.version}`
                               : extension.directoryName}
                           </span>
                         </div>
-                        <p className="text-sm leading-5 text-muted-foreground">
+                        <p className="break-words text-sm leading-5 text-muted-foreground">
                           {extension.manifest?.description ??
                             t(
                               "space.settings.fileExtensions.manifestUnavailable",
@@ -2415,9 +2440,9 @@ export function FileExtensionSettings() {
                           )}
                         </p>
                         {commands[0] && (
-                          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <p className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                             <CommandIcon className="h-3 w-3" />
-                            <span className="truncate">
+                            <span className="min-w-0 break-words">
                               {commands[0].title}
                             </span>
                             <span aria-hidden="true">·</span>
@@ -2439,9 +2464,9 @@ export function FileExtensionSettings() {
                           </p>
                         )}
                         {fileEditors[0] && (
-                          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <p className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                             <FilePenLine className="h-3 w-3" />
-                            <span className="truncate">
+                            <span className="min-w-0 break-words">
                               {fileEditors[0].displayName}
                             </span>
                             <span aria-hidden="true">·</span>
@@ -2459,9 +2484,9 @@ export function FileExtensionSettings() {
                           </p>
                         )}
                         {baseViews[0] && (
-                          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <p className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                             <LayoutGrid className="h-3 w-3" />
-                            <span className="truncate">
+                            <span className="min-w-0 break-words">
                               {baseViews[0].displayName}
                             </span>
                             <span aria-hidden="true">·</span>
@@ -2474,9 +2499,9 @@ export function FileExtensionSettings() {
                           </p>
                         )}
                         {panels[0] && (
-                          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <p className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                             <Package className="h-3 w-3" />
-                            <span className="truncate">
+                            <span className="min-w-0 break-words">
                               {panels[0].displayName}
                             </span>
                             <span aria-hidden="true">·</span>
@@ -2489,7 +2514,7 @@ export function FileExtensionSettings() {
                           </p>
                         )}
                         {extension.lock && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="break-all text-xs text-muted-foreground">
                             <Github className="mr-1 inline h-3 w-3" />
                             {extension.lock.source.repository.replace(
                               "https://github.com/",
@@ -2559,7 +2584,7 @@ export function FileExtensionSettings() {
                                     {diagnosticSource && (
                                       <button
                                         type="button"
-                                        className="ml-2 font-mono underline underline-offset-2 hover:text-foreground"
+                                        className="ml-2 break-all text-left font-mono underline underline-offset-2 hover:text-foreground"
                                         onClick={() =>
                                           openSource(diagnosticSource.path)
                                         }
@@ -2580,7 +2605,7 @@ export function FileExtensionSettings() {
                           )}
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="flex w-full flex-wrap items-center justify-end gap-2 lg:w-auto lg:shrink-0">
                       {primaryPanel && executionEnabled ? (
                         <Button
                           type="button"
@@ -2759,12 +2784,12 @@ export function FileExtensionSettings() {
                             aria-atomic="true"
                           >
                             <div className="flex items-center gap-2">
-                              <Label>
+                              <ExtensionSettingTitle>
                                 {t(
                                   "space.settings.fileExtensions.developmentSession",
                                   "Development session"
                                 )}
-                              </Label>
+                              </ExtensionSettingTitle>
                               <Badge
                                 variant="outline"
                                 className="border-sky-500/40 font-normal text-sky-700 dark:text-sky-400"
@@ -2901,12 +2926,12 @@ export function FileExtensionSettings() {
                           <div className="py-3">
                             <div className="flex items-start justify-between gap-6">
                               <div className="min-w-0">
-                                <Label>
+                                <ExtensionSettingTitle>
                                   {t(
                                     "space.settings.fileExtensions.legacyMigration",
                                     "Legacy migration"
                                   )}
-                                </Label>
+                                </ExtensionSettingTitle>
                                 <p className="mt-0.5 text-xs text-muted-foreground">
                                   {legacyConflict
                                     ? t(
@@ -3046,12 +3071,12 @@ export function FileExtensionSettings() {
                                 <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                               )}
                               <div className="min-w-0">
-                                <Label>
+                                <ExtensionSettingTitle>
                                   {t(
                                     "space.settings.fileExtensions.setupProgress",
                                     "Setup progress"
                                   )}
-                                </Label>
+                                </ExtensionSettingTitle>
                                 <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
                                   {legacyConflict
                                     ? t(
@@ -3203,12 +3228,12 @@ export function FileExtensionSettings() {
                         {!development && trusted && enabled && (
                           <div className="flex min-h-[72px] items-center justify-between gap-6 py-3">
                             <div>
-                              <Label>
+                              <ExtensionSettingTitle>
                                 {t(
                                   "space.settings.fileExtensions.developmentSession",
                                   "Development session"
                                 )}
-                              </Label>
+                              </ExtensionSettingTitle>
                               <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
                                 {t(
                                   "space.settings.fileExtensions.startDevelopmentDescription",
@@ -3244,12 +3269,12 @@ export function FileExtensionSettings() {
                         )}
                         <div className="flex min-h-[72px] items-center justify-between gap-6 py-3">
                           <div className="min-w-0">
-                            <Label>
+                            <ExtensionSettingTitle>
                               {t(
                                 "space.settings.fileExtensions.sourceTrust",
                                 "Source trust"
                               )}
-                            </Label>
+                            </ExtensionSettingTitle>
                             <p className="mt-0.5 text-xs text-muted-foreground">
                               {trusted
                                 ? t(
@@ -3322,12 +3347,12 @@ export function FileExtensionSettings() {
                           id={`${packageElementId(packageId)}-permissions`}
                           className="scroll-m-6 py-3"
                         >
-                          <Label>
+                          <ExtensionSettingTitle>
                             {t(
                               "space.settings.fileExtensions.permissions",
                               "Permission grants"
                             )}
-                          </Label>
+                          </ExtensionSettingTitle>
                           <p className="mt-0.5 text-xs text-muted-foreground">
                             {t(
                               "space.settings.fileExtensions.permissionsDescription",
@@ -3385,12 +3410,12 @@ export function FileExtensionSettings() {
 
                         <div className="flex min-h-[68px] items-center justify-between gap-6 py-3">
                           <div>
-                            <Label>
+                            <ExtensionSettingTitle>
                               {t(
                                 "space.settings.fileExtensions.enablement",
                                 "Enablement"
                               )}
-                            </Label>
+                            </ExtensionSettingTitle>
                             <p className="mt-0.5 text-xs text-muted-foreground">
                               {t(
                                 "space.settings.fileExtensions.enablementDescription",
@@ -3421,12 +3446,12 @@ export function FileExtensionSettings() {
 
                         {sourceFiles.length > 0 && (
                           <div className="py-3">
-                            <Label>
+                            <ExtensionSettingTitle>
                               {t(
                                 "space.settings.fileExtensions.sourceFiles",
                                 "Source files"
                               )}
-                            </Label>
+                            </ExtensionSettingTitle>
                             <p className="mt-0.5 text-xs text-muted-foreground">
                               {t(
                                 "space.settings.fileExtensions.sourceFilesDescription",
@@ -3471,13 +3496,13 @@ export function FileExtensionSettings() {
                           <div className="py-3">
                             <div className="flex items-start justify-between gap-4">
                               <div>
-                                <Label className="flex items-center gap-2">
+                                <ExtensionSettingTitle className="flex items-center gap-2">
                                   <SquareTerminal className="h-4 w-4 text-muted-foreground" />
                                   {t(
                                     "space.settings.fileExtensions.runtimeOutput",
                                     "Runtime output"
                                   )}
-                                </Label>
+                                </ExtensionSettingTitle>
                                 <p className="mt-0.5 text-xs text-muted-foreground">
                                   {t(
                                     "space.settings.fileExtensions.runtimeOutputDescription",
@@ -3554,12 +3579,12 @@ export function FileExtensionSettings() {
                             id={`${packageElementId(packageId)}-how-to-use`}
                             className="scroll-m-6 py-3"
                           >
-                            <Label>
+                            <ExtensionSettingTitle>
                               {t(
                                 "space.settings.fileExtensions.howToUse",
                                 "How to use"
                               )}
-                            </Label>
+                            </ExtensionSettingTitle>
                             <p className="mt-0.5 text-xs text-muted-foreground">
                               {!trusted
                                 ? t(
@@ -4212,12 +4237,12 @@ export function FileExtensionSettings() {
                         {extension.lock && (
                           <div className="flex min-h-[68px] items-center justify-between gap-6 py-3">
                             <div>
-                              <Label>
+                              <ExtensionSettingTitle>
                                 {t(
                                   "space.settings.fileExtensions.githubUpdate",
                                   "GitHub update"
                                 )}
-                              </Label>
+                              </ExtensionSettingTitle>
                               <p className="mt-0.5 text-xs text-muted-foreground">
                                 {extension.locallyModified
                                   ? t(
