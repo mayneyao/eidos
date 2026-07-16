@@ -2104,7 +2104,10 @@ export function FileExtensionSettings() {
         )}
 
         {!error && !loading && discovery?.packages.length === 0 && (
-          <div className="flex min-h-40 flex-col items-center justify-center gap-2 text-center">
+          <div
+            data-testid="file-extension-empty"
+            className="flex min-h-48 flex-col items-center justify-center gap-2 text-center"
+          >
             <Package className="h-7 w-7 text-muted-foreground" />
             <p className="text-sm font-medium">
               {t(
@@ -2115,9 +2118,42 @@ export function FileExtensionSettings() {
             <p className="max-w-md text-sm text-muted-foreground">
               {t(
                 "space.settings.fileExtensions.emptyDescription",
-                "Place a package containing extension.json under .eidos/extensions/publisher.name, then refresh this page."
+                "Create a local starter or install a reviewed GitHub package. Extension source stays in this Space under .eidos/extensions."
               )}
             </p>
+            <div className="mt-2 flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setCreateError(null)
+                  setCreatedExtension(null)
+                  setShowCreator(true)
+                }}
+              >
+                <Plus />
+                {t(
+                  "space.settings.fileExtensions.createFirstExtension",
+                  "Create extension"
+                )}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setInstalledMessage(null)
+                  setInstallError(null)
+                  setShowInstaller(true)
+                }}
+              >
+                <Github />
+                {t(
+                  "space.settings.fileExtensions.installFirstExtension",
+                  "Install from GitHub"
+                )}
+              </Button>
+            </div>
           </div>
         )}
 
@@ -2822,8 +2858,8 @@ export function FileExtensionSettings() {
                           <div className="flex min-h-[72px] items-center justify-between gap-6 py-3">
                             <div className="flex min-w-0 items-start gap-2">
                               {trusted &&
-                              missingGrants.length === 0 &&
-                              enabled ? (
+                              enabled &&
+                              missingGrants.length === 0 ? (
                                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                               ) : (
                                 <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -2846,20 +2882,29 @@ export function FileExtensionSettings() {
                                           "space.settings.fileExtensions.setupReviewSource",
                                           "Step 1 of 3 · Review the source, then trust this exact snapshot below."
                                         )
-                                      : missingGrants.length > 0
+                                      : !enabled
                                         ? t(
-                                            "space.settings.fileExtensions.setupReviewPermissions",
-                                            "Step 2 of 3 · Review requested capabilities ({{count}}) before enabling the extension.",
-                                            { count: missingGrants.length }
+                                            extension.requestedGrants.length > 0
+                                              ? "space.settings.fileExtensions.setupReviewPermissions"
+                                              : "space.settings.fileExtensions.setupEnableNoPermissions",
+                                            extension.requestedGrants.length > 0
+                                              ? "Step 2 of 3 · Choose which requested capabilities to grant ({{count}}), then enable the extension. Denied capabilities stay blocked."
+                                              : "Step 2 of 3 · This extension requests no capabilities. Enable it to add its contributions.",
+                                            {
+                                              count:
+                                                extension.requestedGrants
+                                                  .length,
+                                            }
                                           )
-                                        : !enabled
+                                        : missingGrants.length > 0
                                           ? t(
-                                              "space.settings.fileExtensions.setupEnableExtension",
-                                              "Step 3 of 3 · Enable the extension to make its contributions available."
+                                              "space.settings.fileExtensions.setupMissingPermissions",
+                                              "Enabled · {{count}} requested capabilities remain denied. Grant only what the contributions you use require.",
+                                              { count: missingGrants.length }
                                             )
                                           : t(
                                               "space.settings.fileExtensions.setupReady",
-                                              "Ready · This exact snapshot is trusted, permitted, and enabled."
+                                              "Step 3 of 3 · Ready to test. Run a command or open a contributed UI below."
                                             )}
                                 </p>
                               </div>
@@ -2878,8 +2923,57 @@ export function FileExtensionSettings() {
                                 )}
                               </Button>
                             )}
+                            {!legacyConflict && trusted && !enabled && (
+                              <div className="flex items-center gap-1">
+                                {extension.requestedGrants.length > 0 && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      document
+                                        .getElementById(
+                                          `${packageElementId(packageId)}-permissions`
+                                        )
+                                        ?.scrollIntoView({
+                                          block: "nearest",
+                                          behavior: "smooth",
+                                        })
+                                    }
+                                  >
+                                    {t(
+                                      "space.settings.fileExtensions.reviewPermissions",
+                                      "Review permissions"
+                                    )}
+                                  </Button>
+                                )}
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  disabled={!!mutatingPackage}
+                                  onClick={() =>
+                                    void mutatePackage(extension, () =>
+                                      window.eidos.fileExtensions.setEnabled(
+                                        spaceId,
+                                        snapshot,
+                                        true
+                                      )
+                                    )
+                                  }
+                                >
+                                  {busy && (
+                                    <LoaderCircle className="animate-spin" />
+                                  )}
+                                  {t(
+                                    "space.settings.fileExtensions.enableExtension",
+                                    "Enable extension"
+                                  )}
+                                </Button>
+                              </div>
+                            )}
                             {!legacyConflict &&
                               trusted &&
+                              enabled &&
                               missingGrants.length > 0 && (
                                 <Button
                                   type="button"
@@ -2905,43 +2999,27 @@ export function FileExtensionSettings() {
                             {!legacyConflict &&
                               trusted &&
                               missingGrants.length === 0 &&
-                              !enabled && (
+                              enabled && (
                                 <Button
                                   type="button"
                                   size="sm"
-                                  disabled={!!mutatingPackage}
                                   onClick={() =>
-                                    void mutatePackage(extension, () =>
-                                      window.eidos.fileExtensions.setEnabled(
-                                        spaceId,
-                                        snapshot,
-                                        true
+                                    document
+                                      .getElementById(
+                                        `${packageElementId(packageId)}-how-to-use`
                                       )
-                                    )
+                                      ?.scrollIntoView({
+                                        block: "nearest",
+                                        behavior: "smooth",
+                                      })
                                   }
                                 >
-                                  {busy && (
-                                    <LoaderCircle className="animate-spin" />
-                                  )}
+                                  <Play />
                                   {t(
-                                    "space.settings.fileExtensions.enableExtension",
-                                    "Enable extension"
+                                    "space.settings.fileExtensions.tryExtension",
+                                    "Try extension"
                                   )}
                                 </Button>
-                              )}
-                            {!legacyConflict &&
-                              trusted &&
-                              missingGrants.length === 0 &&
-                              enabled && (
-                                <Badge
-                                  variant="outline"
-                                  className="border-emerald-500/40 font-normal text-emerald-700 dark:text-emerald-400"
-                                >
-                                  {t(
-                                    "space.settings.fileExtensions.ready",
-                                    "Ready"
-                                  )}
-                                </Badge>
                               )}
                           </div>
                         )}
@@ -3294,7 +3372,10 @@ export function FileExtensionSettings() {
                           panels.length > 0 ||
                           fileEditors.length > 0 ||
                           baseViews.length > 0) && (
-                          <div className="py-3">
+                          <div
+                            id={`${packageElementId(packageId)}-how-to-use`}
+                            className="scroll-m-6 py-3"
+                          >
                             <Label>
                               {t(
                                 "space.settings.fileExtensions.howToUse",

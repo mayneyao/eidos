@@ -546,6 +546,39 @@ describe("FileExtensionSettings", () => {
     expect(discoverMock).toHaveBeenCalledTimes(2)
   })
 
+  it("offers creation and GitHub installation directly from the empty state", async () => {
+    discoverMock.mockResolvedValue({
+      ...discoveryFixture(),
+      packages: [],
+    })
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    const empty = container.querySelector<HTMLElement>(
+      '[data-testid="file-extension-empty"]'
+    )!
+    expect(empty.textContent).toContain(
+      "Create a local starter or install a reviewed GitHub package"
+    )
+    act(() =>
+      [...empty.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Create extension")!
+        .click()
+    )
+    expect(container.querySelector("#local-extension-name")).not.toBeNull()
+
+    act(() =>
+      [...empty.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Install from GitHub")!
+        .click()
+    )
+    expect(
+      container.querySelector("#github-extension-repository")
+    ).not.toBeNull()
+  })
+
   it("opens panel UI first and exposes each source entrypoint inline", async () => {
     discoverMock.mockResolvedValue(panelFixture())
     await act(async () => {
@@ -1391,7 +1424,7 @@ describe("FileExtensionSettings", () => {
     expect(trustMock).toHaveBeenCalledWith("file-space", snapshot)
     expect(container.textContent).toContain("Revoke trust")
     expect(container.textContent).toContain(
-      "Step 2 of 3 · Review requested capabilities (1) before enabling the extension."
+      "Step 2 of 3 · Choose which requested capabilities to grant (1), then enable the extension. Denied capabilities stay blocked."
     )
     expect(container.textContent).toContain(
       "This snapshot is trusted but disabled"
@@ -1486,7 +1519,7 @@ describe("FileExtensionSettings", () => {
 
     const content = container.textContent ?? ""
     expect(content).toContain(
-      "Step 3 of 3 · Enable the extension to make its contributions available."
+      "Step 2 of 3 · This extension requests no capabilities. Enable it to add its contributions."
     )
     expect(content.indexOf("Source trust")).toBeLessThan(
       content.indexOf("Permission grants")
@@ -1514,8 +1547,19 @@ describe("FileExtensionSettings", () => {
       true
     )
     expect(container.textContent).toContain(
-      "Ready · This exact snapshot is trusted, permitted, and enabled."
+      "Step 3 of 3 · Ready to test. Run a command or open a contributed UI below."
     )
+    expect(container.textContent).toContain("Try extension")
+    const howToUse = container.querySelector<HTMLElement>(
+      "[id$='-how-to-use']"
+    )!
+    howToUse.scrollIntoView = vi.fn()
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Try extension")!
+        .click()
+    )
+    expect(howToUse.scrollIntoView).toHaveBeenCalled()
     const run = [...container.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "Run"
     )!
@@ -1570,6 +1614,39 @@ describe("FileExtensionSettings", () => {
       true
     )
     expect(useAppRuntimeStore.getState().isCmdkOpen).toBe(false)
+  })
+
+  it("allows enablement while an optional capability remains denied", async () => {
+    discoverMock.mockResolvedValue(discoveryFixture("disabled", []))
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Manage")!
+        .click()
+    )
+    expect(container.textContent).toContain("Denied capabilities stay blocked.")
+    const enableExtension = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Enable extension"
+    )!
+    await act(async () => {
+      enableExtension.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(setEnabledMock).toHaveBeenCalledWith(
+      "file-space",
+      {
+        packageId: "example.task-counter",
+        contentDigest,
+        permissionHash,
+      },
+      true
+    )
   })
 
   it("uses the committed mutation state while discovery is still stale", async () => {
