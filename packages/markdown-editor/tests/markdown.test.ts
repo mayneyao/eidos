@@ -178,6 +178,15 @@ describe("Markdown semantic conversion", () => {
     expect(inspectMarkdownCompatibility(markdown).safeToEdit).toBe(true)
   })
 
+  it("does not mistake an escaped task-like marker for TeX math", () => {
+    const markdown = String.raw`## 文档
+
+- \[] 没有变成 todo lists`
+
+    expect(findUnsupportedMarkdown(markdown)).toEqual([])
+    expect(inspectMarkdownCompatibility(markdown).safeToEdit).toBe(true)
+  })
+
   it("keeps wiki targets lossless across UTF-16 and punctuation edge cases", () => {
     const source =
       "😀 See [[A ) folder/Plan|label \\| detail]] and ![[图 (1).png]]."
@@ -201,6 +210,8 @@ describe("Markdown semantic conversion", () => {
     ["footnote", "Text[^1]\n\n[^1]: Note", "footnote"],
     ["raw HTML", "Before <mark>important</mark>", "raw-html"],
     ["display math", "$$\nx^2\n$$", "math"],
+    ["bracket-delimited math", String.raw`\[x^2\]`, "math"],
+    ["parenthesis-delimited math", String.raw`\(x^2\)`, "math"],
     ["inline math", "Euler wrote $e^{i\\pi}+1=0$.", "math"],
     ["Obsidian comment", "Visible %%hidden%% text", "obsidian-comment"],
     ["Obsidian highlight", "This is ==important==.", "obsidian-highlight"],

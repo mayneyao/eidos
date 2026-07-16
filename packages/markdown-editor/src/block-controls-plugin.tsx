@@ -41,6 +41,22 @@ import {
 const BLOCK_DRAG_DATA = "application/x-eidos-markdown-block"
 const SELECTED_BLOCK_CLASS = "eidos-md-block-selected"
 
+function nearestScrollBoundary(surface: HTMLElement): HTMLElement {
+  let candidate = surface.parentElement
+  while (candidate) {
+    const style = window.getComputedStyle(candidate)
+    if (
+      /auto|scroll|overlay/.test(
+        `${style.overflow} ${style.overflowX} ${style.overflowY}`
+      )
+    ) {
+      return candidate
+    }
+    candidate = candidate.parentElement
+  }
+  return surface
+}
+
 interface MarqueeBox {
   height: number
   left: number
@@ -315,6 +331,7 @@ export function BlockSelectionPlugin({
     const root = editor.getRootElement()
     const surface = surfaceRef.current
     if (!root || !surface) return
+    const selectionBoundary = nearestScrollBoundary(surface)
     let start: { clientX: number; clientY: number } | null = null
 
     const onMouseDown = (event: MouseEvent) => {
@@ -324,7 +341,11 @@ export function BlockSelectionPlugin({
       if (target.closest(".eidos-md-format-toolbar, .eidos-md-block-handle")) {
         return
       }
-      if (target !== root && target !== surface) return
+      // Ancestors between the host boundary and the editor surface are blank
+      // chrome. Descendants of the content root keep native text selection.
+      if (target !== root && target !== surface && !target.contains(surface)) {
+        return
+      }
 
       start = { clientX: event.clientX, clientY: event.clientY }
       root.style.userSelect = "none"
@@ -367,12 +388,12 @@ export function BlockSelectionPlugin({
       setMarquee(null)
     }
 
-    surface.addEventListener("mousedown", onMouseDown)
+    selectionBoundary.addEventListener("mousedown", onMouseDown)
     window.addEventListener("mousemove", onMouseMove)
     window.addEventListener("mouseup", stopMarquee)
     return () => {
       root.style.userSelect = ""
-      surface.removeEventListener("mousedown", onMouseDown)
+      selectionBoundary.removeEventListener("mousedown", onMouseDown)
       window.removeEventListener("mousemove", onMouseMove)
       window.removeEventListener("mouseup", stopMarquee)
     }

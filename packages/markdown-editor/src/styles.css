@@ -67,8 +67,6 @@
 .eidos-md-block-selected {
   background: color-mix(in srgb, var(--eidos-md-selection) 82%, transparent);
   border-radius: 3px;
-  box-shadow: 0 0 0 2px
-    color-mix(in srgb, var(--eidos-md-focus) 28%, transparent);
 }
 
 .eidos-md-block-marquee {

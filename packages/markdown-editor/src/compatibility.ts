@@ -69,7 +69,12 @@ export function findUnsupportedMarkdown(
     /(?:<!--|<\/?[A-Za-z][A-Za-z0-9:-]*(?:\s[^<>]*|\s*\/?)>)/g,
     (match) => add("raw-html", match)
   )
-  collect(visible, /(?<!\\)\$\$|\\\(|\\\[/g, (match) => add("math", match))
+  collect(visible, /(?<!\\)\$\$/g, (match) => add("math", match))
+  collect(
+    visible,
+    /(?<!\\)\\\([\s\S]*?(?<!\\)\\\)|(?<!\\)\\\[[\s\S]*?(?<!\\)\\\]/g,
+    (match) => add("math", match)
+  )
   collect(
     visible,
     /(?<!\\)\$(?![\s$])(?:[^$\n\\]|\\.)+?(?<![\s\\])\$/g,

@@ -23,9 +23,17 @@ import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin"
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin"
 import { autoLinkEmailMatcher, autoLinkUrlMatcher } from "@lexical/link"
+import { $createListItemNode, $createListNode } from "@lexical/list"
 import {
+  $addUpdateTag,
   $getSelection,
+  $isParagraphNode,
   $isRangeSelection,
+  $isRootOrShadowRoot,
+  $isTextNode,
+  COMMAND_PRIORITY_HIGH,
+  HISTORY_PUSH_TAG,
+  KEY_SPACE_COMMAND,
   type EditorState,
   type EditorThemeClasses,
   type LexicalEditor,
@@ -135,6 +143,68 @@ interface EditorBridgeProps {
   onChange: MarkdownEditorProps["onChange"]
   onSelectionChange: MarkdownEditorProps["onSelectionChange"]
   onInternalSourceChange: (markdown: string) => void
+}
+
+function LegacyTaskShortcutPlugin() {
+  const [editor] = useLexicalComposerContext()
+
+  useEffect(
+    () =>
+      editor.registerCommand(
+        KEY_SPACE_COMMAND,
+        (event) => {
+          if (
+            event.altKey ||
+            event.ctrlKey ||
+            event.metaKey ||
+            event.shiftKey ||
+            event.isComposing ||
+            editor.isComposing()
+          ) {
+            return false
+          }
+
+          const selection = $getSelection()
+          if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+            return false
+          }
+
+          const anchor = selection.anchor
+          const text = anchor.getNode()
+          if (
+            !$isTextNode(text) ||
+            anchor.offset !== 2 ||
+            text.getTextContent().slice(0, anchor.offset) !== "[]" ||
+            text.getPreviousSibling() !== null
+          ) {
+            return false
+          }
+
+          const paragraph = text.getParent()
+          if (
+            !$isParagraphNode(paragraph) ||
+            !$isRootOrShadowRoot(paragraph.getParent())
+          ) {
+            return false
+          }
+
+          event.preventDefault()
+          $addUpdateTag(HISTORY_PUSH_TAG)
+          text.spliceText(0, anchor.offset, "", true)
+          const listItem = $createListItemNode(false)
+          listItem.append(...paragraph.getChildren())
+          const list = $createListNode("check")
+          list.append(listItem)
+          paragraph.replace(list)
+          listItem.selectStart()
+          return true
+        },
+        COMMAND_PRIORITY_HIGH
+      ),
+    [editor]
+  )
+
+  return null
 }
 
 function EditorBridge({
@@ -496,6 +566,7 @@ export const MarkdownEditor = forwardRef<
                 <CheckListPlugin />
                 <TabIndentationPlugin />
                 <ListKeyboardPlugin />
+                <LegacyTaskShortcutPlugin />
                 <MarkdownPastePlugin />
                 {wikiLinkSuggestions ? (
                   <WikiLinkCompletionPlugin

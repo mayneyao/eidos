@@ -6,6 +6,12 @@ import {
 } from "@lexical/code-prism"
 import { $isAutoLinkNode, AutoLinkNode } from "@lexical/link"
 import {
+  $isListItemNode,
+  $isListNode,
+  type ListNode,
+  type SerializedListNode,
+} from "@lexical/list"
+import {
   MdastCommonMarkExtension,
   MdastExtension,
   MdastGfmExtension,
@@ -15,7 +21,7 @@ import {
   type MdastExportHandler,
   type MdastImportHandler,
 } from "@lexical/mdast"
-import type { Image, ImageReference, Link } from "mdast"
+import type { Image, ImageReference, Link, List, ListItem, Text } from "mdast"
 import {
   defineExtension,
   type EditorThemeClasses,
@@ -37,6 +43,7 @@ import {
 
 const WIKI_LINK_SCHEME = "eidos-wiki:"
 const WIKI_EMBED_SCHEME = "eidos-wiki-embed:"
+const EMPTY_TASK_PLACEHOLDER = "\uE000EIDOSEMPTYTASK\uE001"
 const MARKDOWN_PRISM_TOKENIZER: Tokenizer = {
   ...PrismTokenizer,
   // An unlabeled fence must stay unlabeled after a Markdown round-trip.
@@ -69,6 +76,9 @@ const $importImageReference: MdastImportHandler<ImageReference> = (
   })
 }
 
+const $importEmptyTaskPlaceholder: MdastImportHandler<Text> = (node, context) =>
+  context.createText(node.value.split(EMPTY_TASK_PLACEHOLDER).join(""))
+
 const $exportImage: MdastExportHandler<MarkdownImageNode> = (node) =>
   $isMarkdownImageNode(node)
     ? {
@@ -89,6 +99,89 @@ const $exportAutoLink: MdastExportHandler<AutoLinkNode> = (node, context) =>
       } satisfies Link)
     : null
 
+const $exportListWithEmptyTasks: MdastExportHandler<ListNode> = (
+  node,
+  context
+) => {
+  if (!$isListNode(node)) return null
+  const listType = node.getListType()
+
+  const list: List = {
+    children: [],
+    ordered: listType === "number",
+    spread: false,
+    start: listType === "number" ? node.getStart() : undefined,
+    type: "list",
+  }
+  const syntax = (
+    node.exportJSON() as SerializedListNode & {
+      $?: {
+        mdastListMarker?: unknown
+        mdastOrderedMarker?: unknown
+      }
+    }
+  ).$
+  if (
+    listType === "number" &&
+    (syntax?.mdastOrderedMarker === "." || syntax?.mdastOrderedMarker === ")")
+  ) {
+    list.data = { mdastBulletOrdered: syntax.mdastOrderedMarker }
+  } else if (
+    syntax?.mdastListMarker === "-" ||
+    syntax?.mdastListMarker === "*" ||
+    syntax?.mdastListMarker === "+"
+  ) {
+    list.data = { mdastBullet: syntax.mdastListMarker }
+  }
+  let previousItem: ListItem | null = null
+
+  for (const child of node.getChildren()) {
+    if (!$isListItemNode(child) || !context.isIncluded(child)) continue
+    const firstChild = child.getFirstChild()
+    if (child.getChildrenSize() === 1 && $isListNode(firstChild)) {
+      const nested = context
+        .exportChildren(child)
+        .find((candidate) => candidate.type === "list")
+      if (!nested) continue
+      if (previousItem) previousItem.children.push(nested)
+      else {
+        list.children.push({
+          children: [nested],
+          spread: false,
+          type: "listItem",
+        })
+      }
+      continue
+    }
+
+    const blocks = context.exportBlocks(child)
+    const hasContent = blocks.some(
+      (block) => block.type !== "paragraph" || block.children.length > 0
+    )
+    const item: ListItem = {
+      checked: listType === "check" ? (child.getChecked() ?? false) : null,
+      children:
+        listType === "check" && !hasContent
+          ? [
+              {
+                // mdast-util-gfm-task-list-item omits the checkbox when an
+                // empty paragraph serializes to a bare list marker. This
+                // export-only sentinel is stripped immediately afterward.
+                children: [{ type: "text", value: EMPTY_TASK_PLACEHOLDER }],
+                type: "paragraph",
+              },
+            ]
+          : blocks,
+      spread: false,
+      type: "listItem",
+    }
+    list.children.push(item)
+    previousItem = item
+  }
+
+  return list
+}
+
 const $exportWikiLink: MdastExportHandler<WikiLinkNode> = (node) => {
   if (!$isWikiLinkNode(node)) return null
   const payload: WikiLinkPayload = {
@@ -108,11 +201,13 @@ export const EIDOS_MDAST_SYNTAX_EXTENSION = /* @__PURE__ */ defineExtension({
   dependencies: [
     /* @__PURE__ */ configExtension(MdastImportExtension, {
       exportRules: [
+        { $export: $exportListWithEmptyTasks, type: "list" },
         { $export: $exportAutoLink, type: "autolink" },
         { $export: $exportImage, type: "markdown-image" },
         { $export: $exportWikiLink, type: "wiki-link" },
       ],
       importRules: [
+        { $import: $importEmptyTaskPlaceholder, type: "text" },
         { $import: $importImage, type: "image" },
         { $import: $importImageReference, type: "imageReference" },
       ],
@@ -221,17 +316,20 @@ export function preprocessWikiLinks(markdown: string): string {
       replacement.value +
       output.slice(replacement.end)
   }
-  return output
+  return addEmptyTaskPlaceholders(output)
 }
 
 export function postprocessWikiLinks(markdown: string): string {
-  return markdown.replace(
-    /!?\[[^\n]*?\]\((?:<)?(eidos-wiki(?:-embed)?:[^)>\s]+)(?:>)?\)/g,
-    (full, url: string) => {
-      const payload = decodeWikiPlaceholder(url)
-      return payload ? markdownForWikiPayload(payload) : full
-    }
-  )
+  return markdown
+    .replace(
+      /!?\[[^\n]*?\]\((?:<)?(eidos-wiki(?:-embed)?:[^)>\s]+)(?:>)?\)/g,
+      (full, url: string) => {
+        const payload = decodeWikiPlaceholder(url)
+        return payload ? markdownForWikiPayload(payload) : full
+      }
+    )
+    .split(EMPTY_TASK_PLACEHOLDER)
+    .join("")
 }
 
 function encodeWikiPlaceholder(payload: WikiLinkPayload): string {
@@ -334,4 +432,14 @@ function maskMarkdownSyntax(markdown: string): string {
   maskMatches(/!?\[[^\]\n]*\]\([^\n)]*(?:\([^\n)]*\)[^\n)]*)*\)/g)
   maskMatches(/\[[^\]\n]+\]\[[^\]\n]*\]/g)
   return characters.join("")
+}
+
+function addEmptyTaskPlaceholders(markdown: string): string {
+  const masked = maskMarkdownSyntax(markdown)
+  const pattern = /^([ \t]*[-*+][ \t]+\[[ xX]\])[ \t]*$/gm
+  return markdown.replace(pattern, (match, marker: string, offset: number) => {
+    const maskedLine = masked.slice(offset, offset + match.length)
+    if (maskedLine.includes("\uE000")) return match
+    return `${marker} ${EMPTY_TASK_PLACEHOLDER}`
+  })
 }

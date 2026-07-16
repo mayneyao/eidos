@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from "node:fs"
 import React, { createRef, useState } from "react"
 import { act } from "react"
 import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode"
@@ -10,6 +11,7 @@ import {
   KEY_BACKSPACE_COMMAND,
   KEY_TAB_COMMAND,
   PASTE_COMMAND,
+  UNDO_COMMAND,
   type LexicalEditor,
 } from "lexical"
 import { vi } from "vitest"
@@ -68,6 +70,14 @@ function lexicalEditorFor(element: HTMLElement): LexicalEditor {
   ).__lexicalEditor
   if (!editor) throw new Error("Expected Lexical editor on content editable")
   return editor
+}
+
+function EditorWithSelectionBoundary() {
+  return (
+    <div data-selection-boundary style={{ overflow: "auto" }}>
+      <MarkdownEditor defaultValue={"First block\n\nSecond block"} />
+    </div>
+  )
 }
 
 describe("MarkdownEditor", () => {
@@ -131,6 +141,68 @@ describe("MarkdownEditor", () => {
     expect(editor.isComposing()).toBe(false)
   })
 
+  it("turns the legacy [] + Space shortcut into a task list", async () => {
+    const ref = createRef<MarkdownEditorHandle>()
+    const container = render(<MarkdownEditor defaultValue="[]" ref={ref} />)
+    await settle()
+
+    const root = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const editor = lexicalEditorFor(root)
+    const text = lastTextNode(root)
+    act(() => {
+      root.focus()
+      placeCaret(text, text.data.length)
+      pressKey(root, " ")
+    })
+    await settle()
+
+    expect(container.querySelector(".eidos-md-check-list")).not.toBeNull()
+    const saved = ref.current?.getMarkdown().markdown
+    expect(saved).toBe("- [ ] ")
+
+    const reloaded = render(<MarkdownEditor defaultValue={saved} />)
+    await settle()
+    expect(reloaded.querySelector(".eidos-md-check-list")).not.toBeNull()
+
+    act(() => editor.dispatchCommand(UNDO_COMMAND, undefined))
+    await settle()
+    expect(container.querySelector(".eidos-md-check-list")).toBeNull()
+    expect(root.textContent).toBe("[]")
+  })
+
+  it("does not run the [] task shortcut during IME composition", async () => {
+    const container = render(<MarkdownEditor defaultValue="[]" />)
+    await settle()
+
+    const root = container.querySelector<HTMLElement>('[role="textbox"]')!
+    const text = lastTextNode(root)
+    act(() => {
+      root.focus()
+      placeCaret(text, text.data.length)
+      root.dispatchEvent(
+        new CompositionEvent("compositionstart", {
+          bubbles: true,
+          cancelable: true,
+          data: " ",
+        })
+      )
+      pressKey(root, " ")
+    })
+    await settle()
+
+    expect(container.querySelector(".eidos-md-check-list")).toBeNull()
+    expect(root.textContent?.replace(/\u200b/g, "")).toBe("[]")
+    act(() => {
+      root.dispatchEvent(
+        new CompositionEvent("compositionend", {
+          bubbles: true,
+          cancelable: true,
+          data: "",
+        })
+      )
+    })
+  })
+
   it("renders a keyboard-focusable read-only viewer", async () => {
     const container = render(
       <MarkdownViewer markdown="A [link](https://eidos.space)." />
@@ -160,6 +232,18 @@ describe("MarkdownEditor", () => {
     const source = container.querySelector('[role="document"]')
     expect(source?.textContent).toBe(markdown)
     expect(source?.getAttribute("aria-label")).toBe("Raw note")
+  })
+
+  it("keeps escaped task-like text in the visual editor", async () => {
+    const container = render(
+      <MarkdownEditor defaultValue={String.raw`- \[] 没有变成 todo lists`} />
+    )
+    await settle()
+
+    expect(container.querySelector('[role="textbox"]')).not.toBeNull()
+    expect(
+      container.querySelector('[data-unsupported-markdown="true"]')
+    ).toBeNull()
   })
 
   it("renders GFM tables through the semantic viewer", async () => {
@@ -632,6 +716,26 @@ describe("MarkdownEditor", () => {
       }) as DOMRect
 
     act(() => {
+      first.dispatchEvent(
+        new MouseEvent("mousedown", {
+          bubbles: true,
+          button: 0,
+          clientX: 260,
+          clientY: 15,
+        })
+      )
+      window.dispatchEvent(
+        new MouseEvent("mousemove", {
+          bubbles: true,
+          clientX: 520,
+          clientY: 35,
+        })
+      )
+    })
+    await settle()
+    expect(container.querySelector(".eidos-md-block-marquee")).toBeNull()
+
+    act(() => {
       root.dispatchEvent(
         new MouseEvent("mousedown", {
           bubbles: true,
@@ -659,6 +763,97 @@ describe("MarkdownEditor", () => {
     )
     await settle()
     expect(container.querySelector(".eidos-md-block-marquee")).toBeNull()
+  })
+
+  it("starts a block marquee from the host blank area outside the document", async () => {
+    const container = render(<EditorWithSelectionBoundary />)
+    await settle()
+
+    const boundary = container.querySelector<HTMLElement>(
+      "[data-selection-boundary]"
+    )!
+    const surface = container.querySelector<HTMLElement>(
+      ".eidos-md-editor-surface"
+    )!
+    const [first, second] = Array.from(
+      container.querySelectorAll<HTMLElement>("p")
+    )
+    surface.getBoundingClientRect = () =>
+      ({
+        bottom: 200,
+        height: 200,
+        left: 200,
+        right: 600,
+        top: 0,
+        width: 400,
+        x: 200,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect
+    first.getBoundingClientRect = () =>
+      ({
+        bottom: 40,
+        height: 30,
+        left: 240,
+        right: 540,
+        top: 10,
+        width: 300,
+        x: 240,
+        y: 10,
+        toJSON: () => ({}),
+      }) as DOMRect
+    second.getBoundingClientRect = () =>
+      ({
+        bottom: 90,
+        height: 30,
+        left: 240,
+        right: 540,
+        top: 60,
+        width: 300,
+        x: 240,
+        y: 60,
+        toJSON: () => ({}),
+      }) as DOMRect
+
+    act(() => {
+      boundary.dispatchEvent(
+        new MouseEvent("mousedown", {
+          bubbles: true,
+          button: 0,
+          clientX: 100,
+          clientY: 5,
+        })
+      )
+      window.dispatchEvent(
+        new MouseEvent("mousemove", {
+          bubbles: true,
+          clientX: 560,
+          clientY: 45,
+        })
+      )
+    })
+    await settle()
+
+    expect(container.querySelector(".eidos-md-block-marquee")).not.toBeNull()
+    expect(first.classList.contains("eidos-md-block-selected")).toBe(true)
+    expect(second.classList.contains("eidos-md-block-selected")).toBe(false)
+
+    act(() =>
+      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }))
+    )
+  })
+
+  it("uses only a background to style selected blocks", () => {
+    const stylesheetPath = existsSync("src/styles.css")
+      ? "src/styles.css"
+      : "packages/markdown-editor/src/styles.css"
+    const stylesheet = readFileSync(stylesheetPath, "utf8")
+    const rule = stylesheet.match(
+      /\.eidos-md-block-selected\s*\{([^}]*)\}/
+    )?.[1]
+
+    expect(rule).toContain("background:")
+    expect(rule).not.toMatch(/\bbox-shadow\s*:|\boutline\s*:/)
   })
 
   it("marquee-selects and deletes individual list items", async () => {
