@@ -133,7 +133,7 @@ export function SettingsSidebar({
     },
     {
       id: "space-extensions",
-      title: "Extensions",
+      title: t("settings.extensions.title", "Extensions"),
       icon: Package,
       category: "space",
       availability: "all",

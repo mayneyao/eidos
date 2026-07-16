@@ -76,7 +76,7 @@ export function SettingsContent() {
         return t("space.settings.mounts")
 
       case "space-extensions":
-        return "Extensions"
+        return t("settings.extensions.title", "Extensions")
       case "space-tabs":
         return t("space.settings.tabs.title", "Tabs")
 

@@ -26,6 +26,7 @@ vi.mock("react-i18next", () => ({
         "settings.backToApp": "Back to app",
         "settings.browser": "Browser",
         "settings.general": "General",
+        "settings.extensions.title": "Translated extensions",
         "settings.secrets": "Secrets",
         "settings.sync": "Sync",
         "settings.title": "Settings",
@@ -142,7 +143,7 @@ describe("SettingsSidebar", () => {
     expect(container.textContent).toContain("Base")
     expect(container.textContent).toContain("Versioning")
     expect(container.textContent).toContain("Indexes")
-    expect(container.textContent).toContain("Extensions")
+    expect(container.textContent).toContain("Translated extensions")
     expect(container.textContent).not.toContain("Document")
     expect(container.textContent).not.toContain("Migration")
     expect(

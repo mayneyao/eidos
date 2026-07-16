@@ -579,33 +579,12 @@ describe("FileExtensionSettings", () => {
     ).not.toBeNull()
   })
 
-  it("opens panel UI first and exposes each source entrypoint inline", async () => {
+  it("opens an enabled panel from the package summary and exposes each source entrypoint inline", async () => {
     discoverMock.mockResolvedValue(panelFixture())
     await act(async () => {
       root.render(<FileExtensionSettings />)
       await Promise.resolve()
     })
-
-    const openUi = [...container.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === "Open UI"
-    )!
-    act(() => openUi.click())
-    expect(openTabMock).toHaveBeenLastCalledWith(
-      "/space-file#.eidos%2Fextensions%2Fexample.task-counter%2Fsrc%2Fpanel.ts",
-      "panel.ts"
-    )
-
-    act(() =>
-      [...container.querySelectorAll("button")]
-        .find((button) => button.textContent?.trim() === "Manage")!
-        .click()
-    )
-    expect(container.textContent).toContain("Source files")
-    expect(container.textContent).toContain("Manifestextension.json")
-    expect(container.textContent).toContain("Worker entrypointsrc/extension.ts")
-    expect(container.textContent).toContain("UI entrypointsrc/panel.ts")
-    expect(container.textContent).toContain("Source filesrc/panel.css")
-    expect(container.textContent).not.toContain("Source fileREADME.md")
 
     const openPanel = [...container.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "Open panel"
@@ -620,6 +599,20 @@ describe("FileExtensionSettings", () => {
       permissionHash,
       panelId: "example.task-counter.summary",
     })
+    expect(openTabMock).not.toHaveBeenCalled()
+
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Manage")!
+        .click()
+    )
+    expect(container.textContent).toContain("Source files")
+    expect(container.textContent).toContain("Manifestextension.json")
+    expect(container.textContent).toContain("Worker entrypointsrc/extension.ts")
+    expect(container.textContent).toContain("UI entrypointsrc/panel.ts")
+    expect(container.textContent).toContain("Source filesrc/panel.css")
+    expect(container.textContent).not.toContain("Source fileREADME.md")
+
     expect(container.textContent).toContain("Panel opened in a tab.")
 
     const openWorker = [...container.querySelectorAll("button")].find(
@@ -769,7 +762,7 @@ describe("FileExtensionSettings", () => {
     )
     expect(container.textContent).toContain("**/*.tasks.md · text/markdown")
     const openCreatedSource = [...container.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === "Open UI"
+      (button) => button.textContent?.trim() === "Open source"
     )!
     act(() => openCreatedSource.click())
     expect(openTabMock).toHaveBeenLastCalledWith(
@@ -829,7 +822,7 @@ describe("FileExtensionSettings", () => {
     const createdStatus =
       container.querySelector<HTMLElement>("[role='status']")!
     const openCreatedUi = [...createdStatus.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === "Open UI"
+      (button) => button.textContent?.trim() === "Open source"
     )!
     act(() => openCreatedUi.click())
     expect(openTabMock).toHaveBeenLastCalledWith(
@@ -900,7 +893,7 @@ describe("FileExtensionSettings", () => {
       container.querySelector<HTMLElement>("[role='status']")!
     act(() =>
       [...createdStatus.querySelectorAll("button")]
-        .find((button) => button.textContent?.trim() === "Open UI")!
+        .find((button) => button.textContent?.trim() === "Open source")!
         .click()
     )
     expect(openTabMock).toHaveBeenLastCalledWith(

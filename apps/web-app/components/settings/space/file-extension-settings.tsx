@@ -1331,7 +1331,7 @@ export function FileExtensionSettings() {
   const openSourceLabel = (kind: ExtensionSourceKind): string => {
     switch (kind) {
       case "ui":
-        return t("space.settings.fileExtensions.openUi", "Open UI")
+        return t("space.settings.fileExtensions.openSource", "Open source")
       case "worker":
         return t("space.settings.fileExtensions.openWorker", "Open worker")
       case "manifest":
@@ -2215,6 +2215,14 @@ export function FileExtensionSettings() {
                 !legacyConflict &&
                 (extension.lifecycleStatus === "enabled" ||
                   development?.status === "ready")
+              const primaryPanel = panels[0]
+              const primaryPanelKey = primaryPanel
+                ? panelOpenKey(extension, primaryPanel.id)
+                : null
+              const primaryPanelOpening =
+                !!primaryPanelKey &&
+                panelOpen?.key === primaryPanelKey &&
+                panelOpen.status === "opening"
               return (
                 <div
                   id={packageElementId(packageId)}
@@ -2436,7 +2444,31 @@ export function FileExtensionSettings() {
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      {primarySource && (
+                      {primaryPanel && executionEnabled ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={primaryPanelOpening}
+                          onClick={() =>
+                            void openPanel(extension, primaryPanel)
+                          }
+                        >
+                          {primaryPanelOpening ? (
+                            <LoaderCircle className="animate-spin" />
+                          ) : (
+                            <Package />
+                          )}
+                          {primaryPanelOpening
+                            ? t(
+                                "space.settings.fileExtensions.openingPanel",
+                                "Opening…"
+                              )
+                            : t(
+                                "space.settings.fileExtensions.openPanel",
+                                "Open panel"
+                              )}
+                        </Button>
+                      ) : primarySource ? (
                         <Button
                           type="button"
                           size="sm"
@@ -2446,7 +2478,7 @@ export function FileExtensionSettings() {
                           <FileCode2 />
                           {openSourceLabel(primarySource.kind)}
                         </Button>
-                      )}
+                      ) : null}
                       <Badge
                         variant="outline"
                         className={cn(
