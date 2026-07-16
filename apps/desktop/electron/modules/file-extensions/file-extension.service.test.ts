@@ -529,12 +529,63 @@ describe("FileExtensionService", () => {
       state: { pending: 2, completed: 2 },
     })
 
+    const development = await service.startDevelopmentSession(
+      "space-a",
+      snapshot
+    )
+    await writeFile(
+      path.join(packageRoot, "src", "panel.ts"),
+      [
+        'import type { ExtensionPanelContext } from "@eidos.space/extension-sdk"',
+        "export function activate(context: ExtensionPanelContext) {",
+        '  context.root.textContent = "development-version-two"',
+        "}",
+      ].join("\n")
+    )
+    await vi.waitFor(
+      () => {
+        const refreshed = send.mock.calls.find(
+          ([channel, event]) =>
+            channel === "file-extensions:open-panel" &&
+            event.sessionId === first.sessionId &&
+            event.revision === 3
+        )
+        expect(refreshed).toBeDefined()
+      },
+      { timeout: WATCH_EVENT_TIMEOUT_MS }
+    )
+    await expect(
+      service.getPanelSession("space-a", { sessionId: first.sessionId })
+    ).resolves.toMatchObject({
+      sessionId: first.sessionId,
+      revision: 3,
+      state: { pending: 2, completed: 2 },
+    })
+    expect(
+      (
+        await service.getPanelSession("space-a", {
+          sessionId: first.sessionId,
+        })
+      ).source
+    ).toContain("development-version-two")
+    expect(send).toHaveBeenCalledWith(
+      "file-extensions:development-changed",
+      expect.objectContaining({
+        sessionId: development.sessionId,
+        status: "ready",
+      })
+    )
+
     expect(
       service.closePanelSession("space-a", { sessionId: first.sessionId })
     ).toEqual({ success: true })
     await expect(
       service.getPanelSession("space-a", { sessionId: first.sessionId })
     ).rejects.toThrow("session is unavailable")
+    await service.stopDevelopmentSession("space-a", {
+      packageId: snapshot.packageId,
+      sessionId: development.sessionId,
+    })
     service.stopWatching("space-a")
   })
 

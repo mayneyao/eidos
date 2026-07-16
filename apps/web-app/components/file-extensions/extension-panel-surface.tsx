@@ -9,6 +9,7 @@ import { createExtensionSurfaceHostHtml } from "@eidos.space/extension-runtime/s
 import { AlertTriangle, LoaderCircle, RefreshCw } from "lucide-react"
 
 import type {
+  FileExtensionDevelopmentChangedEvent,
   FileExtensionOpenPanelResult,
   FileExtensionPanelDisposedEvent,
   FileExtensionPanelOpenEvent,
@@ -34,10 +35,22 @@ export function ExtensionPanelSurface({ sessionId }: { sessionId: string }) {
   const [loading, setLoading] = useState(true)
   const [activated, setActivated] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [developmentReloading, setDevelopmentReloading] = useState(false)
+  const [developmentIssue, setDevelopmentIssue] = useState<string | null>(null)
   const portRef = useRef<MessagePort | null>(null)
   const initializedRef = useRef(false)
   const appearanceRef = useRef<ExtensionSurfaceAppearance | null>(null)
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const disposeSurface = useCallback(() => {
+    initializedRef.current = false
+    try {
+      portRef.current?.close()
+    } catch {
+      // The iframe may have already closed the port.
+    }
+    portRef.current = null
+  }, [])
 
   useTabTitle(session?.title ?? "Extension panel")
 
@@ -69,7 +82,11 @@ export function ExtensionPanelSurface({ sessionId }: { sessionId: string }) {
     void window.eidos.fileExtensions
       .getPanelSession(spaceId, { sessionId })
       .then((opened) => {
-        if (!cancelled) setSession(opened)
+        if (!cancelled) {
+          setSession(opened)
+          setDevelopmentReloading(false)
+          setDevelopmentIssue(null)
+        }
       })
       .catch((openError) => {
         if (!cancelled) {
@@ -112,6 +129,8 @@ export function ExtensionPanelSurface({ sessionId }: { sessionId: string }) {
         const event = payload as Partial<FileExtensionPanelDisposedEvent>
         if (event.spaceId === spaceId && event.sessionId === sessionId) {
           setActivated(false)
+          setDevelopmentReloading(false)
+          setDevelopmentIssue(null)
           setSession(null)
           setError(event.reason ?? "The extension panel is no longer active.")
         }
@@ -126,6 +145,56 @@ export function ExtensionPanelSurface({ sessionId }: { sessionId: string }) {
       }
     }
   }, [currentSpace?.id, session?.revision, sessionId])
+
+  useEffect(() => {
+    const spaceId = currentSpace?.id
+    const packageId = session?.packageId
+    if (!spaceId || !packageId || !window.eidos) return
+    const listenerId = window.eidos.on(
+      "file-extensions:development-changed",
+      (_event: unknown, payload: unknown) => {
+        const event = payload as Partial<FileExtensionDevelopmentChangedEvent>
+        if (
+          event.spaceId !== spaceId ||
+          event.packageId !== packageId ||
+          typeof event.status !== "string"
+        ) {
+          return
+        }
+        if (event.status === "checking") {
+          disposeSurface()
+          setActivated(false)
+          setDevelopmentReloading(true)
+          setDevelopmentIssue(null)
+          setError(null)
+          return
+        }
+        if (event.status === "ready") {
+          setDevelopmentIssue(null)
+          return
+        }
+        setDevelopmentReloading(false)
+        if (event.status === "stopped") {
+          disposeSurface()
+          setActivated(false)
+          setError("The extension development session stopped.")
+          return
+        }
+        disposeSurface()
+        setActivated(false)
+        setError(null)
+        setDevelopmentIssue(
+          event.diagnostics?.[0]?.message ??
+            "The extension panel cannot reload until its development error is fixed."
+        )
+      }
+    )
+    return () => {
+      if (listenerId) {
+        window.eidos.off("file-extensions:development-changed", listenerId)
+      }
+    }
+  }, [currentSpace?.id, disposeSurface, session?.packageId])
 
   useEffect(() => {
     const spaceId = currentSpace?.id
@@ -203,22 +272,40 @@ export function ExtensionPanelSurface({ sessionId }: { sessionId: string }) {
   )
 
   useEffect(() => {
-    return () => {
-      initializedRef.current = false
-      try {
-        portRef.current?.close()
-      } catch {
-        // The iframe may have already closed the port.
-      }
-      portRef.current = null
-    }
-  }, [session?.revision, session?.sessionId])
+    return disposeSurface
+  }, [disposeSurface, session?.revision, session?.sessionId])
 
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
         <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
         Opening extension panel…
+      </div>
+    )
+  }
+
+  if (developmentReloading) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+        Reloading extension panel…
+      </div>
+    )
+  }
+
+  if (developmentIssue) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="max-w-md text-center">
+          <AlertTriangle className="mx-auto mb-3 h-5 w-5 text-amber-500" />
+          <p className="text-sm font-medium">Extension development paused</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {developmentIssue}
+          </p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Save valid source to reload this panel automatically.
+          </p>
+        </div>
       </div>
     )
   }

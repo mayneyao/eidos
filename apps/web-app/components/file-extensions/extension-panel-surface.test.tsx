@@ -191,6 +191,60 @@ describe("ExtensionPanelSurface", () => {
     expect(container.textContent).not.toContain("Activating extension")
 
     await act(async () => {
+      mocks.listeners.get("file-extensions:development-changed")?.(
+        {},
+        {
+          spaceId: "space-a",
+          packageId: firstSession.packageId,
+          sessionId: "development-session-1",
+          status: "invalid",
+          generation: 2,
+          diagnostics: [
+            { code: "compile", message: "Unexpected token in panel source" },
+          ],
+        }
+      )
+      await Promise.resolve()
+    })
+    expect(firstPort.close).toHaveBeenCalledOnce()
+    expect(container.querySelector("iframe")).toBeNull()
+    expect(container.textContent).toContain("Unexpected token in panel source")
+
+    await act(async () => {
+      mocks.listeners.get("file-extensions:development-changed")?.(
+        {},
+        {
+          spaceId: "space-a",
+          packageId: firstSession.packageId,
+          sessionId: "development-session-1",
+          status: "checking",
+          generation: 3,
+          diagnostics: [],
+        }
+      )
+      await Promise.resolve()
+    })
+    expect(container.querySelector("iframe")).toBeNull()
+    expect(container.textContent).toContain("Reloading extension panel")
+
+    await act(async () => {
+      mocks.listeners.get("file-extensions:development-changed")?.(
+        {},
+        {
+          spaceId: "space-a",
+          packageId: firstSession.packageId,
+          sessionId: "development-session-1",
+          status: "ready",
+          generation: 4,
+          diagnostics: [],
+        }
+      )
+      await Promise.resolve()
+    })
+    expect(container.querySelector("iframe")).toBeNull()
+    expect(container.textContent).toContain("Reloading extension panel")
+
+    await act(async () => {
       mocks.listeners.get("file-extensions:open-panel")?.(
         {},
         {
@@ -201,10 +255,21 @@ describe("ExtensionPanelSurface", () => {
         }
       )
       await flushEffects()
+      mocks.listeners.get("file-extensions:development-changed")?.(
+        {},
+        {
+          spaceId: "space-a",
+          packageId: firstSession.packageId,
+          sessionId: "development-session-1",
+          status: "ready",
+          generation: 5,
+          diagnostics: [],
+        }
+      )
+      await Promise.resolve()
     })
 
     expect(mocks.getPanelSession).toHaveBeenCalledTimes(2)
-    expect(firstPort.close).toHaveBeenCalledOnce()
     expect(container.querySelector("iframe")?.title).toBe(firstSession.title)
 
     act(() => root.unmount())

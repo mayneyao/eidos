@@ -15,6 +15,7 @@ import {
   isIgnoredExtensionPackagePath,
   type ExtensionFileEditorSelector,
   type ExtensionPackageInspection,
+  type ExtensionPanelContribution,
   type NormalizedExtensionPermissions,
 } from "@eidos.space/extension-manifest"
 import {
@@ -158,6 +159,7 @@ interface FileExtensionPanelSession extends FileExtensionOpenPanelResult {
   spaceId: string
   snapshot: ExtensionSnapshotIdentity
   key: string
+  suspended: boolean
 }
 
 function requestedGrants(
@@ -788,6 +790,9 @@ export class FileExtensionService extends IpcServiceBase {
     request: FileExtensionPanelSessionRequest
   ): Promise<FileExtensionOpenPanelResult> {
     const session = this.requirePanelSession(spaceId, request)
+    if (session.suspended) {
+      throw new Error("Extension panel is reloading")
+    }
     const space = this.getFileSpace(spaceId)
     await withFileSpaceReadLock(spaceId, () =>
       this.requireCurrentEnabledSnapshot(spaceId, space.path, session.snapshot)
@@ -1509,6 +1514,7 @@ export class FileExtensionService extends IpcServiceBase {
         )
       }
 
+      let surfaceBundleCode: string | undefined
       try {
         if (inspection.manifest.entrypoints.worker) {
           const compiled = await compileExtensionWorker({
@@ -1525,6 +1531,7 @@ export class FileExtensionService extends IpcServiceBase {
             entrypoint: inspection.manifest.entrypoints.ui,
             files,
           })
+          surfaceBundleCode = compiled.code
           this.bundleCache.set(
             this.snapshotCacheKey(spaceId, snapshot, "surface"),
             compiled.code
@@ -1550,9 +1557,23 @@ export class FileExtensionService extends IpcServiceBase {
         )
       }
 
-      return this.applyDevelopmentResult(spaceId, expected, () =>
+      const next = this.applyDevelopmentResult(spaceId, expected, () =>
         this.developmentManager.markReady(spaceId, expected.packageId, snapshot)
       )
+      if (
+        next?.status === "ready" &&
+        next.currentSnapshot?.packageId === snapshot.packageId &&
+        next.currentSnapshot.contentDigest === snapshot.contentDigest &&
+        next.currentSnapshot.permissionHash === snapshot.permissionHash
+      ) {
+        this.resumeDevelopmentPanelSessions(
+          spaceId,
+          snapshot,
+          inspection.manifest.contributes.panels ?? [],
+          surfaceBundleCode
+        )
+      }
+      return next
     } catch (error) {
       return this.applyDevelopmentResult(spaceId, expected, () =>
         this.developmentManager.markBlocked(
@@ -2285,7 +2306,7 @@ export class FileExtensionService extends IpcServiceBase {
     packageId: string,
     reason: string
   ): void {
-    this.disposePanelSessions(
+    this.invalidatePanelSessions(
       (session) =>
         session.spaceId === spaceId && session.snapshot.packageId === packageId,
       reason
@@ -2343,7 +2364,10 @@ export class FileExtensionService extends IpcServiceBase {
 
   private invalidateSpaceRuntime(spaceId: string, reason: string): void {
     this.runtimeManager.disposeSpace(spaceId, reason)
-    this.disposePanelSessions((session) => session.spaceId === spaceId, reason)
+    this.invalidatePanelSessions(
+      (session) => session.spaceId === spaceId,
+      reason
+    )
     this.trackDocumentFlush(`${spaceId}\0*`, () =>
       this.documentManager.flushAndDisposeSpace(spaceId, reason)
     )
@@ -2486,6 +2510,7 @@ export class FileExtensionService extends IpcServiceBase {
           source: prepared.source,
           state,
           revision: existing.revision + 1,
+          suspended: false,
         }
       : {
           key,
@@ -2499,18 +2524,77 @@ export class FileExtensionService extends IpcServiceBase {
           source: prepared.source,
           state,
           snapshot: { ...snapshot },
+          suspended: false,
         }
     this.panelSessions.set(session.sessionId, session)
     this.panelSessionIdsByKey.set(key, session.sessionId)
+    this.emitPanelOpen(session)
+    return this.publicPanelSession(session)
+  }
+
+  private resumeDevelopmentPanelSessions(
+    spaceId: string,
+    snapshot: ExtensionSnapshotIdentity,
+    panels: readonly ExtensionPanelContribution[],
+    bundleCode: string | undefined
+  ): void {
+    const authorization = this.developmentManager.authorize(spaceId, snapshot)
+    if (!authorization) return
+    const localState: ExtensionLocalState = {
+      snapshot: { ...snapshot },
+      trusted: true,
+      enabled: true,
+      requestedGrants: authorization.requestedGrants,
+      granted: authorization.granted,
+    }
+    const generation = this.surfaceGeneration(snapshot, localState)
+    const source = bundleCode
+      ? createExtensionSurfaceSource({
+          bundleCode,
+          extensionId: snapshot.packageId,
+          generation,
+        })
+      : undefined
+
+    for (const session of [...this.panelSessions.values()]) {
+      if (
+        !session.suspended ||
+        session.spaceId !== spaceId ||
+        session.packageId !== snapshot.packageId
+      ) {
+        continue
+      }
+      const contribution = panels.find((panel) => panel.id === session.panelId)
+      if (!contribution || !source) {
+        this.disposePanelSession(
+          session,
+          "The extension no longer contributes this panel"
+        )
+        continue
+      }
+      const resumed: FileExtensionPanelSession = {
+        ...session,
+        snapshot: { ...snapshot },
+        title: contribution.displayName,
+        generation,
+        source,
+        revision: session.revision + 1,
+        suspended: false,
+      }
+      this.panelSessions.set(resumed.sessionId, resumed)
+      this.emitPanelOpen(resumed)
+    }
+  }
+
+  private emitPanelOpen(session: FileExtensionPanelSession): void {
     this.windowProvider
       .getWindow()
       ?.webContents.send("file-extensions:open-panel", {
-        spaceId,
+        spaceId: session.spaceId,
         sessionId: session.sessionId,
         title: session.title,
         revision: session.revision,
       })
-    return this.publicPanelSession(session)
   }
 
   private requirePanelSession(
@@ -2549,20 +2633,46 @@ export class FileExtensionService extends IpcServiceBase {
     }
   }
 
+  private invalidatePanelSessions(
+    matches: (session: FileExtensionPanelSession) => boolean,
+    reason: string
+  ): void {
+    for (const session of [...this.panelSessions.values()]) {
+      if (!matches(session)) continue
+      const development = this.developmentManager.get(
+        session.spaceId,
+        session.packageId
+      )
+      if (development?.status === "checking") {
+        session.suspended = true
+        this.panelSessions.set(session.sessionId, session)
+      } else {
+        this.disposePanelSession(session, reason)
+      }
+    }
+  }
+
+  private disposePanelSession(
+    session: FileExtensionPanelSession,
+    reason: string
+  ): void {
+    this.deletePanelSession(session)
+    this.windowProvider
+      .getWindow()
+      ?.webContents.send("file-extensions:panel-disposed", {
+        spaceId: session.spaceId,
+        sessionId: session.sessionId,
+        reason,
+      })
+  }
+
   private disposePanelSessions(
     matches: (session: FileExtensionPanelSession) => boolean,
     reason: string
   ): void {
     for (const session of [...this.panelSessions.values()]) {
       if (!matches(session)) continue
-      this.deletePanelSession(session)
-      this.windowProvider
-        .getWindow()
-        ?.webContents.send("file-extensions:panel-disposed", {
-          spaceId: session.spaceId,
-          sessionId: session.sessionId,
-          reason,
-        })
+      this.disposePanelSession(session, reason)
     }
   }
 }
