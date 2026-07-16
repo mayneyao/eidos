@@ -1484,7 +1484,7 @@ export function FileExtensionSettings() {
                 <p className="text-sm leading-5 text-muted-foreground">
                   {t(
                     "space.settings.fileExtensions.runtimeDescription",
-                    "Enabled packages run in an isolated Worker bound to exact source bytes. This preview exposes read-only text access and host-owned notices, confirmations, and selections."
+                    "Enabled packages run from exact trusted source bytes. Logic executes in an isolated Worker, while panels and file editors render in sandboxed frames. Data access remains limited to host capabilities you explicitly grant."
                   )}
                 </p>
               </div>

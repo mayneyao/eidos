@@ -964,7 +964,7 @@ describe("FileExtensionSettings", () => {
     expect(container.textContent).toContain("Source trust")
     expect(container.textContent).toContain("files.read")
     expect(container.textContent).toContain(
-      "Enabled packages run in an isolated Worker bound to exact source bytes"
+      "Logic executes in an isolated Worker, while panels and file editors render in sandboxed frames"
     )
     expect(
       [
