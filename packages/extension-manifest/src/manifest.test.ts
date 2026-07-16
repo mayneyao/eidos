@@ -142,9 +142,9 @@ describe("analyzeExtensionManifest", () => {
     )
   })
 
-  it("accepts namespaced panels and requires worker and UI entrypoints", () => {
+  it("accepts UI-only panels and requires a UI entrypoint", () => {
     const panelManifest = manifest({
-      entrypoints: { worker: "src/extension.ts", ui: "src/panel.ts" },
+      entrypoints: { ui: "src/panel.ts" },
       contributes: {
         panels: [
           {
@@ -161,17 +161,6 @@ describe("analyzeExtensionManifest", () => {
         JSON.stringify(
           manifest({
             entrypoints: { worker: "src/extension.ts" },
-            contributes: panelManifest.contributes,
-          })
-        )
-      )
-    ).toContain("manifest-entrypoint-required")
-
-    expect(
-      diagnosticCodes(
-        JSON.stringify(
-          manifest({
-            entrypoints: { ui: "src/panel.ts" },
             contributes: panelManifest.contributes,
           })
         )

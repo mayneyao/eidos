@@ -285,14 +285,6 @@ function validateManifestSemantics(
       pointer: "/entrypoints/ui",
     })
   }
-  if (panels.length > 0 && !manifest.entrypoints.worker) {
-    diagnostics.push({
-      code: "manifest-entrypoint-required",
-      severity: "error",
-      message: "Panel contributions require entrypoints.worker to open them",
-      pointer: "/entrypoints/worker",
-    })
-  }
 
   const contributionIds = new Set<string>()
   const commandIds = new Set<string>()

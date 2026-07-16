@@ -1521,7 +1521,7 @@ export function FileExtensionSettings() {
                     : createdExtension.template === "panel"
                       ? t(
                           "space.settings.fileExtensions.panelCreatedNextStep",
-                          "Next: review and enable it below, grant Markdown read access, then run its command to open the Task Counter panel."
+                          "Next: review and enable it below. Open the panel directly, or grant Markdown read access and run its command from a Markdown file to populate task counts."
                         )
                       : t(
                           "space.settings.fileExtensions.editorCreatedNextStep",

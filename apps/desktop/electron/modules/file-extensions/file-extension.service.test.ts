@@ -621,6 +621,99 @@ describe("FileExtensionService", () => {
     service.stopWatching("space-a")
   })
 
+  it("opens a UI-only panel without creating a worker runtime", async () => {
+    const root = await createFileSpace()
+    const packageRoot = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "example.task-counter"
+    )
+    await writeFile(
+      path.join(packageRoot, "extension.json"),
+      JSON.stringify({
+        manifestVersion: 1,
+        publisher: "example",
+        name: "task-counter",
+        displayName: "Task Counter",
+        version: "1.0.0",
+        engines: { eidos: ">=0.33.0 <1.0.0" },
+        entrypoints: { ui: "src/panel.ts" },
+        contributes: {
+          panels: [
+            {
+              id: "example.task-counter.summary",
+              displayName: "Task Summary",
+            },
+          ],
+        },
+        permissions: {
+          files: { read: [], write: [] },
+          network: [],
+        },
+      })
+    )
+    await writeFile(
+      path.join(packageRoot, "src", "panel.ts"),
+      [
+        'import type { ExtensionPanelContext } from "@eidos.space/extension-sdk"',
+        "export function activate(context: ExtensionPanelContext) {",
+        '  context.root.textContent = "UI-only panel"',
+        "}",
+      ].join("\n")
+    )
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const send = vi.fn()
+    const windowProvider = {
+      getWindow: () => ({ webContents: { send } }),
+    } as unknown as MainWindowProvider
+    const runtimeManager = runtimeManagerStub()
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManager
+    )
+    const extension = (await service.discover("space-a")).packages[0]!
+    const snapshot = {
+      packageId: extension.canonicalId!,
+      contentDigest: extension.contentDigest!,
+      permissionHash: extension.permissionHash!,
+    }
+    await service.trust("space-a", snapshot)
+    await service.setEnabled("space-a", snapshot, true)
+
+    await expect(service.listCommandPalette("space-a")).resolves.toMatchObject({
+      commands: [],
+      panels: [
+        {
+          id: "example.task-counter.summary",
+          packageId: "example.task-counter",
+        },
+      ],
+    })
+    const opened = await service.openPanel("space-a", {
+      ...snapshot,
+      panelId: "example.task-counter.summary",
+    })
+    expect(opened).toMatchObject({
+      panelId: "example.task-counter.summary",
+      state: undefined,
+    })
+    expect(opened.source).toContain("UI-only panel")
+    expect(runtimeManager.execute).not.toHaveBeenCalled()
+
+    service.closePanelSession("space-a", { sessionId: opened.sessionId })
+    service.stopWatching("space-a")
+  })
+
   it("returns sanitized, inspection-only discovery for a file Space", async () => {
     const root = await createFileSpace()
     const registry = {
