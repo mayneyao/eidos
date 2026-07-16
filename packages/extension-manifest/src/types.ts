@@ -22,6 +22,15 @@ export interface ExtensionFileEditorContribution {
   priority: "default" | "option"
 }
 
+/**
+ * A sandboxed UI surface opened as an editor-area tab. Panels are not tied to
+ * a file and do not imply a Base view type.
+ */
+export interface ExtensionPanelContribution {
+  id: string
+  displayName: string
+}
+
 export interface ExtensionManifestV1 {
   $schema?: string
   manifestVersion: 1
@@ -41,6 +50,7 @@ export interface ExtensionManifestV1 {
     commands?: ExtensionCommandContribution[]
     menus?: Record<string, ExtensionMenuContribution[]>
     fileEditors?: ExtensionFileEditorContribution[]
+    panels?: ExtensionPanelContribution[]
   }
   permissions: ExtensionPermissions
 }

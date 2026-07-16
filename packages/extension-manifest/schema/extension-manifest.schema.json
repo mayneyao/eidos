@@ -91,6 +91,10 @@
         "fileEditors": {
           "type": "array",
           "items": { "$ref": "#/$defs/fileEditor" }
+        },
+        "panels": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/panel" }
         }
       }
     },
@@ -192,6 +196,19 @@
         },
         "priority": {
           "enum": ["default", "option"]
+        }
+      }
+    },
+    "panel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName"],
+      "properties": {
+        "id": { "$ref": "#/$defs/identifier" },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
         }
       }
     },

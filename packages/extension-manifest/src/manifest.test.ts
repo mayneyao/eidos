@@ -142,6 +142,76 @@ describe("analyzeExtensionManifest", () => {
     )
   })
 
+  it("accepts namespaced panels and requires a UI entrypoint", () => {
+    const panelManifest = manifest({
+      entrypoints: { ui: "src/panel.ts" },
+      contributes: {
+        panels: [
+          {
+            id: "example.task-counter.dashboard",
+            displayName: "Task dashboard",
+          },
+        ],
+      },
+    })
+    expect(diagnosticCodes(JSON.stringify(panelManifest))).toEqual([])
+
+    expect(
+      diagnosticCodes(
+        JSON.stringify(
+          manifest({
+            entrypoints: { worker: "src/extension.ts" },
+            contributes: panelManifest.contributes,
+          })
+        )
+      )
+    ).toContain("manifest-entrypoint-required")
+
+    expect(
+      diagnosticCodes(
+        JSON.stringify(
+          manifest({
+            entrypoints: { ui: "src/panel.ts" },
+            contributes: {
+              panels: [
+                {
+                  id: "other.task-counter.dashboard",
+                  displayName: "Task dashboard",
+                },
+              ],
+            },
+          })
+        )
+      )
+    ).toContain("manifest-id-namespace")
+  })
+
+  it("rejects duplicate contribution IDs across panels and other surfaces", () => {
+    const duplicate = manifest({
+      entrypoints: { ui: "src/ui.ts" },
+      contributes: {
+        fileEditors: [
+          {
+            id: "example.task-counter.dashboard",
+            displayName: "Task dashboard",
+            selector: [{ filenamePattern: "**/*.md" }],
+            priority: "option",
+          },
+        ],
+        panels: [
+          {
+            id: "example.task-counter.dashboard",
+            displayName: "Task dashboard",
+          },
+        ],
+      },
+    })
+
+    expect(diagnosticCodes(JSON.stringify(duplicate))).toContain(
+      "manifest-duplicate-contribution"
+    )
+  })
+
   it("rejects non-portable file permissions and non-canonical origins", () => {
     const result = analyzeExtensionManifest(
       JSON.stringify(
