@@ -4,6 +4,7 @@ import { analyzeExtensionModuleImports } from "./imports"
 import { analyzeExtensionManifest } from "./manifest"
 import {
   createExtensionCommandTemplate,
+  createExtensionPanelTemplate,
   createExtensionTextEditorTemplate,
 } from "./template"
 
@@ -76,6 +77,69 @@ describe("createExtensionCommandTemplate", () => {
       ).toThrow("Extension name")
     }
   )
+})
+
+describe("createExtensionPanelTemplate", () => {
+  it("creates a command-driven Task Counter panel package", () => {
+    const template = createExtensionPanelTemplate({
+      publisher: "local",
+      name: "task-counter",
+      engineRange: ">=0.33.0",
+    })
+
+    expect(template.files.map((file) => file.path)).toEqual([
+      "extension.json",
+      "src/extension.ts",
+      "src/panel.ts",
+      "src/panel.css",
+      "README.md",
+    ])
+    expect(template.manifest).toMatchObject({
+      entrypoints: {
+        worker: "src/extension.ts",
+        ui: "src/panel.ts",
+      },
+      contributes: {
+        commands: [{ id: "local.task-counter.open-summary" }],
+        panels: [
+          {
+            id: "local.task-counter.summary",
+            displayName: "Task Counter",
+          },
+        ],
+        menus: {
+          "files/context": [
+            {
+              command: "local.task-counter.open-summary",
+              when: "resourceExtname == .md && resourceIsDirectory == false",
+            },
+            {
+              command: "local.task-counter.open-summary",
+              when: "resourceExtname == .markdown && resourceIsDirectory == false",
+            },
+          ],
+        },
+      },
+      permissions: {
+        files: { read: ["**/*.md", "**/*.markdown"], write: [] },
+      },
+    })
+    const files = new Set(template.files.map((file) => file.path))
+    for (const entrypoint of ["src/extension.ts", "src/panel.ts"]) {
+      const source = template.files.find(
+        (file) => file.path === entrypoint
+      )!.content
+      expect(analyzeExtensionModuleImports(entrypoint, source, files)).toEqual(
+        []
+      )
+    }
+    expect(
+      template.files.find((file) => file.path === "src/extension.ts")!.content
+    ).toContain("context.window.openPanel")
+    expect(
+      template.files.find((file) => file.path === "src/panel.ts")!.content
+    ).toContain("context.state ??")
+  })
 })
 
 describe("createExtensionTextEditorTemplate", () => {

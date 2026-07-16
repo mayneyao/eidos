@@ -37,6 +37,7 @@ export {
 } from "./legacy-archive"
 export {
   createExtensionCommandTemplate,
+  createExtensionPanelTemplate,
   createExtensionTextEditorTemplate,
 } from "./template"
 export type {
@@ -52,6 +53,7 @@ export type {
   ExtensionManifestAnalysis,
   ExtensionManifestV1,
   ExtensionMenuContribution,
+  ExtensionPanelContribution,
   ExtensionPackageDiscovery,
   ExtensionPackageFile,
   ExtensionPackageInspection,
@@ -62,6 +64,7 @@ export type {
 } from "./types"
 export type {
   ExtensionCommandTemplateOptions,
+  ExtensionPanelTemplateOptions,
   ExtensionTextEditorTemplateOptions,
   ExtensionTemplate,
   ExtensionTemplateFile,

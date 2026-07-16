@@ -243,6 +243,8 @@ function TabIcon({ tab }: { tab: Tab }) {
   if (url.includes("nodeId") || url.match(/^\/[0-9a-f-]{36}$/i))
     return <ListTree className={iconClassName} />
   if (url.startsWith("/extensions")) return <Blocks className={iconClassName} />
+  if (url.startsWith("/extension-panel"))
+    return <Blocks className={iconClassName} />
   if (url.startsWith("/trash")) return <Trash2 className={iconClassName} />
   if (url.startsWith("/search")) return <Search className={iconClassName} />
   if (url.startsWith("/graft")) return <GitBranch className={iconClassName} />

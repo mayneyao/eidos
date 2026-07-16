@@ -405,6 +405,7 @@ export function ExtensionFileEditorSurface({
           initializedRef.current = true
           channel.port1.postMessage({
             type: "initialize",
+            surfaceKind: "file-editor",
             protocolVersion: EXTENSION_SURFACE_PROTOCOL_VERSION,
             packageId: session.packageId,
             generation: session.generation,

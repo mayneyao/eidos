@@ -24,6 +24,7 @@ import type {
   LegacyExtensionMapping,
 } from "@eidos.space/extension-state"
 import type {
+  ExtensionJsonValue,
   ExtensionHostToSurfaceMessage,
   ExtensionSurfaceCapabilities,
   ExtensionSurfaceRequestFailure,
@@ -111,7 +112,7 @@ export interface FileExtensionTemplateResult {
   files: string[]
 }
 
-export type FileExtensionTemplateKind = "command" | "text-editor"
+export type FileExtensionTemplateKind = "command" | "panel" | "text-editor"
 
 export interface FileExtensionTemplateRequest {
   name: string
@@ -216,6 +217,34 @@ export interface FileExtensionOpenEditorResult {
   source: string
   snapshot: ExtensionTextDocumentSnapshot
   capabilities: ExtensionSurfaceCapabilities
+}
+
+export interface FileExtensionPanelSessionRequest {
+  sessionId: string
+}
+
+export interface FileExtensionOpenPanelResult {
+  sessionId: string
+  packageId: string
+  panelId: string
+  title: string
+  revision: number
+  generation: string
+  source: string
+  state?: ExtensionJsonValue
+}
+
+export interface FileExtensionPanelOpenEvent {
+  spaceId: string
+  sessionId: string
+  title: string
+  revision: number
+}
+
+export interface FileExtensionPanelDisposedEvent {
+  spaceId: string
+  sessionId: string
+  reason: string
 }
 
 export interface FileExtensionSurfaceMessageEvent {

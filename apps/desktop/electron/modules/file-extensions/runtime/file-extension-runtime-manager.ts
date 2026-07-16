@@ -24,6 +24,7 @@ export interface FileExtensionRuntimeDescriptor {
   snapshot: ExtensionSnapshotIdentity
   bundleCode: string
   commandIds: readonly string[]
+  panelIds: readonly string[]
 }
 
 export interface FileExtensionRuntimeExecution {
@@ -194,6 +195,7 @@ export class FileExtensionRuntimeManager {
       extensionId: descriptor.snapshot.packageId,
       generation,
       commandIds: descriptor.commandIds,
+      panelIds: descriptor.panelIds,
     })
     const transport = await this.transportFactory.create({
       source,

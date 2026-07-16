@@ -1,3 +1,7 @@
+import type { ExtensionJsonValue as ExtensionRuntimeJsonValue } from "@eidos.space/extension-surface-protocol"
+
+export type { ExtensionRuntimeJsonValue }
+
 export const EXTENSION_RUNTIME_PROTOCOL_VERSION = 1 as const
 export const EXTENSION_RUNTIME_BOOTSTRAP_CHANNEL =
   "file-extension-runtime:bootstrap" as const
@@ -119,11 +123,22 @@ export interface ExtensionRuntimeSelectRequest {
   }
 }
 
+export interface ExtensionRuntimeOpenPanelRequest {
+  type: "rpc"
+  requestId: string
+  method: "window.openPanel"
+  params: {
+    panelId: string
+    state?: ExtensionRuntimeJsonValue
+  }
+}
+
 export type ExtensionRuntimeRpcRequest =
   | ExtensionRuntimeReadTextRequest
   | ExtensionRuntimeNoticeRequest
   | ExtensionRuntimeConfirmRequest
   | ExtensionRuntimeSelectRequest
+  | ExtensionRuntimeOpenPanelRequest
 
 export type ExtensionWorkerToHostMessage =
   | ExtensionRuntimeReady
@@ -178,6 +193,64 @@ function optionalText(
   maxLength: number
 ): string | undefined {
   return value === undefined ? undefined : text(value, label, maxLength)
+}
+
+const PANEL_STATE_MAX_BYTES = 64 * 1024
+const PANEL_STATE_MAX_DEPTH = 12
+const PANEL_STATE_MAX_NODES = 2_048
+
+function jsonValue(value: unknown, label: string): ExtensionRuntimeJsonValue {
+  let nodes = 0
+  const visit = (input: unknown, depth: number): ExtensionRuntimeJsonValue => {
+    nodes += 1
+    if (nodes > PANEL_STATE_MAX_NODES) {
+      throw new ExtensionRuntimeProtocolError(
+        `${label} must contain at most ${PANEL_STATE_MAX_NODES} values`
+      )
+    }
+    if (depth > PANEL_STATE_MAX_DEPTH) {
+      throw new ExtensionRuntimeProtocolError(
+        `${label} must be at most ${PANEL_STATE_MAX_DEPTH} levels deep`
+      )
+    }
+    if (
+      input === null ||
+      typeof input === "boolean" ||
+      typeof input === "string"
+    ) {
+      return input
+    }
+    if (typeof input === "number" && Number.isFinite(input)) return input
+    if (Array.isArray(input)) {
+      return Array.from(input, (item) => visit(item, depth + 1))
+    }
+    if (typeof input === "object") {
+      const output = Object.create(null) as Record<
+        string,
+        ExtensionRuntimeJsonValue
+      >
+      for (const [key, item] of Object.entries(input)) {
+        if (key.length === 0 || key.length > 256) {
+          throw new ExtensionRuntimeProtocolError(
+            `${label} object keys must be between 1 and 256 characters`
+          )
+        }
+        output[key] = visit(item, depth + 1)
+      }
+      return output
+    }
+    throw new ExtensionRuntimeProtocolError(`${label} must be JSON-safe`)
+  }
+  const parsed = visit(value, 0)
+  if (
+    new TextEncoder().encode(JSON.stringify(parsed)).byteLength >
+    PANEL_STATE_MAX_BYTES
+  ) {
+    throw new ExtensionRuntimeProtocolError(
+      `${label} must be no larger than ${PANEL_STATE_MAX_BYTES} bytes`
+    )
+  }
+  return parsed
 }
 
 function runtimeError(value: unknown): ExtensionRuntimeError {
@@ -270,6 +343,20 @@ function rpcRequest(
       },
     }
   }
+  if (method === "window.openPanel") {
+    return {
+      type: "rpc",
+      requestId,
+      method,
+      params: {
+        panelId: text(params.panelId, "Panel ID", 256),
+        state:
+          params.state === undefined
+            ? undefined
+            : jsonValue(params.state, "Panel state"),
+      },
+    }
+  }
   throw new ExtensionRuntimeProtocolError(`Unsupported runtime RPC: ${method}`)
 }
 
@@ -325,6 +412,7 @@ export interface ExtensionWorkerBootstrapOptions {
   extensionId: string
   generation: string
   commandIds: readonly string[]
+  panelIds: readonly string[]
 }
 
 const BLOCKED_WORKER_GLOBALS = [
@@ -350,12 +438,14 @@ export function createExtensionWorkerSource(
   const extensionId = JSON.stringify(options.extensionId)
   const generation = JSON.stringify(options.generation)
   const commandIds = JSON.stringify([...new Set(options.commandIds)].sort())
+  const panelIds = JSON.stringify([...new Set(options.panelIds)].sort())
   const blockedGlobals = JSON.stringify(BLOCKED_WORKER_GLOBALS)
   return `(() => {
   "use strict";
   const EXTENSION_ID = ${extensionId};
   const GENERATION = ${generation};
   const ALLOWED_COMMANDS = new Set(${commandIds});
+  const ALLOWED_PANELS = new Set(${panelIds});
   const BLOCKED_GLOBALS = ${blockedGlobals};
   for (const name of BLOCKED_GLOBALS) {
     try {
@@ -441,6 +531,14 @@ export function createExtensionWorkerSource(
         if (!request || typeof request !== "object") throw new Error("Select request is required");
         const result = await callHost("window.select", request);
         return typeof result === "string" ? result : undefined;
+      },
+      async openPanel(request) {
+        if (!request || typeof request !== "object") throw new Error("Panel request is required");
+        const panelId = assertText(request.panelId, "Panel ID", 256);
+        if (!ALLOWED_PANELS.has(panelId)) {
+          throw new Error("Panel is not declared by this extension: " + panelId);
+        }
+        await callHost("window.openPanel", { panelId, state: request.state });
       },
     }),
   });

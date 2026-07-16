@@ -146,6 +146,7 @@ describe("legacy extension porting delivery", () => {
           spaceId: "ported-space",
           snapshot,
           commandIds: ["example.task-counter.hello"],
+          panelIds: [],
           bundleCode: expect.stringContaining("Hello from Task Counter"),
         }),
       })

@@ -393,6 +393,151 @@ describe("FileExtensionService", () => {
     service.stopWatching("space-a")
   })
 
+  it("opens and refreshes a declared panel through an opaque session", async () => {
+    const root = await createFileSpace()
+    const packageRoot = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "example.task-counter"
+    )
+    await writeFile(
+      path.join(packageRoot, "extension.json"),
+      JSON.stringify({
+        manifestVersion: 1,
+        publisher: "example",
+        name: "task-counter",
+        displayName: "Task Counter",
+        version: "1.0.0",
+        engines: { eidos: ">=0.33.0 <1.0.0" },
+        entrypoints: {
+          worker: "src/extension.ts",
+          ui: "src/panel.ts",
+        },
+        contributes: {
+          commands: [
+            { id: "example.task-counter.count", title: "Count tasks" },
+          ],
+          panels: [
+            {
+              id: "example.task-counter.summary",
+              displayName: "Task Summary",
+            },
+          ],
+        },
+        permissions: {
+          files: { read: [], write: [] },
+          network: [],
+        },
+      })
+    )
+    await writeFile(
+      path.join(packageRoot, "src", "panel.ts"),
+      [
+        'import type { ExtensionPanelContext } from "@eidos.space/extension-sdk"',
+        "export function activate(context: ExtensionPanelContext) {",
+        "  context.root.textContent = JSON.stringify(context.state)",
+        "}",
+      ].join("\n")
+    )
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const send = vi.fn()
+    const windowProvider = {
+      getWindow: () => ({ webContents: { send } }),
+    } as unknown as MainWindowProvider
+    let invocation = 0
+    const execute = vi.fn(async (execution: FileExtensionRuntimeExecution) => {
+      invocation += 1
+      expect(execution.descriptor.panelIds).toEqual([
+        "example.task-counter.summary",
+      ])
+      await execution.handleRpc({
+        type: "rpc",
+        requestId: `panel-${invocation}`,
+        method: "window.openPanel",
+        params: {
+          panelId: "example.task-counter.summary",
+          state: { pending: invocation, completed: 2 },
+        },
+      })
+    })
+    const runtimeManager = {
+      ...runtimeManagerStub(),
+      execute,
+    } as unknown as FileExtensionRuntimeManager
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManager
+    )
+    const extension = (await service.discover("space-a")).packages[0]!
+    const snapshot = {
+      packageId: extension.canonicalId!,
+      contentDigest: extension.contentDigest!,
+      permissionHash: extension.permissionHash!,
+    }
+    await service.trust("space-a", snapshot)
+    await service.setEnabled("space-a", snapshot, true)
+
+    const request = {
+      ...snapshot,
+      commandId: "example.task-counter.count",
+      resource: { path: "" },
+    }
+    await service.executeCommand("space-a", request)
+    const firstEvent = send.mock.calls.find(
+      ([channel]) => channel === "file-extensions:open-panel"
+    )?.[1]
+    expect(firstEvent).toMatchObject({
+      spaceId: "space-a",
+      title: "Task Summary",
+      revision: 1,
+    })
+    expect(JSON.stringify(firstEvent)).not.toContain("pending")
+    const first = await service.getPanelSession("space-a", {
+      sessionId: firstEvent.sessionId,
+    })
+    expect(first).toMatchObject({
+      packageId: "example.task-counter",
+      panelId: "example.task-counter.summary",
+      revision: 1,
+      state: { pending: 1, completed: 2 },
+    })
+    expect(first.source).toContain("__eidosStartSurface")
+
+    await service.executeCommand("space-a", request)
+    const panelEvents = send.mock.calls.filter(
+      ([channel]) => channel === "file-extensions:open-panel"
+    )
+    expect(panelEvents).toHaveLength(2)
+    expect(panelEvents[1]?.[1]).toMatchObject({
+      sessionId: first.sessionId,
+      revision: 2,
+    })
+    await expect(
+      service.getPanelSession("space-a", { sessionId: first.sessionId })
+    ).resolves.toMatchObject({
+      revision: 2,
+      state: { pending: 2, completed: 2 },
+    })
+
+    expect(
+      service.closePanelSession("space-a", { sessionId: first.sessionId })
+    ).toEqual({ success: true })
+    await expect(
+      service.getPanelSession("space-a", { sessionId: first.sessionId })
+    ).rejects.toThrow("session is unavailable")
+    service.stopWatching("space-a")
+  })
+
   it("returns sanitized, inspection-only discovery for a file Space", async () => {
     const root = await createFileSpace()
     const registry = {
@@ -576,6 +721,39 @@ describe("FileExtensionService", () => {
     ).toContain("context.document.applyEdits")
     await expect(
       service.createTemplate("space-a", {
+        name: "task-panel",
+        template: "panel",
+      })
+    ).resolves.toEqual({
+      canonicalId: "local.task-panel",
+      root: ".eidos/extensions/local.task-panel",
+      files: [
+        "extension.json",
+        "src/extension.ts",
+        "src/panel.ts",
+        "src/panel.css",
+        "README.md",
+      ],
+    })
+    const panelRoot = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "local.task-panel"
+    )
+    expect(
+      JSON.parse(await readFile(path.join(panelRoot, "extension.json"), "utf8"))
+    ).toMatchObject({
+      entrypoints: {
+        worker: "src/extension.ts",
+        ui: "src/panel.ts",
+      },
+      contributes: {
+        panels: [{ id: "local.task-panel.summary" }],
+      },
+    })
+    await expect(
+      service.createTemplate("space-a", {
         name: "hello-tools",
         template: "command",
       })
@@ -589,9 +767,9 @@ describe("FileExtensionService", () => {
     await expect(
       service.createTemplate("space-a", {
         name: "bad-template",
-        template: "panel",
+        template: "widget",
       } as unknown as FileExtensionTemplateRequest)
-    ).rejects.toThrow("must be command or text-editor")
+    ).rejects.toThrow("must be command, panel, or text-editor")
     await expect(
       service.createTemplate("space-a", {
         name: "bad-pattern",

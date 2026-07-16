@@ -10,6 +10,7 @@ import {
 import {
   canonicalExtensionPackagePath,
   createExtensionCommandTemplate,
+  createExtensionPanelTemplate,
   createExtensionTextEditorTemplate,
   isIgnoredExtensionPackagePath,
   type ExtensionFileEditorSelector,
@@ -20,7 +21,10 @@ import {
   discoverExtensionPackages,
   inspectExtensionPackageSnapshot,
 } from "@eidos.space/extension-manifest/node"
-import { type ExtensionRuntimeRpcRequest } from "@eidos.space/extension-runtime"
+import {
+  type ExtensionRuntimeJsonValue,
+  type ExtensionRuntimeRpcRequest,
+} from "@eidos.space/extension-runtime"
 import {
   compileExtensionSurface,
   compileExtensionWorker,
@@ -75,6 +79,8 @@ import type {
   FileExtensionInstallResult,
   FileExtensionOpenEditorRequest,
   FileExtensionOpenEditorResult,
+  FileExtensionOpenPanelResult,
+  FileExtensionPanelSessionRequest,
   FileExtensionPackageSummary,
   FileExtensionRetireLegacyPortingRequest,
   FileExtensionSnapshotRequest,
@@ -92,6 +98,7 @@ import type {
 const FILE_EXTENSION_ROOT = ".eidos/extensions" as const
 const WATCH_DEBOUNCE_MS = 120
 const SEMANTIC_UI_TIMEOUT_MS = 55_000
+const MAX_OPEN_EXTENSION_PANELS_PER_SPACE = 32
 const LOCAL_EXTENSION_NAME_PATTERN = /^[a-z][a-z0-9-]{1,62}$/
 const FILE_EDITOR_MEDIA_TYPES: Record<string, string> = {
   css: "text/css",
@@ -139,6 +146,18 @@ interface PreparedFileExtensionEditor {
   generation: string
   source: string
   editable: boolean
+}
+
+interface PreparedFileExtensionPanel {
+  generation: string
+  source: string
+  title: string
+}
+
+interface FileExtensionPanelSession extends FileExtensionOpenPanelResult {
+  spaceId: string
+  snapshot: ExtensionSnapshotIdentity
+  key: string
 }
 
 function requestedGrants(
@@ -210,6 +229,8 @@ export class FileExtensionService extends IpcServiceBase {
     string,
     PendingSemanticUiRequest
   >()
+  private readonly panelSessions = new Map<string, FileExtensionPanelSession>()
+  private readonly panelSessionIdsByKey = new Map<string, string>()
 
   constructor(
     @Inject(SpaceRegistry) private readonly registry: SpaceRegistry,
@@ -762,6 +783,29 @@ export class FileExtensionService extends IpcServiceBase {
   }
 
   @IpcMethod()
+  async getPanelSession(
+    spaceId: string,
+    request: FileExtensionPanelSessionRequest
+  ): Promise<FileExtensionOpenPanelResult> {
+    const session = this.requirePanelSession(spaceId, request)
+    const space = this.getFileSpace(spaceId)
+    await withFileSpaceReadLock(spaceId, () =>
+      this.requireCurrentEnabledSnapshot(spaceId, space.path, session.snapshot)
+    )
+    return this.publicPanelSession(session)
+  }
+
+  @IpcMethod()
+  closePanelSession(
+    spaceId: string,
+    request: FileExtensionPanelSessionRequest
+  ): { success: true } {
+    const session = this.requirePanelSession(spaceId, request)
+    this.deletePanelSession(session)
+    return { success: true }
+  }
+
+  @IpcMethod()
   async executeCommand(
     spaceId: string,
     request: FileExtensionCommandRequest
@@ -854,7 +898,9 @@ export class FileExtensionService extends IpcServiceBase {
               filenamePattern: normalized.filenamePattern,
               mediaType: normalized.mediaType,
             })
-          : createExtensionCommandTemplate(common)
+          : normalized.template === "panel"
+            ? createExtensionPanelTemplate(common)
+            : createExtensionCommandTemplate(common)
       return writeExtensionTemplate(space.path, template)
     })
     await this.startWatching(spaceId)
@@ -1044,8 +1090,14 @@ export class FileExtensionService extends IpcServiceBase {
       throw new Error("Extension template request must be an object")
     }
     const request = value as Record<string, unknown>
-    if (request.template !== "command" && request.template !== "text-editor") {
-      throw new Error("Extension template must be command or text-editor")
+    if (
+      request.template !== "command" &&
+      request.template !== "panel" &&
+      request.template !== "text-editor"
+    ) {
+      throw new Error(
+        "Extension template must be command, panel, or text-editor"
+      )
     }
     return {
       name: this.normalizeLocalExtensionName(request.name),
@@ -1621,6 +1673,9 @@ export class FileExtensionService extends IpcServiceBase {
     const commandIds = (inspection.manifest.contributes.commands ?? []).map(
       (command) => command.id
     )
+    const panelIds = (inspection.manifest.contributes.panels ?? []).map(
+      (panel) => panel.id
+    )
     if (!commandIds.includes(request.commandId)) {
       throw new Error("Extension command is not declared by this package")
     }
@@ -1664,6 +1719,7 @@ export class FileExtensionService extends IpcServiceBase {
         snapshot,
         bundleCode,
         commandIds,
+        panelIds,
       },
     }
   }
@@ -1760,6 +1816,73 @@ export class FileExtensionService extends IpcServiceBase {
     }
   }
 
+  private async preparePanel(
+    spaceId: string,
+    spacePath: string,
+    snapshot: ExtensionSnapshotIdentity,
+    panelId: string
+  ): Promise<PreparedFileExtensionPanel> {
+    const paths = await resolveExtensionProjectPaths(spacePath)
+    if (!paths.extensionsRoot) {
+      throw new Error("Extension package is no longer installed")
+    }
+    const { inspection, files } = await inspectExtensionPackageSnapshot(
+      path.join(paths.extensionsRoot, snapshot.packageId),
+      { hostVersion: app.getVersion() }
+    )
+    if (
+      inspection.status !== "ready" ||
+      inspection.canonicalId !== snapshot.packageId ||
+      inspection.contentDigest !== snapshot.contentDigest ||
+      inspection.permissionHash !== snapshot.permissionHash ||
+      !inspection.manifest?.entrypoints.ui
+    ) {
+      throw new FileExtensionRuntimeError(
+        "RUNTIME_STALE",
+        "Extension package changed before its panel could open"
+      )
+    }
+    const panel = (inspection.manifest.contributes.panels ?? []).find(
+      (candidate) => candidate.id === panelId
+    )
+    if (!panel) {
+      throw new FileExtensionRuntimeError(
+        "CAPABILITY_DENIED",
+        "Extension panel is not declared by this package"
+      )
+    }
+    let localState = await this.requireCurrentEnabledSnapshot(
+      spaceId,
+      spacePath,
+      snapshot
+    )
+    const cacheKey = this.snapshotCacheKey(spaceId, snapshot, "surface")
+    let bundleCode = this.bundleCache.get(cacheKey)
+    if (!bundleCode) {
+      const compiled = await compileExtensionSurface({
+        entrypoint: inspection.manifest.entrypoints.ui,
+        files,
+      })
+      bundleCode = compiled.code
+      this.bundleCache.set(cacheKey, bundleCode)
+    }
+    localState = await this.requireCurrentEnabledSnapshot(
+      spaceId,
+      spacePath,
+      snapshot
+    )
+    const generation = this.surfaceGeneration(snapshot, localState)
+    return {
+      generation,
+      source: createExtensionSurfaceSource({
+        bundleCode,
+        extensionId: snapshot.packageId,
+        generation,
+      }),
+      title: panel.displayName,
+    }
+  }
+
   private async handleRuntimeRpc(
     spaceId: string,
     snapshot: ExtensionSnapshotIdentity,
@@ -1807,6 +1930,31 @@ export class FileExtensionService extends IpcServiceBase {
         }
         return preview.content
       })
+    }
+    if (rpc.method === "window.openPanel") {
+      const watcher = await this.startWatching(spaceId)
+      if (!watcher.watching) {
+        throw new FileExtensionRuntimeError(
+          "CAPABILITY_DENIED",
+          "Extension source watching must be available before opening third-party UI"
+        )
+      }
+      await withFileSpaceReadLock(spaceId, async () => {
+        const prepared = await this.preparePanel(
+          spaceId,
+          space.path,
+          snapshot,
+          rpc.params.panelId
+        )
+        this.openOrUpdatePanelSession(
+          spaceId,
+          snapshot,
+          rpc.params.panelId,
+          rpc.params.state,
+          prepared
+        )
+      })
+      return undefined
     }
     await withFileSpaceReadLock(spaceId, () =>
       this.requireCurrentEnabledSnapshot(spaceId, space.path, snapshot)
@@ -2057,7 +2205,12 @@ export class FileExtensionService extends IpcServiceBase {
     packageId: string,
     rpc: Exclude<
       ExtensionRuntimeRpcRequest,
-      { method: "space.files.readText" | "window.showNotice" }
+      {
+        method:
+          | "space.files.readText"
+          | "window.showNotice"
+          | "window.openPanel"
+      }
     >
   ): Promise<unknown> {
     const id = randomUUID()
@@ -2132,6 +2285,11 @@ export class FileExtensionService extends IpcServiceBase {
     packageId: string,
     reason: string
   ): void {
+    this.disposePanelSessions(
+      (session) =>
+        session.spaceId === spaceId && session.snapshot.packageId === packageId,
+      reason
+    )
     const prefix = `${spaceId}\0${packageId}\0`
     for (const key of this.bundleCache.keys()) {
       if (key.startsWith(prefix)) this.bundleCache.delete(key)
@@ -2185,6 +2343,7 @@ export class FileExtensionService extends IpcServiceBase {
 
   private invalidateSpaceRuntime(spaceId: string, reason: string): void {
     this.runtimeManager.disposeSpace(spaceId, reason)
+    this.disposePanelSessions((session) => session.spaceId === spaceId, reason)
     this.trackDocumentFlush(`${spaceId}\0*`, () =>
       this.documentManager.flushAndDisposeSpace(spaceId, reason)
     )
@@ -2230,6 +2389,7 @@ export class FileExtensionService extends IpcServiceBase {
     this.stopWatcher(spaceId)
     this.developmentManager.stopSpace(spaceId)
     this.runtimeManager.disposeSpace(spaceId, reason)
+    this.disposePanelSessions((session) => session.spaceId === spaceId, reason)
     await this.documentManager.flushAndDisposeSpace(spaceId, reason)
     this.packageDirectories.delete(spaceId)
     for (const key of this.pendingDocumentFlushes.keys()) {
@@ -2257,6 +2417,7 @@ export class FileExtensionService extends IpcServiceBase {
     for (const spaceId of this.watchers.keys()) this.stopWatcher(spaceId)
     this.developmentManager.stopAll()
     this.runtimeManager.disposeAll(reason)
+    this.disposePanelSessions(() => true, reason)
     await Promise.all(
       [...spaceIds].map((spaceId) =>
         this.documentManager.flushAndDisposeSpace(spaceId, reason)
@@ -2285,5 +2446,123 @@ export class FileExtensionService extends IpcServiceBase {
       snapshot.permissionHash,
       target,
     ].join("\0")
+  }
+
+  private panelSessionKey(
+    spaceId: string,
+    packageId: string,
+    panelId: string
+  ): string {
+    return [spaceId, packageId, panelId].join("\0")
+  }
+
+  private openOrUpdatePanelSession(
+    spaceId: string,
+    snapshot: ExtensionSnapshotIdentity,
+    panelId: string,
+    state: ExtensionRuntimeJsonValue | undefined,
+    prepared: PreparedFileExtensionPanel
+  ): FileExtensionOpenPanelResult {
+    const key = this.panelSessionKey(spaceId, snapshot.packageId, panelId)
+    const existingId = this.panelSessionIdsByKey.get(key)
+    const existing = existingId ? this.panelSessions.get(existingId) : undefined
+    if (
+      !existing &&
+      [...this.panelSessions.values()].filter(
+        (session) => session.spaceId === spaceId
+      ).length >= MAX_OPEN_EXTENSION_PANELS_PER_SPACE
+    ) {
+      throw new FileExtensionRuntimeError(
+        "CAPABILITY_DENIED",
+        `A Space can have at most ${MAX_OPEN_EXTENSION_PANELS_PER_SPACE} extension panels open`
+      )
+    }
+    const session: FileExtensionPanelSession = existing
+      ? {
+          ...existing,
+          snapshot: { ...snapshot },
+          title: prepared.title,
+          generation: prepared.generation,
+          source: prepared.source,
+          state,
+          revision: existing.revision + 1,
+        }
+      : {
+          key,
+          spaceId,
+          sessionId: randomUUID(),
+          packageId: snapshot.packageId,
+          panelId,
+          title: prepared.title,
+          revision: 1,
+          generation: prepared.generation,
+          source: prepared.source,
+          state,
+          snapshot: { ...snapshot },
+        }
+    this.panelSessions.set(session.sessionId, session)
+    this.panelSessionIdsByKey.set(key, session.sessionId)
+    this.windowProvider
+      .getWindow()
+      ?.webContents.send("file-extensions:open-panel", {
+        spaceId,
+        sessionId: session.sessionId,
+        title: session.title,
+        revision: session.revision,
+      })
+    return this.publicPanelSession(session)
+  }
+
+  private requirePanelSession(
+    spaceId: string,
+    request: FileExtensionPanelSessionRequest
+  ): FileExtensionPanelSession {
+    if (!request || typeof request.sessionId !== "string") {
+      throw new Error("An extension panel session ID is required")
+    }
+    const session = this.panelSessions.get(request.sessionId)
+    if (!session || session.spaceId !== spaceId) {
+      throw new Error("Extension panel session is unavailable")
+    }
+    return session
+  }
+
+  private publicPanelSession(
+    session: FileExtensionPanelSession
+  ): FileExtensionOpenPanelResult {
+    return {
+      sessionId: session.sessionId,
+      packageId: session.packageId,
+      panelId: session.panelId,
+      title: session.title,
+      revision: session.revision,
+      generation: session.generation,
+      source: session.source,
+      state: session.state,
+    }
+  }
+
+  private deletePanelSession(session: FileExtensionPanelSession): void {
+    this.panelSessions.delete(session.sessionId)
+    if (this.panelSessionIdsByKey.get(session.key) === session.sessionId) {
+      this.panelSessionIdsByKey.delete(session.key)
+    }
+  }
+
+  private disposePanelSessions(
+    matches: (session: FileExtensionPanelSession) => boolean,
+    reason: string
+  ): void {
+    for (const session of [...this.panelSessions.values()]) {
+      if (!matches(session)) continue
+      this.deletePanelSession(session)
+      this.windowProvider
+        .getWindow()
+        ?.webContents.send("file-extensions:panel-disposed", {
+          spaceId: session.spaceId,
+          sessionId: session.sessionId,
+          reason,
+        })
+    }
   }
 }

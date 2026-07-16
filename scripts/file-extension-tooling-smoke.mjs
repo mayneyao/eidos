@@ -229,12 +229,17 @@ try {
     {
       id: "example.external-command",
       template: "command",
-      entrypoint: "worker",
+      entrypoints: ["worker"],
+    },
+    {
+      id: "example.external-panel",
+      template: "panel",
+      entrypoints: ["worker", "ui"],
     },
     {
       id: "example.external-editor",
       template: "text-editor",
-      entrypoint: "ui",
+      entrypoints: ["ui"],
     },
   ]
   for (const project of projects) {
@@ -343,7 +348,7 @@ try {
     assert.equal(result.canonicalId, project.id)
     assert.deepEqual(
       result.entrypoints.map(({ kind }) => kind),
-      [project.entrypoint]
+      project.entrypoints
     )
   }
 

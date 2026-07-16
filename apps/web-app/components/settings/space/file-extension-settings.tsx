@@ -55,7 +55,7 @@ type FileExtensionInstallPreview = Awaited<
 type FileExtensionLocalState = Awaited<
   ReturnType<typeof window.eidos.fileExtensions.setEnabled>
 >
-type LocalExtensionTemplateKind = "command" | "text-editor"
+type LocalExtensionTemplateKind = "command" | "panel" | "text-editor"
 type CreatedLocalExtension = {
   canonicalId: string
   root: string
@@ -125,7 +125,9 @@ function contributionCount(extension: FileExtensionPackage): number {
   const contributes = extension.manifest?.contributes
   if (!contributes) return 0
   return (
-    (contributes.commands?.length ?? 0) + (contributes.fileEditors?.length ?? 0)
+    (contributes.commands?.length ?? 0) +
+    (contributes.panels?.length ?? 0) +
+    (contributes.fileEditors?.length ?? 0)
   )
 }
 
@@ -303,7 +305,9 @@ export function FileExtensionSettings() {
         canonicalId: result.canonicalId,
         root: result.root,
         sourcePath: `${result.root}/${
-          createdTemplate === "command" ? "src/extension.ts" : "src/editor.ts"
+          createdTemplate === "text-editor"
+            ? "src/editor.ts"
+            : "src/extension.ts"
         }`,
         template: createdTemplate,
       })
@@ -1118,6 +1122,31 @@ export function FileExtensionSettings() {
                       creating
                         ? "cursor-not-allowed opacity-60"
                         : "cursor-pointer",
+                      templateKind === "panel"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="local-extension-template"
+                      value="panel"
+                      className="sr-only"
+                      checked={templateKind === "panel"}
+                      onChange={() => {
+                        setTemplateKind("panel")
+                        setCreateError(null)
+                      }}
+                    />
+                    <Package className="h-4 w-4" />
+                    {t("space.settings.fileExtensions.panelTemplate", "Panel")}
+                  </label>
+                  <label
+                    className={cn(
+                      "inline-flex h-8 items-center gap-2 rounded-[5px] px-3 text-sm transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-ring",
+                      creating
+                        ? "cursor-not-allowed opacity-60"
+                        : "cursor-pointer",
                       templateKind === "text-editor"
                         ? "bg-background text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
@@ -1150,10 +1179,15 @@ export function FileExtensionSettings() {
                         "space.settings.fileExtensions.commandTemplateDescription",
                         "Adds an action to the command palette and contextual menus."
                       )
-                    : t(
-                        "space.settings.fileExtensions.textEditorTemplateDescription",
-                        "Adds a sandboxed editor for matching text files."
-                      )}
+                    : templateKind === "panel"
+                      ? t(
+                          "space.settings.fileExtensions.panelTemplateDescription",
+                          "Adds a Task Counter command that opens a sandboxed UI tab."
+                        )
+                      : t(
+                          "space.settings.fileExtensions.textEditorTemplateDescription",
+                          "Adds a sandboxed editor for matching text files."
+                        )}
                 </p>
               </fieldset>
 
@@ -1350,10 +1384,15 @@ export function FileExtensionSettings() {
                         "space.settings.fileExtensions.commandCreatedNextStep",
                         "Next: review and enable it below, then run the command here, from the Command Palette, or from a file's context menu."
                       )
-                    : t(
-                        "space.settings.fileExtensions.editorCreatedNextStep",
-                        "Next: review its source, grant matching file access, and enable it below. Then open a matching file with the contributed editor."
-                      )}
+                    : createdExtension.template === "panel"
+                      ? t(
+                          "space.settings.fileExtensions.panelCreatedNextStep",
+                          "Next: review and enable it below, grant Markdown read access, then run its command to open the Task Counter panel."
+                        )
+                      : t(
+                          "space.settings.fileExtensions.editorCreatedNextStep",
+                          "Next: review its source, grant matching file access, and enable it below. Then open a matching file with the contributed editor."
+                        )}
                 </p>
               </div>
             </div>
@@ -1484,6 +1523,7 @@ export function FileExtensionSettings() {
               const commands = extension.manifest?.contributes.commands ?? []
               const fileEditors =
                 extension.manifest?.contributes.fileEditors ?? []
+              const panels = extension.manifest?.contributes.panels ?? []
               const legacyMappings = extension.legacyMappings ?? []
               const legacyConflict = legacyMappings.some(
                 (mapping) => mapping.conflict !== "none"
@@ -1588,6 +1628,21 @@ export function FileExtensionSettings() {
                                     "space.settings.fileExtensions.opensAutomatically",
                                     "Opens automatically"
                                   )}
+                            </span>
+                          </p>
+                        )}
+                        {panels[0] && (
+                          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <Package className="h-3 w-3" />
+                            <span className="truncate">
+                              {panels[0].displayName}
+                            </span>
+                            <span aria-hidden="true">·</span>
+                            <span>
+                              {t(
+                                "space.settings.fileExtensions.panelTrigger",
+                                "Opens as a tab from an extension command"
+                              )}
                             </span>
                           </p>
                         )}
@@ -2106,7 +2161,9 @@ export function FileExtensionSettings() {
                           />
                         </div>
 
-                        {(commands.length > 0 || fileEditors.length > 0) && (
+                        {(commands.length > 0 ||
+                          panels.length > 0 ||
+                          fileEditors.length > 0) && (
                           <div className="py-3">
                             <Label>
                               {t(

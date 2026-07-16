@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url"
 import { app, BrowserWindow, MessageChannelMain, session } from "electron"
 import {
   createExtensionCommandTemplate,
+  createExtensionPanelTemplate,
   createExtensionTextEditorTemplate,
 } from "@eidos.space/extension-manifest"
 import { inspectExtensionPackageSnapshot } from "@eidos.space/extension-manifest/node"
@@ -109,6 +110,7 @@ async function runCommandScenario({
   files,
   resourcePath,
   handleRpc,
+  panelIds = [],
 }) {
   const generation = `smoke-${scenarioId}`
   const bundle = await compileExtensionWorker({ entrypoint, files })
@@ -117,6 +119,7 @@ async function runCommandScenario({
     extensionId,
     generation,
     commandIds: [commandId],
+    panelIds,
   })
   const runtimeSession = createRuntimeSession(scenarioId)
   const runtimeWindow = new BrowserWindow({
@@ -265,6 +268,7 @@ async function runSurfaceScenario({
 
   const initialize = {
     type: "initialize",
+    surfaceKind: "file-editor",
     protocolVersion: EXTENSION_SURFACE_PROTOCOL_VERSION,
     packageId: extensionId,
     generation,
@@ -532,6 +536,51 @@ async function run() {
         return { value: undefined, completes: true }
       }
       throw new Error(`Unexpected runtime RPC: ${message.method}`)
+    },
+  })
+
+  const generatedPanel = createExtensionPanelTemplate({
+    publisher: "local",
+    name: "panel-smoke",
+    displayName: "Panel Smoke",
+    engineRange: ">=0.33.0",
+  })
+  const panelCommand = generatedPanel.manifest.contributes.commands?.[0]
+  const panel = generatedPanel.manifest.contributes.panels?.[0]
+  if (!panelCommand || !panel || !generatedPanel.manifest.entrypoints.worker) {
+    throw new Error("Generated panel template is missing its runtime contract")
+  }
+  await runCommandScenario({
+    scenarioId: "generated-panel",
+    extensionId: generatedPanel.canonicalId,
+    commandId: panelCommand.id,
+    panelIds: [panel.id],
+    entrypoint: generatedPanel.manifest.entrypoints.worker,
+    files: generatedPanel.files.map((file) => ({
+      path: file.path,
+      content: bytes(file.content),
+    })),
+    resourcePath: "tasks.md",
+    handleRpc(message) {
+      if (message.method === "space.files.readText") {
+        return {
+          value: "- [ ] first\n- [x] second\n- [ ] third\n",
+          completes: false,
+        }
+      }
+      if (message.method === "window.openPanel") {
+        if (
+          message.params?.panelId !== panel.id ||
+          message.params?.state?.pending !== 2 ||
+          message.params?.state?.completed !== 1
+        ) {
+          throw new Error("Generated panel emitted unexpected state")
+        }
+        return { value: undefined, completes: true }
+      }
+      throw new Error(
+        `Generated panel emitted an unexpected RPC: ${message.method}`
+      )
     },
   })
 

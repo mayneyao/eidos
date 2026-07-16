@@ -119,7 +119,7 @@ describe("extension developer workflow", () => {
     }
   })
 
-  it.each(["command", "text-editor"] as const)(
+  it.each(["command", "panel", "text-editor"] as const)(
     "creates and checks a %s project with the production compiler",
     async (template) => {
       const outDir = await temporaryRoot()
@@ -141,9 +141,11 @@ describe("extension developer workflow", () => {
         canonicalId: `example.${template}`,
         diagnostics: [],
       })
-      expect(result.entrypoints.map((item) => item.kind)).toEqual([
-        template === "command" ? "worker" : "ui",
-      ])
+      expect(result.entrypoints.map((item) => item.kind)).toEqual(
+        template === "panel"
+          ? ["worker", "ui"]
+          : [template === "command" ? "worker" : "ui"]
+      )
 
       expect(created.files).toEqual(
         expect.arrayContaining([

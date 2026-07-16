@@ -19,9 +19,24 @@ describe("extension surface bootstrap", () => {
     expect(html).toContain("connect-src 'none'")
     expect(html).toContain("form-action 'none'")
     expect(html).toContain("eidos-extension-root")
+    expect(html).toContain("event.source !== parent")
     expect(source).toContain("data-leak")
     expect(source).toContain("__eidosStartSurface")
+    expect(source).toContain('message.surfaceKind === "panel"')
+    expect(source).toContain('message.surfaceKind === "file-editor"')
     expect(source).toContain('send({ type: "ready"')
+  })
+
+  it("disposes panel surfaces without requiring a document snapshot", () => {
+    const source = createExtensionSurfaceSource({
+      bundleCode: "export function activate() {}",
+      extensionId: "example.panel",
+      generation: "generation-1",
+    })
+
+    expect(source.indexOf('if (message.type === "dispose")')).toBeLessThan(
+      source.lastIndexOf("if (!snapshot) return")
+    )
   })
 
   it("exposes a data URL containing only the fixed host", () => {

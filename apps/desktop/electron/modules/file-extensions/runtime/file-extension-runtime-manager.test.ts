@@ -79,6 +79,7 @@ async function setup() {
     snapshot,
     bundleCode: "globalThis.__eidosExtensionModule = {}",
     commandIds: ["example.task-counter.count"],
+    panelIds: [],
   }
   return { manager, factory, handleRpc, descriptor }
 }

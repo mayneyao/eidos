@@ -2,6 +2,14 @@ export const EXTENSION_SURFACE_PROTOCOL_VERSION = 1 as const
 export const EXTENSION_SURFACE_BOOTSTRAP_CHANNEL =
   "file-extension-surface:bootstrap" as const
 
+export type ExtensionJsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | ExtensionJsonValue[]
+  | { [key: string]: ExtensionJsonValue }
+
 /** V1 uses JavaScript UTF-16 code-unit offsets on both sides of MessagePort. */
 export interface ExtensionTextEdit {
   start: number
@@ -89,17 +97,32 @@ export interface ExtensionSurfaceAppearance {
   theme: ExtensionSurfaceThemeTokens
 }
 
-export interface ExtensionSurfaceInitializeMessage {
+interface ExtensionSurfaceInitializeBase {
   type: "initialize"
   protocolVersion: typeof EXTENSION_SURFACE_PROTOCOL_VERSION
   packageId: string
   generation: string
+  appearance: ExtensionSurfaceAppearance
+}
+
+export interface ExtensionFileEditorSurfaceInitializeMessage extends ExtensionSurfaceInitializeBase {
+  surfaceKind: "file-editor"
   editorId: string
   viewId: string
   snapshot: ExtensionTextDocumentSnapshot
   capabilities: ExtensionSurfaceCapabilities
-  appearance: ExtensionSurfaceAppearance
 }
+
+export interface ExtensionPanelSurfaceInitializeMessage extends ExtensionSurfaceInitializeBase {
+  surfaceKind: "panel"
+  panelId: string
+  sessionId: string
+  state?: ExtensionJsonValue
+}
+
+export type ExtensionSurfaceInitializeMessage =
+  | ExtensionFileEditorSurfaceInitializeMessage
+  | ExtensionPanelSurfaceInitializeMessage
 
 export interface ExtensionSurfaceAppearanceChangedMessage {
   type: "appearance-changed"

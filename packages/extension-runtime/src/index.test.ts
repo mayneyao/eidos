@@ -11,6 +11,7 @@ describe("extension runtime bootstrap", () => {
     const source = createExtensionWorkerSource({
       bundleCode: `var __eidosExtensionModule = { activate() { ${marker}; } };`,
       commandIds: ["example.test.run"],
+      panelIds: ["example.test.summary"],
       extensionId: "example.test",
       generation: "sha256:test",
     })
@@ -18,6 +19,7 @@ describe("extension runtime bootstrap", () => {
     expect(source.indexOf('"fetch"')).toBeLessThan(source.indexOf(marker))
     expect(source.indexOf('"WebSocket"')).toBeLessThan(source.indexOf(marker))
     expect(source).toContain("Command is not declared by this extension")
+    expect(source).toContain("Panel is not declared by this extension")
     expect(source).toContain('type: "ready"')
   })
 
@@ -63,5 +65,39 @@ describe("extension runtime bootstrap", () => {
         params: { message: "x".repeat(4097) },
       })
     ).toThrow("Notice must be")
+  })
+
+  it("parses bounded panel requests and rejects non-JSON state", () => {
+    expect(
+      parseExtensionWorkerMessage({
+        type: "rpc",
+        requestId: "rpc-panel",
+        method: "window.openPanel",
+        params: {
+          panelId: "example.test.summary",
+          state: { completed: 3, pending: 2 },
+        },
+      })
+    ).toEqual({
+      type: "rpc",
+      requestId: "rpc-panel",
+      method: "window.openPanel",
+      params: {
+        panelId: "example.test.summary",
+        state: { completed: 3, pending: 2 },
+      },
+    })
+
+    expect(() =>
+      parseExtensionWorkerMessage({
+        type: "rpc",
+        requestId: "rpc-panel-invalid",
+        method: "window.openPanel",
+        params: {
+          panelId: "example.test.summary",
+          state: { value: Number.POSITIVE_INFINITY },
+        },
+      })
+    ).toThrow("Panel state must be JSON-safe")
   })
 })

@@ -1,6 +1,7 @@
 import type {
   ExtensionSurfaceAppearance,
   ExtensionSurfaceCapabilities,
+  ExtensionJsonValue,
   ExtensionSurfaceSaveStateMessage,
   ExtensionTextDocumentChangedMessage,
   ExtensionTextDocumentReplacedMessage,
@@ -8,6 +9,8 @@ import type {
   ExtensionTextDocumentStateMessage,
   ExtensionTextEdit,
 } from "@eidos.space/extension-surface-protocol"
+
+export type { ExtensionJsonValue } from "@eidos.space/extension-surface-protocol"
 
 export interface ExtensionCommandResource {
   /** Portable path relative to the current Space root. */
@@ -61,10 +64,18 @@ export interface ExtensionWindowSelect {
   items: ExtensionWindowSelectItem[]
 }
 
+export interface ExtensionWindowOpenPanel {
+  /** A namespaced panel ID declared in `contributes.panels`. */
+  panelId: string
+  /** Bounded, JSON-safe initialization data copied into the panel session. */
+  state?: ExtensionJsonValue
+}
+
 export interface ExtensionWindow {
   showNotice(notice: string | ExtensionWindowNotice): void
   confirm(request: ExtensionWindowConfirm): Promise<boolean>
   select(request: ExtensionWindowSelect): Promise<string | undefined>
+  openPanel(request: ExtensionWindowOpenPanel): Promise<void>
 }
 
 export interface ExtensionContext {
@@ -125,4 +136,20 @@ export interface ExtensionFileEditorContext {
 
 export type ExtensionFileEditorActivate = (
   context: ExtensionFileEditorContext
+) => void | ExtensionDisposable | Promise<void | ExtensionDisposable>
+
+export interface ExtensionPanelContext {
+  readonly extensionId: string
+  readonly panelId: string
+  readonly sessionId: string
+  /** The only host-provided DOM mount point. */
+  readonly root: HTMLElement
+  /** Immutable one-shot initialization data supplied by the worker. */
+  readonly state: ExtensionJsonValue | undefined
+  readonly appearance: ExtensionFileEditorAppearance
+  readonly subscriptions: ExtensionSubscriptionStore
+}
+
+export type ExtensionPanelActivate = (
+  context: ExtensionPanelContext
 ) => void | ExtensionDisposable | Promise<void | ExtensionDisposable>

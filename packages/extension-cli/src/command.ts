@@ -24,12 +24,12 @@ Usage:
   eidos-extension check [package-directory] [options]
 
 Commands:
-  init    Create a command or editable text-editor package without overwriting files
+  init    Create a command, panel, or editable text-editor package without overwriting files
   port    Create a non-installable v1 porting workspace from a legacy source archive
   check   Run the same strict inspection and fixed compiler used by Eidos Desktop
 
 Init options:
-  --template <command|text-editor>  Starter type (default: command)
+  --template <command|panel|text-editor>  Starter type (default: command)
   --out-dir <directory>             Parent directory (default: current directory)
   --display-name <name>             User-facing extension name
   --engine <range>                  Eidos engine range (default: >=0.33.0)
@@ -163,7 +163,11 @@ export async function runExtensionCli(
         throw new Error("init requires one <publisher.name> extension ID")
       }
       const template = option(parsed, "--template") ?? "command"
-      if (template !== "command" && template !== "text-editor") {
+      if (
+        template !== "command" &&
+        template !== "panel" &&
+        template !== "text-editor"
+      ) {
         throw new Error(`Unknown extension template: ${template}`)
       }
       const created = await createExtensionProject({

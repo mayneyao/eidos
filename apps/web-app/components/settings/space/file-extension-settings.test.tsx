@@ -430,10 +430,10 @@ describe("FileExtensionSettings", () => {
     ]
     expect(
       templateOptions.map((option) => option.parentElement?.textContent?.trim())
-    ).toEqual(["Command", "Text editor"])
+    ).toEqual(["Command", "Panel", "Text editor"])
     expect(templateOptions[0]?.checked).toBe(true)
-    act(() => templateOptions[1]!.click())
-    expect(templateOptions[1]?.checked).toBe(true)
+    act(() => templateOptions[2]!.click())
+    expect(templateOptions[2]?.checked).toBe(true)
 
     const input = container.querySelector<HTMLInputElement>(
       "#local-extension-name"

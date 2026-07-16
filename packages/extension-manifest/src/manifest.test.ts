@@ -142,9 +142,9 @@ describe("analyzeExtensionManifest", () => {
     )
   })
 
-  it("accepts namespaced panels and requires a UI entrypoint", () => {
+  it("accepts namespaced panels and requires worker and UI entrypoints", () => {
     const panelManifest = manifest({
-      entrypoints: { ui: "src/panel.ts" },
+      entrypoints: { worker: "src/extension.ts", ui: "src/panel.ts" },
       contributes: {
         panels: [
           {
@@ -172,6 +172,20 @@ describe("analyzeExtensionManifest", () => {
         JSON.stringify(
           manifest({
             entrypoints: { ui: "src/panel.ts" },
+            contributes: panelManifest.contributes,
+          })
+        )
+      )
+    ).toContain("manifest-entrypoint-required")
+
+    expect(
+      diagnosticCodes(
+        JSON.stringify(
+          manifest({
+            entrypoints: {
+              worker: "src/extension.ts",
+              ui: "src/panel.ts",
+            },
             contributes: {
               panels: [
                 {
@@ -188,7 +202,7 @@ describe("analyzeExtensionManifest", () => {
 
   it("rejects duplicate contribution IDs across panels and other surfaces", () => {
     const duplicate = manifest({
-      entrypoints: { ui: "src/ui.ts" },
+      entrypoints: { worker: "src/extension.ts", ui: "src/ui.ts" },
       contributes: {
         fileEditors: [
           {

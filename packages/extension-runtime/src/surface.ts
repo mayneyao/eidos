@@ -184,8 +184,6 @@ export function createExtensionSurfaceSource(
       throw new Error("Extension surface initialization is incompatible or stale");
     }
     initialized = true;
-    snapshot = deepFreeze(message.snapshot);
-    capabilities = deepFreeze(message.capabilities);
     setAppearance(message.appearance);
     const root = document.getElementById("eidos-extension-root");
     if (!root) throw new Error("Extension surface mount point is unavailable");
@@ -197,16 +195,34 @@ ${options.bundleCode}
     if (!extensionModule || typeof extensionModule.activate !== "function") {
       throw new Error("UI entrypoint must export an activate(context) function");
     }
-    const result = await extensionModule.activate(Object.freeze({
-      extensionId: EXTENSION_ID,
-      editorId: message.editorId,
-      viewId: message.viewId,
-      root,
-      document: documentApi,
-      appearance: appearanceApi,
-      capabilities,
-      subscriptions: subscriptionStore,
-    }));
+    let context;
+    if (message.surfaceKind === "panel") {
+      context = Object.freeze({
+        extensionId: EXTENSION_ID,
+        panelId: message.panelId,
+        sessionId: message.sessionId,
+        root,
+        state: deepFreeze(message.state),
+        appearance: appearanceApi,
+        subscriptions: subscriptionStore,
+      });
+    } else if (message.surfaceKind === "file-editor") {
+      snapshot = deepFreeze(message.snapshot);
+      capabilities = deepFreeze(message.capabilities);
+      context = Object.freeze({
+        extensionId: EXTENSION_ID,
+        editorId: message.editorId,
+        viewId: message.viewId,
+        root,
+        document: documentApi,
+        appearance: appearanceApi,
+        capabilities,
+        subscriptions: subscriptionStore,
+      });
+    } else {
+      throw new Error("Extension surface kind is unsupported");
+    }
+    const result = await extensionModule.activate(context);
     if (result !== undefined) {
       if (!result || typeof result.dispose !== "function") {
         throw new Error("UI activate() must return void or a disposable");
@@ -230,6 +246,14 @@ ${options.bundleCode}
       pending.delete(message.requestId);
       if (message.ok) waiter.resolve(message.revision);
       else waiter.reject(Object.assign(new Error(message.error && message.error.message || "Host request failed"), { code: message.error && message.error.code }));
+      return;
+    }
+    if (message.type === "appearance-changed") {
+      setAppearance(message.appearance);
+      return;
+    }
+    if (message.type === "dispose") {
+      dispose();
       return;
     }
     if (!snapshot) return;
@@ -265,11 +289,6 @@ ${options.bundleCode}
       if (message.documentId === snapshot.documentId) emit(saveStateListeners, deepFreeze(message));
       return;
     }
-    if (message.type === "appearance-changed") {
-      setAppearance(message.appearance);
-      return;
-    }
-    if (message.type === "dispose") dispose();
   };
 
   const start = (nextPort, nextGeneration) => {
@@ -311,7 +330,7 @@ export function createExtensionSurfaceHostHtml(): string {
     "use strict";
     let started = false;
     window.addEventListener("message", (event) => {
-      if (started || !event.data || event.data.type !== ${channel}) return;
+      if (started || event.source !== parent || !event.data || event.data.type !== ${channel}) return;
       const port = event.ports && event.ports[0];
       if (!port || typeof event.data.source !== "string" || typeof event.data.generation !== "string") return;
       started = true;

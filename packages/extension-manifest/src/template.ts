@@ -15,6 +15,8 @@ export interface ExtensionTextEditorTemplateOptions extends ExtensionCommandTemp
   mediaType?: string
 }
 
+export type ExtensionPanelTemplateOptions = ExtensionCommandTemplateOptions
+
 export interface ExtensionTemplateFile {
   path: string
   content: string
@@ -135,6 +137,160 @@ export function createExtensionCommandTemplate(
         `# ${displayName}`,
         "",
         `This local extension contributes the \`${commandId}\` command to the Command Palette and file context menu.`,
+        "",
+        "Run `eidos-extension check .` before installing this package into a Space.",
+        "",
+      ].join("\n"),
+    },
+  ])
+}
+
+export function createExtensionPanelTemplate(
+  options: ExtensionPanelTemplateOptions
+): ExtensionTemplate {
+  assertPackageSegment(options.publisher, "Publisher")
+  assertPackageSegment(options.name, "Extension name")
+  if (typeof options.engineRange !== "string" || !options.engineRange.trim()) {
+    throw new Error("Eidos engine range is required")
+  }
+
+  const canonicalId = `${options.publisher}.${options.name}`
+  const displayName =
+    options.displayName?.trim() || defaultDisplayName(options.name)
+  const commandId = `${canonicalId}.open-summary`
+  const panelId = `${canonicalId}.summary`
+  const manifest: ExtensionManifestV1 = {
+    $schema: "https://docs.eidos.space/schemas/extension-manifest.schema.json",
+    manifestVersion: 1,
+    publisher: options.publisher,
+    name: options.name,
+    displayName,
+    description: `Count Markdown tasks and show them in a sandboxed ${displayName} panel.`,
+    version: "0.1.0",
+    engines: { eidos: options.engineRange },
+    entrypoints: {
+      worker: "src/extension.ts",
+      ui: "src/panel.ts",
+    },
+    contributes: {
+      commands: [{ id: commandId, title: `Open ${displayName}` }],
+      panels: [{ id: panelId, displayName }],
+      menus: {
+        "files/context": [
+          {
+            command: commandId,
+            when: "resourceExtname == .md && resourceIsDirectory == false",
+            group: "extensions",
+          },
+          {
+            command: commandId,
+            when: "resourceExtname == .markdown && resourceIsDirectory == false",
+            group: "extensions",
+          },
+        ],
+      },
+    },
+    permissions: {
+      files: { read: ["**/*.md", "**/*.markdown"], write: [] },
+      network: [],
+    },
+  }
+
+  return createTemplate(manifest, [
+    {
+      path: "src/extension.ts",
+      content: [
+        'import type { ExtensionContext } from "@eidos.space/extension-sdk"',
+        "",
+        `const COMMAND_ID = ${JSON.stringify(commandId)}`,
+        `const PANEL_ID = ${JSON.stringify(panelId)}`,
+        "",
+        "function countTasks(markdown: string) {",
+        "  const tasks = markdown.match(/^\\s*[-*+]\\s+\\[[ xX]\\]/gm) ?? []",
+        "  const completed = tasks.filter((task) => /\\[[xX]\\]/.test(task)).length",
+        "  return { total: tasks.length, completed, pending: tasks.length - completed }",
+        "}",
+        "",
+        "export function activate(context: ExtensionContext) {",
+        "  context.subscriptions.add(",
+        "    context.commands.register(COMMAND_ID, async (resource) => {",
+        "      const isMarkdown = /\\.(md|markdown)$/i.test(resource.path)",
+        "      const counts = isMarkdown",
+        "        ? countTasks(await context.space.files.readText(resource.path))",
+        "        : { total: 0, completed: 0, pending: 0 }",
+        "      await context.window.openPanel({",
+        "        panelId: PANEL_ID,",
+        "        state: { path: isMarkdown ? resource.path : null, ...counts },",
+        "      })",
+        "    })",
+        "  )",
+        "}",
+        "",
+      ].join("\n"),
+    },
+    {
+      path: "src/panel.ts",
+      content: [
+        'import type { ExtensionPanelContext } from "@eidos.space/extension-sdk"',
+        "",
+        'import "./panel.css"',
+        "",
+        "interface TaskSummary {",
+        "  path: string | null",
+        "  total: number",
+        "  completed: number",
+        "  pending: number",
+        "}",
+        "",
+        "export function activate(context: ExtensionPanelContext) {",
+        "  const state = (context.state ?? { path: null, total: 0, completed: 0, pending: 0 }) as unknown as TaskSummary",
+        '  const shell = document.createElement("main")',
+        '  shell.className = "task-summary"',
+        "  shell.innerHTML = `",
+        '    <p class="eyebrow">MARKDOWN TASKS</p>',
+        `    <h1>${displayName}</h1>`,
+        '    <p class="resource"></p>',
+        '    <section aria-label="Task counts">',
+        '      <article><strong data-count="pending"></strong><span>Pending</span></article>',
+        '      <article><strong data-count="completed"></strong><span>Completed</span></article>',
+        '      <article><strong data-count="total"></strong><span>Total</span></article>',
+        "    </section>",
+        "  `",
+        '  shell.querySelector<HTMLElement>(".resource")!.textContent = state.path ?? "Open the command from a Markdown file to count its tasks."',
+        "  shell.querySelector<HTMLElement>('[data-count=\"pending\"]')!.textContent = String(state.pending)",
+        "  shell.querySelector<HTMLElement>('[data-count=\"completed\"]')!.textContent = String(state.completed)",
+        "  shell.querySelector<HTMLElement>('[data-count=\"total\"]')!.textContent = String(state.total)",
+        "  context.root.replaceChildren(shell)",
+        "  return { dispose: () => context.root.replaceChildren() }",
+        "}",
+        "",
+      ].join("\n"),
+    },
+    {
+      path: "src/panel.css",
+      content: [
+        ":root { color: var(--eidos-color-foreground); background: var(--eidos-color-background); font-family: var(--eidos-font-family); }",
+        "* { box-sizing: border-box; }",
+        "html, body { min-height: 100%; margin: 0; }",
+        ".task-summary { max-width: 880px; margin: 0 auto; padding: clamp(32px, 7vw, 96px) 32px; }",
+        ".eyebrow { margin: 0 0 12px; color: var(--eidos-color-muted-foreground); font-size: 12px; font-weight: 700; letter-spacing: .14em; }",
+        "h1 { margin: 0; font-size: clamp(32px, 5vw, 56px); letter-spacing: -.04em; }",
+        ".resource { margin: 14px 0 48px; color: var(--eidos-color-muted-foreground); }",
+        "section { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-block: 1px solid var(--eidos-color-border); }",
+        "article { display: grid; gap: 8px; padding: 28px 20px; }",
+        "article + article { border-left: 1px solid var(--eidos-color-border); }",
+        "strong { font-size: clamp(28px, 4vw, 44px); font-variant-numeric: tabular-nums; }",
+        "span { color: var(--eidos-color-muted-foreground); font-size: 13px; }",
+        "@media (max-width: 560px) { section { grid-template-columns: 1fr; } article + article { border-left: 0; border-top: 1px solid var(--eidos-color-border); } }",
+        "",
+      ].join("\n"),
+    },
+    {
+      path: "README.md",
+      content: [
+        `# ${displayName}`,
+        "",
+        `Run the ${commandId} command from a Markdown file to count its tasks and open the ${panelId} panel.`,
         "",
         "Run `eidos-extension check .` before installing this package into a Space.",
         "",
