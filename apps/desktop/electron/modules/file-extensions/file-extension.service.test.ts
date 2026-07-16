@@ -1306,8 +1306,24 @@ describe("FileExtensionService", () => {
     ).rejects.toThrow("package changed")
   })
 
-  it("runs source-only changes inside an in-memory development session", async () => {
+  it("runs package-local module changes inside an in-memory development session", async () => {
     const root = await createFileSpace()
+    const sourceRoot = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "example.task-counter",
+      "src"
+    )
+    await writeFile(
+      path.join(sourceRoot, "extension.ts"),
+      [
+        'import { message } from "./message"',
+        "export const activate = () => message",
+      ].join("\n")
+    )
+    const messagePath = path.join(sourceRoot, "message.ts")
+    await writeFile(messagePath, 'export const message = "initial"\n')
     const registry = {
       getSpace: vi.fn(() => ({
         id: "space-a",
@@ -1356,15 +1372,7 @@ describe("FileExtensionService", () => {
       granted: [{ kind: "files.read", value: "**/*.md" }],
     })
 
-    const sourcePath = path.join(
-      root,
-      ".eidos",
-      "extensions",
-      "example.task-counter",
-      "src",
-      "extension.ts"
-    )
-    await writeFile(sourcePath, "export const activate = () => 'changed'\n")
+    await writeFile(messagePath, 'export const message = "changed"\n')
     await vi.waitFor(
       () => {
         const ready = send.mock.calls.find(
@@ -1401,6 +1409,26 @@ describe("FileExtensionService", () => {
         contentDigest: changed.contentDigest,
       },
     ])
+    await expect(
+      service.executeCommand("space-a", {
+        packageId: anchor.packageId,
+        contentDigest: changed.contentDigest!,
+        permissionHash: changed.permissionHash!,
+        commandId: "example.task-counter.count",
+        resource: { path: "notes/today.md" },
+      })
+    ).resolves.toEqual({ success: true })
+    expect(runtimeManager.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        descriptor: expect.objectContaining({
+          bundleCode: expect.stringContaining("changed"),
+          snapshot: expect.objectContaining({
+            contentDigest: changed.contentDigest,
+          }),
+        }),
+        resource: { path: "notes/today.md" },
+      })
+    )
 
     await expect(
       service.stopDevelopmentSession("space-a", {
