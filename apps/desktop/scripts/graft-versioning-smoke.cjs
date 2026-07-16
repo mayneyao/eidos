@@ -9,6 +9,10 @@ const path = require("node:path")
 process.env.SQLITE_USE_URI = "1"
 
 const Database = require("better-sqlite3")
+const { graftSmokeCommand } = require("./graft-versioning-smoke-command.cjs")
+
+const repositoryConnections = new Map()
+let graftExtensionRegistered = false
 
 const FILE_SPACE_IGNORE = [
   ".graft/",
@@ -77,6 +81,15 @@ function quotePragma(value) {
 }
 
 function removeTempRoot(root) {
+  for (const [repositoryPath, db] of repositoryConnections) {
+    if (
+      repositoryPath === root ||
+      repositoryPath.startsWith(`${root}${path.sep}`)
+    ) {
+      closeDatabase(db)
+      repositoryConnections.delete(repositoryPath)
+    }
+  }
   try {
     fs.rmSync(root, { recursive: true, force: true })
   } catch (error) {
@@ -91,6 +104,29 @@ function closeDatabase(db) {
   } catch (error) {
     console.warn("Could not close smoke database:", error)
   }
+}
+
+function registerGraftExtension() {
+  if (graftExtensionRegistered) return
+  const registrationDb = new Database(":memory:")
+  try {
+    registrationDb.loadExtension(findGraftLibrary())
+    graftExtensionRegistered = true
+  } finally {
+    registrationDb.close()
+  }
+}
+
+function repositoryConnection(repositoryPath) {
+  const existing = repositoryConnections.get(repositoryPath)
+  if (existing?.open) return existing
+
+  registerGraftExtension()
+  const db = new Database(
+    graftDbUri(path.join(repositoryPath, ".graft", "control.sqlite"))
+  )
+  repositoryConnections.set(repositoryPath, db)
+  return db
 }
 
 function runSqliteExtensionSmoke() {
@@ -123,12 +159,7 @@ function runSqliteExtensionSmoke() {
     closeDatabase(db)
     db = undefined
 
-    const registrationDb = new Database(":memory:")
-    try {
-      registrationDb.loadExtension(libPath)
-    } finally {
-      registrationDb.close()
-    }
+    registerGraftExtension()
 
     const uri = graftDbUri(dbPath)
     console.log("Opening graft URI:", uri)
@@ -181,7 +212,26 @@ function runGraft(cliPath, cwd, args) {
 }
 
 function runGraftJson(cliPath, cwd, args) {
-  const output = runGraft(cliPath, cwd, args)
+  const command = graftSmokeCommand(args)
+  if (command.transport === "repository") {
+    return runGraftPragmaJson(
+      repositoryConnection(cwd),
+      command.pragma,
+      command.argument
+    )
+  }
+  if (command.transport === "clone") {
+    registerGraftExtension()
+    let db
+    try {
+      db = new Database(graftDbUri(path.join(cwd, ".graft-clone.sqlite")))
+      return runGraftPragmaJson(db, command.pragma, command.argument)
+    } finally {
+      closeDatabase(db)
+    }
+  }
+
+  const output = runGraft(cliPath, cwd, command.args)
   if (!output) {
     throw new Error(`graft ${formatCommand(args)} returned no JSON output`)
   }
@@ -284,15 +334,9 @@ function runPersistentFileSpacePragmaSmoke() {
 function runGraftExpectFailure(cliPath, cwd, args) {
   console.log(`graft ${formatCommand(args)} (expect failure)`)
   try {
-    execFileSync(cliPath, args, {
-      cwd,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    })
+    runGraftJson(cliPath, cwd, args)
   } catch (error) {
-    const stdout = String(error.stdout || "").trim()
-    const stderr = String(error.stderr || "").trim()
-    const detail = [stdout, stderr].filter(Boolean).join("\n")
+    const detail = String(error.message || error).trim()
     if (detail) console.log(detail)
     return detail
   }
@@ -378,7 +422,7 @@ function assertRepoSnapshotUnchanged(cliPath, root, before, operation) {
   }
 }
 
-function runFileSpaceCliSmoke() {
+function runFileSpaceRepositorySmoke() {
   const cliPath = findGraftCli()
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), "eidos-graft-file-space-smoke-")
@@ -399,7 +443,7 @@ function runFileSpaceCliSmoke() {
   const updatedQuoted = "Updated quoted path.\n"
 
   console.log("File Space smoke root:", root)
-  console.log("Graft CLI:", cliPath)
+  console.log("Graft CLI (initialization only):", cliPath)
 
   try {
     fs.mkdirSync(path.join(root, "assets"), { recursive: true })
@@ -636,7 +680,6 @@ function runFileSpaceCliSmoke() {
     const diff = runGraftJson(cliPath, root, [
       "diff",
       "--json",
-      "--",
       commit.commit.id,
       secondCommit.commit.id,
     ])
@@ -652,9 +695,9 @@ function runFileSpaceCliSmoke() {
       "--content",
       "--max-content-bytes",
       "1048576",
-      "--",
       commit.commit.id,
       secondCommit.commit.id,
+      "--",
       notePath,
     ])
     if (
@@ -1427,12 +1470,7 @@ function runAmbiguousPathSafetySmoke() {
 
 function runPersistentRemoteConflictSmoke() {
   const cliPath = findGraftCli()
-  const registrationDb = new Database(":memory:")
-  try {
-    registrationDb.loadExtension(findGraftLibrary())
-  } finally {
-    registrationDb.close()
-  }
+  registerGraftExtension()
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), "eidos-graft-remote-conflict-smoke-")
   )
@@ -1602,7 +1640,7 @@ try {
   } else {
     runSqliteExtensionSmoke()
     runPersistentFileSpacePragmaSmoke()
-    runFileSpaceCliSmoke()
+    runFileSpaceRepositorySmoke()
     runRestoreConflictSmoke()
     runWholeSpaceRestoreSmoke()
     runWholeSpaceTopologyRestoreSmoke()

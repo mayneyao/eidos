@@ -6,7 +6,7 @@
 use anyhow::{Context, Result, bail};
 use colored::Colorize;
 use serde_json::Value;
-use std::io::Read;
+use std::io::{IsTerminal, Read};
 use unicode_width::UnicodeWidthStr;
 
 use crate::client::EidosClient;
@@ -174,7 +174,7 @@ pub async fn cmd_touch(client: EidosClient, path: String, content: Option<String
     let node_path = normalize_path(&path);
     
     // Read from stdin if no content provided and stdin is not a tty
-    let content = if content.is_none() && !atty::is(atty::Stream::Stdin) {
+    let content = if content.is_none() && !std::io::stdin().is_terminal() {
         let mut stdin_content = String::new();
         std::io::stdin().read_to_string(&mut stdin_content)?;
         Some(stdin_content)
@@ -243,7 +243,7 @@ pub async fn cmd_append(client: EidosClient, path: String, content: Option<Strin
     let node_path = normalize_path(&path);
     
     // Read from stdin if no content provided and stdin is not a tty
-    let content = if content.is_none() && !atty::is(atty::Stream::Stdin) {
+    let content = if content.is_none() && !std::io::stdin().is_terminal() {
         let mut stdin_content = String::new();
         std::io::stdin().read_to_string(&mut stdin_content)?;
         stdin_content

@@ -48,23 +48,23 @@ export default defineConfig({
             items: [
               {
                 label: "Concepts",
-                autogenerate: { directory: "concepts" },
+                items: [{ autogenerate: { directory: "concepts" } }],
               },
               {
                 label: "Nodes",
-                autogenerate: { directory: "nodes" },
+                items: [{ autogenerate: { directory: "nodes" } }],
               },
               {
                 label: "Extensions",
-                autogenerate: { directory: "extensions" },
+                items: [{ autogenerate: { directory: "extensions" } }],
               },
               {
                 label: "Services",
-                autogenerate: { directory: "services" },
+                items: [{ autogenerate: { directory: "services" } }],
               },
               {
                 label: "Comparisons",
-                autogenerate: { directory: "comparisons" },
+                items: [{ autogenerate: { directory: "comparisons" } }],
               },
             ],
           },
@@ -78,7 +78,7 @@ export default defineConfig({
             items: [
               {
                 label: "How-to",
-                autogenerate: { directory: "how-to" },
+                items: [{ autogenerate: { directory: "how-to" } }],
               },
             ],
           },
