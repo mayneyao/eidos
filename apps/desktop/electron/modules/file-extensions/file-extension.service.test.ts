@@ -1579,7 +1579,7 @@ describe("FileExtensionService", () => {
         expect(invalid).toBeDefined()
         expect(invalid.diagnostics[0]).toMatchObject({
           code: "compile",
-          path: "src/extension.ts",
+          path: "src/style.css",
         })
         invalidGeneration = invalid.generation
       },

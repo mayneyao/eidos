@@ -1,7 +1,7 @@
 import path from "node:path"
 import { canonicalExtensionPackagePath } from "@eidos.space/extension-manifest"
 import * as oxc from "oxc-transform"
-import { rollup, type Plugin } from "rollup"
+import { rollup, type Plugin, type RollupError, type RollupLog } from "rollup"
 
 const SDK_MODULE = "@eidos.space/extension-sdk"
 const SDK_VIRTUAL_ID = "\0eidos-extension-sdk"
@@ -34,6 +34,27 @@ export interface CompiledExtensionWorker {
   code: string
   entrypoint: string
   warnings: string[]
+}
+
+export interface ExtensionCompileDiagnostic {
+  message: string
+  path?: string
+  line?: number
+  column?: number
+}
+
+export class ExtensionCompileError extends Error {
+  readonly path?: string
+  readonly line?: number
+  readonly column?: number
+
+  constructor(diagnostic: ExtensionCompileDiagnostic) {
+    super(diagnostic.message)
+    this.name = "ExtensionCompileError"
+    this.path = diagnostic.path
+    this.line = diagnostic.line
+    this.column = diagnostic.column
+  }
 }
 
 export type CompileExtensionSurfaceOptions = CompileExtensionWorkerOptions
@@ -78,6 +99,72 @@ function resolvePackageModule(
   return moduleCandidates(target).find((candidate) => available.has(candidate))
 }
 
+function sourcePosition(
+  source: string,
+  byteOffset: number | undefined
+): { line: number; column: number } | undefined {
+  if (byteOffset === undefined || byteOffset < 0) return undefined
+  const bytes = new TextEncoder().encode(source)
+  if (byteOffset > bytes.byteLength) return undefined
+  let prefix: string
+  try {
+    prefix = STRICT_UTF8.decode(bytes.subarray(0, byteOffset))
+  } catch {
+    return undefined
+  }
+  const lines = prefix.split("\n")
+  return {
+    line: lines.length,
+    column: (lines.at(-1)?.length ?? 0) + 1,
+  }
+}
+
+function compilerPluginError(
+  diagnostic: ExtensionCompileDiagnostic
+): RollupLog {
+  return {
+    message: diagnostic.message,
+    id: diagnostic.path,
+    loc:
+      diagnostic.path && diagnostic.line && diagnostic.column
+        ? {
+            file: diagnostic.path,
+            line: diagnostic.line,
+            column: diagnostic.column - 1,
+          }
+        : undefined,
+    meta: { eidosExtensionDiagnostic: diagnostic },
+  }
+}
+
+function extensionCompileError(error: unknown): ExtensionCompileError {
+  if (error instanceof ExtensionCompileError) return error
+  if (error && typeof error === "object") {
+    const rollupError = error as RollupError
+    const diagnostic = rollupError.meta?.eidosExtensionDiagnostic as
+      | ExtensionCompileDiagnostic
+      | undefined
+    if (diagnostic && typeof diagnostic.message === "string") {
+      return new ExtensionCompileError(diagnostic)
+    }
+    const path = rollupError.id?.startsWith(PACKAGE_PREFIX)
+      ? rollupError.id.slice(PACKAGE_PREFIX.length)
+      : rollupError.id
+    return new ExtensionCompileError({
+      message: rollupError.message || "The extension could not be compiled.",
+      path,
+      line: rollupError.loc?.line,
+      column:
+        rollupError.loc?.column === undefined
+          ? undefined
+          : rollupError.loc.column + 1,
+    })
+  }
+  return new ExtensionCompileError({
+    message: "The extension could not be compiled.",
+  })
+}
+
 function transformModule(
   filename: string,
   source: string,
@@ -86,9 +173,10 @@ function transformModule(
   const extension = path.posix.extname(filename)
   if (extension === STYLE_EXTENSION) {
     if (target !== "surface") {
-      throw new Error(
-        `Worker modules do not support ${extension} files: ${filename}`
-      )
+      throw new ExtensionCompileError({
+        message: `Worker modules do not support ${extension} files`,
+        path: filename,
+      })
     }
     const css = JSON.stringify(source)
     return [
@@ -104,18 +192,20 @@ function transformModule(
     try {
       value = JSON.parse(source)
     } catch (error) {
-      throw new Error(
-        `Cannot parse JSON module ${filename}: ${error instanceof Error ? error.message : String(error)}`
-      )
+      throw new ExtensionCompileError({
+        message: `Cannot parse JSON module: ${error instanceof Error ? error.message : String(error)}`,
+        path: filename,
+      })
     }
     return `export default ${JSON.stringify(value)};`
   }
   if (
     !MODULE_EXTENSIONS.includes(extension as (typeof MODULE_EXTENSIONS)[number])
   ) {
-    throw new Error(
-      `Worker modules do not support ${extension || "extensionless"} files: ${filename}`
-    )
+    throw new ExtensionCompileError({
+      message: `Worker modules do not support ${extension || "extensionless"} files`,
+      path: filename,
+    })
   }
   const result = oxc.transform(filename, source, {
     lang:
@@ -128,9 +218,13 @@ function transformModule(
     target: "es2022",
   })
   if (result.errors.length > 0) {
-    throw new Error(
-      `Cannot compile ${filename}: ${result.errors.map((error) => error.message).join("; ")}`
-    )
+    const primary = result.errors[0]
+    const position = sourcePosition(source, primary?.labels[0]?.start)
+    throw new ExtensionCompileError({
+      message: result.errors.map((error) => error.message).join("; "),
+      path: filename,
+      ...position,
+    })
   }
   return result.code
 }
@@ -147,18 +241,30 @@ function packageSnapshotPlugin(
       if (!importer) {
         const entrypoint = canonicalExtensionPackagePath(source)
         if (!available.has(entrypoint)) {
-          throw new Error(`Worker entrypoint does not exist: ${entrypoint}`)
+          this.error(
+            compilerPluginError({
+              message: `Worker entrypoint does not exist: ${entrypoint}`,
+              path: entrypoint,
+            })
+          )
         }
         return `${PACKAGE_PREFIX}${entrypoint}`
       }
       if (!importer.startsWith(PACKAGE_PREFIX)) {
-        throw new Error(`Unexpected extension module importer: ${importer}`)
+        this.error(
+          compilerPluginError({
+            message: `Unexpected extension module importer: ${importer}`,
+          })
+        )
       }
       const importerPath = importer.slice(PACKAGE_PREFIX.length)
       const resolved = resolvePackageModule(importerPath, source, available)
       if (!resolved) {
-        throw new Error(
-          `Unsupported or missing extension import from ${importerPath}: ${source}`
+        this.error(
+          compilerPluginError({
+            message: `Unsupported or missing extension import: ${source}`,
+            path: importerPath,
+          })
         )
       }
       return `${PACKAGE_PREFIX}${resolved}`
@@ -168,14 +274,41 @@ function packageSnapshotPlugin(
       if (!id.startsWith(PACKAGE_PREFIX)) return null
       const filename = id.slice(PACKAGE_PREFIX.length)
       const content = files.get(filename)
-      if (!content) throw new Error(`Extension module disappeared: ${filename}`)
+      if (!content) {
+        this.error(
+          compilerPluginError({
+            message: `Extension module disappeared: ${filename}`,
+            path: filename,
+          })
+        )
+      }
       let source: string
       try {
         source = STRICT_UTF8.decode(content)
       } catch {
-        throw new Error(`Extension module must be valid UTF-8: ${filename}`)
+        this.error(
+          compilerPluginError({
+            message: "Extension module must be valid UTF-8",
+            path: filename,
+          })
+        )
+        return null
       }
-      return transformModule(filename, source, target)
+      try {
+        return transformModule(filename, source, target)
+      } catch (error) {
+        if (error instanceof ExtensionCompileError) {
+          this.error(
+            compilerPluginError({
+              message: error.message,
+              path: error.path,
+              line: error.line,
+              column: error.column,
+            })
+          )
+        }
+        throw error
+      }
     },
   }
 }
@@ -199,14 +332,19 @@ async function compileExtensionBundle(
     files.set(canonicalPath, new Uint8Array(file.content))
   }
   const warnings: string[] = []
-  const bundle = await rollup({
-    input: entrypoint,
-    plugins: [packageSnapshotPlugin(files, target)],
-    treeshake: true,
-    onwarn(warning) {
-      warnings.push(warning.message)
-    },
-  })
+  let bundle
+  try {
+    bundle = await rollup({
+      input: entrypoint,
+      plugins: [packageSnapshotPlugin(files, target)],
+      treeshake: true,
+      onwarn(warning) {
+        warnings.push(warning.message)
+      },
+    })
+  } catch (error) {
+    throw extensionCompileError(error)
+  }
   try {
     const generated = await bundle.generate({
       format: "iife",
@@ -220,6 +358,8 @@ async function compileExtensionBundle(
     if (!chunk)
       throw new Error("Extension compiler did not emit a worker chunk")
     return { code: chunk.code, entrypoint, warnings }
+  } catch (error) {
+    throw extensionCompileError(error)
   } finally {
     await bundle.close()
   }

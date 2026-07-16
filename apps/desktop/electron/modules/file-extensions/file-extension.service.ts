@@ -30,6 +30,7 @@ import {
 import {
   compileExtensionSurface,
   compileExtensionWorker,
+  ExtensionCompileError,
 } from "@eidos.space/extension-runtime/compiler"
 import { createExtensionSurfaceSource } from "@eidos.space/extension-runtime/surface"
 import {
@@ -1833,6 +1834,8 @@ export class FileExtensionService extends IpcServiceBase {
           )
         }
       } catch (error) {
+        const compileError =
+          error instanceof ExtensionCompileError ? error : undefined
         return this.applyDevelopmentResult(spaceId, expected, () =>
           this.developmentManager.markBlocked(
             spaceId,
@@ -1845,7 +1848,9 @@ export class FileExtensionService extends IpcServiceBase {
                   error instanceof Error
                     ? error.message
                     : "The extension could not be compiled.",
-                path: compilingPath,
+                path: compileError?.path ?? compilingPath,
+                line: compileError?.line,
+                column: compileError?.column,
               },
             ],
             snapshot

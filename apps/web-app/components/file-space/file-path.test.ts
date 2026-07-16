@@ -10,11 +10,13 @@ import {
   headingFromSpaceUrl,
   isSameOrDescendant,
   moveSpaceFileUrl,
+  positionFromSpaceUrl,
   resolveSpaceLink,
   toSpaceAssetUrl,
   toSpaceBaseRecordUrl,
   toSpaceFileUrl,
   toSpaceFileEditorUrl,
+  toSpaceFilePositionUrl,
   uniqueSpaceEntryName,
   validateSpaceEntryName,
 } from "./file-path"
@@ -35,6 +37,18 @@ describe("file Space paths", () => {
     expect(fileEditorFromSpaceUrl(url)).toBe("example.tasks.board")
     expect(
       fileEditorFromSpaceUrl(toSpaceFileUrl("projects/tasks.md"))
+    ).toBeNull()
+  })
+
+  it("round-trips source positions through stable tab URLs", () => {
+    const url = toSpaceFilePositionUrl(
+      ".eidos/extensions/example/src/extension.ts",
+      { line: 12, column: 7 }
+    )
+    expect(positionFromSpaceUrl(url)).toEqual({ line: 12, column: 7 })
+    expect(positionFromSpaceUrl(toSpaceFileUrl("notes/today.md"))).toBeNull()
+    expect(
+      positionFromSpaceUrl("/space-file?line=0&column=2#notes%2Ftoday.md")
     ).toBeNull()
   })
 
@@ -104,6 +118,16 @@ describe("file Space paths", () => {
         "archive"
       )
     ).toBe(toSpaceFileEditorUrl("archive/tasks.md", "example.tasks.board"))
+  })
+
+  it("moves source-position URLs without losing the cursor target", () => {
+    expect(
+      moveSpaceFileUrl(
+        toSpaceFilePositionUrl("notes/script.ts", { line: 8, column: 3 }),
+        "notes",
+        "archive"
+      )
+    ).toBe(toSpaceFilePositionUrl("archive/script.ts", { line: 8, column: 3 }))
   })
 
   it("moves Base record tab URLs without losing the record target", () => {

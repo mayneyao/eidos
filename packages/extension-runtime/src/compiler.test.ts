@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { compileExtensionSurface, compileExtensionWorker } from "./compiler"
+import {
+  compileExtensionSurface,
+  compileExtensionWorker,
+  ExtensionCompileError,
+} from "./compiler"
 
 const bytes = (value: string) => new TextEncoder().encode(value)
 
@@ -45,7 +49,35 @@ describe("compileExtensionWorker", () => {
           },
         ],
       })
-    ).rejects.toThrow("Unsupported or missing extension import")
+    ).rejects.toMatchObject({
+      name: "ExtensionCompileError",
+      message: "Unsupported or missing extension import: ./missing",
+      path: "src/extension.ts",
+    })
+  })
+
+  it("reports the imported source location for syntax errors", async () => {
+    const compilation = compileExtensionWorker({
+      entrypoint: "src/extension.ts",
+      files: [
+        {
+          path: "src/extension.ts",
+          content: bytes('import { value } from "./helper"; export { value }'),
+        },
+        {
+          path: "src/helper.ts",
+          content: bytes("const label = '任务'\nexport const value = ;\n"),
+        },
+      ],
+    })
+
+    await expect(compilation).rejects.toBeInstanceOf(ExtensionCompileError)
+    await expect(compilation).rejects.toMatchObject({
+      message: "Unexpected token",
+      path: "src/helper.ts",
+      line: 2,
+      column: 22,
+    })
   })
 
   it("rejects worker CSS even when it exists in the package snapshot", async () => {

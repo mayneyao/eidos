@@ -97,6 +97,8 @@ export interface FileExtensionDevelopmentDiagnostic {
   code: "inspection" | "compile" | "document-save"
   message: string
   path?: string
+  line?: number
+  column?: number
 }
 
 export interface FileExtensionDevelopmentSessionSummary {

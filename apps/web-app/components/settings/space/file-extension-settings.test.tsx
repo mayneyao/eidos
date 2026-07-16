@@ -1891,6 +1891,8 @@ describe("FileExtensionSettings", () => {
           code: "compile" as const,
           message: "Unexpected token",
           path: "src/extension.ts",
+          line: 3,
+          column: 17,
         },
       ],
       granted: [{ kind: "files.read" as const, value: "**/*.md" }],
@@ -1937,6 +1939,14 @@ describe("FileExtensionSettings", () => {
     )
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       "compile: Unexpected token"
+    )
+    const diagnosticSource = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "src/extension.ts:3:17"
+    )!
+    act(() => diagnosticSource.click())
+    expect(openTabMock).toHaveBeenLastCalledWith(
+      "/space-file?line=3&column=17#.eidos%2Fextensions%2Fexample.task-counter%2Fsrc%2Fextension.ts",
+      "extension.ts"
     )
     const openSource = [...container.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "Open source"

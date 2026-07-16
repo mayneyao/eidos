@@ -60,7 +60,9 @@ function sameDiagnostics(
       (diagnostic, index) =>
         diagnostic.code === right[index]?.code &&
         diagnostic.message === right[index]?.message &&
-        diagnostic.path === right[index]?.path
+        diagnostic.path === right[index]?.path &&
+        diagnostic.line === right[index]?.line &&
+        diagnostic.column === right[index]?.column
     )
   )
 }

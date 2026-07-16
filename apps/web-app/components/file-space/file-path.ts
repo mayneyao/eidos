@@ -40,13 +40,33 @@ export function toSpaceFileEditorUrl(
   return createSpaceFileUrl(relativePath, { editorId })
 }
 
+export interface SpaceFilePosition {
+  line: number
+  column: number
+}
+
+export function toSpaceFilePositionUrl(
+  relativePath: string,
+  position: SpaceFilePosition
+): string {
+  return createSpaceFileUrl(relativePath, { position })
+}
+
 function createSpaceFileUrl(
   relativePath: string,
-  options: { heading?: string; editorId?: string }
+  options: {
+    heading?: string
+    editorId?: string
+    position?: SpaceFilePosition
+  }
 ): string {
   const search = new URLSearchParams()
   if (options.heading) search.set("heading", options.heading)
   if (options.editorId) search.set("editor", options.editorId)
+  if (options.position) {
+    search.set("line", String(options.position.line))
+    search.set("column", String(options.position.column))
+  }
   const query = search.size > 0 ? `?${search.toString()}` : ""
   return `/space-file${query}#${encodeURIComponent(relativePath)}`
 }
@@ -107,6 +127,26 @@ export function fileEditorFromSpaceUrl(url: string): string | null {
   }
 }
 
+export function positionFromSpaceUrl(url: string): SpaceFilePosition | null {
+  try {
+    const parsed = new URL(url, "https://eidos.local")
+    if (parsed.pathname !== "/space-file") return null
+    const line = Number(parsed.searchParams.get("line"))
+    const column = Number(parsed.searchParams.get("column"))
+    if (
+      !Number.isSafeInteger(line) ||
+      line < 1 ||
+      !Number.isSafeInteger(column) ||
+      column < 1
+    ) {
+      return null
+    }
+    return { line, column }
+  } catch {
+    return null
+  }
+}
+
 export function baseRecordFromSpaceUrl(
   url: string
 ): SpaceBaseRecordTarget | null {
@@ -155,6 +195,7 @@ export function moveSpaceFileUrl(
   const suffix = filePath.slice(sourcePath.length)
   const heading = headingFromSpaceUrl(url) ?? undefined
   const editorId = fileEditorFromSpaceUrl(url) ?? undefined
+  const position = positionFromSpaceUrl(url) ?? undefined
   const baseRecord = baseRecordFromSpaceUrl(url)
   return baseRecord
     ? toSpaceBaseRecordUrl(
@@ -162,7 +203,11 @@ export function moveSpaceFileUrl(
         baseRecord.tableId,
         baseRecord.recordId
       )
-    : createSpaceFileUrl(`${destinationPath}${suffix}`, { heading, editorId })
+    : createSpaceFileUrl(`${destinationPath}${suffix}`, {
+        heading,
+        editorId,
+        position,
+      })
 }
 
 export function canMoveSpaceEntryTo(

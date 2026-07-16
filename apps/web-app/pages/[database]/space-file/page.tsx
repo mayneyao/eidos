@@ -12,7 +12,9 @@ import {
   isSameOrDescendant,
   joinSpacePath,
   parentSpacePath,
+  positionFromSpaceUrl,
   toSpaceAssetUrl,
+  type SpaceFilePosition,
 } from "@/apps/web-app/components/file-space/file-path"
 import { ExtensionFileEditorSurface } from "@/apps/web-app/components/file-extensions/extension-file-editor-surface"
 import {
@@ -135,6 +137,7 @@ export function SpaceFilePage() {
   const fileEditorId = fileEditorFromSpaceUrl(locationUrl)
   const heading = headingFromSpaceUrl(locationUrl) ?? undefined
   const baseRecordTarget = baseRecordFromSpaceUrl(locationUrl) ?? undefined
+  const editorPosition = positionFromSpaceUrl(locationUrl) ?? undefined
   const extension = extensionOf(filePath)
   const fileName = filenameOf(filePath)
   useTabTitle(fileName || "File")
@@ -163,10 +166,11 @@ export function SpaceFilePage() {
   if (TEXT_EXTENSIONS.has(extension)) {
     return (
       <SpaceTextEditor
-        key={filePath}
+        key={`${filePath}:${editorPosition?.line ?? ""}:${editorPosition?.column ?? ""}`}
         filePath={filePath}
         extension={extension}
         heading={heading}
+        initialPosition={editorPosition}
       />
     )
   }
@@ -182,10 +186,12 @@ function SpaceTextEditor({
   filePath,
   extension,
   heading,
+  initialPosition,
 }: {
   filePath: string
   extension: string
   heading?: string
+  initialPosition?: SpaceFilePosition
 }) {
   const { currentSpace } = useCurrentSpace()
   const { createText, list, readText, writeText } = useSpaceFiles(
@@ -672,6 +678,17 @@ function SpaceTextEditor({
                   currentSpace.id,
                   extensionEditorPackage
                 )
+              }
+              if (initialPosition) {
+                editor.setPosition({
+                  lineNumber: initialPosition.line,
+                  column: initialPosition.column,
+                })
+                editor.revealPositionInCenter({
+                  lineNumber: initialPosition.line,
+                  column: initialPosition.column,
+                })
+                editor.focus()
               }
               editor.onDidBlurEditorText(() => {
                 void flushPendingWrite()

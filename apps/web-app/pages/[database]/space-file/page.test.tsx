@@ -20,6 +20,9 @@ const mocks = vi.hoisted(() => ({
   registerPendingWriteFlusher: vi.fn(
     (_id: string, _flusher: () => Promise<boolean>) => vi.fn()
   ),
+  setEditorPosition: vi.fn(),
+  revealEditorPosition: vi.fn(),
+  focusEditor: vi.fn(),
   versioningOperation: null as string | null,
   writeText: vi.fn(),
 }))
@@ -37,6 +40,9 @@ vi.mock("@monaco-editor/react", () => ({
         getValue: () => "",
         onDidBlurEditorText: vi.fn(),
         onKeyDown: vi.fn(),
+        setPosition: mocks.setEditorPosition,
+        revealPositionInCenter: mocks.revealEditorPosition,
+        focus: mocks.focusEditor,
       },
       { KeyCode: { KeyS: 49 } }
     )
@@ -199,6 +205,9 @@ describe("SpaceFilePage editor selection", () => {
     vi.stubGlobal("fetch", mocks.fetch)
     mocks.writeText.mockReset()
     mocks.registerPendingWriteFlusher.mockClear()
+    mocks.setEditorPosition.mockClear()
+    mocks.revealEditorPosition.mockClear()
+    mocks.focusEditor.mockClear()
     mocks.fileChangeHandler = null
     mocks.versioningOperation = null
     container = document.createElement("div")
@@ -236,6 +245,38 @@ describe("SpaceFilePage editor selection", () => {
     expect(container.querySelector('[data-testid="monaco-editor"]')).toBeNull()
     expect(container.textContent).not.toContain("notes/today.md")
     expect(container.textContent).not.toContain("Saved")
+  })
+
+  it("opens text source diagnostics at the requested line and column", async () => {
+    mocks.readText.mockResolvedValue({
+      path: ".eidos/extensions/example/src/extension.ts",
+      content: "export const value = ;\n",
+      size: 23,
+      mtimeMs: 1,
+    })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter
+          initialEntries={[
+            "/space-file?line=1&column=22#.eidos%2Fextensions%2Fexample%2Fsrc%2Fextension.ts",
+          ]}
+        >
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+
+    expect(mocks.setEditorPosition).toHaveBeenCalledWith({
+      lineNumber: 1,
+      column: 22,
+    })
+    expect(mocks.revealEditorPosition).toHaveBeenCalledWith({
+      lineNumber: 1,
+      column: 22,
+    })
+    expect(mocks.focusEditor).toHaveBeenCalled()
   })
 
   it("routes an explicit editor URL to the extension surface before native handlers", async () => {

@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils"
 import { useCMDKStore } from "@/components/cmdk/store"
 import {
   toSpaceFileEditorUrl,
+  toSpaceFilePositionUrl,
   toSpaceFileUrl,
   uniqueSpaceEntryName,
 } from "@/components/file-space/file-path"
@@ -754,9 +755,11 @@ export function FileExtensionSettings() {
   }, [])
 
   const openSource = useCallback(
-    (sourcePath: string) => {
+    (sourcePath: string, position?: { line: number; column: number }) => {
       openTab(
-        toSpaceFileUrl(sourcePath),
+        position
+          ? toSpaceFilePositionUrl(sourcePath, position)
+          : toSpaceFileUrl(sourcePath),
         sourcePath.split("/").at(-1) ?? sourcePath
       )
     },
@@ -2642,10 +2645,21 @@ export function FileExtensionSettings() {
                                         type="button"
                                         className="ml-2 font-mono underline underline-offset-2 hover:text-foreground"
                                         onClick={() =>
-                                          openSource(diagnosticSource.path)
+                                          openSource(
+                                            diagnosticSource.path,
+                                            diagnostic.line && diagnostic.column
+                                              ? {
+                                                  line: diagnostic.line,
+                                                  column: diagnostic.column,
+                                                }
+                                              : undefined
+                                          )
                                         }
                                       >
                                         {diagnosticSource.relativePath}
+                                        {diagnostic.line
+                                          ? `:${diagnostic.line}${diagnostic.column ? `:${diagnostic.column}` : ""}`
+                                          : ""}
                                       </button>
                                     )}
                                   </p>
