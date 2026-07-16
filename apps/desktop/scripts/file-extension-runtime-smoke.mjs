@@ -262,6 +262,7 @@ async function runSurfaceScenario({
   initialText,
   expectedText,
   cssMarker,
+  expectedLog,
 }) {
   const generation = `smoke-${scenarioId}`
   const bundle = await compileExtensionSurface({ entrypoint, files })
@@ -331,6 +332,7 @@ async function runSurfaceScenario({
         const cssMarker = ${JSON.stringify(cssMarker)};
         const channel = new MessageChannel();
         const port = channel.port1;
+        const surfaceLogs = [];
         let settled = false;
         const timeout = setTimeout(() => fail(new Error("Surface smoke timed out")), 10000);
         const fail = (error) => {
@@ -360,6 +362,19 @@ async function runSurfaceScenario({
             const message = event.data;
             if (message?.type === "activation-error") {
               throw new Error("Surface activation failed: " + message.message);
+            }
+            if (message?.type === "surface-log") {
+              if (
+                message.generation !== generation ||
+                !["debug", "info", "log", "warn", "error"].includes(message.level) ||
+                typeof message.message !== "string" ||
+                message.message.length === 0 ||
+                message.message.length > 4096
+              ) {
+                throw new Error("Surface emitted an invalid runtime log");
+              }
+              surfaceLogs.push(message);
+              return;
             }
             if (message?.type === "ready") {
               if (message.protocolVersion !== initialize.protocolVersion) {
@@ -464,6 +479,7 @@ async function runSurfaceScenario({
                   edits: message.edits,
                   cssLoaded,
                   progress: progress?.textContent,
+                  surfaceLogs,
                   background: document.documentElement.style.getPropertyValue("--eidos-color-background"),
                 });
               } catch (error) {
@@ -494,7 +510,11 @@ async function runSurfaceScenario({
       result?.cssLoaded !== true ||
       result?.background !== initialize.appearance.theme.background ||
       !Array.isArray(result?.edits) ||
-      result.edits.length !== 1
+      result.edits.length !== 1 ||
+      (expectedLog &&
+        !result?.surfaceLogs?.some(
+          (log) => log.level === "info" && log.message.includes(expectedLog)
+        ))
     ) {
       throw new Error("Generated surface returned an unexpected result")
     }
@@ -514,6 +534,7 @@ async function runPanelScenario({
   state,
   expectedTitle,
   cssMarker,
+  expectedLog,
 }) {
   const generation = `smoke-${scenarioId}`
   const bundle = await compileExtensionSurface({ entrypoint, files })
@@ -560,6 +581,7 @@ async function runPanelScenario({
         const cssMarker = ${JSON.stringify(cssMarker)};
         const channel = new MessageChannel();
         const port = channel.port1;
+        const surfaceLogs = [];
         let settled = false;
         const timeout = setTimeout(() => fail(new Error("Panel smoke timed out")), 10000);
         const fail = (error) => {
@@ -581,6 +603,19 @@ async function runPanelScenario({
             const message = event.data;
             if (message?.type === "activation-error") {
               throw new Error("Panel activation failed: " + message.message);
+            }
+            if (message?.type === "surface-log") {
+              if (
+                message.generation !== generation ||
+                !["debug", "info", "log", "warn", "error"].includes(message.level) ||
+                typeof message.message !== "string" ||
+                message.message.length === 0 ||
+                message.message.length > 4096
+              ) {
+                throw new Error("Panel emitted an invalid runtime log");
+              }
+              surfaceLogs.push(message);
+              return;
             }
             if (message?.type === "ready") {
               if (message.protocolVersion !== initialize.protocolVersion) {
@@ -621,6 +656,7 @@ async function runPanelScenario({
               completed: completed.textContent,
               total: total.textContent,
               cssLoaded,
+              surfaceLogs,
               background: document.documentElement.style.getPropertyValue("--eidos-color-background"),
             });
           } catch (error) {
@@ -647,7 +683,11 @@ async function runPanelScenario({
       result?.completed !== String(state.completed) ||
       result?.total !== String(state.total) ||
       result?.cssLoaded !== true ||
-      result?.background !== SMOKE_APPEARANCE.theme.background
+      result?.background !== SMOKE_APPEARANCE.theme.background ||
+      (expectedLog &&
+        !result?.surfaceLogs?.some(
+          (log) => log.level === "info" && log.message.includes(expectedLog)
+        ))
     ) {
       throw new Error("Generated panel returned an unexpected result")
     }
@@ -760,6 +800,7 @@ async function run() {
     },
     expectedTitle: "Panel Smoke",
     cssMarker: ".task-summary",
+    expectedLog: "Panel Smoke panel activated",
   })
 
   const generated = createExtensionCommandTemplate({
@@ -823,6 +864,7 @@ async function run() {
     initialText: "- [ ] Ship the editor\n",
     expectedText: "- [ ] Ship the editor\nSecond line\n",
     cssMarker: ".editor-shell",
+    expectedLog: "Surface Smoke editor activated",
   })
 
   const taskBoard = await inspectExtensionPackageSnapshot(taskBoardRoot, {

@@ -42,6 +42,19 @@ describe("extension surface message parsing", () => {
         message: "Unable to activate",
       })
     ).toEqual({ type: "activation-error", message: "Unable to activate" })
+    expect(
+      parseExtensionSurfaceMessage({
+        type: "surface-log",
+        generation: "generation-1",
+        level: "warn",
+        message: "Missing task title",
+      })
+    ).toEqual({
+      type: "surface-log",
+      generation: "generation-1",
+      level: "warn",
+      message: "Missing task title",
+    })
   })
 
   it("rejects unsupported, unbounded, and malformed surface messages", () => {
@@ -63,6 +76,22 @@ describe("extension surface message parsing", () => {
     expect(() =>
       parseExtensionSurfaceMessage({ type: "activation-error", message: "" })
     ).toThrow("non-empty string")
+    expect(() =>
+      parseExtensionSurfaceMessage({
+        type: "surface-log",
+        generation: "generation-1",
+        level: "trace",
+        message: "hidden",
+      })
+    ).toThrow("Surface log level is invalid")
+    expect(() =>
+      parseExtensionSurfaceMessage({
+        type: "surface-log",
+        generation: "generation-1",
+        level: "info",
+        message: "x".repeat(4097),
+      })
+    ).toThrow("Surface log message")
   })
 })
 

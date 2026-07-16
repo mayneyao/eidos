@@ -24,6 +24,8 @@ describe("extension surface bootstrap", () => {
     expect(source).toContain("__eidosStartSurface")
     expect(source).toContain('message.surfaceKind === "panel"')
     expect(source).toContain('message.surfaceKind === "file-editor"')
+    expect(source).toContain('type: "surface-log"')
+    expect(source).toContain('Object.defineProperty(globalThis, "console"')
     expect(source).toContain('send({ type: "ready"')
   })
 

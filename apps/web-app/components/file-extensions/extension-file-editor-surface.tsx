@@ -424,7 +424,30 @@ export function ExtensionFileEditorSurface({
           setActivated(true)
           return
         }
+        if (message?.type === "surface-log") {
+          void window.eidos.fileExtensions
+            .reportSurfaceOutput(spaceId, {
+              surfaceKind: "file-editor",
+              sessionId: session.sessionId,
+              viewId: session.viewId,
+              generation: message.generation,
+              level: message.level,
+              message: message.message,
+            })
+            .catch(() => undefined)
+          return
+        }
         if (message?.type === "activation-error") {
+          void window.eidos.fileExtensions
+            .reportSurfaceOutput(spaceId, {
+              surfaceKind: "file-editor",
+              sessionId: session.sessionId,
+              viewId: session.viewId,
+              generation: session.generation,
+              level: "error",
+              message: `SURFACE_ACTIVATION_FAILED: ${message.message}`,
+            })
+            .catch(() => undefined)
           setError(message.message)
           return
         }

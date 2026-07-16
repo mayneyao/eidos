@@ -185,6 +185,7 @@ export class FileExtensionDocumentManager {
       message.type === "ready" ||
       message.type === "activated" ||
       message.type === "activation-error" ||
+      message.type === "surface-log" ||
       message.type === "closed"
     ) {
       return this.failure(
@@ -270,6 +271,18 @@ export class FileExtensionDocumentManager {
         "NOT_AVAILABLE",
         errorMessage(error)
       )
+    }
+  }
+
+  getRuntimeOutputTarget(
+    spaceId: string,
+    sessionId: string,
+    viewId: string
+  ): { packageId: string; generation: string } {
+    const session = this.requireView(spaceId, sessionId, viewId)
+    return {
+      packageId: session.packageId,
+      generation: session.generation,
     }
   }
 

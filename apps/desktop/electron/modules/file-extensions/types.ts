@@ -28,6 +28,7 @@ import type {
   ExtensionJsonValue,
   ExtensionHostToSurfaceMessage,
   ExtensionSurfaceCapabilities,
+  ExtensionSurfaceLogLevel,
   ExtensionSurfaceRequestFailure,
   ExtensionSurfaceRequestSuccess,
   ExtensionTextDocumentSnapshot,
@@ -58,6 +59,7 @@ export interface FileExtensionPackageSummary {
 export interface FileExtensionRuntimeOutputEntry {
   sequence: number
   timestamp: number
+  source: "worker" | "panel" | "file-editor"
   level: ExtensionRuntimeLogLevel
   message: string
 }
@@ -68,6 +70,19 @@ export interface FileExtensionRuntimeOutputChangedEvent {
   entry?: FileExtensionRuntimeOutputEntry
   cleared?: true
 }
+
+export type FileExtensionSurfaceOutputRequest = {
+  generation: string
+  level: ExtensionSurfaceLogLevel
+  message: string
+} & (
+  | { surfaceKind: "panel"; sessionId: string }
+  | {
+      surfaceKind: "file-editor"
+      sessionId: string
+      viewId: string
+    }
+)
 
 export type FileExtensionDevelopmentStatus =
   | "checking"

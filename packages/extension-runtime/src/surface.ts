@@ -98,6 +98,40 @@ export function createExtensionSurfaceSource(
     if (!port || disposed) throw new Error("Extension surface is disposed");
     port.postMessage(message);
   };
+  const formatLogArgument = (value) => {
+    if (typeof value === "string") return value;
+    if (value instanceof Error) return value.name + ": " + value.message;
+    try {
+      const seen = new WeakSet();
+      const json = JSON.stringify(value, (_key, item) => {
+        if (typeof item === "bigint") return String(item) + "n";
+        if (typeof item === "function") return "[Function " + (item.name || "anonymous") + "]";
+        if (typeof item === "symbol") return String(item);
+        if (item && typeof item === "object") {
+          if (seen.has(item)) return "[Circular]";
+          seen.add(item);
+        }
+        return item;
+      });
+      return json === undefined ? String(value) : json;
+    } catch {
+      try { return String(value); } catch { return "[Unprintable]"; }
+    }
+  };
+  const emitLog = (level, values) => {
+    try {
+      const message = values.map(formatLogArgument).join(" ").slice(0, 4096);
+      if (message) send({ type: "surface-log", generation: GENERATION, level, message });
+    } catch {}
+  };
+  const nativeConsole = globalThis.console && typeof globalThis.console === "object" ? globalThis.console : null;
+  const runtimeConsole = Object.freeze(Object.assign(Object.create(nativeConsole), {
+    debug: (...values) => emitLog("debug", values),
+    info: (...values) => emitLog("info", values),
+    log: (...values) => emitLog("log", values),
+    warn: (...values) => emitLog("warn", values),
+    error: (...values) => emitLog("error", values),
+  }));
   const applyEdits = (text, edits) => {
     let next = text;
     for (let index = edits.length - 1; index >= 0; index -= 1) {
@@ -187,6 +221,11 @@ export function createExtensionSurfaceSource(
     setAppearance(message.appearance);
     const root = document.getElementById("eidos-extension-root");
     if (!root) throw new Error("Extension surface mount point is unavailable");
+    try {
+      Object.defineProperty(globalThis, "console", { value: runtimeConsole, configurable: false, writable: false });
+    } catch {
+      try { globalThis.console = runtimeConsole; } catch {}
+    }
     const loadModule = () => {
 ${options.bundleCode}
       return __eidosExtensionModule;

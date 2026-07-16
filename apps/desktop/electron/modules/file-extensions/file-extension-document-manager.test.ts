@@ -61,6 +61,12 @@ describe("FileExtensionDocumentManager", () => {
     expect(second.sessionId).toBe(first.sessionId)
     expect(second.viewId).not.toBe(first.viewId)
     expect(first.snapshot).toMatchObject({ revision: 1, dirty: false })
+    expect(
+      manager.getRuntimeOutputTarget("space-a", first.sessionId, first.viewId)
+    ).toEqual({ packageId: "example.tasks", generation: "generation-1" })
+    expect(() =>
+      manager.getRuntimeOutputTarget("space-a", first.sessionId, "unknown-view")
+    ).toThrow("session is unavailable")
 
     await expect(
       manager.handleRequest("space-a", first.sessionId, first.viewId, {

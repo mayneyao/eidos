@@ -216,6 +216,20 @@ export interface ExtensionSurfaceActivationErrorMessage {
   message: string
 }
 
+export type ExtensionSurfaceLogLevel =
+  | "debug"
+  | "info"
+  | "log"
+  | "warn"
+  | "error"
+
+export interface ExtensionSurfaceLogMessage {
+  type: "surface-log"
+  generation: string
+  level: ExtensionSurfaceLogLevel
+  message: string
+}
+
 export interface ExtensionSurfaceApplyEditsRequest {
   type: "apply-edits"
   requestId: string
@@ -239,6 +253,7 @@ export type ExtensionSurfaceToHostMessage =
   | ExtensionSurfaceReadyMessage
   | ExtensionSurfaceActivatedMessage
   | ExtensionSurfaceActivationErrorMessage
+  | ExtensionSurfaceLogMessage
   | ExtensionSurfaceApplyEditsRequest
   | ExtensionSurfaceDocumentRequest
   | ExtensionSurfaceClosedMessage

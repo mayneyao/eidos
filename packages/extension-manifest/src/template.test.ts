@@ -140,6 +140,9 @@ describe("createExtensionPanelTemplate", () => {
     expect(
       template.files.find((file) => file.path === "src/panel.ts")!.content
     ).toContain("context.state ??")
+    expect(
+      template.files.find((file) => file.path === "src/panel.ts")!.content
+    ).toContain("Task Counter panel activated")
   })
 })
 
@@ -196,5 +199,6 @@ describe("createExtensionTextEditorTemplate", () => {
     ).toEqual([])
     expect(source).toContain("context.document.applyEdits")
     expect(source).toContain("minimalEdit")
+    expect(source).toContain("Notes Editor editor activated")
   })
 })

@@ -796,6 +796,7 @@ describe("FileExtensionSettings", () => {
         entry: {
           sequence: 1,
           timestamp: 1_700_000_000_000,
+          source: "panel",
           level: "info",
           message: "Found 3 Markdown tasks",
         },
@@ -804,6 +805,7 @@ describe("FileExtensionSettings", () => {
 
     expect(container.textContent).toContain("Runtime output")
     expect(container.textContent).toContain("Found 3 Markdown tasks")
+    expect(container.textContent).toContain("panel")
     const clear = [...container.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "Clear"
     )!

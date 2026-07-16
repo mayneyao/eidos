@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => ({
   closePanelSession: vi.fn(),
   getPanelSession: vi.fn(),
   listeners: new Map<string, (event: unknown, payload: unknown) => void>(),
+  reportSurfaceOutput: vi.fn(),
   setTitle: vi.fn(),
 }))
 
@@ -105,6 +106,7 @@ describe("ExtensionPanelSurface", () => {
     mocks.listeners.clear()
     mocks.closePanelSession.mockReset().mockResolvedValue({ success: true })
     mocks.getPanelSession.mockReset().mockResolvedValue(firstSession)
+    mocks.reportSurfaceOutput.mockReset().mockResolvedValue({ success: true })
     mocks.setTitle.mockReset()
 
     vi.stubGlobal("MessageChannel", TestMessageChannel)
@@ -114,6 +116,7 @@ describe("ExtensionPanelSurface", () => {
         fileExtensions: {
           closePanelSession: mocks.closePanelSession,
           getPanelSession: mocks.getPanelSession,
+          reportSurfaceOutput: mocks.reportSurfaceOutput,
         },
         on: (
           channel: string,
@@ -174,6 +177,12 @@ describe("ExtensionPanelSurface", () => {
         protocolVersion: EXTENSION_SURFACE_PROTOCOL_VERSION,
       })
       firstPort.emit({ type: "activated" })
+      firstPort.emit({
+        type: "surface-log",
+        generation: firstSession.generation,
+        level: "info",
+        message: "Rendered task summary",
+      })
       await Promise.resolve()
     })
 
@@ -189,6 +198,13 @@ describe("ExtensionPanelSurface", () => {
       appearance,
     })
     expect(container.textContent).not.toContain("Activating extension")
+    expect(mocks.reportSurfaceOutput).toHaveBeenCalledWith("space-a", {
+      surfaceKind: "panel",
+      sessionId: firstSession.sessionId,
+      generation: firstSession.generation,
+      level: "info",
+      message: "Rendered task summary",
+    })
 
     await act(async () => {
       mocks.listeners.get("file-extensions:development-changed")?.(

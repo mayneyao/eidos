@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type { MainWindowProvider } from "../space-management/main-window.provider"
 import type { SpaceRegistry } from "../space-management/space-registry"
+import { FileExtensionDocumentManager } from "./file-extension-document-manager"
 import type {
   FileExtensionRuntimeExecution,
   FileExtensionRuntimeManager,
@@ -89,11 +90,18 @@ describe("FileExtensionService runtime output", () => {
       disposeAll: vi.fn(),
       has: vi.fn(() => false),
     } as unknown as FileExtensionRuntimeManager
+    const documentManager = new FileExtensionDocumentManager(windowProvider)
+    vi.spyOn(documentManager, "getRuntimeOutputTarget").mockReturnValue({
+      packageId: "example.task-counter",
+      generation: "surface-generation-1",
+    })
     const { FileExtensionService } = await import("./file-extension.service")
     const service = new FileExtensionService(
       registry,
       windowProvider,
-      runtimeManager
+      runtimeManager,
+      undefined,
+      documentManager
     )
     const extension = (await service.discover("space-a")).packages[0]!
     const snapshot = {
@@ -131,6 +139,27 @@ describe("FileExtensionService runtime output", () => {
       })
     )
 
+    expect(() =>
+      service.reportSurfaceOutput("space-a", {
+        surfaceKind: "file-editor",
+        sessionId: "editor-session-1",
+        viewId: "editor-view-1",
+        generation: "stale-generation",
+        level: "warn",
+        message: "Stale surface output",
+      })
+    ).toThrow("stale generation")
+    expect(
+      service.reportSurfaceOutput("space-a", {
+        surfaceKind: "file-editor",
+        sessionId: "editor-session-1",
+        viewId: "editor-view-1",
+        generation: "surface-generation-1",
+        level: "warn",
+        message: "Task has no title",
+      })
+    ).toEqual({ success: true })
+
     vi.mocked(runtimeManager.execute).mockRejectedValueOnce(
       new Error("The task parser crashed")
     )
@@ -142,6 +171,7 @@ describe("FileExtensionService runtime output", () => {
         {
           runtimeOutput: [
             { level: "info", message: "Counted 3 tasks" },
+            { level: "warn", message: "Task has no title" },
             {
               level: "error",
               message: "RUNTIME_COMMAND_FAILED: The task parser crashed",

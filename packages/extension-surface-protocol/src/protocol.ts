@@ -6,6 +6,14 @@ export const EXTENSION_SURFACE_MAX_INSERTED_CODE_UNITS = 256 * 1024
 export const EXTENSION_SURFACE_MAX_CHANGED_CODE_UNITS = 256 * 1024
 export const EXTENSION_SURFACE_MAX_TEXT_CODE_UNITS = 512 * 1024
 
+const EXTENSION_SURFACE_LOG_LEVELS = new Set([
+  "debug",
+  "info",
+  "log",
+  "warn",
+  "error",
+])
+
 export class ExtensionSurfaceProtocolError extends Error {
   readonly code = "PROTOCOL_ERROR" as const
 
@@ -253,6 +261,18 @@ export function parseExtensionSurfaceMessage(
     return {
       type,
       message: text(input.message, "Surface activation error", 4096),
+    }
+  }
+  if (type === "surface-log") {
+    const level = text(input.level, "Surface log level", 16)
+    if (!EXTENSION_SURFACE_LOG_LEVELS.has(level)) {
+      throw new ExtensionSurfaceProtocolError("Surface log level is invalid")
+    }
+    return {
+      type,
+      generation: text(input.generation, "Surface generation", 256),
+      level: level as "debug" | "info" | "log" | "warn" | "error",
+      message: text(input.message, "Surface log message", 4096),
     }
   }
   if (type === "closed") return { type }

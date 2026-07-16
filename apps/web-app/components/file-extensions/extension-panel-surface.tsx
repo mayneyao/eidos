@@ -205,7 +205,7 @@ export function ExtensionPanelSurface({ sessionId }: { sessionId: string }) {
     }
     return () => {
       closeTimerRef.current = setTimeout(() => {
-        void window.eidos.fileExtensions
+        void window.eidos?.fileExtensions
           .closePanelSession(spaceId, { sessionId })
           .catch(() => undefined)
       }, 0)
@@ -214,8 +214,10 @@ export function ExtensionPanelSurface({ sessionId }: { sessionId: string }) {
 
   const connectSurface = useCallback(
     (iframe: HTMLIFrameElement) => {
+      const spaceId = currentSpace?.id
       const currentAppearance = appearanceRef.current
       if (
+        !spaceId ||
         !session ||
         !currentAppearance ||
         !iframe.contentWindow ||
@@ -251,7 +253,26 @@ export function ExtensionPanelSurface({ sessionId }: { sessionId: string }) {
         }
         if (message?.type === "activated") {
           setActivated(true)
+        } else if (message?.type === "surface-log") {
+          void window.eidos.fileExtensions
+            .reportSurfaceOutput(spaceId, {
+              surfaceKind: "panel",
+              sessionId: session.sessionId,
+              generation: message.generation,
+              level: message.level,
+              message: message.message,
+            })
+            .catch(() => undefined)
         } else if (message?.type === "activation-error") {
+          void window.eidos.fileExtensions
+            .reportSurfaceOutput(spaceId, {
+              surfaceKind: "panel",
+              sessionId: session.sessionId,
+              generation: session.generation,
+              level: "error",
+              message: `SURFACE_ACTIVATION_FAILED: ${message.message}`,
+            })
+            .catch(() => undefined)
           setError(message.message)
         } else if (message?.type === "closed") {
           setError("The extension panel closed unexpectedly.")
@@ -268,7 +289,7 @@ export function ExtensionPanelSurface({ sessionId }: { sessionId: string }) {
         [channel.port2]
       )
     },
-    [session]
+    [currentSpace?.id, session]
   )
 
   useEffect(() => {

@@ -93,6 +93,7 @@ import type {
   FileExtensionStopDevelopmentSessionRequest,
   FileExtensionResolveConflictRequest,
   FileExtensionSurfaceRequestResult,
+  FileExtensionSurfaceOutputRequest,
   FileExtensionSemanticUiRequest,
   FileExtensionSemanticUiResponse,
   FileExtensionTemplateRequest,
@@ -106,6 +107,7 @@ const WATCH_DEBOUNCE_MS = 120
 const SEMANTIC_UI_TIMEOUT_MS = 55_000
 const MAX_OPEN_EXTENSION_PANELS_PER_SPACE = 32
 const MAX_RUNTIME_OUTPUT_ENTRIES = 100
+const SURFACE_OUTPUT_LEVELS = new Set(["debug", "info", "log", "warn", "error"])
 const LOCAL_EXTENSION_NAME_PATTERN = /^[a-z][a-z0-9-]{1,62}$/
 const FILE_EDITOR_MEDIA_TYPES: Record<string, string> = {
   css: "text/css",
@@ -298,6 +300,63 @@ export class FileExtensionService extends IpcServiceBase {
     }
     this.runtimeOutput.delete(this.runtimeOutputKey(spaceId, packageId))
     this.emitRuntimeOutput({ spaceId, packageId, cleared: true })
+    return { success: true }
+  }
+
+  @IpcMethod()
+  reportSurfaceOutput(
+    spaceId: string,
+    request: FileExtensionSurfaceOutputRequest
+  ): { success: true } {
+    this.getFileSpace(spaceId)
+    if (
+      !request ||
+      typeof request.generation !== "string" ||
+      request.generation.length === 0 ||
+      request.generation.length > 256 ||
+      typeof request.message !== "string" ||
+      request.message.length === 0 ||
+      request.message.length > 4096 ||
+      !SURFACE_OUTPUT_LEVELS.has(request.level)
+    ) {
+      throw new Error("A valid bounded extension surface output is required")
+    }
+
+    let target: { packageId: string; generation: string }
+    if (request.surfaceKind === "panel") {
+      const session = this.requirePanelSession(spaceId, {
+        sessionId: request.sessionId,
+      })
+      if (session.suspended) {
+        throw new FileExtensionRuntimeError(
+          "RUNTIME_STALE",
+          "Extension panel session is reloading"
+        )
+      }
+      target = {
+        packageId: session.packageId,
+        generation: session.generation,
+      }
+    } else if (request.surfaceKind === "file-editor") {
+      target = this.documentManager.getRuntimeOutputTarget(
+        spaceId,
+        request.sessionId,
+        request.viewId
+      )
+    } else {
+      throw new Error("Extension surface kind is invalid")
+    }
+    if (target.generation !== request.generation) {
+      throw new FileExtensionRuntimeError(
+        "RUNTIME_STALE",
+        "Extension surface output belongs to a stale generation"
+      )
+    }
+    this.recordRuntimeOutput(spaceId, target.packageId, {
+      source: request.surfaceKind,
+      level: request.level,
+      message: request.message,
+    })
     return { success: true }
   }
 
@@ -938,7 +997,11 @@ export class FileExtensionService extends IpcServiceBase {
         handleRpc: (rpc) =>
           this.handleRuntimeRpc(spaceId, prepared.descriptor.snapshot, rpc),
         handleLog: (log) =>
-          this.recordRuntimeOutput(spaceId, request.packageId, log),
+          this.recordRuntimeOutput(spaceId, request.packageId, {
+            source: "worker",
+            level: log.level,
+            message: log.message,
+          }),
       })
     } catch (error) {
       const code =
@@ -947,6 +1010,7 @@ export class FileExtensionService extends IpcServiceBase {
           : "RUNTIME_COMMAND_FAILED"
       const message = error instanceof Error ? error.message : String(error)
       this.recordRuntimeOutput(spaceId, request.packageId, {
+        source: "worker",
         level: "error",
         message: `${code}: ${message}`,
       })
@@ -1806,12 +1870,17 @@ export class FileExtensionService extends IpcServiceBase {
   private recordRuntimeOutput(
     spaceId: string,
     packageId: string,
-    log: { level: FileExtensionRuntimeOutputEntry["level"]; message: string }
+    log: {
+      source: FileExtensionRuntimeOutputEntry["source"]
+      level: FileExtensionRuntimeOutputEntry["level"]
+      message: string
+    }
   ): void {
     const key = this.runtimeOutputKey(spaceId, packageId)
     const entry: FileExtensionRuntimeOutputEntry = {
       sequence: ++this.runtimeOutputSequence,
       timestamp: Date.now(),
+      source: log.source,
       level: log.level,
       message: log.message.slice(0, 4096),
     }

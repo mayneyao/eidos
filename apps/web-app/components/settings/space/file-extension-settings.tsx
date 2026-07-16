@@ -2507,7 +2507,7 @@ export function FileExtensionSettings() {
                                 <p className="mt-0.5 text-xs text-muted-foreground">
                                   {t(
                                     "space.settings.fileExtensions.runtimeOutputDescription",
-                                    "Recent console output from the sandboxed Worker. Kept in memory for this app session."
+                                    "Recent console output from the sandboxed Worker and UI surfaces. Kept in memory for this app session."
                                   )}
                                 </p>
                               </div>
@@ -2536,7 +2536,7 @@ export function FileExtensionSettings() {
                               {runtimeOutput.map((entry) => (
                                 <div
                                   key={entry.sequence}
-                                  className="grid grid-cols-[4.5rem_3.5rem_minmax(0,1fr)] gap-2 border-b border-border/40 py-1.5 last:border-b-0"
+                                  className="grid grid-cols-[4.5rem_4.5rem_3.5rem_minmax(0,1fr)] gap-2 border-b border-border/40 py-1.5 last:border-b-0"
                                 >
                                   <time className="text-muted-foreground">
                                     {new Date(
@@ -2547,6 +2547,11 @@ export function FileExtensionSettings() {
                                       second: "2-digit",
                                     })}
                                   </time>
+                                  <span className="truncate uppercase text-muted-foreground">
+                                    {entry.source === "file-editor"
+                                      ? "editor"
+                                      : entry.source}
+                                  </span>
                                   <span
                                     className={cn(
                                       "uppercase text-muted-foreground",

@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   listEditors: vi.fn(),
   openEditor: vi.fn(),
   refresh: vi.fn(),
+  reportSurfaceOutput: vi.fn(),
   resolveConflict: vi.fn(),
   listeners: new Map<string, (event: unknown, payload: unknown) => void>(),
   pendingWriteFlusher: undefined as undefined | (() => Promise<boolean>),
@@ -148,6 +149,7 @@ describe("ExtensionFileEditorSurface", () => {
     mocks.listEditors.mockReset().mockResolvedValue([editor])
     mocks.openEditor.mockReset().mockResolvedValue(openedEditor)
     mocks.refresh.mockReset().mockResolvedValue({ success: true })
+    mocks.reportSurfaceOutput.mockReset().mockResolvedValue({ success: true })
     mocks.resolveConflict.mockReset().mockResolvedValue({ success: true })
     mocks.tabDirty.mockReset()
 
@@ -162,6 +164,7 @@ describe("ExtensionFileEditorSurface", () => {
           listFileEditors: mocks.listEditors,
           openFileEditor: mocks.openEditor,
           refreshFileEditor: mocks.refresh,
+          reportSurfaceOutput: mocks.reportSurfaceOutput,
           resolveFileEditorConflict: mocks.resolveConflict,
         },
         on: (
@@ -227,6 +230,12 @@ describe("ExtensionFileEditorSurface", () => {
         protocolVersion: EXTENSION_SURFACE_PROTOCOL_VERSION,
       })
       hostPort.emit({ type: "activated" })
+      hostPort.emit({
+        type: "surface-log",
+        generation: openedEditor.generation,
+        level: "warn",
+        message: "Task has no title",
+      })
       await Promise.resolve()
     })
 
@@ -240,6 +249,14 @@ describe("ExtensionFileEditorSurface", () => {
       })
     )
     expect(container.textContent).not.toContain("Activating extension")
+    expect(mocks.reportSurfaceOutput).toHaveBeenCalledWith("space-a", {
+      surfaceKind: "file-editor",
+      sessionId: openedEditor.sessionId,
+      viewId: openedEditor.viewId,
+      generation: openedEditor.generation,
+      level: "warn",
+      message: "Task has no title",
+    })
 
     const editRequest = {
       type: "apply-edits",
