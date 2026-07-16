@@ -59,6 +59,25 @@ function bytes(content) {
   return new TextEncoder().encode(content)
 }
 
+const SMOKE_APPEARANCE = {
+  colorScheme: "light",
+  locale: "en",
+  theme: {
+    background: "rgb(255, 255, 255)",
+    foreground: "rgb(17, 24, 39)",
+    mutedBackground: "rgb(249, 250, 251)",
+    mutedForeground: "rgb(107, 114, 128)",
+    border: "rgb(209, 213, 219)",
+    accent: "rgb(37, 99, 235)",
+    accentForeground: "rgb(255, 255, 255)",
+    destructive: "rgb(220, 38, 38)",
+    destructiveForeground: "rgb(255, 255, 255)",
+    focusRing: "rgb(59, 130, 246)",
+    fontFamily: "system-ui, sans-serif",
+    monoFontFamily: "ui-monospace, monospace",
+  },
+}
+
 function createRuntimeSession(scenarioId) {
   const runtimeSession = session.fromPartition(
     `eidos-file-extension-smoke-${scenarioId}-${Date.now()}`,
@@ -297,24 +316,7 @@ async function runSurfaceScenario({
       undoRedo: true,
       savePolicy: { mode: "afterDelay", delayMs: 700 },
     },
-    appearance: {
-      colorScheme: "light",
-      locale: "en",
-      theme: {
-        background: "rgb(255, 255, 255)",
-        foreground: "rgb(17, 24, 39)",
-        mutedBackground: "rgb(249, 250, 251)",
-        mutedForeground: "rgb(107, 114, 128)",
-        border: "rgb(209, 213, 219)",
-        accent: "rgb(37, 99, 235)",
-        accentForeground: "rgb(255, 255, 255)",
-        destructive: "rgb(220, 38, 38)",
-        destructiveForeground: "rgb(255, 255, 255)",
-        focusRing: "rgb(59, 130, 246)",
-        fontFamily: "system-ui, sans-serif",
-        monoFontFamily: "ui-monospace, monospace",
-      },
-    },
+    appearance: SMOKE_APPEARANCE,
   }
 
   try {
@@ -503,6 +505,159 @@ async function runSurfaceScenario({
   }
 }
 
+async function runPanelScenario({
+  scenarioId,
+  extensionId,
+  panelId,
+  entrypoint,
+  files,
+  state,
+  expectedTitle,
+  cssMarker,
+}) {
+  const generation = `smoke-${scenarioId}`
+  const bundle = await compileExtensionSurface({ entrypoint, files })
+  const source = createExtensionSurfaceSource({
+    bundleCode: bundle.code,
+    extensionId,
+    generation,
+  })
+  const runtimeSession = createRuntimeSession(scenarioId)
+  const runtimeWindow = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      session: runtimeSession,
+      sandbox: true,
+      nodeIntegration: false,
+      nodeIntegrationInWorker: false,
+      contextIsolation: true,
+      webSecurity: true,
+      devTools: false,
+    },
+  })
+  observeRuntimeWindow(runtimeWindow, `${scenarioId} panel`)
+
+  const initialize = {
+    type: "initialize",
+    surfaceKind: "panel",
+    protocolVersion: EXTENSION_SURFACE_PROTOCOL_VERSION,
+    packageId: extensionId,
+    generation,
+    panelId,
+    sessionId: `${scenarioId}-session`,
+    state,
+    appearance: SMOKE_APPEARANCE,
+  }
+
+  try {
+    await runtimeWindow.loadURL(extensionSurfaceDataUrl())
+    const result = await runtimeWindow.webContents.executeJavaScript(
+      `new Promise((resolve, reject) => {
+        const source = ${JSON.stringify(source)};
+        const generation = ${JSON.stringify(generation)};
+        const initialize = ${JSON.stringify(initialize)};
+        const expectedTitle = ${JSON.stringify(expectedTitle)};
+        const cssMarker = ${JSON.stringify(cssMarker)};
+        const channel = new MessageChannel();
+        const port = channel.port1;
+        let settled = false;
+        const timeout = setTimeout(() => fail(new Error("Panel smoke timed out")), 10000);
+        const fail = (error) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          try { port.close(); } catch {}
+          reject(error);
+        };
+        const finish = (value) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          try { port.close(); } catch {}
+          resolve(value);
+        };
+        port.onmessage = (event) => {
+          try {
+            const message = event.data;
+            if (message?.type === "activation-error") {
+              throw new Error("Panel activation failed: " + message.message);
+            }
+            if (message?.type === "ready") {
+              if (message.protocolVersion !== initialize.protocolVersion) {
+                throw new Error("Panel activated with an unexpected protocol");
+              }
+              port.postMessage(initialize);
+              return;
+            }
+            if (message?.type !== "activated") return;
+            if (typeof fetch !== "undefined" || typeof XMLHttpRequest !== "undefined") {
+              throw new Error("Blocked network globals are still available");
+            }
+            const title = document.querySelector(".task-summary h1");
+            const resource = document.querySelector(".task-summary .resource");
+            const pending = document.querySelector('[data-count="pending"]');
+            const completed = document.querySelector('[data-count="completed"]');
+            const total = document.querySelector('[data-count="total"]');
+            const cssLoaded = Array.from(document.querySelectorAll("style")).some(
+              (style) => style.textContent?.includes(cssMarker)
+            );
+            if (title?.textContent !== expectedTitle) {
+              throw new Error("Panel did not render its title");
+            }
+            if (resource?.textContent !== initialize.state.path) {
+              throw new Error("Panel did not render its resource state");
+            }
+            if (
+              pending?.textContent !== String(initialize.state.pending) ||
+              completed?.textContent !== String(initialize.state.completed) ||
+              total?.textContent !== String(initialize.state.total)
+            ) {
+              throw new Error("Panel did not render its task counts");
+            }
+            finish({
+              title: title.textContent,
+              resource: resource.textContent,
+              pending: pending.textContent,
+              completed: completed.textContent,
+              total: total.textContent,
+              cssLoaded,
+              background: document.documentElement.style.getPropertyValue("--eidos-color-background"),
+            });
+          } catch (error) {
+            fail(error);
+          }
+        };
+        port.start();
+        window.postMessage(
+          {
+            type: ${JSON.stringify(EXTENSION_SURFACE_BOOTSTRAP_CHANNEL)},
+            source,
+            generation,
+          },
+          "*",
+          [channel.port2]
+        );
+      })`,
+      true
+    )
+    if (
+      result?.title !== expectedTitle ||
+      result?.resource !== state.path ||
+      result?.pending !== String(state.pending) ||
+      result?.completed !== String(state.completed) ||
+      result?.total !== String(state.total) ||
+      result?.cssLoaded !== true ||
+      result?.background !== SMOKE_APPEARANCE.theme.background
+    ) {
+      throw new Error("Generated panel returned an unexpected result")
+    }
+    console.log(`${scenarioId} extension smoke passed`)
+  } finally {
+    if (!runtimeWindow.isDestroyed()) runtimeWindow.destroy()
+    await runtimeSession.clearStorageData()
+  }
+}
+
 async function run() {
   await app.whenReady()
 
@@ -547,7 +702,12 @@ async function run() {
   })
   const panelCommand = generatedPanel.manifest.contributes.commands?.[0]
   const panel = generatedPanel.manifest.contributes.panels?.[0]
-  if (!panelCommand || !panel || !generatedPanel.manifest.entrypoints.worker) {
+  if (
+    !panelCommand ||
+    !panel ||
+    !generatedPanel.manifest.entrypoints.worker ||
+    !generatedPanel.manifest.entrypoints.ui
+  ) {
     throw new Error("Generated panel template is missing its runtime contract")
   }
   await runCommandScenario({
@@ -582,6 +742,24 @@ async function run() {
         `Generated panel emitted an unexpected RPC: ${message.method}`
       )
     },
+  })
+  await runPanelScenario({
+    scenarioId: "generated-panel-ui",
+    extensionId: generatedPanel.canonicalId,
+    panelId: panel.id,
+    entrypoint: generatedPanel.manifest.entrypoints.ui,
+    files: generatedPanel.files.map((file) => ({
+      path: file.path,
+      content: bytes(file.content),
+    })),
+    state: {
+      path: "tasks.md",
+      pending: 2,
+      completed: 1,
+      total: 3,
+    },
+    expectedTitle: "Panel Smoke",
+    cssMarker: ".task-summary",
   })
 
   const generated = createExtensionCommandTemplate({
