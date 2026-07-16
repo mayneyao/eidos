@@ -78,6 +78,31 @@ describe("BaseCsvImportPopover", () => {
     expect(trigger?.className).not.toContain("base-workbar-action")
   })
 
+  it("renders a compact sheet-bar trigger that opens upward", async () => {
+    await act(async () => {
+      root.render(
+        <BaseCsvImportPopover
+          triggerVariant="sheet-bar"
+          onSelect={() =>
+            Promise.resolve({ canceled: true, token: null, fileName: null })
+          }
+          onPreview={() => Promise.resolve(plan)}
+          onImport={() => Promise.resolve()}
+          onProgress={() => Promise.resolve(null)}
+          onCancel={() => Promise.resolve(true)}
+        />
+      )
+    })
+
+    const trigger = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Import CSV as new Base table"]'
+    )
+    expect(trigger?.className).toContain("h-full")
+    expect(trigger?.className).toContain("border-l")
+    expect(trigger?.querySelector("span")?.className).toContain("sr-only")
+    expect(trigger?.title).toBe("Import CSV as table")
+  })
+
   it("previews mapping in an anchored panel and imports a new table", async () => {
     const onSelect = vi.fn().mockResolvedValue({
       canceled: false,

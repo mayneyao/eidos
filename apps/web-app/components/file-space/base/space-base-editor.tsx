@@ -1861,6 +1861,18 @@ export function SpaceBaseEditor({
             onDelete={deleteViewInBase}
             onReorder={reorderViewsInBase}
             onUpdate={updateViewInBase}
+            viewAction={
+              activeView ? (
+                <BaseCsvExportPopover
+                  triggerVariant="view-action"
+                  disabled={loading || pendingMutations > 0}
+                  viewName={`${activeTable.table.name} · ${activeView.name}`}
+                  onExport={exportActiveView}
+                  onProgress={getCsvOperation}
+                  onCancel={cancelCsvOperation}
+                />
+              ) : undefined
+            }
           />
         ) : (
           <div className="min-w-0 flex-1" />
@@ -1954,25 +1966,6 @@ export function SpaceBaseEditor({
                 onDeleteField={requestFieldDelete}
               />
             </>
-          ) : null}
-          {activeTable ? (
-            <BaseCsvImportPopover
-              disabled={loading || pendingMutations > 0}
-              onSelect={selectCsv}
-              onPreview={previewCsvImport}
-              onImport={importCsvIntoBase}
-              onProgress={getCsvOperation}
-              onCancel={cancelCsvOperation}
-            />
-          ) : null}
-          {activeView ? (
-            <BaseCsvExportPopover
-              disabled={loading || pendingMutations > 0}
-              viewName={`${activeTable?.table.name ?? "Table"} · ${activeView.name}`}
-              onExport={exportActiveView}
-              onProgress={getCsvOperation}
-              onCancel={cancelCsvOperation}
-            />
           ) : null}
           <Button
             type="button"
@@ -2257,6 +2250,19 @@ export function SpaceBaseEditor({
         tables={snapshot.tables.map((candidate) => candidate.table)}
         activeTableId={activeTableId}
         disabled={loading || blockingMutations > 0}
+        importAction={
+          activeTable ? (
+            <BaseCsvImportPopover
+              triggerVariant="sheet-bar"
+              disabled={loading || pendingMutations > 0}
+              onSelect={selectCsv}
+              onPreview={previewCsvImport}
+              onImport={importCsvIntoBase}
+              onProgress={getCsvOperation}
+              onCancel={cancelCsvOperation}
+            />
+          ) : undefined
+        }
         onSelect={setActiveTableId}
         onCreate={() => setStructureDialog("table")}
         onRename={(table) =>

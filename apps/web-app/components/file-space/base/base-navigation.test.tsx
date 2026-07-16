@@ -94,6 +94,7 @@ describe("Base navigation hierarchy", () => {
     const onSelectView = vi.fn()
     const onSelectTable = vi.fn()
     const onCreateTable = vi.fn()
+    const onImportCsv = vi.fn()
     const onRenameTable = vi.fn()
     const onDeleteTable = vi.fn()
     await act(async () => {
@@ -116,6 +117,15 @@ describe("Base navigation hierarchy", () => {
             activeTableId="tasks"
             onSelect={onSelectTable}
             onCreate={onCreateTable}
+            importAction={
+              <button
+                type="button"
+                aria-label="Import CSV as table"
+                onClick={onImportCsv}
+              >
+                Import CSV as table
+              </button>
+            }
             onRename={onRenameTable}
             onDelete={onDeleteTable}
           />
@@ -159,6 +169,12 @@ describe("Base navigation hierarchy", () => {
     expect(onSelectView).toHaveBeenCalledWith("board")
     expect(onSelectTable).toHaveBeenCalledWith("projects")
     expect(onCreateTable).toHaveBeenCalledOnce()
+    const importCsv = container.querySelector<HTMLButtonElement>(
+      '[data-base-sheet-tabs] [aria-label="Import CSV as table"]'
+    )
+    expect(importCsv?.textContent).toContain("Import CSV as table")
+    await act(async () => importCsv?.click())
+    expect(onImportCsv).toHaveBeenCalledOnce()
 
     const projectsTab = sheetTabs?.querySelector<HTMLElement>(
       '[data-base-table-id="projects"]'

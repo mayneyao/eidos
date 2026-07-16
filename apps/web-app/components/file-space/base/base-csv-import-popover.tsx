@@ -29,7 +29,7 @@ type CsvSelection =
 
 interface BaseCsvImportPopoverProps {
   disabled?: boolean
-  triggerVariant?: "workbar" | "empty-state"
+  triggerVariant?: "workbar" | "empty-state" | "sheet-bar"
   onSelect: () => Promise<CsvSelection>
   onPreview: (
     token: string,
@@ -390,15 +390,25 @@ export function BaseCsvImportPopover({
         <Button
           type="button"
           variant={triggerVariant === "empty-state" ? "outline" : "ghost"}
-          size="sm"
+          size={triggerVariant === "sheet-bar" ? "icon" : "sm"}
           className={cn(
             "gap-1.5 text-xs",
             triggerVariant === "empty-state"
               ? "h-8 px-3"
-              : "base-workbar-action h-7 px-2"
+              : triggerVariant === "sheet-bar"
+                ? "h-full w-8 shrink-0 rounded-none border-l"
+                : "base-workbar-action h-7 px-2"
           )}
-          aria-label="Import CSV into Base"
-          title="Import CSV"
+          aria-label={
+            triggerVariant === "sheet-bar"
+              ? "Import CSV as new Base table"
+              : "Import CSV into Base"
+          }
+          title={
+            triggerVariant === "sheet-bar"
+              ? "Import CSV as table"
+              : "Import CSV"
+          }
           disabled={disabled || selecting}
           onClick={() => void chooseFile()}
         >
@@ -409,7 +419,8 @@ export function BaseCsvImportPopover({
           )}
           <span
             className={cn(
-              triggerVariant === "workbar" && "base-workbar-action-label"
+              triggerVariant === "workbar" && "base-workbar-action-label",
+              triggerVariant === "sheet-bar" && "sr-only"
             )}
           >
             Import CSV
@@ -418,7 +429,7 @@ export function BaseCsvImportPopover({
       </PopoverAnchor>
       <PopoverContent
         align={triggerVariant === "empty-state" ? "center" : "end"}
-        side="bottom"
+        side={triggerVariant === "sheet-bar" ? "top" : "bottom"}
         sideOffset={5}
         className="w-[min(760px,calc(100vw-24px))] p-0"
       >

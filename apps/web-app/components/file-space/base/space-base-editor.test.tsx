@@ -699,6 +699,8 @@ vi.mock("./base-view-selector", () => ({
   BaseViewTypeIcon: ({ type }: { type: string }) => <span>{type}</span>,
   BaseViewSelector: ({
     activeView,
+    triggerMode,
+    viewAction,
     onCreate,
     onRename,
     onDuplicate,
@@ -707,59 +709,74 @@ vi.mock("./base-view-selector", () => ({
     onUpdate,
   }: {
     activeView?: (typeof snapshot)["tables"][number]["views"][number]
+    triggerMode?: "current" | "create" | "manage"
+    viewAction?: React.ReactNode
     onCreate: (name: string, type: "grid" | "gallery" | "kanban") => void
     onRename: (viewId: string, name: string) => void
     onDuplicate: (viewId: string) => void
     onDelete: (viewId: string) => void
     onReorder: (viewIds: string[]) => void
     onUpdate: (viewId: string, changes: { name: string }) => Promise<void>
-  }) => (
-    <div data-testid="base-view-selector">
-      <span>{activeView?.name ?? "Views"}</span>
-      <button type="button" onClick={() => onCreate("By priority", "grid")}>
-        Create view
-      </button>
-      <button type="button" onClick={() => onCreate("Cards", "gallery")}>
-        Create gallery view
-      </button>
-      <button type="button" onClick={() => onCreate("Board", "kanban")}>
-        Create kanban view
-      </button>
-      <button
-        type="button"
-        onClick={() => activeView && onRename(activeView.id, "Renamed view")}
-      >
-        Rename view
-      </button>
-      <button
-        type="button"
-        onClick={() => activeView && onDuplicate(activeView.id)}
-      >
-        Duplicate view
-      </button>
-      <button
-        type="button"
-        onClick={() => activeView && onDelete(activeView.id)}
-      >
-        Delete view
-      </button>
-      <button type="button" onClick={() => onReorder(["view_tasks"])}>
-        Reorder views
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          if (activeView) {
-            void onUpdate(activeView.id, { name: "Unavailable" }).catch(
-              () => undefined
-            )
-          }
-        }}
-      >
-        Update view
-      </button>
-    </div>
-  ),
+  }) => {
+    const [manageOpen, setManageOpen] = React.useState(false)
+    return (
+      <div data-testid="base-view-selector">
+        <span>{activeView?.name ?? "Views"}</span>
+        {triggerMode === "manage" ? (
+          <button
+            type="button"
+            aria-label="Manage Base views"
+            onClick={() => setManageOpen(true)}
+          >
+            Manage views
+          </button>
+        ) : null}
+        {triggerMode === "manage" && manageOpen ? viewAction : null}
+        <button type="button" onClick={() => onCreate("By priority", "grid")}>
+          Create view
+        </button>
+        <button type="button" onClick={() => onCreate("Cards", "gallery")}>
+          Create gallery view
+        </button>
+        <button type="button" onClick={() => onCreate("Board", "kanban")}>
+          Create kanban view
+        </button>
+        <button
+          type="button"
+          onClick={() => activeView && onRename(activeView.id, "Renamed view")}
+        >
+          Rename view
+        </button>
+        <button
+          type="button"
+          onClick={() => activeView && onDuplicate(activeView.id)}
+        >
+          Duplicate view
+        </button>
+        <button
+          type="button"
+          onClick={() => activeView && onDelete(activeView.id)}
+        >
+          Delete view
+        </button>
+        <button type="button" onClick={() => onReorder(["view_tasks"])}>
+          Reorder views
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (activeView) {
+              void onUpdate(activeView.id, { name: "Unavailable" }).catch(
+                () => undefined
+              )
+            }
+          }}
+        >
+          Update view
+        </button>
+      </div>
+    )
+  },
 }))
 
 vi.mock("./base-gallery-view", async () => {
@@ -1448,12 +1465,32 @@ describe("SpaceBaseEditor", () => {
     })
   })
 
-  it("exports the active view query and visible field order", async () => {
+  it("moves CSV actions out of the workbar and exports the active view", async () => {
     await renderEditor()
 
-    const exportButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("Export CSV")
+    const workbar = container.querySelector("[data-base-workbar]")
+    expect(
+      workbar?.querySelector('[aria-label="Import CSV as new Base table"]')
+    ).toBeNull()
+    expect(
+      workbar?.querySelector('[aria-label="Export current Base view as CSV"]')
+    ).toBeNull()
+    expect(
+      container.querySelector(
+        '[data-base-sheet-tabs] [aria-label="Import CSV as new Base table"]'
+      )
+    ).not.toBeNull()
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[aria-label="Manage Base views"]')
+        ?.click()
+    })
+
+    const exportButton = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Export current Base view as CSV"]'
     )
+    expect(exportButton?.textContent).toContain("Export current view as CSV")
     await act(async () => {
       exportButton?.click()
       await Promise.resolve()

@@ -14,14 +14,14 @@
     "typecheck:tsgo": "echo 'skip'"
   },
   "dependencies": {
-    "@astrojs/sitemap": "^3.4.1",
-    "@astrojs/starlight": "0.37.7",
-    "astro": "^5.15.9",
+    "@astrojs/sitemap": "3.7.3",
+    "@astrojs/starlight": "0.40.0",
+    "astro": "6.4.6",
     "sharp": "^0.34.2",
-    "starlight-sidebar-topics": "^0.6.2",
+    "starlight-sidebar-topics": "0.8.0",
     "starlight-theme-flexoki": "^0.1.0"
   },
   "devDependencies": {
-    "wrangler": ">=4.14.1"
+    "wrangler": "4.102.0"
   }
 }

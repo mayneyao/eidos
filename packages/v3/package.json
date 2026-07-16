@@ -31,7 +31,7 @@
   "dependencies": {
     "@oxc-parser/binding-wasm32-wasi": "^0.75.0",
     "@oxc-transform/binding-wasm32-wasi": "^0.75.0",
-    "diff": "^8.0.2",
+    "diff": "^8.0.3",
     "oxc-parser": "^0.74.0",
     "oxc-transform": "^0.74.0"
   }
