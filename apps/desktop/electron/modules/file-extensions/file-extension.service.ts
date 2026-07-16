@@ -13,6 +13,7 @@ import {
   createExtensionBaseViewTemplate,
   createExtensionPanelTemplate,
   createExtensionTextEditorTemplate,
+  type ExtensionDiagnostic,
   isIgnoredExtensionPackagePath,
   type ExtensionFileEditorSelector,
   type ExtensionPackageInspection,
@@ -22,6 +23,7 @@ import {
 import {
   discoverExtensionPackages,
   inspectExtensionPackageSnapshot,
+  type ExtensionPackageSnapshotFile,
 } from "@eidos.space/extension-manifest/node"
 import {
   type ExtensionRuntimeJsonValue,
@@ -178,6 +180,28 @@ interface FileExtensionPanelSession extends FileExtensionOpenPanelResult {
   snapshot: ExtensionSnapshotIdentity
   key: string
   suspended: boolean
+}
+
+const STRICT_UTF8 = new TextDecoder("utf-8", { fatal: true })
+
+function inspectionDiagnosticLocation(
+  diagnostic: Pick<ExtensionDiagnostic, "path" | "offset">,
+  files: readonly ExtensionPackageSnapshotFile[]
+): { line: number; column: number } | undefined {
+  if (!diagnostic.path || diagnostic.offset === undefined) return undefined
+  const source = files.find((file) => file.path === diagnostic.path)?.content
+  if (!source || diagnostic.offset < 0 || diagnostic.offset > source.byteLength)
+    return undefined
+  try {
+    const prefix = STRICT_UTF8.decode(source.subarray(0, diagnostic.offset))
+    const lines = prefix.split("\n")
+    return {
+      line: lines.length,
+      column: (lines.at(-1)?.length ?? 0) + 1,
+    }
+  } catch {
+    return undefined
+  }
 }
 
 function requestedGrants(
@@ -1764,11 +1788,16 @@ export class FileExtensionService extends IpcServiceBase {
 
       if (inspection.status !== "ready" || !inspection.manifest || !snapshot) {
         const diagnostics: FileExtensionDevelopmentDiagnostic[] =
-          inspection.diagnostics.map((diagnostic) => ({
-            code: "inspection",
-            message: `${diagnostic.code}: ${diagnostic.message}`,
-            path: diagnostic.path,
-          }))
+          inspection.diagnostics.map((diagnostic) => {
+            const location = inspectionDiagnosticLocation(diagnostic, files)
+            return {
+              code: "inspection",
+              message: `${diagnostic.code}: ${diagnostic.message}`,
+              path: diagnostic.path,
+              line: location?.line,
+              column: location?.column,
+            }
+          })
         return this.applyDevelopmentResult(spaceId, expected, () =>
           this.developmentManager.markBlocked(
             spaceId,

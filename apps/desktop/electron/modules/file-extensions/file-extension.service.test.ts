@@ -1562,6 +1562,44 @@ describe("FileExtensionService", () => {
       "extension.ts"
     )
 
+    await writeFile(sourcePath, "export const activate = ;\n")
+    let syntaxInvalidGeneration = 0
+    await vi.waitFor(
+      () => {
+        const invalid = send.mock.calls.find(
+          ([channel, event]) =>
+            channel === "file-extensions:development-changed" &&
+            event.sessionId === session.sessionId &&
+            event.status === "invalid" &&
+            event.diagnostics?.[0]?.code === "inspection"
+        )?.[1]
+        expect(invalid).toBeDefined()
+        expect(invalid.diagnostics[0]).toMatchObject({
+          code: "inspection",
+          path: "src/extension.ts",
+          line: 1,
+          column: 25,
+        })
+        syntaxInvalidGeneration = invalid.generation
+      },
+      { timeout: WATCH_EVENT_TIMEOUT_MS }
+    )
+
+    await writeFile(sourcePath, "export const activate = () => 'fixed'\n")
+    await vi.waitFor(
+      () => {
+        const ready = send.mock.calls.find(
+          ([channel, event]) =>
+            channel === "file-extensions:development-changed" &&
+            event.sessionId === session.sessionId &&
+            event.status === "ready" &&
+            event.generation > syntaxInvalidGeneration
+        )
+        expect(ready).toBeDefined()
+      },
+      { timeout: WATCH_EVENT_TIMEOUT_MS }
+    )
+
     await writeFile(
       sourcePath,
       'import "./style.css"\nexport const activate = () => undefined\n'
