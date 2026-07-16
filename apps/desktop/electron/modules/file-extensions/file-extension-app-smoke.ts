@@ -124,7 +124,7 @@ function githubFetch(archive: Uint8Array): typeof globalThis.fetch {
       })
     }
     if (url.endsWith(`/tarball/${COMMIT}`)) {
-      return new Response(archive, {
+      return new Response(Uint8Array.from(archive).buffer, {
         status: 200,
         headers: { "content-type": "application/gzip" },
       })
@@ -149,6 +149,20 @@ async function prepareGitHubPackage(
   } finally {
     globalThis.fetch = originalFetch
   }
+}
+
+async function waitForValue<T>(
+  load: () => Promise<T | undefined>,
+  message: string,
+  timeoutMs = 15_000
+): Promise<T> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const value = await load()
+    if (value !== undefined) return value
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  throw new Error(message)
 }
 
 async function renderInstalledBaseView({
@@ -709,6 +723,151 @@ async function run(): Promise<void> {
       "Installed Base view logs should reach the extension runtime output"
     )
 
+    const localTemplate = await service.createTemplate(SPACE_ID, {
+      name: "development-loop",
+      template: "command",
+    })
+    assert.equal(localTemplate.canonicalId, "local.development-loop")
+    assert.deepEqual(localTemplate.files.sort(), [
+      "README.md",
+      "extension.json",
+      "src/extension.ts",
+    ])
+    const localPackage = await waitForValue(
+      async () =>
+        (await service.discover(SPACE_ID)).packages.find(
+          (candidate) => candidate.canonicalId === localTemplate.canonicalId
+        ),
+      "Created local extension was not discovered"
+    )
+    assert.equal(localPackage.lifecycleStatus, "untrusted")
+    assert.ok(localPackage.contentDigest)
+    assert.ok(localPackage.permissionHash)
+    const localSnapshot = {
+      packageId: localTemplate.canonicalId,
+      contentDigest: localPackage.contentDigest,
+      permissionHash: localPackage.permissionHash,
+    }
+    const localTrusted = await service.trust(SPACE_ID, localSnapshot)
+    assert.equal(localTrusted.trusted, true)
+    assert.deepEqual(localTrusted.requestedGrants, [])
+    const localEnabled = await service.setEnabled(SPACE_ID, localSnapshot, true)
+    assert.equal(localEnabled.enabled, true)
+
+    const localCommandId = `${localTemplate.canonicalId}.hello`
+    await service.executeCommand(SPACE_ID, {
+      ...localSnapshot,
+      commandId: localCommandId,
+      resource: { path: "tasks.md" },
+    })
+    assert.ok(
+      (await service.discover(SPACE_ID)).packages
+        .find(
+          (candidate) => candidate.canonicalId === localTemplate.canonicalId
+        )
+        ?.runtimeOutput.some(
+          (entry) =>
+            entry.source === "worker" &&
+            entry.message.includes("Development Loop command invoked")
+        ),
+      "Created local command should execute before development starts"
+    )
+
+    const development = await service.startDevelopmentSession(
+      SPACE_ID,
+      localSnapshot
+    )
+    await writeFile(
+      path.join(
+        spacePath,
+        ".eidos",
+        "extensions",
+        localTemplate.canonicalId,
+        "src",
+        "extension.ts"
+      ),
+      [
+        'import type { ExtensionContext } from "@eidos.space/extension-sdk"',
+        "",
+        "export function activate(context: ExtensionContext) {",
+        "  context.subscriptions.add(",
+        "    context.commands.register(",
+        `      ${JSON.stringify(localCommandId)},`,
+        "      async (resource) => {",
+        '        console.info("development-version-two", { path: resource.path })',
+        '        context.window.showNotice("development-version-two")',
+        "      }",
+        "    )",
+        "  )",
+        "}",
+        "",
+      ].join("\n")
+    )
+    const reloadedLocalPackage = await waitForValue(async () => {
+      const candidate = (await service.discover(SPACE_ID)).packages.find(
+        (entry) => entry.canonicalId === localTemplate.canonicalId
+      )
+      const session = candidate?.developmentSession
+      return session?.status === "ready" &&
+        session.sessionId === development.sessionId &&
+        session.currentSnapshot?.contentDigest !== localSnapshot.contentDigest
+        ? candidate
+        : undefined
+    }, "Local extension source did not recompile in development")
+    assert.ok(reloadedLocalPackage.contentDigest)
+    assert.ok(reloadedLocalPackage.permissionHash)
+    const reloadedSnapshot = {
+      packageId: localTemplate.canonicalId,
+      contentDigest: reloadedLocalPackage.contentDigest,
+      permissionHash: reloadedLocalPackage.permissionHash,
+    }
+    const reloadedPalette = await service.listCommandPalette(SPACE_ID)
+    const reloadedCommand = reloadedPalette.commands.find(
+      (command) => command.id === localCommandId
+    )
+    assert.deepEqual(
+      reloadedCommand && {
+        packageId: reloadedCommand.packageId,
+        contentDigest: reloadedCommand.contentDigest,
+        permissionHash: reloadedCommand.permissionHash,
+      },
+      reloadedSnapshot,
+      "Command Palette should use the current development snapshot"
+    )
+    await service.executeCommand(SPACE_ID, {
+      ...reloadedSnapshot,
+      commandId: localCommandId,
+      resource: { path: "tasks.md" },
+    })
+    assert.ok(
+      (await service.discover(SPACE_ID)).packages
+        .find(
+          (candidate) => candidate.canonicalId === localTemplate.canonicalId
+        )
+        ?.runtimeOutput.some(
+          (entry) =>
+            entry.source === "worker" &&
+            entry.message.includes("development-version-two")
+        ),
+      "Reloaded local command should execute the new source"
+    )
+    await service.stopDevelopmentSession(SPACE_ID, {
+      packageId: localTemplate.canonicalId,
+      sessionId: development.sessionId,
+    })
+    assert.equal(
+      (await service.listCommandPalette(SPACE_ID)).commands.some(
+        (command) => command.id === localCommandId
+      ),
+      false,
+      "Stopping development must restore snapshot-bound trust"
+    )
+    await service.uninstall(SPACE_ID, {
+      directoryName: localTemplate.canonicalId,
+      canonicalId: localTemplate.canonicalId,
+      contentDigest: reloadedSnapshot.contentDigest,
+    })
+
     await service.uninstall(SPACE_ID, {
       directoryName: baseViewTemplate.canonicalId,
       canonicalId: baseViewTemplate.canonicalId,
@@ -749,6 +908,10 @@ async function run(): Promise<void> {
           "panel",
           "base-view-discovery",
           "base-view-render",
+          "local-create",
+          "local-command",
+          "development-reload",
+          "development-trust-reset",
           "uninstall",
           "staging-cleanup",
         ],
