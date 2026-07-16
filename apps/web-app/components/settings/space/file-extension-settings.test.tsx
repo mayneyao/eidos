@@ -512,9 +512,26 @@ describe("FileExtensionSettings", () => {
       "extension.ts"
     )
 
+    let resolveBackground:
+      | ((value: ReturnType<typeof discoveryFixture>) => void)
+      | undefined
+    discoverMock.mockImplementationOnce(
+      () =>
+        new Promise<ReturnType<typeof discoveryFixture>>((resolve) => {
+          resolveBackground = resolve
+        })
+    )
     const listener = onMock.mock.calls[0]?.[1]
     await act(async () => {
       listener?.({}, { spaceId: "file-space", generation: 1 })
+      await Promise.resolve()
+    })
+    const refresh = [
+      ...container.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((button) => button.textContent?.trim() === "Refresh")!
+    expect(refresh.disabled).toBe(false)
+    await act(async () => {
+      resolveBackground?.(discoveryFixture())
       await Promise.resolve()
     })
     expect(discoverMock).toHaveBeenCalledTimes(2)
@@ -1838,40 +1855,144 @@ describe("FileExtensionSettings", () => {
     )
 
     const recoveredDigest = `sha256:${"d".repeat(64)}`
-    discoverMock.mockResolvedValue({
-      ...invalid,
-      packages: [
-        {
-          ...invalid.packages[0],
-          contentDigest: recoveredDigest,
-          developmentSession: {
-            ...developmentSession,
-            currentSnapshot: {
-              packageId: "example.task-counter",
-              contentDigest: recoveredDigest,
-              permissionHash,
-            },
-            status: "ready" as const,
-            diagnostics: [],
-            generation: 3,
-          },
-        },
-      ],
-    })
+    const recoveredSession = {
+      ...developmentSession,
+      currentSnapshot: {
+        packageId: "example.task-counter",
+        contentDigest: recoveredDigest,
+        permissionHash,
+      },
+      status: "ready" as const,
+      diagnostics: [],
+      generation: 3,
+    }
     const developmentListener = onMock.mock.calls.find(
       ([channel]) => channel === "file-extensions:development-changed"
     )?.[1] as ((_event: unknown, payload: unknown) => void) | undefined
-    await act(async () => {
-      developmentListener?.(undefined, { spaceId: "file-space" })
-      await Promise.resolve()
-      await Promise.resolve()
+    const discoveryCallsBeforeRecovery = discoverMock.mock.calls.length
+
+    const checkingSession = {
+      ...developmentSession,
+      currentSnapshot: undefined,
+      status: "checking" as const,
+      diagnostics: [],
+      generation: 3,
+    }
+    act(() => {
+      developmentListener?.(undefined, {
+        spaceId: "file-space",
+        packageId: "example.task-counter",
+        sessionId: "development-1",
+        status: "checking",
+        generation: 3,
+        diagnostics: [],
+        session: checkingSession,
+      })
+    })
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      "Checking generation 3 against the trusted development anchor."
+    )
+
+    const permissionsChangedSession = {
+      ...developmentSession,
+      status: "permissions-changed" as const,
+      diagnostics: [
+        {
+          code: "inspection" as const,
+          message: "Requested permissions changed",
+        },
+      ],
+      generation: 4,
+    }
+    act(() => {
+      developmentListener?.(undefined, {
+        spaceId: "file-space",
+        packageId: "example.task-counter",
+        sessionId: "development-1",
+        status: "permissions-changed",
+        generation: 4,
+        diagnostics: permissionsChangedSession.diagnostics,
+        session: permissionsChangedSession,
+      })
+    })
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      "The extension ID or requested permissions changed."
+    )
+
+    const missingSession = {
+      ...developmentSession,
+      currentSnapshot: undefined,
+      status: "missing" as const,
+      diagnostics: [
+        {
+          code: "inspection" as const,
+          message: "Package source is missing",
+        },
+      ],
+      generation: 5,
+    }
+    act(() => {
+      developmentListener?.(undefined, {
+        spaceId: "file-space",
+        packageId: "example.task-counter",
+        sessionId: "development-1",
+        status: "missing",
+        generation: 5,
+        diagnostics: missingSession.diagnostics,
+        session: missingSession,
+      })
+    })
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      "The package source is missing."
+    )
+
+    recoveredSession.generation = 6
+    act(() => {
+      developmentListener?.(undefined, {
+        spaceId: "file-space",
+        packageId: "example.task-counter",
+        sessionId: "development-1",
+        status: "ready",
+        generation: 6,
+        diagnostics: [],
+        session: recoveredSession,
+      })
     })
 
     expect(container.querySelector('[role="status"]')?.textContent).toContain(
-      "Generation 3 is running from the current source. Source-only saves compile and reload automatically."
+      "Generation 6 is running from the current source. Source-only saves compile and reload automatically."
     )
     expect(container.querySelector('[role="alert"]')).toBeNull()
     expect(container.textContent).not.toContain("Unexpected token")
+    expect(discoverMock).toHaveBeenCalledTimes(discoveryCallsBeforeRecovery)
+
+    act(() => {
+      developmentListener?.(undefined, {
+        spaceId: "file-space",
+        packageId: "example.task-counter",
+        sessionId: "development-1",
+        status: "invalid",
+        generation: 2,
+        diagnostics: developmentSession.diagnostics,
+        session: developmentSession,
+      })
+    })
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      "Generation 6 is running from the current source."
+    )
+
+    act(() => {
+      developmentListener?.(undefined, {
+        spaceId: "file-space",
+        packageId: "example.task-counter",
+        sessionId: "development-1",
+        status: "stopped",
+        generation: 7,
+        diagnostics: [],
+      })
+    })
+    expect(container.textContent).not.toContain("Stop development")
+    expect(discoverMock).toHaveBeenCalledTimes(discoveryCallsBeforeRecovery)
   })
 
   it("can remove an invalid package that has no snapshot identity", async () => {

@@ -2596,6 +2596,7 @@ export class FileExtensionService extends IpcServiceBase {
       status: session.status,
       generation: session.generation,
       diagnostics: session.diagnostics,
+      session,
     }
     this.windowProvider
       .getWindow()

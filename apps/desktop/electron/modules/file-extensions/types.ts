@@ -123,6 +123,7 @@ export interface FileExtensionDevelopmentChangedEvent {
   status: FileExtensionDevelopmentStatus | "stopped"
   generation: number
   diagnostics: FileExtensionDevelopmentDiagnostic[]
+  session?: FileExtensionDevelopmentSessionSummary
 }
 
 export interface FileExtensionDiscoveryResult {

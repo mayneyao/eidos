@@ -605,6 +605,13 @@ describe("FileExtensionService", () => {
       expect.objectContaining({
         sessionId: development.sessionId,
         status: "ready",
+        session: expect.objectContaining({
+          sessionId: development.sessionId,
+          status: "ready",
+          currentSnapshot: expect.objectContaining({
+            packageId: development.packageId,
+          }),
+        }),
       })
     )
 

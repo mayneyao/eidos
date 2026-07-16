@@ -52,6 +52,15 @@ type FileExtensionRuntimeOutput = FileExtensionPackage["runtimeOutput"][number]
 type FileExtensionDevelopmentSession = NonNullable<
   FileExtensionPackage["developmentSession"]
 >
+type FileExtensionDevelopmentChangedPayload = {
+  spaceId: string
+  packageId: string
+  sessionId: string
+  status: FileExtensionDevelopmentSession["status"] | "stopped"
+  generation: number
+  diagnostics: FileExtensionDevelopmentSession["diagnostics"]
+  session?: FileExtensionDevelopmentSession
+}
 type FileExtensionCommand = NonNullable<
   NonNullable<FileExtensionPackage["manifest"]>["contributes"]["commands"]
 >[number]
@@ -139,6 +148,60 @@ function isFileExtensionLocalState(
     Array.isArray(candidate.requestedGrants) &&
     Array.isArray(candidate.granted)
   )
+}
+
+function parseDevelopmentChangedPayload(
+  value: unknown
+): FileExtensionDevelopmentChangedPayload | null {
+  if (!value || typeof value !== "object") return null
+  const candidate = value as Partial<FileExtensionDevelopmentChangedPayload>
+  if (
+    typeof candidate.spaceId !== "string" ||
+    typeof candidate.packageId !== "string" ||
+    typeof candidate.sessionId !== "string" ||
+    typeof candidate.generation !== "number" ||
+    !Number.isSafeInteger(candidate.generation) ||
+    candidate.generation < 1 ||
+    ![
+      "checking",
+      "ready",
+      "invalid",
+      "permissions-changed",
+      "missing",
+      "stopped",
+    ].includes(String(candidate.status)) ||
+    !Array.isArray(candidate.diagnostics)
+  ) {
+    return null
+  }
+  if (candidate.status === "stopped") {
+    return candidate as FileExtensionDevelopmentChangedPayload
+  }
+  const session = candidate.session
+  const currentSnapshot = session?.currentSnapshot
+  if (
+    !session ||
+    typeof session !== "object" ||
+    session.sessionId !== candidate.sessionId ||
+    session.packageId !== candidate.packageId ||
+    session.status !== candidate.status ||
+    session.generation !== candidate.generation ||
+    !Array.isArray(session.diagnostics) ||
+    !Array.isArray(session.granted) ||
+    typeof session.startedAt !== "number" ||
+    !session.anchorSnapshot ||
+    session.anchorSnapshot.packageId !== candidate.packageId ||
+    typeof session.anchorSnapshot.packageId !== "string" ||
+    typeof session.anchorSnapshot.contentDigest !== "string" ||
+    typeof session.anchorSnapshot.permissionHash !== "string" ||
+    (currentSnapshot !== undefined &&
+      (currentSnapshot.packageId !== candidate.packageId ||
+        typeof currentSnapshot.contentDigest !== "string" ||
+        typeof currentSnapshot.permissionHash !== "string"))
+  ) {
+    return null
+  }
+  return candidate as FileExtensionDevelopmentChangedPayload
 }
 
 function commandRunKey(
@@ -378,7 +441,9 @@ export function FileExtensionSettings() {
     message: string
   } | null>(null)
   const requestGeneration = useRef(0)
+  const foregroundRequestGeneration = useRef(0)
   const lastEventGeneration = useRef(0)
+  const lastDevelopmentEventGeneration = useRef(new Map<string, number>())
   const installPreviewRef = useRef<FileExtensionInstallPreview | null>(null)
   const revealedCreatedPackage = useRef<string | null>(null)
 
@@ -386,43 +451,53 @@ export function FileExtensionSettings() {
     installPreviewRef.current = installPreview
   }, [installPreview])
 
-  const load = useCallback(async () => {
-    const generation = ++requestGeneration.current
-    if (!spaceId || currentSpace?.mode !== "file") {
-      setLoading(false)
-      return
-    }
-    if (!isDesktopMode || !window.eidos?.fileExtensions?.discover) {
-      setError(
-        t(
-          "space.settings.fileExtensions.desktopOnly",
-          "Extension package inspection is available in the desktop app."
+  const load = useCallback(
+    async (options?: { background?: boolean }) => {
+      const generation = ++requestGeneration.current
+      const background = options?.background === true
+      if (!spaceId || currentSpace?.mode !== "file") {
+        if (!background) setLoading(false)
+        return
+      }
+      if (!isDesktopMode || !window.eidos?.fileExtensions?.discover) {
+        setError(
+          t(
+            "space.settings.fileExtensions.desktopOnly",
+            "Extension package inspection is available in the desktop app."
+          )
         )
-      )
-      setLoading(false)
-      return
-    }
+        if (!background) setLoading(false)
+        return
+      }
 
-    setLoading(true)
-    setError(null)
-    try {
-      const nextDiscovery = await window.eidos.fileExtensions.discover(spaceId)
-      if (generation !== requestGeneration.current) return
-      setDiscovery(nextDiscovery)
-    } catch (loadError) {
-      if (generation !== requestGeneration.current) return
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : t(
-              "space.settings.fileExtensions.loadFailed",
-              "Unable to inspect extension packages."
-            )
-      )
-    } finally {
-      if (generation === requestGeneration.current) setLoading(false)
-    }
-  }, [currentSpace?.mode, spaceId, t])
+      if (!background) {
+        foregroundRequestGeneration.current = generation
+        setLoading(true)
+      }
+      setError(null)
+      try {
+        const nextDiscovery =
+          await window.eidos.fileExtensions.discover(spaceId)
+        if (generation !== requestGeneration.current) return
+        setDiscovery(nextDiscovery)
+      } catch (loadError) {
+        if (generation !== requestGeneration.current) return
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : t(
+                "space.settings.fileExtensions.loadFailed",
+                "Unable to inspect extension packages."
+              )
+        )
+      } finally {
+        if (!background && foregroundRequestGeneration.current === generation) {
+          setLoading(false)
+        }
+      }
+    },
+    [currentSpace?.mode, spaceId, t]
+  )
 
   const createTemplate = useCallback(async () => {
     if (!spaceId || creating) return
@@ -644,6 +719,7 @@ export function FileExtensionSettings() {
   )
 
   useEffect(() => {
+    lastDevelopmentEventGeneration.current.clear()
     setDiscovery(null)
     void load()
     return () => {
@@ -977,7 +1053,7 @@ export function FileExtensionSettings() {
           return
         }
         lastEventGeneration.current = payload.generation
-        void load()
+        void load({ background: true })
       }
     )
 
@@ -1060,14 +1136,46 @@ export function FileExtensionSettings() {
     const listenerId = window.eidos.on(
       "file-extensions:development-changed",
       (_event: unknown, payload: unknown) => {
-        if (
-          payload &&
-          typeof payload === "object" &&
-          "spaceId" in payload &&
-          payload.spaceId === spaceId
-        ) {
-          void load()
-        }
+        const change = parseDevelopmentChangedPayload(payload)
+        if (!change || change.spaceId !== spaceId) return
+        const eventKey = `${change.packageId}\0${change.sessionId}`
+        const previousGeneration =
+          lastDevelopmentEventGeneration.current.get(eventKey) ?? 0
+        if (change.generation <= previousGeneration) return
+        lastDevelopmentEventGeneration.current.set(eventKey, change.generation)
+        setDiscovery((current) => {
+          if (!current) return current
+          return {
+            ...current,
+            packages: current.packages.map((candidate) => {
+              if (candidate.canonicalId !== change.packageId) return candidate
+              const currentSession = candidate.developmentSession
+              if (
+                currentSession &&
+                currentSession.sessionId !== change.sessionId
+              ) {
+                return candidate
+              }
+              if (change.status === "stopped") {
+                return currentSession?.sessionId === change.sessionId
+                  ? { ...candidate, developmentSession: undefined }
+                  : candidate
+              }
+              const session = change.session
+              if (!session) return candidate
+              return {
+                ...candidate,
+                contentDigest:
+                  session.currentSnapshot?.contentDigest ??
+                  candidate.contentDigest,
+                permissionHash:
+                  session.currentSnapshot?.permissionHash ??
+                  candidate.permissionHash,
+                developmentSession: session,
+              }
+            }),
+          }
+        })
       }
     )
     return () => {
@@ -1075,7 +1183,7 @@ export function FileExtensionSettings() {
         window.eidos.off("file-extensions:development-changed", listenerId)
       }
     }
-  }, [load, spaceId])
+  }, [spaceId])
 
   useEffect(
     () => () => {
