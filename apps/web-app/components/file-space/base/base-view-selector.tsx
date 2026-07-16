@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react"
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react"
 import type {
   BaseFieldInfo,
   BaseViewInfo,
@@ -156,6 +156,7 @@ export function BaseViewSelector({
   onDelete,
   onReorder,
   onUpdate,
+  viewAction,
   triggerMode = "current",
 }: {
   views: BaseViewInfo[]
@@ -170,6 +171,7 @@ export function BaseViewSelector({
   onDelete: (viewId: string) => Promise<void>
   onReorder: (viewIds: string[]) => Promise<void>
   onUpdate: (viewId: string, changes: UpdateBaseViewInput) => Promise<void>
+  viewAction?: ReactNode
   triggerMode?: "current" | "create" | "manage"
 }) {
   const [open, setOpen] = useState(false)
@@ -417,6 +419,7 @@ export function BaseViewSelector({
                 <Plus className="h-3.5 w-3.5" />
                 New view
               </button>
+              {viewAction}
             </div>
           </>
         ) : null}

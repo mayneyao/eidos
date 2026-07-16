@@ -26,6 +26,7 @@ export function BaseSheetTabs({
   activeTableId,
   disabled,
   status,
+  importAction,
   onSelect,
   onCreate,
   onRename,
@@ -35,6 +36,7 @@ export function BaseSheetTabs({
   activeTableId: string | null
   disabled?: boolean
   status?: ReactNode
+  importAction?: ReactNode
   onSelect: (tableId: string) => void
   onCreate: () => void
   onRename?: (table: BaseTableInfo) => void
@@ -148,6 +150,7 @@ export function BaseSheetTabs({
       >
         <Plus className="h-3.5 w-3.5" />
       </button>
+      {importAction}
       {status ? (
         <div className="flex shrink-0 items-center border-l px-2.5 text-[11px] text-muted-foreground">
           {status}
