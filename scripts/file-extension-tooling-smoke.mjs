@@ -241,6 +241,11 @@ try {
       template: "text-editor",
       entrypoints: ["ui"],
     },
+    {
+      id: "example.external-base-view",
+      template: "base-view",
+      entrypoints: ["ui"],
+    },
   ]
   for (const project of projects) {
     await pnpm(

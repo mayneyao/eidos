@@ -11,6 +11,7 @@ import {
 import path from "node:path"
 import {
   calculateLegacyExtensionArchiveDigest,
+  createExtensionBaseViewTemplate,
   createExtensionCommandTemplate,
   createExtensionPanelTemplate,
   createExtensionTextEditorTemplate,
@@ -28,7 +29,11 @@ import {
 import { typecheckExtensionSnapshot } from "./typecheck"
 import packageMetadata from "../package.json" with { type: "json" }
 
-export type ExtensionProjectTemplate = "command" | "panel" | "text-editor"
+export type ExtensionProjectTemplate =
+  | "command"
+  | "panel"
+  | "base-view"
+  | "text-editor"
 
 export interface CreateExtensionProjectOptions {
   canonicalId: string
@@ -518,7 +523,9 @@ function buildTemplate(
       })
     : options.template === "panel"
       ? createExtensionPanelTemplate(common)
-      : createExtensionCommandTemplate(common)
+      : options.template === "base-view"
+        ? createExtensionBaseViewTemplate(common)
+        : createExtensionCommandTemplate(common)
 }
 
 function developerProjectFiles(

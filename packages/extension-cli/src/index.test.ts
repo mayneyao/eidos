@@ -115,11 +115,16 @@ describe("extension developer workflow", () => {
         })
       ).toBe(0)
       expect(stdout.join("\n")).not.toBe("")
+      if (args[0] === "--help") {
+        expect(stdout.join("\n")).toContain(
+          "--template <command|panel|base-view|text-editor>"
+        )
+      }
       expect(stderr).toEqual([])
     }
   })
 
-  it.each(["command", "panel", "text-editor"] as const)(
+  it.each(["command", "panel", "base-view", "text-editor"] as const)(
     "creates and checks a %s project with the production compiler",
     async (template) => {
       const outDir = await temporaryRoot()
