@@ -40,7 +40,6 @@ export function ExtensionPanelSurface({ sessionId }: { sessionId: string }) {
   const portRef = useRef<MessagePort | null>(null)
   const initializedRef = useRef(false)
   const appearanceRef = useRef<ExtensionSurfaceAppearance | null>(null)
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const disposeSurface = useCallback(() => {
     initializedRef.current = false
@@ -195,22 +194,6 @@ export function ExtensionPanelSurface({ sessionId }: { sessionId: string }) {
       }
     }
   }, [currentSpace?.id, disposeSurface, session?.packageId])
-
-  useEffect(() => {
-    const spaceId = currentSpace?.id
-    if (!spaceId || !window.eidos?.fileExtensions) return
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current)
-      closeTimerRef.current = null
-    }
-    return () => {
-      closeTimerRef.current = setTimeout(() => {
-        void window.eidos?.fileExtensions
-          .closePanelSession(spaceId, { sessionId })
-          .catch(() => undefined)
-      }, 0)
-    }
-  }, [currentSpace?.id, sessionId])
 
   const connectSurface = useCallback(
     (iframe: HTMLIFrameElement) => {

@@ -10,6 +10,9 @@ import { ExtensionPanelOpenHost } from "./extension-panel-open-host"
 const openTab = vi.hoisted(() => vi.fn())
 const on = vi.hoisted(() => vi.fn())
 const off = vi.hoisted(() => vi.fn())
+const subscribe = vi.hoisted(() => vi.fn())
+const unsubscribe = vi.hoisted(() => vi.fn())
+const closePanelSession = vi.hoisted(() => vi.fn())
 
 vi.mock("@/apps/web-app/hooks/use-current-space", () => ({
   useCurrentSpace: () => ({ currentSpace: { id: "space-a", mode: "file" } }),
@@ -18,6 +21,7 @@ vi.mock("@/apps/web-app/hooks/use-current-space", () => ({
 vi.mock("@/apps/web-app/store/tabs", () => ({
   useTabStore: {
     getState: () => ({ openTab }),
+    subscribe,
   },
 }))
 
@@ -29,9 +33,16 @@ describe("ExtensionPanelOpenHost", () => {
     openTab.mockReset()
     on.mockReset().mockReturnValue("listener-1")
     off.mockReset()
+    unsubscribe.mockReset()
+    subscribe.mockReset().mockReturnValue(unsubscribe)
+    closePanelSession.mockReset().mockResolvedValue({ success: true })
     Object.defineProperty(window, "eidos", {
       configurable: true,
-      value: { on, off },
+      value: {
+        on,
+        off,
+        fileExtensions: { closePanelSession },
+      },
     })
     container = document.createElement("div")
     document.body.append(container)
@@ -68,5 +79,34 @@ describe("ExtensionPanelOpenHost", () => {
       "Task Summary"
     )
     expect(JSON.stringify(openTab.mock.calls)).not.toContain("shouldNotLeak")
+  })
+
+  it("keeps a panel session while switching tabs and closes it with its last tab", async () => {
+    act(() => root.render(<ExtensionPanelOpenHost />))
+    const storeListener = subscribe.mock.calls[0]?.[0]
+    expect(storeListener).toBeTypeOf("function")
+    const panelTab = {
+      id: "panel-tab",
+      url: "/extension-panel?session=panel-session-1",
+    }
+
+    act(() => {
+      storeListener(
+        { tabs: [panelTab], activePanelId: "main" },
+        { tabs: [panelTab], activePanelId: "main" }
+      )
+    })
+    expect(closePanelSession).not.toHaveBeenCalled()
+
+    await act(async () => {
+      storeListener(
+        { tabs: [], activePanelId: "main" },
+        { tabs: [panelTab], activePanelId: "main" }
+      )
+      await Promise.resolve()
+    })
+    expect(closePanelSession).toHaveBeenCalledWith("space-a", {
+      sessionId: "panel-session-1",
+    })
   })
 })

@@ -142,7 +142,7 @@ describe("ExtensionPanelSurface", () => {
     vi.unstubAllGlobals()
   })
 
-  it("boots, refreshes, and releases one opaque panel session", async () => {
+  it("boots and refreshes one opaque panel session without closing it on tab switches", async () => {
     mocks.getPanelSession
       .mockResolvedValueOnce(firstSession)
       .mockResolvedValueOnce({
@@ -291,8 +291,6 @@ describe("ExtensionPanelSurface", () => {
     act(() => root.unmount())
     mounted = false
     await flushEffects()
-    expect(mocks.closePanelSession).toHaveBeenCalledWith("space-a", {
-      sessionId: firstSession.sessionId,
-    })
+    expect(mocks.closePanelSession).not.toHaveBeenCalled()
   })
 })
