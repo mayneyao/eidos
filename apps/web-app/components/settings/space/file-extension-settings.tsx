@@ -2396,6 +2396,133 @@ export function FileExtensionSettings() {
                             )}
                           </div>
                         )}
+                        {!development && (
+                          <div className="flex min-h-[72px] items-center justify-between gap-6 py-3">
+                            <div className="flex min-w-0 items-start gap-2">
+                              {trusted &&
+                              missingGrants.length === 0 &&
+                              enabled ? (
+                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                              ) : (
+                                <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                              )}
+                              <div className="min-w-0">
+                                <Label>
+                                  {t(
+                                    "space.settings.fileExtensions.setupProgress",
+                                    "Setup progress"
+                                  )}
+                                </Label>
+                                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                                  {legacyConflict
+                                    ? t(
+                                        "space.settings.fileExtensions.setupResolveMigration",
+                                        "Resolve the migration conflict before this extension can run."
+                                      )
+                                    : !trusted
+                                      ? t(
+                                          "space.settings.fileExtensions.setupReviewSource",
+                                          "Step 1 of 3 · Review the source, then trust this exact snapshot below."
+                                        )
+                                      : missingGrants.length > 0
+                                        ? t(
+                                            "space.settings.fileExtensions.setupReviewPermissions",
+                                            "Step 2 of 3 · Review requested capabilities ({{count}}) before enabling the extension.",
+                                            { count: missingGrants.length }
+                                          )
+                                        : !enabled
+                                          ? t(
+                                              "space.settings.fileExtensions.setupEnableExtension",
+                                              "Step 3 of 3 · Enable the extension to make its contributions available."
+                                            )
+                                          : t(
+                                              "space.settings.fileExtensions.setupReady",
+                                              "Ready · This exact snapshot is trusted, permitted, and enabled."
+                                            )}
+                                </p>
+                              </div>
+                            </div>
+                            {!legacyConflict && !trusted && primarySource && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openSource(primarySource.path)}
+                              >
+                                <FileCode2 />
+                                {t(
+                                  "space.settings.fileExtensions.reviewSource",
+                                  "Review source"
+                                )}
+                              </Button>
+                            )}
+                            {!legacyConflict &&
+                              trusted &&
+                              missingGrants.length > 0 && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    document
+                                      .getElementById(
+                                        `${packageElementId(packageId)}-permissions`
+                                      )
+                                      ?.scrollIntoView({
+                                        block: "nearest",
+                                        behavior: "smooth",
+                                      })
+                                  }
+                                >
+                                  {t(
+                                    "space.settings.fileExtensions.reviewPermissions",
+                                    "Review permissions"
+                                  )}
+                                </Button>
+                              )}
+                            {!legacyConflict &&
+                              trusted &&
+                              missingGrants.length === 0 &&
+                              !enabled && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  disabled={!!mutatingPackage}
+                                  onClick={() =>
+                                    void mutatePackage(extension, () =>
+                                      window.eidos.fileExtensions.setEnabled(
+                                        spaceId,
+                                        snapshot,
+                                        true
+                                      )
+                                    )
+                                  }
+                                >
+                                  {busy && (
+                                    <LoaderCircle className="animate-spin" />
+                                  )}
+                                  {t(
+                                    "space.settings.fileExtensions.enableExtension",
+                                    "Enable extension"
+                                  )}
+                                </Button>
+                              )}
+                            {!legacyConflict &&
+                              trusted &&
+                              missingGrants.length === 0 &&
+                              enabled && (
+                                <Badge
+                                  variant="outline"
+                                  className="border-emerald-500/40 font-normal text-emerald-700 dark:text-emerald-400"
+                                >
+                                  {t(
+                                    "space.settings.fileExtensions.ready",
+                                    "Ready"
+                                  )}
+                                </Badge>
+                              )}
+                          </div>
+                        )}
                         <div className="flex min-h-[72px] items-center justify-between gap-6 py-3">
                           <div className="min-w-0">
                             <Label>
@@ -2468,6 +2595,71 @@ export function FileExtensionSettings() {
                                 "Trust source"
                               )}
                             </Button>
+                          )}
+                        </div>
+
+                        <div
+                          id={`${packageElementId(packageId)}-permissions`}
+                          className="scroll-m-6 py-3"
+                        >
+                          <Label>
+                            {t(
+                              "space.settings.fileExtensions.permissions",
+                              "Permission grants"
+                            )}
+                          </Label>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {t(
+                              "space.settings.fileExtensions.permissionsDescription",
+                              "Every capability is denied until you grant it on this device."
+                            )}
+                          </p>
+                          {extension.requestedGrants.length === 0 ? (
+                            <p className="mt-3 text-sm text-muted-foreground">
+                              {t(
+                                "space.settings.fileExtensions.noPermissions",
+                                "This extension requests no capabilities."
+                              )}
+                            </p>
+                          ) : (
+                            <div className="mt-2 divide-y divide-border/60">
+                              {extension.requestedGrants.map((grant) => (
+                                <div
+                                  key={grantKey(grant)}
+                                  className="flex min-h-11 items-center justify-between gap-4 py-2"
+                                >
+                                  <div className="min-w-0 text-sm">
+                                    <span className="mr-2 text-muted-foreground">
+                                      {grant.kind}
+                                    </span>
+                                    <code className="break-all text-xs">
+                                      {grant.value}
+                                    </code>
+                                  </div>
+                                  <Switch
+                                    aria-label={`${grant.kind} ${grant.value}`}
+                                    checked={granted.has(grantKey(grant))}
+                                    disabled={
+                                      !trusted ||
+                                      !!mutatingPackage ||
+                                      !!development
+                                    }
+                                    onCheckedChange={(checked) =>
+                                      void mutatePackage(extension, () =>
+                                        window.eidos.fileExtensions.setGrant(
+                                          spaceId,
+                                          {
+                                            ...snapshot,
+                                            grant,
+                                            granted: checked,
+                                          }
+                                        )
+                                      )
+                                    }
+                                  />
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
 
@@ -3158,67 +3350,6 @@ export function FileExtensionSettings() {
                           </div>
                         )}
 
-                        <div className="py-3">
-                          <Label>
-                            {t(
-                              "space.settings.fileExtensions.permissions",
-                              "Permission grants"
-                            )}
-                          </Label>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {t(
-                              "space.settings.fileExtensions.permissionsDescription",
-                              "Every capability is denied until you grant it on this device."
-                            )}
-                          </p>
-                          {extension.requestedGrants.length === 0 ? (
-                            <p className="mt-3 text-sm text-muted-foreground">
-                              {t(
-                                "space.settings.fileExtensions.noPermissions",
-                                "This extension requests no capabilities."
-                              )}
-                            </p>
-                          ) : (
-                            <div className="mt-2 divide-y divide-border/60">
-                              {extension.requestedGrants.map((grant) => (
-                                <div
-                                  key={grantKey(grant)}
-                                  className="flex min-h-11 items-center justify-between gap-4 py-2"
-                                >
-                                  <div className="min-w-0 text-sm">
-                                    <span className="mr-2 text-muted-foreground">
-                                      {grant.kind}
-                                    </span>
-                                    <code className="break-all text-xs">
-                                      {grant.value}
-                                    </code>
-                                  </div>
-                                  <Switch
-                                    aria-label={`${grant.kind} ${grant.value}`}
-                                    checked={granted.has(grantKey(grant))}
-                                    disabled={
-                                      !trusted ||
-                                      !!mutatingPackage ||
-                                      !!development
-                                    }
-                                    onCheckedChange={(checked) =>
-                                      void mutatePackage(extension, () =>
-                                        window.eidos.fileExtensions.setGrant(
-                                          spaceId,
-                                          {
-                                            ...snapshot,
-                                            grant,
-                                            granted: checked,
-                                          }
-                                        )
-                                      )
-                                    }
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
                         {extension.lock && (
                           <div className="flex min-h-[68px] items-center justify-between gap-6 py-3">
                             <div>

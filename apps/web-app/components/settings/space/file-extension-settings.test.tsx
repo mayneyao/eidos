@@ -1118,6 +1118,9 @@ describe("FileExtensionSettings", () => {
       (button) => button.textContent?.trim() === "Review"
     )!
     act(() => review.click())
+    expect(container.textContent).toContain(
+      "Step 1 of 3 · Review the source, then trust this exact snapshot below."
+    )
     expect(container.textContent).toContain("Source trust")
     expect(container.textContent).toContain("files.read")
     expect(container.textContent).toContain(
@@ -1145,14 +1148,17 @@ describe("FileExtensionSettings", () => {
     expect(trustMock).toHaveBeenCalledWith("file-space", snapshot)
     expect(container.textContent).toContain("Revoke trust")
     expect(container.textContent).toContain(
+      "Step 2 of 3 · Review requested capabilities (1) before enabling the extension."
+    )
+    expect(container.textContent).toContain(
       "This snapshot is trusted but disabled"
     )
 
-    let switches = [
-      ...container.querySelectorAll<HTMLElement>("[role='switch']"),
-    ]
+    const permissionSwitch = container.querySelector<HTMLElement>(
+      '[role="switch"][aria-label="files.read **/*.md"]'
+    )!
     await act(async () => {
-      switches[1].click()
+      permissionSwitch.click()
       await Promise.resolve()
       await Promise.resolve()
     })
@@ -1192,6 +1198,81 @@ describe("FileExtensionSettings", () => {
       canonicalId: "example.task-counter",
       contentDigest,
     })
+  })
+
+  it("guides a trusted package without permissions directly to enablement", async () => {
+    const fixture = discoveryFixture("disabled")
+    const extension = fixture.packages[0]!
+    extension.requestedGrants = []
+    extension.normalizedPermissions = {
+      files: { read: [], write: [] },
+      network: [],
+    }
+    extension.manifest!.permissions = {
+      files: { read: [], write: [] },
+      network: [],
+    }
+    extension.localState = {
+      ...extension.localState!,
+      requestedGrants: [],
+      granted: [],
+    }
+    discoverMock.mockResolvedValue(fixture)
+    setEnabledMock.mockResolvedValue({
+      snapshot: {
+        packageId: "example.task-counter",
+        contentDigest,
+        permissionHash,
+      },
+      trusted: true,
+      enabled: true,
+      requestedGrants: [],
+      granted: [],
+    })
+
+    await act(async () => {
+      root.render(<FileExtensionSettings />)
+      await Promise.resolve()
+    })
+
+    act(() =>
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Manage")!
+        .click()
+    )
+
+    const content = container.textContent ?? ""
+    expect(content).toContain(
+      "Step 3 of 3 · Enable the extension to make its contributions available."
+    )
+    expect(content.indexOf("Source trust")).toBeLessThan(
+      content.indexOf("Permission grants")
+    )
+    expect(content.indexOf("Permission grants")).toBeLessThan(
+      content.indexOf("Enablement")
+    )
+
+    const enable = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Enable extension"
+    )!
+    await act(async () => {
+      enable.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(setEnabledMock).toHaveBeenCalledWith(
+      "file-space",
+      {
+        packageId: "example.task-counter",
+        contentDigest,
+        permissionHash,
+      },
+      true
+    )
+    expect(container.textContent).toContain(
+      "Ready · This exact snapshot is trusted, permitted, and enabled."
+    )
   })
 
   it("offers an explicit enable action before registering a trusted command", async () => {
