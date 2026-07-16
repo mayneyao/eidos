@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react"
 import Editor from "@monaco-editor/react"
+import type * as Monaco from "monaco-editor"
 import { uniqueSpaceEntryName } from "@eidos.space/file-space/names"
 import { AlertTriangle, FileQuestion, RefreshCw } from "lucide-react"
 import { useLocation } from "react-router-dom"
@@ -14,7 +15,14 @@ import {
   toSpaceAssetUrl,
 } from "@/apps/web-app/components/file-space/file-path"
 import { ExtensionFileEditorSurface } from "@/apps/web-app/components/file-extensions/extension-file-editor-surface"
-import { configureFileExtensionEditorTypes } from "@/apps/web-app/components/file-space/file-extension-editor-types"
+import {
+  configureFileExtensionEditorTypes,
+  fileExtensionEditorUri,
+  fileExtensionPackageRoot,
+  loadFileExtensionEditorPackage,
+  syncFileExtensionEditorPackageTypes,
+  type FileExtensionEditorPackage,
+} from "@/apps/web-app/components/file-space/file-extension-editor-types"
 import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-space/pending-writes"
 import { SpaceBaseEditorLoader } from "@/apps/web-app/components/file-space/base/space-base-editor-loader"
 import { SpaceFileFallbackPreview } from "@/apps/web-app/components/file-space/space-file-fallback-preview"
@@ -190,6 +198,10 @@ function SpaceTextEditor({
     isDestructiveSpaceVersioningOperation(versioningOperation)
   const { resolvedTheme } = useTheme()
   const isMarkdown = extension === "md" || extension === "markdown"
+  const extensionPackageRootPath = fileExtensionPackageRoot(filePath)
+  const extensionEditorPath = currentSpace?.id
+    ? fileExtensionEditorUri(currentSpace.id, filePath)
+    : undefined
   const [content, setContent] = useState("")
   const [savedContent, setSavedContent] = useState("")
   const [loading, setLoading] = useState(true)
@@ -204,6 +216,13 @@ function SpaceTextEditor({
   const [recoveredDraftPath, setRecoveredDraftPath] = useState<string | null>(
     null
   )
+  const [extensionEditorPackage, setExtensionEditorPackage] =
+    useState<FileExtensionEditorPackage | null>(null)
+  const [extensionEditorNotice, setExtensionEditorNotice] = useState<
+    string | null
+  >(null)
+  const extensionEditorMonacoRef = useRef<typeof Monaco | null>(null)
+  const extensionPackageLoadRef = useRef(0)
   const editorContentRef = useRef("")
   const savedContentRef = useRef("")
   const mtimeMsRef = useRef<number | undefined>()
@@ -254,10 +273,62 @@ function SpaceTextEditor({
     void load()
   }, [load])
 
+  const refreshExtensionEditorPackage = useCallback(async () => {
+    if (!extensionPackageRootPath) return
+    const loadVersion = ++extensionPackageLoadRef.current
+    try {
+      const editorPackage = await loadFileExtensionEditorPackage(
+        { list, readText },
+        filePath
+      )
+      if (loadVersion !== extensionPackageLoadRef.current) return
+      setExtensionEditorPackage(editorPackage)
+      setExtensionEditorNotice(editorPackage?.warnings.join(" ") || null)
+    } catch (packageError) {
+      if (loadVersion !== extensionPackageLoadRef.current) return
+      setExtensionEditorNotice(
+        packageError instanceof Error
+          ? `Unable to load extension package context: ${packageError.message}`
+          : "Unable to load extension package context."
+      )
+    }
+  }, [extensionPackageRootPath, filePath, list, readText])
+
+  useEffect(() => {
+    void refreshExtensionEditorPackage()
+  }, [refreshExtensionEditorPackage])
+
+  useEffect(() => {
+    const monaco = extensionEditorMonacoRef.current
+    if (!monaco || !currentSpace?.id || !extensionEditorPackage) return
+    syncFileExtensionEditorPackageTypes(
+      monaco,
+      currentSpace.id,
+      extensionEditorPackage
+    )
+  }, [currentSpace?.id, extensionEditorPackage])
+
+  useEffect(
+    () => () => {
+      extensionEditorMonacoRef.current = null
+      extensionPackageLoadRef.current += 1
+    },
+    []
+  )
+
   useSpaceFileChanges(
     currentSpace?.id,
     useCallback(
       (event) => {
+        if (
+          extensionPackageRootPath &&
+          ((event.path !== filePath &&
+            isSameOrDescendant(event.path, extensionPackageRootPath)) ||
+            (event.eventType === "rescan" &&
+              isSameOrDescendant(extensionPackageRootPath, event.path)))
+        ) {
+          void refreshExtensionEditorPackage()
+        }
         const isDirectoryRescan =
           event.eventType === "rescan" &&
           isSameOrDescendant(filePath, event.path)
@@ -302,7 +373,13 @@ function SpaceTextEditor({
             )
           })
       },
-      [filePath, readText, updateExternalChange]
+      [
+        extensionPackageRootPath,
+        filePath,
+        readText,
+        refreshExtensionEditorPackage,
+        updateExternalChange,
+      ]
     )
   )
 
@@ -527,6 +604,11 @@ function SpaceTextEditor({
           {error}
         </div>
       ) : null}
+      {extensionEditorNotice ? (
+        <div className="border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+          {extensionEditorNotice}
+        </div>
+      ) : null}
       <div className="min-h-0 flex-1">
         {isMarkdown ? (
           <SpaceMarkdownEditor
@@ -552,6 +634,7 @@ function SpaceTextEditor({
         ) : (
           <Editor
             height="100%"
+            path={extensionEditorPath}
             value={content}
             language={editorLanguage(extension)}
             theme={resolvedTheme === "dark" ? "vs-dark" : "vs"}
@@ -581,7 +664,15 @@ function SpaceTextEditor({
               setContent(nextContent)
             }}
             onMount={(editor, monaco) => {
+              extensionEditorMonacoRef.current = monaco
               configureFileExtensionEditorTypes(monaco, filePath)
+              if (currentSpace?.id && extensionEditorPackage) {
+                syncFileExtensionEditorPackageTypes(
+                  monaco,
+                  currentSpace.id,
+                  extensionEditorPackage
+                )
+              }
               editor.onDidBlurEditorText(() => {
                 void flushPendingWrite()
               })

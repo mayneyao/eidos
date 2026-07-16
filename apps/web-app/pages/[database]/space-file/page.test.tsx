@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   readPreview: vi.fn(),
   createText: vi.fn(),
   configureFileExtensionEditorTypes: vi.fn(),
+  loadFileExtensionEditorPackage: vi.fn(),
+  syncFileExtensionEditorPackageTypes: vi.fn(),
   list: vi.fn(),
   fetch: vi.fn(async () => ({ ok: true, status: 200 })),
   registerPendingWriteFlusher: vi.fn(
@@ -25,8 +27,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@monaco-editor/react", () => ({
   default: ({
     onMount,
+    path,
   }: {
     onMount?: (editor: object, monaco: object) => void
+    path?: string
   }) => {
     onMount?.(
       {
@@ -36,7 +40,7 @@ vi.mock("@monaco-editor/react", () => ({
       },
       { KeyCode: { KeyS: 49 } }
     )
-    return <div data-testid="monaco-editor" />
+    return <div data-testid="monaco-editor" data-path={path} />
   },
 }))
 
@@ -44,6 +48,17 @@ vi.mock(
   "@/apps/web-app/components/file-space/file-extension-editor-types",
   () => ({
     configureFileExtensionEditorTypes: mocks.configureFileExtensionEditorTypes,
+    fileExtensionEditorUri: (spaceId: string, filePath: string) =>
+      filePath.startsWith(".eidos/extensions/")
+        ? `file:///eidos-spaces/${spaceId}/${filePath}`
+        : undefined,
+    fileExtensionPackageRoot: (filePath: string) => {
+      const match = filePath.match(/^(\.eidos\/extensions\/[^/]+)/)
+      return match?.[1] ?? null
+    },
+    loadFileExtensionEditorPackage: mocks.loadFileExtensionEditorPackage,
+    syncFileExtensionEditorPackageTypes:
+      mocks.syncFileExtensionEditorPackageTypes,
   })
 )
 
@@ -173,6 +188,9 @@ describe("SpaceFilePage editor selection", () => {
   beforeEach(() => {
     mocks.createText.mockReset()
     mocks.configureFileExtensionEditorTypes.mockClear()
+    mocks.loadFileExtensionEditorPackage.mockReset()
+    mocks.loadFileExtensionEditorPackage.mockResolvedValue(null)
+    mocks.syncFileExtensionEditorPackageTypes.mockClear()
     mocks.list.mockReset()
     mocks.list.mockResolvedValue([])
     mocks.readText.mockReset()
@@ -273,6 +291,17 @@ describe("SpaceFilePage editor selection", () => {
 
   it("configures SDK types when an extension source file mounts", async () => {
     const filePath = ".eidos/extensions/local.task-counter/src/extension.ts"
+    const editorPackage = {
+      rootPath: ".eidos/extensions/local.task-counter",
+      sources: [
+        {
+          path: ".eidos/extensions/local.task-counter/src/tasks.ts",
+          content: "export const tasks = []\n",
+        },
+      ],
+      warnings: [],
+    }
+    mocks.loadFileExtensionEditorPackage.mockResolvedValue(editorPackage)
     mocks.readText.mockResolvedValue({
       path: filePath,
       content:
@@ -297,6 +326,22 @@ describe("SpaceFilePage editor selection", () => {
     expect(mocks.configureFileExtensionEditorTypes).toHaveBeenCalledWith(
       expect.any(Object),
       filePath
+    )
+    expect(
+      container.querySelector<HTMLElement>('[data-testid="monaco-editor"]')
+        ?.dataset.path
+    ).toBe(`file:///eidos-spaces/space-a/${filePath}`)
+    expect(mocks.loadFileExtensionEditorPackage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        list: mocks.list,
+        readText: mocks.readText,
+      }),
+      filePath
+    )
+    expect(mocks.syncFileExtensionEditorPackageTypes).toHaveBeenCalledWith(
+      expect.any(Object),
+      "space-a",
+      editorPackage
     )
   })
 
