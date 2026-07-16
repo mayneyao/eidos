@@ -61,15 +61,16 @@ import {
 
 import { DocActionCommandItems } from "./doc-actions"
 import {
-  FileExtensionCommandItems,
+  FileExtensionContributionItems,
   getFileExtensionCommandValue,
+  getFileExtensionPanelValue,
 } from "./file-extension-commands"
 import { useCMDKGoto, useInput, useCMDKStore } from "./hooks"
 import { ImportSchema } from "./import-schema"
 import {
-  getPreferredCommandValue,
+  getPreferredContributionValue,
   isUrlLike,
-  shouldPrioritizeFileExtensionCommands,
+  shouldPrioritizeFileExtensionContributions,
 } from "./command-order"
 import { SecondaryView } from "./secondary-view"
 import { TabCommandItems } from "./tabs"
@@ -97,15 +98,18 @@ export function CommandDialogDemo() {
   const isFileSpace = currentSpace?.mode === "file"
   const {
     commands: fileExtensionCommands,
+    panels: fileExtensionPanels,
     execute: executeFileExtensionCommand,
+    openPanel: openFileExtensionPanel,
   } = useFileExtensionCommands(isFileSpace ? currentSpace.id : undefined)
-  const prioritizeFileExtensionCommands = shouldPrioritizeFileExtensionCommands(
+  const prioritizeFileExtensionContributions =
+    shouldPrioritizeFileExtensionContributions(input, isFileSpace)
+  const preferredFileExtensionContributionValue = getPreferredContributionValue(
     input,
-    isFileSpace
-  )
-  const preferredFileExtensionCommandValue = getPreferredCommandValue(
-    input,
-    fileExtensionCommands.map(getFileExtensionCommandValue)
+    [
+      ...fileExtensionCommands.map(getFileExtensionCommandValue),
+      ...fileExtensionPanels.map(getFileExtensionPanelValue),
+    ]
   )
   const [selectedCommandValue, setSelectedCommandValue] = useState("")
   const legacyRuntimeEnabled = shouldEnableLegacySpaceRuntime(
@@ -128,15 +132,15 @@ export function CommandDialogDemo() {
   useEffect(() => {
     if (
       isCmdkOpen &&
-      prioritizeFileExtensionCommands &&
-      preferredFileExtensionCommandValue
+      prioritizeFileExtensionContributions &&
+      preferredFileExtensionContributionValue
     ) {
-      setSelectedCommandValue(preferredFileExtensionCommandValue)
+      setSelectedCommandValue(preferredFileExtensionContributionValue)
     }
   }, [
     isCmdkOpen,
-    preferredFileExtensionCommandValue,
-    prioritizeFileExtensionCommands,
+    preferredFileExtensionContributionValue,
+    prioritizeFileExtensionContributions,
   ])
 
   // Initialize browser settings
@@ -716,10 +720,12 @@ export function CommandDialogDemo() {
 
             {mode === "search" && (
               <>
-                {prioritizeFileExtensionCommands ? (
-                  <FileExtensionCommandItems
+                {prioritizeFileExtensionContributions ? (
+                  <FileExtensionContributionItems
                     commands={fileExtensionCommands}
+                    panels={fileExtensionPanels}
                     execute={executeFileExtensionCommand}
+                    openPanel={openFileExtensionPanel}
                     onExecute={() => setCmdkOpen(false)}
                   />
                 ) : null}
@@ -895,10 +901,12 @@ export function CommandDialogDemo() {
                     <DocActionCommandItems />
                   </>
                 )}
-                {isFileSpace && !prioritizeFileExtensionCommands ? (
-                  <FileExtensionCommandItems
+                {isFileSpace && !prioritizeFileExtensionContributions ? (
+                  <FileExtensionContributionItems
                     commands={fileExtensionCommands}
+                    panels={fileExtensionPanels}
                     execute={executeFileExtensionCommand}
+                    openPanel={openFileExtensionPanel}
                     onExecute={() => setCmdkOpen(false)}
                   />
                 ) : null}

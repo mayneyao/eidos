@@ -49,6 +49,9 @@ type FileExtensionGrant = FileExtensionPackage["requestedGrants"][number]
 type FileExtensionCommand = NonNullable<
   NonNullable<FileExtensionPackage["manifest"]>["contributes"]["commands"]
 >[number]
+type FileExtensionPanel = NonNullable<
+  NonNullable<FileExtensionPackage["manifest"]>["contributes"]["panels"]
+>[number]
 type FileExtensionInstallPreview = Awaited<
   ReturnType<typeof window.eidos.fileExtensions.prepareGitHubInstall>
 >
@@ -72,6 +75,11 @@ type CreatedLocalExtension = {
 type CommandRunState = {
   key: string
   status: "running" | "success" | "error"
+  message?: string
+}
+type PanelOpenState = {
+  key: string
+  status: "opening" | "success" | "error"
   message?: string
 }
 type EditorSampleState = {
@@ -125,6 +133,16 @@ function commandRunKey(
   const snapshot = snapshotFor(extension)
   return snapshot
     ? `${snapshot.packageId}\0${snapshot.contentDigest}\0${snapshot.permissionHash}\0${commandId}`
+    : null
+}
+
+function panelOpenKey(
+  extension: FileExtensionPackage,
+  panelId: string
+): string | null {
+  const snapshot = snapshotFor(extension)
+  return snapshot
+    ? `${snapshot.packageId}\0${snapshot.contentDigest}\0${snapshot.permissionHash}\0${panelId}`
     : null
 }
 
@@ -281,6 +299,7 @@ export function FileExtensionSettings() {
   )
   const [mutatingPackage, setMutatingPackage] = useState<string | null>(null)
   const [commandRun, setCommandRun] = useState<CommandRunState | null>(null)
+  const [panelOpen, setPanelOpen] = useState<PanelOpenState | null>(null)
   const [editorSample, setEditorSample] = useState<EditorSampleState | null>(
     null
   )
@@ -660,9 +679,40 @@ export function FileExtensionSettings() {
     [spaceId, t]
   )
 
-  const openCommandPalette = useCallback(
-    (command: FileExtensionCommand) => {
-      useCMDKStore.getState().setInput(command.title)
+  const openPanel = useCallback(
+    async (extension: FileExtensionPackage, panel: FileExtensionPanel) => {
+      if (!spaceId) return
+      const snapshot = snapshotFor(extension)
+      if (!snapshot) return
+      const key = panelOpenKey(extension, panel.id)
+      if (!key) return
+      setPanelOpen({ key, status: "opening" })
+      try {
+        await window.eidos.fileExtensions.openPanel(spaceId, {
+          ...snapshot,
+          panelId: panel.id,
+        })
+        setPanelOpen({ key, status: "success" })
+      } catch (error) {
+        setPanelOpen({
+          key,
+          status: "error",
+          message:
+            error instanceof Error
+              ? error.message
+              : t(
+                  "space.settings.fileExtensions.panelOpenFailed",
+                  "The extension panel failed to open."
+                ),
+        })
+      }
+    },
+    [spaceId, t]
+  )
+
+  const openContributionPalette = useCallback(
+    (title: string) => {
+      useCMDKStore.getState().setInput(title)
       setCmdkOpen(true)
     },
     [setCmdkOpen]
@@ -1729,7 +1779,7 @@ export function FileExtensionSettings() {
                             <span>
                               {t(
                                 "space.settings.fileExtensions.panelTrigger",
-                                "Opens as a tab from an extension command"
+                                "Command Palette or extension command"
                               )}
                             </span>
                           </p>
@@ -2446,7 +2496,7 @@ export function FileExtensionSettings() {
                                         size="sm"
                                         variant="outline"
                                         onClick={() =>
-                                          openCommandPalette(command)
+                                          openContributionPalette(command.title)
                                         }
                                       >
                                         <CommandIcon />
@@ -2511,6 +2561,153 @@ export function FileExtensionSettings() {
                                   )}
                                 </div>
                               ))}
+                              {panels.map((panel) => {
+                                const openKey = panelOpenKey(
+                                  extension,
+                                  panel.id
+                                )
+                                const currentPanelOpen =
+                                  panelOpen?.key === openKey ? panelOpen : null
+                                return (
+                                  <div
+                                    key={panel.id}
+                                    className="flex min-h-[56px] items-center justify-between gap-4 py-2"
+                                  >
+                                    <div className="flex min-w-0 items-start gap-2">
+                                      <Package className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-medium">
+                                          {panel.displayName}
+                                        </p>
+                                        <code className="block truncate text-[11px] text-muted-foreground">
+                                          {panel.id}
+                                        </code>
+                                        {currentPanelOpen?.status ===
+                                          "success" && (
+                                          <p
+                                            role="status"
+                                            className="mt-0.5 text-xs text-emerald-700 dark:text-emerald-400"
+                                          >
+                                            {t(
+                                              "space.settings.fileExtensions.panelOpened",
+                                              "Panel opened in a tab."
+                                            )}
+                                          </p>
+                                        )}
+                                        {currentPanelOpen?.status ===
+                                          "error" && (
+                                          <p
+                                            role="alert"
+                                            className="mt-0.5 max-w-xl text-xs text-destructive"
+                                          >
+                                            {currentPanelOpen.message}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {executionEnabled ? (
+                                      <div className="flex shrink-0 items-center gap-1">
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          disabled={
+                                            currentPanelOpen?.status ===
+                                            "opening"
+                                          }
+                                          onClick={() =>
+                                            void openPanel(extension, panel)
+                                          }
+                                        >
+                                          {currentPanelOpen?.status ===
+                                          "opening" ? (
+                                            <LoaderCircle className="animate-spin" />
+                                          ) : (
+                                            <Package />
+                                          )}
+                                          {currentPanelOpen?.status ===
+                                          "opening"
+                                            ? t(
+                                                "space.settings.fileExtensions.openingPanel",
+                                                "Opening…"
+                                              )
+                                            : t(
+                                                "space.settings.fileExtensions.openPanel",
+                                                "Open panel"
+                                              )}
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                            openContributionPalette(
+                                              panel.displayName
+                                            )
+                                          }
+                                        >
+                                          <CommandIcon />
+                                          {t(
+                                            "space.settings.fileExtensions.openCommandPalette",
+                                            "Command Palette"
+                                          )}
+                                          <kbd className="ml-1 text-[10px] text-muted-foreground">
+                                            ⌘K
+                                          </kbd>
+                                        </Button>
+                                      </div>
+                                    ) : legacyConflict ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled
+                                      >
+                                        {t(
+                                          "space.settings.fileExtensions.resolveMigration",
+                                          "Resolve migration link"
+                                        )}
+                                      </Button>
+                                    ) : trusted ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        disabled={
+                                          !!mutatingPackage || !!development
+                                        }
+                                        onClick={() =>
+                                          void mutatePackage(extension, () =>
+                                            window.eidos.fileExtensions.setEnabled(
+                                              spaceId,
+                                              snapshot,
+                                              true
+                                            )
+                                          )
+                                        }
+                                      >
+                                        {busy && (
+                                          <LoaderCircle className="animate-spin" />
+                                        )}
+                                        {t(
+                                          "space.settings.fileExtensions.enableExtension",
+                                          "Enable extension"
+                                        )}
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        disabled
+                                      >
+                                        {t(
+                                          "space.settings.fileExtensions.trustSourceFirst",
+                                          "Trust source first"
+                                        )}
+                                      </Button>
+                                    )}
+                                  </div>
+                                )
+                              })}
                               {fileEditors.map((editor) => {
                                 const sampleParts = sampleFilePartsForPattern(
                                   editor.selector[0]?.filenamePattern

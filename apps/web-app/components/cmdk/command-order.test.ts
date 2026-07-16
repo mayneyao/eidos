@@ -1,47 +1,60 @@
 import {
-  getPreferredCommandValue,
-  shouldPrioritizeFileExtensionCommands,
+  getPreferredContributionValue,
+  shouldPrioritizeFileExtensionContributions,
 } from "./command-order"
 
-describe("shouldPrioritizeFileExtensionCommands", () => {
-  it("puts matching extension commands before the web-search fallback", () => {
+describe("shouldPrioritizeFileExtensionContributions", () => {
+  it("puts matching extension contributions before the web-search fallback", () => {
     expect(
-      shouldPrioritizeFileExtensionCommands("Hello from Task Counter", true)
+      shouldPrioritizeFileExtensionContributions(
+        "Hello from Task Counter",
+        true
+      )
     ).toBe(true)
   })
 
   it("keeps the normal suggestion first for an empty query", () => {
-    expect(shouldPrioritizeFileExtensionCommands("   ", true)).toBe(false)
+    expect(shouldPrioritizeFileExtensionContributions("   ", true)).toBe(false)
   })
 
   it("keeps direct URL navigation ahead of extension commands", () => {
     expect(
-      shouldPrioritizeFileExtensionCommands("https://eidos.space", true)
+      shouldPrioritizeFileExtensionContributions("https://eidos.space", true)
     ).toBe(false)
   })
 
   it("does not change legacy Space command ordering", () => {
     expect(
-      shouldPrioritizeFileExtensionCommands("Hello from Task Counter", false)
+      shouldPrioritizeFileExtensionContributions(
+        "Hello from Task Counter",
+        false
+      )
     ).toBe(false)
   })
 })
 
-describe("getPreferredCommandValue", () => {
-  const commands = [
+describe("getPreferredContributionValue", () => {
+  const contributions = [
     "Open daily note Journals",
     "Hello from Task Counter Task Counter",
+    "Task Summary Panel Task Counter",
   ]
 
-  it("selects the best matching extension command", () => {
-    expect(getPreferredCommandValue("Hello from Task Counter", commands)).toBe(
-      commands[1]
+  it("selects the best matching extension contribution", () => {
+    expect(
+      getPreferredContributionValue("Hello from Task Counter", contributions)
+    ).toBe(contributions[1])
+  })
+
+  it("selects a matching panel", () => {
+    expect(getPreferredContributionValue("Task Summary", contributions)).toBe(
+      contributions[2]
     )
   })
 
   it("does not override the fallback when no extension command matches", () => {
-    expect(getPreferredCommandValue("weather tomorrow", commands)).toBe(
-      undefined
-    )
+    expect(
+      getPreferredContributionValue("weather tomorrow", contributions)
+    ).toBe(undefined)
   })
 })

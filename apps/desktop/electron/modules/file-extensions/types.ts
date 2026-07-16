@@ -8,6 +8,7 @@ import type {
   NormalizedExtensionPermissions,
   ExtensionPackageFile,
   ExtensionPackageInspectionStatus,
+  ExtensionPanelContribution,
   LegacyExtensionPortingReceiptAnalysis,
 } from "@eidos.space/extension-manifest"
 import type {
@@ -189,6 +190,17 @@ export interface FileExtensionCommandSummary
   menus: Record<string, ExtensionMenuContribution[]>
 }
 
+export interface FileExtensionPanelSummary
+  extends ExtensionPanelContribution, ExtensionSnapshotIdentity {
+  packageId: string
+  extensionDisplayName: string
+}
+
+export interface FileExtensionCommandPalette {
+  commands: FileExtensionCommandSummary[]
+  panels: FileExtensionPanelSummary[]
+}
+
 export interface FileExtensionCommandRequest extends ExtensionSnapshotIdentity {
   commandId: string
   resource: {
@@ -221,6 +233,10 @@ export interface FileExtensionOpenEditorResult {
 
 export interface FileExtensionPanelSessionRequest {
   sessionId: string
+}
+
+export interface FileExtensionOpenPanelRequest extends ExtensionSnapshotIdentity {
+  panelId: string
 }
 
 export interface FileExtensionOpenPanelResult {

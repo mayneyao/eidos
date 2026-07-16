@@ -2,12 +2,21 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 import { isDesktopMode } from "@/lib/env"
 
-export type FileExtensionCommand = Awaited<
-  ReturnType<typeof window.eidos.fileExtensions.listCommands>
->[number]
+type FileExtensionCommandPalette = Awaited<
+  ReturnType<typeof window.eidos.fileExtensions.listCommandPalette>
+>
+export type FileExtensionCommand =
+  FileExtensionCommandPalette["commands"][number]
+export type FileExtensionPanel = FileExtensionCommandPalette["panels"][number]
+
+const EMPTY_PALETTE: FileExtensionCommandPalette = {
+  commands: [],
+  panels: [],
+}
 
 export function useFileExtensionCommands(spaceId?: string) {
-  const [commands, setCommands] = useState<FileExtensionCommand[]>([])
+  const [palette, setPalette] =
+    useState<FileExtensionCommandPalette>(EMPTY_PALETTE)
   const refreshGeneration = useRef(0)
 
   const refresh = useCallback(async () => {
@@ -15,19 +24,19 @@ export function useFileExtensionCommands(spaceId?: string) {
     if (
       !spaceId ||
       !isDesktopMode ||
-      !window.eidos?.fileExtensions?.listCommands
+      !window.eidos?.fileExtensions?.listCommandPalette
     ) {
-      if (generation === refreshGeneration.current) setCommands([])
+      if (generation === refreshGeneration.current) setPalette(EMPTY_PALETTE)
       return
     }
     try {
-      const nextCommands =
-        await window.eidos.fileExtensions.listCommands(spaceId)
+      const nextPalette =
+        await window.eidos.fileExtensions.listCommandPalette(spaceId)
       if (generation === refreshGeneration.current) {
-        setCommands(nextCommands)
+        setPalette(nextPalette)
       }
     } catch {
-      if (generation === refreshGeneration.current) setCommands([])
+      if (generation === refreshGeneration.current) setPalette(EMPTY_PALETTE)
     }
   }, [spaceId])
 
@@ -67,5 +76,24 @@ export function useFileExtensionCommands(spaceId?: string) {
     [spaceId]
   )
 
-  return { commands, execute, refresh }
+  const openPanel = useCallback(
+    async (panel: FileExtensionPanel) => {
+      if (!spaceId) throw new Error("A file Space is required")
+      return window.eidos.fileExtensions.openPanel(spaceId, {
+        packageId: panel.packageId,
+        contentDigest: panel.contentDigest,
+        permissionHash: panel.permissionHash,
+        panelId: panel.id,
+      })
+    },
+    [spaceId]
+  )
+
+  return {
+    commands: palette.commands,
+    panels: palette.panels,
+    execute,
+    openPanel,
+    refresh,
+  }
 }

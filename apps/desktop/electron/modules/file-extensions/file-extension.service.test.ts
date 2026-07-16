@@ -487,6 +487,38 @@ describe("FileExtensionService", () => {
     await service.trust("space-a", snapshot)
     await service.setEnabled("space-a", snapshot, true)
 
+    await expect(service.listCommandPalette("space-a")).resolves.toMatchObject({
+      commands: [
+        {
+          id: "example.task-counter.count",
+          packageId: "example.task-counter",
+        },
+      ],
+      panels: [
+        {
+          id: "example.task-counter.summary",
+          packageId: "example.task-counter",
+          displayName: "Task Summary",
+          extensionDisplayName: "Task Counter",
+        },
+      ],
+    })
+    const directPanel = await service.openPanel("space-a", {
+      ...snapshot,
+      panelId: "example.task-counter.summary",
+    })
+    expect(directPanel).toMatchObject({
+      packageId: "example.task-counter",
+      panelId: "example.task-counter.summary",
+      title: "Task Summary",
+      revision: 1,
+    })
+    expect(directPanel.source).toContain("__eidosStartSurface")
+    service.closePanelSession("space-a", {
+      sessionId: directPanel.sessionId,
+    })
+    send.mockClear()
+
     const request = {
       ...snapshot,
       commandId: "example.task-counter.count",

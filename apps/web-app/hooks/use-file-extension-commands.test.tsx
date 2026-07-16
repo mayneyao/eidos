@@ -4,13 +4,15 @@ import { createRoot, type Root } from "react-dom/client"
 import {
   useFileExtensionCommands,
   type FileExtensionCommand,
+  type FileExtensionPanel,
 } from "./use-file-extension-commands"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
-const listCommandsMock = vi.hoisted(() => vi.fn())
+const listCommandPaletteMock = vi.hoisted(() => vi.fn())
+const openPanelMock = vi.hoisted(() => vi.fn())
 const onMock = vi.hoisted(() => vi.fn())
 const offMock = vi.hoisted(() => vi.fn())
 
@@ -39,6 +41,15 @@ const command: FileExtensionCommand = {
   menus: {},
 }
 
+const panel: FileExtensionPanel = {
+  packageId: "local.task-counter",
+  contentDigest: `sha256:${"a".repeat(64)}`,
+  permissionHash: `sha256:${"b".repeat(64)}`,
+  id: "local.task-counter.summary",
+  displayName: "Task Summary",
+  extensionDisplayName: "Task Counter",
+}
+
 describe("useFileExtensionCommands", () => {
   let container: HTMLDivElement
   let root: Root
@@ -49,16 +60,26 @@ describe("useFileExtensionCommands", () => {
       ) => void)
     | undefined
   let latestCommands: FileExtensionCommand[] = []
+  let latestPanels: FileExtensionPanel[] = []
+  let openPanelFromHook:
+    | ((panel: FileExtensionPanel) => Promise<unknown>)
+    | undefined
 
   function Harness() {
-    latestCommands = useFileExtensionCommands("file-space").commands
+    const extensions = useFileExtensionCommands("file-space")
+    latestCommands = extensions.commands
+    latestPanels = extensions.panels
+    openPanelFromHook = extensions.openPanel
     return null
   }
 
   beforeEach(() => {
     changedListener = undefined
     latestCommands = []
-    listCommandsMock.mockReset()
+    latestPanels = []
+    openPanelFromHook = undefined
+    listCommandPaletteMock.mockReset()
+    openPanelMock.mockReset().mockResolvedValue({ success: true })
     onMock.mockReset().mockImplementation((_channel, listener) => {
       changedListener = listener
       return "listener-1"
@@ -70,7 +91,8 @@ describe("useFileExtensionCommands", () => {
         on: onMock,
         off: offMock,
         fileExtensions: {
-          listCommands: listCommandsMock,
+          listCommandPalette: listCommandPaletteMock,
+          openPanel: openPanelMock,
         },
       },
     })
@@ -85,9 +107,15 @@ describe("useFileExtensionCommands", () => {
   })
 
   it("does not restore stale commands after a newer refresh disables them", async () => {
-    const initial = deferred<FileExtensionCommand[]>()
-    const disabled = deferred<FileExtensionCommand[]>()
-    listCommandsMock
+    const initial = deferred<{
+      commands: FileExtensionCommand[]
+      panels: FileExtensionPanel[]
+    }>()
+    const disabled = deferred<{
+      commands: FileExtensionCommand[]
+      panels: FileExtensionPanel[]
+    }>()
+    listCommandPaletteMock
       .mockReturnValueOnce(initial.promise)
       .mockReturnValueOnce(disabled.promise)
 
@@ -95,30 +123,38 @@ describe("useFileExtensionCommands", () => {
       root.render(<Harness />)
       await Promise.resolve()
     })
-    expect(listCommandsMock).toHaveBeenCalledTimes(1)
+    expect(listCommandPaletteMock).toHaveBeenCalledTimes(1)
 
     act(() => {
       changedListener?.({}, { spaceId: "file-space", generation: 2 })
     })
-    expect(listCommandsMock).toHaveBeenCalledTimes(2)
+    expect(listCommandPaletteMock).toHaveBeenCalledTimes(2)
 
     await act(async () => {
-      disabled.resolve([])
+      disabled.resolve({ commands: [], panels: [] })
       await disabled.promise
     })
     expect(latestCommands).toEqual([])
+    expect(latestPanels).toEqual([])
 
     await act(async () => {
-      initial.resolve([command])
+      initial.resolve({ commands: [command], panels: [panel] })
       await initial.promise
     })
     expect(latestCommands).toEqual([])
+    expect(latestPanels).toEqual([])
   })
 
   it("does not hide newly enabled commands when an older refresh finishes", async () => {
-    const initial = deferred<FileExtensionCommand[]>()
-    const enabled = deferred<FileExtensionCommand[]>()
-    listCommandsMock
+    const initial = deferred<{
+      commands: FileExtensionCommand[]
+      panels: FileExtensionPanel[]
+    }>()
+    const enabled = deferred<{
+      commands: FileExtensionCommand[]
+      panels: FileExtensionPanel[]
+    }>()
+    listCommandPaletteMock
       .mockReturnValueOnce(initial.promise)
       .mockReturnValueOnce(enabled.promise)
 
@@ -131,15 +167,33 @@ describe("useFileExtensionCommands", () => {
     })
 
     await act(async () => {
-      enabled.resolve([command])
+      enabled.resolve({ commands: [command], panels: [panel] })
       await enabled.promise
     })
     expect(latestCommands).toEqual([command])
+    expect(latestPanels).toEqual([panel])
 
     await act(async () => {
-      initial.resolve([])
+      initial.resolve({ commands: [], panels: [] })
       await initial.promise
     })
     expect(latestCommands).toEqual([command])
+    expect(latestPanels).toEqual([panel])
+  })
+
+  it("opens a declared panel through the exact listed snapshot", async () => {
+    listCommandPaletteMock.mockResolvedValue({ commands: [], panels: [panel] })
+    await act(async () => {
+      root.render(<Harness />)
+      await Promise.resolve()
+    })
+
+    await expect(openPanelFromHook?.(panel)).resolves.toEqual({ success: true })
+    expect(openPanelMock).toHaveBeenCalledWith("file-space", {
+      packageId: panel.packageId,
+      contentDigest: panel.contentDigest,
+      permissionHash: panel.permissionHash,
+      panelId: panel.id,
+    })
   })
 })

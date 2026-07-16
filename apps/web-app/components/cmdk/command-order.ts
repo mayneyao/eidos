@@ -7,22 +7,22 @@ export function isUrlLike(value: string): boolean {
   )
 }
 
-export function shouldPrioritizeFileExtensionCommands(
+export function shouldPrioritizeFileExtensionContributions(
   input: string,
   isFileSpace: boolean
 ): boolean {
   return isFileSpace && input.trim().length > 0 && !isUrlLike(input)
 }
 
-export function getPreferredCommandValue(
+export function getPreferredContributionValue(
   input: string,
-  commandValues: string[]
+  contributionValues: string[]
 ): string | undefined {
   const query = input.trim()
   if (!query) return undefined
 
   let preferred: { value: string; score: number } | undefined
-  for (const value of commandValues) {
+  for (const value of contributionValues) {
     const score = defaultFilter(value, query)
     if (score > 0 && (!preferred || score > preferred.score)) {
       preferred = { value, score }

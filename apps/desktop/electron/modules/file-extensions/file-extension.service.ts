@@ -69,6 +69,7 @@ import type {
   FileExtensionDevelopmentDiagnostic,
   FileExtensionDevelopmentSessionSummary,
   FileExtensionApplyInstallRequest,
+  FileExtensionCommandPalette,
   FileExtensionCommandRequest,
   FileExtensionCommandSummary,
   FileExtensionDiscoveryResult,
@@ -80,7 +81,9 @@ import type {
   FileExtensionInstallResult,
   FileExtensionOpenEditorRequest,
   FileExtensionOpenEditorResult,
+  FileExtensionOpenPanelRequest,
   FileExtensionOpenPanelResult,
+  FileExtensionPanelSummary,
   FileExtensionPanelSessionRequest,
   FileExtensionPackageSummary,
   FileExtensionRetireLegacyPortingRequest,
@@ -598,9 +601,13 @@ export class FileExtensionService extends IpcServiceBase {
   }
 
   @IpcMethod()
-  async listCommands(spaceId: string): Promise<FileExtensionCommandSummary[]> {
+  async listCommandPalette(
+    spaceId: string
+  ): Promise<FileExtensionCommandPalette> {
     const discovery = await this.discover(spaceId)
-    return discovery.packages.flatMap((extension) => {
+    const commands: FileExtensionCommandSummary[] = []
+    const panels: FileExtensionPanelSummary[] = []
+    for (const extension of discovery.packages) {
       if (
         !this.isPackageExecutionAvailable(spaceId, extension) ||
         !extension.manifest ||
@@ -608,7 +615,7 @@ export class FileExtensionService extends IpcServiceBase {
         !extension.contentDigest ||
         !extension.permissionHash
       ) {
-        return []
+        continue
       }
       const snapshot = {
         packageId: extension.canonicalId,
@@ -616,18 +623,37 @@ export class FileExtensionService extends IpcServiceBase {
         permissionHash: extension.permissionHash,
       }
       const menus = extension.manifest.contributes.menus ?? {}
-      return (extension.manifest.contributes.commands ?? []).map((command) => ({
-        ...snapshot,
-        ...command,
-        extensionDisplayName: extension.manifest!.displayName,
-        menus: Object.fromEntries(
-          Object.entries(menus).flatMap(([menuId, items]) => {
-            const matching = items.filter((item) => item.command === command.id)
-            return matching.length > 0 ? [[menuId, matching]] : []
-          })
-        ),
-      }))
-    })
+      commands.push(
+        ...(extension.manifest.contributes.commands ?? []).map((command) => ({
+          ...snapshot,
+          ...command,
+          extensionDisplayName: extension.manifest!.displayName,
+          menus: Object.fromEntries(
+            Object.entries(menus).flatMap(([menuId, items]) => {
+              const matching = items.filter(
+                (item) => item.command === command.id
+              )
+              return matching.length > 0 ? [[menuId, matching]] : []
+            })
+          ),
+        }))
+      )
+      if (extension.manifest.entrypoints.ui) {
+        panels.push(
+          ...(extension.manifest.contributes.panels ?? []).map((panel) => ({
+            ...snapshot,
+            ...panel,
+            extensionDisplayName: extension.manifest!.displayName,
+          }))
+        )
+      }
+    }
+    return { commands, panels }
+  }
+
+  @IpcMethod()
+  async listCommands(spaceId: string): Promise<FileExtensionCommandSummary[]> {
+    return (await this.listCommandPalette(spaceId)).commands
   }
 
   @IpcMethod()
@@ -782,6 +808,53 @@ export class FileExtensionService extends IpcServiceBase {
       request.sessionId,
       request.viewId
     )
+  }
+
+  @IpcMethod()
+  async openPanel(
+    spaceId: string,
+    request: FileExtensionOpenPanelRequest
+  ): Promise<FileExtensionOpenPanelResult> {
+    assertExtensionSnapshotIdentity(request)
+    if (
+      typeof request.panelId !== "string" ||
+      !request.panelId ||
+      request.panelId.length > 256
+    ) {
+      throw new Error("A valid extension panel ID is required")
+    }
+    return this.openDeclaredPanel(spaceId, request, request.panelId)
+  }
+
+  private async openDeclaredPanel(
+    spaceId: string,
+    snapshot: ExtensionSnapshotIdentity,
+    panelId: string,
+    state?: ExtensionRuntimeJsonValue
+  ): Promise<FileExtensionOpenPanelResult> {
+    const space = this.getFileSpace(spaceId)
+    const watcher = await this.startWatching(spaceId)
+    if (!watcher.watching) {
+      throw new FileExtensionRuntimeError(
+        "CAPABILITY_DENIED",
+        "Extension source watching must be available before opening third-party UI"
+      )
+    }
+    return withFileSpaceReadLock(spaceId, async () => {
+      const prepared = await this.preparePanel(
+        spaceId,
+        space.path,
+        snapshot,
+        panelId
+      )
+      return this.openOrUpdatePanelSession(
+        spaceId,
+        snapshot,
+        panelId,
+        state,
+        prepared
+      )
+    })
   }
 
   @IpcMethod()
@@ -1953,28 +2026,12 @@ export class FileExtensionService extends IpcServiceBase {
       })
     }
     if (rpc.method === "window.openPanel") {
-      const watcher = await this.startWatching(spaceId)
-      if (!watcher.watching) {
-        throw new FileExtensionRuntimeError(
-          "CAPABILITY_DENIED",
-          "Extension source watching must be available before opening third-party UI"
-        )
-      }
-      await withFileSpaceReadLock(spaceId, async () => {
-        const prepared = await this.preparePanel(
-          spaceId,
-          space.path,
-          snapshot,
-          rpc.params.panelId
-        )
-        this.openOrUpdatePanelSession(
-          spaceId,
-          snapshot,
-          rpc.params.panelId,
-          rpc.params.state,
-          prepared
-        )
-      })
+      await this.openDeclaredPanel(
+        spaceId,
+        snapshot,
+        rpc.params.panelId,
+        rpc.params.state
+      )
       return undefined
     }
     await withFileSpaceReadLock(spaceId, () =>

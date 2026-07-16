@@ -19,6 +19,7 @@ const setGrantMock = vi.hoisted(() => vi.fn())
 const confirmLegacyPortingMock = vi.hoisted(() => vi.fn())
 const retireLegacyPortingMock = vi.hoisted(() => vi.fn())
 const executeCommandMock = vi.hoisted(() => vi.fn())
+const openPanelMock = vi.hoisted(() => vi.fn())
 const prepareGitHubInstallMock = vi.hoisted(() => vi.fn())
 const applyGitHubInstallMock = vi.hoisted(() => vi.fn())
 const cancelGitHubInstallMock = vi.hoisted(() => vi.fn())
@@ -358,6 +359,15 @@ describe("FileExtensionSettings", () => {
       generation: 1,
     })
     stopDevelopmentSessionMock.mockReset().mockResolvedValue({ success: true })
+    openPanelMock.mockReset().mockResolvedValue({
+      sessionId: "panel-1",
+      packageId: "example.task-counter",
+      panelId: "example.task-counter.summary",
+      title: "Task summary",
+      revision: 1,
+      generation: "generation-1",
+      source: "<!doctype html>",
+    })
     onMock.mockReset().mockReturnValue("listener-1")
     offMock.mockReset()
     discoverMock.mockResolvedValue(discoveryFixture())
@@ -380,6 +390,7 @@ describe("FileExtensionSettings", () => {
           confirmLegacyPorting: confirmLegacyPortingMock,
           retireLegacyPorting: retireLegacyPortingMock,
           executeCommand: executeCommandMock,
+          openPanel: openPanelMock,
           prepareGitHubInstall: prepareGitHubInstallMock,
           applyGitHubInstall: applyGitHubInstallMock,
           cancelGitHubInstall: cancelGitHubInstallMock,
@@ -478,6 +489,21 @@ describe("FileExtensionSettings", () => {
     expect(container.textContent).toContain("UI entrypointsrc/panel.ts")
     expect(container.textContent).toContain("Source filesrc/panel.css")
     expect(container.textContent).not.toContain("Source fileREADME.md")
+
+    const openPanel = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Open panel"
+    )!
+    await act(async () => {
+      openPanel.click()
+      await Promise.resolve()
+    })
+    expect(openPanelMock).toHaveBeenCalledWith("file-space", {
+      packageId: "example.task-counter",
+      contentDigest,
+      permissionHash,
+      panelId: "example.task-counter.summary",
+    })
+    expect(container.textContent).toContain("Panel opened in a tab.")
 
     const openWorker = [...container.querySelectorAll("button")].find(
       (button) =>
