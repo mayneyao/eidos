@@ -99,7 +99,11 @@ export function BaseViewTabs(props: BaseViewTabsProps) {
           <ChevronRight className="h-3.5 w-3.5" />
         </Button>
       ) : null}
-      <BaseViewSelector {...props} triggerMode="create" />
+      <BaseViewSelector
+        {...props}
+        viewAction={undefined}
+        triggerMode="create"
+      />
       <BaseViewSelector {...props} triggerMode="manage" />
     </div>
   )

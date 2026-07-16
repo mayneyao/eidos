@@ -229,6 +229,37 @@ describe("BaseViewSelector", () => {
     ).toBe("Grid 3")
   })
 
+  it("keeps current-view data actions inside the manage-views popover", async () => {
+    await act(async () => {
+      root.render(
+        <BaseViewSelector
+          views={views}
+          fields={fields}
+          activeView={views[0]}
+          triggerMode="manage"
+          viewAction={<button type="button">Export current view as CSV</button>}
+          onSelect={onSelect}
+          onCreate={onCreate}
+          onRename={onRename}
+          onDuplicate={onDuplicate}
+          onDelete={onDelete}
+          onReorder={onReorder}
+          onUpdate={onUpdate}
+        />
+      )
+    })
+
+    expect(document.body.textContent).not.toContain(
+      "Export current view as CSV"
+    )
+    await act(async () => {
+      document
+        .querySelector<HTMLButtonElement>('[aria-label="Manage Base views"]')
+        ?.click()
+    })
+    expect(document.body.textContent).toContain("Export current view as CSV")
+  })
+
   it("creates a saved view backed by an enabled file extension", async () => {
     await act(async () => {
       root.render(

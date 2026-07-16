@@ -50,7 +50,7 @@ export default defineConfig({
             items: [
               {
                 label: "Getting started",
-                autogenerate: { directory: "getting-started" },
+                items: [{ autogenerate: { directory: "getting-started" } }],
               },
             ],
           },
@@ -64,7 +64,7 @@ export default defineConfig({
             items: [
               {
                 label: "Core concepts",
-                autogenerate: { directory: "concepts" },
+                items: [{ autogenerate: { directory: "concepts" } }],
               },
             ],
           },
@@ -78,7 +78,7 @@ export default defineConfig({
             items: [
               {
                 label: "Extension development",
-                autogenerate: { directory: "extensions" },
+                items: [{ autogenerate: { directory: "extensions" } }],
               },
             ],
           },
@@ -92,7 +92,7 @@ export default defineConfig({
             items: [
               {
                 label: "Automation and APIs",
-                autogenerate: { directory: "automation" },
+                items: [{ autogenerate: { directory: "automation" } }],
               },
             ],
           },
@@ -106,7 +106,7 @@ export default defineConfig({
             items: [
               {
                 label: "Reference",
-                autogenerate: { directory: "reference" },
+                items: [{ autogenerate: { directory: "reference" } }],
               },
             ],
           },

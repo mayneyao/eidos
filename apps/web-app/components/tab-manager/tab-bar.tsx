@@ -172,8 +172,11 @@ function SortableTabItem({
               />
             ) : (
               <button
+                type="button"
+                aria-label={`Close “${tab.title}” tab`}
+                title={`Close “${tab.title}” tab`}
                 className={cn(
-                  "hover:bg-accent rounded p-0.5 transition-opacity shrink-0",
+                  "shrink-0 rounded p-0.5 transition-opacity hover:bg-accent focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                   isActive
                     ? "opacity-60 hover:opacity-100"
                     : "opacity-0 group-hover:opacity-60 hover:!opacity-100"

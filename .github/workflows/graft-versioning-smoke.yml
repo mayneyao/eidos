@@ -7,7 +7,7 @@ on:
       - ".github/workflows/graft-versioning-smoke.yml"
       - "apps/desktop/electron/modules/data-space/**"
       - "apps/desktop/electron/modules/space-versioning/**"
-      - "apps/desktop/scripts/graft-versioning-smoke.cjs"
+      - "apps/desktop/scripts/graft-versioning-smoke*"
       - "apps/desktop/scripts/postinstall-sqlite-ext.cjs"
       - "pnpm-lock.yaml"
       - "package.json"
@@ -20,7 +20,7 @@ on:
       - ".github/workflows/graft-versioning-smoke.yml"
       - "apps/desktop/electron/modules/data-space/**"
       - "apps/desktop/electron/modules/space-versioning/**"
-      - "apps/desktop/scripts/graft-versioning-smoke.cjs"
+      - "apps/desktop/scripts/graft-versioning-smoke*"
       - "apps/desktop/scripts/postinstall-sqlite-ext.cjs"
       - "pnpm-lock.yaml"
       - "package.json"
@@ -61,6 +61,9 @@ jobs:
       - name: Ensure Electron binary is present
         working-directory: apps/desktop
         run: node -e "require('electron/install')"
+
+      - name: Test Graft smoke command transport
+        run: pnpm exec vitest run apps/desktop/scripts/graft-versioning-smoke-command.test.ts --environment node
 
       - name: Run Graft versioning smoke
         working-directory: apps/desktop

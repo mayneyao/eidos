@@ -35,12 +35,14 @@ function progressPercent(progress: BaseCsvOperationProgress | null): number {
 
 export function BaseCsvExportPopover({
   disabled = false,
+  triggerVariant = "workbar",
   viewName,
   onExport,
   onProgress,
   onCancel,
 }: {
   disabled?: boolean
+  triggerVariant?: "workbar" | "view-action"
   viewName: string
   onExport: (operationId: string) => Promise<CsvExportSelection>
   onProgress: (operationId: string) => Promise<BaseCsvOperationProgress | null>
@@ -166,7 +168,12 @@ export function BaseCsvExportPopover({
           type="button"
           variant="ghost"
           size="sm"
-          className="base-workbar-action h-7 gap-1.5 px-2 text-xs"
+          className={cn(
+            "gap-1.5 text-xs",
+            triggerVariant === "view-action"
+              ? "h-8 w-full justify-start px-2 font-normal"
+              : "base-workbar-action h-7 px-2"
+          )}
           aria-label="Export current Base view as CSV"
           title="Export current view"
           disabled={disabled && !exporting}
@@ -177,7 +184,15 @@ export function BaseCsvExportPopover({
           ) : (
             <FileDown className="h-3.5 w-3.5" />
           )}
-          <span className="base-workbar-action-label">Export CSV</span>
+          <span
+            className={cn(
+              triggerVariant === "workbar" && "base-workbar-action-label"
+            )}
+          >
+            {triggerVariant === "view-action"
+              ? "Export current view as CSV"
+              : "Export CSV"}
+          </span>
         </Button>
       </PopoverAnchor>
       <PopoverContent align="end" sideOffset={5} className="w-80 p-0">
