@@ -606,6 +606,20 @@ describe("FileExtensionSettings", () => {
         .find((button) => button.textContent?.trim() === "Manage")!
         .click()
     )
+    openPanelMock.mockClear()
+    await act(async () => {
+      ;[...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "Try extension")!
+        .click()
+      await Promise.resolve()
+    })
+    expect(openPanelMock).toHaveBeenCalledWith("file-space", {
+      packageId: "example.task-counter",
+      contentDigest,
+      permissionHash,
+      panelId: "example.task-counter.summary",
+    })
+    expect(executeCommandMock).not.toHaveBeenCalled()
     expect(container.textContent).toContain("Source files")
     expect(container.textContent).toContain("Manifestextension.json")
     expect(container.textContent).toContain("Worker entrypointsrc/extension.ts")
@@ -1543,21 +1557,10 @@ describe("FileExtensionSettings", () => {
       "Step 3 of 3 · Ready to test. Run a command or open a contributed UI below."
     )
     expect(container.textContent).toContain("Try extension")
-    const howToUse = container.querySelector<HTMLElement>(
-      "[id$='-how-to-use']"
-    )!
-    howToUse.scrollIntoView = vi.fn()
-    act(() =>
-      [...container.querySelectorAll("button")]
+    await act(async () => {
+      ;[...container.querySelectorAll("button")]
         .find((button) => button.textContent?.trim() === "Try extension")!
         .click()
-    )
-    expect(howToUse.scrollIntoView).toHaveBeenCalled()
-    const run = [...container.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === "Run"
-    )!
-    await act(async () => {
-      run.click()
       await Promise.resolve()
       await Promise.resolve()
     })
@@ -1747,11 +1750,11 @@ describe("FileExtensionSettings", () => {
       (button) => button.textContent?.trim() === "Manage"
     )!
     act(() => manage.click())
-    const createSample = [...container.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === "Create sample file"
+    const tryExtension = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Try extension"
     )!
     await act(async () => {
-      createSample.click()
+      tryExtension.click()
       await Promise.resolve()
       await Promise.resolve()
     })
@@ -1784,11 +1787,11 @@ describe("FileExtensionSettings", () => {
     expect(container.textContent).toContain(
       "Open a .base file, add a view, then choose Task cards"
     )
-    const createSample = [...container.querySelectorAll("button")].find(
-      (button) => button.textContent?.trim() === "Create sample Base"
+    const tryExtension = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Try extension"
     )!
     await act(async () => {
-      createSample.click()
+      tryExtension.click()
       await Promise.resolve()
       await Promise.resolve()
     })

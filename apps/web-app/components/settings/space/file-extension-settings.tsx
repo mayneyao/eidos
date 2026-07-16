@@ -2223,6 +2223,91 @@ export function FileExtensionSettings() {
                 !!primaryPanelKey &&
                 panelOpen?.key === primaryPanelKey &&
                 panelOpen.status === "opening"
+              const primaryCommand = commands[0]
+              const primaryCommandSample = primaryCommand
+                ? commandSampleFileParts(extension, primaryCommand.id)
+                : null
+              const primaryCommandNeedsFile =
+                !!primaryCommand &&
+                commandUsesFileContext(extension, primaryCommand.id) &&
+                extension.requestedGrants.some(
+                  (grant) => grant.kind === "files.read"
+                )
+              const primaryCommandRunnable =
+                !!primaryCommand &&
+                (!primaryCommandNeedsFile || !!primaryCommandSample)
+              const primaryCommandKey = primaryCommand
+                ? commandRunKey(extension, primaryCommand.id)
+                : null
+              const primaryCommandRunning =
+                !!primaryCommandKey &&
+                commandRun?.key === primaryCommandKey &&
+                commandRun.status === "running"
+              const primaryEditor = fileEditors[0]
+              const primaryEditorSample = primaryEditor
+                ? sampleFilePartsForPattern(
+                    primaryEditor.selector[0]?.filenamePattern
+                  )
+                : null
+              const primaryEditorKey = primaryEditor
+                ? `${packageId}\0${primaryEditor.id}`
+                : null
+              const primaryEditorCreating =
+                !!primaryEditorKey &&
+                editorSample?.key === primaryEditorKey &&
+                editorSample.status === "creating"
+              const primaryBaseView = baseViews[0]
+              const primaryBaseSample = primaryBaseView
+                ? baseSampleFileParts(extension)
+                : null
+              const primaryBaseKey = primaryBaseView
+                ? `${packageId}\0${primaryBaseView.id}`
+                : null
+              const primaryBaseCreating =
+                !!primaryBaseKey &&
+                baseSample?.key === primaryBaseKey &&
+                baseSample.status === "creating"
+              const primaryTryBusy =
+                primaryPanelOpening ||
+                primaryCommandRunning ||
+                primaryEditorCreating ||
+                primaryBaseCreating
+              const tryPrimaryContribution = () => {
+                if (primaryPanel) {
+                  void openPanel(extension, primaryPanel)
+                  return
+                }
+                if (primaryCommandRunnable && primaryCommand) {
+                  void runCommand(
+                    extension,
+                    primaryCommand,
+                    primaryCommandSample ?? undefined
+                  )
+                  return
+                }
+                if (primaryEditor && primaryEditorSample) {
+                  void createEditorSample(
+                    extension,
+                    primaryEditor,
+                    primaryEditorSample
+                  )
+                  return
+                }
+                if (primaryBaseView && primaryBaseSample) {
+                  void createBaseSample(
+                    extension,
+                    primaryBaseView,
+                    primaryBaseSample
+                  )
+                  return
+                }
+                document
+                  .getElementById(`${packageElementId(packageId)}-how-to-use`)
+                  ?.scrollIntoView?.({
+                    block: "nearest",
+                    behavior: "smooth",
+                  })
+              }
               return (
                 <div
                   id={packageElementId(packageId)}
@@ -3036,18 +3121,14 @@ export function FileExtensionSettings() {
                                 <Button
                                   type="button"
                                   size="sm"
-                                  onClick={() =>
-                                    document
-                                      .getElementById(
-                                        `${packageElementId(packageId)}-how-to-use`
-                                      )
-                                      ?.scrollIntoView({
-                                        block: "nearest",
-                                        behavior: "smooth",
-                                      })
-                                  }
+                                  disabled={primaryTryBusy}
+                                  onClick={tryPrimaryContribution}
                                 >
-                                  <Play />
+                                  {primaryTryBusy ? (
+                                    <LoaderCircle className="animate-spin" />
+                                  ) : (
+                                    <Play />
+                                  )}
                                   {t(
                                     "space.settings.fileExtensions.tryExtension",
                                     "Try extension"
