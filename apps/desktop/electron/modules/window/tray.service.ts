@@ -34,7 +34,9 @@ export class TrayService {
     this.onQuitCallback = onQuit || null
 
     try {
-      const iconPath = path.join(process.env.VITE_PUBLIC || "", "logo.png")
+      const iconFilename =
+        process.platform === "win32" ? "logo.ico" : "logo.png"
+      const iconPath = path.join(process.env.VITE_PUBLIC || "", iconFilename)
       electronLog.info("Tray icon path:", iconPath)
 
       const icon = nativeImage.createFromPath(iconPath)

@@ -52,7 +52,7 @@
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "win": {
     "target": ["nsis"],
-    "icon": "dist/logo.png"
+    "icon": "dist/logo.ico"
   },
   "afterSign": "scripts/notarize.cjs",
   "mac": {
