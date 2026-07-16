@@ -22,7 +22,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20.19.0"
+          node-version-file: ".node-version"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -33,7 +33,7 @@ jobs:
       - name: Install dependencies
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Sync version from tag
         if: startsWith(github.ref, 'refs/tags/v')
@@ -112,7 +112,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20.19.0"
+          node-version-file: ".node-version"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -131,7 +131,7 @@ jobs:
       - name: Install dependencies
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Sync version from tag
         if: startsWith(github.ref, 'refs/tags/v')

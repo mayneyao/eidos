@@ -62,10 +62,12 @@ Get the app from: https://eidos.space/download
 ## How to develop
 
 1. Clone the repository `git clone https://github.com/mayneyao/eidos.git`
-2. Run `pnpm install` to install dependencies
-3. Install SQLite extensions:
+2. Install Node.js `22.23.1` (the version pinned in `.node-version`)
+3. Run `corepack enable` to activate the pinned pnpm version
+4. Run `pnpm install --frozen-lockfile` to install dependencies
+5. Install SQLite extensions:
    - Run `pnpm install:sqlite-ext` to install required SQLite extensions (only for the first time)
-4. Start development:
+6. Start development:
    - For desktop development: Run `pnpm dev:desktop` to start the desktop app
 
 ## How Eidos works
