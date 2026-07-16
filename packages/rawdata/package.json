@@ -27,7 +27,7 @@
   "author": "mayneyao",
   "license": "MIT",
   "dependencies": {
-    "yaml": "^2.7.1"
+    "yaml": "^2.8.3"
   },
   "peerDependencies": {
     "better-sqlite3": ">=11.0.0"

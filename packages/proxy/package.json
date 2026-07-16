@@ -17,7 +17,7 @@
   "type": "module",
 
   "dependencies": {
-    "hono": "^4.12.7"
+    "hono": "^4.12.25"
   },
   "devDependencies": {
     "vitest": "^3.2.4"

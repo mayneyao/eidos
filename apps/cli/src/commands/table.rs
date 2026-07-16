@@ -9,7 +9,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::client::EidosClient;
 use crate::utils::{pad_to_width, OutputFormat};
-use std::io::Read;
+use std::io::{IsTerminal, Read};
 
 /// Table management commands
 #[derive(clap::Subcommand)]
@@ -278,7 +278,7 @@ async fn import_data(
         d
     } else if let Some(f) = file {
         std::fs::read_to_string(f).context("Failed to read input file")?
-    } else if !atty::is(atty::Stream::Stdin) {
+    } else if !std::io::stdin().is_terminal() {
         let mut buffer = String::new();
         std::io::stdin()
             .read_to_string(&mut buffer)
@@ -365,7 +365,7 @@ async fn cmd_create_table(
             Some(d)
         } else if let Some(f) = file {
             Some(std::fs::read_to_string(f).context("Failed to read input file")?)
-        } else if !atty::is(atty::Stream::Stdin) {
+        } else if !std::io::stdin().is_terminal() {
             let mut buf = String::new();
             std::io::stdin()
                 .read_to_string(&mut buf)
