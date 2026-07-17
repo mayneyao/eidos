@@ -102,6 +102,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
             ),
           },
           build: {
+            reportCompressedSize: false,
             rolldownOptions: {
               plugins: [esmShim() as unknown as Plugin],
               external: [...externalNodeModules, "electron"],
@@ -128,6 +129,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
             alias: sharedAlias,
           },
           build: {
+            reportCompressedSize: false,
             rolldownOptions: {
               external: externalNodeModules,
               output: {
@@ -154,6 +156,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
           alias: sharedAlias,
         },
         build: {
+          reportCompressedSize: false,
           // Disable vite-plugin-electron's inferred ESM library build. Vite
           // concatenates library format arrays during config merge, which
           // would otherwise emit ESM and CJS to the same filename. Sandboxed
@@ -184,6 +187,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
     // Electron 40 embeds Chromium 144, so the renderer does not need Vite's
     // legacy browser transforms. This also keeps Wasm top-level await native.
     target: "chrome144",
+    reportCompressedSize: false,
     rolldownOptions: {
       external: ["electron"],
     },
