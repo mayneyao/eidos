@@ -27,6 +27,14 @@ export default defineConfig({
         directory,
         "../../packages/base-ui/src/context.tsx"
       ),
+      "@eidos.space/base-ui/base-editor-chrome": path.resolve(
+        directory,
+        "../../packages/base-ui/src/base-editor-chrome.tsx"
+      ),
+      "@eidos.space/base-ui/base-query-toolbar": path.resolve(
+        directory,
+        "../../packages/base-ui/src/base-query-toolbar.tsx"
+      ),
       "@eidos.space/base": path.resolve(
         directory,
         "../../packages/base/src/index.ts"

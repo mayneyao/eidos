@@ -878,16 +878,19 @@ select:focus-visible,
 
 .editor-shell {
   position: relative;
-  display: grid;
+  display: flex;
   width: 100%;
   height: 100%;
-  grid-template-rows: 2.375rem auto 2.25rem 2.5rem minmax(0, 1fr) 1.75rem;
+  min-height: 0;
+  flex-direction: column;
   background: var(--background);
 }
 
 .editor-titlebar {
   display: grid;
+  height: 2.375rem;
   min-width: 0;
+  flex: 0 0 auto;
   grid-template-columns: auto minmax(8rem, 1fr) auto;
   align-items: stretch;
   border-bottom: 1px solid var(--border);
@@ -951,6 +954,7 @@ select:focus-visible,
 
 .alert-slot {
   min-height: 0;
+  flex: 0 0 auto;
 }
 
 .conflict-bar {
@@ -980,99 +984,6 @@ select:focus-visible,
   border-color: color-mix(in oklch, var(--status-danger) 40%, var(--border));
   background: color-mix(in oklch, var(--status-danger) 7%, var(--background));
   color: var(--status-danger);
-}
-
-.sheet-tabs,
-.view-tabs {
-  display: flex;
-  min-width: 0;
-  align-items: stretch;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.sheet-tabs {
-  padding: 0 0.375rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-sunken);
-}
-
-.sheet-tabs::-webkit-scrollbar,
-.view-tabs::-webkit-scrollbar {
-  display: none;
-}
-
-.sheet-tabs button,
-.view-tabs button {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0 0.75rem;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: 0.75rem;
-  white-space: nowrap;
-}
-
-.sheet-tabs button:hover,
-.view-tabs button:hover {
-  background: var(--accent);
-  color: var(--foreground);
-}
-
-.sheet-tabs button.active,
-.view-tabs button.active {
-  background: var(--background);
-  color: var(--foreground);
-  font-weight: 600;
-}
-
-.sheet-tabs button.active::after,
-.view-tabs button.active::after {
-  position: absolute;
-  right: 0.5rem;
-  bottom: -1px;
-  left: 0.5rem;
-  height: 2px;
-  background: var(--foreground);
-  content: "";
-}
-
-.tab-count,
-.view-kind {
-  color: var(--muted-foreground);
-  font-size: 0.625rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.view-kind {
-  padding: 0.0625rem 0.25rem;
-  border: 1px solid var(--border);
-  text-transform: capitalize;
-}
-
-.base-workbar {
-  container: base-workbar / inline-size;
-  display: flex;
-  min-width: 0;
-  align-items: stretch;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-  background: var(--background);
-}
-
-.view-tabs {
-  flex: 1 1 auto;
-}
-
-.workbar-actions {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.375rem 0.5rem;
 }
 
 .search-field {
@@ -1175,24 +1086,6 @@ select:focus-visible,
   overflow: hidden;
 }
 
-.editor-statusbar {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 0.625rem;
-  border-top: 1px solid var(--border);
-  background: var(--shell);
-  color: var(--muted-foreground);
-  font-size: 0.625rem;
-}
-
-.editor-statusbar > div {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-}
-
 .status-separator {
   opacity: 0.55;
 }
@@ -1274,16 +1167,6 @@ select:focus-visible,
 }
 
 /* Responsive ----------------------------------------------------------- */
-
-@container base-workbar (max-width: 48rem) {
-  .search-field {
-    width: 10rem;
-  }
-
-  .workbar-actions .toolbar-button span {
-    display: none;
-  }
-}
 
 @media (max-width: 58rem) {
   .format-heading,
@@ -1477,31 +1360,6 @@ select:focus-visible,
     display: none;
   }
 
-  .base-workbar {
-    display: grid;
-    grid-template-rows: 2.25rem 2.5rem;
-  }
-
-  .view-tabs {
-    border-bottom: 1px solid var(--border);
-  }
-
-  .workbar-actions {
-    justify-content: space-between;
-  }
-
-  .search-field {
-    width: min(15rem, calc(100vw - 5rem));
-  }
-
-  .editor-shell {
-    grid-template-rows: 2.375rem auto 2.25rem auto minmax(0, 1fr) 1.75rem;
-  }
-
-  .editor-statusbar > div:last-child {
-    display: none;
-  }
-
   .unsupported-view {
     grid-template-columns: 1fr;
     align-content: center;
@@ -1514,14 +1372,8 @@ select:focus-visible,
 
 @media (pointer: coarse) {
   .icon-button,
-  .toolbar-button,
-  .sheet-tabs button,
-  .view-tabs button {
+  .toolbar-button {
     min-height: 2.75rem;
-  }
-
-  .editor-shell {
-    grid-template-rows: 2.75rem auto 2.75rem auto minmax(0, 1fr) 2rem;
   }
 }
 

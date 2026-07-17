@@ -7,7 +7,7 @@ import {
   type KeyboardEvent,
 } from "react"
 
-interface BaseTabStripItem {
+export interface BaseTabStripItem {
   id: string
 }
 

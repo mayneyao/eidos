@@ -1,4 +1,31 @@
 @layer components {
+  .eidos-shell-workbar {
+    height: var(--eidos-shell-workbar-height, 40px);
+  }
+
+  .eidos-shell-statusbar {
+    height: var(--eidos-shell-statusbar-height, 40px);
+  }
+
+  .base-workbar {
+    container-name: base-workbar;
+    container-type: inline-size;
+  }
+
+  .base-workbar-search {
+    width: 18rem;
+  }
+
+  @container base-workbar (max-width: 860px) {
+    .base-workbar-search {
+      width: 12rem;
+    }
+
+    .base-workbar-action-label {
+      display: none;
+    }
+  }
+
   .base-detail-layout {
     position: relative;
     container-name: base-detail-layout;

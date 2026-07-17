@@ -117,7 +117,7 @@ async function openDirectBase(page: Page): Promise<void> {
     "Ship Base Web Editor"
   )
   await expect(
-    page.getByRole("tab", { name: /Projects\s*2,500/ })
+    page.getByRole("tab", { name: "Projects", exact: true })
   ).toBeVisible()
 }
 
@@ -156,7 +156,7 @@ test.describe("Chromium original-file editing", () => {
   }) => {
     await installDirectPicker(page, { fileName: "direct-save.base" })
     await openDirectBase(page)
-    await expect(page.locator(".editor-statusbar")).toContainText(
+    await expect(page.locator("[data-base-sheet-tabs]")).toContainText(
       "Original file"
     )
 
@@ -259,7 +259,9 @@ test("fallback imports a copy, downloads it, and reopens the edit", async ({
   await page.goto("/")
   await expect(page.getByText(/imports a private working copy/)).toBeVisible()
   await page.locator("input[type=file]").setInputFiles(fixturePath)
-  await expect(page.getByText("Imported copy", { exact: true })).toBeVisible()
+  await expect(
+    page.locator("header").getByText("Imported copy", { exact: true })
+  ).toBeVisible()
   await toggleFirstComplete(page)
 
   const downloadPromise = page.waitForEvent("download")
@@ -292,9 +294,11 @@ test("opens the bundled sample without a picker", async ({ page }) => {
     "Ship Base Web Editor"
   )
   await expect(
-    page.getByRole("tab", { name: /Projects\s*2,500/ })
+    page.getByRole("tab", { name: "Projects", exact: true })
   ).toBeVisible()
-  await expect(page.locator(".editor-statusbar")).toContainText("Imported copy")
+  await expect(page.locator("[data-base-sheet-tabs]")).toContainText(
+    "Imported copy"
+  )
 })
 
 test("switches the live Base experience between English and Chinese", async ({
@@ -323,7 +327,11 @@ test("switches the live Base experience between English and Chinese", async ({
   ).toHaveText("true")
 
   await page.getByRole("button", { name: "打开完整编辑器" }).click()
-  await expect(page.locator(".editor-statusbar")).toContainText("导入的副本")
+  await expect(page.locator("[data-base-sheet-tabs]")).toContainText(
+    "导入的副本"
+  )
   await page.getByRole("button", { name: "Switch to English" }).click()
-  await expect(page.locator(".editor-statusbar")).toContainText("Imported copy")
+  await expect(page.locator("[data-base-sheet-tabs]")).toContainText(
+    "Imported copy"
+  )
 })

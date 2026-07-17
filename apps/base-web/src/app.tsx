@@ -12,7 +12,16 @@ import type {
   BaseRowMutationResult,
   BaseSnapshot,
   CreateBaseFieldInput,
+  UpdateBaseViewInput,
 } from "@eidos.space/base"
+import {
+  BaseEditorContent,
+  BaseEditorRoot,
+  BaseEditorWorkbar,
+  BaseSheetTabStrip,
+  BaseViewTabStrip,
+} from "@eidos.space/base-ui/base-editor-chrome"
+import { BaseQueryToolbar } from "@eidos.space/base-ui/base-query-toolbar"
 import {
   AlertTriangle,
   Check,
@@ -27,7 +36,6 @@ import {
   Plus,
   RotateCcw,
   Save,
-  Search,
   ShieldCheck,
   Sun,
   X,
@@ -636,6 +644,19 @@ export function App() {
     [activeTable, markCommitted]
   )
 
+  const updateActiveView = useCallback(
+    async (changes: UpdateBaseViewInput) => {
+      const client = clientRef.current
+      if (!client || !activeView) return
+      try {
+        onStructureSnapshot(await client.updateView(activeView.id, changes))
+      } catch (error) {
+        setNotice(errorMessage(error))
+      }
+    },
+    [activeView, onStructureSnapshot]
+  )
+
   const addProperty = useCallback(
     async (name: string, type: CreateBaseFieldInput["type"]) => {
       const client = clientRef.current
@@ -1074,147 +1095,117 @@ export function App() {
         ) : null}
       </div>
 
-      <nav className="sheet-tabs" aria-label="Base sheets" role="tablist">
-        {snapshot.tables.map((table) => (
-          <button
-            type="button"
-            role="tab"
-            aria-selected={table.table.id === activeTable.table.id}
-            className={table.table.id === activeTable.table.id ? "active" : ""}
-            key={table.table.id}
-            onClick={() => {
-              setActiveTableId(table.table.id)
-              setPropertyField(null)
-            }}
-          >
-            {table.table.icon ? (
-              <span aria-hidden="true">{table.table.icon}</span>
-            ) : null}
-            {table.table.name}
-            <span className="tab-count">{table.rowCount.toLocaleString()}</span>
-          </button>
-        ))}
-      </nav>
-
-      <div className="base-workbar">
-        <nav className="view-tabs" aria-label="Base views" role="tablist">
-          {activeTable.views.map((view) => (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view.id === activeView?.id}
-              className={view.id === activeView?.id ? "active" : ""}
-              key={view.id}
-              onClick={() =>
-                setActiveViews((current) => ({
-                  ...current,
-                  [activeTable.table.id]: view.id,
-                }))
-              }
-            >
-              {view.name}
-              {view.type !== "grid" ? (
-                <span className="view-kind">{view.type}</span>
-              ) : null}
-            </button>
-          ))}
-        </nav>
-        <div className="workbar-actions">
-          <label className="search-field">
-            <Search size={14} aria-hidden="true" />
-            <span className="visually-hidden">{t("searchRecords")}</span>
-            <input
-              value={search}
-              placeholder={t("searchRecords")}
-              onChange={(event) => setSearch(event.target.value)}
+      <BaseEditorRoot className="min-h-0 flex-1 !h-auto">
+        <BaseEditorWorkbar>
+          <BaseViewTabStrip
+            views={activeTable.views}
+            activeViewId={activeView?.id}
+            disabled={saveState.phase === "saving"}
+            onSelect={(viewId) =>
+              setActiveViews((current) => ({
+                ...current,
+                [activeTable.table.id]: viewId,
+              }))
+            }
+          />
+          <div className="base-workbar-actions flex h-9 min-w-0 shrink-0 items-center gap-1 pl-2">
+            <BaseQueryToolbar
+              fields={activeTable.fields}
+              filter={activeView?.filter ?? null}
+              sorts={activeView?.sorts ?? []}
+              search={search}
+              disabled={saveState.phase === "saving"}
+              onSearchChange={setSearch}
+              onFilterChange={(filter) => updateActiveView({ filter })}
+              onSortsChange={(sorts) => updateActiveView({ sorts })}
             />
-            {search ? (
+            <div className="add-property-wrap">
               <button
+                className="base-workbar-action inline-flex h-7 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 type="button"
-                aria-label={t("clearSearch")}
-                onClick={() => setSearch("")}
+                onClick={() => setAddPropertyOpen((open) => !open)}
               >
-                <X size={13} />
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="base-workbar-action-label">
+                  {t("property")}
+                </span>
               </button>
-            ) : null}
-          </label>
-          <div className="add-property-wrap">
-            <button
-              className="toolbar-button"
-              type="button"
-              onClick={() => setAddPropertyOpen((open) => !open)}
-            >
-              <Plus size={14} aria-hidden="true" />
-              <span>{t("property")}</span>
-            </button>
-            {addPropertyOpen ? (
-              <AddPropertyPopover
-                onClose={() => setAddPropertyOpen(false)}
-                onAdd={addProperty}
-              />
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      <section className="base-content" id="base-grid">
-        {activeView?.type && activeView.type !== "grid" ? (
-          <div className="unsupported-view">
-            <span className="unsupported-index">{activeView.type}</span>
-            <div>
-              <p className="eyebrow">{t("viewPreserved")}</p>
-              <h2>{t("viewRemains", { view: activeView.name })}</h2>
-              <p>{t("viewUnavailableBody")}</p>
+              {addPropertyOpen ? (
+                <AddPropertyPopover
+                  onClose={() => setAddPropertyOpen(false)}
+                  onAdd={addProperty}
+                />
+              ) : null}
             </div>
           </div>
-        ) : (
-          <SharedBaseEditorGrid
-            key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
-            theme={theme}
-            source={clientRef.current!}
-            table={activeTable}
-            view={activeView}
-            search={search}
-            disabled={saveState.phase === "saving"}
-            propertyField={propertyField}
-            onMutation={onRowMutation}
-            onSnapshot={onStructureSnapshot}
-            onFieldOpen={setPropertyField}
-            onFieldClose={() => setPropertyField(null)}
-            onFieldAdd={() => setAddPropertyOpen(true)}
-            onError={(error) => setNotice(errorMessage(error))}
-          />
-        )}
-      </section>
+        </BaseEditorWorkbar>
 
-      <footer className="editor-statusbar">
-        <div>
-          {session.mode === "direct" ? (
-            <>
-              <FileKey size={13} aria-hidden="true" /> {t("originalFile")}
-            </>
+        <BaseEditorContent className="base-content" id="base-grid">
+          {activeView?.type && activeView.type !== "grid" ? (
+            <div className="unsupported-view">
+              <span className="unsupported-index">{activeView.type}</span>
+              <div>
+                <p className="eyebrow">{t("viewPreserved")}</p>
+                <h2>{t("viewRemains", { view: activeView.name })}</h2>
+                <p>{t("viewUnavailableBody")}</p>
+              </div>
+            </div>
           ) : (
-            <>
-              <CloudOff size={13} aria-hidden="true" /> {t("editorImported")}
-            </>
+            <SharedBaseEditorGrid
+              key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
+              theme={theme}
+              source={clientRef.current!}
+              table={activeTable}
+              view={activeView}
+              search={search}
+              disabled={saveState.phase === "saving"}
+              propertyField={propertyField}
+              onMutation={onRowMutation}
+              onSnapshot={onStructureSnapshot}
+              onFieldOpen={setPropertyField}
+              onFieldClose={() => setPropertyField(null)}
+              onFieldAdd={() => setAddPropertyOpen(true)}
+              onError={(error) => setNotice(errorMessage(error))}
+            />
           )}
-          <span className="status-separator" aria-hidden="true">
-            /
-          </span>
-          <span>
-            {session.storage === "opfs-sahpool"
-              ? t("recoveryOn")
-              : t("memoryOnly")}
-          </span>
-        </div>
-        <div>
-          <span>SQLite {snapshot.metadata.schemaVersion}</span>
-          <span className="status-separator" aria-hidden="true">
-            /
-          </span>
-          <span>{t("allLocal")}</span>
-        </div>
-      </footer>
+        </BaseEditorContent>
+
+        <BaseSheetTabStrip
+          tables={snapshot.tables.map((table) => table.table)}
+          activeTableId={activeTable.table.id}
+          disabled={saveState.phase === "saving"}
+          onSelect={(tableId) => {
+            setActiveTableId(tableId)
+            setPropertyField(null)
+          }}
+          status={
+            <span className="flex items-center gap-1.5">
+              <StatusIcon
+                className={saveState.phase === "saving" ? "spin" : ""}
+                size={13}
+                aria-hidden="true"
+              />
+              <span>{status.label}</span>
+              {session.mode === "copy" && saveState.phase === "clean" ? null : (
+                <>
+                  <span className="status-separator" aria-hidden="true">
+                    /
+                  </span>
+                  <span>
+                    {session.mode === "direct"
+                      ? t("originalFile")
+                      : t("editorImported")}
+                  </span>
+                </>
+              )}
+              <span className="status-separator" aria-hidden="true">
+                /
+              </span>
+              <span>SQLite {snapshot.metadata.schemaVersion}</span>
+            </span>
+          }
+        />
+      </BaseEditorRoot>
 
       {notice ? (
         <div className="toast" role="alert">

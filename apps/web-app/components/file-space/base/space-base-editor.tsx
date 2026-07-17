@@ -16,6 +16,11 @@ import type {
   BaseSqlPrimitive,
   UpdateBaseFieldInput,
 } from "@eidos.space/base"
+import {
+  BaseEditorContent,
+  BaseEditorRoot,
+  BaseEditorWorkbar,
+} from "@eidos.space/base-ui/base-editor-chrome"
 import { uniqueSpaceEntryName } from "@eidos.space/file-space/names"
 import {
   AlertTriangle,
@@ -1838,14 +1843,8 @@ export function SpaceBaseEditor({
   }
 
   return (
-    <div
-      ref={editorRef}
-      className="relative flex h-full min-h-0 flex-col bg-background"
-    >
-      <div
-        data-base-workbar
-        className="base-workbar eidos-shell-workbar flex shrink-0 items-end border-b bg-muted/15 px-2"
-      >
+    <BaseEditorRoot ref={editorRef}>
+      <BaseEditorWorkbar>
         {activeTable ? (
           <BaseViewTabs
             views={activeTable.views}
@@ -1997,7 +1996,7 @@ export function SpaceBaseEditor({
             />
           </Button>
         </div>
-      </div>
+      </BaseEditorWorkbar>
 
       {error ? (
         <div
@@ -2038,7 +2037,7 @@ export function SpaceBaseEditor({
           }
         />
       ) : (
-        <div className="relative min-h-0 flex-1">
+        <BaseEditorContent>
           {activeView &&
           activeExtensionContributionId &&
           activeExtensionView &&
@@ -2242,7 +2241,7 @@ export function SpaceBaseEditor({
               </div>
             </div>
           ) : null}
-        </div>
+        </BaseEditorContent>
       )}
 
       <BaseSheetTabs
@@ -2409,6 +2408,6 @@ export function SpaceBaseEditor({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </BaseEditorRoot>
   )
 }

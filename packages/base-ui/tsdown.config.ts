@@ -1,7 +1,13 @@
 import { defineConfig } from "tsdown"
 
 export default defineConfig({
-  entry: ["src/index.ts", "src/base-data-grid.tsx", "src/context.tsx"],
+  entry: [
+    "src/index.ts",
+    "src/base-data-grid.tsx",
+    "src/base-editor-chrome.tsx",
+    "src/base-query-toolbar.tsx",
+    "src/context.tsx",
+  ],
   format: "esm",
   dts: true,
   sourcemap: true,

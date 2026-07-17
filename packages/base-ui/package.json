@@ -22,6 +22,16 @@
       "import": "./dist/context.mjs",
       "default": "./dist/context.mjs"
     },
+    "./base-editor-chrome": {
+      "types": "./dist/base-editor-chrome.d.mts",
+      "import": "./dist/base-editor-chrome.mjs",
+      "default": "./dist/base-editor-chrome.mjs"
+    },
+    "./base-query-toolbar": {
+      "types": "./dist/base-query-toolbar.d.mts",
+      "import": "./dist/base-query-toolbar.mjs",
+      "default": "./dist/base-query-toolbar.mjs"
+    },
     "./styles.css": "./src/styles.css"
   },
   "files": [

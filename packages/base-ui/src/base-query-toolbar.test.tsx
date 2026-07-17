@@ -69,7 +69,7 @@ function button(label: string) {
     .at(-1)
 }
 
-describe("BaseQueryToolbar", () => {
+describe("shared BaseQueryToolbar", () => {
   let container: HTMLDivElement
   let root: Root
   const onSearchChange = vi.fn()
