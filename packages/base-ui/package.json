@@ -154,7 +154,7 @@
     "@types/react": "^18.2.14",
     "@types/react-dom": "^18.2.6",
     "jsdom": "^26.1.0",
-    "marked": "^4.3.0",
+    "marked": "^5.1.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsdown": "^0.21.7",

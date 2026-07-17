@@ -1277,7 +1277,7 @@ importers:
     devDependencies:
       '@glideapps/glide-data-grid':
         specifier: ^6.0.0
-        version: 6.0.3(lodash@4.18.1)(marked@4.3.0)(react-dom@18.3.1(react@18.3.1))(react-responsive-carousel@3.2.23)(react@18.3.1)
+        version: 6.0.3(lodash@4.18.1)(marked@5.1.2)(react-dom@18.3.1(react@18.3.1))(react-responsive-carousel@3.2.23)(react@18.3.1)
       '@types/react':
         specifier: ^18.2.14
         version: 18.3.23
@@ -1288,8 +1288,8 @@ importers:
         specifier: ^26.1.0
         version: 26.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
       marked:
-        specifier: ^4.3.0
-        version: 4.3.0
+        specifier: ^5.1.1
+        version: 5.1.2
       react:
         specifier: ^18.2.0
         version: 18.3.1
