@@ -1843,7 +1843,8 @@
   }
 
   .live-demo-section.live-demo-embedded {
-    min-height: 38rem;
+    height: min(38rem, 70svh);
+    min-height: 28rem;
   }
 }
 
@@ -1893,7 +1894,8 @@
   }
 
   .live-demo-section.live-demo-embedded {
-    min-height: 34rem;
+    height: clamp(24rem, 65svh, 32rem);
+    min-height: 24rem;
   }
 
   .live-demo-embedded .live-demo-frame {

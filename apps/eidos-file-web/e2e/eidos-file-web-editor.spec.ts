@@ -451,6 +451,64 @@ test("opens the bundled sample without a picker", async ({ page }) => {
   ).toBeVisible()
 })
 
+test("keeps the landing-page live demo bounded in a narrow window", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the shared responsive landing-page grid"
+  )
+  await page.setViewportSize({ width: 600, height: 900 })
+  await installFallbackMode(page)
+  await page.goto("/")
+
+  await page
+    .locator(".live-demo-grid [data-testid='glide-cell-1-0']")
+    .waitFor({ state: "attached" })
+
+  const demoGeometry = await page.evaluate(() => {
+    const workbench = document
+      .querySelector(".launch-workbench")
+      ?.getBoundingClientRect()
+    const demo = document
+      .querySelector(".live-demo-embedded")
+      ?.getBoundingClientRect()
+    const grid = document
+      .querySelector(".live-demo-grid")
+      ?.getBoundingClientRect()
+    const scroller = document.querySelector<HTMLElement>(
+      ".live-demo-grid .dvn-scroller"
+    )
+    return {
+      demo: demo?.toJSON(),
+      documentHeight: document.documentElement.scrollHeight,
+      grid: grid?.toJSON(),
+      pageOverflow:
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+      scroller: scroller
+        ? {
+            clientHeight: scroller.clientHeight,
+            scrollHeight: scroller.scrollHeight,
+          }
+        : null,
+      workbench: workbench?.toJSON(),
+    }
+  })
+
+  expect(demoGeometry.pageOverflow).toBe(0)
+  expect(demoGeometry.demo?.height).toBeLessThanOrEqual(512)
+  expect(demoGeometry.demo?.height).toBeGreaterThanOrEqual(384)
+  expect(demoGeometry.grid?.height).toBeLessThan(450)
+  expect(demoGeometry.workbench?.height).toBeLessThan(1_500)
+  expect(demoGeometry.documentHeight).toBeLessThan(10_000)
+  expect(demoGeometry.scroller?.clientHeight).toBeLessThan(500)
+  expect(demoGeometry.scroller?.scrollHeight).toBeGreaterThan(
+    demoGeometry.scroller?.clientHeight ?? 0
+  )
+})
+
 test("keeps navigation and editor controls usable on a phone", async ({
   page,
   browserName,
