@@ -1,8 +1,10 @@
 import type {
   BaseFieldPlacement,
   BaseRow,
+  BaseRowGroupCount,
   BaseRowMutationResult,
   BaseRowPage,
+  BaseRowPageProjection,
   BaseRowQuery,
   BaseSnapshot,
   CreateBaseFieldInput,
@@ -21,8 +23,18 @@ export interface BaseEditorDataSource {
     offset: number,
     limit: number,
     query: BaseRowQuery,
-    totalHint?: number
+    totalHint?: number,
+    cursor?: string,
+    projection?: BaseRowPageProjection
   ): Promise<BaseRowPage>
+  /** Fetches the complete record used by card inspectors. */
+  getRow?(tableId: string, rowId: string): Promise<BaseRow | null>
+  /** Server-side/runtime grouping used by Kanban; hosts must not reimplement it in React. */
+  getGroupCounts?(
+    tableId: string,
+    columnName: string,
+    query: BaseRowQuery
+  ): Promise<BaseRowGroupCount[]>
   insertRow(tableId: string, row: BaseRow): Promise<BaseRowMutationResult>
   updateRow(
     tableId: string,

@@ -444,6 +444,52 @@ test("opens the bundled sample without a picker", async ({ page }) => {
   )
 })
 
+test("uses the shared Gallery and Kanban renderers for the sample", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the shared card views and worker mutation path"
+  )
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.getByRole("button", { name: "Open sample Base" }).click()
+
+  await page.getByRole("tab", { name: "Project cards" }).click()
+  const gallery = page.locator("[data-base-gallery-scroll]")
+  await expect(gallery).toBeVisible()
+  const firstCard = gallery.locator('[data-base-row-id="project_00001"]')
+  await expect(firstCard).toContainText("Ship Base Web Editor")
+  await firstCard.locator("h3").click()
+
+  const inspector = page.locator('[data-base-detail-panel="record"]')
+  await expect(inspector).toBeVisible()
+  const title = inspector.getByRole("textbox", { name: "Title" })
+  await title.fill("Ship Base Web Editor — verified")
+  await title.press("Control+Enter")
+  await expect(page.locator(".save-status")).toContainText(/browser|Unsaved/)
+  await page.getByRole("button", { name: "Close record details" }).click()
+  await expect(firstCard).toContainText("verified")
+
+  await page.getByRole("tab", { name: "By status" }).click()
+  const kanban = page.locator("[data-base-kanban-scroll]")
+  await expect(kanban).toBeVisible()
+  const backlog = page.getByRole("region", { name: /Backlog, \d+ records/ })
+  await expect(backlog).toBeVisible()
+  const backlogCount = Number(
+    (await backlog.getAttribute("aria-label"))?.match(/\d+/)?.[0] ?? "0"
+  )
+  await backlog.getByRole("button", { name: "Add record" }).click()
+  const recordTitle = backlog.getByPlaceholder("Record title")
+  await recordTitle.fill("Browser-created project")
+  await recordTitle.press("Enter")
+  await expect(backlog).toHaveAttribute(
+    "aria-label",
+    `Backlog, ${backlogCount + 1} records`
+  )
+})
+
 test("does not reserve a blank scrollbar row when columns fit", async ({
   page,
   browserName,

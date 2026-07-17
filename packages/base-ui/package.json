@@ -17,6 +17,71 @@
       "import": "./dist/base-data-grid.mjs",
       "default": "./dist/base-data-grid.mjs"
     },
+    "./base-editor-view": {
+      "types": "./dist/base-editor-view.d.mts",
+      "import": "./dist/base-editor-view.mjs",
+      "default": "./dist/base-editor-view.mjs"
+    },
+    "./base-gallery-view": {
+      "types": "./dist/base-gallery-view.d.mts",
+      "import": "./dist/base-gallery-view.mjs",
+      "default": "./dist/base-gallery-view.mjs"
+    },
+    "./base-kanban-view": {
+      "types": "./dist/base-kanban-view.d.mts",
+      "import": "./dist/base-kanban-view.mjs",
+      "default": "./dist/base-kanban-view.mjs"
+    },
+    "./base-record-card": {
+      "types": "./dist/base-record-card.d.mts",
+      "import": "./dist/base-record-card.mjs",
+      "default": "./dist/base-record-card.mjs"
+    },
+    "./base-record-card-layout": {
+      "types": "./dist/base-record-card-layout.d.mts",
+      "import": "./dist/base-record-card-layout.mjs",
+      "default": "./dist/base-record-card-layout.mjs"
+    },
+    "./base-record-delete-dialog": {
+      "types": "./dist/base-record-delete-dialog.d.mts",
+      "import": "./dist/base-record-delete-dialog.mjs",
+      "default": "./dist/base-record-delete-dialog.mjs"
+    },
+    "./base-row-window": {
+      "types": "./dist/base-row-window.d.mts",
+      "import": "./dist/base-row-window.mjs",
+      "default": "./dist/base-row-window.mjs"
+    },
+    "./base-virtual-scroll": {
+      "types": "./dist/base-virtual-scroll.d.mts",
+      "import": "./dist/base-virtual-scroll.mjs",
+      "default": "./dist/base-virtual-scroll.mjs"
+    },
+    "./base-error-message": {
+      "types": "./dist/base-error-message.d.mts",
+      "import": "./dist/base-error-message.mjs",
+      "default": "./dist/base-error-message.mjs"
+    },
+    "./use-base-record-inspector-row": {
+      "types": "./dist/use-base-record-inspector-row.d.mts",
+      "import": "./dist/use-base-record-inspector-row.mjs",
+      "default": "./dist/use-base-record-inspector-row.mjs"
+    },
+    "./ui/alert-dialog": {
+      "types": "./dist/ui/alert-dialog.d.mts",
+      "import": "./dist/ui/alert-dialog.mjs",
+      "default": "./dist/ui/alert-dialog.mjs"
+    },
+    "./ui/dropdown-menu": {
+      "types": "./dist/ui/dropdown-menu.d.mts",
+      "import": "./dist/ui/dropdown-menu.mjs",
+      "default": "./dist/ui/dropdown-menu.mjs"
+    },
+    "./ui/kanban": {
+      "types": "./dist/ui/kanban.d.mts",
+      "import": "./dist/ui/kanban.mjs",
+      "default": "./dist/ui/kanban.mjs"
+    },
     "./context": {
       "types": "./dist/context.d.mts",
       "import": "./dist/context.mjs",
@@ -69,6 +134,8 @@
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "dependencies": {
+    "@radix-ui/react-icons": "^1.3.0",
+    "@tanstack/react-virtual": "^3.13.12",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",

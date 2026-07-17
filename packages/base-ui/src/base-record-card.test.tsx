@@ -7,12 +7,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BaseRecordCard } from "./base-record-card"
 
-const themeMocks = vi.hoisted(() => ({
-  useTheme: vi.fn(() => ({ resolvedTheme: "light" })),
+const baseUiMocks = vi.hoisted(() => ({
+  useBaseUI: vi.fn(() => ({
+    themeName: "light" as const,
+    resolveAssetUrl: (path: string) =>
+      `/~/${path.split("/").map(encodeURIComponent).join("/")}`,
+    resolveFilePreview: (path: string) => path,
+  })),
 }))
 
-vi.mock("@/components/theme-provider", () => ({
-  useTheme: themeMocks.useTheme,
+vi.mock("./context", () => ({
+  useBaseUI: baseUiMocks.useBaseUI,
 }))
 
 ;(
@@ -79,11 +84,9 @@ const view: BaseViewInfo = {
 describe("BaseRecordCard", () => {
   let container: HTMLDivElement
   let root: Root
-  let originalEidosDescriptor: PropertyDescriptor | undefined
 
   beforeEach(() => {
-    themeMocks.useTheme.mockClear()
-    originalEidosDescriptor = Object.getOwnPropertyDescriptor(window, "eidos")
+    baseUiMocks.useBaseUI.mockClear()
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -92,11 +95,6 @@ describe("BaseRecordCard", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
-    if (originalEidosDescriptor) {
-      Object.defineProperty(window, "eidos", originalEidosDescriptor)
-    } else {
-      Reflect.deleteProperty(window, "eidos")
-    }
   })
 
   it("streams a local File field through the Space asset route", async () => {
@@ -419,7 +417,7 @@ describe("BaseRecordCard", () => {
         />
       )
     })
-    expect(themeMocks.useTheme).toHaveBeenCalledTimes(1)
+    expect(baseUiMocks.useBaseUI).toHaveBeenCalledTimes(1)
 
     act(() => {
       root.render(
@@ -431,7 +429,7 @@ describe("BaseRecordCard", () => {
         />
       )
     })
-    expect(themeMocks.useTheme).toHaveBeenCalledTimes(1)
+    expect(baseUiMocks.useBaseUI).toHaveBeenCalledTimes(1)
 
     act(() => {
       root.render(
@@ -443,32 +441,11 @@ describe("BaseRecordCard", () => {
         />
       )
     })
-    expect(themeMocks.useTheme).toHaveBeenCalledTimes(2)
+    expect(baseUiMocks.useBaseUI).toHaveBeenCalledTimes(2)
   })
 
-  it("registers a large native move submenu without mounting every item", async () => {
-    const showNativeMenu = vi.fn(
-      async (_menu: unknown[], _position?: unknown) => undefined
-    )
-    let nativeClickHandler:
-      | ((event: unknown, itemId: string) => void)
-      | undefined
-    Object.defineProperty(window, "eidos", {
-      configurable: true,
-      value: {
-        showNativeMenu,
-        on: vi.fn(
-          (
-            channel: string,
-            handler: (event: unknown, itemId: string) => void
-          ) => {
-            if (channel === "native-menu-click") nativeClickHandler = handler
-          }
-        ),
-      },
-    })
+  it("keeps a large portable move menu unmounted until requested", async () => {
     const row = { _id: "row_1", title: "Write RFC", cover: null }
-    const onMove = vi.fn()
     let labelReads = 0
     const moveOptions = Array.from({ length: 200 }, (_, index) => {
       const option = { id: `status_${index}`, label: "" }
@@ -490,7 +467,7 @@ describe("BaseRecordCard", () => {
           view={{ ...view, properties: null }}
           moveOptions={moveOptions}
           disabledMoveOptionId="status_0"
-          onMove={onMove}
+          onMove={vi.fn()}
           onOpen={vi.fn()}
         />
       )
@@ -501,33 +478,14 @@ describe("BaseRecordCard", () => {
     expect(labelReads).toBe(0)
     await act(async () => {
       container
-        .querySelector<HTMLElement>('[data-base-row-id="row_1"]')
+        .querySelector<HTMLElement>('[aria-label="More actions for Write RFC"]')
         ?.dispatchEvent(
-          new MouseEvent("contextmenu", {
-            bubbles: true,
-            clientX: 24,
-            clientY: 36,
-          })
+          new MouseEvent("pointerdown", { bubbles: true, button: 0 })
         )
       await Promise.resolve()
     })
 
-    const menu = showNativeMenu.mock.calls[0]?.[0] as Array<{
-      type: string
-      label?: string
-      submenu?: Array<{ enabled?: boolean; id?: string; label: string }>
-    }>
-    const moveSubmenu = menu.find(
-      (item) => item.type === "submenu" && item.label === "Move to"
-    )
-    expect(moveSubmenu?.submenu).toHaveLength(200)
-    expect(labelReads).toBe(200)
-    expect(moveSubmenu?.submenu?.[0]?.enabled).toBe(false)
-    expect(moveSubmenu?.submenu?.[1]?.enabled).toBe(true)
-    const targetItem = moveSubmenu?.submenu?.[143]
-    expect(targetItem?.label).toBe("Status 143")
-
-    act(() => nativeClickHandler?.({}, targetItem?.id ?? ""))
-    expect(onMove).toHaveBeenCalledWith(row, "status_143")
+    expect(document.body.textContent).toContain("Move to")
+    expect(labelReads).toBe(0)
   })
 })

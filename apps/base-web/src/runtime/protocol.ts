@@ -1,8 +1,10 @@
 import type {
   BaseFieldPlacement,
   BaseRow,
+  BaseRowGroupCount,
   BaseRowMutationResult,
   BaseRowPage,
+  BaseRowPageProjection,
   BaseRowQuery,
   BaseSnapshot,
   CreateBaseFieldInput,
@@ -41,6 +43,15 @@ export type BaseWorkerAction =
       limit: number
       query: BaseRowQuery
       totalHint?: number
+      cursor?: string
+      projection?: BaseRowPageProjection
+    }
+  | { type: "row"; tableId: string; rowId: string }
+  | {
+      type: "group-counts"
+      tableId: string
+      columnName: string
+      query: BaseRowQuery
     }
   | { type: "insert-row"; tableId: string; row: BaseRow }
   | {
@@ -75,8 +86,11 @@ export type BaseWorkerResult =
   | BaseWorkerOpenResult
   | BaseWorkerExportResult
   | BaseSnapshot
+  | BaseRow
+  | BaseRowGroupCount[]
   | BaseRowPage
   | BaseRowMutationResult
+  | null
   | { discarded: true }
   | { closed: true }
 

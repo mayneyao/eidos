@@ -140,6 +140,10 @@ export default defineConfig({
         directory,
         "../../packages/base-ui/src/base-data-grid.tsx"
       ),
+      "@eidos.space/base-ui/base-editor-view": path.resolve(
+        directory,
+        "../../packages/base-ui/src/base-editor-view.tsx"
+      ),
       "@eidos.space/base-ui/context": path.resolve(
         directory,
         "../../packages/base-ui/src/context.tsx"

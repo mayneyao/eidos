@@ -42,7 +42,7 @@ vi.mock("@/components/theme-provider", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
 }))
 
-vi.mock("@/components/ui/kibo-ui/kanban", () => ({
+vi.mock("./ui/kanban", () => ({
   KanbanProvider: ({
     children,
     onDragEnd,

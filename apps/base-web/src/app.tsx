@@ -43,7 +43,7 @@ import {
 } from "lucide-react"
 
 import { LiveBaseDemo } from "./components/live-base-demo"
-import { SharedBaseEditorGrid } from "./components/shared-base-editor-grid"
+import { SharedBaseEditorView } from "./components/shared-base-editor-view"
 import {
   deleteRecoverySession,
   getLatestRecoverySession,
@@ -1159,33 +1159,22 @@ export function App() {
         </BaseEditorWorkbar>
 
         <BaseEditorContent className="base-content" id="base-grid">
-          {activeView?.type && activeView.type !== "grid" ? (
-            <div className="unsupported-view">
-              <span className="unsupported-index">{activeView.type}</span>
-              <div>
-                <p className="eyebrow">{t("viewPreserved")}</p>
-                <h2>{t("viewRemains", { view: activeView.name })}</h2>
-                <p>{t("viewUnavailableBody")}</p>
-              </div>
-            </div>
-          ) : (
-            <SharedBaseEditorGrid
-              key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
-              theme={theme}
-              source={clientRef.current!}
-              table={activeTable}
-              view={activeView}
-              search={search}
-              disabled={saveState.phase === "saving"}
-              propertyField={propertyField}
-              onMutation={onRowMutation}
-              onSnapshot={onStructureSnapshot}
-              onFieldOpen={setPropertyField}
-              onFieldClose={() => setPropertyField(null)}
-              onFieldAdd={() => setAddPropertyOpen(true)}
-              onError={(error) => setNotice(errorMessage(error))}
-            />
-          )}
+          <SharedBaseEditorView
+            key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
+            theme={theme}
+            source={clientRef.current!}
+            table={activeTable}
+            view={activeView}
+            search={search}
+            disabled={saveState.phase === "saving"}
+            propertyField={propertyField}
+            onMutation={onRowMutation}
+            onSnapshot={onStructureSnapshot}
+            onFieldOpen={setPropertyField}
+            onFieldClose={() => setPropertyField(null)}
+            onFieldAdd={() => setAddPropertyOpen(true)}
+            onError={(error) => setNotice(errorMessage(error))}
+          />
         </BaseEditorContent>
 
         <BaseSheetTabStrip

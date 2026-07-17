@@ -21,6 +21,10 @@ import {
   BaseEditorRoot,
   BaseEditorWorkbar,
 } from "@eidos.space/base-ui/base-editor-chrome"
+import { BaseUIProvider } from "@eidos.space/base-ui/context"
+import { BaseGalleryView } from "@eidos.space/base-ui/base-gallery-view"
+import { BaseKanbanView } from "@eidos.space/base-ui/base-kanban-view"
+import { baseRecordCardPageProjection } from "@eidos.space/base-ui/base-record-card-layout"
 import { uniqueSpaceEntryName } from "@eidos.space/file-space/names"
 import {
   AlertTriangle,
@@ -38,6 +42,7 @@ import { useOptionalTabContext } from "@/apps/web-app/components/tab-manager/tab
 import {
   isSameOrDescendant,
   type SpaceBaseRecordTarget,
+  toSpaceAssetUrl,
   toSpaceBaseRecordUrl,
   toSpaceFileUrl,
 } from "@/apps/web-app/components/file-space/file-path"
@@ -49,6 +54,7 @@ import {
   useSpaceFiles,
 } from "@/apps/web-app/hooks/use-space-files"
 import { Button } from "@/components/ui/button"
+import { useTheme } from "@/components/theme-provider"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useQuickOpenStore } from "@/apps/web-app/store/quick-open-store"
 import { useFileSpaceSettings } from "@/apps/web-app/store/file-space-settings"
@@ -65,7 +71,6 @@ import {
 } from "@/components/ui/alert-dialog"
 
 import { BaseGrid } from "./base-grid"
-import { BaseGalleryView } from "./base-gallery-view"
 import { BaseCsvImportPopover } from "./base-csv-import-popover"
 import { BaseCsvExportPopover } from "./base-csv-export-popover"
 import {
@@ -81,12 +86,10 @@ import {
 } from "./base-field-visibility"
 import { BaseFieldPropertyPanel } from "./base-field-property-panel"
 import { baseAssetDirectory } from "./base-file-settings"
-import { BaseKanbanView } from "./base-kanban-view"
 import { baseOpenErrorPresentation } from "./base-open-error"
 import { BaseFormulaEditor } from "./base-formula-editor"
 import { BaseLookupEditor } from "./base-lookup-editor"
 import { BaseQueryToolbar } from "./base-query-toolbar"
-import { baseRecordCardPageProjection } from "./base-record-card-layout"
 import { BaseRecordPage, BaseRecordUnavailable } from "./base-record-page"
 import { baseRecordTitle } from "./base-record-format"
 import { BaseRenameDialog } from "./base-rename-dialog"
@@ -193,6 +196,7 @@ export function SpaceBaseEditor({
   filePath,
   recordTarget,
 }: SpaceBaseEditorProps) {
+  const { resolvedTheme } = useTheme()
   const recordTableId = recordTarget?.tableId
   const recordId = recordTarget?.recordId
   const recordMode = Boolean(recordTableId && recordId)
@@ -1843,571 +1847,580 @@ export function SpaceBaseEditor({
   }
 
   return (
-    <BaseEditorRoot ref={editorRef}>
-      <BaseEditorWorkbar>
-        {activeTable ? (
-          <BaseViewTabs
-            views={activeTable.views}
-            extensionViews={extensionBaseViews}
-            fields={activeTable.fields}
-            activeView={activeView}
-            disabled={blockingMutations > 0}
-            onSelect={selectActiveView}
-            onCreate={createViewInBase}
-            onRename={renameViewInBase}
-            onDuplicate={duplicateViewInBase}
-            onDelete={deleteViewInBase}
-            onReorder={reorderViewsInBase}
-            onUpdate={updateViewInBase}
-            viewAction={
-              activeView ? (
-                <BaseCsvExportPopover
-                  triggerVariant="view-action"
-                  disabled={loading || pendingMutations > 0}
-                  viewName={`${activeTable.table.name} · ${activeView.name}`}
-                  onExport={exportActiveView}
-                  onProgress={getCsvOperation}
-                  onCancel={cancelCsvOperation}
+    <BaseUIProvider
+      themeName={resolvedTheme === "dark" ? "dark" : "light"}
+      resolveAssetUrl={toSpaceAssetUrl}
+    >
+      <BaseEditorRoot ref={editorRef}>
+        <BaseEditorWorkbar>
+          {activeTable ? (
+            <BaseViewTabs
+              views={activeTable.views}
+              extensionViews={extensionBaseViews}
+              fields={activeTable.fields}
+              activeView={activeView}
+              disabled={blockingMutations > 0}
+              onSelect={selectActiveView}
+              onCreate={createViewInBase}
+              onRename={renameViewInBase}
+              onDuplicate={duplicateViewInBase}
+              onDelete={deleteViewInBase}
+              onReorder={reorderViewsInBase}
+              onUpdate={updateViewInBase}
+              viewAction={
+                activeView ? (
+                  <BaseCsvExportPopover
+                    triggerVariant="view-action"
+                    disabled={loading || pendingMutations > 0}
+                    viewName={`${activeTable.table.name} · ${activeView.name}`}
+                    onExport={exportActiveView}
+                    onProgress={getCsvOperation}
+                    onCancel={cancelCsvOperation}
+                  />
+                ) : undefined
+              }
+            />
+          ) : (
+            <div className="min-w-0 flex-1" />
+          )}
+          <div className="base-workbar-actions flex h-9 min-w-0 shrink-0 items-center gap-1 pl-2">
+            {selectedRowCount > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="base-workbar-action h-7 gap-1 px-2 text-xs text-destructive hover:text-destructive"
+                aria-label={`Delete ${selectedRowCount} selected rows`}
+                title={`Delete ${selectedRowCount} selected rows`}
+                onClick={() => setDeleteRowsDialogOpen(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="base-workbar-action-label">
+                  Delete {selectedRowCount}
+                </span>
+              </Button>
+            ) : null}
+            {activeTable ? (
+              <>
+                <BaseQueryToolbar
+                  fields={activeTable.fields}
+                  filter={activeView?.filter ?? null}
+                  sorts={activeView?.sorts ?? []}
+                  search={search}
+                  disabled={blockingMutations > 0}
+                  focusSearchToken={focusSearchToken}
+                  searchResultCount={searchResultCount}
+                  searchResultIndex={activeSearchResultIndex}
+                  onSearchChange={handleSearchChange}
+                  onNavigateSearch={navigateSearchResults}
+                  onFilterChange={(filter) =>
+                    updateActiveView({ filter }, "local")
+                  }
+                  onSortsChange={(sorts) =>
+                    updateActiveView({ sorts }, "local")
+                  }
                 />
-              ) : undefined
-            }
-          />
-        ) : (
-          <div className="min-w-0 flex-1" />
-        )}
-        <div className="base-workbar-actions flex h-9 min-w-0 shrink-0 items-center gap-1 pl-2">
-          {selectedRowCount > 0 ? (
+                <BaseViewMenu
+                  fields={activeTable.fields.filter(
+                    (field) =>
+                      isOptionalBaseSystemField(field) ||
+                      (!field.isHidden &&
+                        (field.valueKind === "source" ||
+                          field.valueKind === "relation" ||
+                          field.valueKind === "derived"))
+                  )}
+                  hiddenFields={activeView?.hiddenFields ?? []}
+                  visibleSystemFields={baseViewVisibleSystemFields(activeView)}
+                  disabled={blockingMutations > 0}
+                  onVisibilityChange={({ hiddenFields, visibleSystemFields }) =>
+                    void updateActiveView({
+                      hiddenFields,
+                      properties: {
+                        ...(activeView?.properties ?? {}),
+                        visibleSystemFields,
+                      },
+                    })
+                  }
+                />
+                <BaseStructureMenu
+                  table={activeTable.table}
+                  fields={activeTable.fields}
+                  disabled={blockingMutations > 0}
+                  onNewField={() => openFieldCreator()}
+                  onRevealBase={() =>
+                    void reveal(filePath).catch((revealError) =>
+                      setError(
+                        revealError instanceof Error
+                          ? revealError.message
+                          : "Unable to show Base in file manager"
+                      )
+                    )
+                  }
+                  onRenameTable={() =>
+                    setRenameTarget({
+                      kind: "table",
+                      tableId: activeTable.table.id,
+                      name: activeTable.table.name,
+                    })
+                  }
+                  onDeleteTable={() =>
+                    setDeleteTarget({
+                      kind: "table",
+                      tableId: activeTable.table.id,
+                      name: activeTable.table.name,
+                    })
+                  }
+                  onEditField={openFieldProperty}
+                  onDeleteField={requestFieldDelete}
+                />
+              </>
+            ) : null}
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="base-workbar-action h-7 gap-1 px-2 text-xs text-destructive hover:text-destructive"
-              aria-label={`Delete ${selectedRowCount} selected rows`}
-              title={`Delete ${selectedRowCount} selected rows`}
-              onClick={() => setDeleteRowsDialogOpen(true)}
+              className="base-workbar-action h-7 gap-1 px-2 text-xs"
+              aria-label="Create Base row"
+              title="New row"
+              disabled={!activeTable}
+              onClick={() => void createRow().catch(() => undefined)}
             >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span className="base-workbar-action-label">
-                Delete {selectedRowCount}
-              </span>
+              <Plus className="h-3.5 w-3.5" />
+              <span className="base-workbar-action-label">New row</span>
             </Button>
-          ) : null}
-          {activeTable ? (
-            <>
-              <BaseQueryToolbar
-                fields={activeTable.fields}
-                filter={activeView?.filter ?? null}
-                sorts={activeView?.sorts ?? []}
-                search={search}
-                disabled={blockingMutations > 0}
-                focusSearchToken={focusSearchToken}
-                searchResultCount={searchResultCount}
-                searchResultIndex={activeSearchResultIndex}
-                onSearchChange={handleSearchChange}
-                onNavigateSearch={navigateSearchResults}
-                onFilterChange={(filter) =>
-                  updateActiveView({ filter }, "local")
-                }
-                onSortsChange={(sorts) => updateActiveView({ sorts }, "local")}
-              />
-              <BaseViewMenu
-                fields={activeTable.fields.filter(
-                  (field) =>
-                    isOptionalBaseSystemField(field) ||
-                    (!field.isHidden &&
-                      (field.valueKind === "source" ||
-                        field.valueKind === "relation" ||
-                        field.valueKind === "derived"))
-                )}
-                hiddenFields={activeView?.hiddenFields ?? []}
-                visibleSystemFields={baseViewVisibleSystemFields(activeView)}
-                disabled={blockingMutations > 0}
-                onVisibilityChange={({ hiddenFields, visibleSystemFields }) =>
-                  void updateActiveView({
-                    hiddenFields,
-                    properties: {
-                      ...(activeView?.properties ?? {}),
-                      visibleSystemFields,
-                    },
-                  })
-                }
-              />
-              <BaseStructureMenu
-                table={activeTable.table}
-                fields={activeTable.fields}
-                disabled={blockingMutations > 0}
-                onNewField={() => openFieldCreator()}
-                onRevealBase={() =>
-                  void reveal(filePath).catch((revealError) =>
-                    setError(
-                      revealError instanceof Error
-                        ? revealError.message
-                        : "Unable to show Base in file manager"
-                    )
-                  )
-                }
-                onRenameTable={() =>
-                  setRenameTarget({
-                    kind: "table",
-                    tableId: activeTable.table.id,
-                    name: activeTable.table.name,
-                  })
-                }
-                onDeleteTable={() =>
-                  setDeleteTarget({
-                    kind: "table",
-                    tableId: activeTable.table.id,
-                    name: activeTable.table.name,
-                  })
-                }
-                onEditField={openFieldProperty}
-                onDeleteField={requestFieldDelete}
-              />
-            </>
-          ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="base-workbar-action h-7 gap-1 px-2 text-xs"
-            aria-label="Create Base row"
-            title="New row"
-            disabled={!activeTable}
-            onClick={() => void createRow().catch(() => undefined)}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span className="base-workbar-action-label">New row</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            aria-label="Refresh Base"
-            title="Refresh Base"
-            disabled={loading || pendingMutations > 0}
-            onClick={() => void load()}
-          >
-            <RefreshCw
-              className={cn(
-                "h-3.5 w-3.5 motion-reduce:animate-none",
-                loading && "animate-spin"
-              )}
-            />
-          </Button>
-        </div>
-      </BaseEditorWorkbar>
-
-      {error ? (
-        <div
-          className="flex shrink-0 items-start gap-2 border-b border-destructive/20 bg-destructive/5 px-3 py-1.5 text-xs text-destructive"
-          role="alert"
-        >
-          <span className="min-w-0 flex-1 break-words py-0.5">{error}</span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-5 w-5 shrink-0 text-destructive hover:text-destructive"
-            aria-label="Dismiss Base error"
-            title="Dismiss"
-            onClick={() => setError(null)}
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      ) : null}
-
-      {!activeTable ? (
-        <BaseEmptyState
-          disabled={loading || pendingMutations > 0}
-          creatingTemplate={creatingFirstTemplate}
-          templateError={firstTemplateError}
-          onCreateTemplate={(template) => void createFirstTable(template)}
-          importAction={
-            <BaseCsvImportPopover
-              triggerVariant="empty-state"
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              aria-label="Refresh Base"
+              title="Refresh Base"
               disabled={loading || pendingMutations > 0}
-              onSelect={selectCsv}
-              onPreview={previewCsvImport}
-              onImport={importCsvIntoBase}
-              onProgress={getCsvOperation}
-              onCancel={cancelCsvOperation}
-            />
-          }
-        />
-      ) : (
-        <BaseEditorContent>
-          {activeView &&
-          activeExtensionContributionId &&
-          activeExtensionView &&
-          !useExtensionGridFallback ? (
-            <ExtensionBaseViewSurface
-              key={`${activeTable.table.id}:${activeView?.id}:${activeExtensionView.contentDigest}`}
-              extension={activeExtensionView}
-              filePath={filePath}
-              table={activeTable}
-              view={activeView}
-              loadPage={loadActiveTablePage}
-              onFallback={() =>
-                setExtensionGridFallbackViewId(activeView?.id ?? null)
-              }
-            />
-          ) : activeView?.type === "gallery" ? (
-            <BaseGalleryView
-              key={`${activeTable.table.id}:${activeView.id}`}
-              table={activeTable}
-              view={activeView}
-              disabled={blockingMutations > 0}
-              reloadToken={gridReloadToken}
-              searchResultIndex={activeSearchResultIndex}
-              loadPage={loadActiveCardPage}
-              loadRow={loadActiveTableRow}
-              onCellEdit={saveInspectorCell}
-              onImportFiles={importBaseFiles}
-              onImportDroppedFiles={importDroppedBaseFiles}
-              onSearchRelation={searchRelationRecords}
-              onDeleteRow={deleteSingleRow}
-              onOpenRecordInTab={openRecordInTab}
-              onOpenFile={openBaseFileReference}
-              onRevealFile={revealBaseFileReference}
-              onRowCountChange={handleSearchResultCountChange}
-              onError={handleGridError}
-              sidePanel={fieldPropertySidePanel}
-            />
-          ) : activeView?.type === "kanban" ? (
-            <BaseKanbanView
-              key={`${activeTable.table.id}:${activeView.id}`}
-              table={activeTable}
-              view={activeView}
-              disabled={blockingMutations > 0}
-              reloadToken={gridReloadToken}
-              searchResultIndex={activeSearchResultIndex}
-              loadGroupCounts={loadKanbanGroupCounts}
-              loadGroupPage={loadKanbanGroupPage}
-              loadRow={loadActiveTableRow}
-              onCellEdit={saveInspectorCell}
-              onAddRow={createRowInGroup}
-              onImportFiles={importBaseFiles}
-              onImportDroppedFiles={importDroppedBaseFiles}
-              onSearchRelation={searchRelationRecords}
-              onDeleteRow={deleteSingleRow}
-              onOpenRecordInTab={openRecordInTab}
-              onOpenFile={openBaseFileReference}
-              onRevealFile={revealBaseFileReference}
-              onRowCountChange={handleSearchResultCountChange}
-              onError={handleGridError}
-              sidePanel={fieldPropertySidePanel}
-            />
-          ) : (
-            <div className="flex h-full min-h-0 flex-col">
-              {activeExtensionContributionId ? (
-                <div
-                  className="flex shrink-0 items-center gap-3 border-b border-amber-500/20 bg-amber-500/5 px-3 py-2"
-                  data-extension-base-view-fallback
-                  role="status"
-                >
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium">
-                      Showing Grid instead of {activeView?.name}
-                    </p>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {activeExtensionView
-                        ? "The extension view could not start. Your Base remains fully editable in the built-in Grid."
-                        : `Restore ${activeExtensionContributionId} in Extensions to use this saved layout.`}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    {activeExtensionView ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => setExtensionGridFallbackViewId(null)}
-                      >
-                        Retry view
-                      </Button>
-                    ) : null}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      onClick={() =>
-                        openSettings({
-                          section: "space-extensions",
-                          showSpaceSettings: true,
-                        })
-                      }
-                    >
-                      Manage extensions
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-              <div className="relative min-h-0 flex-1">
-                <BaseGrid
-                  key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
-                  table={activeTable}
-                  view={renderedGridView}
-                  disabled={blockingMutations > 0}
-                  reloadToken={gridReloadToken}
-                  loadPage={loadActiveTablePage}
-                  loadColumnStats={loadActiveColumnStats}
-                  onAddRow={createRow}
-                  onCellEdit={saveGridCell}
-                  onInspectorCellEdit={saveInspectorCell}
-                  onRowsEdit={saveRows}
-                  onSelectedRowsChange={setSelectedRowRanges}
-                  onRowCountChange={handleSearchResultCountChange}
-                  searchResultIndex={activeSearchResultIndex}
-                  onImportFiles={importBaseFiles}
-                  onImportDroppedFiles={importDroppedBaseFiles}
-                  onOpenRecordInTab={openRecordInTab}
-                  onOpenFile={openBaseFileReference}
-                  onRevealFile={revealBaseFileReference}
-                  onSearchRelation={searchRelationRecords}
-                  propertyField={fieldPropertyTarget}
-                  onPropertyFieldOpen={openFieldProperty}
-                  onPropertyFieldClose={closeFieldProperty}
-                  onFieldUpdate={updateFieldInBase}
-                  onAddField={openFieldCreator}
-                  onEditFormula={setFormulaTarget}
-                  onEditLookup={setLookupTarget}
-                  onDeleteField={requestFieldDelete}
-                  onRequestDeleteRows={requestRowRangeDelete}
-                  onViewUpdate={
-                    useExtensionGridFallback ? undefined : updateActiveView
-                  }
-                  onError={handleGridError}
-                />
-              </div>
-            </div>
-          )}
-          {activeTable.rowCount === 0 ||
-          (hasActiveQuery && visibleRowCount === 0) ? (
-            <div className="pointer-events-none absolute inset-x-0 top-16 flex justify-center px-6">
-              <div className="pointer-events-auto border bg-background/95 px-5 py-4 text-center shadow-sm backdrop-blur-sm">
-                {activeTable.rowCount === 0 ? (
-                  <>
-                    <h2 className="text-sm font-medium">
-                      Start building {activeTable.table.name}
-                    </h2>
-                    <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
-                      Add a row to enter data, or define fields before you
-                      begin. Changes are saved directly to this Base file.
-                    </p>
-                    <div className="mt-3 flex items-center justify-center gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => void createRow().catch(() => undefined)}
-                      >
-                        <Plus className="mr-1.5 h-3.5 w-3.5" />
-                        Add first row
-                      </Button>
+              onClick={() => void load()}
+            >
+              <RefreshCw
+                className={cn(
+                  "h-3.5 w-3.5 motion-reduce:animate-none",
+                  loading && "animate-spin"
+                )}
+              />
+            </Button>
+          </div>
+        </BaseEditorWorkbar>
+
+        {error ? (
+          <div
+            className="flex shrink-0 items-start gap-2 border-b border-destructive/20 bg-destructive/5 px-3 py-1.5 text-xs text-destructive"
+            role="alert"
+          >
+            <span className="min-w-0 flex-1 break-words py-0.5">{error}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 shrink-0 text-destructive hover:text-destructive"
+              aria-label="Dismiss Base error"
+              title="Dismiss"
+              onClick={() => setError(null)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ) : null}
+
+        {!activeTable ? (
+          <BaseEmptyState
+            disabled={loading || pendingMutations > 0}
+            creatingTemplate={creatingFirstTemplate}
+            templateError={firstTemplateError}
+            onCreateTemplate={(template) => void createFirstTable(template)}
+            importAction={
+              <BaseCsvImportPopover
+                triggerVariant="empty-state"
+                disabled={loading || pendingMutations > 0}
+                onSelect={selectCsv}
+                onPreview={previewCsvImport}
+                onImport={importCsvIntoBase}
+                onProgress={getCsvOperation}
+                onCancel={cancelCsvOperation}
+              />
+            }
+          />
+        ) : (
+          <BaseEditorContent>
+            {activeView &&
+            activeExtensionContributionId &&
+            activeExtensionView &&
+            !useExtensionGridFallback ? (
+              <ExtensionBaseViewSurface
+                key={`${activeTable.table.id}:${activeView?.id}:${activeExtensionView.contentDigest}`}
+                extension={activeExtensionView}
+                filePath={filePath}
+                table={activeTable}
+                view={activeView}
+                loadPage={loadActiveTablePage}
+                onFallback={() =>
+                  setExtensionGridFallbackViewId(activeView?.id ?? null)
+                }
+              />
+            ) : activeView?.type === "gallery" ? (
+              <BaseGalleryView
+                key={`${activeTable.table.id}:${activeView.id}`}
+                table={activeTable}
+                view={activeView}
+                disabled={blockingMutations > 0}
+                reloadToken={gridReloadToken}
+                searchResultIndex={activeSearchResultIndex}
+                loadPage={loadActiveCardPage}
+                loadRow={loadActiveTableRow}
+                onCellEdit={saveInspectorCell}
+                onImportFiles={importBaseFiles}
+                onImportDroppedFiles={importDroppedBaseFiles}
+                onSearchRelation={searchRelationRecords}
+                onDeleteRow={deleteSingleRow}
+                onOpenRecordInTab={openRecordInTab}
+                onOpenFile={openBaseFileReference}
+                onRevealFile={revealBaseFileReference}
+                onRowCountChange={handleSearchResultCountChange}
+                onError={handleGridError}
+                sidePanel={fieldPropertySidePanel}
+              />
+            ) : activeView?.type === "kanban" ? (
+              <BaseKanbanView
+                key={`${activeTable.table.id}:${activeView.id}`}
+                table={activeTable}
+                view={activeView}
+                disabled={blockingMutations > 0}
+                reloadToken={gridReloadToken}
+                searchResultIndex={activeSearchResultIndex}
+                loadGroupCounts={loadKanbanGroupCounts}
+                loadGroupPage={loadKanbanGroupPage}
+                loadRow={loadActiveTableRow}
+                onCellEdit={saveInspectorCell}
+                onAddRow={createRowInGroup}
+                onImportFiles={importBaseFiles}
+                onImportDroppedFiles={importDroppedBaseFiles}
+                onSearchRelation={searchRelationRecords}
+                onDeleteRow={deleteSingleRow}
+                onOpenRecordInTab={openRecordInTab}
+                onOpenFile={openBaseFileReference}
+                onRevealFile={revealBaseFileReference}
+                onRowCountChange={handleSearchResultCountChange}
+                onError={handleGridError}
+                sidePanel={fieldPropertySidePanel}
+              />
+            ) : (
+              <div className="flex h-full min-h-0 flex-col">
+                {activeExtensionContributionId ? (
+                  <div
+                    className="flex shrink-0 items-center gap-3 border-b border-amber-500/20 bg-amber-500/5 px-3 py-2"
+                    data-extension-base-view-fallback
+                    role="status"
+                  >
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium">
+                        Showing Grid instead of {activeView?.name}
+                      </p>
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        {activeExtensionView
+                          ? "The extension view could not start. Your Base remains fully editable in the built-in Grid."
+                          : `Restore ${activeExtensionContributionId} in Extensions to use this saved layout.`}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {activeExtensionView ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => setExtensionGridFallbackViewId(null)}
+                        >
+                          Retry view
+                        </Button>
+                      ) : null}
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => openFieldCreator()}
+                        className="h-7 px-2 text-xs"
+                        onClick={() =>
+                          openSettings({
+                            section: "space-extensions",
+                            showSpaceSettings: true,
+                          })
+                        }
                       >
-                        Add field
+                        Manage extensions
                       </Button>
                     </div>
-                  </>
-                ) : (
-                  <>
-                    <h2 className="text-sm font-medium">No matching rows</h2>
-                    <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
-                      Try another search or clear this view's filters.
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-3"
-                      onClick={() => {
-                        setSearch("")
-                        void updateActiveView({ filter: null })
-                      }}
-                    >
-                      Clear search and filters
-                    </Button>
-                  </>
-                )}
+                  </div>
+                ) : null}
+                <div className="relative min-h-0 flex-1">
+                  <BaseGrid
+                    key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
+                    table={activeTable}
+                    view={renderedGridView}
+                    disabled={blockingMutations > 0}
+                    reloadToken={gridReloadToken}
+                    loadPage={loadActiveTablePage}
+                    loadColumnStats={loadActiveColumnStats}
+                    onAddRow={createRow}
+                    onCellEdit={saveGridCell}
+                    onInspectorCellEdit={saveInspectorCell}
+                    onRowsEdit={saveRows}
+                    onSelectedRowsChange={setSelectedRowRanges}
+                    onRowCountChange={handleSearchResultCountChange}
+                    searchResultIndex={activeSearchResultIndex}
+                    onImportFiles={importBaseFiles}
+                    onImportDroppedFiles={importDroppedBaseFiles}
+                    onOpenRecordInTab={openRecordInTab}
+                    onOpenFile={openBaseFileReference}
+                    onRevealFile={revealBaseFileReference}
+                    onSearchRelation={searchRelationRecords}
+                    propertyField={fieldPropertyTarget}
+                    onPropertyFieldOpen={openFieldProperty}
+                    onPropertyFieldClose={closeFieldProperty}
+                    onFieldUpdate={updateFieldInBase}
+                    onAddField={openFieldCreator}
+                    onEditFormula={setFormulaTarget}
+                    onEditLookup={setLookupTarget}
+                    onDeleteField={requestFieldDelete}
+                    onRequestDeleteRows={requestRowRangeDelete}
+                    onViewUpdate={
+                      useExtensionGridFallback ? undefined : updateActiveView
+                    }
+                    onError={handleGridError}
+                  />
+                </div>
               </div>
-            </div>
-          ) : null}
-        </BaseEditorContent>
-      )}
-
-      <BaseSheetTabs
-        tables={snapshot.tables.map((candidate) => candidate.table)}
-        activeTableId={activeTableId}
-        disabled={loading || blockingMutations > 0}
-        createAction={
-          <BaseSheetCreatePopover
-            disabled={loading || blockingMutations > 0}
-            csvImportProps={{
-              disabled: loading || pendingMutations > 0,
-              onSelect: selectCsv,
-              onPreview: previewCsvImport,
-              onImport: importCsvIntoBase,
-              onProgress: getCsvOperation,
-              onCancel: cancelCsvOperation,
-            }}
-            onCreate={createTableInBase}
-          />
-        }
-        onSelect={setActiveTableId}
-        onRename={(table) =>
-          setRenameTarget({
-            kind: "table",
-            tableId: table.id,
-            name: table.name,
-          })
-        }
-        onDelete={(table) =>
-          setDeleteTarget({
-            kind: "table",
-            tableId: table.id,
-            name: table.name,
-          })
-        }
-        status={
-          pendingMutations > 0 ? (
-            <span className="flex items-center gap-1">
-              <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
-              Saving…
-            </span>
-          ) : failedMutationKeys.size === 0 && lastSavedAt ? (
-            <span className="flex items-center gap-1">
-              <Check className="h-3.5 w-3.5" />
-              Saved
-            </span>
-          ) : undefined
-        }
-      />
-
-      <BaseStructureDialog
-        mode="field"
-        open={structureDialog === "field"}
-        onOpenChange={(open) => {
-          if (!open) {
-            setStructureDialog(null)
-            setFieldInsertIndex(null)
-          }
-        }}
-        onCreateTable={createTableInBase}
-        onCreateField={createFieldInBase}
-        tables={snapshot.tables.map((candidate) => candidate.table)}
-        fields={activeTable?.fields ?? []}
-        tableFields={Object.fromEntries(
-          snapshot.tables.map((candidate) => [
-            candidate.table.id,
-            candidate.fields,
-          ])
+            )}
+            {activeTable.rowCount === 0 ||
+            (hasActiveQuery && visibleRowCount === 0) ? (
+              <div className="pointer-events-none absolute inset-x-0 top-16 flex justify-center px-6">
+                <div className="pointer-events-auto border bg-background/95 px-5 py-4 text-center shadow-sm backdrop-blur-sm">
+                  {activeTable.rowCount === 0 ? (
+                    <>
+                      <h2 className="text-sm font-medium">
+                        Start building {activeTable.table.name}
+                      </h2>
+                      <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
+                        Add a row to enter data, or define fields before you
+                        begin. Changes are saved directly to this Base file.
+                      </p>
+                      <div className="mt-3 flex items-center justify-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() =>
+                            void createRow().catch(() => undefined)
+                          }
+                        >
+                          <Plus className="mr-1.5 h-3.5 w-3.5" />
+                          Add first row
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openFieldCreator()}
+                        >
+                          Add field
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <h2 className="text-sm font-medium">No matching rows</h2>
+                      <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
+                        Try another search or clear this view's filters.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => {
+                          setSearch("")
+                          void updateActiveView({ filter: null })
+                        }}
+                      >
+                        Clear search and filters
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </BaseEditorContent>
         )}
-        activeTableId={activeTable?.table.id}
-        onPreviewFormula={previewActiveFormula}
-      />
 
-      <BaseRenameDialog
-        kind={renameTarget?.kind ?? "table"}
-        name={renameTarget?.name ?? ""}
-        open={renameTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setRenameTarget(null)
-        }}
-        onRename={renameStructure}
-      />
-
-      <BaseFormulaEditor
-        field={formulaTarget}
-        fields={activeTable?.fields ?? []}
-        open={formulaTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setFormulaTarget(null)
-        }}
-        onPreview={previewActiveFormula}
-        onSave={saveFormula}
-      />
-
-      <BaseLookupEditor
-        field={lookupTarget}
-        fields={activeTable?.fields ?? []}
-        tables={snapshot.tables}
-        open={lookupTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setLookupTarget(null)
-        }}
-        onSave={saveLookup}
-      />
-
-      <AlertDialog
-        open={deleteRowsDialogOpen}
-        onOpenChange={setDeleteRowsDialogOpen}
-      >
-        <AlertDialogContent className="max-w-sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {selectedRowCount}{" "}
-              {selectedRowCount === 1 ? "row" : "rows"}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This updates the Base file immediately. You can recover the rows
-              from Version history until the change is committed or discarded.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                setDeleteRowsDialogOpen(false)
-                void deleteSelectedRows().catch(() => undefined)
+        <BaseSheetTabs
+          tables={snapshot.tables.map((candidate) => candidate.table)}
+          activeTableId={activeTableId}
+          disabled={loading || blockingMutations > 0}
+          createAction={
+            <BaseSheetCreatePopover
+              disabled={loading || blockingMutations > 0}
+              csvImportProps={{
+                disabled: loading || pendingMutations > 0,
+                onSelect: selectCsv,
+                onPreview: previewCsvImport,
+                onImport: importCsvIntoBase,
+                onProgress: getCsvOperation,
+                onCancel: cancelCsvOperation,
               }}
-            >
-              Delete rows
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              onCreate={createTableInBase}
+            />
+          }
+          onSelect={setActiveTableId}
+          onRename={(table) =>
+            setRenameTarget({
+              kind: "table",
+              tableId: table.id,
+              name: table.name,
+            })
+          }
+          onDelete={(table) =>
+            setDeleteTarget({
+              kind: "table",
+              tableId: table.id,
+              name: table.name,
+            })
+          }
+          status={
+            pendingMutations > 0 ? (
+              <span className="flex items-center gap-1">
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+                Saving…
+              </span>
+            ) : failedMutationKeys.size === 0 && lastSavedAt ? (
+              <span className="flex items-center gap-1">
+                <Check className="h-3.5 w-3.5" />
+                Saved
+              </span>
+            ) : undefined
+          }
+        />
 
-      <AlertDialog
-        open={deleteTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null)
-        }}
-      >
-        <AlertDialogContent className="max-w-sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {deleteTarget?.kind} “{deleteTarget?.name}”?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteTarget?.kind === "table"
-                ? "All rows, fields, and views in this table will be removed from the Base file."
-                : "All values stored in this field will be removed from the Base file."}{" "}
-              You can recover this change from Version history.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                void deleteStructure().catch(() => undefined)
-              }}
-            >
-              Delete {deleteTarget?.kind}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </BaseEditorRoot>
+        <BaseStructureDialog
+          mode="field"
+          open={structureDialog === "field"}
+          onOpenChange={(open) => {
+            if (!open) {
+              setStructureDialog(null)
+              setFieldInsertIndex(null)
+            }
+          }}
+          onCreateTable={createTableInBase}
+          onCreateField={createFieldInBase}
+          tables={snapshot.tables.map((candidate) => candidate.table)}
+          fields={activeTable?.fields ?? []}
+          tableFields={Object.fromEntries(
+            snapshot.tables.map((candidate) => [
+              candidate.table.id,
+              candidate.fields,
+            ])
+          )}
+          activeTableId={activeTable?.table.id}
+          onPreviewFormula={previewActiveFormula}
+        />
+
+        <BaseRenameDialog
+          kind={renameTarget?.kind ?? "table"}
+          name={renameTarget?.name ?? ""}
+          open={renameTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setRenameTarget(null)
+          }}
+          onRename={renameStructure}
+        />
+
+        <BaseFormulaEditor
+          field={formulaTarget}
+          fields={activeTable?.fields ?? []}
+          open={formulaTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setFormulaTarget(null)
+          }}
+          onPreview={previewActiveFormula}
+          onSave={saveFormula}
+        />
+
+        <BaseLookupEditor
+          field={lookupTarget}
+          fields={activeTable?.fields ?? []}
+          tables={snapshot.tables}
+          open={lookupTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setLookupTarget(null)
+          }}
+          onSave={saveLookup}
+        />
+
+        <AlertDialog
+          open={deleteRowsDialogOpen}
+          onOpenChange={setDeleteRowsDialogOpen}
+        >
+          <AlertDialogContent className="max-w-sm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Delete {selectedRowCount}{" "}
+                {selectedRowCount === 1 ? "row" : "rows"}?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                This updates the Base file immediately. You can recover the rows
+                from Version history until the change is committed or discarded.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  setDeleteRowsDialogOpen(false)
+                  void deleteSelectedRows().catch(() => undefined)
+                }}
+              >
+                Delete rows
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={deleteTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setDeleteTarget(null)
+          }}
+        >
+          <AlertDialogContent className="max-w-sm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Delete {deleteTarget?.kind} “{deleteTarget?.name}”?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {deleteTarget?.kind === "table"
+                  ? "All rows, fields, and views in this table will be removed from the Base file."
+                  : "All values stored in this field will be removed from the Base file."}{" "}
+                You can recover this change from Version history.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  void deleteStructure().catch(() => undefined)
+                }}
+              >
+                Delete {deleteTarget?.kind}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </BaseEditorRoot>
+    </BaseUIProvider>
   )
 }

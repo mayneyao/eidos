@@ -1,8 +1,10 @@
 import type {
   BaseFieldPlacement,
   BaseRow,
+  BaseRowGroupCount,
   BaseRowMutationResult,
   BaseRowPage,
+  BaseRowPageProjection,
   BaseRowQuery,
   BaseSnapshot,
   CreateBaseFieldInput,
@@ -108,7 +110,9 @@ export class BaseWorkerClient implements BaseEditorDataSource {
     offset: number,
     limit: number,
     query: BaseRowQuery,
-    totalHint?: number
+    totalHint?: number,
+    cursor?: string,
+    projection?: BaseRowPageProjection
   ): Promise<BaseRowPage> {
     return this.call({
       type: "page",
@@ -117,7 +121,21 @@ export class BaseWorkerClient implements BaseEditorDataSource {
       limit,
       query,
       ...(totalHint === undefined ? {} : { totalHint }),
+      ...(cursor === undefined ? {} : { cursor }),
+      ...(projection === undefined ? {} : { projection }),
     })
+  }
+
+  getRow(tableId: string, rowId: string): Promise<BaseRow | null> {
+    return this.call({ type: "row", tableId, rowId })
+  }
+
+  getGroupCounts(
+    tableId: string,
+    columnName: string,
+    query: BaseRowQuery
+  ): Promise<BaseRowGroupCount[]> {
+    return this.call({ type: "group-counts", tableId, columnName, query })
   }
 
   insertRow(tableId: string, row: BaseRow): Promise<BaseRowMutationResult> {

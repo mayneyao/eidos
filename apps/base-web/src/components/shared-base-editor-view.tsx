@@ -1,14 +1,14 @@
 import { lazy, Suspense } from "react"
 import { BaseUIProvider } from "@eidos.space/base-ui/context"
-import type { BaseDataGridProps } from "@eidos.space/base-ui/base-data-grid"
+import type { BaseEditorViewProps } from "@eidos.space/base-ui/base-editor-view"
 
-const BaseDataGrid = lazy(() =>
-  import("@eidos.space/base-ui/base-data-grid").then((module) => ({
-    default: module.BaseDataGrid,
+const BaseEditorView = lazy(() =>
+  import("@eidos.space/base-ui/base-editor-view").then((module) => ({
+    default: module.BaseEditorView,
   }))
 )
 
-interface SharedBaseEditorGridProps extends BaseDataGridProps {
+interface SharedBaseEditorViewProps extends BaseEditorViewProps {
   theme: "light" | "dark"
   loadingLabel?: string
 }
@@ -18,11 +18,11 @@ interface SharedBaseEditorGridProps extends BaseDataGridProps {
  * The provider is intentionally host-owned so Desktop and Web can share the
  * exact behavior while resolving theme and files for their own environment.
  */
-export function SharedBaseEditorGrid({
+export function SharedBaseEditorView({
   theme,
   loadingLabel = "Loading Base editor…",
   ...props
-}: SharedBaseEditorGridProps) {
+}: SharedBaseEditorViewProps) {
   return (
     <BaseUIProvider themeName={theme}>
       <Suspense
@@ -32,7 +32,7 @@ export function SharedBaseEditorGrid({
           </div>
         }
       >
-        <BaseDataGrid {...props} />
+        <BaseEditorView {...props} />
       </Suspense>
     </BaseUIProvider>
   )

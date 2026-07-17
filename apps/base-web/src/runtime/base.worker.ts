@@ -219,7 +219,17 @@ async function handleAction(action: BaseWorkerAction) {
         action.offset,
         action.limit,
         action.query,
-        action.totalHint
+        action.totalHint,
+        action.cursor,
+        action.projection
+      )
+    case "row":
+      return runtime.getRow(action.tableId, action.rowId)
+    case "group-counts":
+      return runtime.countRowsByField(
+        action.tableId,
+        action.columnName,
+        action.query
       )
     case "insert-row":
       return mutationResult(

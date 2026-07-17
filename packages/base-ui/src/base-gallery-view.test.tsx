@@ -16,8 +16,12 @@ import {
   BASE_VIRTUAL_SCROLL_MAX_SIZE,
 } from "./base-virtual-scroll"
 
-vi.mock("@/components/theme-provider", () => ({
-  useTheme: () => ({ resolvedTheme: "light" }),
+vi.mock("./context", () => ({
+  useBaseUI: () => ({
+    themeName: "light",
+    resolveAssetUrl: (path: string) => `/~/${path}`,
+    resolveFilePreview: (path: string) => path,
+  }),
 }))
 
 vi.mock("./base-record-inspector", () => ({

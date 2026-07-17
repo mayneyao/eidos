@@ -72,7 +72,7 @@ for (let offset = 0; offset < rows.length; offset += 250) {
 base.createView("projects", {
   name: "By status",
   type: "kanban",
-  properties: { groupBy: "status" },
+  properties: { groupByField: "status" },
 })
 base.createView("projects", {
   name: "Project cards",

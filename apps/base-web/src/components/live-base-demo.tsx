@@ -15,7 +15,7 @@ import {
 import { useI18n } from "../i18n"
 import { BaseWorkerClient } from "../runtime/worker-client"
 import { loadSampleBaseFile } from "../sample-base"
-import { SharedBaseEditorGrid } from "./shared-base-editor-grid"
+import { SharedBaseEditorView } from "./shared-base-editor-view"
 interface LiveBaseDemoProps {
   theme: "light" | "dark"
   onOpenFullEditor: () => void
@@ -160,7 +160,7 @@ export function LiveBaseDemo({ theme, onOpenFullEditor }: LiveBaseDemoProps) {
 
         <div className="live-demo-grid">
           {phase === "ready" && table && clientRef.current ? (
-            <SharedBaseEditorGrid
+            <SharedBaseEditorView
               theme={theme}
               source={clientRef.current}
               table={table}
