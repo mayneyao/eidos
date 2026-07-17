@@ -2500,10 +2500,6 @@
     display: none;
   }
 
-  .site-nav a:first-child {
-    display: none;
-  }
-
   .site-nav a {
     padding-inline: 0.375rem;
     font-size: 0.625rem;
@@ -2571,8 +2567,108 @@
   }
 }
 
-@media (max-width: 24rem) {
-  .site-nav a:last-child {
+@media (max-width: 42rem) {
+  .launch-header {
+    min-height: 6rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 3.25rem 2.75rem;
+  }
+
+  .launch-header .brand-lockup > span:last-child {
+    display: inline;
+  }
+
+  .site-nav {
+    width: calc(100% + 1.5rem);
+    height: 2.75rem;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: grid;
+    margin-inline: -0.75rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .site-nav a {
+    min-width: 0;
+    min-height: 2.75rem;
+    justify-content: center;
+    padding-inline: 0.25rem;
+    border-radius: 0;
+    font-size: 0.6875rem;
+  }
+
+  .site-nav a:not(:last-child) {
+    border-right: 1px solid var(--border);
+  }
+
+  .site-nav a.is-active {
+    box-shadow: inset 0 -2px var(--foreground);
+  }
+
+  .editor-titlebar {
+    height: 3rem;
+  }
+
+  .file-identity {
+    padding-inline: 0.5rem 0.25rem;
+  }
+
+  .title-actions {
+    gap: 0;
+    padding: 0.25rem;
+  }
+
+  .title-actions .toolbar-button,
+  .title-actions .icon-button,
+  .title-actions .language-button {
+    width: 2.5rem;
+    min-width: 2.5rem;
+    height: 2.5rem;
+    min-height: 2.5rem;
+    padding: 0;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .eidos-file-workbar-action {
+    width: 2.5rem;
+    min-width: 2.5rem;
+    height: 2.5rem !important;
+    padding-inline: 0 !important;
+  }
+
+  [data-eidos-file-workbar-actions] > :first-child {
+    flex: 1;
+    justify-content: space-around;
+  }
+
+  .eidos-file-workbar-search button {
+    min-width: 1.5rem;
+    min-height: 1.5rem;
+  }
+
+  [data-eidos-file-workbar-actions]:has(.eidos-file-workbar-search)
+    > :first-child {
+    flex: 1;
+  }
+
+  [data-eidos-file-workbar-actions]:has(.eidos-file-workbar-search)
+    > :first-child
+    > .eidos-file-workbar-search {
+    width: 100%;
+  }
+
+  [data-eidos-file-workbar-actions]:has(.eidos-file-workbar-search)
+    > :first-child
+    > .eidos-file-workbar-action,
+  [data-eidos-file-workbar-actions]:has(.eidos-file-workbar-search)
+    > :not(:first-child) {
     display: none;
+  }
+
+  .add-property-popover {
+    width: min(17rem, calc(100vw - 1rem));
   }
 }

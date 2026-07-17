@@ -121,7 +121,7 @@ export function EidosFileViewTabStrip({
   } = useEidosFileTabStrip({ items: views, activeId: activeViewId, onSelect })
 
   return (
-    <div className="flex min-w-0 flex-1 items-end">
+    <div data-eidos-file-view-tabs className="flex min-w-0 flex-1 items-end">
       {canScrollBackward ? (
         <Button
           type="button"
@@ -156,7 +156,7 @@ export function EidosFileViewTabStrip({
             onClick={() => onSelect(view.id)}
             onKeyDown={(event) => navigateTabs(event, index)}
             className={cn(
-              "relative flex h-9 max-w-48 shrink-0 items-center gap-1.5 px-3 text-[13px] text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50",
+              "relative flex h-[var(--eidos-file-view-tab-height,2.25rem)] max-w-48 shrink-0 items-center gap-1.5 px-3 text-[13px] text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50",
               view.id === activeViewId && "text-foreground"
             )}
           >
@@ -318,7 +318,10 @@ export function EidosFileSheetTabStrip({
         </Button>
       ) : null}
       {status ? (
-        <div className="flex shrink-0 items-center border-l px-2.5 text-[11px] text-muted-foreground">
+        <div
+          data-eidos-file-sheet-status
+          className="flex shrink-0 items-center border-l px-2.5 text-[11px] text-muted-foreground"
+        >
           {status}
         </div>
       ) : null}

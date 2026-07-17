@@ -451,6 +451,122 @@ test("opens the bundled sample without a picker", async ({ page }) => {
   ).toBeVisible()
 })
 
+test("keeps navigation and editor controls usable on a phone", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the shared responsive editor shell"
+  )
+  await page.setViewportSize({ width: 320, height: 720 })
+  await installFallbackMode(page)
+  await page.goto("/")
+
+  const primaryNavigation = page.locator(".site-nav a")
+  await expect(primaryNavigation).toHaveCount(3)
+  const primaryNavigationRegion = page.locator(".site-nav")
+  await expect(
+    primaryNavigationRegion.getByRole("link", { name: "Editor" })
+  ).toBeVisible()
+  await expect(
+    primaryNavigationRegion.getByRole("link", { name: "Open Format" })
+  ).toBeVisible()
+  await expect(
+    primaryNavigationRegion.getByRole("link", { name: /Version Control/ })
+  ).toBeVisible()
+  expect(
+    await primaryNavigation.evaluateAll((links) =>
+      links.every((link) => link.getBoundingClientRect().height >= 44)
+    )
+  ).toBe(true)
+
+  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await page.locator(".editor-titlebar").waitFor()
+  await page.locator("[data-testid='glide-cell-1-0']").waitFor({
+    state: "attached",
+  })
+
+  const responsiveChrome = await page.evaluate(() => {
+    const titlebar = document
+      .querySelector(".editor-titlebar")
+      ?.getBoundingClientRect()
+    const workbar = document
+      .querySelector("[data-eidos-file-workbar]")
+      ?.getBoundingClientRect()
+    const views = document
+      .querySelector("[data-eidos-file-view-tabs]")
+      ?.getBoundingClientRect()
+    const actions = document
+      .querySelector("[data-eidos-file-workbar-actions]")
+      ?.getBoundingClientRect()
+    const status = document
+      .querySelector("[data-eidos-file-sheet-status]")
+      ?.getBoundingClientRect()
+    const statusCopy = document.querySelector(
+      "[data-eidos-file-sheet-status-copy]"
+    )
+    const actionButtons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        "[data-eidos-file-workbar-actions] button"
+      )
+    )
+      .filter((button) => getComputedStyle(button).display !== "none")
+      .map((button) => button.getBoundingClientRect().toJSON())
+    return {
+      actionButtons,
+      actions: actions?.toJSON(),
+      pageOverflow:
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+      status: status?.toJSON(),
+      statusCopyDisplay: statusCopy
+        ? getComputedStyle(statusCopy).display
+        : null,
+      titlebar: titlebar?.toJSON(),
+      views: views?.toJSON(),
+      workbar: workbar?.toJSON(),
+    }
+  })
+
+  expect(responsiveChrome.pageOverflow).toBe(0)
+  expect(responsiveChrome.titlebar?.height).toBe(48)
+  expect(responsiveChrome.workbar?.height).toBe(80)
+  expect(responsiveChrome.views?.width).toBe(320)
+  expect(responsiveChrome.actions?.width).toBe(320)
+  expect(responsiveChrome.actions?.top).toBe(responsiveChrome.views?.bottom)
+  expect(responsiveChrome.status?.width).toBe(40)
+  expect(responsiveChrome.statusCopyDisplay).toBe("none")
+  expect(responsiveChrome.actionButtons).toHaveLength(5)
+  expect(
+    responsiveChrome.actionButtons.every(
+      (button) => button.height >= 40 && button.left >= 0 && button.right <= 320
+    )
+  ).toBe(true)
+
+  await page.getByRole("button", { name: "Search Eidos File rows" }).click()
+  const mobileSearch = page.locator(".eidos-file-workbar-search")
+  await expect(mobileSearch).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Filter Eidos File rows" })
+  ).toBeHidden()
+  const searchBounds = await mobileSearch.boundingBox()
+  expect(searchBounds?.x).toBeGreaterThanOrEqual(4)
+  expect(
+    (searchBounds?.x ?? 0) + (searchBounds?.width ?? 0)
+  ).toBeLessThanOrEqual(316)
+  await page.getByRole("button", { name: "Close search" }).click()
+
+  const scroller = page.locator(".eidos-file-content .dvn-scroller")
+  await scroller.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth
+    element.dispatchEvent(new Event("scroll"))
+  })
+  await expect
+    .poll(() => scroller.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(0)
+})
+
 test("imports CSV through the explicitly composed editor plugin", async ({
   page,
   browserName,

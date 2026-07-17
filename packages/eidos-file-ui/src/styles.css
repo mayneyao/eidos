@@ -32,6 +32,8 @@
 
   .eidos-shell-statusbar {
     height: var(--eidos-shell-statusbar-height, 40px);
+    container-name: eidos-file-statusbar;
+    container-type: inline-size;
   }
 
   .eidos-file-workbar {
@@ -43,12 +45,30 @@
     width: 18rem;
   }
 
+  .eidos-file-sheet-status-copy {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
   @container eidos-file-workbar (max-width: 860px) {
     .eidos-file-workbar-search {
       width: 12rem;
     }
 
     .eidos-file-workbar-action-label {
+      display: none;
+    }
+  }
+
+  @container eidos-file-statusbar (max-width: 480px) {
+    [data-eidos-file-sheet-status] {
+      width: 2.5rem;
+      justify-content: center;
+      padding-inline: 0;
+    }
+
+    [data-eidos-file-sheet-status-copy] {
       display: none;
     }
   }
@@ -77,5 +97,44 @@
       box-shadow: -0.75rem 0 1.75rem
         color-mix(in srgb, var(--foreground) 12%, transparent);
     }
+  }
+}
+
+@media (max-width: 42rem) {
+  .eidos-shell-workbar {
+    height: 5rem;
+  }
+
+  .eidos-file-workbar {
+    --eidos-file-view-tab-height: 2.5rem;
+    align-items: stretch;
+    flex-wrap: wrap;
+    padding-inline: 0;
+  }
+
+  .eidos-file-workbar [data-eidos-file-view-tabs] {
+    width: 100%;
+    height: 2.5rem;
+    flex: 1 0 100%;
+    padding-inline: 0.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .eidos-file-workbar [data-eidos-file-view-tabs] > button {
+    width: 2.5rem;
+    height: 2.5rem;
+    margin-bottom: 0;
+  }
+
+  .eidos-file-workbar [data-eidos-file-workbar-actions] {
+    width: 100%;
+    height: 2.5rem;
+    flex: 1 0 100%;
+    justify-content: flex-end;
+    padding-inline: 0.25rem;
+  }
+
+  .eidos-file-workbar-search {
+    width: min(9rem, calc(100vw - 11rem));
   }
 }

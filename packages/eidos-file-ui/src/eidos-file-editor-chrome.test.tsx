@@ -102,6 +102,9 @@ describe("shared Eidos File editor chrome", () => {
     expect(shell?.children[2]?.hasAttribute("data-eidos-file-sheet-tabs")).toBe(
       true
     )
+    expect(
+      shell?.children[2]?.querySelector("[data-eidos-file-sheet-status]")
+    ).not.toBeNull()
     expect(shell?.children[2]?.textContent).toContain("Saved")
   })
 
@@ -120,6 +123,9 @@ describe("shared Eidos File editor chrome", () => {
     const grid = container.querySelector<HTMLButtonElement>(
       '[data-eidos-file-view-id="grid"]'
     )
+    expect(
+      container.querySelector("[data-eidos-file-view-tabs]")
+    ).not.toBeNull()
     act(() =>
       grid?.dispatchEvent(
         new KeyboardEvent("keydown", {

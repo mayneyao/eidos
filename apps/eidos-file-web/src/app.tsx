@@ -1350,7 +1350,10 @@ export function App() {
               }))
             }
           />
-          <div className="eidos-file-workbar-actions flex h-9 min-w-0 shrink-0 items-center gap-1 pl-2">
+          <div
+            data-eidos-file-workbar-actions
+            className="eidos-file-workbar-actions flex h-9 min-w-0 shrink-0 items-center gap-1 pl-2"
+          >
             <EidosFileQueryToolbar
               fields={activeTable.fields}
               filter={activeView?.filter ?? null}
@@ -1421,29 +1424,36 @@ export function App() {
             setPropertyField(null)
           }}
           status={
-            <span className="flex items-center gap-1.5">
+            <span
+              className="flex items-center gap-1.5"
+              aria-label={`${status.label}, ${session.mode === "direct" ? t("originalFile") : t("editorImported")}, SQLite ${snapshot.metadata.schemaVersion}`}
+              title={`${status.label} · ${session.mode === "direct" ? t("originalFile") : t("editorImported")} · SQLite ${snapshot.metadata.schemaVersion}`}
+            >
               <StatusIcon
                 className={saveState.phase === "saving" ? "spin" : ""}
                 size={13}
                 aria-hidden="true"
               />
-              <span>{status.label}</span>
-              {session.mode === "copy" && saveState.phase === "clean" ? null : (
-                <>
-                  <span className="status-separator" aria-hidden="true">
-                    /
-                  </span>
-                  <span>
-                    {session.mode === "direct"
-                      ? t("originalFile")
-                      : t("editorImported")}
-                  </span>
-                </>
-              )}
-              <span className="status-separator" aria-hidden="true">
-                /
+              <span
+                data-eidos-file-sheet-status-copy
+                className="eidos-file-sheet-status-copy"
+                aria-hidden="true"
+              >
+                <span>{status.label}</span>
+                {session.mode === "copy" &&
+                saveState.phase === "clean" ? null : (
+                  <>
+                    <span className="status-separator">/</span>
+                    <span>
+                      {session.mode === "direct"
+                        ? t("originalFile")
+                        : t("editorImported")}
+                    </span>
+                  </>
+                )}
+                <span className="status-separator">/</span>
+                <span>SQLite {snapshot.metadata.schemaVersion}</span>
               </span>
-              <span>SQLite {snapshot.metadata.schemaVersion}</span>
             </span>
           }
         />
