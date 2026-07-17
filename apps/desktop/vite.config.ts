@@ -90,10 +90,6 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
           resolve: {
             alias: sharedAlias,
           },
-          esbuild: {
-            // Support for TypeScript decorators used by inversify
-            target: "es2022",
-          },
           define: {
             // Explicitly define process.env.NODE_ENV for electron main process
             // This ensures it's replaced at build time, not evaluated at runtime
@@ -102,6 +98,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
             ),
           },
           build: {
+            target: "node24",
             reportCompressedSize: false,
             rolldownOptions: {
               plugins: [esmShim() as unknown as Plugin],
@@ -129,12 +126,13 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
             alias: sharedAlias,
           },
           build: {
+            target: "chrome144",
             reportCompressedSize: false,
             rolldownOptions: {
               external: externalNodeModules,
               output: {
                 format: "es",
-                inlineDynamicImports: true,
+                codeSplitting: false,
                 entryFileNames: "[name].mjs",
                 chunkFileNames: "[name].mjs",
                 assetFileNames: "[name].[ext]",
@@ -156,6 +154,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
           alias: sharedAlias,
         },
         build: {
+          target: "chrome144",
           reportCompressedSize: false,
           // Disable vite-plugin-electron's inferred ESM library build. Vite
           // concatenates library format arrays during config merge, which
@@ -168,7 +167,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
             external: ["electron"],
             output: {
               format: "cjs",
-              inlineDynamicImports: true,
+              codeSplitting: false,
               entryFileNames: "file-extension-runtime-preload.cjs",
             },
           },

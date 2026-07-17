@@ -33,7 +33,7 @@ await build({
       external: ["electron"],
       output: {
         format: "cjs",
-        inlineDynamicImports: true,
+        codeSplitting: false,
         entryFileNames: "file-extension-runtime-preload.cjs",
       },
     },
@@ -44,7 +44,6 @@ await build({
   root: desktopRoot,
   configFile: false,
   logLevel: "warn",
-  esbuild: { target: "es2022" },
   build: {
     ssr: true,
     outDir: outputRoot,
@@ -63,7 +62,7 @@ await build({
         (!id.startsWith(".") && !path.isAbsolute(id)),
       output: {
         format: "esm",
-        inlineDynamicImports: true,
+        codeSplitting: false,
         entryFileNames: "file-extension-app-smoke.mjs",
       },
     },
