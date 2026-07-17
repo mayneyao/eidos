@@ -14,7 +14,6 @@
   "license": "ISC",
   "devDependencies": {
     "@rollup/plugin-commonjs": "^26.0.1",
-    "@rollup/plugin-esm-shim": "^0.1.7",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@types/node": "^20.4.1",
     "dotenv": "^16.4.5",

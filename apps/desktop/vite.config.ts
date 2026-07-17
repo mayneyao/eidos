@@ -1,9 +1,9 @@
 import fs from "fs/promises"
 import path from "path"
-import esmShim from "@rollup/plugin-esm-shim"
 import tailwindcss from "@tailwindcss/vite"
 import { defineConfig, mergeConfig, type Plugin, type UserConfig } from "vite"
 import electronRuntime from "vite-plugin-electron"
+import { esmShim } from "vite-plugin-electron/plugin"
 import electron from "vite-plugin-electron/simple"
 
 import {
@@ -102,7 +102,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
             ),
           },
           build: {
-            rollupOptions: {
+            rolldownOptions: {
               plugins: [esmShim() as unknown as Plugin],
               external: [...externalNodeModules, "electron"],
               output: {
@@ -128,7 +128,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
             alias: sharedAlias,
           },
           build: {
-            rollupOptions: {
+            rolldownOptions: {
               external: externalNodeModules,
               output: {
                 format: "es",
@@ -159,7 +159,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
           // would otherwise emit ESM and CJS to the same filename. Sandboxed
           // Electron preloads require one deterministic CommonJS artifact.
           lib: false,
-          rollupOptions: {
+          rolldownOptions: {
             input:
               "electron/modules/file-extensions/runtime/file-extension-runtime.preload.ts",
             external: ["electron"],
@@ -181,7 +181,10 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
     // }) as Plugin,
   ],
   build: {
-    rollupOptions: {
+    // Electron 40 embeds Chromium 144, so the renderer does not need Vite's
+    // legacy browser transforms. This also keeps Wasm top-level await native.
+    target: "chrome144",
+    rolldownOptions: {
       external: ["electron"],
     },
     copyPublicDir: false,

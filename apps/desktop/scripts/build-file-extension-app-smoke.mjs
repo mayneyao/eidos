@@ -1,8 +1,8 @@
 import { rm } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import esmShim from "@rollup/plugin-esm-shim"
 import { build } from "vite"
+import { esmShim } from "vite-plugin-electron/plugin"
 
 const desktopRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -25,7 +25,7 @@ await build({
     emptyOutDir: true,
     target: "node20",
     minify: false,
-    rollupOptions: {
+    rolldownOptions: {
       input: path.join(
         desktopRoot,
         "electron/modules/file-extensions/runtime/file-extension-runtime.preload.ts"
@@ -51,7 +51,7 @@ await build({
     emptyOutDir: false,
     target: "node20",
     minify: false,
-    rollupOptions: {
+    rolldownOptions: {
       input: path.join(
         desktopRoot,
         "electron/modules/file-extensions/file-extension-app-smoke.ts"

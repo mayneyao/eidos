@@ -53,7 +53,7 @@
   "devDependencies": {
     "@types/node": "^20.19.1",
     "@typescript/native-preview": "7.0.0-dev.20260407.1",
-    "@vitejs/plugin-react": "^4.7.0",
+    "@vitejs/plugin-react": "^5.2.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.3.3",
     "oxfmt": "^0.35.0",
