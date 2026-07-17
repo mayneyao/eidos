@@ -299,6 +299,23 @@ test("opens the bundled sample without a picker", async ({ page }) => {
   await expect(page.locator("[data-base-sheet-tabs]")).toContainText(
     "Imported copy"
   )
+
+  await page.getByRole("button", { name: "Filter Base rows" }).click()
+  const filterPopover = page.locator("[data-base-filter-popover]")
+  await expect(filterPopover).toBeVisible()
+  expect(
+    await filterPopover.evaluate(
+      (element) => getComputedStyle(element).backgroundColor
+    )
+  ).not.toBe("rgba(0, 0, 0, 0)")
+  await expect(filterPopover.getByRole("button", { name: "Apply" })).toHaveCSS(
+    "color",
+    "rgb(249, 250, 251)"
+  )
+  await expect(filterPopover.getByRole("combobox")).toHaveCSS(
+    "border-top-width",
+    "1px"
+  )
 })
 
 test("switches the live Base experience between English and Chinese", async ({

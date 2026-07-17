@@ -616,6 +616,7 @@ function BaseFilterPopover({
         </Button>
       </PopoverTrigger>
       <PopoverContent
+        data-base-filter-popover
         align="end"
         className="max-h-[min(640px,calc(100vh-32px))] w-[680px] max-w-[calc(100vw-32px)] overflow-y-auto p-3"
         aria-busy={pendingAction ? "true" : undefined}
@@ -747,6 +748,7 @@ function BaseSortPopover({
         </Button>
       </PopoverTrigger>
       <PopoverContent
+        data-base-sort-popover
         align="end"
         className="w-[360px] p-3"
         aria-busy={pendingAction ? "true" : undefined}

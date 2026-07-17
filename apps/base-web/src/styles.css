@@ -46,60 +46,65 @@
   --focus: oklch(75% 0.12 250);
 }
 
-* {
-  box-sizing: border-box;
-}
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    border-color: var(--border);
+  }
 
-html,
-body,
-#root {
-  width: 100%;
-  min-width: 20rem;
-  height: 100%;
-  margin: 0;
-  overflow: hidden;
-}
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-width: 20rem;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
 
-body {
-  background: var(--shell);
-  color: var(--foreground);
-  font-size: 1rem;
-  font-kerning: normal;
-}
+  body {
+    background: var(--shell);
+    color: var(--foreground);
+    font-size: 1rem;
+    font-kerning: normal;
+  }
 
-button,
-input,
-select {
-  color: inherit;
-  font: inherit;
-}
+  button,
+  input,
+  select {
+    color: inherit;
+    font: inherit;
+  }
 
-button {
-  border: 0;
-}
+  button {
+    border: 0;
+  }
 
-button:not(:disabled) {
-  cursor: pointer;
-}
+  button:not(:disabled) {
+    cursor: pointer;
+  }
 
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-}
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+  }
 
-button:focus,
-input:focus,
-select:focus,
-[tabindex]:focus {
-  outline: none;
-}
+  button:focus,
+  input:focus,
+  select:focus,
+  [tabindex]:focus {
+    outline: none;
+  }
 
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-[tabindex]:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: -2px;
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+  }
 }
 
 .skip-link {
