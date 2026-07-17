@@ -6,6 +6,7 @@ import topLevelAwait from "vite-plugin-top-level-await"
 import wasm from "vite-plugin-wasm"
 
 let commitHash: string = ""
+const useNativeTopLevelAwait = process.env.EIDOS_SERVICE_MODE === "desktop"
 try {
   commitHash = child_process
     .execSync("git rev-parse --short HEAD")
@@ -134,7 +135,7 @@ export const sharedConfig: UserConfig = {
   plugins: [
     react(),
     wasm(),
-    topLevelAwait(),
+    !useNativeTopLevelAwait && topLevelAwait(),
     // enable visualizer if you want to see the size of the package
     // visualizer({
     //   gzipSize: true,
@@ -164,6 +165,6 @@ export const sharedConfig: UserConfig = {
   },
   worker: {
     format: "es",
-    plugins: () => [wasm(), topLevelAwait()],
+    plugins: () => [wasm(), !useNativeTopLevelAwait && topLevelAwait()],
   },
 }
