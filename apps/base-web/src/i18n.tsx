@@ -9,11 +9,15 @@ import {
 
 const en = {
   languageAction: "切换到中文",
-  heroEyebrow: "A file is the workspace",
-  heroTitleOne: "Open the Base.",
-  heroTitleTwo: "Work where it lives.",
+  navEditor: "Editor",
+  navDocs: "Docs",
+  navGraft: "Graft Playground",
+  loadingDocs: "Loading Base documentation…",
+  heroEyebrow: "Local Base editor",
+  heroTitleOne: "Open a Base.",
+  heroTitleTwo: "Keep it yours.",
   heroLede:
-    "View and edit a local Eidos Base without an account, upload, or server. Your SQLite file stays on this device.",
+    "Edit a local .base file with the same Grid, Gallery, and Kanban experience as Eidos Desktop. No account. No upload.",
   openingBase: "Opening Base…",
   openBase: "Open .base file",
   openSample: "Open sample Base",
@@ -21,15 +25,18 @@ const en = {
     "This browser can save changes back to the original file after you grant access.",
   privacyCopy:
     "This browser imports a private working copy. Save creates a new download; it cannot replace the original.",
+  launchFormatLabel: "Format",
+  launchViewsLabel: "Views",
+  launchRuntimeLabel: "Runtime",
   recoveryAvailable: "Unsaved work is available for {file}",
   recoveryPrivate: "Recovered from this browser’s private storage.",
   recoverEdits: "Recover edits",
   discardCopy: "Discard copy",
-  formatEyebrow: "The open multidimensional table",
-  formatTitleOne: "SQLite you can inspect.",
-  formatTitleTwo: "A contract you can implement.",
+  formatEyebrow: "Open multidimensional table format",
+  formatTitleOne: "One file.",
+  formatTitleTwo: "A complete Base.",
   formatIntro:
-    "A .base file is not an opaque export. It is a portable SQLite database with a versioned schema for records, typed properties, relations, and saved views. Desktop and web editors meet at the same public runtime boundary.",
+    "A .base file is a portable SQLite database, not an opaque export. Its versioned schema describes records, typed properties, relations, and saved views; Desktop and Web share the same runtime contract.",
   formatFile: "01 / file",
   formatFileTitle: "SQLite container",
   formatFileBody:
@@ -50,16 +57,18 @@ const en = {
   principleAccount: "No account required",
   principleDrivers: "Browser + Desktop drivers",
   principleLocal: "No server round-trip",
+  readBaseDocs: "Read the Base format RFCs",
   graftEyebrow: "Git-like version control for SQLite",
   graftTitleOne: "Your Base is a file.",
   graftTitleTwo: "Graft gives it history.",
   graftIntro:
     "Base defines the open data format. Graft is the optional version layer: commit meaningful snapshots, inspect row-level diffs, move through history, work on branches, and synchronize remotes.",
-  stackEyebrow: "One stack, from storage history to the application",
-  stackTitle: "Built from the bottom up.",
+  stackEyebrow: "The Eidos data stack",
+  stackTitle: "Format, history, application.",
   stackGraft: "SQLite version engine",
   stackGraftBody:
     "Graft gives SQLite commit history, logical diffs, branches, checkout, reset, and repository synchronization.",
+  openGraft: "Open Graft Playground",
   stackBase: "Open format + multidimensional UI",
   stackBaseBody:
     "Base defines the portable file, shared runtime, typed fields, relations, saved views, and table experiences.",
@@ -78,9 +87,9 @@ const en = {
   graftSyncBody:
     "Synchronize repositories and resolve conflicts with an explicit workflow.",
   graftBoundary:
-    "Graft is integrated with Eidos workspaces today. This static Base Web Editor keeps a clean adapter boundary for a future browser-capable Graft driver; it does not pretend versioning is active here yet.",
+    "Version control stays a separate, explicit workflow. Open Graft Playground to experience commits, row-level SQLite diffs, branches, restore, and sync in the browser.",
   demoEyebrow: "Live runtime · no mock data layer",
-  demoTitle: "Edit a real Base in your browser.",
+  demoTitle: "A real Base, ready to edit",
   demoIntro:
     "Double-click a cell or press Enter. Search, change a status, tick a checkbox, or add a record—the same worker and Base runtime power the full editor.",
   openFullEditor: "Open full editor",
@@ -148,25 +157,32 @@ type MessageKey = keyof typeof en
 
 const zh: Record<MessageKey, string> = {
   languageAction: "Switch to English",
-  heroEyebrow: "文件即工作空间",
+  navEditor: "编辑器",
+  navDocs: "文档",
+  navGraft: "Graft Playground",
+  loadingDocs: "正在加载 Base 文档…",
+  heroEyebrow: "本地 Base 编辑器",
   heroTitleOne: "打开 Base。",
-  heroTitleTwo: "在数据所在处工作。",
+  heroTitleTwo: "数据仍属于你。",
   heroLede:
-    "无需账号、上传或服务端，直接查看和编辑本地 Eidos Base。SQLite 文件始终留在你的设备上。",
+    "直接编辑本地 .base 文件，复用 Eidos Desktop 的 Grid、Gallery 与 Kanban 体验。无需账号，不上传文件。",
   openingBase: "正在打开 Base…",
   openBase: "打开 .base 文件",
   openSample: "打开示例 Base",
   privacyDirect: "此浏览器获授权后可将修改保存回原文件。",
   privacyCopy: "此浏览器会导入私有工作副本；保存会下载新文件，不会替换原文件。",
+  launchFormatLabel: "格式",
+  launchViewsLabel: "视图",
+  launchRuntimeLabel: "运行时",
   recoveryAvailable: "{file} 有未保存的修改可恢复",
   recoveryPrivate: "已从此浏览器的私有存储中找回。",
   recoverEdits: "恢复修改",
   discardCopy: "丢弃副本",
   formatEyebrow: "开放的多维表格格式",
-  formatTitleOne: "可检查的 SQLite。",
-  formatTitleTwo: "可实现的开放契约。",
+  formatTitleOne: "一个文件。",
+  formatTitleTwo: "完整的多维表格。",
   formatIntro:
-    ".base 不是不透明的导出文件，而是可携带的 SQLite 数据库；版本化 schema 描述记录、字段类型、关系和视图。桌面端与 Web 端共享同一公共 runtime 边界。",
+    ".base 是可携带的 SQLite 数据库，不是不透明的导出文件。版本化 schema 描述记录、字段类型、关系和视图；桌面端与 Web 端共享同一 runtime 契约。",
   formatFile: "01 / 文件",
   formatFileTitle: "SQLite 容器",
   formatFileBody:
@@ -187,16 +203,18 @@ const zh: Record<MessageKey, string> = {
   principleAccount: "无需账号",
   principleDrivers: "浏览器 + 桌面驱动",
   principleLocal: "无需服务端往返",
+  readBaseDocs: "阅读 Base 格式 RFC",
   graftEyebrow: "面向 SQLite 的类 Git 版本管理",
   graftTitleOne: "Base 是你的文件。",
   graftTitleTwo: "Graft 赋予它历史。",
   graftIntro:
     "Base 定义开放数据格式，Graft 则是可选的版本层：提交有意义的快照、检查行级 diff、回到历史版本、使用分支，并与远端同步。",
-  stackEyebrow: "从存储历史到最终应用的一体化技术栈",
-  stackTitle: "从底层向上，全部自主实现。",
+  stackEyebrow: "Eidos 数据栈",
+  stackTitle: "格式、历史与应用。",
   stackGraft: "SQLite 版本引擎",
   stackGraftBody:
     "Graft 为 SQLite 提供提交历史、逻辑 diff、分支、checkout、reset 与仓库同步。",
+  openGraft: "打开 Graft Playground",
   stackBase: "开放格式 + 多维表格 UI",
   stackBaseBody:
     "Base 定义可携带文件、共享 runtime、字段类型、关系、视图状态与多维表格体验。",
@@ -212,9 +230,9 @@ const zh: Record<MessageKey, string> = {
   graftSync: "推送、拉取与合并",
   graftSyncBody: "同步仓库，并通过明确流程解决冲突。",
   graftBoundary:
-    "Graft 目前已集成到 Eidos 工作空间。这个静态 Base Web Editor 为未来的浏览器 Graft 驱动保留干净的 adapter 边界，但不会假装当前网页已启用版本管理。",
+    "版本管理保持独立、明确的工作流。前往 Graft Playground，可在浏览器中体验提交、SQLite 行级 diff、分支、恢复与同步。",
   demoEyebrow: "实时 runtime · 没有伪造数据层",
-  demoTitle: "在浏览器中编辑真实 Base。",
+  demoTitle: "真实 Base，可直接编辑",
   demoIntro:
     "双击单元格或按 Enter。你可以搜索、更改状态、勾选复选框或新增记录；它与完整编辑器使用同一个 Worker 和 Base runtime。",
   openFullEditor: "打开完整编辑器",

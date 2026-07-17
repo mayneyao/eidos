@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -25,6 +27,8 @@ import {
 import { BaseQueryToolbar } from "@eidos.space/base-ui/base-query-toolbar"
 import {
   AlertTriangle,
+  ArrowUpRight,
+  BookOpen,
   Check,
   ChevronRight,
   CloudOff,
@@ -89,6 +93,18 @@ interface OpenSession {
 }
 
 type Theme = "light" | "dark"
+
+const BaseDocs = lazy(() =>
+  import("./components/base-docs").then((module) => ({
+    default: module.BaseDocs,
+  }))
+)
+
+function docsSlugFromHash(hash: string): string | null {
+  const match = /^#\/docs(?:\/([^#?]+))?/.exec(hash)
+  if (!match) return null
+  return decodeURIComponent(match[1] ?? "format-runtime")
+}
 
 const MUTABLE_FIELD_TYPES: Array<{
   value: Exclude<
@@ -204,6 +220,9 @@ export function App() {
   const [propertyField, setPropertyField] = useState<BaseFieldInfo | null>(null)
   const [addPropertyOpen, setAddPropertyOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(initialTheme)
+  const [docsSlug, setDocsSlug] = useState<string | null>(() =>
+    docsSlugFromHash(window.location.hash)
+  )
   const clientRef = useRef<BaseWorkerClient | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -229,6 +248,12 @@ export function App() {
     document.documentElement.dataset.theme = theme
     localStorage.setItem("eidos-base-theme", theme)
   }, [theme])
+
+  useEffect(() => {
+    const updateRoute = () => setDocsSlug(docsSlugFromHash(location.hash))
+    window.addEventListener("hashchange", updateRoute)
+    return () => window.removeEventListener("hashchange", updateRoute)
+  }, [])
 
   useEffect(() => {
     void getLatestRecoverySession()
@@ -702,6 +727,25 @@ export function App() {
   const StatusIcon = status.icon
   const directSupported = supportsDirectFileAccess()
 
+  if (docsSlug) {
+    return (
+      <Suspense
+        fallback={
+          <main className="docs-loading" role="status">
+            <LoaderCircle className="spin" size={18} aria-hidden="true" />
+            {t("loadingDocs")}
+          </main>
+        }
+      >
+        <BaseDocs
+          slug={docsSlug}
+          theme={theme}
+          onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
+        />
+      </Suspense>
+    )
+  }
+
   if (!snapshot || !session || !activeTable) {
     return (
       <main className="launch-shell" id="main-content">
@@ -715,6 +759,19 @@ export function App() {
             </span>
             <span>Eidos Base</span>
           </div>
+          <nav className="site-nav" aria-label="Base">
+            <a className="is-active" href="#/">
+              {t("navEditor")}
+            </a>
+            <a href="#/docs/format-runtime">
+              <BookOpen size={13} aria-hidden="true" />
+              {t("navDocs")}
+            </a>
+            <a href="https://graft.eidos.space">
+              {t("navGraft")}
+              <ArrowUpRight size={12} aria-hidden="true" />
+            </a>
+          </nav>
           <div className="launch-header-actions">
             <button
               className="language-button"
@@ -735,54 +792,78 @@ export function App() {
           </div>
         </header>
 
-        <section className="launch-content" aria-labelledby="launch-title">
-          <div className="launch-index" aria-hidden="true">
-            <span>.base</span>
-            <span>local / private</span>
-          </div>
-          <div className="launch-copy">
-            <p className="eyebrow">{t("heroEyebrow")}</p>
-            <h1 id="launch-title">
-              {t("heroTitleOne")}
-              <br />
-              {t("heroTitleTwo")}
-            </h1>
-            <p className="launch-lede">{t("heroLede")}</p>
-            <div className="launch-actions">
-              <button
-                id="open-base"
-                className="primary-button open-button"
-                type="button"
-                disabled={saveState.phase === "opening"}
-                onClick={() => void chooseFile()}
-              >
-                {saveState.phase === "opening" ? (
-                  <LoaderCircle className="spin" size={17} aria-hidden="true" />
-                ) : (
-                  <FolderOpen size={17} aria-hidden="true" />
-                )}
-                {saveState.phase === "opening"
-                  ? t("openingBase")
-                  : t("openBase")}
-                <span className="button-shortcut">⌘ O</span>
-              </button>
-              <button
-                className="secondary-button sample-button"
-                type="button"
-                disabled={saveState.phase === "opening"}
-                onClick={() => void openSample()}
-              >
-                <FileSpreadsheet size={16} aria-hidden="true" />
-                {t("openSample")}
-              </button>
+        <section className="launch-workbench" aria-labelledby="launch-title">
+          <div className="launch-panel">
+            <div className="launch-panel-kicker">
+              <span aria-hidden="true" />
+              {t("heroEyebrow")}
             </div>
-            <div className="privacy-line">
-              <ShieldCheck size={15} aria-hidden="true" />
-              <span>
-                {directSupported ? t("privacyDirect") : t("privacyCopy")}
-              </span>
+            <div className="launch-copy">
+              <h1 id="launch-title">
+                {t("heroTitleOne")}
+                <br />
+                {t("heroTitleTwo")}
+              </h1>
+              <p className="launch-lede">{t("heroLede")}</p>
+              <div className="launch-actions">
+                <button
+                  id="open-base"
+                  className="primary-button open-button"
+                  type="button"
+                  disabled={saveState.phase === "opening"}
+                  onClick={() => void chooseFile()}
+                >
+                  {saveState.phase === "opening" ? (
+                    <LoaderCircle
+                      className="spin"
+                      size={17}
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <FolderOpen size={17} aria-hidden="true" />
+                  )}
+                  {saveState.phase === "opening"
+                    ? t("openingBase")
+                    : t("openBase")}
+                  <span className="button-shortcut">⌘ O</span>
+                </button>
+                <button
+                  className="secondary-button sample-button"
+                  type="button"
+                  disabled={saveState.phase === "opening"}
+                  onClick={() => void openSample()}
+                >
+                  <FileSpreadsheet size={16} aria-hidden="true" />
+                  {t("openSample")}
+                </button>
+              </div>
+              <div className="privacy-line">
+                <ShieldCheck size={15} aria-hidden="true" />
+                <span>
+                  {directSupported ? t("privacyDirect") : t("privacyCopy")}
+                </span>
+              </div>
             </div>
+            <dl className="launch-details">
+              <div>
+                <dt>{t("launchFormatLabel")}</dt>
+                <dd>.base · SQLite</dd>
+              </div>
+              <div>
+                <dt>{t("launchViewsLabel")}</dt>
+                <dd>Grid · Gallery · Kanban</dd>
+              </div>
+              <div>
+                <dt>{t("launchRuntimeLabel")}</dt>
+                <dd>WASM · Web Worker</dd>
+              </div>
+            </dl>
           </div>
+          <LiveBaseDemo
+            embedded
+            theme={theme}
+            onOpenFullEditor={() => void openSample()}
+          />
         </section>
 
         {recovery ? (
@@ -815,137 +896,127 @@ export function App() {
           className="landing-section format-section"
           aria-labelledby="format-title"
         >
-          <div className="section-rail" aria-hidden="true">
-            <span>01</span>
-            <span>open format</span>
-          </div>
-          <div className="format-story">
-            <header className="format-heading">
-              <p className="eyebrow">{t("formatEyebrow")}</p>
+          <header className="section-intro">
+            <div>
+              <p className="eyebrow">01 · {t("formatEyebrow")}</p>
               <h2 id="format-title">
                 {t("formatTitleOne")}
                 <br />
                 {t("formatTitleTwo")}
               </h2>
-              <p>
-                {t("formatIntro").split(".base")[0]}
-                <code>.base</code>
-                {t("formatIntro").split(".base").slice(1).join(".base")}
-              </p>
-            </header>
-
-            <ol className="format-stack" aria-label="Base format layers">
-              <li>
-                <span>{t("formatFile")}</span>
-                <strong>{t("formatFileTitle")}</strong>
-                <p>{t("formatFileBody")}</p>
-                <code>project-tracker.base</code>
-              </li>
-              <li>
-                <span>{t("formatMeaning")}</span>
-                <strong>{t("formatMeaningTitle")}</strong>
-                <p>{t("formatMeaningBody")}</p>
-                <code>eidos__meta · columns · views</code>
-              </li>
-              <li>
-                <span>{t("formatBehavior")}</span>
-                <strong>{t("formatBehaviorTitle")}</strong>
-                <p>{t("formatBehaviorBody")}</p>
-                <code>BaseConnection → BaseRuntime</code>
-              </li>
-              <li>
-                <span>{t("formatExperience")}</span>
-                <strong>{t("formatExperienceTitle")}</strong>
-                <p>{t("formatExperienceBody")}</p>
-                <code>data + view config → UI</code>
-              </li>
-            </ol>
-
-            <div
-              className="format-principles"
-              aria-label="Open format principles"
-            >
-              <span>{t("principleOwned")}</span>
-              <span>{t("principleAccount")}</span>
-              <span>{t("principleDrivers")}</span>
-              <span>{t("principleLocal")}</span>
             </div>
+            <p>
+              {t("formatIntro").split(".base")[0]}
+              <code>.base</code>
+              {t("formatIntro").split(".base").slice(1).join(".base")}
+            </p>
+          </header>
+
+          <ol className="format-ledger" aria-label="Base format layers">
+            <li>
+              <span>{t("formatFile")}</span>
+              <div>
+                <strong>{t("formatFileTitle")}</strong>
+                <code>project-tracker.base</code>
+              </div>
+              <p>{t("formatFileBody")}</p>
+            </li>
+            <li>
+              <span>{t("formatMeaning")}</span>
+              <div>
+                <strong>{t("formatMeaningTitle")}</strong>
+                <code>eidos__meta · columns · views</code>
+              </div>
+              <p>{t("formatMeaningBody")}</p>
+            </li>
+            <li>
+              <span>{t("formatBehavior")}</span>
+              <div>
+                <strong>{t("formatBehaviorTitle")}</strong>
+                <code>BaseConnection → BaseRuntime</code>
+              </div>
+              <p>{t("formatBehaviorBody")}</p>
+            </li>
+            <li>
+              <span>{t("formatExperience")}</span>
+              <div>
+                <strong>{t("formatExperienceTitle")}</strong>
+                <code>data + view config → UI</code>
+              </div>
+              <p>{t("formatExperienceBody")}</p>
+            </li>
+          </ol>
+
+          <div
+            className="format-principles"
+            aria-label="Open format principles"
+          >
+            <span>{t("principleOwned")}</span>
+            <span>{t("principleAccount")}</span>
+            <span>{t("principleDrivers")}</span>
+            <span>{t("principleLocal")}</span>
           </div>
+          <a className="section-link" href="#/docs/format-runtime">
+            <BookOpen size={14} aria-hidden="true" />
+            {t("readBaseDocs")}
+            <ChevronRight size={13} aria-hidden="true" />
+          </a>
         </section>
 
         <section
           className="landing-section stack-section"
           aria-labelledby="stack-title"
         >
-          <div className="section-rail" aria-hidden="true">
-            <span>02</span>
-            <span>full stack</span>
-          </div>
-          <div className="stack-story">
-            <header className="stack-heading">
-              <p className="eyebrow">{t("stackEyebrow")}</p>
+          <header className="section-intro stack-intro">
+            <div>
+              <p className="eyebrow">02 · {t("stackEyebrow")}</p>
               <h2 id="stack-title">{t("stackTitle")}</h2>
-              <p>{t("graftIntro")}</p>
-            </header>
-
-            <div className="stack-layers" aria-label="Eidos technology stack">
-              <article>
-                <span>01</span>
-                <div>
-                  <strong>Graft</strong>
-                  <h3>{t("stackGraft")}</h3>
-                  <p>{t("stackGraftBody")}</p>
-                </div>
-              </article>
-              <article>
-                <span>02</span>
-                <div>
-                  <strong>Base</strong>
-                  <h3>{t("stackBase")}</h3>
-                  <p>{t("stackBaseBody")}</p>
-                </div>
-              </article>
-              <article>
-                <span>03</span>
-                <div>
-                  <strong>Eidos Desktop</strong>
-                  <h3>{t("stackEidos")}</h3>
-                  <p>{t("stackEidosBody")}</p>
-                </div>
-              </article>
             </div>
+            <p>{t("graftIntro")}</p>
+          </header>
 
-            <div className="graft-workflow">
-              <article>
-                <span>commit -m</span>
-                <strong>{t("graftCommit")}</strong>
-                <p>{t("graftCommitBody")}</p>
-              </article>
-              <article>
-                <span>diff HEAD WORKTREE</span>
-                <strong>{t("graftDiff")}</strong>
-                <p>{t("graftDiffBody")}</p>
-              </article>
-              <article>
-                <span>branch / checkout</span>
-                <strong>{t("graftBranch")}</strong>
-                <p>{t("graftBranchBody")}</p>
-              </article>
-              <article>
-                <span>push / pull / merge</span>
-                <strong>{t("graftSync")}</strong>
-                <p>{t("graftSyncBody")}</p>
-              </article>
+          <div className="stack-layers" aria-label="Eidos technology stack">
+            <article>
+              <span>01</span>
+              <div className="stack-layer-name">
+                <strong>Graft</strong>
+                <h3>{t("stackGraft")}</h3>
+              </div>
+              <p>{t("stackGraftBody")}</p>
+              <a className="stack-layer-link" href="https://graft.eidos.space">
+                {t("openGraft")}
+                <ArrowUpRight size={13} aria-hidden="true" />
+              </a>
+            </article>
+            <article>
+              <span>02</span>
+              <div className="stack-layer-name">
+                <strong>Base</strong>
+                <h3>{t("stackBase")}</h3>
+              </div>
+              <p>{t("stackBaseBody")}</p>
+            </article>
+            <article>
+              <span>03</span>
+              <div className="stack-layer-name">
+                <strong>Eidos Desktop</strong>
+                <h3>{t("stackEidos")}</h3>
+              </div>
+              <p>{t("stackEidosBody")}</p>
+            </article>
+          </div>
+
+          <div className="stack-boundary">
+            <code>commit · diff · branch · checkout · merge · sync</code>
+            <div>
+              <p>{t("graftBoundary")}</p>
+              <a href="https://graft.eidos.space">
+                graft.eidos.space
+                <ArrowUpRight size={12} aria-hidden="true" />
+              </a>
             </div>
-
-            <p className="graft-boundary">{t("graftBoundary")}</p>
           </div>
         </section>
-
-        <LiveBaseDemo
-          theme={theme}
-          onOpenFullEditor={() => void openSample()}
-        />
 
         <footer className="launch-footer">
           <span>Eidos Base</span>

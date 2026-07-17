@@ -7,6 +7,7 @@ import type {
 import {
   ArrowUpRight,
   CircleDot,
+  FileSpreadsheet,
   LoaderCircle,
   RotateCcw,
   Search,
@@ -17,6 +18,7 @@ import { BaseWorkerClient } from "../runtime/worker-client"
 import { loadSampleBaseFile } from "../sample-base"
 import { SharedBaseEditorView } from "./shared-base-editor-view"
 interface LiveBaseDemoProps {
+  embedded?: boolean
   theme: "light" | "dark"
   onOpenFullEditor: () => void
 }
@@ -37,7 +39,11 @@ function updateRowCount(
   }
 }
 
-export function LiveBaseDemo({ theme, onOpenFullEditor }: LiveBaseDemoProps) {
+export function LiveBaseDemo({
+  embedded = false,
+  theme,
+  onOpenFullEditor,
+}: LiveBaseDemoProps) {
   const { t } = useI18n()
   const clientRef = useRef<BaseWorkerClient | null>(null)
   const [generation, setGeneration] = useState(0)
@@ -101,25 +107,49 @@ export function LiveBaseDemo({ theme, onOpenFullEditor }: LiveBaseDemoProps) {
 
   return (
     <section
-      className="landing-section live-demo-section"
+      className={
+        embedded
+          ? "live-demo-section live-demo-embedded"
+          : "landing-section live-demo-section"
+      }
       id="live-demo"
       aria-labelledby="live-demo-title"
     >
-      <header className="live-demo-heading">
-        <div>
-          <p className="eyebrow">{t("demoEyebrow")}</p>
-          <h2 id="live-demo-title">{t("demoTitle")}</h2>
-          <p>{t("demoIntro")}</p>
-        </div>
-        <button
-          className="primary-button compact-button"
-          type="button"
-          onClick={onOpenFullEditor}
-        >
-          {t("openFullEditor")}
-          <ArrowUpRight size={14} aria-hidden="true" />
-        </button>
-      </header>
+      {embedded ? (
+        <header className="live-demo-document-bar">
+          <div>
+            <FileSpreadsheet size={15} aria-hidden="true" />
+            <div>
+              <h2 id="live-demo-title">project-tracker.base</h2>
+              <small>{t("demoTitle")}</small>
+            </div>
+          </div>
+          <button
+            className="text-button"
+            type="button"
+            onClick={onOpenFullEditor}
+          >
+            {t("openFullEditor")}
+            <ArrowUpRight size={13} aria-hidden="true" />
+          </button>
+        </header>
+      ) : (
+        <header className="live-demo-heading">
+          <div>
+            <p className="eyebrow">{t("demoEyebrow")}</p>
+            <h2 id="live-demo-title">{t("demoTitle")}</h2>
+            <p>{t("demoIntro")}</p>
+          </div>
+          <button
+            className="primary-button compact-button"
+            type="button"
+            onClick={onOpenFullEditor}
+          >
+            {t("openFullEditor")}
+            <ArrowUpRight size={14} aria-hidden="true" />
+          </button>
+        </header>
+      )}
 
       <div className="live-demo-frame">
         <div className="live-demo-toolbar">

@@ -551,17 +551,16 @@ test("switches the live Base experience between English and Chinese", async ({
   await page.getByRole("button", { name: "切换到中文" }).click()
 
   await expect(page.getByRole("heading", { name: /打开 Base。/ })).toBeVisible()
-  await expect(page.getByText("从底层向上，全部自主实现。")).toBeVisible()
+  await expect(page.getByText("格式、历史与应用。")).toBeVisible()
   await expect(page.getByText("SQLite 版本引擎")).toBeVisible()
 
   await expect(
     page.locator(".live-demo-grid [data-testid='glide-cell-1-0']")
   ).toContainText("Ship Base Web Editor")
-  await toggleFirstComplete(page, page.locator(".live-demo-grid"), false)
-  await expect(page.locator(".live-demo-state")).toContainText("本地示例已修改")
+  await page.getByPlaceholder("搜索示例").fill("Project 2442")
   await expect(
-    page.locator(".live-demo-grid [data-testid='glide-cell-5-0']")
-  ).toHaveText("true")
+    page.locator(".live-demo-grid [data-testid='glide-cell-1-0']")
+  ).toContainText("Project 2442")
 
   await page.getByRole("button", { name: "打开完整编辑器" }).click()
   await expect(page.locator("[data-base-sheet-tabs]")).toContainText(
@@ -571,4 +570,49 @@ test("switches the live Base experience between English and Chinese", async ({
   await expect(page.locator("[data-base-sheet-tabs]")).toContainText(
     "Imported copy"
   )
+})
+
+test("keeps the editor first and publishes Base documentation", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "One browser covers the shared landing and documentation UI"
+  )
+  await installFallbackMode(page)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto("/")
+
+  await expect(
+    page.getByRole("button", { name: "Open .base file" })
+  ).toBeVisible()
+  await expect(
+    page.locator(".live-demo-grid canvas[data-testid='data-grid-canvas']")
+  ).toBeVisible()
+  await expect(
+    page.locator('.site-nav a[href="https://graft.eidos.space"]')
+  ).toHaveText(/Graft Playground/)
+
+  await page.locator('.site-nav a[href="#/docs/format-runtime"]').click()
+  await expect(page).toHaveURL(/#\/docs\/format-runtime$/)
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "RFC: Eidos Base File Format and Runtime",
+    })
+  ).toBeVisible()
+  await expect(
+    page.getByText("docs/rfcs/eidos-base-file-format.md")
+  ).toBeVisible()
+
+  await page.locator('.docs-list a[href="#/docs/product-ux"]').click()
+  await expect(page).toHaveURL(/#\/docs\/product-ux$/)
+  await page.getByRole("button", { name: "切换到中文" }).click()
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "RFC：Space、Base 与 Changes 的产品交互",
+    })
+  ).toBeVisible()
 })
