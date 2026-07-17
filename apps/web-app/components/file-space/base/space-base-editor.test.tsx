@@ -617,7 +617,7 @@ vi.mock("./base-grid", async () => {
                 onClick={() =>
                   void onFieldUpdate?.(propertyField, {
                     property: {
-                      options: [{ id: "done", name: "Done", color: "default" }],
+                      options: [{ value: "done", color: "default" }],
                     },
                   })?.catch(() => undefined)
                 }
@@ -1046,10 +1046,7 @@ const snapshot: BaseSnapshot = {
           tableName: "tb_tasks",
           tableColumnName: "status",
           property: {
-            options: [
-              { id: "todo", name: "Todo" },
-              { id: "done", name: "Done" },
-            ],
+            options: [{ value: "todo" }, { value: "done" }],
           },
           storageCodec: "scalar",
           valueKind: "source",
@@ -2894,7 +2891,7 @@ describe("SpaceBaseEditor", () => {
       "status",
       {
         property: {
-          options: [{ id: "done", name: "Done", color: "default" }],
+          options: [{ value: "done", color: "default" }],
         },
       }
     )

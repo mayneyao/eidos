@@ -4,6 +4,7 @@ import type {
   BaseRowPageProjection,
   BaseViewInfo,
 } from "@eidos.space/base"
+import { decodeBaseJsonArray } from "@eidos.space/base"
 
 import {
   baseSelectOptions,
@@ -13,7 +14,7 @@ import { orderedBaseFields } from "./base-view-layout"
 
 export interface BaseRecordCardFieldLayout {
   field: BaseFieldInfo
-  optionById?: ReadonlyMap<string, BaseSelectOption>
+  optionByValue?: ReadonlyMap<string, BaseSelectOption>
 }
 
 export interface BaseRecordCardLayout {
@@ -28,8 +29,19 @@ export function isBaseRecordCoverField(field: BaseFieldInfo): boolean {
   return field.type === "file" || field.type === "url"
 }
 
-function isEmptyBaseRecordCardValue(value: BaseRow[string]): boolean {
-  return value === null || value === undefined || value === ""
+function isEmptyBaseRecordCardValue(
+  value: BaseRow[string],
+  field: BaseFieldInfo
+): boolean {
+  if (value === null || value === undefined || value === "") return true
+  if (
+    (field.storageCodec === "json_array" ||
+      field.storageCodec === "relation") &&
+    typeof value === "string"
+  ) {
+    return decodeBaseJsonArray(value).length === 0
+  }
+  return false
 }
 
 export function selectBaseRecordCardFields(
@@ -43,7 +55,12 @@ export function selectBaseRecordCardFields(
 
   const visibleFields: BaseRecordCardFieldLayout[] = []
   for (const fieldLayout of layout.fields) {
-    if (isEmptyBaseRecordCardValue(row[fieldLayout.field.tableColumnName])) {
+    if (
+      isEmptyBaseRecordCardValue(
+        row[fieldLayout.field.tableColumnName],
+        fieldLayout.field
+      )
+    ) {
       continue
     }
     visibleFields.push(fieldLayout)
@@ -74,9 +91,9 @@ export function createBaseRecordCardLayout(
             : []
         return {
           field,
-          optionById:
+          optionByValue:
             options.length > 0
-              ? new Map(options.map((option) => [option.id, option]))
+              ? new Map(options.map((option) => [option.value, option]))
               : undefined,
         }
       }),

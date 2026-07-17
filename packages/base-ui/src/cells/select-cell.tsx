@@ -1,9 +1,6 @@
 import * as React from "react"
-import {
-  baseOptionColor,
-  nextBaseOptionColor,
-  type BaseSelectOption as SelectOption,
-} from "../base-field-properties"
+import { baseOptionColor, nextBaseOptionColor } from "../base-field-properties"
+import type { BaseGridSelectOption as SelectOption } from "../base-grid-adapter"
 import {
   GridCellKind,
   getMiddleCenterBias,
@@ -32,6 +29,7 @@ interface SelectCellProps {
   readonly kind: "select-cell"
   readonly value: string | null
   readonly allowedValues: readonly SelectOption[]
+  readonly allowCreate?: boolean
   readonly readonly?: boolean
 }
 
@@ -40,6 +38,7 @@ export type SelectCell = CustomCell<SelectCellProps>
 interface SelectEditorProps {
   value: string | null
   allowedValues: readonly SelectOption[]
+  allowCreate: boolean
   themeName: string
   onFinishedEditing: (value: string | null) => void
   onCancelEditing: () => void
@@ -49,6 +48,7 @@ function SelectEditor(props: SelectEditorProps) {
   const {
     value: valueIn,
     allowedValues,
+    allowCreate,
     themeName,
     onFinishedEditing,
     onCancelEditing,
@@ -170,7 +170,8 @@ function SelectEditor(props: SelectEditorProps) {
                   )
                 })}
 
-                {Boolean(searchValue.length) &&
+                {allowCreate &&
+                  Boolean(searchValue.length) &&
                   allowedValues.findIndex((item) => item.name == searchValue) ==
                     -1 && (
                     <CommandItem
@@ -273,7 +274,7 @@ const renderer: CustomRenderer<SelectCell> = {
   },
   provideEditor: () => (p) => {
     const { value: cell, onFinishedEditing, theme } = p
-    const { allowedValues, value: valueIn } = cell.data
+    const { allowedValues, allowCreate = true, value: valueIn } = cell.data
     const themeName = (theme as any).name
 
     const handleFinishedEditing = (finalValue: string | null) => {
@@ -295,6 +296,7 @@ const renderer: CustomRenderer<SelectCell> = {
       <SelectEditor
         value={valueIn}
         allowedValues={allowedValues}
+        allowCreate={allowCreate}
         themeName={themeName}
         onFinishedEditing={handleFinishedEditing}
         onCancelEditing={handleCancelEditing}

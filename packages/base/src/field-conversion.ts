@@ -1,7 +1,17 @@
 import type { BaseSqlPrimitive } from "./connection"
 import { decodeBaseFilePaths, encodeBaseFilePaths } from "./file-values"
-import { createBaseId } from "./identifiers"
-import type { BaseFieldInfo, BaseFieldType, BaseStorageCodec } from "./types"
+import {
+  decodeBaseJsonArray,
+  decodeBaseStringArray,
+  encodeBaseJsonArray,
+} from "./json-array-values"
+import { parseBaseSelectOptions } from "./select-options"
+import type {
+  BaseFieldInfo,
+  BaseFieldType,
+  BaseSelectOption,
+  BaseStorageCodec,
+} from "./types"
 
 export const MUTABLE_BASE_FIELD_TYPES = [
   "text",
@@ -32,12 +42,6 @@ const OPTION_COLORS = [
   "purple",
 ]
 
-interface BaseSelectOption {
-  id: string
-  name: string
-  color: string
-}
-
 export interface BaseFieldValueRow {
   id: string
   value: BaseSqlPrimitive
@@ -55,52 +59,14 @@ export function isMutableBaseFieldType(
   return MUTABLE_TYPE_SET.has(type)
 }
 
-function selectOptions(field: BaseFieldInfo): BaseSelectOption[] {
-  const options = field.property?.options
-  if (!Array.isArray(options)) return []
-  return options.flatMap((option) => {
-    if (
-      typeof option !== "object" ||
-      option === null ||
-      !("id" in option) ||
-      !("name" in option) ||
-      typeof option.id !== "string" ||
-      typeof option.name !== "string"
-    ) {
-      return []
-    }
-    return [
-      {
-        id: option.id,
-        name: option.name,
-        color:
-          "color" in option && typeof option.color === "string"
-            ? option.color
-            : "default",
-      },
-    ]
-  })
+export function decodeBaseMultiSelectValues(value: BaseSqlPrimitive): string[] {
+  return Array.from(new Set(decodeBaseStringArray(value).filter(Boolean)))
 }
 
-export function decodeBaseMultiSelectIds(value: BaseSqlPrimitive): string[] {
-  if (typeof value !== "string" || value.length === 0) return []
-  if (value.startsWith("[")) {
-    try {
-      const parsed = JSON.parse(value)
-      if (Array.isArray(parsed)) {
-        return parsed.filter(
-          (candidate): candidate is string => typeof candidate === "string"
-        )
-      }
-    } catch {
-      // Fall through to the v1 csv_ids representation.
-    }
-  }
-  return value.split(",").filter(Boolean)
-}
-
-export function encodeBaseMultiSelectIds(ids: string[]): string | null {
-  return ids.length > 0 ? ids.join(",") : null
+export function encodeBaseMultiSelectValues(
+  values: readonly string[]
+): string | null {
+  return encodeBaseJsonArray(Array.from(new Set(values.filter(Boolean))))
 }
 
 export function baseFieldDisplayValues(
@@ -111,16 +77,16 @@ export function baseFieldDisplayValues(
   const primitiveValue: BaseSqlPrimitive =
     typeof value === "boolean" ? (value ? 1 : 0) : value
   if (field.type === "file") return decodeBaseFilePaths(primitiveValue)
-  const options = selectOptions(field)
-  const nameById = new Map(options.map((option) => [option.id, option.name]))
   if (field.type === "select") {
-    const id = String(primitiveValue)
-    return [nameById.get(id) ?? id].filter(Boolean)
+    return [String(primitiveValue)].filter(Boolean)
   }
   if (field.type === "multi-select") {
-    return decodeBaseMultiSelectIds(primitiveValue)
-      .map((id) => nameById.get(id) ?? id)
-      .filter(Boolean)
+    return decodeBaseMultiSelectValues(primitiveValue)
+  }
+  if (field.storageCodec === "json_array") {
+    return decodeBaseJsonArray(primitiveValue).flatMap((entry) =>
+      entry === null ? [] : [String(entry)]
+    )
   }
   if (field.type === "checkbox") {
     return [value === true || value === 1 || value === "1" ? "true" : "false"]
@@ -135,7 +101,10 @@ function optionPlan(
   rows: BaseFieldValueRow[]
 ): BaseSelectOption[] {
   const existingByName = new Map(
-    selectOptions(field).map((option) => [option.name, option])
+    parseBaseSelectOptions(field.property).map((option) => [
+      option.value,
+      option,
+    ])
   )
   const names = Array.from(
     new Set(rows.flatMap((row) => baseFieldDisplayValues(field, row.value)))
@@ -143,8 +112,7 @@ function optionPlan(
   return names.map(
     (name, index) =>
       existingByName.get(name) ?? {
-        id: createBaseId("option"),
-        name,
+        value: name,
         color: OPTION_COLORS[index % OPTION_COLORS.length],
       }
   )
@@ -168,8 +136,7 @@ function defaultProperty(
 }
 
 function storageCodec(type: MutableBaseFieldType): BaseStorageCodec {
-  if (type === "multi-select") return "csv_ids"
-  if (type === "file") return "json_array"
+  if (type === "multi-select" || type === "file") return "json_array"
   return "scalar"
 }
 
@@ -196,8 +163,7 @@ function checkboxValue(
 function convertedValue(
   type: MutableBaseFieldType,
   sourceValue: BaseSqlPrimitive,
-  values: string[],
-  optionIdByName: Map<string, string>
+  values: string[]
 ): BaseSqlPrimitive {
   if (sourceValue === null) return null
   if (type === "number") return numericValue(values)
@@ -208,15 +174,10 @@ function convertedValue(
   }
   if (type === "file") return encodeBaseFilePaths(values)
   if (type === "select") {
-    const name = values[0]
-    return name ? (optionIdByName.get(name) ?? null) : null
+    return values[0] || null
   }
   if (type === "multi-select") {
-    const ids = values.flatMap((name) => {
-      const id = optionIdByName.get(name)
-      return id ? [id] : []
-    })
-    return encodeBaseMultiSelectIds(ids)
+    return encodeBaseMultiSelectValues(values)
   }
   return values.length > 0 ? values.join(", ") : null
 }
@@ -230,9 +191,6 @@ export function planBaseFieldConversion(
     targetType === "select" || targetType === "multi-select"
       ? optionPlan(field, rows)
       : []
-  const optionIdByName = new Map(
-    options.map((option) => [option.name, option.id])
-  )
   return {
     property: defaultProperty(targetType, options),
     storageCodec: storageCodec(targetType),
@@ -240,7 +198,7 @@ export function planBaseFieldConversion(
       const values = baseFieldDisplayValues(field, row.value)
       return {
         id: row.id,
-        value: convertedValue(targetType, row.value, values, optionIdByName),
+        value: convertedValue(targetType, row.value, values),
       }
     }),
   }

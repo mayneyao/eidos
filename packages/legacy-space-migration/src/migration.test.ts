@@ -795,19 +795,20 @@ describe("legacy Space migration planning", () => {
     expect(base.listRows("tasks")[0]).toMatchObject({
       title: "Ship",
       upper_title: "SHIP",
-      owner_name: "Alice",
+      owner: '["person-1"]',
+      owner_name: '["Alice"]',
     })
     expect(base.updateRow("tasks", "row-1", { title: "Launch" })).toMatchObject(
       { upper_title: "LAUNCH" }
     )
     base.updateRow("people", "person-1", { title: "Bob" })
-    expect(base.listRows("tasks")[0].owner_name).toBe("Bob")
+    expect(base.listRows("tasks")[0].owner_name).toBe('["Bob"]')
     base.close()
 
     const reopened = openBaseFile(filePath, { readonly: true })
     expect(reopened.listRows("tasks")[0]).toMatchObject({
       upper_title: "LAUNCH",
-      owner_name: "Bob",
+      owner_name: '["Bob"]',
     })
     reopened.close()
   })
@@ -1038,7 +1039,7 @@ describe("legacy Space migration planning", () => {
       expect.objectContaining({
         _id: "row-1",
         title: "Ship",
-        attachment: "assets/logo.png",
+        attachment: '["assets/logo.png"]',
         status: "todo",
       }),
     ])

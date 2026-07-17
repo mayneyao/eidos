@@ -27,18 +27,18 @@ describe("baseRecordFieldText", () => {
   const row: BaseRow = {
     _id: "row_1",
     title: "Ship Base",
-    status: "doing",
+    status: "In progress",
     owners: '["row_ada"]',
     owners__display: '[{"id":"row_ada","title":"Ada"}]',
     files: '["assets/spec.pdf"]',
   }
 
-  it("renders option names instead of storage IDs", () => {
+  it("renders the direct select value", () => {
     expect(
       baseRecordFieldText(
         row,
         field("select", "status", {
-          options: [{ id: "doing", name: "In progress", color: "blue" }],
+          options: [{ value: "In progress", color: "blue" }],
         })
       )
     ).toBe("In progress")

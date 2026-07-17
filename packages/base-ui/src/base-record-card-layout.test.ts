@@ -113,6 +113,23 @@ describe("selectBaseRecordCardFields", () => {
     expect(selected).toEqual(fields.slice(0, 6))
     expect(rowReads).toBe(0)
   })
+
+  it("hides canonical empty JSON arrays", () => {
+    const arrayField = {
+      ...recordField(0),
+      field: {
+        ...recordField(0).field,
+        type: "multi-select" as const,
+        storageCodec: "json_array" as const,
+      },
+    }
+
+    expect(
+      selectBaseRecordCardFields(cardLayout([arrayField]), {
+        field_0: "[]",
+      })
+    ).toEqual([])
+  })
 })
 
 describe("baseRecordCardPageProjection", () => {

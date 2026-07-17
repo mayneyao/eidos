@@ -23,8 +23,8 @@ import {
 } from "./cursor-paging"
 import { BaseError } from "./errors"
 import {
-  decodeBaseMultiSelectIds,
-  encodeBaseMultiSelectIds,
+  decodeBaseMultiSelectValues,
+  encodeBaseMultiSelectValues,
   isMutableBaseFieldType,
   planBaseFieldConversion,
 } from "./field-conversion"
@@ -38,10 +38,17 @@ import { decodeBaseRelationIds, encodeBaseRelationIds } from "./relation-values"
 import {
   assertBaseColumnName,
   assertBaseTableId,
-  createBaseId,
+  createBaseIdentifier,
+  createBaseUuid,
   quoteIdentifier,
   rawTableNameForId,
 } from "./identifiers"
+import {
+  baseFieldStoresJsonArray,
+  baseLookupAggregateSupportsTarget,
+  baseLookupDisplayType,
+  baseLookupStorageCodec,
+} from "./lookup"
 import { setBaseMetadata } from "./schema"
 import {
   baseRowQueryPredicateColumns,
@@ -86,6 +93,10 @@ import {
   normalizeBaseColumnStatConfigs,
 } from "./column-stats"
 import { validateBase } from "./validation"
+import {
+  assertBaseSelectOptions,
+  parseBaseSelectOptions,
+} from "./select-options"
 
 interface RegistryRow {
   id: string
@@ -157,6 +168,24 @@ interface ViewRow {
 interface BaseRowReadSchema {
   table: BaseTableInfo
   fields: BaseFieldInfo[]
+}
+
+interface BaseLookupCompilationNode {
+  key: string
+  label: string
+}
+
+interface BaseLookupCompilationContext {
+  path: BaseLookupCompilationNode[]
+  overrides?: ReadonlyMap<string, BaseFieldInfo>
+}
+
+const EMPTY_LOOKUP_COMPILATION_CONTEXT: BaseLookupCompilationContext = {
+  path: [],
+}
+
+function baseLookupFieldKey(tableId: string, columnName: string): string {
+  return `${tableId}\u0000${columnName}`
 }
 
 const SYSTEM_FIELDS: Array<{
@@ -237,10 +266,9 @@ function sqlTypeForField(type: BaseFieldType): string {
 }
 
 function defaultStorageCodec(type: BaseFieldType): BaseStorageCodec {
-  if (type === "multi-select") return "csv_ids"
-  if (type === "file") return "json_array"
+  if (type === "multi-select" || type === "file") return "json_array"
   if (type === "link") return "relation"
-  if (type === "formula" || type === "lookup") return "materialized_text"
+  if (type === "formula" || type === "lookup") return "scalar"
   return "scalar"
 }
 
@@ -255,6 +283,11 @@ function writableFieldValue(
   if (value === null) return value
   if (field?.type === "file") {
     return encodeBaseFilePaths(decodeBaseFilePaths(value))
+  }
+  if (field?.type === "multi-select") {
+    return encodeBaseMultiSelectValues(
+      decodeBaseMultiSelectValues(typeof value === "boolean" ? null : value)
+    )
   }
   if (field?.type === "link") {
     return encodeBaseRelationIds(decodeBaseRelationIds(value))
@@ -347,25 +380,15 @@ export class BaseRuntime {
     if (typeof targetTableId === "string" && typeof targetField === "string") {
       return { tableId: targetTableId, columnName: targetField }
     }
-    const legacyTableName = field.property?.linkTableName
-    const legacyColumnName = field.property?.linkColumnName
-    if (
-      typeof legacyTableName !== "string" ||
-      typeof legacyColumnName !== "string"
-    ) {
-      return null
-    }
-    const table = this.listTables().find(
-      (candidate) => candidate.rawTableName === legacyTableName
-    )
-    return table ? { tableId: table.id, columnName: legacyColumnName } : null
+    return null
   }
 
   private rowSourceSql(
     tableId: string,
     fields: BaseFieldInfo[],
     requestedDerivedColumns?: ReadonlySet<string>,
-    table = this.getTable(tableId)
+    table = this.getTable(tableId),
+    lookupContext = EMPTY_LOOKUP_COMPILATION_CONTEXT
   ): string {
     const requiredDerivedColumns = requestedDerivedColumns
       ? this.requiredDerivedColumns(fields, requestedDerivedColumns)
@@ -385,7 +408,13 @@ export class BaseRuntime {
           includesDerivedColumn(field)
       )
       .forEach((field, index) => {
-        const expression = this.lookupExpression(tableId, field, fields, alias)
+        const expression = this.lookupExpression(
+          tableId,
+          field,
+          fields,
+          alias,
+          lookupContext
+        )
         const nextAlias = `lookup_layer_${index + 1}`
         source = `(SELECT ${quoteIdentifier(alias)}.*, (${expression}) AS ${quoteIdentifier(field.tableColumnName)}
                      FROM ${source}) AS ${quoteIdentifier(nextAlias)}`
@@ -539,8 +568,31 @@ export class BaseRuntime {
     tableId: string,
     field: BaseFieldInfo,
     fields: BaseFieldInfo[],
-    sourceAlias: string
+    sourceAlias: string,
+    context: BaseLookupCompilationContext = EMPTY_LOOKUP_COMPILATION_CONTEXT
   ): string {
+    const fieldKey = baseLookupFieldKey(tableId, field.tableColumnName)
+    const cycleStart = context.path.findIndex((node) => node.key === fieldKey)
+    if (cycleStart >= 0) {
+      const cycle = [
+        ...context.path.slice(cycleStart).map((node) => node.label),
+        field.name,
+      ].join(" → ")
+      throw new BaseError(
+        "invalid-schema",
+        `Circular Base lookup dependency: ${cycle}`
+      )
+    }
+    if (context.path.length >= 32) {
+      throw new BaseError(
+        "invalid-schema",
+        "Base lookup dependency depth cannot exceed 32 fields"
+      )
+    }
+    const nextContext: BaseLookupCompilationContext = {
+      ...context,
+      path: [...context.path, { key: fieldKey, label: field.name }],
+    }
     const relationColumn = field.property?.relationField
     const targetColumn = field.property?.targetField
     const aggregate = field.property?.aggregate
@@ -564,6 +616,7 @@ export class BaseRuntime {
         `Lookup field “${field.name}” has incomplete settings`
       )
     }
+    const lookupAggregate = aggregate as BaseLookupAggregate
     const relation = fields.find(
       (candidate) => candidate.tableColumnName === relationColumn
     )
@@ -581,11 +634,29 @@ export class BaseRuntime {
       )
     }
     const targetTable = this.getTable(target.tableId)
-    const targetField = this.getField(target.tableId, targetColumn)
-    if (targetField.isDerived) {
+    const targetFields = this.queryFields(targetTable).map(
+      (candidate) =>
+        context.overrides?.get(
+          baseLookupFieldKey(target.tableId, candidate.tableColumnName)
+        ) ?? candidate
+    )
+    const targetField = targetFields.find(
+      (candidate) => candidate.tableColumnName === targetColumn
+    )
+    if (!targetField) {
+      throw new BaseError(
+        "field-not-found",
+        `Lookup target field not found: ${targetColumn}`
+      )
+    }
+    const nestedLookup =
+      targetField.type === "lookup" &&
+      targetField.valueKind === "derived" &&
+      targetField.isDerived
+    if (targetField.isDerived && !nestedLookup) {
       throw new BaseError(
         "invalid-schema",
-        "A Base lookup target must be stored on the related table"
+        "A Base lookup target must be stored or another Lookup field"
       )
     }
     if (this.getTable(tableId).rawTableName !== field.tableName) {
@@ -597,33 +668,121 @@ export class BaseRuntime {
     const outerRelation = `${quoteIdentifier(sourceAlias)}.${quoteIdentifier(relationColumn)}`
     const targetAlias = quoteIdentifier("lookup_target")
     const targetValue = `${targetAlias}.${quoteIdentifier(targetColumn)}`
-    const membership = `(CASE
-      WHEN json_valid(${outerRelation})
-      THEN EXISTS (
-        SELECT 1 FROM json_each(${outerRelation})
-         WHERE CAST(value AS TEXT) = CAST(${targetAlias}._id AS TEXT)
+    if (!baseLookupAggregateSupportsTarget(lookupAggregate, targetField)) {
+      throw new BaseError(
+        "invalid-schema",
+        `${lookupAggregate} lookup requires a number or rating target field`
       )
-      ELSE instr(
-        ',' || COALESCE(CAST(${outerRelation} AS TEXT), '') || ',',
-        ',' || CAST(${targetAlias}._id AS TEXT) || ','
-      ) > 0
-    END)`
-    const from = `${quoteIdentifier(targetTable.rawTableName)} AS ${targetAlias}`
-    if (aggregate === "first") {
-      return `SELECT ${targetValue} FROM ${from}
-               WHERE ${membership} ORDER BY ${targetAlias}.rowid LIMIT 1`
     }
-    if (aggregate === "values") {
-      return `SELECT group_concat(CAST(${targetValue} AS TEXT), ', ')
-                FROM ${from} WHERE ${membership}`
+    const expectedDisplayType = baseLookupDisplayType(
+      lookupAggregate,
+      targetField
+    )
+    if (field.property?.displayType !== expectedDisplayType) {
+      throw new BaseError(
+        "invalid-schema",
+        `Lookup field “${field.name}” must use ${expectedDisplayType} display values`
+      )
     }
-    if (aggregate === "count") {
-      return `SELECT COUNT(*) FROM ${from} WHERE ${membership}`
+    const relationAlias = quoteIdentifier("lookup_relation")
+    const relationRows = `json_each(
+      CASE
+        WHEN json_valid(${outerRelation})
+         AND json_type(${outerRelation}) = 'array'
+          THEN ${outerRelation}
+        ELSE '[]'
+      END
+    ) AS ${relationAlias}`
+    const from = nestedLookup
+      ? `(SELECT * FROM ${this.rowSourceSql(
+          targetTable.id,
+          targetFields,
+          new Set([targetField.tableColumnName]),
+          targetTable,
+          nextContext
+        )}) AS ${targetAlias}`
+      : `${quoteIdentifier(targetTable.rawTableName)} AS ${targetAlias}`
+    const targetJoin = `JOIN ${from}
+      ON CAST(${targetAlias}._id AS TEXT) = CAST(${relationAlias}.value AS TEXT)`
+    const valueAlias = quoteIdentifier("lookup_value")
+    const stream = baseFieldStoresJsonArray(targetField)
+      ? `SELECT CAST(${relationAlias}.key AS INTEGER) AS record_order,
+                CAST(${valueAlias}.key AS INTEGER) AS value_order,
+                ${valueAlias}.value AS value
+           FROM ${relationRows}
+           ${targetJoin}
+           JOIN json_each(
+             CASE
+               WHEN json_valid(${targetValue})
+                AND json_type(${targetValue}) = 'array'
+                 THEN ${targetValue}
+               ELSE '[]'
+             END
+           ) AS ${valueAlias} ON TRUE`
+      : `SELECT CAST(${relationAlias}.key AS INTEGER) AS record_order,
+                0 AS value_order,
+                ${targetValue} AS value
+           FROM ${relationRows}
+           ${targetJoin}
+          WHERE ${targetValue} IS NOT NULL`
+    if (lookupAggregate === "first") {
+      return `SELECT value FROM (${stream})
+               ORDER BY record_order, value_order LIMIT 1`
+    }
+    if (lookupAggregate === "values") {
+      return `SELECT COALESCE(json_group_array(value), '[]')
+                FROM (
+                  SELECT value FROM (${stream})
+                   ORDER BY record_order, value_order
+                )`
+    }
+    if (lookupAggregate === "count") {
+      return `SELECT COUNT(*) FROM (${stream})`
     }
     const functionName =
-      aggregate === "average" ? "AVG" : aggregate.toUpperCase()
-    return `SELECT ${functionName}(CAST(${targetValue} AS REAL))
-              FROM ${from} WHERE ${membership}`
+      lookupAggregate === "average" ? "AVG" : lookupAggregate.toUpperCase()
+    return `SELECT ${functionName}(CAST(value AS REAL))
+              FROM (${stream})`
+  }
+
+  private validateLookupTargetDependents(
+    targetTableId: string,
+    targetColumnName: string,
+    overrides: ReadonlyMap<string, BaseFieldInfo>
+  ): void {
+    for (const sourceTable of this.listTables()) {
+      const sourceFields = this.queryFields(sourceTable).map(
+        (candidate) =>
+          overrides.get(
+            baseLookupFieldKey(sourceTable.id, candidate.tableColumnName)
+          ) ?? candidate
+      )
+      for (const candidate of sourceFields) {
+        if (
+          candidate.type !== "lookup" ||
+          candidate.valueKind !== "derived" ||
+          !candidate.isDerived ||
+          candidate.property?.targetField !== targetColumnName
+        ) {
+          continue
+        }
+        const relation = sourceFields.find(
+          (field) => field.tableColumnName === candidate.property?.relationField
+        )
+        if (
+          relation &&
+          this.relationTarget(relation)?.tableId === targetTableId
+        ) {
+          this.lookupExpression(
+            sourceTable.id,
+            candidate,
+            sourceFields,
+            "lookup_source",
+            { path: [], overrides }
+          )
+        }
+      }
+    }
   }
 
   private getComputedRow(
@@ -768,7 +927,7 @@ export class BaseRuntime {
   }
 
   createTable(input: CreateBaseTableInput): BaseTableInfo {
-    const tableId = assertBaseTableId(input.id ?? createBaseId("table"))
+    const tableId = assertBaseTableId(input.id ?? createBaseIdentifier())
     const rawTableName = rawTableNameForId(tableId)
     const quotedTable = quoteIdentifier(rawTableName)
     const position =
@@ -821,7 +980,7 @@ export class BaseRuntime {
           `INSERT INTO ${BASE_VIEWS_TABLE}
             (id, name, type, table_id, query, position)
            VALUES (?, 'Grid', 'grid', ?, ?, 1)`,
-          [createBaseId("view"), tableId, `SELECT * FROM ${quotedTable}`]
+          [createBaseUuid(), tableId, `SELECT * FROM ${quotedTable}`]
         )
       }
       const currentDefault = this.connection.get<{ value: string }>(
@@ -1095,7 +1254,7 @@ export class BaseRuntime {
         "Base view position must be a non-negative integer"
       )
     }
-    const viewId = input.id ?? createBaseId("view")
+    const viewId = input.id ?? createBaseUuid()
     const position =
       input.position ??
       this.connection.get<{ position: number }>(
@@ -1251,6 +1410,7 @@ export class BaseRuntime {
     const quotedColumn = quoteIdentifier(columnName)
     let property: Record<string, unknown> | null = field.property ?? null
     let dependsOn: string[] | null = null
+    let storageCodec = defaultStorageCodec(field.type)
     if (
       placement &&
       (!Number.isSafeInteger(placement.index) || placement.index < 0)
@@ -1273,6 +1433,15 @@ export class BaseRuntime {
         "view-not-found",
         `Base view not found: ${placement.viewId}`
       )
+    }
+    if (
+      (field.type === "select" || field.type === "multi-select") &&
+      property === null
+    ) {
+      property = { options: [] }
+    }
+    if (field.type === "select" || field.type === "multi-select") {
+      assertBaseSelectOptions(property)
     }
     if (field.type === "link") {
       const targetTable = this.getTable(field.property.targetTableId)
@@ -1315,13 +1484,14 @@ export class BaseRuntime {
         { ...draft, property, dependsOn },
       ])
     } else if (field.type === "lookup") {
+      storageCodec = baseLookupStorageCodec(field.property.aggregate)
       const draft: BaseFieldInfo = {
         name: field.name,
         type: "lookup",
         tableName: table.rawTableName,
         tableColumnName: columnName,
         property: field.property,
-        storageCodec: "scalar",
+        storageCodec,
         valueKind: "derived",
         isHidden: false,
         isDerived: true,
@@ -1329,7 +1499,10 @@ export class BaseRuntime {
         dependsOn: [field.property.relationField],
       }
       const fields = [...this.listFields(tableId), draft]
-      this.lookupExpression(tableId, draft, fields, "lookup_source")
+      this.lookupExpression(tableId, draft, fields, "lookup_source", {
+        path: [],
+        overrides: new Map([[baseLookupFieldKey(tableId, columnName), draft]]),
+      })
       dependsOn = [field.property.relationField]
     }
     this.connection.transaction(() => {
@@ -1349,9 +1522,7 @@ export class BaseRuntime {
           table.rawTableName,
           columnName,
           property ? JSON.stringify(property) : null,
-          field.type === "formula" || field.type === "lookup"
-            ? "scalar"
-            : (field.storageCodec ?? defaultStorageCodec(field.type)),
+          storageCodec,
           field.type === "link"
             ? "relation"
             : field.type === "formula" || field.type === "lookup"
@@ -1612,6 +1783,24 @@ export class BaseRuntime {
       const plan = planBaseFieldConversion(field, rows, targetType)
       const property =
         changes.property === undefined ? plan.property : changes.property
+      const convertedField: BaseFieldInfo = {
+        ...field,
+        name,
+        type: targetType,
+        property,
+        storageCodec: plan.storageCodec,
+        valueKind: "source",
+        isDerived: false,
+        sourceTableColumnName: null,
+        dependsOn: null,
+      }
+      this.validateLookupTargetDependents(
+        tableId,
+        field.tableColumnName,
+        new Map([
+          [baseLookupFieldKey(tableId, field.tableColumnName), convertedField],
+        ])
+      )
       const currentSqlType = sqlTypeForField(field.type)
       const targetSqlType = sqlTypeForField(targetType)
       this.connection.transaction(() => {
@@ -1619,7 +1808,7 @@ export class BaseRuntime {
         let targetColumn = quotedColumn
         let backupColumn: string | null = null
         if (currentSqlType !== targetSqlType) {
-          const suffix = createBaseId("migration")
+          const suffix = createBaseIdentifier()
           const nextName = `${field.tableColumnName}_${suffix}_next`
           const backupName = `${field.tableColumnName}_${suffix}_old`
           targetColumn = quoteIdentifier(nextName)
@@ -1666,17 +1855,6 @@ export class BaseRuntime {
             field.tableColumnName,
           ]
         )
-        const convertedField: BaseFieldInfo = {
-          ...field,
-          name,
-          type: targetType,
-          property,
-          storageCodec: plan.storageCodec,
-          valueKind: "source",
-          isDerived: false,
-          sourceTableColumnName: null,
-          dependsOn: null,
-        }
         this.removeUnsupportedColumnStats(tableId, convertedField)
         this.optimizeViewQueries(tableId)
         this.touchMetadata({})
@@ -1686,29 +1864,51 @@ export class BaseRuntime {
     let property =
       changes.property === undefined ? field.property : changes.property
     let dependsOn = field.dependsOn
-    const removedOptionIds =
-      (field.type === "select" || field.type === "multi-select") &&
-      changes.property !== undefined
-        ? (() => {
-            const optionIds = (candidate: Record<string, unknown> | null) =>
-              new Set(
-                Array.isArray(candidate?.options)
-                  ? candidate.options.flatMap((option) =>
-                      typeof option === "object" &&
-                      option !== null &&
-                      "id" in option &&
-                      typeof option.id === "string"
-                        ? [option.id]
-                        : []
-                    )
-                  : []
-              )
-            const nextIds = optionIds(property)
-            return [...optionIds(field.property)].filter(
-              (id) => !nextIds.has(id)
-            )
-          })()
+    let storageCodec = field.storageCodec
+    const previousOptions =
+      field.type === "select" || field.type === "multi-select"
+        ? parseBaseSelectOptions(field.property)
         : []
+    const nextOptions =
+      field.type === "select" || field.type === "multi-select"
+        ? changes.property !== undefined
+          ? assertBaseSelectOptions(property)
+          : previousOptions
+        : []
+    if (
+      changes.optionValueChanges !== undefined &&
+      (changes.property === undefined ||
+        (field.type !== "select" && field.type !== "multi-select"))
+    ) {
+      throw new BaseError(
+        "invalid-schema",
+        "Option value changes require updated select options"
+      )
+    }
+    const previousOptionValues = new Set(
+      previousOptions.map((option) => option.value)
+    )
+    const nextOptionValues = new Set(nextOptions.map((option) => option.value))
+    const optionValueChanges = new Map<string, string>()
+    for (const change of changes.optionValueChanges ?? []) {
+      if (
+        !change.from ||
+        !change.to ||
+        change.from === change.to ||
+        !previousOptionValues.has(change.from) ||
+        !nextOptionValues.has(change.to) ||
+        optionValueChanges.has(change.from)
+      ) {
+        throw new BaseError("invalid-schema", "Invalid select option rename")
+      }
+      optionValueChanges.set(change.from, change.to)
+    }
+    const removedOptionValues = new Set(
+      [...previousOptionValues].filter(
+        (value) =>
+          !nextOptionValues.has(value) && !optionValueChanges.has(value)
+      )
+    )
     if (field.type === "formula" && changes.property !== undefined) {
       const formulaProperty = { ...(property ?? {}) }
       delete formulaProperty.expression
@@ -1743,64 +1943,112 @@ export class BaseRuntime {
         ...field,
         name,
         property,
+        storageCodec: baseLookupStorageCodec(
+          property?.aggregate as BaseLookupAggregate
+        ),
         dependsOn: [relationField],
       }
       const fields = this.listFields(tableId).map((candidate) =>
         candidate.tableColumnName === field.tableColumnName ? draft : candidate
       )
-      this.lookupExpression(tableId, draft, fields, "lookup_source")
+      const overrides = new Map([
+        [baseLookupFieldKey(tableId, field.tableColumnName), draft],
+      ])
+      this.lookupExpression(tableId, draft, fields, "lookup_source", {
+        path: [],
+        overrides,
+      })
+      this.validateLookupTargetDependents(
+        tableId,
+        field.tableColumnName,
+        overrides
+      )
       dependsOn = [relationField]
+      storageCodec = draft.storageCodec
     }
     this.connection.transaction(() => {
-      if (removedOptionIds.length > 0 && field.type === "select") {
-        for (const optionId of removedOptionIds) {
+      if (
+        (removedOptionValues.size > 0 || optionValueChanges.size > 0) &&
+        (field.type === "select" || field.type === "multi-select")
+      ) {
+        const quotedTable = quoteIdentifier(table.rawTableName)
+        const quotedField = quoteIdentifier(field.tableColumnName)
+        if (field.type === "select") {
+          const renamedValues = [...optionValueChanges]
+          const affectedValues = [
+            ...optionValueChanges.keys(),
+            ...removedOptionValues,
+          ]
+          const cases = renamedValues.map(() => "WHEN ? THEN ?").join(" ")
+          const nextValue = cases
+            ? `CASE ${quotedField} ${cases} ELSE NULL END`
+            : "NULL"
           this.connection.run(
-            `UPDATE ${quoteIdentifier(table.rawTableName)}
-                SET ${quoteIdentifier(field.tableColumnName)} = NULL
-              WHERE ${quoteIdentifier(field.tableColumnName)} = ?`,
-            [optionId]
-          )
-        }
-      } else if (removedOptionIds.length > 0 && field.type === "multi-select") {
-        const removed = new Set(removedOptionIds)
-        const rows = this.connection.query<{
-          id: string
-          value: BaseSqlPrimitive
-        }>(
-          `SELECT CAST(_id AS TEXT) AS id,
-                  ${quoteIdentifier(field.tableColumnName)} AS value
-             FROM ${quoteIdentifier(table.rawTableName)}`
-        )
-        const statement = `UPDATE ${quoteIdentifier(table.rawTableName)}
-                              SET ${quoteIdentifier(field.tableColumnName)} = ?
-                            WHERE _id = ?`
-        const parameterSets = rows.map(
-          (row) =>
+            `UPDATE ${quotedTable}
+                SET ${quotedField} = ${nextValue}
+              WHERE ${quotedField} IN (${affectedValues.map(() => "?").join(", ")})`,
             [
-              encodeBaseMultiSelectIds(
-                decodeBaseMultiSelectIds(row.value).filter(
-                  (id) => !removed.has(id)
-                )
-              ),
-              row.id,
-            ] as const
-        )
-        if (this.connection.runMany) {
-          this.connection.runMany(statement, parameterSets)
+              ...renamedValues.flatMap(([from, to]) => [from, to]),
+              ...affectedValues,
+            ]
+          )
         } else {
-          for (const parameters of parameterSets) {
-            this.connection.run(statement, parameters)
+          const affectedValues = [
+            ...removedOptionValues,
+            ...optionValueChanges.keys(),
+          ]
+          const rows = this.connection.query<{
+            id: string
+            value: BaseSqlPrimitive
+          }>(
+            `SELECT CAST(_id AS TEXT) AS id,
+                    ${quotedField} AS value
+               FROM ${quotedTable}
+              WHERE EXISTS (
+                SELECT 1
+                  FROM json_each(
+                    CASE
+                      WHEN json_valid(${quotedField})
+                       AND json_type(${quotedField}) = 'array'
+                        THEN ${quotedField}
+                      ELSE '[]'
+                    END
+                  )
+                 WHERE CAST(value AS TEXT) IN (${affectedValues.map(() => "?").join(", ")})
+              )`,
+            affectedValues
+          )
+          const statement = `UPDATE ${quotedTable}
+                              SET ${quotedField} = ?
+                            WHERE _id = ?`
+          const parameterSets = rows.map((row) => {
+            const nextValues = decodeBaseMultiSelectValues(row.value).flatMap(
+              (value) => {
+                const renamed = optionValueChanges.get(value)
+                if (renamed) return [renamed]
+                return removedOptionValues.has(value) ? [] : [value]
+              }
+            )
+            return [encodeBaseMultiSelectValues(nextValues), row.id] as const
+          })
+          if (this.connection.runMany) {
+            this.connection.runMany(statement, parameterSets)
+          } else {
+            for (const parameters of parameterSets) {
+              this.connection.run(statement, parameters)
+            }
           }
         }
       }
       this.connection.run(
         `UPDATE ${BASE_COLUMNS_TABLE}
-            SET name = ?, property = ?, depends_on = ?,
+            SET name = ?, property = ?, storage_codec = ?, depends_on = ?,
                 updated_at = CURRENT_TIMESTAMP
           WHERE table_name = ? AND table_column_name = ?`,
         [
           name,
           property === null ? null : JSON.stringify(property),
+          storageCodec,
           dependsOn === null ? null : JSON.stringify(dependsOn),
           table.rawTableName,
           field.tableColumnName,
@@ -1810,6 +2058,7 @@ export class BaseRuntime {
         ...field,
         name,
         property,
+        storageCodec,
         dependsOn,
       })
       this.touchMetadata({})
@@ -2391,7 +2640,7 @@ export class BaseRuntime {
           writableFieldValue(fieldsByColumn.get(column), value),
         ])
       ),
-      _id: row._id ?? createBaseId("row"),
+      _id: row._id ?? createBaseUuid(),
     }
     const columns = Object.keys(record)
     for (const column of columns) {
@@ -2439,7 +2688,7 @@ export class BaseRuntime {
     )
     const records: BaseRow[] = rows.map((row) => ({
       ...row,
-      _id: row._id ?? createBaseId("row"),
+      _id: row._id ?? createBaseUuid(),
     }))
     this.connection.transaction(() => {
       const batches = new Map<

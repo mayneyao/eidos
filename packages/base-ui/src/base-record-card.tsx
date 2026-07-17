@@ -9,7 +9,10 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react"
 import type { BaseFieldInfo, BaseRow, BaseViewInfo } from "@eidos.space/base"
-import { decodeBaseFilePaths } from "@eidos.space/base"
+import {
+  decodeBaseFilePaths,
+  decodeBaseMultiSelectValues,
+} from "@eidos.space/base"
 import {
   Check,
   Eye,
@@ -52,23 +55,6 @@ function isCardInteractiveTarget(target: EventTarget | null): boolean {
     target instanceof Element &&
     target.closest(CARD_INTERACTIVE_TARGET) !== null
   )
-}
-
-function multiSelectIds(value: BaseRow[string]): string[] {
-  if (typeof value !== "string" || value.length === 0) return []
-  if (value.startsWith("[")) {
-    try {
-      const parsed = JSON.parse(value)
-      if (Array.isArray(parsed)) {
-        return parsed.filter(
-          (candidate): candidate is string => typeof candidate === "string"
-        )
-      }
-    } catch {
-      // Fall through to the v1 comma-separated representation.
-    }
-  }
-  return value.split(",").filter(Boolean)
 }
 
 function BaseRecordCover({
@@ -132,7 +118,7 @@ function CardFieldValue({
   row: BaseRow
   theme: "dark" | "light"
 }) {
-  const { field, optionById } = layout
+  const { field, optionByValue } = layout
   const value = row[field.tableColumnName]
 
   if (field.type === "checkbox") {
@@ -144,26 +130,33 @@ function CardFieldValue({
     )
   }
   if (field.type === "select") {
-    const option = optionById?.get(String(value))
-    if (!option) return <span className="text-muted-foreground">Empty</span>
+    const rawValue = typeof value === "string" ? value : ""
+    if (!rawValue) {
+      return <span className="text-muted-foreground">Empty</span>
+    }
+    const option = optionByValue?.get(rawValue)
     return (
       <span
         className="max-w-full truncate rounded px-1.5 py-0.5 text-[11px] text-foreground"
-        style={{ backgroundColor: baseOptionColor(option.color, theme) }}
+        style={{
+          backgroundColor: baseOptionColor(option?.color ?? "default", theme),
+        }}
       >
-        {option.name}
+        {option?.value ?? rawValue}
       </span>
     )
   }
   if (field.type === "multi-select") {
-    const values = multiSelectIds(value)
+    const values = decodeBaseMultiSelectValues(
+      typeof value === "string" ? value : null
+    )
     if (values.length === 0) {
       return <span className="text-muted-foreground">Empty</span>
     }
     return (
       <span className="flex min-w-0 flex-wrap gap-1">
         {values.slice(0, 3).map((id) => {
-          const option = optionById?.get(id)
+          const option = optionByValue?.get(id)
           return (
             <span
               key={id}
@@ -175,7 +168,7 @@ function CardFieldValue({
                 ),
               }}
             >
-              {option?.name ?? id}
+              {option?.value ?? id}
             </span>
           )
         })}

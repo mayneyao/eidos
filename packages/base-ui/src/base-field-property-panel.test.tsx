@@ -230,8 +230,8 @@ describe("BaseFieldPropertyPanel", () => {
         <BaseFieldPropertyPanel
           field={field("select", {
             options: [
-              { id: "todo", name: "Todo", color: "blue" },
-              { id: "done", name: "Done", color: "green" },
+              { value: "Todo", color: "blue" },
+              { value: "Done", color: "green" },
             ],
           })}
           disabled={false}
@@ -251,20 +251,20 @@ describe("BaseFieldPropertyPanel", () => {
 
     expect(onUpdate).toHaveBeenCalledWith(expect.any(Object), {
       property: {
-        options: [{ id: "done", name: "Done", color: "green" }],
+        options: [{ value: "Done", color: "green" }],
       },
     })
   })
 
-  it("keeps option names unique when editing an existing Select field", async () => {
+  it("keeps option values unique when editing an existing Select field", async () => {
     const onUpdate = vi.fn(() => Promise.resolve())
     await act(async () => {
       root.render(
         <BaseFieldPropertyPanel
           field={field("select", {
             options: [
-              { id: "todo", name: "Todo", color: "blue" },
-              { id: "done", name: "Done", color: "green" },
+              { value: "Todo", color: "blue" },
+              { value: "Done", color: "green" },
             ],
           })}
           disabled={false}
@@ -275,7 +275,7 @@ describe("BaseFieldPropertyPanel", () => {
       )
     })
     const done = container.querySelector<HTMLInputElement>(
-      'input[aria-label="Done option name"]'
+      'input[aria-label="Done option value"]'
     )
     await act(async () => {
       if (done) {
@@ -294,13 +294,13 @@ describe("BaseFieldPropertyPanel", () => {
     expect(done?.value).toBe("Done")
   })
 
-  it("cancels an inline Select option rename with Escape", async () => {
+  it("persists a direct option value rename with its cell rewrite mapping", async () => {
     const onUpdate = vi.fn(() => Promise.resolve())
     await act(async () => {
       root.render(
         <BaseFieldPropertyPanel
           field={field("select", {
-            options: [{ id: "done", name: "Done", color: "green" }],
+            options: [{ value: "Done", color: "green" }],
           })}
           disabled={false}
           onClose={vi.fn()}
@@ -311,7 +311,45 @@ describe("BaseFieldPropertyPanel", () => {
     })
 
     const optionInput = container.querySelector<HTMLInputElement>(
-      'input[aria-label="Done option name"]'
+      'input[aria-label="Done option value"]'
+    )
+    await act(async () => {
+      if (optionInput) {
+        optionInput.focus()
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )?.set?.call(optionInput, "Complete")
+        optionInput.dispatchEvent(new Event("input", { bubbles: true }))
+        optionInput.blur()
+      }
+      await Promise.resolve()
+    })
+
+    expect(onUpdate).toHaveBeenCalledWith(expect.any(Object), {
+      property: { options: [{ value: "Complete", color: "green" }] },
+      optionValueChanges: [{ from: "Done", to: "Complete" }],
+    })
+  })
+
+  it("cancels an inline Select option rename with Escape", async () => {
+    const onUpdate = vi.fn(() => Promise.resolve())
+    await act(async () => {
+      root.render(
+        <BaseFieldPropertyPanel
+          field={field("select", {
+            options: [{ value: "Done", color: "green" }],
+          })}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    const optionInput = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Done option value"]'
     )
     await act(async () => {
       optionInput?.focus()
@@ -336,7 +374,7 @@ describe("BaseFieldPropertyPanel", () => {
       root.render(
         <BaseFieldPropertyPanel
           field={field("select", {
-            options: [{ id: "done", name: "Done", color: "green" }],
+            options: [{ value: "Done", color: "green" }],
           })}
           disabled={false}
           onClose={vi.fn()}
@@ -357,7 +395,7 @@ describe("BaseFieldPropertyPanel", () => {
 
     expect(onUpdate).toHaveBeenCalledTimes(1)
     expect(
-      container.querySelector('input[aria-label="Done option name"]')
+      container.querySelector('input[aria-label="Done option value"]')
     ).toBeTruthy()
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(
       "write failed"

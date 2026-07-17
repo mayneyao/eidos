@@ -8,7 +8,7 @@ export * from "./base-file-cell"
 export * from "./base-grid"
 export {
   baseGridColumn,
-  baseSelectOptions as baseGridSelectOptions,
+  baseGridSelectOptions,
   baseValueToGridCell,
   gridCellToBaseValue,
 } from "./base-grid-adapter"

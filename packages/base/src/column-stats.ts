@@ -156,17 +156,14 @@ export function compileBaseColumnStatExpression(
     ? `(${column} IS NULL OR ${text} = '' OR (json_valid(${column}) AND json_type(${column}) = 'array' AND json_array_length(${column}) = 0))`
     : `(${column} IS NULL OR ${text} = '')`
   const present = `NOT ${empty}`
-  const valueCount =
-    field.storageCodec === "csv_ids"
-      ? `CASE WHEN ${empty} THEN 0 ELSE LENGTH(${text}) - LENGTH(REPLACE(${text}, ',', '')) + 1 END`
-      : isArrayCodec
-        ? `CASE
-             WHEN ${empty} THEN 0
-             WHEN json_valid(${column}) AND json_type(${column}) = 'array'
-               THEN json_array_length(${column})
-             ELSE LENGTH(${text}) - LENGTH(REPLACE(${text}, ',', '')) + 1
-           END`
-        : null
+  const valueCount = isArrayCodec
+    ? `CASE
+         WHEN ${empty} THEN 0
+         WHEN json_valid(${column}) AND json_type(${column}) = 'array'
+           THEN json_array_length(${column})
+         ELSE 0
+       END`
+    : null
 
   switch (type) {
     case "count-all":

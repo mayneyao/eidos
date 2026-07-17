@@ -13,12 +13,12 @@ describe("Base relation values", () => {
     )
   })
 
-  it("reads portable JSON and legacy comma-separated IDs", () => {
+  it("reads only portable JSON arrays", () => {
     expect(decodeBaseRelationIds('["row-a","row,b"]')).toEqual([
       "row-a",
       "row,b",
     ])
-    expect(decodeBaseRelationIds("row-a,row-b")).toEqual(["row-a", "row-b"])
+    expect(decodeBaseRelationIds("row-a,row-b")).toEqual([])
   })
 
   it("decodes hydrated display values defensively", () => {

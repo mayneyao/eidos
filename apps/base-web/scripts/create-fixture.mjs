@@ -32,9 +32,9 @@ const base = createBaseFile(output, {
         type: "select",
         property: {
           options: [
-            { id: "backlog", name: "Backlog", color: "gray" },
-            { id: "active", name: "Active", color: "blue" },
-            { id: "done", name: "Done", color: "green" },
+            { value: "Backlog", color: "gray" },
+            { value: "Active", color: "blue" },
+            { value: "Done", color: "green" },
           ],
         },
       },
@@ -53,14 +53,14 @@ const base = createBaseFile(output, {
 const rows = Array.from({ length: 2_500 }, (_, index) => {
   const sequence = index + 1
   const status =
-    sequence % 7 === 0 ? "done" : sequence % 3 === 0 ? "active" : "backlog"
+    sequence % 7 === 0 ? "Done" : sequence % 3 === 0 ? "Active" : "Backlog"
   return {
     _id: `project_${String(sequence).padStart(5, "0")}`,
     title: sequence === 1 ? "Ship Base Web Editor" : `Project ${sequence}`,
     status,
     estimate: (sequence % 13) + 1,
     due: `2026-${String((sequence % 12) + 1).padStart(2, "0")}-${String((sequence % 27) + 1).padStart(2, "0")}`,
-    complete: status === "done",
+    complete: status === "Done",
     notes:
       sequence % 5 === 0 ? "Review with the Base runtime and UI owners." : null,
   }

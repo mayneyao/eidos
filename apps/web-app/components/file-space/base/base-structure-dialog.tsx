@@ -9,6 +9,10 @@ import type {
   CreateBaseTableInput,
   BaseTableInfo,
 } from "@eidos.space/base"
+import {
+  baseLookupAggregateSupportsTarget,
+  baseLookupDisplayType,
+} from "@eidos.space/base"
 
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
@@ -136,19 +140,21 @@ export function BaseStructureDialog({
   const lookupTargetTableId =
     typeof selectedRelation?.property?.targetTableId === "string"
       ? selectedRelation.property.targetTableId
-      : tables.find(
-          (table) =>
-            table.rawTableName === selectedRelation?.property?.linkTableName
-        )?.id
+      : undefined
   const lookupTargetFields = (
     lookupTargetTableId ? (tableFields[lookupTargetTableId] ?? []) : []
-  ).filter((field) => !field.isHidden && !field.isDerived)
+  ).filter(
+    (field) => !field.isHidden && (!field.isDerived || field.type === "lookup")
+  )
   const selectedLookupTarget =
     lookupTargetFields.find(
       (field) => field.tableColumnName === lookupTargetField
     ) ??
     lookupTargetFields.find((field) => field.tableColumnName === "title") ??
     lookupTargetFields[0]
+  const lookupAggregateSupported = selectedLookupTarget
+    ? baseLookupAggregateSupportsTarget(lookupAggregate, selectedLookupTarget)
+    : false
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const trimmedName = name.trim()
@@ -180,14 +186,13 @@ export function BaseStructureDialog({
         },
       })
     } else if (fieldType === "lookup") {
-      if (!selectedRelation || !selectedLookupTarget) return
-      const numeric = new Set<BaseLookupAggregate>([
-        "count",
-        "sum",
-        "average",
-        "min",
-        "max",
-      ]).has(lookupAggregate)
+      if (
+        !selectedRelation ||
+        !selectedLookupTarget ||
+        !lookupAggregateSupported
+      ) {
+        return
+      }
       creation = onCreateField({
         name: trimmedName,
         columnName: columnNameFor(trimmedName),
@@ -196,7 +201,10 @@ export function BaseStructureDialog({
           relationField: selectedRelation.tableColumnName,
           targetField: selectedLookupTarget.tableColumnName,
           aggregate: lookupAggregate,
-          displayType: numeric ? "number" : "text",
+          displayType: baseLookupDisplayType(
+            lookupAggregate,
+            selectedLookupTarget
+          ),
         },
       })
     } else {
@@ -210,7 +218,7 @@ export function BaseStructureDialog({
                 options,
               },
               ...(fieldType === "multi-select"
-                ? { storageCodec: "csv_ids" as const }
+                ? { storageCodec: "json_array" as const }
                 : {}),
             }
           : fieldType === "number"
@@ -403,6 +411,13 @@ export function BaseStructureDialog({
                         <SelectItem
                           key={aggregate.value}
                           value={aggregate.value}
+                          disabled={
+                            !!selectedLookupTarget &&
+                            !baseLookupAggregateSupportsTarget(
+                              aggregate.value,
+                              selectedLookupTarget
+                            )
+                          }
                         >
                           {aggregate.label}
                         </SelectItem>
@@ -443,7 +458,9 @@ export function BaseStructureDialog({
                   (!formula.trim() || !formulaValid)) ||
                 (mode === "field" &&
                   fieldType === "lookup" &&
-                  (!selectedRelation || !selectedLookupTarget))
+                  (!selectedRelation ||
+                    !selectedLookupTarget ||
+                    !lookupAggregateSupported))
               }
             >
               {submitting ? "Creating…" : "Create"}

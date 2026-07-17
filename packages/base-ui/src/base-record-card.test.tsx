@@ -365,6 +365,40 @@ describe("BaseRecordCard", () => {
     expect(card?.className).toContain("ring-ring")
   })
 
+  it("shows an unconfigured direct Select value from SQLite", () => {
+    const statusField: BaseFieldInfo = {
+      name: "Status",
+      type: "select",
+      tableName: "tb_tasks",
+      tableColumnName: "status",
+      property: { options: [{ value: "Todo", color: "blue" }] },
+      storageCodec: "scalar",
+      valueKind: "source",
+      isHidden: false,
+      isDerived: false,
+      sourceTableColumnName: null,
+      dependsOn: null,
+    }
+
+    act(() => {
+      root.render(
+        <BaseRecordCard
+          row={{
+            _id: "row_1",
+            title: "Write RFC",
+            cover: null,
+            status: "Blocked externally",
+          }}
+          fields={[...fields, statusField]}
+          view={{ ...view, properties: null }}
+          onOpen={vi.fn()}
+        />
+      )
+    })
+
+    expect(container.textContent).toContain("Blocked externally")
+  })
+
   it("skips card work when a virtual parent rerenders with stable props", () => {
     const statusField: BaseFieldInfo = {
       name: "Status",
@@ -372,7 +406,7 @@ describe("BaseRecordCard", () => {
       tableName: "tb_tasks",
       tableColumnName: "status",
       property: {
-        options: [{ id: "todo", name: "Todo", color: "blue" }],
+        options: [{ value: "todo", color: "blue" }],
       },
       storageCodec: "scalar",
       valueKind: "source",

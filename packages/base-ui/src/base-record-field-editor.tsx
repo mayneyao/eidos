@@ -4,6 +4,10 @@ import type {
   BaseRow,
   BaseSqlPrimitive,
 } from "@eidos.space/base"
+import {
+  decodeBaseMultiSelectValues,
+  encodeBaseMultiSelectValues,
+} from "@eidos.space/base"
 import { Check } from "lucide-react"
 
 import { Button, Input } from "./ui/primitives"
@@ -18,23 +22,6 @@ import {
 import { Switch, Textarea } from "./ui/primitives"
 
 import { baseSelectOptions } from "./base-field-properties"
-
-function multiSelectIds(value: BaseRow[string]): string[] {
-  if (typeof value !== "string" || value.length === 0) return []
-  if (value.startsWith("[")) {
-    try {
-      const parsed = JSON.parse(value)
-      if (Array.isArray(parsed)) {
-        return parsed.filter(
-          (candidate): candidate is string => typeof candidate === "string"
-        )
-      }
-    } catch {
-      // Fall through to the v1 comma-separated representation.
-    }
-  }
-  return value.split(",").filter(Boolean)
-}
 
 function dateTimeInputValue(value: BaseRow[string]): string {
   if (typeof value !== "string" || value.length === 0) return ""
@@ -102,6 +89,10 @@ export function BaseRecordFieldEditor({
   }
 
   if (field.type === "select") {
+    const options = baseSelectOptions(field)
+    const rawValue = typeof value === "string" && value ? value : null
+    const hasUnconfiguredValue =
+      rawValue !== null && !options.some((option) => option.value === rawValue)
     return (
       <Select
         value={typeof value === "string" && value ? value : "__empty__"}
@@ -115,9 +106,12 @@ export function BaseRecordFieldEditor({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__empty__">Empty</SelectItem>
-          {baseSelectOptions(field).map((option) => (
-            <SelectItem key={option.id} value={option.id}>
-              {option.name}
+          {hasUnconfiguredValue ? (
+            <SelectItem value={rawValue}>{rawValue}</SelectItem>
+          ) : null}
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.value}
             </SelectItem>
           ))}
         </SelectContent>
@@ -126,7 +120,9 @@ export function BaseRecordFieldEditor({
   }
 
   if (field.type === "multi-select") {
-    const selected = multiSelectIds(value)
+    const selected = decodeBaseMultiSelectValues(
+      typeof value === "string" ? value : null
+    )
     const selectedSet = new Set(selected)
     const options = baseSelectOptions(field)
     return (
@@ -140,36 +136,29 @@ export function BaseRecordFieldEditor({
             aria-label={field.name}
             disabled={disabled}
           >
-            {selected.length > 0
-              ? selected
-                  .map(
-                    (id) =>
-                      options.find((option) => option.id === id)?.name ?? id
-                  )
-                  .join(", ")
-              : "Empty"}
+            {selected.length > 0 ? selected.join(", ") : "Empty"}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-64 p-1">
           <div className="grid gap-0.5">
             {options.map((option) => (
               <button
-                key={option.id}
+                key={option.value}
                 type="button"
                 className="flex h-8 items-center gap-2 rounded px-2 text-left text-xs hover:bg-accent"
                 onClick={() => {
-                  const next = selectedSet.has(option.id)
-                    ? selected.filter((id) => id !== option.id)
-                    : [...selected, option.id]
-                  void onChange(next.length > 0 ? next.join(",") : null)
+                  const next = selectedSet.has(option.value)
+                    ? selected.filter((value) => value !== option.value)
+                    : [...selected, option.value]
+                  void onChange(encodeBaseMultiSelectValues(next))
                 }}
               >
                 <span className="flex h-4 w-4 items-center justify-center rounded border">
-                  {selectedSet.has(option.id) ? (
+                  {selectedSet.has(option.value) ? (
                     <Check className="h-3 w-3" />
                   ) : null}
                 </span>
-                <span className="truncate">{option.name}</span>
+                <span className="truncate">{option.value}</span>
               </button>
             ))}
           </div>

@@ -37,6 +37,7 @@ import {
   baseFieldDisplayName,
   isOptionalBaseSystemField,
 } from "./base-field-visibility"
+import { baseSelectOptions } from "./base-field-properties"
 
 const operatorLabels: Record<BaseFilterOperator, string> = {
   equals: "is",
@@ -91,6 +92,22 @@ function fieldDisplayType(field: BaseFieldInfo) {
 
 function operatorsForField(field: BaseFieldInfo): BaseFilterOperator[] {
   const displayType = fieldDisplayType(field)
+  if (field.type === "multi-select") {
+    return [
+      "contains",
+      "not-contains",
+      "is-any-of",
+      "is-none-of",
+      "is-empty",
+      "is-not-empty",
+    ]
+  }
+  if (
+    field.storageCodec === "json_array" ||
+    field.storageCodec === "relation"
+  ) {
+    return ["contains", "not-contains", "is-empty", "is-not-empty"]
+  }
   if (displayType === "checkbox") {
     return ["equals", "not-equals", "is-empty", "is-not-empty"]
   }
@@ -116,16 +133,6 @@ function operatorsForField(field: BaseFieldInfo): BaseFilterOperator[] {
       "is-not-empty",
     ]
   }
-  if (field.type === "multi-select") {
-    return [
-      "contains",
-      "not-contains",
-      "is-any-of",
-      "is-none-of",
-      "is-empty",
-      "is-not-empty",
-    ]
-  }
   return [
     "equals",
     "not-equals",
@@ -139,20 +146,7 @@ function operatorsForField(field: BaseFieldInfo): BaseFilterOperator[] {
 }
 
 function fieldOptions(field: BaseFieldInfo) {
-  const options = field.property?.options
-  if (!Array.isArray(options)) return []
-  return options.flatMap((option) => {
-    if (typeof option !== "object" || option === null) return []
-    const candidate = option as { id?: unknown; name?: unknown }
-    if (typeof candidate.id !== "string") return []
-    return [
-      {
-        id: candidate.id,
-        name:
-          typeof candidate.name === "string" ? candidate.name : candidate.id,
-      },
-    ]
-  })
+  return baseSelectOptions(field)
 }
 
 function defaultRule(field: BaseFieldInfo): BaseFilterRule {
@@ -185,21 +179,21 @@ function FilterValueEditor({
       <div className="col-span-full ml-[116px] flex max-w-[320px] flex-wrap gap-1 pt-1">
         {options.map((option) => (
           <button
-            key={option.id}
+            key={option.value}
             type="button"
             className={cn(
               "rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground",
-              selected.has(option.id) &&
+              selected.has(option.value) &&
                 "border-foreground/20 bg-secondary text-foreground"
             )}
             onClick={() => {
               const next = new Set(selected)
-              if (next.has(option.id)) next.delete(option.id)
-              else next.add(option.id)
+              if (next.has(option.value)) next.delete(option.value)
+              else next.add(option.value)
               onChange([...next] as BaseFilterValue[])
             }}
           >
-            {option.name}
+            {option.value}
           </button>
         ))}
       </div>
@@ -218,8 +212,8 @@ function FilterValueEditor({
         </SelectTrigger>
         <SelectContent>
           {options.map((option) => (
-            <SelectItem key={option.id} value={option.id}>
-              {option.name}
+            <SelectItem key={option.value} value={option.value}>
+              {option.value}
             </SelectItem>
           ))}
         </SelectContent>

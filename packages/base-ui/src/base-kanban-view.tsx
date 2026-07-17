@@ -98,9 +98,9 @@ function kanbanMutationErrorMessage(error: unknown): string {
 function groupSpecs(options: BaseSelectOption[]): BaseKanbanGroup[] {
   return [
     ...options.map((option) => ({
-      key: groupKey(option.id),
-      value: option.id,
-      name: option.name,
+      key: groupKey(option.value),
+      value: option.value,
+      name: option.value,
       color: option.color,
       rows: [],
       startOffset: 0,
@@ -883,10 +883,7 @@ export const BaseKanbanView = memo(function BaseKanbanView({
     [groupField]
   )
   const optionSignature = useMemo(
-    () =>
-      options
-        .map((option) => `${option.id}:${option.name}:${option.color}`)
-        .join("|"),
+    () => options.map((option) => `${option.value}:${option.color}`).join("|"),
     [options]
   )
   const [groups, setGroups] = useState<BaseKanbanGroup[]>(() =>
@@ -952,8 +949,8 @@ export const BaseKanbanView = memo(function BaseKanbanView({
   const moveOptions = useMemo<BaseKanbanMoveOption[]>(
     () => [
       ...options.map((option) => ({
-        id: groupKey(option.id),
-        label: option.name,
+        id: groupKey(option.value),
+        label: option.value,
       })),
       { id: groupKey(null), label: "No status" },
     ],

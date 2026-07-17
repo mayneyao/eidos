@@ -217,10 +217,10 @@ describe("BaseStructureDialog", () => {
     await act(async () => selectOption?.click())
 
     expect(document.body.textContent).not.toContain(
-      "Separate option names with commas"
+      "Separate option values with commas"
     )
     const optionName = document.body.querySelector<HTMLInputElement>(
-      'input[aria-label="New option name"]'
+      'input[aria-label="New option value"]'
     )
     const addOption = () =>
       document.body.querySelector<HTMLButtonElement>(
@@ -236,7 +236,7 @@ describe("BaseStructureDialog", () => {
       if (optionName) setInput(optionName, "todo")
     })
     expect(addOption()?.disabled).toBe(true)
-    expect(document.body.textContent).toContain("Option names must be unique")
+    expect(document.body.textContent).toContain("Option values must be unique")
     expect(
       document.body.querySelectorAll('button[aria-label^="Reorder Todo"]')
     ).toHaveLength(1)
@@ -274,13 +274,11 @@ describe("BaseStructureDialog", () => {
       property: {
         options: [
           {
-            id: expect.stringMatching(/^option_/),
-            name: "Todo",
+            value: "Todo",
             color: "red",
           },
           {
-            id: expect.stringMatching(/^option_/),
-            name: "Done",
+            value: "Done",
             color: "gray",
           },
         ],

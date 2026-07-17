@@ -52,7 +52,7 @@ const fields: BaseFieldInfo[] = [
     tableName: "tb_tasks",
     tableColumnName: "status",
     property: {
-      options: [{ id: "todo", name: "Todo", color: "blue" }],
+      options: [{ value: "todo", color: "blue" }],
     },
     storageCodec: "scalar",
     valueKind: "source",

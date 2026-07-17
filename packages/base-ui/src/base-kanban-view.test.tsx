@@ -228,7 +228,7 @@ vi.mock("./base-record-inspector", () => ({
           if (status) void onCellEdit(row, status, "done")
         }}
       >
-        Set status to Done
+        Set status to done
       </button>
       <button
         type="button"
@@ -282,8 +282,8 @@ const table: BaseTableSnapshot = {
       tableColumnName: "status",
       property: {
         options: [
-          { id: "todo", name: "Todo", color: "blue" },
-          { id: "done", name: "Done", color: "green" },
+          { value: "todo", color: "blue" },
+          { value: "done", color: "green" },
         ],
       },
       storageCodec: "scalar",
@@ -439,10 +439,10 @@ describe("BaseKanbanView", () => {
     expect(loadGroupPage.mock.calls.map((call) => call[1])).toEqual(["todo"])
     expect(container.textContent).toContain("Write RFC")
     expect(
-      container.querySelector('[role="region"][aria-label="Todo, 1 records"]')
+      container.querySelector('[role="region"][aria-label="todo, 1 records"]')
     ).not.toBeNull()
     expect(
-      container.querySelector('[role="list"][aria-label="Todo records"]')
+      container.querySelector('[role="list"][aria-label="todo records"]')
     ).not.toBeNull()
     expect(
       container
@@ -470,12 +470,12 @@ describe("BaseKanbanView", () => {
       "done"
     )
     expect(container.querySelector('[role="status"]')?.textContent).toContain(
-      "Write RFC moved from Todo to Done."
+      "Write RFC moved from todo to done."
     )
 
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Move Write RFC to Todo")
+        .find((button) => button.textContent === "Move Write RFC to todo")
         ?.click()
       await Promise.resolve()
     })
@@ -701,11 +701,11 @@ describe("BaseKanbanView", () => {
       container.querySelectorAll('[data-base-row-id="row_1"]')
     ).toHaveLength(1)
     expect(
-      container.querySelector('[role="region"][aria-label="Todo, 1 records"]')
+      container.querySelector('[role="region"][aria-label="todo, 1 records"]')
         ?.textContent
     ).toContain("Write RFC")
     expect(
-      container.querySelector('[role="region"][aria-label="Done, 0 records"]')
+      container.querySelector('[role="region"][aria-label="done, 0 records"]')
     ).not.toBeNull()
     expect(
       container.querySelector(
@@ -736,9 +736,9 @@ describe("BaseKanbanView", () => {
               ...field,
               property: {
                 options: [
-                  { id: "todo", name: "Todo", color: "blue" },
-                  { id: "done", name: "Done", color: "green" },
-                  { id: "blocked", name: "Blocked", color: "red" },
+                  { value: "todo", color: "blue" },
+                  { value: "done", color: "green" },
+                  { value: "blocked", color: "red" },
                 ],
               },
             }
@@ -904,7 +904,7 @@ describe("BaseKanbanView", () => {
         ?.click()
     })
     const input = todoColumn?.querySelector<HTMLInputElement>("input")
-    expect(input?.getAttribute("aria-label")).toBe("Record title in Todo")
+    expect(input?.getAttribute("aria-label")).toBe("Record title in todo")
     await act(async () => {
       if (!input) return
       const setter = Object.getOwnPropertyDescriptor(
@@ -1177,7 +1177,7 @@ describe("BaseKanbanView", () => {
 
     expect(onDeleteRow).toHaveBeenCalledWith(row)
     expect(
-      container.querySelector('[role="region"][aria-label="Todo, 0 records"]')
+      container.querySelector('[role="region"][aria-label="todo, 0 records"]')
     ).not.toBeNull()
     expect(loadGroupCounts).toHaveBeenCalledTimes(1)
     expect(loadGroupPage).toHaveBeenCalledTimes(pageCalls)
@@ -1219,7 +1219,7 @@ describe("BaseKanbanView", () => {
         ?.parentElement?.getAttribute("data-kanban-card-disabled")
     ).toBe("true")
     expect(container.textContent).not.toContain("Delete Write RFC")
-    expect(container.textContent).not.toContain("Move Write RFC to Done")
+    expect(container.textContent).not.toContain("Move Write RFC to done")
 
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
@@ -1463,7 +1463,7 @@ describe("BaseKanbanView", () => {
     })
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Set status to Done")
+        .find((button) => button.textContent === "Set status to done")
         ?.click()
       await Promise.resolve()
     })
@@ -1474,10 +1474,10 @@ describe("BaseKanbanView", () => {
       "done"
     )
     expect(
-      container.querySelector('[role="region"][aria-label="Todo, 0 records"]')
+      container.querySelector('[role="region"][aria-label="todo, 0 records"]')
     ).not.toBeNull()
     expect(
-      container.querySelector('[role="region"][aria-label="Done, 1 records"]')
+      container.querySelector('[role="region"][aria-label="done, 1 records"]')
         ?.textContent
     ).toContain("Write RFC")
   })
@@ -2107,8 +2107,7 @@ describe("BaseKanbanView", () => {
 
   it("does not sweep every Kanban group when one large column starts paging", async () => {
     const manyOptions = Array.from({ length: 200 }, (_, index) => ({
-      id: `status_${index}`,
-      name: `Status ${index}`,
+      value: `status_${index}`,
       color: "blue",
     }))
     const manyColumnTable: BaseTableSnapshot = {
@@ -2215,8 +2214,8 @@ describe("BaseKanbanView", () => {
       tableColumnName: "priority",
       property: {
         options: [
-          { id: "low", name: "Low", color: "gray" },
-          { id: "high", name: "High", color: "red" },
+          { value: "low", color: "gray" },
+          { value: "high", color: "red" },
         ],
       },
       storageCodec: "scalar" as const,
@@ -2301,8 +2300,7 @@ describe("BaseKanbanView", () => {
 
   it("only mounts the horizontal window for a large set of columns", async () => {
     const manyOptions = Array.from({ length: 200 }, (_, index) => ({
-      id: `status_${index}`,
-      name: `Status ${index}`,
+      value: `status_${index}`,
       color: "blue",
     }))
     const manyColumnTable: BaseTableSnapshot = {
@@ -2332,7 +2330,7 @@ describe("BaseKanbanView", () => {
       })
     )
     const loadGroupCounts = vi.fn(async () =>
-      manyOptions.map((option) => ({ value: option.id, total: 1 }))
+      manyOptions.map((option) => ({ value: option.value, total: 1 }))
     )
 
     await act(async () => {
@@ -2403,8 +2401,7 @@ describe("BaseKanbanView", () => {
 
   it("skips page and render work for groups that counts prove are empty", async () => {
     const manyOptions = Array.from({ length: 200 }, (_, index) => ({
-      id: `status_${index}`,
-      name: `Status ${index}`,
+      value: `status_${index}`,
       color: "blue",
     }))
     const manyColumnTable: BaseTableSnapshot = {

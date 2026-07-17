@@ -31,7 +31,10 @@ export function quoteIdentifier(identifier: string): string {
   return `"${identifier.replace(/"/g, '""')}"`
 }
 
-export function createBaseId(prefix: string): string {
-  const randomId = globalThis.crypto.randomUUID().replace(/-/g, "")
-  return `${prefix}_${randomId}`
+export function createBaseUuid(): string {
+  return globalThis.crypto.randomUUID()
+}
+
+export function createBaseIdentifier(): string {
+  return createBaseUuid().replace(/-/g, "")
 }

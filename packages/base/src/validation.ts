@@ -88,7 +88,6 @@ const FIELD_TYPES = new Set<BaseFieldType>([
 ])
 const STORAGE_CODECS = new Set<BaseStorageCodec>([
   "scalar",
-  "csv_ids",
   "json_array",
   "relation",
   "materialized_text",
@@ -178,6 +177,69 @@ function validateLookupProperty(
     errors.push({
       code: "invalid-lookup-property",
       message: `Lookup field ${field.table_name}.${field.table_column_name} has invalid lookup metadata`,
+      table: field.table_name,
+    })
+  }
+}
+
+function validateSelectProperty(
+  field: FieldValidationRow,
+  property: unknown,
+  errors: BaseValidationIssue[]
+): void {
+  if (field.type !== "select" && field.type !== "multi-select") return
+  if (!isRecord(property) || !Array.isArray(property.options)) {
+    errors.push({
+      code: "invalid-select-property",
+      message: `Select field ${field.table_name}.${field.table_column_name} requires an options array`,
+      table: field.table_name,
+    })
+    return
+  }
+  const values = new Set<string>()
+  const invalid = property.options.some((option) => {
+    if (
+      !isRecord(option) ||
+      typeof option.value !== "string" ||
+      option.value.trim().length === 0 ||
+      values.has(option.value)
+    ) {
+      return true
+    }
+    values.add(option.value)
+    return false
+  })
+  if (invalid) {
+    errors.push({
+      code: "invalid-select-property",
+      message: `Select field ${field.table_name}.${field.table_column_name} has invalid option values`,
+      table: field.table_name,
+    })
+  }
+}
+
+function validateCanonicalStorageCodec(
+  field: FieldValidationRow,
+  property: unknown,
+  errors: BaseValidationIssue[]
+): void {
+  const expected =
+    field.type === "multi-select" || field.type === "file"
+      ? "json_array"
+      : field.type === "link"
+        ? "relation"
+        : field.type === "lookup" &&
+            field.value_kind === "derived" &&
+            isRecord(property) &&
+            property.aggregate === "values"
+          ? "json_array"
+          : field.value_kind === "derived"
+            ? "scalar"
+            : null
+  if (expected !== null && field.storage_codec !== expected) {
+    errors.push({
+      code: "invalid-storage-codec",
+      message: `Field ${field.table_name}.${field.table_column_name} must use ${expected} storage`,
       table: field.table_name,
     })
   }
@@ -604,6 +666,8 @@ export function validateBase(connection: BaseConnection): BaseValidationResult {
         }
         validateFormulaProperty(field, parsedProperty.value, errors)
         validateLookupProperty(field, parsedProperty.value, errors)
+        validateSelectProperty(field, parsedProperty.value, errors)
+        validateCanonicalStorageCodec(field, parsedProperty.value, errors)
 
         const parsedDependencies = parseMetadataJson(
           field.depends_on,

@@ -1,10 +1,10 @@
-import type { BaseFieldInfo } from "@eidos.space/base"
+import {
+  parseBaseSelectOptions,
+  type BaseFieldInfo,
+  type BaseSelectOption,
+} from "@eidos.space/base"
 
-export interface BaseSelectOption {
-  id: string
-  name: string
-  color: string
-}
+export type { BaseSelectOption }
 
 export interface BaseNumberProperty extends Record<string, unknown> {
   format: "number" | "percent" | "currency"
@@ -37,30 +37,7 @@ export const BASE_OPTION_COLORS = [
 ] as const
 
 export function baseSelectOptions(field: BaseFieldInfo): BaseSelectOption[] {
-  const options = field.property?.options
-  if (!Array.isArray(options)) return []
-  return options.flatMap((option) => {
-    if (
-      typeof option !== "object" ||
-      option === null ||
-      !("id" in option) ||
-      !("name" in option) ||
-      typeof option.id !== "string" ||
-      typeof option.name !== "string"
-    ) {
-      return []
-    }
-    return [
-      {
-        id: option.id,
-        name: option.name,
-        color:
-          "color" in option && typeof option.color === "string"
-            ? option.color
-            : "default",
-      },
-    ]
-  })
+  return parseBaseSelectOptions(field.property)
 }
 
 export function baseNumberProperty(field: BaseFieldInfo): BaseNumberProperty {

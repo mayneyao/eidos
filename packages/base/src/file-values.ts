@@ -1,4 +1,5 @@
 import type { BaseRowValue } from "./types"
+import { decodeBaseStringArray } from "./json-array-values"
 
 const EXTERNAL_REFERENCE = /^(?:https?:|data:)/i
 
@@ -22,26 +23,10 @@ export function normalizeBaseFilePath(value: string): string | null {
   return normalized.length > 0 ? normalized.join("/") : null
 }
 
-function legacyFilePaths(value: string): string[] {
-  if (value.includes("\n")) return value.split(/\r?\n/)
-  return value.split(",")
-}
-
 export function decodeBaseFilePaths(value: BaseRowValue | undefined): string[] {
-  if (typeof value !== "string" || value.trim().length === 0) return []
-  let candidates: unknown[] | null = null
-  if (value.trimStart().startsWith("[")) {
-    try {
-      const parsed = JSON.parse(value)
-      if (Array.isArray(parsed)) candidates = parsed
-    } catch {
-      // Fall back to the legacy comma/newline representation.
-    }
-  }
-  candidates ??= legacyFilePaths(value)
+  const candidates = decodeBaseStringArray(value)
   const seen = new Set<string>()
   return candidates.flatMap((candidate) => {
-    if (typeof candidate !== "string") return []
     const normalized = normalizeBaseFilePath(candidate)
     if (!normalized || seen.has(normalized)) return []
     seen.add(normalized)

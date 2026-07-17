@@ -273,13 +273,22 @@ function likeExpression(
       ? `${escaped}%`
       : operator === "ends-with"
         ? `%${escaped}`
-        : field.storageCodec === "csv_ids"
-          ? `%,${escaped},%`
-          : `%${escaped}%`
-  const expression =
-    field.storageCodec === "csv_ids"
-      ? `(',' || COALESCE(CAST(${column} AS TEXT), '') || ',') LIKE ? ESCAPE '\\' COLLATE NOCASE`
-      : `COALESCE(CAST(${column} AS TEXT), '') LIKE ? ESCAPE '\\' COLLATE NOCASE`
+        : `%${escaped}%`
+  const arrayCodec =
+    field.storageCodec === "json_array" || field.storageCodec === "relation"
+  const expression = arrayCodec
+    ? `EXISTS (
+         SELECT 1
+           FROM json_each(
+             CASE
+               WHEN json_valid(${column}) AND json_type(${column}) = 'array'
+                 THEN ${column}
+               ELSE '[]'
+             END
+           )
+          WHERE COALESCE(CAST(value AS TEXT), '') LIKE ? ESCAPE '\\' COLLATE NOCASE
+       )`
+    : `COALESCE(CAST(${column} AS TEXT), '') LIKE ? ESCAPE '\\' COLLATE NOCASE`
   params.push(pattern)
   return operator === "not-contains" ? `NOT (${expression})` : expression
 }
@@ -291,40 +300,39 @@ function compileRule(
 ): string {
   const field = requireField(fields, rule.field)
   const column = quoteIdentifier(field.tableColumnName)
+  const arrayCodec =
+    field.storageCodec === "json_array" || field.storageCodec === "relation"
+  const empty = arrayCodec
+    ? `(${column} IS NULL OR CAST(${column} AS TEXT) = '' OR (json_valid(${column}) AND json_type(${column}) = 'array' AND json_array_length(${column}) = 0))`
+    : `(${column} IS NULL OR CAST(${column} AS TEXT) = '')`
 
   if (rule.operator === "is-empty") {
-    return `(${column} IS NULL OR CAST(${column} AS TEXT) = '')`
+    return empty
   }
   if (rule.operator === "is-not-empty") {
-    return `(${column} IS NOT NULL AND CAST(${column} AS TEXT) <> '')`
+    return `NOT ${empty}`
   }
 
   if (rule.operator === "is-any-of" || rule.operator === "is-none-of") {
     const values = Array.isArray(rule.value) ? rule.value : []
     if (values.length === 0) return rule.operator === "is-any-of" ? "0" : "1"
-    if (field.storageCodec === "csv_ids") {
-      const expressions = values.map((entry) => {
-        params.push(`%,${escapeLike(String(entry))},%`)
-        return `(',' || COALESCE(CAST(${column} AS TEXT), '') || ',') LIKE ? ESCAPE '\\' COLLATE NOCASE`
-      })
-      const expression = `(${expressions.join(" OR ")})`
-      return rule.operator === "is-none-of" ? `NOT (${expression})` : expression
-    }
     if (
       field.storageCodec === "relation" ||
       field.storageCodec === "json_array"
     ) {
       const expressions = values.map((entry) => {
-        params.push(sqlValue(entry), `%,${escapeLike(String(entry))},%`)
-        return `(CASE
-          WHEN json_valid(${column})
-          THEN EXISTS (
-            SELECT 1 FROM json_each(${column})
-             WHERE CAST(value AS TEXT) = CAST(? AS TEXT)
-          )
-          ELSE (',' || COALESCE(CAST(${column} AS TEXT), '') || ',')
-               LIKE ? ESCAPE '\\'
-        END)`
+        params.push(sqlValue(entry))
+        return `EXISTS (
+          SELECT 1
+            FROM json_each(
+              CASE
+                WHEN json_valid(${column}) AND json_type(${column}) = 'array'
+                  THEN ${column}
+                ELSE '[]'
+              END
+            )
+           WHERE CAST(value AS TEXT) = CAST(? AS TEXT)
+        )`
       })
       const expression = `(${expressions.join(" OR ")})`
       return rule.operator === "is-none-of" ? `NOT (${expression})` : expression
@@ -393,6 +401,10 @@ function compileSorts(
     const field = requireField(fields, sort.field)
     seen.add(sort.field)
     const column = quoteIdentifier(field.tableColumnName)
+    const expression =
+      field.storageCodec === "json_array" || field.storageCodec === "relation"
+        ? `json_extract(${column}, '$[0]')`
+        : column
     const displayType =
       (field.type === "formula" || field.type === "lookup") &&
       typeof field.property?.displayType === "string"
@@ -407,7 +419,7 @@ function compileSorts(
       "file",
     ]).has(displayType)
     clauses.push(
-      `${column}${textLike ? " COLLATE NOCASE" : ""} ${
+      `${expression}${textLike ? " COLLATE NOCASE" : ""} ${
         sort.direction === "desc" ? "DESC" : "ASC"
       }`
     )

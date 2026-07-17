@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import type { BaseFieldInfo } from "@eidos.space/base"
+import type { BaseFieldInfo, BaseOptionValueChange } from "@eidos.space/base"
 import {
   DndContext,
   KeyboardSensor,
@@ -30,10 +30,6 @@ import {
   type BaseSelectOption,
 } from "./base-field-properties"
 
-function optionId(): string {
-  return `option_${globalThis.crypto.randomUUID().replace(/-/g, "")}`
-}
-
 function OptionRow({
   option,
   disabled,
@@ -43,12 +39,12 @@ function OptionRow({
 }: {
   option: BaseSelectOption
   disabled: boolean
-  onRename: (name: string) => boolean
+  onRename: (value: string) => boolean
   onColor: (color: string) => void
   onDelete: () => void
 }) {
   const { themeName: theme } = useBaseUI()
-  const [name, setName] = useState(option.name)
+  const [value, setValue] = useState(option.value)
   const skipNameCommitRef = useRef(false)
   const {
     attributes,
@@ -57,18 +53,18 @@ function OptionRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: option.id, disabled })
+  } = useSortable({ id: option.value, disabled })
 
-  useEffect(() => setName(option.name), [option.name])
+  useEffect(() => setValue(option.value), [option.value])
 
   const commitName = () => {
     if (skipNameCommitRef.current) {
       skipNameCommitRef.current = false
       return
     }
-    const next = name.trim()
-    if (next && next !== option.name && onRename(next)) return
-    setName(option.name)
+    const next = value.trim()
+    if (next && next !== option.value && onRename(next)) return
+    setValue(option.value)
   }
 
   return (
@@ -83,7 +79,7 @@ function OptionRow({
       <button
         type="button"
         className="flex h-6 w-5 shrink-0 cursor-grab items-center justify-center rounded-[3px] text-muted-foreground/50 hover:bg-accent hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:cursor-grabbing disabled:cursor-default disabled:opacity-40"
-        aria-label={`Reorder ${option.name}`}
+        aria-label={`Reorder ${option.value}`}
         disabled={disabled}
         {...attributes}
         {...listeners}
@@ -96,7 +92,7 @@ function OptionRow({
             type="button"
             className="h-4 w-4 shrink-0 rounded-[3px] ring-1 ring-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             style={{ backgroundColor: baseOptionColor(option.color, theme) }}
-            aria-label={`Change ${option.name} color`}
+            aria-label={`Change ${option.value} color`}
             disabled={disabled}
           />
         </PopoverTrigger>
@@ -122,17 +118,17 @@ function OptionRow({
         </PopoverContent>
       </Popover>
       <Input
-        value={name}
+        value={value}
         disabled={disabled}
         className="h-7 min-w-0 flex-1 border-transparent bg-transparent px-1.5 text-xs shadow-none hover:border-border focus-visible:border-ring"
-        aria-label={`${option.name} option name`}
-        onChange={(event) => setName(event.target.value)}
+        aria-label={`${option.value} option value`}
+        onChange={(event) => setValue(event.target.value)}
         onBlur={commitName}
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur()
           if (event.key === "Escape") {
             skipNameCommitRef.current = true
-            setName(option.name)
+            setValue(option.value)
             event.currentTarget.blur()
           }
         }}
@@ -142,7 +138,7 @@ function OptionRow({
         variant="ghost"
         size="icon"
         className="h-6 w-6 shrink-0 text-muted-foreground opacity-0 group-hover/option:opacity-100 focus-visible:opacity-100"
-        aria-label={`Delete ${option.name}`}
+        aria-label={`Delete ${option.value}`}
         disabled={disabled}
         onClick={onDelete}
       >
@@ -152,7 +148,7 @@ function OptionRow({
   )
 }
 
-function sameOptionName(left: string, right: string): boolean {
+function sameOptionValue(left: string, right: string): boolean {
   return left.localeCompare(right, undefined, { sensitivity: "base" }) === 0
 }
 
@@ -164,7 +160,10 @@ export function BaseOptionsEditor({
 }: {
   options: BaseSelectOption[]
   disabled: boolean
-  onChange: (options: BaseSelectOption[]) => Promise<void> | void
+  onChange: (
+    options: BaseSelectOption[],
+    valueChanges?: BaseOptionValueChange[]
+  ) => Promise<void> | void
   className?: string
 }) {
   const [options, setOptions] = useState(sourceOptions)
@@ -178,11 +177,14 @@ export function BaseOptionsEditor({
 
   useEffect(() => setOptions(sourceOptions), [sourceOptions])
 
-  const commit = (next: BaseSelectOption[]) => {
+  const commit = (
+    next: BaseSelectOption[],
+    valueChanges?: BaseOptionValueChange[]
+  ) => {
     const previous = options
     setOptions(next)
     void Promise.resolve()
-      .then(() => onChange(next))
+      .then(() => onChange(next, valueChanges))
       .catch(() =>
         setOptions((current) => (current === next ? previous : current))
       )
@@ -190,14 +192,16 @@ export function BaseOptionsEditor({
 
   const addOption = () => {
     const name = newName.trim()
-    if (!name || options.some((option) => sameOptionName(option.name, name))) {
+    if (
+      !name ||
+      options.some((option) => sameOptionValue(option.value, name))
+    ) {
       return
     }
     commit([
       ...options,
       {
-        id: optionId(),
-        name,
+        value: name,
         color:
           BASE_OPTION_COLORS[options.length % BASE_OPTION_COLORS.length].name,
       },
@@ -205,13 +209,13 @@ export function BaseOptionsEditor({
     setNewName("")
   }
   const newNameUnavailable = options.some((option) =>
-    sameOptionName(option.name, newName.trim())
+    sameOptionValue(option.value, newName.trim())
   )
 
   const dragEnd = (event: DragEndEvent) => {
     if (!event.over || event.active.id === event.over.id) return
-    const from = options.findIndex((option) => option.id === event.active.id)
-    const to = options.findIndex((option) => option.id === event.over?.id)
+    const from = options.findIndex((option) => option.value === event.active.id)
+    const to = options.findIndex((option) => option.value === event.over?.id)
     if (from >= 0 && to >= 0) commit(arrayMove(options, from, to))
   }
 
@@ -231,37 +235,38 @@ export function BaseOptionsEditor({
             onDragEnd={dragEnd}
           >
             <SortableContext
-              items={options.map((option) => option.id)}
+              items={options.map((option) => option.value)}
               strategy={verticalListSortingStrategy}
             >
               {options.map((option) => (
                 <OptionRow
-                  key={option.id}
+                  key={option.value}
                   option={option}
                   disabled={disabled}
                   onRename={(name) => {
                     if (
                       options.some(
                         (candidate) =>
-                          candidate.id !== option.id &&
-                          sameOptionName(candidate.name, name)
+                          candidate.value !== option.value &&
+                          sameOptionValue(candidate.value, name)
                       )
                     ) {
                       return false
                     }
                     commit(
                       options.map((candidate) =>
-                        candidate.id === option.id
-                          ? { ...candidate, name }
+                        candidate.value === option.value
+                          ? { ...candidate, value: name }
                           : candidate
-                      )
+                      ),
+                      [{ from: option.value, to: name }]
                     )
                     return true
                   }}
                   onColor={(color) =>
                     commit(
                       options.map((candidate) =>
-                        candidate.id === option.id
+                        candidate.value === option.value
                           ? { ...candidate, color }
                           : candidate
                       )
@@ -269,7 +274,9 @@ export function BaseOptionsEditor({
                   }
                   onDelete={() =>
                     commit(
-                      options.filter((candidate) => candidate.id !== option.id)
+                      options.filter(
+                        (candidate) => candidate.value !== option.value
+                      )
                     )
                   }
                 />
@@ -290,7 +297,7 @@ export function BaseOptionsEditor({
               newNameUnavailable && "border-destructive"
             )}
             placeholder="New option"
-            aria-label="New option name"
+            aria-label="New option value"
             aria-invalid={newNameUnavailable || undefined}
             onChange={(event) => setNewName(event.target.value)}
             onKeyDown={(event) => {
@@ -317,7 +324,7 @@ export function BaseOptionsEditor({
             className="border-t px-2.5 py-1.5 text-[11px] text-destructive"
             role="status"
           >
-            Option names must be unique.
+            Option values must be unique.
           </p>
         ) : null}
       </div>
@@ -332,15 +339,21 @@ export function BaseSelectOptionsEditor({
 }: {
   field: BaseFieldInfo
   disabled: boolean
-  onChange: (property: Record<string, unknown>) => Promise<void> | void
+  onChange: (
+    property: Record<string, unknown>,
+    optionValueChanges?: BaseOptionValueChange[]
+  ) => Promise<void> | void
 }) {
   const options = useMemo(() => baseSelectOptions(field), [field])
   return (
     <BaseOptionsEditor
       options={options}
       disabled={disabled}
-      onChange={(next) =>
-        onChange({ ...(field.property ?? {}), options: next })
+      onChange={(next, optionValueChanges) =>
+        onChange(
+          { ...(field.property ?? {}), options: next },
+          optionValueChanges
+        )
       }
     />
   )

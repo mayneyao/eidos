@@ -5,11 +5,11 @@ import { GridCellKind } from "@glideapps/glide-data-grid"
 import { describe, expect, it } from "vitest"
 
 import {
-  baseSelectOptions,
   baseValueToGridCell,
   gridCellToBaseValue,
   visibleBaseFields,
 } from "./base-grid-adapter"
+import { baseSelectOptions } from "./base-field-properties"
 
 function field(
   type: BaseFieldInfo["type"],
@@ -80,21 +80,26 @@ describe("Base Grid adapter", () => {
     expect(gridCellToBaseValue(field("number"), bar)).toBe(12)
   })
 
-  it("reuses select options while supplying the legacy default color", () => {
+  it("adapts direct select values to the shared Grid cell shape", () => {
     const select = field("select", {
-      options: [
-        { id: "todo", name: "Todo" },
-        { id: "done", name: "Done", color: "green" },
-      ],
+      options: [{ value: "Todo" }, { value: "Done", color: "green" }],
     })
 
     expect(baseSelectOptions(select)).toEqual([
-      { id: "todo", name: "Todo", color: "default" },
-      { id: "done", name: "Done", color: "green" },
+      { value: "Todo", color: "default" },
+      { value: "Done", color: "green" },
     ])
-    expect(baseValueToGridCell(select, "done")).toMatchObject({
+    expect(baseValueToGridCell(select, "Done")).toMatchObject({
       kind: GridCellKind.Custom,
-      data: { kind: "select-cell", value: "done" },
+      data: {
+        kind: "select-cell",
+        value: "Done",
+        allowCreate: false,
+        allowedValues: [
+          { id: "Todo", name: "Todo", color: "default" },
+          { id: "Done", name: "Done", color: "green" },
+        ],
+      },
     })
   })
 

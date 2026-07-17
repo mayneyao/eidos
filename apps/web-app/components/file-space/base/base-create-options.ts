@@ -5,9 +5,9 @@ import type { FileSpaceBaseTemplate } from "@/apps/web-app/store/file-space-sett
 export type BaseTemplateId = FileSpaceBaseTemplate
 
 const TASK_STATUS_OPTIONS = [
-  { id: "not-started", name: "Not started", color: "gray" },
-  { id: "in-progress", name: "In progress", color: "blue" },
-  { id: "done", name: "Done", color: "green" },
+  { value: "Not started", color: "gray" },
+  { value: "In progress", color: "blue" },
+  { value: "Done", color: "green" },
 ]
 
 export function baseDefaultTableForTemplate(
@@ -31,9 +31,9 @@ export function baseDefaultTableForTemplate(
           type: "select",
           property: {
             options: [
-              { id: "low", name: "Low", color: "gray" },
-              { id: "medium", name: "Medium", color: "yellow" },
-              { id: "high", name: "High", color: "red" },
+              { value: "Low", color: "gray" },
+              { value: "Medium", color: "yellow" },
+              { value: "High", color: "red" },
             ],
           },
         },

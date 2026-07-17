@@ -1,34 +1,14 @@
 import type { BaseRelationValue, BaseRowValue } from "./types"
+import { decodeBaseStringArray } from "./json-array-values"
 
 const MAX_RELATION_VALUES = 500
 
 export function decodeBaseRelationIds(
   value: BaseRowValue | undefined
 ): string[] {
-  if (typeof value !== "string" || value.trim().length === 0) return []
-  const trimmed = value.trim()
-  if (trimmed.startsWith("[")) {
-    try {
-      const parsed: unknown = JSON.parse(trimmed)
-      if (Array.isArray(parsed)) {
-        return Array.from(
-          new Set(
-            parsed
-              .filter((entry): entry is string => typeof entry === "string")
-              .map((entry) => entry.trim())
-              .filter(Boolean)
-              .slice(0, MAX_RELATION_VALUES)
-          )
-        )
-      }
-    } catch {
-      // Fall through to the legacy comma-separated representation.
-    }
-  }
   return Array.from(
     new Set(
-      trimmed
-        .split(",")
+      decodeBaseStringArray(value)
         .map((entry) => entry.trim())
         .filter(Boolean)
         .slice(0, MAX_RELATION_VALUES)

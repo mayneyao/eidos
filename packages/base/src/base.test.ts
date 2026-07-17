@@ -58,10 +58,7 @@ describe("Eidos Base files", () => {
             columnName: "status",
             type: "select",
             property: {
-              options: [
-                { id: "todo", name: "Todo" },
-                { id: "done", name: "Done" },
-              ],
+              options: [{ value: "todo" }, { value: "done" }],
             },
           },
           {
@@ -85,6 +82,8 @@ describe("Eidos Base files", () => {
       { id: "tasks", name: "Tasks", rawTableName: "tb_tasks" },
     ])
     base.createTable({ id: "people", name: "People" })
+    const autoTable = base.createTable({ name: "Auto" })
+    expect(autoTable.id).toMatch(/^[0-9a-f]{32}$/)
     expect(base.listTables()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: "tasks", name: "Tasks" }),
@@ -97,10 +96,7 @@ describe("Eidos Base files", () => {
           tableColumnName: "status",
           type: "select",
           property: {
-            options: [
-              { id: "todo", name: "Todo" },
-              { id: "done", name: "Done" },
-            ],
+            options: [{ value: "todo" }, { value: "done" }],
           },
         }),
         expect.objectContaining({
@@ -112,6 +108,9 @@ describe("Eidos Base files", () => {
     )
     const gridView = base.listViews("tasks")[0]
     expect(gridView).toMatchObject({ name: "Grid", type: "grid" })
+    expect(gridView.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    )
     expect(
       base.updateView(gridView.id, {
         properties: { fieldWidthMap: { title: 320 } },
@@ -125,14 +124,16 @@ describe("Eidos Base files", () => {
     const inserted = base.insertRow("tasks", {
       title: "Ship Base v1",
       status: "todo",
-      attachment: "assets/spec.pdf",
+      attachment: '["assets/spec.pdf"]',
     })
     expect(inserted).toMatchObject({
       title: "Ship Base v1",
       status: "todo",
       attachment: '["assets/spec.pdf"]',
     })
-    expect(typeof inserted._id).toBe("string")
+    expect(inserted._id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    )
 
     expect(
       base.updateRow("tasks", String(inserted._id), { status: "done" })
@@ -212,13 +213,17 @@ describe("Eidos Base files", () => {
       tables: [
         { id: "tasks", rawTableName: "tb_tasks" },
         { id: "people", rawTableName: "tb_people" },
+        {
+          id: autoTable.id,
+          rawTableName: `tb_${autoTable.id}`,
+        },
       ],
       errors: [],
     })
 
     const reopened = openBaseFile(filePath, { readonly: true })
     expect(reopened.info().title).toBe("Project Tasks")
-    expect(reopened.listTables()).toHaveLength(2)
+    expect(reopened.listTables()).toHaveLength(3)
     expect(reopened.listViews("tasks")[0]).toMatchObject({
       properties: { fieldWidthMap: { title: 320 } },
     })
@@ -329,12 +334,13 @@ describe("Eidos Base files", () => {
       valueKind: "relation",
     })
     base.importField("projects", {
-      name: "Legacy owner",
-      columnName: "legacy_owner",
+      name: "Imported owner",
+      columnName: "imported_owner",
       type: "link",
       property: {
-        linkTableName: "tb_people",
-        linkColumnName: "title",
+        targetTableId: "people",
+        targetField: "title",
+        multiple: true,
       },
       storageCodec: "relation",
       valueKind: "relation",
@@ -342,7 +348,7 @@ describe("Eidos Base files", () => {
 
     const project = base.insertRow("projects", {
       title: "Compiler",
-      owners: `${ada._id},${grace._id}`,
+      owners: JSON.stringify([ada._id, grace._id]),
     })
     expect(project.owners).toBe(JSON.stringify([ada._id, grace._id]))
     expect(JSON.parse(String(project.owners__display))).toEqual([
@@ -351,8 +357,8 @@ describe("Eidos Base files", () => {
     ])
     expect(
       base.updateRow("projects", String(project._id), {
-        legacy_owner: String(ada._id),
-      }).legacy_owner__display
+        imported_owner: JSON.stringify([ada._id]),
+      }).imported_owner__display
     ).toBe(JSON.stringify([{ id: ada._id, title: "Ada Lovelace" }]))
 
     const updated = base.updateRow("projects", String(project._id), {
@@ -672,15 +678,31 @@ describe("Eidos Base files", () => {
     base.createTable({
       id: "people",
       name: "People",
-      fields: [{ name: "Rate", columnName: "rate", type: "number" }],
+      fields: [
+        { name: "Rate", columnName: "rate", type: "number" },
+        {
+          name: "Skills",
+          columnName: "skills",
+          type: "multi-select",
+          property: {
+            options: [
+              { value: "Math" },
+              { value: "Logic" },
+              { value: "Compilers" },
+            ],
+          },
+        },
+      ],
     })
     const ada = base.insertRow("people", {
       title: "Ada Lovelace",
       rate: 100,
+      skills: '["Math","Logic"]',
     })
     const grace = base.insertRow("people", {
       title: "Grace Hopper",
       rate: 150,
+      skills: '["Compilers","Logic"]',
     })
     base.addField("projects", {
       name: "Owners",
@@ -703,6 +725,54 @@ describe("Eidos Base files", () => {
         displayType: "text",
       },
     })
+    base.addField("projects", {
+      name: "Owner skills",
+      columnName: "owner_skills",
+      type: "lookup",
+      property: {
+        relationField: "owners",
+        targetField: "skills",
+        aggregate: "values",
+        displayType: "text",
+      },
+    })
+    base.addField("projects", {
+      name: "Owner skill count",
+      columnName: "owner_skill_count",
+      type: "lookup",
+      property: {
+        relationField: "owners",
+        targetField: "skills",
+        aggregate: "count",
+        displayType: "number",
+      },
+    })
+    base.addField("projects", {
+      name: "First owner skill",
+      columnName: "first_owner_skill",
+      type: "lookup",
+      property: {
+        relationField: "owners",
+        targetField: "skills",
+        aggregate: "first",
+        displayType: "text",
+      },
+    })
+    expectBaseError(
+      () =>
+        base.addField("projects", {
+          name: "Invalid skill sum",
+          columnName: "invalid_skill_sum",
+          type: "lookup",
+          property: {
+            relationField: "owners",
+            targetField: "skills",
+            aggregate: "sum",
+            displayType: "number",
+          },
+        }),
+      "invalid-schema"
+    )
     base.addField("projects", {
       name: "Owner count",
       columnName: "owner_count",
@@ -737,10 +807,107 @@ describe("Eidos Base files", () => {
       owners: JSON.stringify([ada._id, grace._id]),
     })
     expect(project).toMatchObject({
-      owner_names: "Ada Lovelace, Grace Hopper",
+      owner_names: '["Ada Lovelace","Grace Hopper"]',
+      owner_skills: '["Math","Logic","Compilers","Logic"]',
+      owner_skill_count: 4,
+      first_owner_skill: "Math",
       owner_count: 2,
       owner_rate: 250,
       budget: 500,
+    })
+    const runtimeProject = base.insertRow("projects", {
+      title: "Runtime",
+      owners: JSON.stringify([grace._id]),
+    })
+    base.createTable({ id: "portfolios", name: "Portfolios" })
+    base.addField("portfolios", {
+      name: "Projects",
+      columnName: "projects",
+      type: "link",
+      property: {
+        targetTableId: "projects",
+        targetField: "title",
+        multiple: true,
+      },
+    })
+    base.addField("portfolios", {
+      name: "Skills",
+      columnName: "skills",
+      type: "lookup",
+      property: {
+        relationField: "projects",
+        targetField: "owner_skills",
+        aggregate: "values",
+        displayType: "text",
+      },
+    })
+    base.addField("portfolios", {
+      name: "First skill",
+      columnName: "first_skill",
+      type: "lookup",
+      property: {
+        relationField: "projects",
+        targetField: "owner_skills",
+        aggregate: "first",
+        displayType: "text",
+      },
+    })
+    base.addField("portfolios", {
+      name: "Skill count",
+      columnName: "skill_count",
+      type: "lookup",
+      property: {
+        relationField: "projects",
+        targetField: "owner_skills",
+        aggregate: "count",
+        displayType: "number",
+      },
+    })
+    base.addField("portfolios", {
+      name: "Owner counts",
+      columnName: "owner_counts",
+      type: "lookup",
+      property: {
+        relationField: "projects",
+        targetField: "owner_count",
+        aggregate: "values",
+        displayType: "number",
+      },
+    })
+    base.addField("portfolios", {
+      name: "Total owners",
+      columnName: "total_owners",
+      type: "lookup",
+      property: {
+        relationField: "projects",
+        targetField: "owner_count",
+        aggregate: "sum",
+        displayType: "number",
+      },
+    })
+    base.addField("portfolios", {
+      name: "Total rate",
+      columnName: "total_rate",
+      type: "lookup",
+      property: {
+        relationField: "projects",
+        targetField: "owner_rate",
+        aggregate: "sum",
+        displayType: "number",
+      },
+    })
+    expect(
+      base.insertRow("portfolios", {
+        title: "Engineering",
+        projects: JSON.stringify([runtimeProject._id, project._id]),
+      })
+    ).toMatchObject({
+      skills: '["Compilers","Logic","Math","Logic","Compilers","Logic"]',
+      first_skill: "Compilers",
+      skill_count: 6,
+      owner_counts: "[1,2]",
+      total_owners: 3,
+      total_rate: 400,
     })
     expect(
       base.getRowPage("projects", 0, 20, {
@@ -764,7 +931,10 @@ describe("Eidos Base files", () => {
         owners: JSON.stringify([grace._id]),
       })
     ).toMatchObject({
-      owner_names: "Grace Hopper",
+      owner_names: '["Grace Hopper"]',
+      owner_skills: '["Compilers","Logic"]',
+      owner_skill_count: 2,
+      first_owner_skill: "Compilers",
       owner_count: 1,
       owner_rate: 150,
       budget: 300,
@@ -783,18 +953,108 @@ describe("Eidos Base files", () => {
       owner_rate: 150,
       budget: 300,
     })
+    expectBaseError(
+      () =>
+        base.updateField("projects", "owner_count", {
+          property: {
+            relationField: "owners",
+            targetField: "title",
+            aggregate: "first",
+            displayType: "text",
+          },
+        }),
+      "invalid-schema"
+    )
+    expect(
+      base
+        .listFields("projects")
+        .find((field) => field.tableColumnName === "owner_count")?.property
+    ).toMatchObject({ aggregate: "count", displayType: "number" })
 
     expectBaseError(
       () => base.deleteField("projects", "owners"),
       "lookup-in-use"
     )
     expectBaseError(() => base.deleteField("people", "rate"), "lookup-in-use")
+    expect(base.deleteTable("portfolios")).toBe(true)
     expect(base.deleteField("projects", "budget")).toBe(true)
     expect(base.deleteField("projects", "owner_rate")).toBe(true)
     expect(base.deleteField("projects", "owner_count")).toBe(true)
+    expect(base.deleteField("projects", "first_owner_skill")).toBe(true)
+    expect(base.deleteField("projects", "owner_skill_count")).toBe(true)
+    expect(base.deleteField("projects", "owner_skills")).toBe(true)
     expect(base.deleteField("projects", "owner_names")).toBe(true)
     expect(base.deleteField("projects", "owners")).toBe(true)
     expect(base.deleteTable("people")).toBe(true)
+    base.close()
+  })
+
+  it("rejects circular dependencies across nested lookups", () => {
+    const filePath = path.join(root, "lookup-cycles.base")
+    const base = createBaseFile(filePath, {
+      defaultTable: { id: "alpha", name: "Alpha" },
+    })
+    base.createTable({ id: "beta", name: "Beta" })
+    base.addField("alpha", {
+      name: "Betas",
+      columnName: "betas",
+      type: "link",
+      property: {
+        targetTableId: "beta",
+        targetField: "title",
+        multiple: true,
+      },
+    })
+    base.addField("beta", {
+      name: "Alphas",
+      columnName: "alphas",
+      type: "link",
+      property: {
+        targetTableId: "alpha",
+        targetField: "title",
+        multiple: true,
+      },
+    })
+    base.addField("beta", {
+      name: "Alpha values",
+      columnName: "alpha_values",
+      type: "lookup",
+      property: {
+        relationField: "alphas",
+        targetField: "title",
+        aggregate: "values",
+        displayType: "text",
+      },
+    })
+    base.addField("alpha", {
+      name: "Beta values",
+      columnName: "beta_values",
+      type: "lookup",
+      property: {
+        relationField: "betas",
+        targetField: "alpha_values",
+        aggregate: "values",
+        displayType: "text",
+      },
+    })
+
+    expectBaseError(
+      () =>
+        base.updateField("beta", "alpha_values", {
+          property: {
+            relationField: "alphas",
+            targetField: "beta_values",
+            aggregate: "values",
+            displayType: "text",
+          },
+        }),
+      "invalid-schema"
+    )
+    expect(
+      base
+        .listFields("beta")
+        .find((field) => field.tableColumnName === "alpha_values")?.property
+    ).toMatchObject({ targetField: "title" })
     base.close()
   })
 
@@ -960,23 +1220,34 @@ describe("Eidos Base files", () => {
     expect(base.listRows("tasks").map((row) => row.score)).toEqual([12.5, null])
 
     const status = base.updateField("tasks", "status", { type: "select" })
-    const options = status.property?.options as Array<{
-      id: string
-      name: string
-    }>
-    expect(options.map((option) => option.name)).toEqual(["Doing", "Done"])
-    expect(base.listRows("tasks").map((row) => row.status)).toEqual(
-      options.map((option) => option.id)
-    )
+    const options = status.property?.options as Array<{ value: string }>
+    expect(options.map((option) => option.value)).toEqual(["Doing", "Done"])
+    expect(base.listRows("tasks").map((row) => row.status)).toEqual([
+      "Doing",
+      "Done",
+    ])
     expect(
       base.updateField("tasks", "status", { type: "multi-select" })
-    ).toMatchObject({ type: "multi-select", storageCodec: "csv_ids" })
+    ).toMatchObject({ type: "multi-select", storageCodec: "json_array" })
     base.updateField("tasks", "status", {
       property: { options: [options[1]] },
     })
     expect(base.listRows("tasks").map((row) => row.status)).toEqual([
       null,
-      options[1].id,
+      '["Done"]',
+    ])
+    base.updateField("tasks", "status", {
+      property: { options: [{ value: "Complete" }] },
+      optionValueChanges: [{ from: "Done", to: "Complete" }],
+    })
+    expect(base.listRows("tasks").map((row) => row.status)).toEqual([
+      null,
+      '["Complete"]',
+    ])
+    base.updateField("tasks", "status", { name: "Workflow" })
+    expect(base.listRows("tasks").map((row) => row.status)).toEqual([
+      null,
+      '["Complete"]',
     ])
 
     expect(base.updateField("tasks", "files", { type: "text" })).toMatchObject({
@@ -1033,7 +1304,7 @@ describe("Eidos Base files", () => {
             name: "Status",
             columnName: "status",
             type: "select",
-            property: { options: [{ id: "todo", name: "Todo" }] },
+            property: { options: [{ value: "todo" }] },
           },
           { name: "Notes", columnName: "notes", type: "text" },
         ],
@@ -1048,12 +1319,12 @@ describe("Eidos Base files", () => {
     expect(
       base.updateField("tasks", "status", {
         name: "State",
-        property: { options: [{ id: "done", name: "Done" }] },
+        property: { options: [{ value: "done" }] },
       })
     ).toMatchObject({
       name: "State",
       tableColumnName: "status",
-      property: { options: [{ id: "done", name: "Done" }] },
+      property: { options: [{ value: "done" }] },
     })
 
     const view = base.listViews("tasks")[0]
@@ -1369,7 +1640,7 @@ describe("Eidos Base files", () => {
             name: "Labels",
             columnName: "labels",
             type: "multi-select",
-            storageCodec: "csv_ids",
+            storageCodec: "json_array",
           },
         ],
       },
@@ -1378,19 +1649,19 @@ describe("Eidos Base files", () => {
       title: "Write release notes",
       priority: 2,
       status: "doing",
-      labels: "docs,urgent",
+      labels: '["docs","urgent"]',
     })
     base.insertRow("tasks", {
       title: "Fix desktop build",
       priority: 3,
       status: "doing",
-      labels: "bug,urgent",
+      labels: '["bug","urgent"]',
     })
     base.insertRow("tasks", {
       title: "Archive draft",
       priority: 1,
       status: "done",
-      labels: "docs",
+      labels: '["docs"]',
     })
 
     const filter = {
@@ -1692,12 +1963,12 @@ describe("Eidos Base files", () => {
       summary: "Visible summary",
       notes: "Inspector only",
       status: "active",
-      owners: String(ada._id),
+      owners: JSON.stringify([ada._id]),
     })
     const second = base.insertRow("projects", {
       title: "Runtime",
       status: "planned",
-      reviewers: String(grace._id),
+      reviewers: JSON.stringify([grace._id]),
     })
 
     const page = base.getRowPage("projects", 0, 10, {}, 2, undefined, {
@@ -1743,10 +2014,7 @@ describe("Eidos Base files", () => {
             columnName: "status",
             type: "select",
             property: {
-              options: [
-                { id: "todo", name: "Todo" },
-                { id: "done", name: "Done" },
-              ],
+              options: [{ value: "todo" }, { value: "done" }],
             },
           },
           { name: "Points", columnName: "points", type: "number" },
@@ -1861,7 +2129,7 @@ describe("Eidos Base files", () => {
             name: "Labels",
             columnName: "labels",
             type: "multi-select",
-            storageCodec: "csv_ids",
+            storageCodec: "json_array",
           },
           { name: "Files", columnName: "files", type: "file" },
         ],
@@ -1873,7 +2141,7 @@ describe("Eidos Base files", () => {
       done: 1,
       due: "2026-07-10",
       status: "active",
-      labels: "docs,urgent",
+      labels: '["docs","urgent"]',
       files: '["assets/spec.md","assets/cover.png"]',
     })
     base.insertRow("tasks", {
@@ -1882,7 +2150,7 @@ describe("Eidos Base files", () => {
       done: 0,
       due: "2026-07-14",
       status: "active",
-      labels: "docs",
+      labels: '["docs"]',
       files: "[]",
     })
     base.insertRow("tasks", {

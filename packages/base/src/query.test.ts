@@ -35,7 +35,7 @@ describe("Base row query", () => {
     field("title", "title"),
     field("priority", "number"),
     field("status", "select"),
-    field("labels", "multi-select", "csv_ids"),
+    field("labels", "multi-select", "json_array"),
   ]
 
   it("compiles escaped search, nested filters, and stable multi-column sort", () => {
@@ -80,7 +80,7 @@ describe("Base row query", () => {
     const compiled = compileBaseRowQuery(fields, query)
     expect(compiled.whereSql).toContain("ESCAPE '\\'")
     expect(compiled.whereSql).toContain('priority" >= ?')
-    expect(compiled.whereSql).toContain("',' || COALESCE")
+    expect(compiled.whereSql).toContain("json_each")
     expect(compiled.orderSql).toBe(
       'ORDER BY "priority" DESC, "title" COLLATE NOCASE ASC, "__base_rowid" ASC'
     )
@@ -91,7 +91,7 @@ describe("Base row query", () => {
       "%100\\%\\_ready%",
       2,
       "doing",
-      "%,urgent,%",
+      "%urgent%",
     ])
   })
 
@@ -159,8 +159,8 @@ describe("Base row query", () => {
     })
   })
 
-  it("matches multi-select options as exact CSV tokens", () => {
-    const fields = [field("labels", "multi-select", "csv_ids")]
+  it("matches multi-select options as exact JSON array values", () => {
+    const fields = [field("labels", "multi-select", "json_array")]
     const compiled = compileBaseRowQuery(fields, {
       filter: {
         type: "group",
@@ -177,8 +177,43 @@ describe("Base row query", () => {
     })
 
     expect(compiled.whereSql).toContain(" OR ")
-    expect(compiled.whereSql).toContain("',' || COALESCE")
-    expect(compiled.params).toEqual(["%,bug,%", "%,ux,%"])
+    expect(compiled.whereSql).toContain("json_each")
+    expect(compiled.params).toEqual(["bug", "ux"])
+  })
+
+  it("treats an empty JSON array as an empty array-backed value", () => {
+    const compiled = compileBaseRowQuery(
+      [field("labels", "multi-select", "json_array")],
+      {
+        filter: {
+          type: "group",
+          conjunction: "and",
+          children: [
+            {
+              type: "rule",
+              field: "labels",
+              operator: "is-empty",
+            },
+          ],
+        },
+      }
+    )
+
+    expect(compiled.whereSql).toContain("json_array_length")
+    expect(compiled.whereSql).toContain("= 0")
+  })
+
+  it("sorts array-backed fields by their first JSON value", () => {
+    const compiled = compileBaseRowQuery(
+      [field("labels", "multi-select", "json_array")],
+      {
+        sorts: [{ field: "labels", direction: "asc" }],
+      }
+    )
+
+    expect(compiled.orderSql).toBe(
+      `ORDER BY json_extract("labels", '$[0]') COLLATE NOCASE ASC, "__base_rowid" ASC`
+    )
   })
 
   it("matches relation IDs as exact JSON array members", () => {
@@ -203,12 +238,7 @@ describe("Base row query", () => {
 
     expect(compiled.whereSql).toContain("json_each")
     expect(compiled.whereSql).toContain("CAST(value AS TEXT)")
-    expect(compiled.params).toEqual([
-      "row_ada",
-      "%,row\\_ada,%",
-      "row_grace",
-      "%,row\\_grace,%",
-    ])
+    expect(compiled.params).toEqual(["row_ada", "row_grace"])
   })
 
   it("only invalidates a filtered or sorted query for relevant field changes", () => {

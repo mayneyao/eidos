@@ -46,7 +46,6 @@ export type BaseFieldType =
 
 export type BaseStorageCodec =
   | "scalar"
-  | "csv_ids"
   | "json_array"
   | "relation"
   | "materialized_text"
@@ -279,12 +278,22 @@ export interface BaseLookupProperty extends Record<string, unknown> {
   displayType: BaseFormulaDisplayType
 }
 
+export interface BaseSelectOption {
+  value: string
+  color: string
+}
+
+export interface BaseOptionValueChange {
+  from: string
+  to: string
+}
+
 export interface CreateBaseLookupFieldInput {
   name: string
   columnName: string
   type: "lookup"
   property: BaseLookupProperty
-  storageCodec?: "scalar"
+  storageCodec?: "scalar" | "json_array"
 }
 
 export type CreateBaseFieldInput =
@@ -342,6 +351,7 @@ export interface UpdateBaseFieldInput {
   name?: string
   type?: BaseFieldType
   property?: Record<string, unknown> | null
+  optionValueChanges?: BaseOptionValueChange[]
 }
 
 export type BaseRowValue = BaseSqlPrimitive | boolean

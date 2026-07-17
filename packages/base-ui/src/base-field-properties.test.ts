@@ -31,15 +31,15 @@ describe("Base field properties", () => {
       baseSelectOptions(
         field({
           options: [
-            { id: "todo", name: "Todo", color: "blue" },
-            { id: "done", name: "Done" },
+            { value: "Todo", color: "blue" },
+            { value: "Done" },
             { name: "Invalid" },
           ],
         })
       )
     ).toEqual([
-      { id: "todo", name: "Todo", color: "blue" },
-      { id: "done", name: "Done", color: "default" },
+      { value: "Todo", color: "blue" },
+      { value: "Done", color: "default" },
     ])
   })
 

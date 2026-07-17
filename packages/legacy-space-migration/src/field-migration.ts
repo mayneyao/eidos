@@ -13,6 +13,7 @@ import type {
   LegacyTable,
   PlannedTable,
 } from "./types"
+import { baseSelectPropertyFromLegacy } from "./value-migration"
 
 const BASE_FIELD_TYPES = new Set<BaseFieldType>([
   "title",
@@ -189,7 +190,9 @@ export function baseFieldTypeForLegacyField(field: LegacyField): BaseFieldType {
 }
 
 function defaultStorageCodec(field: LegacyField): BaseStorageCodec {
-  if (field.type === "multi-select") return "csv_ids"
+  if (field.type === "multi-select" || field.type === "file") {
+    return "json_array"
+  }
   if (field.type === "link") return "relation"
   if (field.type === "formula" || field.type === "lookup") {
     return "materialized_text"
@@ -219,6 +222,9 @@ function importedProperty(
   field: LegacyField,
   fieldMap: Map<string, string>
 ): Record<string, unknown> | null {
+  if (field.type === "select" || field.type === "multi-select") {
+    return baseSelectPropertyFromLegacy(field.property)
+  }
   const property = remapFieldMetadata(field.property, fieldMap) as Record<
     string,
     unknown
@@ -328,18 +334,27 @@ export function buildLegacyFieldImportStrategies(
     }
   }
 
+  interface LiveLookupCandidate {
+    tableId: string
+    columnName: string
+    relationColumn: string
+    targetColumn: string
+    targetDisplayType: BaseFormulaDisplayType
+    targetLookupKey?: string
+  }
+
   const liveLookupColumnsByTable = new Map<string, Set<string>>()
+  const lookupCandidates = new Map<string, LiveLookupCandidate>()
   for (const table of snapshot.tables) {
     const planned = plannedById.get(table.id)
     if (!planned) continue
     const columnMap = fieldColumnMap(planned)
-    const liveColumns = new Set<string>()
+    liveLookupColumnsByTable.set(table.id, new Set<string>())
     for (const field of table.fields.filter(
       (candidate) => candidate.type === "lookup"
     )) {
-      const strategy = strategies.get(
-        legacyFieldStrategyKey(table.id, field.columnName)
-      )!
+      const key = legacyFieldStrategyKey(table.id, field.columnName)
+      const strategy = strategies.get(key)!
       const reference = table.references.find(
         (candidate) =>
           candidate.selfTableName === table.rawTableName &&
@@ -394,7 +409,7 @@ export function buildLegacyFieldImportStrategies(
         strategy.fallbackReason = "its lookup target is missing"
         continue
       }
-      if (targetFieldType === "formula" || targetFieldType === "lookup") {
+      if (targetFieldType === "formula") {
         strategy.fallbackReason = "Base lookups require a stored target field"
         continue
       }
@@ -406,22 +421,84 @@ export function buildLegacyFieldImportStrategies(
         strategy.fallbackReason = "its relation target cannot be resolved"
         continue
       }
-      strategy.property = {
-        ...(strategy.property ?? {}),
-        relationField: relationColumn,
-        targetField: targetColumn,
-        aggregate: "values",
-        displayType: normalizedDisplayType(targetFieldType),
-      }
-      strategy.storageCodec = "scalar"
-      strategy.valueKind = "derived"
-      strategy.isDerived = true
-      strategy.dependsOn = [relationColumn]
-      strategy.omitSourceValue = true
-      delete strategy.fallbackReason
-      liveColumns.add(columnMap.get(field.columnName)!)
+      lookupCandidates.set(key, {
+        tableId: table.id,
+        columnName: columnMap.get(field.columnName)!,
+        relationColumn,
+        targetColumn,
+        targetDisplayType:
+          targetLegacyField?.type === "lookup"
+            ? normalizedDisplayType(targetLegacyField.property?.displayType)
+            : normalizedDisplayType(targetFieldType),
+        ...(targetLegacyField?.type === "lookup" && targetTable
+          ? {
+              targetLookupKey: legacyFieldStrategyKey(
+                targetTable.id,
+                targetLegacyField.columnName
+              ),
+            }
+          : {}),
+      })
     }
-    liveLookupColumnsByTable.set(table.id, liveColumns)
+  }
+
+  const lookupState = new Map<string, "visiting" | "live" | "fallback">()
+  const lookupStack: string[] = []
+  const lookupFallbacks = new Map<string, string>()
+  const resolveLookup = (key: string): boolean => {
+    const state = lookupState.get(key)
+    if (state === "live") return true
+    if (state === "fallback") return false
+    if (state === "visiting") {
+      const cycleStart = lookupStack.lastIndexOf(key)
+      for (const member of lookupStack.slice(cycleStart)) {
+        lookupState.set(member, "fallback")
+        lookupFallbacks.set(member, "its lookup dependency is circular")
+      }
+      return false
+    }
+    const candidate = lookupCandidates.get(key)
+    if (!candidate) return false
+    lookupState.set(key, "visiting")
+    lookupStack.push(key)
+    const targetIsLive = candidate.targetLookupKey
+      ? resolveLookup(candidate.targetLookupKey)
+      : true
+    lookupStack.pop()
+    if (!targetIsLive) {
+      lookupState.set(key, "fallback")
+      if (!lookupFallbacks.has(key)) {
+        lookupFallbacks.set(
+          key,
+          "its nested lookup target is not Base-compatible"
+        )
+      }
+      return false
+    }
+    lookupState.set(key, "live")
+    return true
+  }
+
+  for (const [key, candidate] of lookupCandidates) {
+    const strategy = strategies.get(key)!
+    if (!resolveLookup(key)) {
+      strategy.fallbackReason = lookupFallbacks.get(key)
+      continue
+    }
+    strategy.property = {
+      ...(strategy.property ?? {}),
+      relationField: candidate.relationColumn,
+      targetField: candidate.targetColumn,
+      aggregate: "values",
+      displayType: candidate.targetDisplayType,
+    }
+    strategy.storageCodec = "json_array"
+    strategy.valueKind = "derived"
+    strategy.isDerived = true
+    strategy.dependsOn = [candidate.relationColumn]
+    strategy.omitSourceValue = true
+    delete strategy.fallbackReason
+    liveLookupColumnsByTable.get(candidate.tableId)!.add(candidate.columnName)
   }
 
   for (const table of snapshot.tables) {

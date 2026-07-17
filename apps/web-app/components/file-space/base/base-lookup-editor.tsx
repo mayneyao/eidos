@@ -4,6 +4,10 @@ import type {
   BaseLookupAggregate,
   BaseTableSnapshot,
 } from "@eidos.space/base"
+import {
+  baseLookupAggregateSupportsTarget,
+  baseLookupDisplayType,
+} from "@eidos.space/base"
 
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
@@ -94,32 +98,38 @@ export function BaseLookupEditor({
   const targetTableId =
     typeof selectedRelation?.property?.targetTableId === "string"
       ? selectedRelation.property.targetTableId
-      : tables.find(
-          (table) =>
-            table.table.rawTableName ===
-            selectedRelation?.property?.linkTableName
-        )?.table.id
+      : undefined
   const targets =
     tables
       .find((table) => table.table.id === targetTableId)
       ?.fields.filter(
-        (candidate) => !candidate.isHidden && !candidate.isDerived
+        (candidate) =>
+          !candidate.isHidden &&
+          (!candidate.isDerived || candidate.type === "lookup") &&
+          !(
+            field &&
+            candidate.tableName === field.tableName &&
+            candidate.tableColumnName === field.tableColumnName
+          )
       ) ?? []
   const selectedTarget =
     targets.find((candidate) => candidate.tableColumnName === targetField) ??
     targets.find((candidate) => candidate.tableColumnName === "title") ??
     targets[0]
+  const aggregateSupported = selectedTarget
+    ? baseLookupAggregateSupportsTarget(aggregate, selectedTarget)
+    : false
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
-    if (!selectedRelation || !selectedTarget || savingRef.current) return
-    const numeric = new Set<BaseLookupAggregate>([
-      "count",
-      "sum",
-      "average",
-      "min",
-      "max",
-    ]).has(aggregate)
+    if (
+      !selectedRelation ||
+      !selectedTarget ||
+      !aggregateSupported ||
+      savingRef.current
+    ) {
+      return
+    }
     savingRef.current = true
     setSaving(true)
     setError(null)
@@ -128,7 +138,7 @@ export function BaseLookupEditor({
         relationField: selectedRelation.tableColumnName,
         targetField: selectedTarget.tableColumnName,
         aggregate,
-        displayType: numeric ? "number" : "text",
+        displayType: baseLookupDisplayType(aggregate, selectedTarget),
       })
     } catch (saveError) {
       setError(
@@ -217,7 +227,17 @@ export function BaseLookupEditor({
                 </SelectTrigger>
                 <SelectContent>
                   {AGGREGATES.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
+                    <SelectItem
+                      key={item.value}
+                      value={item.value}
+                      disabled={
+                        !!selectedTarget &&
+                        !baseLookupAggregateSupportsTarget(
+                          item.value,
+                          selectedTarget
+                        )
+                      }
+                    >
                       {item.label}
                     </SelectItem>
                   ))}
@@ -241,7 +261,12 @@ export function BaseLookupEditor({
             </Button>
             <Button
               type="submit"
-              disabled={saving || !selectedRelation || !selectedTarget}
+              disabled={
+                saving ||
+                !selectedRelation ||
+                !selectedTarget ||
+                !aggregateSupported
+              }
             >
               {saving ? "Saving…" : "Save lookup"}
             </Button>

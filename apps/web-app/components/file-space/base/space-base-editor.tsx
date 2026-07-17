@@ -22,8 +22,6 @@ import {
   BaseEditorWorkbar,
 } from "@eidos.space/base-ui/base-editor-chrome"
 import { BaseUIProvider } from "@eidos.space/base-ui/context"
-import { BaseGalleryView } from "@eidos.space/base-ui/base-gallery-view"
-import { BaseKanbanView } from "@eidos.space/base-ui/base-kanban-view"
 import { baseRecordCardPageProjection } from "@eidos.space/base-ui/base-record-card-layout"
 import { uniqueSpaceEntryName } from "@eidos.space/file-space/names"
 import {
@@ -71,6 +69,8 @@ import {
 } from "@/components/ui/alert-dialog"
 
 import { BaseGrid } from "./base-grid"
+import { BaseGalleryView } from "./base-gallery-view"
+import { BaseKanbanView } from "./base-kanban-view"
 import { BaseCsvImportPopover } from "./base-csv-import-popover"
 import { BaseCsvExportPopover } from "./base-csv-export-popover"
 import {
@@ -943,14 +943,8 @@ export function SpaceBaseEditor({
       field: BaseFieldInfo,
       query: string
     ): Promise<BaseRelationValue[]> => {
-      const targetTableId =
-        field.property?.targetTableId ??
-        snapshot?.tables.find(
-          (candidate) =>
-            candidate.table.rawTableName === field.property?.linkTableName
-        )?.table.id
-      const targetField =
-        field.property?.targetField ?? field.property?.linkColumnName
+      const targetTableId = field.property?.targetTableId
+      const targetField = field.property?.targetField
       if (
         typeof targetTableId !== "string" ||
         typeof targetField !== "string"

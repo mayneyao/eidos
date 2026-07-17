@@ -117,6 +117,48 @@ describe("BaseLookupEditor", () => {
     })
   })
 
+  it("allows another lookup as the target field", async () => {
+    const nestedTarget: BaseFieldInfo = {
+      ...titleField,
+      name: "Owner count",
+      type: "lookup",
+      tableColumnName: "owner_count",
+      property: {
+        relationField: "members",
+        targetField: "title",
+        aggregate: "count",
+        displayType: "number",
+      },
+      valueKind: "derived",
+      isDerived: true,
+      dependsOn: ["members"],
+    }
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    await act(async () => {
+      root.render(
+        <BaseLookupEditor
+          field={lookupField}
+          fields={[relationField, lookupField]}
+          tables={[{ ...people, fields: [nestedTarget] }]}
+          open
+          onOpenChange={vi.fn()}
+          onSave={onSave}
+        />
+      )
+    })
+
+    await act(async () => {
+      submitLookup()
+      await Promise.resolve()
+    })
+    expect(onSave).toHaveBeenCalledWith({
+      relationField: "owners",
+      targetField: "owner_count",
+      aggregate: "count",
+      displayType: "number",
+    })
+  })
+
   it("keeps its session state and error when recovery replaces the field", async () => {
     const onSave = vi
       .fn()

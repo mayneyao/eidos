@@ -6,9 +6,12 @@ import type {
 } from "@eidos.space/base"
 import {
   decodeBaseFilePaths,
+  decodeBaseJsonArray,
+  decodeBaseMultiSelectValues,
   decodeBaseRelationDisplay,
   decodeBaseRelationIds,
   encodeBaseFilePaths,
+  encodeBaseMultiSelectValues,
   encodeBaseRelationIds,
 } from "@eidos.space/base"
 import {
@@ -19,14 +22,15 @@ import {
 } from "@glideapps/glide-data-grid"
 import type { RangeCell } from "./cells/range-cell"
 
-import { baseNumberProperty } from "./base-field-properties"
+import { baseNumberProperty, baseSelectOptions } from "./base-field-properties"
 import { baseFieldDisplayName } from "./base-field-visibility"
 import { baseFileDisplayData, type BaseFileCell } from "./base-file-cell"
 import type { BaseRelationCell } from "./base-relation-cell"
 
 export { visibleBaseFields } from "./base-field-visibility"
 
-interface BaseSelectOption {
+/** Glide cell option shape derived from a direct Base option value. */
+export interface BaseGridSelectOption {
   id: string
   name: string
   color: string
@@ -87,48 +91,14 @@ export function baseGridColumn(field: BaseFieldInfo): GridColumn {
   }
 }
 
-export function baseSelectOptions(field: BaseFieldInfo): BaseSelectOption[] {
-  const options = field.property?.options
-  if (!Array.isArray(options)) return []
-  return options.flatMap((option) => {
-    if (
-      typeof option !== "object" ||
-      option === null ||
-      !("id" in option) ||
-      !("name" in option) ||
-      typeof option.id !== "string" ||
-      typeof option.name !== "string"
-    ) {
-      return []
-    }
-    return [
-      {
-        id: option.id,
-        name: option.name,
-        color:
-          "color" in option && typeof option.color === "string"
-            ? option.color
-            : "default",
-      },
-    ]
-  })
-}
-
-function multiSelectValues(value: BaseRowValue | undefined): string[] {
-  if (typeof value !== "string" || value.length === 0) return []
-  if (value.startsWith("[")) {
-    try {
-      const parsed = JSON.parse(value)
-      if (Array.isArray(parsed)) {
-        return parsed.filter(
-          (entry): entry is string => typeof entry === "string"
-        )
-      }
-    } catch {
-      // Fall back to the v1 csv_ids representation.
-    }
-  }
-  return value.split(",").filter(Boolean)
+export function baseGridSelectOptions(
+  field: BaseFieldInfo
+): BaseGridSelectOption[] {
+  return baseSelectOptions(field).map((option) => ({
+    id: option.value,
+    name: option.value,
+    color: option.color,
+  }))
 }
 
 export function baseValueToGridCell(
@@ -137,6 +107,19 @@ export function baseValueToGridCell(
   readonly = false,
   row?: BaseRow
 ): GridCell {
+  if (field.type === "lookup" && field.storageCodec === "json_array") {
+    const values = decodeBaseJsonArray(value)
+    const displayData = values
+      .flatMap((entry) => (entry === null ? [] : [String(entry)]))
+      .join(", ")
+    return {
+      kind: GridCellKind.Text,
+      allowOverlay: true,
+      readonly: true,
+      data: typeof value === "string" ? value : "[]",
+      displayData,
+    }
+  }
   if (field.type === "formula" || field.type === "lookup") {
     const displayType = field.property?.displayType
     const supported = new Set([
@@ -202,13 +185,16 @@ export function baseValueToGridCell(
       data: {
         kind: "select-cell",
         value: selected,
-        allowedValues: baseSelectOptions(field),
+        allowedValues: baseGridSelectOptions(field),
+        allowCreate: false,
         readonly,
       },
     }
   }
   if (field.type === "multi-select") {
-    const values = multiSelectValues(value)
+    const values = decodeBaseMultiSelectValues(
+      typeof value === "boolean" ? null : (value ?? null)
+    )
     return {
       kind: GridCellKind.Custom,
       allowOverlay: true,
@@ -217,7 +203,8 @@ export function baseValueToGridCell(
       data: {
         kind: "multi-select-cell",
         values,
-        allowedValues: baseSelectOptions(field),
+        allowedValues: baseGridSelectOptions(field),
+        allowCreate: false,
         readonly,
       },
     }
@@ -333,7 +320,7 @@ export function gridCellToBaseValue(
             (entry): entry is string => typeof entry === "string"
           )
         : []
-      return values.length > 0 ? values.join(",") : null
+      return encodeBaseMultiSelectValues(values)
     }
     if (data.kind === "base-file-cell") {
       const paths = Array.isArray(data.paths)

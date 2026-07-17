@@ -110,7 +110,7 @@ const table: BaseTableSnapshot = {
       tableName: "tb_tasks",
       tableColumnName: "status",
       property: {
-        options: [{ id: "todo", name: "Todo", color: "blue" }],
+        options: [{ value: "todo", color: "blue" }],
       },
       storageCodec: "scalar",
       valueKind: "source",
@@ -229,7 +229,7 @@ describe("BaseGalleryView", () => {
     )
     expect(loadPage).toHaveBeenCalledWith(0, 100)
     expect(container.textContent).toContain("Write RFC")
-    expect(container.textContent).toContain("Todo")
+    expect(container.textContent).toContain("todo")
     expect(container.querySelector('[role="list"]')).not.toBeNull()
     expect(
       container.querySelector('[role="list"] > [role="presentation"]')

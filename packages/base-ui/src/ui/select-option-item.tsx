@@ -1,8 +1,6 @@
 import { useBaseUI } from "../context"
-import {
-  baseOptionColor,
-  type BaseSelectOption as SelectOption,
-} from "../base-field-properties"
+import { baseOptionColor } from "../base-field-properties"
+import type { BaseGridSelectOption as SelectOption } from "../base-grid-adapter"
 
 export function SelectOptionItem({
   option,

@@ -49,6 +49,11 @@ import type {
   MigrationIssue,
   PlannedExtension,
 } from "./types"
+import {
+  legacySelectValueMap,
+  migrateLegacySelectValue,
+  migrateLegacyStringArray,
+} from "./value-migration"
 
 function emitProgress(
   options: ExportLegacySpaceOptions,
@@ -177,30 +182,9 @@ function rewriteFileValue(
   value: BaseRow[string],
   lookup: Map<string, string>
 ): BaseRow[string] {
-  if (typeof value !== "string" || !value.trim()) return value
-  const trimmed = value.trim()
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    try {
-      const parsed = JSON.parse(trimmed)
-      if (
-        Array.isArray(parsed) &&
-        parsed.every((item) => typeof item === "string")
-      ) {
-        return JSON.stringify(
-          parsed.map((item) => rewriteAssetReference(item, lookup))
-        )
-      }
-    } catch {
-      // Preserve malformed legacy values verbatim.
-    }
-  }
-  if (trimmed.includes(",")) {
-    return trimmed
-      .split(",")
-      .map((item) => rewriteAssetReference(item.trim(), lookup))
-      .join(",")
-  }
-  return rewriteAssetReference(trimmed, lookup)
+  return migrateLegacyStringArray(value, (entry) =>
+    rewriteAssetReference(entry, lookup)
+  )
 }
 
 function isInside(parent: string, candidate: string): boolean {
@@ -992,11 +976,23 @@ export async function exportLegacySpace(
         })
         exportedViewCount += 1
       }
-      const fileColumns = new Set(
-        sourceTable.fields
-          .filter((field) => field.type === "file")
-          .map((field) => columnMap.get(field.columnName) ?? field.columnName)
-      )
+      const migratedValueFields = sourceTable.fields.flatMap((field) => {
+        if (
+          field.type !== "file" &&
+          field.type !== "link" &&
+          field.type !== "select" &&
+          field.type !== "multi-select"
+        ) {
+          return []
+        }
+        return [
+          {
+            type: field.type,
+            columnName: columnMap.get(field.columnName) ?? field.columnName,
+            valueById: legacySelectValueMap(field.property),
+          },
+        ]
+      })
       const liveDerivedColumns = new Set(
         sourceTable.fields.flatMap((field) => {
           const strategy = fieldStrategies.get(
@@ -1029,11 +1025,23 @@ export async function exportLegacySpace(
               value,
             ])
           ) as BaseRow
-          for (const columnName of fileColumns) {
-            rewritten[columnName] = rewriteFileValue(
-              rewritten[columnName],
-              assetLookup
-            )
+          for (const field of migratedValueFields) {
+            const value = rewritten[field.columnName]
+            if (field.type === "file") {
+              rewritten[field.columnName] = rewriteFileValue(value, assetLookup)
+            } else if (field.type === "link") {
+              rewritten[field.columnName] = migrateLegacyStringArray(value)
+            } else if (field.type === "multi-select") {
+              rewritten[field.columnName] = migrateLegacyStringArray(
+                value,
+                (entry) => field.valueById.get(entry) ?? entry
+              )
+            } else {
+              rewritten[field.columnName] = migrateLegacySelectValue(
+                value,
+                field.valueById
+              )
+            }
           }
           for (const columnName of liveDerivedColumns) {
             delete rewritten[columnName]

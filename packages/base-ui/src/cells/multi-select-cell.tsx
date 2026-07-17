@@ -1,9 +1,6 @@
 import * as React from "react"
-import {
-  baseOptionColor,
-  nextBaseOptionColor,
-  type BaseSelectOption as SelectOption,
-} from "../base-field-properties"
+import { baseOptionColor, nextBaseOptionColor } from "../base-field-properties"
+import type { BaseGridSelectOption as SelectOption } from "../base-grid-adapter"
 import {
   GridCellKind,
   getMiddleCenterBias,
@@ -35,6 +32,7 @@ interface MultiSelectCellProps {
   readonly values: readonly string[] | null
   readonly readonly?: boolean
   readonly allowedValues: readonly SelectOption[]
+  readonly allowCreate?: boolean
 }
 
 export type MultiSelectCell = CustomCell<MultiSelectCellProps>
@@ -46,7 +44,7 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
   p
 ) => {
   const { value: cell, initialValue, onChange, theme, onFinishedEditing } = p
-  const { allowedValues, values = [] } = cell.data
+  const { allowedValues, allowCreate = true, values = [] } = cell.data
 
   const themeName = (theme as any).name
   const [oldValues, setOldValues] = React.useState(values ?? [])
@@ -121,7 +119,7 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
         handleSelect(currentOptionId)
         setInputValue("")
       } else {
-        if (!inputValue?.length) return
+        if (!allowCreate || !inputValue?.length) return
         // is creating new option
         handleSelect(inputValue)
         setInputValue("")
@@ -199,7 +197,9 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
               "overflow-y-scroll": allowedValues.length * 32 > 400,
             })}
           >
-            <CommandEmpty>Create option</CommandEmpty>
+            <CommandEmpty>
+              {allowCreate ? "Create option" : "No options"}
+            </CommandEmpty>
             <CommandGroup className="h-full border-t">
               {allowedValues.map((option) => (
                 <CommandItem
@@ -212,7 +212,8 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
                   <SelectOptionItem theme={themeName} option={option} />
                 </CommandItem>
               ))}
-              {Boolean(inputValue.length) &&
+              {allowCreate &&
+                Boolean(inputValue.length) &&
                 allowedValues.findIndex((item) => item.name == inputValue) ==
                   -1 && (
                   <CommandItem

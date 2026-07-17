@@ -11,7 +11,8 @@ function field(
     tableName: "tb_tasks",
     tableColumnName: "value",
     property,
-    storageCodec: type === "file" ? "json_array" : "scalar",
+    storageCodec:
+      type === "file" || type === "multi-select" ? "json_array" : "scalar",
     valueKind: "source",
     isHidden: false,
     isDerived: false,
@@ -52,23 +53,22 @@ describe("Base field conversion", () => {
 
   it("derives stable select options from existing display values", () => {
     const source = field("select", {
-      options: [{ id: "todo", name: "Todo", color: "red" }],
+      options: [{ value: "Todo", color: "red" }],
     })
     const plan = planBaseFieldConversion(
       source,
       [
-        { id: "a", value: "todo" },
+        { id: "a", value: "Todo" },
         { id: "b", value: "done" },
       ],
       "multi-select"
     )
     expect(plan.property).toMatchObject({
-      options: [{ id: "todo", name: "Todo", color: "red" }, { name: "done" }],
+      options: [{ value: "Todo", color: "red" }, { value: "done" }],
     })
-    const options = plan.property?.options as Array<{ id: string }>
     expect(plan.values).toEqual([
-      { id: "a", value: "todo" },
-      { id: "b", value: options[1].id },
+      { id: "a", value: '["Todo"]' },
+      { id: "b", value: '["done"]' },
     ])
   })
 

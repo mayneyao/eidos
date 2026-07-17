@@ -1,10 +1,10 @@
 import type { BaseFieldInfo, BaseRow, BaseRowValue } from "@eidos.space/base"
 import {
   decodeBaseFilePaths,
+  decodeBaseJsonArray,
+  decodeBaseMultiSelectValues,
   decodeBaseRelationDisplay,
 } from "@eidos.space/base"
-
-import { baseSelectOptions } from "./base-grid-adapter"
 
 function scalarText(value: BaseRowValue | undefined): string {
   if (value === null || value === undefined || value === "") return "Empty"
@@ -19,45 +19,31 @@ function dateText(value: BaseRowValue | undefined, dateOnly: boolean): string {
   return dateOnly ? parsed.toLocaleDateString() : parsed.toLocaleString()
 }
 
-function multiSelectIds(value: BaseRowValue | undefined): string[] {
-  if (typeof value !== "string" || value.length === 0) return []
-  if (value.startsWith("[")) {
-    try {
-      const parsed = JSON.parse(value)
-      if (Array.isArray(parsed)) {
-        return parsed.filter(
-          (candidate): candidate is string => typeof candidate === "string"
-        )
-      }
-    } catch {
-      // Fall through to the v1 comma-separated representation.
-    }
-  }
-  return value.split(",").filter(Boolean)
-}
-
 export function baseRecordFieldText(
   row: BaseRow,
   field: BaseFieldInfo
 ): string {
   const value = row[field.tableColumnName]
+  if (field.type === "lookup" && field.storageCodec === "json_array") {
+    const values = decodeBaseJsonArray(value)
+    return values.length > 0
+      ? values
+          .flatMap((entry) => (entry === null ? [] : [String(entry)]))
+          .join(", ")
+      : "Empty"
+  }
   if (field.type === "checkbox") {
     return value === true || value === 1 || value === "1"
       ? "Checked"
       : "Unchecked"
   }
   if (field.type === "select") {
-    const selected = typeof value === "string" ? value : ""
-    return (
-      baseSelectOptions(field).find((option) => option.id === selected)?.name ??
-      scalarText(value)
-    )
+    return scalarText(value)
   }
   if (field.type === "multi-select") {
-    const names = new Map(
-      baseSelectOptions(field).map((option) => [option.id, option.name])
+    const values = decodeBaseMultiSelectValues(
+      typeof value === "string" ? value : null
     )
-    const values = multiSelectIds(value).map((id) => names.get(id) ?? id)
     return values.length > 0 ? values.join(", ") : "Empty"
   }
   if (field.type === "link") {

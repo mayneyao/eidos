@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react"
 import type {
   BaseFieldInfo,
+  BaseOptionValueChange,
   MutableBaseFieldType,
   UpdateBaseFieldInput,
 } from "@eidos.space/base"
@@ -125,6 +126,14 @@ export function BaseFieldPropertyPanel({
 
   const saveProperty = (property: Record<string, unknown>) =>
     update({ property })
+  const saveOptionsProperty = (
+    property: Record<string, unknown>,
+    optionValueChanges?: BaseOptionValueChange[]
+  ) =>
+    update({
+      property,
+      ...(optionValueChanges ? { optionValueChanges } : {}),
+    })
 
   const applyType = async () => {
     if (!pendingType || pendingType === field.type) return
@@ -273,7 +282,7 @@ export function BaseFieldPropertyPanel({
             <BaseSelectOptionsEditor
               field={field}
               disabled={busy}
-              onChange={saveProperty}
+              onChange={saveOptionsProperty}
             />
           ) : null}
           {field.type === "number" ? (
