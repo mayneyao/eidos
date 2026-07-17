@@ -4,7 +4,7 @@ const { spawnSync } = require("node:child_process")
 const fs = require("node:fs")
 const path = require("node:path")
 
-const probeNodeRuntime = ({ cwd, modulePath, nodeExecutable }) => {
+const probeNodeRuntime = ({ cwd, env, modulePath, nodeExecutable }) => {
   const source = `
     const Database = require(${JSON.stringify(modulePath)})
     const database = new Database(":memory:")
@@ -12,6 +12,7 @@ const probeNodeRuntime = ({ cwd, modulePath, nodeExecutable }) => {
   `
   const result = spawnSync(nodeExecutable, ["-e", source], {
     cwd,
+    env: env ? { ...process.env, ...env } : process.env,
     stdio: "ignore",
   })
 
@@ -47,19 +48,20 @@ const main = () => {
     "build/Release/better_sqlite3.node"
   )
   const prebuildInstall = resolveFromRoot("prebuild-install/bin.js")
+  const nodeExecutable =
+    runtime === "node" ? process.execPath : require(resolveFromRoot("electron"))
+  const probeOptions = {
+    cwd: root,
+    modulePath: betterSqliteModule,
+    nodeExecutable,
+    ...(runtime === "electron" ? { env: { ELECTRON_RUN_AS_NODE: "1" } } : {}),
+  }
   const target =
     runtime === "node"
       ? process.versions.node
       : require(resolveFromRoot("electron/package.json")).version
 
-  if (
-    runtime === "node" &&
-    probeNodeRuntime({
-      cwd: root,
-      modulePath: betterSqliteModule,
-      nodeExecutable: process.execPath,
-    })
-  ) {
+  if (probeNodeRuntime(probeOptions)) {
     return 0
   }
 
@@ -83,15 +85,10 @@ const main = () => {
     refreshDarwinNativeBinaryIdentity(nativeBinary)
   }
 
-  if (
-    runtime === "node" &&
-    !probeNodeRuntime({
-      cwd: root,
-      modulePath: betterSqliteModule,
-      nodeExecutable: process.execPath,
-    })
-  ) {
-    console.error("better-sqlite3 could not be loaded by the Node.js runtime")
+  if (!probeNodeRuntime(probeOptions)) {
+    console.error(
+      `better-sqlite3 could not be loaded by the ${runtime} runtime`
+    )
     return 1
   }
 

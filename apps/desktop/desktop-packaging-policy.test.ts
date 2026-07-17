@@ -9,6 +9,42 @@ import { describe, expect, it } from "vitest"
 const desktopRoot = path.dirname(fileURLToPath(import.meta.url))
 
 describe("desktop packaging policy", () => {
+  it("uses a fast unpacked package for routine local verification", () => {
+    const rootPackage = JSON.parse(
+      fs.readFileSync(path.join(desktopRoot, "../../package.json"), "utf8")
+    ) as { scripts: Record<string, string> }
+    const desktopPackage = JSON.parse(
+      fs.readFileSync(path.join(desktopRoot, "package.json"), "utf8")
+    ) as { scripts: Record<string, string> }
+
+    expect(rootPackage.scripts["build:desktop:dev"]).toContain("package:dir")
+    expect(rootPackage.scripts["build:desktop:installer:dev"]).toContain(
+      "package:dev"
+    )
+    expect(desktopPackage.scripts["package:dir"]).toContain("--dir")
+    expect(desktopPackage.scripts["package:dir"]).toContain(
+      "pnpm run native:electron"
+    )
+    expect(desktopPackage.scripts["package:dir"]).toContain(
+      "--config.npmRebuild=false"
+    )
+    expect(desktopPackage.scripts["package:dev"]).not.toContain("--dir")
+    expect(desktopPackage.scripts["package:dev"]).not.toContain(
+      "npmRebuild=false"
+    )
+  })
+
+  it("prepares workspace packages through the parallel build orchestrator", () => {
+    const desktopPackage = JSON.parse(
+      fs.readFileSync(path.join(desktopRoot, "package.json"), "utf8")
+    ) as { scripts: Record<string, string> }
+
+    expect(desktopPackage.scripts.prebuild).toBe(
+      "node scripts/prepare-build.cjs --with-cli"
+    )
+    expect(desktopPackage.scripts.predev).toBe("node scripts/prepare-build.cjs")
+  })
+
   it("bundles minimatch with the Electron main process", () => {
     const viteConfig = fs.readFileSync(
       path.join(desktopRoot, "vite.config.ts"),

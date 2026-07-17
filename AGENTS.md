@@ -112,18 +112,22 @@ cd apps/desktop && node scripts/download-libsimple.cjs
 
 # Development
 pnpm dev:desktop      # Start desktop app in development mode
-pnpm build:desktop:dev # Preferred local Desktop build/package verification; skips signing
+pnpm build:desktop:dev # Preferred fast local build/unpacked-package verification
+pnpm build:desktop:installer:dev # Full unsigned local installer verification
 pnpm build:desktop    # Compile Desktop assets only; not the default packaging check
 pnpm pkg:desktop      # Package desktop app for distribution
-pnpm pkg:desktop:dev  # Package desktop app (dev mode)
+pnpm pkg:desktop:dev  # Build full unsigned installers from existing assets
+pnpm pkg:desktop:dir  # Build an unpacked app from existing assets
 ```
 
 For routine Desktop delivery validation, use `pnpm build:desktop:dev`. It builds
-the current Desktop assets and packages them with
+the current Desktop assets and creates an unpacked app with
 `apps/desktop/electron/electron-builder.dev.json`, which disables signing,
-hardened runtime, notarization, and the `afterSign` hook. Reserve
-`pnpm pkg:desktop` and the release builder configuration for actual release
-work; do not pay the signing cost during normal implementation checks.
+hardened runtime, notarization, and the `afterSign` hook. It also skips the
+redundant native dependency rebuild performed by electron-builder. Use
+`pnpm build:desktop:installer:dev` when DMG/ZIP/NSIS/AppImage artifacts need
+local verification. Reserve `pnpm pkg:desktop` and the release builder
+configuration for actual release work.
 
 Desktop development/builds and Node tests share one linked `better-sqlite3`
 native binary. Stop any running `pnpm dev:desktop` process before `pnpm test`,

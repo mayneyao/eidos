@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it } from "vitest"
 type RuntimeHelpers = {
   probeNodeRuntime: (options: {
     cwd: string
+    env?: Record<string, string>
     modulePath: string
     nodeExecutable: string
   }) => boolean
@@ -49,6 +50,24 @@ describe("better-sqlite3 runtime helpers", () => {
     expect(
       probeNodeRuntime({
         cwd: directory,
+        modulePath,
+        nodeExecutable: process.execPath,
+      })
+    ).toBe(true)
+  })
+
+  it("passes runtime-specific environment variables to the child probe", () => {
+    const directory = createTemporaryDirectory()
+    const modulePath = join(directory, "environment-database.cjs")
+    writeFileSync(
+      modulePath,
+      'if (process.env.EIDOS_TEST_RUNTIME !== "electron") throw new Error("wrong runtime"); module.exports = class Database { close() {} }'
+    )
+
+    expect(
+      probeNodeRuntime({
+        cwd: directory,
+        env: { EIDOS_TEST_RUNTIME: "electron" },
         modulePath,
         nodeExecutable: process.execPath,
       })
