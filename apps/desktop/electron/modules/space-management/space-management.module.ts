@@ -10,8 +10,8 @@ import { SpaceManagementService } from "./space-management.service"
 import { SpaceRegistry } from "./space-registry"
 import { MainWindowProvider } from "./main-window.provider"
 import { SpaceResourceLifecycle } from "./space-resource-lifecycle"
-import { BaseCsvWorkerRunner } from "./base-csv-worker-runner"
-import { BaseQueryWorkerRunner } from "./base-query-worker-runner"
+import { EidosFileCsvWorkerRunner } from "./eidos-file-csv-worker-runner"
+import { EidosFileQueryWorkerRunner } from "./eidos-file-query-worker-runner"
 
 /**
  * Space Management Module
@@ -30,16 +30,16 @@ import { BaseQueryWorkerRunner } from "./base-query-worker-runner"
     SpaceRegistry,
     MainWindowProvider,
     SpaceResourceLifecycle,
-    BaseCsvWorkerRunner,
-    BaseQueryWorkerRunner,
+    EidosFileCsvWorkerRunner,
+    EidosFileQueryWorkerRunner,
   ],
   exports: [
     SpaceManagementService,
     SpaceRegistry,
     MainWindowProvider,
     SpaceResourceLifecycle,
-    BaseCsvWorkerRunner,
-    BaseQueryWorkerRunner,
+    EidosFileCsvWorkerRunner,
+    EidosFileQueryWorkerRunner,
   ],
 })
 export class SpaceManagementModule {}

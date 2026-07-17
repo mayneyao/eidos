@@ -2,7 +2,7 @@
 
 import {
   ancestorSpacePaths,
-  baseRecordFromSpaceUrl,
+  eidosFileRecordFromSpaceUrl,
   canMoveSpaceEntryTo,
   filePathFromSpaceUrl,
   fileEditorFromSpaceUrl,
@@ -13,7 +13,7 @@ import {
   positionFromSpaceUrl,
   resolveSpaceLink,
   toSpaceAssetUrl,
-  toSpaceBaseRecordUrl,
+  toSpaceEidosFileRecordUrl,
   toSpaceFileUrl,
   toSpaceFileEditorUrl,
   toSpaceFilePositionUrl,
@@ -52,14 +52,20 @@ describe("file Space paths", () => {
     ).toBeNull()
   })
 
-  it("round-trips Base record targets through stable tab URLs", () => {
-    const url = toSpaceBaseRecordUrl("项目/tasks.base", "table/任务", "row #1")
-    expect(filePathFromSpaceUrl(url)).toBe("项目/tasks.base")
-    expect(baseRecordFromSpaceUrl(url)).toEqual({
+  it("round-trips Eidos File record targets through stable tab URLs", () => {
+    const url = toSpaceEidosFileRecordUrl(
+      "项目/tasks.eidos",
+      "table/任务",
+      "row #1"
+    )
+    expect(filePathFromSpaceUrl(url)).toBe("项目/tasks.eidos")
+    expect(eidosFileRecordFromSpaceUrl(url)).toEqual({
       tableId: "table/任务",
       recordId: "row #1",
     })
-    expect(baseRecordFromSpaceUrl(toSpaceFileUrl("项目/tasks.base"))).toBeNull()
+    expect(
+      eidosFileRecordFromSpaceUrl(toSpaceFileUrl("项目/tasks.eidos"))
+    ).toBeNull()
   })
 
   it("encodes Space asset paths without losing directory boundaries", () => {
@@ -130,14 +136,14 @@ describe("file Space paths", () => {
     ).toBe(toSpaceFilePositionUrl("archive/script.ts", { line: 8, column: 3 }))
   })
 
-  it("moves Base record tab URLs without losing the record target", () => {
+  it("moves Eidos File record tab URLs without losing the record target", () => {
     expect(
       moveSpaceFileUrl(
-        toSpaceBaseRecordUrl("projects/tasks.base", "tasks", "row_1"),
+        toSpaceEidosFileRecordUrl("projects/tasks.eidos", "tasks", "row_1"),
         "projects",
         "archive"
       )
-    ).toBe(toSpaceBaseRecordUrl("archive/tasks.base", "tasks", "row_1"))
+    ).toBe(toSpaceEidosFileRecordUrl("archive/tasks.eidos", "tasks", "row_1"))
   })
 
   it("allows moves across folders but not no-ops or recursive moves", () => {

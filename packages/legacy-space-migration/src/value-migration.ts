@@ -1,4 +1,7 @@
-import type { BaseRowValue, BaseSelectOption } from "@eidos.space/base"
+import type {
+  EidosFileRowValue,
+  EidosFileSelectOption,
+} from "@eidos.space/eidos-file"
 
 interface LegacySelectOption {
   id?: unknown
@@ -32,12 +35,12 @@ export function legacySelectValueMap(
   return values
 }
 
-export function baseSelectPropertyFromLegacy(
+export function eidosFileSelectPropertyFromLegacy(
   property: Record<string, unknown> | null
 ): Record<string, unknown> {
   const valueById = legacySelectValueMap(property)
   const values = new Set<string>()
-  const options: BaseSelectOption[] = []
+  const options: EidosFileSelectOption[] = []
   for (const option of legacyOptions(property)) {
     const id = typeof option.id === "string" ? option.id : null
     const name = typeof option.name === "string" ? option.name : null
@@ -66,7 +69,7 @@ export function baseSelectPropertyFromLegacy(
 }
 
 export function decodeLegacyStringList(
-  value: BaseRowValue | undefined
+  value: EidosFileRowValue | undefined
 ): string[] {
   if (typeof value !== "string" || !value.trim()) return []
   const trimmed = value.trim()
@@ -86,7 +89,7 @@ export function decodeLegacyStringList(
 }
 
 export function migrateLegacyStringArray(
-  value: BaseRowValue | undefined,
+  value: EidosFileRowValue | undefined,
   transform: (value: string) => string | null = (entry) => entry
 ): string | null {
   const seen = new Set<string>()
@@ -100,9 +103,9 @@ export function migrateLegacyStringArray(
 }
 
 export function migrateLegacySelectValue(
-  value: BaseRowValue | undefined,
+  value: EidosFileRowValue | undefined,
   valueById: ReadonlyMap<string, string>
-): BaseRowValue {
+): EidosFileRowValue {
   return typeof value === "string"
     ? (valueById.get(value) ?? value)
     : (value ?? null)

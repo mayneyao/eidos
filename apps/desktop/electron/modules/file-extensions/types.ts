@@ -1,6 +1,6 @@
 import type {
   ExtensionLockV1,
-  ExtensionBaseViewContribution,
+  ExtensionEidosFileViewContribution,
   ExtensionCommandContribution,
   ExtensionDiagnostic,
   ExtensionFileEditorContribution,
@@ -60,7 +60,7 @@ export interface FileExtensionPackageSummary {
 export interface FileExtensionRuntimeOutputEntry {
   sequence: number
   timestamp: number
-  source: "worker" | "panel" | "file-editor" | "base-view"
+  source: "worker" | "panel" | "file-editor" | "eidos-file-view"
   level: ExtensionRuntimeLogLevel
   message: string
 }
@@ -83,7 +83,7 @@ export type FileExtensionSurfaceOutputRequest = {
       sessionId: string
       viewId: string
     }
-  | ({ surfaceKind: "base-view" } & ExtensionSnapshotIdentity)
+  | ({ surfaceKind: "eidos-file-view" } & ExtensionSnapshotIdentity)
 )
 
 export type FileExtensionDevelopmentStatus =
@@ -153,7 +153,7 @@ export type FileExtensionTemplateKind =
   | "command"
   | "panel"
   | "text-editor"
-  | "base-view"
+  | "eidos-file-view"
 
 export interface FileExtensionTemplateRequest {
   name: string
@@ -255,20 +255,20 @@ export interface FileExtensionEditorSummary
   editable: boolean
 }
 
-export interface FileExtensionBaseViewSummary
-  extends ExtensionSnapshotIdentity, ExtensionBaseViewContribution {
+export interface FileExtensionEidosFileViewSummary
+  extends ExtensionSnapshotIdentity, ExtensionEidosFileViewContribution {
   packageId: string
   extensionDisplayName: string
 }
 
-export interface FileExtensionOpenBaseViewRequest extends ExtensionSnapshotIdentity {
-  baseViewId: string
+export interface FileExtensionOpenEidosFileViewRequest extends ExtensionSnapshotIdentity {
+  eidosFileViewId: string
   path: string
 }
 
-export interface FileExtensionOpenBaseViewResult {
+export interface FileExtensionOpenEidosFileViewResult {
   packageId: string
-  baseViewId: string
+  eidosFileViewId: string
   generation: string
   source: string
 }

@@ -68,7 +68,7 @@ function plans(tables: LegacyTable[]): PlannedTable[] {
   return tables.map((source) => ({
     id: source.id,
     sourceName: source.name,
-    targetBasePath: "main.base",
+    targetEidosFilePath: "main.eidos",
     rowCount: 0,
     fieldCount: source.fields.length,
     viewCount: 0,

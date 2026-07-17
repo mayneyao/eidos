@@ -1,0 +1,221 @@
+---
+title: Eidos File 格式与自定义视图
+description: 从 .eidos 的 SQLite 元数据出发，经 runtime 与 worker adapter，最终实现自定义 React 视图。
+sidebar:
+  order: 20
+---
+
+`.eidos` 是一种开放、local-first 的多维表格文件：它是标准 SQLite 数据库，加上带版本的
+Eidos 元数据。数据、字段定义、已保存的筛选/排序和视图配置都在同一个文件里；UI 不会写进
+文件，因此其他应用无需运行 Eidos 也可以读取其中的数据。
+
+本文描述 `@eidos.space/eidos-file` 与 `@eidos.space/eidos-file-ui` 的公开应用集成边界。
+
+如果你正在决定应用应该 import 哪些模块，请先阅读
+[使用 Eidos File UI 构建编辑器](/zh-cn/reference/eidos-file-ui-package/)；本文继续讲解持久化数据与
+renderer contract。
+
+## 从格式到 UI
+
+```text
+tasks.eidos (SQLite)
+  ├─ 用户表与记录
+  ├─ eidos__columns       字段类型与存储元数据
+  ├─ eidos__views         type、properties、filter、顺序、隐藏字段
+  └─ eidos__meta          格式版本与 schema 版本
+          │
+          ▼
+@eidos.space/eidos-file         校验、查询、分组、写入
+          │
+          ▼
+EidosFileEditorDataSource      worker/RPC adapter；React 主线程不运行 SQLite
+          │
+          ▼
+@eidos.space/eidos-file-ui      Grid、Gallery、Kanban 或宿主注册的 renderer
+```
+
+必需的元数据表是 `eidos__meta`、`eidos__tables`、`eidos__columns`、
+`eidos__views` 和 `eidos__references`。当前格式通过 `format=eidos-file` 标识；消费方必须
+读取格式版本与 schema 版本，不能只根据扩展名猜测。
+
+UI 包不要复制这些表，也不要自行把视图筛选编译成 SQL。标识符校验、query 语义、cursor
+paging、字段 codec 和 mutation 都由 `@eidos.space/eidos-file` 负责。这样浏览器、
+Desktop 和未来宿主才能安全编辑同一份文件。
+
+## 已保存视图的契约
+
+`eidos__views.type` 是开放字符串。Eidos 内置 `grid`、`gallery`、`kanban`，宿主也可以保存
+`timeline` 等新类型。当当前宿主不认识某种视图时，打开和保存文件仍必须原样保留其 type 与
+未知的 `properties` 字段。
+
+Runtime 将视图暴露为 `EidosFileViewInfo`：
+
+```ts
+interface EidosFileViewInfo {
+  id: string
+  name: string
+  type: string
+  tableId: string
+  properties: Record<string, unknown> | null
+  filter: EidosFileFilterGroup | null
+  sorts: EidosFileSort[]
+  orderMap: Record<string, number> | null
+  hiddenFields: string[]
+  // 此处省略 timestamp 与 portable query 文本
+}
+```
+
+内置 renderer 使用以下 properties：
+
+| 视图    | Properties                                                  | Runtime 操作                                          |
+| ------- | ----------------------------------------------------------- | ----------------------------------------------------- |
+| Grid    | `freezeColumns`、`fieldWidthMap`、`columnStats`             | 分页记录，以及 record/field mutation                  |
+| Gallery | `cardSize`、`coverPreview`、`fitContent`、`hideEmptyFields` | 带 projection 的 cursor page，以及 inspector 完整记录 |
+| Kanban  | 必需的 `groupByField`，以及 Gallery 的 card properties      | `countRowsByField`、每组独立分页与记录写入            |
+
+应通过 runtime 创建自定义视图，而不是直接修改元数据 SQL：
+
+```ts
+runtime.createView("tasks", {
+  name: "Schedule",
+  type: "timeline",
+  properties: {
+    startField: "starts_at",
+    endField: "ends_at",
+    zoom: "week",
+  },
+  sorts: [{ field: "starts_at", direction: "asc" }],
+})
+```
+
+`properties` 必须可以被 JSON 序列化。若多个集成会使用相同 type，实验字段应带命名空间，
+例如 `acme.timelineVersion`。
+
+## 实现宿主 adapter
+
+React renderer 只消费 `EidosFileEditorDataSource`。浏览器或 Electron 宿主应将调用转发给自己的
+Eidos File runtime worker：
+
+```ts
+const source: EidosFileEditorDataSource = {
+  getSnapshot: () => worker.call({ type: "snapshot" }),
+  getPage: (tableId, offset, limit, query, totalHint, cursor, projection) =>
+    worker.call({
+      type: "page",
+      tableId,
+      offset,
+      limit,
+      query,
+      totalHint,
+      cursor,
+      projection,
+    }),
+  getRow: (tableId, rowId) => worker.call({ type: "row", tableId, rowId }),
+  getGroupCounts: (tableId, columnName, query) =>
+    worker.call({ type: "group-counts", tableId, columnName, query }),
+  insertRow: (tableId, row) =>
+    worker.call({ type: "insert-row", tableId, row }),
+  updateRow: (tableId, rowId, changes) =>
+    worker.call({ type: "update-row", tableId, rowId, changes }),
+  // field 与 view mutation 也采用相同方式转发。
+}
+```
+
+`getGroupCounts` 必须调用 runtime 的 `countRowsByField`，不能先拉取所有记录再在 JavaScript
+中分组。`getPage` 应原样转发 opaque cursor 和 `EidosFileRowPageProjection`。Gallery/Kanban 因此
+无需全表读取，昂贵的 SQLite 工作也不会阻塞 React 主线程。
+
+## 注册 React 自定义视图
+
+全局引入一次公共样式，在 `EidosFileUIProvider` 中渲染，然后按持久化的 type 注册 renderer：
+
+```tsx
+import { useEffect, useState } from "react"
+import type { EidosFileRow } from "@eidos.space/eidos-file"
+import {
+  EidosFileEditorView,
+  EidosFileUIProvider,
+  type EidosFileViewRenderer,
+} from "@eidos.space/eidos-file-ui"
+import "@eidos.space/eidos-file-ui/styles.css"
+
+const TimelineView: EidosFileViewRenderer = ({
+  source,
+  table,
+  view,
+  query,
+  reloadToken,
+  onError,
+}) => {
+  const [rows, setRows] = useState<EidosFileRow[]>([])
+  const startField =
+    typeof view?.properties?.startField === "string"
+      ? view.properties.startField
+      : null
+
+  useEffect(() => {
+    let active = true
+    source
+      .getPage(table.table.id, 0, 100, query, undefined, undefined, {
+        columns: startField ? [startField] : [],
+      })
+      .then((page) => {
+        if (active) setRows(page.rows)
+      })
+      .catch(onError)
+    return () => {
+      active = false
+    }
+  }, [onError, query, reloadToken, source, startField, table.table.id])
+
+  if (!startField) return <p>请为 Timeline 选择开始时间字段。</p>
+  return (
+    <ol aria-label={view?.name ?? "Timeline"}>
+      {rows.map((row) => (
+        <li key={String(row._id)}>
+          <time>{String(row[startField] ?? "未安排")}</time>
+          {String(row.title ?? "未命名")}
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+const renderers = { timeline: TimelineView }
+
+export function TasksEidosFile({ source, table, view }) {
+  return (
+    <EidosFileUIProvider themeName="light">
+      <EidosFileEditorView
+        source={source}
+        table={table}
+        view={view}
+        renderers={renderers}
+      />
+    </EidosFileUIProvider>
+  )
+}
+```
+
+`EidosFileEditorView` 会先把临时 search 与保存的 filter、sorts 合并，再将 `query` 传给 renderer。
+宿主只有注册相同 type key 时才会覆盖内置视图。找不到 renderer 时，UI 会诚实显示 unsupported
+状态，同时不修改文件中的视图元数据。
+
+## 写入与性能规则
+
+- 使用稳定的 `_id` 作为 React 与 drag-and-drop identity。
+- 数据必须分页；cell edit 后不要重新拉取整张表。
+- Card 使用 projection，只有打开 record inspector 时才获取完整记录。
+- 分组计数和筛选留在 runtime。Kanban 按组独立加载，移动记录后只刷新受影响的组。
+- 成功写入后调用 `onMutation`，让宿主更新 row count、dirty/recovery/save state。
+- Optimistic UI 必须可恢复。失败时应保留可重试的内存修改，或显式 rollback，并把错误传给
+  `onError`。
+- 自定义 renderer 不得直接写 SQLite 文件。文件锁、外部冲突检测、export 和持久化写回属于
+  host adapter。
+
+## 信任边界
+
+Renderer registry 面向可信应用代码或可信 embedder，它会在宿主 React 进程中执行。它**不是**
+沙箱 Extension SDK 的 contribution point；安装任意 extension 不能自动获得 registry 权限。
+不受信任或可分发的 view extension 需要隔离的 UI surface 和显式 capability bridge。在该契约
+稳定之前，请将自定义 renderer 保留在宿主应用代码中。

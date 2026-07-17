@@ -199,11 +199,11 @@ export class ExtensionTextDocumentModel {
   applyEdits(
     originViewId: string,
     documentId: string,
-    baseRevision: number,
+    eidosFileRevision: number,
     editsValue: unknown
   ): ExtensionTextDocumentChangedMessage {
     const validatedViewId = requiredText(originViewId, "Origin view ID", 256)
-    this.assertMutable(documentId, baseRevision)
+    this.assertMutable(documentId, eidosFileRevision)
     let edits: ExtensionTextEdit[]
     let inverse: ExtensionTextEdit[]
     let nextText: string
@@ -236,10 +236,10 @@ export class ExtensionTextDocumentModel {
   undo(
     originViewId: string,
     documentId: string,
-    baseRevision: number
+    eidosFileRevision: number
   ): ExtensionTextDocumentChangedMessage {
     const validatedViewId = requiredText(originViewId, "Origin view ID", 256)
-    this.assertMutable(documentId, baseRevision)
+    this.assertMutable(documentId, eidosFileRevision)
     const entry = this.undoStack.pop()
     if (!entry) {
       throw new ExtensionTextDocumentError(
@@ -259,10 +259,10 @@ export class ExtensionTextDocumentModel {
   redo(
     originViewId: string,
     documentId: string,
-    baseRevision: number
+    eidosFileRevision: number
   ): ExtensionTextDocumentChangedMessage {
     const validatedViewId = requiredText(originViewId, "Origin view ID", 256)
-    this.assertMutable(documentId, baseRevision)
+    this.assertMutable(documentId, eidosFileRevision)
     const entry = this.redoStack.pop()
     if (!entry) {
       throw new ExtensionTextDocumentError(
@@ -280,10 +280,10 @@ export class ExtensionTextDocumentModel {
 
   beginSave(
     documentId: string,
-    baseRevision: number
+    eidosFileRevision: number
   ): ExtensionTextDocumentSaveToken {
     this.assertDocument(documentId)
-    this.assertRevision(baseRevision)
+    this.assertRevision(eidosFileRevision)
     if (this.readOnly) {
       throw new ExtensionTextDocumentError("READ_ONLY", "Document is read-only")
     }
@@ -523,9 +523,9 @@ export class ExtensionTextDocumentModel {
     }
   }
 
-  private assertMutable(documentId: string, baseRevision: number): void {
+  private assertMutable(documentId: string, eidosFileRevision: number): void {
     this.assertDocument(documentId)
-    this.assertRevision(baseRevision)
+    this.assertRevision(eidosFileRevision)
     if (this.readOnly) {
       throw new ExtensionTextDocumentError("READ_ONLY", "Document is read-only")
     }
@@ -540,11 +540,11 @@ export class ExtensionTextDocumentModel {
     }
   }
 
-  private assertRevision(baseRevision: number): void {
-    if (baseRevision !== this.revision) {
+  private assertRevision(eidosFileRevision: number): void {
+    if (eidosFileRevision !== this.revision) {
       throw new ExtensionTextDocumentError(
         "STALE_REVISION",
-        `Expected document revision ${this.revision}, received ${baseRevision}`
+        `Expected document revision ${this.revision}, received ${eidosFileRevision}`
       )
     }
   }

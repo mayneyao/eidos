@@ -1214,13 +1214,13 @@ export class VirtualFsAdapter implements IExternalFileSystem {
     // Handle virtual paths
     if (this.isVirtualPath(normalizedPath)) {
       // Only watch root virtual directories
-      const basePath = normalizedPath.startsWith("~/.eidos/__NODES__")
+      const eidosFilePath = normalizedPath.startsWith("~/.eidos/__NODES__")
         ? "~/.eidos/__NODES__/"
         : normalizedPath.startsWith("~/.eidos/__EXTENSIONS__")
           ? "~/.eidos/__EXTENSIONS__/"
           : null
 
-      if (!basePath) {
+      if (!eidosFilePath) {
         throw new Error(`Cannot watch non-root virtual path: ${normalizedPath}`)
       }
 
@@ -1233,10 +1233,10 @@ export class VirtualFsAdapter implements IExternalFileSystem {
       }
 
       // Add to watchers map
-      if (!watchEventQueues.has(basePath)) {
-        watchEventQueues.set(basePath, [])
+      if (!watchEventQueues.has(eidosFilePath)) {
+        watchEventQueues.set(eidosFilePath, [])
       }
-      watchEventQueues.get(basePath)!.push(watcher)
+      watchEventQueues.get(eidosFilePath)!.push(watcher)
 
       try {
         // Handle abort signal
@@ -1244,14 +1244,14 @@ export class VirtualFsAdapter implements IExternalFileSystem {
         if (options?.signal) {
           abortListener = () => {
             // Remove watcher from queue
-            const watchers = watchEventQueues.get(basePath)
+            const watchers = watchEventQueues.get(eidosFilePath)
             if (watchers) {
               const index = watchers.indexOf(watcher)
               if (index > -1) {
                 watchers.splice(index, 1)
               }
               if (watchers.length === 0) {
-                watchEventQueues.delete(basePath)
+                watchEventQueues.delete(eidosFilePath)
               }
             }
           }
@@ -1260,7 +1260,7 @@ export class VirtualFsAdapter implements IExternalFileSystem {
 
         try {
           // Determine if we're watching nodes or extensions
-          const isNodesPath = basePath === "~/.eidos/__NODES__/"
+          const isNodesPath = eidosFilePath === "~/.eidos/__NODES__/"
 
           while (true) {
             // Check if aborted
@@ -1327,27 +1327,27 @@ export class VirtualFsAdapter implements IExternalFileSystem {
           }
 
           // Remove watcher from queue
-          const watchers = watchEventQueues.get(basePath)
+          const watchers = watchEventQueues.get(eidosFilePath)
           if (watchers) {
             const index = watchers.indexOf(watcher)
             if (index > -1) {
               watchers.splice(index, 1)
             }
             if (watchers.length === 0) {
-              watchEventQueues.delete(basePath)
+              watchEventQueues.delete(eidosFilePath)
             }
           }
         }
       } catch (error) {
         // Remove watcher on error
-        const watchers = watchEventQueues.get(basePath)
+        const watchers = watchEventQueues.get(eidosFilePath)
         if (watchers) {
           const index = watchers.indexOf(watcher)
           if (index > -1) {
             watchers.splice(index, 1)
           }
           if (watchers.length === 0) {
-            watchEventQueues.delete(basePath)
+            watchEventQueues.delete(eidosFilePath)
           }
         }
         throw error

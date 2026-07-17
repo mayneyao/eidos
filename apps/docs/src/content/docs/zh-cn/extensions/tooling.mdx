@@ -23,7 +23,7 @@ pnpm extension:cli init example.hello-tools --template command
 
 pnpm extension:cli init example.dashboard --template panel
 
-pnpm extension:cli init example.card-view --template base-view
+pnpm extension:cli init example.card-view --template eidos-file-view
 
 pnpm extension:cli init example.notes-editor \
   --template text-editor \
@@ -32,22 +32,22 @@ pnpm extension:cli init example.notes-editor \
 ```
 
 扩展 ID 始终使用 `<publisher>.<name>`。`init` 会用这个 canonical ID 创建目录，并拒绝覆盖已经
-存在的目录。Panel starter 会打开一个由 command 驱动的 sandboxed tab；Base view starter 使用宿主
+存在的目录。Panel starter 会打开一个由 command 驱动的 sandboxed tab；Eidos File view starter 使用宿主
 分页数据渲染只读记录；text-editor starter 包含可编辑 UI surface、minimal text edit、宿主保存状态、
 resync 处理和 Eidos theme token。
 
 常用选项：
 
-| 选项                        | 含义                                                 |
-| --------------------------- | ---------------------------------------------------- |
-| `--template command`        | 创建 Worker command starter。                        |
-| `--template panel`          | 创建由 command 驱动的 sandboxed panel starter。      |
-| `--template base-view`      | 创建宿主分页供数的只读 `baseViews` starter。         |
-| `--template text-editor`    | 创建 sandboxed `fileEditors` 可编辑 starter。        |
-| `--out-dir <directory>`     | 指定新 package 的父目录。                            |
-| `--engine <semver-range>`   | 设置 `engines.eidos`；preview 默认值为 `>=0.33.0`。  |
-| `--pattern <glob>`          | 同时设置 editor selector 与匹配的 read/write grant。 |
-| `--media-type <media-type>` | 设置 text editor media type；默认 `text/markdown`。  |
+| 选项                         | 含义                                                 |
+| ---------------------------- | ---------------------------------------------------- |
+| `--template command`         | 创建 Worker command starter。                        |
+| `--template panel`           | 创建由 command 驱动的 sandboxed panel starter。      |
+| `--template eidos-file-view` | 创建宿主分页供数的只读 `eidosFileViews` starter。    |
+| `--template text-editor`     | 创建 sandboxed `fileEditors` 可编辑 starter。        |
+| `--out-dir <directory>`      | 指定新 package 的父目录。                            |
+| `--engine <semver-range>`    | 设置 `engines.eidos`；preview 默认值为 `>=0.33.0`。  |
+| `--pattern <glob>`           | 同时设置 editor selector 与匹配的 read/write grant。 |
+| `--media-type <media-type>`  | 设置 text editor media type；默认 `text/markdown`。  |
 
 ## 校验 package
 

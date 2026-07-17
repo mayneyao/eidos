@@ -11,7 +11,7 @@ import {
 import path from "node:path"
 import {
   calculateLegacyExtensionArchiveDigest,
-  createExtensionBaseViewTemplate,
+  createExtensionEidosFileViewTemplate,
   createExtensionCommandTemplate,
   createExtensionPanelTemplate,
   createExtensionTextEditorTemplate,
@@ -32,7 +32,7 @@ import packageMetadata from "../package.json" with { type: "json" }
 export type ExtensionProjectTemplate =
   | "command"
   | "panel"
-  | "base-view"
+  | "eidos-file-view"
   | "text-editor"
 
 export interface CreateExtensionProjectOptions {
@@ -523,8 +523,8 @@ function buildTemplate(
       })
     : options.template === "panel"
       ? createExtensionPanelTemplate(common)
-      : options.template === "base-view"
-        ? createExtensionBaseViewTemplate(common)
+      : options.template === "eidos-file-view"
+        ? createExtensionEidosFileViewTemplate(common)
         : createExtensionCommandTemplate(common)
 }
 

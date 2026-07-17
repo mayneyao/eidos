@@ -352,7 +352,7 @@ describe("FileExtensionService", () => {
           type: "apply-edits",
           requestId: "edit-1",
           documentId: editor.snapshot.documentId,
-          baseRevision: 1,
+          eidosFileRevision: 1,
           edits: [{ start: 3, end: 4, text: "x" }],
         }
       )
@@ -628,7 +628,7 @@ describe("FileExtensionService", () => {
     service.stopWatching("space-a")
   })
 
-  it("lists and opens a trusted Base view for a granted Base file", async () => {
+  it("lists and opens a trusted Eidos File view for a granted Eidos File", async () => {
     const root = await createFileSpace()
     const packageRoot = path.join(
       root,
@@ -645,9 +645,9 @@ describe("FileExtensionService", () => {
         displayName: "Task Counter",
         version: "1.0.0",
         engines: { eidos: ">=0.33.0 <1.0.0" },
-        entrypoints: { ui: "src/base-view.ts" },
+        entrypoints: { ui: "src/eidos-file-view.ts" },
         contributes: {
-          baseViews: [
+          eidosFileViews: [
             {
               id: "example.task-counter.cards",
               displayName: "Task cards",
@@ -655,16 +655,16 @@ describe("FileExtensionService", () => {
           ],
         },
         permissions: {
-          files: { read: ["**/*.base"], write: [] },
+          files: { read: ["**/*.eidos"], write: [] },
           network: [],
         },
       })
     )
     await writeFile(
-      path.join(packageRoot, "src", "base-view.ts"),
-      "export function activate(context) { context.root.textContent = context.base.context.table.name }\n"
+      path.join(packageRoot, "src", "eidos-file-view.ts"),
+      "export function activate(context) { context.root.textContent = context.eidosFile.context.table.name }\n"
     )
-    await writeFile(path.join(root, "tasks.base"), "")
+    await writeFile(path.join(root, "tasks.eidos"), "")
     const registry = {
       getSpace: vi.fn(() => ({
         id: "space-a",
@@ -688,13 +688,13 @@ describe("FileExtensionService", () => {
     await service.trust("space-a", snapshot)
     await service.setGrant("space-a", {
       ...snapshot,
-      grant: { kind: "files.read", value: "**/*.base" },
+      grant: { kind: "files.read", value: "**/*.eidos" },
       granted: true,
     })
     await service.setEnabled("space-a", snapshot, true)
 
     await expect(
-      service.listBaseViews("space-a", "tasks.base")
+      service.listEidosFileViews("space-a", "tasks.eidos")
     ).resolves.toMatchObject([
       {
         id: "example.task-counter.cards",
@@ -702,23 +702,23 @@ describe("FileExtensionService", () => {
         displayName: "Task cards",
       },
     ])
-    const opened = await service.openBaseView("space-a", {
+    const opened = await service.openEidosFileView("space-a", {
       ...snapshot,
-      baseViewId: "example.task-counter.cards",
-      path: "tasks.base",
+      eidosFileViewId: "example.task-counter.cards",
+      path: "tasks.eidos",
     })
     expect(opened).toMatchObject({
       packageId: "example.task-counter",
-      baseViewId: "example.task-counter.cards",
+      eidosFileViewId: "example.task-counter.cards",
     })
     expect(opened.source).toContain("__eidosStartSurface")
     await expect(
       service.reportSurfaceOutput("space-a", {
-        surfaceKind: "base-view",
+        surfaceKind: "eidos-file-view",
         ...snapshot,
         generation: opened.generation,
         level: "info",
-        message: "Base view ready",
+        message: "Eidos File view ready",
       })
     ).resolves.toEqual({ success: true })
     service.stopWatching("space-a")
@@ -1089,15 +1089,15 @@ describe("FileExtensionService", () => {
     await expect(
       service.createTemplate("space-a", {
         name: "record-cards",
-        template: "base-view",
+        template: "eidos-file-view",
       })
     ).resolves.toEqual({
       canonicalId: "local.record-cards",
       root: ".eidos/extensions/local.record-cards",
       files: [
         "extension.json",
-        "src/base-view.ts",
-        "src/base-view.css",
+        "src/eidos-file-view.ts",
+        "src/eidos-file-view.css",
         "README.md",
       ],
     })
@@ -1115,9 +1115,9 @@ describe("FileExtensionService", () => {
         )
       )
     ).toMatchObject({
-      entrypoints: { ui: "src/base-view.ts" },
+      entrypoints: { ui: "src/eidos-file-view.ts" },
       contributes: {
-        baseViews: [{ id: "local.record-cards.cards" }],
+        eidosFileViews: [{ id: "local.record-cards.cards" }],
       },
     })
     await expect(
@@ -1137,7 +1137,7 @@ describe("FileExtensionService", () => {
         name: "bad-template",
         template: "widget",
       } as unknown as FileExtensionTemplateRequest)
-    ).rejects.toThrow("must be command, panel, text-editor, or base-view")
+    ).rejects.toThrow("must be command, panel, text-editor, or eidos-file-view")
     await expect(
       service.createTemplate("space-a", {
         name: "bad-pattern",

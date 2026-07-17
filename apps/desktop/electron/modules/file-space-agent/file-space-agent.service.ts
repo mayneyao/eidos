@@ -1425,18 +1425,18 @@ export class FileSpaceAgentService extends IpcServiceBase {
       },
       inspect_base: {
         description:
-          "Inspect tables, fields, views, and row counts in a .base file in the current Eidos Space.",
+          "Inspect tables, fields, views, and row counts in a .eidos file in the current Eidos Space.",
         inputSchema: z.object({ path: z.string().min(1).max(1_024) }),
         execute: async ({ path: relativePath }: { path: string }) =>
           this.runObserveTool(
             active,
-            "space.base.inspect",
-            "Inspect Base",
+            "space.eidosFile.inspect",
+            "Inspect Eidos File",
             `path=${JSON.stringify(relativePath)}`,
             relativePath,
             async () =>
               compact(
-                await this.spaces.getBaseSnapshotReadOnly(
+                await this.spaces.getEidosFileSnapshotReadOnly(
                   active.spaceId,
                   relativePath
                 )
@@ -1445,7 +1445,7 @@ export class FileSpaceAgentService extends IpcServiceBase {
       },
       read_base_rows: {
         description:
-          "Read a bounded page of rows from a table in a .base file in the current Eidos Space.",
+          "Read a bounded page of rows from a table in a .eidos file in the current Eidos Space.",
         inputSchema: z.object({
           path: z.string().min(1).max(1_024),
           tableId: z.string().min(1).max(255),
@@ -1468,13 +1468,13 @@ export class FileSpaceAgentService extends IpcServiceBase {
         }) =>
           this.runObserveTool(
             active,
-            "space.base.readRows",
-            "Read Base rows",
+            "space.eidosFile.readRows",
+            "Read Eidos File rows",
             `path=${JSON.stringify(relativePath)}, table=${JSON.stringify(tableId)}, offset=${offset}, limit=${limit}`,
             `${relativePath}#${tableId}`,
             async () =>
               compact(
-                await this.spaces.getBaseTablePage(
+                await this.spaces.getEidosFileTablePage(
                   active.spaceId,
                   relativePath,
                   tableId,
@@ -1597,13 +1597,18 @@ export class FileSpaceAgentService extends IpcServiceBase {
           "Create a canonical file-based Extension template under .eidos/extensions. Edit its returned files with read_space_file and write_space_file, then call inspect_extensions.",
         inputSchema: z.object({
           name: z.string().regex(/^[a-z][a-z0-9-]{1,62}$/),
-          template: z.enum(["command", "panel", "text-editor", "base-view"]),
+          template: z.enum([
+            "command",
+            "panel",
+            "text-editor",
+            "eidos-file-view",
+          ]),
           filenamePattern: z.string().max(512).optional(),
           mediaType: z.string().max(256).optional(),
         }),
         execute: async (input: {
           name: string
-          template: "command" | "panel" | "text-editor" | "base-view"
+          template: "command" | "panel" | "text-editor" | "eidos-file-view"
           filenamePattern?: string
           mediaType?: string
         }) =>
@@ -1880,7 +1885,7 @@ export class FileSpaceAgentService extends IpcServiceBase {
       },
       get_version_conflicts: {
         description:
-          "Inspect detailed unresolved Graft file, schema, and Base row conflicts for the current Space.",
+          "Inspect detailed unresolved Graft file, schema, and Eidos File row conflicts for the current Space.",
         inputSchema: z.object({}),
         execute: async () =>
           this.runObserveTool(
@@ -1894,7 +1899,7 @@ export class FileSpaceAgentService extends IpcServiceBase {
       },
       get_version_diff: {
         description:
-          "Read a Graft diff. Use root for one version against its parent, or from/to for two versions. A path is required when including text content or Base rows.",
+          "Read a Graft diff. Use root for one version against its parent, or from/to for two versions. A path is required when including text content or Eidos File rows.",
         inputSchema: z.object({
           root: z.string().max(512).optional(),
           from: z.string().max(512).optional(),
@@ -2654,15 +2659,15 @@ export class FileSpaceAgentService extends IpcServiceBase {
     const target = contextTarget(input?.sourceUrl)
     if (!target) return null
     const capturedAt = now()
-    if (target.path.toLowerCase().endsWith(".base")) {
-      const snapshot = await this.spaces.getBaseSnapshotReadOnly(
+    if (target.path.toLowerCase().endsWith(".eidos")) {
+      const snapshot = await this.spaces.getEidosFileSnapshotReadOnly(
         spaceId,
         target.path
       )
       const tableId = target.tableId ?? snapshot.metadata.defaultTableId
       const row =
         tableId && target.rowId
-          ? await this.spaces.getBaseTableRow(
+          ? await this.spaces.getEidosFileTableRow(
               spaceId,
               target.path,
               tableId,
@@ -2670,11 +2675,11 @@ export class FileSpaceAgentService extends IpcServiceBase {
             )
           : null
       return {
-        kind: row ? "base-row" : "base",
+        kind: row ? "eidos-file-row" : "eidos-file",
         path: target.path,
         tableId,
         rowId: row ? target.rowId : undefined,
-        baseFingerprint: `${snapshot.metadata.formatVersion}:${snapshot.metadata.schemaVersion}:${snapshot.metadata.updatedAt}`,
+        eidosFileFingerprint: `${snapshot.metadata.formatVersion}:${snapshot.metadata.schemaVersion}:${snapshot.metadata.updatedAt}`,
         excerpt: compact(row ?? snapshot, MAX_CONTEXT_CHARS),
         capturedAt,
         reason: "active-tab",
@@ -2774,7 +2779,7 @@ export class FileSpaceAgentService extends IpcServiceBase {
           : "The user selected Full access. Eidos may automatically approve all typed Agent tools, including destructive Space actions and external web or Version actions. File access remains confined to the current Space, and every tool still enforces input validation."
     return [
       "You are the native Eidos File Space Agent. This runtime is independent from the legacy DataSpace Agent.",
-      "Use only the native Space, Web, Extension, Base, and Version tools provided to you. Never invent file contents, web sources, or claim an operation succeeded before its tool reports success.",
+      "Use only the native Space, Web, Extension, Eidos File, and Version tools provided to you. Never invent file contents, web sources, or claim an operation succeeded before its tool reports success.",
       "Use web_search for discovery and web_fetch when the answer depends on a source body. Treat search snippets as leads, not complete evidence, include the source URLs used in the answer, and never invent a citation.",
       "Read an existing file immediately before write_space_file and pass its exact contentDigest. Use create_space_file only for a path that does not exist.",
       "Extension source is canonical under .eidos/extensions. Create a template, edit files inside its package through Space file tools, then call inspect_extensions with that packageId and require sourceValidation.ok=true before trusting or enabling the exact snapshot. Use uninstall_extension rather than deleting an Extension package root.",

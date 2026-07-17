@@ -1,1 +1,1 @@
-export { NumberOverlayEditor as default } from "@eidos.space/base-ui"
+export { NumberOverlayEditor as default } from "@eidos.space/eidos-file-ui"

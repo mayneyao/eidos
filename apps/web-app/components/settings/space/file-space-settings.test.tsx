@@ -23,7 +23,7 @@ import { createRoot, type Root } from "react-dom/client"
 import { useFileSpaceSettings } from "@/apps/web-app/store/file-space-settings"
 
 import { FileSpaceFilesSettings } from "./file-space-files-settings"
-import { FileSpaceBaseSettings } from "./file-space-base-settings"
+import { FileSpaceBaseSettings } from "./file-space-eidos-file-settings"
 import { FileSpaceIndexesSettings } from "./file-space-indexes-settings"
 import { FileSpaceVersioningSettings } from "./file-space-versioning-settings"
 
@@ -162,19 +162,19 @@ describe("file Space settings", () => {
     expect(useFileSpaceSettings.getState().bySpace["file-space"]).toEqual({
       showHiddenFiles: true,
       showObsidianFolder: true,
-      defaultBaseTemplate: "blank",
-      baseAssetFolder: "space-assets",
+      defaultEidosFileTemplate: "blank",
+      eidosFileAssetFolder: "space-assets",
     })
   })
 
-  it("persists Base creation and imported-file policies per Space", async () => {
+  it("persists Eidos File creation and imported-file policies per Space", async () => {
     await act(async () => root.render(<FileSpaceBaseSettings />))
 
     const template = container.querySelector<HTMLSelectElement>(
-      "#file-space-base-template"
+      "#file-space-eidos-file-template"
     )
     const assets = container.querySelector<HTMLSelectElement>(
-      "#file-space-base-assets"
+      "#file-space-eidos-file-assets"
     )
     expect(template?.value).toBe("blank")
     expect(assets?.value).toBe("space-assets")
@@ -185,7 +185,7 @@ describe("file Space settings", () => {
         template.dispatchEvent(new Event("change", { bubbles: true }))
       }
       if (assets) {
-        assets.value = "base-folder-assets"
+        assets.value = "eidos-file-folder-assets"
         assets.dispatchEvent(new Event("change", { bubbles: true }))
       }
     })
@@ -193,8 +193,8 @@ describe("file Space settings", () => {
     expect(useFileSpaceSettings.getState().bySpace["file-space"]).toEqual({
       showHiddenFiles: false,
       showObsidianFolder: false,
-      defaultBaseTemplate: "tasks",
-      baseAssetFolder: "base-folder-assets",
+      defaultEidosFileTemplate: "tasks",
+      eidosFileAssetFolder: "eidos-file-folder-assets",
     })
   })
 

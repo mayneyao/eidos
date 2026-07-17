@@ -163,8 +163,10 @@ function ExecutionDetails({ turns }: { turns: AgentTurnView[] }) {
                   {context.contentDigest ? (
                     <span>Digest: {context.contentDigest.slice(0, 12)}…</span>
                   ) : null}
-                  {context.baseFingerprint ? (
-                    <span>Base revision: {context.baseFingerprint}</span>
+                  {context.eidosFileFingerprint ? (
+                    <span>
+                      Eidos File revision: {context.eidosFileFingerprint}
+                    </span>
                   ) : null}
                 </div>
                 <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded bg-background p-2 text-[11px] leading-5">
@@ -723,9 +725,10 @@ export function FileSpaceAgentPage() {
                           Ask about this Space
                         </h1>
                         <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                          Agent can use Skills and typed Space, Base, Extension,
-                          and version tools. Every action stays scoped to this
-                          Space and follows the approval mode below.
+                          Agent can use Skills and typed Space, Eidos File,
+                          Extension, and version tools. Every action stays
+                          scoped to this Space and follows the approval mode
+                          below.
                         </p>
                       </div>
                     </MessageScrollerItem>

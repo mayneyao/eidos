@@ -71,12 +71,12 @@ function createSpaceFileUrl(
   return `/space-file${query}#${encodeURIComponent(relativePath)}`
 }
 
-export interface SpaceBaseRecordTarget {
+export interface SpaceEidosFileRecordTarget {
   tableId: string
   recordId: string
 }
 
-export function toSpaceBaseRecordUrl(
+export function toSpaceEidosFileRecordUrl(
   relativePath: string,
   tableId: string,
   recordId: string
@@ -147,9 +147,9 @@ export function positionFromSpaceUrl(url: string): SpaceFilePosition | null {
   }
 }
 
-export function baseRecordFromSpaceUrl(
+export function eidosFileRecordFromSpaceUrl(
   url: string
-): SpaceBaseRecordTarget | null {
+): SpaceEidosFileRecordTarget | null {
   try {
     const parsed = new URL(url, "https://eidos.local")
     if (parsed.pathname !== "/space-file") return null
@@ -196,9 +196,9 @@ export function moveSpaceFileUrl(
   const heading = headingFromSpaceUrl(url) ?? undefined
   const editorId = fileEditorFromSpaceUrl(url) ?? undefined
   const position = positionFromSpaceUrl(url) ?? undefined
-  const baseRecord = baseRecordFromSpaceUrl(url)
+  const baseRecord = eidosFileRecordFromSpaceUrl(url)
   return baseRecord
-    ? toSpaceBaseRecordUrl(
+    ? toSpaceEidosFileRecordUrl(
         `${destinationPath}${suffix}`,
         baseRecord.tableId,
         baseRecord.recordId

@@ -1,0 +1,987 @@
+# RFC: Product UX for Spaces, Bases, and Changes
+
+Status: Draft, Desktop delivery accepted
+Date: 2026-07-08
+Owner: Eidos
+Related:
+
+- `eidos-file-storage.md`
+- `eidos-file-format.md`
+- `eidos-space-markdown-runtime.md`
+- `eidos-graft-space-versioning.md`
+
+## Implementation Status (2026-07-14)
+
+Implemented UX includes opening folders as Spaces, a Pierre Trees-based file
+tree, Files/Version sidebar modes, a standalone Notion-style Markdown editor,
+VS Code-style staged Changes, Diff tabs, a dedicated History tab, and a
+contextual Codex-style Settings sidebar. Indexed quick open and compact
+Outline/Backlinks sections are integrated without adding document chrome. The
+current Space switcher remains at the bottom of the sidebar.
+
+The `.eidos` route now uses the production Grid foundation with paged
+visible-region loading, optimistic cell edits, persisted column layout,
+copy/paste, undo/redo, field visibility, header actions, compact range-based
+batch row deletion, inline search, and persisted nested filters and multi-field
+sorts. Filter groups reuse the original table's anchored AND/OR authoring model,
+including derived Formula/Lookup fields. Filtered/sorted paging and range
+deletion use the same structured query model, so a selection always mutates the
+rows shown in the Grid. Eidos File creation is named, template-aware, and publishes
+the SQLite file atomically. Working Changes and History provide an Eidos File-aware
+table/row inspector.
+
+Tables now support multiple independent Grid, Gallery, and Kanban views. The
+compact anchored view switcher creates, renames, duplicates, reorders, deletes,
+and switches existing views between the three built-in layouts without opening
+a centered dialog; each view owns its query, field visibility, column order,
+width, and card/group state. Switching to Kanban preserves a valid Select group
+field or chooses the first Select field; without one, the option is disabled
+in place with an explanation. Other imported view metadata remains visible but
+is not presented as a working layout until that renderer exists.
+
+Eidos File navigation now follows a workbook hierarchy instead of mixing tables and
+views in one toolbar. The active table's views occupy the top tab strip, while
+tables switch as Excel-style sheets in a persistent bottom bar; view creation
+and management remain anchored to the view strip, and save state moves into the
+sheet bar. Each sheet also exposes Rename and Delete from its native right-click
+menu, reusing the anchored rename surface and destructive confirmation already
+owned by the workbook instead of introducing another dialog path. Grid also
+reuses the legacy table's measured scrollbar compensation:
+when columns fit, the sticky trailing row no longer reserves an empty horizontal
+scrollbar band; when columns overflow, the native scrollbar keeps its full
+height.
+
+The existing Eidos File actions overflow now also reveals the current `.eidos` file in
+the platform file manager. This completes the workbook's file-location path
+without adding another toolbar icon or dialog. A failed reveal stays inside the
+editor's recoverable alert boundary, so the user can dismiss it and retry the
+same menu action.
+
+Cmd+P remains the Space-wide Quick Open instead of opening an Eidos File-specific
+dialog. When the active tab is a `.eidos`, a `Tables in <file>.eidos` contextual
+group appears above normal file results and matches table names, raw table
+identifiers, and the Eidos File path. The bottom sheet bar also supports cycling with
+Ctrl+PageUp/PageDown, adding a fast workbook path without changing the global
+search mental model.
+
+Grid, Gallery, and Kanban record inspectors now expose `Open record in tab`.
+The resulting non-modal tab uses a stable `.eidos` + table ID + record ID URL,
+so it can be pinned, split, restored, and preserved when the Eidos File moves.
+The full-page layout reuses the Inspector field editors, attachment and
+relation adapters, optimistic mutation queue, and standalone Eidos File runtime;
+there is no second record storage path or legacy document-block dependency.
+The tab title follows the loaded record, file-watcher revisions reload the
+open record in place, and missing tables or records keep a recoverable route
+back to the Eidos File workbook.
+
+Desktop global shortcuts are registered immediately when their listeners are
+attached to an already focused main window. Cmd+P and the rest of the shell
+shortcut set therefore work on first launch without requiring a blur/refocus
+cycle; focused-start, background-start, renderer dispatch, and re-registration
+after blur are covered by lifecycle tests.
+
+Eidos File row mutations now return the committed metadata revision. The renderer
+uses it to recognize the delayed file-watcher echo of its own cell edit instead
+of treating that echo as an external replacement and reloading the entire Grid.
+Routine row/cell saves also no longer disable every layout while pending;
+external revisions still trigger a refresh.
+
+Grid range edits now preserve that optimistic behavior without paying one
+file-open/IPC/transaction per cell. Paste, fill, and their undo/redo operations
+are grouped by row and committed through one standalone Eidos File runtime
+transaction. A failed row rolls back the complete range, and row-level mutation
+revisions prevent an older response from overwriting a newer optimistic value.
+Component coverage asserts one batch call for a pasted range and one batch call
+for its undo; the real SQLite runtime test asserts rollback after a later row
+fails.
+
+Grid column calculations now use the same view-owned query as its visible
+records. A column-header `Calculate` submenu persists one compatible aggregate
+per column and renders the result in the existing trailing row, without adding
+another toolbar or modal. All configured columns are evaluated by the
+standalone Eidos File runtime in one parameterized aggregate query on the persistent
+query worker; the Renderer never scans loaded pages or blocks on SQLite. Search,
+filter, explicit refresh, successful row mutations, field deletion, and
+incompatible field-type conversion all refresh or clean the persisted result
+deterministically.
+
+Failed optimistic saves now reload the persisted rows before the mutation queue
+continues, while preserving the original failure in a dismissible accessible
+alert. The recovery reload therefore cannot silently clear the error or leave a
+later queued edit running against a state that was already rolled back.
+
+The Desktop shell now uses shared semantic heights: a 38px titlebar, 40px
+surface workbar, and 40px bottom statusbar. Files/Version section bars and the
+Eidos File view workbar consume the same workbar token; the Space footer and Eidos File
+sheet bar consume the same statusbar token. Components no longer hard-code
+different heights for horizontal boundaries shared across sidebar and content.
+
+The Eidos File workbar now adapts to its editor container instead of the full window.
+At narrower widths, action labels collapse to accessible icon controls and the
+inline search field contracts without removing Search, Filter, Sort, Fields,
+Import, row creation, or refresh. The view strip hides its native scrollbar,
+reveals directional controls only when views overflow, and scrolls the active
+view back into sight. The 40px shell boundary remains unchanged at every width.
+
+File fields now use an Eidos File-specific multi-attachment cell adapted from the
+existing table interaction. Users can import files into the visible Space
+`assets/` folder, drop files onto a cell, reorder or remove attachments, open
+them in Eidos, or reveal them in the file manager. Routine attachment editing
+stays inside the Grid overlay; only the necessary native file picker interrupts
+the workflow.
+
+Relation fields now follow the original table interaction: cells display linked
+record titles and open a searchable, multi-select Grid overlay that stores only
+stable row IDs. Formula fields calculate live, render readonly using their
+configured display type, and are created or edited from the same anchored
+CodeMirror composer. It restores SQL/field completion, a searchable reference
+browser, immediate dependency/error feedback, and sample results from real Eidos File
+rows before saving. Neither workflow opens a centered modal.
+
+Lookup/rollup fields extend that same header-driven flow: users choose an
+existing relation, target field, and aggregation from an anchored field panel.
+Derived values stay readonly in the Grid, refresh with relation/target edits,
+and can feed formulas without introducing a separate configuration screen.
+
+Field configuration now converges on a non-modal Property workspace at the
+right edge of the Grid. Every column header and table-structure menu can open
+it; names save inline, mutable source fields require explicit confirmation
+before safe type conversion, Select/Multi-select options support per-item add,
+rename, color, drag reorder, and delete, and Number format/bar/maximum/color/
+label settings drive the live Grid. Removing an option cleans stored cell
+references in the same Eidos File transaction. Field creation and later Property
+editing reuse the same option rows, including duplicate prevention, color, and
+drag reorder. Number creation and later editing likewise reuse the same display
+controls. Rapid Number changes merge locally instead of overwriting one another,
+and rejected option/Number mutations restore the last persisted presentation.
+The comma-text Options dialog and field Rename dialog path have been removed.
+The field type control is now a shared, searchable Basic/Advanced picker with
+icons, descriptions, keyword matching, and deterministic keyboard selection;
+Eidos File no longer presents field capabilities as an undifferentiated dropdown.
+
+The anchored Fields menu now separates ordinary fields from optional system
+fields. Record ID, Created time, Last edited time, Created by, and Last edited
+by remain hidden by default and read-only when shown. Their visibility is
+stored per view in `properties.visibleSystemFields`, while ordinary field
+visibility continues to use `hiddenFields`; reopening or duplicating a view
+therefore preserves the exact combination without changing the table schema.
+The same visible set is used by Grid, Gallery, and Kanban. System fields are
+also available to Filter and Sort even while hidden, timestamp values use the
+shared localized date-time presentation, and the internal `_id` label is
+presented as Record ID. Runtime persistence tests cover the opaque view
+property and editor wiring tests cover the view update boundary.
+
+Gallery and Kanban now participate in the same persisted view lifecycle as
+Grid. Gallery uses paged server data, responsive card sizing, optional empty
+field suppression, and the shared record inspector. Kanban groups by a Select
+field, pages each group independently, persists cross-column moves as field
+edits, and creates records directly in the target group. Both layouts reuse the
+active view's search, filters, sorts, field visibility, and Property workspace.
+Gallery arranges cards into responsive virtual rows and mounts only the visible
+window plus overscan. Its virtual extent is driven by the server total rather
+than the number of records already fetched, so an adjacent scroll fetches the
+next or previous 100-row page while a distant scrollbar jump requests the
+target offset directly. The renderer retains at most 300 Gallery rows and 150
+rows per Kanban column, trimming the opposite side of the active window instead
+of accumulating every visited page. Dynamic measurement supports variable cover
+and field heights, and result navigation can jump directly to the target page
+before revealing the record. The manual Load more control is no longer needed.
+Adjacent pages are prefetched when the virtual range comes within half a page of
+the loaded window. The visible range is checked first, so a distant scrollbar
+jump still replaces the window at its actual target instead of walking through
+or prefetching intermediate pages. In ordinary scrolling, the next page is
+therefore requested before an unloaded placeholder enters the viewport.
+Automatic-page progress and retry controls float over the Gallery viewport in a
+zero-height sticky layer, so beginning or completing a request does not change
+the virtual scroll extent or shift the visible cards.
+Gallery reads its actual editor-container width in the pre-paint layout phase.
+The first visible frame therefore uses the same responsive column count as the
+settled viewport instead of briefly rendering against the 1024px virtualizer
+fallback. Resize Observer updates are rounded and de-duplicated before entering
+React state, avoiding subpixel resize churn around column breakpoints.
+Responsive column-count changes preserve the first visible record as the
+Gallery anchor. The renderer first restores its estimated row and then corrects
+to the measured row on the next frame, so resizing the window or opening a
+side panel does not jump to a different part of a large result set.
+Only the first Gallery page or a query refresh recomputes the filtered total.
+Later virtual-window requests send the previously observed total as a validated
+hint, so scrolling does not repeat a full `COUNT(*)`. Kanban reuses the totals
+from its grouped-count query for every visible-column page for the same reason;
+an explicit reload, search, filter, sort, or stale empty tail still re-establishes
+the authoritative extent.
+Contiguous forward pages carry an opaque cursor for both natural row order and
+stored-field explicit sorts. Gallery and each Kanban group retain it alongside
+their bounded row window. Natural-order reads become
+`WHERE __base_rowid > ? ORDER BY __base_rowid LIMIT ?`. A sorted cursor binds
+the normalized search, filter, and sort query, records the last ordered values
+plus rowid, and reads the remaining tuple ranges in order. The runtime issues
+mutually exclusive short range queries for the exact tuple, the last sort
+boundary, and each earlier boundary instead of one large `OR` predicate; this
+lets the disposable view indexes seek directly to every boundary while
+preserving SQLite NULL, `COLLATE NOCASE`, mixed-direction, and rowid tie-break
+semantics. Derived sorts, more than eight sort fields, distant scrollbar jumps,
+and backward pages still use offset paging for correctness and bounded cursor
+size. Failed-page retry preserves the exact cursor. On a local one-million-row
+SQLite baseline, 200 filtered natural-order deep-page reads took about 1.62
+seconds with `OFFSET` and less than 0.01 seconds with the rowid cursor. For a
+compound indexed sort, 200 deep-page reads took about 0.78 seconds with
+`OFFSET`; a naive `OR` cursor regressed to 1.58 seconds, while ordered range
+branches completed in about 0.02 seconds.
+These page and grouped-count requests are executed by a bounded pool of two
+persistent, read-only workers owned by the current Space. The Space operation
+gate uses fair read/write semantics: concurrent Gallery pages and visible
+Kanban-column pages may enter together, while a queued mutation or Graft restore
+remains exclusive and cannot be overtaken by later readers. Four concurrent
+column reads therefore move from one serialized execution lane to two bounded
+lanes without moving synchronous SQLite work onto Electron's main thread.
+The runner also coalesces exact duplicate requests while they are in flight, so
+React StrictMode remounts and overlapping consumers share one worker message
+instead of spending both lanes on the same page, grouped count, or aggregate.
+The entry is removed as soon as the operation settles; completed query results
+are not cached across file mutations.
+Repeated virtual-scroll reads reuse a validated Eidos File runtime; each worker's
+eight-file LRU bound prevents descriptor growth. A file fingerprint forces
+reopen after an in-place change or atomic replacement, and the packaged worker
+smoke covers deep paging, grouped totals, and replacement invalidation.
+The independent Eidos File runtime also maintains disposable SQLite query indexes for
+Gallery sort prefixes and Kanban group-plus-sort prefixes. Indexes follow the
+view lifecycle, are rebuilt after an indexed field conversion or deletion, and
+are repaired once when an older file is opened for migration. They accelerate
+the physical table without becoming part of the Eidos File metadata contract. The
+writable Eidos File lifecycle creates or repairs those indexes before read-only query
+workers consume them. The query-worker cache records the fingerprint after
+opening, so it does not immediately reopen an unchanged file. On a 100,000-row
+delivery fixture, a distant sorted Gallery page drops from roughly 90 ms to 2 ms
+and a distant Kanban group page from roughly 4 ms to 2 ms on the same machine.
+Virtual row, card, and column measurements are batched through animation frames;
+their translated wrappers establish layout/style containment. This keeps Resize
+Observer work and layout invalidation inside the mounted overscan window while
+preserving variable-height measurement and automatic infinite scrolling. Row
+and card wrapper identity is bound to the absolute virtual position rather than
+switching from a placeholder key to a record ID after a distant page arrives.
+Hydration therefore updates the record subtree without unmounting the measured,
+translated wrapper; the record card itself remains keyed by stable row ID so
+drag and local component state cannot leak between records. Regression coverage
+asserts DOM-node identity across placeholder hydration for both Gallery and
+Kanban.
+Gallery and Kanban can both use either a File or URL field as a fitted or
+cropped card cover. Their anchored view settings expose the same cover source,
+fit/crop, and empty-field controls that the shared card renderer already
+supports. Local File values now use the same encoded `/~/...` Space asset URL
+as Grid file cells, while HTTP(S) URL fields are rendered directly. The
+existing asset route authorizes the requesting Space, resolves real paths
+inside the registered Space root, rejects traversal and symlink escapes, and
+streams the file with its MIME type, length, range support, and `no-store`
+semantics. The browser therefore owns request cancellation, streaming, and
+image decoding; card virtualization no longer transports complete binaries
+through Electron IPC or creates renderer-side `Uint8Array` and Blob URL copies.
+Cover images retain lazy asynchronous decoding. Regression coverage renders
+repeated local covers as the same encoded Space URL, and Gallery/Kanban no
+longer receive a binary-read capability, so renderer binary payload and Blob
+allocations for local covers remain zero. Gallery and Kanban
+cards share hover and native context actions for opening record details and
+confirmed deletion by stable row ID. The same right-side record inspector is
+now editable across Grid, Gallery, and Kanban: primitive source fields autosave
+inline, derived Formula/Lookup values remain readonly, and successful edits
+update the active layout without closing the inspector.
+The complete card surface also opens the inspector without requiring discovery
+of a hover-only icon. Gallery cards are keyboard-focusable and open with Enter
+or Space, while their virtual row wrappers are removed from the accessibility
+tree so the records retain valid list semantics. Buttons and menu actions keep
+their independent behavior, and a six-pixel pointer movement suppresses the
+surface action so a Kanban drag cannot accidentally open record details.
+File fields support Space import, drop, remove, open, and reveal actions;
+Relation fields reuse the target-table search boundary and persist stable row
+IDs for single or multiple selection.
+
+Inline row search now reports the filtered record position and count. Enter and
+Shift+Enter cycle forward and backward while the input keeps focus. Grid scrolls
+to and highlights the target row; Gallery and Kanban scroll to the target card
+and automatically fetch the required page before revealing it.
+
+Kanban now horizontally virtualizes large option sets, mounting only the visible
+columns plus overscan during navigation and drag. Edge scrolling advances the
+virtual window and registers the newly visible drop targets instead of mounting
+the complete Select option set at drag start. Direct moves announce success,
+cancellation, and failed-save rollback through an assertive live region; the
+keyboard Move-to action remains available for every option as an equivalent
+non-pointer path. The drag overlay reads the stable record title carried by the
+draggable metadata instead of serializing and reinserting the complete card
+DOM, so starting a drag has constant preview complexity even when a card has a
+cover and many visible fields. The preview uses theme tokens and reduced-motion
+safe opacity feedback rather than hard-coded light/dark colors or decorative
+rotation and scaling. Pointer dragging now requires six pixels of deliberate
+movement, while pointer and keyboard events from buttons, links, and inputs
+inside a card remain owned by those controls. Blocking Eidos File mutations disable
+the draggable card itself, and cancelled or same-column drops no longer show a
+successful-move highlight.
+Moved-card feedback uses a stable selector store: starting a drag does not
+broadcast a context update to every mounted card, and completing a cross-column
+move rerenders only the card whose highlight changed.
+Kanban startup now uses one grouped-count query for all columns and loads the
+first record page only for uncollapsed columns in the horizontal window. Each
+column also uses dynamic-height vertical virtualization and automatic paging,
+so a large Select option set no longer causes one file open and first-page query
+per option, and a large group no longer mounts every loaded card.
+Gallery and Kanban vertical virtualization now share a bounded scroll geometry
+for million-record data sets. Real Electron/Chromium measurement showed that a
+CSS layout dimension is clamped at 16,777,215 pixels, so the implementation no
+longer exposes the complete logical height as one spacer. It caps the physical
+scroll surface at 12,000,000 pixels, maps that scrollbar range onto the complete
+logical record range, and rebases mounted items while preserving their measured
+local spacing. TanStack's internal virtualizer is independently capped at a
+2,048-item window that advances in 512-item chunks; this prevents its
+measurement cache from scaling to the complete record count while paging,
+search focus, ARIA positions, and rendered item indexes remain global. Million-
+record regressions reach the final Gallery page at offset 999,900 and the final
+Kanban group page at offset 999,950 from the real physical scroll endpoint, and
+assert both the 12,000,000-pixel surface and 2,048-measurement bounds. Relative
+to the earlier 20,000-item baseline, the smaller window removes 89.8% of
+TanStack's per-list measurement entries. A focused million-record regression
+run reduced component test time from 590 ms to 572 ms on the acceptance machine;
+the exact wall-clock result remains environment dependent. Crossing a 512-item
+chunk retains at least 75% of the adjacent window, clears
+TanStack's separate dynamic-size cache, and immediately remeasures only the
+currently mounted elements. Long-running scroll sessions therefore cannot
+retain one measured height for every record ever visited even though card
+heights remain dynamic.
+Each mounted virtual column remains one named record list whose items expose
+their absolute position and the group's complete server total. Collapsed-column
+expand controls retain a visible keyboard focus ring, so virtualization and the
+compact layout do not hide list context or keyboard location.
+Horizontal virtualization also bounds retained row data, not only mounted DOM.
+When navigation leaves a column window, Kanban keeps the rendered columns plus
+two neighboring columns on each side and releases older row windows. Returning
+to an evicted column reloads its first page from the already-known group total.
+Eviction pauses during drag so the source row remains available while edge
+scrolling across columns. This prevents memory from growing with every visited
+Select option while preserving a small back-navigation cache. The eviction
+effect depends on the horizontal window, column count, and drag state rather
+than the complete group-state array, so a row/loading update inside one column
+does not scan every Select option again. A 200-option paging regression records
+one 201-group update pass when a column starts loading its next page, down from
+two before this dependency was narrowed.
+Kanban mutations keep paging state local to the affected columns. Moving a
+loaded record decrements the source's consumed server cursor, while the target
+column safely rescans from its first page because the moved record's server sort
+position is unknown; page results are deduplicated by stable row ID. Inspector
+edits to the grouping field use the same cross-column transition. Creating a
+record without active search, filters, or sorts updates the mounted board in
+place instead of remounting every column; query-aware views still reload to
+reconcile membership and ordering.
+
+Deleting a loaded Gallery or Kanban card is also coordinated inside the active
+view. The card is removed only after the file mutation succeeds, the visible
+count and consumed page cursor are reduced locally, and the parent editor does
+not invalidate the complete card view. Gallery additionally keeps its current
+virtual window mounted while an explicit page refresh is pending and swaps in
+the refreshed page atomically. This avoids a blank loading frame, repeated card
+mounts, and repeated cover leases during ordinary record mutations while still
+letting filtered or sorted refreshes converge on server order.
+
+Kanban uses the same stale-while-revalidate rule when search, filters, sorts,
+or an explicit reload changes its grouped query. Matching columns retain their
+mounted cards while grouped counts and visible first pages refresh; each page
+is swapped only after its new result arrives. In-flight guards are keyed by
+query generation, so completion of an older request cannot clear or duplicate
+a newer column request. Row-count notifications depend on grouped totals rather
+than row-array or loading-state changes, avoiding parent editor rerenders while
+large columns page through cards.
+
+Kanban rendering now follows the same boundary as paging. Group updates retain
+the object identity of unaffected columns, while column components receive
+stable move, collapse, load, and create callbacks plus a move-target list that
+changes only with Select options. Loading an initial page, an automatic next
+page, or a loading flag in one group therefore rerenders only that column, not
+every visible column. Each mounted Kanban draggable/card pair also has its own
+stable-props memo boundary, so loading state, record creation input, and a page
+append in that column do not rerender retained cards. The shared record card
+keeps the same boundary for Gallery paging: unchanged records do not repeat field
+formatting, menu construction, or cover-subtree rendering; real row or view
+changes still render normally. A card move scopes its pending disabled state to
+the source and target columns, so an unrelated visible card keeps the same render
+count while persistence starts and completes. Each Kanban virtual-card wrapper
+now also compares only its indexed row and relevant interaction state. Paging,
+retry, and inline-create state therefore leave retained wrappers untouched; the
+failed-page retry regression reduces visible row resolution from 5 virtual items
+to the single failed placeholder.
+
+Kanban's inline record composer owns its draft, submission, and recoverable
+error state below the column render boundary. Typing in the composer therefore
+updates only the form instead of rerunning the column virtualizer and rebuilding
+the visible virtual-item list. The corresponding regression reduces virtualizer
+invocations per input update from 1 to 0 while preserving the existing create,
+cancel, and retry behavior.
+
+Grouped counts are also the authoritative empty-state result for Kanban. A
+group whose count is zero is cleared and marked loaded without issuing a page
+query, and an unchanged empty group retains its object identity across count
+refreshes. On a 200-option sparse board with one non-empty group, initial page
+requests fall from 6 to 1 and horizontally visiting empty columns issues no
+additional requests; the same refresh reduces empty-column virtualizer
+invocations from 16 to 0.
+
+Gallery virtual rows now form a second memo boundary around those cards. Paging
+progress, retry, and other parent-only state no longer rebuild the mounted row
+wrappers, while a page merge rerenders only wrappers whose visible slots gained
+or changed a record. The retry regression for a failed infinite page reduces
+mounted virtual-row reconstruction from 3 rows to 0 before the replacement page
+arrives.
+
+The Eidos File editor host now preserves those render boundaries during ordinary row
+saves. Updating an existing record treats an unchanged row count as a no-op, so
+the active table, view, and field references remain stable instead of rebuilding
+an equivalent snapshot. File reveal, field-property, field-delete, and row-range
+actions also keep stable callback identities, and the Grid, Gallery, and Kanban
+roots are memoized. Host integration coverage asserts that each expensive view
+renders once while an existing-row save starts and completes; save status and
+last-saved bookkeeping therefore stay outside the heavy view trees.
+
+Existing-record query invalidation is now field-aware instead of treating any
+active Filter or Sort as a reason to refresh the complete layout. The standalone
+Eidos File package identifies the fields read by search, nested filters, and sorts,
+then follows Formula/Lookup dependencies transitively. An edit to an unrelated
+field therefore stays inside the current Grid, Gallery, or Kanban row window;
+an edit to a directly or indirectly queried field still reloads to reconcile
+membership and ordering. Batch edits use the union of their changed columns,
+while record insertion remains conservatively query-aware because a new row may
+enter or leave the result. Editor integration coverage asserts that a filtered
+Gallery keeps its reload token for an unrelated title edit and advances it for
+an edit to the filtered Select field.
+
+Card render metadata is now computed once per view rather than once per visible
+record. Ordered fields, cover selection, field limits, and Select/Multi-select
+option indexes are shared by the Gallery or Kanban window. Closed action menus
+do not eagerly expand every Move-to option. Kanban columns also retain the same
+board-level Move-to option array instead of copying every target per visible
+column; each card carries only its current disabled target, while an active
+move lock is exposed only to its source and target columns.
+The Desktop native submenu retains
+one shared batch descriptor and one click dispatcher per mounted card, then
+materializes its Electron menu items only when that card's context menu opens;
+it does not mount or retain one React node, effect, item object, and closure per
+option. Theme state is also consumed once per card rather than once per visible
+field. A non-group inspector edit replaces only the group that owns the row,
+preserving every unaffected column and card memo boundary; visible-column
+loading and horizontal fallback geometry likewise depend on the option/window
+signature instead of row-array churn. Regression coverage proves that a
+200-target board with six visible columns retains one option-array reference,
+and its native submenu reads zero option labels before opening, remains at
+constant DOM size, disables the current column, and still dispatches the
+selected target; coverage also asserts
+that editing a card in one column does not render a card in another column.
+
+Automatic paging now has an explicit recoverable failure state. A failed
+Gallery or Kanban request disables the virtual-tail trigger instead of letting
+loading-state changes repeatedly issue the same request. Already loaded cards
+remain mounted, initial/refresh failures are kept distinct from next-page
+failures, and an inline Retry resumes the correct request mode and current
+cursor. One unavailable page therefore cannot create a request storm or force
+the user to reload the complete Eidos File. These recoverable errors stay within the
+affected Gallery or Kanban column; they do not also create a stale global Eidos File
+alert after the inline retry has succeeded. Kanban grouped-count failures use
+the same boundary: a failed first count leaves the board idle with an inline
+Retry, while a failed count refresh keeps the mounted columns interactive and
+offers a compact retry bar instead of replacing the board or leaving it busy.
+Initial, refresh, and automatic-page failures are exposed as local alert live
+regions, while progress remains a status region. Recovery is therefore visible
+to assistive technology without duplicating the error in the global Eidos File alert.
+
+Anchored Eidos File creation, rename, and view-settings workflows now own mutation
+failures locally. They preserve the current input and open panel, prevent
+duplicate submission while a write is pending, close only after success, and
+expose the failure as an assistive-technology alert. The parent editor still
+reloads a recovery snapshot after a rejected mutation, but it no longer adds a
+second global error banner for an operation whose panel already provides the
+retry path. Filter and Sort Apply/Clear actions follow the same transaction
+boundary: their anchored workspace cannot be dismissed or submitted twice
+while persistence is pending, and a rejected write preserves the exact draft
+despite the parent recovery snapshot so the user can retry in place.
+The field-property side panel now uses that boundary for inline names, type
+conversion, Select options, and Number presentation: it locks dismissal and
+duplicate edits while saving, reports one local failure, preserves name/type
+drafts for retry, and lets optimistic property controls restore their persisted
+state without adding a global error. Escape is a real cancellation for field
+names, option names, and numeric display inputs; the blur caused by leaving the
+input cannot persist the canceled value. Toolbar mutations without a local
+recovery surface continue to use the global Eidos File alert.
+
+Formula and Lookup editors use the same recoverable transaction boundary. An
+open editor session is keyed by the stable field identity, so the parent
+recovery snapshot cannot overwrite its draft or local error with a newly
+allocated field object. Saving synchronously rejects duplicate shortcuts and
+submits, locks dismissal and all editable controls until the write settles,
+closes only after success, and leaves one inline retry path after failure.
+
+Record Inspector autosaves and Kanban inline creation now use the same local
+recovery ownership. A rejected Inspector edit keeps its optimistic field value
+visible even when the parent reloads the persisted Eidos File snapshot, disables
+additional field edits until the conflict is resolved, and offers explicit
+Retry and Discard change actions. Retry resubmits the preserved value; Discard
+adopts the latest persisted row. Kanban keeps the failed title and creation
+form in the target column, rejects duplicate clicks synchronously, and exposes
+an inline Retry through the same Add action without creating a global Eidos File
+alert. Failed card moves continue to roll back only the affected columns and
+announce the local revert. Card moves are now serialized at the board boundary:
+while one optimistic move is being persisted, its source and target column
+actions are disabled, the board exposes `aria-busy`, and a synchronous guard
+rejects every other move event, including one that arrives before React can
+repaint the disabled state. Success is announced only after persistence;
+failure restores one authoritative copy of the row and unlocks the affected
+columns. This prevents a failed first move and queued second move from leaving
+the same row in two columns without invalidating every visible card.
+
+Direct and pasted Grid writes now own an anchored recovery surface as well.
+Optimistic values remain visible when persistence fails, the parent recovery
+reload does not add a second global alert, and the Grid offers Retry or Discard
+without opening a modal. Rapid edits continue to appear immediately while their
+writes are serialized. If an earlier write fails, later queued edits are merged
+into the same recoverable transaction instead of being sent against a missing
+base state. The Grid pauses new writes until the user retries the preserved
+transaction or discards it back to the persisted row; discarding also resets
+the local undo history so an abandoned draft cannot be replayed accidentally.
+
+Eidos File secondary workspaces now adapt to the space available inside the active
+editor rather than to the application window. Grid, Gallery, and Kanban keep
+the 320px Record Inspector or Field Property panel in the flex layout while at
+least 440px remains for the primary view; below the resulting 760px
+content-driven boundary, the same panel becomes an opaque right-side overlay
+instead of compressing or remeasuring the table/card viewport. The panel keeps
+its close action and complete content, and can shrink to the full editor width
+without introducing a modal. Formula composition uses its own container
+boundary: the editor and reference browser remain side by side above 600px,
+then stack into one column with a bounded reference list. Below 420px the
+display selector becomes full width. Formula popovers are constrained to the
+available viewport height and scroll internally, so the editor, preview,
+references, and save actions remain reachable in a resized Desktop window.
+
+View configuration controls also expose explicit names and state for switch,
+select, layout, and card-size groups. Eidos File progress indicators respect reduced
+motion preferences without removing their textual status, so pending work stays
+understandable without requiring animation.
+
+CSV selection, analysis, and writing now follow the same anchored, non-modal
+workflow. The mapping panel opens as soon as the native picker returns;
+analysis and import expose real byte/row progress and can be canceled in place.
+Cancellation terminates the isolated worker, waits for SQLite transaction
+rollback, and only then releases the current Eidos File mutation lock, so retrying
+cannot race a worker that is still exiting or leave partial tables or rows.
+
+The real-file Eidos File versioning smoke now creates Grid, Gallery, and Kanban
+metadata, closes and reopens the file, edits rows, verifies Graft row diffs,
+restores the original revision, and reopens again to verify records, derived
+values, and all three view layouts. The restored repository is clean.
+
+Native Desktop acceptance now covers the same lifecycle through the product UI:
+create a named Task tracker Eidos File, edit primitive and Select cells, stage only
+that file, create a version, fully restart Electron, reopen and verify the row,
+make a dirty edit, and restore the file from History without moving HEAD. The
+open Eidos File refreshes immediately after Graft replaces the file and the worktree
+returns to clean when restoring the current version.
+
+Native record-tab acceptance uses an isolated HOME, Desktop profile, and Space.
+Grid, Gallery, and Kanban all open the same record through the shared Inspector
+and promote it into one stable tab rather than creating duplicates. Editing the
+record updates the tab title, Back to Eidos File preserves the mounted tab, and an
+external `.eidos` write refreshes the open record in place. The native tab menu
+can split the record to the right of the workbook, and a complete Electron
+restart restores both panels, the active views, and the record title.
+
+Current parity with the original table views is explicit:
+
+| Capability                                                | Eidos File status                                                                       | Remaining boundary                                                                                           |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Persisted view lifecycle and per-view query/layout        | Full lifecycle, in-place layout switching, and restart/restore accepted                 | No known v1 gap                                                                                              |
+| Per-view field visibility and read-only system fields     | Grid, Gallery, and Kanban share persisted visibility; system fields filter and sort     | No known v1 gap                                                                                              |
+| Grid column calculations                                  | View-owned, worker-backed aggregates in the existing trailing row                       | No known v1 gap                                                                                              |
+| Eidos File defaults and attachment directory              | Per-Space template selection and portable relative file paths                           | No known v1 gap                                                                                              |
+| Gallery field visibility, empty-field hiding, card sizing | Working with virtual infinite scroll and result navigation                              | No known v1 gap                                                                                              |
+| Gallery and Kanban covers                                 | File and URL fields, fit/crop, and empty-field controls working                         | Legacy document-content and extension-block covers are intentionally not coupled into the standalone package |
+| Card actions                                              | Editable Inspector, delete, and stable non-modal record tabs working                    | No known v1 gap                                                                                              |
+| Kanban Select grouping, counts, collapse, add, drag move  | Working with two-axis virtualization, visible-column lazy loading, and accessible moves | No known v1 gap                                                                                              |
+| Eidos File merge conflict review                          | Native row review accepted                                                              | Schema/opaque conflicts intentionally use the explicit whole-file fallback                                   |
+
+This is the v1 Eidos File table-view delivery candidate, not an attempt to reproduce
+legacy document or extension coupling inside the standalone package. Portable
+File and URL covers satisfy the v1 Eidos File boundary; legacy document-content and
+extension-block covers remain intentionally outside the standalone package.
+Routine Eidos File
+configuration uses inline controls, header menus, and anchored popovers. Modal
+dialogs are reserved for destructive confirmation or other decisions that must
+interrupt the workflow. New interactions should first adapt the proven editing
+patterns from the original Eidos table; implementation convenience is not a
+reason to move field configuration, record editing, or view management into a
+modal.
+
+File-Space Settings separates General, Files/Obsidian, Eidos File, Versioning, and
+derived Indexes controls. Eidos File settings use the same single-layer, Codex-style
+rows to store the per-Space Blank/Task-tracker template preference and whether
+record attachments are copied to the Space-root `assets/` directory or an
+`assets/` directory beside the current Eidos File. The anchored creation flow can
+still override the template, and stored attachment values remain portable
+Space-relative paths. Legacy-Space Settings also provides server-owned migration
+preview, progress, validation, reveal, and open-new-Space actions. Native Space
+Settings layout now uses explicit surface ownership: simple setting rows share
+one Codex-style bordered group, while Account, provider, channel, and other
+rich modules retain their own cards without a generic card being injected
+around them. This prevents nested borders while keeping section rhythm
+consistent across both global and Space settings. Native Space
+sync and path-first text conflict resolution now pass a two-Space Desktop
+acceptance flow. Eidos File conflicts now open in a dedicated, non-modal review tab:
+Graft row/schema/opaque artifacts remain structured, row values are compared as
+Eidos File/current/incoming fields, and each supported row can independently keep the
+current value or accept the incoming value. Schema and opaque conflicts fall
+back explicitly to a file-level choice. Native two-Space acceptance verifies
+the row-aware Diff, non-modal review, incoming-row resolution, staged Eidos File,
+two-parent merge continuation, and final push.
+
+## Summary
+
+This RFC defines the product interaction model for Eidos after moving toward file-based Markdown files and `.eidos` structured data files.
+
+The UI should make the storage model obvious:
+
+- Markdown files are documents.
+- Eidos Files are structured data workbooks.
+- Assets are ordinary files.
+- `.eidos/extensions/**` is Eidos-owned project source shown through Extensions UX.
+- Private `.eidos` runtime state stays hidden.
+- Graft versions the visible Space.
+
+The goal is to avoid exposing internal implementation details as primary user concepts.
+
+## Product Principle
+
+Eidos should feel like:
+
+> A structured workspace for local Spaces.
+
+Not:
+
+> A hidden SQLite database with a file browser bolted on.
+
+## Navigation Model
+
+The primary navigation is the Space file tree.
+
+Example:
+
+```txt
+my-space
+  notes/
+    project.md
+  tasks.eidos
+  assets/
+    image.png
+```
+
+Default behavior:
+
+- clicking `.md` opens Markdown editor,
+- clicking `.eidos` opens Eidos File workspace,
+- clicking image/PDF opens preview,
+- folders expand/collapse,
+- `.eidos/` and `.graft/` are hidden by default.
+
+## Opening a Space
+
+Primary entry points:
+
+- Open Folder as Space,
+- Open Recent Space,
+- Create New Space.
+
+When opening an existing folder, Eidos should detect:
+
+```txt
+.obsidian/
+.eidos/
+.graft/
+*.eidos
+*.md
+```
+
+Detection should not force conversion. It should choose a mode:
+
+- plain Space,
+- Obsidian-compatible Space,
+- legacy Eidos Space,
+- graft-enabled Space.
+
+## Creating Content
+
+New content commands:
+
+```txt
+New Markdown Note
+New Eidos File
+New Folder
+Import File
+```
+
+Creating an Eidos File should create:
+
+```txt
+tasks.eidos
+```
+
+not:
+
+```txt
+.eidos/db.sqlite3
+```
+
+Eidos File creation flow:
+
+1. choose file name,
+2. choose template or blank,
+3. open Eidos File editor,
+4. create first table.
+
+## Eidos File Workspace
+
+Opening `tasks.eidos` should show an Eidos File-specific workspace:
+
+```txt
+tasks.eidos
+  Tables
+    Tasks
+    Projects
+  Views
+    Grid
+    Kanban
+```
+
+Expected controls:
+
+- table switcher,
+- view switcher,
+- add table,
+- add field,
+- import CSV,
+- properties/settings,
+- open file location.
+
+Interaction rules:
+
+- adding and configuring fields happens from the grid header or adjacent
+  controls,
+- table/view configuration uses anchored menus and progressive disclosure,
+- the existing Eidos table is the interaction baseline; preserve inline cell
+  editing, header actions, keyboard movement, clipboard, and range selection
+  before introducing a new interaction,
+- centered modal dialogs are considered an undesirable default and must not be
+  used for routine editing,
+- destructive deletion may require confirmation,
+- undo/redo should match the existing Eidos table unless the Eidos File model
+  requires an explicit difference.
+
+Eidos File internals should not appear as separate Space files.
+
+## Markdown Editor
+
+Opening a Markdown file should show an editor backed by that file.
+
+Expected controls:
+
+- edit/preview where appropriate,
+- frontmatter support,
+- attachments insertion,
+- link autocomplete,
+- optional backlink panel.
+
+Saving writes to the `.md` file.
+
+## Changes UI
+
+Changes UI should be path-first and tree-shaped.
+
+Example:
+
+```txt
+Changes 4
+  notes/
+    project.md
+  tasks.eidos
+    Tasks table       +3 ~1
+    Views metadata    ~1
+  assets/
+    image.png
+```
+
+Rules:
+
+- show user-visible paths first,
+- hide private `.eidos` runtime state,
+- show `.eidos/extensions/**` through the Extensions product view,
+- hide `.graft/**`,
+- group by folders,
+- show `.eidos` as a file that can expand,
+- show text diff for text files,
+- show preview/summary for binary files,
+- show table-level diff for Eidos Files.
+
+The UI should not lead with:
+
+```txt
+.eidos/db.sqlite3
+```
+
+in Space mode.
+
+## Commit Flow
+
+Commit flow:
+
+1. user reviews changed paths,
+2. user optionally expands `.eidos`,
+3. user writes message,
+4. user commits,
+5. Eidos shows version in history.
+
+Normal users should not need to understand staging.
+
+Advanced users may later get:
+
+- include/exclude paths,
+- commit selected,
+- inspect raw graft status.
+
+## History UI
+
+History should show versions as Space-level commits:
+
+```txt
+Update tasks and project notes
+  notes/project.md
+  tasks.eidos
+```
+
+Opening a version should allow:
+
+- view changed paths,
+- inspect Markdown diff,
+- inspect Eidos File table diff,
+- restore file/path,
+- restore whole Space state.
+
+## Sync UI
+
+Sync should be framed as Space sync:
+
+```txt
+Push Space
+Pull Space
+Resolve conflicts
+```
+
+It should not be framed as syncing `.eidos/db.sqlite3`.
+
+Payload hydration should be hidden unless action is needed:
+
+- missing assets,
+- failed download,
+- conflict needs user choice.
+
+## Settings
+
+Settings should separate:
+
+```txt
+Space
+  visible files
+  ignored paths
+  Obsidian compatibility
+
+Versioning
+  enable graft
+  remote
+  tracked paths advanced
+
+Eidos File
+  default Eidos File templates
+  asset folder policy
+
+Eidos Private State
+  cache size
+  rebuild indexes
+```
+
+Track/ignore configuration is advanced. Quick start should not force users to learn it.
+
+## Empty States
+
+New Space empty state should offer:
+
+- create note,
+- create Eidos File,
+- import Obsidian vault,
+- enable versioning.
+
+Eidos File empty state should offer:
+
+- create first table,
+- import CSV,
+- use template.
+
+Changes empty state:
+
+```txt
+No changes
+```
+
+not a tutorial about graft internals.
+
+## Migration UX
+
+For legacy spaces:
+
+Eidos should show:
+
+```txt
+This Space uses the legacy Eidos database model.
+Export to Space/Eidos File when ready.
+```
+
+Migration flow:
+
+1. explain target layout,
+2. choose output folder,
+3. preview counts,
+4. run export,
+5. show report,
+6. optionally enable graft.
+
+No silent migration.
+
+## Resolved v1 Decisions
+
+1. `.obsidian/` stays hidden by default and can be enabled from Files settings.
+2. A `.eidos` remains one file in the Space tree; tables and views live in the
+   Eidos File workspace and Quick Open context.
+3. Changes stays path-first. Selecting a `.eidos` opens its structured Diff tab
+   instead of expanding generated diagnostics inside the sidebar tree.
+4. Selected file and directory staging is part of v1, including explicit
+   Staged and Changes sections.
+5. Product copy uses Version/History/Changes. Graft terminology is reserved for
+   advanced settings, diagnostics, and implementation documentation.
+
+## Recommended UX Slice
+
+Build a clickable vertical slice around:
+
+```txt
+sample-space/
+  note.md
+  tasks.eidos
+  assets/image.png
+```
+
+The slice should prove:
+
+- file tree distinguishes `.md`, `.eidos`, assets,
+- Markdown editor saves real `.md`,
+- Eidos File workspace opens `tasks.eidos`,
+- Changes tree shows all three changed paths,
+- expanding `tasks.eidos` shows table changes,
+- private `.eidos` runtime state remains hidden.

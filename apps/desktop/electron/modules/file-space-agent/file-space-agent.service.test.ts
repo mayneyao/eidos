@@ -158,9 +158,9 @@ async function createHarness(extensions?: unknown, versioning?: unknown) {
     })),
     moveFile: vi.fn(async () => ({ success: true as const })),
     removeFile: vi.fn(async () => ({ success: true as const })),
-    getBaseSnapshotReadOnly: vi.fn(),
-    getBaseTableRow: vi.fn(),
-    getBaseTablePage: vi.fn(),
+    getEidosFileSnapshotReadOnly: vi.fn(),
+    getEidosFileTableRow: vi.fn(),
+    getEidosFileTablePage: vi.fn(),
   }
   const config = {
     get: () => ({
@@ -550,15 +550,15 @@ describe("FileSpaceAgentService", () => {
     expect(contextEvent?.data.context).not.toHaveProperty("contentDigest")
   })
 
-  it("captures a Base row through the read-only Base runtime", async () => {
+  it("captures an Eidos File row through the read-only Eidos File runtime", async () => {
     modelState.current = new MockLanguageModelV3({
       doStream: textStream("The task is open."),
     })
     const { service, spaces } = await createHarness()
-    spaces.getBaseSnapshotReadOnly.mockResolvedValueOnce({
-      path: "Tasks.base",
+    spaces.getEidosFileSnapshotReadOnly.mockResolvedValueOnce({
+      path: "Tasks.eidos",
       metadata: {
-        format: "eidos-base",
+        format: "eidos-file",
         formatVersion: 2,
         schemaVersion: 1,
         app: "Eidos",
@@ -568,7 +568,7 @@ describe("FileSpaceAgentService", () => {
       },
       tables: [],
     })
-    spaces.getBaseTableRow.mockResolvedValueOnce({
+    spaces.getEidosFileTableRow.mockResolvedValueOnce({
       id: "row-1",
       title: "Ship Agent",
       done: false,
@@ -576,28 +576,28 @@ describe("FileSpaceAgentService", () => {
 
     await service.startRun({
       spaceId: "space-1",
-      conversationId: "conversation-base-context",
+      conversationId: "conversation-eidos-file-context",
       prompt: "Is this task done?",
       model: "mock-model@mock-provider",
       context: {
-        sourceUrl: "/space-file?table=tasks&record=row-1#Tasks.base",
+        sourceUrl: "/space-file?table=tasks&record=row-1#Tasks.eidos",
       },
     })
 
     const snapshot = await eventually(async () => {
       const next = await service.getConversation(
         "space-1",
-        "conversation-base-context"
+        "conversation-eidos-file-context"
       )
       return next.activeRun === null ? next : undefined
     })
-    expect(spaces.getBaseSnapshotReadOnly).toHaveBeenCalledWith(
+    expect(spaces.getEidosFileSnapshotReadOnly).toHaveBeenCalledWith(
       "space-1",
-      "Tasks.base"
+      "Tasks.eidos"
     )
-    expect(spaces.getBaseTableRow).toHaveBeenCalledWith(
+    expect(spaces.getEidosFileTableRow).toHaveBeenCalledWith(
       "space-1",
-      "Tasks.base",
+      "Tasks.eidos",
       "tasks",
       "row-1"
     )
@@ -606,11 +606,11 @@ describe("FileSpaceAgentService", () => {
     ).toMatchObject({
       data: {
         context: {
-          kind: "base-row",
-          path: "Tasks.base",
+          kind: "eidos-file-row",
+          path: "Tasks.eidos",
           tableId: "tasks",
           rowId: "row-1",
-          baseFingerprint: "2:1:2026-07-17T01:00:00.000Z",
+          eidosFileFingerprint: "2:1:2026-07-17T01:00:00.000Z",
           excerpt: expect.stringContaining("Ship Agent"),
         },
       },
@@ -1326,7 +1326,7 @@ describe("FileSpaceAgentService", () => {
               toolName: "run_extension_command",
               input: JSON.stringify({
                 commandId: "example.tasks.summarize",
-                path: "Tasks.base",
+                path: "Tasks.eidos",
               }),
             },
           ],
@@ -1356,7 +1356,7 @@ describe("FileSpaceAgentService", () => {
     const { run } = await service.startRun({
       spaceId: "space-1",
       conversationId: "conversation-extension",
-      prompt: "Summarize Tasks.base",
+      prompt: "Summarize Tasks.eidos",
       model: "mock-model@mock-provider",
     })
     const waiting = await eventually(async () => {
@@ -1396,7 +1396,7 @@ describe("FileSpaceAgentService", () => {
       contentDigest: `sha256:${"d".repeat(64)}`,
       permissionHash: `sha256:${"e".repeat(64)}`,
       commandId: "example.tasks.summarize",
-      resource: { path: "Tasks.base" },
+      resource: { path: "Tasks.eidos" },
     })
   })
 

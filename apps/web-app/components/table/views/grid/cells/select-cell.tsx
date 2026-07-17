@@ -1,1 +1,1 @@
-export { SelectCell as default } from "@eidos.space/base-ui"
+export { SelectCell as default } from "@eidos.space/eidos-file-ui"

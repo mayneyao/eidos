@@ -33,14 +33,14 @@ describe("file Space Agent resource context", () => {
     })
   })
 
-  it("captures a Base record target without inventing a text selection", () => {
+  it("captures an Eidos File record target without inventing a text selection", () => {
     expect(
       resourceContextFromTabUrl(
-        "/space-file?table=tasks&record=row-1#Projects.base"
+        "/space-file?table=tasks&record=row-1#Projects.eidos"
       )
     ).toEqual({
-      sourceUrl: "/space-file?table=tasks&record=row-1#Projects.base",
-      path: "Projects.base",
+      sourceUrl: "/space-file?table=tasks&record=row-1#Projects.eidos",
+      path: "Projects.eidos",
       heading: undefined,
       tableId: "tasks",
       rowId: "row-1",

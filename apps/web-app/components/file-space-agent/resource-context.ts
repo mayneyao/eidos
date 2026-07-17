@@ -1,5 +1,5 @@
 import {
-  baseRecordFromSpaceUrl,
+  eidosFileRecordFromSpaceUrl,
   filePathFromSpaceUrl,
   headingFromSpaceUrl,
 } from "@/apps/web-app/components/file-space/file-path"
@@ -29,7 +29,7 @@ export function resourceContextFromTabUrl(
 ): FileSpaceAgentLaunchContext | null {
   const filePath = filePathFromSpaceUrl(sourceUrl)
   if (!filePath) return null
-  const baseRecord = baseRecordFromSpaceUrl(sourceUrl)
+  const baseRecord = eidosFileRecordFromSpaceUrl(sourceUrl)
   return {
     sourceUrl,
     path: filePath,

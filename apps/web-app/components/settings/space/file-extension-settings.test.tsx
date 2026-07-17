@@ -39,7 +39,7 @@ const openTabMock = vi.hoisted(() => vi.fn())
 const listSpaceFilesMock = vi.hoisted(() => vi.fn())
 const createSpaceFileMock = vi.hoisted(() => vi.fn())
 const createSpaceBaseMock = vi.hoisted(() => vi.fn())
-const createSpaceBaseViewMock = vi.hoisted(() => vi.fn())
+const createSpaceEidosFileViewMock = vi.hoisted(() => vi.fn())
 const insertSpaceBaseRowMock = vi.hoisted(() => vi.fn())
 const translate = vi.hoisted(
   () =>
@@ -246,8 +246,8 @@ function panelFixture() {
   } as FileExtensionDiscoveryFixture
 }
 
-function baseViewFixture() {
-  const readGrant = { kind: "files.read" as const, value: "**/*.base" }
+function eidosFileViewFixture() {
+  const readGrant = { kind: "files.read" as const, value: "**/*.eidos" }
   const fixture = discoveryFixture("enabled", [readGrant])
   const extension = fixture.packages[0]
   if (!extension?.manifest || !extension.localState) {
@@ -262,9 +262,9 @@ function baseViewFixture() {
         ...extension,
         manifest: {
           ...extension.manifest,
-          entrypoints: { ui: "src/base-view.ts" },
+          entrypoints: { ui: "src/eidos-file-view.ts" },
           contributes: {
-            baseViews: [
+            eidosFileViews: [
               {
                 id: "example.task-counter.cards",
                 displayName: "Task cards",
@@ -272,12 +272,12 @@ function baseViewFixture() {
             ],
           },
           permissions: {
-            files: { read: ["**/*.base"], write: [] },
+            files: { read: ["**/*.eidos"], write: [] },
             network: [],
           },
         },
         normalizedPermissions: {
-          files: { read: ["**/*.base"], write: [] },
+          files: { read: ["**/*.eidos"], write: [] },
           network: [],
         },
         requestedGrants: [readGrant],
@@ -288,7 +288,7 @@ function baseViewFixture() {
         },
         files: [
           { path: "extension.json", size: 200 },
-          { path: "src/base-view.ts", size: 120 },
+          { path: "src/eidos-file-view.ts", size: 120 },
         ],
       },
     ],
@@ -330,10 +330,10 @@ describe("FileExtensionSettings", () => {
     createSpaceFileMock.mockReset().mockResolvedValue({
       path: "Extension preview.tasks.md",
     })
-    createSpaceBaseMock.mockReset().mockResolvedValue({ path: "preview.base" })
-    createSpaceBaseViewMock
+    createSpaceBaseMock.mockReset().mockResolvedValue({ path: "preview.eidos" })
+    createSpaceEidosFileViewMock
       .mockReset()
-      .mockResolvedValue({ path: "preview.base" })
+      .mockResolvedValue({ path: "preview.eidos" })
     insertSpaceBaseRowMock.mockReset().mockResolvedValue({ rowCount: 1 })
     discoverMock.mockReset()
     createTemplateMock.mockReset().mockResolvedValue({
@@ -443,9 +443,9 @@ describe("FileExtensionSettings", () => {
         spaceMgmt: {
           listFiles: listSpaceFilesMock,
           createFile: createSpaceFileMock,
-          createBase: createSpaceBaseMock,
-          createBaseView: createSpaceBaseViewMock,
-          insertBaseRow: insertSpaceBaseRowMock,
+          createEidosFile: createSpaceBaseMock,
+          createEidosFileView: createSpaceEidosFileViewMock,
+          insertEidosFileRow: insertSpaceBaseRowMock,
         },
         fileExtensions: {
           discover: discoverMock,
@@ -777,7 +777,7 @@ describe("FileExtensionSettings", () => {
     ]
     expect(
       templateOptions.map((option) => option.parentElement?.textContent?.trim())
-    ).toEqual(["Command", "Panel", "Text editor", "Base view"])
+    ).toEqual(["Command", "Panel", "Text editor", "Eidos File view"])
     expect(templateOptions[0]?.checked).toBe(true)
     act(() => templateOptions[2]!.click())
     expect(templateOptions[2]?.checked).toBe(true)
@@ -900,14 +900,14 @@ describe("FileExtensionSettings", () => {
     )
   })
 
-  it("creates a Base view starter and opens its UI source", async () => {
+  it("creates an Eidos File view starter and opens its UI source", async () => {
     createTemplateMock.mockResolvedValue({
       canonicalId: "local.record-cards",
       root: ".eidos/extensions/local.record-cards",
       files: [
         "extension.json",
-        "src/base-view.ts",
-        "src/base-view.css",
+        "src/eidos-file-view.ts",
+        "src/eidos-file-view.css",
         "README.md",
       ],
     })
@@ -951,12 +951,12 @@ describe("FileExtensionSettings", () => {
 
     expect(createTemplateMock).toHaveBeenCalledWith("file-space", {
       name: "record-cards",
-      template: "base-view",
+      template: "eidos-file-view",
       filenamePattern: undefined,
       mediaType: undefined,
     })
     expect(container.textContent).toContain(
-      "Open a .base file, add a view, then choose this extension layout"
+      "Open a .eidos file, add a view, then choose this extension layout"
     )
     const createdStatus =
       container.querySelector<HTMLElement>("[role='status']")!
@@ -966,8 +966,8 @@ describe("FileExtensionSettings", () => {
         .click()
     )
     expect(openTabMock).toHaveBeenLastCalledWith(
-      "/space-file#.eidos%2Fextensions%2Flocal.record-cards%2Fsrc%2Fbase-view.ts",
-      "base-view.ts"
+      "/space-file#.eidos%2Fextensions%2Flocal.record-cards%2Fsrc%2Feidos-file-view.ts",
+      "eidos-file-view.ts"
     )
   })
 
@@ -1930,9 +1930,9 @@ describe("FileExtensionSettings", () => {
     )
   })
 
-  it("creates and opens a populated sample for a ready Base view", async () => {
-    listSpaceFilesMock.mockResolvedValue([{ name: "Extension preview.base" }])
-    discoverMock.mockResolvedValue(baseViewFixture())
+  it("creates and opens a populated sample for a ready Eidos File view", async () => {
+    listSpaceFilesMock.mockResolvedValue([{ name: "Extension preview.eidos" }])
+    discoverMock.mockResolvedValue(eidosFileViewFixture())
     await act(async () => {
       root.render(<FileExtensionSettings />)
       await Promise.resolve()
@@ -1944,7 +1944,7 @@ describe("FileExtensionSettings", () => {
         .click()
     )
     expect(container.textContent).toContain(
-      "Open a .base file, add a view, then choose Task cards"
+      "Open a .eidos file, add a view, then choose Task cards"
     )
     const tryExtension = [...container.querySelectorAll("button")].find(
       (button) => button.textContent?.trim() === "Try extension"
@@ -1958,7 +1958,7 @@ describe("FileExtensionSettings", () => {
     expect(listSpaceFilesMock).toHaveBeenCalledWith("file-space", "")
     expect(createSpaceBaseMock).toHaveBeenCalledWith(
       "file-space",
-      "Extension preview 2.base",
+      "Extension preview 2.eidos",
       {
         title: "Task cards preview",
         defaultTable: {
@@ -1983,9 +1983,9 @@ describe("FileExtensionSettings", () => {
         },
       }
     )
-    expect(createSpaceBaseViewMock).toHaveBeenCalledWith(
+    expect(createSpaceEidosFileViewMock).toHaveBeenCalledWith(
       "file-space",
-      "Extension preview 2.base",
+      "Extension preview 2.eidos",
       "records",
       {
         name: "Task cards",
@@ -1996,7 +1996,7 @@ describe("FileExtensionSettings", () => {
     expect(insertSpaceBaseRowMock).toHaveBeenNthCalledWith(
       1,
       "file-space",
-      "Extension preview 2.base",
+      "Extension preview 2.eidos",
       "records",
       {
         title: "Explore this extension view",
@@ -2005,8 +2005,8 @@ describe("FileExtensionSettings", () => {
       }
     )
     expect(openTabMock).toHaveBeenLastCalledWith(
-      "/space-file#Extension%20preview%202.base",
-      "Extension preview 2.base"
+      "/space-file#Extension%20preview%202.eidos",
+      "Extension preview 2.eidos"
     )
   })
 

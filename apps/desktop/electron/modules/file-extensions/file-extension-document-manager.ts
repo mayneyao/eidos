@@ -186,7 +186,7 @@ export class FileExtensionDocumentManager {
       message.type === "activated" ||
       message.type === "activation-error" ||
       message.type === "surface-log" ||
-      message.type === "base-page-request" ||
+      message.type === "eidos-file-page-request" ||
       message.type === "closed"
     ) {
       return this.failure(
@@ -202,7 +202,7 @@ export class FileExtensionDocumentManager {
         const changed = session.model.applyEdits(
           viewId,
           message.documentId,
-          message.baseRevision,
+          message.eidosFileRevision,
           message.edits
         )
         this.broadcast(session, changed)
@@ -211,7 +211,7 @@ export class FileExtensionDocumentManager {
         const changed = session.model.undo(
           viewId,
           message.documentId,
-          message.baseRevision
+          message.eidosFileRevision
         )
         this.broadcast(session, changed)
         this.scheduleAutoSave(session)
@@ -219,7 +219,7 @@ export class FileExtensionDocumentManager {
         const changed = session.model.redo(
           viewId,
           message.documentId,
-          message.baseRevision
+          message.eidosFileRevision
         )
         this.broadcast(session, changed)
         this.scheduleAutoSave(session)
@@ -240,13 +240,13 @@ export class FileExtensionDocumentManager {
             "Document request targets another document"
           )
         }
-        if (message.baseRevision !== snapshot.revision) {
+        if (message.eidosFileRevision !== snapshot.revision) {
           throw new ExtensionTextDocumentError(
             "STALE_REVISION",
-            `Expected document revision ${snapshot.revision}, received ${message.baseRevision}`
+            `Expected document revision ${snapshot.revision}, received ${message.eidosFileRevision}`
           )
         }
-        await this.save(session, message.baseRevision)
+        await this.save(session, message.eidosFileRevision)
       }
       return this.success(session, message.requestId)
     } catch (error) {

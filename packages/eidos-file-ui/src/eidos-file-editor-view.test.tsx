@@ -1,0 +1,163 @@
+import React, { act } from "react"
+import { createRoot, type Root } from "react-dom/client"
+import type {
+  EidosFileSnapshot,
+  EidosFileTableSnapshot,
+  EidosFileViewInfo,
+} from "@eidos.space/eidos-file"
+import { vi } from "vitest"
+
+import {
+  EidosFileEditorView,
+  builtInEidosFileViewRenderers,
+  type EidosFileViewRendererProps,
+} from "./eidos-file-editor-view"
+import {
+  eidosFileViewGroupFilter,
+  eidosFileViewRowQuery,
+} from "./eidos-file-view-query"
+import type { EidosFileEditorDataSource } from "./data-source"
+
+;(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true
+
+const now = "2026-07-17T00:00:00.000Z"
+const view: EidosFileViewInfo = {
+  id: "timeline",
+  name: "Timeline",
+  type: "timeline",
+  tableId: "tasks",
+  query: "",
+  properties: { dateField: "due" },
+  filter: {
+    type: "group",
+    conjunction: "and",
+    children: [
+      { type: "rule", field: "done", operator: "equals", value: false },
+    ],
+  },
+  sorts: [{ field: "due", direction: "asc" }],
+  orderMap: null,
+  hiddenFields: [],
+  position: 0,
+  createdAt: now,
+  updatedAt: now,
+}
+const table: EidosFileTableSnapshot = {
+  table: {
+    id: "tasks",
+    name: "Tasks",
+    rawTableName: "tb_tasks",
+    position: 0,
+    icon: null,
+    description: null,
+    createdAt: now,
+    updatedAt: now,
+  },
+  fields: [],
+  views: [view],
+  rowCount: 0,
+}
+const snapshot: EidosFileSnapshot = {
+  path: "tasks.eidos",
+  metadata: {
+    format: "eidos-file",
+    formatVersion: 1,
+    schemaVersion: 1,
+    app: "test",
+    createdAt: now,
+    updatedAt: now,
+  },
+  tables: [table],
+}
+const source: EidosFileEditorDataSource = {
+  getSnapshot: vi.fn(async () => snapshot),
+  getPage: vi.fn(async (_tableId, offset, limit) => ({
+    tableId: "tasks",
+    offset,
+    limit,
+    total: 0,
+    rows: [],
+  })),
+  insertRow: vi.fn(),
+  updateRow: vi.fn(),
+  updateField: vi.fn(),
+  addField: vi.fn(),
+  deleteField: vi.fn(),
+  updateView: vi.fn(),
+}
+
+describe("EidosFileEditorView registry", () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+  })
+
+  it("ships Grid, Gallery, and Kanban from one public registry", () => {
+    expect(Object.keys(builtInEidosFileViewRenderers)).toEqual([
+      "grid",
+      "gallery",
+      "kanban",
+    ])
+  })
+
+  it("passes persisted metadata and the runtime query to a custom renderer", () => {
+    const received: EidosFileViewRendererProps[] = []
+    function TimelineRenderer(props: EidosFileViewRendererProps) {
+      received.push(props)
+      return (
+        <div data-custom-view>{String(props.view?.properties?.dateField)}</div>
+      )
+    }
+
+    act(() => {
+      root.render(
+        <EidosFileEditorView
+          source={source}
+          table={table}
+          view={view}
+          search=" release "
+          renderers={{ timeline: TimelineRenderer }}
+        />
+      )
+    })
+
+    expect(container.querySelector("[data-custom-view]")?.textContent).toBe(
+      "due"
+    )
+    expect(received[0]?.query).toEqual({
+      search: "release",
+      filter: view.filter,
+      sorts: view.sorts,
+    })
+  })
+})
+
+describe("Eidos File view query helpers", () => {
+  it("combines transient search with saved filter and sort metadata", () => {
+    expect(eidosFileViewRowQuery(view, " release ")).toEqual({
+      search: "release",
+      filter: view.filter,
+      sorts: view.sorts,
+    })
+  })
+
+  it("adds Kanban grouping without mutating the saved filter", () => {
+    const combined = eidosFileViewGroupFilter(view.filter, "status", null)
+    expect(combined.children).toEqual([
+      view.filter,
+      { type: "rule", field: "status", operator: "is-empty" },
+    ])
+    expect(view.filter?.children).toHaveLength(1)
+  })
+})

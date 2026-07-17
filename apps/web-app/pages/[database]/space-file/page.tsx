@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react"
+import { EIDOS_FILE_EXTENSION } from "@eidos.space/eidos-file"
 import Editor from "@monaco-editor/react"
 import type * as Monaco from "monaco-editor"
 import { uniqueSpaceEntryName } from "@eidos.space/file-space/names"
@@ -6,7 +7,7 @@ import { AlertTriangle, FileQuestion, RefreshCw } from "lucide-react"
 import { useLocation } from "react-router-dom"
 
 import {
-  baseRecordFromSpaceUrl,
+  eidosFileRecordFromSpaceUrl,
   fileEditorFromSpaceUrl,
   headingFromSpaceUrl,
   isSameOrDescendant,
@@ -26,7 +27,7 @@ import {
   type FileExtensionEditorPackage,
 } from "@/apps/web-app/components/file-space/file-extension-editor-types"
 import { registerPendingWriteFlusher } from "@/apps/web-app/components/file-space/pending-writes"
-import { SpaceBaseEditorLoader } from "@/apps/web-app/components/file-space/base/space-base-editor-loader"
+import { SpaceEidosFileEditorLoader } from "@/apps/web-app/components/file-space/eidos-file/space-eidos-file-editor-loader"
 import { SpaceFileFallbackPreview } from "@/apps/web-app/components/file-space/space-file-fallback-preview"
 import { SpaceMarkdownEditor } from "@/apps/web-app/components/file-space/space-markdown-editor"
 import {
@@ -146,7 +147,8 @@ export function SpaceFilePage() {
   const filePath = decodeFilePath(location.hash)
   const fileEditorId = fileEditorFromSpaceUrl(locationUrl)
   const heading = headingFromSpaceUrl(locationUrl) ?? undefined
-  const baseRecordTarget = baseRecordFromSpaceUrl(locationUrl) ?? undefined
+  const eidosFileRecordTarget =
+    eidosFileRecordFromSpaceUrl(locationUrl) ?? undefined
   const editorPosition = positionFromSpaceUrl(locationUrl) ?? undefined
   const extension = extensionOf(filePath)
   const fileName = filenameOf(filePath)
@@ -167,12 +169,12 @@ export function SpaceFilePage() {
       />
     )
   }
-  if (extension === "base") {
+  if (extension === EIDOS_FILE_EXTENSION.slice(1)) {
     return (
-      <SpaceBaseEditorLoader
+      <SpaceEidosFileEditorLoader
         key={filePath}
         filePath={filePath}
-        recordTarget={baseRecordTarget}
+        recordTarget={eidosFileRecordTarget}
       />
     )
   }

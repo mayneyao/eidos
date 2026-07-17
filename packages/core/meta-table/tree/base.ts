@@ -498,17 +498,17 @@ export class BaseTreeTable
 
     // Try to extract any existing suffix like (1), (2)
     const baseNameMatch = name.match(/^(.*)\s*\((\d+)\)$/)
-    const baseName = baseNameMatch ? baseNameMatch[1].trim() : name
+    const eidosFileName = baseNameMatch ? baseNameMatch[1].trim() : name
     let suffix = 1
 
     // Find a unique name by incrementing suffix
-    let newName = `${baseName} (${suffix})`
+    let newName = `${eidosFileName} (${suffix})`
     while (!(await this.isNameUnique(newName, parentId))) {
       suffix++
-      newName = `${baseName} (${suffix})`
+      newName = `${eidosFileName} (${suffix})`
       // Safety limit to prevent infinite loop
       if (suffix > 1000) {
-        newName = `${baseName} ${uuidv7().slice(0, 8)}`
+        newName = `${eidosFileName} ${uuidv7().slice(0, 8)}`
         break
       }
     }

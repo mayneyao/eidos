@@ -1,26 +1,26 @@
-# RFC：从 Legacy Eidos Space 迁移到 Space/Base
+# RFC：从 Legacy Eidos Space 迁移到 Space/Eidos File
 
 状态：草案，真实 Space 导出验收通过
 日期：2026-07-08
 负责人：Eidos
 相关文档：
 
-- `eidos-space-base-storage.zh.md`
-- `eidos-base-file-format.zh.md`
+- `eidos-file-storage.zh.md`
+- `eidos-file-format.zh.md`
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-graft-space-versioning.zh.md`
 
 ## 实施状态（2026-07-14）
 
 独立的 `@eidos.space/legacy-space-migration` package 已经实现 export-mode 垂直切片，
-并且不依赖 Eidos core。纯 planning API 会生成确定性的 Markdown、Base、asset 映射和
+并且不依赖 Eidos core。纯 planning API 会生成确定性的 Markdown、Eidos File、asset 映射和
 明确的 errors/warnings；可选的 `better-sqlite3` 入口以 readonly/query-only 模式打开
 legacy database，对 database、WAL 和 asset inventory 建立 fingerprint，并拒绝执行
 已经过期的 plan。
 
 Exporter 会先在同级 staging directory 中写入 Markdown（包括当前文档 properties）、
-一个 `main.base`、可见 assets、Lexical/property recovery sidecars、`report.md` 和
-`mapping.json`。它通过 Base 的公开 import boundary 保留 field/view/reference metadata
+一个 `main.eidos`、可见 assets、Lexical/property recovery sidecars、`report.md` 和
+`mapping.json`。它通过 Eidos File 的公开 import boundary 保留 field/view/reference metadata
 与历史 row values，改写文件引用，校验 document/table/row/field/view/reference/asset
 数量，全部通过后才原子安装到空 target。实现不会覆盖非空 target，并拒绝 asset symlink。
 
@@ -29,24 +29,24 @@ Desktop Settings 现在为 legacy Space 提供独立 Migration section，展示�
 在文件管理器中显示结果，或者注册并打开新的 file Space。Renderer 只持有 plan token，
 执行前不能篡改 server-side mapping。
 
-真实 legacy schema 的恢复不会放宽 Base identifier 规则。中文、emoji 前缀和私有下划线
+真实 legacy schema 的恢复不会放宽 Eidos File identifier 规则。中文、emoji 前缀和私有下划线
 field column 会得到稳定的 ASCII target column，原列名保留在 field 与 mapping metadata。
 缺少正文 row 的 tree document 会生成明确的 Markdown 占位文件。指向已删除 table 的
-reference 会保留在 plan/report 中并跳过安装，避免破坏 Base foreign key。未知 field type
+reference 会保留在 plan/report 中并跳过安装，避免破坏 Eidos File foreign key。未知 field type
 保留 source type metadata，并按 text 保存当前值。依赖旧 SQLite UDF 的 virtual generated
 column 会保留 formula metadata，但不会伪造 materialized value。
 
 迁移现在会在 planning 与 export 使用同一套 derived-field compatibility strategy。
-可以由 Base 安全编译的 Formula 会迁移成没有物理列的 query-time derived field；旧 Lookup
-会按原有 `GROUP_CONCAT` 语义转换为 `values` aggregate，并通过标准 Base relation/lookup
-metadata 实时读取目标字段。源字段或目标记录修改后会立即重算，关闭并重新打开 `.base`
+可以由 Eidos File 安全编译的 Formula 会迁移成没有物理列的 query-time derived field；旧 Lookup
+会按原有 `GROUP_CONCAT` 语义转换为 `values` aggregate，并通过标准 Eidos File relation/lookup
+metadata 实时读取目标字段。源字段或目标记录修改后会立即重算，关闭并重新打开 `.eidos`
 后行为保持一致。缺少依赖、循环依赖、旧 UDF、无法解析的 relation 和以派生字段为目标的
 Lookup 会在 plan/report 给出逐字段 warning，并继续保留旧 materialized value，避免为了
 “看起来迁移成功”而丢失数据。
 
 只读审计覆盖 42 个注册 legacy entries：29 个仍存在 source database 的 Space 全部可以生成
 无阻塞 plan；另外 13 个注册项的 source path 已不存在。三个有代表性的真实导出全部通过
-document、Base、row、field、view、reference 和 asset 校验：
+document、Eidos File、row、field、view、reference 和 asset 校验：
 
 | 验收规模 | Documents | Tables | Rows      | Assets | Export time |
 | -------- | --------- | ------ | --------- | ------ | ----------- |
@@ -60,7 +60,7 @@ migration。
 
 ## 摘要
 
-本 RFC 定义从当前隐藏数据库式 Eidos Space 迁移到 file-based Markdown + Base 模型的策略。
+本 RFC 定义从当前隐藏数据库式 Eidos Space 迁移到 file-based Markdown + Eidos File 模型的策略。
 
 当前模型：
 
@@ -73,7 +73,7 @@ migration。
 
 ```txt
 *.md                  Markdown documents
-*.base                structured data
+*.eidos                structured data
 assets/**             user assets
 .eidos/extensions/**  extension source
 .eidos/cache/**       private/generated state
@@ -87,7 +87,7 @@ assets/**             user assets
 
 - 保留用户内容。
 - 将旧文档转换为 Markdown 文件。
-- 将旧表格转换为 `.base` 文件。
+- 将旧表格转换为 `.eidos` 文件。
 - 尽可能将 managed files 转成 Space assets。
 - 生成 migration report。
 - 允许用户在提交前预览。
@@ -132,7 +132,7 @@ my-space/
   notes/
     project.md
     ideas.md
-  tasks.base
+  tasks.eidos
   assets/
     image.png
   .eidos/
@@ -144,7 +144,7 @@ my-space/
 Canonical 用户内容：
 
 - `.md`，
-- `.base`，
+- `.eidos`，
 - assets。
 
 私有/生成态：
@@ -176,7 +176,7 @@ Canonical 用户内容：
 
 ### 混合模式
 
-保留 legacy `.eidos/db.sqlite3`，同时逐步添加 `.base` 文件。
+保留 legacy `.eidos/db.sqlite3`，同时逐步添加 `.eidos` 文件。
 
 适合开发期，但不应该成为最终产品叙事。
 
@@ -208,7 +208,7 @@ eidos__tree
 开放问题：
 
 - 如何序列化非 Markdown 的 Lexical nodes，
-- 如何表示嵌入表格/Base references，
+- 如何表示嵌入表格/Eidos File references，
 - 是否在 frontmatter 中保留 document IDs。
 
 ### 表格
@@ -226,7 +226,7 @@ eidos__tree table nodes
 目标：
 
 ```txt
-*.base
+*.eidos
 ```
 
 规则：
@@ -241,14 +241,14 @@ eidos__tree table nodes
 
 导出策略：
 
-- 一个 `main.base` 包含所有表，
-- 每个 top-level table group 一个 `.base`，
+- 一个 `main.eidos` 包含所有表，
+- 每个 top-level table group 一个 `.eidos`，
 - 用户选择分组。
 
 推荐 v1：
 
 ```txt
-main.base
+main.eidos
 ```
 
 因为它更容易保留 tables 之间的 links/lookups。
@@ -288,7 +288,7 @@ eidos__tree
 目标：
 
 - 文档对应 folders 和 Markdown file paths，
-- 表格对应 Base 内 `eidos__tables` rows，
+- 表格对应 Eidos File 内 `eidos__tables` rows，
 - 可选 UI metadata 放在 `.eidos/`。
 
 Legacy tree 不应该成为 canonical Space tree。
@@ -330,8 +330,8 @@ Report 应包含：
 在标记迁移成功之前：
 
 - 所有导出的 Markdown 文件存在，
-- 所有导出的 Base 文件通过 Base metadata validation，
-- Base tables 可以打开，
+- 所有导出的 Eidos File 文件通过 Eidos File metadata validation，
+- Eidos File tables 可以打开，
 - row counts 匹配，
 - field counts 匹配，
 - view counts 匹配，
@@ -351,7 +351,7 @@ Report 应包含：
 Initial commit 应包含：
 
 - Markdown 文件，
-- Base 文件，
+- Eidos File 文件，
 - assets，
 - 被选择的稳定配置文件。
 
@@ -378,7 +378,7 @@ In-place mode 在 restore 被测试前不应该发布。
 
 ## 开放问题
 
-1. v1 应该把所有 tables 导出到 `main.base`，还是询问用户？
+1. v1 应该把所有 tables 导出到 `main.eidos`，还是询问用户？
 2. Lexical-only blocks 应该如何序列化为 Markdown？
 3. `eidos__chats` 和 `eidos__messages` 是否可以导出为 Markdown transcripts？
 4. 旧 graft history 应该保留，还是迁移后的 Space 从新 initial commit 开始？
@@ -401,7 +401,7 @@ Output：
 ```txt
 migrated-Space/
   notes/doc.md
-  main.base
+  main.eidos
   assets/logo.png
   .eidos/migration/.../report.md
 ```
@@ -409,7 +409,7 @@ migrated-Space/
 这个 slice 应该证明：
 
 - document 导出为 Markdown，
-- table 导出为 Base，
+- table 导出为 Eidos File，
 - asset 被复制，
 - file field path 被改写，
 - report 包含 mappings 和 warnings，

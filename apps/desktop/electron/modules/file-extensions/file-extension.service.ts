@@ -11,7 +11,7 @@ import {
 import {
   canonicalExtensionPackagePath,
   createExtensionCommandTemplate,
-  createExtensionBaseViewTemplate,
+  createExtensionEidosFileViewTemplate,
   createExtensionPanelTemplate,
   createExtensionTextEditorTemplate,
   type ExtensionDiagnostic,
@@ -69,7 +69,7 @@ import {
 } from "./runtime/file-extension-runtime-manager"
 import type {
   FileExtensionChangedEvent,
-  FileExtensionBaseViewSummary,
+  FileExtensionEidosFileViewSummary,
   FileExtensionConfirmLegacyPortingRequest,
   FileExtensionDevelopmentChangedEvent,
   FileExtensionDevelopmentDiagnostic,
@@ -89,8 +89,8 @@ import type {
   FileExtensionInstallResult,
   FileExtensionOpenEditorRequest,
   FileExtensionOpenEditorResult,
-  FileExtensionOpenBaseViewRequest,
-  FileExtensionOpenBaseViewResult,
+  FileExtensionOpenEidosFileViewRequest,
+  FileExtensionOpenEidosFileViewResult,
   FileExtensionOpenPanelRequest,
   FileExtensionOpenPanelResult,
   FileExtensionPanelSummary,
@@ -176,7 +176,7 @@ interface PreparedFileExtensionPanel {
   title: string
 }
 
-interface PreparedFileExtensionBaseView {
+interface PreparedFileExtensionEidosFileView {
   generation: string
   source: string
 }
@@ -414,7 +414,7 @@ export class FileExtensionService extends IpcServiceBase {
         request.sessionId,
         request.viewId
       )
-    } else if (request.surfaceKind === "base-view") {
+    } else if (request.surfaceKind === "eidos-file-view") {
       assertExtensionSnapshotIdentity(request)
       const localState = await this.requireCurrentEnabledSnapshot(
         spaceId,
@@ -872,10 +872,10 @@ export class FileExtensionService extends IpcServiceBase {
   }
 
   @IpcMethod()
-  async listBaseViews(
+  async listEidosFileViews(
     spaceId: string,
     resourcePath: string
-  ): Promise<FileExtensionBaseViewSummary[]> {
+  ): Promise<FileExtensionEidosFileViewSummary[]> {
     const relativePath = this.canonicalPublicSpacePath(resourcePath)
     const discovery = await this.discover(spaceId)
     return discovery.packages
@@ -896,10 +896,10 @@ export class FileExtensionService extends IpcServiceBase {
           contentDigest: extension.contentDigest,
           permissionHash: extension.permissionHash,
         }
-        return (extension.manifest.contributes.baseViews ?? []).map(
-          (baseView) => ({
+        return (extension.manifest.contributes.eidosFileViews ?? []).map(
+          (eidosFileView) => ({
             ...snapshot,
-            ...baseView,
+            ...eidosFileView,
             extensionDisplayName: extension.manifest!.displayName,
           })
         )
@@ -912,18 +912,18 @@ export class FileExtensionService extends IpcServiceBase {
   }
 
   @IpcMethod()
-  async openBaseView(
+  async openEidosFileView(
     spaceId: string,
-    request: FileExtensionOpenBaseViewRequest
-  ): Promise<FileExtensionOpenBaseViewResult> {
+    request: FileExtensionOpenEidosFileViewRequest
+  ): Promise<FileExtensionOpenEidosFileViewResult> {
     const space = this.getFileSpace(spaceId)
     assertExtensionSnapshotIdentity(request)
     if (
-      typeof request.baseViewId !== "string" ||
-      !request.baseViewId ||
-      request.baseViewId.length > 256
+      typeof request.eidosFileViewId !== "string" ||
+      !request.eidosFileViewId ||
+      request.eidosFileViewId.length > 256
     ) {
-      throw new Error("A valid extension Base view ID is required")
+      throw new Error("A valid extension Eidos File view ID is required")
     }
     const relativePath = this.canonicalPublicSpacePath(request.path)
     const watcher = await this.startWatching(spaceId)
@@ -934,16 +934,16 @@ export class FileExtensionService extends IpcServiceBase {
       )
     }
     return withFileSpaceReadLock(spaceId, async () => {
-      const prepared = await this.prepareBaseView(
+      const prepared = await this.prepareEidosFileView(
         spaceId,
         space.path,
         request,
-        request.baseViewId,
+        request.eidosFileViewId,
         relativePath
       )
       return {
         packageId: request.packageId,
-        baseViewId: request.baseViewId,
+        eidosFileViewId: request.eidosFileViewId,
         generation: prepared.generation,
         source: prepared.source,
       }
@@ -1240,8 +1240,8 @@ export class FileExtensionService extends IpcServiceBase {
             })
           : normalized.template === "panel"
             ? createExtensionPanelTemplate(common)
-            : normalized.template === "base-view"
-              ? createExtensionBaseViewTemplate(common)
+            : normalized.template === "eidos-file-view"
+              ? createExtensionEidosFileViewTemplate(common)
               : createExtensionCommandTemplate(common)
       return writeExtensionTemplate(space.path, template)
     })
@@ -1442,10 +1442,10 @@ export class FileExtensionService extends IpcServiceBase {
       request.template !== "command" &&
       request.template !== "panel" &&
       request.template !== "text-editor" &&
-      request.template !== "base-view"
+      request.template !== "eidos-file-view"
     ) {
       throw new Error(
-        "Extension template must be command, panel, text-editor, or base-view"
+        "Extension template must be command, panel, text-editor, or eidos-file-view"
       )
     }
     return {
@@ -2316,13 +2316,13 @@ export class FileExtensionService extends IpcServiceBase {
     }
   }
 
-  private async prepareBaseView(
+  private async prepareEidosFileView(
     spaceId: string,
     spacePath: string,
     snapshot: ExtensionSnapshotIdentity,
-    baseViewId: string,
+    eidosFileViewId: string,
     relativePath: string
-  ): Promise<PreparedFileExtensionBaseView> {
+  ): Promise<PreparedFileExtensionEidosFileView> {
     const paths = await resolveExtensionProjectPaths(spacePath)
     if (!paths.extensionsRoot) {
       throw new Error("Extension package is no longer installed")
@@ -2340,16 +2340,16 @@ export class FileExtensionService extends IpcServiceBase {
     ) {
       throw new FileExtensionRuntimeError(
         "RUNTIME_STALE",
-        "Extension package changed before its Base view could open"
+        "Extension package changed before its Eidos File view could open"
       )
     }
-    const contribution = (inspection.manifest.contributes.baseViews ?? []).find(
-      (candidate) => candidate.id === baseViewId
-    )
+    const contribution = (
+      inspection.manifest.contributes.eidosFileViews ?? []
+    ).find((candidate) => candidate.id === eidosFileViewId)
     if (!contribution) {
       throw new FileExtensionRuntimeError(
         "CAPABILITY_DENIED",
-        "Extension Base view is not declared by this package"
+        "Extension Eidos File view is not declared by this package"
       )
     }
     let localState = await this.requireCurrentEnabledSnapshot(

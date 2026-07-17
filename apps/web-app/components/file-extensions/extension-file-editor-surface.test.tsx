@@ -262,7 +262,7 @@ describe("ExtensionFileEditorSurface", () => {
       type: "apply-edits",
       requestId: "edit-1",
       documentId: openedEditor.snapshot.documentId,
-      baseRevision: 1,
+      eidosFileRevision: 1,
       edits: [{ start: 3, end: 4, text: "x" }],
     }
     await act(async () => {

@@ -121,7 +121,7 @@ export function FileSpaceSearch() {
   )
   const contextualBaseName = contextualSectionsById
     ? Object.values(contextualSectionsById).find((section) =>
-        section.items.some((item) => item.kind === "base-table")
+        section.items.some((item) => item.kind === "eidos-file-table")
       )?.inputHint
     : undefined
 

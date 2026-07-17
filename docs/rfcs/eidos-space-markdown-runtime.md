@@ -5,8 +5,8 @@ Date: 2026-07-08
 Owner: Eidos
 Related:
 
-- `eidos-space-base-storage.md`
-- `eidos-base-file-format.md`
+- `eidos-file-storage.md`
+- `eidos-file-format.md`
 
 ## Implementation Status (2026-07-13)
 
@@ -22,7 +22,7 @@ Implemented:
 - a rebuildable search/link/tag/backlink index persisted at
   `.eidos/indexes/markdown.sqlite3`,
 - indexed quick open, editor wiki-link completion, outline, and backlinks UI.
-- built-in Base, Markdown, image, audio, video, and PDF openers, plus a bounded
+- built-in Eidos File, Markdown, image, audio, video, and PDF openers, plus a bounded
   read-only text fallback for files without a dedicated opener; binary files
   are detected without sending their bytes to the renderer.
 
@@ -73,7 +73,7 @@ The target model:
 - `.md` files are read and written directly.
 - `eidos__docs` is not the canonical Markdown body store in Space mode.
 - `.eidos/` stores generated indexes, caches, sessions, and local UI state.
-- `.base` files provide structured data inside the same Space.
+- `.eidos` files provide structured data inside the same Space.
 
 This lets Eidos open Obsidian vaults as Spaces without importing the user's documents into a hidden primary database.
 
@@ -99,7 +99,7 @@ Eidos can add better editing, tables, views, search, agents, and versioning. It 
 - This RFC does not define the full Markdown parser/editor implementation.
 - This RFC does not require compatibility with every Obsidian plugin.
 - This RFC does not require all old Eidos documents to migrate immediately.
-- This RFC does not define Base internals.
+- This RFC does not define Eidos File internals.
 
 ## Runtime Boundaries
 
@@ -119,12 +119,12 @@ Markdown runtime:
   edits and saves Markdown
   emits file-change events
 
-Base runtime:
-  opens .base SQLite files
+Eidos File runtime:
+  opens .eidos SQLite files
   manages tables/fields/views/rows
 ```
 
-The Markdown runtime should not require `DataSpaceWithTable`. The Base runtime should not require the Markdown document tree.
+The Markdown runtime should not require `DataSpaceWithTable`. The Eidos File runtime should not require the Markdown document tree.
 
 ## File Tree
 
@@ -135,7 +135,7 @@ Example:
 ```txt
 my-space/
   notes/project.md
-  tasks.base
+  tasks.eidos
   assets/image.png
   .obsidian/
   .eidos/
@@ -150,7 +150,7 @@ Default tree behavior:
 - expose `.eidos/extensions/**` through the Extensions product view rather than the normal document tree,
 - optionally show `.obsidian/` depending on user settings,
 - recognize `.md` as documents,
-- recognize `.base` as Eidos Base files.
+- recognize `.eidos` documents as Eidos Files.
 
 `eidos__tree` may continue to exist for legacy spaces or app-internal metadata, but it should not be the canonical Space file tree.
 
@@ -217,7 +217,7 @@ Open questions:
 
 - How much wiki-link syntax should be supported in v1?
 - Should Eidos normalize links when files are renamed?
-- Should links to Base tables/rows use custom URI syntax or Markdown links?
+- Should links to Eidos File tables/rows use custom URI syntax or Markdown links?
 
 ## Attachments
 
@@ -242,7 +242,7 @@ When opening an Obsidian vault as a Space, Eidos should:
 - not import documents into `eidos__docs` as canonical state,
 - add `.eidos/` only for private Eidos state,
 - add `.graft/` only when versioning is enabled,
-- add `.base` files only when the user creates structured data.
+- add `.eidos` files only when the user creates structured data.
 
 `.obsidian/workspace*.json` should usually be treated as local UI state, not shared user content.
 
@@ -271,7 +271,7 @@ Eidos should watch the Space for file changes:
 - file rename,
 - file delete,
 - asset updates,
-- Base file updates.
+- Eidos File updates.
 
 The watcher should update indexes and UI state, not silently import files into a hidden document table.
 
@@ -301,7 +301,7 @@ const Space = await eidos.openSpace(path)
 const doc = await Space.openMarkdown("notes/project.md")
 await doc.save(markdown)
 
-const base = await Space.openBase("tasks.base")
+const base = await Space.openEidosFile("tasks.eidos")
 await base.schema.createTable(...)
 ```
 
@@ -310,7 +310,7 @@ Compatibility APIs may route to a default Space/base during transition, but new 
 ## Open Questions
 
 1. Should Eidos create stable document IDs in frontmatter by default?
-2. How should Eidos represent links from Markdown to Base tables or rows?
+2. How should Eidos represent links from Markdown to Eidos File tables or rows?
 3. Should `.obsidian/` be visible in the file tree by default?
 4. Should the Markdown editor preserve formatting byte-for-byte where possible?
 5. Which generated indexes are required for a good first version?

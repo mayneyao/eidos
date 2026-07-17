@@ -1,7 +1,7 @@
 import type {
   ExtensionSurfaceAppearance,
-  ExtensionBaseViewContextSnapshot,
-  ExtensionBasePageResultSuccess,
+  ExtensionEidosFileViewContextSnapshot,
+  ExtensionEidosFilePageResultSuccess,
   ExtensionSurfaceCapabilities,
   ExtensionJsonValue,
   ExtensionSurfaceSaveStateMessage,
@@ -156,30 +156,30 @@ export type ExtensionPanelActivate = (
   context: ExtensionPanelContext
 ) => void | ExtensionDisposable | Promise<void | ExtensionDisposable>
 
-export interface ExtensionBaseViewData {
-  readonly context: ExtensionBaseViewContextSnapshot
+export interface ExtensionEidosFileViewData {
+  readonly context: ExtensionEidosFileViewContextSnapshot
   getPage(options?: {
     offset?: number
     limit?: number
-  }): Promise<ExtensionBasePageResultSuccess["page"]>
+  }): Promise<ExtensionEidosFilePageResultSuccess["page"]>
   onDidChangeContext(
-    listener: (context: ExtensionBaseViewContextSnapshot) => void
+    listener: (context: ExtensionEidosFileViewContextSnapshot) => void
   ): ExtensionDisposable
 }
 
-export interface ExtensionBaseViewContext {
+export interface ExtensionEidosFileViewContext {
   readonly extensionId: string
-  /** A namespaced ID declared in `contributes.baseViews`. */
-  readonly baseViewId: string
-  /** The saved view ID inside the current `.base` file. */
+  /** A namespaced ID declared in `contributes.eidosFileViews`. */
+  readonly eidosFileViewId: string
+  /** The saved view ID inside the current `.eidos` file. */
   readonly viewId: string
   /** The only host-provided DOM mount point. */
   readonly root: HTMLElement
-  readonly base: ExtensionBaseViewData
+  readonly eidosFile: ExtensionEidosFileViewData
   readonly appearance: ExtensionFileEditorAppearance
   readonly subscriptions: ExtensionSubscriptionStore
 }
 
-export type ExtensionBaseViewActivate = (
-  context: ExtensionBaseViewContext
+export type ExtensionEidosFileViewActivate = (
+  context: ExtensionEidosFileViewContext
 ) => void | ExtensionDisposable | Promise<void | ExtensionDisposable>

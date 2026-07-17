@@ -1,12 +1,12 @@
-# RFC: Migration From Legacy Eidos Spaces to Space/Base
+# RFC: Migration From Legacy Eidos Spaces to Space/Eidos File
 
 Status: Draft, real-Space export acceptance passed
 Date: 2026-07-08
 Owner: Eidos
 Related:
 
-- `eidos-space-base-storage.md`
-- `eidos-base-file-format.md`
+- `eidos-file-storage.md`
+- `eidos-file-format.md`
 - `eidos-space-markdown-runtime.md`
 - `eidos-graft-space-versioning.md`
 
@@ -14,15 +14,15 @@ Related:
 
 The standalone `@eidos.space/legacy-space-migration` package now implements the
 export-mode vertical slice without depending on Eidos core. A pure planning API
-produces deterministic Markdown, Base, and asset mappings plus explicit errors
+produces deterministic Markdown, Eidos File, and asset mappings plus explicit errors
 and warnings. Its optional `better-sqlite3` entry opens the legacy database in
 read-only/query-only mode, fingerprints the database, WAL, and asset inventory,
 and refuses to export a stale plan.
 
 The exporter writes Markdown (including current document properties), one
-`main.base`, visible assets, Lexical/property recovery sidecars, `report.md`, and
-`mapping.json` into a sibling staging directory. It preserves Base field/view/
-reference metadata and historical row values through the public Base import
+`main.eidos`, visible assets, Lexical/property recovery sidecars, `report.md`, and
+`mapping.json` into a sibling staging directory. It preserves Eidos File field/view/
+reference metadata and historical row values through the public Eidos File import
 boundary, rewrites file references, validates document/table/row/field/view/
 reference/asset counts, and only then atomically installs an empty target. It
 never overwrites a non-empty target and rejects asset symlinks.
@@ -33,12 +33,12 @@ counts and blocking issues, follow export progress, reveal the result, or
 register and open the new file Space. The renderer only receives a plan token;
 it cannot alter the server-side mapping before execution.
 
-Real legacy schemas are recovered without weakening Base identifier rules.
+Real legacy schemas are recovered without weakening Eidos File identifier rules.
 Unicode, emoji-prefixed, and private underscore field columns receive stable
 ASCII target columns while their source names remain in field and mapping
 metadata. Missing document rows become explicit placeholder Markdown files.
 References to deleted tables are retained in the plan/report and skipped rather
-than violating Base foreign keys. Unsupported field types retain their source
+than violating Eidos File foreign keys. Unsupported field types retain their source
 type metadata and current values as text. Virtual generated columns that depend
 on unavailable legacy SQLite UDFs retain formula metadata but have no fabricated
 materialized value.
@@ -46,7 +46,7 @@ materialized value.
 The read-only audit covered 42 registered legacy entries: all 29 entries whose
 source database still exists now produce non-blocking plans; the other 13 point
 to missing source paths. Three representative exports passed every document,
-Base, row, field, view, reference, and asset validation:
+Eidos File, row, field, view, reference, and asset validation:
 
 | Acceptance shape | Documents | Tables | Rows      | Assets | Export time |
 | ---------------- | --------- | ------ | --------- | ------ | ----------- |
@@ -61,7 +61,7 @@ Silent and in-place migration are still not planned for the first release.
 
 ## Summary
 
-This RFC defines a migration strategy from the current hidden-database Eidos Space model to the file-based Markdown + Base model.
+This RFC defines a migration strategy from the current hidden-database Eidos Space model to the file-based Markdown + Eidos File model.
 
 Current model:
 
@@ -74,7 +74,7 @@ Target model:
 
 ```txt
 *.md                  Markdown documents
-*.base                structured data
+*.eidos                structured data
 assets/**             user assets
 .eidos/extensions/**  extension source
 .eidos/cache/**       private/generated state
@@ -88,7 +88,7 @@ Migration should be export-based first, reversible, and explicit. It should not 
 
 - Preserve user content.
 - Convert old documents to Markdown files.
-- Convert old tables to `.base` files.
+- Convert old tables to `.eidos` files.
 - Convert managed files into Space assets where possible.
 - Keep a migration report.
 - Allow users to preview before committing.
@@ -133,7 +133,7 @@ my-space/
   notes/
     project.md
     ideas.md
-  tasks.base
+  tasks.eidos
   assets/
     image.png
   .eidos/
@@ -145,7 +145,7 @@ my-space/
 Canonical user content:
 
 - `.md`,
-- `.base`,
+- `.eidos`,
 - assets.
 
 Private/generated:
@@ -177,7 +177,7 @@ Should come later and require explicit confirmation.
 
 ### Hybrid Mode
 
-Keep legacy `.eidos/db.sqlite3` while adding `.base` files gradually.
+Keep legacy `.eidos/db.sqlite3` while adding `.eidos` files gradually.
 
 Useful during development, but should not be the final product story.
 
@@ -209,7 +209,7 @@ Rules:
 Open questions:
 
 - how to serialize non-Markdown Lexical nodes,
-- how to represent embedded tables/Base references,
+- how to represent embedded tables/Eidos File references,
 - whether document IDs should be preserved in frontmatter.
 
 ### Tables
@@ -227,7 +227,7 @@ eidos__tree table nodes
 Target:
 
 ```txt
-*.base
+*.eidos
 ```
 
 Rules:
@@ -242,14 +242,14 @@ Rules:
 
 Export strategies:
 
-- one `main.base` containing all tables,
-- one `.base` per top-level table group,
+- one `main.eidos` containing all tables,
+- one `.eidos` per top-level table group,
 - user-selected grouping.
 
 Recommended v1:
 
 ```txt
-main.base
+main.eidos
 ```
 
 because it preserves links/lookups between tables more easily.
@@ -289,7 +289,7 @@ eidos__tree
 Target:
 
 - folders and Markdown file paths for documents,
-- `eidos__tables` rows for Base tables,
+- `eidos__tables` rows for Eidos File tables,
 - optional UI metadata under `.eidos/`.
 
 The legacy tree should not become the canonical Space tree.
@@ -331,8 +331,8 @@ Report should include:
 Before marking migration successful:
 
 - all exported Markdown files exist,
-- all exported Base files pass Base metadata validation,
-- Base tables can be opened,
+- all exported Eidos Files pass Eidos File metadata validation,
+- Eidos File tables can be opened,
 - row counts match,
 - field counts match,
 - view counts match,
@@ -352,7 +352,7 @@ Default Space tracking should ignore private `.eidos` runtime subtrees, track us
 The initial commit should include:
 
 - Markdown files,
-- Base files,
+- Eidos Files,
 - assets,
 - selected stable config files.
 
@@ -379,7 +379,7 @@ In-place mode should not ship until restore has been tested.
 
 ## Open Questions
 
-1. Should v1 export all tables into `main.base` or ask the user?
+1. Should v1 export all tables into `main.eidos` or ask the user?
 2. How should Lexical-only blocks be serialized to Markdown?
 3. Should `eidos__chats` and `eidos__messages` be exportable as Markdown transcripts?
 4. Should old graft history be preserved or should migrated Spaces start with a new initial commit?
@@ -402,7 +402,7 @@ Output:
 ```txt
 migrated-Space/
   notes/doc.md
-  main.base
+  main.eidos
   assets/logo.png
   .eidos/migration/.../report.md
 ```
@@ -410,7 +410,7 @@ migrated-Space/
 The slice should prove:
 
 - document exports to Markdown,
-- table exports to Base,
+- table exports to Eidos File,
 - asset is copied,
 - file field path is rewritten,
 - report includes mappings and warnings,

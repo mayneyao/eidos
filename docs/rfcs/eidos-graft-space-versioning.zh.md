@@ -5,8 +5,8 @@
 负责人：Eidos
 相关文档：
 
-- `eidos-space-base-storage.zh.md`
-- `eidos-base-file-format.zh.md`
+- `eidos-file-storage.zh.md`
+- `eidos-file-format.zh.md`
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-file-based-extensions.zh.md`
 
@@ -31,7 +31,7 @@ Fjall lock 都是 process-scoped，每个活跃 repository 现在运行在隔离
 也不会把 Graft lock 留在 Electron main process。UI 已提供 Changes 与 Staged Changes、
 path/directory stage/unstage/discard、文本 Diff tabs、commit history、path restore
 和 whole-Space restore，并隐藏私有 `.eidos` runtime paths。
-Changes 与历史 inspector 也已通过 path-scoped Graft row details，将 `.base` path
+Changes 与历史 inspector 也已通过 path-scoped Graft row details，将 `.eidos` path
 展开成紧凑的 table/column/row operations。
 
 原生 Electron acceptance 现已覆盖：点击 Changes 打开独立文本 Diff tab、path 与
@@ -58,9 +58,9 @@ worktree。
 up-to-date。已有但没有 Eidos markers 的 `.graftignore` 保持用户所有，打开或 merge
 remote repository 不再产生无关本地修改。
 
-双 Space 原生 Base 验收现在也已覆盖同一 SQLite row 的分叉修改：点击冲突 `.base` path
-会打开 row-aware Diff tab；Resolve 会打开独立、非模态的审阅 tab，按 Base、Current、
-Incoming 展示字段值。接受 incoming row 后只 stage 该 Base path，Create version 生成双
+双 Space 原生 Eidos File 验收现在也已覆盖同一 SQLite row 的分叉修改：点击冲突 `.eidos` path
+会打开 row-aware Diff tab；Resolve 会打开独立、非模态的审阅 tab，按 Eidos File、Current、
+Incoming 展示字段值。接受 incoming row 后只 stage 该 Eidos File path，Create version 生成双
 parent merge，Push 后 remote 指向 merge head，Space 回到 clean 且 up-to-date。schema 和
 opaque SQLite conflicts 仍明确降级为 whole-file 选择。
 
@@ -70,12 +70,12 @@ opaque SQLite conflicts 仍明确降级为 whole-file 选择。
 - History 从 Changes 打开为独立内容 tab，不作为 sidebar mode，
 - 主 sidebar modes 保持 Files 和 Version，不规划 Logs mode，
 - remote synchronization 使用显式 Pull/Push，而不是隐式 autosync，
-- conflicts 继续在 Changes 中 path-first 展示；受支持的 Base row conflict 会在不改变
+- conflicts 继续在 Changes 中 path-first 展示；受支持的 Eidos File row conflict 会在不改变
   remote protocol 的前提下打开结构化审阅 tab。
 
 ## 摘要
 
-本 RFC 定义当一个 Space 包含 Markdown 文件、Base 文件、普通资源文件，以及 `.eidos/extensions/**` 这类 Eidos 命名空间下的项目文件时，Eidos 应该如何使用 graft。
+本 RFC 定义当一个 Space 包含 Markdown 文件、Eidos File 文件、普通资源文件，以及 `.eidos/extensions/**` 这类 Eidos 命名空间下的项目文件时，Eidos 应该如何使用 graft。
 
 目标模型：
 
@@ -83,7 +83,7 @@ opaque SQLite conflicts 仍明确降级为 whole-file 选择。
 - Graft 管理用户可见的 Space 资产和选定的 Eidos 项目文件。
 - 私有 `.eidos` 运行时子目录默认忽略。
 - Markdown 和普通文件是 file-level changes。
-- `.base` 文件是 SQLite-backed paths，可以展开为 table-level changes。
+- `.eidos` 文件是 SQLite-backed paths，可以展开为 table-level changes。
 - `.eidos/extensions/**` 源码文件是普通被追踪文件。
 - Eidos 将 graft status 展示为路径树，而不是内部 `.eidos/db.sqlite3` 变更。
 
@@ -98,11 +98,11 @@ opaque SQLite conflicts 仍明确降级为 whole-file 选择。
 ## 目标
 
 - 使用 graft 作为 Space root 的版本管理层。
-- 追踪 Markdown、Base 文件和用户资源文件。
+- 追踪 Markdown、Eidos File 文件和用户资源文件。
 - 追踪用户/空间扩展源码文件。
 - 默认忽略 `.graft/` 和私有 `.eidos` 运行时子目录。
 - 先展示 path-level status。
-- 将 `.base` 文件展开成 table/schema/view changes。
+- 将 `.eidos` 文件展开成 table/schema/view changes。
 - 在普通 Eidos 流程中不要求用户手动 `graft add`。
 
 ## 非目标
@@ -119,7 +119,7 @@ opaque SQLite conflicts 仍明确降级为 whole-file 选择。
 ```txt
 my-space/
   notes/project.md
-  tasks.base
+  tasks.eidos
   .eidos/extensions/kanban-view/index.tsx
   assets/image.png
   .obsidian/
@@ -156,7 +156,7 @@ ignore:
 
 - 它符合 Space 心智。
 - 它不要求用户为每个新资源做分类。
-- 它自然包含 Markdown、`.base`、图片、PDF 和其它用户文件，同时显式包含 `.eidos/extensions/**` 这类 Eidos 命名空间下的项目源码。
+- 它自然包含 Markdown、`.eidos`、图片、PDF 和其它用户文件，同时显式包含 `.eidos/extensions/**` 这类 Eidos 命名空间下的项目源码。
 
 Eidos 可以暴露高级设置支持更严格的追踪，但默认应该容易理解：
 
@@ -182,7 +182,7 @@ Graft status 应该展示 changed paths：
 
 ```txt
 notes/project.md
-tasks.base
+tasks.eidos
 .eidos/extensions/kanban-view/index.tsx
 assets/image.png
 ```
@@ -198,18 +198,18 @@ storage: inline | external
 
 Eidos UI 可以把 paths 组织成类似 VS Code 的树。
 
-## Base 展开
+## Eidos File 展开
 
-`.base` 文件首先作为一个路径展示：
+`.eidos` 文件首先作为一个路径展示：
 
 ```txt
-tasks.base
+tasks.eidos
 ```
 
 展开后：
 
 ```txt
-tasks.base
+tasks.eidos
   Tasks table       +3 ~1
   Projects table    +1
   Views metadata    ~2
@@ -224,7 +224,7 @@ eidos__tables       table registry changes
 eidos__columns      field/schema changes
 eidos__views        view changes
 eidos__references   relation/dependency changes
-eidos__meta         Base metadata changes
+eidos__meta         Eidos File metadata changes
 ```
 
 Generated tables 应该单独归类为 diagnostics，或默认隐藏。
@@ -248,7 +248,7 @@ Commit
 高级行为：
 
 - 用户可以在 commit 前排除 paths，
-- 用户可以在 commit 前检查 `.base` 内部变更，
+- 用户可以在 commit 前检查 `.eidos` 内部变更，
 - 未来可以支持只 commit 选中的 paths。
 
 ## 文件存储策略
@@ -259,7 +259,7 @@ Graft 可以按文件类型和大小选择存储策略。
 
 - text files 可以 inline，
 - binary files 可以使用 external payload storage，
-- `.base` 文件是 SQLite，应该使用 SQLite-aware storage/diff，
+- `.eidos` 文件是 SQLite，应该使用 SQLite-aware storage/diff，
 - 扩展源码文件是 text files，可以 inline，
 - images/assets 可以使用 external payload storage。
 
@@ -271,7 +271,7 @@ Graft 可以按文件类型和大小选择存储策略。
 
 ```txt
 notes/project.md
-tasks.base
+tasks.eidos
 assets/image.png
 ```
 
@@ -283,7 +283,7 @@ Markdown：
 
 - 选择 ours/theirs 或 keep both。
 
-`.base`：
+`.eidos`：
 
 - 尽可能展示 table-level conflicts，
 - graft 支持时允许 row-level conflict resolution，
@@ -294,7 +294,7 @@ Markdown：
 Graft remote sync 应同步：
 
 - tracked Markdown files，
-- tracked Base files，
+- tracked Eidos Files，
 - tracked extension source files，
 - tracked assets，
 - 这些文件所需的 external payloads。
@@ -315,7 +315,7 @@ Changes UI 应展示：
 - changed path count，
 - path tree，
 - 只在有帮助时显示 file type badges，
-- `.base` 可展开内部变更，
+- `.eidos` 可展开内部变更，
 - 默认隐藏 ignored/private state，
 - refresh action，
 - commit message 和 commit button。
@@ -362,15 +362,15 @@ Agent conversation 是每 Space、默认关闭的例外。用户明确同意后�
 ```txt
 sample-space/
   note.md
-  tasks.base
+  tasks.eidos
   assets/image.png
   .eidos/sessions/session.jsonl
 ```
 
 这个 slice 应该证明：
 
-- graft status 显示 `note.md`、`tasks.base` 和 `assets/image.png`，
+- graft status 显示 `note.md`、`tasks.eidos` 和 `assets/image.png`，
 - graft status 不显示 `.eidos/sessions/session.jsonl`，
 - commit 不需要手动 add，
-- 展开 `tasks.base` 可以看到 table-level changes，
+- 展开 `tasks.eidos` 可以看到 table-level changes，
 - commit 可以 push 和 clone，并带上所需 payloads。

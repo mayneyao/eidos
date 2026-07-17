@@ -104,7 +104,7 @@ function parseMetadata(extension: LegacyExtension): ParsedLegacyMetadata {
   }
 }
 
-function baseManualSteps(candidate: "command" | "file-editor"): string[] {
+function eidosFileManualSteps(candidate: "command" | "file-editor"): string[] {
   const template = candidate === "file-editor" ? "text-editor" : candidate
   return [
     `Create a new ${template} package with the file-based extension developer tools.`,
@@ -203,7 +203,7 @@ export function assessLegacyExtensionPortability(
       sourceState: source,
       legacyFileExtensions: metadata.fileExtensions,
       summary: `Legacy ${metadata.contribution} can be redesigned as a v1 command, but its runtime code and context contract require manual review.`,
-      manualSteps: baseManualSteps("command"),
+      manualSteps: eidosFileManualSteps("command"),
     }
   }
 
@@ -218,7 +218,7 @@ export function assessLegacyExtensionPortability(
       legacyFileExtensions: metadata.fileExtensions,
       summary:
         "Legacy fileHandler can be redesigned as a v1 file editor, but its UI bridge and file selectors require manual review.",
-      manualSteps: baseManualSteps("file-editor"),
+      manualSteps: eidosFileManualSteps("file-editor"),
     }
   }
 

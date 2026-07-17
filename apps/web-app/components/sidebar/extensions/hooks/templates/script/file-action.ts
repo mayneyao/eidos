@@ -18,9 +18,11 @@ export async function copyFile(
     const pathParts = filePath.split("/")
     const fileName = pathParts[pathParts.length - 1]
     const fileExt = fileName.includes(".") ? fileName.split(".").pop() : ""
-    const baseName = fileExt ? fileName.slice(0, -fileExt.length - 1) : fileName
+    const eidosFileName = fileExt
+      ? fileName.slice(0, -fileExt.length - 1)
+      : fileName
 
-    const newFileName = `${baseName}_copy${fileExt ? "." + fileExt : ""}`
+    const newFileName = `${eidosFileName}_copy${fileExt ? "." + fileExt : ""}`
     pathParts[pathParts.length - 1] = newFileName
     const newFilePath = pathParts.join("/")
 

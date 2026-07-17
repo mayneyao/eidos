@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os"
 import path from "node:path"
 import Database from "better-sqlite3"
-import { openBaseFile } from "@eidos.space/base/better-sqlite3"
+import { openEidosFile } from "@eidos.space/eidos-file/better-sqlite3"
 
 import {
   exportLegacyExtensionArchive,
@@ -376,7 +376,7 @@ describe("legacy Space migration planning", () => {
     expect(plan.tables).toEqual([
       expect.objectContaining({
         id: "tasks",
-        targetBasePath: "main.base",
+        targetEidosFilePath: "main.eidos",
         rowCount: 1,
         fieldCount: 3,
         viewCount: 1,
@@ -654,7 +654,7 @@ describe("legacy Space migration planning", () => {
       readFileSync(path.join(targetRoot, "notes", "Missing body.md"), "utf8")
     ).toContain("no document body was present")
 
-    const base = openBaseFile(path.join(targetRoot, "main.base"), {
+    const base = openEidosFile(path.join(targetRoot, "main.eidos"), {
       readonly: true,
     })
     const row = base.listRows("tasks")[0]
@@ -688,7 +688,7 @@ describe("legacy Space migration planning", () => {
     base.close()
   })
 
-  it("promotes compatible legacy formulas and lookups to live Base fields", async () => {
+  it("promotes compatible legacy formulas and lookups to live Eidos File fields", async () => {
     const fixture = createLegacyFixture()
     roots.push(fixture.sourceRoot)
     const database = new Database(fixture.databasePath)
@@ -766,8 +766,8 @@ describe("legacy Space migration planning", () => {
     ).toEqual([])
 
     await exportLegacySpace(plan, { migrationId: "derived-export" })
-    const filePath = path.join(targetRoot, "main.base")
-    const base = openBaseFile(filePath)
+    const filePath = path.join(targetRoot, "main.eidos")
+    const base = openEidosFile(filePath)
     expect(base.listFields("tasks")).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -805,7 +805,7 @@ describe("legacy Space migration planning", () => {
     expect(base.listRows("tasks")[0].owner_name).toBe('["Bob"]')
     base.close()
 
-    const reopened = openBaseFile(filePath, { readonly: true })
+    const reopened = openEidosFile(filePath, { readonly: true })
     expect(reopened.listRows("tasks")[0]).toMatchObject({
       upper_title: "LAUNCH",
       owner_name: '["Bob"]',
@@ -833,7 +833,7 @@ describe("legacy Space migration planning", () => {
     ])
   })
 
-  it("exports Markdown, Base rows, assets, recovery data, and reports atomically", async () => {
+  it("exports Markdown, Eidos File rows, assets, recovery data, and reports atomically", async () => {
     const fixture = createLegacyFixture()
     roots.push(fixture.sourceRoot)
     const targetParent = mkdtempSync(
@@ -869,7 +869,7 @@ describe("legacy Space migration planning", () => {
       archivedExtensionCount: 2,
       recoveredLexicalDocumentCount: 1,
       validation: {
-        baseValid: true,
+        eidosFileValid: true,
         documentCountMatches: true,
         tableCountMatches: true,
         rowCountMatches: true,
@@ -1031,7 +1031,7 @@ describe("legacy Space migration planning", () => {
       },
     })
 
-    const base = openBaseFile(path.join(targetRoot, "main.base"), {
+    const base = openEidosFile(path.join(targetRoot, "main.eidos"), {
       readonly: true,
     })
     expect(base.listTables()).toMatchObject([{ id: "tasks", name: "Tasks" }])

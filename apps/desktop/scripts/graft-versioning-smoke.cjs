@@ -880,7 +880,7 @@ function runRestoreConflictSmoke() {
       "commit",
       "--json",
       "-m",
-      "Base conflict note",
+      "Eidos File conflict note",
     ])
     runGraftJson(cliPath, root, ["branch", "--json", "feature/restore"])
     runGraftJson(cliPath, root, ["switch", "--json", "feature/restore"])

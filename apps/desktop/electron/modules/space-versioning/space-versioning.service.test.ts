@@ -31,10 +31,10 @@ describe("SpaceVersioningService file notifications", () => {
       pullRemote: vi.fn().mockResolvedValue({ operation: "pull" }),
       resolveConflict: vi.fn().mockResolvedValue({ path: "notes/today.md" }),
       discardPath: vi.fn().mockResolvedValue({ path: "projects" }),
-      restorePath: vi.fn().mockResolvedValue({ path: "records/tasks.base" }),
+      restorePath: vi.fn().mockResolvedValue({ path: "records/tasks.eidos" }),
       restoreVersion: vi
         .fn()
-        .mockResolvedValue({ restoredPaths: ["records/tasks.base"] }),
+        .mockResolvedValue({ restoredPaths: ["records/tasks.eidos"] }),
     } as unknown as SpaceVersioningCoordinator
     const windowProvider = {
       getWindow: () => ({ webContents: { send } }),
@@ -54,7 +54,7 @@ describe("SpaceVersioningService file notifications", () => {
     })
     await service.restorePath("space-a", {
       revision: "commit-1",
-      path: "records/tasks.base",
+      path: "records/tasks.eidos",
       expectedHead: "head-1",
     })
     await service.restoreVersion("space-a", {
@@ -88,7 +88,7 @@ describe("SpaceVersioningService file notifications", () => {
         {
           spaceId: "space-a",
           eventType: "rescan",
-          path: "records/tasks.base",
+          path: "records/tasks.eidos",
         },
       ],
       [

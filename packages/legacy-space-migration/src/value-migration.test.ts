@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  baseSelectPropertyFromLegacy,
+  eidosFileSelectPropertyFromLegacy,
   legacySelectValueMap,
   migrateLegacySelectValue,
   migrateLegacyStringArray,
 } from "./value-migration"
 
-describe("legacy Base value migration", () => {
+describe("legacy Eidos File value migration", () => {
   const property = {
     options: [
       { id: "status_1", name: "In progress", color: "blue" },
@@ -17,7 +17,7 @@ describe("legacy Base value migration", () => {
   }
 
   it("replaces legacy option IDs and names with one canonical value", () => {
-    expect(baseSelectPropertyFromLegacy(property)).toEqual({
+    expect(eidosFileSelectPropertyFromLegacy(property)).toEqual({
       options: [
         { value: "In progress", color: "blue" },
         { value: "Done", color: "default" },

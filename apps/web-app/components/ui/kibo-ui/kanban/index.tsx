@@ -1,1 +1,1 @@
-export * from "@eidos.space/base-ui/ui/kanban"
+export * from "@eidos.space/eidos-file-ui/ui/kanban"

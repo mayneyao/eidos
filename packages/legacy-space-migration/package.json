@@ -38,7 +38,7 @@
   "author": "mayneyao",
   "license": "AGPL-3.0",
   "dependencies": {
-    "@eidos.space/base": "workspace:*",
+    "@eidos.space/eidos-file": "workspace:*",
     "@eidos.space/extension-manifest": "workspace:*",
     "yaml": "^2.8.1"
   },

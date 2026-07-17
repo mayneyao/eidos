@@ -42,7 +42,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
 
-import { BaseDiffView } from "./base-diff-view"
+import { EidosFileDiffView } from "./eidos-file-diff-view"
 
 import {
   STATUS_META,
@@ -161,7 +161,7 @@ function BaseContentDetails({
       <div className="flex min-h-24 items-center justify-center text-muted-foreground">
         <LoaderCircle
           className="h-4 w-4 animate-spin"
-          aria-label="Loading Base changes"
+          aria-label="Loading Eidos File changes"
         />
       </div>
     )
@@ -177,11 +177,11 @@ function BaseContentDetails({
   if (!file) {
     return (
       <p className="px-3 py-3 text-xs leading-5 text-muted-foreground">
-        Base row changes were not returned for this path.
+        Eidos File row changes were not returned for this path.
       </p>
     )
   }
-  return <BaseDiffView file={file} />
+  return <EidosFileDiffView file={file} />
 }
 
 function pathsOverlap(left: string, right: string): boolean {
@@ -201,7 +201,7 @@ function ChangeDetails({
   content,
   contentLoading,
   contentError,
-  baseDiff,
+  eidosFileDiff,
   baseLoading,
   baseError,
 }: {
@@ -213,7 +213,7 @@ function ChangeDetails({
   content: SpaceVersionTextContentDiff | null
   contentLoading: boolean
   contentError: string | null
-  baseDiff: SpaceVersionSqliteFileDiff | null
+  eidosFileDiff: SpaceVersionSqliteFileDiff | null
   baseLoading: boolean
   baseError: string | null
 }) {
@@ -322,8 +322,8 @@ function ChangeDetails({
         />
       ) : pathChange.kind === "sqlite_database" && selectedPath ? (
         <BaseContentDetails
-          file={baseDiff}
-          loading={baseLoading || (!baseDiff && !baseError)}
+          file={eidosFileDiff}
+          loading={baseLoading || (!eidosFileDiff && !baseError)}
           error={baseError}
         />
       ) : null}
@@ -354,9 +354,8 @@ export function CommitInspector({
     useState<SpaceVersionTextContentDiff | null>(null)
   const [contentLoading, setContentLoading] = useState(false)
   const [contentError, setContentError] = useState<string | null>(null)
-  const [baseDiff, setBaseDiff] = useState<SpaceVersionSqliteFileDiff | null>(
-    null
-  )
+  const [eidosFileDiff, setEidosFileDiff] =
+    useState<SpaceVersionSqliteFileDiff | null>(null)
   const [baseLoading, setBaseLoading] = useState(false)
   const [baseError, setBaseError] = useState<string | null>(null)
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false)
@@ -376,7 +375,7 @@ export function CommitInspector({
     setContentDiff(null)
     setContentLoading(false)
     setContentError(null)
-    setBaseDiff(null)
+    setEidosFileDiff(null)
     setBaseLoading(false)
     setBaseError(null)
     setDetailError(null)
@@ -458,7 +457,7 @@ export function CommitInspector({
     setContentDiff(null)
     setContentError(null)
     setContentLoading(false)
-    setBaseDiff(null)
+    setEidosFileDiff(null)
     setBaseError(null)
     setBaseLoading(false)
     if (
@@ -510,13 +509,15 @@ export function CommitInspector({
           setContentDiff(detailResult.content)
           return
         }
-        const nextBaseDiff = detailResult.sqliteFiles.find(
+        const nextEidosFileDiff = detailResult.sqliteFiles.find(
           (file) => file.path === selectedPath
         )
-        if (!nextBaseDiff) {
-          throw new Error("Graft returned no Base row changes for this path")
+        if (!nextEidosFileDiff) {
+          throw new Error(
+            "Graft returned no Eidos File row changes for this path"
+          )
         }
-        setBaseDiff(nextBaseDiff)
+        setEidosFileDiff(nextEidosFileDiff)
       })
       .catch((loadError) => {
         if (!cancelled) {
@@ -951,7 +952,7 @@ export function CommitInspector({
               content={contentDiff?.path === selectedPath ? contentDiff : null}
               contentLoading={contentLoading}
               contentError={contentError}
-              baseDiff={baseDiff}
+              eidosFileDiff={eidosFileDiff}
               baseLoading={baseLoading}
               baseError={baseError}
             />

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { EIDOS_FILE_EXTENSION } from "@eidos.space/eidos-file"
 import {
   Columns2,
   ExternalLink,
@@ -13,7 +14,7 @@ import { useLocation } from "react-router-dom"
 import { cn } from "@/lib/utils"
 import { toSpaceFileUrl } from "@/apps/web-app/components/file-space/file-path"
 import { useTabContext } from "@/apps/web-app/components/tab-manager/tab-context"
-import { BaseDiffView } from "@/apps/web-app/components/file-space/versioning/base-diff-view"
+import { EidosFileDiffView } from "@/apps/web-app/components/file-space/versioning/eidos-file-diff-view"
 import {
   STATUS_META,
   shortCommitId,
@@ -166,9 +167,8 @@ export function SpaceVersionDiffPage() {
   const [content, setContent] = useState<SpaceVersionTextContentDiff | null>(
     null
   )
-  const [baseDiff, setBaseDiff] = useState<SpaceVersionSqliteFileDiff | null>(
-    null
-  )
+  const [eidosFileDiff, setEidosFileDiff] =
+    useState<SpaceVersionSqliteFileDiff | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [style, setStyle] = useState<DiffStyle>("split")
@@ -192,7 +192,7 @@ export function SpaceVersionDiffPage() {
     setMetadata(null)
     setChange(null)
     setContent(null)
-    setBaseDiff(null)
+    setEidosFileDiff(null)
     if (!repositoryPath) return
 
     setLoading(true)
@@ -209,19 +209,19 @@ export function SpaceVersionDiffPage() {
           .split(".")
           .pop()
           ?.toLowerCase()
+        const isEidosFile = extension === EIDOS_FILE_EXTENSION.slice(1)
         const nextChange: SpaceVersionPathChange = {
           path: repositoryPath,
           change: "added",
-          kind:
-            extension === "base"
-              ? "sqlite_database"
-              : extension && TEXT_EXTENSIONS.has(extension)
-                ? "text_file"
-                : "unknown",
-          storage: extension === "base" ? "sqlite_snapshot" : "inline",
+          kind: isEidosFile
+            ? "sqlite_database"
+            : extension && TEXT_EXTENSIONS.has(extension)
+              ? "text_file"
+              : "unknown",
+          storage: isEidosFile ? "sqlite_snapshot" : "inline",
         }
         let nextContent: SpaceVersionTextContentDiff | null = null
-        let nextBaseDiff: SpaceVersionSqliteFileDiff | null = null
+        let nextEidosFileDiff: SpaceVersionSqliteFileDiff | null = null
         if (nextChange.kind === "text_file") {
           const file = await readText(repositoryPath)
           nextContent = {
@@ -245,7 +245,7 @@ export function SpaceVersionDiffPage() {
                   },
           }
         } else if (nextChange.kind === "sqlite_database") {
-          nextBaseDiff = {
+          nextEidosFileDiff = {
             path: repositoryPath,
             change: "added",
             kind: "sqlite_database",
@@ -255,7 +255,7 @@ export function SpaceVersionDiffPage() {
             capabilities: [],
             limitations: [],
             message:
-              "Include this Base in the next version to make table-level history available.",
+              "Include this Eidos File in the next version to make table-level history available.",
             tables: [],
             opaqueChanges: [],
           }
@@ -273,7 +273,7 @@ export function SpaceVersionDiffPage() {
         setMetadata(nextMetadata)
         setChange(nextChange)
         setContent(nextContent)
-        setBaseDiff(nextBaseDiff)
+        setEidosFileDiff(nextEidosFileDiff)
         return
       }
 
@@ -305,7 +305,7 @@ export function SpaceVersionDiffPage() {
           includeRows: true,
         })
         if (requestId !== requestRef.current) return
-        setBaseDiff(
+        setEidosFileDiff(
           rowDiff.sqliteFiles.find((file) => file.path === repositoryPath) ??
             null
         )
@@ -475,12 +475,12 @@ export function SpaceVersionDiffPage() {
           description="This file now matches the current version. You can close this diff tab."
         />
       ) : change.kind === "sqlite_database" ? (
-        baseDiff ? (
-          <BaseDiffView file={baseDiff} className="min-h-0 flex-1" />
+        eidosFileDiff ? (
+          <EidosFileDiffView file={eidosFileDiff} className="min-h-0 flex-1" />
         ) : (
           <DiffEmptyState
-            title="Base details unavailable"
-            description="Graft returned the Base file change without table-level details. Refresh to try again."
+            title="Eidos File details unavailable"
+            description="Graft returned the Eidos File change without table-level details. Refresh to try again."
           />
         )
       ) : change.kind !== "text_file" ? (

@@ -18,7 +18,7 @@ describe("matchesFileExtensionMenuWhen", () => {
       matchesFileExtensionMenuWhen("resourceExtname == .md", markdownFile)
     ).toBe(true)
     expect(
-      matchesFileExtensionMenuWhen("resourceExtname == .base", markdownFile)
+      matchesFileExtensionMenuWhen("resourceExtname == .eidos", markdownFile)
     ).toBe(false)
   })
 

@@ -12,13 +12,13 @@ import {
   writeFile,
 } from "node:fs/promises"
 import path from "node:path"
-import type { BaseRow } from "@eidos.space/base"
-import { normalizeBaseFilter } from "@eidos.space/base"
+import type { EidosFileRow } from "@eidos.space/eidos-file"
+import { normalizeEidosFileFilter } from "@eidos.space/eidos-file"
 import {
-  createBaseFile,
-  inspectBaseFile,
-  openBaseFile,
-} from "@eidos.space/base/better-sqlite3"
+  createEidosFile,
+  inspectEidosFile,
+  openEidosFile,
+} from "@eidos.space/eidos-file/better-sqlite3"
 import { calculateLegacyExtensionArchiveDigest } from "@eidos.space/extension-manifest"
 import Database from "better-sqlite3"
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml"
@@ -29,7 +29,7 @@ import {
   type LegacyExtensionPortabilityAssessment,
 } from "./extension-portability"
 import {
-  baseFieldTypeForLegacyField,
+  eidosFileFieldTypeForLegacyField,
   buildLegacyFieldImportStrategies,
   fieldColumnMap,
   legacyFieldStrategyKey,
@@ -179,9 +179,9 @@ function mergeDocumentProperties(
 }
 
 function rewriteFileValue(
-  value: BaseRow[string],
+  value: EidosFileRow[string],
   lookup: Map<string, string>
-): BaseRow[string] {
+): EidosFileRow[string] {
   return migrateLegacyStringArray(value, (entry) =>
     rewriteAssetReference(entry, lookup)
   )
@@ -322,7 +322,7 @@ function serializeReport(result: LegacySpaceMigrationResult): string {
 
 ## Validation
 
-- Base valid: ${result.validation.baseValid ? "yes" : "no"}
+- Eidos File valid: ${result.validation.eidosFileValid ? "yes" : "no"}
 - Document count matches: ${result.validation.documentCountMatches ? "yes" : "no"}
 - Table count matches: ${result.validation.tableCountMatches ? "yes" : "no"}
 - Row count matches: ${result.validation.rowCountMatches ? "yes" : "no"}
@@ -682,7 +682,7 @@ function* tableRowBatches(
   rawTableName: string,
   batchSize: number,
   unreadableColumns: ReadonlySet<string>
-): Generator<BaseRow[]> {
+): Generator<EidosFileRow[]> {
   const quoted = `"${rawTableName.replace(/"/g, '""')}"`
   const physicalColumnRows = database
     .prepare(`PRAGMA table_xinfo(${quoted})`)
@@ -710,7 +710,7 @@ function* tableRowBatches(
       .raw(true)
     for (let offset = 0; ; offset += batchSize) {
       const values = statement.all(batchSize, offset) as Array<
-        Array<BaseRow[string]>
+        Array<EidosFileRow[string]>
       >
       if (values.length === 0) return
       yield values.map((record) =>
@@ -720,7 +720,7 @@ function* tableRowBatches(
             record[index],
           ])
         )
-      ) as BaseRow[]
+      ) as EidosFileRow[]
     }
   }
   const rowIdIdentifier = ["rowid", "_rowid_", "oid"].find(
@@ -747,7 +747,7 @@ function* tableRowBatches(
       afterRowId === null
         ? firstStatement.all(batchSize)
         : nextStatement.all(afterRowId, batchSize)
-    ) as Array<Array<BaseRow[string] | bigint>>
+    ) as Array<Array<EidosFileRow[string] | bigint>>
     if (values.length === 0) return
     yield values.map((record) =>
       Object.fromEntries(
@@ -756,7 +756,7 @@ function* tableRowBatches(
           record[index + 1],
         ])
       )
-    ) as BaseRow[]
+    ) as EidosFileRow[]
     const rowId = values[values.length - 1][0]
     if (typeof rowId !== "number" && typeof rowId !== "bigint") {
       throw new Error(`Legacy table ${rawTableName} returned an invalid rowid`)
@@ -828,7 +828,7 @@ export async function exportLegacySpace(
   let exportedRowCount = 0
   let exportedFieldCount = 0
   let exportedViewCount = 0
-  let baseRuntime: ReturnType<typeof createBaseFile> | null = null
+  let eidosFileRuntime: ReturnType<typeof createEidosFile> | null = null
   let sourceDatabase: Database.Database | null = null
   try {
     for (const [index, document] of plan.documents.entries()) {
@@ -891,9 +891,12 @@ export async function exportLegacySpace(
       })
     }
 
-    const baseOutputPath = resolveOutputPath(stagingRoot, plan.basePath)
-    await mkdir(path.dirname(baseOutputPath), { recursive: true })
-    baseRuntime = createBaseFile(baseOutputPath, {
+    const eidosFileOutputPath = resolveOutputPath(
+      stagingRoot,
+      plan.eidosFilePath
+    )
+    await mkdir(path.dirname(eidosFileOutputPath), { recursive: true })
+    eidosFileRuntime = createEidosFile(eidosFileOutputPath, {
       title: path.basename(sourceRoot),
     })
     sourceDatabase = new Database(plan.sourceDatabasePath, {
@@ -909,7 +912,7 @@ export async function exportLegacySpace(
           `Legacy table disappeared after planning: ${plannedTable.id}`
         )
       }
-      baseRuntime.createTable({
+      eidosFileRuntime.createTable({
         id: sourceTable.id,
         name: sourceTable.name,
         icon: sourceTable.icon ?? undefined,
@@ -917,7 +920,7 @@ export async function exportLegacySpace(
       })
       const columnMap = fieldColumnMap(plannedTable)
       for (const field of sourceTable.fields) {
-        const type = baseFieldTypeForLegacyField(field)
+        const type = eidosFileFieldTypeForLegacyField(field)
         const strategy = fieldStrategies.get(
           legacyFieldStrategyKey(sourceTable.id, field.columnName)
         )
@@ -932,7 +935,7 @@ export async function exportLegacySpace(
             `Migration plan is missing field mapping for ${sourceTable.rawTableName}.${field.columnName}`
           )
         }
-        baseRuntime.importField(sourceTable.id, {
+        eidosFileRuntime.importField(sourceTable.id, {
           name: field.name,
           columnName: targetColumnName,
           type,
@@ -952,7 +955,7 @@ export async function exportLegacySpace(
         exportedFieldCount += 1
       }
       for (const view of sourceTable.views) {
-        baseRuntime.createView(sourceTable.id, {
+        eidosFileRuntime.createView(sourceTable.id, {
           id: view.id,
           name: view.name,
           type: view.type,
@@ -961,7 +964,7 @@ export async function exportLegacySpace(
             string,
             unknown
           > | null,
-          filter: normalizeBaseFilter(
+          filter: normalizeEidosFileFilter(
             remapFieldMetadata(view.filter, columnMap)
           ),
           orderMap: remapFieldMetadata(view.orderMap, columnMap) as Record<
@@ -1024,7 +1027,7 @@ export async function exportLegacySpace(
               columnMap.get(columnName) ?? columnName,
               value,
             ])
-          ) as BaseRow
+          ) as EidosFileRow
           for (const field of migratedValueFields) {
             const value = rewritten[field.columnName]
             if (field.type === "file") {
@@ -1048,7 +1051,7 @@ export async function exportLegacySpace(
           }
           return rewritten
         })
-        baseRuntime.insertImportedRows(sourceTable.id, rewrittenRows)
+        eidosFileRuntime.insertImportedRows(sourceTable.id, rewrittenRows)
         exportedRowCount += rewrittenRows.length
         await new Promise<void>((resolve) => setImmediate(resolve))
       }
@@ -1056,7 +1059,7 @@ export async function exportLegacySpace(
         phase: "tables",
         completed: tableIndex + 1,
         total: plan.tables.length,
-        currentPath: `${plan.basePath}#${sourceTable.id}`,
+        currentPath: `${plan.eidosFilePath}#${sourceTable.id}`,
       })
     }
     for (const selfPlan of plan.tables) {
@@ -1066,9 +1069,11 @@ export async function exportLegacySpace(
         const refPlan = plan.tables.find((table) => table.id === refTableId)
         const linkPlan = plan.tables.find((table) => table.id === linkTableId)
         if (!refPlan || !linkPlan) {
-          throw new Error("Migration plan is missing a referenced Base table")
+          throw new Error(
+            "Migration plan is missing a referenced Eidos File table"
+          )
         }
-        baseRuntime.createReference({
+        eidosFileRuntime.createReference({
           selfTableId: selfPlan.id,
           selfColumnName:
             fieldColumnMap(selfPlan).get(reference.selfColumnName) ??
@@ -1087,8 +1092,8 @@ export async function exportLegacySpace(
     sourceDatabase.exec("COMMIT")
     sourceDatabase.close()
     sourceDatabase = null
-    baseRuntime.close()
-    baseRuntime = null
+    eidosFileRuntime.close()
+    eidosFileRuntime = null
 
     const snapshotAssets = new Map(
       snapshot.assets.map((asset) => [asset.id, asset])
@@ -1140,11 +1145,13 @@ export async function exportLegacySpace(
     }
 
     emitProgress(options, { phase: "validating", completed: 0, total: 1 })
-    const baseInspection = inspectBaseFile(baseOutputPath)
-    const validationBase = openBaseFile(baseOutputPath, { readonly: true })
-    const outputTables = validationBase.listTables()
+    const eidosFileInspection = inspectEidosFile(eidosFileOutputPath)
+    const validationEidosFile = openEidosFile(eidosFileOutputPath, {
+      readonly: true,
+    })
+    const outputTables = validationEidosFile.listTables()
     const actualRowCount = outputTables.reduce(
-      (count, table) => count + validationBase.countRows(table.id),
+      (count, table) => count + validationEidosFile.countRows(table.id),
       0
     )
     const expectedFields = snapshot.tables.flatMap((table) =>
@@ -1154,21 +1161,21 @@ export async function exportLegacySpace(
     )
     const outputFields = new Set(
       outputTables.flatMap((table) =>
-        validationBase
+        validationEidosFile
           .listFields(table.id)
           .map((field) => `${table.id}.${field.tableColumnName}`)
       )
     )
     const actualViewCount = outputTables.reduce(
-      (count, table) => count + validationBase.listViews(table.id).length,
+      (count, table) => count + validationEidosFile.listViews(table.id).length,
       0
     )
     const actualReferenceCount = Number(
-      validationBase.connection.get<{ count: number | bigint }>(
+      validationEidosFile.connection.get<{ count: number | bigint }>(
         "SELECT COUNT(*) AS count FROM eidos__references"
       )?.count ?? 0
     )
-    validationBase.close()
+    validationEidosFile.close()
     const copiedAssetsExist = (
       await Promise.all(
         plan.assets
@@ -1203,7 +1210,7 @@ export async function exportLegacySpace(
       )
     ).every(Boolean)
     const validation = {
-      baseValid: baseInspection.valid,
+      eidosFileValid: eidosFileInspection.valid,
       documentCountMatches:
         exportedDocumentCount === plan.summary.documentCount,
       tableCountMatches: outputTables.length === plan.summary.tableCount,
@@ -1279,7 +1286,7 @@ export async function exportLegacySpace(
     return result
   } catch (error) {
     sourceDatabase?.close()
-    baseRuntime?.close()
+    eidosFileRuntime?.close()
     await rm(stagingRoot, { recursive: true, force: true })
     throw error
   }

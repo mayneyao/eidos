@@ -560,7 +560,7 @@ describe("SpaceVersioningCoordinator conflicts", () => {
         return statusPayload(
           [
             {
-              path: "tasks.base",
+              path: "tasks.eidos",
               kind: "sqlite_database",
               storage: "sqlite_snapshot",
               index_status: "unmerged",
@@ -578,7 +578,7 @@ describe("SpaceVersioningCoordinator conflicts", () => {
       if (args[0] === "resolve") {
         return {
           operation: "resolve_conflict",
-          path: "tasks.base",
+          path: "tasks.eidos",
           resolution: "ours",
           remaining_conflicts: 1,
         }
@@ -588,7 +588,7 @@ describe("SpaceVersioningCoordinator conflicts", () => {
     const coordinator = createCoordinator(root, runJson)
 
     await coordinator.resolveConflict("space-a", {
-      path: "tasks.base",
+      path: "tasks.eidos",
       resolution: "ours",
       expectedHead: "head-2",
       target: { table: "tb_tasks", rowId: 7 },
@@ -596,7 +596,7 @@ describe("SpaceVersioningCoordinator conflicts", () => {
 
     expect(runJson).toHaveBeenCalledWith(
       await fs.realpath(root),
-      ["resolve", "--json", "--ours", "--row", "tb_tasks", "7", "tasks.base"],
+      ["resolve", "--json", "--ours", "--row", "tb_tasks", "7", "tasks.eidos"],
       { timeoutMs: 120_000 }
     )
   })
@@ -834,7 +834,7 @@ describe("SpaceVersioningCoordinator.getDiff", () => {
     )
   })
 
-  it("requests row-level SQLite changes for one Base path", async () => {
+  it("requests row-level SQLite changes for one Eidos File path", async () => {
     const root = await createSpace()
     const runJson = vi.fn(async () => ({
       current_head: "head-2",
@@ -843,7 +843,7 @@ describe("SpaceVersioningCoordinator.getDiff", () => {
       to: "head-2",
       paths: [
         {
-          path: "tasks.base",
+          path: "tasks.eidos",
           change: "modified",
           kind: "sqlite_database",
           storage: "sqlite_snapshot",
@@ -851,7 +851,7 @@ describe("SpaceVersioningCoordinator.getDiff", () => {
       ],
       files: [
         {
-          path: "tasks.base",
+          path: "tasks.eidos",
           change: "modified",
           kind: "sqlite_database",
           storage: "sqlite_snapshot",
@@ -866,14 +866,14 @@ describe("SpaceVersioningCoordinator.getDiff", () => {
     const result = await coordinator.getDiff("space-a", {
       from: "head-1",
       to: "head-2",
-      path: "tasks.base",
+      path: "tasks.eidos",
       includeRows: true,
     })
 
     expect(result.sqliteFiles).toHaveLength(1)
     expect(runJson).toHaveBeenCalledWith(
       await fs.realpath(root),
-      ["diff", "--json", "--rows", "head-1", "head-2", "--", "tasks.base"],
+      ["diff", "--json", "--rows", "head-1", "head-2", "--", "tasks.eidos"],
       { maxBufferBytes: 16 * 1024 * 1024 }
     )
   })

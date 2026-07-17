@@ -96,9 +96,9 @@
           "type": "array",
           "items": { "$ref": "#/$defs/panel" }
         },
-        "baseViews": {
+        "eidosFileViews": {
           "type": "array",
-          "items": { "$ref": "#/$defs/baseView" }
+          "items": { "$ref": "#/$defs/eidosFileView" }
         }
       }
     },
@@ -216,7 +216,7 @@
         }
       }
     },
-    "baseView": {
+    "eidosFileView": {
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "displayName"],

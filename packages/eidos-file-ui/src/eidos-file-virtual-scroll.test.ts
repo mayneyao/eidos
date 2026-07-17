@@ -1,0 +1,155 @@
+import type { Virtualizer } from "@tanstack/react-virtual"
+import { describe, expect, it, vi } from "vitest"
+
+import {
+  EIDOS_FILE_VIRTUAL_SCROLL_MAX_SIZE,
+  EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS,
+  eidosFileVirtualItemOffset,
+  eidosFileVirtualLogicalOffset,
+  eidosFileVirtualPhysicalOffset,
+  eidosFileVirtualPhysicalSize,
+  eidosFileVirtualWindowForOffset,
+  resetEidosFileVirtualizerMeasurements,
+} from "./eidos-file-virtual-scroll"
+
+describe("base virtual scroll geometry", () => {
+  it("keeps ordinary scroll geometry unchanged", () => {
+    expect(eidosFileVirtualPhysicalSize(10_000)).toBe(10_000)
+    expect(eidosFileVirtualLogicalOffset(2_500, 10_000, 500)).toBe(2_500)
+    expect(eidosFileVirtualPhysicalOffset(2_500, 10_000, 500)).toBe(2_500)
+    expect(eidosFileVirtualItemOffset(3_000, 2_500, 10_000, 500)).toBe(3_000)
+  })
+
+  it("caps million-record spacers below Chromium's layout limit", () => {
+    expect(eidosFileVirtualPhysicalSize(220_000_000)).toBe(
+      EIDOS_FILE_VIRTUAL_SCROLL_MAX_SIZE
+    )
+    expect(EIDOS_FILE_VIRTUAL_SCROLL_MAX_SIZE).toBeLessThan(16_777_215)
+  })
+
+  it("maps both endpoints and the midpoint across a compressed range", () => {
+    const logicalSize = 220_000_000
+    const viewportSize = 640
+    const physicalMax = EIDOS_FILE_VIRTUAL_SCROLL_MAX_SIZE - viewportSize
+    const logicalMax = logicalSize - viewportSize
+
+    expect(eidosFileVirtualLogicalOffset(0, logicalSize, viewportSize)).toBe(0)
+    expect(
+      eidosFileVirtualLogicalOffset(physicalMax, logicalSize, viewportSize)
+    ).toBe(logicalMax)
+    expect(eidosFileVirtualPhysicalOffset(0, logicalSize, viewportSize)).toBe(0)
+    expect(
+      eidosFileVirtualPhysicalOffset(logicalMax, logicalSize, viewportSize)
+    ).toBe(physicalMax)
+
+    const physicalMiddle = physicalMax / 2
+    const logicalMiddle = eidosFileVirtualLogicalOffset(
+      physicalMiddle,
+      logicalSize,
+      viewportSize
+    )
+    expect(logicalMiddle).toBeCloseTo(logicalMax / 2, 4)
+    expect(
+      eidosFileVirtualPhysicalOffset(logicalMiddle, logicalSize, viewportSize)
+    ).toBeCloseTo(physicalMiddle, 4)
+  })
+
+  it("keeps rendered items at their full local spacing while compressed", () => {
+    const logicalSize = 220_000_000
+    const viewportSize = 640
+    const physicalOffset =
+      (EIDOS_FILE_VIRTUAL_SCROLL_MAX_SIZE - viewportSize) / 2
+    const logicalOffset = eidosFileVirtualLogicalOffset(
+      physicalOffset,
+      logicalSize,
+      viewportSize
+    )
+
+    expect(
+      eidosFileVirtualItemOffset(
+        logicalOffset,
+        physicalOffset,
+        logicalSize,
+        viewportSize
+      )
+    ).toBeCloseTo(physicalOffset, 4)
+    expect(
+      eidosFileVirtualItemOffset(
+        logicalOffset + 220,
+        physicalOffset,
+        logicalSize,
+        viewportSize
+      )
+    ).toBeCloseTo(physicalOffset + 220, 4)
+  })
+
+  it("bounds TanStack measurements while retaining global positions", () => {
+    expect(EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS).toBeLessThanOrEqual(2_048)
+
+    expect(eidosFileVirtualWindowForOffset(2_000, 220, 220_000)).toEqual({
+      start: 0,
+      count: 2_000,
+    })
+
+    const middle = eidosFileVirtualWindowForOffset(1_000_000, 220, 110_000_000)
+    expect(middle.count).toBe(EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS)
+    expect(middle.start).toBeGreaterThan(0)
+    expect(middle.start).toBeLessThan(500_000)
+    expect(500_000 - middle.start).toBeLessThan(
+      EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS
+    )
+
+    expect(
+      eidosFileVirtualWindowForOffset(1_000_000, 220, 220_000_000)
+    ).toEqual({
+      start: 1_000_000 - EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS,
+      count: EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS,
+    })
+  })
+
+  it("retains most measurements when the bounded window advances", () => {
+    const before = eidosFileVirtualWindowForOffset(
+      1_000_000,
+      220,
+      (EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS - 1) * 220
+    )
+    const after = eidosFileVirtualWindowForOffset(
+      1_000_000,
+      220,
+      EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS * 220
+    )
+    const overlap =
+      Math.min(before.start + before.count, after.start + after.count) -
+      Math.max(before.start, after.start)
+
+    expect(after.start).toBeGreaterThan(before.start)
+    expect(overlap).toBeGreaterThanOrEqual(
+      EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS * 0.75
+    )
+  })
+
+  it("clears old dynamic sizes and remeasures only the mounted window", () => {
+    const scrollElement = document.createElement("div")
+    const first = document.createElement("div")
+    const second = document.createElement("div")
+    const unrelated = document.createElement("div")
+    first.dataset.eidosFileVirtualIndex = "3"
+    second.dataset.eidosFileVirtualIndex = "4"
+    scrollElement.append(first, unrelated, second)
+    const measure = vi.fn()
+    const measureElement = vi.fn()
+    const virtualizer = {
+      measure,
+      measureElement,
+      scrollElement,
+    } as unknown as Virtualizer<HTMLDivElement, HTMLDivElement>
+
+    resetEidosFileVirtualizerMeasurements(virtualizer)
+
+    expect(measure).toHaveBeenCalledOnce()
+    expect(measureElement.mock.calls).toEqual([[first], [second]])
+    expect(measure.mock.invocationCallOrder[0]).toBeLessThan(
+      measureElement.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+    )
+  })
+})

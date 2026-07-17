@@ -5,8 +5,8 @@ Date: 2026-07-08
 Owner: Eidos
 Related:
 
-- `eidos-space-base-storage.md`
-- `eidos-base-file-format.md`
+- `eidos-file-storage.md`
+- `eidos-file-format.md`
 - `eidos-space-markdown-runtime.md`
 - `eidos-file-based-extensions.md`
 
@@ -37,7 +37,7 @@ keeps repeated status/diff operations fast without retaining repository locks
 in Electron's main process. The UI provides Changes and Staged Changes, path and
 directory stage/unstage/discard, text Diff tabs, commit history, path restore,
 and whole-Space restore. Private `.eidos` runtime paths are hidden.
-Working Changes and historical inspectors also expand `.base` paths into
+Working Changes and historical inspectors also expand `.eidos` paths into
 compact table/column/row operations through path-scoped Graft row details.
 
 Native Electron acceptance now covers a Changes click opening a dedicated text
@@ -68,10 +68,10 @@ up-to-date status. Existing unmarked `.graftignore` files remain user-owned, so
 opening or merging a remote repository no longer creates an unrelated local
 change.
 
-Native two-Space Base acceptance now covers a divergent update to the same
-SQLite row. Clicking the conflicted `.base` path opens a row-aware Diff tab;
-Resolve opens a dedicated non-modal review tab with Base, Current, and Incoming
-values. Accepting the incoming row stages only that Base path, Create version
+Native two-Space Eidos File acceptance now covers a divergent update to the same
+SQLite row. Clicking the conflicted `.eidos` path opens a row-aware Diff tab;
+Resolve opens a dedicated non-modal review tab with Eidos File, Current, and Incoming
+values. Accepting the incoming row stages only that Eidos File path, Create version
 produces a two-parent merge, and Push returns the remote to the merge head with
 a clean, up-to-date Space. Schema and opaque SQLite conflicts deliberately
 retain the explicit whole-file fallback.
@@ -82,12 +82,12 @@ Confirmed product decisions that supersede earlier open questions:
 - History opens as a dedicated content tab from Changes, not as a sidebar mode,
 - the primary sidebar modes remain Files and Version; no Logs mode is planned,
 - remote synchronization is explicit Pull/Push rather than implicit autosync,
-- conflicts remain path-first in Changes; supported Base row conflicts open a
+- conflicts remain path-first in Changes; supported Eidos File row conflicts open a
   structured review tab without changing the remote protocol.
 
 ## Summary
 
-This RFC defines how Eidos should use graft when a Space contains Markdown files, Base files, ordinary assets, and Eidos-owned project files such as `.eidos/extensions/**`.
+This RFC defines how Eidos should use graft when a Space contains Markdown files, Eidos Files, ordinary assets, and Eidos-owned project files such as `.eidos/extensions/**`.
 
 The target model:
 
@@ -95,7 +95,7 @@ The target model:
 - Graft manages user-visible Space assets and selected Eidos-owned project files.
 - Private `.eidos` runtime subtrees are ignored by default.
 - Markdown and ordinary files are file-level changes.
-- `.base` files are SQLite-backed paths with table-level expansion.
+- `.eidos` files are SQLite-backed paths with table-level expansion.
 - `.eidos/extensions/**` source files are ordinary tracked files.
 - Eidos presents graft status as a path tree, not as internal `.eidos/db.sqlite3` changes.
 
@@ -110,11 +110,11 @@ Versioning should match what users can see and reason about in the Space.
 ## Goals
 
 - Use graft as the versioning layer for the Space root.
-- Track Markdown, Base files, and user assets.
+- Track Markdown, Eidos Files, and user assets.
 - Track user/space extension source files.
 - Ignore `.graft/` and private `.eidos` runtime subtrees by default.
 - Show path-level status first.
-- Expand `.base` files into table/schema/view changes.
+- Expand `.eidos` files into table/schema/view changes.
 - Avoid requiring users to manually `graft add` in normal Eidos flows.
 
 ## Non-Goals
@@ -131,7 +131,7 @@ Example:
 ```txt
 my-space/
   notes/project.md
-  tasks.base
+  tasks.eidos
   .eidos/extensions/kanban-view/index.tsx
   assets/image.png
   .obsidian/
@@ -168,7 +168,7 @@ Why broad tracking:
 
 - It matches the Space mental model.
 - It avoids forcing users to classify every new asset.
-- It naturally includes Markdown, `.base`, images, PDFs, and other user files, while explicitly including `.eidos/extensions/**` as Eidos-owned project source.
+- It naturally includes Markdown, `.eidos`, images, PDFs, and other user files, while explicitly including `.eidos/extensions/**` as Eidos-owned project source.
 
 Eidos may expose advanced settings for stricter tracking, but the default should be understandable:
 
@@ -194,7 +194,7 @@ Graft status should be presented as changed paths:
 
 ```txt
 notes/project.md
-tasks.base
+tasks.eidos
 .eidos/extensions/kanban-view/index.tsx
 assets/image.png
 ```
@@ -210,18 +210,18 @@ storage: inline | external
 
 Eidos UI can group paths into a VS Code-like tree.
 
-## Base Expansion
+## Eidos File Expansion
 
-`.base` files should appear as one path first:
+`.eidos` files should appear as one path first:
 
 ```txt
-tasks.base
+tasks.eidos
 ```
 
 When expanded:
 
 ```txt
-tasks.base
+tasks.eidos
   Tasks table       +3 ~1
   Projects table    +1
   Views metadata    ~2
@@ -236,7 +236,7 @@ eidos__tables       table registry changes
 eidos__columns      field/schema changes
 eidos__views        view changes
 eidos__references   relation/dependency changes
-eidos__meta         Base metadata changes
+eidos__meta         Eidos File metadata changes
 ```
 
 Generated tables should be grouped separately as diagnostics or hidden by default.
@@ -260,7 +260,7 @@ Normal behavior:
 Advanced behavior:
 
 - users can exclude paths before commit,
-- users can inspect `.base` internals before commit,
+- users can inspect `.eidos` internals before commit,
 - users can commit only selected paths in a later version.
 
 ## File Storage Strategy
@@ -271,7 +271,7 @@ For Eidos Spaces:
 
 - text files can be stored inline,
 - binary files can use external payload storage,
-- `.base` files are SQLite and should use SQLite-aware storage/diff,
+- `.eidos` files are SQLite and should use SQLite-aware storage/diff,
 - extension source files are text files and can be stored inline,
 - images/assets can use external payload storage.
 
@@ -283,7 +283,7 @@ Conflicts should be path-first:
 
 ```txt
 notes/project.md
-tasks.base
+tasks.eidos
 assets/image.png
 ```
 
@@ -295,7 +295,7 @@ For ordinary binary:
 
 - choose ours/theirs or keep both.
 
-For `.base`:
+For `.eidos`:
 
 - show table-level conflicts where possible,
 - allow row-level conflict resolution when graft supports it,
@@ -306,7 +306,7 @@ For `.base`:
 Graft remote sync should sync:
 
 - tracked Markdown files,
-- tracked Base files,
+- tracked Eidos Files,
 - tracked extension source files,
 - tracked assets,
 - external payloads required by those files.
@@ -327,7 +327,7 @@ Changes UI should show:
 - changed path count,
 - path tree,
 - file type badges only when helpful,
-- `.base` expandable internals,
+- `.eidos` expandable internals,
 - ignored/private state hidden by default,
 - refresh action,
 - commit message and commit button.
@@ -375,15 +375,15 @@ Existing repos may need a cleanup migration if they previously tracked `.eidos/s
 ```txt
 sample-space/
   note.md
-  tasks.base
+  tasks.eidos
   assets/image.png
   .eidos/sessions/session.jsonl
 ```
 
 The slice should prove:
 
-- graft status shows `note.md`, `tasks.base`, and `assets/image.png`,
+- graft status shows `note.md`, `tasks.eidos`, and `assets/image.png`,
 - graft status does not show `.eidos/sessions/session.jsonl`,
 - committing needs no manual add,
-- expanding `tasks.base` shows table-level changes,
+- expanding `tasks.eidos` shows table-level changes,
 - the commit can be pushed and cloned with required payloads.

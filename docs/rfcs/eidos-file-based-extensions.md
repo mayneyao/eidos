@@ -6,8 +6,8 @@ Last updated: 2026-07-15
 Owner: Eidos
 Related:
 
-- `eidos-space-base-storage.md`
-- `eidos-base-file-format.md`
+- `eidos-file-storage.md`
+- `eidos-file-format.md`
 - `eidos-space-markdown-runtime.md`
 - `eidos-graft-space-versioning.md`
 
@@ -55,7 +55,7 @@ packages remain removable. Private repositories, automatic updates, and
 general network capabilities remain future phases.
 
 The P5 developer preview adds the independent
-`@eidos.space/extension-cli`. It scaffolds command, panel, Base-view, and editable text-editor
+`@eidos.space/extension-cli`. It scaffolds command, panel, Eidos File-view, and editable text-editor
 packages without overwriting existing directories, inspects source repositories
 under the production package limits, performs strict TypeScript checks against
 the public SDK, and compiles the exact inspected bytes with the Desktop
@@ -109,7 +109,7 @@ This keeps the Space mental model consistent:
 
 ```txt
 .md            documents
-.base          structured data
+.eidos          structured data
 .eidos/extensions/** programmable behavior
 .eidos/cache/**      private runtime/cache state
 .graft/**      versioning metadata
@@ -455,14 +455,14 @@ Creating a new extension should create files:
 
 Disabling an extension should update local runtime state, not necessarily edit the manifest.
 
-## Relationship to Base
+## Relationship to Eidos File
 
-Base files may allow extension-defined view types, actions, or renderers. The Base should reference extension capabilities by stable extension ID and type, not by compiled code.
+Eidos Files may allow extension-defined view types, actions, or renderers. The Eidos File should reference extension capabilities by stable extension ID and type, not by compiled code.
 
 Example:
 
 ```txt
-tasks.base
+tasks.eidos
   eidos__views.view_type = "kanban"
   eidos__views.extension_id = "example.kanban-view"
 
@@ -471,14 +471,14 @@ tasks.base
   src/view.tsx
 ```
 
-This keeps Base data portable while allowing the UI runtime to resolve richer behavior when the extension is present and trusted.
+This keeps Eidos File data portable while allowing the UI runtime to resolve richer behavior when the extension is present and trusted.
 
 If an extension is missing or untrusted, Eidos should degrade gracefully:
 
 - show the raw table,
 - show an unsupported view message,
 - allow the user to trust/install the extension,
-- avoid corrupting the Base file.
+- avoid corrupting the Eidos File.
 
 ## Built-In Extensions
 
@@ -718,7 +718,7 @@ against a temporary file Space, including lock provenance and staging cleanup.
 
 ### P5: Developer tooling
 
-- Provide non-interactive command, panel, Base-view, and text-editor scaffolds
+- Provide non-interactive command, panel, Eidos File-view, and text-editor scaffolds
   suitable for both developers and agents.
 - Validate source repositories with the production inspector, public SDK type
   contract, and fixed Desktop compiler.

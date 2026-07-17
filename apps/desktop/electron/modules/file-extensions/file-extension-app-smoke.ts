@@ -6,16 +6,16 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { app, BrowserWindow, session } from "electron"
-import { createBaseFile } from "@eidos.space/base/better-sqlite3"
+import { createEidosFile } from "@eidos.space/eidos-file/better-sqlite3"
 import {
-  createExtensionBaseViewTemplate,
+  createExtensionEidosFileViewTemplate,
   createExtensionPanelTemplate,
 } from "@eidos.space/extension-manifest"
 import { extensionSurfaceDataUrl } from "@eidos.space/extension-runtime/surface"
 import {
   EXTENSION_SURFACE_BOOTSTRAP_CHANNEL,
   EXTENSION_SURFACE_PROTOCOL_VERSION,
-  type ExtensionBaseViewContextSnapshot,
+  type ExtensionEidosFileViewContextSnapshot,
   type ExtensionJsonValue,
   type ExtensionSurfaceAppearance,
 } from "@eidos.space/extension-surface-protocol"
@@ -29,7 +29,7 @@ import { FileExtensionRuntimeManager } from "./runtime/file-extension-runtime-ma
 const SPACE_ID = "file-extension-app-smoke"
 const COMMIT = "a".repeat(40)
 const PANEL_PACKAGE_PATH = "packages/lifecycle-panel"
-const BASE_VIEW_PACKAGE_PATH = "packages/lifecycle-base-view"
+const BASE_VIEW_PACKAGE_PATH = "packages/lifecycle-eidos-file-view"
 
 const SMOKE_APPEARANCE: ExtensionSurfaceAppearance = {
   colorScheme: "light",
@@ -176,11 +176,11 @@ async function waitForValue<T>(
   throw new Error(message)
 }
 
-async function renderInstalledBaseView({
+async function renderInstalledEidosFileView({
   source,
   generation,
   packageId,
-  baseViewId,
+  eidosFileViewId,
   viewId,
   context,
   page,
@@ -188,9 +188,9 @@ async function renderInstalledBaseView({
   source: string
   generation: string
   packageId: string
-  baseViewId: string
+  eidosFileViewId: string
   viewId: string
-  context: ExtensionBaseViewContextSnapshot
+  context: ExtensionEidosFileViewContextSnapshot
   page: {
     offset: number
     limit: number
@@ -199,7 +199,7 @@ async function renderInstalledBaseView({
   }
 }) {
   const runtimeSession = session.fromPartition(
-    `eidos-file-extension-app-base-view-${Date.now()}`,
+    `eidos-file-extension-app-eidos-file-view-${Date.now()}`,
     { cache: false }
   )
   runtimeSession.setPermissionCheckHandler(() => false)
@@ -232,11 +232,11 @@ async function renderInstalledBaseView({
   runtimeWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
   const initialize = {
     type: "initialize",
-    surfaceKind: "base-view",
+    surfaceKind: "eidos-file-view",
     protocolVersion: EXTENSION_SURFACE_PROTOCOL_VERSION,
     packageId,
     generation,
-    baseViewId,
+    eidosFileViewId,
     viewId,
     context,
     appearance: SMOKE_APPEARANCE,
@@ -257,7 +257,7 @@ async function renderInstalledBaseView({
         let pageLoaded = false;
         let settled = false;
         const timeout = setTimeout(
-          () => fail(new Error("Installed Base view timed out")),
+          () => fail(new Error("Installed Eidos File view timed out")),
           10000
         );
         const fail = (error) => {
@@ -279,10 +279,10 @@ async function renderInstalledBaseView({
                 document.querySelectorAll("style")
               ).some((style) => style.textContent?.includes(".record-grid"));
               if (title?.textContent !== initialize.context.table.name) {
-                throw new Error("Installed Base view did not render its table");
+                throw new Error("Installed Eidos File view did not render its table");
               }
               if (cards.length !== page.rows.length) {
-                throw new Error("Installed Base view did not render its rows");
+                throw new Error("Installed Eidos File view did not render its rows");
               }
               settled = true;
               clearTimeout(timeout);
@@ -306,7 +306,7 @@ async function renderInstalledBaseView({
             const message = event.data;
             if (message?.type === "activation-error") {
               throw new Error(
-                "Installed Base view activation failed: " + message.message
+                "Installed Eidos File view activation failed: " + message.message
               );
             }
             if (message?.type === "surface-log") {
@@ -315,7 +315,7 @@ async function renderInstalledBaseView({
             }
             if (message?.type === "ready") {
               if (message.protocolVersion !== initialize.protocolVersion) {
-                throw new Error("Installed Base view protocol mismatch");
+                throw new Error("Installed Eidos File view protocol mismatch");
               }
               port.postMessage(initialize);
               return;
@@ -325,16 +325,16 @@ async function renderInstalledBaseView({
               finish();
               return;
             }
-            if (message?.type !== "base-page-request") return;
+            if (message?.type !== "eidos-file-page-request") return;
             if (
               message.generation !== generation ||
               message.offset !== 0 ||
               message.limit !== 60
             ) {
-              throw new Error("Installed Base view requested an invalid page");
+              throw new Error("Installed Eidos File view requested an invalid page");
             }
             port.postMessage({
-              type: "base-page-result",
+              type: "eidos-file-page-result",
               requestId: message.requestId,
               ok: true,
               page,
@@ -584,20 +584,20 @@ async function run(): Promise<void> {
       name: "lifecycle-panel",
       engineRange: ">=0.0.0",
     })
-    const baseViewTemplate = createExtensionBaseViewTemplate({
+    const eidosFileViewTemplate = createExtensionEidosFileViewTemplate({
       publisher: "example",
-      name: "lifecycle-base-view",
-      displayName: "Lifecycle Base View",
+      name: "lifecycle-eidos-file-view",
+      displayName: "Lifecycle Eidos File View",
       engineRange: ">=0.0.0",
     })
-    const baseViewContribution =
-      baseViewTemplate.manifest.contributes.baseViews?.[0]
+    const eidosFileViewContribution =
+      eidosFileViewTemplate.manifest.contributes.eidosFileViews?.[0]
     assert.ok(
-      baseViewContribution,
-      "Base view template should declare its contribution"
+      eidosFileViewContribution,
+      "Eidos File view template should declare its contribution"
     )
 
-    const base = createBaseFile(path.join(spacePath, "tasks.base"), {
+    const eidosFile = createEidosFile(path.join(spacePath, "tasks.eidos"), {
       title: "Release Tasks",
       defaultTable: {
         id: "tasks",
@@ -617,41 +617,41 @@ async function run(): Promise<void> {
         ],
       },
     })
-    base.insertRow("tasks", {
-      title: "Ship Base views",
+    eidosFile.insertRow("tasks", {
+      title: "Ship Eidos File views",
       status: "doing",
     })
-    base.insertRow("tasks", {
+    eidosFile.insertRow("tasks", {
       title: "Run app smoke",
       status: "done",
     })
-    const savedView = base.createView("tasks", {
+    const savedView = eidosFile.createView("tasks", {
       name: "Extension Cards",
-      type: `extension:${baseViewContribution.id}`,
+      type: `extension:${eidosFileViewContribution.id}`,
     })
-    const baseTable = base.getTable("tasks")
-    const baseFields = base.listFields("tasks")
-    const rawBasePage = base.getRowPage("tasks", 0, 60)
-    const baseContext: ExtensionBaseViewContextSnapshot = {
-      resourcePath: "tasks.base",
+    const eidosFileTable = eidosFile.getTable("tasks")
+    const eidosFileFields = eidosFile.listFields("tasks")
+    const rawEidosFilePage = eidosFile.getRowPage("tasks", 0, 60)
+    const eidosFileContext: ExtensionEidosFileViewContextSnapshot = {
+      resourcePath: "tasks.eidos",
       table: {
-        id: baseTable.id,
-        name: baseTable.name,
-        rowCount: rawBasePage.total,
+        id: eidosFileTable.id,
+        name: eidosFileTable.name,
+        rowCount: rawEidosFilePage.total,
       },
       view: { id: savedView.id, name: savedView.name },
-      fields: baseFields.map((field) => ({
+      fields: eidosFileFields.map((field) => ({
         name: field.name,
         columnName: field.tableColumnName,
         type: field.type,
         property: null,
       })),
     }
-    const basePage = {
-      offset: rawBasePage.offset,
-      limit: rawBasePage.limit,
-      total: rawBasePage.total,
-      rows: rawBasePage.rows.map((row) =>
+    const eidosFilePage = {
+      offset: rawEidosFilePage.offset,
+      limit: rawEidosFilePage.limit,
+      total: rawEidosFilePage.total,
+      rows: rawEidosFilePage.rows.map((row) =>
         Object.fromEntries(
           Object.entries(row).map(([key, value]) => [
             key,
@@ -664,11 +664,11 @@ async function run(): Promise<void> {
         )
       ) as Array<Record<string, string | number | boolean | null>>,
     }
-    base.close()
+    eidosFile.close()
     assert.equal(
       savedView.type,
-      `extension:${baseViewContribution.id}`,
-      "Base should persist the selected extension view type"
+      `extension:${eidosFileViewContribution.id}`,
+      "Eidos File should persist the selected extension view type"
     )
 
     const archive = githubArchive(
@@ -677,7 +677,7 @@ async function run(): Promise<void> {
           (file) =>
             [`${PANEL_PACKAGE_PATH}/${file.path}`, file.content] as const
         ),
-        ...baseViewTemplate.files.map(
+        ...eidosFileViewTemplate.files.map(
           (file) =>
             [`${BASE_VIEW_PACKAGE_PATH}/${file.path}`, file.content] as const
         ),
@@ -722,75 +722,84 @@ async function run(): Promise<void> {
     assert.equal(panelEnabled.enabled, true)
     assert.deepEqual(panelEnabled.granted, panelTrusted.requestedGrants)
 
-    const baseViewPreview = await prepareGitHubPackage(
+    const eidosFileViewPreview = await prepareGitHubPackage(
       service,
       archive,
       BASE_VIEW_PACKAGE_PATH
     )
-    assert.equal(baseViewPreview.operation, "install")
-    assert.equal(baseViewPreview.canonicalId, baseViewTemplate.canonicalId)
-    assert.equal(baseViewPreview.source.commit, COMMIT)
+    assert.equal(eidosFileViewPreview.operation, "install")
+    assert.equal(
+      eidosFileViewPreview.canonicalId,
+      eidosFileViewTemplate.canonicalId
+    )
+    assert.equal(eidosFileViewPreview.source.commit, COMMIT)
     assert.deepEqual(
-      baseViewPreview.permissionChanges.map(({ kind, value, change }) => ({
+      eidosFileViewPreview.permissionChanges.map(({ kind, value, change }) => ({
         kind,
         value,
         change,
       })),
-      [{ kind: "files.read", value: "**/*.base", change: "added" }]
+      [{ kind: "files.read", value: "**/*.eidos", change: "added" }]
     )
-    const baseViewInstalled = await service.applyGitHubInstall(SPACE_ID, {
-      previewId: baseViewPreview.previewId,
-      contentDigest: baseViewPreview.contentDigest,
-      permissionHash: baseViewPreview.permissionHash,
+    const eidosFileViewInstalled = await service.applyGitHubInstall(SPACE_ID, {
+      previewId: eidosFileViewPreview.previewId,
+      contentDigest: eidosFileViewPreview.contentDigest,
+      permissionHash: eidosFileViewPreview.permissionHash,
     })
-    assert.equal(baseViewInstalled.canonicalId, baseViewTemplate.canonicalId)
-    const baseViewSnapshot = {
-      packageId: baseViewInstalled.canonicalId,
-      contentDigest: baseViewInstalled.contentDigest,
-      permissionHash: baseViewInstalled.permissionHash,
+    assert.equal(
+      eidosFileViewInstalled.canonicalId,
+      eidosFileViewTemplate.canonicalId
+    )
+    const eidosFileViewSnapshot = {
+      packageId: eidosFileViewInstalled.canonicalId,
+      contentDigest: eidosFileViewInstalled.contentDigest,
+      permissionHash: eidosFileViewInstalled.permissionHash,
     }
     assert.deepEqual(
-      await service.listBaseViews(SPACE_ID, "tasks.base"),
+      await service.listEidosFileViews(SPACE_ID, "tasks.eidos"),
       [],
-      "Untrusted Base views must not be discoverable"
+      "Untrusted Eidos File views must not be discoverable"
     )
-    const baseViewTrusted = await service.trust(SPACE_ID, baseViewSnapshot)
-    assert.deepEqual(baseViewTrusted.requestedGrants, [
-      { kind: "files.read", value: "**/*.base" },
+    const eidosFileViewTrusted = await service.trust(
+      SPACE_ID,
+      eidosFileViewSnapshot
+    )
+    assert.deepEqual(eidosFileViewTrusted.requestedGrants, [
+      { kind: "files.read", value: "**/*.eidos" },
     ])
-    for (const grant of baseViewTrusted.requestedGrants) {
+    for (const grant of eidosFileViewTrusted.requestedGrants) {
       await service.setGrant(SPACE_ID, {
-        ...baseViewSnapshot,
+        ...eidosFileViewSnapshot,
         grant,
         granted: true,
       })
     }
     assert.deepEqual(
-      await service.listBaseViews(SPACE_ID, "tasks.base"),
+      await service.listEidosFileViews(SPACE_ID, "tasks.eidos"),
       [],
-      "Disabled Base views must not be discoverable"
+      "Disabled Eidos File views must not be discoverable"
     )
-    const baseViewEnabled = await service.setEnabled(
+    const eidosFileViewEnabled = await service.setEnabled(
       SPACE_ID,
-      baseViewSnapshot,
+      eidosFileViewSnapshot,
       true
     )
-    assert.equal(baseViewEnabled.enabled, true)
-    const discoveredBaseViews = await service.listBaseViews(
+    assert.equal(eidosFileViewEnabled.enabled, true)
+    const discoveredEidosFileViews = await service.listEidosFileViews(
       SPACE_ID,
-      "tasks.base"
+      "tasks.eidos"
     )
     assert.deepEqual(
-      discoveredBaseViews.map(({ id, packageId, displayName }) => ({
+      discoveredEidosFileViews.map(({ id, packageId, displayName }) => ({
         id,
         packageId,
         displayName,
       })),
       [
         {
-          id: baseViewContribution.id,
-          packageId: baseViewTemplate.canonicalId,
-          displayName: baseViewContribution.displayName,
+          id: eidosFileViewContribution.id,
+          packageId: eidosFileViewTemplate.canonicalId,
+          displayName: eidosFileViewContribution.displayName,
         },
       ]
     )
@@ -832,60 +841,72 @@ async function run(): Promise<void> {
     )
     assert.match(panel.source, /__eidosStartSurface/)
 
-    const openedBaseView = await service.openBaseView(SPACE_ID, {
-      ...baseViewSnapshot,
-      baseViewId: baseViewContribution.id,
-      path: "tasks.base",
+    const openedEidosFileView = await service.openEidosFileView(SPACE_ID, {
+      ...eidosFileViewSnapshot,
+      eidosFileViewId: eidosFileViewContribution.id,
+      path: "tasks.eidos",
     })
-    assert.equal(openedBaseView.packageId, baseViewTemplate.canonicalId)
-    assert.equal(openedBaseView.baseViewId, baseViewContribution.id)
-    assert.match(openedBaseView.source, /__eidosStartSurface/)
-    const renderedBaseView = await renderInstalledBaseView({
-      source: openedBaseView.source,
-      generation: openedBaseView.generation,
-      packageId: baseViewSnapshot.packageId,
-      baseViewId: baseViewContribution.id,
+    assert.equal(
+      openedEidosFileView.packageId,
+      eidosFileViewTemplate.canonicalId
+    )
+    assert.equal(
+      openedEidosFileView.eidosFileViewId,
+      eidosFileViewContribution.id
+    )
+    assert.match(openedEidosFileView.source, /__eidosStartSurface/)
+    const renderedEidosFileView = await renderInstalledEidosFileView({
+      source: openedEidosFileView.source,
+      generation: openedEidosFileView.generation,
+      packageId: eidosFileViewSnapshot.packageId,
+      eidosFileViewId: eidosFileViewContribution.id,
       viewId: savedView.id,
-      context: baseContext,
-      page: basePage,
+      context: eidosFileContext,
+      page: eidosFilePage,
     })
-    assert.equal(renderedBaseView.title, "Tasks")
-    assert.equal(renderedBaseView.cards.length, 2)
+    assert.equal(renderedEidosFileView.title, "Tasks")
+    assert.equal(renderedEidosFileView.cards.length, 2)
     assert.ok(
-      renderedBaseView.cards.some((card) => card.includes("Ship Base views"))
-    )
-    assert.ok(
-      renderedBaseView.cards.some((card) => card.includes("Run app smoke"))
-    )
-    assert.equal(renderedBaseView.cssLoaded, true)
-    assert.equal(renderedBaseView.networkGlobalsBlocked, true)
-    assert.ok(
-      renderedBaseView.surfaceLogs.some(
-        (entry) =>
-          entry.level === "info" &&
-          entry.message.includes("Lifecycle Base View Base view activated")
+      renderedEidosFileView.cards.some((card) =>
+        card.includes("Ship Eidos File views")
       )
     )
-    for (const entry of renderedBaseView.surfaceLogs) {
+    assert.ok(
+      renderedEidosFileView.cards.some((card) => card.includes("Run app smoke"))
+    )
+    assert.equal(renderedEidosFileView.cssLoaded, true)
+    assert.equal(renderedEidosFileView.networkGlobalsBlocked, true)
+    assert.ok(
+      renderedEidosFileView.surfaceLogs.some(
+        (entry) =>
+          entry.level === "info" &&
+          entry.message.includes(
+            "Lifecycle Eidos File View Eidos File view activated"
+          )
+      )
+    )
+    for (const entry of renderedEidosFileView.surfaceLogs) {
       await service.reportSurfaceOutput(SPACE_ID, {
-        surfaceKind: "base-view",
-        ...baseViewSnapshot,
-        generation: openedBaseView.generation,
+        surfaceKind: "eidos-file-view",
+        ...eidosFileViewSnapshot,
+        generation: openedEidosFileView.generation,
         level: entry.level,
         message: entry.message,
       })
     }
     const discovery = await service.discover(SPACE_ID)
-    const baseViewSummary = discovery.packages.find(
-      (candidate) => candidate.canonicalId === baseViewTemplate.canonicalId
+    const eidosFileViewSummary = discovery.packages.find(
+      (candidate) => candidate.canonicalId === eidosFileViewTemplate.canonicalId
     )
     assert.ok(
-      baseViewSummary?.runtimeOutput.some(
+      eidosFileViewSummary?.runtimeOutput.some(
         (entry) =>
-          entry.source === "base-view" &&
-          entry.message.includes("Lifecycle Base View Base view activated")
+          entry.source === "eidos-file-view" &&
+          entry.message.includes(
+            "Lifecycle Eidos File View Eidos File view activated"
+          )
       ),
-      "Installed Base view logs should reach the extension runtime output"
+      "Installed Eidos File view logs should reach the extension runtime output"
     )
 
     const localTemplate = await service.createTemplate(SPACE_ID, {
@@ -1205,11 +1226,14 @@ async function run(): Promise<void> {
     })
 
     await service.uninstall(SPACE_ID, {
-      directoryName: baseViewTemplate.canonicalId,
-      canonicalId: baseViewTemplate.canonicalId,
-      contentDigest: baseViewInstalled.contentDigest,
+      directoryName: eidosFileViewTemplate.canonicalId,
+      canonicalId: eidosFileViewTemplate.canonicalId,
+      contentDigest: eidosFileViewInstalled.contentDigest,
     })
-    assert.deepEqual(await service.listBaseViews(SPACE_ID, "tasks.base"), [])
+    assert.deepEqual(
+      await service.listEidosFileViews(SPACE_ID, "tasks.eidos"),
+      []
+    )
     await service.uninstall(SPACE_ID, {
       directoryName: panelTemplate.canonicalId,
       canonicalId: panelTemplate.canonicalId,
@@ -1235,15 +1259,15 @@ async function run(): Promise<void> {
         ok: true,
         lifecycle: [
           "install-panel",
-          "install-base-view",
+          "install-eidos-file-view",
           "trust",
           "grant",
           "enable",
           "command-palette",
           "worker",
           "panel",
-          "base-view-discovery",
-          "base-view-render",
+          "eidos-file-view-discovery",
+          "eidos-file-view-render",
           "local-create",
           "local-command",
           "local-panel-create",
@@ -1256,12 +1280,15 @@ async function run(): Promise<void> {
           "uninstall",
           "staging-cleanup",
         ],
-        packageIds: [panelTemplate.canonicalId, baseViewTemplate.canonicalId],
+        packageIds: [
+          panelTemplate.canonicalId,
+          eidosFileViewTemplate.canonicalId,
+        ],
         panelState: panel.state,
-        baseView: {
+        eidosFileView: {
           viewId: savedView.id,
-          title: renderedBaseView.title,
-          cards: renderedBaseView.cards.length,
+          title: renderedEidosFileView.title,
+          cards: renderedEidosFileView.cards.length,
         },
       })
     )

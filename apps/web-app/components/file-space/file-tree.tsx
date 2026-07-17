@@ -6,7 +6,10 @@ import {
   useState,
   type DragEvent as ReactDragEvent,
 } from "react"
-import type { CreateBaseOptions } from "@eidos.space/base"
+import {
+  EIDOS_FILE_EXTENSION,
+  type CreateEidosFileOptions,
+} from "@eidos.space/eidos-file"
 import type { SpaceFileEntry } from "@eidos.space/file-space"
 import {
   ChevronDown,
@@ -25,7 +28,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
-import { useSpaceBase } from "@/apps/web-app/hooks/use-space-base"
+import { useSpaceEidosFile } from "@/apps/web-app/hooks/use-space-eidos-file"
 import {
   isDestructiveSpaceVersioningOperation,
   useActiveSpaceVersioningOperation,
@@ -71,8 +74,8 @@ import {
 } from "./file-navigation"
 import { flushPendingFileWrites } from "./pending-writes"
 import { SpaceFilesTree, type SpaceFilesTreeHandle } from "./trees-file-tree"
-import { BaseCreatePopover } from "./base/base-create-dialog"
-import { preloadSpaceBaseEditor } from "./base/space-base-editor-loader"
+import { EidosFileCreatePopover } from "./eidos-file/eidos-file-create-dialog"
+import { preloadSpaceEidosFileEditor } from "./eidos-file/space-eidos-file-editor-loader"
 import { matchesFileExtensionMenuWhen } from "../file-extensions/extension-menu-context"
 
 interface FileSpaceTreeProps {
@@ -142,7 +145,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     remove,
     reveal,
   } = useSpaceFiles(spaceId)
-  const { create: createBase } = useSpaceBase(spaceId)
+  const { create: createEidosFile } = useSpaceEidosFile(spaceId)
   const { commands: extensionCommands, execute: executeExtensionCommand } =
     useFileExtensionCommands(spaceId)
   const versioningOperation = useActiveSpaceVersioningOperation(spaceId)
@@ -162,9 +165,10 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const [operationError, setOperationError] = useState<string | null>(null)
   const [filesExpanded, setFilesExpanded] = useState(true)
   const [emptyDropActive, setEmptyDropActive] = useState(false)
-  const [baseDialogOpen, setBaseDialogOpen] = useState(false)
-  const [baseInitialName, setBaseInitialName] = useState("Untitled.base")
-  const [baseParentPath, setBaseParentPath] = useState("")
+  const [eidosFileDialogOpen, setEidosFileDialogOpen] = useState(false)
+  const [eidosFileInitialName, setEidosFileInitialName] =
+    useState("Untitled.eidos")
+  const [eidosFileParentPath, setEidosFileParentPath] = useState("")
   const reportExtensionEditorError = useCallback((filePath: string) => {
     setOperationError(
       `Couldn’t load extension editors for “${filePath}”. Eidos can still open the file with its built-in viewer.`
@@ -179,7 +183,8 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const viewSettings = useFileSpaceSettings((state) => state.bySpace[spaceId])
   const showHiddenFiles = viewSettings?.showHiddenFiles ?? false
   const showObsidianFolder = viewSettings?.showObsidianFolder ?? false
-  const defaultBaseTemplate = viewSettings?.defaultBaseTemplate ?? "blank"
+  const defaultEidosFileTemplate =
+    viewSettings?.defaultEidosFileTemplate ?? "blank"
   const hasEidosContainer =
     entriesByDirectory.get("")?.some((entry) => entry.path === ".eidos") ===
     true
@@ -401,28 +406,28 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     ]
   )
 
-  const openBaseDialog = useCallback(
+  const openEidosFileDialog = useCallback(
     async (parentPath = "") => {
       if (blockMutationDuringRestore()) return
       setOperationError(null)
       const entries = entriesByDirectory.has(parentPath)
         ? (entriesByDirectory.get(parentPath) ?? [])
         : await loadDirectory(parentPath)
-      setBaseInitialName(
+      setEidosFileInitialName(
         uniqueSpaceEntryName(
           entries.map((entry) => entry.name),
           "Untitled",
-          ".base"
+          EIDOS_FILE_EXTENSION
         )
       )
-      setBaseParentPath(parentPath)
-      setBaseDialogOpen(true)
+      setEidosFileParentPath(parentPath)
+      setEidosFileDialogOpen(true)
     },
     [blockMutationDuringRestore, entriesByDirectory, loadDirectory]
   )
 
-  const createBaseAtPath = useCallback(
-    async (name: string, options: CreateBaseOptions) => {
+  const createEidosFileAtPath = useCallback(
+    async (name: string, options: CreateEidosFileOptions) => {
       if (blockMutationDuringRestore()) return
       setOperationError(null)
       try {
@@ -431,27 +436,27 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
             "Eidos could not save the current file. Resolve the error before opening another file."
           )
         }
-        const destinationPath = joinSpacePath(baseParentPath, name)
-        await createBase(destinationPath, options)
+        const destinationPath = joinSpacePath(eidosFileParentPath, name)
+        await createEidosFile(destinationPath, options)
         setFilesExpanded(true)
-        if (baseParentPath) {
-          setExpanded((current) => new Set(current).add(baseParentPath))
+        if (eidosFileParentPath) {
+          setExpanded((current) => new Set(current).add(eidosFileParentPath))
         }
-        await loadDirectory(baseParentPath)
+        await loadDirectory(eidosFileParentPath)
         navigate(toSpaceFileUrl(destinationPath))
       } catch (operationFailure) {
         const message =
           operationFailure instanceof Error
             ? operationFailure.message
-            : "Unable to create Base"
+            : "Unable to create Eidos File"
         setOperationError(message)
         throw operationFailure
       }
     },
     [
       blockMutationDuringRestore,
-      baseParentPath,
-      createBase,
+      eidosFileParentPath,
+      createEidosFile,
       loadDirectory,
       navigate,
       selectedPath,
@@ -717,10 +722,10 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
             variant="ghost"
             size="icon"
             className="h-[22px] w-[22px] rounded-[3px] text-sidebar-foreground/80"
-            title="New Base"
-            aria-label="New Base"
+            title="New Eidos File"
+            aria-label="New Eidos File"
             disabled={restoringVersion}
-            onClick={() => void openBaseDialog("")}
+            onClick={() => void openEidosFileDialog("")}
           >
             <Table2 className="h-3.5 w-3.5" />
           </Button>
@@ -794,10 +799,10 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={restoringVersion}
-                onSelect={() => void openBaseDialog("")}
+                onSelect={() => void openEidosFileDialog("")}
               >
                 <Table2 />
-                New Base
+                New Eidos File
               </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={restoringVersion}
@@ -903,9 +908,9 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
                 <button
                   type="button"
                   className="text-sidebar-foreground underline decoration-border underline-offset-2 hover:decoration-sidebar-foreground"
-                  onClick={() => void openBaseDialog("")}
+                  onClick={() => void openEidosFileDialog("")}
                 >
-                  Create a Base
+                  Create an Eidos File
                 </button>
               </div>
             </>
@@ -930,7 +935,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
               )
             }
             onCreate={(parentPath, type) => {
-              if (type === "create-base") void openBaseDialog(parentPath)
+              if (type === "create-base") void openEidosFileDialog(parentPath)
               else void startCreate(parentPath, type)
             }}
             onDelete={(entry) => void deleteEntry(entry)}
@@ -947,8 +952,8 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
             onIntent={(entry) => {
               if (isManagedEidosTreePath(entry.path)) return
               void loadExtensionEditors(entry.path)
-              if (entry.path.toLowerCase().endsWith(".base")) {
-                void preloadSpaceBaseEditor().catch(() => undefined)
+              if (entry.path.toLowerCase().endsWith(EIDOS_FILE_EXTENSION)) {
+                void preloadSpaceEidosFileEditor().catch(() => undefined)
               }
             }}
             onMove={(entry, destinationParent) =>
@@ -991,15 +996,15 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
         </div>
       )}
 
-      <BaseCreatePopover
-        open={baseDialogOpen}
-        initialName={baseInitialName}
-        initialTemplate={defaultBaseTemplate}
-        existingNames={(entriesByDirectory.get(baseParentPath) ?? []).map(
+      <EidosFileCreatePopover
+        open={eidosFileDialogOpen}
+        initialName={eidosFileInitialName}
+        initialTemplate={defaultEidosFileTemplate}
+        existingNames={(entriesByDirectory.get(eidosFileParentPath) ?? []).map(
           (entry) => entry.name
         )}
-        onOpenChange={setBaseDialogOpen}
-        onCreate={createBaseAtPath}
+        onOpenChange={setEidosFileDialogOpen}
+        onCreate={createEidosFileAtPath}
       />
     </div>
   )

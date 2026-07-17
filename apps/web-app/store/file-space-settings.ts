@@ -1,21 +1,23 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
-export type FileSpaceBaseTemplate = "blank" | "tasks"
-export type FileSpaceBaseAssetFolder = "space-assets" | "base-folder-assets"
+export type FileSpaceEidosFileTemplate = "blank" | "tasks"
+export type FileSpaceEidosFileAssetFolder =
+  | "space-assets"
+  | "eidos-file-folder-assets"
 
 export interface FileSpaceSettings {
   showHiddenFiles: boolean
   showObsidianFolder: boolean
-  defaultBaseTemplate: FileSpaceBaseTemplate
-  baseAssetFolder: FileSpaceBaseAssetFolder
+  defaultEidosFileTemplate: FileSpaceEidosFileTemplate
+  eidosFileAssetFolder: FileSpaceEidosFileAssetFolder
 }
 
 export const DEFAULT_FILE_SPACE_SETTINGS: FileSpaceSettings = {
   showHiddenFiles: false,
   showObsidianFolder: false,
-  defaultBaseTemplate: "blank",
-  baseAssetFolder: "space-assets",
+  defaultEidosFileTemplate: "blank",
+  eidosFileAssetFolder: "space-assets",
 }
 
 interface FileSpaceSettingsState {

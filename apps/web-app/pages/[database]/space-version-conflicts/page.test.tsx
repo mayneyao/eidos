@@ -10,7 +10,7 @@ import { SpaceVersionConflictsPage } from "./page"
 const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   resolveConflict: vi.fn(async () => ({
-    path: "tasks.base",
+    path: "tasks.eidos",
     resolution: "ours",
     remainingConflicts: 1,
     status: { hasConflicts: true },
@@ -51,7 +51,7 @@ vi.mock("@/apps/web-app/hooks/use-space-versioning", () => ({
       mergeHead: "remote-2",
       paths: [
         {
-          path: "tasks.base",
+          path: "tasks.eidos",
           kind: "sqlite_database",
           storage: "sqlite_snapshot",
           status: "unresolved",
@@ -62,8 +62,8 @@ vi.mock("@/apps/web-app/hooks/use-space-versioning", () => ({
       ],
       conflicts: [
         {
-          id: "tasks.base:row:tb_tasks:7",
-          path: "tasks.base",
+          id: "tasks.eidos:row:tb_tasks:7",
+          path: "tasks.eidos",
           pathKind: "sqlite_database",
           storage: "sqlite_snapshot",
           kind: "row",
@@ -122,10 +122,10 @@ describe("SpaceVersionConflictsPage", () => {
     container.remove()
   })
 
-  it("reviews Base values and resolves only the selected row", async () => {
+  it("reviews Eidos File values and resolves only the selected row", async () => {
     await act(async () => {
       root.render(
-        <MemoryRouter initialEntries={["/version/conflicts?path=tasks.base"]}>
+        <MemoryRouter initialEntries={["/version/conflicts?path=tasks.eidos"]}>
           <SpaceVersionConflictsPage />
         </MemoryRouter>
       )
@@ -145,7 +145,7 @@ describe("SpaceVersionConflictsPage", () => {
     })
 
     expect(mocks.resolveConflict).toHaveBeenCalledWith({
-      path: "tasks.base",
+      path: "tasks.eidos",
       resolution: "ours",
       expectedHead: "head-2",
       target: { table: "tb_tasks", rowId: 7 },
@@ -155,7 +155,7 @@ describe("SpaceVersionConflictsPage", () => {
   it("opens the selected conflict diff with both merge revisions", async () => {
     await act(async () => {
       root.render(
-        <MemoryRouter initialEntries={["/version/conflicts?path=tasks.base"]}>
+        <MemoryRouter initialEntries={["/version/conflicts?path=tasks.eidos"]}>
           <SpaceVersionConflictsPage />
         </MemoryRouter>
       )
@@ -168,8 +168,8 @@ describe("SpaceVersionConflictsPage", () => {
     })
 
     expect(mocks.openTab).toHaveBeenCalledWith(
-      "/version/diff?path=tasks.base&from=head-2&to=remote-2",
-      "tasks.base (Diff)"
+      "/version/diff?path=tasks.eidos&from=head-2&to=remote-2",
+      "tasks.eidos (Diff)"
     )
   })
 })

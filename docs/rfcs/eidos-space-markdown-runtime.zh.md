@@ -5,8 +5,8 @@
 负责人：Eidos
 相关文档：
 
-- `eidos-space-base-storage.zh.md`
-- `eidos-base-file-format.zh.md`
+- `eidos-file-storage.zh.md`
+- `eidos-file-format.zh.md`
 
 ## 实施状态（2026-07-13）
 
@@ -22,7 +22,7 @@
 - 持久化在 `.eidos/indexes/markdown.sqlite3` 的可重建
   search/link/tag/backlink index，
 - indexed quick open、编辑器 wiki-link completion、outline 和 backlinks UI。
-- 内置 Base、Markdown、图片、音频、视频和 PDF opener，并为没有专用 opener
+- 内置 Eidos File、Markdown、图片、音频、视频和 PDF opener，并为没有专用 opener
   的文件提供有上限的只读文本兜底预览；binary 文件不会把内容 bytes 发送到
   renderer。
 
@@ -64,7 +64,7 @@ binary。
 - `.md` 文件被直接读写。
 - Space mode 下，`eidos__docs` 不再是 Markdown 正文的 canonical store。
 - `.eidos/` 存放生成态索引、缓存、会话、本地 UI 状态。
-- `.base` 文件在同一个 Space 中提供结构化数据能力。
+- `.eidos` 文件在同一个 Space 中提供结构化数据能力。
 
 这样 Eidos 可以把 Obsidian vault 作为 Space 直接打开，而不需要把用户文档导入到隐藏主数据库。
 
@@ -90,7 +90,7 @@ Eidos 可以增加更好的编辑器、表格、视图、搜索、agent 和版�
 - 本 RFC 不定义完整 Markdown parser/editor 实现。
 - 本 RFC 不要求兼容每一种 Obsidian 插件。
 - 本 RFC 不要求所有旧 Eidos 文档立即迁移。
-- 本 RFC 不定义 Base 内部格式。
+- 本 RFC 不定义 Eidos File 内部格式。
 
 ## 运行时边界
 
@@ -110,12 +110,12 @@ Markdown runtime:
   编辑并保存 Markdown
   发出 file-change events
 
-Base runtime:
-  打开 .base SQLite 文件
+Eidos File runtime:
+  打开 .eidos SQLite 文件
   管理 tables/fields/views/rows
 ```
 
-Markdown runtime 不应该依赖 `DataSpaceWithTable`。Base runtime 也不应该依赖 Markdown 文档树。
+Markdown runtime 不应该依赖 `DataSpaceWithTable`。Eidos File runtime 也不应该依赖 Markdown 文档树。
 
 ## 文件树
 
@@ -126,7 +126,7 @@ Space mode 的左侧文件树应该来自文件系统，而不是 `eidos__tree`�
 ```txt
 my-space/
   notes/project.md
-  tasks.base
+  tasks.eidos
   assets/image.png
   .obsidian/
   .eidos/
@@ -141,7 +141,7 @@ my-space/
 - 通过 Extensions 产品视图展示 `.eidos/extensions/**`，而不是放进普通文档树，
 - 根据用户设置决定是否展示 `.obsidian/`，
 - 将 `.md` 识别为文档，
-- 将 `.base` 识别为 Eidos Base 文件。
+- 将 `.eidos` 识别为 Eidos File 文件。
 
 `eidos__tree` 可以继续为 legacy spaces 或 app-internal metadata 存在，但它不应该是 Space 文件树的 canonical source。
 
@@ -208,7 +208,7 @@ Eidos 可以在 `.eidos/` 下构建 backlink index，但 Markdown 文件仍然�
 
 - v1 要支持多少 wiki-link 语法？
 - 文件重命名时，Eidos 是否应该自动规范化 links？
-- 指向 Base tables/rows 的链接应该使用自定义 URI，还是 Markdown link？
+- 指向 Eidos File tables/rows 的链接应该使用自定义 URI，还是 Markdown link？
 
 ## 附件
 
@@ -233,7 +233,7 @@ Eidos 可以提供 managed attachment folders，但文件仍然应该可见，�
 - 不把文档导入 `eidos__docs` 作为 canonical state，
 - 只将 `.eidos/` 用于私有 Eidos 状态，
 - 只有启用版本管理时才添加 `.graft/`，
-- 只有用户创建结构化数据时才添加 `.base` 文件。
+- 只有用户创建结构化数据时才添加 `.eidos` 文件。
 
 `.obsidian/workspace*.json` 通常应该被视为本地 UI 状态，而不是共享用户内容。
 
@@ -262,7 +262,7 @@ Eidos 应该监听 Space 文件变化：
 - 文件重命名，
 - 文件删除，
 - 资源文件更新，
-- Base 文件更新。
+- Eidos File 文件更新。
 
 Watcher 应该更新索引和 UI 状态，而不是悄悄把文件导入隐藏文档表。
 
@@ -292,7 +292,7 @@ const Space = await eidos.openSpace(path)
 const doc = await Space.openMarkdown("notes/project.md")
 await doc.save(markdown)
 
-const base = await Space.openBase("tasks.base")
+const base = await Space.openEidosFile("tasks.eidos")
 await base.schema.createTable(...)
 ```
 
@@ -301,7 +301,7 @@ await base.schema.createTable(...)
 ## 开放问题
 
 1. Eidos 是否应该默认在 frontmatter 中创建稳定 document ID？
-2. Markdown 到 Base tables/rows 的链接应该如何表示？
+2. Markdown 到 Eidos File tables/rows 的链接应该如何表示？
 3. `.obsidian/` 是否默认显示在文件树中？
 4. Markdown 编辑器是否需要尽可能 byte-for-byte 保留格式？
 5. 第一版需要哪些生成态索引才能体验足够好？

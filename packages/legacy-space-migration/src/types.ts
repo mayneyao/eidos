@@ -166,7 +166,7 @@ export interface PlannedField {
 export interface PlannedTable {
   id: string
   sourceName: string
-  targetBasePath: string
+  targetEidosFilePath: string
   rowCount: number
   fieldCount: number
   viewCount: number
@@ -225,7 +225,7 @@ export interface LegacySpaceMigrationPlan {
   sourceDatabasePath: string
   sourceFingerprint: LegacySourceFingerprint
   targetRoot: string
-  basePath: string
+  eidosFilePath: string
   documents: PlannedDocument[]
   tables: PlannedTable[]
   skippedReferences: LegacyReference[]
@@ -238,7 +238,7 @@ export interface LegacySpaceMigrationPlan {
 
 export interface PlanLegacySpaceMigrationOptions {
   targetRoot: string
-  basePath?: string
+  eidosFilePath?: string
   documentsDirectory?: string
   assetsDirectory?: string
   legacyExtensionsDirectory?: string
@@ -268,7 +268,7 @@ export interface ExportLegacySpaceOptions {
 }
 
 export interface MigrationExportValidation {
-  baseValid: boolean
+  eidosFileValid: boolean
   documentCountMatches: boolean
   tableCountMatches: boolean
   rowCountMatches: boolean

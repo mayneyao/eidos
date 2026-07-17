@@ -73,7 +73,7 @@ describe("FileExtensionDocumentManager", () => {
         type: "apply-edits",
         requestId: "edit-1",
         documentId: first.snapshot.documentId,
-        baseRevision: 1,
+        eidosFileRevision: 1,
         edits: [{ start: 3, end: 4, text: "x" }],
       })
     ).resolves.toMatchObject({ ok: true, revision: 2 })
@@ -91,7 +91,7 @@ describe("FileExtensionDocumentManager", () => {
         type: "apply-edits",
         requestId: "stale-edit",
         documentId: second.snapshot.documentId,
-        baseRevision: 1,
+        eidosFileRevision: 1,
         edits: [{ start: 0, end: 0, text: "# " }],
       })
     ).resolves.toMatchObject({
@@ -109,7 +109,7 @@ describe("FileExtensionDocumentManager", () => {
       type: "apply-edits",
       requestId: "edit-1",
       documentId: editor.snapshot.documentId,
-      baseRevision: 1,
+      eidosFileRevision: 1,
       edits: [{ start: 3, end: 4, text: "x" }],
     })
     await manager.flush("space-a", editor.sessionId, editor.viewId)
@@ -132,7 +132,7 @@ describe("FileExtensionDocumentManager", () => {
       type: "apply-edits",
       requestId: "edit-1",
       documentId: editor.snapshot.documentId,
-      baseRevision: 1,
+      eidosFileRevision: 1,
       edits: [{ start: 3, end: 4, text: "x" }],
     })
     await writeFile(path.join(root, "tasks.md"), "external\n")
@@ -170,7 +170,7 @@ describe("FileExtensionDocumentManager", () => {
       type: "apply-edits",
       requestId: "edit-1",
       documentId: editor.snapshot.documentId,
-      baseRevision: 1,
+      eidosFileRevision: 1,
       edits: [{ start: 3, end: 4, text: "x" }],
     })
     await writeFile(path.join(root, "tasks.md"), "external\n")

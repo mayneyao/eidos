@@ -36,7 +36,7 @@ Manifest contribution
         │     notice, select, confirm, progress
         │
         └── custom UI surface
-              file editor, Base view, side panel
+              file editor, Eidos File view, side panel
                      │
                      ▼
               sandboxed iframe
@@ -69,7 +69,7 @@ non-visual command extension，不需要 UI entrypoint。
 ### Custom UI surface
 
 只有 native contribution 无法表达产品时，才使用 custom surface，例如 visual file editor、interactive
-Base view 或 domain-specific panel。UI entrypoint 运行在 sandboxed iframe 中，只获得 serializable
+Eidos File view 或 domain-specific panel。UI entrypoint 运行在 sandboxed iframe 中，只获得 serializable
 view state、theme token、localization helper 和专用 capability port。它不会获得 host React tree、
 Electron bridge、SQLite connection、filesystem handle 或不受限制的 network access。
 
@@ -116,13 +116,13 @@ state、undo/redo、autosave、external-file conflict、Graft-visible write，�
 Editable binary format 需要未来的 custom-document contract。Readonly binary preview 可以更早交付，
 因为它不拥有 save 或 undo state。
 
-## Base view
+## Eidos File view
 
-Base view 接收 serializable context 与宿主生成的有界结果分页。它通过 `context.base.getPage()` 请求
+Eidos File view 接收 serializable context 与宿主生成的有界结果分页。它通过 `context.eidosFile.getPage()` 请求
 分页，并监听 context change，不获得 raw SQLite handle。Eidos 持久化选中的 saved-view type，并拥有
 query execution、filtering、sorting 与 paging。
 
-当前 preview contract 是只读的。它验证第三方 layout 可以通过有界协议渲染真实 Base 数据；row mutation
+当前 preview contract 是只读的。它验证第三方 layout 可以通过有界协议渲染真实 Eidos File 数据；row mutation
 与 custom view action 尚未暴露。
 
 大结果集 view 必须支持 incremental update 与 virtualized rendering。宿主可以 suspend hidden surface，
@@ -137,9 +137,9 @@ content 或 grant，或者替换 stale build，都会关闭 capability port 并 
 ## 首期交付边界
 
 当前 experimental slice 已实现 command、menu、worker read-only file access、宿主 semantic UI、
-panel、text `fileEditors` 与只读 `baseViews`。Task Board 在没有 direct `writeFile()` 捷径的前提下，
-验证 activation、minimal edit、autosave、undo、conflict 与 multi-view broadcast；Base View starter
-验证宿主控制的有界分页。Binary custom document、可变 Base action 和通用 network/storage capability
+panel、text `fileEditors` 与只读 `eidosFileViews`。Task Board 在没有 direct `writeFile()` 捷径的前提下，
+验证 activation、minimal edit、autosave、undo、conflict 与 multi-view broadcast；Eidos File View starter
+验证宿主控制的有界分页。Binary custom document、可变 Eidos File action 和通用 network/storage capability
 仍不在本阶段边界内。
 
 ## 一手参考

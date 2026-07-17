@@ -33,10 +33,10 @@
       "@eidos.space/space-manager/*": ["./packages/space-manager/src/*"],
       "@eidos.space/file-space": ["./packages/file-space/src/index.ts"],
       "@eidos.space/file-space/*": ["./packages/file-space/src/*"],
-      "@eidos.space/base": ["./packages/base/src/index.ts"],
-      "@eidos.space/base/*": ["./packages/base/src/*"],
-      "@eidos.space/base-ui": ["./packages/base-ui/src/index.ts"],
-      "@eidos.space/base-ui/*": ["./packages/base-ui/src/*"],
+      "@eidos.space/eidos-file": ["./packages/eidos-file/src/index.ts"],
+      "@eidos.space/eidos-file/*": ["./packages/eidos-file/src/*"],
+      "@eidos.space/eidos-file-ui": ["./packages/eidos-file-ui/src/index.ts"],
+      "@eidos.space/eidos-file-ui/*": ["./packages/eidos-file-ui/src/*"],
       "@eidos.space/legacy-space-migration": [
         "./packages/legacy-space-migration/src/index.ts"
       ],

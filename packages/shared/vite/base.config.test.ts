@@ -19,13 +19,13 @@ function resolveWorkspaceAlias(source: string): string | null {
 }
 
 describe("workspace package aliases", () => {
-  it("resolves Base runtime entry points to source instead of transient dist", () => {
-    expect(resolveWorkspaceAlias("@eidos.space/base")).toBe(
-      path.resolve(__dirname, "../../base/src/index.ts")
+  it("resolves Eidos File runtime entry points to source instead of transient dist", () => {
+    expect(resolveWorkspaceAlias("@eidos.space/eidos-file")).toBe(
+      path.resolve(__dirname, "../../eidos-file/src/index.ts")
     )
-    expect(resolveWorkspaceAlias("@eidos.space/base/better-sqlite3")).toBe(
-      path.resolve(__dirname, "../../base/src/better-sqlite3")
-    )
+    expect(
+      resolveWorkspaceAlias("@eidos.space/eidos-file/better-sqlite3")
+    ).toBe(path.resolve(__dirname, "../../eidos-file/src/better-sqlite3"))
   })
 
   it("keeps Desktop-only workspace packages off transient dist entries", () => {

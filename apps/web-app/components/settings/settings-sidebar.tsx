@@ -51,7 +51,7 @@ interface SettingsSidebarProps {
 const FILE_SPACE_SECTIONS = new Set<SettingsSection>([
   "space-general",
   "space-files",
-  "space-base",
+  "space-eidos-file",
   "space-versioning",
   "space-indexes",
   "space-extensions",
@@ -103,8 +103,8 @@ export function SettingsSidebar({
       availability: "file",
     },
     {
-      id: "space-base",
-      title: t("space.settings.fileSpace.base.title", "Base"),
+      id: "space-eidos-file",
+      title: t("space.settings.fileSpace.eidosFile.title", "Eidos File"),
       icon: Table2,
       category: "space",
       availability: "file",

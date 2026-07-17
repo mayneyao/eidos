@@ -35,7 +35,7 @@ const moveMock = vi.hoisted(() => vi.fn())
 const navigateMock = vi.hoisted(() => vi.fn())
 const setGlobalSearchOpenMock = vi.hoisted(() => vi.fn())
 const createBaseMock = vi.hoisted(() => vi.fn())
-const preloadSpaceBaseEditorMock = vi.hoisted(() => vi.fn())
+const preloadSpaceEidosFileEditorMock = vi.hoisted(() => vi.fn())
 const extensionEditorMocks = vi.hoisted(() => ({
   byPath: {} as Record<
     string,
@@ -72,12 +72,12 @@ const extensionCommandMocks = vi.hoisted(() => ({
   execute: vi.fn(),
 }))
 
-vi.mock("./base/space-base-editor-loader", () => ({
-  preloadSpaceBaseEditor: preloadSpaceBaseEditorMock,
+vi.mock("./eidos-file/space-eidos-file-editor-loader", () => ({
+  preloadSpaceEidosFileEditor: preloadSpaceEidosFileEditorMock,
 }))
 
-vi.mock("@/apps/web-app/hooks/use-space-base", () => ({
-  useSpaceBase: () => ({ create: createBaseMock }),
+vi.mock("@/apps/web-app/hooks/use-space-eidos-file", () => ({
+  useSpaceEidosFile: () => ({ create: createBaseMock }),
 }))
 
 vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
@@ -245,8 +245,8 @@ describe("FileSpaceTree accessibility", () => {
       errors: [],
     })
     createBaseMock.mockReset()
-    preloadSpaceBaseEditorMock.mockReset()
-    preloadSpaceBaseEditorMock.mockResolvedValue(() => null)
+    preloadSpaceEidosFileEditorMock.mockReset()
+    preloadSpaceEidosFileEditorMock.mockResolvedValue(() => null)
     extensionEditorMocks.byPath = {}
     extensionEditorMocks.reportError = undefined
     extensionEditorMocks.load.mockReset()
@@ -363,8 +363,8 @@ describe("FileSpaceTree accessibility", () => {
         "test-space": {
           showHiddenFiles: true,
           showObsidianFolder: true,
-          defaultBaseTemplate: "blank",
-          baseAssetFolder: "space-assets",
+          defaultEidosFileTemplate: "blank",
+          eidosFileAssetFolder: "space-assets",
         },
       },
     })
@@ -377,14 +377,14 @@ describe("FileSpaceTree accessibility", () => {
     })
   })
 
-  it("preselects the configured template when creating a Base", async () => {
+  it("preselects the configured template when creating an Eidos File", async () => {
     useFileSpaceSettings.setState({
       bySpace: {
         "test-space": {
           showHiddenFiles: false,
           showObsidianFolder: false,
-          defaultBaseTemplate: "tasks",
-          baseAssetFolder: "space-assets",
+          defaultEidosFileTemplate: "tasks",
+          eidosFileAssetFolder: "space-assets",
         },
       },
     })
@@ -392,7 +392,7 @@ describe("FileSpaceTree accessibility", () => {
 
     await act(async () => {
       container
-        .querySelector<HTMLButtonElement>('button[aria-label="New Base"]')
+        .querySelector<HTMLButtonElement>('button[aria-label="New Eidos File"]')
         ?.click()
       await Promise.resolve()
     })
@@ -404,14 +404,14 @@ describe("FileSpaceTree accessibility", () => {
 
     await act(async () => {
       Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
-        .find((button) => button.textContent === "Create Base")
+        .find((button) => button.textContent === "Create Eidos File")
         ?.click()
       await Promise.resolve()
       await Promise.resolve()
     })
 
     expect(createBaseMock).toHaveBeenCalledWith(
-      "Untitled.base",
+      "Untitled.eidos",
       expect.objectContaining({
         defaultTable: expect.objectContaining({ name: "Tasks" }),
       })
@@ -870,10 +870,10 @@ describe("FileSpaceTree accessibility", () => {
     )
   })
 
-  it("preloads the Base workspace on file intent only", async () => {
+  it("preloads the Eidos File workspace on file intent only", async () => {
     currentEntriesByDirectory[""] = [
       ...currentEntriesByDirectory[""],
-      entry("tasks.base", "file"),
+      entry("tasks.eidos", "file"),
     ]
     await renderTree()
 
@@ -883,31 +883,31 @@ describe("FileSpaceTree accessibility", () => {
       )
       await Promise.resolve()
     })
-    expect(preloadSpaceBaseEditorMock).not.toHaveBeenCalled()
+    expect(preloadSpaceEidosFileEditorMock).not.toHaveBeenCalled()
 
     await act(async () => {
-      getTreeItem("tasks.base").dispatchEvent(
+      getTreeItem("tasks.eidos").dispatchEvent(
         new MouseEvent("pointerover", { bubbles: true, composed: true })
       )
       await Promise.resolve()
     })
-    expect(preloadSpaceBaseEditorMock).toHaveBeenCalledTimes(1)
+    expect(preloadSpaceEidosFileEditorMock).toHaveBeenCalledTimes(1)
   })
 
-  it("preloads the Base workspace for keyboard navigation", async () => {
+  it("preloads the Eidos File workspace for keyboard navigation", async () => {
     currentEntriesByDirectory[""] = [
       ...currentEntriesByDirectory[""],
-      entry("tasks.base", "file"),
+      entry("tasks.eidos", "file"),
     ]
     await renderTree()
 
     await act(async () => {
-      getTreeItem("tasks.base").focus()
+      getTreeItem("tasks.eidos").focus()
       await Promise.resolve()
     })
 
-    expect(preloadSpaceBaseEditorMock).toHaveBeenCalledTimes(1)
-    expect(navigateMock).not.toHaveBeenCalledWith("/space-file#tasks.base")
+    expect(preloadSpaceEidosFileEditorMock).toHaveBeenCalledTimes(1)
+    expect(navigateMock).not.toHaveBeenCalledWith("/space-file#tasks.eidos")
   })
 
   it("creates a note and hands its name to Trees inline renaming", async () => {

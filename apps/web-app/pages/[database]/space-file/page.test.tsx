@@ -68,22 +68,25 @@ vi.mock(
   })
 )
 
-vi.mock("@/apps/web-app/components/file-space/base/space-base-editor", () => ({
-  SpaceBaseEditor: ({
-    filePath,
-    recordTarget,
-  }: {
-    filePath: string
-    recordTarget?: { tableId: string; recordId: string }
-  }) => (
-    <div
-      data-testid="base-editor"
-      data-path={filePath}
-      data-table={recordTarget?.tableId}
-      data-record={recordTarget?.recordId}
-    />
-  ),
-}))
+vi.mock(
+  "@/apps/web-app/components/file-space/eidos-file/space-eidos-file-editor",
+  () => ({
+    SpaceEidosFileEditor: ({
+      filePath,
+      recordTarget,
+    }: {
+      filePath: string
+      recordTarget?: { tableId: string; recordId: string }
+    }) => (
+      <div
+        data-testid="eidos-file-editor"
+        data-path={filePath}
+        data-table={recordTarget?.tableId}
+        data-record={recordTarget?.recordId}
+      />
+    ),
+  })
+)
 
 vi.mock("@/apps/web-app/components/file-space/space-markdown-editor", () => ({
   SpaceMarkdownEditor: ({
@@ -419,10 +422,10 @@ describe("SpaceFilePage editor selection", () => {
     )
   })
 
-  it("opens .base files in the standalone Base editor", async () => {
+  it("opens .eidos files in the standalone Eidos File editor", async () => {
     await act(async () => {
       root.render(
-        <MemoryRouter initialEntries={["/space-file#projects%2Ftasks.base"]}>
+        <MemoryRouter initialEntries={["/space-file#projects%2Ftasks.eidos"]}>
           <SpaceFilePage />
         </MemoryRouter>
       )
@@ -430,21 +433,21 @@ describe("SpaceFilePage editor selection", () => {
     })
 
     expect(
-      container.querySelector<HTMLElement>('[data-testid="base-editor"]')
+      container.querySelector<HTMLElement>('[data-testid="eidos-file-editor"]')
         ?.dataset.path
-    ).toBe("projects/tasks.base")
+    ).toBe("projects/tasks.eidos")
     expect(container.querySelector('[data-testid="monaco-editor"]')).toBeNull()
     expect(
       container.querySelector('[data-testid="lexical-markdown-editor"]')
     ).toBeNull()
   })
 
-  it("passes Base record targets into the standalone editor", async () => {
+  it("passes Eidos File record targets into the standalone editor", async () => {
     await act(async () => {
       root.render(
         <MemoryRouter
           initialEntries={[
-            "/space-file?table=tasks&record=row_1#projects%2Ftasks.base",
+            "/space-file?table=tasks&record=row_1#projects%2Ftasks.eidos",
           ]}
         >
           <SpaceFilePage />
@@ -454,9 +457,9 @@ describe("SpaceFilePage editor selection", () => {
     })
 
     const editor = container.querySelector<HTMLElement>(
-      '[data-testid="base-editor"]'
+      '[data-testid="eidos-file-editor"]'
     )
-    expect(editor?.dataset.path).toBe("projects/tasks.base")
+    expect(editor?.dataset.path).toBe("projects/tasks.eidos")
     expect(editor?.dataset.table).toBe("tasks")
     expect(editor?.dataset.record).toBe("row_1")
   })

@@ -8,12 +8,15 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: "@eidos.space/base/better-sqlite3",
-        replacement: path.resolve(packageRoot, "../base/src/better-sqlite3.ts"),
+        find: "@eidos.space/eidos-file/better-sqlite3",
+        replacement: path.resolve(
+          packageRoot,
+          "../eidos-file/src/better-sqlite3.ts"
+        ),
       },
       {
-        find: "@eidos.space/base",
-        replacement: path.resolve(packageRoot, "../base/src/index.ts"),
+        find: "@eidos.space/eidos-file",
+        replacement: path.resolve(packageRoot, "../eidos-file/src/index.ts"),
       },
     ],
   },

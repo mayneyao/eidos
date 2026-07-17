@@ -83,7 +83,13 @@ export interface FileSpaceAgentResourceContextInput {
 }
 
 export interface FileSpaceAgentResourceContext {
-  kind: "markdown" | "text" | "image" | "binary" | "base" | "base-row"
+  kind:
+    | "markdown"
+    | "text"
+    | "image"
+    | "binary"
+    | "eidos-file"
+    | "eidos-file-row"
   path: string
   heading?: string
   tableId?: string
@@ -91,7 +97,7 @@ export interface FileSpaceAgentResourceContext {
   selection?: string
   excerpt?: string
   contentDigest?: string
-  baseFingerprint?: string
+  eidosFileFingerprint?: string
   mtimeMs?: number
   mediaType?: string
   size?: number
@@ -125,8 +131,8 @@ export interface FileSpaceAgentToolRun {
     | "space.files.writeText"
     | "space.files.move"
     | "space.files.delete"
-    | "space.base.inspect"
-    | "space.base.readRows"
+    | "space.eidosFile.inspect"
+    | "space.eidosFile.readRows"
     | "extension.inspect"
     | "extension.create"
     | "extension.uninstall"

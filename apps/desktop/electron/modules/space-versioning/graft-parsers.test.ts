@@ -292,8 +292,8 @@ describe("Graft v0.5 JSON parsers", () => {
         ],
         conflicts: [
           {
-            id: "tasks.base:row:tb_tasks:7",
-            path: "tasks.base",
+            id: "tasks.eidos:row:tb_tasks:7",
+            path: "tasks.eidos",
             path_kind: "sqlite_database",
             storage: "sqlite_snapshot",
             kind: "row",
@@ -328,8 +328,8 @@ describe("Graft v0.5 JSON parsers", () => {
       ],
       conflicts: [
         {
-          id: "tasks.base:row:tb_tasks:7",
-          path: "tasks.base",
+          id: "tasks.eidos:row:tb_tasks:7",
+          path: "tasks.eidos",
           pathKind: "sqlite_database",
           storage: "sqlite_snapshot",
           kind: "row",
@@ -551,7 +551,7 @@ describe("Graft v0.5 JSON parsers", () => {
     expect(diff.sqliteFiles).toEqual([])
   })
 
-  it("preserves Graft row-level SQLite changes for one Base file", () => {
+  it("preserves Graft row-level SQLite changes for one Eidos File", () => {
     const diff = parseGraftDiff(
       {
         current_head: "commit-2",
@@ -560,7 +560,7 @@ describe("Graft v0.5 JSON parsers", () => {
         to: "commit-2",
         paths: [
           {
-            path: "tasks.base",
+            path: "tasks.eidos",
             change: "modified",
             kind: "sqlite_database",
             storage: "sqlite_snapshot",
@@ -568,7 +568,7 @@ describe("Graft v0.5 JSON parsers", () => {
         ],
         files: [
           {
-            path: "tasks.base",
+            path: "tasks.eidos",
             change: "modified",
             kind: "sqlite_database",
             storage: "sqlite_snapshot",
@@ -613,7 +613,7 @@ describe("Graft v0.5 JSON parsers", () => {
 
     expect(diff.sqliteFiles).toEqual([
       {
-        path: "tasks.base",
+        path: "tasks.eidos",
         change: "modified",
         kind: "sqlite_database",
         storage: "sqlite_snapshot",

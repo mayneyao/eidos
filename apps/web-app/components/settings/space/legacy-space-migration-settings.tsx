@@ -23,7 +23,7 @@ import { useToast } from "@/components/ui/use-toast"
 const PHASE_LABELS = {
   preparing: "Preparing export…",
   documents: "Exporting documents…",
-  tables: "Building Base…",
+  tables: "Building Eidos File…",
   assets: "Copying assets…",
   extensions: "Archiving legacy extensions…",
   validating: "Validating result…",
@@ -266,7 +266,7 @@ export function LegacySpaceMigrationSettings() {
               <p className="max-w-2xl text-sm leading-5 text-muted-foreground">
                 {t(
                   "space.settings.migration.exportDescription",
-                  "Create a new Space with Markdown documents, one main.base, visible assets, and a non-executable archive of legacy extensions. The current database Space stays unchanged."
+                  "Create a new Space with Markdown documents, one main.eidos, visible assets, and a non-executable archive of legacy extensions. The current database Space stays unchanged."
                 )}
               </p>
             </div>
@@ -437,7 +437,7 @@ export function LegacySpaceMigrationSettings() {
                 <p className="mt-1 text-sm text-muted-foreground">
                   {t(
                     "space.settings.migration.completeDescription",
-                    "The new Space passed Markdown, Base, row, field, view, reference, asset, and legacy extension archive validation."
+                    "The new Space passed Markdown, Eidos File, row, field, view, reference, asset, and legacy extension archive validation."
                   )}
                 </p>
                 <p className="mt-2 truncate font-mono text-xs text-foreground/70">

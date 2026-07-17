@@ -7,7 +7,7 @@ Owner：Eidos
 相关 RFC：
 
 - `eidos-space-markdown-runtime.zh.md`
-- `eidos-base-file-format.zh.md`
+- `eidos-file-format.zh.md`
 - `eidos-file-based-extensions.zh.md`
 - `eidos-graft-space-versioning.zh.md`
 
@@ -34,7 +34,7 @@ Native File Space Agent 可以通过正式 host service：
 - 创建、编辑、检查、授权、信任、启停和运行 File-Based Extensions；
 - 检查 Graft 状态、历史和 diff，并执行 enable、stage、unstage、commit、discard、
   restore、remote sync 与 conflict resolution；
-- 读取 Markdown、图片、Base snapshot 和 Base rows；
+- 读取 Markdown、图片、Eidos File snapshot 和 Eidos File rows；
 - 在 tab 关闭后继续由 Electron main 执行，并以 durable journal 恢复 UI。
 
 ## 产品与导航边界
@@ -52,15 +52,15 @@ Copy、outline 和完成音效。UI 复用不要求 runtime 或 session 格式�
 
 ## 双 Runtime 边界
 
-| 边界           | Legacy DataSpace Agent            | Native File Space Agent                   |
-| -------------- | --------------------------------- | ----------------------------------------- |
-| 入口           | 旧 `/agent` API/channel           | Desktop `file-space-agent` IPC            |
-| 组装           | `prepareAgent` / `handleAgentApi` | `prepareFileSpaceAgentRuntime`            |
-| canonical data | DataSpace/SQLite                  | Space files、`.base`、`.eidos/extensions` |
-| tools          | legacy Bash/VFS/eidos/web tools   | typed Space/Extension/Version/Base tools  |
-| session        | 旧 sidecar/session store          | `<id>/meta.json + events.jsonl`           |
-| approval       | legacy permission server          | Electron main 的 run-scoped approval      |
-| lifecycle      | request/renderer 链路             | Electron main background run              |
+| 边界           | Legacy DataSpace Agent            | Native File Space Agent                        |
+| -------------- | --------------------------------- | ---------------------------------------------- |
+| 入口           | 旧 `/agent` API/channel           | Desktop `file-space-agent` IPC                 |
+| 组装           | `prepareAgent` / `handleAgentApi` | `prepareFileSpaceAgentRuntime`                 |
+| canonical data | DataSpace/SQLite                  | Space files、`.eidos`、`.eidos/extensions`     |
+| tools          | legacy Bash/VFS/eidos/web tools   | typed Space/Extension/Version/Eidos File tools |
+| session        | 旧 sidecar/session store          | `<id>/meta.json + events.jsonl`                |
+| approval       | legacy permission server          | Electron main 的 run-scoped approval           |
+| lifecycle      | request/renderer 链路             | Electron main background run                   |
 
 禁止在 Native runtime 中增加以下 fallback：
 
@@ -68,7 +68,7 @@ Copy、outline 和完成音效。UI 复用不要求 runtime 或 session 格式�
 - legacy DataSpace、`AgentSessionStore` 或旧 session 自动导入；
 - `createBashTool`、`createFileTools`、旧 VFS 或 legacy `eidos` command；
 - legacy permission WebSocket；
-- 直接 filesystem path、直接 `.base` SQLite 或直接 `.graft` 访问。
+- 直接 filesystem path、直接 `.eidos` SQLite 或直接 `.graft` 访问。
 
 ## 架构
 
@@ -82,7 +82,7 @@ Agent tab / panel
        -> SpaceManagementService
        -> FileExtensionService
        -> SpaceVersioningService
-       -> Base runtime facade
+       -> Eidos File runtime facade
 ```
 
 `startRun` 在 main 中登记 `ActiveRun` 和 `AbortController`，随后以 detached promise
@@ -174,13 +174,13 @@ filter、managed ignore、expected-head、conflict 与 file refresh 语义。除
 外，Agent 必须先读取 status；guarded mutation 使用精确 current head。每次 mutation
 或 external sync 均要求 Allow once/Deny。Agent 永远不能直接操作 `.graft/`。
 
-### Base 与 Resource Context
+### Eidos File 与 Resource Context
 
-`.base` 不能当普通文本文件写。当前 Agent 通过 `getBaseSnapshotReadOnly`、
-`getBaseTableRow` 和 `getBaseTablePage` 读取 Base；后续 Base mutation 必须继续加入
-Base Runtime typed API，不能使用文件覆盖。
+`.eidos` 不能当普通文本文件写。当前 Agent 通过 `getEidosFileSnapshotReadOnly`、
+`getEidosFileTableRow` 和 `getEidosFileTablePage` 读取 Eidos File；后续 Eidos File mutation 必须继续加入
+Eidos File Runtime typed API，不能使用文件覆盖。
 
-active tab context capture 支持 Markdown selection/heading、普通文本、Base row、图片
+active tab context capture 支持 Markdown selection/heading、普通文本、Eidos File row、图片
 和 binary metadata，并记录 digest/mtime/fingerprint/capturedAt。图片最大 10 MiB，
 由 main 读取后作为 model file part 注入。
 
@@ -219,7 +219,7 @@ active tab context capture 支持 Markdown selection/heading、普通文本、Ba
 ```bash
 pnpm typecheck
 pnpm --filter eidos smoke:file-agent
-pnpm --filter eidos smoke:base-query
+pnpm --filter eidos smoke:eidos-file-query
 pnpm --filter eidos smoke:file-extension-runtime
 pnpm build:desktop:dev
 ```
@@ -227,7 +227,7 @@ pnpm build:desktop:dev
 ## RFC 所有权边界
 
 - Space Markdown RFC 拥有 safe-save、selection 与 preview 语义。
-- Base Runtime RFC 拥有 `.base` query/mutation；Agent 只调用 typed facade。
+- Eidos File Runtime RFC 拥有 `.eidos` query/mutation；Agent 只调用 typed facade。
 - File-Based Extensions RFC 拥有 manifest、compiler、snapshot trust、grant 和 sandbox；
   Agent 只编排正式 service。
 - Graft Versioning RFC 拥有 repository、ignore、stage/commit/restore/sync/conflict；

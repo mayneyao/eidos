@@ -37,7 +37,7 @@ export {
 } from "./legacy-archive"
 export {
   createExtensionCommandTemplate,
-  createExtensionBaseViewTemplate,
+  createExtensionEidosFileViewTemplate,
   createExtensionPanelTemplate,
   createExtensionTextEditorTemplate,
 } from "./template"
@@ -45,7 +45,7 @@ export type {
   AnalyzeExtensionManifestOptions,
   DiscoverExtensionPackagesOptions,
   ExtensionCommandContribution,
-  ExtensionBaseViewContribution,
+  ExtensionEidosFileViewContribution,
   ExtensionDiagnostic,
   ExtensionDiagnosticCode,
   ExtensionDiagnosticSeverity,
@@ -66,7 +66,7 @@ export type {
 } from "./types"
 export type {
   ExtensionCommandTemplateOptions,
-  ExtensionBaseViewTemplateOptions,
+  ExtensionEidosFileViewTemplateOptions,
   ExtensionPanelTemplateOptions,
   ExtensionTextEditorTemplateOptions,
   ExtensionTemplate,

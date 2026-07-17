@@ -189,11 +189,11 @@ describe("analyzeExtensionManifest", () => {
     ).toContain("manifest-id-namespace")
   })
 
-  it("accepts UI-only Base views and requires a UI entrypoint", () => {
-    const baseViewManifest = manifest({
-      entrypoints: { ui: "src/base-view.ts" },
+  it("accepts UI-only Eidos File views and requires a UI entrypoint", () => {
+    const eidosFileViewManifest = manifest({
+      entrypoints: { ui: "src/eidos-file-view.ts" },
       contributes: {
-        baseViews: [
+        eidosFileViews: [
           {
             id: "example.task-counter.cards",
             displayName: "Task cards",
@@ -202,14 +202,14 @@ describe("analyzeExtensionManifest", () => {
         ],
       },
     })
-    expect(diagnosticCodes(JSON.stringify(baseViewManifest))).toEqual([])
+    expect(diagnosticCodes(JSON.stringify(eidosFileViewManifest))).toEqual([])
 
     expect(
       diagnosticCodes(
         JSON.stringify(
           manifest({
             entrypoints: { worker: "src/extension.ts" },
-            contributes: baseViewManifest.contributes,
+            contributes: eidosFileViewManifest.contributes,
           })
         )
       )

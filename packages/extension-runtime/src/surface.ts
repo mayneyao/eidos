@@ -58,7 +58,7 @@ export function createExtensionSurfaceSource(
   let initialized = false;
   let sequence = 0;
   let snapshot;
-  let baseContext;
+  let eidosFileContext;
   let appearance;
   let capabilities;
   let activationDisposable;
@@ -68,7 +68,7 @@ export function createExtensionSurfaceSource(
   const stateListeners = new Set();
   const saveStateListeners = new Set();
   const appearanceListeners = new Set();
-  const baseContextListeners = new Set();
+  const eidosFileContextListeners = new Set();
 
   const runtimeError = (error) => error instanceof Error ? error.message : String(error);
   const deepFreeze = (value) => {
@@ -169,16 +169,16 @@ export function createExtensionSurfaceSource(
       type,
       requestId,
       documentId: snapshot.documentId,
-      baseRevision: snapshot.revision,
+      eidosFileRevision: snapshot.revision,
       ...extra,
     });
   });
-  const requestBasePage = (options = {}) => new Promise((resolve, reject) => {
-    if (!baseContext) return reject(new Error("Extension Base view is not initialized"));
-    const requestId = "base-page-" + (++sequence);
+  const requestEidosFilePage = (options = {}) => new Promise((resolve, reject) => {
+    if (!eidosFileContext) return reject(new Error("Extension Eidos File view is not initialized"));
+    const requestId = "eidos-file-page-" + (++sequence);
     pending.set(requestId, { resolve, reject });
     send({
-      type: "base-page-request",
+      type: "eidos-file-page-request",
       requestId,
       generation: GENERATION,
       offset: options.offset ?? 0,
@@ -200,10 +200,10 @@ export function createExtensionSurfaceSource(
     get current() { return appearance; },
     onDidChange(listener) { return listen(appearanceListeners, listener); },
   });
-  const baseApi = Object.freeze({
-    get context() { return baseContext; },
-    getPage(options) { return requestBasePage(options); },
-    onDidChangeContext(listener) { return listen(baseContextListeners, listener); },
+  const eidosFileApi = Object.freeze({
+    get context() { return eidosFileContext; },
+    getPage(options) { return requestEidosFilePage(options); },
+    onDidChangeContext(listener) { return listen(eidosFileContextListeners, listener); },
   });
   const subscriptionStore = Object.freeze({
     add(value) {
@@ -228,7 +228,7 @@ export function createExtensionSurfaceSource(
     stateListeners.clear();
     saveStateListeners.clear();
     appearanceListeners.clear();
-    baseContextListeners.clear();
+    eidosFileContextListeners.clear();
     try { port && port.close(); } catch {}
   };
 
@@ -278,14 +278,14 @@ ${options.bundleCode}
         capabilities,
         subscriptions: subscriptionStore,
       });
-    } else if (message.surfaceKind === "base-view") {
-      baseContext = deepFreeze(message.context);
+    } else if (message.surfaceKind === "eidos-file-view") {
+      eidosFileContext = deepFreeze(message.context);
       context = Object.freeze({
         extensionId: EXTENSION_ID,
-        baseViewId: message.baseViewId,
+        eidosFileViewId: message.eidosFileViewId,
         viewId: message.viewId,
         root,
-        base: baseApi,
+        base: eidosFileApi,
         appearance: appearanceApi,
         subscriptions: subscriptionStore,
       });
@@ -318,21 +318,21 @@ ${options.bundleCode}
       else waiter.reject(Object.assign(new Error(message.error && message.error.message || "Host request failed"), { code: message.error && message.error.code }));
       return;
     }
-    if (message.type === "base-page-result") {
+    if (message.type === "eidos-file-page-result") {
       const waiter = pending.get(message.requestId);
       if (!waiter) return;
       pending.delete(message.requestId);
       if (message.ok) waiter.resolve(deepFreeze(message.page));
-      else waiter.reject(new Error(message.error && message.error.message || "Unable to load Base rows"));
+      else waiter.reject(new Error(message.error && message.error.message || "Unable to load Eidos File rows"));
       return;
     }
     if (message.type === "appearance-changed") {
       setAppearance(message.appearance);
       return;
     }
-    if (message.type === "base-context-changed") {
-      baseContext = deepFreeze(message.context);
-      emit(baseContextListeners, baseContext);
+    if (message.type === "eidos-file-context-changed") {
+      eidosFileContext = deepFreeze(message.context);
+      emit(eidosFileContextListeners, eidosFileContext);
       return;
     }
     if (message.type === "dispose") {

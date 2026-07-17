@@ -10,8 +10,8 @@ import {
 
 const firstTab = {
   id: "tab-1",
-  url: "/space-file#tasks.base",
-  title: "tasks.base",
+  url: "/space-file#tasks.eidos",
+  title: "tasks.eidos",
   lastAccessTime: 1,
 }
 

@@ -4,4 +4,4 @@ export {
   getMiddleCenterBias,
   measureTextCached,
   roundedRect,
-} from "@eidos.space/base-ui"
+} from "@eidos.space/eidos-file-ui"

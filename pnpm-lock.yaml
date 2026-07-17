@@ -76,14 +76,14 @@ importers:
         specifier: ^3.2.6
         version: 3.2.7(@types/debug@4.1.12)(@types/node@20.19.1)(happy-dom@20.10.6(bufferutil@4.0.9)(utf-8-validate@6.0.5))(jiti@2.6.1)(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
 
-  apps/base-web:
+  apps/eidos-file-web:
     dependencies:
-      '@eidos.space/base':
+      '@eidos.space/eidos-file':
         specifier: workspace:*
-        version: link:../../packages/base
-      '@eidos.space/base-ui':
+        version: link:../../packages/eidos-file
+      '@eidos.space/eidos-file-ui':
         specifier: workspace:*
-        version: link:../../packages/base-ui
+        version: link:../../packages/eidos-file-ui
       '@glideapps/glide-data-grid':
         specifier: ^6.0.0
         version: 6.0.3(lodash@4.18.1)(marked@4.3.0)(react-dom@18.3.1(react@18.3.1))(react-responsive-carousel@3.2.23)(react@18.3.1)
@@ -154,9 +154,9 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@eidos.space/base':
+      '@eidos.space/eidos-file':
         specifier: workspace:*
-        version: link:../../packages/base
+        version: link:../../packages/eidos-file
       '@eidos.space/bashkit':
         specifier: ^0.6.5
         version: 0.6.5(zod@3.25.67)
@@ -497,9 +497,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@18.3.1)
-      '@eidos.space/base-ui':
+      '@eidos.space/eidos-file-ui':
         specifier: workspace:*
-        version: link:../../packages/base-ui
+        version: link:../../packages/eidos-file-ui
       '@eidos.space/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -1208,7 +1208,7 @@ importers:
         specifier: ^5.3.3
         version: 5.8.3
 
-  packages/base:
+  packages/eidos-file:
     dependencies:
       csv-parse:
         specifier: ^5.6.0
@@ -1236,7 +1236,7 @@ importers:
         specifier: 3.2.6
         version: 3.2.6(@types/debug@4.1.12)(@types/node@20.19.1)(happy-dom@20.10.6(bufferutil@4.0.9)(utf-8-validate@6.0.5))(jiti@2.6.1)(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
 
-  packages/base-ui:
+  packages/eidos-file-ui:
     dependencies:
       '@dnd-kit/core':
         specifier: ^6.3.1
@@ -1247,9 +1247,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@18.3.1)
-      '@eidos.space/base':
+      '@eidos.space/eidos-file':
         specifier: workspace:*
-        version: link:../base
+        version: link:../eidos-file
       '@radix-ui/react-icons':
         specifier: ^1.3.0
         version: 1.3.2(react@18.3.1)
@@ -1632,9 +1632,9 @@ importers:
 
   packages/legacy-space-migration:
     dependencies:
-      '@eidos.space/base':
+      '@eidos.space/eidos-file':
         specifier: workspace:*
-        version: link:../base
+        version: link:../eidos-file
       '@eidos.space/extension-manifest':
         specifier: workspace:*
         version: link:../extension-manifest

@@ -1,1 +1,1 @@
-export { defaultConfig, getScrollbarWidth } from "@eidos.space/base-ui"
+export { defaultConfig, getScrollbarWidth } from "@eidos.space/eidos-file-ui"

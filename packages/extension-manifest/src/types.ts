@@ -24,7 +24,7 @@ export interface ExtensionFileEditorContribution {
 
 /**
  * A sandboxed UI surface opened as an editor-area tab. Panels are not tied to
- * a file and do not imply a Base view type.
+ * a file and do not imply an Eidos File view type.
  */
 export interface ExtensionPanelContribution {
   id: string
@@ -33,10 +33,10 @@ export interface ExtensionPanelContribution {
 
 /**
  * A sandboxed, read-only renderer that can be selected as a saved view inside
- * a file-based Base. The host owns querying and paging; the extension only
+ * a file-based Eidos File. The host owns querying and paging; the extension only
  * receives the active table/view context and bounded result pages.
  */
-export interface ExtensionBaseViewContribution {
+export interface ExtensionEidosFileViewContribution {
   id: string
   displayName: string
   description?: string
@@ -62,7 +62,7 @@ export interface ExtensionManifestV1 {
     menus?: Record<string, ExtensionMenuContribution[]>
     fileEditors?: ExtensionFileEditorContribution[]
     panels?: ExtensionPanelContribution[]
-    baseViews?: ExtensionBaseViewContribution[]
+    eidosFileViews?: ExtensionEidosFileViewContribution[]
   }
   permissions: ExtensionPermissions
 }

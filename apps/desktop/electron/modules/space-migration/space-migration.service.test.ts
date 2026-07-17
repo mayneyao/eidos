@@ -130,9 +130,9 @@ describe("SpaceMigrationService", () => {
     expect(result).toMatchObject({
       status: "completed",
       targetRoot,
-      validation: { baseValid: true },
+      validation: { eidosFileValid: true },
     })
-    expect(existsSync(path.join(targetRoot, "main.base"))).toBe(true)
+    expect(existsSync(path.join(targetRoot, "main.eidos"))).toBe(true)
     expect(send).toHaveBeenCalledWith(
       "space-migration:progress",
       expect.objectContaining({ planId: handle.id, phase: "finalizing" })

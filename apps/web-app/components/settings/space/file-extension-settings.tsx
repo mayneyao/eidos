@@ -75,8 +75,8 @@ type FileExtensionCommand = NonNullable<
 type FileExtensionPanel = NonNullable<
   NonNullable<FileExtensionPackage["manifest"]>["contributes"]["panels"]
 >[number]
-type FileExtensionBaseView = NonNullable<
-  NonNullable<FileExtensionPackage["manifest"]>["contributes"]["baseViews"]
+type FileExtensionEidosFileView = NonNullable<
+  NonNullable<FileExtensionPackage["manifest"]>["contributes"]["eidosFileViews"]
 >[number]
 type FileExtensionInstallPreview = Awaited<
   ReturnType<typeof window.eidos.fileExtensions.prepareGitHubInstall>
@@ -88,7 +88,7 @@ type LocalExtensionTemplateKind =
   | "command"
   | "panel"
   | "text-editor"
-  | "base-view"
+  | "eidos-file-view"
 type ExtensionSourceKind = "manifest" | "worker" | "ui" | "source"
 type ExtensionSourceFile = {
   kind: ExtensionSourceKind
@@ -272,7 +272,7 @@ function contributionCount(extension: FileExtensionPackage): number {
     (contributes.commands?.length ?? 0) +
     (contributes.panels?.length ?? 0) +
     (contributes.fileEditors?.length ?? 0) +
-    (contributes.baseViews?.length ?? 0)
+    (contributes.eidosFileViews?.length ?? 0)
   )
 }
 
@@ -322,7 +322,7 @@ function baseSampleFileParts(
   for (const grant of extension.requestedGrants) {
     if (grant.kind !== "files.read") continue
     const parts = sampleFilePartsForPattern(grant.value)
-    if (parts?.extension.toLowerCase() === ".base") return parts
+    if (parts?.extension.toLowerCase() === ".eidos") return parts
   }
   return null
 }
@@ -344,7 +344,7 @@ function commandSampleFileParts(
   for (const grant of extension.requestedGrants) {
     if (grant.kind !== "files.read") continue
     const parts = sampleFilePartsForPattern(grant.value)
-    if (parts && parts.extension.toLowerCase() !== ".base") return parts
+    if (parts && parts.extension.toLowerCase() !== ".eidos") return parts
   }
   return null
 }
@@ -588,8 +588,8 @@ export function FileExtensionSettings() {
             ? "src/editor.ts"
             : createdTemplate === "panel"
               ? "src/panel.ts"
-              : createdTemplate === "base-view"
-                ? "src/base-view.ts"
+              : createdTemplate === "eidos-file-view"
+                ? "src/eidos-file-view.ts"
                 : "src/extension.ts"
         }`,
         sourceKind: createdTemplate === "command" ? "worker" : "ui",
@@ -1003,11 +1003,11 @@ export function FileExtensionSettings() {
   const createBaseSample = useCallback(
     async (
       extension: FileExtensionPackage,
-      baseView: FileExtensionBaseView,
+      eidosFileView: FileExtensionEidosFileView,
       parts: { stem: string; extension: string }
     ) => {
       if (!spaceId || !window.eidos?.spaceMgmt || baseSample) return
-      const key = `${extension.canonicalId ?? extension.directoryName}\0${baseView.id}`
+      const key = `${extension.canonicalId ?? extension.directoryName}\0${eidosFileView.id}`
       setBaseSample({ key, status: "creating" })
       try {
         const rootEntries = await window.eidos.spaceMgmt.listFiles(spaceId, "")
@@ -1017,8 +1017,8 @@ export function FileExtensionSettings() {
           parts.extension
         )
         const tableId = "records"
-        await window.eidos.spaceMgmt.createBase(spaceId, fileName, {
-          title: `${baseView.displayName} preview`,
+        await window.eidos.spaceMgmt.createEidosFile(spaceId, fileName, {
+          title: `${eidosFileView.displayName} preview`,
           defaultTable: {
             id: tableId,
             name: "Records",
@@ -1044,13 +1044,13 @@ export function FileExtensionSettings() {
             ],
           },
         })
-        await window.eidos.spaceMgmt.createBaseView(
+        await window.eidos.spaceMgmt.createEidosFileView(
           spaceId,
           fileName,
           tableId,
           {
-            name: baseView.displayName,
-            type: `extension:${baseView.id}`,
+            name: eidosFileView.displayName,
+            type: `extension:${eidosFileView.id}`,
           }
         )
         for (const row of [
@@ -1062,7 +1062,7 @@ export function FileExtensionSettings() {
           {
             title: "Add another record",
             status: "planned",
-            notes: "The view receives paginated Base records from Eidos.",
+            notes: "The view receives paginated Eidos File records from Eidos.",
           },
           {
             title: "Verify the interaction",
@@ -1070,7 +1070,7 @@ export function FileExtensionSettings() {
             notes: "Switch back to Grid from the view picker when needed.",
           },
         ]) {
-          await window.eidos.spaceMgmt.insertBaseRow(
+          await window.eidos.spaceMgmt.insertEidosFileRow(
             spaceId,
             fileName,
             tableId,
@@ -1088,7 +1088,7 @@ export function FileExtensionSettings() {
               ? sampleError.message
               : t(
                   "space.settings.fileExtensions.createBaseSampleFailed",
-                  "Unable to create the sample Base."
+                  "Unable to create the sample Eidos File."
                 ),
         })
       }
@@ -1311,7 +1311,7 @@ export function FileExtensionSettings() {
             !("message" in entry) ||
             typeof entry.sequence !== "number" ||
             typeof entry.timestamp !== "number" ||
-            !["worker", "panel", "file-editor", "base-view"].includes(
+            !["worker", "panel", "file-editor", "eidos-file-view"].includes(
               String(entry.source)
             ) ||
             !["debug", "info", "log", "warn", "error"].includes(
@@ -1980,7 +1980,7 @@ export function FileExtensionSettings() {
                       creating
                         ? "cursor-not-allowed opacity-60"
                         : "cursor-pointer",
-                      templateKind === "base-view"
+                      templateKind === "eidos-file-view"
                         ? "bg-background text-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
                     )}
@@ -1988,18 +1988,18 @@ export function FileExtensionSettings() {
                     <input
                       type="radio"
                       name="local-extension-template"
-                      value="base-view"
+                      value="eidos-file-view"
                       className="sr-only"
-                      checked={templateKind === "base-view"}
+                      checked={templateKind === "eidos-file-view"}
                       onChange={() => {
-                        setTemplateKind("base-view")
+                        setTemplateKind("eidos-file-view")
                         setCreateError(null)
                       }}
                     />
                     <LayoutGrid className="h-4 w-4" />
                     {t(
-                      "space.settings.fileExtensions.baseViewTemplate",
-                      "Base view"
+                      "space.settings.fileExtensions.eidosFileViewTemplate",
+                      "Eidos File view"
                     )}
                   </label>
                 </div>
@@ -2017,10 +2017,10 @@ export function FileExtensionSettings() {
                           "space.settings.fileExtensions.panelTemplateDescription",
                           "Adds a Task Counter command that opens a sandboxed UI tab."
                         )
-                      : templateKind === "base-view"
+                      : templateKind === "eidos-file-view"
                         ? t(
-                            "space.settings.fileExtensions.baseViewTemplateDescription",
-                            "Adds a sandboxed, infinitely scrolling layout to the Base view picker."
+                            "space.settings.fileExtensions.eidosFileViewTemplateDescription",
+                            "Adds a sandboxed, infinitely scrolling layout to the Eidos File view picker."
                           )
                         : t(
                             "space.settings.fileExtensions.textEditorTemplateDescription",
@@ -2227,10 +2227,10 @@ export function FileExtensionSettings() {
                           "space.settings.fileExtensions.panelCreatedNextStep",
                           "Next: review and enable it below. Open the panel directly, or grant Markdown read access and run its command from a Markdown file to populate task counts."
                         )
-                      : createdExtension.template === "base-view"
+                      : createdExtension.template === "eidos-file-view"
                         ? t(
-                            "space.settings.fileExtensions.baseViewCreatedNextStep",
-                            "Next: review its source, grant Base file read access, and enable it below. Open a .base file, add a view, then choose this extension layout."
+                            "space.settings.fileExtensions.eidosFileViewCreatedNextStep",
+                            "Next: review its source, grant Eidos File read access, and enable it below. Open a .eidos file, add a view, then choose this extension layout."
                           )
                         : t(
                             "space.settings.fileExtensions.editorCreatedNextStep",
@@ -2432,7 +2432,8 @@ export function FileExtensionSettings() {
               const fileEditors =
                 extension.manifest?.contributes.fileEditors ?? []
               const panels = extension.manifest?.contributes.panels ?? []
-              const baseViews = extension.manifest?.contributes.baseViews ?? []
+              const eidosFileViews =
+                extension.manifest?.contributes.eidosFileViews ?? []
               const legacyMappings = extension.legacyMappings ?? []
               const legacyConflict = legacyMappings.some(
                 (mapping) => mapping.conflict !== "none"
@@ -2482,12 +2483,12 @@ export function FileExtensionSettings() {
                 !!primaryEditorKey &&
                 editorSample?.key === primaryEditorKey &&
                 editorSample.status === "creating"
-              const primaryBaseView = baseViews[0]
-              const primaryBaseSample = primaryBaseView
+              const primaryEidosFileView = eidosFileViews[0]
+              const primaryBaseSample = primaryEidosFileView
                 ? baseSampleFileParts(extension)
                 : null
-              const primaryBaseKey = primaryBaseView
-                ? `${packageId}\0${primaryBaseView.id}`
+              const primaryBaseKey = primaryEidosFileView
+                ? `${packageId}\0${primaryEidosFileView.id}`
                 : null
               const primaryBaseCreating =
                 !!primaryBaseKey &&
@@ -2519,10 +2520,10 @@ export function FileExtensionSettings() {
                   )
                   return
                 }
-                if (primaryBaseView && primaryBaseSample) {
+                if (primaryEidosFileView && primaryBaseSample) {
                   void createBaseSample(
                     extension,
-                    primaryBaseView,
+                    primaryEidosFileView,
                     primaryBaseSample
                   )
                   return
@@ -2635,17 +2636,17 @@ export function FileExtensionSettings() {
                             </span>
                           </p>
                         )}
-                        {baseViews[0] && (
+                        {eidosFileViews[0] && (
                           <p className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                             <LayoutGrid className="h-3 w-3" />
                             <span className="min-w-0 break-words">
-                              {baseViews[0].displayName}
+                              {eidosFileViews[0].displayName}
                             </span>
                             <span aria-hidden="true">·</span>
                             <span>
                               {t(
-                                "space.settings.fileExtensions.baseViewPickerTrigger",
-                                "Base view picker"
+                                "space.settings.fileExtensions.eidosFileViewPickerTrigger",
+                                "Eidos File view picker"
                               )}
                             </span>
                           </p>
@@ -3726,7 +3727,7 @@ export function FileExtensionSettings() {
                         {(commands.length > 0 ||
                           panels.length > 0 ||
                           fileEditors.length > 0 ||
-                          baseViews.length > 0) && (
+                          eidosFileViews.length > 0) && (
                           <div
                             id={`${packageElementId(packageId)}-how-to-use`}
                             className="scroll-m-6 py-3"
@@ -4108,23 +4109,23 @@ export function FileExtensionSettings() {
                                   </div>
                                 )
                               })}
-                              {baseViews.map((baseView) => {
+                              {eidosFileViews.map((eidosFileView) => {
                                 const sampleParts =
                                   baseSampleFileParts(extension)
-                                const sampleKey = `${packageId}\0${baseView.id}`
+                                const sampleKey = `${packageId}\0${eidosFileView.id}`
                                 return (
                                   <div
-                                    key={baseView.id}
+                                    key={eidosFileView.id}
                                     className="flex min-h-[56px] items-center justify-between gap-4 py-2"
                                   >
                                     <div className="flex min-w-0 items-start gap-2">
                                       <LayoutGrid className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                                       <div className="min-w-0">
                                         <p className="truncate text-sm font-medium">
-                                          {baseView.displayName}
+                                          {eidosFileView.displayName}
                                         </p>
                                         <code className="block truncate text-[11px] text-muted-foreground">
-                                          {baseView.id}
+                                          {eidosFileView.id}
                                         </code>
                                       </div>
                                     </div>
@@ -4180,17 +4181,17 @@ export function FileExtensionSettings() {
                                     ) : missingReadGrant ? (
                                       <p className="max-w-64 text-right text-xs leading-5 text-muted-foreground">
                                         {t(
-                                          "space.settings.fileExtensions.baseViewMissingReadGrantInstructions",
-                                          "Grant matching .base file read access below."
+                                          "space.settings.fileExtensions.eidosFileViewMissingReadGrantInstructions",
+                                          "Grant matching .eidos file read access below."
                                         )}
                                       </p>
                                     ) : (
                                       <div className="flex max-w-96 shrink-0 items-center justify-end gap-2">
                                         <p className="text-right text-xs leading-5 text-foreground">
                                           {t(
-                                            "space.settings.fileExtensions.openBaseViewInstructions",
-                                            "Open a .base file, add a view, then choose {{name}}",
-                                            { name: baseView.displayName }
+                                            "space.settings.fileExtensions.openEidosFileViewInstructions",
+                                            "Open a .eidos file, add a view, then choose {{name}}",
+                                            { name: eidosFileView.displayName }
                                           )}
                                         </p>
                                         {sampleParts && (
@@ -4204,7 +4205,7 @@ export function FileExtensionSettings() {
                                             onClick={() =>
                                               void createBaseSample(
                                                 extension,
-                                                baseView,
+                                                eidosFileView,
                                                 sampleParts
                                               )
                                             }
@@ -4217,7 +4218,7 @@ export function FileExtensionSettings() {
                                             )}
                                             {t(
                                               "space.settings.fileExtensions.createSampleBase",
-                                              "Create sample Base"
+                                              "Create sample Eidos File"
                                             )}
                                           </Button>
                                         )}

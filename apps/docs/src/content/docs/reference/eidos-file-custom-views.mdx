@@ -1,0 +1,234 @@
+---
+title: Eidos File format and custom views
+description: Follow a .eidos view from SQLite metadata through the runtime and worker adapter to a custom React renderer.
+sidebar:
+  order: 20
+---
+
+A `.eidos` file is an open, local-first multidimensional table: a regular SQLite
+database plus versioned Eidos metadata. Data, field definitions, saved filters,
+sorts, and view configuration travel together in one file. The UI is not part
+of the file, so another application can read the data without running Eidos.
+
+This page describes the public application-integration boundary implemented by
+`@eidos.space/eidos-file` and `@eidos.space/eidos-file-ui`.
+
+If you are deciding what to import into an application, start with
+[Build with Eidos File UI](/reference/eidos-file-ui-package/). This page focuses
+on the persisted data and renderer contracts underneath it.
+
+## The format-to-UI pipeline
+
+```text
+tasks.eidos (SQLite)
+  ├─ user tables and rows
+  ├─ eidos__columns       field type and storage metadata
+  ├─ eidos__views         type, properties, filter, order, hidden fields
+  └─ eidos__meta          format and schema versions
+          │
+          ▼
+@eidos.space/eidos-file         validation, query, grouping, mutation
+          │
+          ▼
+EidosFileEditorDataSource      worker/RPC adapter; no SQLite on the React thread
+          │
+          ▼
+@eidos.space/eidos-file-ui      Grid, Gallery, Kanban, or a registered renderer
+```
+
+The required metadata tables are `eidos__meta`, `eidos__tables`,
+`eidos__columns`, `eidos__views`, and `eidos__references`. The current format is
+identified by `format=eidos-file`; consumers must read the format and schema
+versions instead of guessing from a filename.
+
+Do not copy these tables or compile view filters into SQL in a UI package.
+`@eidos.space/eidos-file` owns identifiers, validation, query semantics,
+cursor paging, field codecs, and mutations. This rule keeps browser, Desktop,
+and future hosts compatible with the same file.
+
+## Saved view contract
+
+`eidos__views.type` is an open string. Eidos ships `grid`, `gallery`, and
+`kanban`, while a host can persist another type such as `timeline`. Unknown view
+types and unknown `properties` keys must be preserved when a file is opened and
+saved, even when the current host cannot render them.
+
+The runtime exposes each row as `EidosFileViewInfo`:
+
+```ts
+interface EidosFileViewInfo {
+  id: string
+  name: string
+  type: string
+  tableId: string
+  properties: Record<string, unknown> | null
+  filter: EidosFileFilterGroup | null
+  sorts: EidosFileSort[]
+  orderMap: Record<string, number> | null
+  hiddenFields: string[]
+  // timestamps and legacy query text omitted here
+}
+```
+
+Built-in renderers use these property keys:
+
+| View    | Properties                                                  | Runtime operations                                              |
+| ------- | ----------------------------------------------------------- | --------------------------------------------------------------- |
+| Grid    | `freezeColumns`, `fieldWidthMap`, `columnStats`             | paged rows and row/field mutations                              |
+| Gallery | `cardSize`, `coverPreview`, `fitContent`, `hideEmptyFields` | projected cursor pages and full-row inspection                  |
+| Kanban  | required `groupByField`, plus Gallery card properties       | `countRowsByField`, a filtered page per group, and row mutation |
+
+Create a custom saved view through the runtime, not with direct metadata SQL:
+
+```ts
+runtime.createView("tasks", {
+  name: "Schedule",
+  type: "timeline",
+  properties: {
+    startField: "starts_at",
+    endField: "ends_at",
+    zoom: "week",
+  },
+  sorts: [{ field: "starts_at", direction: "asc" }],
+})
+```
+
+Keep `properties` JSON-compatible and namespace experimental keys when several
+integrations may use the same type, for example `acme.timelineVersion`.
+
+## Implement the host adapter
+
+React renderers consume `EidosFileEditorDataSource`. A browser or Electron host
+implements it by forwarding calls to its Eidos File runtime worker:
+
+```ts
+const source: EidosFileEditorDataSource = {
+  getSnapshot: () => worker.call({ type: "snapshot" }),
+  getPage: (tableId, offset, limit, query, totalHint, cursor, projection) =>
+    worker.call({
+      type: "page",
+      tableId,
+      offset,
+      limit,
+      query,
+      totalHint,
+      cursor,
+      projection,
+    }),
+  getRow: (tableId, rowId) => worker.call({ type: "row", tableId, rowId }),
+  getGroupCounts: (tableId, columnName, query) =>
+    worker.call({ type: "group-counts", tableId, columnName, query }),
+  insertRow: (tableId, row) =>
+    worker.call({ type: "insert-row", tableId, row }),
+  updateRow: (tableId, rowId, changes) =>
+    worker.call({ type: "update-row", tableId, rowId, changes }),
+  // Forward field and view mutations in the same way.
+}
+```
+
+`getGroupCounts` must call the runtime's `countRowsByField`; it must not fetch
+every row and group in JavaScript. `getPage` should forward opaque cursors and
+`EidosFileRowPageProjection`. This is how Gallery and Kanban avoid full-table reads
+and keep expensive SQLite work off the React main thread.
+
+## Register a React view renderer
+
+Install the shared styles once, wrap the surface in `EidosFileUIProvider`, and add a
+renderer by its persisted type:
+
+```tsx
+import { useEffect, useState } from "react"
+import type { EidosFileRow } from "@eidos.space/eidos-file"
+import {
+  EidosFileEditorView,
+  EidosFileUIProvider,
+  type EidosFileViewRenderer,
+} from "@eidos.space/eidos-file-ui"
+import "@eidos.space/eidos-file-ui/styles.css"
+
+const TimelineView: EidosFileViewRenderer = ({
+  source,
+  table,
+  view,
+  query,
+  reloadToken,
+  onError,
+}) => {
+  const [rows, setRows] = useState<EidosFileRow[]>([])
+  const startField =
+    typeof view?.properties?.startField === "string"
+      ? view.properties.startField
+      : null
+
+  useEffect(() => {
+    let active = true
+    source
+      .getPage(table.table.id, 0, 100, query, undefined, undefined, {
+        columns: startField ? [startField] : [],
+      })
+      .then((page) => {
+        if (active) setRows(page.rows)
+      })
+      .catch(onError)
+    return () => {
+      active = false
+    }
+  }, [onError, query, reloadToken, source, startField, table.table.id])
+
+  if (!startField) return <p>Select a start field for this Timeline.</p>
+  return (
+    <ol aria-label={view?.name ?? "Timeline"}>
+      {rows.map((row) => (
+        <li key={String(row._id)}>
+          <time>{String(row[startField] ?? "Unscheduled")}</time>
+          {String(row.title ?? "Untitled")}
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+const renderers = { timeline: TimelineView }
+
+export function TasksEidosFile({ source, table, view }) {
+  return (
+    <EidosFileUIProvider themeName="light">
+      <EidosFileEditorView
+        source={source}
+        table={table}
+        view={view}
+        renderers={renderers}
+      />
+    </EidosFileUIProvider>
+  )
+}
+```
+
+`EidosFileEditorView` merges transient search with the saved filter and sorts before
+passing `query` to the renderer. A host renderer overrides a built-in only when
+it registers the same type key. If no renderer exists, the UI shows an honest
+unsupported state and leaves the saved metadata unchanged.
+
+## Mutation and performance rules
+
+- Use stable `_id` values as React and drag-and-drop identities.
+- Page data; do not refetch the complete table after a cell edit.
+- Use projections for cards. Fetch a complete row only when opening the record
+  inspector.
+- Keep group counts and filtering in the runtime. Kanban loads each visible
+  group independently and updates only the affected group after a move.
+- Call `onMutation` after a successful write so the host can update row counts,
+  dirty state, recovery data, and save state.
+- Keep optimistic UI recoverable. On failure, retain the in-memory edit or roll
+  it back visibly and pass the error to `onError`.
+- A custom renderer must not write the SQLite file directly. File locking,
+  conflict detection, export, and write-back belong to the host adapter.
+
+## Trust boundary
+
+The renderer registry is for trusted application code or a trusted embedder.
+It executes React in the host process. It is **not** the sandboxed Extension SDK
+contribution point, and installing an arbitrary extension must not implicitly
+grant access to this registry. Untrusted or distributable view extensions need
+an isolated surface and an explicit capability bridge; until that contract is
+available, keep custom renderers in the host application.

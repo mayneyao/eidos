@@ -194,17 +194,17 @@ describe("FileSpaceSearch", () => {
     expect(setGlobalSearchOpenMock).not.toHaveBeenCalledWith(false)
   })
 
-  it("adds active Base tables as a contextual group without changing file search", async () => {
+  it("adds active Eidos File tables as a contextual group without changing file search", async () => {
     const switchTable = vi.fn()
     useQuickOpenStore.getState().registerSection("tab-a", {
-      id: "base-tables",
-      heading: "Tables in tasks.base",
-      inputHint: "tasks.base",
+      id: "eidos-file-tables",
+      heading: "Tables in tasks.eidos",
+      inputHint: "tasks.eidos",
       priority: 100,
       items: [
         {
           id: "people",
-          kind: "base-table",
+          kind: "eidos-file-table",
           label: "People",
           detail: "4 rows",
           onSelect: switchTable,
@@ -215,13 +215,13 @@ describe("FileSpaceSearch", () => {
     act(() => root.render(<FileSpaceSearch />))
     await settle(10)
 
-    expect(container.textContent).toContain("Tables in tasks.base")
+    expect(container.textContent).toContain("Tables in tasks.eidos")
     expect(container.textContent).toContain("People")
     expect(container.textContent).toContain("project.md")
     expect(
       container.querySelector<HTMLInputElement>('[aria-label="Space search"]')
         ?.placeholder
-    ).toBe("Search files or switch tables in tasks.base…")
+    ).toBe("Search files or switch tables in tasks.eidos…")
 
     const tableResult = Array.from(container.querySelectorAll("button")).find(
       (button) => button.textContent?.includes("People")

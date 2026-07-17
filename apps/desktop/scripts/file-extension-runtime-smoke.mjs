@@ -3,7 +3,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { app, BrowserWindow, MessageChannelMain, session } from "electron"
 import {
-  createExtensionBaseViewTemplate,
+  createExtensionEidosFileViewTemplate,
   createExtensionCommandTemplate,
   createExtensionPanelTemplate,
   createExtensionTextEditorTemplate,
@@ -423,7 +423,7 @@ async function runSurfaceScenario({
             if (message?.type !== "apply-edits") return;
             if (
               message.documentId !== initialize.snapshot.documentId ||
-              message.baseRevision !== initialize.snapshot.revision ||
+              message.eidosFileRevision !== initialize.snapshot.revision ||
               !Array.isArray(message.edits) ||
               applyEdits(initialize.snapshot.text, message.edits) !== expectedText
             ) {
@@ -699,10 +699,10 @@ async function runPanelScenario({
   }
 }
 
-async function runBaseViewScenario({
+async function runEidosFileViewScenario({
   scenarioId,
   extensionId,
-  baseViewId,
+  eidosFileViewId,
   entrypoint,
   files,
   expectedLog,
@@ -726,17 +726,17 @@ async function runBaseViewScenario({
       devTools: false,
     },
   })
-  observeRuntimeWindow(runtimeWindow, `${scenarioId} Base view`)
+  observeRuntimeWindow(runtimeWindow, `${scenarioId} Eidos File view`)
   const initialize = {
     type: "initialize",
-    surfaceKind: "base-view",
+    surfaceKind: "eidos-file-view",
     protocolVersion: EXTENSION_SURFACE_PROTOCOL_VERSION,
     packageId: extensionId,
     generation,
-    baseViewId,
+    eidosFileViewId,
     viewId: "view-cards",
     context: {
-      resourcePath: "tasks.base",
+      resourcePath: "tasks.eidos",
       table: { id: "tasks", name: "Tasks", rowCount: 2 },
       view: { id: "view-cards", name: "Cards" },
       fields: [
@@ -765,7 +765,7 @@ async function runBaseViewScenario({
         let settled = false;
         let activated = false;
         let pageLoaded = false;
-        const timeout = setTimeout(() => fail(new Error("Base view smoke timed out")), 10000);
+        const timeout = setTimeout(() => fail(new Error("Eidos File view smoke timed out")), 10000);
         const fail = (error) => {
           if (settled) return;
           settled = true;
@@ -783,7 +783,7 @@ async function runBaseViewScenario({
                 (style) => style.textContent?.includes(".record-grid")
               );
               if (title?.textContent !== "Tasks" || cards.length !== 2) {
-                throw new Error("Generated Base view did not render its page");
+                throw new Error("Generated Eidos File view did not render its page");
               }
               settled = true;
               clearTimeout(timeout);
@@ -798,7 +798,7 @@ async function runBaseViewScenario({
           try {
             const message = event.data;
             if (message?.type === "activation-error") {
-              throw new Error("Base view activation failed: " + message.message);
+              throw new Error("Eidos File view activation failed: " + message.message);
             }
             if (message?.type === "surface-log") {
               surfaceLogs.push(message);
@@ -813,12 +813,12 @@ async function runBaseViewScenario({
               finish();
               return;
             }
-            if (message?.type === "base-page-request") {
+            if (message?.type === "eidos-file-page-request") {
               if (message.generation !== generation || message.offset !== 0 || message.limit !== 60) {
-                throw new Error("Generated Base view requested an invalid page");
+                throw new Error("Generated Eidos File view requested an invalid page");
               }
               port.postMessage({
-                type: "base-page-result",
+                type: "eidos-file-page-result",
                 requestId: message.requestId,
                 ok: true,
                 page: {
@@ -826,7 +826,7 @@ async function runBaseViewScenario({
                   limit: 60,
                   total: 2,
                   rows: [
-                    { _id: "row-1", title: "Ship Base views", status: "Doing" },
+                    { _id: "row-1", title: "Ship Eidos File views", status: "Doing" },
                     { _id: "row-2", title: "Run smoke", status: "Done" },
                   ],
                 },
@@ -855,7 +855,7 @@ async function runBaseViewScenario({
         (log) => log.level === "info" && log.message.includes(expectedLog)
       )
     ) {
-      throw new Error("Generated Base view returned an unexpected result")
+      throw new Error("Generated Eidos File view returned an unexpected result")
     }
     console.log(`${scenarioId} extension smoke passed`)
   } finally {
@@ -969,28 +969,29 @@ async function run() {
     expectedLog: "Panel Smoke panel activated",
   })
 
-  const generatedBaseView = createExtensionBaseViewTemplate({
+  const generatedEidosFileView = createExtensionEidosFileViewTemplate({
     publisher: "local",
-    name: "base-view-smoke",
-    displayName: "Base View Smoke",
+    name: "eidos-file-view-smoke",
+    displayName: "Eidos File View Smoke",
     engineRange: ">=0.33.0",
   })
-  const baseView = generatedBaseView.manifest.contributes.baseViews?.[0]
-  if (!baseView || !generatedBaseView.manifest.entrypoints.ui) {
+  const eidosFileView =
+    generatedEidosFileView.manifest.contributes.eidosFileViews?.[0]
+  if (!eidosFileView || !generatedEidosFileView.manifest.entrypoints.ui) {
     throw new Error(
-      "Generated Base view template is missing its surface contract"
+      "Generated Eidos File view template is missing its surface contract"
     )
   }
-  await runBaseViewScenario({
-    scenarioId: "generated-base-view",
-    extensionId: generatedBaseView.canonicalId,
-    baseViewId: baseView.id,
-    entrypoint: generatedBaseView.manifest.entrypoints.ui,
-    files: generatedBaseView.files.map((file) => ({
+  await runEidosFileViewScenario({
+    scenarioId: "generated-eidos-file-view",
+    extensionId: generatedEidosFileView.canonicalId,
+    eidosFileViewId: eidosFileView.id,
+    entrypoint: generatedEidosFileView.manifest.entrypoints.ui,
+    files: generatedEidosFileView.files.map((file) => ({
       path: file.path,
       content: bytes(file.content),
     })),
-    expectedLog: "Base View Smoke Base view activated",
+    expectedLog: "Eidos File View Smoke Eidos File view activated",
   })
 
   const generated = createExtensionCommandTemplate({

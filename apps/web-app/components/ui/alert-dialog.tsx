@@ -1,1 +1,1 @@
-export * from "@eidos.space/base-ui/ui/alert-dialog"
+export * from "@eidos.space/eidos-file-ui/ui/alert-dialog"

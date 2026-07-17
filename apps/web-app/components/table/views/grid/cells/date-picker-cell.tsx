@@ -1,1 +1,1 @@
-export { DatePickerCell as default } from "@eidos.space/base-ui"
+export { DatePickerCell as default } from "@eidos.space/eidos-file-ui"

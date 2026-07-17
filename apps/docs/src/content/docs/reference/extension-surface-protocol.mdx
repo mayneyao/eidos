@@ -18,7 +18,7 @@ is still preview work.
 | ----------------- | -------------------------------------------------------------------------- |
 | Offset unit       | JavaScript UTF-16 code units, not Unicode code points or UTF-8 bytes       |
 | Revision          | Positive, monotonic integer owned by the host                              |
-| Edit base         | Every edit in one batch targets the same exact `baseRevision`              |
+| Edit base         | Every edit in one batch targets the same exact `eidosFileRevision`         |
 | Document owner    | The host owns text, dirty state, undo/redo, save, and conflicts            |
 | Surface authority | A surface may request bounded edits; it cannot write a file directly       |
 | Save              | Host-internal, single-use compare-and-swap token                           |
@@ -80,7 +80,7 @@ port.postMessage({
   type: "apply-edits",
   requestId: "edit-42",
   documentId: snapshot.documentId,
-  baseRevision: 7,
+  eidosFileRevision: 7,
   edits: [{ start: 3, end: 4, text: "x" }],
 })
 ```

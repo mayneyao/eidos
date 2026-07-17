@@ -25,7 +25,7 @@ pnpm extension:cli init example.hello-tools --template command
 
 pnpm extension:cli init example.dashboard --template panel
 
-pnpm extension:cli init example.card-view --template base-view
+pnpm extension:cli init example.card-view --template eidos-file-view
 
 pnpm extension:cli init example.notes-editor \
   --template text-editor \
@@ -35,23 +35,23 @@ pnpm extension:cli init example.notes-editor \
 
 The extension ID always has the form `<publisher>.<name>`. `init` creates a
 directory with that canonical ID and refuses to overwrite an existing
-directory. The panel starter opens a command-driven sandboxed tab. The Base
+directory. The panel starter opens a command-driven sandboxed tab. The Eidos File
 view starter renders bounded, host-paged records. The text-editor starter
 includes an editable UI surface, minimal text edits, host save state, resync
 behavior, and Eidos theme tokens.
 
 Useful options:
 
-| Option                      | Meaning                                                  |
-| --------------------------- | -------------------------------------------------------- |
-| `--template command`        | Create a Worker command starter.                         |
-| `--template panel`          | Create a command-driven sandboxed panel starter.         |
-| `--template base-view`      | Create a read-only, host-paged `baseViews` starter.      |
-| `--template text-editor`    | Create an editable sandboxed `fileEditors` starter.      |
-| `--out-dir <directory>`     | Choose the parent directory for the new package.         |
-| `--engine <semver-range>`   | Set `engines.eidos`; the preview default is `>=0.33.0`.  |
-| `--pattern <glob>`          | Set the editor selector and matching read/write grants.  |
-| `--media-type <media-type>` | Set the text editor media type; default `text/markdown`. |
+| Option                       | Meaning                                                  |
+| ---------------------------- | -------------------------------------------------------- |
+| `--template command`         | Create a Worker command starter.                         |
+| `--template panel`           | Create a command-driven sandboxed panel starter.         |
+| `--template eidos-file-view` | Create a read-only, host-paged `eidosFileViews` starter. |
+| `--template text-editor`     | Create an editable sandboxed `fileEditors` starter.      |
+| `--out-dir <directory>`      | Choose the parent directory for the new package.         |
+| `--engine <semver-range>`    | Set `engines.eidos`; the preview default is `>=0.33.0`.  |
+| `--pattern <glob>`           | Set the editor selector and matching read/write grants.  |
+| `--media-type <media-type>`  | Set the text editor media type; default `text/markdown`. |
 
 ## Check a package
 

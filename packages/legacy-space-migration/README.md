@@ -28,6 +28,6 @@ const result = await exportLegacySpace(plan)
 ```
 
 Export writes into a sibling staging directory and only renames it into place
-after Markdown, Base, asset, and count validation succeeds. A non-empty target
+after Markdown, Eidos File, asset, and count validation succeeds. A non-empty target
 is never overwritten, and source database/asset fingerprints must still match
 the inspected plan.

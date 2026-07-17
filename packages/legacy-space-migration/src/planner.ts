@@ -120,9 +120,9 @@ function allocateFieldColumns(table: LegacyTable) {
       targetColumnName = `${stem}_${stableHash(field.columnName)}`
     }
     let counter = 2
-    const baseCandidate = targetColumnName
+    const eidosFileCandidate = targetColumnName
     while (allocated.has(targetColumnName)) {
-      targetColumnName = `${baseCandidate}_${counter}`
+      targetColumnName = `${eidosFileCandidate}_${counter}`
       counter += 1
     }
     allocated.add(targetColumnName)
@@ -388,12 +388,14 @@ export function planLegacySpaceMigration(
     options.legacyExtensionsDirectory ?? ".eidos/legacy-extensions",
     ".eidos/legacy-extensions"
   )
-  const basePath = normalizeRelativeDirectory(
-    options.basePath ?? "main.base",
-    "main.base"
+  const eidosFilePath = normalizeRelativeDirectory(
+    options.eidosFilePath ?? "main.eidos",
+    "main.eidos"
   )
-  if (!basePath.toLowerCase().endsWith(".base")) {
-    throw new Error(`Migration Base path must end with .base: ${basePath}`)
+  if (!eidosFilePath.toLowerCase().endsWith(".eidos")) {
+    throw new Error(
+      `Migration Eidos File path must end with .eidos: ${eidosFilePath}`
+    )
   }
 
   const issues = [...snapshot.issues]
@@ -550,7 +552,7 @@ export function planLegacySpaceMigration(
         issues.push({
           severity: "error",
           code: "table-id-invalid",
-          message: `Table ${table.name} has an ID that cannot be preserved in Base: ${table.id}`,
+          message: `Table ${table.name} has an ID that cannot be preserved in Eidos File: ${table.id}`,
           sourceId: table.id,
         })
       }
@@ -564,7 +566,7 @@ export function planLegacySpaceMigration(
           issues.push({
             severity: "warning",
             code: "field-column-remapped",
-            message: `Field ${table.name}.${field.name} will use Base column ${plannedField.targetColumnName}; its source column was ${field.columnName}`,
+            message: `Field ${table.name}.${field.name} will use Eidos File column ${plannedField.targetColumnName}; its source column was ${field.columnName}`,
             sourceId: table.id,
           })
         }
@@ -572,7 +574,7 @@ export function planLegacySpaceMigration(
           kind: "field",
           sourceId: `${table.id}:${field.columnName}`,
           sourcePath: `${table.rawTableName}.${field.columnName}`,
-          targetPath: `${basePath}#${table.id}.${plannedField.targetColumnName}`,
+          targetPath: `${eidosFilePath}#${table.id}.${plannedField.targetColumnName}`,
         })
         if (!SUPPORTED_FIELD_TYPES.has(field.type)) {
           issues.push({
@@ -583,11 +585,15 @@ export function planLegacySpaceMigration(
           })
         }
       }
-      mappings.push({ kind: "table", sourceId: table.id, targetPath: basePath })
+      mappings.push({
+        kind: "table",
+        sourceId: table.id,
+        targetPath: eidosFilePath,
+      })
       return {
         id: table.id,
         sourceName: table.name,
-        targetBasePath: basePath,
+        targetEidosFilePath: eidosFilePath,
         rowCount: table.rowCount,
         fieldCount: table.fields.length,
         viewCount: table.views.length,
@@ -621,7 +627,7 @@ export function planLegacySpaceMigration(
         issues.push({
           severity: "warning",
           code: "dangling-reference-skipped",
-          message: `Reference ${reference.selfTableName}.${reference.selfColumnName} points to missing field ${invalidParticipant[0]}.${invalidParticipant[1]} and will be preserved in the migration plan but not installed into Base`,
+          message: `Reference ${reference.selfTableName}.${reference.selfColumnName} points to missing field ${invalidParticipant[0]}.${invalidParticipant[1]} and will be preserved in the migration plan but not installed into Eidos File`,
           sourceId: table.id,
         })
       }
@@ -652,7 +658,7 @@ export function planLegacySpaceMigration(
     sourceDatabasePath: snapshot.databasePath,
     sourceFingerprint: snapshot.sourceFingerprint,
     targetRoot: options.targetRoot,
-    basePath,
+    eidosFilePath,
     documents,
     tables,
     skippedReferences,

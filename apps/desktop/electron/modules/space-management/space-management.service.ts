@@ -4,39 +4,39 @@
 
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import type {
-  BaseColumnStatConfig,
-  BaseColumnStatResult,
-  BaseCsvExportOptions,
-  BaseCsvExportResult,
-  BaseRow,
-  BaseRowGroupCount,
-  BaseRowMutationResult,
-  BaseRowsMutationResult,
-  BaseRowPage,
-  BaseRowPageOptions,
-  BaseRowQuery,
-  BaseRowRange,
-  BaseRowUpdate,
-  BaseRowsDeleteResult,
-  BaseSnapshot,
-  BaseCsvImportOptions,
-  BaseCsvImportPlan,
-  BaseCsvImportResult,
-  BaseFormulaPreview,
-  BaseFormulaPreviewInput,
-  BaseFieldPlacement,
-  CreateBaseFieldInput,
-  CreateBaseOptions,
-  CreateBaseTableInput,
-  CreateBaseViewInput,
-  UpdateBaseFieldInput,
-  UpdateBaseTableInput,
-  UpdateBaseViewInput,
-} from "@eidos.space/base"
+  EidosFileColumnStatConfig,
+  EidosFileColumnStatResult,
+  EidosFileCsvExportOptions,
+  EidosFileCsvExportResult,
+  EidosFileRow,
+  EidosFileRowGroupCount,
+  EidosFileRowMutationResult,
+  EidosFileRowsMutationResult,
+  EidosFileRowPage,
+  EidosFileRowPageOptions,
+  EidosFileRowQuery,
+  EidosFileRowRange,
+  EidosFileRowUpdate,
+  EidosFileRowsDeleteResult,
+  EidosFileSnapshot,
+  EidosFileCsvImportOptions,
+  EidosFileCsvImportPlan,
+  EidosFileCsvImportResult,
+  EidosFileFormulaPreview,
+  EidosFileFormulaPreviewInput,
+  EidosFileFieldPlacement,
+  CreateEidosFileFieldInput,
+  CreateEidosFileOptions,
+  CreateEidosFileTableInput,
+  CreateEidosFileViewInput,
+  UpdateEidosFileFieldInput,
+  UpdateEidosFileTableInput,
+  UpdateEidosFileViewInput,
+} from "@eidos.space/eidos-file"
 import {
-  createBaseFile as createBaseDatabase,
-  openBaseFile,
-} from "@eidos.space/base/better-sqlite3"
+  createEidosFile as createEidosFileDatabase,
+  openEidosFile,
+} from "@eidos.space/eidos-file/better-sqlite3"
 import {
   FileSpaceIndex,
   SpaceFiles,
@@ -72,26 +72,26 @@ import {
   withFileSpaceOperationLock,
   withFileSpaceReadLock,
 } from "./file-space-operation-lock"
-import { createBaseFileAtomically } from "./atomic-base-file"
+import { createEidosFileAtomically } from "./atomic-eidos-file"
 import { SpaceResourceLifecycle } from "./space-resource-lifecycle"
 import {
-  BaseCsvWorkerRunner,
-  type BaseCsvWorkerOperation,
-} from "./base-csv-worker-runner"
-import type { BaseCsvFileFingerprint } from "./base-csv-worker-protocol"
-import { BaseQueryWorkerRunner } from "./base-query-worker-runner"
+  EidosFileCsvWorkerRunner,
+  type EidosFileCsvWorkerOperation,
+} from "./eidos-file-csv-worker-runner"
+import type { EidosFileCsvFileFingerprint } from "./eidos-file-csv-worker-protocol"
+import { EidosFileQueryWorkerRunner } from "./eidos-file-query-worker-runner"
 
-export type BaseCsvOperationStatus =
+export type EidosFileCsvOperationStatus =
   | "running"
   | "canceling"
   | "completed"
   | "canceled"
   | "failed"
 
-export interface BaseCsvOperationProgress {
+export interface EidosFileCsvOperationProgress {
   operationId: string
   kind: "plan" | "import" | "export"
-  status: BaseCsvOperationStatus
+  status: EidosFileCsvOperationStatus
   phase: "analyzing" | "importing" | "exporting" | "finalizing"
   processedBytes: number
   totalBytes: number
@@ -120,19 +120,19 @@ export class SpaceManagementService extends IpcServiceBase {
   private readonly fileSpaceIndexes = new Map<string, FileSpaceIndex>()
   private activeFileWatcher: ReturnType<SpaceFiles["watch"]> | null = null
   private activeFileWatcherSpaceId: string | null = null
-  private readonly baseCsvSelections = new Map<
+  private readonly eidosFileCsvSelections = new Map<
     string,
     {
       spaceId: string
       sourcePath: string
       fileName: string
       selectedAt: number
-      fingerprint: BaseCsvFileFingerprint
+      fingerprint: EidosFileCsvFileFingerprint
     }
   >()
-  private readonly baseCsvOperations = new Map<
+  private readonly eidosFileCsvOperations = new Map<
     string,
-    BaseCsvOperationProgress & { spaceId: string }
+    EidosFileCsvOperationProgress & { spaceId: string }
   >()
 
   constructor(
@@ -142,10 +142,10 @@ export class SpaceManagementService extends IpcServiceBase {
     @Inject(DataSpaceProcessPool) private processPool: DataSpaceProcessPool,
     @Inject(SpaceResourceLifecycle)
     private resourceLifecycle: SpaceResourceLifecycle,
-    @Inject(BaseCsvWorkerRunner)
-    private baseCsvWorker: BaseCsvWorkerRunner,
-    @Inject(BaseQueryWorkerRunner)
-    private baseQueryWorker: BaseQueryWorkerRunner
+    @Inject(EidosFileCsvWorkerRunner)
+    private eidosFileCsvWorker: EidosFileCsvWorkerRunner,
+    @Inject(EidosFileQueryWorkerRunner)
+    private eidosFileQueryWorker: EidosFileQueryWorkerRunner
   ) {
     super()
   }
@@ -493,43 +493,43 @@ export class SpaceManagementService extends IpcServiceBase {
     })
   }
 
-  async createBase(
+  async createEidosFile(
     spaceId: string,
     relativePath: string,
-    options: CreateBaseOptions = {}
-  ): Promise<BaseSnapshot> {
+    options: CreateEidosFileOptions = {}
+  ): Promise<EidosFileSnapshot> {
     return withFileSpaceOperationLock(spaceId, async () => {
       const files = this._getFileSpace(spaceId)
-      await createBaseFileAtomically(
+      await createEidosFileAtomically(
         files,
         relativePath,
         options,
-        createBaseDatabase
+        createEidosFileDatabase
       )
       this._invalidateFileIndex(spaceId)
-      return await this._getBaseSnapshot(spaceId, relativePath)
+      return await this._getEidosFileSnapshot(spaceId, relativePath)
     })
   }
 
-  async getBaseSnapshot(
+  async getEidosFileSnapshot(
     spaceId: string,
     relativePath: string
-  ): Promise<BaseSnapshot> {
+  ): Promise<EidosFileSnapshot> {
     return withFileSpaceOperationLock(spaceId, () =>
-      this._getBaseSnapshot(spaceId, relativePath, true)
+      this._getEidosFileSnapshot(spaceId, relativePath, true)
     )
   }
 
-  async getBaseSnapshotReadOnly(
+  async getEidosFileSnapshotReadOnly(
     spaceId: string,
     relativePath: string
-  ): Promise<BaseSnapshot> {
+  ): Promise<EidosFileSnapshot> {
     return withFileSpaceReadLock(spaceId, () =>
-      this._getBaseSnapshot(spaceId, relativePath, false, true)
+      this._getEidosFileSnapshot(spaceId, relativePath, false, true)
     )
   }
 
-  async selectBaseCsv(
+  async selectEidosFileCsv(
     spaceId: string
   ): Promise<
     | { canceled: true; token: null; fileName: null }
@@ -556,10 +556,11 @@ export class SpaceManagementService extends IpcServiceBase {
     }
     const token = globalThis.crypto.randomUUID()
     const cutoff = Date.now() - 30 * 60 * 1_000
-    for (const [candidate, value] of this.baseCsvSelections) {
-      if (value.selectedAt < cutoff) this.baseCsvSelections.delete(candidate)
+    for (const [candidate, value] of this.eidosFileCsvSelections) {
+      if (value.selectedAt < cutoff)
+        this.eidosFileCsvSelections.delete(candidate)
     }
-    this.baseCsvSelections.set(token, {
+    this.eidosFileCsvSelections.set(token, {
       spaceId,
       sourcePath,
       fileName,
@@ -569,20 +570,20 @@ export class SpaceManagementService extends IpcServiceBase {
     return { canceled: false, token, fileName }
   }
 
-  async previewBaseCsvImport(
+  async previewEidosFileCsvImport(
     spaceId: string,
     token: string,
-    options: BaseCsvImportOptions = {},
+    options: EidosFileCsvImportOptions = {},
     operationId?: string
-  ): Promise<BaseCsvImportPlan> {
-    const source = this._getBaseCsvSelection(spaceId, token)
-    return this._runBaseCsvOperation(
+  ): Promise<EidosFileCsvImportPlan> {
+    const source = this._getEidosFileCsvSelection(spaceId, token)
+    return this._runEidosFileCsvOperation(
       spaceId,
       operationId,
       "plan",
       source.fingerprint.size,
       (operation) =>
-        this.baseCsvWorker.plan(
+        this.eidosFileCsvWorker.plan(
           this._getFileSpace(spaceId).root,
           source.sourcePath,
           source.fileName,
@@ -593,16 +594,19 @@ export class SpaceManagementService extends IpcServiceBase {
     )
   }
 
-  async importBaseCsv(
+  async importEidosFileCsv(
     spaceId: string,
     relativePath: string,
     token: string,
-    options: BaseCsvImportOptions = {},
+    options: EidosFileCsvImportOptions = {},
     operationId?: string
-  ): Promise<{ result: BaseCsvImportResult; snapshot: BaseSnapshot }> {
-    const source = this._getBaseCsvSelection(spaceId, token)
+  ): Promise<{
+    result: EidosFileCsvImportResult
+    snapshot: EidosFileSnapshot
+  }> {
+    const source = this._getEidosFileCsvSelection(spaceId, token)
     return withFileSpaceOperationLock(spaceId, async () => {
-      return this._runBaseCsvOperation(
+      return this._runEidosFileCsvOperation(
         spaceId,
         operationId,
         "import",
@@ -610,7 +614,7 @@ export class SpaceManagementService extends IpcServiceBase {
         async (operation) => {
           const targetPath =
             await this._getFileSpace(spaceId).getSystemPath(relativePath)
-          const result = await this.baseCsvWorker.import(
+          const result = await this.eidosFileCsvWorker.import(
             this._getFileSpace(spaceId).root,
             source.sourcePath,
             source.fileName,
@@ -619,22 +623,22 @@ export class SpaceManagementService extends IpcServiceBase {
             options,
             operation
           )
-          this.baseCsvSelections.delete(token)
+          this.eidosFileCsvSelections.delete(token)
           this._invalidateFileIndex(spaceId)
           return {
             result,
-            snapshot: await this._getBaseSnapshot(spaceId, relativePath),
+            snapshot: await this._getEidosFileSnapshot(spaceId, relativePath),
           }
         }
       )
     })
   }
 
-  async exportBaseCsv(
+  async exportEidosFileCsv(
     spaceId: string,
     relativePath: string,
     tableId: string,
-    options: BaseCsvExportOptions,
+    options: EidosFileCsvExportOptions,
     suggestedFileName?: string,
     operationId?: string
   ): Promise<
@@ -642,7 +646,7 @@ export class SpaceManagementService extends IpcServiceBase {
     | {
         canceled: false
         fileName: string
-        result: BaseCsvExportResult
+        result: EidosFileCsvExportResult
       }
   > {
     const files = this._getFileSpace(spaceId)
@@ -662,7 +666,7 @@ export class SpaceManagementService extends IpcServiceBase {
           column.name.length > 1_024
       )
     ) {
-      throw new Error("Base CSV export columns are invalid")
+      throw new Error("Eidos File CSV export columns are invalid")
     }
     const requestedName = path.basename(
       suggestedFileName?.trim() ||
@@ -691,13 +695,13 @@ export class SpaceManagementService extends IpcServiceBase {
     try {
       const result = await withFileSpaceReadLock(spaceId, async () => {
         const sourcePath = await files.getSystemPath(relativePath)
-        return this._runBaseCsvOperation(
+        return this._runEidosFileCsvOperation(
           spaceId,
           operationId,
           "export",
           0,
           async (operation) => {
-            const result = await this.baseCsvWorker.export(
+            const result = await this.eidosFileCsvWorker.export(
               files.root,
               sourcePath,
               temporaryPath,
@@ -722,19 +726,19 @@ export class SpaceManagementService extends IpcServiceBase {
     }
   }
 
-  getBaseCsvOperation(
+  getEidosFileCsvOperation(
     spaceId: string,
     operationId: string
-  ): BaseCsvOperationProgress | null {
-    this._pruneBaseCsvOperations()
-    const operation = this.baseCsvOperations.get(operationId)
+  ): EidosFileCsvOperationProgress | null {
+    this._pruneEidosFileCsvOperations()
+    const operation = this.eidosFileCsvOperations.get(operationId)
     if (!operation || operation.spaceId !== spaceId) return null
     const { spaceId: _spaceId, ...progress } = operation
     return { ...progress }
   }
 
-  cancelBaseCsvOperation(spaceId: string, operationId: string): boolean {
-    const operation = this.baseCsvOperations.get(operationId)
+  cancelEidosFileCsvOperation(spaceId: string, operationId: string): boolean {
+    const operation = this.eidosFileCsvOperations.get(operationId)
     if (
       !operation ||
       operation.spaceId !== spaceId ||
@@ -744,7 +748,7 @@ export class SpaceManagementService extends IpcServiceBase {
     }
     operation.status = "canceling"
     operation.updatedAt = Date.now()
-    const canceled = this.baseCsvWorker.cancel(operationId)
+    const canceled = this.eidosFileCsvWorker.cancel(operationId)
     if (!canceled) {
       operation.status = "running"
       operation.updatedAt = Date.now()
@@ -752,29 +756,33 @@ export class SpaceManagementService extends IpcServiceBase {
     return canceled
   }
 
-  async getBaseTablePage(
+  async getEidosFileTablePage(
     spaceId: string,
     relativePath: string,
     tableId: string,
-    options: BaseRowPageOptions
-  ): Promise<BaseRowPage> {
+    options: EidosFileRowPageOptions
+  ): Promise<EidosFileRowPage> {
     if (!Number.isSafeInteger(options.offset) || options.offset < 0) {
-      throw new Error("Base row page offset must be a non-negative integer")
+      throw new Error(
+        "Eidos File row page offset must be a non-negative integer"
+      )
     }
     if (!Number.isSafeInteger(options.limit) || options.limit < 1) {
-      throw new Error("Base row page limit must be a positive integer")
+      throw new Error("Eidos File row page limit must be a positive integer")
     }
     if (
       options.totalHint !== undefined &&
       (!Number.isSafeInteger(options.totalHint) || options.totalHint < 0)
     ) {
-      throw new Error("Base row page total hint must be a non-negative integer")
+      throw new Error(
+        "Eidos File row page total hint must be a non-negative integer"
+      )
     }
     if (
       options.cursor !== undefined &&
       (typeof options.cursor !== "string" || options.cursor.length > 4_096)
     ) {
-      throw new Error("Base row page cursor is invalid")
+      throw new Error("Eidos File row page cursor is invalid")
     }
     if (options.projection !== undefined) {
       if (
@@ -782,7 +790,7 @@ export class SpaceManagementService extends IpcServiceBase {
         options.projection === null ||
         Array.isArray(options.projection)
       ) {
-        throw new Error("Base row page projection is invalid")
+        throw new Error("Eidos File row page projection is invalid")
       }
       const { columns, preservedColumns, fieldLimit, omitEmptyFields } =
         options.projection
@@ -804,43 +812,53 @@ export class SpaceManagementService extends IpcServiceBase {
             fieldLimit > 2_000)) ||
         (omitEmptyFields !== undefined && typeof omitEmptyFields !== "boolean")
       ) {
-        throw new Error("Base row page projection is invalid")
+        throw new Error("Eidos File row page projection is invalid")
       }
     }
     return withFileSpaceReadLock(spaceId, async () => {
       const files = this._getFileSpace(spaceId)
       const systemPath = await files.getSystemPath(relativePath)
-      return this.baseQueryWorker.page(files.root, systemPath, tableId, options)
+      return this.eidosFileQueryWorker.page(
+        files.root,
+        systemPath,
+        tableId,
+        options
+      )
     })
   }
 
-  async getBaseTableRow(
+  async getEidosFileTableRow(
     spaceId: string,
     relativePath: string,
     tableId: string,
     rowId: string
-  ): Promise<BaseRow | null> {
+  ): Promise<EidosFileRow | null> {
     if (typeof rowId !== "string" || rowId.length === 0 || rowId.length > 255) {
-      throw new Error("Base row ID is invalid")
+      throw new Error("Eidos File row ID is invalid")
     }
     return withFileSpaceReadLock(spaceId, async () => {
       const files = this._getFileSpace(spaceId)
       const systemPath = await files.getSystemPath(relativePath)
-      return this.baseQueryWorker.row(files.root, systemPath, tableId, rowId)
+      return this.eidosFileQueryWorker.row(
+        files.root,
+        systemPath,
+        tableId,
+        rowId
+      )
     })
   }
 
-  async getBaseTableGroupCounts(
+  async getEidosFileTableGroupCounts(
     spaceId: string,
     relativePath: string,
     tableId: string,
     columnName: string,
-    query: BaseRowQuery = {}
-  ): Promise<BaseRowGroupCount[]> {
+    query: EidosFileRowQuery = {}
+  ): Promise<EidosFileRowGroupCount[]> {
     return withFileSpaceReadLock(spaceId, async () => {
       const files = this._getFileSpace(spaceId)
       const systemPath = await files.getSystemPath(relativePath)
-      return this.baseQueryWorker.groupCounts(
+      return this.eidosFileQueryWorker.groupCounts(
         files.root,
         systemPath,
         tableId,
@@ -850,17 +868,17 @@ export class SpaceManagementService extends IpcServiceBase {
     })
   }
 
-  async getBaseTableColumnStats(
+  async getEidosFileTableColumnStats(
     spaceId: string,
     relativePath: string,
     tableId: string,
-    configs: BaseColumnStatConfig[],
-    query: BaseRowQuery = {}
-  ): Promise<BaseColumnStatResult[]> {
+    configs: EidosFileColumnStatConfig[],
+    query: EidosFileRowQuery = {}
+  ): Promise<EidosFileColumnStatResult[]> {
     return withFileSpaceReadLock(spaceId, async () => {
       const files = this._getFileSpace(spaceId)
       const systemPath = await files.getSystemPath(relativePath)
-      return this.baseQueryWorker.columnStats(
+      return this.eidosFileQueryWorker.columnStats(
         files.root,
         systemPath,
         tableId,
@@ -870,14 +888,14 @@ export class SpaceManagementService extends IpcServiceBase {
     })
   }
 
-  async previewBaseFormula(
+  async previewEidosFileFormula(
     spaceId: string,
     relativePath: string,
     tableId: string,
-    input: BaseFormulaPreviewInput
-  ): Promise<BaseFormulaPreview> {
+    input: EidosFileFormulaPreviewInput
+  ): Promise<EidosFileFormulaPreview> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         return base.previewFormula(tableId, input)
       } finally {
@@ -886,122 +904,122 @@ export class SpaceManagementService extends IpcServiceBase {
     })
   }
 
-  async addBaseField(
+  async addEidosFileField(
     spaceId: string,
     relativePath: string,
     tableId: string,
-    field: CreateBaseFieldInput,
-    placement?: BaseFieldPlacement
-  ): Promise<BaseSnapshot> {
+    field: CreateEidosFileFieldInput,
+    placement?: EidosFileFieldPlacement
+  ): Promise<EidosFileSnapshot> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         base.addField(tableId, field, placement)
       } finally {
         base.close()
       }
       this._invalidateFileIndex(spaceId)
-      return this._getBaseSnapshot(spaceId, relativePath)
+      return this._getEidosFileSnapshot(spaceId, relativePath)
     })
   }
 
-  async updateBaseField(
+  async updateEidosFileField(
     spaceId: string,
     relativePath: string,
     tableId: string,
     columnName: string,
-    changes: UpdateBaseFieldInput
-  ): Promise<BaseSnapshot> {
+    changes: UpdateEidosFileFieldInput
+  ): Promise<EidosFileSnapshot> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         base.updateField(tableId, columnName, changes)
       } finally {
         base.close()
       }
       this._invalidateFileIndex(spaceId)
-      return this._getBaseSnapshot(spaceId, relativePath)
+      return this._getEidosFileSnapshot(spaceId, relativePath)
     })
   }
 
-  async deleteBaseField(
+  async deleteEidosFileField(
     spaceId: string,
     relativePath: string,
     tableId: string,
     columnName: string
-  ): Promise<BaseSnapshot> {
+  ): Promise<EidosFileSnapshot> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         base.deleteField(tableId, columnName)
       } finally {
         base.close()
       }
       this._invalidateFileIndex(spaceId)
-      return this._getBaseSnapshot(spaceId, relativePath)
+      return this._getEidosFileSnapshot(spaceId, relativePath)
     })
   }
 
-  async createBaseTable(
+  async createEidosFileTable(
     spaceId: string,
     relativePath: string,
-    table: CreateBaseTableInput
-  ): Promise<BaseSnapshot> {
+    table: CreateEidosFileTableInput
+  ): Promise<EidosFileSnapshot> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         base.createTable(table)
       } finally {
         base.close()
       }
       this._invalidateFileIndex(spaceId)
-      return this._getBaseSnapshot(spaceId, relativePath)
+      return this._getEidosFileSnapshot(spaceId, relativePath)
     })
   }
 
-  async updateBaseTable(
+  async updateEidosFileTable(
     spaceId: string,
     relativePath: string,
     tableId: string,
-    changes: UpdateBaseTableInput
-  ): Promise<BaseSnapshot> {
+    changes: UpdateEidosFileTableInput
+  ): Promise<EidosFileSnapshot> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         base.updateTable(tableId, changes)
       } finally {
         base.close()
       }
       this._invalidateFileIndex(spaceId)
-      return this._getBaseSnapshot(spaceId, relativePath)
+      return this._getEidosFileSnapshot(spaceId, relativePath)
     })
   }
 
-  async deleteBaseTable(
+  async deleteEidosFileTable(
     spaceId: string,
     relativePath: string,
     tableId: string
-  ): Promise<BaseSnapshot> {
+  ): Promise<EidosFileSnapshot> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         base.deleteTable(tableId)
       } finally {
         base.close()
       }
       this._invalidateFileIndex(spaceId)
-      return this._getBaseSnapshot(spaceId, relativePath)
+      return this._getEidosFileSnapshot(spaceId, relativePath)
     })
   }
 
-  async insertBaseRow(
+  async insertEidosFileRow(
     spaceId: string,
     relativePath: string,
     tableId: string,
-    row: BaseRow
-  ): Promise<BaseRowMutationResult> {
+    row: EidosFileRow
+  ): Promise<EidosFileRowMutationResult> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         const inserted = base.insertRow(tableId, row)
         return {
@@ -1016,104 +1034,104 @@ export class SpaceManagementService extends IpcServiceBase {
     })
   }
 
-  async updateBaseView(
+  async updateEidosFileView(
     spaceId: string,
     relativePath: string,
     viewId: string,
-    changes: UpdateBaseViewInput
-  ): Promise<BaseSnapshot> {
+    changes: UpdateEidosFileViewInput
+  ): Promise<EidosFileSnapshot> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         base.updateView(viewId, changes)
       } finally {
         base.close()
       }
       this._invalidateFileIndex(spaceId)
-      return this._getBaseSnapshot(spaceId, relativePath)
+      return this._getEidosFileSnapshot(spaceId, relativePath)
     })
   }
 
-  async createBaseView(
+  async createEidosFileView(
     spaceId: string,
     relativePath: string,
     tableId: string,
-    input: CreateBaseViewInput
-  ): Promise<BaseSnapshot> {
+    input: CreateEidosFileViewInput
+  ): Promise<EidosFileSnapshot> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         base.createView(tableId, input)
       } finally {
         base.close()
       }
       this._invalidateFileIndex(spaceId)
-      return this._getBaseSnapshot(spaceId, relativePath)
+      return this._getEidosFileSnapshot(spaceId, relativePath)
     })
   }
 
-  async duplicateBaseView(
+  async duplicateEidosFileView(
     spaceId: string,
     relativePath: string,
     viewId: string,
     name?: string
-  ): Promise<BaseSnapshot> {
+  ): Promise<EidosFileSnapshot> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         base.duplicateView(viewId, name)
       } finally {
         base.close()
       }
       this._invalidateFileIndex(spaceId)
-      return this._getBaseSnapshot(spaceId, relativePath)
+      return this._getEidosFileSnapshot(spaceId, relativePath)
     })
   }
 
-  async deleteBaseView(
+  async deleteEidosFileView(
     spaceId: string,
     relativePath: string,
     viewId: string
-  ): Promise<BaseSnapshot> {
+  ): Promise<EidosFileSnapshot> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         base.deleteView(viewId)
       } finally {
         base.close()
       }
       this._invalidateFileIndex(spaceId)
-      return this._getBaseSnapshot(spaceId, relativePath)
+      return this._getEidosFileSnapshot(spaceId, relativePath)
     })
   }
 
-  async reorderBaseViews(
+  async reorderEidosFileViews(
     spaceId: string,
     relativePath: string,
     tableId: string,
     viewIds: string[]
-  ): Promise<BaseSnapshot> {
+  ): Promise<EidosFileSnapshot> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         base.reorderViews(tableId, viewIds)
       } finally {
         base.close()
       }
       this._invalidateFileIndex(spaceId)
-      return this._getBaseSnapshot(spaceId, relativePath)
+      return this._getEidosFileSnapshot(spaceId, relativePath)
     })
   }
 
-  async updateBaseRow(
+  async updateEidosFileRow(
     spaceId: string,
     relativePath: string,
     tableId: string,
     rowId: string,
-    changes: BaseRow
-  ): Promise<BaseRowMutationResult> {
+    changes: EidosFileRow
+  ): Promise<EidosFileRowMutationResult> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         const updated = base.updateRow(tableId, rowId, changes)
         return {
@@ -1128,14 +1146,14 @@ export class SpaceManagementService extends IpcServiceBase {
     })
   }
 
-  async updateBaseRows(
+  async updateEidosFileRows(
     spaceId: string,
     relativePath: string,
     tableId: string,
-    updates: BaseRowUpdate[]
-  ): Promise<BaseRowsMutationResult> {
+    updates: EidosFileRowUpdate[]
+  ): Promise<EidosFileRowsMutationResult> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         const rows = base.updateRows(tableId, updates)
         return {
@@ -1150,14 +1168,14 @@ export class SpaceManagementService extends IpcServiceBase {
     })
   }
 
-  async deleteBaseRows(
+  async deleteEidosFileRows(
     spaceId: string,
     relativePath: string,
     tableId: string,
     rowIds: string[]
-  ): Promise<BaseRowsDeleteResult> {
+  ): Promise<EidosFileRowsDeleteResult> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         const deletedCount = base.deleteRows(tableId, rowIds).length
         return {
@@ -1172,15 +1190,15 @@ export class SpaceManagementService extends IpcServiceBase {
     })
   }
 
-  async deleteBaseRowRanges(
+  async deleteEidosFileRowRanges(
     spaceId: string,
     relativePath: string,
     tableId: string,
-    ranges: BaseRowRange[],
-    query: BaseRowQuery = {}
-  ): Promise<BaseRowsDeleteResult> {
+    ranges: EidosFileRowRange[],
+    query: EidosFileRowQuery = {}
+  ): Promise<EidosFileRowsDeleteResult> {
     return withFileSpaceOperationLock(spaceId, async () => {
-      const base = await this._openBase(spaceId, relativePath, true)
+      const base = await this._openEidosFile(spaceId, relativePath, true)
       try {
         const deletedCount = base.deleteRowRanges(tableId, ranges, query)
         return {
@@ -1195,13 +1213,13 @@ export class SpaceManagementService extends IpcServiceBase {
     })
   }
 
-  async deleteBaseRow(
+  async deleteEidosFileRow(
     spaceId: string,
     relativePath: string,
     tableId: string,
     rowId: string
-  ): Promise<BaseRowsDeleteResult> {
-    return this.deleteBaseRows(spaceId, relativePath, tableId, [rowId])
+  ): Promise<EidosFileRowsDeleteResult> {
+    return this.deleteEidosFileRows(spaceId, relativePath, tableId, [rowId])
   }
 
   async moveFile(
@@ -1392,33 +1410,33 @@ export class SpaceManagementService extends IpcServiceBase {
     return files
   }
 
-  private _getBaseCsvSelection(spaceId: string, token: string) {
-    const source = this.baseCsvSelections.get(token)
+  private _getEidosFileCsvSelection(spaceId: string, token: string) {
+    const source = this.eidosFileCsvSelections.get(token)
     const expired = source && source.selectedAt < Date.now() - 30 * 60 * 1_000
     if (!source || source.spaceId !== spaceId || expired) {
-      this.baseCsvSelections.delete(token)
+      this.eidosFileCsvSelections.delete(token)
       throw new Error("The selected CSV file has expired; choose it again")
     }
     return source
   }
 
-  private async _runBaseCsvOperation<T>(
+  private async _runEidosFileCsvOperation<T>(
     spaceId: string,
     operationId: string | undefined,
-    kind: BaseCsvOperationProgress["kind"],
+    kind: EidosFileCsvOperationProgress["kind"],
     totalBytes: number,
-    run: (operation?: BaseCsvWorkerOperation) => Promise<T>
+    run: (operation?: EidosFileCsvWorkerOperation) => Promise<T>
   ): Promise<T> {
     if (!operationId) return run()
     if (!/^[a-zA-Z0-9_-]{8,128}$/.test(operationId)) {
-      throw new Error("Invalid Base CSV operation ID")
+      throw new Error("Invalid Eidos File CSV operation ID")
     }
-    this._pruneBaseCsvOperations()
-    const existing = this.baseCsvOperations.get(operationId)
+    this._pruneEidosFileCsvOperations()
+    const existing = this.eidosFileCsvOperations.get(operationId)
     if (existing && ["running", "canceling"].includes(existing.status)) {
-      throw new Error(`Base CSV operation already exists: ${operationId}`)
+      throw new Error(`Eidos File CSV operation already exists: ${operationId}`)
     }
-    const operation: BaseCsvOperationProgress & { spaceId: string } = {
+    const operation: EidosFileCsvOperationProgress & { spaceId: string } = {
       operationId,
       spaceId,
       kind,
@@ -1430,12 +1448,12 @@ export class SpaceManagementService extends IpcServiceBase {
       totalRows: null,
       updatedAt: Date.now(),
     }
-    this.baseCsvOperations.set(operationId, operation)
+    this.eidosFileCsvOperations.set(operationId, operation)
     try {
       const result = await run({
         id: operationId,
         onProgress: (progress) => {
-          if (this.baseCsvOperations.get(operationId) !== operation) return
+          if (this.eidosFileCsvOperations.get(operationId) !== operation) return
           Object.assign(operation, progress, { updatedAt: Date.now() })
         },
       })
@@ -1447,28 +1465,30 @@ export class SpaceManagementService extends IpcServiceBase {
       return result
     } catch (error) {
       const canceled =
-        error instanceof Error && error.name === "BaseCsvCanceledError"
+        error instanceof Error && error.name === "EidosFileCsvCanceledError"
       operation.status = canceled ? "canceled" : "failed"
       operation.message =
-        error instanceof Error ? error.message : "Base CSV operation failed"
+        error instanceof Error
+          ? error.message
+          : "Eidos File CSV operation failed"
       operation.updatedAt = Date.now()
       throw error
     }
   }
 
-  private _pruneBaseCsvOperations(): void {
+  private _pruneEidosFileCsvOperations(): void {
     const cutoff = Date.now() - 5 * 60 * 1_000
-    for (const [operationId, operation] of this.baseCsvOperations) {
+    for (const [operationId, operation] of this.eidosFileCsvOperations) {
       if (
         !["running", "canceling"].includes(operation.status) &&
         operation.updatedAt < cutoff
       ) {
-        this.baseCsvOperations.delete(operationId)
+        this.eidosFileCsvOperations.delete(operationId)
       }
     }
   }
 
-  private async _openBase(
+  private async _openEidosFile(
     spaceId: string,
     relativePath: string,
     migrate = false,
@@ -1476,16 +1496,21 @@ export class SpaceManagementService extends IpcServiceBase {
   ) {
     const systemPath =
       await this._getFileSpace(spaceId).getSystemPath(relativePath)
-    return openBaseFile(systemPath, { migrate, readonly })
+    return openEidosFile(systemPath, { migrate, readonly })
   }
 
-  private async _getBaseSnapshot(
+  private async _getEidosFileSnapshot(
     spaceId: string,
     relativePath: string,
     migrate = false,
     readonly = false
-  ): Promise<BaseSnapshot> {
-    const base = await this._openBase(spaceId, relativePath, migrate, readonly)
+  ): Promise<EidosFileSnapshot> {
+    const base = await this._openEidosFile(
+      spaceId,
+      relativePath,
+      migrate,
+      readonly
+    )
     try {
       const metadata = base.info()
       return {

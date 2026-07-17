@@ -4,7 +4,7 @@ import { analyzeExtensionModuleImports } from "./imports"
 import { analyzeExtensionManifest } from "./manifest"
 import {
   createExtensionCommandTemplate,
-  createExtensionBaseViewTemplate,
+  createExtensionEidosFileViewTemplate,
   createExtensionPanelTemplate,
   createExtensionTextEditorTemplate,
 } from "./template"
@@ -147,9 +147,9 @@ describe("createExtensionPanelTemplate", () => {
   })
 })
 
-describe("createExtensionBaseViewTemplate", () => {
-  it("creates a paged sandboxed Base view package", () => {
-    const template = createExtensionBaseViewTemplate({
+describe("createExtensionEidosFileViewTemplate", () => {
+  it("creates a paged sandboxed Eidos File view package", () => {
+    const template = createExtensionEidosFileViewTemplate({
       publisher: "local",
       name: "record-cards",
       engineRange: ">=0.33.0",
@@ -157,14 +157,14 @@ describe("createExtensionBaseViewTemplate", () => {
 
     expect(template.files.map((file) => file.path)).toEqual([
       "extension.json",
-      "src/base-view.ts",
-      "src/base-view.css",
+      "src/eidos-file-view.ts",
+      "src/eidos-file-view.css",
       "README.md",
     ])
     expect(template.manifest).toMatchObject({
-      entrypoints: { ui: "src/base-view.ts" },
+      entrypoints: { ui: "src/eidos-file-view.ts" },
       contributes: {
-        baseViews: [
+        eidosFileViews: [
           {
             id: "local.record-cards.cards",
             displayName: "Record Cards",
@@ -172,18 +172,18 @@ describe("createExtensionBaseViewTemplate", () => {
         ],
       },
       permissions: {
-        files: { read: ["**/*.base"], write: [] },
+        files: { read: ["**/*.eidos"], write: [] },
       },
     })
     const source = template.files.find(
-      (file) => file.path === "src/base-view.ts"
+      (file) => file.path === "src/eidos-file-view.ts"
     )!.content
-    expect(source).toContain("ExtensionBaseViewContext")
-    expect(source).toContain("context.base.getPage")
+    expect(source).toContain("ExtensionEidosFileViewContext")
+    expect(source).toContain("context.eidosFile.getPage")
     expect(source).toContain("IntersectionObserver")
     expect(
       analyzeExtensionModuleImports(
-        "src/base-view.ts",
+        "src/eidos-file-view.ts",
         source,
         new Set(template.files.map((file) => file.path))
       )

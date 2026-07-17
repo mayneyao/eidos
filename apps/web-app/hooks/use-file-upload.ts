@@ -54,10 +54,10 @@ export const useFileUpload = () => {
         // So even if we preserve the fileName in DB, the path on disk uses UUID.
 
         const fileId = getUuid()
-        const basePath = parentPath
+        const eidosFilePath = parentPath
           ? `~/.eidos/files/${parentPath}`
           : `~/.eidos/files`
-        const path = `${basePath}/${fileId}.${ext}`
+        const path = `${eidosFilePath}/${fileId}.${ext}`
 
         // Write to file system
         await sqlite.fs.writeFile(path, uint8Array)

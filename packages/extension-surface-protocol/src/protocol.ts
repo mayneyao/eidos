@@ -277,18 +277,18 @@ export function parseExtensionSurfaceMessage(
     }
   }
   if (type === "closed") return { type }
-  if (type === "base-page-request") {
+  if (type === "eidos-file-page-request") {
     return {
       type,
       requestId: text(input.requestId, "Surface request ID", 128),
       generation: text(input.generation, "Surface generation", 256),
       offset: nonNegativeSafeInteger(
         input.offset as number,
-        "Base page offset"
+        "Eidos File page offset"
       ),
       limit: nonNegativeSafeInteger(
         input.limit as number,
-        "Base page limit",
+        "Eidos File page limit",
         1,
         EXTENSION_SURFACE_MAX_BASE_PAGE_SIZE
       ),
@@ -308,15 +308,18 @@ export function parseExtensionSurfaceMessage(
   }
   const requestId = text(input.requestId, "Surface request ID", 128)
   const documentId = text(input.documentId, "Document ID", 256)
-  const baseRevision = revision(input.baseRevision, "Base revision")
+  const eidosFileRevision = revision(
+    input.eidosFileRevision,
+    "Eidos File revision"
+  )
   if (type === "apply-edits") {
     return {
       type,
       requestId,
       documentId,
-      baseRevision,
+      eidosFileRevision,
       edits: validateExtensionTextEdits(input.edits),
     }
   }
-  return { type, requestId, documentId, baseRevision }
+  return { type, requestId, documentId, eidosFileRevision }
 }

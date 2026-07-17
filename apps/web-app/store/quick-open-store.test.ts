@@ -7,26 +7,26 @@ import {
 } from "./quick-open-store"
 
 const tasksSection: QuickOpenContextSection = {
-  id: "base-tables",
-  heading: "Tables in tasks.base",
-  inputHint: "tasks.base",
+  id: "eidos-file-tables",
+  heading: "Tables in tasks.eidos",
+  inputHint: "tasks.eidos",
   priority: 100,
   items: [
     {
       id: "tasks",
-      kind: "base-table",
+      kind: "eidos-file-table",
       label: "Tasks",
       detail: "12 rows",
-      keywords: ["projects/tasks.base", "tb_tasks"],
+      keywords: ["projects/tasks.eidos", "tb_tasks"],
       current: true,
       onSelect: vi.fn(),
     },
     {
       id: "people",
-      kind: "base-table",
+      kind: "eidos-file-table",
       label: "People",
       detail: "4 rows",
-      keywords: ["projects/tasks.base", "tb_people"],
+      keywords: ["projects/tasks.eidos", "tb_people"],
       onSelect: vi.fn(),
     },
   ],
@@ -42,22 +42,24 @@ describe("quick-open context store", () => {
     registerSection("tab-a", tasksSection)
     registerSection("tab-b", {
       ...tasksSection,
-      heading: "Tables in contacts.base",
+      heading: "Tables in contacts.eidos",
     })
 
     expect(
-      useQuickOpenStore.getState().sectionsByTab["tab-a"]["base-tables"].heading
-    ).toBe("Tables in tasks.base")
+      useQuickOpenStore.getState().sectionsByTab["tab-a"]["eidos-file-tables"]
+        .heading
+    ).toBe("Tables in tasks.eidos")
     expect(
-      useQuickOpenStore.getState().sectionsByTab["tab-b"]["base-tables"].heading
-    ).toBe("Tables in contacts.base")
+      useQuickOpenStore.getState().sectionsByTab["tab-b"]["eidos-file-tables"]
+        .heading
+    ).toBe("Tables in contacts.eidos")
 
-    unregisterSection("tab-a", "base-tables")
+    unregisterSection("tab-a", "eidos-file-tables")
     expect(useQuickOpenStore.getState().sectionsByTab["tab-a"]).toBeUndefined()
     expect(useQuickOpenStore.getState().sectionsByTab["tab-b"]).toBeDefined()
   })
 
-  it("matches labels, details, and Base path keywords", () => {
+  it("matches labels, details, and Eidos File path keywords", () => {
     expect(
       filterQuickOpenSections([tasksSection], "people 4")[0].items
     ).toHaveLength(1)
@@ -74,9 +76,9 @@ describe("quick-open context store", () => {
     ]
 
     expect(filterQuickOpenSections(sections, "").map(({ id }) => id)).toEqual([
-      "base-tables",
+      "eidos-file-tables",
       "files",
     ])
-    expect(sections.map(({ id }) => id)).toEqual(["files", "base-tables"])
+    expect(sections.map(({ id }) => id)).toEqual(["files", "eidos-file-tables"])
   })
 })

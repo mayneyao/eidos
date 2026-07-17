@@ -246,8 +246,10 @@ export const SimpleCodeEditorWrapper = forwardRef(
 
     // Create the file name based on script info
     const fileName = useMemo(() => {
-      const baseName = slug || scriptId || "current"
-      return baseName.endsWith(`.${ext}`) ? baseName : `${baseName}.${ext}`
+      const eidosFileName = slug || scriptId || "current"
+      return eidosFileName.endsWith(`.${ext}`)
+        ? eidosFileName
+        : `${eidosFileName}.${ext}`
     }, [scriptId, slug, ext])
 
     const handleEditorChange = useCallback(

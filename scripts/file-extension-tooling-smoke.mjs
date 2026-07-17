@@ -242,8 +242,8 @@ try {
       entrypoints: ["ui"],
     },
     {
-      id: "example.external-base-view",
-      template: "base-view",
+      id: "example.external-eidos-file-view",
+      template: "eidos-file-view",
       entrypoints: ["ui"],
     },
   ]

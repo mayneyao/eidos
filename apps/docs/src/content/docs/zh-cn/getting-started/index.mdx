@@ -14,7 +14,7 @@ Eidos 是一个 local-first 的个人数据环境。**Space** 是普通目录，
 1. **打开 Space。** Eidos 会索引目录，但不会把它转换成专有容器。
 2. **处理文件。** Markdown 和其他文本格式继续是普通文件；没有专用编辑器的文本文件
    仍然可以用 fallback viewer 查看。
-3. **使用 Base。** `.base` 文件描述结构化数据和视图，宿主提供 grid、gallery 和 kanban。
+3. **使用 Eidos File。** `.eidos` 文件描述结构化数据和视图，宿主提供 grid、gallery 和 kanban。
 4. **审查变化。** Graft 通过 Version 面板管理文件和数据库变化。
 5. **扩展宿主。** 扩展通过 Manifest 和 capability API 提供命令、编辑器、视图和 agent tools。
 
@@ -27,10 +27,10 @@ Eidos 是一个 local-first 的个人数据环境。**Space** 是普通目录，
 
 ## 统一术语
 
-| 术语 | 含义 |
-| --- | --- |
-| Space | Eidos 打开和管理的目录；Eidos API 和 UI 中不使用 vault 这个名称。 |
-| Base | file-backed 的结构化数据定义，包含一个或多个 sheet 和 view。 |
-| Contribution | 扩展声明的宿主能力，例如 command 或 file editor。 |
-| Extension package | 安装在 Space 内的源码、资源、Manifest 和来源信息。 |
-| Host capability | Eidos 在权限检查后开放给扩展的操作。 |
+| 术语              | 含义                                                              |
+| ----------------- | ----------------------------------------------------------------- |
+| Space             | Eidos 打开和管理的目录；Eidos API 和 UI 中不使用 vault 这个名称。 |
+| Eidos File        | file-backed 的结构化数据定义，包含一个或多个 sheet 和 view。      |
+| Contribution      | 扩展声明的宿主能力，例如 command 或 file editor。                 |
+| Extension package | 安装在 Space 内的源码、资源、Manifest 和来源信息。                |
+| Host capability   | Eidos 在权限检查后开放给扩展的操作。                              |

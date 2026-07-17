@@ -7,7 +7,7 @@ Owner: Eidos
 Related RFCs:
 
 - `eidos-space-markdown-runtime.md`
-- `eidos-base-file-format.md`
+- `eidos-file-format.md`
 - `eidos-file-based-extensions.md`
 - `eidos-graft-space-versioning.md`
 
@@ -35,7 +35,7 @@ Through formal host services, the native Agent can:
 - create, edit, inspect, grant, trust, enable, and run File-Based Extensions;
 - inspect Graft status, history, and diffs, and perform enable, stage, unstage,
   commit, discard, restore, remote sync, and conflict resolution;
-- read Markdown, images, Base snapshots, and Base rows; and
+- read Markdown, images, Eidos File snapshots, and Eidos File rows; and
 - continue in Electron main after its tab closes, with a durable journal used
   to reattach the UI.
 
@@ -57,15 +57,15 @@ components does not require runtime or session compatibility.
 
 ## Two-runtime boundary
 
-| Boundary       | Legacy DataSpace Agent            | Native File Space Agent                   |
-| -------------- | --------------------------------- | ----------------------------------------- |
-| Entry          | legacy `/agent` API/channel       | Desktop `file-space-agent` IPC            |
-| Assembly       | `prepareAgent` / `handleAgentApi` | `prepareFileSpaceAgentRuntime`            |
-| Canonical data | DataSpace/SQLite                  | Space files, `.base`, `.eidos/extensions` |
-| Tools          | legacy Bash/VFS/eidos/web tools   | typed Space/Extension/Version/Base tools  |
-| Session        | legacy sidecar/session store      | `<id>/meta.json + events.jsonl`           |
-| Approval       | legacy permission server          | run-scoped approval in Electron main      |
-| Lifecycle      | request/renderer chain            | background run in Electron main           |
+| Boundary       | Legacy DataSpace Agent            | Native File Space Agent                        |
+| -------------- | --------------------------------- | ---------------------------------------------- |
+| Entry          | legacy `/agent` API/channel       | Desktop `file-space-agent` IPC                 |
+| Assembly       | `prepareAgent` / `handleAgentApi` | `prepareFileSpaceAgentRuntime`                 |
+| Canonical data | DataSpace/SQLite                  | Space files, `.eidos`, `.eidos/extensions`     |
+| Tools          | legacy Bash/VFS/eidos/web tools   | typed Space/Extension/Version/Eidos File tools |
+| Session        | legacy sidecar/session store      | `<id>/meta.json + events.jsonl`                |
+| Approval       | legacy permission server          | run-scoped approval in Electron main           |
+| Lifecycle      | request/renderer chain            | background run in Electron main                |
 
 The native runtime must never add fallback to:
 
@@ -73,7 +73,7 @@ The native runtime must never add fallback to:
 - legacy DataSpace, `AgentSessionStore`, or legacy session import;
 - `createBashTool`, `createFileTools`, legacy VFS, or legacy `eidos` commands;
 - the legacy permission WebSocket; or
-- direct system paths, direct `.base` SQLite, or direct `.graft` access.
+- direct system paths, direct `.eidos` SQLite, or direct `.graft` access.
 
 ## Architecture
 
@@ -87,7 +87,7 @@ Agent tab / panel
        -> SpaceManagementService
        -> FileExtensionService
        -> SpaceVersioningService
-       -> Base runtime facade
+       -> Eidos File runtime facade
 ```
 
 `startRun` registers an `ActiveRun` and `AbortController` in main, then consumes
@@ -191,14 +191,14 @@ refresh semantics. Except for initial enablement, Agent reads status first and
 passes the exact current head to guarded mutations. Every mutation or external
 sync requires Allow once or Deny. Agent never operates `.graft/` directly.
 
-### Base and resource context
+### Eidos File and resource context
 
-`.base` is never overwritten as an ordinary text file. Agent currently reads
-it through `getBaseSnapshotReadOnly`, `getBaseTableRow`, and
-`getBaseTablePage`. Future Base mutations must be added through typed Base
+`.eidos` is never overwritten as an ordinary text file. Agent currently reads
+it through `getEidosFileSnapshotReadOnly`, `getEidosFileTableRow`, and
+`getEidosFileTablePage`. Future Eidos File mutations must be added through typed Eidos File
 Runtime APIs, not file replacement.
 
-Active context supports Markdown selection/heading, plain text, Base row,
+Active context supports Markdown selection/heading, plain text, Eidos File row,
 image, and binary metadata with digest, mtime, fingerprint, and capture time.
 Main may attach an image up to 10 MiB as a model file part.
 
@@ -243,7 +243,7 @@ Delivery commands:
 ```bash
 pnpm typecheck
 pnpm --filter eidos smoke:file-agent
-pnpm --filter eidos smoke:base-query
+pnpm --filter eidos smoke:eidos-file-query
 pnpm --filter eidos smoke:file-extension-runtime
 pnpm build:desktop:dev
 ```
@@ -251,7 +251,7 @@ pnpm build:desktop:dev
 ## RFC ownership boundaries
 
 - Space Markdown owns safe-save, selection, and preview semantics.
-- Base Runtime owns `.base` queries and mutations; Agent calls its typed facade.
+- Eidos File Runtime owns `.eidos` queries and mutations; Agent calls its typed facade.
 - File-Based Extensions owns manifests, compilation, snapshot trust, grants,
   and sandboxing; Agent orchestrates its formal service.
 - Graft Versioning owns repositories, ignore rules, stage/commit/restore/sync,

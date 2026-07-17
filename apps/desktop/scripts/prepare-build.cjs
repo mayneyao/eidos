@@ -9,7 +9,7 @@ const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm"
 const pnpmEntry = process.env.npm_execpath
 
 const workspacePackages = [
-  "@eidos.space/base",
+  "@eidos.space/eidos-file",
   "@eidos.space/file-space",
   "@eidos.space/extension-manifest",
   "@eidos.space/extension-installer",

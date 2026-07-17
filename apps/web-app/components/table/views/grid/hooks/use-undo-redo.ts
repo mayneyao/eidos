@@ -1,1 +1,1 @@
-export { useUndoRedo, type UndoRedoEdit } from "@eidos.space/base-ui"
+export { useUndoRedo, type UndoRedoEdit } from "@eidos.space/eidos-file-ui"

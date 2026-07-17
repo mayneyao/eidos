@@ -1,11 +1,11 @@
 import {
-  compileBaseFormula,
-  type BaseFieldInfo,
-  type BaseFieldType,
-  type BaseFormulaDisplayType,
-  type BaseStorageCodec,
-  type BaseValueKind,
-} from "@eidos.space/base"
+  compileEidosFileFormula,
+  type EidosFileFieldInfo,
+  type EidosFileFieldType,
+  type EidosFileFormulaDisplayType,
+  type EidosFileStorageCodec,
+  type EidosFileValueKind,
+} from "@eidos.space/eidos-file"
 
 import type {
   LegacyField,
@@ -13,9 +13,9 @@ import type {
   LegacyTable,
   PlannedTable,
 } from "./types"
-import { baseSelectPropertyFromLegacy } from "./value-migration"
+import { eidosFileSelectPropertyFromLegacy } from "./value-migration"
 
-const BASE_FIELD_TYPES = new Set<BaseFieldType>([
+const EIDOS_FILE_FIELD_TYPES = new Set<EidosFileFieldType>([
   "title",
   "text",
   "number",
@@ -36,7 +36,7 @@ const BASE_FIELD_TYPES = new Set<BaseFieldType>([
   "last-edited-by",
   "row-id",
 ])
-const BASE_SYSTEM_COLUMNS = new Set([
+const EIDOS_FILE_SYSTEM_COLUMNS = new Set([
   "_id",
   "title",
   "_created_time",
@@ -44,7 +44,7 @@ const BASE_SYSTEM_COLUMNS = new Set([
   "_created_by",
   "_last_edited_by",
 ])
-const BASE_SYSTEM_FIELD_TYPES = new Map<string, BaseFieldType>([
+const EIDOS_FILE_SYSTEM_FIELD_TYPES = new Map<string, EidosFileFieldType>([
   ["_id", "row-id"],
   ["title", "title"],
   ["_created_time", "created-time"],
@@ -52,7 +52,7 @@ const BASE_SYSTEM_FIELD_TYPES = new Map<string, BaseFieldType>([
   ["_created_by", "created-by"],
   ["_last_edited_by", "last-edited-by"],
 ])
-const FORMULA_DISPLAY_TYPES = new Set<BaseFormulaDisplayType>([
+const FORMULA_DISPLAY_TYPES = new Set<EidosFileFormulaDisplayType>([
   "text",
   "number",
   "checkbox",
@@ -63,8 +63,8 @@ const FORMULA_DISPLAY_TYPES = new Set<BaseFormulaDisplayType>([
 
 export interface LegacyFieldImportStrategy {
   property: Record<string, unknown> | null
-  storageCodec: BaseStorageCodec
-  valueKind: BaseValueKind
+  storageCodec: EidosFileStorageCodec
+  valueKind: EidosFileValueKind
   isDerived: boolean
   dependsOn: unknown
   omitSourceValue: boolean
@@ -183,13 +183,15 @@ export function remapFieldMetadata(
   return value
 }
 
-export function baseFieldTypeForLegacyField(field: LegacyField): BaseFieldType {
-  return BASE_FIELD_TYPES.has(field.type as BaseFieldType)
-    ? (field.type as BaseFieldType)
+export function eidosFileFieldTypeForLegacyField(
+  field: LegacyField
+): EidosFileFieldType {
+  return EIDOS_FILE_FIELD_TYPES.has(field.type as EidosFileFieldType)
+    ? (field.type as EidosFileFieldType)
     : "text"
 }
 
-function defaultStorageCodec(field: LegacyField): BaseStorageCodec {
+function defaultStorageCodec(field: LegacyField): EidosFileStorageCodec {
   if (field.type === "multi-select" || field.type === "file") {
     return "json_array"
   }
@@ -200,8 +202,11 @@ function defaultStorageCodec(field: LegacyField): BaseStorageCodec {
   return "scalar"
 }
 
-function defaultValueKind(field: LegacyField): BaseValueKind {
-  if (field.type === "row-id" || BASE_SYSTEM_COLUMNS.has(field.columnName)) {
+function defaultValueKind(field: LegacyField): EidosFileValueKind {
+  if (
+    field.type === "row-id" ||
+    EIDOS_FILE_SYSTEM_COLUMNS.has(field.columnName)
+  ) {
     return "system"
   }
   if (field.type === "link") return "relation"
@@ -211,10 +216,10 @@ function defaultValueKind(field: LegacyField): BaseValueKind {
   return "source"
 }
 
-function normalizedDisplayType(value: unknown): BaseFormulaDisplayType {
+function normalizedDisplayType(value: unknown): EidosFileFormulaDisplayType {
   return typeof value === "string" &&
-    FORMULA_DISPLAY_TYPES.has(value as BaseFormulaDisplayType)
-    ? (value as BaseFormulaDisplayType)
+    FORMULA_DISPLAY_TYPES.has(value as EidosFileFormulaDisplayType)
+    ? (value as EidosFileFormulaDisplayType)
     : "text"
 }
 
@@ -223,13 +228,14 @@ function importedProperty(
   fieldMap: Map<string, string>
 ): Record<string, unknown> | null {
   if (field.type === "select" || field.type === "multi-select") {
-    return baseSelectPropertyFromLegacy(field.property)
+    return eidosFileSelectPropertyFromLegacy(field.property)
   }
   const property = remapFieldMetadata(field.property, fieldMap) as Record<
     string,
     unknown
   > | null
-  if (BASE_FIELD_TYPES.has(field.type as BaseFieldType)) return property
+  if (EIDOS_FILE_FIELD_TYPES.has(field.type as EidosFileFieldType))
+    return property
   return {
     ...(property ?? {}),
     eidosMigration: { sourceFieldType: field.type },
@@ -264,7 +270,7 @@ function findFormulaCycleMembers(
 
 /**
  * Builds the exact import contract used by both the migration preview and the
- * exporter. Compatible Formula/Lookup fields become query-time Base fields;
+ * exporter. Compatible Formula/Lookup fields become query-time Eidos File fields;
  * incompatible definitions retain their legacy materialized values.
  */
 export function buildLegacyFieldImportStrategies(
@@ -291,13 +297,16 @@ export function buildLegacyFieldImportStrategies(
         dependsOn: remapFieldMetadata(field.property?.dependsOn, columnMap),
         omitSourceValue: false,
         ...(field.type === "formula" || field.type === "lookup"
-          ? { fallbackReason: "the legacy definition is not Base-compatible" }
+          ? {
+              fallbackReason:
+                "the legacy definition is not Eidos File-compatible",
+            }
           : {}),
       })
     }
   }
 
-  // Normalize legacy links to the Base relation contract. Lookup validation
+  // Normalize legacy links to the Eidos File relation contract. Lookup validation
   // below only promotes fields whose relation can be resolved unambiguously.
   for (const table of snapshot.tables) {
     const planned = plannedById.get(table.id)
@@ -319,7 +328,7 @@ export function buildLegacyFieldImportStrategies(
       const targetField =
         targetPlan && typeof legacyTargetField === "string"
           ? (fieldColumnMap(targetPlan).get(legacyTargetField) ??
-            (BASE_SYSTEM_COLUMNS.has(legacyTargetField)
+            (EIDOS_FILE_SYSTEM_COLUMNS.has(legacyTargetField)
               ? legacyTargetField
               : undefined))
           : undefined
@@ -339,7 +348,7 @@ export function buildLegacyFieldImportStrategies(
     columnName: string
     relationColumn: string
     targetColumn: string
-    targetDisplayType: BaseFormulaDisplayType
+    targetDisplayType: EidosFileFormulaDisplayType
     targetLookupKey?: string
   }
 
@@ -392,12 +401,12 @@ export function buildLegacyFieldImportStrategies(
       const targetFieldType =
         targetLegacyField?.type ??
         (typeof legacyTargetColumn === "string"
-          ? BASE_SYSTEM_FIELD_TYPES.get(legacyTargetColumn)
+          ? EIDOS_FILE_SYSTEM_FIELD_TYPES.get(legacyTargetColumn)
           : undefined)
       const targetColumn =
         targetPlan && typeof legacyTargetColumn === "string"
           ? (fieldColumnMap(targetPlan).get(legacyTargetColumn) ??
-            (BASE_SYSTEM_COLUMNS.has(legacyTargetColumn)
+            (EIDOS_FILE_SYSTEM_COLUMNS.has(legacyTargetColumn)
               ? legacyTargetColumn
               : undefined))
           : undefined
@@ -410,7 +419,8 @@ export function buildLegacyFieldImportStrategies(
         continue
       }
       if (targetFieldType === "formula") {
-        strategy.fallbackReason = "Base lookups require a stored target field"
+        strategy.fallbackReason =
+          "Eidos File lookups require a stored target field"
         continue
       }
       const relationColumn = columnMap.get(relationField.columnName)
@@ -470,7 +480,7 @@ export function buildLegacyFieldImportStrategies(
       if (!lookupFallbacks.has(key)) {
         lookupFallbacks.set(
           key,
-          "its nested lookup target is not Base-compatible"
+          "its nested lookup target is not Eidos File-compatible"
         )
       }
       return false
@@ -510,13 +520,13 @@ export function buildLegacyFieldImportStrategies(
       const target = columnMap.get(field.columnName)
       if (target) fieldsByTarget.set(target, field)
     }
-    const drafts = table.fields.map((field): BaseFieldInfo => {
+    const drafts = table.fields.map((field): EidosFileFieldInfo => {
       const strategy = strategies.get(
         legacyFieldStrategyKey(table.id, field.columnName)
       )!
       return {
         name: field.name,
-        type: baseFieldTypeForLegacyField(field),
+        type: eidosFileFieldTypeForLegacyField(field),
         tableName: table.rawTableName,
         tableColumnName: columnMap.get(field.columnName)!,
         property: strategy.property,
@@ -528,7 +538,7 @@ export function buildLegacyFieldImportStrategies(
         dependsOn: strategy.dependsOn,
       }
     })
-    for (const [columnName, type] of BASE_SYSTEM_FIELD_TYPES) {
+    for (const [columnName, type] of EIDOS_FILE_SYSTEM_FIELD_TYPES) {
       if (drafts.some((field) => field.tableColumnName === columnName)) continue
       drafts.push({
         name: columnName === "title" ? "Title" : columnName,
@@ -567,7 +577,7 @@ export function buildLegacyFieldImportStrategies(
       draft.valueKind = "derived"
       draft.isDerived = true
       try {
-        const compiled = compileBaseFormula(draft, drafts)
+        const compiled = compileEidosFileFormula(draft, drafts)
         dependencies.set(draft.tableColumnName, compiled.dependencies)
         expressions.set(draft.tableColumnName, compiled.expression)
         liveFormulaColumns.add(draft.tableColumnName)

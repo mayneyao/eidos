@@ -1,1 +1,1 @@
-export { headerIcons, makeHeaderIcons } from "@eidos.space/base-ui"
+export { headerIcons, makeHeaderIcons } from "@eidos.space/eidos-file-ui"

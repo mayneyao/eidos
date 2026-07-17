@@ -6,17 +6,17 @@ import * as path from "node:path"
  * Provides sandboxed file access within a base path
  */
 export class AdapterFsService {
-  private basePath: string
+  private eidosFilePath: string
 
-  constructor(basePath: string) {
-    this.basePath = basePath
+  constructor(eidosFilePath: string) {
+    this.eidosFilePath = eidosFilePath
   }
 
   private resolvePath(inputPath: string): string {
     if (inputPath.startsWith("~/")) {
-      return path.join(this.basePath, inputPath.slice(2))
+      return path.join(this.eidosFilePath, inputPath.slice(2))
     }
-    return path.join(this.basePath, inputPath)
+    return path.join(this.eidosFilePath, inputPath)
   }
 
   async readFile(inputPath: string): Promise<Uint8Array>

@@ -16,7 +16,7 @@ contract。它不包含 React、Electron、iframe、filesystem 或 editor 实现
 | ----------------- | ------------------------------------------------------------------ |
 | Offset unit       | JavaScript UTF-16 code unit，不是 Unicode code point 或 UTF-8 byte |
 | Revision          | 由宿主拥有的正数、单调递增整数                                     |
-| Edit base         | 同一 batch 的所有 edit 都针对完全相同的 `baseRevision`             |
+| Edit base         | 同一 batch 的所有 edit 都针对完全相同的 `eidosFileRevision`        |
 | Document owner    | 宿主拥有 text、dirty、undo/redo、save 与 conflict state            |
 | Surface authority | Surface 只能请求有界 edit，不能直接写文件                          |
 | Save              | Host-internal、single-use compare-and-swap token                   |
@@ -74,7 +74,7 @@ port.postMessage({
   type: "apply-edits",
   requestId: "edit-42",
   documentId: snapshot.documentId,
-  baseRevision: 7,
+  eidosFileRevision: 7,
   edits: [{ start: 3, end: 4, text: "x" }],
 })
 ```

@@ -1,1 +1,1 @@
-export * from "@eidos.space/base-ui/ui/dropdown-menu"
+export * from "@eidos.space/eidos-file-ui/ui/dropdown-menu"

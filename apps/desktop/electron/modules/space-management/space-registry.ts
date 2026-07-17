@@ -8,7 +8,7 @@ import fs from "fs"
 import path from "path"
 import { Injectable } from "../../common/di"
 import {
-  SpaceRegistry as BaseSpaceRegistry,
+  SpaceRegistry as EidosFileSpaceRegistry,
   type SpaceInfo,
   type SpacesConfig,
   type GlobalConfig,
@@ -19,7 +19,7 @@ import { resolveStartupSpaceId } from "./startup-space"
 export type { SpaceInfo, SpacesConfig, GlobalConfig }
 
 @Injectable()
-export class SpaceRegistry extends BaseSpaceRegistry {
+export class SpaceRegistry extends EidosFileSpaceRegistry {
   constructor() {
     super()
   }

@@ -1,0 +1,38 @@
+import { defineConfig } from "tsdown"
+
+export default defineConfig({
+  entry: [
+    "src/index.ts",
+    "src/eidos-file-data-grid.tsx",
+    "src/eidos-file-editor-view.tsx",
+    "src/eidos-file-gallery-view.tsx",
+    "src/eidos-file-kanban-view.tsx",
+    "src/eidos-file-record-card.tsx",
+    "src/eidos-file-record-card-layout.ts",
+    "src/eidos-file-record-delete-dialog.tsx",
+    "src/eidos-file-row-window.ts",
+    "src/eidos-file-virtual-scroll.ts",
+    "src/eidos-file-error-message.ts",
+    "src/use-eidos-file-record-inspector-row.ts",
+    "src/ui/alert-dialog.tsx",
+    "src/ui/dropdown-menu.tsx",
+    "src/ui/kanban.tsx",
+    "src/eidos-file-editor-chrome.tsx",
+    "src/eidos-file-query-toolbar.tsx",
+    "src/context.tsx",
+  ],
+  format: "esm",
+  dts: true,
+  sourcemap: true,
+  clean: true,
+  deps: {
+    neverBundle: [
+      "react",
+      "react-dom",
+      "react/jsx-runtime",
+      "@eidos.space/eidos-file",
+      "@glideapps/glide-data-grid",
+      "@tanstack/react-virtual",
+    ],
+  },
+})

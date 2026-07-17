@@ -16,7 +16,8 @@ export interface ExtensionTextEditorTemplateOptions extends ExtensionCommandTemp
 }
 
 export type ExtensionPanelTemplateOptions = ExtensionCommandTemplateOptions
-export type ExtensionBaseViewTemplateOptions = ExtensionCommandTemplateOptions
+export type ExtensionEidosFileViewTemplateOptions =
+  ExtensionCommandTemplateOptions
 
 export interface ExtensionTemplateFile {
   path: string
@@ -302,8 +303,8 @@ export function createExtensionPanelTemplate(
   ])
 }
 
-export function createExtensionBaseViewTemplate(
-  options: ExtensionBaseViewTemplateOptions
+export function createExtensionEidosFileViewTemplate(
+  options: ExtensionEidosFileViewTemplateOptions
 ): ExtensionTemplate {
   assertPackageSegment(options.publisher, "Publisher")
   assertPackageSegment(options.name, "Extension name")
@@ -314,49 +315,49 @@ export function createExtensionBaseViewTemplate(
   const canonicalId = `${options.publisher}.${options.name}`
   const displayName =
     options.displayName?.trim() || defaultDisplayName(options.name)
-  const baseViewId = `${canonicalId}.cards`
+  const eidosFileViewId = `${canonicalId}.cards`
   const manifest: ExtensionManifestV1 = {
     $schema: "https://docs.eidos.space/schemas/extension-manifest.schema.json",
     manifestVersion: 1,
     publisher: options.publisher,
     name: options.name,
     displayName,
-    description: `Render Base records with the sandboxed ${displayName} layout.`,
+    description: `Render Eidos File records with the sandboxed ${displayName} layout.`,
     version: "0.1.0",
     engines: { eidos: options.engineRange },
-    entrypoints: { ui: "src/base-view.ts" },
+    entrypoints: { ui: "src/eidos-file-view.ts" },
     contributes: {
-      baseViews: [
+      eidosFileViews: [
         {
-          id: baseViewId,
+          id: eidosFileViewId,
           displayName,
           description: "A responsive, infinitely scrolling card view",
         },
       ],
     },
     permissions: {
-      files: { read: ["**/*.base"], write: [] },
+      files: { read: ["**/*.eidos"], write: [] },
       network: [],
     },
   }
 
   return createTemplate(manifest, [
     {
-      path: "src/base-view.ts",
+      path: "src/eidos-file-view.ts",
       content: [
-        'import type { ExtensionBaseViewContext } from "@eidos.space/extension-sdk"',
+        'import type { ExtensionEidosFileViewContext } from "@eidos.space/extension-sdk"',
         "",
-        'import "./base-view.css"',
+        'import "./eidos-file-view.css"',
         "",
-        "export function activate(context: ExtensionBaseViewContext) {",
-        `  console.info(${JSON.stringify(`${displayName} Base view activated`)}, { viewId: context.viewId })`,
+        "export function activate(context: ExtensionEidosFileViewContext) {",
+        `  console.info(${JSON.stringify(`${displayName} Eidos File view activated`)}, { viewId: context.viewId })`,
         '  const shell = document.createElement("main")',
         '  const header = document.createElement("header")',
         '  const title = document.createElement("strong")',
         '  const count = document.createElement("span")',
         '  const grid = document.createElement("section")',
         '  const sentinel = document.createElement("div")',
-        '  shell.className = "base-view-shell"',
+        '  shell.className = "eidos-file-view-shell"',
         '  grid.className = "record-grid"',
         '  sentinel.className = "sentinel"',
         "  header.append(title, count)",
@@ -369,8 +370,8 @@ export function createExtensionBaseViewTemplate(
         "  let generation = 0",
         "",
         "  function renderHeader() {",
-        "    title.textContent = context.base.context.table.name",
-        "    count.textContent = `${context.base.context.table.rowCount.toLocaleString()} records`",
+        "    title.textContent = context.eidosFile.context.table.name",
+        "    count.textContent = `${context.eidosFile.context.table.rowCount.toLocaleString()} records`",
         "  }",
         "",
         "  async function loadMore() {",
@@ -379,15 +380,15 @@ export function createExtensionBaseViewTemplate(
         "    const requestGeneration = generation",
         '    sentinel.textContent = "Loading…"',
         "    try {",
-        "      const page = await context.base.getPage({ offset, limit: 60 })",
+        "      const page = await context.eidosFile.getPage({ offset, limit: 60 })",
         "      if (requestGeneration !== generation) return",
-        '      const titleField = context.base.context.fields.find((field) => field.type === "title")?.columnName',
+        '      const titleField = context.eidosFile.context.fields.find((field) => field.type === "title")?.columnName',
         "      for (const row of page.rows) {",
         '        const card = document.createElement("article")',
         '        const heading = document.createElement("strong")',
         '        const metadata = document.createElement("dl")',
         '        heading.textContent = String((titleField && row[titleField]) ?? row.title ?? "Untitled")',
-        "        for (const field of context.base.context.fields.filter((field) => field.columnName !== titleField).slice(0, 4)) {",
+        "        for (const field of context.eidosFile.context.fields.filter((field) => field.columnName !== titleField).slice(0, 4)) {",
         "          const value = row[field.columnName]",
         '          if (value === null || value === undefined || value === "") continue',
         '          const term = document.createElement("dt")',
@@ -422,7 +423,7 @@ export function createExtensionBaseViewTemplate(
         "    if (entries.some((entry) => entry.isIntersecting)) void loadMore()",
         '  }, { rootMargin: "320px" })',
         "  observer.observe(sentinel)",
-        "  context.subscriptions.add(context.base.onDidChangeContext(reset))",
+        "  context.subscriptions.add(context.eidosFile.onDidChangeContext(reset))",
         "  reset()",
         "",
         "  return {",
@@ -436,12 +437,12 @@ export function createExtensionBaseViewTemplate(
       ].join("\n"),
     },
     {
-      path: "src/base-view.css",
+      path: "src/eidos-file-view.css",
       content: [
         ":root { color: var(--eidos-color-foreground); background: var(--eidos-color-background); font-family: var(--eidos-font-family); }",
         "* { box-sizing: border-box; }",
         "html, body { min-height: 100%; margin: 0; }",
-        ".base-view-shell { padding: 20px; }",
+        ".eidos-file-view-shell { padding: 20px; }",
         "header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 16px; }",
         "header strong { font-size: 18px; }",
         "header span, .sentinel { color: var(--eidos-color-muted-foreground); font-size: 12px; }",
@@ -460,9 +461,9 @@ export function createExtensionBaseViewTemplate(
       content: [
         `# ${displayName}`,
         "",
-        `This extension contributes the \`${baseViewId}\` layout to the Base view picker.`,
+        `This extension contributes the \`${eidosFileViewId}\` layout to the Eidos File view picker.`,
         "",
-        "Create a view in any `.base` file, select this extension layout, and scroll to load records in bounded pages.",
+        "Create a view in any `.eidos` file, select this extension layout, and scroll to load records in bounded pages.",
         "",
         "Run `eidos-extension check .` before installing this package into a Space.",
         "",

@@ -23,14 +23,14 @@ describe("extension surface message parsing", () => {
         type: "apply-edits",
         requestId: "request-1",
         documentId: "document-1",
-        baseRevision: 7,
+        eidosFileRevision: 7,
         edits: [{ start: 2, end: 3, text: "x" }],
       })
     ).toEqual({
       type: "apply-edits",
       requestId: "request-1",
       documentId: "document-1",
-      baseRevision: 7,
+      eidosFileRevision: 7,
       edits: [{ start: 2, end: 3, text: "x" }],
     })
     expect(parseExtensionSurfaceMessage({ type: "activated" })).toEqual({
@@ -57,14 +57,14 @@ describe("extension surface message parsing", () => {
     })
     expect(
       parseExtensionSurfaceMessage({
-        type: "base-page-request",
+        type: "eidos-file-page-request",
         requestId: "page-1",
         generation: "generation-1",
         offset: 200,
         limit: 100,
       })
     ).toEqual({
-      type: "base-page-request",
+      type: "eidos-file-page-request",
       requestId: "page-1",
       generation: "generation-1",
       offset: 200,
@@ -81,7 +81,7 @@ describe("extension surface message parsing", () => {
         type: "apply-edits",
         requestId: "request-1",
         documentId: "document-1",
-        baseRevision: 0,
+        eidosFileRevision: 0,
         edits: [{ start: 0, end: 0, text: "x" }],
       })
     ).toThrow("positive safe integer")
@@ -109,22 +109,22 @@ describe("extension surface message parsing", () => {
     ).toThrow("Surface log message")
     expect(() =>
       parseExtensionSurfaceMessage({
-        type: "base-page-request",
+        type: "eidos-file-page-request",
         requestId: "page-1",
         generation: "generation-1",
         offset: -1,
         limit: 100,
       })
-    ).toThrow("Base page offset")
+    ).toThrow("Eidos File page offset")
     expect(() =>
       parseExtensionSurfaceMessage({
-        type: "base-page-request",
+        type: "eidos-file-page-request",
         requestId: "page-1",
         generation: "generation-1",
         offset: 0,
         limit: 201,
       })
-    ).toThrow("Base page limit")
+    ).toThrow("Eidos File page limit")
   })
 })
 

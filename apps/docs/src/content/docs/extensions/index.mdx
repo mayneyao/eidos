@@ -7,7 +7,7 @@ sidebar:
     text: Preview
     variant: caution
 banner:
-  content: "<strong>Experimental developer preview:</strong> the current Desktop development tree runs trusted commands, panels, text file editors, and read-only Base views. The public API may still change before a stable release."
+  content: "<strong>Experimental developer preview:</strong> the current Desktop development tree runs trusted commands, panels, text file editors, and read-only Eidos File views. The public API may still change before a stable release."
 ---
 
 An Eidos extension is a self-contained package installed inside a Space. The
@@ -17,16 +17,16 @@ Electron, Node.js, SQLite, or the host filesystem.
 
 ## What extensions can contribute
 
-| Contribution    | Purpose                                                     | Initial delivery |
-| --------------- | ----------------------------------------------------------- | ---------------- |
-| `commands`      | Named operations available to menus and the command palette | Yes              |
-| `menus`         | Contextual placement of commands                            | Yes              |
-| `panels`        | Sandboxed editor-area tabs for standalone UI                | Experimental     |
-| `fileEditors`   | Editors or previews selected by file pattern or media type  | Experimental     |
-| `folderViews`   | Purpose-built views for folders                             | Later            |
-| `baseViews`     | Read-only, host-paged alternatives to the Base grid         | Experimental     |
-| `agentTools`    | Permission-aware tools callable by an agent                 | Later            |
-| `configuration` | Host-rendered settings with explicit storage scope          | Later            |
+| Contribution     | Purpose                                                     | Initial delivery |
+| ---------------- | ----------------------------------------------------------- | ---------------- |
+| `commands`       | Named operations available to menus and the command palette | Yes              |
+| `menus`          | Contextual placement of commands                            | Yes              |
+| `panels`         | Sandboxed editor-area tabs for standalone UI                | Experimental     |
+| `fileEditors`    | Editors or previews selected by file pattern or media type  | Experimental     |
+| `folderViews`    | Purpose-built views for folders                             | Later            |
+| `eidosFileViews` | Read-only, host-paged alternatives to the Eidos File grid   | Experimental     |
+| `agentTools`     | Permission-aware tools callable by an agent                 | Later            |
+| `configuration`  | Host-rendered settings with explicit storage scope          | Later            |
 
 Legacy `FileAction`, `DocAction`, and `TableAction` records are normalized into
 commands plus menu placements. They are not separate package runtimes.

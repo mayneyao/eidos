@@ -1,6 +1,6 @@
 import { create } from "zustand"
 
-export type QuickOpenContextItemKind = "base-table"
+export type QuickOpenContextItemKind = "eidos-file-table"
 
 export interface QuickOpenContextItem {
   id: string

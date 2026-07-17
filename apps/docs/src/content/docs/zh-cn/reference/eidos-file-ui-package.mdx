@@ -1,0 +1,187 @@
+---
+title: 使用 Eidos File UI 构建编辑器
+description: 嵌入已发布的 React 编辑器，连接 runtime data source，并注册更多 Eidos File 视图。
+sidebar:
+  order: 19
+---
+
+`@eidos.space/eidos-file-ui` 是开放 `.eidos` 格式的可发布 React 编辑界面。它包含 Eidos
+应用共用的 Grid、Gallery、Kanban、查询控件、字段编辑器、记录检查器与编辑器框架。
+
+UI package 不直接打开 SQLite 数据库。它只通过 `EidosFileEditorDataSource` 读写，因此浏览器
+Worker、Electron IPC 与原生宿主都能复用同一套组件，同时避免在 React 主线程执行 SQL。
+
+## 安装
+
+```sh
+pnpm add @eidos.space/eidos-file @eidos.space/eidos-file-ui \
+  @glideapps/glide-data-grid react react-dom
+```
+
+在应用入口全局引入一次公共样式：
+
+```ts
+import "@eidos.space/eidos-file-ui/styles.css"
+```
+
+## Package 职责
+
+| 层                           | 职责                                                                        |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| `@eidos.space/eidos-file`    | 格式校验、元数据、查询、写入、Formula、Lookup、Relation 与 CSV              |
+| `@eidos.space/eidos-file-ui` | React 渲染、键盘交互、选择、字段控件、记录检查器与视图路由                  |
+| 宿主应用                     | 文件句柄、Worker/IPC、权限、dirty/save/recovery、冲突、主题、语言与附件 URL |
+
+Renderer 不应复制格式规则。只有 runtime 解释 Eidos File schema，并将结构化查询编译为 SQL。
+
+## 渲染 Eidos File 视图
+
+`EidosFileEditorView` 会将当前已保存视图路由到 Grid、Gallery、Kanban 或宿主注册的 renderer：
+
+```tsx
+import type {
+  EidosFileTableSnapshot,
+  EidosFileViewInfo,
+} from "@eidos.space/eidos-file"
+import {
+  EidosFileEditorView,
+  EidosFileUIProvider,
+  type EidosFileEditorDataSource,
+} from "@eidos.space/eidos-file-ui"
+import "@eidos.space/eidos-file-ui/styles.css"
+
+export function ProjectView({ source, table, view }) {
+  return (
+    <EidosFileUIProvider
+      themeName="light"
+      resolveAssetUrl={(path) => `/files/${encodeURIComponent(path)}`}
+    >
+      <EidosFileEditorView
+        source={source}
+        table={table}
+        view={view}
+        onMutation={() => markDocumentDirty()}
+        onError={(error) => reportEditorError(error)}
+      />
+    </EidosFileUIProvider>
+  )
+}
+```
+
+Package 内置持久化类型 `grid`、`gallery` 与 `kanban` 的 renderer。未知视图类型会原样保留在
+文件中，并显示 unsupported 状态，直到宿主注册同名 renderer。
+
+组件需要放在具有明确高度的容器中。内置视图会在该容器内虚拟化记录与卡片。
+
+## 提供 Data Source
+
+异步 data source 是 UI 的唯一数据边界。典型实现将每个方法转发为一个语义明确的 Worker 或
+IPC 请求：
+
+```ts
+const source: EidosFileEditorDataSource = {
+  getSnapshot: () => worker.call({ type: "snapshot" }),
+  getPage: (tableId, offset, limit, query, totalHint, cursor, projection) =>
+    worker.call({
+      type: "page",
+      tableId,
+      offset,
+      limit,
+      query,
+      totalHint,
+      cursor,
+      projection,
+    }),
+  getRow: (tableId, rowId) => worker.call({ type: "row", tableId, rowId }),
+  getGroupCounts: (tableId, columnName, query) =>
+    worker.call({ type: "group-counts", tableId, columnName, query }),
+  insertRow: (tableId, row) =>
+    worker.call({ type: "insert-row", tableId, row }),
+  updateRow: (tableId, rowId, changes) =>
+    worker.call({ type: "update-row", tableId, rowId, changes }),
+  updateField: (tableId, columnName, changes) =>
+    worker.call({ type: "update-field", tableId, columnName, changes }),
+  addField: (tableId, field, placement) =>
+    worker.call({ type: "add-field", tableId, field, placement }),
+  deleteField: (tableId, columnName) =>
+    worker.call({ type: "delete-field", tableId, columnName }),
+  updateView: (viewId, changes) =>
+    worker.call({ type: "update-view", viewId, changes }),
+}
+```
+
+Worker 调用 `@eidos.space/eidos-file`。Renderer 不得直接执行 SQL、拉取整表后自行筛选/分组，
+也不能重新解释 cell 编码。
+
+`getRow` 为完整记录检查器提供数据；`getGroupCounts` 让 Kanban 无需下载全部记录。要获得完整
+内置体验，应实现两者。
+
+## 组合编辑器框架
+
+需要完整 Desktop 风格布局的宿主，可以围绕 `EidosFileEditorView` 组合公开的框架组件：
+
+```tsx
+import {
+  EidosFileEditorContent,
+  EidosFileEditorRoot,
+  EidosFileEditorView,
+  EidosFileEditorWorkbar,
+  EidosFileQueryToolbar,
+  EidosFileSheetTabStrip,
+  EidosFileViewTabStrip,
+} from "@eidos.space/eidos-file-ui"
+```
+
+宿主负责当前 table 与 view 选择。通过 `source.updateView` 保存筛选、排序与视图属性；search、
+focus、打开的菜单等临时状态留在 React 中。
+
+若应用有意自行实现外围框架，也可以从稳定 subpath 直接导入低层内置视图：
+
+```ts
+import { EidosFileDataGrid } from "@eidos.space/eidos-file-ui/eidos-file-data-grid"
+import { EidosFileGalleryView } from "@eidos.space/eidos-file-ui/eidos-file-gallery-view"
+import { EidosFileKanbanView } from "@eidos.space/eidos-file-ui/eidos-file-kanban-view"
+```
+
+## 注册自定义视图
+
+传入 editor instance 自己的 renderer registry。带命名空间的 key 应与文件中
+`eidos__views.type` 的值一致：
+
+```tsx
+import {
+  EidosFileEditorView,
+  builtInEidosFileViewRenderers,
+} from "@eidos.space/eidos-file-ui"
+import { TimelineView } from "@example/eidos-file-timeline-view"
+
+const renderers = {
+  ...builtInEidosFileViewRenderers,
+  "com.example.timeline": TimelineView,
+}
+
+<EidosFileEditorView
+  source={source}
+  table={table}
+  view={view}
+  renderers={renderers}
+/>
+```
+
+Registry 只负责渲染。创建已保存视图仍是 runtime 操作，`properties` 只能包含可携带的 JSON 值。
+完整 renderer contract 请阅读
+[Eidos File 格式与自定义视图](/zh-cn/reference/eidos-file-custom-views/)。
+
+## 宿主检查清单
+
+- 将 SQLite 与重查询放在 Worker 或后台进程。
+- 大表必须分页；卡片类视图应使用 projection。
+- 成功写入记录、字段或视图后，将文档标记为 dirty。
+- 保存失败时保留可恢复版本；覆盖前检测外部修改。
+- 对只读 source 禁用 mutation action。
+- 通过宿主控制的 asset URL 解析 File 字段。
+- 未知视图类型与属性必须无损保留。
+- 验证键盘 focus、窄容器、light/dark theme 与大数据量。
+
+View renderer 作为可信 React 代码运行在嵌入应用中。沙箱化 Eidos Extension surface 是另一条
+capability 边界，不会获得宿主 React 或 SQLite 的直接访问权。

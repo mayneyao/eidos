@@ -6,8 +6,8 @@
 负责人：Eidos
 相关文档：
 
-- `eidos-space-base-storage.zh.md`
-- `eidos-base-file-format.zh.md`
+- `eidos-file-storage.zh.md`
+- `eidos-file-format.zh.md`
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-graft-space-versioning.zh.md`
 
@@ -42,7 +42,7 @@ Space 文件系统的私有 staging 中下载有资源上限的 archive，拒绝
 repository、自动更新与通用 network capability 仍属于后续阶段。
 
 P5 开发者预览新增独立的 `@eidos.space/extension-cli`。它可以在不覆盖已有目录的前提下生成 command、
-panel、Base view 和可编辑 text-editor package，在生产 package 限额内检查源码仓库，根据公开 SDK 执行严格 TypeScript
+panel、Eidos File view 和可编辑 text-editor package，在生产 package 限额内检查源码仓库，根据公开 SDK 执行严格 TypeScript
 检查，并使用 Desktop compiler 编译本次 inspection 的精确 bytes。人工输出、结构化 JSON、稳定退出码和
 官方示例共用同一个 check 实现。Package 已为后续公开 npm 发布做好准备，但首次发布尚未执行。
 
@@ -88,7 +88,7 @@ my-space/
 
 ```txt
 .md            文档
-.base          结构化数据
+.eidos          结构化数据
 .eidos/extensions/** 用户可编程行为
 .eidos/cache/**      私有运行时/cache 状态
 .graft/**      版本管理元数据
@@ -416,14 +416,14 @@ Extension editor 应该编辑真实源码文件，而不是 database virtual pro
 
 禁用扩展应该更新本地运行时状态，不一定修改 manifest。
 
-## 与 Base 的关系
+## 与 Eidos File 的关系
 
-Base 文件可以允许 extension-defined view types、actions 或 renderers。Base 应该通过稳定 extension ID 和 type 引用扩展能力，而不是引用编译后代码。
+Eidos File 文件可以允许 extension-defined view types、actions 或 renderers。Eidos File 应该通过稳定 extension ID 和 type 引用扩展能力，而不是引用编译后代码。
 
 示例：
 
 ```txt
-tasks.base
+tasks.eidos
   eidos__views.view_type = "kanban"
   eidos__views.extension_id = "example.kanban-view"
 
@@ -432,14 +432,14 @@ tasks.base
   src/view.tsx
 ```
 
-这让 Base 数据保持可移植，同时允许 UI runtime 在扩展存在且可信时解析更丰富的行为。
+这让 Eidos File 数据保持可移植，同时允许 UI runtime 在扩展存在且可信时解析更丰富的行为。
 
 如果扩展缺失或不可信，Eidos 应该优雅降级：
 
 - 显示原始表格，
 - 显示 unsupported view message，
 - 允许用户 trust/install 扩展，
-- 避免破坏 Base 文件。
+- 避免破坏 Eidos File 文件。
 
 ## Built-In Extensions
 
@@ -647,7 +647,7 @@ pnpm --filter eidos smoke:file-extension-install
 
 ### P5：开发工具
 
-- 为开发者与 Agent 提供非交互式 command、panel、Base view 和 text-editor scaffold。
+- 为开发者与 Agent 提供非交互式 command、panel、Eidos File view 和 text-editor scaffold。
 - 使用生产 inspector、公开 SDK 类型契约和固定 Desktop compiler 校验源码仓库。
 - 为 CI 提供结构化 diagnostic 与稳定退出码，同时不执行扩展代码或 package-manager script。
 

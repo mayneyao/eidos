@@ -65,16 +65,16 @@ const diff: SpaceVersionDiff = {
   sqliteFiles: [],
 }
 
-function createGetDiff(baseDiff: SpaceVersionDiff = diff) {
+function createGetDiff(eidosFileDiff: SpaceVersionDiff = diff) {
   return vi.fn(
     async (request: SpaceVersionDiffRequest): Promise<SpaceVersionDiff> => {
-      if (!request.includeContent || !request.path) return baseDiff
-      const metadata = baseDiff.paths.find(
+      if (!request.includeContent || !request.path) return eidosFileDiff
+      const metadata = eidosFileDiff.paths.find(
         (entry) => entry.path === request.path
       )
-      if (!metadata || metadata.kind !== "text_file") return baseDiff
+      if (!metadata || metadata.kind !== "text_file") return eidosFileDiff
       return {
-        ...baseDiff,
+        ...eidosFileDiff,
         paths: [metadata],
         content: {
           path: request.path,
@@ -527,14 +527,14 @@ describe("CommitInspector", () => {
     expect(container.textContent).toContain("2.0 MB")
   })
 
-  it("loads Base table details only after a SQLite path is selected", async () => {
+  it("loads Eidos File table details only after a SQLite path is selected", async () => {
     const baseCommit: SpaceVersionCommit = {
       ...commit,
       message: "Update tasks",
-      changedPaths: [{ path: "tasks.base", status: "modified" }],
+      changedPaths: [{ path: "tasks.eidos", status: "modified" }],
     }
     const path = {
-      path: "tasks.base",
+      path: "tasks.eidos",
       change: "modified" as const,
       kind: "sqlite_database" as const,
       storage: "sqlite_snapshot" as const,
@@ -600,7 +600,7 @@ describe("CommitInspector", () => {
     expect(getDiff).toHaveBeenNthCalledWith(2, {
       from: "commit-1",
       to: "commit-2",
-      path: "tasks.base",
+      path: "tasks.eidos",
       includeRows: true,
     })
     expect(container.textContent).toContain("1 changed table")

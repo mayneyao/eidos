@@ -1,0 +1,66 @@
+{
+  "name": "@eidos.space/eidos-file",
+  "version": "0.1.0",
+  "description": "Independent SQLite-backed runtime for the open Eidos File format",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./better-sqlite3": {
+      "types": "./dist/better-sqlite3.d.mts",
+      "import": "./dist/better-sqlite3.mjs",
+      "default": "./dist/better-sqlite3.mjs"
+    },
+    "./csv": {
+      "types": "./dist/csv.d.mts",
+      "import": "./dist/csv.mjs",
+      "default": "./dist/csv.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "eidos.space",
+    "eidos-file",
+    "multidimensional-table",
+    "sqlite",
+    "local-first"
+  ],
+  "author": "mayneyao",
+  "license": "MIT",
+  "peerDependencies": {
+    "better-sqlite3": ">=11.0.0"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "csv-parse": "^5.6.0",
+    "pgsql-ast-parser": "^11.2.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^20.4.1",
+    "better-sqlite3": "^12.0.0",
+    "tsdown": "^0.21.7",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

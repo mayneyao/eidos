@@ -33,12 +33,15 @@ export default defineConfig({
         ),
       },
       {
-        find: "@eidos.space/base/better-sqlite3",
-        replacement: path.join(repoRoot, "packages/base/src/better-sqlite3.ts"),
+        find: "@eidos.space/eidos-file/better-sqlite3",
+        replacement: path.join(
+          repoRoot,
+          "packages/eidos-file/src/better-sqlite3.ts"
+        ),
       },
       {
-        find: "@eidos.space/base",
-        replacement: path.join(repoRoot, "packages/base/src/index.ts"),
+        find: "@eidos.space/eidos-file",
+        replacement: path.join(repoRoot, "packages/eidos-file/src/index.ts"),
       },
       {
         find: "@eidos.space/electron-ipc",

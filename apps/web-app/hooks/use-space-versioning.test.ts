@@ -187,13 +187,13 @@ describe("file Space versioning normalization", () => {
     expect(diff.sqliteFiles).toEqual([])
   })
 
-  it("normalizes row-level Base changes from the Desktop boundary", () => {
+  it("normalizes row-level Eidos File changes from the Desktop boundary", () => {
     const diff = normalizeSpaceVersionDiff({
       from: "commit-1",
       to: "commit-2",
       paths: [
         {
-          path: "tasks.base",
+          path: "tasks.eidos",
           change: "modified",
           kind: "sqlite_database",
           storage: "sqlite_snapshot",
@@ -201,7 +201,7 @@ describe("file Space versioning normalization", () => {
       ],
       sqliteFiles: [
         {
-          path: "tasks.base",
+          path: "tasks.eidos",
           change: "modified",
           kind: "sqlite_database",
           storage: "sqlite_snapshot",
@@ -230,7 +230,7 @@ describe("file Space versioning normalization", () => {
     })
 
     expect(diff.sqliteFiles[0]).toMatchObject({
-      path: "tasks.base",
+      path: "tasks.eidos",
       rowDiffAvailable: true,
       tables: [
         {
@@ -717,7 +717,7 @@ describe("useSpaceVersioning history coordination", () => {
     bridge.getStatus.mockResolvedValue({
       ...versionStatus([
         {
-          path: "tasks.base",
+          path: "tasks.eidos",
           state: "conflicted",
           conflicted: true,
         },
@@ -731,7 +731,7 @@ describe("useSpaceVersioning history coordination", () => {
       mergeHead: "remote-3",
       paths: [
         {
-          path: "tasks.base",
+          path: "tasks.eidos",
           kind: "sqlite_database",
           storage: "sqlite_snapshot",
           status: "unresolved",
@@ -742,8 +742,8 @@ describe("useSpaceVersioning history coordination", () => {
       ],
       conflicts: [
         {
-          id: "tasks.base:row:tb_tasks:7",
-          path: "tasks.base",
+          id: "tasks.eidos:row:tb_tasks:7",
+          path: "tasks.eidos",
           pathKind: "sqlite_database",
           storage: "sqlite_snapshot",
           kind: "row",
@@ -766,7 +766,7 @@ describe("useSpaceVersioning history coordination", () => {
       flush,
       {
         spaceId: "space-a",
-        filePath: "tasks.base",
+        filePath: "tasks.eidos",
       }
     )
 
@@ -782,7 +782,7 @@ describe("useSpaceVersioning history coordination", () => {
     expect(hookResults.get("source")?.conflicts?.paths).toHaveLength(1)
     expect(hookResults.get("source")?.conflicts?.conflicts).toMatchObject([
       {
-        path: "tasks.base",
+        path: "tasks.eidos",
         kind: "row",
         table: "tb_tasks",
         rowId: 7,
@@ -792,7 +792,7 @@ describe("useSpaceVersioning history coordination", () => {
     ])
 
     const request = {
-      path: "tasks.base",
+      path: "tasks.eidos",
       resolution: "ours" as const,
       expectedHead: "commit-3",
       target: { table: "tb_tasks", rowId: 7 },

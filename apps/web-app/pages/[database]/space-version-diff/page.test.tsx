@@ -318,17 +318,17 @@ describe("SpaceVersionDiffPage", () => {
     )
   })
 
-  it("loads table and row changes for a modified Base file", async () => {
+  it("loads table and row changes for a modified Eidos File", async () => {
     mocks.status = {
       enabled: true,
       clean: false,
       hasConflicts: false,
       branch: "main",
       head: { id: "head-2" },
-      changes: [{ path: "tasks.base", status: "modified", unstaged: true }],
+      changes: [{ path: "tasks.eidos", status: "modified", unstaged: true }],
     }
     const path = {
-      path: "tasks.base",
+      path: "tasks.eidos",
       change: "modified",
       kind: "sqlite_database",
       storage: "sqlite_snapshot",
@@ -379,7 +379,7 @@ describe("SpaceVersionDiffPage", () => {
 
     await act(async () => {
       root.render(
-        <MemoryRouter initialEntries={["/version/diff?path=tasks.base"]}>
+        <MemoryRouter initialEntries={["/version/diff?path=tasks.eidos"]}>
           <SpaceVersionDiffPage />
         </MemoryRouter>
       )
@@ -388,11 +388,11 @@ describe("SpaceVersionDiffPage", () => {
 
     expect(mocks.getDiff).toHaveBeenNthCalledWith(1, {
       from: "head-2",
-      path: "tasks.base",
+      path: "tasks.eidos",
     })
     expect(mocks.getDiff).toHaveBeenNthCalledWith(2, {
       from: "head-2",
-      path: "tasks.base",
+      path: "tasks.eidos",
       includeRows: true,
     })
     expect(container.textContent).toContain("1 changed table")

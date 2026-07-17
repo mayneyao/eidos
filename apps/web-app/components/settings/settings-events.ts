@@ -2,7 +2,7 @@
 export type SettingsSection =
   | "space-general"
   | "space-files"
-  | "space-base"
+  | "space-eidos-file"
   | "space-versioning"
   | "space-indexes"
   | "space-migration"

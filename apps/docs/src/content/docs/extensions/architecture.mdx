@@ -42,7 +42,7 @@ Manifest contribution
         │     notice, select, confirm, progress
         │
         └── custom UI surface
-              file editor, Base view, side panel
+              file editor, Eidos File view, side panel
                      │
                      ▼
               sandboxed iframe
@@ -79,7 +79,7 @@ require a UI entrypoint.
 ### Custom UI surfaces
 
 Use a custom surface only when native contributions cannot express the product:
-a visual file editor, an interactive Base view, or a domain-specific panel. The
+a visual file editor, an interactive Eidos File view, or a domain-specific panel. The
 UI entrypoint runs in a sandboxed iframe and receives serializable view state,
 theme tokens, localization helpers, and a dedicated capability port. It never
 receives the host React tree, Electron bridge, SQLite connection, filesystem
@@ -135,16 +135,16 @@ Opening a Markdown Task Board therefore follows this flow:
 Binary editable formats require a later custom-document contract. Read-only
 binary previews can arrive earlier because they do not own save or undo state.
 
-## Base views
+## Eidos File views
 
-A Base view receives serializable context plus bounded result pages produced by
-the host. It requests pages through `context.base.getPage()` and observes
+An Eidos File view receives serializable context plus bounded result pages produced by
+the host. It requests pages through `context.eidosFile.getPage()` and observes
 context changes without receiving a raw SQLite handle. Eidos persists the
 selected saved-view type and owns query execution, filtering, sorting, and
 paging.
 
 The current preview contract is read-only. It proves that a third-party layout
-can render real Base data through a bounded protocol; row mutation and custom
+can render real Eidos File data through a bounded protocol; row mutation and custom
 view actions are deliberately not exposed yet.
 
 Large-result views must support incremental updates and virtualized rendering.
@@ -162,10 +162,10 @@ current data.
 
 The current experimental slice implements commands, menus, read-only worker
 file access, host-rendered semantic UI, panels, text `fileEditors`, and read-only
-`baseViews`. The Task Board proves activation, minimal edits, autosave, undo,
+`eidosFileViews`. The Task Board proves activation, minimal edits, autosave, undo,
 conflict handling, and multi-view broadcasts without a direct `writeFile()`
-shortcut. The Base View starter proves bounded host paging. Binary custom
-documents, mutable Base actions, and general-purpose network/storage
+shortcut. The Eidos File View starter proves bounded host paging. Binary custom
+documents, mutable Eidos File actions, and general-purpose network/storage
 capabilities remain outside this boundary.
 
 ## Primary references

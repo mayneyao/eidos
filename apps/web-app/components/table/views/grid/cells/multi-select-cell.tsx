@@ -1,1 +1,1 @@
-export { MultiSelectCell as default } from "@eidos.space/base-ui"
+export { MultiSelectCell as default } from "@eidos.space/eidos-file-ui"
