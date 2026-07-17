@@ -239,6 +239,12 @@ async function handleAction(action: EidosFileWorkerAction) {
         action.columnName,
         action.query
       )
+    case "column-stats":
+      return runtime.calculateColumnStats(
+        action.tableId,
+        action.configs,
+        action.query
+      )
     case "insert-row":
       return mutationResult(
         action.tableId,

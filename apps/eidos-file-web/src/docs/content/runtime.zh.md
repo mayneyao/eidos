@@ -368,6 +368,11 @@ interface EidosFileEditorDataSource {
     cursor?,
     projection?
   ): Promise<EidosFileRowPage>
+  calculateColumnStats(
+    tableId,
+    configs,
+    query
+  ): Promise<EidosFileColumnStatResult[]>
   insertRow(tableId, row): Promise<EidosFileRowMutationResult>
   updateRow(tableId, rowId, changes): Promise<EidosFileRowMutationResult>
   updateField(tableId, columnName, changes): Promise<EidosFileSnapshot>
@@ -385,6 +390,8 @@ interface EidosFileEditorDataSource {
 
 ```ts
 import type {
+  EidosFileColumnStatConfig,
+  EidosFileColumnStatResult,
   EidosFileFieldPlacement,
   EidosFileRow,
   EidosFileRowGroupCount,
@@ -440,6 +447,19 @@ export class WorkerEidosFileSource implements EidosFileEditorDataSource {
       type: "group-counts",
       tableId,
       columnName,
+      query,
+    })
+  }
+
+  calculateColumnStats(
+    tableId: string,
+    configs: EidosFileColumnStatConfig[],
+    query: EidosFileRowQuery
+  ) {
+    return this.call<EidosFileColumnStatResult[]>({
+      type: "column-stats",
+      tableId,
+      configs,
       query,
     })
   }
@@ -505,7 +525,7 @@ export class WorkerEidosFileSource implements EidosFileEditorDataSource {
 }
 ```
 
-`getRow` 让记录面板可以取得完整记录；`getGroupCounts` 让 Kanban 无需下载全部记录即可分组。它们在 interface 中是可选方法，但完整支持内置视图时应实现。
+`getRow` 让记录面板可以取得完整记录；`getGroupCounts` 让 Kanban 无需下载全部记录即可分组。这两个方法在 interface 中是可选项，但完整支持内置视图时应实现。`calculateColumnStats` 是必需方法：Grid 会传入当前 search、filter 与 sort query，让 runtime 在不把整表下载到 React 的前提下计算 footer 汇总。
 
 Worker 在 insert 与 update 后应返回 `EidosFileRowMutationResult`：
 

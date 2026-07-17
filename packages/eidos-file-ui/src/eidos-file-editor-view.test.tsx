@@ -1,11 +1,25 @@
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type {
+  EidosFileColumnStatConfig,
   EidosFileSnapshot,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
 import { vi } from "vitest"
+
+import type { EidosFileGridProps } from "./eidos-file-grid"
+
+const gridMock = vi.hoisted(() => ({
+  props: undefined as EidosFileGridProps | undefined,
+}))
+
+vi.mock("./eidos-file-grid", () => ({
+  EidosFileGrid: (props: EidosFileGridProps) => {
+    gridMock.props = props
+    return null
+  },
+}))
 
 import {
   EidosFileEditorView,
@@ -80,6 +94,7 @@ const source: EidosFileEditorDataSource = {
     total: 0,
     rows: [],
   })),
+  calculateColumnStats: vi.fn(async () => []),
   insertRow: vi.fn(),
   updateRow: vi.fn(),
   updateField: vi.fn(),
@@ -93,6 +108,8 @@ describe("EidosFileEditorView registry", () => {
   let root: Root
 
   beforeEach(() => {
+    gridMock.props = undefined
+    vi.mocked(source.calculateColumnStats).mockClear()
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -136,6 +153,37 @@ describe("EidosFileEditorView registry", () => {
       "due"
     )
     expect(received[0]?.query).toEqual({
+      search: "release",
+      filter: view.filter,
+      sorts: view.sorts,
+    })
+  })
+
+  it("routes Grid column stats through the public data source", async () => {
+    const gridView: EidosFileViewInfo = {
+      ...view,
+      type: "grid",
+      properties: {
+        columnStats: { estimate: { type: "sum" } },
+      },
+    }
+    const configs: EidosFileColumnStatConfig[] = [
+      { columnName: "estimate", type: "sum" },
+    ]
+
+    act(() => {
+      root.render(
+        <EidosFileEditorView
+          source={source}
+          table={table}
+          view={gridView}
+          search=" release "
+        />
+      )
+    })
+    await gridMock.props?.loadColumnStats?.(configs)
+
+    expect(source.calculateColumnStats).toHaveBeenCalledWith("tasks", configs, {
       search: "release",
       filter: view.filter,
       sorts: view.sorts,

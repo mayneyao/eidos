@@ -1,4 +1,6 @@
 import type {
+  EidosFileColumnStatConfig,
+  EidosFileColumnStatResult,
   EidosFileFieldPlacement,
   EidosFileRow,
   EidosFileRowGroupCount,
@@ -140,6 +142,14 @@ export class EidosFileWorkerClient implements EidosFileEditorDataSource {
     query: EidosFileRowQuery
   ): Promise<EidosFileRowGroupCount[]> {
     return this.call({ type: "group-counts", tableId, columnName, query })
+  }
+
+  calculateColumnStats(
+    tableId: string,
+    configs: EidosFileColumnStatConfig[],
+    query: EidosFileRowQuery
+  ): Promise<EidosFileColumnStatResult[]> {
+    return this.call({ type: "column-stats", tableId, configs, query })
   }
 
   insertRow(

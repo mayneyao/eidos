@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react"
 import type {
+  EidosFileColumnStatConfig,
   EidosFileFieldInfo,
   EidosFileRow,
   EidosFileRowMutationResult,
@@ -72,6 +73,12 @@ export function EidosFileDataGrid({
     [query, search, source, table.rowCount, table.table.id]
   )
 
+  const loadColumnStats = useCallback(
+    (configs: EidosFileColumnStatConfig[]) =>
+      source.calculateColumnStats(table.table.id, configs, query),
+    [query, source, table.table.id]
+  )
+
   const addRow = useCallback(async () => {
     const result = await source.insertRow(table.table.id, { title: "" })
     onMutation?.(result)
@@ -134,6 +141,7 @@ export function EidosFileDataGrid({
       disabled={disabled}
       reloadToken={reloadToken}
       loadPage={loadPage}
+      loadColumnStats={loadColumnStats}
       onAddRow={addRow}
       onCellEdit={editCell}
       propertyField={propertyField}

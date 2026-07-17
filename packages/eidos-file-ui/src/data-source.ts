@@ -1,4 +1,6 @@
 import type {
+  EidosFileColumnStatConfig,
+  EidosFileColumnStatResult,
   EidosFileFieldPlacement,
   EidosFileRow,
   EidosFileRowGroupCount,
@@ -35,6 +37,12 @@ export interface EidosFileEditorDataSource {
     columnName: string,
     query: EidosFileRowQuery
   ): Promise<EidosFileRowGroupCount[]>
+  /** Calculates filtered Grid footer values in the shared runtime. */
+  calculateColumnStats(
+    tableId: string,
+    configs: EidosFileColumnStatConfig[],
+    query: EidosFileRowQuery
+  ): Promise<EidosFileColumnStatResult[]>
   insertRow(
     tableId: string,
     row: EidosFileRow

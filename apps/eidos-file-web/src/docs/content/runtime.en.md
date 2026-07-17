@@ -368,6 +368,11 @@ interface EidosFileEditorDataSource {
     cursor?,
     projection?
   ): Promise<EidosFileRowPage>
+  calculateColumnStats(
+    tableId,
+    configs,
+    query
+  ): Promise<EidosFileColumnStatResult[]>
   insertRow(tableId, row): Promise<EidosFileRowMutationResult>
   updateRow(tableId, rowId, changes): Promise<EidosFileRowMutationResult>
   updateField(tableId, columnName, changes): Promise<EidosFileSnapshot>
@@ -385,6 +390,8 @@ The main-thread client can implement `EidosFileEditorDataSource` directly. A sin
 
 ```ts
 import type {
+  EidosFileColumnStatConfig,
+  EidosFileColumnStatResult,
   EidosFileFieldPlacement,
   EidosFileRow,
   EidosFileRowGroupCount,
@@ -440,6 +447,19 @@ export class WorkerEidosFileSource implements EidosFileEditorDataSource {
       type: "group-counts",
       tableId,
       columnName,
+      query,
+    })
+  }
+
+  calculateColumnStats(
+    tableId: string,
+    configs: EidosFileColumnStatConfig[],
+    query: EidosFileRowQuery
+  ) {
+    return this.call<EidosFileColumnStatResult[]>({
+      type: "column-stats",
+      tableId,
+      configs,
       query,
     })
   }
@@ -505,7 +525,7 @@ export class WorkerEidosFileSource implements EidosFileEditorDataSource {
 }
 ```
 
-`getRow` enables complete record inspectors. `getGroupCounts` enables Kanban without downloading all records. They are optional in the interface, but provide them for feature-complete built-in views.
+`getRow` enables complete record inspectors. `getGroupCounts` enables Kanban without downloading all records. Those two methods are optional in the interface, but provide them for feature-complete built-in views. `calculateColumnStats` is required: Grid forwards the active search, filter, and sort query so the runtime can calculate footer summaries without downloading the table into React.
 
 In the Worker, return a `EidosFileRowMutationResult` after inserts and updates:
 

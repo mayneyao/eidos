@@ -20,6 +20,7 @@ interface EidosFileE2EHarness {
 declare global {
   interface Window {
     __eidosFileE2E?: EidosFileE2EHarness
+    __eidosFileWorkerMessages?: unknown[]
   }
 }
 
@@ -447,6 +448,83 @@ test("opens the bundled sample without a picker", async ({ page }) => {
   await page.getByRole("link", { name: "Return to Eidos File home" }).click()
   await expect(
     page.getByRole("button", { name: "Open .eidos file" })
+  ).toBeVisible()
+})
+
+test("calculates Grid column summaries through the browser runtime", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the shared Grid and SQLite WASM worker path"
+  )
+  await installFallbackMode(page)
+  await page.addInitScript(() => {
+    const messages: unknown[] = []
+    const NativeWorker = window.Worker
+    class InstrumentedWorker extends NativeWorker {
+      constructor(scriptURL: string | URL, options?: WorkerOptions) {
+        super(scriptURL, options)
+        this.addEventListener("message", (event) => messages.push(event.data))
+      }
+    }
+    Object.defineProperties(window, {
+      __eidosFileWorkerMessages: { configurable: true, value: messages },
+      Worker: { configurable: true, value: InstrumentedWorker },
+    })
+  })
+  await page.goto("/")
+  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await page.locator("[data-testid='glide-cell-1-0']").waitFor({
+    state: "attached",
+  })
+
+  const canvas = page.locator(
+    ".eidos-file-content canvas[data-testid='data-grid-canvas']"
+  )
+  const bounds = await canvas.boundingBox()
+  if (!bounds) throw new Error("The shared Eidos File Grid is not visible")
+
+  // Row marker (44), Title (280), Status (180), then the Estimate header.
+  const estimateHeaderX = bounds.x + 44 + 280 + 180 + 90
+  await page.mouse.click(estimateHeaderX, bounds.y + 18, { button: "right" })
+  await page.getByRole("menu", { name: "Actions for Estimate" }).waitFor()
+  await page.getByRole("menuitem", { name: "Calculate" }).click()
+  await page.getByRole("menu", { name: "Calculate Estimate" }).waitFor()
+  await page.getByRole("menuitemradio", { name: "Sum" }).click()
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        for (const message of window.__eidosFileWorkerMessages ?? []) {
+          if (
+            typeof message !== "object" ||
+            message === null ||
+            !("ok" in message) ||
+            message.ok !== true ||
+            !("result" in message) ||
+            !Array.isArray(message.result)
+          ) {
+            continue
+          }
+          const result = message.result.find(
+            (entry) =>
+              typeof entry === "object" &&
+              entry !== null &&
+              entry.columnName === "estimate" &&
+              entry.type === "sum"
+          )
+          if (result && typeof result.value === "number") return result.value
+        }
+        return null
+      })
+    )
+    .toBe(17_486)
+
+  await page.mouse.click(estimateHeaderX, bounds.y + 18, { button: "right" })
+  await expect(
+    page.getByRole("menuitem", { name: "Calculate · Sum" })
   ).toBeVisible()
 })
 

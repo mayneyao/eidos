@@ -1,4 +1,6 @@
 import type {
+  EidosFileColumnStatConfig,
+  EidosFileColumnStatResult,
   EidosFileFieldPlacement,
   EidosFileRow,
   EidosFileRowGroupCount,
@@ -53,6 +55,12 @@ export type EidosFileWorkerAction =
       columnName: string
       query: EidosFileRowQuery
     }
+  | {
+      type: "column-stats"
+      tableId: string
+      configs: EidosFileColumnStatConfig[]
+      query: EidosFileRowQuery
+    }
   | { type: "insert-row"; tableId: string; row: EidosFileRow }
   | {
       type: "update-row"
@@ -86,6 +94,7 @@ export type EidosFileWorkerResult =
   | EidosFileWorkerOpenResult
   | EidosFileWorkerExportResult
   | EidosFileSnapshot
+  | EidosFileColumnStatResult[]
   | EidosFileRow
   | EidosFileRowGroupCount[]
   | EidosFileRowPage
