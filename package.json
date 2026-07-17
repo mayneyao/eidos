@@ -16,6 +16,7 @@
     "build": "pnpm run --filter web-app build",
     "build:eidos-file-web": "pnpm run --filter @eidos.space/eidos-file-web build",
     "build:eidos-file-ui": "pnpm run --filter @eidos.space/eidos-file-ui build",
+    "deploy:eidos-file-web": "pnpm run --filter @eidos.space/eidos-file-web deploy",
     "build:desktop": "pnpm run --filter eidos build",
     "build:desktop:dev": "pnpm run --filter eidos build && pnpm run --filter eidos package:dir",
     "build:desktop:installer:dev": "pnpm run --filter eidos build && pnpm run --filter eidos package:dev",

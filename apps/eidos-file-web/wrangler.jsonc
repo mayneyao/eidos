@@ -1,0 +1,15 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "editor-eidos-space",
+  "compatibility_date": "2026-07-18",
+  "routes": [
+    {
+      "pattern": "editor.eidos.space",
+      "custom_domain": true,
+    },
+  ],
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+  },
+}
