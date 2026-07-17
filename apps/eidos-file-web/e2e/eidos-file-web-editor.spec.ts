@@ -558,6 +558,44 @@ test("anchors landing-page field menus to their grid headers", async ({
   await expect(page.locator(".launch-workbench")).toHaveCSS("transform", "none")
 })
 
+test("keeps Grid field menus open after a touch header tap", async ({
+  baseURL,
+  browser,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the shared touch interaction path"
+  )
+  const context = await browser.newContext({
+    baseURL,
+    deviceScaleFactor: 2,
+    hasTouch: true,
+    isMobile: true,
+    viewport: { width: 650, height: 1_400 },
+  })
+  const page = await context.newPage()
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await page.locator("[data-testid='glide-cell-1-0']").waitFor({
+    state: "attached",
+  })
+
+  const canvas = page.locator("canvas[data-testid='data-grid-canvas']")
+  const canvasBounds = await canvas.boundingBox()
+  if (!canvasBounds) throw new Error("The Grid canvas is not visible")
+  await page.touchscreen.tap(canvasBounds.x + 100, canvasBounds.y + 18)
+
+  const menu = page.getByRole("menu", { name: "Actions for title" })
+  await expect(menu).toBeVisible()
+  await page.waitForTimeout(500)
+  await expect(menu).toBeVisible()
+  await menu.getByRole("menuitem", { name: "Sort ascending" }).tap()
+  await expect(menu).toBeHidden()
+  await context.close()
+})
+
 test("keeps navigation and editor controls usable on a phone", async ({
   page,
   browserName,

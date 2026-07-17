@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, KeyboardEvent } from "react"
+import { useRef, type ButtonHTMLAttributes, type KeyboardEvent } from "react"
 import type {
   EidosFileColumnStatType,
   EidosFileFieldInfo,
@@ -43,6 +43,7 @@ export interface EidosFileFieldMenuState {
   bounds: Rectangle
   field: EidosFileFieldInfo
   fieldIndex: number
+  openedFromTouch?: boolean
 }
 
 export interface EidosFileCellMenuState {
@@ -134,6 +135,7 @@ export function EidosFileFieldMenu({
   onToggleFreeze: (fieldIndex: number, frozen: boolean) => void
   onDelete: (field: EidosFileFieldInfo) => void
 }) {
+  const menuRef = useRef<HTMLDivElement>(null)
   const run = (action: () => void) => {
     onOpenChange(false)
     action()
@@ -155,6 +157,7 @@ export function EidosFileFieldMenu({
         />
       </PopoverAnchor>
       <PopoverContent
+        ref={menuRef}
         align="start"
         side="bottom"
         sideOffset={2}
@@ -166,6 +169,23 @@ export function EidosFileFieldMenu({
             : "Field actions"
         }
         onKeyDown={menuKeyDown}
+        onFocusOutside={(event) => {
+          if (!state?.openedFromTouch) return
+          // Glide restores focus after completing a touch selection. Keep a
+          // touch-opened menu stable until the user taps outside or chooses an
+          // action instead of treating that programmatic focus move as intent
+          // to dismiss the menu.
+          event.preventDefault()
+          if (event.target instanceof HTMLCanvasElement) {
+            requestAnimationFrame(() => {
+              menuRef.current
+                ?.querySelector<HTMLElement>(
+                  '[role="menuitem"]:not(:disabled), [role="menuitemradio"]:not(:disabled)'
+                )
+                ?.focus({ preventScroll: true })
+            })
+          }
+        }}
       >
         {state ? (
           <>

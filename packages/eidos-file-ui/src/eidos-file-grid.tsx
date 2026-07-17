@@ -1228,7 +1228,12 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       event.preventDefault()
       setCellMenu(null)
       setColumnStatMenu(null)
-      setFieldMenu({ field, fieldIndex: columnIndex, bounds: event.bounds })
+      setFieldMenu({
+        field,
+        fieldIndex: columnIndex,
+        bounds: event.bounds,
+        openedFromTouch: event.isTouch,
+      })
     },
     [fields]
   )
