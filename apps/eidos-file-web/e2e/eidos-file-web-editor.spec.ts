@@ -509,6 +509,42 @@ test("keeps the landing-page live demo bounded in a narrow window", async ({
   )
 })
 
+test("anchors landing-page field menus to their grid headers", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the shared Grid field menu positioning"
+  )
+  await page.setViewportSize({ width: 1_600, height: 1_000 })
+  await installFallbackMode(page)
+  await page.goto("/")
+
+  await page
+    .locator(".live-demo-grid [data-testid='glide-cell-1-0']")
+    .waitFor({ state: "attached" })
+  const canvas = page.locator(
+    ".live-demo-grid canvas[data-testid='data-grid-canvas']"
+  )
+  const canvasBounds = await canvas.boundingBox()
+  if (!canvasBounds) throw new Error("The landing-page Grid is not visible")
+
+  await page.mouse.click(canvasBounds.x + 100, canvasBounds.y + 18, {
+    button: "right",
+  })
+  const menu = page.getByRole("menu", { name: "Actions for title" })
+  await expect(menu).toBeVisible()
+  const menuBounds = await menu.boundingBox()
+  if (!menuBounds) throw new Error("The field menu is not visible")
+
+  expect(menuBounds.x).toBeGreaterThanOrEqual(canvasBounds.x)
+  expect(menuBounds.x).toBeLessThan(canvasBounds.x + 100)
+  expect(menuBounds.y).toBeGreaterThan(canvasBounds.y + 30)
+  expect(menuBounds.y).toBeLessThan(canvasBounds.y + 50)
+  await expect(page.locator(".launch-workbench")).toHaveCSS("transform", "none")
+})
+
 test("keeps navigation and editor controls usable on a phone", async ({
   page,
   browserName,

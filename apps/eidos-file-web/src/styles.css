@@ -1411,12 +1411,11 @@
   margin: 1rem auto;
   grid-template-columns: minmax(20rem, 0.72fr) minmax(0, 1.55fr);
   align-items: stretch;
-  animation: workbench-in 420ms var(--ease-out-expo) both;
+  animation: workbench-in 320ms var(--ease-out-expo) backwards;
 }
 
 @keyframes workbench-in {
   from {
-    transform: translateY(0.5rem);
     opacity: 0;
   }
 }
