@@ -10,9 +10,13 @@ import type {
   EidosFileRowMutationResult,
   EidosFileRowPage,
   EidosFileRowPageProjection,
+  EidosFileRowRange,
   EidosFileRowQuery,
+  EidosFileRowsDeleteResult,
   EidosFileSnapshot,
   CreateEidosFileFieldInput,
+  CreateEidosFileTableInput,
+  CreateEidosFileViewInput,
   UpdateEidosFileFieldInput,
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
@@ -77,6 +81,13 @@ export type EidosFileWorkerAction =
       changes: EidosFileRow
     }
   | {
+      type: "delete-row-ranges"
+      tableId: string
+      ranges: EidosFileRowRange[]
+      query: EidosFileRowQuery
+    }
+  | { type: "delete-rows"; tableId: string; rowIds: string[] }
+  | {
       type: "update-field"
       tableId: string
       columnName: string
@@ -89,6 +100,15 @@ export type EidosFileWorkerAction =
       placement?: EidosFileFieldPlacement
     }
   | { type: "delete-field"; tableId: string; columnName: string }
+  | { type: "create-table"; input: CreateEidosFileTableInput }
+  | {
+      type: "create-view"
+      tableId: string
+      input: CreateEidosFileViewInput
+    }
+  | { type: "duplicate-view"; viewId: string; name?: string }
+  | { type: "delete-view"; viewId: string }
+  | { type: "reorder-views"; tableId: string; viewIds: string[] }
   | { type: "update-view"; viewId: string; changes: UpdateEidosFileViewInput }
   | {
       type: "csv-preview"
@@ -121,6 +141,7 @@ export type EidosFileWorkerResult =
   | EidosFileRowGroupCount[]
   | EidosFileRowPage
   | EidosFileRowMutationResult
+  | EidosFileRowsDeleteResult
   | null
   | { discarded: true }
   | { closed: true }

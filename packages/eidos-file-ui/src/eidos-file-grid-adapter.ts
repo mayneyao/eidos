@@ -26,7 +26,10 @@ import {
   eidosFileNumberProperty,
   eidosFileSelectOptions,
 } from "./eidos-file-field-properties"
-import { eidosFileFieldDisplayName } from "./eidos-file-field-visibility"
+import {
+  eidosFileFieldDisplayName,
+  isOptionalEidosFileSystemField,
+} from "./eidos-file-field-visibility"
 import {
   eidosFileAttachmentDisplayData,
   type EidosFileAttachmentCell,
@@ -245,7 +248,7 @@ export function eidosFileValueToGridCell(
     return {
       kind: GridCellKind.Custom,
       allowOverlay: true,
-      readonly: readonly || field.valueKind === "system",
+      readonly: readonly || isOptionalEidosFileSystemField(field),
       copyData: typeof value === "string" ? value : "",
       data: {
         kind: "date-picker-cell",
@@ -303,7 +306,7 @@ export function eidosFileValueToGridCell(
   return {
     kind: GridCellKind.Text,
     allowOverlay: true,
-    readonly: readonly || field.valueKind === "system",
+    readonly: readonly || isOptionalEidosFileSystemField(field),
     data: text,
     displayData: text,
   }

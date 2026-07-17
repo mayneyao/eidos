@@ -1,7 +1,9 @@
 import { useMemo, type ComponentType, type ReactNode } from "react"
 import type {
   EidosFileFieldInfo,
+  EidosFileRow,
   EidosFileRowMutationResult,
+  EidosFileRowRange,
   EidosFileRowQuery,
   EidosFileSnapshot,
   EidosFileTableSnapshot,
@@ -24,6 +26,11 @@ export interface EidosFileViewRendererProps {
   reloadToken: number
   propertyField?: EidosFileFieldInfo | null
   onMutation?: (result: EidosFileRowMutationResult) => void
+  onDeleteRow?: (row: EidosFileRow) => Promise<void>
+  onDeleteRows?: (
+    ranges: EidosFileRowRange[],
+    query: EidosFileRowQuery
+  ) => Promise<void>
   onSnapshot?: (snapshot: EidosFileSnapshot) => void
   onFieldOpen?: (field: EidosFileFieldInfo) => void
   onFieldClose?: () => void
@@ -65,6 +72,7 @@ export function EidosFileGridRenderer(props: EidosFileViewRendererProps) {
       reloadToken={props.reloadToken}
       propertyField={props.propertyField}
       onMutation={props.onMutation}
+      onDeleteRows={props.onDeleteRows}
       onSnapshot={props.onSnapshot}
       onFieldOpen={props.onFieldOpen}
       onFieldClose={props.onFieldClose}

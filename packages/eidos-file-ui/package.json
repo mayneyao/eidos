@@ -112,6 +112,31 @@
       "import": "./dist/eidos-file-editor-chrome.mjs",
       "default": "./dist/eidos-file-editor-chrome.mjs"
     },
+    "./eidos-file-csv-import-popover": {
+      "types": "./dist/eidos-file-csv-import-popover.d.mts",
+      "import": "./dist/eidos-file-csv-import-popover.mjs",
+      "default": "./dist/eidos-file-csv-import-popover.mjs"
+    },
+    "./eidos-file-csv-operation-progress": {
+      "types": "./dist/eidos-file-csv-operation-progress.d.mts",
+      "import": "./dist/eidos-file-csv-operation-progress.mjs",
+      "default": "./dist/eidos-file-csv-operation-progress.mjs"
+    },
+    "./eidos-file-sheet-create-popover": {
+      "types": "./dist/eidos-file-sheet-create-popover.d.mts",
+      "import": "./dist/eidos-file-sheet-create-popover.mjs",
+      "default": "./dist/eidos-file-sheet-create-popover.mjs"
+    },
+    "./eidos-file-view-selector": {
+      "types": "./dist/eidos-file-view-selector.d.mts",
+      "import": "./dist/eidos-file-view-selector.mjs",
+      "default": "./dist/eidos-file-view-selector.mjs"
+    },
+    "./eidos-file-view-tabs": {
+      "types": "./dist/eidos-file-view-tabs.d.mts",
+      "import": "./dist/eidos-file-view-tabs.mjs",
+      "default": "./dist/eidos-file-view-tabs.mjs"
+    },
     "./eidos-file-query-toolbar": {
       "types": "./dist/eidos-file-query-toolbar.d.mts",
       "import": "./dist/eidos-file-query-toolbar.mjs",

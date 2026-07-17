@@ -20,6 +20,7 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
     disabled,
     reloadToken,
     onMutation,
+    onDeleteRow,
     onError,
   } = props
   const projection = useMemo(
@@ -69,6 +70,7 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
           : undefined
       }
       onCellEdit={editCell}
+      onDeleteRow={onDeleteRow}
       onError={onError}
     />
   )

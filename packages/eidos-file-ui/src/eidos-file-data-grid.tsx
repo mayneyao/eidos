@@ -5,6 +5,7 @@ import type {
   EidosFileRow,
   EidosFileRowMutationResult,
   EidosFileRowQuery,
+  EidosFileRowRange,
   EidosFileSnapshot,
   EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
@@ -25,6 +26,10 @@ export interface EidosFileDataGridProps {
   reloadToken?: number
   propertyField?: EidosFileFieldInfo | null
   onMutation?: (result: EidosFileRowMutationResult) => void
+  onDeleteRows?: (
+    ranges: EidosFileRowRange[],
+    query: EidosFileRowQuery
+  ) => Promise<void>
   onSnapshot?: (snapshot: EidosFileSnapshot) => void
   onFieldOpen?: (field: EidosFileFieldInfo) => void
   onFieldClose?: () => void
@@ -46,6 +51,7 @@ export function EidosFileDataGrid({
   reloadToken = 0,
   propertyField,
   onMutation,
+  onDeleteRows,
   onSnapshot,
   onFieldOpen,
   onFieldClose,
@@ -150,6 +156,9 @@ export function EidosFileDataGrid({
       onFieldUpdate={updateField}
       onAddField={onFieldAdd}
       onDeleteField={deleteField}
+      onRequestDeleteRows={
+        onDeleteRows ? (ranges) => void onDeleteRows(ranges, query) : undefined
+      }
       onViewUpdate={view ? updateView : undefined}
       onError={onError}
     />

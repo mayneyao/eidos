@@ -273,15 +273,14 @@ export function EidosFileSheetTabStrip({
                 onClick={() => onSelect(table.id)}
                 onKeyDown={(event) => navigateTabs(event, index)}
                 className={cn(
-                  "relative flex h-full max-w-48 shrink-0 items-center gap-1.5 border-r px-3 text-xs text-muted-foreground outline-hidden hover:bg-background/70 hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50",
-                  table.id === activeTableId &&
-                    "bg-background font-medium text-foreground"
+                  "relative flex h-full max-w-48 shrink-0 items-center gap-1.5 px-3 text-[13px] text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50",
+                  table.id === activeTableId && "text-foreground"
                 )}
               >
                 <Table2 className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{table.name}</span>
                 {table.id === activeTableId ? (
-                  <span className="absolute inset-x-0 top-0 h-0.5 bg-foreground/65" />
+                  <span className="absolute inset-x-2 top-0 h-0.5 bg-foreground/75" />
                 ) : null}
               </button>
             )

@@ -263,6 +263,31 @@ async function handleAction(action: EidosFileWorkerAction) {
         action.tableId,
         runtime.updateRow(action.tableId, action.rowId, action.changes)
       )
+    case "delete-row-ranges": {
+      const deletedCount = runtime.deleteRowRanges(
+        action.tableId,
+        action.ranges,
+        action.query
+      )
+      return {
+        tableId: action.tableId,
+        deletedCount,
+        rowCount: runtime.countRows(action.tableId),
+        revision: runtime.info().updatedAt,
+      }
+    }
+    case "delete-rows": {
+      const deletedCount = runtime.deleteRows(
+        action.tableId,
+        action.rowIds
+      ).length
+      return {
+        tableId: action.tableId,
+        deletedCount,
+        rowCount: runtime.countRows(action.tableId),
+        revision: runtime.info().updatedAt,
+      }
+    }
     case "update-field":
       runtime.updateField(action.tableId, action.columnName, action.changes)
       return snapshot()
@@ -271,6 +296,21 @@ async function handleAction(action: EidosFileWorkerAction) {
       return snapshot()
     case "delete-field":
       runtime.deleteField(action.tableId, action.columnName)
+      return snapshot()
+    case "create-table":
+      runtime.createTable(action.input)
+      return snapshot()
+    case "create-view":
+      runtime.createView(action.tableId, action.input)
+      return snapshot()
+    case "duplicate-view":
+      runtime.duplicateView(action.viewId, action.name)
+      return snapshot()
+    case "delete-view":
+      runtime.deleteView(action.viewId)
+      return snapshot()
+    case "reorder-views":
+      runtime.reorderViews(action.tableId, action.viewIds)
       return snapshot()
     case "update-view":
       runtime.updateView(action.viewId, action.changes)

@@ -100,9 +100,16 @@ const source: EidosFileEditorDataSource = {
   calculateColumnStats: vi.fn(async () => []),
   insertRow: vi.fn(),
   updateRow: vi.fn(),
+  deleteRowRanges: vi.fn(),
+  deleteRows: vi.fn(),
   updateField: vi.fn(),
   addField: vi.fn(),
   deleteField: vi.fn(),
+  createTable: vi.fn(),
+  createView: vi.fn(),
+  duplicateView: vi.fn(),
+  deleteView: vi.fn(),
+  reorderViews: vi.fn(),
   updateView: vi.fn(),
 }
 

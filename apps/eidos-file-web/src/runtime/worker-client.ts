@@ -9,9 +9,13 @@ import type {
   EidosFileRowMutationResult,
   EidosFileRowPage,
   EidosFileRowPageProjection,
+  EidosFileRowRange,
   EidosFileRowQuery,
+  EidosFileRowsDeleteResult,
   EidosFileSnapshot,
   CreateEidosFileFieldInput,
+  CreateEidosFileTableInput,
+  CreateEidosFileViewInput,
   UpdateEidosFileFieldInput,
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
@@ -170,6 +174,21 @@ export class EidosFileWorkerClient implements EidosFileEditorDataSource {
     return this.call({ type: "update-row", tableId, rowId, changes })
   }
 
+  deleteRowRanges(
+    tableId: string,
+    ranges: EidosFileRowRange[],
+    query: EidosFileRowQuery
+  ): Promise<EidosFileRowsDeleteResult> {
+    return this.call({ type: "delete-row-ranges", tableId, ranges, query })
+  }
+
+  deleteRows(
+    tableId: string,
+    rowIds: string[]
+  ): Promise<EidosFileRowsDeleteResult> {
+    return this.call({ type: "delete-rows", tableId, rowIds })
+  }
+
   updateField(
     tableId: string,
     columnName: string,
@@ -198,6 +217,33 @@ export class EidosFileWorkerClient implements EidosFileEditorDataSource {
 
   deleteField(tableId: string, columnName: string): Promise<EidosFileSnapshot> {
     return this.call({ type: "delete-field", tableId, columnName })
+  }
+
+  createTable(input: CreateEidosFileTableInput): Promise<EidosFileSnapshot> {
+    return this.call({ type: "create-table", input })
+  }
+
+  createView(
+    tableId: string,
+    input: CreateEidosFileViewInput
+  ): Promise<EidosFileSnapshot> {
+    return this.call({ type: "create-view", tableId, input })
+  }
+
+  duplicateView(viewId: string, name?: string): Promise<EidosFileSnapshot> {
+    return this.call({
+      type: "duplicate-view",
+      viewId,
+      ...(name ? { name } : {}),
+    })
+  }
+
+  deleteView(viewId: string): Promise<EidosFileSnapshot> {
+    return this.call({ type: "delete-view", viewId })
+  }
+
+  reorderViews(tableId: string, viewIds: string[]): Promise<EidosFileSnapshot> {
+    return this.call({ type: "reorder-views", tableId, viewIds })
   }
 
   updateView(

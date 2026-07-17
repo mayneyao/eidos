@@ -7,9 +7,13 @@ import type {
   EidosFileRowMutationResult,
   EidosFileRowPage,
   EidosFileRowPageProjection,
+  EidosFileRowRange,
   EidosFileRowQuery,
+  EidosFileRowsDeleteResult,
   EidosFileSnapshot,
   CreateEidosFileFieldInput,
+  CreateEidosFileTableInput,
+  CreateEidosFileViewInput,
   UpdateEidosFileFieldInput,
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
@@ -52,6 +56,15 @@ export interface EidosFileEditorDataSource {
     rowId: string,
     changes: EidosFileRow
   ): Promise<EidosFileRowMutationResult>
+  deleteRowRanges(
+    tableId: string,
+    ranges: EidosFileRowRange[],
+    query: EidosFileRowQuery
+  ): Promise<EidosFileRowsDeleteResult>
+  deleteRows(
+    tableId: string,
+    rowIds: string[]
+  ): Promise<EidosFileRowsDeleteResult>
   updateField(
     tableId: string,
     columnName: string,
@@ -63,6 +76,14 @@ export interface EidosFileEditorDataSource {
     placement?: EidosFileFieldPlacement
   ): Promise<EidosFileSnapshot>
   deleteField(tableId: string, columnName: string): Promise<EidosFileSnapshot>
+  createTable(input: CreateEidosFileTableInput): Promise<EidosFileSnapshot>
+  createView(
+    tableId: string,
+    input: CreateEidosFileViewInput
+  ): Promise<EidosFileSnapshot>
+  duplicateView(viewId: string, name?: string): Promise<EidosFileSnapshot>
+  deleteView(viewId: string): Promise<EidosFileSnapshot>
+  reorderViews(tableId: string, viewIds: string[]): Promise<EidosFileSnapshot>
   updateView(
     viewId: string,
     changes: UpdateEidosFileViewInput

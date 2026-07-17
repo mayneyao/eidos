@@ -44,6 +44,20 @@ describe("Eidos File Grid adapter", () => {
       kind: GridCellKind.Text,
       data: "hello",
     })
+    expect(
+      eidosFileValueToGridCell(
+        {
+          ...field("title"),
+          tableColumnName: "title",
+          valueKind: "system",
+        },
+        "Editable title"
+      )
+    ).toMatchObject({
+      kind: GridCellKind.Text,
+      readonly: false,
+      data: "Editable title",
+    })
   })
 
   it("applies persisted number formatting and bar presentation", () => {

@@ -1407,7 +1407,7 @@
   z-index: 1;
   display: grid;
   width: min(90rem, calc(100% - clamp(1.5rem, 4vw, 4rem)));
-  height: clamp(42rem, calc(100svh - 5.25rem), 52rem);
+  min-height: clamp(42rem, calc(100svh - 5.25rem), 52rem);
   margin: 1rem auto;
   grid-template-columns: minmax(20rem, 0.72fr) minmax(0, 1.55fr);
   align-items: stretch;
@@ -1504,8 +1504,10 @@
 
 .launch-details {
   display: grid;
+  flex: 0 0 auto;
   margin: 0;
   border-top: 1px solid var(--border);
+  background: var(--surface-sunken);
 }
 
 .launch-details > div {
@@ -1803,6 +1805,7 @@
 @media (max-width: 62rem) {
   .launch-workbench {
     height: auto;
+    min-height: 0;
     grid-template-columns: 1fr;
   }
 

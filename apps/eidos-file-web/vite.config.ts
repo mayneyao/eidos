@@ -152,6 +152,15 @@ export default defineConfig({
         directory,
         "../../packages/eidos-file-ui/src/eidos-file-editor-chrome.tsx"
       ),
+      "@eidos.space/eidos-file-ui/eidos-file-sheet-create-popover":
+        path.resolve(
+          directory,
+          "../../packages/eidos-file-ui/src/eidos-file-sheet-create-popover.tsx"
+        ),
+      "@eidos.space/eidos-file-ui/eidos-file-view-tabs": path.resolve(
+        directory,
+        "../../packages/eidos-file-ui/src/eidos-file-view-tabs.tsx"
+      ),
       "@eidos.space/eidos-file-ui/eidos-file-query-toolbar": path.resolve(
         directory,
         "../../packages/eidos-file-ui/src/eidos-file-query-toolbar.tsx"

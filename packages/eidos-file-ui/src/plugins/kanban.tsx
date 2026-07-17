@@ -21,6 +21,7 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
     disabled,
     reloadToken,
     onMutation,
+    onDeleteRow,
     onError,
   } = props
   const projection = useMemo(
@@ -99,6 +100,7 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
       }
       onCellEdit={editCell}
       onAddRow={addRow}
+      onDeleteRow={onDeleteRow}
       onError={onError}
     />
   )

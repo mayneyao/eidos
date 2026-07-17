@@ -12,9 +12,12 @@ import {
 import type {
   EidosFileFieldInfo,
   EidosFileFieldType,
+  EidosFileRow,
   EidosFileRowMutationResult,
+  EidosFileRowRange,
   EidosFileSnapshot,
   CreateEidosFileFieldInput,
+  CreateEidosFileTableInput,
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import {
@@ -22,10 +25,13 @@ import {
   EidosFileEditorRoot,
   EidosFileEditorWorkbar,
   EidosFileSheetTabStrip,
-  EidosFileViewTabStrip,
 } from "@eidos.space/eidos-file-ui/eidos-file-editor-chrome"
+import { EidosFileSheetCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-sheet-create-popover"
+import { EidosFileViewTabs } from "@eidos.space/eidos-file-ui/eidos-file-view-tabs"
 import {
+  createEidosFilePluginRegistry,
   EidosFilePluginSlot,
+  type EidosFilePlugin,
   type EidosFilePluginContext,
 } from "@eidos.space/eidos-file-ui/plugin"
 import {
@@ -216,7 +222,7 @@ function statusPresentation(
 
 function updateSnapshotRowCount(
   snapshot: EidosFileSnapshot,
-  result: EidosFileRowMutationResult
+  result: Pick<EidosFileRowMutationResult, "tableId" | "rowCount" | "revision">
 ): EidosFileSnapshot {
   return {
     ...snapshot,
@@ -246,6 +252,8 @@ export function App() {
     null
   )
   const [addPropertyOpen, setAddPropertyOpen] = useState(false)
+  const [fieldInsertIndex, setFieldInsertIndex] = useState<number | null>(null)
+  const [viewReloadToken, setViewReloadToken] = useState(0)
   const [theme, setTheme] = useState<Theme>(initialTheme)
   const [docsSlug, setDocsSlug] = useState<string | null>(() =>
     docsSlugFromHash(window.location.hash)
@@ -828,22 +836,177 @@ export function App() {
       const client = clientRef.current
       if (!client || !activeTable) return
       try {
-        const next = await client.addField(activeTable.table.id, {
-          name,
-          columnName: `field_${crypto.randomUUID().replace(/-/g, "")}`,
-          type,
-          ...(type === "select" || type === "multi-select"
-            ? { property: { options: [] } }
-            : {}),
-        } as CreateEidosFileFieldInput)
+        const next = await client.addField(
+          activeTable.table.id,
+          {
+            name,
+            columnName: `field_${crypto.randomUUID().replace(/-/g, "")}`,
+            type,
+            ...(type === "select" || type === "multi-select"
+              ? { property: { options: [] } }
+              : {}),
+          } as CreateEidosFileFieldInput,
+          activeView && fieldInsertIndex !== null
+            ? { viewId: activeView.id, index: fieldInsertIndex }
+            : undefined
+        )
         setSnapshot(next)
         setAddPropertyOpen(false)
+        setFieldInsertIndex(null)
         markCommitted()
       } catch (error) {
         setNotice(errorMessage(error))
       }
     },
+    [activeTable, activeView, fieldInsertIndex, markCommitted]
+  )
+
+  const createTable = useCallback(
+    async (input: CreateEidosFileTableInput) => {
+      const client = clientRef.current
+      if (!client || !snapshot) return
+      const previousIds = new Set(
+        snapshot.tables.map((table) => table.table.id)
+      )
+      const next = await client.createTable(input)
+      const created = next.tables.find(
+        (table) => !previousIds.has(table.table.id)
+      )
+      onStructureSnapshot(next)
+      if (created) {
+        setActiveTableId(created.table.id)
+        setPropertyField(null)
+      }
+    },
+    [onStructureSnapshot, snapshot]
+  )
+
+  const createView = useCallback(
+    async (name: string, type: string) => {
+      const client = clientRef.current
+      if (!client || !activeTable) return
+      const contribution = createEidosFilePluginRegistry(
+        editorPlugins as EidosFilePlugin[]
+      ).views[type]
+      const next = await client.createView(activeTable.table.id, {
+        name,
+        type,
+        properties: contribution?.create?.properties?.(activeTable.fields),
+      })
+      const previousIds = new Set(activeTable.views.map((view) => view.id))
+      const created = next.tables
+        .find((table) => table.table.id === activeTable.table.id)
+        ?.views.find((view) => !previousIds.has(view.id))
+      onStructureSnapshot(next)
+      if (created) {
+        setActiveViews((current) => ({
+          ...current,
+          [activeTable.table.id]: created.id,
+        }))
+      }
+    },
+    [activeTable, editorPlugins, onStructureSnapshot]
+  )
+
+  const renameView = useCallback(
+    async (viewId: string, name: string) => {
+      const client = clientRef.current
+      if (!client) return
+      onStructureSnapshot(await client.updateView(viewId, { name }))
+    },
+    [onStructureSnapshot]
+  )
+
+  const duplicateView = useCallback(
+    async (viewId: string) => {
+      const client = clientRef.current
+      if (!client || !activeTable) return
+      const previousIds = new Set(activeTable.views.map((view) => view.id))
+      const next = await client.duplicateView(viewId)
+      const duplicate = next.tables
+        .find((table) => table.table.id === activeTable.table.id)
+        ?.views.find((view) => !previousIds.has(view.id))
+      onStructureSnapshot(next)
+      if (duplicate) {
+        setActiveViews((current) => ({
+          ...current,
+          [activeTable.table.id]: duplicate.id,
+        }))
+      }
+    },
+    [activeTable, onStructureSnapshot]
+  )
+
+  const deleteView = useCallback(
+    async (viewId: string) => {
+      const client = clientRef.current
+      if (!client || !activeTable) return
+      const next = await client.deleteView(viewId)
+      const remaining = next.tables.find(
+        (table) => table.table.id === activeTable.table.id
+      )?.views
+      onStructureSnapshot(next)
+      if (activeView?.id === viewId && remaining?.[0]) {
+        setActiveViews((current) => ({
+          ...current,
+          [activeTable.table.id]: remaining[0].id,
+        }))
+      }
+    },
+    [activeTable, activeView?.id, onStructureSnapshot]
+  )
+
+  const reorderViews = useCallback(
+    async (viewIds: string[]) => {
+      const client = clientRef.current
+      if (!client || !activeTable) return
+      onStructureSnapshot(
+        await client.reorderViews(activeTable.table.id, viewIds)
+      )
+    },
+    [activeTable, onStructureSnapshot]
+  )
+
+  const deleteSingleRow = useCallback(
+    async (row: EidosFileRow) => {
+      const client = clientRef.current
+      if (!client || !activeTable || row._id == null) return
+      const result = await client.deleteRows(activeTable.table.id, [
+        String(row._id),
+      ])
+      setSnapshot((current) =>
+        current ? updateSnapshotRowCount(current, result) : current
+      )
+      setViewReloadToken((current) => current + 1)
+      markCommitted()
+    },
     [activeTable, markCommitted]
+  )
+
+  const deleteRowRanges = useCallback(
+    async (
+      ranges: EidosFileRowRange[],
+      query: Parameters<EidosFileWorkerClient["deleteRowRanges"]>[2]
+    ) => {
+      const client = clientRef.current
+      if (!client || !activeTable) return
+      const count = ranges.reduce(
+        (total, range) => total + range.endIndex - range.startIndex,
+        0
+      )
+      if (!window.confirm(t("deleteRowsConfirm", { count }))) return
+      const result = await client.deleteRowRanges(
+        activeTable.table.id,
+        ranges,
+        query
+      )
+      setSnapshot((current) =>
+        current ? updateSnapshotRowCount(current, result) : current
+      )
+      setViewReloadToken((current) => current + 1)
+      markCommitted()
+    },
+    [activeTable, markCommitted, t]
   )
 
   const pluginContext = useMemo<EidosFilePluginContext | null>(() => {
@@ -1338,10 +1501,10 @@ export function App() {
 
       <EidosFileEditorRoot className="min-h-0 flex-1 !h-auto">
         <EidosFileEditorWorkbar>
-          <EidosFileViewTabStrip
+          <EidosFileViewTabs
             views={activeTable.views}
-            activeViewId={activeView?.id}
-            plugins={editorPlugins}
+            fields={activeTable.fields}
+            activeView={activeView}
             disabled={saveState.phase === "saving"}
             onSelect={(viewId) =>
               setActiveViews((current) => ({
@@ -1349,6 +1512,16 @@ export function App() {
                 [activeTable.table.id]: viewId,
               }))
             }
+            onCreate={createView}
+            onRename={renameView}
+            onDuplicate={duplicateView}
+            onDelete={deleteView}
+            onReorder={reorderViews}
+            onUpdate={async (viewId, changes) => {
+              const client = clientRef.current
+              if (!client) return
+              onStructureSnapshot(await client.updateView(viewId, changes))
+            }}
           />
           <div
             data-eidos-file-workbar-actions
@@ -1364,18 +1537,14 @@ export function App() {
               onFilterChange={(filter) => updateActiveView({ filter })}
               onSortsChange={(sorts) => updateActiveView({ sorts })}
             />
-            {pluginContext ? (
-              <EidosFilePluginSlot
-                context={pluginContext}
-                plugins={editorPlugins}
-                slot="workbar"
-              />
-            ) : null}
             <div className="add-property-wrap">
               <button
                 className="eidos-file-workbar-action inline-flex h-7 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 type="button"
-                onClick={() => setAddPropertyOpen((open) => !open)}
+                onClick={() => {
+                  setFieldInsertIndex(null)
+                  setAddPropertyOpen((open) => !open)
+                }}
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                 <span className="eidos-file-workbar-action-label">
@@ -1405,12 +1574,18 @@ export function App() {
             view={activeView}
             search={search}
             disabled={saveState.phase === "saving"}
+            reloadToken={viewReloadToken}
             propertyField={propertyField}
             onMutation={onRowMutation}
             onSnapshot={onStructureSnapshot}
+            onDeleteRow={deleteSingleRow}
+            onDeleteRows={deleteRowRanges}
             onFieldOpen={setPropertyField}
             onFieldClose={() => setPropertyField(null)}
-            onFieldAdd={() => setAddPropertyOpen(true)}
+            onFieldAdd={(position) => {
+              setFieldInsertIndex(position ?? null)
+              setAddPropertyOpen(true)
+            }}
             onError={(error) => setNotice(errorMessage(error))}
           />
         </EidosFileEditorContent>
@@ -1419,6 +1594,21 @@ export function App() {
           tables={snapshot.tables.map((table) => table.table)}
           activeTableId={activeTable.table.id}
           disabled={saveState.phase === "saving"}
+          createAction={
+            <EidosFileSheetCreatePopover
+              disabled={saveState.phase === "saving"}
+              onCreate={createTable}
+              importAction={
+                pluginContext ? (
+                  <EidosFilePluginSlot
+                    context={pluginContext}
+                    plugins={editorPlugins}
+                    slot="sheet-create"
+                  />
+                ) : undefined
+              }
+            />
+          }
           onSelect={(tableId) => {
             setActiveTableId(tableId)
             setPropertyField(null)

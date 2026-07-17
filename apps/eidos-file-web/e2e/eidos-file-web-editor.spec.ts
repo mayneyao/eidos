@@ -480,6 +480,12 @@ test("keeps the landing-page live demo bounded in a narrow window", async ({
     const scroller = document.querySelector<HTMLElement>(
       ".live-demo-grid .dvn-scroller"
     )
+    const panel = document
+      .querySelector(".launch-panel")
+      ?.getBoundingClientRect()
+    const detailRows = Array.from(
+      document.querySelectorAll(".launch-details > div")
+    ).map((element) => element.getBoundingClientRect().toJSON())
     return {
       demo: demo?.toJSON(),
       documentHeight: document.documentElement.scrollHeight,
@@ -487,6 +493,8 @@ test("keeps the landing-page live demo bounded in a narrow window", async ({
       pageOverflow:
         document.documentElement.scrollWidth -
         document.documentElement.clientWidth,
+      panel: panel?.toJSON(),
+      detailRows,
       scroller: scroller
         ? {
             clientHeight: scroller.clientHeight,
@@ -498,6 +506,11 @@ test("keeps the landing-page live demo bounded in a narrow window", async ({
   })
 
   expect(demoGeometry.pageOverflow).toBe(0)
+  expect(
+    demoGeometry.detailRows.every(
+      (row) => row.bottom <= (demoGeometry.panel?.bottom ?? 0) + 1
+    )
+  ).toBe(true)
   expect(demoGeometry.demo?.height).toBeLessThanOrEqual(512)
   expect(demoGeometry.demo?.height).toBeGreaterThanOrEqual(384)
   expect(demoGeometry.grid?.height).toBeLessThan(450)
@@ -631,7 +644,7 @@ test("keeps navigation and editor controls usable on a phone", async ({
   expect(responsiveChrome.actions?.top).toBe(responsiveChrome.views?.bottom)
   expect(responsiveChrome.status?.width).toBe(40)
   expect(responsiveChrome.statusCopyDisplay).toBe("none")
-  expect(responsiveChrome.actionButtons).toHaveLength(5)
+  expect(responsiveChrome.actionButtons).toHaveLength(4)
   expect(
     responsiveChrome.actionButtons.every(
       (button) => button.height >= 40 && button.left >= 0 && button.right <= 320
@@ -677,6 +690,7 @@ test("imports CSV through the explicitly composed editor plugin", async ({
   })
 
   const chooserPromise = page.waitForEvent("filechooser")
+  await page.getByRole("button", { name: "Add Eidos File table" }).click()
   await page
     .getByRole("button", {
       name: "Import CSV as a new Eidos File table",
@@ -692,8 +706,11 @@ test("imports CSV through the explicitly composed editor plugin", async ({
     ),
   })
 
-  const dialog = page.getByText("Import CSV as a new table").locator("..")
-  await expect(dialog).toContainText("2 rows")
+  const dialog = page
+    .getByRole("dialog")
+    .filter({ hasText: "Import as a new table" })
+  await expect(dialog).toContainText("Import as a new table")
+  await expect(dialog).toContainText("2 ready")
   const tableName = page.getByLabel("Table name")
   await tableName.fill("CSV projects")
   await page.getByRole("button", { name: "Import 2 rows" }).click()
@@ -730,11 +747,90 @@ test("imports CSV through the explicitly composed editor plugin", async ({
     "Alpha"
   )
   await page.getByRole("button", { name: "切换到中文" }).click()
+  await page.getByRole("button", { name: "Add Eidos File table" }).click()
   await expect(
     page.getByRole("button", {
       name: "将 CSV 导入为新的 Eidos File 数据表",
     })
   ).toBeVisible()
+})
+
+test("matches Desktop table, view, Grid edit, field placement, and row delete workflows", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the browser worker mutation and shared Desktop controls"
+  )
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await page.locator("[data-testid='glide-cell-1-0']").waitFor({
+    state: "attached",
+  })
+
+  const canvas = page.locator(
+    ".eidos-file-content canvas[data-testid='data-grid-canvas']"
+  )
+  const bounds = await canvas.boundingBox()
+  if (!bounds) throw new Error("The shared Eidos File Grid is not visible")
+
+  await page.mouse.dblclick(bounds.x + 44 + 140, bounds.y + 54)
+  const titleEditor = page.locator("textarea.gdg-input")
+  await titleEditor.fill("Edited in Web")
+  await titleEditor.press("Enter")
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
+    "Edited in Web"
+  )
+
+  await page.mouse.click(bounds.x + 44 + 140, bounds.y + 18, {
+    button: "right",
+  })
+  await page.getByRole("menuitem", { name: "Insert field right" }).click()
+  const propertyForm = page.locator(".add-property-popover")
+  await propertyForm.getByLabel("Name").fill("After title")
+  await propertyForm.getByRole("button", { name: "Add property" }).click()
+  await expect(page.locator("[data-testid='glide-cell-3-0']")).toHaveText(
+    "Backlog"
+  )
+
+  await page.getByRole("button", { name: "Add Eidos File view" }).click()
+  await page.getByLabel("View name").fill("Browser cards")
+  await page.getByRole("button", { name: "Gallery", exact: true }).click()
+  await page.getByRole("button", { name: "Create", exact: true }).click()
+  await expect(
+    page.getByRole("tab", { name: "Browser cards", exact: true })
+  ).toBeVisible()
+
+  await page.getByRole("button", { name: "Manage Eidos File views" }).click()
+  await page.getByRole("button", { name: "Manage Browser cards view" }).click()
+  await page.getByLabel("View name").fill("Reviewed cards")
+  await page.getByRole("button", { name: "Save", exact: true }).click()
+  await expect(
+    page.getByRole("tab", { name: "Reviewed cards", exact: true })
+  ).toBeVisible()
+
+  await page.getByRole("tab", { name: "Grid", exact: true }).click()
+  const gridBounds = await canvas.boundingBox()
+  if (!gridBounds) throw new Error("The shared Eidos File Grid is not visible")
+  await page.mouse.click(gridBounds.x + 44 + 140, gridBounds.y + 54, {
+    button: "right",
+  })
+  await page.getByRole("menu", { name: "Record actions" }).waitFor()
+  page.once("dialog", (dialog) => dialog.accept())
+  await page.getByRole("menuitem", { name: "Delete record" }).click()
+  await expect(
+    page.locator("[data-testid='glide-cell-1-0']")
+  ).not.toContainText("Edited in Web")
+
+  await page.getByRole("button", { name: "Add Eidos File table" }).click()
+  await page.getByRole("button", { name: /^New table/ }).click()
+  await page.getByLabel("Name").fill("Browser table")
+  await page.getByRole("button", { name: "Create", exact: true }).click()
+  await expect(
+    page.getByRole("tab", { name: "Browser table", exact: true })
+  ).toHaveAttribute("aria-selected", "true")
 })
 
 test("calculates Grid column summaries through the browser runtime", async ({
