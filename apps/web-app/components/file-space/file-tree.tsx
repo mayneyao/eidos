@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent as ReactDragEvent,
+} from "react"
 import type { CreateBaseOptions } from "@eidos.space/base"
 import type { SpaceFileEntry } from "@eidos.space/file-space"
 import {
@@ -72,6 +79,13 @@ interface FileSpaceTreeProps {
   spaceId: string
 }
 
+function hasExternalFiles(dataTransfer: DataTransfer): boolean {
+  return (
+    Array.from(dataTransfer.types).includes("Files") ||
+    Array.from(dataTransfer.items).some((item) => item.kind === "file")
+  )
+}
+
 const EXTENSION_SOURCE_ROOT = ".eidos/extensions"
 const AGENT_ROOT = ".eidos/agent"
 const AGENT_SESSIONS_ROOT = ".eidos/agent/sessions"
@@ -121,6 +135,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const {
     createDirectory,
     createText,
+    importDroppedFiles,
     importFiles,
     list,
     move,
@@ -146,6 +161,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const [readError, setReadError] = useState<string | null>(null)
   const [operationError, setOperationError] = useState<string | null>(null)
   const [filesExpanded, setFilesExpanded] = useState(true)
+  const [emptyDropActive, setEmptyDropActive] = useState(false)
   const [baseDialogOpen, setBaseDialogOpen] = useState(false)
   const [baseInitialName, setBaseInitialName] = useState("Untitled.base")
   const [baseParentPath, setBaseParentPath] = useState("")
@@ -443,28 +459,37 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     ]
   )
 
+  const applyImportResult = useCallback(
+    async (
+      directory: string,
+      result: Awaited<ReturnType<typeof importFiles>>
+    ) => {
+      if (result.canceled) return
+      if (result.imported.length > 0) {
+        setFilesExpanded(true)
+        if (directory) {
+          setExpanded((current) => new Set(current).add(directory))
+        }
+        await loadDirectory(directory)
+      }
+      if (result.errors.length > 0) {
+        const first = result.errors[0]
+        setOperationError(
+          result.errors.length === 1
+            ? first.message
+            : `${result.errors.length} files could not be copied. ${first.message}`
+        )
+      }
+    },
+    [loadDirectory]
+  )
+
   const importInto = useCallback(
     async (directory: string) => {
       if (blockMutationDuringRestore()) return
       setOperationError(null)
       try {
-        const result = await importFiles(directory)
-        if (result.canceled) return
-        if (result.imported.length > 0) {
-          setFilesExpanded(true)
-          if (directory) {
-            setExpanded((current) => new Set(current).add(directory))
-          }
-          await loadDirectory(directory)
-        }
-        if (result.errors.length > 0) {
-          const first = result.errors[0]
-          setOperationError(
-            result.errors.length === 1
-              ? first.message
-              : `${result.errors.length} files could not be imported. ${first.message}`
-          )
-        }
+        await applyImportResult(directory, await importFiles(directory))
       } catch (importError) {
         setOperationError(
           importError instanceof Error
@@ -473,7 +498,27 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
         )
       }
     },
-    [blockMutationDuringRestore, importFiles, loadDirectory]
+    [applyImportResult, blockMutationDuringRestore, importFiles]
+  )
+
+  const importDroppedInto = useCallback(
+    async (directory: string, files: File[]) => {
+      if (blockMutationDuringRestore() || files.length === 0) return
+      setOperationError(null)
+      try {
+        await applyImportResult(
+          directory,
+          await importDroppedFiles(directory, files)
+        )
+      } catch (importError) {
+        setOperationError(
+          importError instanceof Error
+            ? importError.message
+            : "Unable to copy dropped files"
+        )
+      }
+    },
+    [applyImportResult, blockMutationDuringRestore, importDroppedFiles]
   )
 
   const performMove = useCallback(
@@ -802,25 +847,69 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
           Reading files…
         </div>
       ) : (entriesByDirectory.get("")?.length ?? 0) === 0 ? (
-        <div className="px-5 py-3 text-xs leading-relaxed text-muted-foreground">
-          <p>This Space has no files yet.</p>
-          <div className="mt-1 flex items-center gap-2">
-            <button
-              type="button"
-              className="text-sidebar-foreground underline decoration-border underline-offset-2 hover:decoration-sidebar-foreground"
-              onClick={() => void startCreate("", "create-file")}
-            >
-              Create a note
-            </button>
-            <span aria-hidden="true">·</span>
-            <button
-              type="button"
-              className="text-sidebar-foreground underline decoration-border underline-offset-2 hover:decoration-sidebar-foreground"
-              onClick={() => void openBaseDialog("")}
-            >
-              Create a Base
-            </button>
-          </div>
+        <div
+          data-file-tree-empty-drop-zone
+          className={cn(
+            "min-h-0 flex-1 px-5 py-3 text-xs leading-relaxed text-muted-foreground",
+            emptyDropActive &&
+              "bg-sidebar-accent/50 ring-1 ring-inset ring-sidebar-ring"
+          )}
+          onDragLeave={(event: ReactDragEvent<HTMLDivElement>) => {
+            if (!hasExternalFiles(event.dataTransfer)) return
+            const relatedTarget = event.relatedTarget
+            if (
+              relatedTarget instanceof Node &&
+              event.currentTarget.contains(relatedTarget)
+            ) {
+              return
+            }
+            setEmptyDropActive(false)
+          }}
+          onDragOver={(event) => {
+            if (!hasExternalFiles(event.dataTransfer)) return
+            event.preventDefault()
+            if (restoringVersion) {
+              event.dataTransfer.dropEffect = "none"
+              return
+            }
+            event.dataTransfer.dropEffect = "copy"
+            setEmptyDropActive(true)
+          }}
+          onDrop={(event) => {
+            if (!hasExternalFiles(event.dataTransfer)) return
+            event.preventDefault()
+            setEmptyDropActive(false)
+            if (restoringVersion) return
+            void importDroppedInto("", Array.from(event.dataTransfer.files))
+          }}
+        >
+          {emptyDropActive ? (
+            <p className="flex items-center gap-1.5 text-sidebar-foreground">
+              <Upload className="h-3.5 w-3.5" />
+              Drop to copy files into this Space
+            </p>
+          ) : (
+            <>
+              <p>This Space has no files yet.</p>
+              <div className="mt-1 flex items-center gap-2">
+                <button
+                  type="button"
+                  className="text-sidebar-foreground underline decoration-border underline-offset-2 hover:decoration-sidebar-foreground"
+                  onClick={() => void startCreate("", "create-file")}
+                >
+                  Create a note
+                </button>
+                <span aria-hidden="true">·</span>
+                <button
+                  type="button"
+                  className="text-sidebar-foreground underline decoration-border underline-offset-2 hover:decoration-sidebar-foreground"
+                  onClick={() => void openBaseDialog("")}
+                >
+                  Create a Base
+                </button>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="min-h-0 flex-1">
@@ -851,6 +940,9 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
                 void loadDirectory(path)
               }
             }}
+            onExternalFilesDrop={(files, parentPath) =>
+              void importDroppedInto(parentPath, files)
+            }
             onImport={(parentPath) => void importInto(parentPath)}
             onIntent={(entry) => {
               if (isManagedEidosTreePath(entry.path)) return

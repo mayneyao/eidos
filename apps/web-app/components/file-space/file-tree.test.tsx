@@ -30,6 +30,7 @@ import { FileSpaceTree } from "./file-tree"
 const listMock = vi.hoisted(() => vi.fn())
 const createDirectoryMock = vi.hoisted(() => vi.fn())
 const createTextMock = vi.hoisted(() => vi.fn())
+const importDroppedFilesMock = vi.hoisted(() => vi.fn())
 const moveMock = vi.hoisted(() => vi.fn())
 const navigateMock = vi.hoisted(() => vi.fn())
 const setGlobalSearchOpenMock = vi.hoisted(() => vi.fn())
@@ -83,6 +84,7 @@ vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
   useSpaceFiles: () => ({
     createDirectory: createDirectoryMock,
     createText: createTextMock,
+    importDroppedFiles: importDroppedFilesMock,
     importFiles: vi.fn(),
     list: listMock,
     move: moveMock,
@@ -236,6 +238,12 @@ describe("FileSpaceTree accessibility", () => {
     )
     createDirectoryMock.mockReset()
     createTextMock.mockReset()
+    importDroppedFilesMock.mockReset()
+    importDroppedFilesMock.mockResolvedValue({
+      canceled: false,
+      imported: [],
+      errors: [],
+    })
     createBaseMock.mockReset()
     preloadSpaceBaseEditorMock.mockReset()
     preloadSpaceBaseEditorMock.mockResolvedValue(() => null)
@@ -313,6 +321,30 @@ describe("FileSpaceTree accessibility", () => {
       )
       await Promise.resolve()
     })
+  }
+
+  const dispatchFileDrag = (
+    target: Element,
+    type: "dragover" | "drop",
+    files: File[]
+  ) => {
+    const dataTransfer = {
+      dropEffect: "none",
+      effectAllowed: "all",
+      files,
+      getData: vi.fn(() => ""),
+      items: files.map(() => ({ kind: "file", type: "text/plain" })),
+      setData: vi.fn(),
+      types: ["Files"],
+    }
+    const event = new Event(type, {
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+    })
+    Object.defineProperty(event, "dataTransfer", { value: dataTransfer })
+    target.dispatchEvent(event)
+    return { dataTransfer, event }
   }
 
   const renderTree = async () => {
@@ -484,6 +516,48 @@ describe("FileSpaceTree accessibility", () => {
     act(() => item.focus())
     await press("Enter")
     expect(navigateMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("copies Finder files into the hovered Space folder", async () => {
+    await renderTree()
+    const file = new File(["draft"], "draft.md", { type: "text/markdown" })
+    const notes = getTreeItem("notes")
+
+    await act(async () => {
+      const { dataTransfer, event } = dispatchFileDrag(notes, "dragover", [
+        file,
+      ])
+      expect(event.defaultPrevented).toBe(true)
+      expect(dataTransfer.dropEffect).toBe("copy")
+    })
+    expect(notes.dataset.externalFileDropTarget).toBe("true")
+
+    await act(async () => {
+      dispatchFileDrag(notes, "drop", [file])
+      await Promise.resolve()
+    })
+
+    expect(importDroppedFilesMock).toHaveBeenCalledWith("notes", [file])
+    expect(notes.dataset.externalFileDropTarget).toBeUndefined()
+  })
+
+  it("accepts Finder files in an empty Space", async () => {
+    currentEntriesByDirectory[""] = []
+    await renderTree()
+    const file = new File([new Uint8Array([1, 2, 3])], "image.bin")
+    const dropZone = container.querySelector("[data-file-tree-empty-drop-zone]")
+    if (!dropZone) throw new Error("Missing empty Space drop zone")
+
+    await act(async () => {
+      dispatchFileDrag(dropZone, "dragover", [file])
+    })
+    expect(dropZone.textContent).toContain("Drop to copy files")
+
+    await act(async () => {
+      dispatchFileDrag(dropZone, "drop", [file])
+      await Promise.resolve()
+    })
+    expect(importDroppedFilesMock).toHaveBeenCalledWith("", [file])
   })
 
   it("shows extension source in the Files tree without destructive actions", async () => {

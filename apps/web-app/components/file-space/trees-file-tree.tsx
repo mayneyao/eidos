@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type DragEvent as ReactDragEvent,
   type SyntheticEvent as ReactSyntheticEvent,
 } from "react"
 import { createPortal } from "react-dom"
@@ -53,6 +54,7 @@ interface SpaceFilesTreeProps {
   onDelete: (entry: SpaceFileEntry) => void
   onExpandedPathsChange: (paths: Set<string>) => void
   onExpand: (path: string) => void
+  onExternalFilesDrop: (files: File[], destinationParent: string) => void
   onImport: (parentPath: string) => void
   onIntent?: (entry: SpaceFileEntry) => void
   onMove: (entry: SpaceFileEntry, destinationParent: string) => void
@@ -96,6 +98,13 @@ function eventTreePath(event: ReactSyntheticEvent<HTMLElement>): string | null {
     if (path) return path
   }
   return null
+}
+
+function hasExternalFiles(dataTransfer: DataTransfer): boolean {
+  return (
+    Array.from(dataTransfer.types).includes("Files") ||
+    Array.from(dataTransfer.items).some((item) => item.kind === "file")
+  )
 }
 
 function SpaceTreeContextMenu({
@@ -370,6 +379,17 @@ const TREE_CSS = `
     border-radius: 4px;
   }
 
+  button[data-type="item"][data-external-file-drop-target="true"] {
+    background: var(--trees-selected-bg);
+    outline: 1px solid var(--trees-focus-ring-color);
+    outline-offset: -1px;
+  }
+
+  :host([data-external-root-drop="true"]) [data-file-tree-virtualized-scroll="true"] {
+    background: color-mix(in srgb, var(--trees-selected-bg) 45%, transparent);
+    box-shadow: inset 0 0 0 1px var(--trees-focus-ring-color);
+  }
+
   [data-file-tree-virtualized-scroll="true"] {
     padding-block: 4px 8px;
   }
@@ -396,6 +416,11 @@ export const SpaceFilesTree = forwardRef<
   propsRef.current = props
   const entryByPathRef = useRef(new Map<string, SpaceFileEntry>())
   const expandedPathsRef = useRef(new Set<string>())
+  const externalDropRowRef = useRef<HTMLElement | null>(null)
+  const externalDropLeaveTimerRef = useRef<number | null>(null)
+  const [externalDropDirectory, setExternalDropDirectory] = useState<
+    string | null
+  >(null)
 
   const { model } = useFileTree({
     paths: [],
@@ -471,6 +496,73 @@ export const SpaceFilesTree = forwardRef<
 
   entryByPathRef.current = new Map(
     props.entries.map((entry) => [entry.path, entry])
+  )
+
+  const clearExternalDropFeedback = () => {
+    if (externalDropLeaveTimerRef.current !== null) {
+      window.clearTimeout(externalDropLeaveTimerRef.current)
+      externalDropLeaveTimerRef.current = null
+    }
+    externalDropRowRef.current?.removeAttribute(
+      "data-external-file-drop-target"
+    )
+    externalDropRowRef.current = null
+    setExternalDropDirectory(null)
+  }
+
+  const showExternalDropFeedback = (directory: string) => {
+    if (externalDropLeaveTimerRef.current !== null) {
+      window.clearTimeout(externalDropLeaveTimerRef.current)
+      externalDropLeaveTimerRef.current = null
+    }
+    externalDropRowRef.current?.removeAttribute(
+      "data-external-file-drop-target"
+    )
+    externalDropRowRef.current = null
+
+    if (directory) {
+      const targetPath = `${directory}/`
+      const rows =
+        model
+          .getFileTreeContainer()
+          ?.shadowRoot?.querySelectorAll<HTMLElement>(
+            '[data-type="item"][data-item-path]'
+          ) ?? []
+      const row = Array.from(rows).find(
+        (candidate) => candidate.dataset.itemPath === targetPath
+      )
+      row?.setAttribute("data-external-file-drop-target", "true")
+      externalDropRowRef.current = row ?? null
+    }
+    setExternalDropDirectory(directory)
+  }
+
+  const externalDropDirectoryForEvent = (
+    event: ReactDragEvent<HTMLElement>
+  ): string | undefined => {
+    if (propsRef.current.disabled || !hasExternalFiles(event.dataTransfer)) {
+      return undefined
+    }
+    const treePath = eventTreePath(event)
+    if (!treePath) return ""
+    const entry = entryByPathRef.current.get(fromTreePath(treePath))
+    if (!entry || propsRef.current.isProtected?.(entry)) return undefined
+    if (entry.kind === "directory") return entry.path
+    const parent = entryByPathRef.current.get(entry.parentPath)
+    if (parent && propsRef.current.isProtected?.(parent)) return undefined
+    return entry.parentPath
+  }
+
+  useEffect(
+    () => () => {
+      if (externalDropLeaveTimerRef.current !== null) {
+        window.clearTimeout(externalDropLeaveTimerRef.current)
+      }
+      externalDropRowRef.current?.removeAttribute(
+        "data-external-file-drop-target"
+      )
+    },
+    []
   )
 
   useEffect(() => {
@@ -594,6 +686,9 @@ export const SpaceFilesTree = forwardRef<
       aria-label="Files"
       aria-disabled={props.disabled === true}
       className="block h-full min-h-0 w-full"
+      data-external-root-drop={
+        externalDropDirectory === "" ? "true" : undefined
+      }
       style={treeStyles}
       onClick={(event) => {
         const path = eventTreePath(event)
@@ -603,6 +698,41 @@ export const SpaceFilesTree = forwardRef<
       }}
       onFocus={(event) => {
         signalFileIntent(eventTreePath(event) ?? model.getFocusedPath())
+      }}
+      onDragLeave={(event) => {
+        if (!hasExternalFiles(event.dataTransfer)) return
+        event.stopPropagation()
+        if (externalDropLeaveTimerRef.current !== null) {
+          window.clearTimeout(externalDropLeaveTimerRef.current)
+        }
+        externalDropLeaveTimerRef.current = window.setTimeout(() => {
+          clearExternalDropFeedback()
+        }, 0)
+      }}
+      onDragOver={(event) => {
+        if (!hasExternalFiles(event.dataTransfer)) return
+        event.preventDefault()
+        event.stopPropagation()
+        const destinationParent = externalDropDirectoryForEvent(event)
+        if (destinationParent === undefined) {
+          event.dataTransfer.dropEffect = "none"
+          clearExternalDropFeedback()
+          return
+        }
+        event.dataTransfer.dropEffect = "copy"
+        showExternalDropFeedback(destinationParent)
+      }}
+      onDrop={(event) => {
+        if (!hasExternalFiles(event.dataTransfer)) return
+        event.preventDefault()
+        event.stopPropagation()
+        const destinationParent = externalDropDirectoryForEvent(event)
+        clearExternalDropFeedback()
+        if (destinationParent === undefined) return
+        const files = Array.from(event.dataTransfer.files)
+        if (files.length > 0) {
+          propsRef.current.onExternalFilesDrop(files, destinationParent)
+        }
       }}
       onKeyDown={(event) => {
         if (event.key !== "Enter" && event.key !== " ") return

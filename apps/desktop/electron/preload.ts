@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron"
+import { contextBridge, ipcRenderer, webUtils } from "electron"
 
 import type { AppConfig } from "./modules/config/config-manager"
 import { installElectronFetchProxy } from "./modules/network/fetch-proxy"
@@ -177,6 +177,7 @@ function main() {
     showSaveDialog: (options = {}) =>
       ipcRenderer.invoke("file-system:showSaveDialog", options),
     openUrl: (url: string) => ipcRenderer.invoke("file-system:openUrl", url),
+    getPathForFile: (file: File) => webUtils.getPathForFile(file),
     // 原生文件系统操作（用于编辑器直接读写本地文件）
     nativeFs: {
       readFile: (path: string, encoding?: string) =>

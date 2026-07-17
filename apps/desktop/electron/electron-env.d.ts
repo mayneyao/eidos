@@ -81,6 +81,7 @@ interface Window {
       error?: string
     }>
     openUrl: (url: string) => Promise<{ success: boolean; error?: string }>
+    getPathForFile: (file: File) => string
     // 原生文件系统操作（用于编辑器直接读写本地文件）
     nativeFs: {
       readFile: (path: string, encoding?: string) => Promise<string>

@@ -1246,6 +1246,32 @@ export class SpaceManagementService extends IpcServiceBase {
       return { canceled: true, imported: [], errors: [] }
     }
 
+    return this.importFilePaths(
+      spaceId,
+      destinationDirectory,
+      selection.filePaths
+    )
+  }
+
+  async importFilePaths(
+    spaceId: string,
+    destinationDirectory: string,
+    sourcePaths: string[]
+  ): Promise<{
+    canceled: false
+    imported: SpaceFileEntry[]
+    errors: Array<{ sourcePath: string; message: string }>
+  }> {
+    if (
+      !Array.isArray(sourcePaths) ||
+      sourcePaths.some(
+        (sourcePath) =>
+          typeof sourcePath !== "string" || sourcePath.trim().length === 0
+      )
+    ) {
+      throw new Error("Imported file paths must be non-empty strings")
+    }
+
     return withFileSpaceOperationLock(spaceId, async () => {
       const files = this._getFileSpace(spaceId)
       const existingEntries = await files.list(destinationDirectory)
@@ -1254,7 +1280,7 @@ export class SpaceManagementService extends IpcServiceBase {
       )
       const imported: SpaceFileEntry[] = []
       const errors: Array<{ sourcePath: string; message: string }> = []
-      for (const sourcePath of selection.filePaths) {
+      for (const sourcePath of sourcePaths) {
         const filename = uniqueSpaceEntryName(
           existingNames,
           path.basename(sourcePath)

@@ -196,6 +196,29 @@ export function useSpaceFiles(spaceId: string | undefined) {
     [requireSpaceId]
   )
 
+  const importDroppedFiles = useCallback(
+    (
+      destinationDirectory: string,
+      files: File[]
+    ): Promise<{
+      canceled: false
+      imported: SpaceFileEntry[]
+      errors: Array<{ sourcePath: string; message: string }>
+    }> => {
+      const api = requireDesktopSpaceApi()
+      const sourcePaths = files.map((file) => window.eidos.getPathForFile(file))
+      if (sourcePaths.some((sourcePath) => sourcePath.length === 0)) {
+        throw new Error("Eidos could not access one or more dropped files")
+      }
+      return api.importFilePaths(
+        requireSpaceId(),
+        destinationDirectory,
+        sourcePaths
+      )
+    },
+    [requireSpaceId]
+  )
+
   return {
     list,
     readText,
@@ -216,6 +239,7 @@ export function useSpaceFiles(spaceId: string | undefined) {
     getDocumentMetadata,
     listTags,
     importFiles,
+    importDroppedFiles,
   }
 }
 
