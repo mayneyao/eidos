@@ -1,4 +1,5 @@
 import fs from "fs/promises"
+import { createRequire } from "node:module"
 import path from "path"
 import tailwindcss from "@tailwindcss/vite"
 import { defineConfig, mergeConfig, type Plugin, type UserConfig } from "vite"
@@ -25,6 +26,19 @@ const externalNodeModules = [
   "@vscode/ripgrep",
   "node-pty",
   "@eidos.space/bashkit",
+]
+
+const require = createRequire(import.meta.url)
+
+export const desktopMainAlias = [
+  // Under Vite's Node conditions, tslib resolves through modules/index.js,
+  // whose default import of the CommonJS entry loses its value when Rolldown
+  // splits the Electron main bundle. Use tslib's native ESM entry instead.
+  {
+    find: /^tslib$/,
+    replacement: require.resolve("tslib/tslib.es6.mjs"),
+  },
+  ...sharedAlias,
 ]
 
 // desktop do not need android and windows11
@@ -88,7 +102,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
         vite: {
           assetsInclude: ["**/*.node"],
           resolve: {
-            alias: sharedAlias,
+            alias: desktopMainAlias,
           },
           define: {
             // Explicitly define process.env.NODE_ENV for electron main process
