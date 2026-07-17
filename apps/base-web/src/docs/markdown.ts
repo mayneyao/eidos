@@ -1,4 +1,13 @@
 import { marked } from "marked"
+import Prism from "prismjs"
+import "prismjs/components/prism-typescript"
+import "prismjs/components/prism-jsx"
+import "prismjs/components/prism-tsx"
+import "prismjs/components/prism-bash"
+import "prismjs/components/prism-json"
+import "prismjs/components/prism-markdown"
+import "prismjs/components/prism-sql"
+import "prismjs/components/prism-yaml"
 
 import { baseDocumentSlugForFile } from "./base-documents"
 
@@ -33,6 +42,36 @@ function headingId(text: string, usedIds: Set<string>): string {
 
 function unsafeUrl(value: string): boolean {
   return /^\s*(?:javascript|data):/i.test(value)
+}
+
+const LANGUAGE_ALIASES: Record<string, string> = {
+  js: "javascript",
+  md: "markdown",
+  shell: "bash",
+  sh: "bash",
+  ts: "typescript",
+  yml: "yaml",
+}
+
+function highlightCodeBlocks(document: Document): void {
+  for (const code of document.body.querySelectorAll<HTMLElement>(
+    "pre > code"
+  )) {
+    const languageClass = Array.from(code.classList).find((name) =>
+      name.startsWith("language-")
+    )
+    if (!languageClass) continue
+    const requested = languageClass.slice("language-".length).toLowerCase()
+    const language = LANGUAGE_ALIASES[requested] ?? requested
+    const grammar = Prism.languages[language]
+    const pre = code.parentElement
+    if (!grammar || !(pre instanceof HTMLPreElement)) continue
+
+    code.innerHTML = Prism.highlight(code.textContent ?? "", grammar, language)
+    code.className = `language-${language}`
+    pre.dataset.language = requested.toUpperCase()
+    pre.dataset.highlighted = "true"
+  }
 }
 
 export function renderBaseMarkdown(source: string): RenderedMarkdown {
@@ -100,6 +139,8 @@ export function renderBaseMarkdown(source: string): RenderedMarkdown {
       text,
     })
   }
+
+  highlightCodeBlocks(document)
 
   return { headings, html: document.body.innerHTML }
 }

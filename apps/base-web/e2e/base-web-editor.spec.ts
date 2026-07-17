@@ -442,6 +442,11 @@ test("opens the bundled sample without a picker", async ({ page }) => {
     "border-top-width",
     "1px"
   )
+
+  await page.getByRole("link", { name: "Return to Base home" }).click()
+  await expect(
+    page.getByRole("button", { name: "Open .base file" })
+  ).toBeVisible()
 })
 
 test("uses the shared Gallery and Kanban renderers for the sample", async ({
@@ -591,28 +596,54 @@ test("keeps the editor first and publishes Base documentation", async ({
     page.locator(".live-demo-grid canvas[data-testid='data-grid-canvas']")
   ).toBeVisible()
   await expect(
-    page.locator('.site-nav a[href="https://graft.eidos.space"]')
-  ).toHaveText(/Graft Playground/)
+    page.locator('.site-nav a[href="https://graft.eidos.space/"]')
+  ).toHaveText("Version Control")
+  await expect(page.locator('.site-nav a[href="#/docs/overview"]')).toHaveText(
+    "Open Format"
+  )
 
-  await page.locator('.site-nav a[href="#/docs/format-runtime"]').click()
-  await expect(page).toHaveURL(/#\/docs\/format-runtime$/)
+  await page.locator('.site-nav a[href="#/docs/overview"]').click()
+  await expect(page).toHaveURL(/#\/docs\/overview$/)
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "RFC: Eidos Base File Format and Runtime",
+      name: "Base: an open, local-first table format",
+    })
+  ).toBeVisible()
+  await expect(page.getByText("Start here")).toBeVisible()
+
+  await page.locator('.docs-list a[href="#/docs/runtime"]').click()
+  await expect(page).toHaveURL(/#\/docs\/runtime$/)
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Build a Base editor with the runtime",
     })
   ).toBeVisible()
   await expect(
-    page.getByText("docs/rfcs/eidos-base-file-format.md")
+    page.locator("code").filter({ hasText: "BaseEditorDataSource" }).first()
+  ).toBeVisible()
+  await expect(
+    page.locator('.markdown-body pre[data-highlighted="true"]').first()
+  ).toBeVisible()
+  await expect(
+    page.locator(".markdown-body .token.keyword").first()
   ).toBeVisible()
 
-  await page.locator('.docs-list a[href="#/docs/product-ux"]').click()
-  await expect(page).toHaveURL(/#\/docs\/product-ux$/)
+  await page.locator('.docs-list a[href="#/docs/custom-views"]').click()
+  await expect(page).toHaveURL(/#\/docs\/custom-views$/)
   await page.getByRole("button", { name: "切换到中文" }).click()
+  await expect(page.locator('.site-nav a[href="#/"]')).toHaveText("编辑工具")
+  await expect(page.locator('.site-nav a[href="#/docs/overview"]')).toHaveText(
+    "开放格式"
+  )
+  await expect(
+    page.locator('.site-nav a[href="https://graft.eidos.space/"]')
+  ).toHaveText("版本管理")
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "RFC：Space、Base 与 Changes 的产品交互",
+      name: "为 Base 构建自定义视图",
     })
   ).toBeVisible()
 })

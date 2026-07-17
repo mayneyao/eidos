@@ -103,7 +103,7 @@ const BaseDocs = lazy(() =>
 function docsSlugFromHash(hash: string): string | null {
   const match = /^#\/docs(?:\/([^#?]+))?/.exec(hash)
   if (!match) return null
-  return decodeURIComponent(match[1] ?? "format-runtime")
+  return decodeURIComponent(match[1] ?? "overview")
 }
 
 const MUTABLE_FIELD_TYPES: Array<{
@@ -424,6 +424,29 @@ export function App() {
       dispatch({ type: "OPEN_FAILURE", message })
     }
   }, [confirmSwitch, openPreparedFile])
+
+  const returnHome = useCallback(() => {
+    if (hasUnsavedChanges(saveState)) {
+      const message =
+        session?.storage === "opfs-sahpool"
+          ? t("returnHomeRecoverable")
+          : t("returnHomeDiscard")
+      if (!window.confirm(message)) return
+    }
+
+    clientRef.current?.terminate()
+    clientRef.current = null
+    setSession(null)
+    setSnapshot(null)
+    setActiveTableId(null)
+    setActiveViews({})
+    setSearch("")
+    setPropertyField(null)
+    setAddPropertyOpen(false)
+    setNotice(null)
+    dispatch({ type: "RESET" })
+    window.location.hash = "#/"
+  }, [saveState, session, t])
 
   const restoreRecovery = useCallback(async () => {
     if (!recovery || !confirmSwitch()) return
@@ -763,11 +786,11 @@ export function App() {
             <a className="is-active" href="#/">
               {t("navEditor")}
             </a>
-            <a href="#/docs/format-runtime">
+            <a href="#/docs/overview">
               <BookOpen size={13} aria-hidden="true" />
               {t("navDocs")}
             </a>
-            <a href="https://graft.eidos.space">
+            <a href="https://graft.eidos.space/">
               {t("navGraft")}
               <ArrowUpRight size={12} aria-hidden="true" />
             </a>
@@ -956,7 +979,7 @@ export function App() {
             <span>{t("principleDrivers")}</span>
             <span>{t("principleLocal")}</span>
           </div>
-          <a className="section-link" href="#/docs/format-runtime">
+          <a className="section-link" href="#/docs/format">
             <BookOpen size={14} aria-hidden="true" />
             {t("readBaseDocs")}
             <ChevronRight size={13} aria-hidden="true" />
@@ -983,7 +1006,7 @@ export function App() {
                 <h3>{t("stackGraft")}</h3>
               </div>
               <p>{t("stackGraftBody")}</p>
-              <a className="stack-layer-link" href="https://graft.eidos.space">
+              <a className="stack-layer-link" href="https://graft.eidos.space/">
                 {t("openGraft")}
                 <ArrowUpRight size={13} aria-hidden="true" />
               </a>
@@ -1010,8 +1033,8 @@ export function App() {
             <code>commit · diff · branch · checkout · merge · sync</code>
             <div>
               <p>{t("graftBoundary")}</p>
-              <a href="https://graft.eidos.space">
-                graft.eidos.space
+              <a href="https://graft.eidos.space/">
+                {t("navGraft")}
                 <ArrowUpRight size={12} aria-hidden="true" />
               </a>
             </div>
@@ -1055,12 +1078,20 @@ export function App() {
         Skip to Base grid
       </a>
       <header className="editor-titlebar">
-        <div className="brand-lockup compact">
+        <a
+          className="brand-lockup compact"
+          href="#/"
+          aria-label={t("returnHome")}
+          onClick={(event) => {
+            event.preventDefault()
+            returnHome()
+          }}
+        >
           <span className="brand-mark" aria-hidden="true">
             E
           </span>
           <span>Eidos Base</span>
-        </div>
+        </a>
         <div className="file-identity" title={session.fileName}>
           <FileSpreadsheet size={15} aria-hidden="true" />
           <strong>{session.fileName}</strong>

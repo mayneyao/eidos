@@ -10,8 +10,8 @@ import {
 const en = {
   languageAction: "切换到中文",
   navEditor: "Editor",
-  navDocs: "Docs",
-  navGraft: "Graft Playground",
+  navDocs: "Open Format",
+  navGraft: "Version Control",
   loadingDocs: "Loading Base documentation…",
   heroEyebrow: "Local Base editor",
   heroTitleOne: "Open a Base.",
@@ -21,6 +21,11 @@ const en = {
   openingBase: "Opening Base…",
   openBase: "Open .base file",
   openSample: "Open sample Base",
+  returnHome: "Return to Base home",
+  returnHomeRecoverable:
+    "Return home? Your unsaved working copy will remain available for recovery. The original file has not been updated.",
+  returnHomeDiscard:
+    "Return home and discard these unsaved changes? This temporary working copy cannot be recovered.",
   privacyDirect:
     "This browser can save changes back to the original file after you grant access.",
   privacyCopy:
@@ -48,7 +53,7 @@ const en = {
   formatBehavior: "03 / behavior",
   formatBehaviorTitle: "Shared runtime contract",
   formatBehaviorBody:
-    "Validation, migrations, queries, and edits live in @eidos.space/base; storage drivers supply only the SQLite connection.",
+    "Schema rules, queries, and edits live in @eidos.space/base; storage drivers supply only the SQLite connection.",
   formatExperience: "04 / experience",
   formatExperienceTitle: "Pluggable views",
   formatExperienceBody:
@@ -57,7 +62,7 @@ const en = {
   principleAccount: "No account required",
   principleDrivers: "Browser + Desktop drivers",
   principleLocal: "No server round-trip",
-  readBaseDocs: "Read the Base format RFCs",
+  readBaseDocs: "Read the Base format reference",
   graftEyebrow: "Git-like version control for SQLite",
   graftTitleOne: "Your Base is a file.",
   graftTitleTwo: "Graft gives it history.",
@@ -68,7 +73,7 @@ const en = {
   stackGraft: "SQLite version engine",
   stackGraftBody:
     "Graft gives SQLite commit history, logical diffs, branches, checkout, reset, and repository synchronization.",
-  openGraft: "Open Graft Playground",
+  openGraft: "Open version control",
   stackBase: "Open format + multidimensional UI",
   stackBaseBody:
     "Base defines the portable file, shared runtime, typed fields, relations, saved views, and table experiences.",
@@ -87,7 +92,7 @@ const en = {
   graftSyncBody:
     "Synchronize repositories and resolve conflicts with an explicit workflow.",
   graftBoundary:
-    "Version control stays a separate, explicit workflow. Open Graft Playground to experience commits, row-level SQLite diffs, branches, restore, and sync in the browser.",
+    "Version control stays a separate, explicit workflow. Open Version to experience commits, row-level SQLite diffs, branches, restore, and sync in the browser.",
   demoEyebrow: "Live runtime · no mock data layer",
   demoTitle: "A real Base, ready to edit",
   demoIntro:
@@ -157,9 +162,9 @@ type MessageKey = keyof typeof en
 
 const zh: Record<MessageKey, string> = {
   languageAction: "Switch to English",
-  navEditor: "编辑器",
-  navDocs: "文档",
-  navGraft: "Graft Playground",
+  navEditor: "编辑工具",
+  navDocs: "开放格式",
+  navGraft: "版本管理",
   loadingDocs: "正在加载 Base 文档…",
   heroEyebrow: "本地 Base 编辑器",
   heroTitleOne: "打开 Base。",
@@ -169,6 +174,10 @@ const zh: Record<MessageKey, string> = {
   openingBase: "正在打开 Base…",
   openBase: "打开 .base 文件",
   openSample: "打开示例 Base",
+  returnHome: "返回 Base 首页",
+  returnHomeRecoverable:
+    "返回首页？未保存的工作副本仍可恢复，但原文件尚未更新。",
+  returnHomeDiscard: "返回首页并丢弃未保存修改？此临时工作副本无法恢复。",
   privacyDirect: "此浏览器获授权后可将修改保存回原文件。",
   privacyCopy: "此浏览器会导入私有工作副本；保存会下载新文件，不会替换原文件。",
   launchFormatLabel: "格式",
@@ -186,7 +195,7 @@ const zh: Record<MessageKey, string> = {
   formatFile: "01 / 文件",
   formatFileTitle: "SQLite 容器",
   formatFileBody:
-    "一个本地文件，使用标准页和事务；可用普通 SQLite 工具检查，也便于备份和迁移。",
+    "一个本地文件，使用标准页和事务；可用普通 SQLite 工具检查，也便于备份和移动。",
   formatMeaning: "02 / 语义",
   formatMeaningTitle: "版本化 Base schema",
   formatMeaningBody:
@@ -194,7 +203,7 @@ const zh: Record<MessageKey, string> = {
   formatBehavior: "03 / 行为",
   formatBehaviorTitle: "共享 runtime 契约",
   formatBehaviorBody:
-    "验证、迁移、查询和编辑统一由 @eidos.space/base 提供；存储驱动只实现 SQLite 连接。",
+    "Schema 规则、查询和编辑统一由 @eidos.space/base 提供；存储 driver 只实现 SQLite 连接。",
   formatExperience: "04 / 体验",
   formatExperienceTitle: "可插拔视图",
   formatExperienceBody:
@@ -203,7 +212,7 @@ const zh: Record<MessageKey, string> = {
   principleAccount: "无需账号",
   principleDrivers: "浏览器 + 桌面驱动",
   principleLocal: "无需服务端往返",
-  readBaseDocs: "阅读 Base 格式 RFC",
+  readBaseDocs: "阅读 Base 格式参考",
   graftEyebrow: "面向 SQLite 的类 Git 版本管理",
   graftTitleOne: "Base 是你的文件。",
   graftTitleTwo: "Graft 赋予它历史。",
@@ -214,7 +223,7 @@ const zh: Record<MessageKey, string> = {
   stackGraft: "SQLite 版本引擎",
   stackGraftBody:
     "Graft 为 SQLite 提供提交历史、逻辑 diff、分支、checkout、reset 与仓库同步。",
-  openGraft: "打开 Graft Playground",
+  openGraft: "打开版本控制",
   stackBase: "开放格式 + 多维表格 UI",
   stackBaseBody:
     "Base 定义可携带文件、共享 runtime、字段类型、关系、视图状态与多维表格体验。",
@@ -230,7 +239,7 @@ const zh: Record<MessageKey, string> = {
   graftSync: "推送、拉取与合并",
   graftSyncBody: "同步仓库，并通过明确流程解决冲突。",
   graftBoundary:
-    "版本管理保持独立、明确的工作流。前往 Graft Playground，可在浏览器中体验提交、SQLite 行级 diff、分支、恢复与同步。",
+    "版本管理保持独立、明确的工作流。打开“版本”，即可在浏览器中体验提交、SQLite 行级 diff、分支、恢复与同步。",
   demoEyebrow: "实时 runtime · 没有伪造数据层",
   demoTitle: "真实 Base，可直接编辑",
   demoIntro:

@@ -1,17 +1,17 @@
-import baseFormatEn from "../../../../docs/rfcs/eidos-base-file-format.md?raw"
-import baseFormatZh from "../../../../docs/rfcs/eidos-base-file-format.zh.md?raw"
-import extensionsEn from "../../../../docs/rfcs/eidos-file-based-extensions.md?raw"
-import extensionsZh from "../../../../docs/rfcs/eidos-file-based-extensions.zh.md?raw"
-import productUxEn from "../../../../docs/rfcs/eidos-space-base-product-ux.md?raw"
-import productUxZh from "../../../../docs/rfcs/eidos-space-base-product-ux.zh.md?raw"
-import storageEn from "../../../../docs/rfcs/eidos-space-base-storage.md?raw"
-import storageZh from "../../../../docs/rfcs/eidos-space-base-storage.zh.md?raw"
+import formatEn from "./content/format.en.md?raw"
+import formatZh from "./content/format.zh.md?raw"
+import overviewEn from "./content/overview.en.md?raw"
+import overviewZh from "./content/overview.zh.md?raw"
+import runtimeEn from "./content/runtime.en.md?raw"
+import runtimeZh from "./content/runtime.zh.md?raw"
+import viewsEn from "./content/views.en.md?raw"
+import viewsZh from "./content/views.zh.md?raw"
 
 import type { Locale } from "../i18n"
 
 export interface BaseDocument {
   slug: string
-  sourcePath: string
+  edition: Record<Locale, string>
   title: Record<Locale, string>
   summary: Record<Locale, string>
   markdown: Record<Locale, string>
@@ -19,78 +19,76 @@ export interface BaseDocument {
 
 export const BASE_DOCUMENTS: BaseDocument[] = [
   {
-    slug: "format-runtime",
-    sourcePath: "docs/rfcs/eidos-base-file-format.md",
+    slug: "overview",
+    edition: { en: "Start here", zh: "从这里开始" },
     title: {
-      en: "Base file format & runtime",
-      zh: "Base 文件格式与运行时",
+      en: "What is Base?",
+      zh: "什么是 Base？",
     },
     summary: {
-      en: "SQLite schema, field semantics, validation, queries, edits, and migrations.",
-      zh: "SQLite schema、字段语义、验证、查询、编辑与迁移。",
+      en: "Open, edit, and own a local-first multidimensional table.",
+      zh: "打开、编辑并真正拥有本地优先的多维表格。",
     },
-    markdown: { en: baseFormatEn, zh: baseFormatZh },
+    markdown: { en: overviewEn, zh: overviewZh },
   },
   {
-    slug: "product-ux",
-    sourcePath: "docs/rfcs/eidos-space-base-product-ux.md",
+    slug: "format",
+    edition: { en: "Base format v1", zh: "Base 格式 v1" },
     title: {
-      en: "Base product UX",
-      zh: "Base 产品体验",
+      en: "File format reference",
+      zh: "文件格式参考",
     },
     summary: {
-      en: "Grid, Gallery, Kanban, workbook navigation, records, and keyboard behavior.",
-      zh: "Grid、Gallery、Kanban、工作簿导航、记录与键盘交互。",
+      en: "The stable SQLite schema, value encodings, fields, and views.",
+      zh: "稳定的 SQLite schema、值编码、字段与视图契约。",
     },
-    markdown: { en: productUxEn, zh: productUxZh },
+    markdown: { en: formatEn, zh: formatZh },
   },
   {
-    slug: "storage-model",
-    sourcePath: "docs/rfcs/eidos-space-base-storage.md",
+    slug: "runtime",
+    edition: { en: "Developer guide", zh: "开发者指南" },
     title: {
-      en: "Space & Base storage model",
-      zh: "Space 与 Base 存储模型",
+      en: "Build a Base editor",
+      zh: "构建 Base 编辑工具",
     },
     summary: {
-      en: "How Markdown, Base files, assets, Eidos state, and Graft fit together.",
-      zh: "Markdown、Base、附件、Eidos 状态与 Graft 如何协同。",
+      en: "Connect files, the runtime, a Worker, save state, and the shared editor UI.",
+      zh: "连接文件、Runtime、Worker、保存状态与共享编辑器 UI。",
     },
-    markdown: { en: storageEn, zh: storageZh },
+    markdown: { en: runtimeEn, zh: runtimeZh },
   },
   {
-    slug: "extensions",
-    sourcePath: "docs/rfcs/eidos-file-based-extensions.md",
+    slug: "custom-views",
+    edition: { en: "Developer guide", zh: "开发者指南" },
     title: {
-      en: "File-based extensions",
-      zh: "文件化扩展",
+      en: "Build custom views",
+      zh: "构建自定义视图",
     },
     summary: {
-      en: "Portable extension source, custom Base views, permissions, and runtime boundaries.",
-      zh: "可携带扩展源码、自定义 Base 视图、权限与运行时边界。",
+      en: "Compose Base UI and register a renderer for a saved view type.",
+      zh: "组合 Base UI，并为持久化视图类型注册 renderer。",
     },
-    markdown: { en: extensionsEn, zh: extensionsZh },
+    markdown: { en: viewsEn, zh: viewsZh },
   },
 ]
 
 const FILE_TO_SLUG = new Map(
-  BASE_DOCUMENTS.map((document) => [
-    document.sourcePath.split("/").at(-1)?.replace(/\.md$/, ""),
-    document.slug,
+  BASE_DOCUMENTS.flatMap((document) => [
+    [document.slug, document.slug],
+    [`${document.slug}.en`, document.slug],
+    [`${document.slug}.zh`, document.slug],
   ])
 )
 
 export function baseDocumentBySlug(slug: string | null): BaseDocument {
+  const normalized = slug === "format-runtime" ? "format" : slug
   return (
-    BASE_DOCUMENTS.find((document) => document.slug === slug) ??
+    BASE_DOCUMENTS.find((document) => document.slug === normalized) ??
     BASE_DOCUMENTS[0]
   )
 }
 
 export function baseDocumentSlugForFile(fileName: string): string | null {
-  const normalized = fileName
-    .split("/")
-    .at(-1)
-    ?.replace(/\.zh\.md$/, "")
-    .replace(/\.md$/, "")
+  const normalized = fileName.split("/").at(-1)?.replace(/\.md$/, "")
   return normalized ? (FILE_TO_SLUG.get(normalized) ?? null) : null
 }

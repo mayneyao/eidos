@@ -20,32 +20,30 @@ interface BaseDocsProps {
 
 const copy = {
   en: {
-    back: "Base editor",
-    docs: "Documentation",
-    graft: "Graft Playground",
-    kicker: "Open implementation RFCs",
-    title: "Build with Base.",
+    back: "Editor",
+    docs: "Open Format",
+    graft: "Version Control",
+    kicker: "Public Base documentation",
+    title: "Use Base. Build on Base.",
     intro:
-      "The file format, runtime, product behavior, and extension boundaries—published from the same repository as the editor.",
-    documents: "Base documents",
+      "Stable guides for people who use Base files and developers who build compatible tools.",
+    documents: "Guides and reference",
     contents: "On this page",
-    source: "Source document",
+    edition: "Document",
     notice:
-      "These are living RFCs. Accepted behavior is backed by the current implementation; draft sections describe intended direction and may change.",
+      "All examples target the public Base v1 contract and the current published package boundaries.",
   },
   zh: {
-    back: "Base 编辑器",
-    docs: "文档",
-    graft: "Graft Playground",
-    kicker: "开放的实现 RFC",
-    title: "基于 Base 构建。",
-    intro:
-      "文件格式、运行时、产品行为与扩展边界，直接公开自编辑器所在的同一代码仓库。",
-    documents: "Base 文档",
+    back: "编辑工具",
+    docs: "开放格式",
+    graft: "版本管理",
+    kicker: "公开的 Base 文档",
+    title: "使用 Base，基于 Base 构建。",
+    intro: "面向 Base 文件使用者，以及构建兼容工具和自定义体验的开发者。",
+    documents: "指南与参考",
     contents: "本文目录",
-    source: "源文档",
-    notice:
-      "这些是持续演进的 RFC。已验收行为由当前实现支撑；草案章节描述目标方向，仍可能调整。",
+    edition: "文档",
+    notice: "全部示例面向公开的 Base v1 契约与当前可发布 package 边界。",
   },
 } as const
 
@@ -91,10 +89,10 @@ export function BaseDocs({ slug, theme, onToggleTheme }: BaseDocsProps) {
         </a>
         <nav className="site-nav" aria-label="Base">
           <a href="#/">{labels.back}</a>
-          <a className="is-active" href="#/docs/format-runtime">
+          <a className="is-active" href="#/docs/overview">
             {labels.docs}
           </a>
-          <a href="https://graft.eidos.space">
+          <a href="https://graft.eidos.space/">
             {labels.graft}
             <ArrowUpRight size={12} aria-hidden="true" />
           </a>
@@ -151,9 +149,9 @@ export function BaseDocs({ slug, theme, onToggleTheme }: BaseDocsProps) {
           <div className="docs-article-meta">
             <span>
               <FileText size={14} aria-hidden="true" />
-              {labels.source}
+              {labels.edition}
             </span>
-            <code>{activeDocument.sourcePath}</code>
+            <code>{activeDocument.edition[locale]}</code>
           </div>
           <div
             className="markdown-body"
