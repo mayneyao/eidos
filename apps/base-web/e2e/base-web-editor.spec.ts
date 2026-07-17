@@ -6,6 +6,9 @@ import { expect, test, type Page } from "@playwright/test"
 const fixturePath = fileURLToPath(
   new URL("../fixtures/project-tracker.base", import.meta.url)
 )
+const fixtureRowCount = 2_500
+const gridHeaderHeight = 36
+const gridRowHeight = 36
 
 interface BaseE2EHarness {
   appendExternalByte(): Promise<void>
@@ -150,6 +153,37 @@ async function installFallbackMode(page: Page): Promise<void> {
       showSaveFilePicker: { configurable: true, value: undefined },
     })
   })
+}
+
+async function emulateClassicScrollbarWidth(
+  page: Page,
+  scrollbarWidth = 14
+): Promise<void> {
+  await page.addInitScript((width) => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "offsetWidth"
+    )
+    const nativeOffsetWidth = descriptor?.get
+    if (!descriptor || !nativeOffsetWidth) return
+
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", {
+      ...descriptor,
+      get: function (this: HTMLElement) {
+        const measuredWidth = nativeOffsetWidth.call(this)
+        const parent = this.parentElement
+        const isGlideMeasurement =
+          this instanceof HTMLParagraphElement && parent?.id === "testScrollbar"
+        const isEidosMeasurement =
+          this.style.width === "100%" &&
+          parent?.style.overflow === "scroll" &&
+          parent.style.visibility === "hidden"
+        return isGlideMeasurement || isEidosMeasurement
+          ? Math.max(0, measuredWidth - width)
+          : measuredWidth
+      },
+    })
+  }, scrollbarWidth)
 }
 
 async function openDirectBase(page: Page): Promise<void> {
@@ -408,6 +442,54 @@ test("opens the bundled sample without a picker", async ({ page }) => {
     "border-top-width",
     "1px"
   )
+})
+
+test("does not reserve a blank scrollbar row when columns fit", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers classic non-overlay scrollbar geometry"
+  )
+  await page.setViewportSize({ width: 1_440, height: 800 })
+  await emulateClassicScrollbarWidth(page)
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.getByRole("button", { name: "Open sample Base" }).click()
+
+  const scroller = page.locator(".base-content .dvn-scroller")
+  await expect(scroller).toBeVisible()
+  await expect
+    .poll(() =>
+      scroller.evaluate((element) => element.scrollWidth <= element.clientWidth)
+    )
+    .toBe(true)
+  await scroller.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+    element.dispatchEvent(new Event("scroll"))
+  })
+
+  await expect
+    .poll(() => scroller.evaluate((element) => element.scrollTop))
+    .toBeGreaterThan(0)
+  expect(await scroller.evaluate((element) => element.scrollHeight)).toBe(
+    gridHeaderHeight + (fixtureRowCount + 1) * gridRowHeight
+  )
+
+  await page.setViewportSize({ width: 900, height: 800 })
+  await expect
+    .poll(() =>
+      scroller.evaluate((element) => element.scrollWidth > element.clientWidth)
+    )
+    .toBe(true)
+  await scroller.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth
+    element.dispatchEvent(new Event("scroll"))
+  })
+  await expect
+    .poll(() => scroller.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(0)
 })
 
 test("switches the live Base experience between English and Chinese", async ({

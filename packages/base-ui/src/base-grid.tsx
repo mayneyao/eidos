@@ -46,7 +46,7 @@ import SelectCell from "./cells/select-cell"
 import DatePickerCell from "./cells/date-picker-cell"
 import RatingCell from "./cells/rating-cell"
 import RangeCell from "./cells/range-cell"
-import { defaultConfig, getScrollbarWidth } from "./grid-default-config"
+import { defaultConfig } from "./grid-default-config"
 import { type UndoRedoEdit, useUndoRedo } from "./use-undo-redo"
 import { useBaseUI } from "./context"
 import { useBaseGridTheme } from "./theme"
@@ -574,7 +574,7 @@ export const BaseGrid = memo(function BaseGrid({
   const gridConfig = useMemo(
     () => ({
       ...defaultConfig,
-      ...baseGridScrollbarConfig(hasHorizontalScroll, getScrollbarWidth()),
+      ...baseGridScrollbarConfig(hasHorizontalScroll),
     }),
     [hasHorizontalScroll]
   )
