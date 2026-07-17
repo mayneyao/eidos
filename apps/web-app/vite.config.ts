@@ -7,6 +7,12 @@ import { createHtmlPlugin } from "../../packages/shared/vite/plugins"
 import iconJson from "./icons.json"
 
 const webAppConfig: UserConfig = mergeConfig(sharedConfig, {
+  build: {
+    // vite-plugin-top-level-await still falls back to Vite 6's browser target
+    // when this is omitted. Pin Vite 8's Baseline Widely Available target so
+    // its post-transform matches the target used by the rest of the build.
+    target: ["chrome111", "edge111", "firefox114", "safari16.4", "ios16.4"],
+  },
   plugins: [
     tailwindcss(),
     createHtmlPlugin("/pages/index.tsx"),
