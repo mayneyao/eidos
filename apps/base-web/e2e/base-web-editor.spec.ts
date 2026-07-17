@@ -22,16 +22,34 @@ declare global {
 
 async function installDirectPicker(
   page: Page,
-  options: { permission?: "granted" | "denied"; fileName?: string } = {}
+  options: {
+    permission?: "granted" | "denied"
+    fileName?: string
+    launchOnRegister?: boolean
+  } = {}
 ): Promise<void> {
   const bytes = await readFile(fixturePath)
   const encoded = bytes.toString("base64")
   await page.addInitScript(
-    async ({ base64, fileName, permission }) => {
+    async ({ base64, fileName, launchOnRegister, permission }) => {
       let failWrites = false
+      const launchBytes = Uint8Array.from(atob(base64), (value) =>
+        value.charCodeAt(0)
+      )
+      const autoLaunchHandle = {
+        kind: "file",
+        name: fileName,
+        getFile: async () =>
+          new File([launchBytes], fileName, {
+            lastModified: 7,
+            type: "application/vnd.eidos.base+sqlite3",
+          }),
+        queryPermission: async () => permission,
+      } as unknown as FileSystemFileHandle
       let launchConsumer:
         | ((params: { files: FileSystemFileHandle[] }) => void | Promise<void>)
         | undefined
+      let didAutoLaunch = false
       Object.defineProperty(window, "launchQueue", {
         configurable: true,
         value: {
@@ -41,6 +59,10 @@ async function installDirectPicker(
             }) => void | Promise<void>
           ) {
             launchConsumer = consumer
+            if (launchOnRegister && !didAutoLaunch) {
+              didAutoLaunch = true
+              void consumer({ files: [autoLaunchHandle] })
+            }
           },
         },
       })
@@ -49,11 +71,8 @@ async function installDirectPicker(
         const handle = await root.getFileHandle(fileName, { create: true })
         const existing = await handle.getFile()
         if (existing.size === 0) {
-          const decoded = Uint8Array.from(atob(base64), (value) =>
-            value.charCodeAt(0)
-          )
           const writable = await handle.createWritable()
-          await writable.write(decoded)
+          await writable.write(launchBytes)
           await writable.close()
         }
 
@@ -118,6 +137,7 @@ async function installDirectPicker(
     {
       base64: encoded,
       fileName: options.fileName ?? "project-tracker.base",
+      launchOnRegister: options.launchOnRegister ?? false,
       permission: options.permission ?? "granted",
     }
   )
@@ -207,11 +227,11 @@ test.describe("Chromium original-file editing", () => {
   test("opens a .base file delivered by the installed PWA launch queue", async ({
     page,
   }) => {
-    await installDirectPicker(page, { fileName: "pwa-launch.base" })
+    await installDirectPicker(page, {
+      fileName: "pwa-launch.base",
+      launchOnRegister: true,
+    })
     await page.goto("/")
-    await page.waitForFunction(() => Boolean(window.__baseE2E))
-
-    await page.evaluate(async () => window.__baseE2E?.launchFile())
 
     await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
       "Ship Base Web Editor"

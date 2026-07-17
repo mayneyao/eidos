@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -355,7 +356,10 @@ export function App() {
     [installOpenResult]
   )
 
-  useEffect(
+  // Chromium may drain launchQueue synchronously during registration. A layout
+  // effect lets React finish StrictMode's cleanup/re-register cycle before the
+  // file handle promise resumes, so the launch reaches the live App instance.
+  useLayoutEffect(
     () =>
       registerPwaBaseFileHandler({
         onOpen: async (opened) => {
