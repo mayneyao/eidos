@@ -4,7 +4,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import { build } from "vite"
 import { afterEach, describe, expect, it } from "vitest"
 
-import { desktopMainAlias } from "./vite.config"
+import { desktopElectronAlias } from "./vite.config"
 
 const desktopRoot = path.dirname(fileURLToPath(import.meta.url))
 const temporaryRoots: string[] = []
@@ -20,7 +20,7 @@ afterEach(async () => {
   )
 })
 
-describe("desktop main CommonJS interop", () => {
+describe("desktop Electron CommonJS interop", () => {
   it("loads tslib through its ESM entry under Node conditions", async () => {
     const temporaryRoot = await mkdtemp(
       path.join(desktopRoot, ".vite-main-interop-")
@@ -42,7 +42,7 @@ describe("desktop main CommonJS interop", () => {
       configFile: false,
       logLevel: "silent",
       resolve: {
-        alias: desktopMainAlias,
+        alias: desktopElectronAlias,
         conditions: ["node"],
       },
       build: {

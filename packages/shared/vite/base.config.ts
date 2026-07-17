@@ -1,7 +1,7 @@
 import react from "@vitejs/plugin-react"
 import child_process from "child_process"
 import path from "path"
-import type { UserConfig } from "vite"
+import type { Plugin, UserConfig } from "vite"
 import topLevelAwait from "vite-plugin-top-level-await"
 import wasm from "vite-plugin-wasm"
 
@@ -40,6 +40,31 @@ const workspacePackageWildcard = (
     __dirname,
     `../../../packages/${name.replace("@eidos.space/", "")}/${subpath}/$1`
   ),
+})
+
+export const prismComponentInteropPlugin = (): Plugin => ({
+  name: "prism-component-interop",
+  enforce: "pre",
+  transform(code, id) {
+    const cleanId = id.split("?", 1)[0]
+    const isPrismLanguageComponent =
+      /[/\\]prismjs[/\\]components[/\\]prism-[^/\\]+\.js$/.test(cleanId) &&
+      !cleanId.endsWith("prism-core.js")
+    const alreadyImportsPrism =
+      /(?:^|\n)\s*import\s+Prism\s+from\s+["']prismjs["']/.test(code)
+
+    if (!isPrismLanguageComponent || alreadyImportsPrism) {
+      return null
+    }
+
+    // Prism language files are global scripts and assume Prism has already
+    // executed. Rolldown can otherwise place them beside a lazy CommonJS
+    // wrapper for prismjs and evaluate the languages first.
+    return {
+      code: `import Prism from "prismjs"\n${code}`,
+      map: null,
+    }
+  },
 })
 
 // Export as array for Vite (order matters - specific paths before wildcards)
@@ -133,6 +158,7 @@ export const sharedConfig: UserConfig = {
     "import.meta.env.VITE_COMMIT_HASH": JSON.stringify(commitHash),
   },
   plugins: [
+    prismComponentInteropPlugin(),
     react(),
     wasm(),
     !useNativeTopLevelAwait && topLevelAwait(),

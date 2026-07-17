@@ -30,10 +30,10 @@ const externalNodeModules = [
 
 const require = createRequire(import.meta.url)
 
-export const desktopMainAlias = [
-  // Under Vite's Node conditions, tslib resolves through modules/index.js,
-  // whose default import of the CommonJS entry loses its value when Rolldown
-  // splits the Electron main bundle. Use tslib's native ESM entry instead.
+export const desktopElectronAlias = [
+  // Electron runtime builds can resolve tslib through modules/index.js, whose
+  // default import of the CommonJS entry loses its value when Rolldown bundles
+  // main or preload code. Use tslib's native ESM entry instead.
   {
     find: /^tslib$/,
     replacement: require.resolve("tslib/tslib.es6.mjs"),
@@ -102,7 +102,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
         vite: {
           assetsInclude: ["**/*.node"],
           resolve: {
-            alias: desktopMainAlias,
+            alias: desktopElectronAlias,
           },
           define: {
             // Explicitly define process.env.NODE_ENV for electron main process
@@ -137,7 +137,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
         vite: {
           assetsInclude: ["**/*.node"],
           resolve: {
-            alias: sharedAlias,
+            alias: desktopElectronAlias,
           },
           build: {
             target: "chrome144",
@@ -165,7 +165,7 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
       onstart: ({ reload }) => reload(),
       vite: {
         resolve: {
-          alias: sharedAlias,
+          alias: desktopElectronAlias,
         },
         build: {
           target: "chrome144",
