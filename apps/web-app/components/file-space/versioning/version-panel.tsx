@@ -1,14 +1,23 @@
-import { useState, type KeyboardEvent, type MouseEvent } from "react"
+import {
+  useState,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react"
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
   Check,
+  ChevronDown,
+  ChevronRight,
   Cloud,
   CloudCog,
   GitBranch,
   GitCommitHorizontal,
   History,
   LoaderCircle,
+  Minus,
+  Plus,
   RefreshCw,
   Undo2,
 } from "lucide-react"
@@ -50,9 +59,82 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 
 import { VersionChangeTree } from "./change-tree"
+import { collectVersionActionPathspecs } from "./versioning-utils"
 
 export interface VersionPanelProps {
   spaceId: string
+}
+
+function VersionChangeSection({
+  contentId,
+  label,
+  count,
+  expanded,
+  action,
+  actionBusy,
+  actionDisabled,
+  actionTitle,
+  actionLabel,
+  onToggle,
+  onAction,
+  children,
+}: {
+  contentId: string
+  label: string
+  count: number
+  expanded: boolean
+  action: "include" | "exclude"
+  actionBusy: boolean
+  actionDisabled: boolean
+  actionTitle: string
+  actionLabel: string
+  onToggle: () => void
+  onAction: () => void
+  children: ReactNode
+}) {
+  const toggleLabel = `${expanded ? "Collapse" : "Expand"} ${label}`
+
+  return (
+    <>
+      <div className="group flex h-[28px] items-center border-b border-sidebar-border/30 pr-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-sidebar-foreground/60">
+        <button
+          type="button"
+          className="flex h-full min-w-0 flex-1 items-center gap-0.5 px-1.5 text-left outline-hidden hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-sidebar-ring"
+          aria-label={toggleLabel}
+          aria-expanded={expanded}
+          aria-controls={contentId}
+          onClick={onToggle}
+        >
+          {expanded ? (
+            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+          )}
+          <span className="truncate">{label}</span>
+        </button>
+        <span className="px-1 tabular-nums">{count}</span>
+        <button
+          type="button"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[3px] text-sidebar-foreground/65 outline-hidden hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-1 focus-visible:ring-sidebar-ring disabled:opacity-35"
+          aria-label={actionLabel}
+          title={actionTitle}
+          disabled={actionDisabled}
+          onClick={onAction}
+        >
+          {actionBusy ? (
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+          ) : action === "include" ? (
+            <Plus className="h-3.5 w-3.5" />
+          ) : (
+            <Minus className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </div>
+      <div id={contentId} hidden={!expanded}>
+        {children}
+      </div>
+    </>
+  )
 }
 
 function PanelToolbar({
@@ -249,6 +331,11 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
   const [localError, setLocalError] = useState<string | null>(null)
   const [localNotice, setLocalNotice] = useState<string | null>(null)
   const [busyPath, setBusyPath] = useState<string | null>(null)
+  const [bulkOperation, setBulkOperation] = useState<
+    "including" | "excluding" | null
+  >(null)
+  const [stagedExpanded, setStagedExpanded] = useState(true)
+  const [changesExpanded, setChangesExpanded] = useState(true)
   const [discardTarget, setDiscardTarget] = useState<string | null>(null)
   const { location, navigate } = useRouterAdapter()
   const openTab = useTabStore((state) => state.openTab)
@@ -272,7 +359,7 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
     refresh,
   } = useSpaceVersioning(spaceId)
 
-  const busy = statusLoading || operation !== null
+  const busy = statusLoading || operation !== null || bulkOperation !== null
   const currentFilePath = filePathFromSpaceUrl(
     `${location.pathname}${location.search}${location.hash}`
   )
@@ -281,6 +368,13 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
     status?.changes.filter((change) => change.unstaged || !change.staged) ?? []
   const stagedCount = stagedChanges.length
   const unstagedCount = unstagedChanges.length
+  const stagedPathspecs = collectVersionActionPathspecs(stagedChanges)
+  const unstagedPathspecs = collectVersionActionPathspecs(unstagedChanges)
+  const hasUnstagedConflicts = unstagedChanges.some(
+    (change) => change.conflicted
+  )
+  const pathActionsDisabled =
+    operation !== null || busyPath !== null || bulkOperation !== null
   const discardTargetIsDirectory =
     discardTarget !== null &&
     unstagedChanges.some((change) =>
@@ -345,11 +439,19 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
     openTab(url, `${filename} (Diff)`)
   }
   const includeChangedPath = async (path: string) => {
-    if (operation || busyPath) return
+    if (operation || busyPath || bulkOperation) return
     clearFeedback()
+    const pathspecs = collectVersionActionPathspecs(unstagedChanges, path)
+    if (!pathspecs.length) {
+      setLocalError("This path has no versioned changes to include.")
+      return
+    }
     setBusyPath(path)
     try {
-      await stagePath({ path, expectedHead: status?.head?.id ?? null })
+      const expectedHead = status?.head?.id ?? null
+      for (const pathspec of pathspecs) {
+        await stagePath({ path: pathspec, expectedHead })
+      }
       setLocalNotice(`${path} is included in the next version.`)
     } catch (stageError) {
       setLocalError(
@@ -360,11 +462,19 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
     }
   }
   const excludeChangedPath = async (path: string) => {
-    if (operation || busyPath) return
+    if (operation || busyPath || bulkOperation) return
     clearFeedback()
+    const pathspecs = collectVersionActionPathspecs(stagedChanges, path)
+    if (!pathspecs.length) {
+      setLocalError("This path has no included changes to exclude.")
+      return
+    }
     setBusyPath(path)
     try {
-      await unstagePath({ path, expectedHead: status?.head?.id ?? null })
+      const expectedHead = status?.head?.id ?? null
+      for (const pathspec of pathspecs) {
+        await unstagePath({ path: pathspec, expectedHead })
+      }
       setLocalNotice(`${path} is excluded from the next version.`)
     } catch (unstageError) {
       setLocalError(
@@ -376,33 +486,106 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
       setBusyPath(null)
     }
   }
+  const includeAllChanges = async () => {
+    if (
+      operation ||
+      busyPath ||
+      bulkOperation ||
+      hasUnstagedConflicts ||
+      !unstagedCount
+    ) {
+      return
+    }
+    clearFeedback()
+    setBulkOperation("including")
+    const expectedHead = status?.head?.id ?? null
+    try {
+      for (const path of unstagedPathspecs) {
+        await stagePath({ path, expectedHead })
+      }
+      setLocalNotice(
+        `Included all ${unstagedCount} ${unstagedCount === 1 ? "change" : "changes"} in the next version.`
+      )
+    } catch (stageError) {
+      const detail =
+        stageError instanceof Error ? stageError.message : String(stageError)
+      setLocalError(`Eidos could not include every change. ${detail}`)
+    } finally {
+      setBulkOperation(null)
+    }
+  }
+  const excludeAllChanges = async () => {
+    if (operation || busyPath || bulkOperation || !stagedCount) return
+    clearFeedback()
+    setBulkOperation("excluding")
+    const expectedHead = status?.head?.id ?? null
+    try {
+      for (const path of stagedPathspecs) {
+        await unstagePath({ path, expectedHead })
+      }
+      setLocalNotice(
+        `Excluded all ${stagedCount} staged ${stagedCount === 1 ? "change" : "changes"} from the next version.`
+      )
+    } catch (unstageError) {
+      const detail =
+        unstageError instanceof Error
+          ? unstageError.message
+          : String(unstageError)
+      setLocalError(`Eidos could not exclude every staged change. ${detail}`)
+    } finally {
+      setBulkOperation(null)
+    }
+  }
   const confirmDiscard = async (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault()
-    if (!discardTarget || operation || busyPath) return
+    if (!discardTarget || operation || busyPath || bulkOperation) return
     clearFeedback()
+    const pathspecs = collectVersionActionPathspecs(
+      unstagedChanges,
+      discardTarget
+    )
+    if (!pathspecs.length) {
+      setLocalError("This path has no versioned changes to discard.")
+      setDiscardTarget(null)
+      return
+    }
     setBusyPath(discardTarget)
     const discardingDirectory = discardTargetIsDirectory
     try {
-      const result = await discardPath({
-        path: discardTarget,
-        expectedHead: status?.head?.id ?? null,
-        confirmed: true,
-      })
+      const expectedHead = status?.head?.id ?? null
+      const effects: Array<"deleted" | "restored" | "noop"> = []
+      for (const pathspec of pathspecs) {
+        const result = await discardPath({
+          path: pathspec,
+          expectedHead,
+          confirmed: true,
+        })
+        effects.push(result.effect)
+      }
+      const effect = effects.includes("restored")
+        ? "restored"
+        : effects.includes("deleted")
+          ? "deleted"
+          : "noop"
       setLocalNotice(
-        result.effect === "deleted"
+        effect === "deleted"
           ? discardingDirectory
-            ? `Untracked changes in ${result.path} were deleted from the Space.`
-            : `${result.path} was deleted from the Space.`
-          : result.effect === "noop"
-            ? `${result.path} no longer has changes to discard.`
-            : `${result.path} now matches the current version.`
+            ? `Untracked changes in ${discardTarget} were deleted from the Space.`
+            : `${discardTarget} was deleted from the Space.`
+          : effect === "noop"
+            ? `${discardTarget} no longer has changes to discard.`
+            : `${discardTarget} now matches the current version.`
       )
       setDiscardTarget(null)
     } catch (discardError) {
-      setLocalError(
+      const detail =
         discardError instanceof Error
           ? discardError.message
           : String(discardError)
+      setLocalError(
+        pathspecs.length > 1
+          ? `Eidos could not discard every versioned change in this path. ${detail}`
+          : detail
       )
     } finally {
       setBusyPath(null)
@@ -584,46 +767,74 @@ export function VersionPanel({ spaceId }: VersionPanelProps) {
           <>
             <div className="min-h-0 flex-1 overflow-y-auto">
               {stagedChanges.length ? (
-                <>
-                  <div className="flex h-[28px] items-center justify-between border-b border-sidebar-border/30 px-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-sidebar-foreground/60">
-                    <span>Staged Changes</span>
-                    <span className="tabular-nums">{stagedCount}</span>
-                  </div>
+                <VersionChangeSection
+                  contentId={`space-version-staged-changes-${spaceId}`}
+                  label="Staged Changes"
+                  count={stagedCount}
+                  expanded={stagedExpanded}
+                  action="exclude"
+                  actionBusy={bulkOperation === "excluding"}
+                  actionDisabled={
+                    pathActionsDisabled || !stagedPathspecs.length
+                  }
+                  actionTitle="Exclude all staged changes"
+                  actionLabel="Exclude all staged changes from the next version"
+                  onToggle={() => setStagedExpanded((expanded) => !expanded)}
+                  onAction={() => void excludeAllChanges()}
+                >
                   <VersionChangeTree
                     changes={stagedChanges}
                     mode="staged"
                     selectedPath={currentFilePath}
                     busyPath={busyPath}
-                    actionsDisabled={operation !== null}
+                    actionsDisabled={pathActionsDisabled}
                     onOpenDiff={(path) => void openChangedDiff(path)}
                     onRevealPath={(path) => void openChangedPath(path)}
                     onUnstagePath={(path) => void excludeChangedPath(path)}
                   />
-                </>
+                </VersionChangeSection>
               ) : null}
-              <div className="flex h-[28px] items-center justify-between border-b border-sidebar-border/30 px-2 text-[10px] font-semibold uppercase tracking-[0.06em] text-sidebar-foreground/60">
-                <span>Changes</span>
-                <span className="tabular-nums">{unstagedCount}</span>
-              </div>
-              {unstagedChanges.length ? (
-                <VersionChangeTree
-                  changes={unstagedChanges}
-                  mode="unstaged"
-                  selectedPath={currentFilePath}
-                  busyPath={busyPath}
-                  actionsDisabled={operation !== null}
-                  onOpenDiff={(path) => void openChangedDiff(path)}
-                  onRevealPath={(path) => void openChangedPath(path)}
-                  onStagePath={(path) => void includeChangedPath(path)}
-                  onDiscardPath={setDiscardTarget}
-                  onResolveConflict={openConflictReview}
-                />
-              ) : (
-                <div className="flex items-start gap-2 px-3 py-3 text-[11px] leading-5 text-sidebar-foreground/55">
-                  <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                  <span>This Space matches the latest version.</span>
-                </div>
-              )}
+              <VersionChangeSection
+                contentId={`space-version-unstaged-changes-${spaceId}`}
+                label="Changes"
+                count={unstagedCount}
+                expanded={changesExpanded}
+                action="include"
+                actionBusy={bulkOperation === "including"}
+                actionDisabled={
+                  pathActionsDisabled ||
+                  !unstagedPathspecs.length ||
+                  hasUnstagedConflicts
+                }
+                actionTitle={
+                  hasUnstagedConflicts
+                    ? "Resolve conflicts before including all changes"
+                    : "Include all changes"
+                }
+                actionLabel="Include all changes in the next version"
+                onToggle={() => setChangesExpanded((expanded) => !expanded)}
+                onAction={() => void includeAllChanges()}
+              >
+                {unstagedChanges.length ? (
+                  <VersionChangeTree
+                    changes={unstagedChanges}
+                    mode="unstaged"
+                    selectedPath={currentFilePath}
+                    busyPath={busyPath}
+                    actionsDisabled={pathActionsDisabled}
+                    onOpenDiff={(path) => void openChangedDiff(path)}
+                    onRevealPath={(path) => void openChangedPath(path)}
+                    onStagePath={(path) => void includeChangedPath(path)}
+                    onDiscardPath={setDiscardTarget}
+                    onResolveConflict={openConflictReview}
+                  />
+                ) : (
+                  <div className="flex items-start gap-2 px-3 py-3 text-[11px] leading-5 text-sidebar-foreground/55">
+                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <span>This Space matches the latest version.</span>
+                  </div>
+                )}
+              </VersionChangeSection>
             </div>
             <div className="shrink-0 border-t border-sidebar-border/60 p-1.5">
               <label

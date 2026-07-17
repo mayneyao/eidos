@@ -21,6 +21,12 @@ const mocks = vi.hoisted(() => ({
     path: request.path,
     effect: "restored",
   })),
+  stagePath: vi.fn(async (request: { path: string }) => ({
+    path: request.path,
+  })),
+  unstagePath: vi.fn(async (request: { path: string }) => ({
+    path: request.path,
+  })),
   openTab: vi.fn(),
   setActiveTab: vi.fn(),
   updateTab: vi.fn(),
@@ -69,8 +75,8 @@ vi.mock("@/apps/web-app/hooks/use-space-versioning", () => ({
     available: true,
     enable: vi.fn(),
     commit: vi.fn(),
-    stagePath: vi.fn(),
-    unstagePath: vi.fn(),
+    stagePath: mocks.stagePath,
+    unstagePath: mocks.unstagePath,
     discardPath: mocks.discardPath,
     fetchRemote: vi.fn(),
     pullRemote: vi.fn(),
@@ -110,6 +116,8 @@ describe("VersionPanel changed-file diff", () => {
     mocks.mergeHead = null
     mocks.openTab.mockReset()
     mocks.discardPath.mockClear()
+    mocks.stagePath.mockClear()
+    mocks.unstagePath.mockClear()
     mocks.setActiveTab.mockReset()
     mocks.updateTab.mockReset()
     mocks.navigate.mockReset()
@@ -224,6 +232,168 @@ describe("VersionPanel changed-file diff", () => {
       confirmed: true,
     })
     expect(document.body.querySelector('[role="alertdialog"]')).toBeNull()
+  })
+
+  it("discards only status-matched versioned roots below .eidos", async () => {
+    mocks.changes = [
+      {
+        path: ".eidos/extensions/local.counter/src/extension.ts",
+        status: "modified",
+        unstaged: true,
+      },
+      {
+        path: ".eidos/agent/sessions/conversation-a/events.jsonl",
+        status: "modified",
+        unstaged: true,
+      },
+    ]
+
+    await act(async () => {
+      root.render(<VersionPanel spaceId="space-a" />)
+    })
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Discard changes in directory .eidos"]'
+        )
+        ?.click()
+      await Promise.resolve()
+    })
+
+    const confirm = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Discard changes"
+    )
+    await act(async () => {
+      confirm?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mocks.discardPath).toHaveBeenCalledTimes(2)
+    expect(
+      mocks.discardPath.mock.calls.map(([request]) => request.path)
+    ).toEqual([".eidos/agent/sessions", ".eidos/extensions"])
+    expect(mocks.discardPath).not.toHaveBeenCalledWith(
+      expect.objectContaining({ path: ".eidos" })
+    )
+  })
+
+  it("collapses each change section independently", async () => {
+    mocks.changes = [
+      { path: "published/one.md", status: "modified", staged: true },
+      { path: "drafts/two.md", status: "modified", unstaged: true },
+    ]
+
+    await act(async () => {
+      root.render(<VersionPanel spaceId="space-a" />)
+    })
+
+    const stagedToggle = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Collapse Staged Changes"]'
+    )
+    const changesToggle = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Collapse Changes"]'
+    )
+    expect(stagedToggle?.getAttribute("aria-expanded")).toBe("true")
+    expect(changesToggle?.getAttribute("aria-expanded")).toBe("true")
+    const stagedContent = document.getElementById(
+      stagedToggle?.getAttribute("aria-controls") ?? ""
+    ) as HTMLDivElement | null
+    const changesContent = document.getElementById(
+      changesToggle?.getAttribute("aria-controls") ?? ""
+    ) as HTMLDivElement | null
+
+    await act(async () => stagedToggle?.click())
+    expect(stagedToggle?.getAttribute("aria-expanded")).toBe("false")
+    expect(stagedContent?.hidden).toBe(true)
+    expect(changesContent?.hidden).toBe(false)
+
+    await act(async () => changesToggle?.click())
+    expect(changesToggle?.getAttribute("aria-expanded")).toBe("false")
+    expect(changesContent?.hidden).toBe(true)
+  })
+
+  it("includes or excludes a whole section using top-level path groups", async () => {
+    mocks.changes = [
+      { path: "published/one.md", status: "modified", staged: true },
+      { path: "published/nested/two.md", status: "added", staged: true },
+      {
+        path: ".eidos/extensions/local.reader/extension.json",
+        status: "modified",
+        staged: true,
+      },
+      { path: "drafts/one.md", status: "modified", unstaged: true },
+      { path: "drafts/nested/two.md", status: "untracked", unstaged: true },
+      {
+        path: ".eidos/extensions/local.counter/src/extension.ts",
+        status: "modified",
+        unstaged: true,
+      },
+      {
+        path: ".eidos/agent/sessions/conversation-a/events.jsonl",
+        status: "modified",
+        unstaged: true,
+      },
+      { path: "root.md", status: "modified", unstaged: true },
+    ]
+
+    await act(async () => {
+      root.render(<VersionPanel spaceId="space-a" />)
+    })
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Include all changes in the next version"]'
+        )
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mocks.stagePath.mock.calls.map(([request]) => request)).toEqual([
+      { path: ".eidos/agent/sessions", expectedHead: "head-2" },
+      { path: ".eidos/extensions", expectedHead: "head-2" },
+      { path: "drafts", expectedHead: "head-2" },
+      { path: "root.md", expectedHead: "head-2" },
+    ])
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Exclude all staged changes from the next version"]'
+        )
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mocks.unstagePath.mock.calls.map(([request]) => request)).toEqual([
+      { path: ".eidos/extensions", expectedHead: "head-2" },
+      { path: "published", expectedHead: "head-2" },
+    ])
+  })
+
+  it("requires conflicts to be resolved before including the whole section", async () => {
+    mocks.changes = [
+      {
+        path: "conflict.md",
+        status: "conflicted",
+        unstaged: true,
+        conflicted: true,
+      },
+    ]
+
+    await act(async () => {
+      root.render(<VersionPanel spaceId="space-a" />)
+    })
+
+    const includeAll = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="Include all changes in the next version"]'
+    )
+    expect(includeAll?.disabled).toBe(true)
+    expect(includeAll?.title).toBe(
+      "Resolve conflicts before including all changes"
+    )
   })
 
   it("opens ours-to-theirs diff and a dedicated conflict review tab", async () => {

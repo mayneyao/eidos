@@ -22,6 +22,13 @@ const STATUS_PRIORITY: Record<SpaceVersionChangeStatus, number> = {
   unknown: 0,
 }
 
+// The tree synthesizes `.eidos` parents, but only host-approved product roots
+// that are actually present in status may be sent back as mutation pathspecs.
+const VERSIONED_EIDOS_ROOTS = [
+  ".eidos/agent/sessions",
+  ".eidos/extensions",
+] as const
+
 export const STATUS_META: Record<
   SpaceVersionChangeStatus,
   { label: string; shortLabel: string; className: string }
@@ -133,6 +140,65 @@ export function collectDirectoryPaths(nodes: ChangeTreeNode[]): string[] {
   }
   visit(nodes)
   return paths
+}
+
+function versionedEidosRoot(repositoryPath: string): string | null {
+  const candidate = repositoryPath.toLowerCase()
+  const root = VERSIONED_EIDOS_ROOTS.find(
+    (versionedRoot) =>
+      candidate === versionedRoot || candidate.startsWith(`${versionedRoot}/`)
+  )
+  if (!root) return null
+  return repositoryPath.split("/").slice(0, root.split("/").length).join("/")
+}
+
+function isVersionActionPath(repositoryPath: string): boolean {
+  const candidate = repositoryPath.toLowerCase()
+  if (
+    candidate === ".graft" ||
+    candidate.startsWith(".graft/") ||
+    candidate === ".eidos"
+  ) {
+    return false
+  }
+  if (candidate.startsWith(".eidos/")) {
+    return versionedEidosRoot(repositoryPath) !== null
+  }
+  return true
+}
+
+export function collectVersionActionPathspecs(
+  changes: Array<Pick<SpaceVersionChange, "path">>,
+  requestedPath?: string
+): string[] {
+  const matchingPaths = changes
+    .map((change) => change.path)
+    .filter(
+      (changePath) =>
+        !requestedPath ||
+        changePath === requestedPath ||
+        changePath.startsWith(`${requestedPath}/`)
+    )
+
+  if (
+    requestedPath &&
+    isVersionActionPath(requestedPath) &&
+    matchingPaths.some(isVersionActionPath)
+  ) {
+    return [requestedPath]
+  }
+
+  return Array.from(
+    new Set(
+      matchingPaths.flatMap((changePath) => {
+        const productRoot = versionedEidosRoot(changePath)
+        if (productRoot) return [productRoot]
+        if (!isVersionActionPath(changePath)) return []
+        const topLevelPath = changePath.split("/", 1)[0]
+        return topLevelPath ? [topLevelPath] : []
+      })
+    )
+  ).sort((left, right) => left.localeCompare(right))
 }
 
 export function shortCommitId(id: string, length = 7) {

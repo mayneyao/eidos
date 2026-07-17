@@ -3,7 +3,10 @@
 import type { SpaceVersionChange } from "@/apps/web-app/hooks/use-space-versioning"
 
 import { buildCommitGraphRows } from "./commit-graph"
-import { buildChangeTree } from "./versioning-utils"
+import {
+  buildChangeTree,
+  collectVersionActionPathspecs,
+} from "./versioning-utils"
 
 function commit(id: string, parents: string[]) {
   return {
@@ -36,6 +39,43 @@ describe("file Space versioning presentation models", () => {
       "archive",
       "today.md",
     ])
+  })
+
+  it("derives safe product pathspecs from status instead of targeting .eidos", () => {
+    const changes: SpaceVersionChange[] = [
+      {
+        path: ".eidos/extensions/local.counter/src/extension.ts",
+        status: "modified",
+      },
+      {
+        path: ".eidos/agent/sessions/conversation-a/events.jsonl",
+        status: "modified",
+      },
+      {
+        path: ".eidos/agent/local/state.sqlite3",
+        status: "modified",
+      },
+      { path: "notes/today.md", status: "modified" },
+    ]
+
+    expect(collectVersionActionPathspecs(changes, ".eidos")).toEqual([
+      ".eidos/agent/sessions",
+      ".eidos/extensions",
+    ])
+    expect(collectVersionActionPathspecs(changes, ".eidos/agent")).toEqual([
+      ".eidos/agent/sessions",
+    ])
+    expect(collectVersionActionPathspecs(changes, ".eidos/extensions")).toEqual(
+      [".eidos/extensions"]
+    )
+    expect(collectVersionActionPathspecs(changes)).toEqual([
+      ".eidos/agent/sessions",
+      ".eidos/extensions",
+      "notes",
+    ])
+    expect(
+      collectVersionActionPathspecs(changes, ".eidos/agent/local")
+    ).toEqual([])
   })
 
   it("keeps merge parents in separate lanes until they converge", () => {
