@@ -1,4 +1,7 @@
-import { parse } from "csv-parse/sync"
+// The browser ESM entry bundles its own byte helpers and also runs in Node.
+// Using it keeps the shared CSV runtime portable instead of leaking Node's
+// global `Buffer` requirement into Web Workers.
+import { parse } from "csv-parse/browser/esm/sync"
 
 import { EidosFileError } from "./errors"
 import { eidosFileFieldDisplayValues } from "./field-conversion"

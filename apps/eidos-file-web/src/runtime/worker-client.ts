@@ -1,6 +1,8 @@
 import type {
   EidosFileColumnStatConfig,
   EidosFileColumnStatResult,
+  EidosFileCsvImportOptions,
+  EidosFileCsvImportPlan,
   EidosFileFieldPlacement,
   EidosFileRow,
   EidosFileRowGroupCount,
@@ -17,6 +19,7 @@ import type { EidosFileEditorDataSource } from "@eidos.space/eidos-file-ui"
 
 import type {
   EidosFileWorkerAction,
+  EidosFileWorkerCsvImportResult,
   EidosFileWorkerExportResult,
   EidosFileWorkerOpenResult,
   EidosFileWorkerRequest,
@@ -202,6 +205,22 @@ export class EidosFileWorkerClient implements EidosFileEditorDataSource {
     changes: UpdateEidosFileViewInput
   ): Promise<EidosFileSnapshot> {
     return this.call({ type: "update-view", viewId, changes })
+  }
+
+  previewCsv(
+    fileName: string,
+    bytes: ArrayBuffer,
+    options: EidosFileCsvImportOptions = {}
+  ): Promise<EidosFileCsvImportPlan> {
+    return this.call({ type: "csv-preview", fileName, bytes, options }, [bytes])
+  }
+
+  importCsv(
+    fileName: string,
+    bytes: ArrayBuffer,
+    options: EidosFileCsvImportOptions = {}
+  ): Promise<EidosFileWorkerCsvImportResult> {
+    return this.call({ type: "csv-import", fileName, bytes, options }, [bytes])
   }
 
   exportFile(): Promise<EidosFileWorkerExportResult> {

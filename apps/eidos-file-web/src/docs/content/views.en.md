@@ -1,6 +1,6 @@
 # Build custom views for Eidos File
 
-`@eidos.space/eidos-file-ui` is the shared React UI used by Eidos File hosts. It provides the editor surface, Grid, Gallery, Kanban, record inspectors, field controls, and a renderer registry for additional saved view types.
+`@eidos.space/eidos-file-ui` is the shared React UI used by Eidos File hosts. Core provides the editor surface and Grid. Gallery, Kanban, and third-party saved view types are Eidos File plugins that a host imports explicitly.
 
 The UI package does not open SQLite files. It consumes a `EidosFileEditorDataSource`, so the same components can work with a Web Worker, Electron IPC, or another host boundary.
 
@@ -24,6 +24,10 @@ import {
   EidosFileEditorView,
   EidosFileUIProvider,
 } from "@eidos.space/eidos-file-ui"
+import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/gallery"
+import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
+
+const plugins = [eidosFileGalleryPlugin, eidosFileKanbanPlugin]
 
 function EidosFileSurface({ source, table, view, theme }) {
   return (
@@ -35,6 +39,7 @@ function EidosFileSurface({ source, table, view, theme }) {
         source={source}
         table={table}
         view={view}
+        plugins={plugins}
         onError={(error) => console.error(error)}
       />
     </EidosFileUIProvider>
@@ -42,9 +47,9 @@ function EidosFileSurface({ source, table, view, theme }) {
 }
 ```
 
-`EidosFileEditorView` routes `grid`, `gallery`, and `kanban` to the built-in renderers. These renderers share selection, paging, property editing, record inspection, and mutation contracts rather than implementing separate data models.
+`EidosFileEditorView` always routes `grid`. It resolves other types from the supplied plugins. All renderers share paging and mutation contracts rather than implementing separate data models.
 
-## Use a standalone built-in view
+## Use standalone view components
 
 Low-level view components are also published as subpath exports when you need to compose your own shell:
 
@@ -58,7 +63,7 @@ Use `EidosFileEditorView` for the complete routing contract. Use standalone expo
 
 ## Choose a persisted view type
 
-The view `type` stored in the `.eidos` file is an open string. Built-ins reserve `grid`, `gallery`, and `kanban`. Use a namespaced key for third-party views, for example `com.example.timeline`.
+The view `type` stored in the `.eidos` file is an open string. Eidos reserves `grid`, `gallery`, and `kanban`; Grid is core, while Gallery and Kanban are official plugins. Use a namespaced key for third-party views, for example `com.example.timeline`.
 
 Persist the view through the runtime:
 
@@ -78,9 +83,10 @@ Eidos File preserves the `type` and `properties` even when another host does not
 Renderer resolution follows this order:
 
 1. a matching renderer in the host's `renderers` registry;
-2. the built-in Grid, Gallery, or Kanban renderer;
-3. the host's `renderUnsupportedView` callback;
-4. the package's default unsupported-view surface.
+2. a matching renderer contributed by an Eidos File plugin;
+3. the built-in Grid renderer;
+4. the host's `renderUnsupportedView` callback;
+5. the package's default unsupported-view surface.
 
 ## Implement a custom renderer
 
@@ -171,42 +177,49 @@ export const TimelineView: EidosFileViewRenderer = ({
 }
 ```
 
-For a published renderer package, export the component and let each host register it explicitly:
+For a published renderer package, export an Eidos File plugin and let each host import it explicitly:
 
 ```tsx
+import { defineEidosFilePlugin } from "@eidos.space/eidos-file-ui/plugin"
 import { TimelineView } from "@example/eidos-file-timeline-view"
-import {
-  EidosFileEditorView,
-  builtInEidosFileViewRenderers,
-} from "@eidos.space/eidos-file-ui"
 
-const renderers = {
-  ...builtInEidosFileViewRenderers,
-  "com.example.timeline": TimelineView,
-}
+const timelinePlugin = defineEidosFilePlugin({
+  id: "com.example.eidos-file.timeline",
+  views: [{
+    type: "com.example.timeline",
+    label: "Timeline",
+    description: "Records on a date axis",
+    renderer: TimelineView,
+  }],
+})
 
 <EidosFileEditorView
   source={source}
   table={table}
   view={view}
-  renderers={renderers}
+  plugins={[timelinePlugin]}
 />
 ```
 
-Keep the registry outside render functions so its identity stays stable. Host entries override built-ins with the same key, which also lets an application replace a built-in presentation without changing persisted metadata.
+Keep the plugin and plugin array outside render functions so their identity stays stable. Plugin and view identifiers must be unique; the registry rejects ambiguous host composition.
 
 ## Add the view to your editor's create menu
 
-The renderer registry answers “how do I render this type?” Your editor shell separately owns “which types can the user create?” Keep a small contribution catalog next to the registry:
+The plugin registry is also the source of truth for the view creation menu. Do not maintain a second catalog that can drift away from the imported plugins:
 
 ```ts
+import { createEidosFilePluginRegistry } from "@eidos.space/eidos-file-ui/plugin"
+
+const registry = createEidosFilePluginRegistry(plugins)
 const viewContributions = [
   { type: "grid", label: "Grid" },
-  { type: "gallery", label: "Gallery" },
-  { type: "kanban", label: "Kanban" },
-  { type: "com.example.timeline", label: "Timeline" },
+  ...Object.values(registry.views).filter(
+    (view) => view.create?.isAvailable?.(fields) ?? true
+  ),
 ]
 ```
+
+Use each contribution's `create.defaultName` and optional `create.properties(fields)` when the user selects it. An imported Gallery, Kanban, or custom view plugin therefore becomes renderable and creatable through one contract.
 
 Creating a view is a runtime operation. Add a host Worker action that calls `EidosFileRuntime.createView`, then return a fresh snapshot:
 

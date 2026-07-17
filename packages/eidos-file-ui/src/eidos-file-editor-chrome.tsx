@@ -1,6 +1,7 @@
 import {
   forwardRef,
   useEffect,
+  useMemo,
   useRef,
   type HTMLAttributes,
   type ReactNode,
@@ -19,6 +20,11 @@ import {
 } from "lucide-react"
 
 import { cn } from "./lib/cn"
+import {
+  createEidosFilePluginRegistry,
+  type EidosFilePlugin,
+  type EidosFileViewPluginContribution,
+} from "./plugin"
 import { Button } from "./ui/primitives"
 import { useEidosFileTabStrip } from "./use-eidos-file-tab-strip"
 
@@ -68,10 +74,16 @@ EidosFileEditorContent.displayName = "EidosFileEditorContent"
 export function EidosFileViewTypeIcon({
   type,
   className,
+  viewTypes,
 }: {
   type: string
   className?: string
+  viewTypes?: Readonly<Record<string, EidosFileViewPluginContribution>>
 }) {
+  const PluginIcon = viewTypes?.[type]?.icon
+  if (PluginIcon) return <PluginIcon className={className} />
+  // Keep the historical icons readable for saved views even when the plugin
+  // is not installed in this host.
   if (type === "gallery") return <LayoutGrid className={className} />
   if (type === "kanban") return <SquareKanban className={className} />
   if (!type || type === "grid") return <Table2 className={className} />
@@ -82,15 +94,21 @@ export function EidosFileViewTabStrip({
   views,
   activeViewId,
   disabled,
+  plugins = [],
   afterTabs,
   onSelect,
 }: {
   views: EidosFileViewInfo[]
   activeViewId?: string | null
   disabled?: boolean
+  plugins?: readonly EidosFilePlugin[]
   afterTabs?: ReactNode
   onSelect: (viewId: string) => void
 }) {
+  const pluginRegistry = useMemo(
+    () => createEidosFilePluginRegistry(plugins),
+    [plugins]
+  )
   const {
     activeTabRef,
     canScrollBackward,
@@ -145,6 +163,7 @@ export function EidosFileViewTabStrip({
             <EidosFileViewTypeIcon
               type={view.type}
               className="h-3.5 w-3.5 shrink-0"
+              viewTypes={pluginRegistry.views}
             />
             <span className="truncate">{view.name}</span>
             {view.id === activeViewId ? (

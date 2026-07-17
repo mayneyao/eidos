@@ -17,7 +17,7 @@
 | 层                           | 职责                                                                              |
 | ---------------------------- | --------------------------------------------------------------------------------- |
 | `@eidos.space/eidos-file`    | 验证格式；查询和修改记录；管理字段、关系、Formula、Lookup、视图与 CSV             |
-| `@eidos.space/eidos-file-ui` | 渲染 Grid、Gallery、Kanban、字段控件、记录面板、查询控件与自定义视图              |
+| `@eidos.space/eidos-file-ui` | 渲染核心 Grid、编辑控件、Plugin Slot，以及显式引入的视图或工作流插件              |
 | SQLite driver                | 为 `better-sqlite3`、SQLite WASM 或其他同步 SQLite 引擎实现 `EidosFileConnection` |
 | 宿主应用                     | 打开文件、运行 Worker、跟踪 dirty 状态、恢复修改、解析资源并保存或下载最终数据库  |
 
@@ -550,7 +550,7 @@ function mutationResult(
 
 ## 组装 React 编辑器
 
-共享 package 将 editor shell 与 renderer 分开。宿主负责 active table/view 选择与保存控件，`EidosFileEditorView` 负责当前 Grid、Gallery、Kanban 或自定义视图。
+共享 package 将 editor shell 与 renderer 分开。宿主负责 active table/view 选择与保存控件，`EidosFileEditorView` 负责 Grid 路由，并从显式引入的 Eidos File Plugin 解析 Gallery、Kanban 或自定义视图。
 
 ```tsx
 import { useMemo, useState } from "react"

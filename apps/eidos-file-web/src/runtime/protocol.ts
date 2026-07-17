@@ -1,6 +1,9 @@
 import type {
   EidosFileColumnStatConfig,
   EidosFileColumnStatResult,
+  EidosFileCsvImportOptions,
+  EidosFileCsvImportPlan,
+  EidosFileCsvImportResult,
   EidosFileFieldPlacement,
   EidosFileRow,
   EidosFileRowGroupCount,
@@ -26,6 +29,11 @@ export interface EidosFileWorkerOpenResult {
 export interface EidosFileWorkerExportResult {
   bytes: Uint8Array
   integrity: "ok"
+}
+
+export interface EidosFileWorkerCsvImportResult {
+  snapshot: EidosFileSnapshot
+  result: EidosFileCsvImportResult
 }
 
 export type EidosFileWorkerAction =
@@ -82,6 +90,18 @@ export type EidosFileWorkerAction =
     }
   | { type: "delete-field"; tableId: string; columnName: string }
   | { type: "update-view"; viewId: string; changes: UpdateEidosFileViewInput }
+  | {
+      type: "csv-preview"
+      fileName: string
+      bytes: ArrayBuffer
+      options: EidosFileCsvImportOptions
+    }
+  | {
+      type: "csv-import"
+      fileName: string
+      bytes: ArrayBuffer
+      options: EidosFileCsvImportOptions
+    }
   | { type: "export" }
   | { type: "close" }
 
@@ -95,6 +115,8 @@ export type EidosFileWorkerResult =
   | EidosFileWorkerExportResult
   | EidosFileSnapshot
   | EidosFileColumnStatResult[]
+  | EidosFileCsvImportPlan
+  | EidosFileWorkerCsvImportResult
   | EidosFileRow
   | EidosFileRowGroupCount[]
   | EidosFileRowPage

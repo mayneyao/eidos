@@ -1,25 +1,18 @@
-import { useCallback, useMemo, type ComponentType, type ReactNode } from "react"
+import { useMemo, type ComponentType, type ReactNode } from "react"
 import type {
   EidosFileFieldInfo,
-  EidosFileRow,
   EidosFileRowMutationResult,
   EidosFileRowQuery,
   EidosFileSnapshot,
-  EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
 import { Puzzle } from "lucide-react"
 
 import { EidosFileDataGrid } from "./eidos-file-data-grid"
-import { EidosFileGalleryView } from "./eidos-file-gallery-view"
-import { EidosFileKanbanView } from "./eidos-file-kanban-view"
-import { eidosFileRecordCardPageProjection } from "./eidos-file-record-card-layout"
-import {
-  eidosFileViewGroupFilter,
-  eidosFileViewRowQuery,
-} from "./eidos-file-view-query"
+import { eidosFileViewRowQuery } from "./eidos-file-view-query"
 import type { EidosFileEditorDataSource } from "./data-source"
+import { createEidosFilePluginRegistry, type EidosFilePlugin } from "./plugin"
 
 export interface EidosFileViewRendererProps {
   source: EidosFileEditorDataSource
@@ -55,11 +48,13 @@ export interface EidosFileEditorViewProps extends Omit<
   reloadToken?: number
   /** Host renderers override built-ins by type without changing Eidos File metadata. */
   renderers?: EidosFileViewRendererRegistry
+  /** Trusted, statically imported capabilities for this editor instance. */
+  plugins?: readonly EidosFilePlugin[]
   /** Optional host-owned surface used when a saved renderer is unavailable. */
   renderUnsupportedView?: (props: EidosFileViewRendererProps) => ReactNode
 }
 
-function GridRenderer(props: EidosFileViewRendererProps) {
+export function EidosFileGridRenderer(props: EidosFileViewRendererProps) {
   return (
     <EidosFileDataGrid
       source={props.source}
@@ -79,164 +74,8 @@ function GridRenderer(props: EidosFileViewRendererProps) {
   )
 }
 
-function GalleryRenderer(props: EidosFileViewRendererProps) {
-  const {
-    source,
-    table,
-    view,
-    query,
-    disabled,
-    reloadToken,
-    onMutation,
-    onError,
-  } = props
-  const projection = useMemo(
-    () =>
-      view ? eidosFileRecordCardPageProjection(table.fields, view) : undefined,
-    [table.fields, view]
-  )
-  const loadPage = useCallback(
-    (offset: number, limit: number, totalHint?: number, cursor?: string) =>
-      source.getPage(
-        table.table.id,
-        offset,
-        limit,
-        query,
-        totalHint,
-        cursor,
-        projection
-      ),
-    [projection, query, source, table.table.id]
-  )
-  const editCell = useCallback(
-    async (
-      row: EidosFileRow,
-      field: EidosFileFieldInfo,
-      value: EidosFileSqlPrimitive
-    ) => {
-      const result = await source.updateRow(table.table.id, String(row._id), {
-        [field.tableColumnName]: value,
-      })
-      onMutation?.(result)
-      return result
-    },
-    [onMutation, source, table.table.id]
-  )
-
-  if (!view) return <GridRenderer {...props} />
-  return (
-    <EidosFileGalleryView
-      table={table}
-      view={view}
-      disabled={disabled}
-      reloadToken={reloadToken}
-      loadPage={loadPage}
-      loadRow={
-        source.getRow
-          ? (rowId) => source.getRow!(table.table.id, rowId)
-          : undefined
-      }
-      onCellEdit={editCell}
-      onError={onError}
-    />
-  )
-}
-
-function KanbanRenderer(props: EidosFileViewRendererProps) {
-  const {
-    source,
-    table,
-    view,
-    query,
-    disabled,
-    reloadToken,
-    onMutation,
-    onError,
-  } = props
-  const projection = useMemo(
-    () =>
-      view ? eidosFileRecordCardPageProjection(table.fields, view) : undefined,
-    [table.fields, view]
-  )
-  const editCell = useCallback(
-    async (
-      row: EidosFileRow,
-      field: EidosFileFieldInfo,
-      value: EidosFileSqlPrimitive
-    ) => {
-      const result = await source.updateRow(table.table.id, String(row._id), {
-        [field.tableColumnName]: value,
-      })
-      onMutation?.(result)
-      return result
-    },
-    [onMutation, source, table.table.id]
-  )
-  const addRow = useCallback(
-    async (field: EidosFileFieldInfo, value: string | null, title: string) => {
-      const result = await source.insertRow(table.table.id, {
-        title,
-        [field.tableColumnName]: value,
-      })
-      onMutation?.(result)
-      return result
-    },
-    [onMutation, source, table.table.id]
-  )
-
-  if (!view) return <GridRenderer {...props} />
-  if (!source.getGroupCounts) {
-    return (
-      <EidosFileUnsupportedView
-        name={view.name}
-        type={view.type}
-        detail="This host does not expose runtime group counts required by Kanban."
-      />
-    )
-  }
-  return (
-    <EidosFileKanbanView
-      table={table}
-      view={view}
-      disabled={disabled}
-      reloadToken={reloadToken}
-      loadGroupCounts={(field) =>
-        source.getGroupCounts!(table.table.id, field.tableColumnName, query)
-      }
-      loadGroupPage={(field, value, offset, limit, totalHint, cursor) =>
-        source.getPage(
-          table.table.id,
-          offset,
-          limit,
-          {
-            ...query,
-            filter: eidosFileViewGroupFilter(
-              query.filter,
-              field.tableColumnName,
-              value
-            ),
-          },
-          totalHint,
-          cursor,
-          projection
-        )
-      }
-      loadRow={
-        source.getRow
-          ? (rowId) => source.getRow!(table.table.id, rowId)
-          : undefined
-      }
-      onCellEdit={editCell}
-      onAddRow={addRow}
-      onError={onError}
-    />
-  )
-}
-
 export const builtInEidosFileViewRenderers: EidosFileViewRendererRegistry = {
-  grid: GridRenderer,
-  gallery: GalleryRenderer,
-  kanban: KanbanRenderer,
+  grid: EidosFileGridRenderer,
 }
 
 export function EidosFileUnsupportedView({
@@ -280,6 +119,7 @@ export function EidosFileEditorView({
   disabled = false,
   reloadToken = 0,
   renderers,
+  plugins = [],
   renderUnsupportedView,
   ...callbacks
 }: EidosFileEditorViewProps) {
@@ -298,7 +138,14 @@ export function EidosFileEditorView({
     ...callbacks,
   }
   const type = view?.type || "grid"
-  const Renderer = renderers?.[type] ?? builtInEidosFileViewRenderers[type]
+  const pluginRegistry = useMemo(
+    () => createEidosFilePluginRegistry(plugins),
+    [plugins]
+  )
+  const Renderer =
+    renderers?.[type] ??
+    pluginRegistry.viewRenderers[type] ??
+    builtInEidosFileViewRenderers[type]
   if (Renderer) return <Renderer {...props} />
   if (renderUnsupportedView) return renderUnsupportedView(props)
   return (

@@ -17,7 +17,7 @@ local .eidos file
 | Layer                        | Responsibility                                                                                                        |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `@eidos.space/eidos-file`    | Validate the format; query and mutate rows; manage fields, relations, Formula, Lookup, views, and CSV                 |
-| `@eidos.space/eidos-file-ui` | Render Grid, Gallery, Kanban, field controls, record inspectors, query controls, and custom view renderers            |
+| `@eidos.space/eidos-file-ui` | Render the core Grid, editor controls, plugin slots, and explicitly imported view or workflow plugins                 |
 | SQLite driver                | Implement `EidosFileConnection` for `better-sqlite3`, SQLite WASM, or another synchronous SQLite engine               |
 | Host application             | Open files, run the Worker, track dirty state, recover edits, resolve assets, and save or download the final database |
 
@@ -550,7 +550,7 @@ function mutationResult(
 
 ## Assemble the React editor
 
-The shared package separates the shell from the renderer. Your host owns active table/view selection and save controls, while `EidosFileEditorView` owns the active Grid, Gallery, Kanban, or custom view.
+The shared package separates the shell from the renderer. Your host owns active table/view selection and save controls, while `EidosFileEditorView` owns Grid routing and resolves Gallery, Kanban, or custom views from explicitly imported Eidos File plugins.
 
 ```tsx
 import { useMemo, useState } from "react"

@@ -156,6 +156,26 @@ export default defineConfig({
         directory,
         "../../packages/eidos-file-ui/src/eidos-file-query-toolbar.tsx"
       ),
+      "@eidos.space/eidos-file-ui/plugins/csv-import": path.resolve(
+        directory,
+        "../../packages/eidos-file-ui/src/plugins/csv-import.tsx"
+      ),
+      "@eidos.space/eidos-file-ui/plugins/gallery": path.resolve(
+        directory,
+        "../../packages/eidos-file-ui/src/plugins/gallery.tsx"
+      ),
+      "@eidos.space/eidos-file-ui/plugins/kanban": path.resolve(
+        directory,
+        "../../packages/eidos-file-ui/src/plugins/kanban.tsx"
+      ),
+      "@eidos.space/eidos-file-ui/plugin": path.resolve(
+        directory,
+        "../../packages/eidos-file-ui/src/plugin.tsx"
+      ),
+      "@eidos.space/eidos-file/csv": path.resolve(
+        directory,
+        "../../packages/eidos-file/src/csv.ts"
+      ),
       "@eidos.space/eidos-file": path.resolve(
         directory,
         "../../packages/eidos-file/src/index.ts"

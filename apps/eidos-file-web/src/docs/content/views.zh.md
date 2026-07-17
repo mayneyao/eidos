@@ -1,6 +1,6 @@
 # 为 Eidos File 构建自定义视图
 
-`@eidos.space/eidos-file-ui` 是 Eidos File 宿主共享的 React UI，提供编辑器、Grid、Gallery、Kanban、记录面板、字段控件，以及扩展视图类型的 renderer registry。
+`@eidos.space/eidos-file-ui` 是 Eidos File 宿主共享的 React UI。核心提供编辑器与 Grid；Gallery、Kanban 和第三方 saved view type 都是由宿主显式引入的 Eidos File Plugin。
 
 UI package 不负责打开 SQLite 文件，只消费 `EidosFileEditorDataSource`。因此同一套组件可以连接 Web Worker、Electron IPC 或其他宿主边界。
 
@@ -24,6 +24,10 @@ import {
   EidosFileEditorView,
   EidosFileUIProvider,
 } from "@eidos.space/eidos-file-ui"
+import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/gallery"
+import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
+
+const plugins = [eidosFileGalleryPlugin, eidosFileKanbanPlugin]
 
 function EidosFileSurface({ source, table, view, theme }) {
   return (
@@ -35,6 +39,7 @@ function EidosFileSurface({ source, table, view, theme }) {
         source={source}
         table={table}
         view={view}
+        plugins={plugins}
         onError={(error) => console.error(error)}
       />
     </EidosFileUIProvider>
@@ -42,9 +47,9 @@ function EidosFileSurface({ source, table, view, theme }) {
 }
 ```
 
-`EidosFileEditorView` 会将 `grid`、`gallery` 与 `kanban` 路由到内置 renderer。这些视图共享选择、分页、字段编辑、记录面板和 mutation 契约，而不是维护各自的数据模型。
+`EidosFileEditorView` 始终支持 `grid`，其他类型从传入的插件解析。所有 Renderer 共享分页与 Mutation 契约，不维护平行数据模型。
 
-## 单独使用内置视图
+## 单独使用视图组件
 
 需要自行组合宿主 shell 时，也可以使用低层 subpath export：
 
@@ -58,7 +63,7 @@ import { EidosFileKanbanView } from "@eidos.space/eidos-file-ui/eidos-file-kanba
 
 ## 选择持久化 View Type
 
-`.eidos` 文件中的 view `type` 是开放字符串。内置类型保留 `grid`、`gallery` 与 `kanban`。第三方视图建议使用带命名空间的 key，例如 `com.example.timeline`。
+`.eidos` 文件中的 view `type` 是开放字符串。Eidos 保留 `grid`、`gallery` 与 `kanban`：Grid 属于核心，Gallery 与 Kanban 是官方插件。第三方视图建议使用带命名空间的 key，例如 `com.example.timeline`。
 
 通过 runtime 保存视图：
 
@@ -78,9 +83,10 @@ eidosFile.createView(table.id, {
 Renderer 按以下顺序解析：
 
 1. 宿主 `renderers` registry 中匹配的 renderer；
-2. 内置 Grid、Gallery 或 Kanban renderer；
-3. 宿主的 `renderUnsupportedView` callback；
-4. package 默认的不支持视图界面。
+2. Eidos File Plugin 贡献的匹配 Renderer；
+3. 内置 Grid Renderer；
+4. 宿主的 `renderUnsupportedView` callback；
+5. package 默认的不支持视图界面。
 
 ## 实现自定义 Renderer
 
@@ -171,42 +177,49 @@ export const TimelineView: EidosFileViewRenderer = ({
 }
 ```
 
-发布 renderer package 时导出组件，由每个宿主显式注册：
+发布 Renderer package 时导出 Eidos File Plugin，由每个宿主显式引入：
 
 ```tsx
+import { defineEidosFilePlugin } from "@eidos.space/eidos-file-ui/plugin"
 import { TimelineView } from "@example/eidos-file-timeline-view"
-import {
-  EidosFileEditorView,
-  builtInEidosFileViewRenderers,
-} from "@eidos.space/eidos-file-ui"
 
-const renderers = {
-  ...builtInEidosFileViewRenderers,
-  "com.example.timeline": TimelineView,
-}
+const timelinePlugin = defineEidosFilePlugin({
+  id: "com.example.eidos-file.timeline",
+  views: [{
+    type: "com.example.timeline",
+    label: "Timeline",
+    description: "Records on a date axis",
+    renderer: TimelineView,
+  }],
+})
 
 <EidosFileEditorView
   source={source}
   table={table}
   view={view}
-  renderers={renderers}
+  plugins={[timelinePlugin]}
 />
 ```
 
-Registry 应定义在 render function 外部，保持引用稳定。宿主 entry 可以覆盖相同 key 的内置 renderer，因此应用也可以在不改变持久化 metadata 的情况下替换内置呈现。
+Plugin 与 plugin array 应定义在 render function 外部，保持引用稳定。Plugin ID 与 View Type 必须唯一，registry 会拒绝含糊的宿主组合。
 
 ## 将视图加入编辑器创建菜单
 
-Renderer registry 回答“如何渲染这个类型”，编辑器 shell 另外负责“用户可以创建哪些类型”。在 registry 旁维护一个小型 contribution catalog：
+插件 registry 同时也是视图创建菜单的事实来源。不要维护第二份可能与已引入插件发生漂移的 catalog：
 
 ```ts
+import { createEidosFilePluginRegistry } from "@eidos.space/eidos-file-ui/plugin"
+
+const registry = createEidosFilePluginRegistry(plugins)
 const viewContributions = [
   { type: "grid", label: "Grid" },
-  { type: "gallery", label: "Gallery" },
-  { type: "kanban", label: "Kanban" },
-  { type: "com.example.timeline", label: "Timeline" },
+  ...Object.values(registry.views).filter(
+    (view) => view.create?.isAvailable?.(fields) ?? true
+  ),
 ]
 ```
+
+用户选择视图时，使用 contribution 的 `create.defaultName` 和可选的 `create.properties(fields)`。这样，引入 Gallery、Kanban 或自定义视图插件后，渲染和创建都由同一份契约驱动。
 
 创建视图属于 runtime 操作。增加宿主 Worker action，调用 `EidosFileRuntime.createView`，然后返回新 snapshot：
 

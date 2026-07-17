@@ -22,6 +22,26 @@
       "import": "./dist/eidos-file-editor-view.mjs",
       "default": "./dist/eidos-file-editor-view.mjs"
     },
+    "./plugin": {
+      "types": "./dist/plugin.d.mts",
+      "import": "./dist/plugin.mjs",
+      "default": "./dist/plugin.mjs"
+    },
+    "./plugins/gallery": {
+      "types": "./dist/plugins/gallery.d.mts",
+      "import": "./dist/plugins/gallery.mjs",
+      "default": "./dist/plugins/gallery.mjs"
+    },
+    "./plugins/kanban": {
+      "types": "./dist/plugins/kanban.d.mts",
+      "import": "./dist/plugins/kanban.mjs",
+      "default": "./dist/plugins/kanban.mjs"
+    },
+    "./plugins/csv-import": {
+      "types": "./dist/plugins/csv-import.d.mts",
+      "import": "./dist/plugins/csv-import.mjs",
+      "default": "./dist/plugins/csv-import.mjs"
+    },
     "./eidos-file-gallery-view": {
       "types": "./dist/eidos-file-gallery-view.d.mts",
       "import": "./dist/eidos-file-gallery-view.mjs",

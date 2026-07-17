@@ -31,6 +31,9 @@ import {
   eidosFileViewRowQuery,
 } from "./eidos-file-view-query"
 import type { EidosFileEditorDataSource } from "./data-source"
+import { createEidosFilePluginRegistry, defineEidosFilePlugin } from "./plugin"
+import { eidosFileGalleryPlugin } from "./plugins/gallery"
+import { eidosFileKanbanPlugin } from "./plugins/kanban"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -120,15 +123,55 @@ describe("EidosFileEditorView registry", () => {
     container.remove()
   })
 
-  it("ships Grid, Gallery, and Kanban from one public registry", () => {
-    expect(Object.keys(builtInEidosFileViewRenderers)).toEqual([
-      "grid",
-      "gallery",
-      "kanban",
+  it("keeps Grid in core and exposes card layouts only through plugins", () => {
+    expect(Object.keys(builtInEidosFileViewRenderers)).toEqual(["grid"])
+    const registry = createEidosFilePluginRegistry([
+      eidosFileGalleryPlugin,
+      eidosFileKanbanPlugin,
     ])
+    expect(Object.keys(registry.viewRenderers)).toEqual(["gallery", "kanban"])
   })
 
-  it("passes persisted metadata and the runtime query to a custom renderer", () => {
+  it("rejects duplicate plugin and persisted view identifiers", () => {
+    expect(() =>
+      createEidosFilePluginRegistry([
+        eidosFileGalleryPlugin,
+        eidosFileGalleryPlugin,
+      ])
+    ).toThrow("Duplicate Eidos File plugin")
+    expect(() =>
+      createEidosFilePluginRegistry([
+        eidosFileGalleryPlugin,
+        defineEidosFilePlugin({
+          id: "example.gallery",
+          views: [
+            {
+              ...eidosFileGalleryPlugin.views[0],
+              label: "Another gallery",
+            },
+          ],
+        }),
+      ])
+    ).toThrow("Duplicate Eidos File view type: gallery")
+    expect(() =>
+      createEidosFilePluginRegistry([
+        defineEidosFilePlugin({
+          id: "example.import-a",
+          actions: [
+            { id: "example.import", slot: "workbar", render: () => null },
+          ],
+        }),
+        defineEidosFilePlugin({
+          id: "example.import-b",
+          actions: [
+            { id: "example.import", slot: "workbar", render: () => null },
+          ],
+        }),
+      ])
+    ).toThrow("Duplicate Eidos File action: example.import")
+  })
+
+  it("passes persisted metadata and the runtime query to a plugin renderer", () => {
     const received: EidosFileViewRendererProps[] = []
     function TimelineRenderer(props: EidosFileViewRendererProps) {
       received.push(props)
@@ -136,6 +179,17 @@ describe("EidosFileEditorView registry", () => {
         <div data-custom-view>{String(props.view?.properties?.dateField)}</div>
       )
     }
+    const timelinePlugin = defineEidosFilePlugin({
+      id: "example.timeline",
+      views: [
+        {
+          type: "timeline",
+          label: "Timeline",
+          description: "Records on a date axis",
+          renderer: TimelineRenderer,
+        },
+      ],
+    })
 
     act(() => {
       root.render(
@@ -144,7 +198,7 @@ describe("EidosFileEditorView registry", () => {
           table={table}
           view={view}
           search=" release "
-          renderers={{ timeline: TimelineRenderer }}
+          plugins={[timelinePlugin]}
         />
       )
     })

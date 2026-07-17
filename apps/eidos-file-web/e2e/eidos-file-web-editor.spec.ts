@@ -451,6 +451,82 @@ test("opens the bundled sample without a picker", async ({ page }) => {
   ).toBeVisible()
 })
 
+test("imports CSV through the explicitly composed editor plugin", async ({
+  page,
+  browserName,
+}, testInfo) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the CSV plugin and SQLite WASM worker path"
+  )
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await page.locator("[data-testid='glide-cell-1-0']").waitFor({
+    state: "attached",
+  })
+
+  const chooserPromise = page.waitForEvent("filechooser")
+  await page
+    .getByRole("button", {
+      name: "Import CSV as a new Eidos File table",
+    })
+    .click()
+  const chooser = await chooserPromise
+  await chooser.setFiles({
+    name: "plugin-import.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "Name,Estimate,Done\nAlpha,12.5,true\nBeta,7,false\n",
+      "utf8"
+    ),
+  })
+
+  const dialog = page.getByText("Import CSV as a new table").locator("..")
+  await expect(dialog).toContainText("2 rows")
+  const tableName = page.getByLabel("Table name")
+  await tableName.fill("CSV projects")
+  await page.getByRole("button", { name: "Import 2 rows" }).click()
+
+  await expect(
+    page.getByRole("tab", { name: "CSV projects", exact: true })
+  ).toBeVisible()
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toHaveText(
+    "Alpha"
+  )
+  await expect(page.locator("[data-testid='glide-cell-2-0']")).toHaveText(
+    "12.5"
+  )
+  await expect(page.locator("[data-testid='glide-cell-3-0']")).toHaveText(
+    "true"
+  )
+  await expect(page.getByRole("status")).toContainText(/Unsaved|browser/)
+
+  const downloadPromise = page.waitForEvent("download")
+  await page
+    .locator(".title-actions .toolbar-button")
+    .filter({ hasText: "Save As" })
+    .click()
+  const savedPath = testInfo.outputPath("csv-plugin-import.eidos")
+  await (await downloadPromise).saveAs(savedPath)
+
+  await page.reload()
+  await page.locator("input[type=file]").setInputFiles(savedPath)
+  await expect(
+    page.getByRole("tab", { name: "CSV projects", exact: true })
+  ).toBeVisible()
+  await page.getByRole("tab", { name: "CSV projects", exact: true }).click()
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toHaveText(
+    "Alpha"
+  )
+  await page.getByRole("button", { name: "切换到中文" }).click()
+  await expect(
+    page.getByRole("button", {
+      name: "将 CSV 导入为新的 Eidos File 数据表",
+    })
+  ).toBeVisible()
+})
+
 test("calculates Grid column summaries through the browser runtime", async ({
   page,
   browserName,

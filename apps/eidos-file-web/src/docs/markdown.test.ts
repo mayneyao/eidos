@@ -52,6 +52,9 @@ const message: string = "Hello Eidos File"
     const views = EIDOS_FILE_DOCUMENTS.find(
       (document) => document.slug === "custom-views"
     )!
+    const plugins = EIDOS_FILE_DOCUMENTS.find(
+      (document) => document.slug === "plugins"
+    )!
 
     for (const markdown of [
       ...EIDOS_FILE_DOCUMENTS.map((document) => document.markdown.en),
@@ -73,10 +76,16 @@ const message: string = "Hello Eidos File"
 
     for (const markdown of [views.markdown.en, views.markdown.zh]) {
       expect(markdown).toContain("EidosFileViewRenderer")
-      expect(markdown).toContain("builtInEidosFileViewRenderers")
+      expect(markdown).toContain("defineEidosFilePlugin")
       expect(markdown).toContain("com.example.timeline")
       expect(markdown).toContain("source.getPage")
       expect(markdown).toContain("source.updateView")
+    }
+
+    for (const markdown of [plugins.markdown.en, plugins.markdown.zh]) {
+      expect(markdown).toContain("EidosFilePluginSlot")
+      expect(markdown).toContain("createEidosFileCsvImportPlugin")
+      expect(markdown).toMatch(/Eidos Space [Ee]xtensions?/)
     }
   })
 })

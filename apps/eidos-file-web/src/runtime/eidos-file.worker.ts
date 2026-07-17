@@ -6,6 +6,10 @@ import {
   migrateEidosFileSchema,
   validateEidosFile,
 } from "@eidos.space/eidos-file"
+import {
+  importEidosFileCsv,
+  planEidosFileCsvImport,
+} from "@eidos.space/eidos-file/csv"
 import type {
   EidosFileRowMutationResult,
   EidosFileSnapshot,
@@ -200,6 +204,10 @@ function mutationResult(
   }
 }
 
+function csvSource(fileName: string, bytes: ArrayBuffer) {
+  return { name: fileName, content: new TextDecoder().decode(bytes) }
+}
+
 async function handleAction(action: EidosFileWorkerAction) {
   if (action.type === "open-source" || action.type === "open-recovery") {
     return openEidosFile(action)
@@ -267,6 +275,19 @@ async function handleAction(action: EidosFileWorkerAction) {
     case "update-view":
       runtime.updateView(action.viewId, action.changes)
       return snapshot()
+    case "csv-preview":
+      return planEidosFileCsvImport(
+        csvSource(action.fileName, action.bytes),
+        action.options
+      )
+    case "csv-import": {
+      const result = importEidosFileCsv(
+        runtime,
+        csvSource(action.fileName, action.bytes),
+        action.options
+      )
+      return { snapshot: snapshot(), result }
+    }
     case "export": {
       const check = context.connection.get<{ integrity_check: string }>(
         "PRAGMA integrity_check"

@@ -24,6 +24,16 @@ import {
   EidosFileSheetTabStrip,
   EidosFileViewTabStrip,
 } from "@eidos.space/eidos-file-ui/eidos-file-editor-chrome"
+import {
+  EidosFilePluginSlot,
+  type EidosFilePluginContext,
+} from "@eidos.space/eidos-file-ui/plugin"
+import {
+  createEidosFileCsvImportPlugin,
+  type EidosFileCsvImportSource,
+} from "@eidos.space/eidos-file-ui/plugins/csv-import"
+import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/gallery"
+import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
 import { EidosFileQueryToolbar } from "@eidos.space/eidos-file-ui/eidos-file-query-toolbar"
 import {
   AlertTriangle,
@@ -145,6 +155,21 @@ function initialTheme(): Theme {
   return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
 }
 
+function pickBrowserCsvFile(): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = ".csv,text/csv,text/plain"
+    input.addEventListener(
+      "change",
+      () => resolve(input.files?.item(0) ?? null),
+      { once: true }
+    )
+    input.addEventListener("cancel", () => resolve(null), { once: true })
+    input.click()
+  })
+}
+
 function statusPresentation(
   phase: ReturnType<typeof saveReducer>["phase"],
   mode: FileAccessMode | null,
@@ -227,6 +252,79 @@ export function App() {
   )
   const clientRef = useRef<EidosFileWorkerClient | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const csvFilesRef = useRef(new Map<string, File>())
+  const editorPlugins = useMemo(
+    () => [
+      eidosFileGalleryPlugin,
+      eidosFileKanbanPlugin,
+      createEidosFileCsvImportPlugin(
+        {
+          async pickFile() {
+            const file = await pickBrowserCsvFile()
+            if (!file) return null
+            const source: EidosFileCsvImportSource = {
+              id: crypto.randomUUID(),
+              fileName: file.name,
+            }
+            csvFilesRef.current.set(source.id, file)
+            return source
+          },
+          async preview(source, options) {
+            const client = clientRef.current
+            const file = csvFilesRef.current.get(source.id)
+            if (!client || !file) throw new Error(t("csvUnavailable"))
+            return client.previewCsv(
+              source.fileName,
+              await file.arrayBuffer(),
+              options
+            )
+          },
+          async import(source, options) {
+            const client = clientRef.current
+            const file = csvFilesRef.current.get(source.id)
+            if (!client || !file) throw new Error(t("csvUnavailable"))
+            return client.importCsv(
+              source.fileName,
+              await file.arrayBuffer(),
+              options
+            )
+          },
+          release(source) {
+            csvFilesRef.current.delete(source.id)
+          },
+        },
+        {
+          copy: {
+            actionAriaLabel: t("csvActionAriaLabel"),
+            actionLabel: t("csvActionLabel"),
+            cancel: t("csvCancel"),
+            chooseAnother: t("csvChooseAnother"),
+            choosePrompt: t("csvChoosePrompt"),
+            dialogTitle: t("csvDialogTitle"),
+            fieldName: t("csvFieldName"),
+            fieldType: t("csvFieldType"),
+            fileSummary: t("csvFileSummary"),
+            importRows: t("csvImportRows"),
+            importing: t("csvImporting"),
+            localOnly: t("csvLocalOnly"),
+            parsing: t("csvParsing"),
+            preview: t("csvPreview"),
+            tableName: t("csvTableName"),
+            titleType: t("csvTitleType"),
+            typeCheckbox: t("csvTypeCheckbox"),
+            typeDate: t("csvTypeDate"),
+            typeDatetime: t("csvTypeDatetime"),
+            typeNumber: t("csvTypeNumber"),
+            typeText: t("csvTypeText"),
+            typeUrl: t("csvTypeUrl"),
+            unableToImport: t("csvUnableToImport"),
+            unableToRead: t("csvUnableToRead"),
+          },
+        }
+      ),
+    ],
+    [t]
+  )
 
   const activeTable = useMemo(
     () =>
@@ -748,6 +846,24 @@ export function App() {
     [activeTable, markCommitted]
   )
 
+  const pluginContext = useMemo<EidosFilePluginContext | null>(() => {
+    const source = clientRef.current
+    if (!source || !snapshot) return null
+    return {
+      source,
+      snapshot,
+      activeTable,
+      activeView,
+      disabled: saveState.phase === "saving",
+      onSnapshot: onStructureSnapshot,
+      onTableSelect: (tableId) => {
+        setActiveTableId(tableId)
+        setPropertyField(null)
+      },
+      onError: (error) => setNotice(errorMessage(error)),
+    }
+  }, [activeTable, activeView, onStructureSnapshot, saveState.phase, snapshot])
+
   const status = statusPresentation(saveState.phase, saveState.mode, t)
   const StatusIcon = status.icon
   const directSupported = supportsDirectFileAccess()
@@ -1225,6 +1341,7 @@ export function App() {
           <EidosFileViewTabStrip
             views={activeTable.views}
             activeViewId={activeView?.id}
+            plugins={editorPlugins}
             disabled={saveState.phase === "saving"}
             onSelect={(viewId) =>
               setActiveViews((current) => ({
@@ -1244,6 +1361,13 @@ export function App() {
               onFilterChange={(filter) => updateActiveView({ filter })}
               onSortsChange={(sorts) => updateActiveView({ sorts })}
             />
+            {pluginContext ? (
+              <EidosFilePluginSlot
+                context={pluginContext}
+                plugins={editorPlugins}
+                slot="workbar"
+              />
+            ) : null}
             <div className="add-property-wrap">
               <button
                 className="eidos-file-workbar-action inline-flex h-7 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -1272,6 +1396,7 @@ export function App() {
           <SharedEidosFileEditorView
             key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
             theme={theme}
+            plugins={editorPlugins}
             source={clientRef.current!}
             table={activeTable}
             view={activeView}

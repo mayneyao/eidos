@@ -2,6 +2,8 @@ import formatEn from "./content/format.en.md?raw"
 import formatZh from "./content/format.zh.md?raw"
 import overviewEn from "./content/overview.en.md?raw"
 import overviewZh from "./content/overview.zh.md?raw"
+import pluginsEn from "./content/plugins.en.md?raw"
+import pluginsZh from "./content/plugins.zh.md?raw"
 import runtimeEn from "./content/runtime.en.md?raw"
 import runtimeZh from "./content/runtime.zh.md?raw"
 import viewsEn from "./content/views.en.md?raw"
@@ -56,6 +58,19 @@ export const EIDOS_FILE_DOCUMENTS: EidosFileDocument[] = [
       zh: "连接文件、Runtime、Worker、保存状态与共享编辑器 UI。",
     },
     markdown: { en: runtimeEn, zh: runtimeZh },
+  },
+  {
+    slug: "plugins",
+    edition: { en: "Developer guide", zh: "开发者指南" },
+    title: {
+      en: "Compose editor plugins",
+      zh: "组合编辑器插件",
+    },
+    summary: {
+      en: "Choose core capabilities, official workflows, and custom views without coupling to Eidos Space extensions.",
+      zh: "划分核心能力、官方工作流与自定义视图，且不耦合 Eidos Space Extension。",
+    },
+    markdown: { en: pluginsEn, zh: pluginsZh },
   },
   {
     slug: "custom-views",
