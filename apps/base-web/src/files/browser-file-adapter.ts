@@ -4,8 +4,8 @@ export type FileWritePermission = "granted" | "prompt" | "denied"
 // Kept at the browser boundary so the main-thread picker adapter does not pull
 // the runtime/query implementation into the UI bundle. The worker remains the
 // only consumer of @eidos.space/base executable code.
-const BASE_FILE_EXTENSION = ".base"
-const BASE_MIME_TYPE = "application/vnd.eidos.base+sqlite3"
+export const BASE_FILE_EXTENSION = ".base"
+export const BASE_MIME_TYPE = "application/vnd.eidos.base+sqlite3"
 
 export interface BaseFileVersion {
   size: number
@@ -121,6 +121,25 @@ export async function pickDirectBaseFile(): Promise<OpenedBrowserFile | null> {
   }
 }
 
+export async function openBaseFileHandle(
+  handle: FileSystemFileHandle
+): Promise<OpenedBrowserFile> {
+  const file = await handle.getFile()
+  if (!file.name.toLowerCase().endsWith(BASE_FILE_EXTENSION)) {
+    throw new Error(
+      `“${file.name}” is not an Eidos Base file. Choose a ${BASE_FILE_EXTENSION} file.`
+    )
+  }
+  const read = await readBaseFile(file)
+  return {
+    ...read,
+    fileName: file.name,
+    mode: "direct",
+    permission: await queryWritePermission(handle),
+    handle,
+  }
+}
+
 export async function openImportedBaseFile(
   file: File
 ): Promise<OpenedBrowserFile> {
@@ -164,9 +183,9 @@ export async function writeAndVerifyHandle(
     throw error
   }
 
-  const expectedDigest = await digestBytes(
-    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
-  )
+  const digestInput = new Uint8Array(bytes.byteLength)
+  digestInput.set(bytes)
+  const expectedDigest = await digestBytes(digestInput.buffer)
   const written = await readHandleVersion(handle)
   if (written.version.digest !== expectedDigest) {
     throw new Error(

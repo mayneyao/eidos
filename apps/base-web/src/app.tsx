@@ -66,6 +66,7 @@ import {
   type FileWritePermission,
   type OpenedBrowserFile,
 } from "./files/browser-file-adapter"
+import { registerPwaBaseFileHandler } from "./files/pwa-file-handler"
 import { useI18n, type Translator } from "./i18n"
 import { BaseWorkerClient } from "./runtime/worker-client"
 import { loadSampleBaseFile } from "./sample-base"
@@ -352,6 +353,19 @@ export function App() {
       }
     },
     [installOpenResult]
+  )
+
+  useEffect(
+    () =>
+      registerPwaBaseFileHandler({
+        onOpen: async (opened) => {
+          if (!confirmSwitch()) return
+          setNotice(null)
+          await openPreparedFile(opened)
+        },
+        onError: (error) => setNotice(errorMessage(error)),
+      }),
+    [confirmSwitch, openPreparedFile]
   )
 
   const chooseFile = useCallback(async () => {

@@ -11,6 +11,7 @@ interface BaseE2EHarness {
   appendExternalByte(): Promise<void>
   bytes(): Promise<number[]>
   failWrites(value: boolean): void
+  launchFile(): Promise<void>
 }
 
 declare global {
@@ -28,6 +29,21 @@ async function installDirectPicker(
   await page.addInitScript(
     async ({ base64, fileName, permission }) => {
       let failWrites = false
+      let launchConsumer:
+        | ((params: { files: FileSystemFileHandle[] }) => void | Promise<void>)
+        | undefined
+      Object.defineProperty(window, "launchQueue", {
+        configurable: true,
+        value: {
+          setConsumer(
+            consumer: (params: {
+              files: FileSystemFileHandle[]
+            }) => void | Promise<void>
+          ) {
+            launchConsumer = consumer
+          },
+        },
+      })
       const ready = (async () => {
         const root = await navigator.storage.getDirectory()
         const handle = await root.getFileHandle(fileName, { create: true })
@@ -77,6 +93,12 @@ async function installDirectPicker(
           },
           failWrites(value) {
             failWrites = value
+          },
+          async launchFile() {
+            if (!launchConsumer) {
+              throw new Error("The PWA launch consumer is not registered")
+            }
+            await launchConsumer({ files: [handle] })
           },
         }
         return handle
@@ -182,6 +204,24 @@ test.describe("Chromium original-file editing", () => {
     await expect(page.getByText("SQLite 1", { exact: true })).toBeVisible()
   })
 
+  test("opens a .base file delivered by the installed PWA launch queue", async ({
+    page,
+  }) => {
+    await installDirectPicker(page, { fileName: "pwa-launch.base" })
+    await page.goto("/")
+    await page.waitForFunction(() => Boolean(window.__baseE2E))
+
+    await page.evaluate(async () => window.__baseE2E?.launchFile())
+
+    await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
+      "Ship Base Web Editor"
+    )
+    await expect(page.locator("[data-base-sheet-tabs]")).toContainText(
+      "Original file"
+    )
+    await expect(page.locator("header")).toContainText("pwa-launch.base")
+  })
+
   test("protects the working copy when the original changes", async ({
     page,
   }) => {
@@ -250,6 +290,38 @@ test.describe("Chromium original-file editing", () => {
         .filter({ hasText: "Save As" })
     ).toBeVisible()
   })
+})
+
+test("publishes an installable manifest with a .base file handler", async ({
+  browserName,
+  request,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Manifest output is browser-independent"
+  )
+  const response = await request.get("/manifest.webmanifest")
+  expect(response.ok()).toBe(true)
+  const manifest = await response.json()
+
+  expect(manifest.name).toBe("Eidos Base")
+  expect(manifest.icons).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ sizes: "192x192" }),
+      expect.objectContaining({ sizes: "512x512" }),
+    ])
+  )
+  expect(manifest.file_handlers).toContainEqual(
+    expect.objectContaining({
+      action: "./",
+      accept: {
+        "application/vnd.eidos.base+sqlite3": [".base"],
+      },
+      launch_type: "multiple-clients",
+    })
+  )
+  await expect((await request.get("/sw.js")).ok()).toBe(true)
+  await expect((await request.get("/base-icon-512.png")).ok()).toBe(true)
 })
 
 test("fallback imports a copy, downloads it, and reopens the edit", async ({
