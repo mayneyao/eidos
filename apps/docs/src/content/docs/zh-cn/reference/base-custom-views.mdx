@@ -12,6 +12,11 @@ Eidos 元数据。数据、字段定义、已保存的筛选/排序和视图配�
 本文描述 `@eidos.space/base` 与 `@eidos.space/base-ui` 已实现的应用集成边界。这两个包目前
 仍是 pre-1.0 API；集成方应固定版本，并在升级前阅读 release notes。
 
+如果你正在决定应用应该 import 哪些模块，请先阅读
+[使用 Base UI 构建编辑器](/zh-cn/reference/base-ui-package/)。该文档定义默认 Grid、按需启用
+Gallery、Kanban 与自定义 view plugin 的拟议 package 形态；本文继续讲解它下方的数据与
+renderer contract。
+
 ## 从格式到 UI
 
 ```text
