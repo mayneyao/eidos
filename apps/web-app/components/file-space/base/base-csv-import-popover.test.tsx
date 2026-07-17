@@ -78,11 +78,11 @@ describe("BaseCsvImportPopover", () => {
     expect(trigger?.className).not.toContain("base-workbar-action")
   })
 
-  it("renders a compact sheet-bar trigger that opens upward", async () => {
+  it("renders a full-width action for the sheet create menu", async () => {
     await act(async () => {
       root.render(
         <BaseCsvImportPopover
-          triggerVariant="sheet-bar"
+          triggerVariant="sheet-create"
           onSelect={() =>
             Promise.resolve({ canceled: true, token: null, fileName: null })
           }
@@ -97,10 +97,11 @@ describe("BaseCsvImportPopover", () => {
     const trigger = container.querySelector<HTMLButtonElement>(
       '[aria-label="Import CSV as new Base table"]'
     )
-    expect(trigger?.className).toContain("h-full")
-    expect(trigger?.className).toContain("border-l")
-    expect(trigger?.querySelector("span")?.className).toContain("sr-only")
-    expect(trigger?.title).toBe("Import CSV as table")
+    expect(trigger?.className).toContain("w-full")
+    expect(trigger?.className).toContain("text-left")
+    expect(trigger?.textContent).toContain("Import CSV")
+    expect(trigger?.textContent).toContain("Create a table from a CSV file")
+    expect(trigger?.title).toBe("Import CSV")
   })
 
   it("previews mapping in an anchored panel and imports a new table", async () => {

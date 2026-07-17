@@ -85,6 +85,7 @@ import { baseRecordCardPageProjection } from "./base-record-card-layout"
 import { BaseRecordPage, BaseRecordUnavailable } from "./base-record-page"
 import { baseRecordTitle } from "./base-record-format"
 import { BaseRenameDialog } from "./base-rename-dialog"
+import { BaseSheetCreatePopover } from "./base-sheet-create-popover"
 import { BaseSheetTabs } from "./base-sheet-tabs"
 import { BaseStructureDialog } from "./base-structure-dialog"
 import { BaseStructureMenu } from "./base-structure-menu"
@@ -280,9 +281,7 @@ export function SpaceBaseEditor({
   )
   const [formulaTarget, setFormulaTarget] = useState<BaseFieldInfo | null>(null)
   const [lookupTarget, setLookupTarget] = useState<BaseFieldInfo | null>(null)
-  const [structureDialog, setStructureDialog] = useState<
-    "table" | "field" | null
-  >(null)
+  const [structureDialog, setStructureDialog] = useState<"field" | null>(null)
   const [fieldInsertIndex, setFieldInsertIndex] = useState<number | null>(null)
   const [extensionGridFallbackViewId, setExtensionGridFallbackViewId] =
     useState<string | null>(null)
@@ -2250,21 +2249,21 @@ export function SpaceBaseEditor({
         tables={snapshot.tables.map((candidate) => candidate.table)}
         activeTableId={activeTableId}
         disabled={loading || blockingMutations > 0}
-        importAction={
-          activeTable ? (
-            <BaseCsvImportPopover
-              triggerVariant="sheet-bar"
-              disabled={loading || pendingMutations > 0}
-              onSelect={selectCsv}
-              onPreview={previewCsvImport}
-              onImport={importCsvIntoBase}
-              onProgress={getCsvOperation}
-              onCancel={cancelCsvOperation}
-            />
-          ) : undefined
+        createAction={
+          <BaseSheetCreatePopover
+            disabled={loading || blockingMutations > 0}
+            csvImportProps={{
+              disabled: loading || pendingMutations > 0,
+              onSelect: selectCsv,
+              onPreview: previewCsvImport,
+              onImport: importCsvIntoBase,
+              onProgress: getCsvOperation,
+              onCancel: cancelCsvOperation,
+            }}
+            onCreate={createTableInBase}
+          />
         }
         onSelect={setActiveTableId}
-        onCreate={() => setStructureDialog("table")}
         onRename={(table) =>
           setRenameTarget({
             kind: "table",
@@ -2295,8 +2294,8 @@ export function SpaceBaseEditor({
       />
 
       <BaseStructureDialog
-        mode={structureDialog ?? "table"}
-        open={structureDialog !== null}
+        mode="field"
+        open={structureDialog === "field"}
         onOpenChange={(open) => {
           if (!open) {
             setStructureDialog(null)

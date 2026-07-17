@@ -156,6 +156,49 @@ vi.mock("@/apps/web-app/hooks/use-space-base", () => ({
   }),
 }))
 
+vi.mock("./base-sheet-create-popover", () => ({
+  BaseSheetCreatePopover: ({
+    disabled,
+    csvImportProps,
+    onCreate,
+  }: {
+    disabled?: boolean
+    csvImportProps: { onSelect: () => Promise<unknown> }
+    onCreate: (value: { name: string }) => Promise<void> | void
+  }) => {
+    const [open, setOpen] = React.useState(false)
+    return (
+      <div>
+        <button
+          type="button"
+          aria-label="Add Base table"
+          disabled={disabled}
+          onClick={() => setOpen(true)}
+        >
+          Add table
+        </button>
+        {open ? (
+          <>
+            <button
+              type="button"
+              onClick={() => void onCreate({ name: "Projects" })}
+            >
+              Confirm table
+            </button>
+            <button
+              type="button"
+              aria-label="Import CSV as new Base table"
+              onClick={() => void csvImportProps.onSelect()}
+            >
+              Import CSV
+            </button>
+          </>
+        ) : null}
+      </div>
+    )
+  },
+}))
+
 vi.mock("./base-structure-dialog", () => ({
   BaseStructureDialog: ({
     mode,
@@ -1475,6 +1518,24 @@ describe("SpaceBaseEditor", () => {
     expect(
       workbar?.querySelector('[aria-label="Export current Base view as CSV"]')
     ).toBeNull()
+    expect(
+      container.querySelector(
+        '[data-base-sheet-tabs] [aria-label="Import CSV as new Base table"]'
+      )
+    ).toBeNull()
+    expect(
+      container.querySelectorAll(
+        '[data-base-sheet-tabs] [aria-label="Add Base table"]'
+      )
+    ).toHaveLength(1)
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-base-sheet-tabs] [aria-label="Add Base table"]'
+        )
+        ?.click()
+    })
     expect(
       container.querySelector(
         '[data-base-sheet-tabs] [aria-label="Import CSV as new Base table"]'

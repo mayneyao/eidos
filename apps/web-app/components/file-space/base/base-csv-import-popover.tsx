@@ -27,9 +27,9 @@ type CsvSelection =
   | { canceled: true; token: null; fileName: null }
   | { canceled: false; token: string; fileName: string }
 
-interface BaseCsvImportPopoverProps {
+export interface BaseCsvImportPopoverProps {
   disabled?: boolean
-  triggerVariant?: "workbar" | "empty-state" | "sheet-bar"
+  triggerVariant?: "workbar" | "empty-state" | "sheet-create"
   onSelect: () => Promise<CsvSelection>
   onPreview: (
     token: string,
@@ -43,6 +43,7 @@ interface BaseCsvImportPopoverProps {
   ) => Promise<void>
   onProgress: (operationId: string) => Promise<BaseCsvOperationProgress | null>
   onCancel: (operationId: string) => Promise<boolean>
+  onImported?: () => void
 }
 
 interface CsvColumnDraft {
@@ -100,6 +101,7 @@ export function BaseCsvImportPopover({
   onImport,
   onProgress,
   onCancel,
+  onImported,
 }: BaseCsvImportPopoverProps) {
   const [open, setOpen] = useState(false)
   const [selecting, setSelecting] = useState(false)
@@ -340,6 +342,7 @@ export function BaseCsvImportPopover({
       setToken(null)
       setSourceFileName(null)
       setPlan(null)
+      onImported?.()
     } catch (importError) {
       if (isCanceledError(importError)) {
         setNotice("Import canceled. No rows were added.")
@@ -390,46 +393,68 @@ export function BaseCsvImportPopover({
         <Button
           type="button"
           variant={triggerVariant === "empty-state" ? "outline" : "ghost"}
-          size={triggerVariant === "sheet-bar" ? "icon" : "sm"}
+          size="sm"
           className={cn(
             "gap-1.5 text-xs",
             triggerVariant === "empty-state"
               ? "h-8 px-3"
-              : triggerVariant === "sheet-bar"
-                ? "h-full w-8 shrink-0 rounded-none border-l"
+              : triggerVariant === "sheet-create"
+                ? "h-auto w-full items-start justify-start gap-3 rounded-md px-3 py-2.5 text-left"
                 : "base-workbar-action h-7 px-2"
           )}
           aria-label={
-            triggerVariant === "sheet-bar"
+            triggerVariant === "sheet-create"
               ? "Import CSV as new Base table"
               : "Import CSV into Base"
           }
-          title={
-            triggerVariant === "sheet-bar"
-              ? "Import CSV as table"
-              : "Import CSV"
-          }
+          title="Import CSV"
           disabled={disabled || selecting}
           onClick={() => void chooseFile()}
         >
           {selecting ? (
-            <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+            <LoaderCircle
+              className={cn(
+                "h-3.5 w-3.5 animate-spin motion-reduce:animate-none",
+                triggerVariant === "sheet-create" && "mt-0.5"
+              )}
+            />
           ) : (
-            <FileUp className="h-3.5 w-3.5" />
+            <FileUp
+              className={cn(
+                "h-3.5 w-3.5",
+                triggerVariant === "sheet-create" && "mt-0.5"
+              )}
+            />
           )}
-          <span
-            className={cn(
-              triggerVariant === "workbar" && "base-workbar-action-label",
-              triggerVariant === "sheet-bar" && "sr-only"
-            )}
-          >
-            Import CSV
-          </span>
+          {triggerVariant === "sheet-create" ? (
+            <span className="grid min-w-0 gap-0.5">
+              <span className="text-sm font-medium text-foreground">
+                Import CSV
+              </span>
+              <span className="text-xs font-normal leading-4 text-muted-foreground">
+                Create a table from a CSV file.
+              </span>
+            </span>
+          ) : (
+            <span
+              className={cn(
+                triggerVariant === "workbar" && "base-workbar-action-label"
+              )}
+            >
+              Import CSV
+            </span>
+          )}
         </Button>
       </PopoverAnchor>
       <PopoverContent
-        align={triggerVariant === "empty-state" ? "center" : "end"}
-        side={triggerVariant === "sheet-bar" ? "top" : "bottom"}
+        align={
+          triggerVariant === "empty-state"
+            ? "center"
+            : triggerVariant === "sheet-create"
+              ? "start"
+              : "end"
+        }
+        side={triggerVariant === "sheet-create" ? "top" : "bottom"}
         sideOffset={5}
         className="w-[min(760px,calc(100vw-24px))] p-0"
       >

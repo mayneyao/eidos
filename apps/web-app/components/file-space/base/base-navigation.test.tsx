@@ -94,7 +94,6 @@ describe("Base navigation hierarchy", () => {
     const onSelectView = vi.fn()
     const onSelectTable = vi.fn()
     const onCreateTable = vi.fn()
-    const onImportCsv = vi.fn()
     const onRenameTable = vi.fn()
     const onDeleteTable = vi.fn()
     await act(async () => {
@@ -116,14 +115,13 @@ describe("Base navigation hierarchy", () => {
             tables={tables}
             activeTableId="tasks"
             onSelect={onSelectTable}
-            onCreate={onCreateTable}
-            importAction={
+            createAction={
               <button
                 type="button"
-                aria-label="Import CSV as table"
-                onClick={onImportCsv}
+                aria-label="Add Base table"
+                onClick={onCreateTable}
               >
-                Import CSV as table
+                Add table
               </button>
             }
             onRename={onRenameTable}
@@ -153,6 +151,14 @@ describe("Base navigation hierarchy", () => {
       sheetTabs?.querySelector('[role="tab"][aria-selected="true"]')
         ?.textContent
     ).toContain("Tasks")
+    const sheetViewport = container.querySelector(
+      "[data-base-sheet-tabs-viewport]"
+    )
+    const createAction = container.querySelector(
+      "[data-base-sheet-create-action]"
+    )
+    expect(sheetViewport?.lastElementChild).toBe(createAction)
+    expect(createAction?.previousElementSibling).toBe(sheetTabs)
 
     await act(async () => {
       Array.from(viewTabs?.querySelectorAll<HTMLButtonElement>("button") ?? [])
@@ -169,12 +175,6 @@ describe("Base navigation hierarchy", () => {
     expect(onSelectView).toHaveBeenCalledWith("board")
     expect(onSelectTable).toHaveBeenCalledWith("projects")
     expect(onCreateTable).toHaveBeenCalledOnce()
-    const importCsv = container.querySelector<HTMLButtonElement>(
-      '[data-base-sheet-tabs] [aria-label="Import CSV as table"]'
-    )
-    expect(importCsv?.textContent).toContain("Import CSV as table")
-    await act(async () => importCsv?.click())
-    expect(onImportCsv).toHaveBeenCalledOnce()
 
     const projectsTab = sheetTabs?.querySelector<HTMLElement>(
       '[data-base-table-id="projects"]'
@@ -288,7 +288,6 @@ describe("Base navigation hierarchy", () => {
             tables={tables}
             activeTableId="tasks"
             onSelect={onSelectTable}
-            onCreate={vi.fn()}
           />
         </div>
       )
@@ -334,18 +333,17 @@ describe("Base navigation hierarchy", () => {
             tables={tables}
             activeTableId={activeTableId}
             onSelect={vi.fn()}
-            onCreate={vi.fn()}
           />
         )
       })
     }
     await renderSheets("tasks")
 
-    const sheetTabs = container.querySelector<HTMLElement>(
-      '[role="tablist"][aria-label="Base tables"]'
+    const sheetViewport = container.querySelector<HTMLElement>(
+      "[data-base-sheet-tabs-viewport]"
     )
-    expect(sheetTabs).not.toBeNull()
-    Object.defineProperties(sheetTabs as HTMLElement, {
+    expect(sheetViewport).not.toBeNull()
+    Object.defineProperties(sheetViewport as HTMLElement, {
       clientWidth: { configurable: true, value: 180 },
       scrollLeft: { configurable: true, value: 0, writable: true },
       scrollWidth: { configurable: true, value: 600 },
@@ -363,7 +361,7 @@ describe("Base navigation hierarchy", () => {
 
     act(() => forward?.click())
 
-    expect(sheetTabs?.scrollLeft).toBeGreaterThan(0)
+    expect(sheetViewport?.scrollLeft).toBeGreaterThan(0)
     expect(
       container.querySelector('[aria-label="Scroll Base tables backward"]')
     ).not.toBeNull()
