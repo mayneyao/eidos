@@ -6,6 +6,7 @@ import { z } from "zod"
 
 const MAX_CONTENT_LENGTH = 30000
 const REQUEST_TIMEOUT_MS = 25_000
+const MAX_REDIRECTS = 5
 
 const BROWSER_HEADERS: Record<string, string> = {
   "user-agent":
@@ -14,13 +15,32 @@ const BROWSER_HEADERS: Record<string, string> = {
   "Accept-Language": "en-US,en;q=0.9",
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms)
-    ),
-  ])
+async function withRequestDeadline<T>(
+  operation: (signal: AbortSignal) => Promise<T>,
+  externalSignal?: AbortSignal
+): Promise<T> {
+  const controller = new AbortController()
+  let timedOut = false
+  const abortFromCaller = () => controller.abort()
+  if (externalSignal?.aborted) controller.abort()
+  else
+    externalSignal?.addEventListener("abort", abortFromCaller, { once: true })
+  const timeout = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, REQUEST_TIMEOUT_MS)
+  try {
+    return await operation(controller.signal)
+  } catch (error) {
+    if (externalSignal?.aborted) throw new Error("Web request was canceled")
+    if (timedOut) {
+      throw new Error(`Timed out after ${REQUEST_TIMEOUT_MS}ms`)
+    }
+    throw error
+  } finally {
+    clearTimeout(timeout)
+    externalSignal?.removeEventListener("abort", abortFromCaller)
+  }
 }
 
 function truncate(text: string, max: number): string {
@@ -29,64 +49,145 @@ function truncate(text: string, max: number): string {
     : text
 }
 
-async function fetchAndExtract(url: string) {
-  const res = await withTimeout(
-    fetch(url, { headers: BROWSER_HEADERS, redirect: "follow" }),
-    REQUEST_TIMEOUT_MS
+function isPrivateIpv4(hostname: string): boolean {
+  const parts = hostname.split(".")
+  if (parts.length !== 4 || parts.some((part) => !/^\d+$/.test(part))) {
+    return false
+  }
+  const octets = parts.map(Number)
+  if (octets.some((octet) => octet < 0 || octet > 255)) return true
+  const [first, second] = octets
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 100 && second >= 64 && second <= 127) ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 0) ||
+    (first === 192 && second === 168) ||
+    (first === 198 && (second === 18 || second === 19)) ||
+    first >= 224
   )
-  if (!res.ok) {
-    throw new Error(`Fetch failed: ${res.status} ${res.statusText}`)
+}
+
+function assertPublicHttpUrl(rawUrl: string): URL {
+  const parsed = new URL(rawUrl)
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Web fetch supports only HTTP and HTTPS URLs")
   }
-
-  const contentType = (res.headers.get("content-type") ?? "").toLowerCase()
-  const text = await withTimeout(res.text(), 10_000)
-
-  // JSON → return raw (pretty-printed)
+  if (parsed.username || parsed.password) {
+    throw new Error("Web fetch URLs cannot contain credentials")
+  }
+  const hostname = parsed.hostname
+    .toLowerCase()
+    .replace(/^\[/, "")
+    .replace(/\]$/, "")
+    .replace(/\.$/, "")
+  const privateIpv6 =
+    hostname.includes(":") &&
+    (hostname === "::" ||
+      hostname === "::1" ||
+      hostname.startsWith("fc") ||
+      hostname.startsWith("fd") ||
+      /^fe[89ab]/.test(hostname) ||
+      hostname.startsWith("::ffff:"))
   if (
-    contentType.includes("application/json") ||
-    contentType.includes("+json")
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".local") ||
+    isPrivateIpv4(hostname) ||
+    privateIpv6
   ) {
-    let formatted: string
-    try {
-      formatted = JSON.stringify(JSON.parse(text), null, 2)
-    } catch {
-      formatted = text
+    throw new Error(
+      "Web fetch cannot access local or private network addresses"
+    )
+  }
+  return parsed
+}
+
+async function fetchAndExtract(
+  rawUrl: string,
+  externalSignal?: AbortSignal
+): Promise<WebFetchResult> {
+  return withRequestDeadline(async (signal) => {
+    let currentUrl = assertPublicHttpUrl(rawUrl)
+    let res: Response | undefined
+    for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+      res = await fetch(currentUrl, {
+        headers: BROWSER_HEADERS,
+        redirect: "manual",
+        signal,
+      })
+      if (![301, 302, 303, 307, 308].includes(res.status)) break
+      const location = res.headers.get("location")
+      if (!location) {
+        throw new Error(
+          `Fetch redirect ${res.status} did not include a location`
+        )
+      }
+      if (redirects === MAX_REDIRECTS) {
+        throw new Error(`Fetch exceeded ${MAX_REDIRECTS} redirects`)
+      }
+      currentUrl = assertPublicHttpUrl(new URL(location, currentUrl).toString())
     }
+    if (!res?.ok) {
+      throw new Error(
+        `Fetch failed: ${res?.status ?? "unknown"} ${res?.statusText ?? ""}`.trim()
+      )
+    }
+
+    const url = currentUrl.toString()
+    const contentType = (res.headers.get("content-type") ?? "").toLowerCase()
+    const text = await res.text()
+
+    // JSON → return raw (pretty-printed)
+    if (
+      contentType.includes("application/json") ||
+      contentType.includes("+json")
+    ) {
+      let formatted: string
+      try {
+        formatted = JSON.stringify(JSON.parse(text), null, 2)
+      } catch {
+        formatted = text
+      }
+      return {
+        title: "",
+        url,
+        content: formatted,
+      }
+    }
+
+    // XML / plain text / other non-HTML → return raw
+    if (
+      contentType.includes("application/xml") ||
+      contentType.includes("text/xml") ||
+      contentType.includes("text/plain") ||
+      contentType.includes("text/csv") ||
+      contentType.includes("text/javascript") ||
+      contentType.includes("application/javascript")
+    ) {
+      return {
+        title: "",
+        url,
+        content: text,
+      }
+    }
+
+    // HTML → extract content via Defuddle
+    const { document } = parseHTML(text)
+    const result = await Defuddle(document, url, {
+      separateMarkdown: true,
+    })
+
+    const markdown: string = result.contentMarkdown ?? result.content ?? ""
     return {
-      title: "",
+      title: result.title ?? "",
       url,
-      content: formatted,
+      content: markdown,
     }
-  }
-
-  // XML / plain text / other non-HTML → return raw
-  if (
-    contentType.includes("application/xml") ||
-    contentType.includes("text/xml") ||
-    contentType.includes("text/plain") ||
-    contentType.includes("text/csv") ||
-    contentType.includes("text/javascript") ||
-    contentType.includes("application/javascript")
-  ) {
-    return {
-      title: "",
-      url,
-      content: text,
-    }
-  }
-
-  // HTML → extract content via Defuddle
-  const { document } = parseHTML(text)
-  const result = await Defuddle(document, url, {
-    separateMarkdown: true,
-  })
-
-  const markdown: string = result.contentMarkdown ?? result.content ?? ""
-  return {
-    title: result.title ?? "",
-    url,
-    content: markdown,
-  }
+  }, externalSignal)
 }
 
 export interface WebSearchItem {
@@ -110,16 +211,27 @@ export interface WebFetchResult {
 
 const EXA_API_URL = "https://api.exa.ai/search"
 
-async function exaSearch(
-  apiKey: string,
+export interface WebSearchOptions {
+  apiKey: string
+  numResults?: number
+  signal?: AbortSignal
+}
+
+export interface WebFetchOptions {
+  maxContentLength?: number | null
+  signal?: AbortSignal
+}
+
+export async function searchWeb(
   query: string,
-  numResults: number
-): Promise<WebSearchItem[]> {
-  const res = await withTimeout(
-    fetch(EXA_API_URL, {
+  options: WebSearchOptions
+): Promise<WebSearchResult> {
+  const numResults = Math.max(1, Math.min(options.numResults ?? 5, 10))
+  const results = await withRequestDeadline(async (signal) => {
+    const res = await fetch(EXA_API_URL, {
       method: "POST",
       headers: {
-        "x-api-key": apiKey,
+        "x-api-key": options.apiKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -130,20 +242,48 @@ async function exaSearch(
           highlights: true,
         },
       }),
-    }),
-    REQUEST_TIMEOUT_MS
-  )
-  if (!res.ok) {
-    const body = await res.text().catch(() => "")
-    throw new Error(`Exa search failed: ${res.status} ${body}`)
+      signal,
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => "")
+      throw new Error(`Exa search failed: ${res.status} ${body}`)
+    }
+    const data = (await res.json()) as {
+      costDollars?: unknown
+      results?: Array<{
+        title?: unknown
+        url?: unknown
+        highlights?: unknown
+      }>
+    }
+    console.log("[tool:web-search] Exa cost:", data.costDollars)
+    return (data.results ?? []).map((item) => ({
+      title: typeof item.title === "string" ? item.title : "",
+      url: typeof item.url === "string" ? item.url : "",
+      snippet:
+        Array.isArray(item.highlights) && typeof item.highlights[0] === "string"
+          ? item.highlights[0]
+          : "",
+    }))
+  }, options.signal)
+  return { results, query }
+}
+
+export async function fetchWeb(
+  url: string,
+  options: WebFetchOptions = {}
+): Promise<WebFetchResult> {
+  const result = await fetchAndExtract(url, options.signal)
+  return {
+    ...result,
+    content:
+      options.maxContentLength === null
+        ? result.content
+        : truncate(
+            result.content,
+            options.maxContentLength ?? MAX_CONTENT_LENGTH
+          ),
   }
-  const data = await res.json()
-  console.log("[tool:web-search] Exa cost:", data.costDollars)
-  return (data.results ?? []).map((r: any) => ({
-    title: r.title ?? "",
-    url: r.url ?? "",
-    snippet: (r.highlights ?? [])[0] ?? "",
-  }))
 }
 
 // ── Tool factories ──────────────────────────────────────────────────────
@@ -195,8 +335,10 @@ export function createWebSearchTools(
       const count = Math.min(num ?? 5, 10)
       console.log("[tool:web-search] ▶", { query, count, outputPath })
       try {
-        const results = await exaSearch(apiKey, query, count)
-        const resultData: WebSearchResult = { results, query }
+        const resultData = await searchWeb(query, {
+          apiKey,
+          numResults: count,
+        })
 
         if (outputPath) {
           bash.writeFile(outputPath, JSON.stringify(resultData, null, 2))
@@ -207,7 +349,9 @@ export function createWebSearchTools(
           }
         }
 
-        console.log("[tool:web-search] ✔", { resultCount: results.length })
+        console.log("[tool:web-search] ✔", {
+          resultCount: resultData.results.length,
+        })
         return resultData
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -232,7 +376,9 @@ export function createWebFetchTools(bash: Bash): Record<string, Tool> {
       const { url, outputPath } = args as z.infer<typeof fetchParams>
       console.log("[tool:web-fetch] ▶", { url, outputPath })
       try {
-        const result = await fetchAndExtract(url)
+        const result = await fetchWeb(url, {
+          maxContentLength: outputPath ? null : undefined,
+        })
 
         if (outputPath) {
           bash.writeFile(outputPath, result.content)
@@ -248,10 +394,7 @@ export function createWebFetchTools(bash: Bash): Record<string, Tool> {
           title: result.title,
           contentLength: result.content.length,
         })
-        return {
-          ...result,
-          content: truncate(result.content, MAX_CONTENT_LENGTH),
-        } as WebFetchResult
+        return result
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         console.error("[tool:web-fetch] ✖", msg)

@@ -2,6 +2,23 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type { SpaceFileEntry } from "@eidos.space/file-space"
 
+vi.hoisted(() => {
+  const values = new Map<string, string>()
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      clear: () => values.clear(),
+      getItem: (key: string) => values.get(key) ?? null,
+      key: (index: number) => [...values.keys()][index] ?? null,
+      get length() {
+        return values.size
+      },
+      removeItem: (key: string) => values.delete(key),
+      setItem: (key: string, value: string) => values.set(key, value),
+    },
+  })
+})
+
 import { useFileSpaceSettings } from "@/apps/web-app/store/file-space-settings"
 
 import { FileSpaceTree } from "./file-tree"
@@ -197,6 +214,7 @@ describe("FileSpaceTree accessibility", () => {
   let root: Root
 
   beforeEach(() => {
+    localStorage.clear()
     vi.stubGlobal(
       "ResizeObserver",
       class ResizeObserverStub {
@@ -528,6 +546,65 @@ describe("FileSpaceTree accessibility", () => {
 
     const menu = document.body.querySelector<HTMLElement>(
       '[aria-label="Actions for extension.ts"]'
+    )
+    expect(menu?.textContent).toContain("Show in file manager")
+    expect(menu?.textContent).not.toContain("Rename")
+    expect(menu?.textContent).not.toContain("Delete")
+    expect(menu?.textContent).not.toContain("Open with")
+  })
+
+  it("shows managed Agent sessions without editable file actions", async () => {
+    currentEntriesByDirectory[""] = [
+      ...currentEntriesByDirectory[""],
+      entry(".eidos", "directory"),
+    ]
+    currentEntriesByDirectory[".eidos"] = [entry(".eidos/agent", "directory")]
+    currentEntriesByDirectory[".eidos/agent"] = [
+      entry(".eidos/agent/sessions", "directory"),
+    ]
+    currentEntriesByDirectory[".eidos/agent/sessions"] = [
+      entry(".eidos/agent/sessions/conversation-1", "directory"),
+    ]
+    currentEntriesByDirectory[".eidos/agent/sessions/conversation-1"] = [
+      entry(".eidos/agent/sessions/conversation-1/meta.json", "file"),
+      entry(".eidos/agent/sessions/conversation-1/events.jsonl", "file"),
+    ]
+    await renderTree()
+
+    for (const directory of [
+      ".eidos",
+      ".eidos/agent",
+      ".eidos/agent/sessions",
+      ".eidos/agent/sessions/conversation-1",
+    ]) {
+      await act(async () => {
+        getTreeItem(directory).click()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+
+    const metaPath = ".eidos/agent/sessions/conversation-1/meta.json"
+    await act(async () => getTreeItem(metaPath).click())
+    expect(navigateMock).toHaveBeenLastCalledWith(
+      "/space-file#.eidos%2Fagent%2Fsessions%2Fconversation-1%2Fmeta.json"
+    )
+    expect(extensionEditorMocks.load).not.toHaveBeenCalledWith(metaPath)
+
+    await act(async () => {
+      getTreeItem(metaPath).dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          clientX: 120,
+          clientY: 80,
+        })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const menu = document.body.querySelector<HTMLElement>(
+      '[aria-label="Actions for meta.json"]'
     )
     expect(menu?.textContent).toContain("Show in file manager")
     expect(menu?.textContent).not.toContain("Rename")

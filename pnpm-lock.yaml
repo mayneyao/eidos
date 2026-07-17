@@ -90,6 +90,9 @@ importers:
       '@eidos.space/electron-ipc':
         specifier: workspace:*
         version: link:../../packages/electron-ipc
+      '@eidos.space/extension-cli':
+        specifier: workspace:*
+        version: link:../../packages/extension-cli
       '@eidos.space/ext-server':
         specifier: workspace:*
         version: link:../../packages/ext-server
@@ -220,9 +223,6 @@ importers:
         specifier: ^3.25.67
         version: 3.25.67
     devDependencies:
-      '@eidos.space/extension-cli':
-        specifier: workspace:*
-        version: link:../../packages/extension-cli
       '@tailwindcss/typography':
         specifier: ^0.5.9
         version: 0.5.16(tailwindcss@4.2.2)

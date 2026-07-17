@@ -7,6 +7,7 @@ import { MessageScrollerItem } from "@/components/ui/message-scroller"
 interface AgentChatAreaProps {
   messages: ChatMessage[]
   onFork?: (messageId: string) => void
+  onRetry?: (messageId: string) => void
   onEditStart?: (messageId: string, content: string) => void
   parentId?: string
   forkedMessageId?: string
@@ -17,6 +18,7 @@ interface AgentChatAreaProps {
 export function AgentChatArea({
   messages,
   onFork,
+  onRetry,
   onEditStart,
   parentId,
   forkedMessageId,
@@ -95,6 +97,7 @@ export function AgentChatArea({
             isLastMessage={m.id === lastMessageId}
             isRunning={isRunning}
             onFork={onFork}
+            onRetry={onRetry}
             onEditStart={onEditStart}
           />
           {parentId && forkedMessageId === m.id && (

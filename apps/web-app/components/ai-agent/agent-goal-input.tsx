@@ -1,4 +1,4 @@
-import { SendIcon, Loader2, StopCircleIcon, Brain, X } from "lucide-react"
+import { Brain, SendIcon, StopCircleIcon, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useCallback, useEffect, useRef, useState, useMemo } from "react"
 
@@ -10,7 +10,9 @@ import { useIsActiveTab } from "@/apps/web-app/hooks/use-is-active-tab"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useNodeStore } from "@/apps/web-app/store/node-store"
 import type { ITreeNode } from "@/packages/core/types/ITreeNode"
+import type { FileSpaceAgentApprovalMode } from "@/apps/desktop/electron/modules/file-space-agent/types"
 import { useAgentSession } from "./agent-context"
+import { AgentApprovalModeSelect } from "./agent-approval-mode-select"
 import { ContextPopover, type ContextItem } from "./context-popover"
 import { useTriggerState } from "./hooks"
 import { PermissionBanner, usePermissionContext } from "@/components/permission"
@@ -34,6 +36,8 @@ interface AgentGoalInputProps {
   onStop: () => void
   selectedSkills: string[]
   onSelectedSkillsChange: (skills: string[]) => void
+  approvalMode?: FileSpaceAgentApprovalMode
+  onApprovalModeChange?: (mode: FileSpaceAgentApprovalMode) => void
   initialValue?: string
   editingMode?: boolean
   "data-editing-input"?: string
@@ -45,6 +49,8 @@ export function AgentGoalInput({
   onStop,
   selectedSkills,
   onSelectedSkillsChange,
+  approvalMode,
+  onApprovalModeChange,
   initialValue,
   editingMode,
   "data-editing-input": dataEditingInput,
@@ -344,8 +350,10 @@ export function AgentGoalInput({
 
         const newMentions: NodeMention[] = []
         for (const node of nodes) {
-          const nodeId = node.metadata?.nodeId || node.id
-          const nodeType = node.metadata?.nodeType || "doc"
+          const nodeId = node.metadata?.nodeId || node.id || node.path
+          const nodeType =
+            node.metadata?.nodeType ||
+            (node.kind === "directory" ? "directory" : "file")
           const nodeName =
             node.metadata?.name ||
             node.name ||
@@ -508,7 +516,7 @@ export function AgentGoalInput({
             autoFocus
           />
           <div className="flex items-center justify-between px-1.5 mt-1.5">
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-1">
               <select
                 value={aiModel}
                 onChange={(e) => setAIModel(e.target.value)}
@@ -557,6 +565,13 @@ export function AgentGoalInput({
                   <option value="high">Thinking: high</option>
                 </select>
               </div>
+              {approvalMode && onApprovalModeChange ? (
+                <AgentApprovalModeSelect
+                  value={approvalMode}
+                  onValueChange={onApprovalModeChange}
+                  disabled={isRunning}
+                />
+              ) : null}
             </div>
             <div className="flex items-center gap-2 select-none">
               {isRunning && (

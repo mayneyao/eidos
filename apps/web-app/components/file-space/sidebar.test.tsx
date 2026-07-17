@@ -1,3 +1,22 @@
+// @vitest-environment jsdom
+
+vi.hoisted(() => {
+  const values = new Map<string, string>()
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+      clear: () => values.clear(),
+      key: (index: number) => [...values.keys()][index] ?? null,
+      get length() {
+        return values.size
+      },
+    },
+  })
+})
+
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 
@@ -302,6 +321,90 @@ describe("FileSpaceSidebar work modes", () => {
     expect(
       useTabStore.getState().tabs.some((tab) => tab.id === agentTab?.id)
     ).toBe(true)
+  })
+
+  it("shows authoritative running and approval states in the Agent session list", async () => {
+    const listConversations = vi.fn(async () => [
+      {
+        formatVersion: 2,
+        id: "approval-session",
+        title: "Approval review",
+        model: "model@provider",
+        latestRunStatus: "waiting-approval" as const,
+        pendingApprovalCount: 1,
+        pendingApprovalTitle: "Delete Space path",
+        createdAt: "2026-07-17T00:00:00.000Z",
+        updatedAt: "2026-07-17T00:02:00.000Z",
+      },
+      {
+        formatVersion: 2,
+        id: "running-session",
+        title: "Background work",
+        model: "model@provider",
+        latestRunStatus: "running" as const,
+        createdAt: "2026-07-17T00:00:00.000Z",
+        updatedAt: "2026-07-17T00:01:00.000Z",
+      },
+    ])
+    Object.defineProperty(window, "eidos", {
+      configurable: true,
+      value: {
+        fileSpaceAgent: {
+          listConversations,
+          searchConversations: vi.fn(async () => []),
+        },
+        spaceVersioning: {},
+      },
+    })
+
+    await renderSidebar()
+    await clickMode("Agent")
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    expect(
+      container.querySelector(
+        'button[aria-label="Approval review: Approval required"]'
+      )
+    ).not.toBeNull()
+    expect(container.textContent).toContain("Approve: Delete Space path")
+    expect(container.textContent).toContain("Review")
+    expect(
+      container.querySelector('button[aria-label="Background work: Running"]')
+    ).not.toBeNull()
+  })
+
+  it("does not re-add unmatched open Agent tabs to conversation search", async () => {
+    const listConversations = vi.fn(async () => [])
+    const searchConversations = vi.fn(async () => [])
+    Object.defineProperty(window, "eidos", {
+      configurable: true,
+      value: {
+        fileSpaceAgent: { listConversations, searchConversations },
+        spaceVersioning: {},
+      },
+    })
+    await renderSidebar()
+    await clickMode("Agent")
+    const search = container.querySelector<HTMLInputElement>(
+      'input[aria-label="Search Agent conversations"]'
+    )!
+
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )!.set!.call(search, "does-not-match")
+      search.dispatchEvent(new Event("input", { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+
+    expect(searchConversations).toHaveBeenCalledWith(
+      "new-base",
+      "does-not-match"
+    )
+    expect(container.textContent).toContain("No matching conversations")
   })
 
   it("cancels a mode switch when the active file cannot be saved", async () => {

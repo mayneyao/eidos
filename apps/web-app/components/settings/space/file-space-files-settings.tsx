@@ -71,7 +71,7 @@ export function FileSpaceFilesSettings() {
                 <p className="text-sm leading-5 text-muted-foreground">
                   {t(
                     "space.settings.fileSpace.files.showHiddenDescription",
-                    "Show dotfiles in this Space. Private .eidos and .graft runtime directories always stay hidden."
+                    "Show dotfiles in this Space. Private runtime state stays hidden; managed Agent sessions and Extension source remain visible."
                   )}
                 </p>
               </div>

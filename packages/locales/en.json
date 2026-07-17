@@ -1022,7 +1022,7 @@
   "space.settings.fileSpace.files.showObsidian": "Show Obsidian configuration",
   "space.settings.fileSpace.files.showObsidianDescription": "Include .obsidian in the Files tree. Eidos never changes it unless you edit those files directly.",
   "space.settings.fileSpace.files.showHidden": "Show hidden files",
-  "space.settings.fileSpace.files.showHiddenDescription": "Show dotfiles in this Space. Private .eidos and .graft runtime directories always stay hidden.",
+  "space.settings.fileSpace.files.showHiddenDescription": "Show dotfiles in this Space. Private runtime state stays hidden; managed Agent sessions and Extension source remain visible.",
   "space.settings.fileSpace.base.title": "Base",
   "space.settings.fileSpace.base.group": "Defaults",
   "space.settings.fileSpace.base.defaultTemplate": "Default template",

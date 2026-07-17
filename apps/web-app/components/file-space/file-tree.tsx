@@ -73,12 +73,29 @@ interface FileSpaceTreeProps {
 }
 
 const EXTENSION_SOURCE_ROOT = ".eidos/extensions"
+const AGENT_ROOT = ".eidos/agent"
+const AGENT_SESSIONS_ROOT = ".eidos/agent/sessions"
 
 function isExtensionSourceTreePath(relativePath: string): boolean {
   return (
     relativePath === ".eidos" ||
     relativePath === EXTENSION_SOURCE_ROOT ||
     relativePath.startsWith(`${EXTENSION_SOURCE_ROOT}/`)
+  )
+}
+
+function isAgentSessionsTreePath(relativePath: string): boolean {
+  return (
+    relativePath === AGENT_ROOT ||
+    relativePath === AGENT_SESSIONS_ROOT ||
+    relativePath.startsWith(`${AGENT_SESSIONS_ROOT}/`)
+  )
+}
+
+function isManagedEidosTreePath(relativePath: string): boolean {
+  return (
+    isExtensionSourceTreePath(relativePath) ||
+    isAgentSessionsTreePath(relativePath)
   )
 }
 
@@ -123,6 +140,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const [entriesByDirectory, setEntriesByDirectory] = useState<
     Map<string, SpaceFileEntry[]>
   >(new Map())
+  const entriesByDirectoryRef = useRef(entriesByDirectory)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState<Set<string>>(new Set())
   const [readError, setReadError] = useState<string | null>(null)
@@ -146,9 +164,17 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   const showHiddenFiles = viewSettings?.showHiddenFiles ?? false
   const showObsidianFolder = viewSettings?.showObsidianFolder ?? false
   const defaultBaseTemplate = viewSettings?.defaultBaseTemplate ?? "blank"
-  const hasExtensionSourceContainer =
+  const hasEidosContainer =
     entriesByDirectory.get("")?.some((entry) => entry.path === ".eidos") ===
     true
+  const hasExtensionSourceRoot =
+    entriesByDirectory
+      .get(".eidos")
+      ?.some((entry) => entry.path === EXTENSION_SOURCE_ROOT) === true
+
+  useEffect(() => {
+    entriesByDirectoryRef.current = entriesByDirectory
+  }, [entriesByDirectory])
 
   const blockMutationDuringRestore = useCallback(() => {
     if (!restoringVersion) return false
@@ -231,10 +257,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
   }, [loadDirectory])
 
   useEffect(() => {
-    if (
-      extensionSourceRevealRef.current !== "idle" ||
-      !hasExtensionSourceContainer
-    ) {
+    if (extensionSourceRevealRef.current !== "idle" || !hasEidosContainer) {
       return
     }
     extensionSourceRevealRef.current = "loading"
@@ -257,7 +280,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     return () => {
       cancelled = true
     }
-  }, [hasExtensionSourceContainer, loadDirectory])
+  }, [hasEidosContainer, loadDirectory])
 
   useEffect(() => {
     if (!selectedPath) return
@@ -272,7 +295,14 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     useCallback(
       (event) => {
         if (event.eventType !== "rescan") {
-          void loadDirectory(parentSpacePath(event.path))
+          const parentPath = parentSpacePath(event.path)
+          if (
+            isAgentSessionsTreePath(event.path) &&
+            !entriesByDirectoryRef.current.has(parentPath)
+          ) {
+            return
+          }
+          void loadDirectory(parentPath)
           return
         }
         setEntriesByDirectory((current) => {
@@ -564,7 +594,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
 
   const openFile = useCallback(
     async (entry: SpaceFileEntry, editorId?: string | null) => {
-      const resolvedEditorId = isExtensionSourceTreePath(entry.path)
+      const resolvedEditorId = isManagedEidosTreePath(entry.path)
         ? undefined
         : editorId === undefined
           ? (await loadExtensionEditors(entry.path)).find(
@@ -801,8 +831,8 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
             selectedPath={selectedPath}
             disabled={restoringVersion}
             canMove={(entry, destinationParent) =>
-              !isExtensionSourceTreePath(entry.path) &&
-              !isExtensionSourceTreePath(destinationParent) &&
+              !isManagedEidosTreePath(entry.path) &&
+              !isManagedEidosTreePath(destinationParent) &&
               canMoveSpaceEntryTo(
                 entry.path,
                 entry.parentPath,
@@ -823,7 +853,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
             }}
             onImport={(parentPath) => void importInto(parentPath)}
             onIntent={(entry) => {
-              if (isExtensionSourceTreePath(entry.path)) return
+              if (isManagedEidosTreePath(entry.path)) return
               void loadExtensionEditors(entry.path)
               if (entry.path.toLowerCase().endsWith(".base")) {
                 void preloadSpaceBaseEditor().catch(() => undefined)
@@ -834,12 +864,12 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
             }
             onOpen={(entry) => void openFile(entry)}
             extensionEditors={(entry) =>
-              isExtensionSourceTreePath(entry.path)
+              isManagedEidosTreePath(entry.path)
                 ? []
                 : extensionEditorsFor(entry.path)
             }
             loadExtensionEditors={(entry) =>
-              isExtensionSourceTreePath(entry.path)
+              isManagedEidosTreePath(entry.path)
                 ? Promise.resolve([])
                 : loadExtensionEditors(entry.path)
             }
@@ -848,11 +878,17 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
               void renameEntry(entry, destinationPath)
             }
             onReveal={(path) =>
-              void reveal(path === ".eidos" ? EXTENSION_SOURCE_ROOT : path)
+              void reveal(
+                path === ".eidos"
+                  ? hasExtensionSourceRoot
+                    ? EXTENSION_SOURCE_ROOT
+                    : AGENT_SESSIONS_ROOT
+                  : path
+              )
             }
-            isProtected={(entry) => isExtensionSourceTreePath(entry.path)}
+            isProtected={(entry) => isManagedEidosTreePath(entry.path)}
             extensionCommands={(entry) =>
-              isExtensionSourceTreePath(entry.path)
+              isManagedEidosTreePath(entry.path)
                 ? []
                 : contextCommandsForEntry(entry)
             }

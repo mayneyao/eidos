@@ -15,6 +15,7 @@ import { FileSpaceAgentPage } from "./page"
 const mocks = vi.hoisted(() => ({
   getConversation: vi.fn(),
   startRun: vi.fn(),
+  setApprovalMode: vi.fn(),
   stopRun: vi.fn(),
   decideToolRun: vi.fn(),
   navigate: vi.fn(),
@@ -44,6 +45,9 @@ vi.mock("@/apps/web-app/hooks/use-router-adapter", () => ({
 }))
 
 vi.mock("@/hooks/use-tab-title", () => ({ useTabTitle: () => undefined }))
+vi.mock("@/apps/web-app/hooks/use-doc-find-in-page", () => ({
+  useDocFindInPage: () => undefined,
+}))
 
 vi.mock("@/components/settings/stores", () => ({
   useAIConfigStore: () => ({
@@ -98,15 +102,38 @@ function snapshot(): FileSpaceAgentConversationSnapshot {
   }
   return {
     conversation: {
+      formatVersion: 2,
       id: "conversation-1",
       spaceId: "space-1",
       title: "Summarize this note",
       model: "test-model@Local",
       createdAt: "2026-07-17T00:00:00.000Z",
       updatedAt: "2026-07-17T00:00:00.000Z",
-      latestSequence: 4,
     },
     activeRun: run,
+    approvalMode: "auto-safe",
+    messages: [
+      {
+        id: "message-1",
+        role: "user",
+        parts: [{ type: "text", text: "Summarize this note" }],
+      },
+      {
+        id: "assistant-1",
+        role: "assistant",
+        parts: [
+          { type: "text", text: "I will inspect the note first." },
+          {
+            type: "tool-write_space_file",
+            toolCallId: "call-1",
+            toolName: "write_space_file",
+            state: "input-available",
+            input: { path: "Notes.md" },
+          },
+          { type: "text", text: "Then I will explain the result." },
+        ],
+      },
+    ],
     events: [
       event(
         {
@@ -147,7 +174,8 @@ function snapshot(): FileSpaceAgentConversationSnapshot {
             tool: {
               id: "tool-1",
               runId: "run-1",
-              name: "space.files.patchText",
+              toolCallId: "call-1",
+              name: "space.files.writeText",
               title: "Modify Space file",
               risk: "modify",
               status: "waiting-approval",
@@ -179,15 +207,22 @@ describe("FileSpaceAgentPage", () => {
     mocks.getConversation.mockResolvedValue({
       conversation: snapshot().conversation,
       activeRun: snapshot().activeRun,
+      approvalMode: snapshot().approvalMode,
+      messages: snapshot().messages,
       events: [],
     })
     mocks.decideToolRun.mockReset()
     mocks.decideToolRun.mockResolvedValue(true)
+    mocks.startRun.mockReset()
+    mocks.startRun.mockResolvedValue(undefined)
+    mocks.setApprovalMode.mockReset()
+    mocks.setApprovalMode.mockResolvedValue("ask")
     Object.assign(window, {
       eidos: {
         fileSpaceAgent: {
           getConversation: mocks.getConversation,
           startRun: mocks.startRun,
+          setApprovalMode: mocks.setApprovalMode,
           stopRun: mocks.stopRun,
           decideToolRun: mocks.decideToolRun,
         },
@@ -211,6 +246,15 @@ describe("FileSpaceAgentPage", () => {
     expect(container.textContent).toContain("Modify Space file")
     expect(container.textContent).toContain("Append a summary")
     expect(container.textContent).toContain("Allow once")
+    expect(container.textContent).toContain("Approve for me")
+    const restoredText = container.textContent ?? ""
+    expect(restoredText.indexOf("I will inspect the note first.")).toBeLessThan(
+      restoredText.indexOf("Modify Space file")
+    )
+    expect(restoredText.indexOf("Modify Space file")).toBeLessThan(
+      restoredText.indexOf("Then I will explain the result.")
+    )
+    expect(restoredText.match(/Modify Space file/g)).toHaveLength(1)
     expect(getFileSpaceAgentSessionActivities()["conversation-1"]?.status).toBe(
       "waiting-approval"
     )
@@ -230,5 +274,44 @@ describe("FileSpaceAgentPage", () => {
       "tool-1",
       "allow-once"
     )
+  })
+
+  it("restores the main-process approval mode without sending authority in a run", async () => {
+    const idle = snapshot()
+    idle.activeRun = null
+    idle.events = []
+    idle.messages = []
+    idle.approvalMode = "full-access"
+    mocks.getConversation.mockReset()
+    mocks.getConversation.mockResolvedValue(idle)
+
+    await act(async () => {
+      root.render(<FileSpaceAgentPage />)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(container.textContent).toContain("Full access")
+    const textarea = container.querySelector("textarea")
+    const send = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Send")
+    )
+    await act(async () => {
+      const setValue = Object.getOwnPropertyDescriptor(
+        HTMLTextAreaElement.prototype,
+        "value"
+      )?.set
+      setValue?.call(textarea, "Inspect this Space")
+      textarea?.dispatchEvent(new Event("input", { bubbles: true }))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      send?.click()
+      await Promise.resolve()
+    })
+
+    expect(mocks.startRun).toHaveBeenCalledWith(
+      expect.objectContaining({ prompt: "Inspect this Space" })
+    )
+    expect(mocks.startRun.mock.calls[0]?.[0]).not.toHaveProperty("approvalMode")
   })
 })

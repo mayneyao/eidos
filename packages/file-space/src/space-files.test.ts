@@ -686,6 +686,80 @@ describe("SpaceFiles", () => {
     ).rejects.toMatchObject({ code: "invalid-path" })
   })
 
+  it("exposes managed Agent sessions as read-only Files content", async () => {
+    const sessionRoot = path.join(
+      root,
+      ".eidos",
+      "agent",
+      "sessions",
+      "conversation-1"
+    )
+    const localRoot = path.join(root, ".eidos", "agent", "local")
+    await mkdir(sessionRoot, { recursive: true })
+    await mkdir(localRoot, { recursive: true })
+    await writeFile(
+      path.join(sessionRoot, "meta.json"),
+      JSON.stringify({ id: "conversation-1", title: "Visible session" })
+    )
+    await writeFile(path.join(sessionRoot, "events.jsonl"), '{"sequence":1}\n')
+    await writeFile(path.join(localRoot, "state.json"), "{}")
+
+    await expect(files.list()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: ".eidos",
+          path: ".eidos",
+          kind: "directory",
+        }),
+      ])
+    )
+    await expect(files.list(".eidos")).resolves.toEqual([
+      expect.objectContaining({
+        name: "agent",
+        path: ".eidos/agent",
+        kind: "directory",
+      }),
+    ])
+    await expect(files.list(".eidos/agent")).resolves.toEqual([
+      expect.objectContaining({
+        name: "sessions",
+        path: ".eidos/agent/sessions",
+        kind: "directory",
+      }),
+    ])
+    await expect(files.list(".eidos/agent/sessions")).resolves.toEqual([
+      expect.objectContaining({
+        name: "conversation-1",
+        path: ".eidos/agent/sessions/conversation-1",
+        kind: "directory",
+      }),
+    ])
+    await expect(
+      files.readText(".eidos/agent/sessions/conversation-1/meta.json")
+    ).resolves.toMatchObject({
+      content: expect.stringContaining("Visible session"),
+    })
+    await expect(
+      files.getRelativeFilePath(path.join(sessionRoot, "events.jsonl"))
+    ).resolves.toBe(".eidos/agent/sessions/conversation-1/events.jsonl")
+
+    await expect(
+      files.readText(".eidos/agent/local/state.json")
+    ).rejects.toMatchObject({ code: "invalid-path" })
+    await expect(
+      files.writeText(".eidos/agent/sessions/conversation-1/meta.json", "{}")
+    ).rejects.toThrow("managed by Eidos and are read-only")
+    await expect(
+      files.createText(".eidos/agent/sessions/conversation-1/manual.json", "{}")
+    ).rejects.toThrow("managed by Eidos and are read-only")
+    await expect(
+      files.move(".eidos/agent/sessions/conversation-1/meta.json", "meta.json")
+    ).rejects.toThrow("managed by Eidos and are read-only")
+    await expect(
+      files.remove(".eidos/agent/sessions/conversation-1")
+    ).rejects.toThrow("managed by Eidos and are read-only")
+  })
+
   it("rejects lexical and symbolic-link escapes", async () => {
     await writeFile(path.join(outside, "secret.md"), "secret")
     await symlink(outside, path.join(root, "escape"))

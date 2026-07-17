@@ -330,6 +330,39 @@ describe("SpaceFilePage editor selection", () => {
     ).toBeNull()
   })
 
+  it("opens managed Agent session files in the read-only preview", async () => {
+    const filePath = ".eidos/agent/sessions/conversation-1/meta.json"
+    mocks.readPreview.mockResolvedValue({
+      kind: "text",
+      path: filePath,
+      content: '{"title":"Visible session"}',
+      encoding: "utf-8",
+      previewBytes: 27,
+      truncated: false,
+      size: 27,
+      mtimeMs: 1,
+    })
+
+    await act(async () => {
+      root.render(
+        <MemoryRouter
+          initialEntries={[
+            "/space-file#.eidos%2Fagent%2Fsessions%2Fconversation-1%2Fmeta.json",
+          ]}
+        >
+          <SpaceFilePage />
+        </MemoryRouter>
+      )
+      await flushEffects()
+    })
+
+    expect(container.textContent).toContain("Managed Agent conversation")
+    expect(container.textContent).toContain("Visible session")
+    expect(container.querySelector('[data-testid="monaco-editor"]')).toBeNull()
+    expect(mocks.readText).not.toHaveBeenCalled()
+    expect(mocks.readPreview).toHaveBeenCalledWith(filePath)
+  })
+
   it("configures SDK types when an extension source file mounts", async () => {
     const filePath = ".eidos/extensions/local.task-counter/src/extension.ts"
     const editorPackage = {

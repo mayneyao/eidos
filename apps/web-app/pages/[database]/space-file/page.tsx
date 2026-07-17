@@ -88,6 +88,12 @@ const MIME_TYPES: Record<string, string> = {
   pdf: "application/pdf",
 }
 
+const AGENT_SESSIONS_ROOT = ".eidos/agent/sessions"
+
+function isAgentSessionFilePath(filePath: string): boolean {
+  return filePath.startsWith(`${AGENT_SESSIONS_ROOT}/`)
+}
+
 function decodeFilePath(hash: string): string {
   try {
     return decodeURIComponent(hash.replace(/^#/, ""))
@@ -149,6 +155,9 @@ export function SpaceFilePage() {
   if (!filePath) {
     return <FileState message="No file selected" />
   }
+  if (isAgentSessionFilePath(filePath)) {
+    return <ManagedAgentSessionFilePreview filePath={filePath} />
+  }
   if (fileEditorId) {
     return (
       <ExtensionFileEditorSurface
@@ -184,6 +193,23 @@ export function SpaceFilePage() {
     )
   }
   return <SpaceFileFallbackPreview key={filePath} filePath={filePath} />
+}
+
+function ManagedAgentSessionFilePreview({ filePath }: { filePath: string }) {
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-background">
+      <div
+        className="shrink-0 border-b bg-muted/35 px-5 py-2 text-xs text-muted-foreground"
+        role="status"
+      >
+        Managed Agent conversation · Read only in Files. Use Agent controls to
+        edit, retry, branch, or delete this conversation.
+      </div>
+      <div className="min-h-0 flex-1">
+        <SpaceFileFallbackPreview filePath={filePath} />
+      </div>
+    </div>
+  )
 }
 
 function SpaceTextEditor({

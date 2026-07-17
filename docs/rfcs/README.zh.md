@@ -8,16 +8,16 @@
 
 ## 实施状态
 
-| RFC               | 状态             | 当前实现边界                                                                                                                                                               |
-| ----------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Space/Base 存储   | Base v1 验收通过 | file-based 垂直切片、独立 Base runtime、Base-aware diff、真实 legacy export、原生 remote 与 record tab 验收已跑通；文件化扩展保持独立。                                    |
-| Markdown runtime  | Desktop 验收通过 | 真实文件树、直接编辑、安全保存、外部冲突草稿恢复、watcher、持久派生索引、quick open、wiki-link completion、outline、backlinks、附件、IME、图片粘贴和长文档均已跑通。       |
-| Graft 版本管理    | Desktop 验收通过 | 已验收 repository-scoped 子进程、受限的持久 fetch/pull/push、分叉文本 diff、path-first resolution、双 parent continuation 与最终 push。                                    |
-| 产品 UX           | Desktop 验收通过 | Files/Version、Diff/History、Settings、迁移、原生 Base 生命周期、双 Space row-conflict 审阅、table-view 对齐及 record tab 恢复/分屏均已验收。                              |
-| Base 格式/runtime | 交付收尾中       | 独立 package 已支持结构化查询与列聚合、多 layout views、丰富字段、强化校验、原子 range edit/undo、有界百万行视图缓存、批量删除，以及流式 CSV 导入和当前 view 导出。        |
-| 文件化扩展        | P2b 开发者预览   | 隔离 command Worker、只读文本、菜单和宿主语义 UI 已实现；GitHub 安装与自定义视图尚未开始。                                                                                 |
-| Legacy migration  | 真实导出通过     | 独立 planning、原子 export、Desktop Settings、schema recovery 和 111 万行真实 Space 验收已完成；兼容 Formula/Lookup 会迁移为实时派生字段，不兼容定义保留物化值并明确告警。 |
-| Agent 集成        | P1 开发者预览    | file Space 原生契约与首个切片已实现：主进程 run ownership、durable context/tool events、有界内建工具和需审批的 Markdown patch；仍待带真实凭据的 Desktop 验收。             |
+| RFC               | 状态             | 当前实现边界                                                                                                                                                                                                                                                        |
+| ----------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Space/Base 存储   | Base v1 验收通过 | file-based 垂直切片、独立 Base runtime、Base-aware diff、真实 legacy export、原生 remote 与 record tab 验收已跑通；文件化扩展保持独立。                                                                                                                             |
+| Markdown runtime  | Desktop 验收通过 | 真实文件树、直接编辑、安全保存、外部冲突草稿恢复、watcher、持久派生索引、quick open、wiki-link completion、outline、backlinks、附件、IME、图片粘贴和长文档均已跑通。                                                                                                |
+| Graft 版本管理    | Desktop 验收通过 | 已验收 repository-scoped 子进程、受限的持久 fetch/pull/push、分叉文本 diff、path-first resolution、双 parent continuation 与最终 push。                                                                                                                             |
+| 产品 UX           | Desktop 验收通过 | Files/Version、Diff/History、Settings、迁移、原生 Base 生命周期、双 Space row-conflict 审阅、table-view 对齐及 record tab 恢复/分屏均已验收。                                                                                                                       |
+| Base 格式/runtime | 交付收尾中       | 独立 package 已支持结构化查询与列聚合、多 layout views、丰富字段、强化校验、原子 range edit/undo、有界百万行视图缓存、批量删除，以及流式 CSV 导入和当前 view 导出。                                                                                                 |
+| 文件化扩展        | P2b 开发者预览   | 隔离 command Worker、只读文本、菜单和宿主语义 UI 已实现；GitHub 安装与自定义视图尚未开始。                                                                                                                                                                          |
+| Legacy migration  | 真实导出通过     | 独立 planning、原子 export、Desktop Settings、schema recovery 和 111 万行真实 Space 验收已完成；兼容 Formula/Lookup 会迁移为实时派生字段，不兼容定义保留物化值并明确告警。                                                                                          |
+| Agent 集成        | 集成交付候选     | 成熟 provider/Skills/ToolLoop runtime 与富 Agent UI 已接入 main-process run ownership、durable file Space context/audit、scoped tool approval、旧 session 自动导入、search/edit/fork/retry 生命周期和用户控制的 conversation 版本管理；仍待 packaged Desktop 验收。 |
 
 实施顺序已经从 Base-first 调整，前四个 milestones 现已完成：
 

@@ -1,5 +1,11 @@
 import { useState } from "react"
-import { CheckIcon, CopyIcon, GitForkIcon, PencilIcon } from "lucide-react"
+import {
+  CheckIcon,
+  CopyIcon,
+  GitForkIcon,
+  PencilIcon,
+  RotateCcwIcon,
+} from "lucide-react"
 import { AssistantMessage } from "./assistant-message"
 import { type ChatMessage } from "./types"
 import type { MessageMetadata } from "@/packages/core/types"
@@ -16,6 +22,7 @@ interface MessageBubbleProps {
   isLastMessage?: boolean
   isRunning?: boolean
   onFork?: (messageId: string) => void
+  onRetry?: (messageId: string) => void
   onEditStart?: (messageId: string, content: string) => void
 }
 
@@ -133,6 +140,7 @@ export function MessageBubble({
   isLastMessage,
   isRunning,
   onFork,
+  onRetry,
   onEditStart,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false)
@@ -254,6 +262,15 @@ export function MessageBubble({
                 title="Fork session here"
               >
                 <GitForkIcon className="h-4 w-4" />
+              </button>
+            )}
+            {onRetry && isLastMessage && (
+              <button
+                onClick={() => onRetry(message.id)}
+                className="p-1 text-muted-foreground/50 hover:text-primary transition-colors"
+                title="Retry response"
+              >
+                <RotateCcwIcon className="h-4 w-4" />
               </button>
             )}
             {/* Assistant message: format model · 2.5k tok · 4.0s */}

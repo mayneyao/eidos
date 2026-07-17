@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto"
 import path from "node:path"
 import { app } from "electron"
 import { IpcMethod, IpcServiceBase } from "@eidos.space/electron-ipc"
+import type { ExtensionPackageCheckResult } from "@eidos.space/extension-cli"
 import {
   SPACE_FILE_PREVIEW_MAX_BYTES,
   SpaceFiles,
@@ -108,6 +109,11 @@ import type {
   FileExtensionUninstallRequest,
   FileExtensionWatchResult,
 } from "./types"
+
+export type FileExtensionPackageValidationResult = Omit<
+  ExtensionPackageCheckResult,
+  "packageRoot"
+>
 
 const FILE_EXTENSION_ROOT = ".eidos/extensions" as const
 const WATCH_DEBOUNCE_MS = 120
@@ -320,6 +326,37 @@ export class FileExtensionService extends IpcServiceBase {
     return withFileSpaceOperationLock(spaceId, () =>
       this.discoverUnlocked(spaceId, space.path)
     )
+  }
+
+  /**
+   * Run the same manifest, TypeScript SDK, and compiler checks as
+   * `eidos-extension check` without exposing the host package path.
+   */
+  async validatePackage(
+    spaceId: string,
+    directoryName: string
+  ): Promise<FileExtensionPackageValidationResult> {
+    const space = this.getFileSpace(spaceId)
+    const canonicalDirectory = canonicalExtensionPackagePath(directoryName)
+    if (canonicalDirectory.includes("/")) {
+      throw new Error("Extension package directory name is invalid")
+    }
+    return withFileSpaceOperationLock(spaceId, async () => {
+      const paths = await resolveExtensionProjectPaths(space.path)
+      if (!paths.extensionsRoot) {
+        throw new Error("Extension source root was not found")
+      }
+      // TypeScript is intentionally loaded only for explicit source validation
+      // so the compiler does not increase Desktop's startup chunk.
+      const { checkExtensionPackage } =
+        await import("@eidos.space/extension-cli")
+      const result = await checkExtensionPackage({
+        packageRoot: path.join(paths.extensionsRoot, canonicalDirectory),
+        hostVersion: app.getVersion(),
+      })
+      const { packageRoot: _hostPath, ...portable } = result
+      return portable
+    })
   }
 
   @IpcMethod()

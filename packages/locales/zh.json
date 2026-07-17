@@ -1018,7 +1018,7 @@
   "space.settings.fileSpace.files.showObsidian": "显示 Obsidian 配置",
   "space.settings.fileSpace.files.showObsidianDescription": "在文件树中显示 .obsidian。除非您直接编辑其中的文件，否则 Eidos 不会修改它。",
   "space.settings.fileSpace.files.showHidden": "显示隐藏文件",
-  "space.settings.fileSpace.files.showHiddenDescription": "显示此 Space 中的点文件。私有的 .eidos 和 .graft 运行时目录始终保持隐藏。",
+  "space.settings.fileSpace.files.showHiddenDescription": "显示此 Space 中的点文件。私有运行时状态仍保持隐藏；受管理的 Agent 会话和 Extension 源码始终可见。",
   "space.settings.fileSpace.base.title": "Base",
   "space.settings.fileSpace.base.group": "默认设置",
   "space.settings.fileSpace.base.defaultTemplate": "默认模板",

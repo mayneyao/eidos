@@ -121,6 +121,8 @@ export class SpaceFilesError extends Error {
 const PRIVATE_ROOTS = new Set([".eidos", ".graft"])
 const EIDOS_ROOT = ".eidos"
 const EXTENSION_SOURCE_ROOT = ".eidos/extensions"
+const AGENT_ROOT = ".eidos/agent"
+const AGENT_SESSIONS_ROOT = ".eidos/agent/sessions"
 const DEFAULT_WATCH_DEBOUNCE_MS = 60
 const STABLE_READ_ATTEMPTS = 3
 const STABLE_READ_RETRY_MS = 8
@@ -155,6 +157,14 @@ function isExtensionSourcePath(relativePath: string): boolean {
   return (
     relativePath === EXTENSION_SOURCE_ROOT ||
     relativePath.startsWith(`${EXTENSION_SOURCE_ROOT}/`)
+  )
+}
+
+function isAgentSessionsTreePath(relativePath: string): boolean {
+  return (
+    relativePath === AGENT_ROOT ||
+    relativePath === AGENT_SESSIONS_ROOT ||
+    relativePath.startsWith(`${AGENT_SESSIONS_ROOT}/`)
   )
 }
 
@@ -421,7 +431,13 @@ export class SpaceFiles {
       const entryPath = path.join(directory, entry.name)
       if (
         relativePath === EIDOS_ROOT &&
-        !(await this.hasPublicExtensionSourceRoot(entryPath))
+        !(await this.hasPublicEidosContent(entryPath))
+      ) {
+        continue
+      }
+      if (
+        relativePath === AGENT_ROOT &&
+        !(await this.hasPublicAgentSessionsRoot(entryPath))
       ) {
         continue
       }
@@ -516,6 +532,7 @@ export class SpaceFiles {
     expectedMtimeMs?: number,
     expectedContentDigest?: string
   ): Promise<SpaceTextFile> {
+    this.assertMutablePath(relativePath)
     const {
       filename,
       content: currentContent,
@@ -552,6 +569,7 @@ export class SpaceFiles {
   }
 
   async createText(relativePath: string, content = ""): Promise<SpaceTextFile> {
+    this.assertMutablePath(relativePath)
     const filename = await this.resolveNew(relativePath)
     try {
       await writeFile(filename, content, { encoding: "utf8", flag: "wx" })
@@ -573,6 +591,7 @@ export class SpaceFiles {
     relativePath: string,
     content: Uint8Array
   ): Promise<SpaceBinaryFile> {
+    this.assertMutablePath(relativePath)
     const filename = await this.resolveNew(relativePath)
     try {
       await writeFile(filename, content, { flag: "wx" })
@@ -591,6 +610,7 @@ export class SpaceFiles {
   }
 
   async createDirectory(relativePath: string): Promise<SpaceFileEntry> {
+    this.assertMutablePath(relativePath)
     const directory = await this.resolveNew(relativePath)
     try {
       await mkdir(directory)
@@ -624,6 +644,7 @@ export class SpaceFiles {
     sourcePath: string,
     destinationPath: string
   ): Promise<SpaceFileEntry> {
+    this.assertMutablePath(destinationPath)
     if (!path.isAbsolute(sourcePath) && !path.win32.isAbsolute(sourcePath)) {
       throw new SpaceFilesError(
         "invalid-path",
@@ -683,8 +704,8 @@ export class SpaceFiles {
   }
 
   async move(sourcePath: string, destinationPath: string): Promise<void> {
-    const normalizedSource = this.normalize(sourcePath)
-    const normalizedDestination = this.normalize(destinationPath)
+    const normalizedSource = this.assertMutablePath(sourcePath)
+    const normalizedDestination = this.assertMutablePath(destinationPath)
     if (
       normalizedSource === EXTENSION_SOURCE_ROOT ||
       normalizedDestination === EXTENSION_SOURCE_ROOT
@@ -762,7 +783,8 @@ export class SpaceFiles {
   }
 
   async remove(relativePath: string): Promise<void> {
-    if (this.normalize(relativePath) === EXTENSION_SOURCE_ROOT) {
+    const normalized = this.assertMutablePath(relativePath)
+    if (normalized === EXTENSION_SOURCE_ROOT) {
       throw new SpaceFilesError(
         "invalid-path",
         "The extension source root cannot be removed",
@@ -946,9 +968,11 @@ export class SpaceFiles {
     const [rootName] = parts
     const isEidosContainer = normalized === EIDOS_ROOT
     const isPublicExtensionSource = isExtensionSourcePath(normalized)
+    const isPublicAgentSessions = isAgentSessionsTreePath(normalized)
     if (
       PRIVATE_ROOTS.has(rootName?.toLowerCase()) &&
       !isPublicExtensionSource &&
+      !isPublicAgentSessions &&
       !(allowEidosContainer && isEidosContainer)
     ) {
       throw new SpaceFilesError(
@@ -1061,6 +1085,7 @@ export class SpaceFiles {
     if (
       PRIVATE_ROOTS.has(rootName.toLowerCase()) &&
       !isExtensionSourcePath(relativePath) &&
+      !isAgentSessionsTreePath(relativePath) &&
       !(allowEidosContainer && isEidosContainer)
     ) {
       throw new SpaceFilesError(
@@ -1072,6 +1097,28 @@ export class SpaceFiles {
 
   private toRelative(absolutePath: string): string {
     return toPortablePath(path.relative(this.root, absolutePath))
+  }
+
+  private assertMutablePath(relativePath: string): string {
+    const normalized = this.normalize(relativePath)
+    if (isAgentSessionsTreePath(normalized)) {
+      throw new SpaceFilesError(
+        "invalid-path",
+        `Agent conversation files are managed by Eidos and are read-only in Files: ${relativePath}`,
+        relativePath
+      )
+    }
+    return normalized
+  }
+
+  private async hasPublicEidosContent(
+    eidosDirectory: string
+  ): Promise<boolean> {
+    const [hasExtensions, hasAgentSessions] = await Promise.all([
+      this.hasPublicExtensionSourceRoot(eidosDirectory),
+      this.hasPublicAgentSessionsRoot(path.join(eidosDirectory, "agent")),
+    ])
+    return hasExtensions || hasAgentSessions
   }
 
   private async hasPublicExtensionSourceRoot(
@@ -1103,6 +1150,35 @@ export class SpaceFiles {
     }
   }
 
+  private async hasPublicAgentSessionsRoot(
+    agentDirectory: string
+  ): Promise<boolean> {
+    try {
+      const [agentStats, sessionsStats] = await Promise.all([
+        lstat(agentDirectory),
+        lstat(path.join(agentDirectory, "sessions")),
+      ])
+      if (
+        agentStats.isSymbolicLink() ||
+        !agentStats.isDirectory() ||
+        sessionsStats.isSymbolicLink() ||
+        !sessionsStats.isDirectory()
+      ) {
+        return false
+      }
+      const [canonicalRoot, canonicalSessions] = await Promise.all([
+        realpath(this.root),
+        realpath(path.join(agentDirectory, "sessions")),
+      ])
+      return (
+        isWithinRoot(canonicalRoot, canonicalSessions) &&
+        this.toRelative(canonicalSessions) === AGENT_SESSIONS_ROOT
+      )
+    } catch {
+      return false
+    }
+  }
+
   private shouldHide(
     relativePath: string,
     options: ListSpaceFilesOptions
@@ -1113,10 +1189,16 @@ export class SpaceFiles {
     if (normalizedRootName === EIDOS_ROOT) {
       if (rootName !== EIDOS_ROOT) return true
       if (pathParts.length === 1) return false
-      if (pathParts[1] !== "extensions") return true
+      const isExtensionSource = pathParts[1] === "extensions"
+      const isAgentSession =
+        pathParts[1] === "agent" &&
+        (pathParts.length === 2 || pathParts[2] === "sessions")
+      if (!isExtensionSource && !isAgentSession) return true
       if (
         !options.includeHidden &&
-        pathParts.slice(2).some((part) => part.startsWith("."))
+        pathParts
+          .slice(isExtensionSource ? 2 : 3)
+          .some((part) => part.startsWith("."))
       ) {
         return true
       }

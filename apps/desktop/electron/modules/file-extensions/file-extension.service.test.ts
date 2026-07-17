@@ -866,6 +866,61 @@ describe("FileExtensionService", () => {
     })
   })
 
+  it("validates Extension source against the public SDK without exposing host paths", async () => {
+    const root = await createFileSpace()
+    const packageRoot = path.join(
+      root,
+      ".eidos",
+      "extensions",
+      "example.task-counter"
+    )
+    await writeFile(
+      path.join(packageRoot, "src", "extension.ts"),
+      [
+        'import type { ExtensionContext } from "@eidos.space/extension-sdk"',
+        "export async function activate(context: ExtensionContext) {",
+        '  await context.space.files.readdir("")',
+        "}",
+        "",
+      ].join("\n")
+    )
+    const registry = {
+      getSpace: vi.fn(() => ({
+        id: "space-a",
+        name: "Space A",
+        path: root,
+        mode: "file",
+      })),
+    } as unknown as SpaceRegistry
+    const windowProvider = {
+      getWindow: () => undefined,
+    } as unknown as MainWindowProvider
+    const { FileExtensionService } = await import("./file-extension.service")
+    const service = new FileExtensionService(
+      registry,
+      windowProvider,
+      runtimeManagerStub()
+    )
+
+    const result = await service.validatePackage(
+      "space-a",
+      "example.task-counter"
+    )
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: "invalid",
+      diagnostics: [
+        expect.objectContaining({
+          code: "TS2339",
+          path: "src/extension.ts",
+          message: expect.stringContaining("readdir"),
+        }),
+      ],
+    })
+    expect(JSON.stringify(result)).not.toContain(root)
+  })
+
   it("rejects missing and legacy database Spaces before touching disk", async () => {
     const registry = {
       getSpace: vi.fn().mockReturnValueOnce(undefined).mockReturnValueOnce({

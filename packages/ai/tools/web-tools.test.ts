@@ -1,4 +1,4 @@
-import { createWebFetchTools } from "./web-tools"
+import { createWebFetchTools, fetchWeb } from "./web-tools"
 
 class MockBash {
   private files = new Map<string, string>()
@@ -72,5 +72,40 @@ describe("web-tools", () => {
     expect(result.content).toBeUndefined()
     expect(fs.readFile("/tmp/large.txt")).toBe(content)
     expect(fs.readFile("/tmp/large.txt")).not.toContain("[Content truncated]")
+  })
+
+  it.each([
+    "http://localhost/admin",
+    "http://127.0.0.1/admin",
+    "http://192.168.1.1/admin",
+    "http://[::1]/admin",
+  ])("blocks local or private network URL %s", async (url) => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(fetchWeb(url)).rejects.toThrow(
+      "cannot access local or private network addresses"
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("validates every redirect before following it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 302,
+      statusText: "Found",
+      headers: {
+        get: (name: string) =>
+          name.toLowerCase() === "location"
+            ? "http://169.254.169.254/latest/meta-data"
+            : null,
+      },
+    })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(fetchWeb("https://example.com/redirect")).rejects.toThrow(
+      "cannot access local or private network addresses"
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
