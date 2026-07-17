@@ -113,21 +113,34 @@ async function installFallbackMode(page: Page): Promise<void> {
 async function openDirectBase(page: Page): Promise<void> {
   await page.goto("/")
   await page.getByRole("button", { name: "Open .base file" }).click()
-  await expect(page.locator("[data-grid-cell='0:0']")).toContainText(
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
     "Ship Base Web Editor"
   )
-  await expect(page.getByText("2,500 records", { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole("tab", { name: /Projects\s*2,500/ })
+  ).toBeVisible()
 }
 
-async function editFirstTitle(page: Page, title: string): Promise<void> {
-  const cell = page.locator("[data-grid-cell='0:0']")
-  await cell.focus()
-  await cell.press("Enter")
-  const input = page.locator(".grid-cell-input")
-  await input.fill(title)
-  await input.press("Enter")
-  await expect(page.getByRole("status")).toContainText(/Unsaved|browser/)
-  await expect(page.locator("[data-grid-cell='0:0']")).toContainText(title)
+async function toggleFirstComplete(
+  page: Page,
+  scope = page.locator(".base-content"),
+  expectSaveState = true
+): Promise<void> {
+  const canvas = scope.locator("canvas[data-testid='data-grid-canvas']")
+  const cell = scope.locator("[data-testid='glide-cell-5-0']")
+  await cell.waitFor({ state: "attached" })
+  await expect(cell).toHaveText("false")
+  await canvas.scrollIntoViewIfNeeded()
+  const bounds = await canvas.boundingBox()
+  if (!bounds) throw new Error("The shared Base Grid canvas is not visible")
+
+  // Desktop's canonical Grid uses a 44px row marker, a 280px title, then
+  // 180px property columns. Click the first row's Complete checkbox.
+  await page.mouse.click(bounds.x + 954, bounds.y + 54)
+  if (expectSaveState) {
+    await expect(page.getByRole("status")).toContainText(/Unsaved|browser/)
+  }
+  await expect(cell).toHaveText("true")
 }
 
 test.describe("Chromium original-file editing", () => {
@@ -147,7 +160,7 @@ test.describe("Chromium original-file editing", () => {
       "Original file"
     )
 
-    await editFirstTitle(page, "Saved through Chromium handle")
+    await toggleFirstComplete(page)
     await page
       .locator(".title-actions .toolbar-button")
       .filter({ hasText: "Save" })
@@ -163,8 +176,8 @@ test.describe("Chromium original-file editing", () => {
 
     await page.reload()
     await page.getByRole("button", { name: "Open .base file" }).click()
-    await expect(page.locator("[data-grid-cell='0:0']")).toContainText(
-      "Saved through Chromium handle"
+    await expect(page.locator("[data-testid='glide-cell-5-0']")).toHaveText(
+      "true"
     )
     await expect(page.getByText("SQLite 1", { exact: true })).toBeVisible()
   })
@@ -174,7 +187,7 @@ test.describe("Chromium original-file editing", () => {
   }) => {
     await installDirectPicker(page, { fileName: "conflict.base" })
     await openDirectBase(page)
-    await editFirstTitle(page, "Conflict-safe edit")
+    await toggleFirstComplete(page)
     await page.evaluate(async () => window.__baseE2E?.appendExternalByte())
 
     await page
@@ -184,8 +197,8 @@ test.describe("Chromium original-file editing", () => {
     await expect(page.getByRole("alert")).toContainText(
       "changed outside this tab"
     )
-    await expect(page.locator("[data-grid-cell='0:0']")).toContainText(
-      "Conflict-safe edit"
+    await expect(page.locator("[data-testid='glide-cell-5-0']")).toHaveText(
+      "true"
     )
 
     await page.getByRole("button", { name: "Overwrite original" }).click()
@@ -197,7 +210,7 @@ test.describe("Chromium original-file editing", () => {
   }, testInfo) => {
     await installDirectPicker(page, { fileName: "write-failure.base" })
     await openDirectBase(page)
-    await editFirstTitle(page, "Survives failed save")
+    await toggleFirstComplete(page)
     await page.evaluate(() => window.__baseE2E?.failWrites(true))
 
     await page
@@ -205,8 +218,8 @@ test.describe("Chromium original-file editing", () => {
       .filter({ hasText: "Save" })
       .click()
     await expect(page.getByRole("alert")).toContainText("Simulated disk full")
-    await expect(page.locator("[data-grid-cell='0:0']")).toContainText(
-      "Survives failed save"
+    await expect(page.locator("[data-testid='glide-cell-5-0']")).toHaveText(
+      "true"
     )
 
     const downloadPromise = page.waitForEvent("download")
@@ -247,7 +260,7 @@ test("fallback imports a copy, downloads it, and reopens the edit", async ({
   await expect(page.getByText(/imports a private working copy/)).toBeVisible()
   await page.locator("input[type=file]").setInputFiles(fixturePath)
   await expect(page.getByText("Imported copy", { exact: true })).toBeVisible()
-  await editFirstTitle(page, "Portable fallback edit")
+  await toggleFirstComplete(page)
 
   const downloadPromise = page.waitForEvent("download")
   await page
@@ -261,8 +274,8 @@ test("fallback imports a copy, downloads it, and reopens the edit", async ({
 
   await page.reload()
   await page.locator("input[type=file]").setInputFiles(savedPath)
-  await expect(page.locator("[data-grid-cell='0:0']")).toContainText(
-    "Portable fallback edit"
+  await expect(page.locator("[data-testid='glide-cell-5-0']")).toHaveText(
+    "true"
   )
   await expect(page.getByText("SQLite 1", { exact: true })).toBeVisible()
 })
@@ -274,11 +287,13 @@ test("opens the bundled sample without a picker", async ({ page }) => {
     response.url().includes("project-tracker")
   )
   await page.getByRole("button", { name: "Open sample Base" }).click()
-  await expect((await sampleResponse).ok()).toBeTruthy()
-  await expect(page.locator("[data-grid-cell='0:0']")).toContainText(
+  await expect((await sampleResponse).status()).toBeLessThan(400)
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
     "Ship Base Web Editor"
   )
-  await expect(page.getByText("2,500 records", { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole("tab", { name: /Projects\s*2,500/ })
+  ).toBeVisible()
   await expect(page.locator(".editor-statusbar")).toContainText("Imported copy")
 })
 
@@ -298,14 +313,14 @@ test("switches the live Base experience between English and Chinese", async ({
   await expect(page.getByText("从底层向上，全部自主实现。")).toBeVisible()
   await expect(page.getByText("SQLite 版本引擎")).toBeVisible()
 
-  const demoCell = page.locator(".live-demo-grid [data-grid-cell='0:0']")
-  await expect(demoCell).toContainText("Ship Base Web Editor")
-  await demoCell.focus()
-  await demoCell.press("Enter")
-  await page.locator(".live-demo-grid .grid-cell-input").fill("实时示例修改")
-  await page.locator(".live-demo-grid .grid-cell-input").press("Enter")
+  await expect(
+    page.locator(".live-demo-grid [data-testid='glide-cell-1-0']")
+  ).toContainText("Ship Base Web Editor")
+  await toggleFirstComplete(page, page.locator(".live-demo-grid"), false)
   await expect(page.locator(".live-demo-state")).toContainText("本地示例已修改")
-  await expect(demoCell).toContainText("实时示例修改")
+  await expect(
+    page.locator(".live-demo-grid [data-testid='glide-cell-5-0']")
+  ).toHaveText("true")
 
   await page.getByRole("button", { name: "打开完整编辑器" }).click()
   await expect(page.locator(".editor-statusbar")).toContainText("导入的副本")

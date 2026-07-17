@@ -237,6 +237,12 @@ async function handleAction(action: BaseWorkerAction) {
     case "add-field":
       runtime.addField(action.tableId, action.field, action.placement)
       return snapshot()
+    case "delete-field":
+      runtime.deleteField(action.tableId, action.columnName)
+      return snapshot()
+    case "update-view":
+      runtime.updateView(action.viewId, action.changes)
+      return snapshot()
     case "export": {
       const check = context.connection.get<{ integrity_check: string }>(
         "PRAGMA integrity_check"

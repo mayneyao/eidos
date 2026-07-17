@@ -1,0 +1,87 @@
+{
+  "name": "@eidos.space/base-ui",
+  "version": "0.1.0",
+  "description": "Shared Eidos Base editor UI for browser and desktop hosts",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./base-data-grid": {
+      "types": "./dist/base-data-grid.d.mts",
+      "import": "./dist/base-data-grid.mjs",
+      "default": "./dist/base-data-grid.mjs"
+    },
+    "./context": {
+      "types": "./dist/context.d.mts",
+      "import": "./dist/context.mjs",
+      "default": "./dist/context.mjs"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "files": [
+    "dist",
+    "src/styles.css"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "eidos.space",
+    "base",
+    "react",
+    "data-grid",
+    "local-first"
+  ],
+  "author": "mayneyao",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mayneyao/eidos.git",
+    "directory": "packages/base-ui"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "peerDependencies": {
+    "@glideapps/glide-data-grid": "^6.0.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@eidos.space/base": "workspace:*",
+    "class-variance-authority": "^0.4.0",
+    "clsx": "^1.2.1",
+    "cmdk": "^1.1.1",
+    "lucide-react": "^0.471.2",
+    "radix-ui": "^1.4.2",
+    "react-day-picker": "^8.10.1",
+    "react-number-format": "^5.4.4",
+    "tailwind-merge": "^2.5.5"
+  },
+  "devDependencies": {
+    "@glideapps/glide-data-grid": "^6.0.0",
+    "@types/react": "^18.2.14",
+    "@types/react-dom": "^18.2.6",
+    "jsdom": "^26.1.0",
+    "marked": "^4.3.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tsdown": "^0.21.7",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.6"
+  }
+}

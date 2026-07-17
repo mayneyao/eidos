@@ -7,7 +7,9 @@ import type {
   BaseSnapshot,
   CreateBaseFieldInput,
   UpdateBaseFieldInput,
+  UpdateBaseViewInput,
 } from "@eidos.space/base"
+import type { BaseEditorDataSource } from "@eidos.space/base-ui"
 
 import type {
   BaseWorkerAction,
@@ -23,32 +25,7 @@ interface PendingCall {
   reject: (reason: Error) => void
 }
 
-export interface BaseEditorDataSource {
-  getSnapshot(): Promise<BaseSnapshot>
-  getPage(
-    tableId: string,
-    offset: number,
-    limit: number,
-    query: BaseRowQuery,
-    totalHint?: number
-  ): Promise<BaseRowPage>
-  insertRow(tableId: string, row: BaseRow): Promise<BaseRowMutationResult>
-  updateRow(
-    tableId: string,
-    rowId: string,
-    changes: BaseRow
-  ): Promise<BaseRowMutationResult>
-  updateField(
-    tableId: string,
-    columnName: string,
-    changes: UpdateBaseFieldInput
-  ): Promise<BaseSnapshot>
-  addField(
-    tableId: string,
-    field: CreateBaseFieldInput,
-    placement?: BaseFieldPlacement
-  ): Promise<BaseSnapshot>
-}
+export type { BaseEditorDataSource } from "@eidos.space/base-ui"
 
 export class BaseWorkerClient implements BaseEditorDataSource {
   private readonly worker = new Worker(
@@ -179,6 +156,17 @@ export class BaseWorkerClient implements BaseEditorDataSource {
       field,
       ...(placement ? { placement } : {}),
     })
+  }
+
+  deleteField(tableId: string, columnName: string): Promise<BaseSnapshot> {
+    return this.call({ type: "delete-field", tableId, columnName })
+  }
+
+  updateView(
+    viewId: string,
+    changes: UpdateBaseViewInput
+  ): Promise<BaseSnapshot> {
+    return this.call({ type: "update-view", viewId, changes })
   }
 
   exportFile(): Promise<BaseWorkerExportResult> {

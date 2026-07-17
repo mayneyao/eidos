@@ -72,6 +72,7 @@ export const sharedAlias = [
   // Local workspace packages - exact matches (higher priority)
   workspacePackage("@eidos.space/core", "index.ts"),
   workspacePackage("@eidos.space/base"),
+  workspacePackage("@eidos.space/base-ui"),
   workspacePackage("@eidos.space/electron-ipc"),
   workspacePackage("@eidos.space/extension-manifest"),
   workspacePackage("@eidos.space/extension-runtime"),
@@ -108,6 +109,7 @@ export const sharedAlias = [
   // Wildcard matches (lower priority)
   workspacePackageWildcard("@eidos.space/core"),
   workspacePackageWildcard("@eidos.space/base"),
+  workspacePackageWildcard("@eidos.space/base-ui"),
   workspacePackageWildcard("@eidos.space/electron-ipc"),
   workspacePackageWildcard("@eidos.space/extension-manifest"),
   workspacePackageWildcard("@eidos.space/extension-runtime"),

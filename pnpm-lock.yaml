@@ -81,15 +81,21 @@ importers:
       '@eidos.space/base':
         specifier: workspace:*
         version: link:../../packages/base
+      '@eidos.space/base-ui':
+        specifier: workspace:*
+        version: link:../../packages/base-ui
+      '@glideapps/glide-data-grid':
+        specifier: ^6.0.0
+        version: 6.0.3(lodash@4.18.1)(marked@4.3.0)(react-dom@18.3.1(react@18.3.1))(react-responsive-carousel@3.2.23)(react@18.3.1)
       '@sqlite.org/sqlite-wasm':
         specifier: 3.45.3-build2
         version: 3.45.3-build2
-      '@tanstack/react-virtual':
-        specifier: ^3.13.12
-        version: 3.13.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       lucide-react:
         specifier: ^0.471.2
         version: 0.471.2(react@18.3.1)
+      marked:
+        specifier: ^4.3.0
+        version: 4.3.0
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -100,6 +106,9 @@ importers:
       '@playwright/test':
         specifier: ^1.55.0
         version: 1.61.1
+      '@tailwindcss/vite':
+        specifier: ^4.2.2
+        version: 4.2.2(vite@8.1.5(@types/node@25.4.0)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0))
       '@types/react':
         specifier: ^18.2.14
         version: 18.3.23
@@ -479,6 +488,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@18.3.1)
+      '@eidos.space/base-ui':
+        specifier: workspace:*
+        version: link:../../packages/base-ui
       '@eidos.space/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -1214,6 +1226,76 @@ importers:
       vitest:
         specifier: 3.2.6
         version: 3.2.6(@types/debug@4.1.12)(@types/node@20.19.1)(happy-dom@20.10.6(bufferutil@4.0.9)(utf-8-validate@6.0.5))(jiti@2.6.1)(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
+
+  packages/base-ui:
+    dependencies:
+      '@dnd-kit/core':
+        specifier: ^6.3.1
+        version: 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@dnd-kit/sortable':
+        specifier: ^10.0.0
+        version: 10.0.0(@dnd-kit/core@6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
+      '@dnd-kit/utilities':
+        specifier: ^3.2.2
+        version: 3.2.2(react@18.3.1)
+      '@eidos.space/base':
+        specifier: workspace:*
+        version: link:../base
+      class-variance-authority:
+        specifier: ^0.4.0
+        version: 0.4.0(typescript@5.8.3)
+      clsx:
+        specifier: ^1.2.1
+        version: 1.2.1
+      cmdk:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      lucide-react:
+        specifier: ^0.471.2
+        version: 0.471.2(react@18.3.1)
+      radix-ui:
+        specifier: ^1.4.2
+        version: 1.4.2(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react-day-picker:
+        specifier: ^8.10.1
+        version: 8.10.1(date-fns@2.30.0)(react@18.3.1)
+      react-number-format:
+        specifier: ^5.4.4
+        version: 5.4.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      tailwind-merge:
+        specifier: ^2.5.5
+        version: 2.6.1
+    devDependencies:
+      '@glideapps/glide-data-grid':
+        specifier: ^6.0.0
+        version: 6.0.3(lodash@4.18.1)(marked@4.3.0)(react-dom@18.3.1(react@18.3.1))(react-responsive-carousel@3.2.23)(react@18.3.1)
+      '@types/react':
+        specifier: ^18.2.14
+        version: 18.3.23
+      '@types/react-dom':
+        specifier: ^18.2.6
+        version: 18.3.7(@types/react@18.3.23)
+      jsdom:
+        specifier: ^26.1.0
+        version: 26.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5)
+      marked:
+        specifier: ^4.3.0
+        version: 4.3.0
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
+      tsdown:
+        specifier: ^0.21.7
+        version: 0.21.7(@typescript/native-preview@7.0.0-dev.20260407.1)(oxc-resolver@11.3.0)(typescript@5.8.3)
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
+      vitest:
+        specifier: ^3.2.6
+        version: 3.2.6(@types/debug@4.1.12)(@types/node@25.4.0)(happy-dom@20.10.6(bufferutil@4.0.9)(utf-8-validate@6.0.5))(jiti@2.6.1)(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/client:
     dependencies:
@@ -9700,11 +9782,6 @@ packages:
     engines: {node: '>= 20'}
     hasBin: true
 
-  marked@17.0.1:
-    resolution: {integrity: sha512-boeBdiS0ghpWcSwoNm/jJBwdpFaMnZWRzjA6SkUMYb40SVaN1x7mmfGKp0jvexGcx+7y2La5zRZsYFZI6Qpypg==}
-    engines: {node: '>= 20'}
-    hasBin: true
-
   marked@17.0.6:
     resolution: {integrity: sha512-gB0gkNafnonOw0obSTEGZTT86IuhILt2Wfx0mWH/1Au83kybTayroZ/V6nS25mN7u8ASy+5fMhgB3XPNrOZdmA==}
     engines: {node: '>= 20'}
@@ -11624,6 +11701,9 @@ packages:
 
   tabbable@6.4.0:
     resolution: {integrity: sha512-05PUHKSNE8ou2dwIxTngl4EzcnsCDZGJ/iCLtDflR/SHB/ny14rXc+qU5P4mG9JkusiV7EivzY9Mhm55AzAvCg==}
+
+  tailwind-merge@2.6.1:
+    resolution: {integrity: sha512-Oo6tHdpZsGpkKG88HJ8RR1rg/RdnEkQEfMoEk2x1XRI3F1AxeU+ijRXpiVUF4UbLfcxxRGw6TbUINKYdWVsQTQ==}
 
   tailwind-merge@3.3.1:
     resolution: {integrity: sha512-gBXpgUm/3rp1lMZZrM/w7D8GKqshif0zAymAhbCyIt8KMe+0v9DQ7cdYLR4FHH/cKpdTXb+A/tKKU3eolfsI+g==}
@@ -14945,6 +15025,19 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@glideapps/glide-data-grid@6.0.3(lodash@4.18.1)(marked@4.3.0)(react-dom@18.3.1(react@18.3.1))(react-responsive-carousel@3.2.23)(react@18.3.1)':
+    dependencies:
+      '@linaria/react': 4.5.4(react@18.3.1)
+      canvas-hypertxt: 1.0.3
+      lodash: 4.18.1
+      marked: 4.3.0
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+      react-number-format: 5.4.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react-responsive-carousel: 3.2.23
+    transitivePeerDependencies:
+      - supports-color
+
   '@glideapps/glide-data-grid@6.0.3(lodash@4.18.1)(marked@5.1.2)(react-dom@18.3.1(react@18.3.1))(react-responsive-carousel@3.2.23)(react@18.3.1)':
     dependencies:
       '@linaria/react': 4.5.4(react@18.3.1)
@@ -17972,6 +18065,13 @@ snapshots:
       '@tailwindcss/oxide': 4.2.2
       tailwindcss: 4.2.2
       vite: 8.1.5(@types/node@20.19.1)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
+
+  '@tailwindcss/vite@4.2.2(vite@8.1.5(@types/node@25.4.0)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0))':
+    dependencies:
+      '@tailwindcss/node': 4.2.2
+      '@tailwindcss/oxide': 4.2.2
+      tailwindcss: 4.2.2
+      vite: 8.1.5(@types/node@25.4.0)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
 
   '@tanstack/react-virtual@3.13.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
@@ -21706,8 +21806,6 @@ snapshots:
 
   marked@16.4.2: {}
 
-  marked@17.0.1: {}
-
   marked@17.0.6: {}
 
   marked@4.3.0: {}
@@ -24326,7 +24424,7 @@ snapshots:
       clsx: 2.1.1
       hast-util-to-jsx-runtime: 2.3.6
       html-url-attributes: 3.0.1
-      marked: 17.0.1
+      marked: 17.0.6
       mermaid: 11.16.0
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
@@ -24515,6 +24613,8 @@ snapshots:
   tabbable@6.2.0: {}
 
   tabbable@6.4.0: {}
+
+  tailwind-merge@2.6.1: {}
 
   tailwind-merge@3.3.1: {}
 

@@ -339,11 +339,14 @@ describe("BaseRecordInspector", () => {
         />
       )
     })
-    await act(async () => {
+    act(() => {
       container
         .querySelector<HTMLButtonElement>('[aria-label="Owners"]')
         ?.click()
-      await new Promise((resolve) => setTimeout(resolve, 10))
+    })
+    await act(async () => {
+      await vi.waitFor(() => expect(onSearchRelation).toHaveBeenCalledOnce())
+      await Promise.resolve()
     })
 
     const combobox = document.body.querySelector<HTMLInputElement>(

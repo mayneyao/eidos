@@ -2,6 +2,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 import react from "@vitejs/plugin-react"
+import tailwindcss from "@tailwindcss/vite"
 import { defineConfig } from "vite"
 import topLevelAwait from "vite-plugin-top-level-await"
 import wasm from "vite-plugin-wasm"
@@ -11,12 +12,28 @@ const directory = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   base: "./",
   assetsInclude: ["**/*.base"],
-  plugins: [react(), wasm(), topLevelAwait()],
+  plugins: [tailwindcss(), react(), wasm(), topLevelAwait()],
   resolve: {
     alias: {
+      "@eidos.space/base-ui/styles.css": path.resolve(
+        directory,
+        "../../packages/base-ui/src/styles.css"
+      ),
+      "@eidos.space/base-ui/base-data-grid": path.resolve(
+        directory,
+        "../../packages/base-ui/src/base-data-grid.tsx"
+      ),
+      "@eidos.space/base-ui/context": path.resolve(
+        directory,
+        "../../packages/base-ui/src/context.tsx"
+      ),
       "@eidos.space/base": path.resolve(
         directory,
         "../../packages/base/src/index.ts"
+      ),
+      "@eidos.space/base-ui": path.resolve(
+        directory,
+        "../../packages/base-ui/src/index.ts"
       ),
     },
   },

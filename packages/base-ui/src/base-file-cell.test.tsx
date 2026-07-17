@@ -36,10 +36,13 @@ describe("Base file cell", () => {
     container.remove()
   })
 
-  it("renders Space assets and preserves portable paths on paste", () => {
-    expect(baseFileDisplayData(["assets/cover image.png"])).toEqual([
-      "/~/assets/cover%20image.png",
-    ])
+  it("delegates file previews and preserves portable paths on paste", () => {
+    expect(
+      baseFileDisplayData(
+        ["assets/cover image.png"],
+        (path) => `/~/${encodeURI(path)}`
+      )
+    ).toEqual(["/~/assets/cover%20image.png"])
     const cell: BaseFileCell = {
       kind: GridCellKind.Custom,
       allowOverlay: true,

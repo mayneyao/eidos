@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test"
 
+const port = process.env.BASE_WEB_E2E_PORT ?? "4174"
+const baseURL = `http://127.0.0.1:${port}`
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
@@ -9,7 +12,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: "list",
   use: {
-    baseURL: "http://127.0.0.1:4174",
+    baseURL,
     acceptDownloads: true,
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
@@ -20,8 +23,8 @@ export default defineConfig({
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],
   webServer: {
-    command: "pnpm build && pnpm preview --host 127.0.0.1 --port 4174",
-    url: "http://127.0.0.1:4174",
+    command: `pnpm build && pnpm preview --host 127.0.0.1 --port ${port}`,
+    url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

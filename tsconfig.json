@@ -35,6 +35,8 @@
       "@eidos.space/file-space/*": ["./packages/file-space/src/*"],
       "@eidos.space/base": ["./packages/base/src/index.ts"],
       "@eidos.space/base/*": ["./packages/base/src/*"],
+      "@eidos.space/base-ui": ["./packages/base-ui/src/index.ts"],
+      "@eidos.space/base-ui/*": ["./packages/base-ui/src/*"],
       "@eidos.space/legacy-space-migration": [
         "./packages/legacy-space-migration/src/index.ts"
       ],

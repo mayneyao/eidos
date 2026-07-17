@@ -21,7 +21,11 @@
       "vitest/globals"
     ],
     "paths": {
-      "@eidos.space/base": ["../../packages/base/src/index.ts"]
+      "@eidos.space/base": ["../../packages/base/src/index.ts"],
+      "@eidos.space/base-ui": ["../../packages/base-ui/src/index.ts"],
+      "@eidos.space/base-ui/*": ["../../packages/base-ui/src/*"],
+      "@eidos.space/core": ["../../packages/core/index.ts"],
+      "@eidos.space/core/*": ["../../packages/core/*"]
     }
   },
   "include": [

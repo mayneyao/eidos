@@ -7,10 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { BaseFieldPropertyPanel } from "./base-field-property-panel"
 
-vi.mock("@/components/theme-provider", () => ({
-  useTheme: () => ({ resolvedTheme: "light" }),
-}))
-
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true

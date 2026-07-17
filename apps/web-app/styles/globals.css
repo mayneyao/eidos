@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@eidos.space/base-ui/styles.css";
 
 /* Import Tailwind plugins */
 @plugin "@tailwindcss/typography";
@@ -57,18 +58,6 @@
     width: 18rem;
   }
 
-  .base-detail-layout {
-    position: relative;
-    container-name: base-detail-layout;
-    container-type: inline-size;
-  }
-
-  .base-detail-panel {
-    width: 20rem;
-    min-width: 18rem;
-    flex-shrink: 0;
-  }
-
   .base-formula-composer {
     container-name: base-formula-composer;
     container-type: inline-size;
@@ -105,20 +94,6 @@
   @container base-workbar (max-width: 720px) {
     .base-workbar-search {
       width: clamp(7rem, calc(100cqw - 18rem), 10rem);
-    }
-  }
-
-  @container base-detail-layout (max-width: 760px) {
-    .base-detail-panel {
-      position: absolute;
-      z-index: 30;
-      inset-block: 0;
-      inset-inline-end: 0;
-      width: min(20rem, 100cqi);
-      min-width: 0;
-      max-width: 100cqi;
-      box-shadow: -0.75rem 0 1.75rem
-        color-mix(in srgb, var(--foreground) 12%, transparent);
     }
   }
 

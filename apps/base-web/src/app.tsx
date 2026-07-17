@@ -33,8 +33,8 @@ import {
   X,
 } from "lucide-react"
 
-import { BaseGrid } from "./components/base-grid"
 import { LiveBaseDemo } from "./components/live-base-demo"
+import { SharedBaseEditorGrid } from "./components/shared-base-editor-grid"
 import {
   deleteRecoverySession,
   getLatestRecoverySession,
@@ -618,33 +618,22 @@ export function App() {
     [markCommitted]
   )
 
-  const updateProperty = useCallback(
-    async (name: string, type: BaseFieldType) => {
-      const client = clientRef.current
-      if (!client || !activeTable || !propertyField) return
-      try {
-        const next = await client.updateField(
-          activeTable.table.id,
-          propertyField.tableColumnName,
-          {
-            name,
-            ...(type !== propertyField.type ? { type } : {}),
-          }
-        )
-        setSnapshot(next)
-        setPropertyField(
+  const onStructureSnapshot = useCallback(
+    (next: BaseSnapshot) => {
+      setSnapshot(next)
+      setPropertyField((current) => {
+        if (!current || !activeTable) return null
+        return (
           next.tables
             .find((table) => table.table.id === activeTable.table.id)
             ?.fields.find(
-              (field) => field.tableColumnName === propertyField.tableColumnName
+              (field) => field.tableColumnName === current.tableColumnName
             ) ?? null
         )
-        markCommitted()
-      } catch (error) {
-        setNotice(errorMessage(error))
-      }
+      })
+      markCommitted()
     },
-    [activeTable, markCommitted, propertyField]
+    [activeTable, markCommitted]
   )
 
   const addProperty = useCallback(
@@ -914,7 +903,10 @@ export function App() {
           </div>
         </section>
 
-        <LiveBaseDemo onOpenFullEditor={() => void openSample()} />
+        <LiveBaseDemo
+          theme={theme}
+          onOpenFullEditor={() => void openSample()}
+        />
 
         <footer className="launch-footer">
           <span>Eidos Base</span>
@@ -1176,26 +1168,23 @@ export function App() {
             </div>
           </div>
         ) : (
-          <BaseGrid
+          <SharedBaseEditorGrid
             key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
+            theme={theme}
             source={clientRef.current!}
             table={activeTable}
             view={activeView}
             search={search}
             disabled={saveState.phase === "saving"}
+            propertyField={propertyField}
             onMutation={onRowMutation}
+            onSnapshot={onStructureSnapshot}
             onFieldOpen={setPropertyField}
+            onFieldClose={() => setPropertyField(null)}
+            onFieldAdd={() => setAddPropertyOpen(true)}
             onError={(error) => setNotice(errorMessage(error))}
           />
         )}
-
-        {propertyField ? (
-          <PropertyPanel
-            field={propertyField}
-            onClose={() => setPropertyField(null)}
-            onSave={updateProperty}
-          />
-        ) : null}
       </section>
 
       <footer className="editor-statusbar">
@@ -1253,92 +1242,6 @@ export function App() {
         }}
       />
     </main>
-  )
-}
-
-interface PropertyPanelProps {
-  field: BaseFieldInfo
-  onClose: () => void
-  onSave: (name: string, type: BaseFieldType) => Promise<void>
-}
-
-function PropertyPanel({ field, onClose, onSave }: PropertyPanelProps) {
-  const { t } = useI18n()
-  const [name, setName] = useState(field.name)
-  const [type, setType] = useState<BaseFieldType>(field.type)
-  const [saving, setSaving] = useState(false)
-  const mutable =
-    field.valueKind === "source" &&
-    field.type !== "title" &&
-    MUTABLE_FIELD_TYPES.some((candidate) => candidate.value === field.type)
-  return (
-    <aside className="property-panel" aria-label={`${field.name} property`}>
-      <header>
-        <div>
-          <p className="eyebrow">{t("property")}</p>
-          <h2>{field.name}</h2>
-        </div>
-        <button
-          className="icon-button"
-          type="button"
-          aria-label={t("close")}
-          onClick={onClose}
-        >
-          <X size={15} />
-        </button>
-      </header>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          setSaving(true)
-          void onSave(name, type).finally(() => setSaving(false))
-        }}
-      >
-        <label>
-          <span>{t("name")}</span>
-          <input
-            value={name}
-            required
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-        <label>
-          <span>{t("type")}</span>
-          <select
-            value={type}
-            disabled={!mutable}
-            onChange={(event) => setType(event.target.value as BaseFieldType)}
-          >
-            {mutable ? (
-              MUTABLE_FIELD_TYPES.map((candidate) => (
-                <option key={candidate.value} value={candidate.value}>
-                  {candidate.label}
-                </option>
-              ))
-            ) : (
-              <option value={field.type}>{field.type}</option>
-            )}
-          </select>
-        </label>
-        {!mutable ? (
-          <p className="field-note">{t("immutableField")}</p>
-        ) : (
-          <p className="field-note">{t("typeConversion")}</p>
-        )}
-        <button
-          className="primary-button compact-button"
-          type="submit"
-          disabled={saving || !name.trim()}
-        >
-          {saving ? (
-            <LoaderCircle className="spin" size={14} />
-          ) : (
-            <Check size={14} />
-          )}
-          {t("saveProperty")}
-        </button>
-      </form>
-    </aside>
   )
 }
 

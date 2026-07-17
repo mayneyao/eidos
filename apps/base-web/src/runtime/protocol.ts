@@ -7,6 +7,7 @@ import type {
   BaseSnapshot,
   CreateBaseFieldInput,
   UpdateBaseFieldInput,
+  UpdateBaseViewInput,
 } from "@eidos.space/base"
 
 export type BaseWorkerStorage = "opfs-sahpool" | "memory"
@@ -60,6 +61,8 @@ export type BaseWorkerAction =
       field: CreateBaseFieldInput
       placement?: BaseFieldPlacement
     }
+  | { type: "delete-field"; tableId: string; columnName: string }
+  | { type: "update-view"; viewId: string; changes: UpdateBaseViewInput }
   | { type: "export" }
   | { type: "close" }
 

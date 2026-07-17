@@ -15,9 +15,9 @@ import {
 import { useI18n } from "../i18n"
 import { BaseWorkerClient } from "../runtime/worker-client"
 import { loadSampleBaseFile } from "../sample-base"
-import { BaseGrid } from "./base-grid"
-
+import { SharedBaseEditorGrid } from "./shared-base-editor-grid"
 interface LiveBaseDemoProps {
+  theme: "light" | "dark"
   onOpenFullEditor: () => void
 }
 
@@ -37,7 +37,7 @@ function updateRowCount(
   }
 }
 
-export function LiveBaseDemo({ onOpenFullEditor }: LiveBaseDemoProps) {
+export function LiveBaseDemo({ theme, onOpenFullEditor }: LiveBaseDemoProps) {
   const { t } = useI18n()
   const clientRef = useRef<BaseWorkerClient | null>(null)
   const [generation, setGeneration] = useState(0)
@@ -46,6 +46,7 @@ export function LiveBaseDemo({ onOpenFullEditor }: LiveBaseDemoProps) {
   const [search, setSearch] = useState("")
   const [dirty, setDirty] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [propertyField, setPropertyField] = useState<BaseFieldInfo | null>(null)
 
   useEffect(() => {
     let active = true
@@ -56,6 +57,7 @@ export function LiveBaseDemo({ onOpenFullEditor }: LiveBaseDemoProps) {
     setSearch("")
     setDirty(false)
     setMessage(null)
+    setPropertyField(null)
 
     void loadSampleBaseFile()
       .then(async (file) => {
@@ -95,10 +97,6 @@ export function LiveBaseDemo({ onOpenFullEditor }: LiveBaseDemoProps) {
     )
     setDirty(true)
     setMessage(null)
-  }
-
-  const explainProperty = (field: BaseFieldInfo) => {
-    setMessage(t("demoProperty", { field: field.name }))
   }
 
   return (
@@ -162,13 +160,28 @@ export function LiveBaseDemo({ onOpenFullEditor }: LiveBaseDemoProps) {
 
         <div className="live-demo-grid">
           {phase === "ready" && table && clientRef.current ? (
-            <BaseGrid
+            <SharedBaseEditorGrid
+              theme={theme}
               source={clientRef.current}
               table={table}
               view={gridView}
               search={search}
+              propertyField={propertyField}
               onMutation={markMutation}
-              onFieldOpen={explainProperty}
+              onSnapshot={(next) => {
+                setSnapshot(next)
+                setPropertyField((current) =>
+                  current
+                    ? (next.tables[0]?.fields.find(
+                        (field) =>
+                          field.tableColumnName === current.tableColumnName
+                      ) ?? null)
+                    : null
+                )
+                setDirty(true)
+              }}
+              onFieldOpen={setPropertyField}
+              onFieldClose={() => setPropertyField(null)}
               onError={(error) =>
                 setMessage(
                   error instanceof Error ? error.message : "Demo edit failed"

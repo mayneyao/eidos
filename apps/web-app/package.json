@@ -54,6 +54,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@eidos.space/core": "workspace:*",
+    "@eidos.space/base-ui": "workspace:*",
     "@eidos.space/extension-runtime": "workspace:*",
     "@eidos.space/extension-surface-protocol": "workspace:*",
     "@eidos.space/file-space": "workspace:*",

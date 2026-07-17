@@ -38,20 +38,11 @@ vi.mock("@glideapps/glide-data-grid", async (importOriginal) => {
   }
 })
 
-vi.mock("@/components/table/views/grid/cells/select-cell", () => ({
+vi.mock("./cells/select-cell", () => ({
   default: {},
 }))
-vi.mock("@/components/table/views/grid/cells/multi-select-cell", () => ({
+vi.mock("./cells/multi-select-cell", () => ({
   default: {},
-}))
-vi.mock("@/components/theme-provider", () => ({
-  useTheme: () => ({ resolvedTheme: "light" }),
-}))
-vi.mock("@/apps/web-app/hooks/use-current-theme", () => ({
-  useCurrentTheme: () => ({ css: null }),
-}))
-vi.mock("@/components/table/views/grid/theme", () => ({
-  useDynamicTheme: () => ({ accentColor: "hsl(220 40% 20%)" }),
 }))
 
 ;(
@@ -1220,7 +1211,7 @@ describe("BaseGrid", () => {
     expect(loadPage).toHaveBeenCalledWith(200, 100)
     expect(mocks.props?.highlightRegions).toMatchObject([
       {
-        color: "hsl(220 40% 20% / 0.14)",
+        color: "color-mix(in srgb, #37352f 14%, transparent)",
         range: { x: 0, y: 180, width: 2, height: 1 },
       },
     ])
@@ -1318,7 +1309,7 @@ describe("BaseGrid", () => {
     act(() => mocks.props?.onDragOverCell?.([2, 0], transfer))
     expect(mocks.props?.highlightRegions).toMatchObject([
       {
-        color: "hsl(220 40% 20% / 0.18)",
+        color: "color-mix(in srgb, #37352f 18%, transparent)",
         range: { x: 2, y: 0, width: 1, height: 1 },
       },
     ])
