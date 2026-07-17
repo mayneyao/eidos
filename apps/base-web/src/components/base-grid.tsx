@@ -11,6 +11,7 @@ import type {
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { LoaderCircle, Plus } from "lucide-react"
 
+import { useI18n } from "../i18n"
 import type { BaseEditorDataSource } from "../runtime/worker-client"
 
 const ROW_HEIGHT = 36
@@ -345,9 +346,14 @@ export function BaseGrid({
   onFieldOpen,
   onError,
 }: BaseGridProps) {
+  const { locale, t } = useI18n()
   const scrollRef = useRef<HTMLDivElement>(null)
   const loadedPagesRef = useRef(new Set<number>())
   const generationRef = useRef(0)
+  const onErrorRef = useRef(onError)
+  const onMutationRef = useRef(onMutation)
+  onErrorRef.current = onError
+  onMutationRef.current = onMutation
   const [rows, setRows] = useState<Map<number, BaseRow>>(() => new Map())
   const [rowCount, setRowCount] = useState(table.rowCount)
   const [loading, setLoading] = useState(false)
@@ -408,12 +414,12 @@ export function BaseGrid({
         })
       } catch (error) {
         loadedPagesRef.current.delete(pageIndex)
-        onError(error)
+        onErrorRef.current(error)
       } finally {
         if (generation === generationRef.current) setLoading(false)
       }
     },
-    [onError, query, search, source, table.rowCount, table.table.id]
+    [query, search, source, table.rowCount, table.table.id]
   )
 
   useEffect(() => {
@@ -450,14 +456,14 @@ export function BaseGrid({
           { [field.tableColumnName]: value }
         )
         setRows((current) => new Map(current).set(rowIndex, result.row))
-        onMutation(result)
+        onMutationRef.current(result)
       } catch (error) {
         setRows((current) => new Map(current).set(rowIndex, previous))
-        onError(error)
+        onErrorRef.current(error)
         throw error
       }
     },
-    [onError, onMutation, rows, source, table.table.id]
+    [rows, source, table.table.id]
   )
 
   const addRow = useCallback(async () => {
@@ -466,7 +472,7 @@ export function BaseGrid({
       loadedPagesRef.current.clear()
       setRows(new Map())
       setRowCount(result.rowCount)
-      onMutation(result)
+      onMutationRef.current(result)
       const generation = ++generationRef.current
       await loadPage(
         Math.floor(Math.max(0, result.rowCount - 1) / PAGE_SIZE),
@@ -478,15 +484,15 @@ export function BaseGrid({
         })
       )
     } catch (error) {
-      onError(error)
+      onErrorRef.current(error)
     }
-  }, [loadPage, onError, onMutation, source, table.table.id, virtualizer])
+  }, [loadPage, source, table.table.id, virtualizer])
 
   if (fields.length === 0) {
     return (
       <div className="grid-empty">
-        <p>No visible properties in this view.</p>
-        <p>Choose another view or make a property visible in Eidos Desktop.</p>
+        <p>{t("noVisibleProperties")}</p>
+        <p>{t("chooseAnotherView")}</p>
       </div>
     )
   }
@@ -518,7 +524,7 @@ export function BaseGrid({
                 role="columnheader"
                 key={field.tableColumnName}
                 onClick={() => onFieldOpen(field)}
-                title={`Edit ${field.name} property`}
+                title={t("editProperty", { field: field.name })}
               >
                 <span className="field-type-mark" aria-hidden="true">
                   {field.type === "title" ? "Aa" : field.type.slice(0, 2)}
@@ -576,12 +582,16 @@ export function BaseGrid({
           onClick={() => void addRow()}
         >
           <Plus size={14} aria-hidden="true" />
-          New record
+          {t("newRecord")}
         </button>
         <span className="row-count" aria-live="polite">
           {loading
-            ? "Loading records…"
-            : `${rowCount.toLocaleString()} records`}
+            ? t("loadingRecords")
+            : t("records", {
+                count: rowCount.toLocaleString(
+                  locale === "zh" ? "zh-CN" : "en"
+                ),
+              })}
         </span>
       </div>
     </div>

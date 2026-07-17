@@ -281,3 +281,34 @@ test("opens the bundled sample without a picker", async ({ page }) => {
   await expect(page.getByText("2,500 records", { exact: true })).toBeVisible()
   await expect(page.locator(".editor-statusbar")).toContainText("Imported copy")
 })
+
+test("switches the live Base experience between English and Chinese", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "One browser covers the shared React UI"
+  )
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.getByRole("button", { name: "切换到中文" }).click()
+
+  await expect(page.getByRole("heading", { name: /打开 Base。/ })).toBeVisible()
+  await expect(page.getByText("从底层向上，全部自主实现。")).toBeVisible()
+  await expect(page.getByText("SQLite 版本引擎")).toBeVisible()
+
+  const demoCell = page.locator(".live-demo-grid [data-grid-cell='0:0']")
+  await expect(demoCell).toContainText("Ship Base Web Editor")
+  await demoCell.focus()
+  await demoCell.press("Enter")
+  await page.locator(".live-demo-grid .grid-cell-input").fill("实时示例修改")
+  await page.locator(".live-demo-grid .grid-cell-input").press("Enter")
+  await expect(page.locator(".live-demo-state")).toContainText("本地示例已修改")
+  await expect(demoCell).toContainText("实时示例修改")
+
+  await page.getByRole("button", { name: "打开完整编辑器" }).click()
+  await expect(page.locator(".editor-statusbar")).toContainText("导入的副本")
+  await page.getByRole("button", { name: "Switch to English" }).click()
+  await expect(page.locator(".editor-statusbar")).toContainText("Imported copy")
+})

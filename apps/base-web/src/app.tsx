@@ -34,6 +34,7 @@ import {
 } from "lucide-react"
 
 import { BaseGrid } from "./components/base-grid"
+import { LiveBaseDemo } from "./components/live-base-demo"
 import {
   deleteRecoverySession,
   getLatestRecoverySession,
@@ -57,7 +58,9 @@ import {
   type FileWritePermission,
   type OpenedBrowserFile,
 } from "./files/browser-file-adapter"
+import { useI18n, type Translator } from "./i18n"
 import { BaseWorkerClient } from "./runtime/worker-client"
+import { loadSampleBaseFile } from "./sample-base"
 import {
   canSaveToOriginal,
   hasUnsavedChanges,
@@ -76,11 +79,6 @@ interface OpenSession {
 }
 
 type Theme = "light" | "dark"
-
-const SAMPLE_BASE_URL = new URL(
-  "../fixtures/project-tracker.base",
-  import.meta.url
-).href
 
 const MUTABLE_FIELD_TYPES: Array<{
   value: Exclude<
@@ -123,40 +121,42 @@ function initialTheme(): Theme {
 
 function statusPresentation(
   phase: ReturnType<typeof saveReducer>["phase"],
-  mode: FileAccessMode | null
+  mode: FileAccessMode | null,
+  t: Translator
 ): { label: string; tone: string; icon: typeof Check } {
   switch (phase) {
     case "opening":
       return {
-        label: "Opening local file…",
+        label: t("editorOpening"),
         tone: "neutral",
         icon: LoaderCircle,
       }
     case "dirty":
       return {
-        label: mode === "copy" ? "Changes stay in browser" : "Unsaved changes",
+        label: mode === "copy" ? t("editorBrowserChanges") : t("editorUnsaved"),
         tone: "warning",
         icon: CloudOff,
       }
     case "saving":
-      return { label: "Saving Base…", tone: "neutral", icon: LoaderCircle }
+      return { label: t("editorSaving"), tone: "neutral", icon: LoaderCircle }
     case "saved":
       return {
-        label: mode === "copy" ? "Downloaded a copy" : "Saved to original",
+        label:
+          mode === "copy" ? t("editorDownloaded") : t("editorSavedOriginal"),
         tone: "success",
         icon: Check,
       }
     case "error":
       return {
-        label: "Save needs attention",
+        label: t("editorAttention"),
         tone: "danger",
         icon: AlertTriangle,
       }
     case "conflict":
-      return { label: "Original changed", tone: "danger", icon: AlertTriangle }
+      return { label: t("editorConflict"), tone: "danger", icon: AlertTriangle }
     default:
       return {
-        label: mode === "copy" ? "Imported copy" : "Saved",
+        label: mode === "copy" ? t("editorImported") : t("editorSaved"),
         tone: "success",
         icon: Check,
       }
@@ -182,6 +182,7 @@ function updateSnapshotRowCount(
 }
 
 export function App() {
+  const { locale, setLocale, t } = useI18n()
   const [saveState, dispatch] = useReducer(saveReducer, initialSaveState)
   const [snapshot, setSnapshot] = useState<BaseSnapshot | null>(null)
   const [session, setSession] = useState<OpenSession | null>(null)
@@ -364,17 +365,7 @@ export function App() {
     if (!confirmSwitch()) return
     setNotice(null)
     try {
-      const response = await fetch(SAMPLE_BASE_URL)
-      if (!response.ok) {
-        throw new Error(
-          `The sample Base could not be loaded (${response.status})`
-        )
-      }
-      const file = new File(
-        [await response.arrayBuffer()],
-        "project-tracker.base",
-        { type: "application/vnd.eidos.base+sqlite3" }
-      )
+      const file = await loadSampleBaseFile()
       await openPreparedFile(await openImportedBaseFile(file))
     } catch (error) {
       const message = errorMessage(error)
@@ -679,7 +670,7 @@ export function App() {
     [activeTable, markCommitted]
   )
 
-  const status = statusPresentation(saveState.phase, saveState.mode)
+  const status = statusPresentation(saveState.phase, saveState.mode, t)
   const StatusIcon = status.icon
   const directSupported = supportsDirectFileAccess()
 
@@ -696,14 +687,24 @@ export function App() {
             </span>
             <span>Eidos Base</span>
           </div>
-          <button
-            className="icon-button"
-            type="button"
-            aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
-            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
+          <div className="launch-header-actions">
+            <button
+              className="language-button"
+              type="button"
+              aria-label={t("languageAction")}
+              onClick={() => setLocale(locale === "en" ? "zh" : "en")}
+            >
+              {locale === "en" ? "中文" : "EN"}
+            </button>
+            <button
+              className="icon-button"
+              type="button"
+              aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            >
+              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+          </div>
         </header>
 
         <section className="launch-content" aria-labelledby="launch-title">
@@ -712,16 +713,13 @@ export function App() {
             <span>local / private</span>
           </div>
           <div className="launch-copy">
-            <p className="eyebrow">A file is the workspace</p>
+            <p className="eyebrow">{t("heroEyebrow")}</p>
             <h1 id="launch-title">
-              Open the Base.
+              {t("heroTitleOne")}
               <br />
-              Work where it lives.
+              {t("heroTitleTwo")}
             </h1>
-            <p className="launch-lede">
-              View and edit a local Eidos Base without an account, upload, or
-              server. Your SQLite file stays on this device.
-            </p>
+            <p className="launch-lede">{t("heroLede")}</p>
             <div className="launch-actions">
               <button
                 id="open-base"
@@ -736,8 +734,8 @@ export function App() {
                   <FolderOpen size={17} aria-hidden="true" />
                 )}
                 {saveState.phase === "opening"
-                  ? "Opening Base…"
-                  : "Open .base file"}
+                  ? t("openingBase")
+                  : t("openBase")}
                 <span className="button-shortcut">⌘ O</span>
               </button>
               <button
@@ -747,15 +745,13 @@ export function App() {
                 onClick={() => void openSample()}
               >
                 <FileSpreadsheet size={16} aria-hidden="true" />
-                Open sample Base
+                {t("openSample")}
               </button>
             </div>
             <div className="privacy-line">
               <ShieldCheck size={15} aria-hidden="true" />
               <span>
-                {directSupported
-                  ? "This browser can save changes back to the original file after you grant access."
-                  : "This browser imports a private working copy. Save creates a new download; it cannot replace the original."}
+                {directSupported ? t("privacyDirect") : t("privacyCopy")}
               </span>
             </div>
           </div>
@@ -765,25 +761,165 @@ export function App() {
           <section className="recovery-strip" aria-label="Recover unsaved Base">
             <RotateCcw size={16} aria-hidden="true" />
             <div>
-              <strong>Unsaved work is available for {recovery.fileName}</strong>
-              <span>Recovered from this browser’s private storage.</span>
+              <strong>
+                {t("recoveryAvailable", { file: recovery.fileName })}
+              </strong>
+              <span>{t("recoveryPrivate")}</span>
             </div>
             <button
               className="secondary-button"
               type="button"
               onClick={() => void restoreRecovery()}
             >
-              Recover edits
+              {t("recoverEdits")}
             </button>
             <button
               className="text-button"
               type="button"
               onClick={() => void discardRecovery()}
             >
-              Discard copy
+              {t("discardCopy")}
             </button>
           </section>
         ) : null}
+
+        <section
+          className="landing-section format-section"
+          aria-labelledby="format-title"
+        >
+          <div className="section-rail" aria-hidden="true">
+            <span>01</span>
+            <span>open format</span>
+          </div>
+          <div className="format-story">
+            <header className="format-heading">
+              <p className="eyebrow">{t("formatEyebrow")}</p>
+              <h2 id="format-title">
+                {t("formatTitleOne")}
+                <br />
+                {t("formatTitleTwo")}
+              </h2>
+              <p>
+                {t("formatIntro").split(".base")[0]}
+                <code>.base</code>
+                {t("formatIntro").split(".base").slice(1).join(".base")}
+              </p>
+            </header>
+
+            <ol className="format-stack" aria-label="Base format layers">
+              <li>
+                <span>{t("formatFile")}</span>
+                <strong>{t("formatFileTitle")}</strong>
+                <p>{t("formatFileBody")}</p>
+                <code>project-tracker.base</code>
+              </li>
+              <li>
+                <span>{t("formatMeaning")}</span>
+                <strong>{t("formatMeaningTitle")}</strong>
+                <p>{t("formatMeaningBody")}</p>
+                <code>eidos__meta · columns · views</code>
+              </li>
+              <li>
+                <span>{t("formatBehavior")}</span>
+                <strong>{t("formatBehaviorTitle")}</strong>
+                <p>{t("formatBehaviorBody")}</p>
+                <code>BaseConnection → BaseRuntime</code>
+              </li>
+              <li>
+                <span>{t("formatExperience")}</span>
+                <strong>{t("formatExperienceTitle")}</strong>
+                <p>{t("formatExperienceBody")}</p>
+                <code>data + view config → UI</code>
+              </li>
+            </ol>
+
+            <div
+              className="format-principles"
+              aria-label="Open format principles"
+            >
+              <span>{t("principleOwned")}</span>
+              <span>{t("principleAccount")}</span>
+              <span>{t("principleDrivers")}</span>
+              <span>{t("principleLocal")}</span>
+            </div>
+          </div>
+        </section>
+
+        <section
+          className="landing-section stack-section"
+          aria-labelledby="stack-title"
+        >
+          <div className="section-rail" aria-hidden="true">
+            <span>02</span>
+            <span>full stack</span>
+          </div>
+          <div className="stack-story">
+            <header className="stack-heading">
+              <p className="eyebrow">{t("stackEyebrow")}</p>
+              <h2 id="stack-title">{t("stackTitle")}</h2>
+              <p>{t("graftIntro")}</p>
+            </header>
+
+            <div className="stack-layers" aria-label="Eidos technology stack">
+              <article>
+                <span>01</span>
+                <div>
+                  <strong>Graft</strong>
+                  <h3>{t("stackGraft")}</h3>
+                  <p>{t("stackGraftBody")}</p>
+                </div>
+              </article>
+              <article>
+                <span>02</span>
+                <div>
+                  <strong>Base</strong>
+                  <h3>{t("stackBase")}</h3>
+                  <p>{t("stackBaseBody")}</p>
+                </div>
+              </article>
+              <article>
+                <span>03</span>
+                <div>
+                  <strong>Eidos Desktop</strong>
+                  <h3>{t("stackEidos")}</h3>
+                  <p>{t("stackEidosBody")}</p>
+                </div>
+              </article>
+            </div>
+
+            <div className="graft-workflow">
+              <article>
+                <span>commit -m</span>
+                <strong>{t("graftCommit")}</strong>
+                <p>{t("graftCommitBody")}</p>
+              </article>
+              <article>
+                <span>diff HEAD WORKTREE</span>
+                <strong>{t("graftDiff")}</strong>
+                <p>{t("graftDiffBody")}</p>
+              </article>
+              <article>
+                <span>branch / checkout</span>
+                <strong>{t("graftBranch")}</strong>
+                <p>{t("graftBranchBody")}</p>
+              </article>
+              <article>
+                <span>push / pull / merge</span>
+                <strong>{t("graftSync")}</strong>
+                <p>{t("graftSyncBody")}</p>
+              </article>
+            </div>
+
+            <p className="graft-boundary">{t("graftBoundary")}</p>
+          </div>
+        </section>
+
+        <LiveBaseDemo onOpenFullEditor={() => void openSample()} />
+
+        <footer className="launch-footer">
+          <span>Eidos Base</span>
+          <span>{t("launchFooter")}</span>
+        </footer>
 
         {notice || saveState.error ? (
           <div className="launch-error" role="alert">
@@ -853,7 +989,7 @@ export function App() {
               onClick={() => void reauthorize()}
             >
               <FileKey size={14} aria-hidden="true" />
-              Grant write access
+              {t("grantWrite")}
             </button>
           ) : null}
           <button
@@ -862,7 +998,7 @@ export function App() {
             onClick={() => void chooseFile()}
           >
             <FolderOpen size={15} aria-hidden="true" />
-            <span>Open</span>
+            <span>{t("open")}</span>
           </button>
           <button
             className="toolbar-button"
@@ -873,15 +1009,25 @@ export function App() {
             onClick={() => void saveOriginal()}
           >
             <Save size={15} aria-hidden="true" />
-            <span>{canSaveToOriginal(saveState) ? "Save" : "Save As"}</span>
+            <span>
+              {canSaveToOriginal(saveState) ? t("save") : t("saveAs")}
+            </span>
           </button>
           <button
             className="icon-button"
             type="button"
-            aria-label="Save As"
+            aria-label={t("saveAs")}
             onClick={() => void saveAs()}
           >
             <Download size={15} />
+          </button>
+          <button
+            className="language-button"
+            type="button"
+            aria-label={t("languageAction")}
+            onClick={() => setLocale(locale === "en" ? "zh" : "en")}
+          >
+            {locale === "en" ? "中文" : "EN"}
           </button>
           <button
             className="icon-button"
@@ -904,21 +1050,21 @@ export function App() {
               type="button"
               onClick={() => void saveAs()}
             >
-              Save As
+              {t("saveAs")}
             </button>
             <button
               className="secondary-button danger"
               type="button"
               onClick={() => void saveOriginal(true)}
             >
-              Overwrite original
+              {t("overwriteOriginal")}
             </button>
             <button
               className="text-button"
               type="button"
               onClick={() => void reloadOriginal()}
             >
-              Reload original
+              {t("reloadOriginal")}
             </button>
           </section>
         ) : saveState.phase === "error" && saveState.error ? (
@@ -930,7 +1076,7 @@ export function App() {
               type="button"
               onClick={() => void saveAs()}
             >
-              Save recoverable copy
+              {t("saveRecoverable")}
             </button>
           </section>
         ) : null}
@@ -984,16 +1130,16 @@ export function App() {
         <div className="workbar-actions">
           <label className="search-field">
             <Search size={14} aria-hidden="true" />
-            <span className="visually-hidden">Search records</span>
+            <span className="visually-hidden">{t("searchRecords")}</span>
             <input
               value={search}
-              placeholder="Search records"
+              placeholder={t("searchRecords")}
               onChange={(event) => setSearch(event.target.value)}
             />
             {search ? (
               <button
                 type="button"
-                aria-label="Clear search"
+                aria-label={t("clearSearch")}
                 onClick={() => setSearch("")}
               >
                 <X size={13} />
@@ -1007,7 +1153,7 @@ export function App() {
               onClick={() => setAddPropertyOpen((open) => !open)}
             >
               <Plus size={14} aria-hidden="true" />
-              <span>Property</span>
+              <span>{t("property")}</span>
             </button>
             {addPropertyOpen ? (
               <AddPropertyPopover
@@ -1024,13 +1170,9 @@ export function App() {
           <div className="unsupported-view">
             <span className="unsupported-index">{activeView.type}</span>
             <div>
-              <p className="eyebrow">View preserved, renderer unavailable</p>
-              <h2>{activeView.name} remains in your Base.</h2>
-              <p>
-                This standalone app does not recreate private Gallery or Kanban
-                UI. Choose a Grid view now; this layout can plug into the
-                publishable Base UI package when its public contract lands.
-              </p>
+              <p className="eyebrow">{t("viewPreserved")}</p>
+              <h2>{t("viewRemains", { view: activeView.name })}</h2>
+              <p>{t("viewUnavailableBody")}</p>
             </div>
           </div>
         ) : (
@@ -1060,18 +1202,20 @@ export function App() {
         <div>
           {session.mode === "direct" ? (
             <>
-              <FileKey size={13} aria-hidden="true" /> Original file
+              <FileKey size={13} aria-hidden="true" /> {t("originalFile")}
             </>
           ) : (
             <>
-              <CloudOff size={13} aria-hidden="true" /> Imported copy
+              <CloudOff size={13} aria-hidden="true" /> {t("editorImported")}
             </>
           )}
           <span className="status-separator" aria-hidden="true">
             /
           </span>
           <span>
-            {session.storage === "opfs-sahpool" ? "Recovery on" : "Memory only"}
+            {session.storage === "opfs-sahpool"
+              ? t("recoveryOn")
+              : t("memoryOnly")}
           </span>
         </div>
         <div>
@@ -1079,7 +1223,7 @@ export function App() {
           <span className="status-separator" aria-hidden="true">
             /
           </span>
-          <span>All processing local</span>
+          <span>{t("allLocal")}</span>
         </div>
       </footer>
 
@@ -1119,6 +1263,7 @@ interface PropertyPanelProps {
 }
 
 function PropertyPanel({ field, onClose, onSave }: PropertyPanelProps) {
+  const { t } = useI18n()
   const [name, setName] = useState(field.name)
   const [type, setType] = useState<BaseFieldType>(field.type)
   const [saving, setSaving] = useState(false)
@@ -1130,13 +1275,13 @@ function PropertyPanel({ field, onClose, onSave }: PropertyPanelProps) {
     <aside className="property-panel" aria-label={`${field.name} property`}>
       <header>
         <div>
-          <p className="eyebrow">Property</p>
+          <p className="eyebrow">{t("property")}</p>
           <h2>{field.name}</h2>
         </div>
         <button
           className="icon-button"
           type="button"
-          aria-label="Close property panel"
+          aria-label={t("close")}
           onClick={onClose}
         >
           <X size={15} />
@@ -1150,7 +1295,7 @@ function PropertyPanel({ field, onClose, onSave }: PropertyPanelProps) {
         }}
       >
         <label>
-          <span>Name</span>
+          <span>{t("name")}</span>
           <input
             value={name}
             required
@@ -1158,7 +1303,7 @@ function PropertyPanel({ field, onClose, onSave }: PropertyPanelProps) {
           />
         </label>
         <label>
-          <span>Type</span>
+          <span>{t("type")}</span>
           <select
             value={type}
             disabled={!mutable}
@@ -1176,15 +1321,9 @@ function PropertyPanel({ field, onClose, onSave }: PropertyPanelProps) {
           </select>
         </label>
         {!mutable ? (
-          <p className="field-note">
-            System, relation, and derived types keep their shared runtime
-            definition here.
-          </p>
+          <p className="field-note">{t("immutableField")}</p>
         ) : (
-          <p className="field-note">
-            Changing type uses the shared Base conversion rules and may
-            normalize existing values.
-          </p>
+          <p className="field-note">{t("typeConversion")}</p>
         )}
         <button
           className="primary-button compact-button"
@@ -1196,7 +1335,7 @@ function PropertyPanel({ field, onClose, onSave }: PropertyPanelProps) {
           ) : (
             <Check size={14} />
           )}
-          Save property
+          {t("saveProperty")}
         </button>
       </form>
     </aside>
@@ -1209,6 +1348,7 @@ interface AddPropertyPopoverProps {
 }
 
 function AddPropertyPopover({ onClose, onAdd }: AddPropertyPopoverProps) {
+  const { t } = useI18n()
   const [name, setName] = useState("")
   const [type, setType] = useState<CreateBaseFieldInput["type"]>("text")
   const [saving, setSaving] = useState(false)
@@ -1222,13 +1362,13 @@ function AddPropertyPopover({ onClose, onAdd }: AddPropertyPopoverProps) {
       }}
     >
       <header>
-        <strong>New property</strong>
-        <button type="button" aria-label="Close" onClick={onClose}>
+        <strong>{t("newProperty")}</strong>
+        <button type="button" aria-label={t("close")} onClick={onClose}>
           <X size={14} />
         </button>
       </header>
       <label>
-        <span>Name</span>
+        <span>{t("name")}</span>
         <input
           autoFocus
           value={name}
@@ -1237,7 +1377,7 @@ function AddPropertyPopover({ onClose, onAdd }: AddPropertyPopoverProps) {
         />
       </label>
       <label>
-        <span>Type</span>
+        <span>{t("type")}</span>
         <select
           value={type}
           onChange={(event) =>
@@ -1261,7 +1401,7 @@ function AddPropertyPopover({ onClose, onAdd }: AddPropertyPopoverProps) {
         ) : (
           <Plus size={14} />
         )}
-        Add property
+        {t("addProperty")}
       </button>
     </form>
   )
