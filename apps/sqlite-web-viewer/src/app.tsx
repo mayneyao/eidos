@@ -37,6 +37,7 @@ import {
   SQLiteFileValidationError,
   validateSQLiteFile,
 } from "./files/file-validation"
+import { registerPwaSQLiteFileHandler } from "./files/pwa-file-handler"
 import {
   SQLiteViewerWorkerClient,
   type SQLiteViewerClient,
@@ -221,6 +222,19 @@ export function App({
       }
     },
     [client, customExtensions, snapshot]
+  )
+
+  useEffect(
+    () =>
+      registerPwaSQLiteFileHandler({
+        onOpen: openFile,
+        onError: (reason) => {
+          setOpeningFile(null)
+          setError(errorMessage(reason))
+          setPhase(snapshot ? "ready" : "error")
+        },
+      }),
+    [openFile, snapshot]
   )
 
   const closeExtensionSettings = useCallback(

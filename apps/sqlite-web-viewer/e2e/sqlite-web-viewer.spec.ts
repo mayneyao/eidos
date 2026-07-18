@@ -7,6 +7,46 @@ const fixturePath = fileURLToPath(
   new URL("../fixtures/sqlite-viewer-fixture.eidos", import.meta.url)
 )
 
+test("publishes an installable prompt-updated PWA", async ({
+  isMobile,
+  request,
+}) => {
+  test.skip(Boolean(isMobile), "One browser project covers static PWA assets")
+
+  const manifestResponse = await request.get("/manifest.webmanifest")
+  expect(manifestResponse.ok()).toBe(true)
+  const manifest = await manifestResponse.json()
+  expect(manifest).toMatchObject({
+    display: "standalone",
+    name: "SQLite Web Viewer",
+    short_name: "SQLite Viewer",
+  })
+  expect(manifest.icons).toContainEqual(
+    expect.objectContaining({
+      sizes: "any",
+      src: "./sqlite-viewer-icon.svg",
+      type: "image/svg+xml",
+    })
+  )
+  expect(manifest.file_handlers).toContainEqual(
+    expect.objectContaining({
+      accept: {
+        "application/vnd.eidos+sqlite3": [".eidos"],
+        "application/vnd.sqlite3": [".sqlite", ".sqlite3", ".db", ".db3"],
+      },
+      action: "./",
+    })
+  )
+
+  const serviceWorkerResponse = await request.get("/sw.js")
+  expect(serviceWorkerResponse.ok()).toBe(true)
+  const serviceWorker = await serviceWorkerResponse.text()
+  expect(serviceWorker).toContain("SKIP_WAITING")
+  expect(serviceWorker).not.toContain("clientsClaim")
+  expect(serviceWorker).not.toMatch(/["']use strict["'];self\.skipWaiting\(\)/)
+  await expect((await request.get("/sqlite-viewer-icon.svg")).ok()).toBe(true)
+})
+
 test("opens a .eidos SQLite database and inspects data and metadata", async ({
   page,
 }) => {

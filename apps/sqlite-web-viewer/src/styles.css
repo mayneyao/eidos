@@ -1154,6 +1154,108 @@ code {
   text-underline-offset: 0.15em;
 }
 
+.pwa-update-prompt {
+  position: fixed;
+  z-index: 140;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  display: grid;
+  width: min(25rem, calc(100vw - 2rem));
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.625rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--viewer-surface);
+  box-shadow:
+    0 1px 2px color-mix(in oklch, var(--viewer-strong) 8%, transparent),
+    0 12px 32px color-mix(in oklch, var(--viewer-strong) 14%, transparent);
+  color: var(--foreground);
+  animation: pwa-prompt-in 180ms var(--ease-out-expo) both;
+}
+
+.pwa-update-icon {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  border-radius: 0.25rem;
+  background: var(--viewer-sunken);
+  color: var(--viewer-focus);
+}
+
+.pwa-update-copy {
+  min-width: 0;
+}
+
+.pwa-update-copy strong {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.25rem;
+}
+
+.pwa-update-copy p {
+  margin: 0.125rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  line-height: 1.05rem;
+}
+
+.pwa-update-copy .pwa-update-error {
+  color: var(--viewer-danger);
+}
+
+.pwa-update-actions {
+  display: flex;
+  grid-column: 2;
+  justify-content: flex-end;
+  gap: 0.375rem;
+}
+
+.pwa-update-actions button {
+  min-height: 1.875rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.pwa-update-actions button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.pwa-update-later {
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.pwa-update-later:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.pwa-update-actions .pwa-update-now {
+  border-color: var(--foreground);
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.pwa-update-actions .pwa-update-now:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--foreground) 88%, var(--background));
+}
+
+@keyframes pwa-prompt-in {
+  from {
+    transform: translateY(0.5rem);
+    opacity: 0;
+  }
+}
+
 .opening-overlay {
   position: absolute;
   z-index: 30;
@@ -1313,6 +1415,15 @@ code {
 }
 
 @media (max-width: 46rem) {
+  .pwa-update-prompt {
+    right: max(0.75rem, env(safe-area-inset-right));
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    width: calc(
+      100vw - max(0.75rem, env(safe-area-inset-right)) -
+        max(0.75rem, env(safe-area-inset-left))
+    );
+  }
+
   .app-shell {
     grid-template-rows: 3rem minmax(0, 1fr);
   }
@@ -1474,7 +1585,8 @@ code {
   .custom-extension-list > div,
   .custom-extension-list button,
   .extension-form input,
-  .extension-form button {
+  .extension-form button,
+  .pwa-update-actions button {
     min-height: 2.75rem;
   }
 

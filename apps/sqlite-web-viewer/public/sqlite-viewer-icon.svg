@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SQLite Viewer">
+  <rect width="512" height="512" rx="104" fill="#171c24" />
+  <path
+    d="M128 172v168c0 34 57 62 128 62s128-28 128-62V172"
+    fill="none"
+    stroke="#f4f7fb"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="28"
+  />
+  <ellipse
+    cx="256"
+    cy="172"
+    rx="128"
+    ry="62"
+    fill="#242c38"
+    stroke="#f4f7fb"
+    stroke-width="28"
+  />
+  <path
+    d="M128 256c0 34 57 62 128 62s128-28 128-62"
+    fill="none"
+    stroke="#f4f7fb"
+    stroke-linecap="round"
+    stroke-width="28"
+  />
+  <circle cx="362" cy="366" r="24" fill="#56b88b" stroke="#171c24" stroke-width="12" />
+</svg>
