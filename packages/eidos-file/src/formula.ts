@@ -15,7 +15,12 @@ export interface CompiledEidosFileFormula {
   dependencies: string[]
 }
 
-const ALLOWED_FORMULA_FUNCTIONS = new Set([
+export const EIDOS_FILE_FORMULA_FIELD_FUNCTION_NAMES = [
+  "prop",
+  "props",
+] as const
+
+export const EIDOS_FILE_FORMULA_FUNCTION_NAMES = [
   "abs",
   "coalesce",
   "date",
@@ -41,7 +46,11 @@ const ALLOWED_FORMULA_FUNCTIONS = new Set([
   "unicode",
   "unixepoch",
   "upper",
-])
+] as const
+
+const ALLOWED_FORMULA_FUNCTIONS = new Set<string>(
+  EIDOS_FILE_FORMULA_FUNCTION_NAMES
+)
 
 function assertFormulaAst(statement: SelectFromStatement): void {
   let nodeCount = 0

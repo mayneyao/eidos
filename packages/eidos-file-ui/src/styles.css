@@ -46,6 +46,10 @@
     --border: oklch(0.88 0.012 255);
     --input: var(--border);
     --ring: oklch(0.56 0.12 255);
+    --eidos-file-code-function: oklch(0.48 0.12 276);
+    --eidos-file-code-property: oklch(0.43 0.12 220);
+    --eidos-file-code-operator: oklch(0.48 0.13 35);
+    --eidos-file-code-punctuation: oklch(0.45 0.025 255);
     --radius: 0.5rem;
     min-width: 0;
     color: var(--foreground);
@@ -74,6 +78,10 @@
     --border: oklch(0.34 0.017 255);
     --input: var(--border);
     --ring: oklch(0.69 0.1 255);
+    --eidos-file-code-function: oklch(0.76 0.12 286);
+    --eidos-file-code-property: oklch(0.78 0.1 215);
+    --eidos-file-code-operator: oklch(0.77 0.13 55);
+    --eidos-file-code-punctuation: oklch(0.75 0.025 255);
     color-scheme: dark;
   }
 
@@ -156,6 +164,58 @@
     flex-shrink: 0;
   }
 
+  .eidos-file-formula-composer {
+    container-name: eidos-file-formula-composer;
+    container-type: inline-size;
+  }
+
+  .eidos-file-formula-input,
+  .eidos-file-formula-input .cm-editor {
+    width: 100%;
+  }
+
+  .eidos-file-formula-reference-browser {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+
+  .eidos-file-formula-reference-list {
+    max-height: 12.5rem;
+  }
+
+  .eidos-file-formula-display-select {
+    width: 9rem;
+  }
+
+  @container eidos-file-formula-composer (max-width: 480px) {
+    .eidos-file-formula-reference-browser {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .eidos-file-formula-reference-browser > :first-child {
+      border-inline-end-width: 0;
+    }
+
+    .eidos-file-formula-reference-list {
+      max-height: 10rem;
+    }
+
+    .eidos-file-formula-reference-detail {
+      min-height: 6rem;
+      border-top: 1px solid var(--border);
+    }
+  }
+
+  @container eidos-file-formula-composer (max-width: 420px) {
+    .eidos-file-formula-display-row {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .eidos-file-formula-display-select {
+      width: 100%;
+    }
+  }
+
   @container eidos-file-detail-layout (max-width: 760px) {
     .eidos-file-detail-panel {
       position: absolute;
@@ -168,6 +228,13 @@
       box-shadow: -0.75rem 0 1.75rem
         color-mix(in srgb, var(--foreground) 12%, transparent);
     }
+  }
+}
+
+@media (pointer: coarse) {
+  [data-eidos-file-formula-composer] button,
+  [data-eidos-file-formula-composer] [role="combobox"] {
+    min-height: 2.75rem;
   }
 }
 

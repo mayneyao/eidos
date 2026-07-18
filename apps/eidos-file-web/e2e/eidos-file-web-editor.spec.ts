@@ -1075,9 +1075,25 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
   }
 
   const formulaCreator = await openFieldCreator("Double estimate", "formula")
-  await formulaCreator.getByLabel("Formula expression").fill("estimate * 2")
-  await expect(formulaCreator).toContainText("Formula is valid")
-  await formulaCreator.getByRole("button", { name: "Create field" }).click()
+  const formulaExpression = formulaCreator.getByLabel("Formula expression")
+  const estimateReference = formulaCreator.locator(
+    '[data-formula-reference$=":estimate"]'
+  )
+  await expect(formulaCreator.locator(".cm-editor")).toBeVisible()
+  await expect(estimateReference).toContainText("Estimate")
+  await estimateReference.click()
+  await expect(formulaExpression).toContainText('prop("Estimate")')
+  await formulaExpression.fill("ROU")
+  await expect(page.getByRole("option", { name: /ROUND/ })).toBeVisible()
+  await formulaExpression.press("Enter")
+  await formulaExpression.pressSequentially("estimate")
+  await expect(formulaExpression).toContainText("ROUND(estimate)")
+  await formulaExpression.fill("estimate * 2")
+  await expect(formulaCreator).toContainText(
+    "Preview · Ship Eidos File Web Editor: 4"
+  )
+  await formulaExpression.press("ControlOrMeta+s")
+  await expect(formulaCreator).toBeHidden()
 
   const relationCreator = await openFieldCreator("Related project", "link")
   await expect(relationCreator).toContainText("Related table")
@@ -1139,6 +1155,84 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
       { name: "Related estimate", type: "lookup" },
       { name: "Related project", type: "link" },
     ])
+})
+
+test("keeps the Formula editor focused and reachable in a dark touch viewport", async ({
+  baseURL,
+  browser,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the shared touch and container-query formula layout"
+  )
+  const context = await browser.newContext({
+    baseURL,
+    hasTouch: true,
+    isMobile: true,
+    viewport: { width: 390, height: 720 },
+  })
+  const page = await context.newPage()
+  try {
+    await installFallbackMode(page)
+    await page.goto("/")
+    await page.getByRole("button", { name: "Use dark theme" }).click()
+    await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+    await page.locator("[data-testid='glide-cell-1-0']").waitFor({
+      state: "attached",
+    })
+    await page
+      .locator("[data-eidos-file-workbar-actions]")
+      .getByRole("button", { name: "Property" })
+      .click()
+    const creator = page.locator("[data-eidos-file-field-create='true']")
+    await creator.getByLabel("Name").fill("Touch formula")
+    await creator.locator("[data-eidos-file-field-type-trigger]").click()
+    await page.locator("[data-eidos-file-field-type='formula']").click()
+
+    const expression = creator.getByLabel("Formula expression")
+    await expect(expression).toBeFocused()
+    await expression.fill("randomblob(100)")
+    await expect(
+      creator.locator('[data-eidos-file-formula-status="error"]')
+    ).toContainText("Unsupported Eidos File formula function")
+    await expression.fill("estimate * 2")
+    await expect(
+      creator.locator('[data-eidos-file-formula-status="valid"]')
+    ).toContainText("Preview")
+
+    const layout = await creator.evaluate((element) => {
+      const bounds = element.getBoundingClientRect()
+      const references = element.querySelector(
+        ".eidos-file-formula-reference-browser"
+      )
+      const createButton = Array.from(
+        element.querySelectorAll<HTMLButtonElement>("button")
+      ).find((button) => button.textContent?.trim() === "Create field")
+      return {
+        bounds: bounds.toJSON(),
+        columns: references
+          ? getComputedStyle(references).gridTemplateColumns
+          : null,
+        createButton: createButton?.getBoundingClientRect().toJSON(),
+        overflow:
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+        theme: document.documentElement.classList.contains("dark")
+          ? "dark"
+          : "light",
+      }
+    })
+    expect(layout.bounds.left).toBeGreaterThanOrEqual(0)
+    expect(layout.bounds.right).toBeLessThanOrEqual(390)
+    expect(layout.columns?.trim().split(/\s+/)).toHaveLength(1)
+    expect(layout.createButton?.top).toBeGreaterThanOrEqual(0)
+    expect(layout.createButton?.bottom).toBeLessThanOrEqual(720)
+    expect(layout.overflow).toBe(0)
+    expect(layout.theme).toBe("dark")
+  } finally {
+    await context.close()
+  }
 })
 
 test("calculates Grid column summaries through the browser runtime", async ({

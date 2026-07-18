@@ -1581,6 +1581,7 @@ export function App() {
               <button
                 className="eidos-file-workbar-action inline-flex h-7 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 type="button"
+                aria-label={t("property")}
                 onClick={() => {
                   setFieldInsertIndex(null)
                   setAddPropertyOpen((open) => !open)

@@ -58,24 +58,6 @@
     width: 18rem;
   }
 
-  .eidos-file-formula-composer {
-    container-name: eidos-file-formula-composer;
-    container-type: inline-size;
-  }
-
-  .eidos-file-formula-composer-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 13.75rem;
-  }
-
-  .eidos-file-formula-reference-list {
-    max-height: 16rem;
-  }
-
-  .eidos-file-formula-display-select {
-    width: 9rem;
-  }
-
   @container eidos-file-workbar (max-width: 1080px) {
     .eidos-file-workbar-action {
       min-width: 1.75rem;
@@ -94,39 +76,6 @@
   @container eidos-file-workbar (max-width: 720px) {
     .eidos-file-workbar-search {
       width: clamp(7rem, calc(100cqw - 18rem), 10rem);
-    }
-  }
-
-  @container eidos-file-formula-composer (max-width: 600px) {
-    .eidos-file-formula-composer-layout {
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    .eidos-file-formula-editor-pane {
-      border-inline-end-width: 0;
-    }
-
-    .eidos-file-formula-reference-pane {
-      border-top: 1px solid var(--border);
-    }
-
-    .eidos-file-formula-reference-list {
-      max-height: 10rem;
-    }
-
-    .eidos-file-formula-reference-detail {
-      display: none;
-    }
-  }
-
-  @container eidos-file-formula-composer (max-width: 420px) {
-    .eidos-file-formula-display-row {
-      align-items: stretch;
-      flex-direction: column;
-    }
-
-    .eidos-file-formula-display-select {
-      width: 100%;
     }
   }
 }

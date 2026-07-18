@@ -206,6 +206,12 @@ export const EIDOS_FILE_FORMAT: "eidos-file";
 export const EIDOS_FILE_FORMAT_VERSION: 1;
 
 // @public (undocumented)
+export const EIDOS_FILE_FORMULA_FIELD_FUNCTION_NAMES: readonly ["prop", "props"];
+
+// @public (undocumented)
+export const EIDOS_FILE_FORMULA_FUNCTION_NAMES: readonly ["abs", "coalesce", "date", "datetime", "ifnull", "iif", "julianday", "length", "lower", "ltrim", "max", "min", "nullif", "replace", "round", "rtrim", "strftime", "substr", "substring", "time", "trim", "typeof", "unicode", "unixepoch", "upper"];
+
+// @public (undocumented)
 export const EIDOS_FILE_META_TABLE: "eidos__meta";
 
 // @public (undocumented)

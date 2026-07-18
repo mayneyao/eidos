@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useRef, useState, type FormEvent } from "react"
 import {
   eidosFileLookupAggregateSupportsTarget,
   eidosFileLookupDisplayType,
@@ -10,7 +10,10 @@ import {
   type EidosFileTableSnapshot,
 } from "@eidos.space/eidos-file"
 
-import { EidosFileFormulaComposer } from "./eidos-file-formula-composer"
+import {
+  EidosFileFormulaComposer,
+  type EidosFileFormulaInputRef,
+} from "./eidos-file-formula-composer"
 import {
   Button,
   Popover,
@@ -53,15 +56,30 @@ export function EidosFileFormulaEditorPopover({
   ) => Promise<EidosFileFormulaPreview>
   onSave: (property: Record<string, unknown>) => Promise<void> | void
 }) {
+  const editorRef = useRef<EidosFileFormulaInputRef>(null)
+  const initializedSessionRef = useRef<string | null>(null)
+  const savingRef = useRef(false)
   const [formula, setFormula] = useState("")
   const [displayType, setDisplayType] =
     useState<EidosFileFormulaDisplayType>("text")
   const [formulaValid, setFormulaValid] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const sessionKey = field
+    ? `${field.tableName}:${field.tableColumnName}`
+    : null
 
   useEffect(() => {
-    if (!open || !field) return
+    if (!open) {
+      initializedSessionRef.current = null
+      savingRef.current = false
+      setSaving(false)
+      return
+    }
+    if (!field || !sessionKey || initializedSessionRef.current === sessionKey) {
+      return
+    }
+    initializedSessionRef.current = sessionKey
     setFormula(
       typeof field.property?.formula === "string" ? field.property.formula : ""
     )
@@ -78,10 +96,19 @@ export function EidosFileFormulaEditorPopover({
     setFormulaValid(false)
     setSaving(false)
     setError(null)
-  }, [field, open])
+    window.setTimeout(() => editorRef.current?.focus(), 0)
+  }, [field, open, sessionKey])
+
+  const requestOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && savingRef.current) return
+    onOpenChange(nextOpen)
+  }
 
   const save = async () => {
-    if (!field || !formula.trim() || !formulaValid || saving) return
+    if (!field || !formula.trim() || !formulaValid || savingRef.current) {
+      return
+    }
+    savingRef.current = true
     setSaving(true)
     setError(null)
     try {
@@ -94,33 +121,55 @@ export function EidosFileFormulaEditorPopover({
           : "Unable to save formula"
       )
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }
 
   return (
-    <Popover open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
+    <Popover open={open} onOpenChange={requestOpenChange}>
       <PopoverAnchor asChild>
         <span className="pointer-events-none fixed right-4 top-16 h-px w-px" />
       </PopoverAnchor>
       <PopoverContent
         align="end"
         side="bottom"
-        className="max-h-[var(--radix-popover-content-available-height)] w-[700px] max-w-[calc(100vw-24px)] overflow-y-auto p-0"
+        collisionPadding={12}
+        data-eidos-file-formula-editor
+        className="max-h-[var(--radix-popover-content-available-height)] w-[600px] max-w-[calc(100vw-24px)] overflow-y-auto p-0"
       >
-        <div className="border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">Edit formula</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {field?.name ?? "Formula"} is validated against this Eidos File
-            before saving.
-          </p>
-        </div>
         <form
           onSubmit={(event) => {
             event.preventDefault()
             void save()
           }}
         >
+          <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
+            <div className="min-w-0">
+              <h2 className="truncate text-xs font-medium">Edit formula</h2>
+              <p className="truncate text-[10px] text-muted-foreground">
+                {field?.name ?? "Formula"}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                disabled={saving}
+                onClick={() => requestOpenChange(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="xs"
+                disabled={saving || !formula.trim() || !formulaValid}
+              >
+                {saving ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </div>
           <EidosFileFormulaComposer
             field={field}
             fields={fields}
@@ -128,6 +177,7 @@ export function EidosFileFormulaEditorPopover({
             columnName={field?.tableColumnName ?? "formula"}
             formula={formula}
             displayType={displayType}
+            editorRef={editorRef}
             onFormulaChange={(value) => {
               setFormula(value)
               setError(null)
@@ -135,7 +185,7 @@ export function EidosFileFormulaEditorPopover({
             onDisplayTypeChange={setDisplayType}
             onPreview={onPreview}
             onValidityChange={setFormulaValid}
-            onEscape={() => onOpenChange(false)}
+            onEscape={() => requestOpenChange(false)}
             onSaveShortcut={() => void save()}
             disabled={saving}
           />
@@ -147,22 +197,6 @@ export function EidosFileFormulaEditorPopover({
               {error}
             </p>
           ) : null}
-          <div className="flex items-center justify-end gap-2 border-t px-4 py-2.5">
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={saving}
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={saving || !formula.trim() || !formulaValid}
-            >
-              {saving ? "Saving…" : "Save formula"}
-            </Button>
-          </div>
         </form>
       </PopoverContent>
     </Popover>

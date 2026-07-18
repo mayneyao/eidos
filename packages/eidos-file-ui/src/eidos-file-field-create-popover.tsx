@@ -1,4 +1,11 @@
-import { useEffect, useId, useMemo, useState, type FormEvent } from "react"
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react"
 import {
   eidosFileLookupAggregateSupportsTarget,
   eidosFileLookupDisplayType,
@@ -113,6 +120,7 @@ export function EidosFileFieldCreatePopover({
     useState<EidosFileLookupAggregate>("first")
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const formRef = useRef<HTMLFormElement>(null)
   const nameId = useId()
 
   useEffect(() => {
@@ -285,7 +293,7 @@ export function EidosFileFieldCreatePopover({
         side="bottom"
         className={
           fieldType === "formula"
-            ? "max-h-[var(--radix-popover-content-available-height)] w-[700px] max-w-[calc(100vw-24px)] overflow-y-auto p-0"
+            ? "max-h-[var(--radix-popover-content-available-height)] w-[600px] max-w-[calc(100vw-24px)] overflow-y-auto p-0"
             : "w-80 max-w-[calc(100vw-24px)] p-0"
         }
       >
@@ -295,7 +303,7 @@ export function EidosFileFieldCreatePopover({
             Add a stored, related, or computed field to {table.table.name}.
           </p>
         </div>
-        <form onSubmit={(event) => void submit(event)}>
+        <form ref={formRef} onSubmit={(event) => void submit(event)}>
           <div className="grid gap-4 px-4 py-3">
             <label
               className="grid gap-1.5 text-xs font-medium"
@@ -422,6 +430,7 @@ export function EidosFileFieldCreatePopover({
                   onPreview={onPreviewFormula}
                   onValidityChange={setFormulaValid}
                   onEscape={() => onOpenChange(false)}
+                  onSaveShortcut={() => formRef.current?.requestSubmit()}
                   disabled={busy}
                 />
               </div>
@@ -519,7 +528,7 @@ export function EidosFileFieldCreatePopover({
               </p>
             ) : null}
           </div>
-          <div className="flex items-center justify-end gap-2 border-t px-4 py-2.5">
+          <div className="sticky bottom-0 z-10 flex items-center justify-end gap-2 border-t bg-popover px-4 py-2.5">
             <Button
               type="button"
               variant="ghost"

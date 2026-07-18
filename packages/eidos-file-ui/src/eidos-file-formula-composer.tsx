@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
 import {
   compileEidosFileFormula,
   compileEidosFileFormulaFields,
@@ -16,16 +16,24 @@ import {
   Variable,
 } from "lucide-react"
 
+import {
+  eidosFileFormulaCompletions,
+  type EidosFileFormulaCompletion,
+} from "./eidos-file-formula-completions"
+import {
+  EidosFileFormulaInput,
+  type EidosFileFormulaInputRef,
+} from "./eidos-file-formula-input"
 import { cn } from "./lib/cn"
 import {
-  Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Textarea,
 } from "./ui/primitives"
+
+export type { EidosFileFormulaInputRef }
 
 const DISPLAY_TYPES: Array<{
   value: EidosFileFormulaDisplayType
@@ -39,34 +47,13 @@ const DISPLAY_TYPES: Array<{
   { value: "url", label: "URL" },
 ]
 
-const FORMULA_FUNCTIONS = [
-  "abs",
-  "coalesce",
-  "date",
-  "datetime",
-  "ifnull",
-  "iif",
-  "length",
-  "lower",
-  "max",
-  "min",
-  "nullif",
-  "replace",
-  "round",
-  "strftime",
-  "substr",
-  "trim",
-  "typeof",
-  "upper",
-] as const
-
 type FormulaStatus = "idle" | "checking" | "valid" | "error"
 
-function draftFormulaPreview(
+function formulaDraftFields(
   field: EidosFileFieldInfo | null,
   fields: EidosFileFieldInfo[],
   input: EidosFileFormulaPreviewInput
-): EidosFileFormulaPreview {
+): EidosFileFieldInfo[] {
   const existing =
     field ??
     fields.find(
@@ -77,10 +64,7 @@ function draftFormulaPreview(
     ? {
         ...existing,
         name: input.name,
-        property: {
-          formula: input.formula,
-          displayType: input.displayType,
-        },
+        property: { formula: input.formula, displayType: input.displayType },
         dependsOn: null,
       }
     : {
@@ -88,10 +72,7 @@ function draftFormulaPreview(
         type: "formula",
         tableName: fields[0]?.tableName ?? "tb_preview",
         tableColumnName: input.columnName,
-        property: {
-          formula: input.formula,
-          displayType: input.displayType,
-        },
+        property: { formula: input.formula, displayType: input.displayType },
         storageCodec: "scalar",
         valueKind: "derived",
         isHidden: false,
@@ -107,26 +88,38 @@ function draftFormulaPreview(
   const compiled = compileEidosFileFormula(draft, candidates)
   const resolvedDraft: EidosFileFieldInfo = {
     ...draft,
-    property: {
-      ...draft.property,
-      expression: compiled.expression,
-    },
+    property: { ...draft.property, expression: compiled.expression },
     dependsOn: compiled.dependencies,
   }
   const resolved = candidates.map((candidate) =>
     candidate.tableColumnName === input.columnName ? resolvedDraft : candidate
   )
   compileEidosFileFormulaFields(resolved)
-  return {
-    expression: compiled.expression,
-    dependencies: compiled.dependencies.map((columnName) => {
-      const dependency = resolved.find(
-        (candidate) => candidate.tableColumnName === columnName
-      )
-      return { name: dependency?.name ?? columnName, columnName }
-    }),
-    samples: [],
+  return resolved
+}
+
+function localFormulaPreview(
+  field: EidosFileFieldInfo | null,
+  fields: EidosFileFieldInfo[],
+  input: EidosFileFormulaPreviewInput
+): EidosFileFormulaPreview {
+  const resolved = formulaDraftFields(field, fields, input)
+  const draft = resolved.find(
+    (candidate) => candidate.tableColumnName === input.columnName
+  )
+  if (!draft || typeof draft.property?.expression !== "string") {
+    throw new Error("Unable to compile formula")
   }
+  const dependencies = Array.isArray(draft.dependsOn)
+    ? draft.dependsOn.flatMap((columnName) => {
+        if (typeof columnName !== "string") return []
+        const dependency = resolved.find(
+          (candidate) => candidate.tableColumnName === columnName
+        )
+        return [{ name: dependency?.name ?? columnName, columnName }]
+      })
+    : []
+  return { expression: draft.property.expression, dependencies, samples: [] }
 }
 
 function formulaError(error: unknown): string {
@@ -149,6 +142,7 @@ export interface EidosFileFormulaComposerProps {
   columnName: string
   formula: string
   displayType: EidosFileFormulaDisplayType
+  editorRef?: RefObject<EidosFileFormulaInputRef>
   onFormulaChange: (formula: string) => void
   onDisplayTypeChange: (displayType: EidosFileFormulaDisplayType) => void
   onPreview?: (
@@ -167,6 +161,7 @@ export function EidosFileFormulaComposer({
   columnName,
   formula,
   displayType,
+  editorRef: externalEditorRef,
   onFormulaChange,
   onDisplayTypeChange,
   onPreview,
@@ -175,41 +170,28 @@ export function EidosFileFormulaComposer({
   onSaveShortcut,
   disabled = false,
 }: EidosFileFormulaComposerProps) {
-  const editorRef = useRef<HTMLTextAreaElement>(null)
+  const internalEditorRef = useRef<EidosFileFormulaInputRef>(null)
+  const editorRef = externalEditorRef ?? internalEditorRef
   const validationSequence = useRef(0)
+  const referenceNodes = useRef(new Map<string, HTMLButtonElement>())
   const [status, setStatus] = useState<FormulaStatus>("idle")
   const [error, setError] = useState<string | null>(null)
   const [preview, setPreview] = useState<EidosFileFormulaPreview | null>(null)
-  const [referenceQuery, setReferenceQuery] = useState("")
-  const references = useMemo(() => {
-    const needle = referenceQuery.trim().toLowerCase()
-    const fieldReferences = fields
-      .filter(
-        (candidate) =>
-          !candidate.isHidden &&
-          candidate.tableColumnName !== columnName &&
-          (!needle ||
-            candidate.name.toLowerCase().includes(needle) ||
-            candidate.tableColumnName.toLowerCase().includes(needle))
-      )
-      .map((candidate) => ({
-        id: `field:${candidate.tableColumnName}`,
-        label: candidate.name,
-        detail: candidate.type,
-        insert: `prop(${JSON.stringify(candidate.name)})`,
-        kind: "field" as const,
-      }))
-    const functions = FORMULA_FUNCTIONS.filter(
-      (candidate) => !needle || candidate.includes(needle)
-    ).map((candidate) => ({
-      id: `function:${candidate}`,
-      label: candidate,
-      detail: "function",
-      insert: `${candidate}()`,
-      kind: "function" as const,
-    }))
-    return [...fieldReferences, ...functions]
-  }, [columnName, fields, referenceQuery])
+  const [selectedReferenceId, setSelectedReferenceId] = useState<string | null>(
+    null
+  )
+  const completions = useMemo(
+    () => eidosFileFormulaCompletions(fields, columnName),
+    [columnName, fields]
+  )
+  const selectedCompletion =
+    completions.find((completion) => completion.id === selectedReferenceId) ??
+    null
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => editorRef.current?.focus(), 100)
+    return () => window.clearTimeout(timer)
+  }, [editorRef])
 
   useEffect(() => {
     const sequence = ++validationSequence.current
@@ -227,10 +209,10 @@ export function EidosFileFormulaComposer({
       formula: trimmedFormula,
       displayType,
     }
-    let local: EidosFileFormulaPreview
+    let localPreview: EidosFileFormulaPreview
     try {
-      local = draftFormulaPreview(field, fields, input)
-      setPreview(local)
+      localPreview = localFormulaPreview(field, fields, input)
+      setPreview(localPreview)
       setError(null)
     } catch (validationError) {
       setStatus("error")
@@ -257,12 +239,12 @@ export function EidosFileFormulaComposer({
         })
         .catch((previewError) => {
           if (validationSequence.current !== sequence) return
-          setPreview(local)
+          setPreview(localPreview)
           setStatus("error")
           setError(formulaError(previewError))
           onValidityChange?.(false)
         })
-    }, 300)
+    }, 350)
     return () => window.clearTimeout(timer)
   }, [
     columnName,
@@ -275,168 +257,188 @@ export function EidosFileFormulaComposer({
     onValidityChange,
   ])
 
-  const insertReference = (text: string) => {
-    const editor = editorRef.current
-    if (!editor) {
-      onFormulaChange(`${formula}${text}`)
-      return
-    }
-    const start = editor.selectionStart
-    const end = editor.selectionEnd
-    const cursorOffset = text.endsWith("()") ? text.length - 1 : text.length
-    onFormulaChange(`${formula.slice(0, start)}${text}${formula.slice(end)}`)
-    requestAnimationFrame(() => {
-      editor.focus()
-      editor.setSelectionRange(start + cursorOffset, start + cursorOffset)
-    })
+  const selectToken = (token: string | null) => {
+    if (!token) return
+    const completion = completions.find(
+      (candidate) =>
+        candidate.label.toLowerCase() === token.toLowerCase() ||
+        (candidate.kind === "field" &&
+          candidate.id.toLowerCase().endsWith(`:${token.toLowerCase()}`))
+    )
+    if (!completion) return
+    setSelectedReferenceId(completion.id)
+    referenceNodes.current
+      .get(completion.id)
+      ?.scrollIntoView({ block: "nearest" })
+  }
+
+  const insertCompletion = (completion: EidosFileFormulaCompletion) => {
+    if (disabled) return
+    editorRef.current?.insertText(
+      completion.insert,
+      completion.cursorOffset ?? 0
+    )
+    setSelectedReferenceId(completion.id)
   }
 
   return (
-    <div className="min-h-0" aria-busy={disabled ? "true" : undefined}>
-      <div className="grid min-h-0 md:grid-cols-[minmax(0,1fr)_220px]">
-        <div className="min-w-0 md:border-r">
-          <div className="p-3">
-            <Textarea
-              ref={editorRef}
-              value={formula}
-              disabled={disabled}
-              rows={5}
-              spellCheck={false}
-              className="min-h-32 resize-y font-mono text-xs leading-5"
-              placeholder={'Use a column name or prop("Display name")'}
-              aria-label="Formula expression"
-              onChange={(event) => onFormulaChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") onEscape?.()
-                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                  event.preventDefault()
-                  onSaveShortcut?.()
-                }
-              }}
-            />
+    <div
+      className="eidos-file-formula-composer min-h-0"
+      aria-busy={disabled ? "true" : undefined}
+      data-eidos-file-formula-composer
+    >
+      <section className="min-w-0">
+        <div className="p-3">
+          <EidosFileFormulaInput
+            ref={editorRef}
+            value={formula}
+            completions={completions}
+            disabled={disabled}
+            onChange={onFormulaChange}
+            onEscape={onEscape}
+            onSave={onSaveShortcut}
+            onCurrentTokenChange={selectToken}
+            placeholder="Enter a SQL expression"
+          />
+        </div>
+        <div
+          className={cn(
+            "flex min-h-10 items-start gap-2 border-t px-3 py-2 text-xs",
+            status === "error" && "text-destructive"
+          )}
+          aria-live="polite"
+          data-eidos-file-formula-status={status}
+        >
+          {status === "checking" ? (
+            <LoaderCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
+          ) : status === "valid" ? (
+            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          ) : status === "error" ? (
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          ) : (
+            <FunctionSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          )}
+          <span className="min-w-0 leading-5">
+            {status === "checking"
+              ? "Checking against this Eidos File…"
+              : status === "error"
+                ? error
+                : status === "valid"
+                  ? preview?.samples[0]
+                    ? `Preview · ${preview.samples[0].title || "Untitled"}: ${displayValue(preview.samples[0].value)}`
+                    : `Formula is valid.${preview?.dependencies.length ? ` Uses ${preview.dependencies.map((item) => item.name).join(", ")}.` : ""}`
+                  : "Start typing to validate and preview this formula."}
+          </span>
+        </div>
+        <div className="eidos-file-formula-display-row flex items-center justify-between gap-3 border-t px-3 py-2.5">
+          <div className="text-left">
+            <p className="text-xs font-medium">Display as</p>
+            <p className="text-[10px] leading-4 text-muted-foreground">
+              Controls the read-only cell format.
+            </p>
           </div>
-          <div
-            className={cn(
-              "flex min-h-10 items-start gap-2 border-t px-3 py-2 text-xs",
-              status === "error" && "text-destructive"
-            )}
-            aria-live="polite"
+          <Select
+            value={displayType}
+            disabled={disabled}
+            onValueChange={(value) =>
+              onDisplayTypeChange(value as EidosFileFormulaDisplayType)
+            }
           >
-            {status === "checking" ? (
-              <LoaderCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
-            ) : status === "valid" ? (
-              <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            ) : status === "error" ? (
-              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <SelectTrigger className="eidos-file-formula-display-select h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DISPLAY_TYPES.map((type) => (
+                <SelectItem key={type.value} value={type.value}>
+                  {type.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </section>
+
+      <section className="eidos-file-formula-reference-browser grid border-t bg-muted/15">
+        <div className="min-w-0 border-r">
+          <p className="border-b px-3 py-2 text-xs font-medium">
+            Fields & functions
+          </p>
+          <div className="eidos-file-formula-reference-list overflow-y-auto py-1">
+            {completions.length ? (
+              completions.map((completion) => (
+                <button
+                  key={completion.id}
+                  ref={(node) => {
+                    if (node) referenceNodes.current.set(completion.id, node)
+                    else referenceNodes.current.delete(completion.id)
+                  }}
+                  type="button"
+                  disabled={disabled}
+                  data-formula-reference={completion.id}
+                  className={cn(
+                    "flex min-h-8 w-full items-start gap-2 px-2.5 py-1.5 text-left outline-none hover:bg-accent focus-visible:bg-accent focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
+                    selectedReferenceId === completion.id && "bg-accent"
+                  )}
+                  onMouseEnter={() => setSelectedReferenceId(completion.id)}
+                  onFocus={() => setSelectedReferenceId(completion.id)}
+                  onClick={() => insertCompletion(completion)}
+                >
+                  {completion.kind === "field" ? (
+                    <Variable className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <FunctionSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  )}
+                  <span className="min-w-0">
+                    <span className="block truncate font-mono text-[11px]">
+                      {completion.label}
+                    </span>
+                    <span className="block truncate text-[10px] text-muted-foreground">
+                      {completion.info}
+                    </span>
+                  </span>
+                </button>
+              ))
             ) : (
-              <FunctionSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            )}
-            <span>
-              {status === "checking"
-                ? "Checking against this Eidos File…"
-                : status === "error"
-                  ? error
-                  : status === "valid"
-                    ? `Formula is valid.${preview?.dependencies.length ? ` Uses ${preview.dependencies.map((item) => item.name).join(", ")}.` : ""}`
-                    : "Start typing to validate and preview this formula."}
-            </span>
-          </div>
-          <div className="border-t">
-            <div className="flex items-center justify-between px-3 py-2">
-              <p className="text-xs font-medium">Preview</p>
-              <p className="text-[10px] text-muted-foreground">First 3 rows</p>
-            </div>
-            <div className="min-h-20 border-t">
-              {preview?.samples.length ? (
-                preview.samples.map((sample) => (
-                  <div
-                    key={sample.rowId}
-                    className="grid grid-cols-[minmax(0,1fr)_minmax(90px,0.7fr)] gap-3 border-b px-3 py-2 text-xs last:border-b-0"
-                  >
-                    <span className="truncate text-muted-foreground">
-                      {sample.title || "Untitled"}
-                    </span>
-                    <span className="truncate text-right font-medium">
-                      {displayValue(sample.value)}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="flex min-h-20 items-center px-3 text-xs text-muted-foreground">
-                  {status === "valid"
-                    ? "This table has no rows to preview."
-                    : "A valid formula will show sample results here."}
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center justify-between gap-3 border-t px-3 py-2.5">
-            <div>
-              <p className="text-xs font-medium">Display as</p>
-              <p className="text-[10px] text-muted-foreground">
-                Controls the read-only cell format.
+              <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+                No matching fields or functions.
               </p>
-            </div>
-            <Select
-              value={displayType}
-              disabled={disabled}
-              onValueChange={(value) =>
-                onDisplayTypeChange(value as EidosFileFormulaDisplayType)
-              }
-            >
-              <SelectTrigger className="h-8 w-36 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DISPLAY_TYPES.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            )}
           </div>
         </div>
-
-        <aside className="flex min-h-48 flex-col border-t bg-muted/15 md:border-t-0">
-          <div className="border-b p-2.5">
-            <p className="mb-2 text-xs font-medium">Fields & functions</p>
-            <Input
-              type="search"
-              value={referenceQuery}
-              placeholder="Filter references"
-              className="h-7 text-xs"
-              disabled={disabled}
-              onChange={(event) => setReferenceQuery(event.target.value)}
-            />
-          </div>
-          <div className="max-h-64 flex-1 overflow-y-auto py-1 md:max-h-none">
-            {references.map((reference) => (
-              <button
-                key={reference.id}
-                type="button"
-                disabled={disabled}
-                className="flex w-full items-start gap-2 px-2.5 py-1.5 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                onClick={() => insertReference(reference.insert)}
-              >
-                {reference.kind === "field" ? (
-                  <Variable className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <div className="eidos-file-formula-reference-detail min-w-0 p-3 text-xs text-muted-foreground">
+          {selectedCompletion ? (
+            <>
+              <div className="flex items-center gap-2 text-foreground">
+                {selectedCompletion.kind === "field" ? (
+                  <Variable className="h-3.5 w-3.5" />
                 ) : (
-                  <FunctionSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <FunctionSquare className="h-3.5 w-3.5" />
                 )}
-                <span className="min-w-0">
-                  <span className="block truncate font-mono text-[11px]">
-                    {reference.label}
-                  </span>
-                  <span className="block truncate text-[10px] text-muted-foreground">
-                    {reference.detail}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </aside>
-      </div>
+                <code className="font-mono text-xs font-medium">
+                  {selectedCompletion.label}
+                </code>
+              </div>
+              <p className="mt-2 leading-5">{selectedCompletion.info}</p>
+              {selectedCompletion.example ? (
+                <pre className="mt-3 overflow-x-auto rounded-md border bg-background px-2.5 py-2 font-mono text-[11px] text-foreground">
+                  {selectedCompletion.example}
+                </pre>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <p className="font-medium text-foreground">Reference</p>
+              <p className="mt-2 leading-5">
+                Select a field or function to inspect it, or type in the editor
+                to use autocomplete.
+              </p>
+            </>
+          )}
+        </div>
+      </section>
+      <p className="border-t px-3 py-2 text-[10px] text-muted-foreground">
+        Press ⌘S or Ctrl+S to save. Escape closes the editor.
+      </p>
     </div>
   )
 }
