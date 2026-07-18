@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "deploy": "wrangler deploy",
     "dev": "vite",
     "fixture": "node ../../scripts/use-better-sqlite3-runtime.cjs node && node scripts/create-fixtures.mjs",
     "lint": "oxlint src e2e scripts vite.config.ts vitest.config.ts playwright.config.ts",
@@ -34,6 +35,7 @@
     "vite": "^8.1.5",
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.6.0",
-    "vitest": "^3.2.6"
+    "vitest": "^3.2.6",
+    "wrangler": "4.102.0"
   }
 }
