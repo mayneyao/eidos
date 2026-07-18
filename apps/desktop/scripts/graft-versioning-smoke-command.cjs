@@ -44,7 +44,7 @@ function graftSmokeCommand(args) {
   }
   if (command === "clone") {
     return {
-      transport: "clone",
+      transport: "repository",
       pragma: "graft_json_clone",
       argument: values
         .map((value) => requiredArgument(value, command))

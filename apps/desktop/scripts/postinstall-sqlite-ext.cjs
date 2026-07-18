@@ -1,77 +1,43 @@
 const fs = require("node:fs")
-const os = require("node:os")
 const path = require("node:path")
 const process = require("node:process")
-const { execFileSync } = require("node:child_process")
-const { downloadFile } = require("./download-utils.cjs")
+const { installGraftRuntime } = require("./graft-runtime-installer.cjs")
 
 const DEST_DIR = "dist-sqlite-ext"
-const GRAFT_CLI_DEST_DIR = "dist-cli"
-const GRAFT_REPO =
-  process.env.GRAFT_RELEASE_REPO ||
-  process.env.GRAFT_SQLITE_EXTENSION_REPO ||
-  "eidos-space/graft"
-const GRAFT_VERSION = normalizeTag(
-  process.env.GRAFT_RELEASE_VERSION ||
-    process.env.GRAFT_SQLITE_EXTENSION_VERSION ||
-    "v0.5.8"
-)
 
 const platformInfoByKey = {
   "win32 arm64": {
     npmSuffix: "windows-arm64",
-    graftTarget: "aarch64-pc-windows-msvc",
-    graftArchiveExt: "zip",
     extension: "dll",
   },
   "win32 x64": {
     npmSuffix: "windows-x64",
-    graftTarget: "x86_64-pc-windows-msvc",
-    graftArchiveExt: "zip",
     extension: "dll",
   },
   "darwin arm64": {
     npmSuffix: "darwin-arm64",
-    graftTarget: "aarch64-apple-darwin",
-    graftArchiveExt: "tar.gz",
     extension: "dylib",
   },
   "darwin x64": {
     npmSuffix: "darwin-x64",
-    graftTarget: "x86_64-apple-darwin",
-    graftArchiveExt: "tar.gz",
     extension: "dylib",
   },
   "linux arm64": {
     npmSuffix: "linux-arm64",
-    graftTarget: "aarch64-unknown-linux-gnu",
-    graftArchiveExt: "tar.gz",
     extension: "so",
   },
   "linux x64": {
     npmSuffix: "linux-x64",
-    graftTarget: "x86_64-unknown-linux-gnu",
-    graftArchiveExt: "tar.gz",
     extension: "so",
   },
 }
 
 const packagesToProcess = [
   {
-    kind: "graft-release",
-    basePackageName: "sqlite-graft",
-    destBaseName: "libgraft",
-  },
-  {
-    kind: "npm-package",
     basePackageName: "sqlite-vec",
     destBaseName: "libvec",
   },
 ]
-
-function normalizeTag(version) {
-  return version.startsWith("v") ? version : `v${version}`
-}
 
 function getPlatformInfo(pkgConfig) {
   const platformKey = `${process.platform} ${process.arch}`
@@ -221,162 +187,6 @@ function installFileAtomically(sourcePath, finalDestPath, mode) {
   }
 }
 
-async function downloadAndInstallGraftAsset({
-  assetPrefix,
-  finalDestPath,
-  findSource,
-  installMode,
-  logName,
-  platformInfo,
-  tempPrefix,
-}) {
-  const assetVersion = GRAFT_VERSION.replace(/^v/, "")
-  const assetName = `${assetPrefix}-${assetVersion}-${platformInfo.graftTarget}.${platformInfo.graftArchiveExt}`
-  const downloadUrl = `https://github.com/${GRAFT_REPO}/releases/download/${GRAFT_VERSION}/${assetName}`
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), tempPrefix))
-  const archivePath = path.join(tempDir, assetName)
-  const extractDir = path.join(tempDir, "extract")
-
-  try {
-    fs.mkdirSync(extractDir, { recursive: true })
-    console.log(`${logName}: Downloading ${downloadUrl}`)
-    await downloadFile(downloadUrl, archivePath)
-    extractArchive(archivePath, extractDir, platformInfo.graftArchiveExt)
-
-    const sourcePath = findSource(extractDir)
-    if (!sourcePath) {
-      throw new Error(
-        `Expected file not found in ${assetName} after extraction`
-      )
-    }
-
-    console.log(`${logName}: Source file: ${sourcePath}`)
-    installFileAtomically(sourcePath, finalDestPath, installMode)
-    console.log(`${logName}: Installed ${GRAFT_VERSION} to ${finalDestPath}`)
-  } finally {
-    fs.rmSync(tempDir, { recursive: true, force: true })
-  }
-}
-
-async function downloadGraftRelease(platformInfo, finalDestPath) {
-  await downloadAndInstallGraftAsset({
-    assetPrefix: "sqlite-graft",
-    finalDestPath,
-    findSource: (extractDir) =>
-      findDynamicLibrary(extractDir, platformInfo.extension, "graft"),
-    logName: "postinstall-sqlite-graft",
-    platformInfo,
-    tempPrefix: "sqlite-graft-",
-  })
-}
-
-async function downloadGraftCli(platformInfo, finalDestPath) {
-  const cliFileName = process.platform === "win32" ? "graft.exe" : "graft"
-  await downloadAndInstallGraftAsset({
-    assetPrefix: "graft-cli",
-    finalDestPath,
-    findSource: (extractDir) => findFileByName(extractDir, cliFileName),
-    installMode: process.platform === "win32" ? undefined : 0o755,
-    logName: "postinstall-graft-cli",
-    platformInfo,
-    tempPrefix: "graft-cli-",
-  })
-}
-
-function extractArchive(archivePath, extractDir, archiveExt) {
-  if (archiveExt === "zip") {
-    if (process.platform === "win32") {
-      execFileSync(
-        "powershell",
-        [
-          "-NoProfile",
-          "-Command",
-          `Expand-Archive -LiteralPath ${psQuote(
-            archivePath
-          )} -DestinationPath ${psQuote(extractDir)} -Force`,
-        ],
-        { stdio: "inherit" }
-      )
-    } else {
-      execFileSync("unzip", ["-q", "-o", archivePath, "-d", extractDir], {
-        stdio: "inherit",
-      })
-    }
-    return
-  }
-
-  if (archiveExt === "tar.gz") {
-    execFileSync("tar", ["-xzf", archivePath, "-C", extractDir], {
-      stdio: "inherit",
-    })
-    return
-  }
-
-  throw new Error(`Unsupported archive extension: ${archiveExt}`)
-}
-
-function psQuote(value) {
-  return `'${value.replace(/'/g, "''")}'`
-}
-
-function findDynamicLibrary(dir, extension, requiredNamePart) {
-  const matches = []
-  walk(dir, (filePath) => {
-    const fileName = path.basename(filePath).toLowerCase()
-    if (
-      fileName.endsWith(`.${extension}`) &&
-      fileName.includes(requiredNamePart)
-    ) {
-      matches.push(filePath)
-    }
-  })
-
-  if (matches.length === 1) {
-    return matches[0]
-  }
-
-  if (matches.length > 1) {
-    throw new Error(
-      `Found multiple ${requiredNamePart} libraries: ${matches.join(", ")}`
-    )
-  }
-
-  return null
-}
-
-function findFileByName(dir, expectedFileName) {
-  const matches = []
-  const normalizedExpectedName = expectedFileName.toLowerCase()
-  walk(dir, (filePath) => {
-    if (path.basename(filePath).toLowerCase() === normalizedExpectedName) {
-      matches.push(filePath)
-    }
-  })
-
-  if (matches.length === 1) {
-    return matches[0]
-  }
-
-  if (matches.length > 1) {
-    throw new Error(
-      `Found multiple ${expectedFileName} files: ${matches.join(", ")}`
-    )
-  }
-
-  return null
-}
-
-function walk(dir, visit) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const entryPath = path.join(dir, entry.name)
-    if (entry.isDirectory()) {
-      walk(entryPath, visit)
-    } else if (entry.isFile()) {
-      visit(entryPath)
-    }
-  }
-}
-
 async function installExtension(pkgConfig, workspaceRoot) {
   console.log(`\n--- Processing package: ${pkgConfig.basePackageName} ---`)
   const platformInfo = getPlatformInfo(pkgConfig)
@@ -388,19 +198,6 @@ async function installExtension(pkgConfig, workspaceRoot) {
   const finalDestDir = path.resolve(__dirname, "..", DEST_DIR)
   const finalDestPath = path.join(finalDestDir, platformInfo.destFileName)
   fs.mkdirSync(finalDestDir, { recursive: true })
-
-  if (pkgConfig.kind === "graft-release") {
-    await downloadGraftRelease(platformInfo, finalDestPath)
-    const cliFileName = process.platform === "win32" ? "graft.exe" : "graft"
-    const cliDestPath = path.resolve(
-      __dirname,
-      "..",
-      GRAFT_CLI_DEST_DIR,
-      cliFileName
-    )
-    await downloadGraftCli(platformInfo, cliDestPath)
-    return true
-  }
 
   const sourcePath = findNpmSourcePath(
     platformInfo.basePackageName,
@@ -437,6 +234,12 @@ async function main() {
   console.log(`Using workspace root: ${workspaceRoot}`)
 
   let overallSuccess = true
+  try {
+    await installGraftRuntime()
+  } catch (error) {
+    console.error("postinstall-graft:", error)
+    overallSuccess = false
+  }
   for (const pkgConfig of packagesToProcess) {
     try {
       await installExtension(pkgConfig, workspaceRoot)

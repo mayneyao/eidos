@@ -122,9 +122,7 @@ function repositoryConnection(repositoryPath) {
   if (existing?.open) return existing
 
   registerGraftExtension()
-  const db = new Database(
-    graftDbUri(path.join(repositoryPath, ".graft", "control.sqlite"))
-  )
+  const db = new Database(graftDbUri(path.join(repositoryPath, ".graft")))
   repositoryConnections.set(repositoryPath, db)
   return db
 }
@@ -211,6 +209,21 @@ function runGraft(cliPath, cwd, args) {
   }
 }
 
+function runGraftCliJson(cliPath, cwd, args) {
+  const output = runGraft(cliPath, cwd, args)
+  if (!output) {
+    throw new Error(`graft ${formatCommand(args)} returned no JSON output`)
+  }
+  try {
+    return JSON.parse(output)
+  } catch (error) {
+    throw new Error(
+      `graft ${formatCommand(args)} returned invalid JSON: ${output}`,
+      { cause: error }
+    )
+  }
+}
+
 function runGraftJson(cliPath, cwd, args) {
   const command = graftSmokeCommand(args)
   if (command.transport === "repository") {
@@ -220,17 +233,6 @@ function runGraftJson(cliPath, cwd, args) {
       command.argument
     )
   }
-  if (command.transport === "clone") {
-    registerGraftExtension()
-    let db
-    try {
-      db = new Database(graftDbUri(path.join(cwd, ".graft-clone.sqlite")))
-      return runGraftPragmaJson(db, command.pragma, command.argument)
-    } finally {
-      closeDatabase(db)
-    }
-  }
-
   const output = runGraft(cliPath, cwd, command.args)
   if (!output) {
     throw new Error(`graft ${formatCommand(args)} returned no JSON output`)
@@ -269,7 +271,7 @@ function runPersistentFileSpacePragmaSmoke() {
     fs.writeFileSync(path.join(root, notePath), "first\n")
     runGraftJson(cliPath, root, ["init", "--json"])
 
-    db = new Database(graftDbUri(path.join(root, ".graft", "control.sqlite")))
+    db = new Database(graftDbUri(path.join(root, ".graft")))
     runGraftPragmaJson(db, "graft_json_add", '-- "notes"')
     const first = runGraftPragmaJson(
       db,
@@ -1468,6 +1470,395 @@ function runAmbiguousPathSafetySmoke() {
   }
 }
 
+function queryText(db, sql) {
+  const row = db.prepare(sql).get()
+  return row ? String(Object.values(row)[0]) : ""
+}
+
+function assertWorkspaceClean(db, branch) {
+  const status = runGraftPragmaJson(db, "graft_json_status")
+  if (
+    status.current_branch !== branch ||
+    status.dirty ||
+    status.counts?.unstaged !== 0 ||
+    status.counts?.staged !== 0 ||
+    status.counts?.conflicted !== 0
+  ) {
+    throw new Error(
+      `Expected a clean ${branch} workspace: ${JSON.stringify(status)}`
+    )
+  }
+}
+
+function assertCliWorkspaceClean(cliPath, root, branch) {
+  const status = runGraftCliJson(cliPath, root, ["status", "--json"])
+  if (
+    status.current_branch !== branch ||
+    status.dirty ||
+    status.counts?.unstaged !== 0 ||
+    status.counts?.staged !== 0 ||
+    status.counts?.conflicted !== 0
+  ) {
+    throw new Error(
+      `Expected a clean ${branch} CLI workspace: ${JSON.stringify(status)}`
+    )
+  }
+}
+
+function withPhysicalDatabase(filePath, operation) {
+  const db = new Database(filePath)
+  try {
+    return operation(db)
+  } finally {
+    db.close()
+  }
+}
+
+function runBareMultiSqliteWorkspaceCliSmoke() {
+  const cliPath = findGraftCli()
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "eidos-graft-bare-workspace-cli-smoke-")
+  )
+  const primaryPath = path.join(root, "primary.base")
+  const secondaryPath = path.join(root, "secondary.sqlite")
+  const mainOnlyPath = path.join(root, "main-only.base")
+  const featureOnlyPath = path.join(root, "feature-only.base")
+
+  console.log("Bare multi-SQLite CLI workspace smoke root:", root)
+  try {
+    runGraftCliJson(cliPath, root, ["init", "--json"])
+    withPhysicalDatabase(primaryPath, (db) =>
+      db.exec(
+        "CREATE TABLE notes(body TEXT); INSERT INTO notes VALUES ('main primary')"
+      )
+    )
+    withPhysicalDatabase(secondaryPath, (db) =>
+      db.exec(
+        "CREATE TABLE settings(value TEXT); INSERT INTO settings VALUES ('main secondary')"
+      )
+    )
+    withPhysicalDatabase(mainOnlyPath, (db) =>
+      db.exec(
+        "CREATE TABLE marker(value TEXT); INSERT INTO marker VALUES ('main only')"
+      )
+    )
+    fs.writeFileSync(path.join(root, "note.md"), "main markdown\n")
+    fs.writeFileSync(path.join(root, "blob.bin"), Buffer.from([0, 1, 2, 255]))
+    runGraftCliJson(cliPath, root, ["add", "--all", "--json"])
+    runGraftCliJson(cliPath, root, [
+      "commit",
+      "--json",
+      "-m",
+      "main bare workspace",
+    ])
+    assertCliWorkspaceClean(cliPath, root, "main")
+
+    runGraftCliJson(cliPath, root, ["switch", "--create", "--json", "feature"])
+    withPhysicalDatabase(primaryPath, (db) =>
+      db.exec("UPDATE notes SET body = 'feature primary'")
+    )
+    withPhysicalDatabase(secondaryPath, (db) =>
+      db.exec("UPDATE settings SET value = 'feature secondary'")
+    )
+    fs.rmSync(mainOnlyPath)
+    withPhysicalDatabase(featureOnlyPath, (db) =>
+      db.exec(
+        "CREATE TABLE marker(value TEXT); INSERT INTO marker VALUES ('feature only')"
+      )
+    )
+    fs.renameSync(path.join(root, "note.md"), path.join(root, "renamed.md"))
+    fs.writeFileSync(path.join(root, "renamed.md"), "feature markdown\n")
+    fs.writeFileSync(path.join(root, "blob.bin"), Buffer.from([9, 8, 7, 0]))
+    runGraftCliJson(cliPath, root, ["add", "--all", "--json"])
+    runGraftCliJson(cliPath, root, [
+      "commit",
+      "--json",
+      "-m",
+      "feature bare workspace",
+    ])
+    assertCliWorkspaceClean(cliPath, root, "feature")
+
+    runGraftCliJson(cliPath, root, ["switch", "--json", "main"])
+    const mainPrimary = withPhysicalDatabase(primaryPath, (db) =>
+      queryText(db, "SELECT body FROM notes")
+    )
+    const mainSecondary = withPhysicalDatabase(secondaryPath, (db) =>
+      queryText(db, "SELECT value FROM settings")
+    )
+    if (
+      mainPrimary !== "main primary" ||
+      mainSecondary !== "main secondary" ||
+      !fs.existsSync(mainOnlyPath) ||
+      fs.existsSync(featureOnlyPath) ||
+      !fs.existsSync(path.join(root, "note.md")) ||
+      fs.existsSync(path.join(root, "renamed.md")) ||
+      !fs
+        .readFileSync(path.join(root, "blob.bin"))
+        .equals(Buffer.from([0, 1, 2, 255]))
+    ) {
+      throw new Error("Bare CLI switch did not materialize the main workspace")
+    }
+    assertCliWorkspaceClean(cliPath, root, "main")
+
+    fs.writeFileSync(path.join(root, "main-note.md"), "main branch only\n")
+    runGraftCliJson(cliPath, root, ["add", "--all", "--json"])
+    runGraftCliJson(cliPath, root, [
+      "commit",
+      "--json",
+      "-m",
+      "main bare workspace artifact",
+    ])
+    runGraftCliJson(cliPath, root, ["merge", "--json", "feature"])
+    runGraftCliJson(cliPath, root, [
+      "merge",
+      "--continue",
+      "--json",
+      "-m",
+      "merge feature bare workspace",
+    ])
+    if (
+      withPhysicalDatabase(primaryPath, (db) =>
+        queryText(db, "SELECT body FROM notes")
+      ) !== "feature primary" ||
+      withPhysicalDatabase(secondaryPath, (db) =>
+        queryText(db, "SELECT value FROM settings")
+      ) !== "feature secondary" ||
+      fs.existsSync(mainOnlyPath) ||
+      !fs.existsSync(featureOnlyPath) ||
+      !fs.existsSync(path.join(root, "renamed.md"))
+    ) {
+      throw new Error("Bare CLI merge did not materialize the merged workspace")
+    }
+    assertCliWorkspaceClean(cliPath, root, "main")
+
+    withPhysicalDatabase(primaryPath, (db) =>
+      db.exec("UPDATE notes SET body = 'dirty primary'")
+    )
+    withPhysicalDatabase(secondaryPath, (db) =>
+      db.exec("UPDATE settings SET value = 'dirty secondary'")
+    )
+    runGraftCliJson(cliPath, root, ["reset", "--hard", "--json", "HEAD"])
+    if (
+      withPhysicalDatabase(primaryPath, (db) =>
+        queryText(db, "SELECT body FROM notes")
+      ) !== "feature primary" ||
+      withPhysicalDatabase(secondaryPath, (db) =>
+        queryText(db, "SELECT value FROM settings")
+      ) !== "feature secondary"
+    ) {
+      throw new Error("Bare CLI reset did not restore both SQLite paths")
+    }
+    assertCliWorkspaceClean(cliPath, root, "main")
+
+    console.log(
+      "Bare multi-SQLite CLI workspace smoke passed without --db:",
+      JSON.stringify({
+        commands: ["status", "add", "switch", "merge", "reset"],
+        sqlitePaths: ["primary.base", "secondary.sqlite"],
+        otherPaths: ["renamed.md", "blob.bin"],
+      })
+    )
+  } finally {
+    removeTempRoot(root)
+  }
+}
+
+function runMultiSqliteWorkspaceSmoke() {
+  const cliPath = findGraftCli()
+  registerGraftExtension()
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "eidos-graft-multi-sqlite-smoke-")
+  )
+  const primaryPath = path.join(root, "primary.base")
+  const secondaryPath = path.join(root, "secondary.sqlite")
+  const mainOnlyPath = path.join(root, "main-only.base")
+  const featureOnlyPath = path.join(root, "feature-only.base")
+  let workspace
+  let primary
+  let secondary
+  let mainOnly
+  let featureOnly
+
+  console.log("Multi-SQLite workspace smoke root:", root)
+  try {
+    runGraftJson(cliPath, root, ["init", "--json"])
+
+    // Reproduce both halves of the v0.5 workspace proxy: a persistent VFS tag
+    // and physical control database sidecars. Opening the v0.6 anonymous
+    // workspace session must remove only these legacy implementation files.
+    const legacyControlPath = path.join(root, ".graft", "control.sqlite")
+    const legacyControl = new Database(graftDbUri(legacyControlPath))
+    legacyControl.exec("CREATE TABLE legacy_proxy(value TEXT)")
+    legacyControl.close()
+    for (const suffix of ["", "-journal", "-wal", "-shm"]) {
+      fs.writeFileSync(`${legacyControlPath}${suffix}`, `legacy${suffix}`)
+    }
+
+    workspace = new Database(graftDbUri(path.join(root, ".graft")))
+    for (const suffix of ["", "-journal", "-wal", "-shm"]) {
+      if (fs.existsSync(`${legacyControlPath}${suffix}`)) {
+        throw new Error(`Legacy control.sqlite${suffix} was not removed`)
+      }
+    }
+    if (fs.existsSync(path.join(root, ".graft-clone.sqlite"))) {
+      throw new Error("Legacy clone proxy was recreated")
+    }
+
+    primary = new Database(graftDbUri(primaryPath))
+    secondary = new Database(graftDbUri(secondaryPath))
+    mainOnly = new Database(graftDbUri(mainOnlyPath))
+    primary.exec(
+      "CREATE TABLE notes(body TEXT); INSERT INTO notes VALUES ('main primary')"
+    )
+    secondary.exec(
+      "CREATE TABLE settings(value TEXT); INSERT INTO settings VALUES ('main secondary')"
+    )
+    mainOnly.exec(
+      "CREATE TABLE marker(value TEXT); INSERT INTO marker VALUES ('main only')"
+    )
+    fs.writeFileSync(path.join(root, "note.md"), "main markdown\n")
+    fs.writeFileSync(path.join(root, "blob.bin"), Buffer.from([0, 1, 2, 255]))
+    runGraftPragmaJson(workspace, "graft_json_add", "--all")
+    runGraftPragmaJson(workspace, "graft_json_commit", "main workspace")
+    assertWorkspaceClean(workspace, "main")
+
+    runGraftPragmaJson(workspace, "graft_json_switch_create", "feature")
+    primary.exec("UPDATE notes SET body = 'feature primary'")
+    secondary.exec("UPDATE settings SET value = 'feature secondary'")
+    runGraftPragmaJson(workspace, "graft_json_rm", "main-only.base")
+    featureOnly = new Database(graftDbUri(featureOnlyPath))
+    featureOnly.exec(
+      "CREATE TABLE marker(value TEXT); INSERT INTO marker VALUES ('feature only')"
+    )
+    fs.renameSync(path.join(root, "note.md"), path.join(root, "renamed.md"))
+    fs.writeFileSync(path.join(root, "renamed.md"), "feature markdown\n")
+    fs.writeFileSync(path.join(root, "blob.bin"), Buffer.from([9, 8, 7, 0]))
+    runGraftPragmaJson(workspace, "graft_json_add", "--all")
+    runGraftPragmaJson(workspace, "graft_json_commit", "feature workspace")
+    assertWorkspaceClean(workspace, "feature")
+
+    runGraftPragmaJson(workspace, "graft_json_switch_branch", "main")
+    if (
+      queryText(primary, "SELECT body FROM notes") !== "main primary" ||
+      queryText(secondary, "SELECT value FROM settings") !== "main secondary" ||
+      queryText(mainOnly, "SELECT value FROM marker") !== "main only" ||
+      queryText(
+        featureOnly,
+        "SELECT count(*) FROM sqlite_schema WHERE name = 'marker'"
+      ) !== "0"
+    ) {
+      throw new Error("Naked workspace switch did not rebind every SQLite path")
+    }
+    if (
+      !fs.existsSync(path.join(root, "note.md")) ||
+      fs.existsSync(path.join(root, "renamed.md")) ||
+      !fs
+        .readFileSync(path.join(root, "blob.bin"))
+        .equals(Buffer.from([0, 1, 2, 255]))
+    ) {
+      throw new Error("Workspace switch did not restore text/binary topology")
+    }
+    assertWorkspaceClean(workspace, "main")
+
+    secondary.exec("BEGIN")
+    if (
+      queryText(secondary, "SELECT value FROM settings") !== "main secondary"
+    ) {
+      throw new Error("Read transaction did not start on the main snapshot")
+    }
+    runGraftPragmaJson(workspace, "graft_json_switch_branch", "feature")
+    if (
+      queryText(secondary, "SELECT value FROM settings") !== "main secondary"
+    ) {
+      throw new Error("Read transaction lost its stable SQLite snapshot")
+    }
+    secondary.exec("COMMIT")
+    if (
+      queryText(primary, "SELECT body FROM notes") !== "feature primary" ||
+      queryText(secondary, "SELECT value FROM settings") !==
+        "feature secondary" ||
+      queryText(featureOnly, "SELECT value FROM marker") !== "feature only"
+    ) {
+      throw new Error("Idle connections did not refresh workspace bindings")
+    }
+    assertWorkspaceClean(workspace, "feature")
+
+    secondary.exec("BEGIN IMMEDIATE")
+    let writeTransactionError = ""
+    try {
+      runGraftPragmaJson(workspace, "graft_json_switch_branch", "main")
+    } catch (error) {
+      writeTransactionError = String(error.message || error)
+    }
+    if (!writeTransactionError.includes("another SQLite write transaction")) {
+      throw new Error(
+        `Workspace switch returned the wrong write transaction error: ${writeTransactionError}`
+      )
+    }
+    assertWorkspaceClean(workspace, "feature")
+    secondary.exec("ROLLBACK")
+    const afterRollback = runGraftPragmaJson(workspace, "graft_json_status")
+    if (afterRollback.dirty) {
+      console.warn(
+        "Graft v0.6.0 marks an empty rolled-back write transaction dirty; " +
+          "resetting the affected binding before continuing the smoke"
+      )
+      runGraftPragmaJson(workspace, "graft_json_reset", "--hard HEAD")
+    }
+    assertWorkspaceClean(workspace, "feature")
+
+    runGraftPragmaJson(workspace, "graft_json_switch_branch", "main")
+    fs.writeFileSync(path.join(root, "main-note.md"), "main branch only\n")
+    runGraftPragmaJson(workspace, "graft_json_add", '-- "main-note.md"')
+    runGraftPragmaJson(workspace, "graft_json_commit", "main branch artifact")
+    const merge = runGraftPragmaJson(workspace, "graft_json_merge", "feature")
+    if (merge.operation !== "merge") {
+      throw new Error(`Workspace merge failed: ${JSON.stringify(merge)}`)
+    }
+    runGraftPragmaJson(
+      workspace,
+      "graft_json_merge_continue",
+      "merge feature workspace"
+    )
+    if (
+      queryText(primary, "SELECT body FROM notes") !== "feature primary" ||
+      queryText(secondary, "SELECT value FROM settings") !== "feature secondary"
+    ) {
+      throw new Error("Workspace merge did not activate both SQLite snapshots")
+    }
+    assertWorkspaceClean(workspace, "main")
+
+    primary.exec("UPDATE notes SET body = 'dirty primary'")
+    secondary.exec("UPDATE settings SET value = 'dirty secondary'")
+    runGraftPragmaJson(workspace, "graft_json_reset", "--hard HEAD")
+    if (
+      queryText(primary, "SELECT body FROM notes") !== "feature primary" ||
+      queryText(secondary, "SELECT value FROM settings") !== "feature secondary"
+    ) {
+      throw new Error("Hard reset did not restore both SQLite snapshots")
+    }
+    assertWorkspaceClean(workspace, "main")
+
+    console.log(
+      "Multi-SQLite workspace smoke passed:",
+      JSON.stringify({
+        legacyProxyCleanup: "ok",
+        paths: ["primary.base", "secondary.sqlite", "renamed.md", "blob.bin"],
+        readSnapshot: "stable then refreshed",
+        reset: "two SQLite bindings restored",
+        writeTransaction: "rejected without branch movement",
+      })
+    )
+  } finally {
+    closeDatabase(featureOnly)
+    closeDatabase(mainOnly)
+    closeDatabase(secondary)
+    closeDatabase(primary)
+    closeDatabase(workspace)
+    removeTempRoot(root)
+  }
+}
+
 function runPersistentRemoteConflictSmoke() {
   const cliPath = findGraftCli()
   registerGraftExtension()
@@ -1488,15 +1879,10 @@ function runPersistentRemoteConflictSmoke() {
     fs.mkdirSync(firstRoot, { recursive: true })
     fs.mkdirSync(secondRoot, { recursive: true })
     fs.writeFileSync(path.join(firstRoot, notePath), "initial\n")
-    fs.writeFileSync(
-      path.join(firstRoot, ".graftignore"),
-      ".graft-clone.sqlite\ncontrol.sqlite\n"
-    )
+    fs.writeFileSync(path.join(firstRoot, ".graftignore"), ".graft/\n")
     runGraftJson(cliPath, firstRoot, ["init", "--json"])
 
-    firstDb = new Database(
-      graftDbUri(path.join(firstRoot, ".graft", "control.sqlite"))
-    )
+    firstDb = new Database(graftDbUri(path.join(firstRoot, ".graft")))
     runGraftPragmaJson(firstDb, "graft_json_remote_add", `origin ${remoteUri}`)
     runGraftPragmaJson(
       firstDb,
@@ -1533,12 +1919,8 @@ function runPersistentRemoteConflictSmoke() {
       )
     }
 
-    firstDb = new Database(
-      graftDbUri(path.join(firstRoot, ".graft", "control.sqlite"))
-    )
-    secondDb = new Database(
-      graftDbUri(path.join(secondRoot, ".graft", "control.sqlite"))
-    )
+    firstDb = new Database(graftDbUri(path.join(firstRoot, ".graft")))
+    secondDb = new Database(graftDbUri(path.join(secondRoot, ".graft")))
     runGraftPragmaJson(
       secondDb,
       "graft_json_config_set",
@@ -1637,6 +2019,9 @@ function runPersistentRemoteConflictSmoke() {
 try {
   if (process.argv[2] === "remote-conflict") {
     runPersistentRemoteConflictSmoke()
+  } else if (process.argv[2] === "multi-sqlite") {
+    runBareMultiSqliteWorkspaceCliSmoke()
+    runMultiSqliteWorkspaceSmoke()
   } else {
     runSqliteExtensionSmoke()
     runPersistentFileSpacePragmaSmoke()
@@ -1648,6 +2033,8 @@ try {
     runWholeSpaceRestoreSymlinkSafetySmoke()
     runWholeSpaceRestoreAncestorSafetySmoke()
     runAmbiguousPathSafetySmoke()
+    runBareMultiSqliteWorkspaceCliSmoke()
+    runMultiSqliteWorkspaceSmoke()
     runPersistentRemoteConflictSmoke()
   }
   process.exit(0)

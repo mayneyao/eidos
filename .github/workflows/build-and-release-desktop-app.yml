@@ -6,7 +6,7 @@ on:
       - "v*"
 
 env:
-  GRAFT_RELEASE_VERSION: v0.5.8
+  GRAFT_RELEASE_VERSION: v0.6.0
 
 jobs:
   extension-delivery:

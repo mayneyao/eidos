@@ -2,6 +2,7 @@ import { execFile, type ExecFileOptionsWithStringEncoding } from "child_process"
 
 import { Injectable } from "../../common/di"
 import { getResourcePath } from "../../utils/resources"
+import { assertGraftRuntimeVersion } from "./graft-runtime-version"
 
 const DEFAULT_TIMEOUT_MS = 30_000
 const DEFAULT_MAX_BUFFER_BYTES = 16 * 1024 * 1024
@@ -57,11 +58,14 @@ function parseJsonOutput(stdout: string, command: string): unknown {
 
 @Injectable()
 export class GraftCliProcessRunner {
+  private versionCheck: Promise<void> | null = null
+
   async runJson(
     cwd: string,
     args: readonly string[],
     options: GraftCliRunOptions = {}
   ): Promise<unknown> {
+    await this.requireExpectedVersion()
     const command = args[0] ?? "unknown"
     const stdout = await new Promise<string>((resolve, reject) => {
       const execOptions: ExecFileOptionsWithStringEncoding = {
@@ -101,5 +105,45 @@ export class GraftCliProcessRunner {
     })
 
     return parseJsonOutput(stdout, command)
+  }
+
+  private requireExpectedVersion(): Promise<void> {
+    if (this.versionCheck) return this.versionCheck
+    this.versionCheck = new Promise<void>((resolve, reject) => {
+      execFile(
+        graftBinaryPath(),
+        ["--version"],
+        {
+          encoding: "utf8",
+          env: { ...process.env, NO_COLOR: "1" },
+          maxBuffer: 64 * 1024,
+          shell: false,
+          timeout: DEFAULT_TIMEOUT_MS,
+          windowsHide: true,
+        },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(
+              new GraftCliError(
+                errorOutput(stderr, error.message),
+                "--version",
+                typeof error.code === "number" ? error.code : null
+              )
+            )
+            return
+          }
+          try {
+            assertGraftRuntimeVersion(stdout, "CLI")
+            resolve()
+          } catch (versionError) {
+            reject(versionError)
+          }
+        }
+      )
+    }).catch((error) => {
+      this.versionCheck = null
+      throw error
+    })
+    return this.versionCheck
   }
 }

@@ -9,6 +9,8 @@ on:
       - "apps/desktop/electron/modules/space-versioning/**"
       - "apps/desktop/scripts/graft-versioning-smoke*"
       - "apps/desktop/scripts/postinstall-sqlite-ext.cjs"
+      - "apps/desktop/scripts/graft-runtime-installer*"
+      - "apps/desktop/graft-runtime-manifest.json"
       - "pnpm-lock.yaml"
       - "package.json"
       - "apps/desktop/package.json"
@@ -22,12 +24,14 @@ on:
       - "apps/desktop/electron/modules/space-versioning/**"
       - "apps/desktop/scripts/graft-versioning-smoke*"
       - "apps/desktop/scripts/postinstall-sqlite-ext.cjs"
+      - "apps/desktop/scripts/graft-runtime-installer*"
+      - "apps/desktop/graft-runtime-manifest.json"
       - "pnpm-lock.yaml"
       - "package.json"
       - "apps/desktop/package.json"
 
 env:
-  GRAFT_RELEASE_VERSION: v0.5.8
+  GRAFT_RELEASE_VERSION: v0.6.0
 
 jobs:
   windows-versioning-smoke:
@@ -63,7 +67,7 @@ jobs:
         run: node -e "require('electron/install')"
 
       - name: Test Graft smoke command transport
-        run: pnpm exec vitest run apps/desktop/scripts/graft-versioning-smoke-command.test.ts --environment node
+        run: pnpm exec vitest run apps/desktop/scripts/graft-runtime-installer.test.ts apps/desktop/scripts/graft-versioning-smoke-command.test.ts --environment node
 
       - name: Run Graft versioning smoke
         working-directory: apps/desktop

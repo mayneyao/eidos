@@ -6,9 +6,9 @@ import { GraftSqliteExecutor } from "./graft-sqlite-executor"
 import { SpaceResourceLifecycle } from "../space-management/space-resource-lifecycle"
 
 /**
- * Runs repository operations over a repository-scoped SQLite/Graft process.
- * Repository initialization remains a one-shot CLI operation because the
- * control database does not exist until `graft init` creates it.
+ * Runs repository operations through a repository-scoped anonymous Graft
+ * workspace session. Repository initialization remains a one-shot CLI
+ * operation because the workspace repository does not exist before `init`.
  */
 @Injectable()
 export class GraftRunner {

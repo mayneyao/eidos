@@ -4,6 +4,7 @@ import Database, {
   type SqliteDatabase,
 } from "../data-space/worker/sqlite-server/better-sqlite3"
 import { createGraftDbUri } from "../data-space/worker/sqlite-server/graft-uri"
+import { assertGraftRuntimeVersion } from "./graft-runtime-version"
 import { graftSqlitePragmaStatement } from "./graft-sqlite-pragma"
 import type {
   GraftWorkerInitData,
@@ -25,12 +26,20 @@ function getConnection(): SqliteDatabase {
     registration.close()
   }
 
-  const controlDbPath = path.join(
-    init.repositoryPath,
-    ".graft",
-    "control.sqlite"
+  const workspaceSessionPath = path.join(init.repositoryPath, ".graft")
+  const workspaceConnection = new Database(
+    createGraftDbUri(workspaceSessionPath)
   )
-  connection = new Database(createGraftDbUri(controlDbPath))
+  try {
+    assertGraftRuntimeVersion(
+      workspaceConnection.pragma("graft_version", { simple: true }),
+      "SQLite extension"
+    )
+  } catch (error) {
+    workspaceConnection.close()
+    throw error
+  }
+  connection = workspaceConnection
   return connection
 }
 

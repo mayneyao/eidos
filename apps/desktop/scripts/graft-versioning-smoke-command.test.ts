@@ -81,11 +81,11 @@ describe("graft versioning smoke command transport", () => {
     })
   })
 
-  it("runs clone through a temporary Graft database", () => {
+  it("runs clone through an anonymous workspace session", () => {
     expect(
       graftSmokeCommand(["clone", "fs:///tmp/remote", "main", "--json"])
     ).toEqual({
-      transport: "clone",
+      transport: "repository",
       pragma: "graft_json_clone",
       argument: "fs:///tmp/remote main",
     })

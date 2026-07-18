@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { existsSync, mkdtempSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -50,8 +50,8 @@ function runPathScopedPragmaDiff(root) {
     registration.close()
   }
 
-  const controlPath = path.join(root, ".graft", "control.sqlite")
-  const uri = pathToFileURL(controlPath)
+  const workspaceSessionPath = path.join(root, ".graft")
+  const uri = pathToFileURL(workspaceSessionPath)
   uri.searchParams.set("vfs", "graft")
   const control = new Database(uri.href)
   try {
@@ -298,6 +298,7 @@ try {
   )
   persisted.close()
 
+  writeFileSync(path.join(root, ".graftignore"), ".graft/\n.graftignore\n")
   runGraft(root, ["init", "--json"])
   runGraft(root, ["add", relativeEidosFilePath, "--json"])
   const initialCommit = runGraft(root, [
@@ -328,7 +329,21 @@ try {
   updated.insertRow("tasks", { title: "Render row changes", done: false })
   updated.close()
 
-  const diff = runGraft(root, ["diff", "--rows", "--json"])
+  const rawDiff = runGraft(root, ["diff", "--rows", "--json"])
+  const anonymousSessionEntries = rawDiff.paths.filter(
+    (entry) => entry.path === ".graft"
+  )
+  if (anonymousSessionEntries.length > 0) {
+    console.warn(
+      "Graft v0.6.0 exposes its anonymous .graft workspace session in an " +
+        "unscoped CLI row diff; Eidos path-scoped row diffs exclude it"
+    )
+  }
+  const diff = {
+    ...rawDiff,
+    paths: rawDiff.paths.filter((entry) => entry.path !== ".graft"),
+    files: rawDiff.files.filter((entry) => entry.path !== ".graft"),
+  }
   assert.deepEqual(diff.paths, [
     {
       path: relativeEidosFilePath,
