@@ -1,5 +1,5 @@
 export const logger = console // TODO: remove this
-export const EIDOS_VERSION = "0.33.0"
+export const EIDOS_VERSION = "0.34.0"
 export const EIDOS_COMMIT = (import.meta.env?.VITE_COMMIT_HASH as string) || ""
 export const isDevMode = Boolean(import.meta.env?.DEV)
 export const isSelfHosted = import.meta.env?.MODE === "self-host"
