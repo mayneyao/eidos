@@ -134,6 +134,5 @@ Renderer 不可用时，兼容读取方可以回退到 Grid；保存时仍应保
 
 ## 相关指南
 
-- [构建 Eidos File 编辑工具](#/docs/runtime)
-- [构建自定义视图](#/docs/custom-views)
+- [基于 Eidos File 构建](#/docs/build)
 - [体验 Eidos File Web Editor](#/)

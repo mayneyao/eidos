@@ -1219,6 +1219,23 @@ export function App() {
             </p>
           </header>
 
+          <figure className="file-model-figure">
+            <img
+              src="/eidos-file-model.png"
+              width="1200"
+              height="630"
+              loading="lazy"
+              alt={t("fileModelAlt")}
+            />
+            <figcaption>
+              <div>
+                <span>{t("fileModelLabel")}</span>
+                <strong>{t("fileModelTitle")}</strong>
+              </div>
+              <p>{t("fileModelBody")}</p>
+            </figcaption>
+          </figure>
+
           <ol className="format-ledger" aria-label="Eidos File format layers">
             <li>
               <span>{t("formatFile")}</span>

@@ -735,7 +735,7 @@ test("keeps navigation and editor controls usable on a phone", async ({
     primaryNavigationRegion.getByRole("link", { name: "Editor" })
   ).toBeVisible()
   await expect(
-    primaryNavigationRegion.getByRole("link", { name: "Open Format" })
+    primaryNavigationRegion.getByRole("link", { name: "Guide" })
   ).toBeVisible()
   await expect(
     primaryNavigationRegion.getByRole("link", { name: /Version Control/ })
@@ -1220,7 +1220,7 @@ test("keeps the editor first and publishes Eidos File documentation", async ({
     page.locator('.site-nav a[href="https://graft.eidos.space/"]')
   ).toHaveText("Version Control")
   await expect(page.locator('.site-nav a[href="#/docs/overview"]')).toHaveText(
-    "Open Format"
+    "Guide"
   )
 
   await page.locator('.site-nav a[href="#/docs/overview"]').click()
@@ -1228,24 +1228,24 @@ test("keeps the editor first and publishes Eidos File documentation", async ({
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Eidos File: an open, local-first table format",
+      name: "Eidos File: one local table, many views",
     })
   ).toBeVisible()
   await expect(page.getByText("Start here")).toBeVisible()
+  await expect(
+    page.locator('.markdown-body img[src="/eidos-file-model.png"]')
+  ).toBeVisible()
 
-  await page.locator('.docs-list a[href="#/docs/runtime"]').click()
-  await expect(page).toHaveURL(/#\/docs\/runtime$/)
+  await page.locator('.docs-list a[href="#/docs/build"]').click()
+  await expect(page).toHaveURL(/#\/docs\/build$/)
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Build an Eidos File editor with the runtime",
+      name: "Build with Eidos File",
     })
   ).toBeVisible()
   await expect(
-    page
-      .locator("code")
-      .filter({ hasText: "EidosFileEditorDataSource" })
-      .first()
+    page.locator("code").filter({ hasText: "EidosFileSession" }).first()
   ).toBeVisible()
   await expect(
     page.locator('.markdown-body pre[data-highlighted="true"]').first()
@@ -1254,12 +1254,10 @@ test("keeps the editor first and publishes Eidos File documentation", async ({
     page.locator(".markdown-body .token.keyword").first()
   ).toBeVisible()
 
-  await page.locator('.docs-list a[href="#/docs/custom-views"]').click()
-  await expect(page).toHaveURL(/#\/docs\/custom-views$/)
   await page.getByRole("button", { name: "切换到中文" }).click()
   await expect(page.locator('.site-nav a[href="#/"]')).toHaveText("编辑工具")
   await expect(page.locator('.site-nav a[href="#/docs/overview"]')).toHaveText(
-    "开放格式"
+    "指南"
   )
   await expect(
     page.locator('.site-nav a[href="https://graft.eidos.space/"]')
@@ -1267,7 +1265,7 @@ test("keeps the editor first and publishes Eidos File documentation", async ({
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "为 Eidos File 构建自定义视图",
+      name: "基于 Eidos File 构建",
     })
   ).toBeVisible()
 })

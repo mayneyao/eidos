@@ -1,13 +1,9 @@
 import formatEn from "./content/format.en.md?raw"
 import formatZh from "./content/format.zh.md?raw"
+import buildEn from "./content/build.en.md?raw"
+import buildZh from "./content/build.zh.md?raw"
 import overviewEn from "./content/overview.en.md?raw"
 import overviewZh from "./content/overview.zh.md?raw"
-import pluginsEn from "./content/plugins.en.md?raw"
-import pluginsZh from "./content/plugins.zh.md?raw"
-import runtimeEn from "./content/runtime.en.md?raw"
-import runtimeZh from "./content/runtime.zh.md?raw"
-import viewsEn from "./content/views.en.md?raw"
-import viewsZh from "./content/views.zh.md?raw"
 
 import type { Locale } from "../i18n"
 
@@ -47,43 +43,17 @@ export const EIDOS_FILE_DOCUMENTS: EidosFileDocument[] = [
     markdown: { en: formatEn, zh: formatZh },
   },
   {
-    slug: "runtime",
-    edition: { en: "Developer guide", zh: "开发者指南" },
+    slug: "build",
+    edition: { en: "Packages 0.1.0", zh: "Package 0.1.0" },
     title: {
-      en: "Build an Eidos File editor",
-      zh: "构建 Eidos File 编辑工具",
+      en: "Build with Eidos File",
+      zh: "基于 Eidos File 构建",
     },
     summary: {
-      en: "Connect files, the runtime, a Worker, save state, and the shared editor UI.",
-      zh: "连接文件、Runtime、Worker、保存状态与共享编辑器 UI。",
+      en: "Embed the React host or add a typed custom view.",
+      zh: "嵌入 React View Host，或添加类型安全的自定义视图。",
     },
-    markdown: { en: runtimeEn, zh: runtimeZh },
-  },
-  {
-    slug: "plugins",
-    edition: { en: "Developer guide", zh: "开发者指南" },
-    title: {
-      en: "Compose editor plugins",
-      zh: "组合编辑器插件",
-    },
-    summary: {
-      en: "Choose core capabilities, official workflows, and custom views without coupling to Eidos Space extensions.",
-      zh: "划分核心能力、官方工作流与自定义视图，且不耦合 Eidos Space Extension。",
-    },
-    markdown: { en: pluginsEn, zh: pluginsZh },
-  },
-  {
-    slug: "custom-views",
-    edition: { en: "Developer guide", zh: "开发者指南" },
-    title: {
-      en: "Build custom views",
-      zh: "构建自定义视图",
-    },
-    summary: {
-      en: "Compose Eidos File UI and register a renderer for a saved view type.",
-      zh: "组合 Eidos File UI，并为持久化视图类型注册 renderer。",
-    },
-    markdown: { en: viewsEn, zh: viewsZh },
+    markdown: { en: buildEn, zh: buildZh },
   },
 ]
 
@@ -98,7 +68,12 @@ const FILE_TO_SLUG = new Map(
 export function eidosFileDocumentBySlug(
   slug: string | null
 ): EidosFileDocument {
-  const normalized = slug === "format-runtime" ? "format" : slug
+  const normalized =
+    slug === "format-runtime"
+      ? "format"
+      : slug === "runtime" || slug === "plugins" || slug === "custom-views"
+        ? "build"
+        : slug
   return (
     EIDOS_FILE_DOCUMENTS.find((document) => document.slug === normalized) ??
     EIDOS_FILE_DOCUMENTS[0]

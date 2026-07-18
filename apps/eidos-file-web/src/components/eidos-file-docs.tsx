@@ -24,29 +24,28 @@ interface EidosFileDocsProps {
 const copy = {
   en: {
     back: "Editor",
-    docs: "Open Format",
+    docs: "Guide",
     graft: "Version Control",
-    kicker: "Public Eidos File documentation",
-    title: "Use Eidos File. Build on Eidos File.",
+    kicker: "Eidos File guide",
+    title: "Open it. Shape it. Build with it.",
     intro:
-      "Stable guides for people who use Eidos Files and developers who build compatible tools.",
-    documents: "Guides and reference",
+      "Three focused references for the file, its format, and the public packages.",
+    documents: "Guide and reference",
     contents: "On this page",
     edition: "Document",
-    notice:
-      "All examples target the public Eidos File v1 contract and the current published package boundaries.",
+    notice: "Package examples target the published 0.1.0 release.",
   },
   zh: {
     back: "编辑工具",
-    docs: "开放格式",
+    docs: "指南",
     graft: "版本管理",
-    kicker: "公开的 Eidos File 文档",
-    title: "使用 Eidos File，基于 Eidos File 构建。",
-    intro: "面向 Eidos File 文件使用者，以及构建兼容工具和自定义体验的开发者。",
+    kicker: "Eidos File 指南",
+    title: "打开、组织，并基于它构建。",
+    intro: "三篇聚焦文档，分别解释文件、格式与公共 package。",
     documents: "指南与参考",
     contents: "本文目录",
     edition: "文档",
-    notice: "全部示例面向公开的 Eidos File v1 契约与当前可发布 package 边界。",
+    notice: "Package 示例对应已公开发布的 0.1.0 版本。",
   },
 } as const
 

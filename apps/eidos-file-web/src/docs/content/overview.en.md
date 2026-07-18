@@ -1,54 +1,40 @@
-# Eidos File: an open, local-first table format
+# Eidos File: one local table, many views
 
-Eidos File is a portable multidimensional table stored as a single `.eidos` file. The file is a standard SQLite database containing records, typed fields, relations, and saved views. You can open it in Eidos, inspect it with SQLite tools, or build your own compatible application.
+Eidos File is a multidimensional table stored as one portable `.eidos` file. It is a standard SQLite database containing records, typed fields, relations, and saved views. The file stays useful in Eidos, ordinary SQLite tools, and applications built with the public packages.
 
-Eidos File is local by default. Opening a file in the Eidos File Web Editor does not require an account and does not upload the database to a server.
+![One Eidos File branches into Grid, Timeline, and Gallery views that all use the same records.](/eidos-file-model.png)
 
-## Open and edit an Eidos File
+Grid, Timeline, Gallery, Kanban, and custom views are different ways to work with the same records. A view stores query and presentation state; it does not create another copy of the table.
 
-1. Open [editor.eidos.space](#/).
-2. Choose **Open .eidos file**, or start with the included sample.
-3. Edit records and properties in Grid, Gallery, or Kanban.
-4. Save your changes.
+## Try it in the editor
 
-Chromium-based browsers can write back to the original file after you grant permission. Other browsers use an honest copy workflow: the editor imports a private working copy and downloads a new `.eidos` file when you save.
+1. Return to the [Eidos File editor](#/).
+2. Choose **Open .eidos file**, or open the included 2,500-row sample.
+3. Edit records or switch between Grid, Gallery, and Kanban.
+4. Save the original file or download a new copy.
 
-## What one file contains
+Chromium-based browsers can write back to the original after you grant permission. Other browsers use an explicit copy workflow. In both modes, the database is processed locally with SQLite WASM and a Web Worker.
 
-An Eidos File keeps the information needed to understand and present the data together:
+## What travels with the file
 
-- one or more user tables;
-- field names, types, options, and relations;
-- saved views with filters, sorting, order, and layout properties;
-- file identity and format version;
-- formula and lookup definitions.
+- user tables and stable row identities;
+- field names, types, options, formulas, lookups, and relations;
+- saved views with filters, sorting, field order, and layout properties;
+- file identity and format version.
 
-Grid, Gallery, Kanban, and custom views all read the same records. A view is presentation and query state, not a duplicate of the table.
+Unsupported custom view types remain in the file. A host may fall back to Grid, but it should not erase view metadata it does not understand.
 
-## Choose how you work
+## Use it or build with it
 
-| Tool                         | Best for                                                                    |
-| ---------------------------- | --------------------------------------------------------------------------- |
-| Eidos File Web Editor        | Open or edit a local `.eidos` file without installing an app                |
-| Eidos Desktop                | Work with Eidos Files alongside documents, assets, extensions, and local AI |
-| SQLite tools                 | Inspect stored values or integrate with existing data workflows             |
-| `@eidos.space/eidos-file`    | Build a compatible runtime, importer, exporter, or host application         |
-| `@eidos.space/eidos-file-ui` | Embed the shared Eidos File editor and register custom view renderers       |
+| Path                         | Use it when                                                                           |
+| ---------------------------- | ------------------------------------------------------------------------------------- |
+| Eidos File editor            | You want to open or edit a local file in the browser.                                 |
+| Eidos Desktop                | You work with Eidos Files alongside documents, assets, local AI, and version history. |
+| `@eidos.space/eidos-file`    | You need the headless runtime, browser adapter, save lifecycle, or a Node connection. |
+| `@eidos.space/eidos-file-ui` | You want the React view host, shared editor UI, or typed custom views.                |
 
-## Data ownership and privacy
+## Privacy and ownership
 
-Your `.eidos` file is the source of truth. The Web Editor processes it in a browser worker with SQLite WASM. File contents are not sent to Eidos servers.
+The `.eidos` file is the source of truth. The editor does not upload file contents to Eidos servers. When unsaved work needs recovery, the browser may retain a private local checkpoint that you can discard from the editor or remove by clearing site data.
 
-Browser recovery storage may retain a private local working copy when there are unsaved changes. You can discard that copy from the editor. Clearing the site's browser data also removes it.
-
-## Version control with Graft
-
-Eidos File defines the file format and table behavior. Graft adds Git-like version control for SQLite: commits, row-aware diffs, branches, restore, and repository synchronization.
-
-Open [Version Control](https://graft.eidos.space/) to learn how Graft versions SQLite databases. Version control remains an explicit workflow; a `.eidos` file does not require Graft.
-
-## Continue reading
-
-- [Eidos File format v1](#/docs/format) — the stable SQLite contract and value encodings.
-- [Build an Eidos File editor](#/docs/runtime) — connect files, a Worker, the runtime, save state, and shared UI.
-- [Build custom views](#/docs/custom-views) — compose the shared UI and register a renderer.
+Read the [format reference](#/docs/format) for the stable SQLite contract, or [build with Eidos File](#/docs/build) using the published `0.1.0` packages.

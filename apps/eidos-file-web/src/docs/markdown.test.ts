@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { EIDOS_FILE_DOCUMENTS } from "./eidos-file-documents"
+import {
+  EIDOS_FILE_DOCUMENTS,
+  eidosFileDocumentBySlug,
+} from "./eidos-file-documents"
 import { renderEidosFileMarkdown } from "./markdown"
 
 describe("Eidos File documentation Markdown", () => {
@@ -10,7 +13,7 @@ describe("Eidos File documentation Markdown", () => {
 ### SQLite schema
 ## File format
 
-[Runtime](runtime.en.md)
+[Build](build.en.md)
 `)
 
     expect(rendered.headings).toEqual([
@@ -18,7 +21,7 @@ describe("Eidos File documentation Markdown", () => {
       { id: "sqlite-schema", level: 3, text: "SQLite schema" },
       { id: "file-format-2", level: 2, text: "File format" },
     ])
-    expect(rendered.html).toContain('href="#/docs/runtime"')
+    expect(rendered.html).toContain('href="#/docs/build"')
   })
 
   it("removes executable HTML and unsafe URLs", () => {
@@ -45,16 +48,16 @@ const message: string = "Hello Eidos File"
     expect(rendered.html).toContain('class="token string"')
   })
 
-  it("publishes a complete external editor and custom-view path", () => {
-    const runtime = EIDOS_FILE_DOCUMENTS.find(
-      (document) => document.slug === "runtime"
+  it("publishes one focused external editor and custom-view path", () => {
+    const build = EIDOS_FILE_DOCUMENTS.find(
+      (document) => document.slug === "build"
     )!
-    const views = EIDOS_FILE_DOCUMENTS.find(
-      (document) => document.slug === "custom-views"
-    )!
-    const plugins = EIDOS_FILE_DOCUMENTS.find(
-      (document) => document.slug === "plugins"
-    )!
+
+    expect(EIDOS_FILE_DOCUMENTS.map((document) => document.slug)).toEqual([
+      "overview",
+      "format",
+      "build",
+    ])
 
     for (const markdown of [
       ...EIDOS_FILE_DOCUMENTS.map((document) => document.markdown.en),
@@ -65,27 +68,24 @@ const message: string = "Hello Eidos File"
       )
     }
 
-    for (const markdown of [runtime.markdown.en, runtime.markdown.zh]) {
+    for (const markdown of [build.markdown.en, build.markdown.zh]) {
       expect(markdown).toContain("@eidos.space/eidos-file")
       expect(markdown).toContain("@eidos.space/eidos-file-ui")
-      expect(markdown).toContain("EidosFileConnection")
-      expect(markdown).toContain("EidosFileEditorDataSource")
-      expect(markdown).toContain("EidosFileEditorView")
-      expect(markdown).toContain("FileSystemFileHandle")
-    }
-
-    for (const markdown of [views.markdown.en, views.markdown.zh]) {
+      expect(markdown).toContain("EidosFileSession")
+      expect(markdown).toContain("EidosFileProvider")
+      expect(markdown).toContain("EidosFileViewHost")
       expect(markdown).toContain("EidosFileViewRenderer")
-      expect(markdown).toContain("defineEidosFilePlugin")
+      expect(markdown).toContain("defineEidosFileView")
       expect(markdown).toContain("com.example.timeline")
-      expect(markdown).toContain("source.getPage")
-      expect(markdown).toContain("source.updateView")
-    }
-
-    for (const markdown of [plugins.markdown.en, plugins.markdown.zh]) {
-      expect(markdown).toContain("EidosFilePluginSlot")
-      expect(markdown).toContain("createEidosFileCsvImportPlugin")
+      expect(markdown).toMatch(/source\s*\.getPage/)
+      expect(markdown).toContain("session.save()")
       expect(markdown).toMatch(/Eidos Space [Ee]xtensions?/)
+    }
+  })
+
+  it("keeps legacy developer-document routes pointed at the focused build guide", () => {
+    for (const slug of ["runtime", "plugins", "custom-views"]) {
+      expect(eidosFileDocumentBySlug(slug).slug).toBe("build")
     }
   })
 })

@@ -1649,6 +1649,53 @@
   line-height: 1.7;
 }
 
+.file-model-figure {
+  margin: clamp(3rem, 6vw, 5rem) 0 0;
+}
+
+.file-model-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  background: oklch(17% 0.025 170);
+}
+
+.file-model-figure figcaption {
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.8fr) minmax(18rem, 1.2fr);
+  gap: 1.5rem;
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.file-model-figure figcaption > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.file-model-figure figcaption span {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.file-model-figure figcaption strong {
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.file-model-figure figcaption p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.65;
+}
+
 .section-intro code,
 .format-ledger code,
 .stack-boundary code {
@@ -1920,6 +1967,11 @@
 
   .section-intro h2 {
     font-size: clamp(2.125rem, 10vw, 3rem);
+  }
+
+  .file-model-figure figcaption {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
   }
 
   .format-ledger li {
@@ -2251,6 +2303,15 @@
 .markdown-body pre,
 .markdown-body table {
   margin-block: 1rem;
+}
+
+.markdown-body img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 2rem 0;
+  border: 1px solid var(--border);
+  background: oklch(17% 0.025 170);
 }
 
 .markdown-body a {

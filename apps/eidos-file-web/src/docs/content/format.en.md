@@ -134,6 +134,5 @@ If another tool edits stored rows directly, it must preserve `_id` uniqueness an
 
 ## Related guides
 
-- [Build an Eidos File editor](#/docs/runtime)
-- [Build custom views](#/docs/custom-views)
+- [Build with Eidos File](#/docs/build)
 - [Try the Eidos File Web Editor](#/)
