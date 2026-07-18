@@ -1,4 +1,5 @@
 export * from "./connection"
+export * from "./data-source"
 export {
   eidosFileColumnStatLabel,
   eidosFileColumnStatTypesForField,
@@ -8,6 +9,7 @@ export * from "./errors"
 export * from "./field-conversion"
 export * from "./file-values"
 export * from "./formula"
+export * from "./host"
 export * from "./identifiers"
 export * from "./json-array-values"
 export * from "./lookup"

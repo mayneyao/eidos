@@ -38,6 +38,8 @@
     "package-lock.json",
     "public",
     "CHANGELOG.md",
+    "packages/eidos-file/etc/*.api.md",
+    "packages/eidos-file-ui/etc/*.api.md",
     ".yarn",
     "dist",
     "node_modules",

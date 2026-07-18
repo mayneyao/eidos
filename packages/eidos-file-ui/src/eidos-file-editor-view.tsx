@@ -24,6 +24,12 @@ export interface EidosFileViewRendererProps {
   search: string
   disabled: boolean
   reloadToken: number
+  commands: readonly EidosFileViewCommand[]
+  selection: EidosFileViewSelection
+  onSelectionChange?: (selection: EidosFileViewSelection) => void
+  state: EidosFileViewState
+  onStateChange?: (state: EidosFileViewState) => void
+  capabilities: EidosFileViewCapabilities
   propertyField?: EidosFileFieldInfo | null
   onMutation?: (result: EidosFileRowMutationResult) => void
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
@@ -38,6 +44,36 @@ export interface EidosFileViewRendererProps {
   onError?: (error: unknown) => void
 }
 
+export interface EidosFileCommandContext {
+  source: EidosFileEditorDataSource
+  table: EidosFileTableSnapshot
+  view?: EidosFileViewInfo
+  selection: EidosFileViewSelection
+}
+
+export interface EidosFileViewCommand {
+  id: string
+  label: string
+  shortcut?: string
+  disabled?: boolean
+  run(context: EidosFileCommandContext): void | Promise<void>
+}
+
+export interface EidosFileViewSelection {
+  rowIds: readonly string[]
+  field?: string
+}
+
+export type EidosFileViewState = Readonly<Record<string, unknown>>
+
+export interface EidosFileViewCapabilities {
+  read: true
+  mutate: boolean
+  resolveAssets: boolean
+  rawFile: false
+  nativeFileSystem: false
+}
+
 /** A host-registered React renderer for a persisted Eidos File view type. */
 export type EidosFileViewRenderer = ComponentType<EidosFileViewRendererProps>
 
@@ -48,11 +84,24 @@ export type EidosFileViewRendererRegistry = Readonly<
 
 export interface EidosFileEditorViewProps extends Omit<
   EidosFileViewRendererProps,
-  "query" | "search" | "disabled" | "reloadToken"
+  | "query"
+  | "search"
+  | "disabled"
+  | "reloadToken"
+  | "commands"
+  | "selection"
+  | "state"
+  | "capabilities"
 > {
   search?: string
   disabled?: boolean
   reloadToken?: number
+  commands?: readonly EidosFileViewCommand[]
+  selection?: EidosFileViewSelection
+  onSelectionChange?: (selection: EidosFileViewSelection) => void
+  state?: EidosFileViewState
+  onStateChange?: (state: EidosFileViewState) => void
+  capabilities?: EidosFileViewCapabilities
   /** Host renderers override built-ins by type without changing Eidos File metadata. */
   renderers?: EidosFileViewRendererRegistry
   /** Trusted, statically imported capabilities for this editor instance. */
@@ -126,6 +175,16 @@ export function EidosFileEditorView({
   search = "",
   disabled = false,
   reloadToken = 0,
+  commands = [],
+  selection = { rowIds: [] },
+  state = {},
+  capabilities = {
+    read: true,
+    mutate: !disabled,
+    resolveAssets: true,
+    rawFile: false,
+    nativeFileSystem: false,
+  },
   renderers,
   plugins = [],
   renderUnsupportedView,
@@ -143,6 +202,10 @@ export function EidosFileEditorView({
     search,
     disabled,
     reloadToken,
+    commands,
+    selection,
+    state,
+    capabilities,
     ...callbacks,
   }
   const type = view?.type || "grid"

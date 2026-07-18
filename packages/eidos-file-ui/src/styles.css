@@ -25,7 +25,78 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+@layer base {
+  [data-eidos-file-root] {
+    --background: oklch(0.982 0.006 255);
+    --foreground: oklch(0.25 0.018 255);
+    --card: oklch(0.99 0.004 255);
+    --card-foreground: var(--foreground);
+    --popover: oklch(0.995 0.003 255);
+    --popover-foreground: var(--foreground);
+    --primary: oklch(0.43 0.09 255);
+    --primary-foreground: oklch(0.985 0.005 255);
+    --secondary: oklch(0.94 0.012 255);
+    --secondary-foreground: var(--foreground);
+    --muted: oklch(0.95 0.009 255);
+    --muted-foreground: oklch(0.52 0.02 255);
+    --accent: oklch(0.92 0.022 255);
+    --accent-foreground: var(--foreground);
+    --destructive: oklch(0.56 0.19 27);
+    --destructive-foreground: oklch(0.985 0.005 255);
+    --border: oklch(0.88 0.012 255);
+    --input: var(--border);
+    --ring: oklch(0.56 0.12 255);
+    --radius: 0.5rem;
+    min-width: 0;
+    color: var(--foreground);
+    background: var(--background);
+    color-scheme: light;
+    font-family: "Aptos", "Segoe UI Variable", "Segoe UI", sans-serif;
+  }
+
+  [data-eidos-file-root][data-theme="dark"] {
+    --background: oklch(0.21 0.014 255);
+    --foreground: oklch(0.92 0.01 255);
+    --card: oklch(0.235 0.016 255);
+    --card-foreground: var(--foreground);
+    --popover: oklch(0.235 0.016 255);
+    --popover-foreground: var(--foreground);
+    --primary: oklch(0.76 0.08 255);
+    --primary-foreground: oklch(0.2 0.018 255);
+    --secondary: oklch(0.28 0.018 255);
+    --secondary-foreground: var(--foreground);
+    --muted: oklch(0.275 0.016 255);
+    --muted-foreground: oklch(0.69 0.02 255);
+    --accent: oklch(0.31 0.025 255);
+    --accent-foreground: var(--foreground);
+    --destructive: oklch(0.65 0.18 27);
+    --destructive-foreground: oklch(0.985 0.005 255);
+    --border: oklch(0.34 0.017 255);
+    --input: var(--border);
+    --ring: oklch(0.69 0.1 255);
+    color-scheme: dark;
+  }
+
+  .eidos-file-root {
+    box-sizing: border-box;
+  }
+
+  .eidos-file-root *,
+  .eidos-file-root *::before,
+  .eidos-file-root *::after {
+    box-sizing: border-box;
+  }
+}
+
 @layer components {
+  .eidos-file-empty {
+    display: grid;
+    min-height: 12rem;
+    place-items: center;
+    padding: 1.5rem;
+    color: var(--muted-foreground);
+    font-size: 0.8125rem;
+  }
   .eidos-shell-workbar {
     height: var(--eidos-shell-workbar-height, 40px);
   }

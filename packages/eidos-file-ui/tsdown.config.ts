@@ -6,6 +6,7 @@ export default defineConfig({
     "src/eidos-file-data-grid.tsx",
     "src/eidos-file-editor-view.tsx",
     "src/plugin.tsx",
+    "src/platform.tsx",
     "src/plugins/gallery.tsx",
     "src/plugins/kanban.tsx",
     "src/plugins/csv-import.tsx",

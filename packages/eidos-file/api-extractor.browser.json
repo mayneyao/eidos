@@ -1,0 +1,10 @@
+{
+  "extends": "./api-extractor.json",
+  "mainEntryPointFilePath": "<projectFolder>/dist/browser.d.mts",
+  "apiReport": {
+    "enabled": true,
+    "reportFileName": "eidos-file-browser.api.md",
+    "reportFolder": "<projectFolder>/etc",
+    "reportTempFolder": "<projectFolder>/temp"
+  }
+}

@@ -39,6 +39,13 @@ export interface EidosFileViewPluginContribution {
   }
 }
 
+/** Defines a trusted React view contribution without widening its public type. */
+export function defineEidosFileView<T extends EidosFileViewPluginContribution>(
+  view: T
+): T {
+  return view
+}
+
 export interface EidosFileActionPluginContribution {
   id: string
   slot: EidosFilePluginSlot

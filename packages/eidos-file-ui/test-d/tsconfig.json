@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": false,
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true,
+    "paths": {},
+    "rootDir": "."
+  },
+  "include": ["public-api.tsx"]
+}

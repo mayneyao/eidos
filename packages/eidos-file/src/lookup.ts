@@ -6,7 +6,7 @@ import type {
   EidosFileStorageCodec,
 } from "./types"
 
-type EidosFileLookupTarget = Pick<EidosFileFieldInfo, "type"> &
+export type EidosFileLookupTarget = Pick<EidosFileFieldInfo, "type"> &
   Partial<Pick<EidosFileFieldInfo, "property">>
 
 const NUMERIC_LOOKUP_AGGREGATES = new Set<EidosFileLookupAggregate>([
