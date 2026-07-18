@@ -41,6 +41,8 @@ export interface EidosFileViewRendererProps {
   onFieldOpen?: (field: EidosFileFieldInfo) => void
   onFieldClose?: () => void
   onFieldAdd?: (position?: number) => void
+  onEditFormula?: (field: EidosFileFieldInfo) => void
+  onEditLookup?: (field: EidosFileFieldInfo) => void
   onError?: (error: unknown) => void
 }
 
@@ -126,6 +128,8 @@ export function EidosFileGridRenderer(props: EidosFileViewRendererProps) {
       onFieldOpen={props.onFieldOpen}
       onFieldClose={props.onFieldClose}
       onFieldAdd={props.onFieldAdd}
+      onEditFormula={props.onEditFormula}
+      onEditLookup={props.onEditLookup}
       onError={props.onError}
     />
   )

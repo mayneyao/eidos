@@ -414,6 +414,7 @@ export interface EidosFileDataSource {
     getSnapshot(): Promise<EidosFileSnapshot>;
     // (undocumented)
     insertRow(tableId: string, row: EidosFileRow): Promise<EidosFileRowMutationResult>;
+    previewFormula?(tableId: string, input: EidosFileFormulaPreviewInput): Promise<EidosFileFormulaPreview>;
     // (undocumented)
     reorderViews(tableId: string, viewIds: string[]): Promise<EidosFileSnapshot>;
     // (undocumented)
@@ -1023,6 +1024,8 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     insertRow(tableId: string, row: EidosFileRow): Promise<EidosFileRowMutationResult>;
     // (undocumented)
     readonly path: string;
+    // (undocumented)
+    previewFormula(tableId: string, input: EidosFileFormulaPreviewInput): Promise<EidosFileFormulaPreview>;
     // (undocumented)
     reorderViews(tableId: string, viewIds: string[]): Promise<EidosFileSnapshot>;
     // (undocumented)

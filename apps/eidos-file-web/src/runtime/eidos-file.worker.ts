@@ -253,6 +253,8 @@ async function handleAction(action: EidosFileWorkerAction) {
         action.configs,
         action.query
       )
+    case "formula-preview":
+      return runtime.previewFormula(action.tableId, action.input)
     case "insert-row":
       return mutationResult(
         action.tableId,

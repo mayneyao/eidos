@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react"
 import type {
   EidosFileColumnStatConfig,
   EidosFileFieldInfo,
+  EidosFileRelationValue,
   EidosFileRow,
   EidosFileRowMutationResult,
   EidosFileRowQuery,
@@ -34,6 +35,8 @@ export interface EidosFileDataGridProps {
   onFieldOpen?: (field: EidosFileFieldInfo) => void
   onFieldClose?: () => void
   onFieldAdd?: (position?: number) => void
+  onEditFormula?: (field: EidosFileFieldInfo) => void
+  onEditLookup?: (field: EidosFileFieldInfo) => void
   onError?: (error: unknown) => void
 }
 
@@ -56,6 +59,8 @@ export function EidosFileDataGrid({
   onFieldOpen,
   onFieldClose,
   onFieldAdd,
+  onEditFormula,
+  onEditLookup,
   onError,
 }: EidosFileDataGridProps) {
   const query = useMemo<EidosFileRowQuery>(
@@ -140,6 +145,41 @@ export function EidosFileDataGrid({
     [onSnapshot, source, view]
   )
 
+  const searchRelation = useCallback(
+    async (
+      field: EidosFileFieldInfo,
+      relationQuery: string
+    ): Promise<EidosFileRelationValue[]> => {
+      const targetTableId = field.property?.targetTableId
+      if (typeof targetTableId !== "string" || !targetTableId) return []
+      const targetField =
+        typeof field.property?.targetField === "string" &&
+        field.property.targetField
+          ? field.property.targetField
+          : "title"
+      const page = await source.getPage(
+        targetTableId,
+        0,
+        50,
+        relationQuery.trim() ? { search: relationQuery.trim() } : {},
+        undefined,
+        undefined,
+        {
+          columns: [targetField],
+          preservedColumns: ["_id", "title"],
+          fieldLimit: 1,
+        }
+      )
+      return page.rows.flatMap((row) => {
+        const id = row._id
+        if (id === null || id === undefined) return []
+        const display = row[targetField] ?? row.title ?? id
+        return [{ id: String(id), title: String(display ?? id) }]
+      })
+    },
+    [source]
+  )
+
   return (
     <EidosFileGrid
       table={table}
@@ -155,7 +195,10 @@ export function EidosFileDataGrid({
       onPropertyFieldClose={onFieldClose}
       onFieldUpdate={updateField}
       onAddField={onFieldAdd}
+      onEditFormula={onEditFormula}
+      onEditLookup={onEditLookup}
       onDeleteField={deleteField}
+      onSearchRelation={searchRelation}
       onRequestDeleteRows={
         onDeleteRows ? (ranges) => void onDeleteRows(ranges, query) : undefined
       }

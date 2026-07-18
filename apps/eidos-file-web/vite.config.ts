@@ -165,6 +165,16 @@ export default defineConfig({
         directory,
         "../../packages/eidos-file-ui/src/eidos-file-query-toolbar.tsx"
       ),
+      "@eidos.space/eidos-file-ui/eidos-file-field-create-popover":
+        path.resolve(
+          directory,
+          "../../packages/eidos-file-ui/src/eidos-file-field-create-popover.tsx"
+        ),
+      "@eidos.space/eidos-file-ui/eidos-file-derived-field-editor":
+        path.resolve(
+          directory,
+          "../../packages/eidos-file-ui/src/eidos-file-derived-field-editor.tsx"
+        ),
       "@eidos.space/eidos-file-ui/plugins/csv-import": path.resolve(
         directory,
         "../../packages/eidos-file-ui/src/plugins/csv-import.tsx"

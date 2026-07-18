@@ -147,6 +147,26 @@
       "import": "./dist/eidos-file-query-toolbar.mjs",
       "default": "./dist/eidos-file-query-toolbar.mjs"
     },
+    "./eidos-file-field-create-popover": {
+      "types": "./dist/eidos-file-field-create-popover.d.mts",
+      "import": "./dist/eidos-file-field-create-popover.mjs",
+      "default": "./dist/eidos-file-field-create-popover.mjs"
+    },
+    "./eidos-file-field-type-picker": {
+      "types": "./dist/eidos-file-field-type-picker.d.mts",
+      "import": "./dist/eidos-file-field-type-picker.mjs",
+      "default": "./dist/eidos-file-field-type-picker.mjs"
+    },
+    "./eidos-file-formula-composer": {
+      "types": "./dist/eidos-file-formula-composer.d.mts",
+      "import": "./dist/eidos-file-formula-composer.mjs",
+      "default": "./dist/eidos-file-formula-composer.mjs"
+    },
+    "./eidos-file-derived-field-editor": {
+      "types": "./dist/eidos-file-derived-field-editor.d.mts",
+      "import": "./dist/eidos-file-derived-field-editor.mjs",
+      "default": "./dist/eidos-file-derived-field-editor.mjs"
+    },
     "./styles.css": "./dist/styles.css"
   },
   "files": [

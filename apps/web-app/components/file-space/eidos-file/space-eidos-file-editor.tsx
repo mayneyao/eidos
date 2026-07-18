@@ -21,6 +21,11 @@ import {
   EidosFileEditorRoot,
   EidosFileEditorWorkbar,
 } from "@eidos.space/eidos-file-ui/eidos-file-editor-chrome"
+import { EidosFileFieldCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-field-create-popover"
+import {
+  EidosFileFormulaEditorPopover,
+  EidosFileLookupEditorPopover,
+} from "@eidos.space/eidos-file-ui/eidos-file-derived-field-editor"
 import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui/context"
 import { eidosFileRecordCardPageProjection } from "@eidos.space/eidos-file-ui/eidos-file-record-card-layout"
 import { uniqueSpaceEntryName } from "@eidos.space/file-space/names"
@@ -87,8 +92,6 @@ import {
 import { EidosFileFieldPropertyPanel } from "./eidos-file-field-property-panel"
 import { eidosFileAssetDirectory } from "./eidos-file-settings"
 import { eidosFileOpenErrorPresentation } from "./eidos-file-open-error"
-import { EidosFileFormulaEditor } from "./eidos-file-formula-editor"
-import { EidosFileLookupEditor } from "./eidos-file-lookup-editor"
 import { EidosFileQueryToolbar } from "./eidos-file-query-toolbar"
 import {
   EidosFileRecordPage,
@@ -98,7 +101,6 @@ import { eidosFileRecordTitle } from "./eidos-file-record-format"
 import { EidosFileRenameDialog } from "./eidos-file-rename-dialog"
 import { EidosFileSheetCreatePopover } from "./eidos-file-sheet-create-popover"
 import { EidosFileSheetTabs } from "./eidos-file-sheet-tabs"
-import { EidosFileStructureDialog } from "./eidos-file-structure-dialog"
 import { EidosFileStructureMenu } from "./eidos-file-structure-menu"
 import { EidosFileViewMenu } from "./eidos-file-view-menu"
 import {
@@ -2346,28 +2348,22 @@ export function SpaceEidosFileEditor({
           }
         />
 
-        <EidosFileStructureDialog
-          mode="field"
-          open={structureDialog === "field"}
-          onOpenChange={(open) => {
-            if (!open) {
-              setStructureDialog(null)
-              setFieldInsertIndex(null)
-            }
-          }}
-          onCreateTable={createTableInEidosFile}
-          onCreateField={createFieldInEidosFile}
-          tables={snapshot.tables.map((candidate) => candidate.table)}
-          fields={activeTable?.fields ?? []}
-          tableFields={Object.fromEntries(
-            snapshot.tables.map((candidate) => [
-              candidate.table.id,
-              candidate.fields,
-            ])
-          )}
-          activeTableId={activeTable?.table.id}
-          onPreviewFormula={previewActiveFormula}
-        />
+        {activeTable ? (
+          <EidosFileFieldCreatePopover
+            open={structureDialog === "field"}
+            onOpenChange={(open) => {
+              if (!open) {
+                setStructureDialog(null)
+                setFieldInsertIndex(null)
+              }
+            }}
+            table={activeTable}
+            tables={snapshot.tables}
+            disabled={blockingMutations > 0}
+            onCreate={createFieldInEidosFile}
+            onPreviewFormula={previewActiveFormula}
+          />
+        ) : null}
 
         <EidosFileRenameDialog
           kind={renameTarget?.kind ?? "table"}
@@ -2379,7 +2375,7 @@ export function SpaceEidosFileEditor({
           onRename={renameStructure}
         />
 
-        <EidosFileFormulaEditor
+        <EidosFileFormulaEditorPopover
           field={formulaTarget}
           fields={activeTable?.fields ?? []}
           open={formulaTarget !== null}
@@ -2390,7 +2386,7 @@ export function SpaceEidosFileEditor({
           onSave={saveFormula}
         />
 
-        <EidosFileLookupEditor
+        <EidosFileLookupEditorPopover
           field={lookupTarget}
           fields={activeTable?.fields ?? []}
           tables={snapshot.tables}

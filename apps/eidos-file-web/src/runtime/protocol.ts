@@ -5,6 +5,8 @@ import type {
   EidosFileCsvImportPlan,
   EidosFileCsvImportResult,
   EidosFileFieldPlacement,
+  EidosFileFormulaPreview,
+  EidosFileFormulaPreviewInput,
   EidosFileRow,
   EidosFileRowGroupCount,
   EidosFileRowMutationResult,
@@ -73,6 +75,11 @@ export type EidosFileWorkerAction =
       configs: EidosFileColumnStatConfig[]
       query: EidosFileRowQuery
     }
+  | {
+      type: "formula-preview"
+      tableId: string
+      input: EidosFileFormulaPreviewInput
+    }
   | { type: "insert-row"; tableId: string; row: EidosFileRow }
   | {
       type: "update-row"
@@ -135,6 +142,7 @@ export type EidosFileWorkerResult =
   | EidosFileWorkerExportResult
   | EidosFileSnapshot
   | EidosFileColumnStatResult[]
+  | EidosFileFormulaPreview
   | EidosFileCsvImportPlan
   | EidosFileWorkerCsvImportResult
   | EidosFileRow

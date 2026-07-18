@@ -988,9 +988,9 @@ test("matches Desktop table, view, Grid edit, field placement, and row delete wo
     button: "right",
   })
   await page.getByRole("menuitem", { name: "Insert field right" }).click()
-  const propertyForm = page.locator(".add-property-popover")
+  const propertyForm = page.locator("[data-eidos-file-field-create='true']")
   await propertyForm.getByLabel("Name").fill("After title")
-  await propertyForm.getByRole("button", { name: "Add property" }).click()
+  await propertyForm.getByRole("button", { name: "Create field" }).click()
   await expect(page.locator("[data-testid='glide-cell-3-0']")).toHaveText(
     "Backlog"
   )
@@ -1031,6 +1031,114 @@ test("matches Desktop table, view, Grid edit, field placement, and row delete wo
   await expect(
     page.getByRole("tab", { name: "Browser table", exact: true })
   ).toHaveAttribute("aria-selected", "true")
+})
+
+test("creates Formula, Relation, and Lookup fields through the shared editor UI", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the browser worker and advanced shared field editors"
+  )
+  await installFallbackMode(page)
+  await page.addInitScript(() => {
+    const messages: unknown[] = []
+    const NativeWorker = window.Worker
+    class InstrumentedWorker extends NativeWorker {
+      constructor(scriptURL: string | URL, options?: WorkerOptions) {
+        super(scriptURL, options)
+        this.addEventListener("message", (event) => messages.push(event.data))
+      }
+    }
+    Object.defineProperties(window, {
+      __eidosFileWorkerMessages: { configurable: true, value: messages },
+      Worker: { configurable: true, value: InstrumentedWorker },
+    })
+  })
+  await page.goto("/")
+  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await page.locator("[data-testid='glide-cell-1-0']").waitFor({
+    state: "attached",
+  })
+
+  const openFieldCreator = async (name: string, type: string) => {
+    await page
+      .locator("[data-eidos-file-workbar-actions]")
+      .getByRole("button", { name: "Property" })
+      .click()
+    const creator = page.locator("[data-eidos-file-field-create='true']")
+    await creator.getByLabel("Name").fill(name)
+    await creator.locator("[data-eidos-file-field-type-trigger]").click()
+    await page.locator(`[data-eidos-file-field-type='${type}']`).click()
+    return creator
+  }
+
+  const formulaCreator = await openFieldCreator("Double estimate", "formula")
+  await formulaCreator.getByLabel("Formula expression").fill("estimate * 2")
+  await expect(formulaCreator).toContainText("Formula is valid")
+  await formulaCreator.getByRole("button", { name: "Create field" }).click()
+
+  const relationCreator = await openFieldCreator("Related project", "link")
+  await expect(relationCreator).toContainText("Related table")
+  await relationCreator.getByRole("button", { name: "Create field" }).click()
+
+  const lookupCreator = await openFieldCreator("Related estimate", "lookup")
+  await lookupCreator
+    .locator("label")
+    .filter({ hasText: "Target field" })
+    .getByRole("combobox")
+    .click()
+  await page.getByRole("option", { name: "Estimate" }).click()
+  await lookupCreator.getByRole("button", { name: "Create field" }).click()
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const messages = window.__eidosFileWorkerMessages ?? []
+        for (let index = messages.length - 1; index >= 0; index -= 1) {
+          const message = messages[index]
+          if (
+            typeof message !== "object" ||
+            message === null ||
+            !("ok" in message) ||
+            message.ok !== true ||
+            !("result" in message) ||
+            typeof message.result !== "object" ||
+            message.result === null ||
+            !("tables" in message.result) ||
+            !Array.isArray(message.result.tables)
+          ) {
+            continue
+          }
+          const fields = message.result.tables[0]?.fields
+          if (!Array.isArray(fields)) continue
+          return fields
+            .filter(
+              (field) =>
+                typeof field === "object" &&
+                field !== null &&
+                "name" in field &&
+                [
+                  "Double estimate",
+                  "Related project",
+                  "Related estimate",
+                ].includes(String(field.name))
+            )
+            .map((field) => ({
+              name: String(field.name),
+              type: "type" in field ? String(field.type) : "",
+            }))
+            .sort((left, right) => left.name.localeCompare(right.name))
+        }
+        return []
+      })
+    )
+    .toEqual([
+      { name: "Double estimate", type: "formula" },
+      { name: "Related estimate", type: "lookup" },
+      { name: "Related project", type: "link" },
+    ])
 })
 
 test("calculates Grid column summaries through the browser runtime", async ({

@@ -11,7 +11,7 @@ import {
 } from "react"
 import type {
   EidosFileFieldInfo,
-  EidosFileFieldType,
+  EidosFileFormulaPreviewInput,
   EidosFileRow,
   EidosFileRowMutationResult,
   EidosFileRowRange,
@@ -27,6 +27,11 @@ import {
   EidosFileSheetTabStrip,
 } from "@eidos.space/eidos-file-ui/eidos-file-editor-chrome"
 import { EidosFileSheetCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-sheet-create-popover"
+import { EidosFileFieldCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-field-create-popover"
+import {
+  EidosFileFormulaEditorPopover,
+  EidosFileLookupEditorPopover,
+} from "@eidos.space/eidos-file-ui/eidos-file-derived-field-editor"
 import { EidosFileViewTabs } from "@eidos.space/eidos-file-ui/eidos-file-view-tabs"
 import {
   createEidosFilePluginRegistry,
@@ -122,33 +127,6 @@ function docsSlugFromHash(hash: string): string | null {
   if (!match) return null
   return decodeURIComponent(match[1] ?? "overview")
 }
-
-const MUTABLE_FIELD_TYPES: Array<{
-  value: Exclude<
-    EidosFileFieldType,
-    | "title"
-    | "formula"
-    | "link"
-    | "lookup"
-    | "created-time"
-    | "created-by"
-    | "last-edited-time"
-    | "last-edited-by"
-    | "row-id"
-  >
-  label: string
-}> = [
-  { value: "text", label: "Text" },
-  { value: "number", label: "Number" },
-  { value: "checkbox", label: "Checkbox" },
-  { value: "date", label: "Date" },
-  { value: "datetime", label: "Date & time" },
-  { value: "url", label: "URL" },
-  { value: "rating", label: "Rating" },
-  { value: "select", label: "Select" },
-  { value: "multi-select", label: "Multi-select" },
-  { value: "file", label: "File" },
-]
 
 function errorMessage(error: unknown): string {
   return error instanceof Error && error.message
@@ -253,6 +231,12 @@ export function App() {
     null
   )
   const [addPropertyOpen, setAddPropertyOpen] = useState(false)
+  const [formulaTarget, setFormulaTarget] = useState<EidosFileFieldInfo | null>(
+    null
+  )
+  const [lookupTarget, setLookupTarget] = useState<EidosFileFieldInfo | null>(
+    null
+  )
   const [fieldInsertIndex, setFieldInsertIndex] = useState<number | null>(null)
   const [viewReloadToken, setViewReloadToken] = useState(0)
   const [theme, setTheme] = useState<Theme>(initialTheme)
@@ -443,6 +427,8 @@ export function App() {
       setActiveViews({})
       setSearch("")
       setPropertyField(null)
+      setFormulaTarget(null)
+      setLookupTarget(null)
       setNotice(null)
       dispatch({
         type: "OPEN_SUCCESS",
@@ -551,6 +537,8 @@ export function App() {
     setActiveViews({})
     setSearch("")
     setPropertyField(null)
+    setFormulaTarget(null)
+    setLookupTarget(null)
     setAddPropertyOpen(false)
     setNotice(null)
     dispatch({ type: "RESET" })
@@ -833,33 +821,61 @@ export function App() {
   )
 
   const addProperty = useCallback(
-    async (name: string, type: CreateEidosFileFieldInput["type"]) => {
+    async (field: CreateEidosFileFieldInput) => {
       const client = clientRef.current
       if (!client || !activeTable) return
       try {
         const next = await client.addField(
           activeTable.table.id,
-          {
-            name,
-            columnName: `field_${crypto.randomUUID().replace(/-/g, "")}`,
-            type,
-            ...(type === "select" || type === "multi-select"
-              ? { property: { options: [] } }
-              : {}),
-          } as CreateEidosFileFieldInput,
+          field,
           activeView && fieldInsertIndex !== null
             ? { viewId: activeView.id, index: fieldInsertIndex }
             : undefined
         )
-        setSnapshot(next)
+        onStructureSnapshot(next)
         setAddPropertyOpen(false)
         setFieldInsertIndex(null)
-        markCommitted()
+        setViewReloadToken((current) => current + 1)
       } catch (error) {
         setNotice(errorMessage(error))
+        throw error
       }
     },
-    [activeTable, activeView, fieldInsertIndex, markCommitted]
+    [activeTable, activeView, fieldInsertIndex, onStructureSnapshot]
+  )
+
+  const previewActiveFormula = useCallback(
+    (input: EidosFileFormulaPreviewInput) => {
+      const client = clientRef.current
+      if (!client || !activeTable) {
+        return Promise.reject(new Error("No active Eidos File table"))
+      }
+      return client.previewFormula(activeTable.table.id, input)
+    },
+    [activeTable]
+  )
+
+  const saveDerivedProperty = useCallback(
+    async (
+      field: EidosFileFieldInfo | null,
+      property: Record<string, unknown>
+    ) => {
+      const client = clientRef.current
+      if (!client || !activeTable || !field) return
+      try {
+        const next = await client.updateField(
+          activeTable.table.id,
+          field.tableColumnName,
+          { property }
+        )
+        onStructureSnapshot(next)
+        setViewReloadToken((current) => current + 1)
+      } catch (error) {
+        setNotice(errorMessage(error))
+        throw error
+      }
+    },
+    [activeTable, onStructureSnapshot]
   )
 
   const createTable = useCallback(
@@ -877,6 +893,8 @@ export function App() {
       if (created) {
         setActiveTableId(created.table.id)
         setPropertyField(null)
+        setFormulaTarget(null)
+        setLookupTarget(null)
       }
     },
     [onStructureSnapshot, snapshot]
@@ -1023,6 +1041,8 @@ export function App() {
       onTableSelect: (tableId) => {
         setActiveTableId(tableId)
         setPropertyField(null)
+        setFormulaTarget(null)
+        setLookupTarget(null)
       },
       onError: (error) => setNotice(errorMessage(error)),
     }
@@ -1572,9 +1592,17 @@ export function App() {
                 </span>
               </button>
               {addPropertyOpen ? (
-                <AddPropertyPopover
-                  onClose={() => setAddPropertyOpen(false)}
-                  onAdd={addProperty}
+                <EidosFileFieldCreatePopover
+                  open={addPropertyOpen}
+                  onOpenChange={(open) => {
+                    setAddPropertyOpen(open)
+                    if (!open) setFieldInsertIndex(null)
+                  }}
+                  table={activeTable}
+                  tables={snapshot.tables}
+                  disabled={saveState.phase === "saving"}
+                  onCreate={addProperty}
+                  onPreviewFormula={previewActiveFormula}
                 />
               ) : null}
             </div>
@@ -1602,6 +1630,8 @@ export function App() {
             onDeleteRows={deleteRowRanges}
             onFieldOpen={setPropertyField}
             onFieldClose={() => setPropertyField(null)}
+            onEditFormula={setFormulaTarget}
+            onEditLookup={setLookupTarget}
             onFieldAdd={(position) => {
               setFieldInsertIndex(position ?? null)
               setAddPropertyOpen(true)
@@ -1632,6 +1662,8 @@ export function App() {
           onSelect={(tableId) => {
             setActiveTableId(tableId)
             setPropertyField(null)
+            setFormulaTarget(null)
+            setLookupTarget(null)
           }}
           status={
             <span
@@ -1669,6 +1701,27 @@ export function App() {
         />
       </EidosFileEditorRoot>
 
+      <EidosFileFormulaEditorPopover
+        field={formulaTarget}
+        fields={activeTable.fields}
+        open={formulaTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setFormulaTarget(null)
+        }}
+        onPreview={previewActiveFormula}
+        onSave={(property) => saveDerivedProperty(formulaTarget, property)}
+      />
+      <EidosFileLookupEditorPopover
+        field={lookupTarget}
+        fields={activeTable.fields}
+        tables={snapshot.tables}
+        open={lookupTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setLookupTarget(null)
+        }}
+        onSave={(property) => saveDerivedProperty(lookupTarget, property)}
+      />
+
       {notice ? (
         <div className="toast" role="alert">
           <AlertTriangle size={15} aria-hidden="true" />
@@ -1695,73 +1748,5 @@ export function App() {
         }}
       />
     </main>
-  )
-}
-
-interface AddPropertyPopoverProps {
-  onClose: () => void
-  onAdd: (
-    name: string,
-    type: CreateEidosFileFieldInput["type"]
-  ) => Promise<void>
-}
-
-function AddPropertyPopover({ onClose, onAdd }: AddPropertyPopoverProps) {
-  const { t } = useI18n()
-  const [name, setName] = useState("")
-  const [type, setType] = useState<CreateEidosFileFieldInput["type"]>("text")
-  const [saving, setSaving] = useState(false)
-  return (
-    <form
-      className="add-property-popover"
-      onSubmit={(event) => {
-        event.preventDefault()
-        setSaving(true)
-        void onAdd(name, type).finally(() => setSaving(false))
-      }}
-    >
-      <header>
-        <strong>{t("newProperty")}</strong>
-        <button type="button" aria-label={t("close")} onClick={onClose}>
-          <X size={14} />
-        </button>
-      </header>
-      <label>
-        <span>{t("name")}</span>
-        <input
-          autoFocus
-          value={name}
-          required
-          onChange={(event) => setName(event.target.value)}
-        />
-      </label>
-      <label>
-        <span>{t("type")}</span>
-        <select
-          value={type}
-          onChange={(event) =>
-            setType(event.target.value as CreateEidosFileFieldInput["type"])
-          }
-        >
-          {MUTABLE_FIELD_TYPES.map((candidate) => (
-            <option key={candidate.value} value={candidate.value}>
-              {candidate.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <button
-        className="primary-button compact-button"
-        type="submit"
-        disabled={saving || !name.trim()}
-      >
-        {saving ? (
-          <LoaderCircle className="spin" size={14} />
-        ) : (
-          <Plus size={14} />
-        )}
-        {t("addProperty")}
-      </button>
-    </form>
   )
 }

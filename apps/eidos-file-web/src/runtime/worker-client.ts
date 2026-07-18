@@ -4,6 +4,8 @@ import type {
   EidosFileCsvImportOptions,
   EidosFileCsvImportPlan,
   EidosFileFieldPlacement,
+  EidosFileFormulaPreview,
+  EidosFileFormulaPreviewInput,
   EidosFileRow,
   EidosFileRowGroupCount,
   EidosFileRowMutationResult,
@@ -157,6 +159,13 @@ export class EidosFileWorkerClient implements EidosFileEditorDataSource {
     query: EidosFileRowQuery
   ): Promise<EidosFileColumnStatResult[]> {
     return this.call({ type: "column-stats", tableId, configs, query })
+  }
+
+  previewFormula(
+    tableId: string,
+    input: EidosFileFormulaPreviewInput
+  ): Promise<EidosFileFormulaPreview> {
+    return this.call({ type: "formula-preview", tableId, input })
   }
 
   insertRow(

@@ -6,6 +6,8 @@ import type {
   EidosFileColumnStatConfig,
   EidosFileColumnStatResult,
   EidosFileFieldPlacement,
+  EidosFileFormulaPreview,
+  EidosFileFormulaPreviewInput,
   EidosFileRow,
   EidosFileRowGroupCount,
   EidosFileRowMutationResult,
@@ -48,6 +50,15 @@ export interface EidosFileDataSource {
     configs: EidosFileColumnStatConfig[],
     query: EidosFileRowQuery
   ): Promise<EidosFileColumnStatResult[]>
+  /**
+   * Validate a draft formula against the live file and return sample values.
+   * Hosts without a runtime preview boundary may omit this; the shared UI
+   * still performs schema-level compilation before saving.
+   */
+  previewFormula?(
+    tableId: string,
+    input: EidosFileFormulaPreviewInput
+  ): Promise<EidosFileFormulaPreview>
   insertRow(
     tableId: string,
     row: EidosFileRow
@@ -156,6 +167,13 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     query: EidosFileRowQuery
   ): Promise<EidosFileColumnStatResult[]> {
     return this.runtime.calculateColumnStats(tableId, configs, query)
+  }
+
+  async previewFormula(
+    tableId: string,
+    input: EidosFileFormulaPreviewInput
+  ): Promise<EidosFileFormulaPreview> {
+    return this.runtime.previewFormula(tableId, input)
   }
 
   async insertRow(

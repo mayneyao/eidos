@@ -199,17 +199,13 @@ vi.mock("./eidos-file-sheet-create-popover", () => ({
   },
 }))
 
-vi.mock("./eidos-file-structure-dialog", () => ({
-  EidosFileStructureDialog: ({
-    mode,
+vi.mock("@eidos.space/eidos-file-ui/eidos-file-field-create-popover", () => ({
+  EidosFileFieldCreatePopover: ({
     open,
-    onCreateTable,
-    onCreateField,
+    onCreate,
   }: {
-    mode: "table" | "field"
     open: boolean
-    onCreateTable: (value: { name: string }) => void
-    onCreateField: (value: {
+    onCreate: (value: {
       name: string
       columnName: string
       type: "text"
@@ -219,16 +215,14 @@ vi.mock("./eidos-file-structure-dialog", () => ({
       <button
         type="button"
         onClick={() =>
-          mode === "table"
-            ? onCreateTable({ name: "Projects" })
-            : onCreateField({
-                name: "Owner",
-                columnName: "owner",
-                type: "text",
-              })
+          onCreate({
+            name: "Owner",
+            columnName: "owner",
+            type: "text",
+          })
         }
       >
-        Confirm {mode}
+        Confirm field
       </button>
     ) : null,
 }))
@@ -316,8 +310,8 @@ vi.mock("./eidos-file-view-menu", () => ({
   ),
 }))
 
-vi.mock("./eidos-file-formula-editor", () => ({
-  EidosFileFormulaEditor: ({
+vi.mock("@eidos.space/eidos-file-ui/eidos-file-derived-field-editor", () => ({
+  EidosFileFormulaEditorPopover: ({
     open,
     onPreview,
     onSave,
@@ -350,7 +344,10 @@ vi.mock("./eidos-file-formula-editor", () => ({
           type="button"
           onClick={() =>
             void Promise.resolve(
-              onSave({ formula: "price * quantity", displayType: "number" })
+              onSave({
+                formula: "price * quantity",
+                displayType: "number",
+              })
             ).catch(() => undefined)
           }
         >
@@ -358,10 +355,7 @@ vi.mock("./eidos-file-formula-editor", () => ({
         </button>
       </>
     ) : null,
-}))
-
-vi.mock("./eidos-file-lookup-editor", () => ({
-  EidosFileLookupEditor: ({
+  EidosFileLookupEditorPopover: ({
     open,
     onSave,
   }: {
