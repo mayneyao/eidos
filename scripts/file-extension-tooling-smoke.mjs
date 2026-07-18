@@ -277,6 +277,40 @@ try {
         "@eidos.space/extension-sdk": `^${toolingVersion}`,
       },
     })
+
+    const localToolingDependencies = Object.fromEntries(
+      packages.map((packageInfo) => [
+        packageInfo.name,
+        `file:../../tarballs/${packageInfo.archive}`,
+      ])
+    )
+    await writeFile(
+      path.join(projectRoot, "package.json"),
+      `${JSON.stringify(
+        {
+          ...projectManifest,
+          devDependencies: {
+            "@eidos.space/extension-cli":
+              localToolingDependencies["@eidos.space/extension-cli"],
+            "@eidos.space/extension-sdk":
+              localToolingDependencies["@eidos.space/extension-sdk"],
+          },
+          pnpm: { overrides: localToolingDependencies },
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    )
+    await pnpm(
+      [
+        "install",
+        "--prefer-offline",
+        "--ignore-scripts",
+        "--frozen-lockfile=false",
+      ],
+      { cwd: projectRoot }
+    )
     assert.match(
       await readFile(path.join(projectRoot, ".gitignore"), "utf8"),
       /^node_modules\//mu
