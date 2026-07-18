@@ -5,6 +5,11 @@ import {
   eidosFileDocumentBySlug,
 } from "./eidos-file-documents"
 import { renderEidosFileMarkdown } from "./markdown"
+import {
+  eidosFileDocsPath,
+  eidosFileDocsRouteFromPathname,
+  legacyEidosFileDocsSlugFromHash,
+} from "./routes"
 
 describe("Eidos File documentation Markdown", () => {
   it("builds stable heading anchors and rewrites bundled documentation links", () => {
@@ -21,7 +26,20 @@ describe("Eidos File documentation Markdown", () => {
       { id: "sqlite-schema", level: 3, text: "SQLite schema" },
       { id: "file-format-2", level: 2, text: "File format" },
     ])
-    expect(rendered.html).toContain('href="#/docs/build"')
+    expect(rendered.html).toContain('href="/docs/build/"')
+  })
+
+  it("keeps localized documentation on indexable clean URLs", () => {
+    const rendered = renderEidosFileMarkdown("[构建](build.zh.md)", "zh")
+
+    expect(rendered.html).toContain('href="/zh/docs/build/"')
+    expect(eidosFileDocsPath("overview", "en")).toBe("/docs/")
+    expect(eidosFileDocsPath("format", "zh")).toBe("/zh/docs/format/")
+    expect(eidosFileDocsRouteFromPathname("/zh/docs/build/")).toEqual({
+      locale: "zh",
+      slug: "build",
+    })
+    expect(legacyEidosFileDocsSlugFromHash("#/docs/format")).toBe("format")
   })
 
   it("removes executable HTML and unsafe URLs", () => {

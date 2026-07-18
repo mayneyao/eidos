@@ -8,7 +8,7 @@ Grid、Timeline、Gallery、Kanban 与自定义视图，只是处理同一份记
 
 ## 在编辑器中体验
 
-1. 返回 [Eidos File 编辑器](#/)。
+1. 返回 [Eidos File 编辑器](/)。
 2. 选择**打开 .eidos 文件**，或打开内置的 2,500 行示例。
 3. 编辑记录，或在 Grid、Gallery 与 Kanban 之间切换。
 4. 保存原文件，或下载新的副本。
@@ -37,4 +37,4 @@ Grid、Timeline、Gallery、Kanban 与自定义视图，只是处理同一份记
 
 `.eidos` 文件始终是事实来源。编辑器不会把文件内容上传到 Eidos 服务器。需要恢复未保存工作时，浏览器可能保留一份私有本地 checkpoint；你可以在编辑器中丢弃，或通过清除站点数据将其删除。
 
-阅读[格式参考](#/docs/format)了解稳定的 SQLite 契约，或使用已公开的 `0.1.0` package [基于 Eidos File 构建](#/docs/build)。
+阅读[格式参考](format.zh.md)了解稳定的 SQLite 契约，或使用已公开的 `0.1.0` package [基于 Eidos File 构建](build.zh.md)。

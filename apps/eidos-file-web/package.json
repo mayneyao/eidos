@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "deploy": "wrangler deploy",
+    "build": "pnpm run build:client && pnpm run build:docs",
+    "build:client": "vite build",
+    "build:docs": "vite build --config vite.prerender.config.ts && node scripts/prerender-docs.mjs",
+    "deploy": "pnpm run build && wrangler deploy",
     "fixture": "pnpm --filter @eidos.space/eidos-file build && node ../../scripts/use-better-sqlite3-runtime.cjs node && node scripts/create-fixture.mjs",
     "preview": "vite preview",
     "test": "vitest run",

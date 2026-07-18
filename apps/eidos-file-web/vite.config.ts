@@ -76,7 +76,7 @@ function reuseEidosPwaIcons(): Plugin {
 }
 
 export default defineConfig({
-  base: "./",
+  base: "/",
   assetsInclude: ["**/*.eidos"],
   plugins: [
     tailwindcss(),
@@ -123,6 +123,7 @@ export default defineConfig({
         importScripts: ["pwa-update-policy.js"],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: "index.html",
+        navigateFallbackDenylist: [/^\/(?:zh\/)?docs(?:\/|$)/],
       },
       devOptions: {
         enabled: true,

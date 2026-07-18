@@ -9,7 +9,9 @@ import "prismjs/components/prism-markdown"
 import "prismjs/components/prism-sql"
 import "prismjs/components/prism-yaml"
 
+import type { Locale } from "../i18n"
 import { eidosFileDocumentSlugForFile } from "./eidos-file-documents"
+import { eidosFileDocsPath } from "./routes"
 
 export interface MarkdownHeading {
   id: string
@@ -74,7 +76,10 @@ function highlightCodeBlocks(document: Document): void {
   }
 }
 
-export function renderEidosFileMarkdown(source: string): RenderedMarkdown {
+export function renderEidosFileMarkdown(
+  source: string,
+  locale: Locale = "en"
+): RenderedMarkdown {
   const parsed = marked.parse(source, {
     gfm: true,
     headerIds: false,
@@ -110,8 +115,11 @@ export function renderEidosFileMarkdown(source: string): RenderedMarkdown {
       if (slug) {
         element.setAttribute(
           "href",
-          `#/docs/${slug}${fragment ? `#${fragment}` : ""}`
+          `${eidosFileDocsPath(slug, locale)}${fragment ? `#${fragment}` : ""}`
         )
+      } else if (rawHref.startsWith("#/docs/")) {
+        const legacySlug = rawHref.slice("#/docs/".length).split("#", 1)[0]
+        element.setAttribute("href", eidosFileDocsPath(legacySlug, locale))
       } else if (/^https?:\/\//i.test(rawHref)) {
         element.target = "_blank"
         element.rel = "noreferrer"

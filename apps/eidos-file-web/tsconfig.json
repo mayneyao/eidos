@@ -35,6 +35,7 @@
     "src",
     "e2e",
     "vite.config.ts",
+    "vite.prerender.config.ts",
     "vitest.config.ts",
     "playwright.config.ts"
   ]

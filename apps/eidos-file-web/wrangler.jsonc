@@ -10,6 +10,7 @@
   ],
   "assets": {
     "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
     "not_found_handling": "single-page-application",
   },
 }

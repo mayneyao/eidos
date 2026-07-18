@@ -773,8 +773,8 @@ test("keeps navigation and editor controls usable on a phone", async ({
       links.map((link) => link.getAttribute("href"))
     )
   ).toEqual([
-    "#/",
-    "#/docs/overview",
+    "/",
+    "/docs/",
     "https://sqlite.eidos.space/",
     "https://graft.eidos.space/",
   ])
@@ -1454,16 +1454,44 @@ test("switches the live Eidos File experience between English and Chinese", asyn
   )
 })
 
-test("keeps the editor first and publishes Eidos File documentation", async ({
+test("keeps the editor first and publishes server-rendered Eidos File documentation", async ({
   page,
   browserName,
+  request,
 }) => {
   test.skip(
     browserName !== "chromium",
     "One browser covers the shared landing and documentation UI"
   )
+  const browserErrors: string[] = []
+  page.on("console", (message) => {
+    if (message.type() === "error") browserErrors.push(message.text())
+  })
+  page.on("pageerror", (error) => browserErrors.push(error.message))
   await installFallbackMode(page)
   await page.setViewportSize({ width: 1440, height: 900 })
+
+  const staticResponse = await request.get("/docs/")
+  expect(staticResponse.status()).toBe(200)
+  const staticHtml = await staticResponse.text()
+  expect(staticHtml).toContain(
+    "<h1>Eidos File: an open, local-first table format</h1>"
+  )
+  expect(staticHtml).toContain(
+    '<link rel="canonical" href="https://editor.eidos.space/docs/" />'
+  )
+  expect(staticHtml).toContain(
+    '<link rel="alternate" hreflang="zh-CN" href="https://editor.eidos.space/zh/docs/" />'
+  )
+  expect(staticHtml).toContain('<script type="application/ld+json">')
+  expect(staticHtml).not.toContain("#/docs/")
+
+  const chineseStaticResponse = await request.get("/zh/docs/build/")
+  expect(chineseStaticResponse.status()).toBe(200)
+  const chineseStaticHtml = await chineseStaticResponse.text()
+  expect(chineseStaticHtml).toContain('<html lang="zh-CN">')
+  expect(chineseStaticHtml).toContain("<h1>基于 Eidos File 构建</h1>")
+
   await page.goto("/")
 
   await expect(
@@ -1480,12 +1508,12 @@ test("keeps the editor first and publishes Eidos File documentation", async ({
   await expect(
     page.locator('.site-nav a[href="https://sqlite.eidos.space/"]')
   ).toContainText("SQLite Inspector")
-  await expect(page.locator('.site-nav a[href="#/docs/overview"]')).toHaveText(
+  await expect(page.locator('.site-nav a[href="/docs/"]')).toHaveText(
     "Open Format"
   )
 
-  await page.locator('.site-nav a[href="#/docs/overview"]').click()
-  await expect(page).toHaveURL(/#\/docs\/overview$/)
+  await page.locator('.site-nav a[href="/docs/"]').click()
+  await expect(page).toHaveURL(/\/docs\/$/)
   await expect(
     page.getByRole("heading", {
       level: 1,
@@ -1497,8 +1525,8 @@ test("keeps the editor first and publishes Eidos File documentation", async ({
     page.locator('.markdown-body img[src="/eidos-file-model.png"]')
   ).toBeVisible()
 
-  await page.locator('.docs-list a[href="#/docs/build"]').click()
-  await expect(page).toHaveURL(/#\/docs\/build$/)
+  await page.locator('.docs-list a[href="/docs/build/"]').click()
+  await expect(page).toHaveURL(/\/docs\/build\/$/)
   await expect(
     page.getByRole("heading", {
       level: 1,
@@ -1516,8 +1544,9 @@ test("keeps the editor first and publishes Eidos File documentation", async ({
   ).toBeVisible()
 
   await page.getByRole("button", { name: "切换到中文" }).click()
-  await expect(page.locator('.site-nav a[href="#/"]')).toHaveText("编辑工具")
-  await expect(page.locator('.site-nav a[href="#/docs/overview"]')).toHaveText(
+  await expect(page).toHaveURL(/\/zh\/docs\/build\/$/)
+  await expect(page.locator('.site-nav a[href="/"]')).toHaveText("编辑工具")
+  await expect(page.locator('.site-nav a[href="/zh/docs/"]')).toHaveText(
     "开放格式"
   )
   await expect(
@@ -1534,4 +1563,5 @@ test("keeps the editor first and publishes Eidos File documentation", async ({
       name: "基于 Eidos File 构建",
     })
   ).toBeVisible()
+  expect(browserErrors).toEqual([])
 })

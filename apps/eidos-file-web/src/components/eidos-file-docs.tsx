@@ -14,6 +14,7 @@ import {
   eidosFileDocumentBySlug,
 } from "../docs/eidos-file-documents"
 import { renderEidosFileMarkdown } from "../docs/markdown"
+import { eidosFileDocsPath } from "../docs/routes"
 import { useI18n } from "../i18n"
 
 interface EidosFileDocsProps {
@@ -35,6 +36,7 @@ const copy = {
     contents: "On this page",
     edition: "Document",
     notice: "Package examples target the published 0.1.0 release.",
+    theme: "Toggle color theme",
   },
   zh: {
     back: "编辑工具",
@@ -47,6 +49,7 @@ const copy = {
     contents: "本文目录",
     edition: "文档",
     notice: "Package 示例对应已公开发布的 0.1.0 版本。",
+    theme: "切换颜色主题",
   },
 } as const
 
@@ -55,11 +58,11 @@ export function EidosFileDocs({
   theme,
   onToggleTheme,
 }: EidosFileDocsProps) {
-  const { locale, setLocale, t } = useI18n()
+  const { locale, t } = useI18n()
   const labels = copy[locale]
   const activeDocument = eidosFileDocumentBySlug(slug)
   const rendered = useMemo(
-    () => renderEidosFileMarkdown(activeDocument.markdown[locale]),
+    () => renderEidosFileMarkdown(activeDocument.markdown[locale], locale),
     [activeDocument, locale]
   )
 
@@ -88,15 +91,15 @@ export function EidosFileDocs({
         {labels.contents}
       </a>
       <header className="launch-header docs-header">
-        <a className="brand-lockup" href="#/" aria-label={labels.back}>
+        <a className="brand-lockup" href="/" aria-label={labels.back}>
           <span className="brand-mark" aria-hidden="true">
             E
           </span>
           <span>Eidos File</span>
         </a>
         <nav className="site-nav" aria-label="Eidos File">
-          <a href="#/">{labels.back}</a>
-          <a className="is-active" href="#/docs/overview">
+          <a href="/">{labels.back}</a>
+          <a className="is-active" href={eidosFileDocsPath("overview", locale)}>
             {labels.docs}
           </a>
           <a
@@ -128,14 +131,21 @@ export function EidosFileDocs({
             className="language-button"
             type="button"
             aria-label={t("languageAction")}
-            onClick={() => setLocale(locale === "en" ? "zh" : "en")}
+            onClick={() =>
+              window.location.assign(
+                eidosFileDocsPath(
+                  activeDocument.slug,
+                  locale === "en" ? "zh" : "en"
+                )
+              )
+            }
           >
             {locale === "en" ? "中文" : "EN"}
           </button>
           <button
             className="icon-button"
             type="button"
-            aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}
+            aria-label={labels.theme}
             onClick={onToggleTheme}
           >
             {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
@@ -157,7 +167,7 @@ export function EidosFileDocs({
                 className={
                   document.slug === activeDocument.slug ? "is-active" : ""
                 }
-                href={`#/docs/${document.slug}`}
+                href={eidosFileDocsPath(document.slug, locale)}
                 key={document.slug}
               >
                 <span>{String(index + 1).padStart(2, "0")}</span>
@@ -184,7 +194,7 @@ export function EidosFileDocs({
             dangerouslySetInnerHTML={{ __html: rendered.html }}
             onClick={handleMarkdownClick}
           />
-          <a className="docs-back-link" href="#/">
+          <a className="docs-back-link" href="/">
             <ArrowLeft size={14} aria-hidden="true" />
             {labels.back}
           </a>

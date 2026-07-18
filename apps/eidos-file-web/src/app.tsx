@@ -1,6 +1,4 @@
 import {
-  lazy,
-  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -70,6 +68,7 @@ import {
 import { useRegisterSW } from "virtual:pwa-register/react"
 
 import { LiveEidosFileDemo } from "./components/live-eidos-file-demo"
+import { EidosFileDocs } from "./components/eidos-file-docs"
 import { PwaUpdatePrompt } from "./components/pwa-update-prompt"
 import { SharedEidosFileEditorView } from "./components/shared-eidos-file-editor-view"
 import {
@@ -97,6 +96,11 @@ import {
 } from "./files/browser-file-adapter"
 import { registerPwaEidosFileHandler } from "./files/pwa-file-handler"
 import { useI18n, type Translator } from "./i18n"
+import {
+  eidosFileDocsPath,
+  eidosFileDocsRouteFromPathname,
+  legacyEidosFileDocsSlugFromHash,
+} from "./docs/routes"
 import { EidosFileWorkerClient } from "./runtime/worker-client"
 import { loadSampleEidosFile } from "./sample-eidos-file"
 import {
@@ -119,18 +123,6 @@ interface OpenSession {
 type Theme = "light" | "dark"
 
 const PWA_UPDATE_PROMPT_CACHE = "eidos-file-pwa-update-prompt-ready-v1"
-
-const EidosFileDocs = lazy(() =>
-  import("./components/eidos-file-docs").then((module) => ({
-    default: module.EidosFileDocs,
-  }))
-)
-
-function docsSlugFromHash(hash: string): string | null {
-  const match = /^#\/docs(?:\/([^#?]+))?/.exec(hash)
-  if (!match) return null
-  return decodeURIComponent(match[1] ?? "overview")
-}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error && error.message
@@ -244,9 +236,7 @@ export function App() {
   const [fieldInsertIndex, setFieldInsertIndex] = useState<number | null>(null)
   const [viewReloadToken, setViewReloadToken] = useState(0)
   const [theme, setTheme] = useState<Theme>(initialTheme)
-  const [docsSlug, setDocsSlug] = useState<string | null>(() =>
-    docsSlugFromHash(window.location.hash)
-  )
+  const docsRoute = eidosFileDocsRouteFromPathname(window.location.pathname)
   const [pwaRegistration, setPwaRegistration] =
     useState<ServiceWorkerRegistration | null>(null)
   const [updatingApp, setUpdatingApp] = useState(false)
@@ -367,10 +357,10 @@ export function App() {
   }, [theme])
 
   useEffect(() => {
-    const updateRoute = () => setDocsSlug(docsSlugFromHash(location.hash))
-    window.addEventListener("hashchange", updateRoute)
-    return () => window.removeEventListener("hashchange", updateRoute)
-  }, [])
+    const legacySlug = legacyEidosFileDocsSlugFromHash(location.hash)
+    if (!legacySlug) return
+    window.location.replace(eidosFileDocsPath(legacySlug, locale))
+  }, [locale])
 
   useEffect(() => {
     if (!pwaRegistration) return
@@ -595,7 +585,7 @@ export function App() {
     setAddPropertyOpen(false)
     setNotice(null)
     dispatch({ type: "RESET" })
-    window.location.hash = "#/"
+    window.history.replaceState(null, "", "/")
   }, [saveState, session, t])
 
   const restoreRecovery = useCallback(async () => {
@@ -1132,23 +1122,14 @@ export function App() {
     />
   )
 
-  if (docsSlug) {
+  if (docsRoute) {
     return (
       <>
-        <Suspense
-          fallback={
-            <main className="docs-loading" role="status">
-              <LoaderCircle className="spin" size={18} aria-hidden="true" />
-              {t("loadingDocs")}
-            </main>
-          }
-        >
-          <EidosFileDocs
-            slug={docsSlug}
-            theme={theme}
-            onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
-          />
-        </Suspense>
+        <EidosFileDocs
+          slug={docsRoute.slug}
+          theme={theme}
+          onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
+        />
         {pwaUpdatePrompt}
       </>
     )
@@ -1168,10 +1149,10 @@ export function App() {
             <span>Eidos File</span>
           </div>
           <nav className="site-nav" aria-label="Eidos File">
-            <a className="is-active" href="#/">
+            <a className="is-active" href="/">
               {t("navEditor")}
             </a>
-            <a href="#/docs/overview">
+            <a href={eidosFileDocsPath("overview", locale)}>
               <BookOpen size={13} aria-hidden="true" />
               {t("navDocs")}
             </a>
@@ -1386,7 +1367,10 @@ export function App() {
             <span>{t("principleDrivers")}</span>
             <span>{t("principleLocal")}</span>
           </div>
-          <a className="section-link" href="#/docs/format">
+          <a
+            className="section-link"
+            href={eidosFileDocsPath("format", locale)}
+          >
             <BookOpen size={14} aria-hidden="true" />
             {t("readEidosFileDocs")}
             <ChevronRight size={13} aria-hidden="true" />
@@ -1489,7 +1473,7 @@ export function App() {
       <header className="editor-titlebar">
         <a
           className="brand-lockup compact"
-          href="#/"
+          href="/"
           aria-label={t("returnHome")}
           onClick={(event) => {
             event.preventDefault()

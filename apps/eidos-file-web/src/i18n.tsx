@@ -395,14 +395,22 @@ interface I18nContextValue {
 
 const I18nContext = createContext<I18nContextValue | null>(null)
 
-function initialLocale(): Locale {
+function browserLocale(): Locale {
   const stored = localStorage.getItem("eidos-file-locale")
   if (stored === "en" || stored === "zh") return stored
   return navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en"
 }
 
-export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocale] = useState<Locale>(initialLocale)
+export function I18nProvider({
+  children,
+  initialLocale,
+}: {
+  children: ReactNode
+  initialLocale?: Locale
+}) {
+  const [locale, setLocale] = useState<Locale>(
+    () => initialLocale ?? browserLocale()
+  )
 
   useEffect(() => {
     localStorage.setItem("eidos-file-locale", locale)

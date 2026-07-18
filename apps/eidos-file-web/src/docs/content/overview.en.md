@@ -8,7 +8,7 @@ Grid, Timeline, Gallery, Kanban, and custom views are different ways to work wit
 
 ## Try it in the editor
 
-1. Return to the [Eidos File editor](#/).
+1. Return to the [Eidos File editor](/).
 2. Choose **Open .eidos file**, or open the included 2,500-row sample.
 3. Edit records or switch between Grid, Gallery, and Kanban.
 4. Save the original file or download a new copy.
@@ -37,4 +37,4 @@ Unsupported custom view types remain in the file. A host may fall back to Grid, 
 
 The `.eidos` file is the source of truth. The editor does not upload file contents to Eidos servers. When unsaved work needs recovery, the browser may retain a private local checkpoint that you can discard from the editor or remove by clearing site data.
 
-Read the [format reference](#/docs/format) for the stable SQLite contract, or [build with Eidos File](#/docs/build) using the published `0.1.0` packages.
+Read the [format reference](format.en.md) for the stable SQLite contract, or [build with Eidos File](build.en.md) using the published `0.1.0` packages.
