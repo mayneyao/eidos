@@ -86,7 +86,7 @@ export default defineConfig({
     reuseEidosPwaIcons(),
     VitePWA({
       injectRegister: "auto",
-      registerType: "autoUpdate",
+      registerType: "prompt",
       manifest: {
         id: "./",
         name: "Eidos File",
@@ -119,9 +119,8 @@ export default defineConfig({
       },
       workbox: {
         cleanupOutdatedCaches: true,
-        clientsClaim: true,
-        skipWaiting: true,
         globPatterns: ["**/*.{js,css,html,png,svg,wasm,eidos}"],
+        importScripts: ["pwa-update-policy.js"],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: "index.html",
       },

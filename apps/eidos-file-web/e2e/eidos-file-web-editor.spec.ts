@@ -348,7 +348,7 @@ test.describe("Chromium original-file editing", () => {
   })
 })
 
-test("publishes an installable manifest with a .eidos file handler", async ({
+test("publishes an installable manifest and prompt-ready service worker", async ({
   browserName,
   request,
 }) => {
@@ -376,7 +376,19 @@ test("publishes an installable manifest with a .eidos file handler", async ({
       launch_type: "multiple-clients",
     })
   )
-  await expect((await request.get("/sw.js")).ok()).toBe(true)
+  const serviceWorkerResponse = await request.get("/sw.js")
+  expect(serviceWorkerResponse.ok()).toBe(true)
+  const serviceWorker = await serviceWorkerResponse.text()
+  expect(serviceWorker).toContain("SKIP_WAITING")
+  expect(serviceWorker).not.toContain("clientsClaim")
+  expect(serviceWorker).not.toMatch(/["']use strict["'];self\.skipWaiting\(\)/)
+  expect(serviceWorker).toContain("pwa-update-policy.js")
+  const updatePolicyResponse = await request.get("/pwa-update-policy.js")
+  expect(updatePolicyResponse.ok()).toBe(true)
+  const updatePolicy = await updatePolicyResponse.text()
+  expect(updatePolicy).toContain("eidos-file-pwa-update-prompt-ready-v1")
+  expect(updatePolicy).toContain("self.clients.claim()")
+  expect(updatePolicy).toContain("self.clients.matchAll")
   await expect((await request.get("/eidos-file-icon-512.png")).ok()).toBe(true)
 })
 

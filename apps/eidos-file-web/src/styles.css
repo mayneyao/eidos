@@ -1164,6 +1164,95 @@
   animation: toast-in 220ms var(--ease-out-expo) both;
 }
 
+.pwa-update-prompt {
+  position: fixed;
+  z-index: 90;
+  top: 4.5rem;
+  right: 1rem;
+  display: grid;
+  width: min(24rem, calc(100vw - 2rem));
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.625rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--popover);
+  box-shadow: 0 0.75rem 2rem
+    color-mix(in oklch, var(--foreground) 12%, transparent);
+  color: var(--popover-foreground);
+  animation: toast-in 220ms var(--ease-out-expo) both;
+}
+
+.pwa-update-icon {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  border-radius: 0.375rem;
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.pwa-update-copy {
+  min-width: 0;
+}
+
+.pwa-update-copy strong {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+}
+
+.pwa-update-copy p {
+  margin: 0.125rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  line-height: 1.05rem;
+}
+
+.pwa-update-copy .pwa-update-error {
+  color: var(--status-danger);
+}
+
+.pwa-update-actions {
+  display: flex;
+  grid-column: 2;
+  justify-content: flex-end;
+  gap: 0.375rem;
+}
+
+.pwa-update-actions button {
+  min-height: 1.875rem;
+  padding: 0 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.pwa-update-later {
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.pwa-update-later:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.pwa-update-actions .pwa-update-now {
+  border-color: var(--foreground);
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.pwa-update-actions .pwa-update-now:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--foreground) 88%, var(--background));
+}
+
 @keyframes toast-in {
   from {
     transform: translateY(0.5rem);
@@ -1377,7 +1466,8 @@
 
 @media (pointer: coarse) {
   .icon-button,
-  .toolbar-button {
+  .toolbar-button,
+  .pwa-update-actions button {
     min-height: 2.75rem;
   }
 }
@@ -2589,6 +2679,20 @@
 }
 
 @media (max-width: 42rem) {
+  .pwa-update-prompt {
+    top: auto;
+    right: max(0.75rem, env(safe-area-inset-right));
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    width: calc(
+      100vw - max(0.75rem, env(safe-area-inset-right)) -
+        max(0.75rem, env(safe-area-inset-left))
+    );
+  }
+
+  body:has(.pwa-update-prompt) .toast {
+    bottom: 12rem;
+  }
+
   .launch-header {
     min-height: 6rem;
     grid-template-columns: minmax(0, 1fr) auto;

@@ -67,8 +67,10 @@ import {
   Sun,
   X,
 } from "lucide-react"
+import { useRegisterSW } from "virtual:pwa-register/react"
 
 import { LiveEidosFileDemo } from "./components/live-eidos-file-demo"
+import { PwaUpdatePrompt } from "./components/pwa-update-prompt"
 import { SharedEidosFileEditorView } from "./components/shared-eidos-file-editor-view"
 import {
   deleteRecoverySession,
@@ -115,6 +117,8 @@ interface OpenSession {
 }
 
 type Theme = "light" | "dark"
+
+const PWA_UPDATE_PROMPT_CACHE = "eidos-file-pwa-update-prompt-ready-v1"
 
 const EidosFileDocs = lazy(() =>
   import("./components/eidos-file-docs").then((module) => ({
@@ -243,6 +247,26 @@ export function App() {
   const [docsSlug, setDocsSlug] = useState<string | null>(() =>
     docsSlugFromHash(window.location.hash)
   )
+  const [pwaRegistration, setPwaRegistration] =
+    useState<ServiceWorkerRegistration | null>(null)
+  const [updatingApp, setUpdatingApp] = useState(false)
+  const [pwaUpdateError, setPwaUpdateError] = useState<string | null>(null)
+  const {
+    needRefresh: [pwaUpdateAvailable, setPwaUpdateAvailable],
+    updateServiceWorker,
+  } = useRegisterSW({
+    onRegisteredSW: (_scriptUrl, registration) => {
+      setPwaRegistration(registration ?? null)
+      if ("caches" in window) {
+        void caches.open(PWA_UPDATE_PROMPT_CACHE).catch((error) => {
+          console.warn("Unable to enable prompted Eidos File updates", error)
+        })
+      }
+    },
+    onRegisterError: (error) => {
+      console.warn("Unable to register the Eidos File service worker", error)
+    },
+  })
   const clientRef = useRef<EidosFileWorkerClient | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const csvFilesRef = useRef(new Map<string, File>())
@@ -347,6 +371,35 @@ export function App() {
     window.addEventListener("hashchange", updateRoute)
     return () => window.removeEventListener("hashchange", updateRoute)
   }, [])
+
+  useEffect(() => {
+    if (!pwaRegistration) return
+    let checking = false
+    const checkForUpdate = async () => {
+      if (checking || !navigator.onLine) return
+      checking = true
+      try {
+        await pwaRegistration.update()
+      } catch (error) {
+        console.warn("Unable to check for an Eidos File update", error)
+      } finally {
+        checking = false
+      }
+    }
+    const checkWhenVisible = () => {
+      if (document.visibilityState === "visible") void checkForUpdate()
+    }
+    const interval = window.setInterval(checkForUpdate, 60 * 60 * 1000)
+    window.addEventListener("focus", checkForUpdate)
+    window.addEventListener("online", checkForUpdate)
+    document.addEventListener("visibilitychange", checkWhenVisible)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener("focus", checkForUpdate)
+      window.removeEventListener("online", checkForUpdate)
+      document.removeEventListener("visibilitychange", checkWhenVisible)
+    }
+  }, [pwaRegistration])
 
   useEffect(() => {
     void getLatestRecoverySession()
@@ -1048,26 +1101,56 @@ export function App() {
     }
   }, [activeTable, activeView, onStructureSnapshot, saveState.phase, snapshot])
 
+  const applyPwaUpdate = useCallback(async () => {
+    setUpdatingApp(true)
+    setPwaUpdateError(null)
+    try {
+      await updateServiceWorker(true)
+    } catch (error) {
+      console.warn("Unable to activate the Eidos File update", error)
+      setPwaUpdateError(t("updateFailed"))
+      setUpdatingApp(false)
+    }
+  }, [t, updateServiceWorker])
+
   const status = statusPresentation(saveState.phase, saveState.mode, t)
   const StatusIcon = status.icon
   const directSupported = supportsDirectFileAccess()
+  const pwaUpdatePrompt = (
+    <PwaUpdatePrompt
+      open={pwaUpdateAvailable}
+      hasUnsavedChanges={Boolean(
+        snapshot && session && hasUnsavedChanges(saveState)
+      )}
+      updating={updatingApp}
+      error={pwaUpdateError}
+      onDismiss={() => {
+        setPwaUpdateAvailable(false)
+        setPwaUpdateError(null)
+      }}
+      onUpdate={() => void applyPwaUpdate()}
+    />
+  )
 
   if (docsSlug) {
     return (
-      <Suspense
-        fallback={
-          <main className="docs-loading" role="status">
-            <LoaderCircle className="spin" size={18} aria-hidden="true" />
-            {t("loadingDocs")}
-          </main>
-        }
-      >
-        <EidosFileDocs
-          slug={docsSlug}
-          theme={theme}
-          onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
-        />
-      </Suspense>
+      <>
+        <Suspense
+          fallback={
+            <main className="docs-loading" role="status">
+              <LoaderCircle className="spin" size={18} aria-hidden="true" />
+              {t("loadingDocs")}
+            </main>
+          }
+        >
+          <EidosFileDocs
+            slug={docsSlug}
+            theme={theme}
+            onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
+          />
+        </Suspense>
+        {pwaUpdatePrompt}
+      </>
     )
   }
 
@@ -1376,6 +1459,8 @@ export function App() {
             <span>{notice ?? saveState.error}</span>
           </div>
         ) : null}
+
+        {pwaUpdatePrompt}
 
         <input
           ref={inputRef}
@@ -1722,6 +1807,8 @@ export function App() {
         }}
         onSave={(property) => saveDerivedProperty(lookupTarget, property)}
       />
+
+      {pwaUpdatePrompt}
 
       {notice ? (
         <div className="toast" role="alert">
