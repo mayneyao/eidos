@@ -522,6 +522,126 @@ test("keeps the landing-page live demo bounded in a narrow window", async ({
   )
 })
 
+test("keeps landing content visible while only the demo canvas loads", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the landing-page loading boundary"
+  )
+  let releaseSample: (() => void) | undefined
+  const sampleGate = new Promise<void>((resolve) => {
+    releaseSample = resolve
+  })
+  await page.route("**/project-tracker.eidos", async (route) => {
+    await sampleGate
+    await route.continue()
+  })
+  await page.setViewportSize({ width: 1_600, height: 1_000 })
+  await installFallbackMode(page)
+  await page.goto("/")
+
+  const launchTitle = page.getByRole("heading", {
+    name: /Open an Eidos File/i,
+  })
+  const demoGrid = page.locator(".live-demo-grid")
+  const demoLoading = demoGrid.locator(".live-demo-loading")
+  await expect(launchTitle).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Open .eidos file" })
+  ).toBeVisible()
+  await expect(demoGrid).toHaveAttribute("aria-busy", "true")
+  await expect(demoLoading).toBeVisible()
+
+  const loadingBoundary = await page.evaluate(() => {
+    const grid = document
+      .querySelector(".live-demo-grid")
+      ?.getBoundingClientRect()
+    const loading = document
+      .querySelector(".live-demo-loading")
+      ?.getBoundingClientRect()
+    return {
+      contained:
+        Boolean(grid && loading) &&
+        loading!.top >= grid!.top &&
+        loading!.right <= grid!.right &&
+        loading!.bottom <= grid!.bottom &&
+        loading!.left >= grid!.left,
+      documentHeight: document.documentElement.scrollHeight,
+    }
+  })
+  expect(loadingBoundary.contained).toBe(true)
+  expect(loadingBoundary.documentHeight).toBeLessThan(10_000)
+
+  releaseSample?.()
+  await page
+    .locator(".live-demo-grid [data-testid='glide-cell-1-0']")
+    .waitFor({ state: "attached" })
+  await expect(demoGrid).toHaveAttribute("aria-busy", "false")
+})
+
+test("keeps the desktop landing workbench bounded after rows load", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the desktop virtualized Grid layout"
+  )
+  await page.setViewportSize({ width: 1_920, height: 1_280 })
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page
+    .locator(".live-demo-grid [data-testid='glide-cell-1-0']")
+    .waitFor({ state: "attached" })
+
+  const geometry = await page.evaluate(() => {
+    const rect = (selector: string) =>
+      document.querySelector(selector)?.getBoundingClientRect().toJSON()
+    const scroller = document.querySelector<HTMLElement>(
+      ".live-demo-grid .dvn-scroller"
+    )
+    return {
+      copy: rect(".launch-copy"),
+      details: rect(".launch-details"),
+      grid: rect(".live-demo-grid"),
+      panel: rect(".launch-panel"),
+      workbench: rect(".launch-workbench"),
+      documentHeight: document.documentElement.scrollHeight,
+      scroller: scroller
+        ? {
+            clientHeight: scroller.clientHeight,
+            scrollHeight: scroller.scrollHeight,
+          }
+        : null,
+    }
+  })
+
+  expect(geometry.workbench?.height).toBeLessThanOrEqual(961)
+  expect(geometry.panel?.bottom).toBeLessThanOrEqual(
+    (geometry.workbench?.bottom ?? 0) + 1
+  )
+  expect(geometry.copy?.top).toBeGreaterThanOrEqual(
+    geometry.workbench?.top ?? 0
+  )
+  expect(geometry.details?.bottom).toBeLessThanOrEqual(
+    (geometry.workbench?.bottom ?? 0) + 1
+  )
+  expect(geometry.grid?.height).toBeLessThan(900)
+  expect(geometry.documentHeight).toBeLessThan(10_000)
+  expect(geometry.scroller?.clientHeight).toBeLessThan(900)
+  expect(geometry.scroller?.scrollHeight).toBeGreaterThan(
+    geometry.scroller?.clientHeight ?? 0
+  )
+  await expect(
+    page.getByRole("heading", { name: /Open an Eidos File/i })
+  ).toBeInViewport()
+  await expect(
+    page.getByRole("button", { name: "Open .eidos file" })
+  ).toBeInViewport()
+})
+
 test("anchors landing-page field menus to their grid headers", async ({
   page,
   browserName,

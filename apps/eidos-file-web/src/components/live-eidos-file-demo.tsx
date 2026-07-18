@@ -190,7 +190,11 @@ export function LiveEidosFileDemo({
           </button>
         </div>
 
-        <div className="live-demo-grid">
+        <div
+          className="live-demo-grid"
+          aria-busy={phase === "loading"}
+          data-demo-phase={phase}
+        >
           {phase === "ready" && table && clientRef.current ? (
             <SharedEidosFileEditorView
               theme={theme}

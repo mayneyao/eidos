@@ -1407,10 +1407,12 @@
   z-index: 1;
   display: grid;
   width: min(90rem, calc(100% - clamp(1.5rem, 4vw, 4rem)));
-  min-height: clamp(42rem, calc(100svh - 5.25rem), 52rem);
+  height: clamp(56rem, calc(100svh - 5.25rem), 60rem);
+  min-height: 0;
   margin: 1rem auto;
   grid-template-columns: minmax(20rem, 0.72fr) minmax(0, 1.55fr);
   align-items: stretch;
+  overflow: hidden;
   animation: workbench-in 320ms var(--ease-out-expo) backwards;
 }
 
@@ -1423,7 +1425,7 @@
 .launch-panel {
   display: flex;
   min-width: 0;
-  min-height: 42rem;
+  min-height: 0;
   flex-direction: column;
   padding: clamp(1.5rem, 3vw, 2.75rem);
   border: 1px solid var(--border);
@@ -1454,7 +1456,7 @@
 .launch-copy {
   max-width: 34rem;
   margin-block: auto;
-  padding-block: clamp(3rem, 8vh, 5.5rem);
+  padding-block: clamp(2.5rem, 6vh, 3.625rem);
 }
 
 .launch-copy h1 {
@@ -1535,8 +1537,9 @@
 .live-demo-section.live-demo-embedded {
   display: grid;
   min-width: 0;
-  min-height: 42rem;
+  min-height: 0;
   grid-template-rows: 3.25rem minmax(0, 1fr);
+  overflow: hidden;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 0;
@@ -1594,9 +1597,10 @@
 .live-demo-embedded .live-demo-frame {
   display: grid;
   width: 100%;
-  height: auto;
+  height: 100%;
   min-height: 0;
   grid-template-rows: 2.5rem minmax(0, 1fr) 1.75rem;
+  overflow: hidden;
   border: 0;
   border-radius: 0;
   box-shadow: none;
