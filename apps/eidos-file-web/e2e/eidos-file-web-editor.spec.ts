@@ -735,7 +735,7 @@ test("keeps navigation and editor controls usable on a phone", async ({
     primaryNavigationRegion.getByRole("link", { name: "Editor" })
   ).toBeVisible()
   await expect(
-    primaryNavigationRegion.getByRole("link", { name: "Guide" })
+    primaryNavigationRegion.getByRole("link", { name: "Open Format" })
   ).toBeVisible()
   await expect(
     primaryNavigationRegion.getByRole("link", { name: /Version Control/ })
@@ -1220,7 +1220,7 @@ test("keeps the editor first and publishes Eidos File documentation", async ({
     page.locator('.site-nav a[href="https://graft.eidos.space/"]')
   ).toHaveText("Version Control")
   await expect(page.locator('.site-nav a[href="#/docs/overview"]')).toHaveText(
-    "Guide"
+    "Open Format"
   )
 
   await page.locator('.site-nav a[href="#/docs/overview"]').click()
@@ -1228,7 +1228,7 @@ test("keeps the editor first and publishes Eidos File documentation", async ({
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Eidos File: one local table, many views",
+      name: "Eidos File: an open, local-first table format",
     })
   ).toBeVisible()
   await expect(page.getByText("Start here")).toBeVisible()
@@ -1257,7 +1257,7 @@ test("keeps the editor first and publishes Eidos File documentation", async ({
   await page.getByRole("button", { name: "切换到中文" }).click()
   await expect(page.locator('.site-nav a[href="#/"]')).toHaveText("编辑工具")
   await expect(page.locator('.site-nav a[href="#/docs/overview"]')).toHaveText(
-    "指南"
+    "开放格式"
   )
   await expect(
     page.locator('.site-nav a[href="https://graft.eidos.space/"]')

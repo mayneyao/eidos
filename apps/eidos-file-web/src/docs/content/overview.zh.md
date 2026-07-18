@@ -1,4 +1,4 @@
-# Eidos File：一个本地多维表，多种视图
+# Eidos File：开放、本地优先的多维表格格式
 
 Eidos File 是保存在单个 `.eidos` 文件中的多维表格。它本质上是标准 SQLite 数据库，同时包含记录、字段类型、关系与持久化视图。这个文件既能在 Eidos 中使用，也能被普通 SQLite 工具检查，还能接入基于公共 package 构建的应用。
 

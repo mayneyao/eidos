@@ -24,7 +24,7 @@ interface EidosFileDocsProps {
 const copy = {
   en: {
     back: "Editor",
-    docs: "Guide",
+    docs: "Open Format",
     graft: "Version Control",
     kicker: "Eidos File guide",
     title: "Open it. Shape it. Build with it.",
@@ -37,7 +37,7 @@ const copy = {
   },
   zh: {
     back: "编辑工具",
-    docs: "指南",
+    docs: "开放格式",
     graft: "版本管理",
     kicker: "Eidos File 指南",
     title: "打开、组织，并基于它构建。",

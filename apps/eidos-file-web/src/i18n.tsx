@@ -10,7 +10,7 @@ import {
 const en = {
   languageAction: "切换到中文",
   navEditor: "Editor",
-  navDocs: "Guide",
+  navDocs: "Open Format",
   navGraft: "Version Control",
   loadingDocs: "Loading Eidos File documentation…",
   heroEyebrow: "Local Eidos File editor",
@@ -195,7 +195,7 @@ type MessageKey = keyof typeof en
 const zh: Record<MessageKey, string> = {
   languageAction: "Switch to English",
   navEditor: "编辑工具",
-  navDocs: "指南",
+  navDocs: "开放格式",
   navGraft: "版本管理",
   loadingDocs: "正在加载 Eidos File 文档…",
   heroEyebrow: "本地 Eidos File 编辑器",

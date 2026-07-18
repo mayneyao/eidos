@@ -1,4 +1,4 @@
-# Eidos File: one local table, many views
+# Eidos File: an open, local-first table format
 
 Eidos File is a multidimensional table stored as one portable `.eidos` file. It is a standard SQLite database containing records, typed fields, relations, and saved views. The file stays useful in Eidos, ordinary SQLite tools, and applications built with the public packages.
 
