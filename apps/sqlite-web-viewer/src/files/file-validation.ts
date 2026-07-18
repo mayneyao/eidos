@@ -1,4 +1,4 @@
-export const SUPPORTED_SQLITE_EXTENSIONS = [
+export const BUILT_IN_SQLITE_EXTENSIONS = [
   ".eidos",
   ".sqlite",
   ".sqlite3",
@@ -6,11 +6,7 @@ export const SUPPORTED_SQLITE_EXTENSIONS = [
   ".db3",
 ] as const
 
-export const SQLITE_FILE_ACCEPT = [
-  ...SUPPORTED_SQLITE_EXTENSIONS,
-  "application/vnd.sqlite3",
-  "application/x-sqlite3",
-].join(",")
+export const SUPPORTED_SQLITE_EXTENSIONS = BUILT_IN_SQLITE_EXTENSIONS
 
 const SQLITE_HEADER = new TextEncoder().encode("SQLite format 3\0")
 const SQLITE_MINIMUM_HEADER_BYTES = 100
@@ -30,18 +26,46 @@ export class SQLiteFileValidationError extends Error {
   }
 }
 
-export function hasSupportedSQLiteExtension(fileName: string): boolean {
+export function allSQLiteExtensions(
+  customExtensions: readonly string[] = []
+): string[] {
+  return [
+    ...new Set([
+      ...BUILT_IN_SQLITE_EXTENSIONS,
+      ...customExtensions.map((extension) => extension.toLowerCase()),
+    ]),
+  ]
+}
+
+export function sqliteFileAccept(customExtensions: readonly string[] = []) {
+  return [
+    ...allSQLiteExtensions(customExtensions),
+    "application/vnd.sqlite3",
+    "application/x-sqlite3",
+  ].join(",")
+}
+
+export const SQLITE_FILE_ACCEPT = sqliteFileAccept()
+
+export function hasSupportedSQLiteExtension(
+  fileName: string,
+  customExtensions: readonly string[] = []
+): boolean {
   const normalized = fileName.toLowerCase()
-  return SUPPORTED_SQLITE_EXTENSIONS.some((extension) =>
+  return allSQLiteExtensions(customExtensions).some((extension) =>
     normalized.endsWith(extension)
   )
 }
 
-export function assertSupportedSQLiteFileName(fileName: string): void {
-  if (hasSupportedSQLiteExtension(fileName)) return
+export function assertSupportedSQLiteFileName(
+  fileName: string,
+  customExtensions: readonly string[] = []
+): void {
+  if (hasSupportedSQLiteExtension(fileName, customExtensions)) return
+  const accepted = allSQLiteExtensions(customExtensions)
   throw new SQLiteFileValidationError(
     "unsupported-extension",
-    `“${fileName}” is not a supported SQLite file. Choose .eidos, .sqlite, .sqlite3, .db, or .db3.`
+    `“${fileName}” is not a supported SQLite file. Choose ${accepted.slice(0, -1).join(", ")}, or ${accepted.at(-1)}; you can also add its suffix in file settings.`
   )
 }
 
@@ -66,8 +90,11 @@ export function assertSQLiteHeader(bytes: ArrayBuffer | Uint8Array): void {
   )
 }
 
-export async function validateSQLiteFile(file: File): Promise<void> {
-  assertSupportedSQLiteFileName(file.name)
+export async function validateSQLiteFile(
+  file: File,
+  customExtensions: readonly string[] = []
+): Promise<void> {
+  assertSupportedSQLiteFileName(file.name, customExtensions)
   assertSQLiteHeader(
     await file.slice(0, SQLITE_MINIMUM_HEADER_BYTES).arrayBuffer()
   )

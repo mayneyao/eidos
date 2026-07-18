@@ -16,6 +16,8 @@ import "@glideapps/glide-data-grid/dist/index.css"
 const PAGE_SIZE = 200
 const PAGE_OVERSCAN = 1
 const MAX_CACHED_PAGES = 10
+const MIN_COLUMN_WIDTH = 72
+const MAX_COLUMN_WIDTH = 720
 
 interface ViewerDataGridProps {
   client: SQLiteViewerClient
@@ -72,6 +74,10 @@ function columnWidth(type: string): number {
   return /INT|REAL|FLOA|DOUB|NUM|DEC|BOOL/i.test(type) ? 132 : 180
 }
 
+function columnWidthKey(relationName: string, columnId: string): string {
+  return JSON.stringify([relationName, columnId])
+}
+
 export function ViewerDataGrid({
   client,
   details,
@@ -85,6 +91,7 @@ export function ViewerDataGrid({
   const accessRef = useRef(new Map<number, number>())
   const clockRef = useRef(0)
   const generationRef = useRef(0)
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
   const [revision, setRevision] = useState(0)
 
   const visibleColumns = useMemo(
@@ -98,17 +105,39 @@ export function ViewerDataGrid({
             {
               id: "__sqlite_rowid__",
               title: details.rowidAlias,
-              width: 96,
+              width:
+                columnWidths[
+                  columnWidthKey(details.relation.name, "__sqlite_rowid__")
+                ] ?? 96,
             },
           ]
         : []),
       ...visibleColumns.map((column) => ({
         id: column.name,
         title: column.name,
-        width: columnWidth(column.declaredType),
+        width:
+          columnWidths[columnWidthKey(details.relation.name, column.name)] ??
+          columnWidth(column.declaredType),
       })),
     ],
-    [details.rowidAlias, visibleColumns]
+    [columnWidths, details.relation.name, details.rowidAlias, visibleColumns]
+  )
+
+  const onColumnResize = useCallback<
+    NonNullable<DataEditorProps["onColumnResize"]>
+  >(
+    (column, newSize) => {
+      const id = typeof column.id === "string" ? column.id : column.title
+      const width = Math.min(
+        MAX_COLUMN_WIDTH,
+        Math.max(MIN_COLUMN_WIDTH, Math.round(newSize))
+      )
+      const key = columnWidthKey(details.relation.name, id)
+      setColumnWidths((current) =>
+        current[key] === width ? current : { ...current, [key]: width }
+      )
+    },
+    [details.relation.name]
   )
 
   const loadPage = useCallback(
@@ -216,6 +245,9 @@ export function ViewerDataGrid({
         getCellContent={getCellContent}
         getCellsForSelection
         headerHeight={34}
+        maxColumnWidth={MAX_COLUMN_WIDTH}
+        minColumnWidth={MIN_COLUMN_WIDTH}
+        onColumnResize={onColumnResize}
         onPaste={false}
         onVisibleRegionChanged={onVisibleRegionChanged}
         rowHeight={34}

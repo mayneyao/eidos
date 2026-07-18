@@ -3,6 +3,7 @@ import {
   assertSupportedSQLiteFileName,
   hasSQLiteHeader,
   hasSupportedSQLiteExtension,
+  sqliteFileAccept,
   SQLiteFileValidationError,
 } from "./file-validation"
 
@@ -29,6 +30,16 @@ describe("SQLite file validation", () => {
     expect(() => assertSupportedSQLiteFileName("database.txt")).toThrowError(
       SQLiteFileValidationError
     )
+  })
+
+  it("accepts configured suffixes in validation and the file picker", () => {
+    expect(hasSupportedSQLiteExtension("collection.ANKI2", [".anki2"])).toBe(
+      true
+    )
+    expect(() =>
+      assertSupportedSQLiteFileName("collection.anki2", [".anki2"])
+    ).not.toThrow()
+    expect(sqliteFileAccept([".anki2"])).toContain(".anki2")
   })
 
   it("recognizes the exact SQLite format 3 header", () => {

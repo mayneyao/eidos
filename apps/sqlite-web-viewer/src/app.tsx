@@ -3,6 +3,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type DragEvent,
@@ -16,14 +17,23 @@ import {
   HardDrive,
   LoaderCircle,
   Moon,
+  Settings2,
   ShieldCheck,
   Sun,
 } from "lucide-react"
 
+import { ExtensionSettings } from "./components/extension-settings"
 import { ObjectSidebar } from "./components/object-sidebar"
 import { SchemaInspector } from "./components/schema-inspector"
 import {
-  SQLITE_FILE_ACCEPT,
+  addCustomSQLiteExtension,
+  loadCustomSQLiteExtensions,
+  saveCustomSQLiteExtensions,
+} from "./files/custom-extensions"
+import {
+  allSQLiteExtensions,
+  BUILT_IN_SQLITE_EXTENSIONS,
+  sqliteFileAccept,
   SQLiteFileValidationError,
   validateSQLiteFile,
 } from "./files/file-validation"
@@ -112,9 +122,29 @@ export function App({
   } | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [theme, setTheme] = useState<ThemeName>(initialTheme)
+  const [customExtensions, setCustomExtensions] = useState(
+    loadCustomSQLiteExtensions
+  )
+  const [extensionSettingsOpen, setExtensionSettingsOpen] = useState(false)
+  const [extensionPersistenceAvailable, setExtensionPersistenceAvailable] =
+    useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
   const dragDepthRef = useRef(0)
   const detailsRequestRef = useRef(0)
+  const acceptedExtensions = useMemo(
+    () => allSQLiteExtensions(customExtensions),
+    [customExtensions]
+  )
+  const fileAccept = useMemo(
+    () => sqliteFileAccept(customExtensions),
+    [customExtensions]
+  )
+
+  useEffect(() => {
+    setExtensionPersistenceAvailable(
+      saveCustomSQLiteExtensions(customExtensions)
+    )
+  }, [customExtensions])
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark")
@@ -168,7 +198,7 @@ export function App({
       setPhase("opening")
       setError(null)
       try {
-        await validateSQLiteFile(file)
+        await validateSQLiteFile(file, customExtensions)
         const bytes = await file.arrayBuffer()
         workerOpenStarted = true
         const nextSnapshot = await client.open(file.name, bytes)
@@ -190,8 +220,26 @@ export function App({
         setOpeningFile(null)
       }
     },
-    [client, snapshot]
+    [client, customExtensions, snapshot]
   )
+
+  const closeExtensionSettings = useCallback(
+    () => setExtensionSettingsOpen(false),
+    []
+  )
+
+  const addExtension = useCallback(
+    (value: string) => {
+      setCustomExtensions(addCustomSQLiteExtension(customExtensions, value))
+    },
+    [customExtensions]
+  )
+
+  const removeExtension = useCallback((extension: string) => {
+    setCustomExtensions((current) =>
+      current.filter((candidate) => candidate !== extension)
+    )
+  }, [])
 
   const onGridError = useCallback((reason: unknown) => {
     setError(errorMessage(reason))
@@ -236,7 +284,7 @@ export function App({
         Skip to database content
       </a>
       <input
-        accept={SQLITE_FILE_ACCEPT}
+        accept={fileAccept}
         className="visually-hidden"
         onChange={onInputChange}
         ref={inputRef}
@@ -244,6 +292,10 @@ export function App({
       />
       {snapshot && phase !== "idle" ? (
         <ViewerHeader
+          extensionSettingsOpen={extensionSettingsOpen}
+          onConfigureExtensions={() =>
+            setExtensionSettingsOpen((current) => !current)
+          }
           onOpen={() => inputRef.current?.click()}
           onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
           snapshot={snapshot}
@@ -251,13 +303,31 @@ export function App({
         />
       ) : (
         <LaunchHeader
+          extensionSettingsOpen={extensionSettingsOpen}
+          onConfigureExtensions={() =>
+            setExtensionSettingsOpen((current) => !current)
+          }
           onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
           theme={theme}
         />
       )}
 
+      {extensionSettingsOpen && (
+        <ExtensionSettings
+          customExtensions={customExtensions}
+          onAdd={addExtension}
+          onClose={closeExtensionSettings}
+          onRemove={removeExtension}
+          persistenceAvailable={extensionPersistenceAvailable}
+        />
+      )}
+
       {phase === "idle" && (
-        <LaunchScreen onOpen={() => inputRef.current?.click()} />
+        <LaunchScreen
+          customExtensions={customExtensions}
+          onConfigureExtensions={() => setExtensionSettingsOpen(true)}
+          onOpen={() => inputRef.current?.click()}
+        />
       )}
       {phase === "opening" && !snapshot && <OpeningScreen file={openingFile} />}
       {phase === "error" && !snapshot && (
@@ -328,7 +398,11 @@ export function App({
         <div className="drop-overlay" role="status">
           <FileUp aria-hidden size={22} />
           <strong>Drop the SQLite file to inspect it</strong>
-          <span>.eidos · .sqlite · .sqlite3 · .db · .db3</span>
+          <span>
+            {acceptedExtensions.slice(0, 5).join(" · ")}
+            {acceptedExtensions.length > 5 &&
+              ` · +${acceptedExtensions.length - 5} custom`}
+          </span>
         </div>
       )}
     </div>
@@ -336,26 +410,40 @@ export function App({
 }
 
 function LaunchHeader({
+  extensionSettingsOpen,
+  onConfigureExtensions,
   onToggleTheme,
   theme,
 }: {
+  extensionSettingsOpen: boolean
+  onConfigureExtensions(): void
   onToggleTheme(): void
   theme: ThemeName
 }) {
   return (
     <header className="app-header launch-app-header">
       <Brand />
-      <ThemeButton onClick={onToggleTheme} theme={theme} />
+      <div className="header-actions">
+        <ExtensionSettingsButton
+          expanded={extensionSettingsOpen}
+          onClick={onConfigureExtensions}
+        />
+        <ThemeButton onClick={onToggleTheme} theme={theme} />
+      </div>
     </header>
   )
 }
 
 function ViewerHeader({
+  extensionSettingsOpen,
+  onConfigureExtensions,
   onOpen,
   onToggleTheme,
   snapshot,
   theme,
 }: {
+  extensionSettingsOpen: boolean
+  onConfigureExtensions(): void
   onOpen(): void
   onToggleTheme(): void
   snapshot: DatabaseSnapshot
@@ -380,6 +468,10 @@ function ViewerHeader({
         </span>
       </div>
       <div className="header-actions">
+        <ExtensionSettingsButton
+          expanded={extensionSettingsOpen}
+          onClick={onConfigureExtensions}
+        />
         <button className="header-button" onClick={onOpen} type="button">
           <FolderOpen aria-hidden size={14} />
           <span>Open another</span>
@@ -423,7 +515,38 @@ function ThemeButton({
   )
 }
 
-function LaunchScreen({ onOpen }: { onOpen(): void }) {
+function ExtensionSettingsButton({
+  expanded,
+  onClick,
+}: {
+  expanded: boolean
+  onClick(): void
+}) {
+  return (
+    <button
+      aria-expanded={expanded}
+      aria-label="Configure SQLite file suffixes"
+      className="icon-button"
+      data-extension-settings-trigger
+      onClick={onClick}
+      title="Configure SQLite file suffixes"
+      type="button"
+    >
+      <Settings2 aria-hidden size={15} />
+    </button>
+  )
+}
+
+function LaunchScreen({
+  customExtensions,
+  onConfigureExtensions,
+  onOpen,
+}: {
+  customExtensions: readonly string[]
+  onConfigureExtensions(): void
+  onOpen(): void
+}) {
+  const shownCustomExtensions = customExtensions.slice(0, 3)
   return (
     <main className="launch-main" id="viewer-main">
       <div className="launch-rail" aria-hidden>
@@ -435,8 +558,8 @@ function LaunchScreen({ onOpen }: { onOpen(): void }) {
         <h1>See what is inside the database.</h1>
         <p className="launch-lede">
           Open SQLite files directly in your browser—including{" "}
-          <code>.eidos</code>. Browse rows, schema, indexes, and foreign keys
-          without changing the file.
+          <code>.eidos</code> and custom suffixes you configure. Browse rows,
+          schema, indexes, and foreign keys without changing the file.
         </p>
         <button className="open-file-button" onClick={onOpen} type="button">
           <FolderOpen aria-hidden size={17} />
@@ -444,11 +567,27 @@ function LaunchScreen({ onOpen }: { onOpen(): void }) {
           <kbd>⌘O</kbd>
         </button>
         <div className="format-line" aria-label="Supported formats">
-          <span>.eidos</span>
-          <span>.sqlite</span>
-          <span>.sqlite3</span>
-          <span>.db</span>
-          <span>.db3</span>
+          {BUILT_IN_SQLITE_EXTENSIONS.map((extension) => (
+            <span key={extension}>{extension}</span>
+          ))}
+          {shownCustomExtensions.map((extension) => (
+            <span className="custom-format" key={extension}>
+              {extension}
+            </span>
+          ))}
+          {customExtensions.length > shownCustomExtensions.length && (
+            <span className="custom-format">
+              +{customExtensions.length - shownCustomExtensions.length}
+            </span>
+          )}
+          <button
+            data-extension-settings-trigger
+            onClick={onConfigureExtensions}
+            type="button"
+          >
+            <Settings2 aria-hidden size={11} />
+            Custom suffixes
+          </button>
         </div>
       </section>
       <aside className="trust-notes" aria-label="Privacy and safety">

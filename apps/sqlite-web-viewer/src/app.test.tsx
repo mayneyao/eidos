@@ -27,6 +27,7 @@ vi.mock("@glideapps/glide-data-grid", async (importOriginal) => {
 })
 
 import { App } from "./app"
+import { CUSTOM_SQLITE_EXTENSIONS_STORAGE_KEY } from "./files/custom-extensions"
 
 function relation(
   name: string,
@@ -181,6 +182,71 @@ describe("SQLite viewer app", () => {
       expect(
         container.querySelector("[data-testid='mock-data-grid']")
       ).not.toBeNull()
+    )
+  })
+
+  it("keeps resized data columns controlled by Glide Data Grid", async () => {
+    const client = mockClient(snapshot([relation("entries")]))
+    await render(client)
+    await choose(validFile())
+    await waitFor(() => expect(gridMock.props).not.toBeNull())
+
+    const initialColumns = gridMock.props?.columns as GlideDataGrid.GridColumn[]
+    const resize = gridMock.props?.onColumnResize as NonNullable<
+      GlideDataGrid.DataEditorProps["onColumnResize"]
+    >
+    const titleColumn = initialColumns.find((column) => column.id === "title")!
+
+    await act(async () => resize(titleColumn, 248, 1, 248))
+
+    const resizedColumns = gridMock.props?.columns as GlideDataGrid.GridColumn[]
+    const resizedTitle = resizedColumns.find((column) => column.id === "title")!
+    expect("width" in resizedTitle ? resizedTitle.width : undefined).toBe(248)
+    expect(gridMock.props?.minColumnWidth).toBe(72)
+    expect(gridMock.props?.maxColumnWidth).toBe(720)
+  })
+
+  it("persists a custom suffix and opens a matching SQLite file", async () => {
+    const client = mockClient(snapshot([relation("entries")]))
+    await render(client)
+
+    const settingsButton = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Configure SQLite file suffixes"]'
+    )!
+    await act(async () =>
+      settingsButton.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    )
+    const suffixInput = container.querySelector<HTMLInputElement>(
+      "#custom-sqlite-extension"
+    )!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(suffixInput, "anki2")
+      suffixInput.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    const addButton = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Add"
+    )!
+    await act(async () =>
+      addButton.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    )
+    await flush()
+
+    expect(
+      JSON.parse(
+        localStorage.getItem(CUSTOM_SQLITE_EXTENSIONS_STORAGE_KEY) ?? "[]"
+      )
+    ).toEqual([".anki2"])
+    expect(
+      container.querySelector<HTMLInputElement>('input[type="file"]')?.accept
+    ).toContain(".anki2")
+
+    await choose(validFile("collection.anki2"))
+    expect(client.open).toHaveBeenCalledWith(
+      "collection.anki2",
+      expect.any(ArrayBuffer)
     )
   })
 
