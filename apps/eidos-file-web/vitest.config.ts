@@ -12,6 +12,10 @@ export default defineConfig({
         directory,
         "../../packages/eidos-file-ui/src/styles.css"
       ),
+      "@eidos.space/eidos-file-ui/eidos-file-sheet-tabs": path.resolve(
+        directory,
+        "../../packages/eidos-file-ui/src/eidos-file-sheet-tabs.tsx"
+      ),
       "@eidos.space/eidos-file": path.resolve(
         directory,
         "../../packages/eidos-file/src/index.ts"

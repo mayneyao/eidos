@@ -463,6 +463,46 @@ test("opens the bundled sample without a picker", async ({ page }) => {
   ).toBeVisible()
 })
 
+test("uses the filtered row count for the Grid virtual height", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the SQLite worker count and Grid virtual-scroll boundary"
+  )
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await page.locator("[data-testid='glide-cell-1-0']").waitFor({
+    state: "attached",
+  })
+
+  await page.getByRole("button", { name: "Filter Eidos File rows" }).click()
+  const filterPopover = page.locator("[data-eidos-file-filter-popover]")
+  await filterPopover.getByRole("button", { name: "Add filter" }).click()
+  await page.getByRole("button", { name: "Add condition" }).click()
+  const filterSelects = filterPopover.getByRole("combobox")
+  await filterSelects.nth(1).click()
+  await page.getByRole("option", { name: "Estimate", exact: true }).click()
+  await filterSelects.nth(2).click()
+  await page.getByRole("option", { name: "is greater than" }).click()
+  await filterPopover.getByPlaceholder("Value").fill("10")
+  await filterPopover.getByRole("button", { name: "Apply" }).click()
+
+  const scroller = page.locator(".eidos-file-content .dvn-scroller")
+  await expect
+    .poll(() => scroller.evaluate((element) => element.scrollHeight))
+    .toBeLessThan(30_000)
+  await scroller.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+    element.dispatchEvent(new Event("scroll"))
+  })
+  await expect(page.locator("[data-testid='glide-cell-1-575']")).toContainText(
+    "Project 2495"
+  )
+})
+
 test("keeps the landing-page live demo bounded in a narrow window", async ({
   page,
   browserName,
@@ -1062,15 +1102,48 @@ test("matches Desktop table, view, Grid edit, field placement, and row delete wo
   await expect(
     page.getByRole("menuitem", { name: "Delete view" })
   ).toHaveAttribute("data-disabled", "")
-  await page.keyboard.press("Escape")
+  const protectedViewMenu = page.getByRole("menu")
+  await protectedViewMenu.press("Escape")
+  await expect(protectedViewMenu).toBeHidden()
 
   await page.getByRole("button", { name: "Add Eidos File table" }).click()
   await page.getByRole("button", { name: /^New table/ }).click()
   await page.getByLabel("Name").fill("Browser table")
   await page.getByRole("button", { name: "Create", exact: true }).click()
+  const browserTableTab = page.getByRole("tab", {
+    name: "Browser table",
+    exact: true,
+  })
+  await expect(browserTableTab).toHaveAttribute("aria-selected", "true")
+  await browserTableTab.click({ button: "right" })
   await expect(
-    page.getByRole("tab", { name: "Browser table", exact: true })
-  ).toHaveAttribute("aria-selected", "true")
+    page.getByRole("menuitem", { name: "Rename table" })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("menuitem", { name: "Delete table" })
+  ).toBeVisible()
+  await page.getByRole("menuitem", { name: "Rename table" }).click()
+  await page.getByLabel("Name").fill("Reviewed table")
+  await page.getByRole("button", { name: "Rename", exact: true }).click()
+  const reviewedTableTab = page.getByRole("tab", {
+    name: "Reviewed table",
+    exact: true,
+  })
+  await expect(reviewedTableTab).toBeVisible()
+  await reviewedTableTab.click({ button: "right" })
+  await page.getByRole("menuitem", { name: "Delete table" }).click()
+  await expect(page.getByText("Delete table “Reviewed table”?")).toBeVisible()
+  await page.getByRole("button", { name: "Delete table", exact: true }).click()
+  await expect(reviewedTableTab).toBeHidden()
+  const projectsTableTab = page.getByRole("tab", {
+    name: "Projects",
+    exact: true,
+  })
+  await expect(projectsTableTab).toHaveAttribute("aria-selected", "true")
+  await projectsTableTab.click({ button: "right" })
+  await expect(
+    page.getByRole("menuitem", { name: "Delete table" })
+  ).toHaveAttribute("data-disabled", "")
 })
 
 test("creates Formula, Relation, and Lookup fields through the shared editor UI", async ({

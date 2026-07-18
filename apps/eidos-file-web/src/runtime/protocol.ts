@@ -20,6 +20,7 @@ import type {
   CreateEidosFileTableInput,
   CreateEidosFileViewInput,
   UpdateEidosFileFieldInput,
+  UpdateEidosFileTableInput,
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 
@@ -108,6 +109,12 @@ export type EidosFileWorkerAction =
     }
   | { type: "delete-field"; tableId: string; columnName: string }
   | { type: "create-table"; input: CreateEidosFileTableInput }
+  | {
+      type: "update-table"
+      tableId: string
+      changes: UpdateEidosFileTableInput
+    }
+  | { type: "delete-table"; tableId: string }
   | {
       type: "create-view"
       tableId: string

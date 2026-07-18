@@ -1,6 +1,7 @@
-import type { ReactNode } from "react"
-import type { EidosFileTableInfo } from "@eidos.space/eidos-file"
-import { EidosFileSheetTabStrip } from "@eidos.space/eidos-file-ui/eidos-file-editor-chrome"
+import {
+  EidosFileSheetTabs as SharedEidosFileSheetTabs,
+  type EidosFileSheetTabsProps,
+} from "@eidos.space/eidos-file-ui/eidos-file-sheet-tabs"
 import { Pencil, Trash2 } from "lucide-react"
 
 import {
@@ -11,49 +12,28 @@ import {
   NativeContextMenuTrigger,
 } from "@/components/ui/native-context-menu"
 
-export function EidosFileSheetTabs({
-  tables,
-  activeTableId,
-  disabled,
-  status,
-  createAction,
-  onSelect,
-  onRename,
-  onDelete,
-}: {
-  tables: EidosFileTableInfo[]
-  activeTableId: string | null
-  disabled?: boolean
-  status?: ReactNode
-  createAction?: ReactNode
-  onSelect: (tableId: string) => void
-  onRename?: (table: EidosFileTableInfo) => void
-  onDelete?: (table: EidosFileTableInfo) => void
-}) {
+export * from "@eidos.space/eidos-file-ui/eidos-file-sheet-tabs"
+
+export function EidosFileSheetTabs(props: EidosFileSheetTabsProps) {
   return (
-    <EidosFileSheetTabStrip
-      tables={tables}
-      activeTableId={activeTableId}
-      disabled={disabled}
-      status={status}
-      createAction={createAction}
-      onSelect={onSelect}
-      renderTab={(table, tab) => (
+    <SharedEidosFileSheetTabs
+      {...props}
+      renderTab={(table, tab, actions) => (
         <NativeContextMenu>
           <NativeContextMenuTrigger asChild>{tab}</NativeContextMenuTrigger>
           <NativeContextMenuContent className="w-44">
             <NativeContextMenuItem
-              disabled={disabled || !onRename}
-              onClick={() => onRename?.(table)}
+              disabled={actions.disabled}
+              onClick={actions.rename}
             >
               <Pencil className="mr-2 h-3.5 w-3.5" />
               Rename table
             </NativeContextMenuItem>
             <NativeContextMenuSeparator />
             <NativeContextMenuItem
-              disabled={disabled || !onDelete}
+              disabled={!actions.canDelete}
               className="text-destructive focus:text-destructive"
-              onClick={() => onDelete?.(table)}
+              onClick={actions.delete}
             >
               <Trash2 className="mr-2 h-3.5 w-3.5" />
               Delete table

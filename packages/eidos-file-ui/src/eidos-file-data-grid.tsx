@@ -79,9 +79,9 @@ export function EidosFileDataGrid({
         offset,
         limit,
         query,
-        search.trim() ? undefined : table.rowCount
+        search.trim() || view?.filter ? undefined : table.rowCount
       ),
-    [query, search, source, table.rowCount, table.table.id]
+    [query, search, source, table.rowCount, table.table.id, view?.filter]
   )
 
   const loadColumnStats = useCallback(

@@ -106,6 +106,8 @@ const source: EidosFileEditorDataSource = {
   addField: vi.fn(),
   deleteField: vi.fn(),
   createTable: vi.fn(),
+  updateTable: vi.fn(),
+  deleteTable: vi.fn(),
   createView: vi.fn(),
   duplicateView: vi.fn(),
   deleteView: vi.fn(),

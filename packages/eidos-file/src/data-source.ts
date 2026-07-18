@@ -18,6 +18,7 @@ import type {
   EidosFileRowsDeleteResult,
   EidosFileSnapshot,
   UpdateEidosFileFieldInput,
+  UpdateEidosFileTableInput,
   UpdateEidosFileViewInput,
 } from "./types"
 
@@ -89,6 +90,11 @@ export interface EidosFileDataSource {
   ): Promise<EidosFileSnapshot>
   deleteField(tableId: string, columnName: string): Promise<EidosFileSnapshot>
   createTable(input: CreateEidosFileTableInput): Promise<EidosFileSnapshot>
+  updateTable(
+    tableId: string,
+    changes: UpdateEidosFileTableInput
+  ): Promise<EidosFileSnapshot>
+  deleteTable(tableId: string): Promise<EidosFileSnapshot>
   createView(
     tableId: string,
     input: CreateEidosFileViewInput
@@ -243,6 +249,19 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     input: CreateEidosFileTableInput
   ): Promise<EidosFileSnapshot> {
     this.runtime.createTable(input)
+    return this.getSnapshot()
+  }
+
+  async updateTable(
+    tableId: string,
+    changes: UpdateEidosFileTableInput
+  ): Promise<EidosFileSnapshot> {
+    this.runtime.updateTable(tableId, changes)
+    return this.getSnapshot()
+  }
+
+  async deleteTable(tableId: string): Promise<EidosFileSnapshot> {
+    this.runtime.deleteTable(tableId)
     return this.getSnapshot()
   }
 

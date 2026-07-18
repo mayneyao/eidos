@@ -22,9 +22,9 @@ import {
   EidosFileEditorContent,
   EidosFileEditorRoot,
   EidosFileEditorWorkbar,
-  EidosFileSheetTabStrip,
 } from "@eidos.space/eidos-file-ui/eidos-file-editor-chrome"
 import { EidosFileSheetCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-sheet-create-popover"
+import { EidosFileSheetTabs } from "@eidos.space/eidos-file-ui/eidos-file-sheet-tabs"
 import { EidosFileFieldCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-field-create-popover"
 import {
   EidosFileFormulaEditorPopover,
@@ -943,6 +943,39 @@ export function App() {
     [onStructureSnapshot, snapshot]
   )
 
+  const renameTable = useCallback(
+    async (tableId: string, name: string) => {
+      const client = clientRef.current
+      if (!client) return
+      onStructureSnapshot(await client.updateTable(tableId, { name }))
+    },
+    [onStructureSnapshot]
+  )
+
+  const deleteTable = useCallback(
+    async (tableId: string) => {
+      const client = clientRef.current
+      if (!client || !snapshot) return
+      const next = await client.deleteTable(tableId)
+      onStructureSnapshot(next)
+      if (activeTableId === tableId) {
+        const nextTableId =
+          next.metadata.defaultTableId ?? next.tables[0]?.table.id ?? null
+        setActiveTableId(nextTableId)
+        setPropertyField(null)
+        setFormulaTarget(null)
+        setLookupTarget(null)
+      }
+      setActiveViews((current) => {
+        if (!(tableId in current)) return current
+        const nextViews = { ...current }
+        delete nextViews[tableId]
+        return nextViews
+      })
+    },
+    [activeTableId, onStructureSnapshot, snapshot]
+  )
+
   const createView = useCallback(
     async (name: string, type: string) => {
       const client = clientRef.current
@@ -1710,7 +1743,7 @@ export function App() {
           />
         </EidosFileEditorContent>
 
-        <EidosFileSheetTabStrip
+        <EidosFileSheetTabs
           tables={snapshot.tables.map((table) => table.table)}
           activeTableId={activeTable.table.id}
           disabled={saveState.phase === "saving"}
@@ -1735,6 +1768,8 @@ export function App() {
             setFormulaTarget(null)
             setLookupTarget(null)
           }}
+          onRename={(table, name) => renameTable(table.id, name)}
+          onDelete={(table) => deleteTable(table.id)}
           status={
             <span
               className="flex items-center gap-1.5"

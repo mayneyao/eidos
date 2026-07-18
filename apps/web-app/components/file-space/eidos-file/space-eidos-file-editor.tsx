@@ -1418,48 +1418,61 @@ export function SpaceEidosFileEditor({
     setStructureDialog("field")
   }, [])
 
-  const renameStructure = useCallback(
-    (name: string): Promise<void> => {
-      if (!renameTarget) return Promise.resolve()
-      return enqueueMutation(
-        () => updateTable(filePath, renameTarget.tableId, { name }),
+  const renameTableInEidosFile = useCallback(
+    (tableId: string, name: string): Promise<void> =>
+      enqueueMutation(
+        () => updateTable(filePath, tableId, { name }),
         applySnapshot,
         {
           errorMode: "local",
-          statusKey: eidosFileMutationStatusKey(
-            "rename-table",
-            renameTarget.tableId
-          ),
+          statusKey: eidosFileMutationStatusKey("rename-table", tableId),
         }
-      ).then(() => undefined)
+      ).then(() => undefined),
+    [applySnapshot, enqueueMutation, filePath, updateTable]
+  )
+
+  const deleteTableInEidosFile = useCallback(
+    (tableId: string): Promise<void> =>
+      enqueueMutation(() => deleteTable(filePath, tableId), applySnapshot, {
+        errorMode: "local",
+        statusKey: eidosFileMutationStatusKey("delete-table", tableId),
+      }).then(() => undefined),
+    [applySnapshot, deleteTable, enqueueMutation, filePath]
+  )
+
+  const renameStructure = useCallback(
+    (name: string): Promise<void> => {
+      if (!renameTarget) return Promise.resolve()
+      return renameTableInEidosFile(renameTarget.tableId, name)
     },
-    [applySnapshot, enqueueMutation, filePath, renameTarget, updateTable]
+    [renameTableInEidosFile, renameTarget]
   )
 
   const deleteStructure = useCallback((): Promise<void> => {
     if (!deleteTarget) return Promise.resolve()
+    if (deleteTarget.kind === "table") {
+      return deleteTableInEidosFile(deleteTarget.tableId).then(() => {
+        setDeleteTarget(null)
+      })
+    }
     const operation = () =>
-      deleteTarget.kind === "table"
-        ? deleteTable(filePath, deleteTarget.tableId)
-        : deleteField(filePath, deleteTarget.tableId, deleteTarget.columnName)
+      deleteField(filePath, deleteTarget.tableId, deleteTarget.columnName)
     return enqueueMutation(operation, applySnapshot, {
       statusKey: eidosFileMutationStatusKey(
-        deleteTarget.kind === "table" ? "delete-table" : "delete-field",
+        "delete-field",
         deleteTarget.tableId,
-        deleteTarget.kind === "field" ? deleteTarget.columnName : undefined
+        deleteTarget.columnName
       ),
     }).then(() => {
-      if (deleteTarget.kind === "field") {
-        setFieldPropertyColumn((current) =>
-          current === deleteTarget.columnName ? null : current
-        )
-      }
+      setFieldPropertyColumn((current) =>
+        current === deleteTarget.columnName ? null : current
+      )
       setDeleteTarget(null)
     })
   }, [
     applySnapshot,
     deleteField,
-    deleteTable,
+    deleteTableInEidosFile,
     deleteTarget,
     enqueueMutation,
     filePath,
@@ -2317,20 +2330,8 @@ export function SpaceEidosFileEditor({
             />
           }
           onSelect={setActiveTableId}
-          onRename={(table) =>
-            setRenameTarget({
-              kind: "table",
-              tableId: table.id,
-              name: table.name,
-            })
-          }
-          onDelete={(table) =>
-            setDeleteTarget({
-              kind: "table",
-              tableId: table.id,
-              name: table.name,
-            })
-          }
+          onRename={(table, name) => renameTableInEidosFile(table.id, name)}
+          onDelete={(table) => deleteTableInEidosFile(table.id)}
           status={
             pendingMutations > 0 ? (
               <span className="flex items-center gap-1">

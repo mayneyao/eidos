@@ -19,6 +19,7 @@ import type {
   CreateEidosFileTableInput,
   CreateEidosFileViewInput,
   UpdateEidosFileFieldInput,
+  UpdateEidosFileTableInput,
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import type { EidosFileEditorDataSource } from "@eidos.space/eidos-file-ui"
@@ -230,6 +231,17 @@ export class EidosFileWorkerClient implements EidosFileEditorDataSource {
 
   createTable(input: CreateEidosFileTableInput): Promise<EidosFileSnapshot> {
     return this.call({ type: "create-table", input })
+  }
+
+  updateTable(
+    tableId: string,
+    changes: UpdateEidosFileTableInput
+  ): Promise<EidosFileSnapshot> {
+    return this.call({ type: "update-table", tableId, changes })
+  }
+
+  deleteTable(tableId: string): Promise<EidosFileSnapshot> {
+    return this.call({ type: "delete-table", tableId })
   }
 
   createView(

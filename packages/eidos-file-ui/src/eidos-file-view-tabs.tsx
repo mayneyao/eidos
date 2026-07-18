@@ -1,4 +1,10 @@
-import { useRef, useState, type ComponentProps, type ReactNode } from "react"
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from "react"
 import type { EidosFileViewInfo } from "@eidos.space/eidos-file"
 import { Pencil, Settings2, Trash2 } from "lucide-react"
 
@@ -46,16 +52,28 @@ function EidosFileViewTabContextMenu({
   tab: ReactNode
   actions: EidosFileViewTabActions
 }) {
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false)
+    }
+    window.addEventListener("keydown", closeOnEscape, true)
+    return () => window.removeEventListener("keydown", closeOnEscape, true)
+  }, [open])
+
   const afterMenuClose = (action: () => void) => {
     window.setTimeout(action, 0)
   }
 
   return (
-    <ContextMenu>
+    <ContextMenu onOpenChange={setOpen}>
       <ContextMenuTrigger asChild>{tab}</ContextMenuTrigger>
       <ContextMenuContent
         className="w-44"
         onCloseAutoFocus={(event) => event.preventDefault()}
+        onEscapeKeyDown={() => setOpen(false)}
       >
         <ContextMenuItem
           disabled={actions.disabled}

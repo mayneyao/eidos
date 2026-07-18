@@ -407,6 +407,8 @@ export interface EidosFileDataSource {
     // (undocumented)
     deleteRows(tableId: string, rowIds: string[]): Promise<EidosFileRowsDeleteResult>;
     // (undocumented)
+    deleteTable(tableId: string): Promise<EidosFileSnapshot>;
+    // (undocumented)
     deleteView(viewId: string): Promise<EidosFileSnapshot>;
     // (undocumented)
     duplicateView(viewId: string, name?: string): Promise<EidosFileSnapshot>;
@@ -427,6 +429,8 @@ export interface EidosFileDataSource {
     updateField(tableId: string, columnName: string, changes: UpdateEidosFileFieldInput): Promise<EidosFileSnapshot>;
     // (undocumented)
     updateRow(tableId: string, rowId: string, changes: EidosFileRow): Promise<EidosFileRowMutationResult>;
+    // (undocumented)
+    updateTable(tableId: string, changes: UpdateEidosFileTableInput): Promise<EidosFileSnapshot>;
     // (undocumented)
     updateView(viewId: string, changes: UpdateEidosFileViewInput): Promise<EidosFileSnapshot>;
 }
@@ -1015,6 +1019,8 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     // (undocumented)
     deleteRows(tableId: string, rowIds: string[]): Promise<EidosFileRowsDeleteResult>;
     // (undocumented)
+    deleteTable(tableId: string): Promise<EidosFileSnapshot>;
+    // (undocumented)
     deleteView(viewId: string): Promise<EidosFileSnapshot>;
     // (undocumented)
     duplicateView(viewId: string, name?: string): Promise<EidosFileSnapshot>;
@@ -1040,6 +1046,8 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     updateField(tableId: string, columnName: string, changes: UpdateEidosFileFieldInput): Promise<EidosFileSnapshot>;
     // (undocumented)
     updateRow(tableId: string, rowId: string, changes: EidosFileRow): Promise<EidosFileRowMutationResult>;
+    // (undocumented)
+    updateTable(tableId: string, changes: UpdateEidosFileTableInput): Promise<EidosFileSnapshot>;
     // (undocumented)
     updateView(viewId: string, changes: UpdateEidosFileViewInput): Promise<EidosFileSnapshot>;
 }

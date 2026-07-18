@@ -293,8 +293,25 @@ describe("Eidos File navigation hierarchy", () => {
       )
         .find((item) => item.textContent?.includes("Rename table"))
         ?.click()
+      await Promise.resolve()
     })
-    expect(onRenameTable).toHaveBeenCalledWith(tables[1])
+    const tableNameInput = Array.from(
+      document.body.querySelectorAll<HTMLInputElement>("input")
+    ).find((input) => input.value === "Projects")
+    await act(async () => {
+      if (tableNameInput) {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )?.set?.call(tableNameInput, "Roadmap")
+        tableNameInput.dispatchEvent(new Event("input", { bubbles: true }))
+      }
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.trim() === "Rename")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(onRenameTable).toHaveBeenCalledWith(tables[1], "Roadmap")
 
     await act(async () => {
       projectsTab?.dispatchEvent(
@@ -313,6 +330,14 @@ describe("Eidos File navigation hierarchy", () => {
       )
         .find((item) => item.textContent?.includes("Delete table"))
         ?.click()
+      await Promise.resolve()
+    })
+    expect(document.body.textContent).toContain("Delete table “Projects”?")
+    await act(async () => {
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.trim() === "Delete table")
+        ?.click()
+      await Promise.resolve()
     })
     expect(onDeleteTable).toHaveBeenCalledWith(tables[1])
   })

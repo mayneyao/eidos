@@ -302,6 +302,12 @@ async function handleAction(action: EidosFileWorkerAction) {
     case "create-table":
       runtime.createTable(action.input)
       return snapshot()
+    case "update-table":
+      runtime.updateTable(action.tableId, action.changes)
+      return snapshot()
+    case "delete-table":
+      runtime.deleteTable(action.tableId)
+      return snapshot()
     case "create-view":
       runtime.createView(action.tableId, action.input)
       return snapshot()

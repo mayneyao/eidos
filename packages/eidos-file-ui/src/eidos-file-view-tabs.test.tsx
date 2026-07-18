@@ -136,11 +136,14 @@ describe("EidosFileViewTabs", () => {
     expect(protectedDelete?.hasAttribute("data-disabled")).toBe(true)
 
     await act(async () => {
-      document.dispatchEvent(
-        new KeyboardEvent("keydown", { bubbles: true, key: "Escape" })
-      )
+      document.body
+        .querySelector<HTMLElement>('[role="menu"]')
+        ?.dispatchEvent(
+          new KeyboardEvent("keydown", { bubbles: true, key: "Escape" })
+        )
       await Promise.resolve()
     })
+    expect(document.body.querySelector('[role="menu"]')).toBeNull()
     await openViewMenu(container, "gallery")
     await act(async () => {
       Array.from(

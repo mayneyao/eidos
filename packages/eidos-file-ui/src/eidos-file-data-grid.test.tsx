@@ -76,6 +76,79 @@ describe("EidosFileDataGrid", () => {
     container.remove()
   })
 
+  it("does not reuse the unfiltered table count for a filtered Grid", async () => {
+    const filter = {
+      type: "group" as const,
+      conjunction: "and" as const,
+      children: [
+        {
+          type: "rule" as const,
+          field: "estimate",
+          operator: "greater-than" as const,
+          value: 10,
+        },
+      ],
+    }
+    const getPage = vi.fn().mockResolvedValue({
+      tableId: "tasks",
+      offset: 0,
+      limit: 100,
+      total: 3,
+      rows: [],
+    })
+    const source = {
+      getPage,
+      calculateColumnStats: vi.fn(),
+      insertRow: vi.fn(),
+      updateRow: vi.fn(),
+      deleteRowRanges: vi.fn(),
+      deleteRows: vi.fn(),
+      updateField: vi.fn(),
+      addField: vi.fn(),
+      deleteField: vi.fn(),
+      createTable: vi.fn(),
+      updateTable: vi.fn(),
+      deleteTable: vi.fn(),
+      createView: vi.fn(),
+      duplicateView: vi.fn(),
+      deleteView: vi.fn(),
+      reorderViews: vi.fn(),
+      updateView: vi.fn(),
+      getSnapshot: vi.fn(),
+    } as unknown as EidosFileDataSource
+
+    await act(async () => {
+      root.render(
+        <EidosFileDataGrid
+          source={source}
+          table={{ ...table, rowCount: 2_500 }}
+          view={{
+            id: "filtered-grid",
+            name: "Filtered Grid",
+            type: "grid",
+            tableId: "tasks",
+            query: "",
+            properties: null,
+            filter,
+            sorts: [],
+            orderMap: null,
+            hiddenFields: [],
+            position: 0,
+            createdAt: "2026-07-19 00:00:00",
+            updatedAt: "2026-07-19 00:00:00",
+          }}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const loadPage = mocks.props?.loadPage
+    expect(typeof loadPage).toBe("function")
+    await (loadPage as (offset: number, limit: number) => Promise<void>)(0, 100)
+
+    expect(getPage).toHaveBeenCalledWith("tasks", 0, 100, { filter }, undefined)
+  })
+
   it("searches relation targets through the public data source contract", async () => {
     const getPage = vi.fn().mockResolvedValue({
       tableId: "people",
@@ -95,6 +168,8 @@ describe("EidosFileDataGrid", () => {
       addField: vi.fn(),
       deleteField: vi.fn(),
       createTable: vi.fn(),
+      updateTable: vi.fn(),
+      deleteTable: vi.fn(),
       createView: vi.fn(),
       duplicateView: vi.fn(),
       deleteView: vi.fn(),

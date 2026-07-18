@@ -26,6 +26,7 @@ export default defineConfig({
     "src/eidos-file-csv-import-popover.tsx",
     "src/eidos-file-csv-operation-progress.tsx",
     "src/eidos-file-sheet-create-popover.tsx",
+    "src/eidos-file-sheet-tabs.tsx",
     "src/eidos-file-view-selector.tsx",
     "src/eidos-file-view-tabs.tsx",
     "src/eidos-file-query-toolbar.tsx",
