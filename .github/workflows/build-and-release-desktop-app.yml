@@ -68,7 +68,7 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y xvfb
           fi
-          xvfb-run --auto-servernum pnpm --filter eidos smoke:file-extension-runtime
+          xvfb-run --auto-servernum pnpm --filter eidos exec electron --no-sandbox scripts/file-extension-runtime-smoke.mjs
 
       - name: Upload frontend build artifacts
         uses: actions/upload-artifact@v4

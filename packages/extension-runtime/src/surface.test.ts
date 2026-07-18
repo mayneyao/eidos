@@ -28,6 +28,7 @@ describe("extension surface bootstrap", () => {
     expect(source).toContain('type: "eidos-file-page-request"')
     expect(source).toContain('message.type === "eidos-file-page-result"')
     expect(source).toContain('message.type === "eidos-file-context-changed"')
+    expect(source).toContain("eidosFile: eidosFileApi")
     expect(source).toContain('type: "surface-log"')
     expect(source).toContain('Object.defineProperty(globalThis, "console"')
     expect(source).toContain('send({ type: "ready"')
