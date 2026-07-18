@@ -954,7 +954,7 @@ export async function exportLegacySpace(
         })
         exportedFieldCount += 1
       }
-      for (const view of sourceTable.views) {
+      for (const [viewIndex, view] of sourceTable.views.entries()) {
         eidosFileRuntime.createView(sourceTable.id, {
           id: view.id,
           name: view.name,
@@ -975,7 +975,10 @@ export async function exportLegacySpace(
             view.hiddenFields,
             columnMap
           ) as string[],
-          position: view.position,
+          // Legacy view ordering used arbitrary REAL values, including
+          // negatives and midpoints. Eidos File positions are non-negative
+          // integers, so preserve the inspected order with stable ordinals.
+          position: viewIndex + 1,
         })
         exportedViewCount += 1
       }

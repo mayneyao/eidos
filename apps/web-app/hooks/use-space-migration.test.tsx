@@ -7,57 +7,49 @@ import { useSpaceMigration } from "./use-space-migration"
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
-const listLegacyExtensionsMock = vi.hoisted(() => vi.fn())
-const exportLegacyExtensionMock = vi.hoisted(() => vi.fn())
+const createPlanMock = vi.hoisted(() => vi.fn())
+const executePlanMock = vi.hoisted(() => vi.fn())
+const discardPlanMock = vi.hoisted(() => vi.fn())
 
 vi.mock("@/lib/env", () => ({ isDesktopMode: true }))
 
-const candidate = {
-  id: "ext-1",
-  slug: "task-counter",
-  name: "Task Counter",
-  description: null,
-  type: "script",
-  version: "0.1.0",
-  previouslyEnabled: false,
-  portability: {
-    readiness: "manual-port" as const,
-    reasonCode: "manual-command-port" as const,
-    legacyContribution: "tableAction",
-    candidateContribution: "command" as const,
-    metadataState: "valid" as const,
-    sourceState: "typescript" as const,
-    legacyFileExtensions: [],
-    summary: "Manual command port",
-    manualSteps: [],
+const handle = {
+  id: "plan-1",
+  spaceId: "legacy",
+  spaceName: "Legacy Space",
+  plan: {
+    targetRoot: "/tmp/new-space",
+    issues: [],
   },
 }
 
-describe("useSpaceMigration legacy extension exports", () => {
+const result = {
+  status: "completed",
+  targetRoot: "/tmp/new-space",
+}
+
+describe("useSpaceMigration", () => {
   let container: HTMLDivElement
   let root: Root
   let latest: ReturnType<typeof useSpaceMigration> | null = null
 
-  function Harness({ spaceId }: { spaceId?: string }) {
-    latest = useSpaceMigration(spaceId)
+  function Harness() {
+    latest = useSpaceMigration("legacy")
     return null
   }
 
   beforeEach(() => {
     latest = null
-    listLegacyExtensionsMock.mockReset().mockResolvedValue([candidate])
-    exportLegacyExtensionMock.mockReset().mockResolvedValue({
-      targetDirectory: "/tmp/export/task-counter",
-    })
+    createPlanMock.mockReset().mockResolvedValue(handle)
+    executePlanMock.mockReset().mockResolvedValue(result)
+    discardPlanMock.mockReset()
     Object.defineProperty(window, "eidos", {
       configurable: true,
       value: {
-        on: vi.fn(() => "listener-1"),
-        off: vi.fn(),
         spaceMigration: {
-          listLegacyExtensions: listLegacyExtensionsMock,
-          exportLegacyExtension: exportLegacyExtensionMock,
-          discardPlan: vi.fn(),
+          createPlan: createPlanMock,
+          executePlan: executePlanMock,
+          discardPlan: discardPlanMock,
         },
       },
     })
@@ -71,37 +63,28 @@ describe("useSpaceMigration legacy extension exports", () => {
     container.remove()
   })
 
-  it("discovers and exports legacy extensions through the desktop API", async () => {
-    await act(async () => {
-      root.render(<Harness spaceId="legacy" />)
-      await Promise.resolve()
-      await Promise.resolve()
-    })
-
-    expect(listLegacyExtensionsMock).toHaveBeenCalledWith("legacy")
-    expect(latest?.legacyExtensions).toEqual([candidate])
-    expect(latest?.loadingLegacyExtensions).toBe(false)
+  it("can execute a newly created plan without an intermediate render", async () => {
+    await act(async () => root.render(<Harness />))
 
     await act(async () => {
-      await latest?.exportLegacyExtension("ext-1", "/tmp/export")
+      await latest?.createPlan("/tmp/new-space")
+      await latest?.executePlan()
     })
 
-    expect(exportLegacyExtensionMock).toHaveBeenCalledWith(
-      "legacy",
-      "ext-1",
-      "/tmp/export"
-    )
-    expect(latest?.exportingExtensionId).toBe(null)
-    expect(latest?.extensionError).toBe(null)
+    expect(createPlanMock).toHaveBeenCalledWith("legacy", "/tmp/new-space")
+    expect(executePlanMock).toHaveBeenCalledWith("plan-1")
+    expect(latest?.result).toEqual(result)
   })
 
-  it("does not inspect extensions without a legacy Space ID", async () => {
+  it("discards a pending plan when the Settings view unmounts", async () => {
+    await act(async () => root.render(<Harness />))
     await act(async () => {
-      root.render(<Harness />)
-      await Promise.resolve()
+      await latest?.createPlan("/tmp/new-space")
     })
 
-    expect(listLegacyExtensionsMock).not.toHaveBeenCalled()
-    expect(latest?.legacyExtensions).toEqual([])
+    act(() => root.unmount())
+
+    expect(discardPlanMock).toHaveBeenCalledWith("plan-1")
+    root = createRoot(container)
   })
 })

@@ -560,6 +560,19 @@ export function planLegacySpaceMigration(
       const references = table.references.filter(
         (reference) => !invalidReferenceParticipant(reference)
       )
+      for (const view of table.views) {
+        if (
+          view.position !== null &&
+          (!Number.isSafeInteger(view.position) || view.position < 0)
+        ) {
+          issues.push({
+            severity: "warning",
+            code: "view-position-normalized",
+            message: `View ${table.name}.${view.name} uses legacy position ${view.position}; its relative order will be preserved with a non-negative integer position`,
+            sourceId: view.id,
+          })
+        }
+      }
       for (const [index, field] of table.fields.entries()) {
         const plannedField = plannedFields[index]
         if (field.columnName !== plannedField.targetColumnName) {

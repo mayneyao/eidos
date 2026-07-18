@@ -9,9 +9,10 @@ import { LegacySpaceMigrationSettings } from "./legacy-space-migration-settings"
 
 const createPlanMock = vi.hoisted(() => vi.fn())
 const executePlanMock = vi.hoisted(() => vi.fn())
-const exportLegacyExtensionMock = vi.hoisted(() => vi.fn())
-const resetMock = vi.hoisted(() => vi.fn())
 const toastMock = vi.hoisted(() => vi.fn())
+const selectFolderMock = vi.hoisted(() => vi.fn())
+const registerSpaceMock = vi.hoisted(() => vi.fn())
+const switchSpaceMock = vi.hoisted(() => vi.fn())
 const migrationState = vi.hoisted(() => ({
   value: {} as Record<string, unknown>,
 }))
@@ -41,7 +42,7 @@ vi.mock("@/components/ui/use-toast", () => ({
   useToast: () => ({ toast: toastMock }),
 }))
 
-function previewHandle(issues: Array<Record<string, unknown>> = []) {
+function planHandle(issues: Array<Record<string, unknown>> = []) {
   return {
     id: "plan-1",
     spaceId: "legacy",
@@ -49,15 +50,13 @@ function previewHandle(issues: Array<Record<string, unknown>> = []) {
     plan: {
       targetRoot: "/tmp/new-space",
       issues,
-      summary: {
-        documentCount: 4,
-        tableCount: 2,
-        rowCount: 120,
-        assetCount: 3,
-        extensionCount: 2,
-      },
     },
   }
+}
+
+const migrationResult = {
+  status: "completed",
+  targetRoot: "/tmp/new-space",
 }
 
 describe("LegacySpaceMigrationSettings", () => {
@@ -65,67 +64,30 @@ describe("LegacySpaceMigrationSettings", () => {
   let root: Root
 
   beforeEach(() => {
-    createPlanMock.mockReset()
-    executePlanMock.mockReset()
-    exportLegacyExtensionMock.mockReset()
-    resetMock.mockReset()
+    createPlanMock.mockReset().mockResolvedValue(planHandle())
+    executePlanMock.mockReset().mockResolvedValue(migrationResult)
     toastMock.mockReset()
+    selectFolderMock.mockReset().mockResolvedValue("/tmp/new-space")
+    registerSpaceMock.mockReset().mockResolvedValue({
+      success: true,
+      space: { id: "file-space" },
+    })
+    switchSpaceMock.mockReset().mockResolvedValue(undefined)
     migrationState.value = {
       available: true,
-      planHandle: previewHandle([
-        {
-          severity: "error",
-          code: "asset-symlink-unsupported",
-          message: "Asset symlink cannot be exported safely",
-        },
-        {
-          severity: "warning",
-          code: "asset-missing",
-          message: "One asset is missing",
-        },
-      ]),
       result: null,
       operation: null,
-      progress: null,
       error: null,
-      legacyExtensions: [
-        {
-          id: "ext-1",
-          slug: "task-counter",
-          name: "Task Counter",
-          description: "Counts tasks",
-          type: "script",
-          version: "0.1.0",
-          previouslyEnabled: true,
-          portability: {
-            readiness: "manual-port",
-            reasonCode: "manual-command-port",
-            legacyContribution: "tableAction",
-            candidateContribution: "command",
-            metadataState: "valid",
-            sourceState: "typescript-and-javascript",
-            legacyFileExtensions: [],
-            summary: "Can be redesigned as a v1 command.",
-            manualSteps: [],
-          },
-        },
-      ],
-      loadingLegacyExtensions: false,
-      exportingExtensionId: null,
-      extensionError: null,
       createPlan: createPlanMock,
       executePlan: executePlanMock,
-      exportLegacyExtension: exportLegacyExtensionMock,
-      reset: resetMock,
     }
     Object.defineProperty(window, "eidos", {
       configurable: true,
       value: {
-        selectFolder: vi.fn().mockResolvedValue("/tmp/selected"),
-        showInFileManager: vi.fn(),
+        selectFolder: selectFolderMock,
         spaceMgmt: {
-          registerSpace: vi.fn(),
-          switchSpace: vi.fn(),
+          registerSpace: registerSpaceMock,
+          switchSpace: switchSpaceMock,
         },
       },
     })
@@ -139,144 +101,84 @@ describe("LegacySpaceMigrationSettings", () => {
     container.remove()
   })
 
-  it("shows the preview and blocks export when the plan has errors", async () => {
+  it("renders one migration action without extension UI", async () => {
     await act(async () => root.render(<LegacySpaceMigrationSettings />))
 
-    expect(container.textContent).toContain("4")
-    expect(container.textContent).toContain("120")
-    expect(container.textContent).toContain("Extension archives")
-    expect(container.textContent).toContain(
+    const buttons = container.querySelectorAll("button")
+    expect(buttons).toHaveLength(1)
+    expect(buttons[0]?.textContent).toContain("Migrate Space")
+    expect(container.textContent).not.toContain("Legacy extensions")
+    expect(container.textContent).not.toContain("Extension archives")
+  })
+
+  it("plans, migrates, registers, and opens the new Space from one action", async () => {
+    await act(async () => root.render(<LegacySpaceMigrationSettings />))
+
+    await act(async () => {
+      container.querySelector("button")?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(selectFolderMock).toHaveBeenCalledTimes(1)
+    expect(createPlanMock).toHaveBeenCalledWith("/tmp/new-space")
+    expect(executePlanMock).toHaveBeenCalledTimes(1)
+    expect(registerSpaceMock).toHaveBeenCalledWith("/tmp/new-space", {
+      customName: "Legacy Space",
+      mode: "file",
+    })
+    expect(switchSpaceMock).toHaveBeenCalledWith("file-space")
+  })
+
+  it("reports a blocking plan issue without exposing a preview", async () => {
+    createPlanMock.mockResolvedValue(
+      planHandle([
+        {
+          severity: "error",
+          code: "asset-symlink-unsupported",
+          message: "Asset symlink cannot be exported safely",
+        },
+      ])
+    )
+    await act(async () => root.render(<LegacySpaceMigrationSettings />))
+
+    await act(async () => {
+      container.querySelector("button")?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(executePlanMock).not.toHaveBeenCalled()
+    expect(toastMock).toHaveBeenCalledWith({
+      title: "Unable to migrate Space",
+      description: "Asset symlink cannot be exported safely",
+      variant: "destructive",
+    })
+    expect(container.textContent).not.toContain(
       "Asset symlink cannot be exported safely"
     )
-    const exportButton = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("Export Space")
-    )
-    expect(exportButton?.disabled).toBe(true)
+    expect(container.querySelectorAll("button")).toHaveLength(1)
   })
 
-  it("chooses another target and executes a valid plan", async () => {
+  it("reuses the single action to open an already migrated Space", async () => {
     migrationState.value = {
       ...migrationState.value,
-      planHandle: previewHandle(),
-    }
-    createPlanMock.mockResolvedValue(previewHandle())
-    executePlanMock.mockResolvedValue({ status: "completed" })
-    await act(async () => root.render(<LegacySpaceMigrationSettings />))
-
-    await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent?.includes("Change target"))
-        ?.click()
-      await Promise.resolve()
-    })
-    expect(createPlanMock).toHaveBeenCalledWith("/tmp/selected")
-
-    await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent?.includes("Export Space"))
-        ?.click()
-      await Promise.resolve()
-    })
-    expect(executePlanMock).toHaveBeenCalledTimes(1)
-  })
-
-  it("shows legacy extension archive progress", async () => {
-    migrationState.value = {
-      ...migrationState.value,
-      operation: "exporting",
-      progress: {
-        phase: "extensions",
-        completed: 1,
-        total: 2,
-        currentPath: ".eidos/legacy-extensions/hello-world",
-      },
+      result: migrationResult,
     }
     await act(async () => root.render(<LegacySpaceMigrationSettings />))
 
-    expect(container.textContent).toContain("Archiving legacy extensions…")
-    expect(container.textContent).toContain(
-      ".eidos/legacy-extensions/hello-world"
+    expect(container.querySelector("button")?.textContent).toContain(
+      "Open migrated Space"
     )
-  })
-
-  it("shows portability inline and exports one source archive", async () => {
-    exportLegacyExtensionMock.mockResolvedValue({
-      targetDirectory: "/tmp/selected/task-counter",
-    })
-    await act(async () => root.render(<LegacySpaceMigrationSettings />))
-
-    expect(container.textContent).toContain("Legacy extensions")
-    expect(container.textContent).toContain("Task Counter")
-    expect(container.textContent).toContain("Manual port")
-    expect(container.textContent).toContain("tableAction → command")
-
     await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent?.includes("Export source archive"))
-        ?.click()
+      container.querySelector("button")?.click()
       await Promise.resolve()
       await Promise.resolve()
     })
 
-    expect(exportLegacyExtensionMock).toHaveBeenCalledWith(
-      "ext-1",
-      "/tmp/selected"
-    )
-    expect(window.eidos.showInFileManager).toHaveBeenCalledWith(
-      "/tmp/selected/task-counter"
-    )
-    expect(toastMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Extension source archive exported",
-      })
-    )
-  })
-
-  it("shows an actionable per-extension report after exporting a Space", async () => {
-    migrationState.value = {
-      ...migrationState.value,
-      planHandle: null,
-      result: {
-        status: "completed",
-        targetRoot: "/tmp/new-space",
-        extensionMigrations: [
-          {
-            legacyExtensionId: "ext-1",
-            legacySlug: "task-counter",
-            displayName: "Task Counter",
-            previouslyEnabled: true,
-            archiveRelativePath: ".eidos/legacy-extensions/task-counter--ext-1",
-            archiveDigest: `sha256:${"a".repeat(64)}`,
-            executable: false,
-            portability: {
-              readiness: "manual-port",
-              summary: "Can be redesigned as a v1 command.",
-            },
-            nextAction: {
-              kind: "port-manually",
-              command:
-                'npx @eidos.space/extension-cli port "./.eidos/legacy-extensions/task-counter--ext-1" --publisher your-publisher --out-dir "./extension-ports"',
-            },
-          },
-        ],
-      },
-    }
-    await act(async () => root.render(<LegacySpaceMigrationSettings />))
-
-    expect(container.textContent).toContain("Legacy extension next steps")
-    expect(container.textContent).toContain("Task Counter")
-    expect(container.textContent).toContain("Previously enabled")
-    expect(container.textContent).toContain(
-      "npx @eidos.space/extension-cli port"
-    )
-
-    await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent?.includes("Show archive"))
-        ?.click()
-    })
-    expect(window.eidos.showInFileManager).toHaveBeenCalledWith(
-      "/tmp/new-space/.eidos/legacy-extensions/task-counter--ext-1"
-    )
+    expect(selectFolderMock).not.toHaveBeenCalled()
+    expect(registerSpaceMock).toHaveBeenCalledTimes(1)
+    expect(switchSpaceMock).toHaveBeenCalledWith("file-space")
   })
 })

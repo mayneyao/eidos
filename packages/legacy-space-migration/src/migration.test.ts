@@ -439,6 +439,70 @@ describe("legacy Space migration planning", () => {
     ).toEqual(plan)
   })
 
+  it("normalizes negative and fractional legacy view positions without changing their order", async () => {
+    const fixture = createLegacyFixture()
+    roots.push(fixture.sourceRoot)
+    const database = new Database(fixture.databasePath)
+    database
+      .prepare("UPDATE eidos__views SET position = ? WHERE id = ?")
+      .run(-2, "view-tasks")
+    database
+      .prepare(
+        `INSERT INTO eidos__views
+          (id, name, type, table_id, query, properties, filter,
+           order_map, hidden_fields, position)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        "view-tasks-secondary",
+        "Secondary",
+        "grid",
+        "tasks",
+        "SELECT * FROM tb_tasks",
+        "{}",
+        null,
+        '{"title":0}',
+        "[]",
+        2015.5
+      )
+    database.close()
+
+    const targetParent = mkdtempSync(
+      path.join(tmpdir(), "eidos-view-position-target-")
+    )
+    roots.push(targetParent)
+    const targetRoot = path.join(targetParent, "export")
+    const plan = planLegacySpaceMigration(
+      inspectLegacySpace(fixture.sourceRoot),
+      { targetRoot }
+    )
+
+    expect(
+      plan.issues
+        .filter((issue) => issue.code === "view-position-normalized")
+        .map((issue) => issue.sourceId)
+    ).toEqual(["view-tasks", "view-tasks-secondary"])
+
+    const result = await exportLegacySpace(plan, {
+      migrationId: "view-position-export",
+    })
+    expect(result.validation.viewCountMatches).toBe(true)
+
+    const eidosFile = openEidosFile(path.join(targetRoot, "main.eidos"), {
+      readonly: true,
+    })
+    expect(
+      eidosFile.listViews("tasks").map((view) => ({
+        id: view.id,
+        position: view.position,
+      }))
+    ).toEqual([
+      { id: "view-tasks", position: 1 },
+      { id: "view-tasks-secondary", position: 2 },
+    ])
+    eidosFile.close()
+  })
+
   it("preserves an extension record even when no executable code was stored", async () => {
     const fixture = createLegacyFixture()
     roots.push(fixture.sourceRoot)
