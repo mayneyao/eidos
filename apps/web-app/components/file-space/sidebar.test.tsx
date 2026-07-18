@@ -323,6 +323,102 @@ describe("FileSpaceSidebar work modes", () => {
     ).toBe(true)
   })
 
+  it("keeps Files selected when Agent is the only content tab", async () => {
+    useTabStore.setState({
+      tabs: [
+        {
+          id: "agent-tab",
+          url: "/agent/conversation-1",
+          title: "Agent",
+          lastAccessTime: 1,
+        },
+      ],
+      panels: [
+        {
+          id: "main-panel",
+          tabIds: ["agent-tab"],
+          activeTabId: "agent-tab",
+        },
+      ],
+      activePanelId: "main-panel",
+    })
+    await renderSidebar()
+    expect(modeButton(container, "Agent")?.ariaSelected).toBe("true")
+    const agentPanel = container.querySelector("#file-space-agent-panel")
+
+    await clickMode("Agent")
+    expect(container.querySelector("#file-space-agent-panel")).toBe(agentPanel)
+
+    await clickMode("Files")
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(useTabStore.getState().getActiveTabId()).toBe("agent-tab")
+    expect(modeButton(container, "Files")?.ariaSelected).toBe("true")
+
+    await clickMode("Agent")
+    await clickMode("Version")
+    expect(useTabStore.getState().getActiveTabId()).toBe("agent-tab")
+    expect(modeButton(container, "Version")?.ariaSelected).toBe("true")
+    expect(container.querySelector("#file-space-agent-panel")).toBe(agentPanel)
+  })
+
+  it("restores the prior file tab through Agent, Version, and Files", async () => {
+    await renderSidebar()
+    await clickMode("Agent")
+    expect(modeButton(container, "Agent")?.ariaSelected).toBe("true")
+
+    await clickMode("Version")
+    expect(useTabStore.getState().getActiveTabId()).toBe("file-tab")
+    expect(modeButton(container, "Version")?.ariaSelected).toBe("true")
+
+    await clickMode("Files")
+    expect(useTabStore.getState().getActiveTabId()).toBe("file-tab")
+    expect(modeButton(container, "Files")?.ariaSelected).toBe("true")
+  })
+
+  it("follows an explicit Agent tab selection after the last file tab closes", async () => {
+    useTabStore.setState({
+      tabs: [
+        ...useTabStore.getState().tabs,
+        {
+          id: "agent-tab",
+          url: "/agent/conversation-1",
+          title: "Agent",
+          lastAccessTime: 2,
+        },
+      ],
+      panels: [
+        {
+          id: "main-panel",
+          tabIds: ["file-tab", "agent-tab"],
+          activeTabId: "file-tab",
+        },
+      ],
+      activePanelId: "main-panel",
+    })
+    await renderSidebar()
+
+    await act(async () => {
+      useTabStore.getState().setActiveTab("agent-tab")
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(modeButton(container, "Agent")?.ariaSelected).toBe("true")
+
+    await act(async () => {
+      useTabStore.getState().closeTab("file-tab")
+    })
+    await clickMode("Files")
+    expect(useTabStore.getState().getActiveTabId()).toBe("agent-tab")
+    expect(modeButton(container, "Files")?.ariaSelected).toBe("true")
+
+    await clickMode("Agent")
+    await clickMode("Files")
+    expect(useTabStore.getState().getActiveTabId()).toBe("agent-tab")
+    expect(modeButton(container, "Files")?.ariaSelected).toBe("true")
+  })
+
   it("shows authoritative running and approval states in the Agent session list", async () => {
     const listConversations = vi.fn(async () => [
       {

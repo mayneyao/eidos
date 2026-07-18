@@ -35,6 +35,7 @@ export function useFileSpaceWorkModes({
   >(() => new Set(["files"]))
   const [transitionBusy, setTransitionBusy] = useState(false)
   const transitionBusyRef = useRef(false)
+  const activeModeRef = useRef(activeMode)
   const lastNonAgentModeRef = useRef<FileSpaceWorkMode>("files")
   const lastNonAgentTabIdRef = useRef<string | null>(null)
   const previousSpaceIdRef = useRef<string | undefined>(spaceId)
@@ -42,6 +43,7 @@ export function useFileSpaceWorkModes({
     () => tabs.find((tab) => tab.id === activeTabId),
     [activeTabId, tabs]
   )
+  const activeTabUrl = activeTab?.url
   const agentTabs = useMemo(
     () =>
       tabs
@@ -49,6 +51,7 @@ export function useFileSpaceWorkModes({
         .sort((a, b) => b.lastAccessTime - a.lastAccessTime),
     [tabs]
   )
+  activeModeRef.current = activeMode
 
   const rememberVisitedMode = useCallback((mode: FileSpaceWorkMode) => {
     setVisitedModes((current) => {
@@ -67,22 +70,23 @@ export function useFileSpaceWorkModes({
   }, [spaceId])
 
   useEffect(() => {
-    if (!activeTab) return
-    if (isFileSpaceAgentUrl(activeTab.url)) {
-      if (activeMode !== "agent") {
-        lastNonAgentModeRef.current = activeMode
+    if (!activeTabId || !activeTabUrl) return
+    const currentMode = activeModeRef.current
+    if (isFileSpaceAgentUrl(activeTabUrl)) {
+      if (currentMode !== "agent") {
+        lastNonAgentModeRef.current = currentMode
         rememberVisitedMode("agent")
         setActiveMode("agent")
       }
       return
     }
-    lastNonAgentTabIdRef.current = activeTab.id
-    if (activeMode === "agent") {
+    lastNonAgentTabIdRef.current = activeTabId
+    if (currentMode === "agent") {
       const returnMode = lastNonAgentModeRef.current
       rememberVisitedMode(returnMode)
       setActiveMode(returnMode)
     }
-  }, [activeMode, activeTab, rememberVisitedMode])
+  }, [activeTabId, activeTabUrl, rememberVisitedMode])
 
   const modeAvailable = useCallback(
     (mode: FileSpaceWorkMode) =>

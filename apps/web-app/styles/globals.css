@@ -16,7 +16,7 @@
 @source "../pages";
 @source "../hooks";
 @source "../lib";
-@source "../../packages";
+@source "../../../packages";
 @source "../../../node_modules/streamdown/dist/*.js";
 @source "../../../node_modules/@streamdown/code/dist/*.js";
 

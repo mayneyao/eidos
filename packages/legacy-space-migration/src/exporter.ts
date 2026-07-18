@@ -147,7 +147,7 @@ function mergeDocumentProperties(
   properties: Record<string, unknown>
 ): { markdown: string; recovery: Record<string, unknown> | null } {
   const entries = Object.entries(properties).filter(
-    ([, value]) => value !== undefined
+    ([, value]) => value !== undefined && value !== null
   )
   if (entries.length === 0) return { markdown, recovery: null }
   const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(markdown)
@@ -308,6 +308,7 @@ function serializeReport(result: LegacySpaceMigrationResult): string {
 - Source database: \`${result.sourceDatabasePath}\`
 - Target: \`${result.targetRoot}\`
 - Documents: ${result.exportedDocumentCount}
+- Empty documents skipped: ${result.skippedEmptyDocumentCount}
 - Tables: ${result.exportedTableCount}
 - Rows: ${result.exportedRowCount}
 - Fields: ${result.exportedFieldCount}
@@ -1254,6 +1255,7 @@ export async function exportLegacySpace(
       reportPath: path.join(targetRoot, ...reportRelativePath.split("/")),
       mappingPath: path.join(targetRoot, ...mappingRelativePath.split("/")),
       exportedDocumentCount,
+      skippedEmptyDocumentCount: plan.summary.skippedEmptyDocumentCount,
       exportedTableCount: outputTables.length,
       exportedRowCount,
       exportedFieldCount,

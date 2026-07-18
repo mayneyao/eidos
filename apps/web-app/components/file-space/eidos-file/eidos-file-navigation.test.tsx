@@ -142,6 +142,19 @@ describe("Eidos File navigation hierarchy", () => {
     )
     expect(viewTabs?.textContent).toContain("All tasks")
     expect(viewTabs?.textContent).toContain("By status")
+    expect(
+      viewTabs?.querySelector('[role="tab"][aria-selected="true"]')?.className
+    ).toContain("h-full")
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        '[aria-label="Add Eidos File view"]'
+      )?.className
+    ).toContain("h-full")
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        '[aria-label="Manage Eidos File views"]'
+      )?.className
+    ).toContain("h-full")
     expect(sheetTabs?.textContent).toContain("Tasks")
     expect(sheetTabs?.textContent).toContain("Projects")
     expect(sheetTabs?.getAttribute("aria-keyshortcuts")).toBe(

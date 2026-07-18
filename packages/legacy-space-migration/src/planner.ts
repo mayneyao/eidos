@@ -1,5 +1,6 @@
 import type {
   LegacyAsset,
+  LegacyDocument,
   LegacySpaceMigrationPlan,
   LegacySpaceSnapshot,
   LegacyTable,
@@ -73,6 +74,12 @@ const SYSTEM_FIELD_COLUMNS = new Set([
   "_last_edited_time",
   "_created_by",
   "_last_edited_by",
+])
+const JOURNAL_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+const LEGACY_DOCUMENT_SYSTEM_PROPERTIES = new Set([
+  "createdat",
+  "isdaypage",
+  "updatedat",
 ])
 
 function stableHash(value: string): string {
@@ -170,6 +177,86 @@ function joinRelativePath(...segments: string[]): string {
     .flatMap((segment) => segment.replace(/\\/g, "/").split("/"))
     .filter(Boolean)
     .join("/")
+}
+
+function hasMeaningfulValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false
+  if (typeof value === "string") return value.trim().length > 0
+  if (Array.isArray(value)) return value.some(hasMeaningfulValue)
+  if (typeof value === "object") {
+    return Object.values(value).some(hasMeaningfulValue)
+  }
+  return true
+}
+
+function lexicalNodeHasContent(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false
+  if (Array.isArray(value)) return value.some(lexicalNodeHasContent)
+  const node = value as Record<string, unknown>
+  const type = typeof node.type === "string" ? node.type : null
+  if (type === "text") {
+    return typeof node.text === "string" && node.text.trim().length > 0
+  }
+  if (type && !["linebreak", "paragraph", "root"].includes(type)) {
+    return true
+  }
+  return Array.isArray(node.children)
+    ? node.children.some(lexicalNodeHasContent)
+    : false
+}
+
+function lexicalStateHasContent(value: string | null): boolean {
+  if (!value?.trim()) return false
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    return lexicalNodeHasContent(parsed.root ?? parsed)
+  } catch {
+    return true
+  }
+}
+
+function legacyDocumentIsEmpty(document: LegacyDocument | undefined): boolean {
+  if (!document) return true
+  if (document.markdown?.trim()) return false
+  if (lexicalStateHasContent(document.lexicalState)) return false
+  if (hasMeaningfulValue(document.metadata)) return false
+  return !Object.entries(document.properties).some(([key, value]) => {
+    if (LEGACY_DOCUMENT_SYSTEM_PROPERTIES.has(key)) return false
+    if (key === "metadata" && typeof value === "string") {
+      try {
+        return hasMeaningfulValue(JSON.parse(value))
+      } catch {
+        return value.trim().length > 0
+      }
+    }
+    return hasMeaningfulValue(value)
+  })
+}
+
+function journalTargetPath(
+  node: LegacyTreeNode | undefined,
+  document: LegacyDocument,
+  directory: string,
+  issues: MigrationIssue[]
+): string | null {
+  const date = [document.id, node?.id, node?.name].find(
+    (candidate): candidate is string =>
+      typeof candidate === "string" && JOURNAL_DATE_PATTERN.test(candidate)
+  )
+  const isJournal = document.isDayPage || node?.type === "day" || Boolean(date)
+  if (!isJournal) return null
+  if (date) return joinRelativePath(directory, date.slice(0, 4), `${date}.md`)
+  issues.push({
+    severity: "warning",
+    code: "journal-date-missing",
+    message: `Journal ${document.id} has no YYYY-MM-DD identifier and will be exported under ${directory}/_Unknown`,
+    sourceId: document.id,
+  })
+  return joinRelativePath(
+    directory,
+    "_Unknown",
+    `${sanitizePathSegment(node?.name ?? document.id)}.md`
+  )
 }
 
 function allocatePath(
@@ -380,6 +467,10 @@ export function planLegacySpaceMigration(
     options.documentsDirectory ?? "notes",
     "notes"
   )
+  const journalsDirectory = normalizeRelativeDirectory(
+    options.journalsDirectory ?? "journals",
+    "journals"
+  )
   const assetsDirectory = normalizeRelativeDirectory(
     options.assetsDirectory ?? "assets",
     "assets"
@@ -408,55 +499,54 @@ export function planLegacySpaceMigration(
   )
   const resolveFolders = buildFolderPathResolver(activeNodes, issues)
   const allocatedDocumentPaths = new Set<string>()
+  let skippedEmptyDocumentCount = 0
 
-  const documents: PlannedDocument[] = activeNodes
+  const documents: PlannedDocument[] = []
+  const documentNodes = activeNodes
     .filter((node) => node.type === "doc" || node.type === "day")
     .sort((left, right) => {
       const leftPosition = left.position ?? Number.MAX_SAFE_INTEGER
       const rightPosition = right.position ?? Number.MAX_SAFE_INTEGER
       return leftPosition - rightPosition || left.id.localeCompare(right.id)
     })
-    .map((node) => {
-      const source = documentById.get(node.id)
-      const desiredPath = joinRelativePath(
+  for (const node of documentNodes) {
+    const source = documentById.get(node.id)
+    if (!source || legacyDocumentIsEmpty(source)) {
+      skippedEmptyDocumentCount += 1
+      continue
+    }
+    const desiredPath =
+      journalTargetPath(node, source, journalsDirectory, issues) ??
+      joinRelativePath(
         documentsDirectory,
         ...resolveFolders(node),
         `${sanitizePathSegment(node.name)}.md`
       )
-      const targetPath = allocatePath(
-        desiredPath,
-        node.id,
-        allocatedDocumentPaths
-      )
-      if (!source) {
-        issues.push({
-          severity: "warning",
-          code: "document-body-missing",
-          message: `Document body is missing for ${node.name}; an explanatory placeholder will be exported`,
-          sourceId: node.id,
-        })
-      } else if (source.markdown === null) {
-        issues.push({
-          severity: "warning",
-          code: "document-markdown-missing",
-          message: `Document ${node.name} only has Lexical state and needs conversion`,
-          sourceId: node.id,
-        })
-      }
-      mappings.push({ kind: "document", sourceId: node.id, targetPath })
-      return {
-        id: node.id,
-        sourceName: node.name,
-        targetPath,
-        hasMarkdown:
-          source?.markdown !== null && source?.markdown !== undefined,
-        hasLexicalState:
-          source?.lexicalState !== null && source?.lexicalState !== undefined,
-        sourceMissing: source === undefined,
-        createdAt: source?.createdAt ?? node.createdAt,
-        updatedAt: source?.updatedAt ?? node.updatedAt,
-      }
+    const targetPath = allocatePath(
+      desiredPath,
+      node.id,
+      allocatedDocumentPaths
+    )
+    if (source.markdown === null) {
+      issues.push({
+        severity: "warning",
+        code: "document-markdown-missing",
+        message: `Document ${node.name} only has Lexical state and needs conversion`,
+        sourceId: node.id,
+      })
+    }
+    mappings.push({ kind: "document", sourceId: node.id, targetPath })
+    documents.push({
+      id: node.id,
+      sourceName: node.name,
+      targetPath,
+      hasMarkdown: source.markdown !== null,
+      hasLexicalState: source.lexicalState !== null,
+      sourceMissing: false,
+      createdAt: source.createdAt ?? node.createdAt,
+      updatedAt: source.updatedAt ?? node.updatedAt,
     })
+  }
 
   for (const document of snapshot.documents) {
     if (nodeById.has(document.id)) continue
@@ -470,21 +560,34 @@ export function planLegacySpaceMigration(
       })
       continue
     }
+    if (legacyDocumentIsEmpty(document)) {
+      skippedEmptyDocumentCount += 1
+      continue
+    }
+    const journalPath = journalTargetPath(
+      undefined,
+      document,
+      journalsDirectory,
+      issues
+    )
     const targetPath = allocatePath(
-      joinRelativePath(
-        documentsDirectory,
-        "_Orphans",
-        `${sanitizePathSegment(document.id)}.md`
-      ),
+      journalPath ??
+        joinRelativePath(
+          documentsDirectory,
+          "_Orphans",
+          `${sanitizePathSegment(document.id)}.md`
+        ),
       document.id,
       allocatedDocumentPaths
     )
-    issues.push({
-      severity: "warning",
-      code: "orphan-document-recovered",
-      message: `Document ${document.id} has no active tree node and will be exported to ${targetPath}`,
-      sourceId: document.id,
-    })
+    if (!journalPath) {
+      issues.push({
+        severity: "warning",
+        code: "orphan-document-recovered",
+        message: `Document ${document.id} has no active tree node and will be exported to ${targetPath}`,
+        sourceId: document.id,
+      })
+    }
     documents.push({
       id: document.id,
       sourceName: document.id,
@@ -499,6 +602,14 @@ export function planLegacySpaceMigration(
       kind: "document",
       sourceId: document.id,
       targetPath,
+    })
+  }
+
+  if (skippedEmptyDocumentCount > 0) {
+    issues.push({
+      severity: "warning",
+      code: "empty-documents-skipped",
+      message: `${skippedEmptyDocumentCount} empty documents will be skipped without creating placeholder files`,
     })
   }
 
@@ -681,6 +792,7 @@ export function planLegacySpaceMigration(
     issues,
     summary: {
       documentCount: documents.length,
+      skippedEmptyDocumentCount,
       tableCount: tables.length,
       rowCount: tables.reduce((count, table) => count + table.rowCount, 0),
       fieldCount: tables.reduce((count, table) => count + table.fieldCount, 0),
