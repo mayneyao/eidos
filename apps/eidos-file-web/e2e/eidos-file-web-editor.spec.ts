@@ -729,7 +729,7 @@ test("keeps navigation and editor controls usable on a phone", async ({
   await page.goto("/")
 
   const primaryNavigation = page.locator(".site-nav a")
-  await expect(primaryNavigation).toHaveCount(3)
+  await expect(primaryNavigation).toHaveCount(4)
   const primaryNavigationRegion = page.locator(".site-nav")
   await expect(
     primaryNavigationRegion.getByRole("link", { name: "Editor" })
@@ -737,12 +737,41 @@ test("keeps navigation and editor controls usable on a phone", async ({
   await expect(
     primaryNavigationRegion.getByRole("link", { name: "Open Format" })
   ).toBeVisible()
+  const versionControlLink = primaryNavigationRegion.getByRole("link", {
+    name: /Version Control/,
+  })
+  await expect(versionControlLink).toBeVisible()
   await expect(
-    primaryNavigationRegion.getByRole("link", { name: /Version Control/ })
-  ).toBeVisible()
+    versionControlLink.locator(".site-nav-compact-label")
+  ).toHaveText("Version")
+  const sqliteInspectorLink = primaryNavigationRegion.getByRole("link", {
+    name: "Open the read-only SQLite Inspector in a new tab",
+  })
+  await expect(sqliteInspectorLink).toBeVisible()
+  await expect(sqliteInspectorLink).toHaveAttribute(
+    "href",
+    "https://sqlite.eidos.space/"
+  )
+  await expect(sqliteInspectorLink).toHaveAttribute("target", "_blank")
   expect(
     await primaryNavigation.evaluateAll((links) =>
       links.every((link) => link.getBoundingClientRect().height >= 44)
+    )
+  ).toBe(true)
+  expect(
+    await primaryNavigation.evaluateAll((links) => {
+      const rects = links.map((link) => link.getBoundingClientRect())
+      return (
+        new Set(rects.map((rect) => Math.round(rect.top))).size === 1 &&
+        rects.every((rect) => rect.left >= 0 && rect.right <= window.innerWidth)
+      )
+    })
+  ).toBe(true)
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth
     )
   ).toBe(true)
 
@@ -1217,8 +1246,13 @@ test("keeps the editor first and publishes Eidos File documentation", async ({
     page.locator(".live-demo-grid canvas[data-testid='data-grid-canvas']")
   ).toBeVisible()
   await expect(
-    page.locator('.site-nav a[href="https://graft.eidos.space/"]')
+    page
+      .locator('.site-nav a[href="https://graft.eidos.space/"]')
+      .locator(".site-nav-full-label")
   ).toHaveText("Version Control")
+  await expect(
+    page.locator('.site-nav a[href="https://sqlite.eidos.space/"]')
+  ).toContainText("SQLite Inspector")
   await expect(page.locator('.site-nav a[href="#/docs/overview"]')).toHaveText(
     "Open Format"
   )
@@ -1260,8 +1294,13 @@ test("keeps the editor first and publishes Eidos File documentation", async ({
     "开放格式"
   )
   await expect(
-    page.locator('.site-nav a[href="https://graft.eidos.space/"]')
+    page
+      .locator('.site-nav a[href="https://graft.eidos.space/"]')
+      .locator(".site-nav-full-label")
   ).toHaveText("版本管理")
+  await expect(
+    page.locator('.site-nav a[href="https://sqlite.eidos.space/"]')
+  ).toContainText("SQLite 检查器")
   await expect(
     page.getByRole("heading", {
       level: 1,

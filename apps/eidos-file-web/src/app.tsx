@@ -48,6 +48,7 @@ import {
   Check,
   ChevronRight,
   CloudOff,
+  Database,
   Download,
   FileKey,
   FileSpreadsheet,
@@ -1067,12 +1068,30 @@ export function App() {
             <a className="is-active" href="#/">
               {t("navEditor")}
             </a>
+            <a
+              aria-label={t("openSQLiteInspector")}
+              href="https://sqlite.eidos.space/"
+              rel="noreferrer"
+              target="_blank"
+              title={t("openSQLiteInspector")}
+            >
+              <Database size={13} aria-hidden="true" />
+              <span>
+                {t("navInspector")}{" "}
+                <span className="site-nav-long-label">
+                  {t("navInspectorQualifier")}
+                </span>
+              </span>
+            </a>
             <a href="#/docs/overview">
               <BookOpen size={13} aria-hidden="true" />
               {t("navDocs")}
             </a>
-            <a href="https://graft.eidos.space/">
-              {t("navGraft")}
+            <a aria-label={t("navGraft")} href="https://graft.eidos.space/">
+              <span className="site-nav-full-label">{t("navGraft")}</span>
+              <span className="site-nav-compact-label" aria-hidden="true">
+                {t("navGraftCompact")}
+              </span>
               <ArrowUpRight size={12} aria-hidden="true" />
             </a>
           </nav>

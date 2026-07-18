@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ArrowUpRight,
   BookOpen,
+  Database,
   FileText,
   Moon,
   Sun,
@@ -95,11 +96,29 @@ export function EidosFileDocs({
         </a>
         <nav className="site-nav" aria-label="Eidos File">
           <a href="#/">{labels.back}</a>
+          <a
+            aria-label={t("openSQLiteInspector")}
+            href="https://sqlite.eidos.space/"
+            rel="noreferrer"
+            target="_blank"
+            title={t("openSQLiteInspector")}
+          >
+            <Database size={13} aria-hidden="true" />
+            <span>
+              {t("navInspector")}{" "}
+              <span className="site-nav-long-label">
+                {t("navInspectorQualifier")}
+              </span>
+            </span>
+          </a>
           <a className="is-active" href="#/docs/overview">
             {labels.docs}
           </a>
-          <a href="https://graft.eidos.space/">
-            {labels.graft}
+          <a aria-label={labels.graft} href="https://graft.eidos.space/">
+            <span className="site-nav-full-label">{labels.graft}</span>
+            <span className="site-nav-compact-label" aria-hidden="true">
+              {t("navGraftCompact")}
+            </span>
             <ArrowUpRight size={12} aria-hidden="true" />
           </a>
         </nav>
