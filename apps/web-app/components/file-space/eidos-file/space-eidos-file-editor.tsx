@@ -1909,18 +1909,6 @@ export function SpaceEidosFileEditor({
               onDelete={deleteViewInEidosFile}
               onReorder={reorderViewsInEidosFile}
               onUpdate={updateViewInEidosFile}
-              viewAction={
-                activeView ? (
-                  <EidosFileCsvExportPopover
-                    triggerVariant="view-action"
-                    disabled={loading || pendingMutations > 0}
-                    viewName={`${activeTable.table.name} · ${activeView.name}`}
-                    onExport={exportActiveView}
-                    onProgress={getCsvOperation}
-                    onCancel={cancelCsvOperation}
-                  />
-                ) : undefined
-              }
             />
           ) : (
             <div className="min-w-0 flex-1" />
@@ -1962,6 +1950,16 @@ export function SpaceEidosFileEditor({
                     updateActiveView({ sorts }, "local")
                   }
                 />
+                {activeView ? (
+                  <EidosFileCsvExportPopover
+                    triggerVariant="workbar"
+                    disabled={loading || pendingMutations > 0}
+                    viewName={`${activeTable.table.name} · ${activeView.name}`}
+                    onExport={exportActiveView}
+                    onProgress={getCsvOperation}
+                    onCancel={cancelCsvOperation}
+                  />
+                ) : null}
                 <EidosFileViewMenu
                   fields={activeTable.fields.filter(
                     (field) =>

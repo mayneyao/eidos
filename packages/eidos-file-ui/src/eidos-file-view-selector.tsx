@@ -1,4 +1,12 @@
-import { useEffect, useId, useMemo, useState, type ReactNode } from "react"
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react"
 import type {
   EidosFileFieldInfo,
   EidosFileViewInfo,
@@ -23,6 +31,7 @@ import {
   Button,
   Input,
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
   Select,
@@ -45,6 +54,13 @@ export interface EidosFileExternalViewContribution {
 }
 
 type Panel = "list" | "create" | "manage" | "delete"
+export interface EidosFileViewSelectorRequest {
+  anchorRect: Pick<DOMRect, "height" | "left" | "top" | "width">
+  focusName?: boolean
+  panel: Extract<Panel, "manage" | "delete">
+  requestId: number
+  viewId: string
+}
 export type EidosFileBuiltInViewType = "grid" | "gallery" | "kanban"
 export const EIDOS_FILE_EXTENSION_VIEW_PREFIX = "extension:"
 
@@ -152,6 +168,7 @@ export function EidosFileViewSelector({
   onUpdate,
   viewAction,
   triggerMode = "current",
+  request,
 }: {
   views: EidosFileViewInfo[]
   extensionViews?: EidosFileExternalViewContribution[]
@@ -166,7 +183,8 @@ export function EidosFileViewSelector({
   onReorder: (viewIds: string[]) => Promise<void>
   onUpdate: (viewId: string, changes: UpdateEidosFileViewInput) => Promise<void>
   viewAction?: ReactNode
-  triggerMode?: "current" | "create" | "manage"
+  triggerMode?: "current" | "create" | "manage" | "context"
+  request?: EidosFileViewSelectorRequest | null
 }) {
   const [open, setOpen] = useState(false)
   const [panel, setPanel] = useState<Panel>("list")
@@ -178,6 +196,7 @@ export function EidosFileViewSelector({
   const [localError, setLocalError] = useState<string | null>(null)
   const fitImageId = useId()
   const hideEmptyFieldsId = useId()
+  const handledRequestIdRef = useRef<number | null>(null)
   const managedView = useMemo(
     () => views.find((view) => view.id === managedViewId),
     [managedViewId, views]
@@ -189,6 +208,37 @@ export function EidosFileViewSelector({
   useEffect(() => {
     if (managedView) setName(managedView.name)
   }, [managedView])
+
+  useEffect(() => {
+    if (
+      triggerMode !== "context" ||
+      !request ||
+      handledRequestIdRef.current === request.requestId
+    ) {
+      return
+    }
+    const requestedView = views.find((view) => view.id === request.viewId)
+    if (!requestedView) return
+    handledRequestIdRef.current = request.requestId
+    setManagedViewId(requestedView.id)
+    setName(requestedView.name)
+    setLocalError(null)
+    setPanel(request.panel)
+    setOpen(true)
+  }, [request, triggerMode, views])
+
+  const contextAnchorStyle = useMemo<CSSProperties | undefined>(() => {
+    if (triggerMode !== "context" || !request) return undefined
+    return {
+      display: "block",
+      height: request.anchorRect.height,
+      left: request.anchorRect.left,
+      pointerEvents: "none",
+      position: "fixed",
+      top: request.anchorRect.top,
+      width: request.anchorRect.width,
+    }
+  }, [request, triggerMode])
 
   const reset = () => {
     setPanel("list")
@@ -308,44 +358,56 @@ export function EidosFileViewSelector({
         else if (triggerMode === "create") prepareCreate()
       }}
     >
-      <PopoverTrigger asChild>
-        {triggerMode === "current" ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 max-w-44 gap-1.5 px-2 text-xs"
-            disabled={disabled}
-          >
-            <EidosFileViewTypeIcon
-              type={activeView?.type ?? "grid"}
-              className="h-3.5 w-3.5 shrink-0"
+      {triggerMode === "context" ? (
+        contextAnchorStyle ? (
+          <PopoverAnchor asChild>
+            <span
+              data-eidos-file-view-context-anchor
+              aria-hidden="true"
+              style={contextAnchorStyle}
             />
-            <span className="truncate">{activeView?.name ?? "Views"}</span>
-            <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-full w-8 shrink-0 rounded-none text-muted-foreground hover:text-foreground"
-            aria-label={
-              triggerMode === "create"
-                ? "Add Eidos File view"
-                : "Manage Eidos File views"
-            }
-            title={triggerMode === "create" ? "New view" : "Manage views"}
-            disabled={disabled}
-          >
-            {triggerMode === "create" ? (
-              <Plus className="h-3.5 w-3.5" />
-            ) : (
-              <MoreHorizontal className="h-3.5 w-3.5" />
-            )}
-          </Button>
-        )}
-      </PopoverTrigger>
+          </PopoverAnchor>
+        ) : null
+      ) : (
+        <PopoverTrigger asChild>
+          {triggerMode === "current" ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 max-w-44 gap-1.5 px-2 text-xs"
+              disabled={disabled}
+            >
+              <EidosFileViewTypeIcon
+                type={activeView?.type ?? "grid"}
+                className="h-3.5 w-3.5 shrink-0"
+              />
+              <span className="truncate">{activeView?.name ?? "Views"}</span>
+              <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-full w-8 shrink-0 rounded-none text-muted-foreground hover:text-foreground"
+              aria-label={
+                triggerMode === "create"
+                  ? "Add Eidos File view"
+                  : "Manage Eidos File views"
+              }
+              title={triggerMode === "create" ? "New view" : "Manage views"}
+              disabled={disabled}
+            >
+              {triggerMode === "create" ? (
+                <Plus className="h-3.5 w-3.5" />
+              ) : (
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          )}
+        </PopoverTrigger>
+      )}
       <PopoverContent
         align={triggerMode === "current" ? "end" : "start"}
         className="w-72 p-1.5"
@@ -547,10 +609,14 @@ export function EidosFileViewSelector({
             <div className="mt-1.5 flex gap-1.5">
               <Input
                 id="eidos-file-managed-view-name"
+                autoFocus={Boolean(request?.focusName)}
                 className="h-8 min-w-0 text-xs"
                 value={name}
                 disabled={busy}
                 onChange={(event) => setName(event.target.value)}
+                onFocus={(event) => {
+                  if (request?.focusName) event.currentTarget.select()
+                }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") saveName()
                 }}

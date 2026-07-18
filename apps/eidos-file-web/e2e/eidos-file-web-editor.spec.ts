@@ -971,6 +971,7 @@ test("matches Desktop table, view, Grid edit, field placement, and row delete wo
   page,
   browserName,
 }) => {
+  test.setTimeout(90_000)
   test.skip(
     browserName !== "chromium",
     "Chromium covers the browser worker mutation and shared Desktop controls"
@@ -1007,23 +1008,6 @@ test("matches Desktop table, view, Grid edit, field placement, and row delete wo
     "Backlog"
   )
 
-  await page.getByRole("button", { name: "Add Eidos File view" }).click()
-  await page.getByLabel("View name").fill("Browser cards")
-  await page.getByRole("button", { name: "Gallery", exact: true }).click()
-  await page.getByRole("button", { name: "Create", exact: true }).click()
-  await expect(
-    page.getByRole("tab", { name: "Browser cards", exact: true })
-  ).toBeVisible()
-
-  await page.getByRole("button", { name: "Manage Eidos File views" }).click()
-  await page.getByRole("button", { name: "Manage Browser cards view" }).click()
-  await page.getByLabel("View name").fill("Reviewed cards")
-  await page.getByRole("button", { name: "Save", exact: true }).click()
-  await expect(
-    page.getByRole("tab", { name: "Reviewed cards", exact: true })
-  ).toBeVisible()
-
-  await page.getByRole("tab", { name: "Grid", exact: true }).click()
   const gridBounds = await canvas.boundingBox()
   if (!gridBounds) throw new Error("The shared Eidos File Grid is not visible")
   await page.mouse.click(gridBounds.x + 44 + 140, gridBounds.y + 54, {
@@ -1035,6 +1019,50 @@ test("matches Desktop table, view, Grid edit, field placement, and row delete wo
   await expect(
     page.locator("[data-testid='glide-cell-1-0']")
   ).not.toContainText("Edited in Web")
+
+  await page.getByRole("button", { name: "Add Eidos File view" }).click()
+  await page.getByLabel("View name").fill("Browser cards")
+  await page.getByRole("button", { name: "Gallery", exact: true }).click()
+  await page.getByRole("button", { name: "Create", exact: true }).click()
+  await expect(
+    page.getByRole("tab", { name: "Browser cards", exact: true })
+  ).toBeVisible()
+
+  const browserCardsTab = page.getByRole("tab", {
+    name: "Browser cards",
+    exact: true,
+  })
+  await browserCardsTab.click({ button: "right" })
+  await expect(
+    page.getByRole("menuitem", { name: "Rename view" })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("menuitem", { name: "Configure view" })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("menuitem", { name: "Delete view" })
+  ).toBeVisible()
+  await page.getByRole("menuitem", { name: "Rename view" }).click()
+  await page.getByLabel("View name").fill("Reviewed cards")
+  await page.getByRole("button", { name: "Save", exact: true }).click()
+  const reviewedCardsTab = page.getByRole("tab", {
+    name: "Reviewed cards",
+    exact: true,
+  })
+  await expect(reviewedCardsTab).toBeVisible()
+  await page.keyboard.press("Escape")
+  await reviewedCardsTab.click({ button: "right" })
+  await page.getByRole("menuitem", { name: "Delete view" }).click()
+  await expect(page.getByText("Delete “Reviewed cards”?")).toBeVisible()
+  await page.getByRole("button", { name: "Delete", exact: true }).click()
+  await expect(reviewedCardsTab).toBeHidden()
+  const gridTab = page.getByRole("tab", { name: "Grid", exact: true })
+  await expect(gridTab).toHaveAttribute("aria-selected", "true")
+  await gridTab.click({ button: "right" })
+  await expect(
+    page.getByRole("menuitem", { name: "Delete view" })
+  ).toHaveAttribute("data-disabled", "")
+  await page.keyboard.press("Escape")
 
   await page.getByRole("button", { name: "Add Eidos File table" }).click()
   await page.getByRole("button", { name: /^New table/ }).click()

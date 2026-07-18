@@ -97,6 +97,7 @@ export function EidosFileViewTabStrip({
   plugins = [],
   afterTabs,
   onSelect,
+  renderTab,
 }: {
   views: EidosFileViewInfo[]
   activeViewId?: string | null
@@ -104,6 +105,7 @@ export function EidosFileViewTabStrip({
   plugins?: readonly EidosFilePlugin[]
   afterTabs?: ReactNode
   onSelect: (viewId: string) => void
+  renderTab?: (view: EidosFileViewInfo, tab: ReactNode) => ReactNode
 }) {
   const pluginRegistry = useMemo(
     () => createEidosFilePluginRegistry(plugins),
@@ -146,34 +148,44 @@ export function EidosFileViewTabStrip({
         className="flex h-full min-w-0 items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onScroll={updateScrollState}
       >
-        {views.map((view, index) => (
-          <button
-            ref={view.id === activeViewId ? activeTabRef : undefined}
-            key={view.id}
-            type="button"
-            role="tab"
-            data-eidos-file-view-id={view.id}
-            aria-selected={view.id === activeViewId}
-            tabIndex={view.id === tabStopId ? 0 : -1}
-            disabled={disabled}
-            onClick={() => onSelect(view.id)}
-            onKeyDown={(event) => navigateTabs(event, index)}
-            className={cn(
-              "relative flex h-full max-w-48 shrink-0 items-center gap-1.5 px-3 text-[13px] text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50",
-              view.id === activeViewId && "text-foreground"
-            )}
-          >
-            <EidosFileViewTypeIcon
-              type={view.type}
-              className="h-3.5 w-3.5 shrink-0"
-              viewTypes={pluginRegistry.views}
-            />
-            <span className="truncate">{view.name}</span>
-            {view.id === activeViewId ? (
-              <span className="absolute inset-x-2 bottom-0 h-0.5 bg-foreground/75" />
-            ) : null}
-          </button>
-        ))}
+        {views.map((view, index) => {
+          const tab = (
+            <button
+              ref={view.id === activeViewId ? activeTabRef : undefined}
+              type="button"
+              role="tab"
+              data-eidos-file-view-id={view.id}
+              aria-selected={view.id === activeViewId}
+              tabIndex={view.id === tabStopId ? 0 : -1}
+              disabled={disabled}
+              onClick={() => onSelect(view.id)}
+              onKeyDown={(event) => navigateTabs(event, index)}
+              className={cn(
+                "relative flex h-full max-w-48 shrink-0 items-center gap-1.5 px-3 text-[13px] text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50",
+                view.id === activeViewId && "text-foreground"
+              )}
+            >
+              <EidosFileViewTypeIcon
+                type={view.type}
+                className="h-3.5 w-3.5 shrink-0"
+                viewTypes={pluginRegistry.views}
+              />
+              <span className="truncate">{view.name}</span>
+              {view.id === activeViewId ? (
+                <span className="absolute inset-x-2 bottom-0 h-0.5 bg-foreground/75" />
+              ) : null}
+            </button>
+          )
+          return renderTab ? (
+            <div key={view.id} className="contents">
+              {renderTab(view, tab)}
+            </div>
+          ) : (
+            <div key={view.id} className="contents">
+              {tab}
+            </div>
+          )
+        })}
       </div>
       {canScrollForward ? (
         <Button

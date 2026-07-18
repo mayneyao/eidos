@@ -99,6 +99,8 @@ describe("Eidos File navigation hierarchy", () => {
     const onCreateTable = vi.fn()
     const onRenameTable = vi.fn()
     const onDeleteTable = vi.fn()
+    const onRenameView = vi.fn()
+    const onDeleteView = vi.fn()
     await act(async () => {
       root.render(
         <div>
@@ -108,9 +110,9 @@ describe("Eidos File navigation hierarchy", () => {
             activeView={views[0]}
             onSelect={onSelectView}
             onCreate={vi.fn()}
-            onRename={vi.fn()}
+            onRename={onRenameView}
             onDuplicate={vi.fn()}
-            onDelete={vi.fn()}
+            onDelete={onDeleteView}
             onReorder={vi.fn()}
             onUpdate={vi.fn()}
           />
@@ -151,10 +153,8 @@ describe("Eidos File navigation hierarchy", () => {
       )?.className
     ).toContain("h-full")
     expect(
-      container.querySelector<HTMLButtonElement>(
-        '[aria-label="Manage Eidos File views"]'
-      )?.className
-    ).toContain("h-full")
+      container.querySelector('[aria-label="Manage Eidos File views"]')
+    ).toBeNull()
     expect(sheetTabs?.textContent).toContain("Tasks")
     expect(sheetTabs?.textContent).toContain("Projects")
     expect(sheetTabs?.getAttribute("aria-keyshortcuts")).toBe(
@@ -191,6 +191,87 @@ describe("Eidos File navigation hierarchy", () => {
     expect(onSelectView).toHaveBeenCalledWith("board")
     expect(onSelectTable).toHaveBeenCalledWith("projects")
     expect(onCreateTable).toHaveBeenCalledOnce()
+
+    const boardTab = viewTabs?.querySelector<HTMLElement>(
+      '[data-eidos-file-view-id="board"]'
+    )
+    await act(async () => {
+      boardTab?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          button: 2,
+          clientX: 40,
+          clientY: 40,
+        })
+      )
+      await Promise.resolve()
+    })
+    expect(
+      Array.from(document.body.querySelectorAll('[role="menuitem"]')).map(
+        (item) => item.textContent?.trim()
+      )
+    ).toEqual(["Rename view", "Configure view", "Delete view"])
+
+    await act(async () => {
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      )
+        .find((item) => item.textContent?.includes("Rename view"))
+        ?.click()
+      await Promise.resolve()
+    })
+    const viewNameInput = document.body.querySelector<HTMLInputElement>(
+      "#eidos-file-managed-view-name"
+    )
+    expect(viewNameInput?.value).toBe("By status")
+    expect(document.activeElement).toBe(viewNameInput)
+
+    await act(async () => {
+      if (viewNameInput) {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )?.set?.call(viewNameInput, "Status board")
+        viewNameInput.dispatchEvent(new Event("input", { bubbles: true }))
+      }
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.trim() === "Save")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(onRenameView).toHaveBeenCalledWith("board", "Status board")
+
+    await act(async () => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "Escape" })
+      )
+      await Promise.resolve()
+      boardTab?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          button: 2,
+          clientX: 40,
+          clientY: 40,
+        })
+      )
+      await Promise.resolve()
+    })
+    await act(async () => {
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      )
+        .find((item) => item.textContent?.includes("Delete view"))
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(document.body.textContent).toContain("Delete “By status”?")
+    await act(async () => {
+      Array.from(document.body.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent?.trim() === "Delete")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(onDeleteView).toHaveBeenCalledWith("board")
 
     const projectsTab = sheetTabs?.querySelector<HTMLElement>(
       '[data-eidos-file-table-id="projects"]'

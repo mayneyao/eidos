@@ -734,10 +734,11 @@ vi.mock("./eidos-file-view-selector", () => ({
   isEidosFileBuiltInViewType: (type: string) =>
     type === "grid" || type === "gallery" || type === "kanban",
   EidosFileViewTypeIcon: ({ type }: { type: string }) => <span>{type}</span>,
-  EidosFileViewSelector: ({
+}))
+
+vi.mock("./eidos-file-view-tabs", () => ({
+  EidosFileViewTabs: ({
     activeView,
-    triggerMode,
-    viewAction,
     onCreate,
     onRename,
     onDuplicate,
@@ -746,74 +747,63 @@ vi.mock("./eidos-file-view-selector", () => ({
     onUpdate,
   }: {
     activeView?: (typeof snapshot)["tables"][number]["views"][number]
-    triggerMode?: "current" | "create" | "manage"
-    viewAction?: React.ReactNode
     onCreate: (name: string, type: "grid" | "gallery" | "kanban") => void
     onRename: (viewId: string, name: string) => void
     onDuplicate: (viewId: string) => void
     onDelete: (viewId: string) => void
     onReorder: (viewIds: string[]) => void
     onUpdate: (viewId: string, changes: { name: string }) => Promise<void>
-  }) => {
-    const [manageOpen, setManageOpen] = React.useState(false)
-    return (
-      <div data-testid="eidos-file-view-selector">
-        <span>{activeView?.name ?? "Views"}</span>
-        {triggerMode === "manage" ? (
-          <button
-            type="button"
-            aria-label="Manage Eidos File views"
-            onClick={() => setManageOpen(true)}
-          >
-            Manage views
-          </button>
-        ) : null}
-        {triggerMode === "manage" && manageOpen ? viewAction : null}
-        <button type="button" onClick={() => onCreate("By priority", "grid")}>
-          Create view
-        </button>
-        <button type="button" onClick={() => onCreate("Cards", "gallery")}>
-          Create gallery view
-        </button>
-        <button type="button" onClick={() => onCreate("Board", "kanban")}>
-          Create kanban view
-        </button>
-        <button
-          type="button"
-          onClick={() => activeView && onRename(activeView.id, "Renamed view")}
-        >
-          Rename view
-        </button>
-        <button
-          type="button"
-          onClick={() => activeView && onDuplicate(activeView.id)}
-        >
-          Duplicate view
-        </button>
-        <button
-          type="button"
-          onClick={() => activeView && onDelete(activeView.id)}
-        >
-          Delete view
-        </button>
-        <button type="button" onClick={() => onReorder(["view_tasks"])}>
-          Reorder views
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (activeView) {
-              void onUpdate(activeView.id, { name: "Unavailable" }).catch(
-                () => undefined
-              )
-            }
-          }}
-        >
-          Update view
+  }) => (
+    <div data-testid="eidos-file-view-tabs">
+      <div role="tablist" aria-label="Eidos File views">
+        <button type="button" role="tab" aria-selected="true">
+          {activeView?.name ?? "Views"}
         </button>
       </div>
-    )
-  },
+      <button type="button" onClick={() => onCreate("By priority", "grid")}>
+        Create view
+      </button>
+      <button type="button" onClick={() => onCreate("Cards", "gallery")}>
+        Create gallery view
+      </button>
+      <button type="button" onClick={() => onCreate("Board", "kanban")}>
+        Create kanban view
+      </button>
+      <button
+        type="button"
+        onClick={() => activeView && onRename(activeView.id, "Renamed view")}
+      >
+        Rename view
+      </button>
+      <button
+        type="button"
+        onClick={() => activeView && onDuplicate(activeView.id)}
+      >
+        Duplicate view
+      </button>
+      <button
+        type="button"
+        onClick={() => activeView && onDelete(activeView.id)}
+      >
+        Delete view
+      </button>
+      <button type="button" onClick={() => onReorder(["view_tasks"])}>
+        Reorder views
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          if (activeView) {
+            void onUpdate(activeView.id, { name: "Unavailable" }).catch(
+              () => undefined
+            )
+          }
+        }}
+      >
+        Update view
+      </button>
+    </div>
+  ),
 }))
 
 vi.mock("./eidos-file-gallery-view", async () => {
@@ -1504,7 +1494,7 @@ describe("SpaceEidosFileEditor", () => {
     })
   })
 
-  it("moves CSV actions out of the workbar and exports the active view", async () => {
+  it("keeps table import in the sheet menu and exports from the workbar", async () => {
     await renderEditor()
 
     const workbar = container.querySelector("[data-eidos-file-workbar]")
@@ -1517,7 +1507,7 @@ describe("SpaceEidosFileEditor", () => {
       workbar?.querySelector(
         '[aria-label="Export current Eidos File view as CSV"]'
       )
-    ).toBeNull()
+    ).not.toBeNull()
     expect(
       container.querySelector(
         '[data-eidos-file-sheet-tabs] [aria-label="Import CSV as new Eidos File table"]'
@@ -1542,18 +1532,10 @@ describe("SpaceEidosFileEditor", () => {
       )
     ).not.toBeNull()
 
-    await act(async () => {
-      container
-        .querySelector<HTMLButtonElement>(
-          '[aria-label="Manage Eidos File views"]'
-        )
-        ?.click()
-    })
-
     const exportButton = container.querySelector<HTMLButtonElement>(
       '[aria-label="Export current Eidos File view as CSV"]'
     )
-    expect(exportButton?.textContent).toContain("Export current view as CSV")
+    expect(exportButton?.textContent).toContain("Export CSV")
     await act(async () => {
       exportButton?.click()
       await Promise.resolve()
