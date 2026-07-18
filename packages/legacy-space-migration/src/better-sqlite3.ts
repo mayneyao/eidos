@@ -181,7 +181,7 @@ function readDocuments(
           )
           .map(([key, propertyValue]) => [
             key,
-            propertyTypes.get(key) === "checkbox"
+            propertyValue !== null && propertyTypes.get(key) === "checkbox"
               ? booleanValue(propertyValue)
               : propertyValue,
           ])

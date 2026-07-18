@@ -142,7 +142,15 @@ function createLegacyFixture() {
         (id, content, markdown, is_day_page, meta, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
     )
-    .run("doc-b", '{"root":{}}', null, 0, "{}", null, null)
+    .run(
+      "doc-b",
+      '{"root":{"children":[{"type":"paragraph","children":[{"type":"text","text":"Recovered text"}]}]}}',
+      null,
+      0,
+      "{}",
+      null,
+      null
+    )
   database
     .prepare(
       `INSERT INTO eidos__docs
@@ -422,6 +430,7 @@ describe("legacy Space migration planning", () => {
     )
     expect(plan.summary).toMatchObject({
       documentCount: 3,
+      skippedEmptyDocumentCount: 0,
       tableCount: 1,
       rowCount: 1,
       fieldCount: 3,
@@ -437,6 +446,100 @@ describe("legacy Space migration planning", () => {
         targetRoot: "/tmp/exported-space",
       })
     ).toEqual(plan)
+  })
+
+  it("routes journals by year and skips empty documents without placeholders", async () => {
+    const fixture = createLegacyFixture()
+    roots.push(fixture.sourceRoot)
+    const database = new Database(fixture.databasePath)
+    database
+      .prepare(
+        `INSERT INTO eidos__tree
+          (id, name, type, parent_id, position, icon, is_deleted, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run("empty-note", "Empty note", "doc", null, 7, null, 0, null, null)
+    const insertDocument = database.prepare(
+      `INSERT INTO eidos__docs
+        (id, content, markdown, is_day_page, meta, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    insertDocument.run(
+      "empty-note",
+      '{"root":{"children":[{"type":"paragraph","children":[]}]}}',
+      "",
+      0,
+      "{}",
+      null,
+      null
+    )
+    insertDocument.run(
+      "2025-03-23",
+      '{"root":{"children":[]}}',
+      "# Sunday\n",
+      1,
+      "{}",
+      null,
+      null
+    )
+    insertDocument.run(
+      "2025-03-24",
+      '{"root":{"children":[{"type":"paragraph","children":[]}]}}',
+      "  \n",
+      1,
+      "{}",
+      null,
+      null
+    )
+    database.close()
+
+    const targetParent = mkdtempSync(
+      path.join(tmpdir(), "eidos-journal-target-")
+    )
+    roots.push(targetParent)
+    const targetRoot = path.join(targetParent, "export")
+    const plan = planLegacySpaceMigration(
+      inspectLegacySpace(fixture.sourceRoot),
+      { targetRoot }
+    )
+
+    expect(plan.documents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "2025-03-23",
+          targetPath: "journals/2025/2025-03-23.md",
+        }),
+      ])
+    )
+    expect(plan.documents.map((document) => document.id)).not.toEqual(
+      expect.arrayContaining(["empty-note", "2025-03-24"])
+    )
+    expect(plan.summary.skippedEmptyDocumentCount).toBe(2)
+    expect(plan.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "empty-documents-skipped" }),
+      ])
+    )
+
+    const result = await exportLegacySpace(plan, {
+      migrationId: "journal-export",
+    })
+    expect(result.skippedEmptyDocumentCount).toBe(2)
+    expect(
+      readFileSync(
+        path.join(targetRoot, "journals", "2025", "2025-03-23.md"),
+        "utf8"
+      )
+    ).toBe("# Sunday\n")
+    expect(
+      existsSync(path.join(targetRoot, "journals", "2025", "2025-03-24.md"))
+    ).toBe(false)
+    expect(existsSync(path.join(targetRoot, "notes", "Empty note.md"))).toBe(
+      false
+    )
+    expect(readFileSync(result.reportPath, "utf8")).toContain(
+      "Empty documents skipped: 2"
+    )
   })
 
   it("normalizes negative and fractional legacy view positions without changing their order", async () => {
@@ -601,7 +704,7 @@ describe("legacy Space migration planning", () => {
     ).rejects.toThrow("target is required")
   })
 
-  it("remaps legacy field identifiers, system references, and missing bodies without data loss", async () => {
+  it("remaps legacy field identifiers and skips missing document bodies", async () => {
     const fixture = createLegacyFixture()
     roots.push(fixture.sourceRoot)
     const database = new Database(fixture.databasePath)
@@ -693,8 +796,7 @@ describe("legacy Space migration planning", () => {
         }),
         expect.objectContaining({
           severity: "warning",
-          code: "document-body-missing",
-          sourceId: "missing-doc",
+          code: "empty-documents-skipped",
         }),
         expect.objectContaining({
           severity: "warning",
@@ -714,9 +816,10 @@ describe("legacy Space migration planning", () => {
       migrationId: "remap-export",
     })
     expect(result.exportedReferenceCount).toBe(1)
-    expect(
-      readFileSync(path.join(targetRoot, "notes", "Missing body.md"), "utf8")
-    ).toContain("no document body was present")
+    expect(result.skippedEmptyDocumentCount).toBe(1)
+    expect(existsSync(path.join(targetRoot, "notes", "Missing body.md"))).toBe(
+      false
+    )
 
     const base = openEidosFile(path.join(targetRoot, "main.eidos"), {
       readonly: true,
@@ -924,6 +1027,7 @@ describe("legacy Space migration planning", () => {
       status: "completed",
       migrationId: "fixture-export",
       exportedDocumentCount: 3,
+      skippedEmptyDocumentCount: 0,
       exportedTableCount: 1,
       exportedRowCount: 1,
       exportedFieldCount: 3,
@@ -984,7 +1088,9 @@ describe("legacy Space migration planning", () => {
         ),
         "utf8"
       )
-    ).toBe('{"root":{}}')
+    ).toBe(
+      '{"root":{"children":[{"type":"paragraph","children":[{"type":"text","text":"Recovered text"}]}]}}'
+    )
     expect(
       readFileSync(path.join(targetRoot, "assets", "logo.png"), "utf8")
     ).toBe("logo")

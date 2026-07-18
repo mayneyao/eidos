@@ -205,6 +205,7 @@ export interface MigrationMapping {
 
 export interface MigrationPlanSummary {
   documentCount: number
+  skippedEmptyDocumentCount: number
   tableCount: number
   rowCount: number
   fieldCount: number
@@ -240,6 +241,7 @@ export interface PlanLegacySpaceMigrationOptions {
   targetRoot: string
   eidosFilePath?: string
   documentsDirectory?: string
+  journalsDirectory?: string
   assetsDirectory?: string
   legacyExtensionsDirectory?: string
 }
@@ -311,6 +313,7 @@ export interface LegacySpaceMigrationResult {
   reportPath: string
   mappingPath: string
   exportedDocumentCount: number
+  skippedEmptyDocumentCount: number
   exportedTableCount: number
   exportedRowCount: number
   exportedFieldCount: number
