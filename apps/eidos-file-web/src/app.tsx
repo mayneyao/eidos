@@ -1068,6 +1068,10 @@ export function App() {
             <a className="is-active" href="#/">
               {t("navEditor")}
             </a>
+            <a href="#/docs/overview">
+              <BookOpen size={13} aria-hidden="true" />
+              {t("navDocs")}
+            </a>
             <a
               aria-label={t("openSQLiteInspector")}
               href="https://sqlite.eidos.space/"
@@ -1082,10 +1086,7 @@ export function App() {
                   {t("navInspectorQualifier")}
                 </span>
               </span>
-            </a>
-            <a href="#/docs/overview">
-              <BookOpen size={13} aria-hidden="true" />
-              {t("navDocs")}
+              <ArrowUpRight size={12} aria-hidden="true" />
             </a>
             <a aria-label={t("navGraft")} href="https://graft.eidos.space/">
               <span className="site-nav-full-label">{t("navGraft")}</span>

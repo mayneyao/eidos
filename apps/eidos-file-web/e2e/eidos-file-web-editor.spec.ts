@@ -753,6 +753,19 @@ test("keeps navigation and editor controls usable on a phone", async ({
     "https://sqlite.eidos.space/"
   )
   await expect(sqliteInspectorLink).toHaveAttribute("target", "_blank")
+  await expect(
+    sqliteInspectorLink.locator("svg.lucide-arrow-up-right")
+  ).toBeVisible()
+  expect(
+    await primaryNavigation.evaluateAll((links) =>
+      links.map((link) => link.getAttribute("href"))
+    )
+  ).toEqual([
+    "#/",
+    "#/docs/overview",
+    "https://sqlite.eidos.space/",
+    "https://graft.eidos.space/",
+  ])
   expect(
     await primaryNavigation.evaluateAll((links) =>
       links.every((link) => link.getBoundingClientRect().height >= 44)

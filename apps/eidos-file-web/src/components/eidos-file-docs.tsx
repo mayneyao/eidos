@@ -96,6 +96,9 @@ export function EidosFileDocs({
         </a>
         <nav className="site-nav" aria-label="Eidos File">
           <a href="#/">{labels.back}</a>
+          <a className="is-active" href="#/docs/overview">
+            {labels.docs}
+          </a>
           <a
             aria-label={t("openSQLiteInspector")}
             href="https://sqlite.eidos.space/"
@@ -110,9 +113,7 @@ export function EidosFileDocs({
                 {t("navInspectorQualifier")}
               </span>
             </span>
-          </a>
-          <a className="is-active" href="#/docs/overview">
-            {labels.docs}
+            <ArrowUpRight size={12} aria-hidden="true" />
           </a>
           <a aria-label={labels.graft} href="https://graft.eidos.space/">
             <span className="site-nav-full-label">{labels.graft}</span>
