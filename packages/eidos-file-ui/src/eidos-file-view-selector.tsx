@@ -329,7 +329,7 @@ export function EidosFileViewSelector({
             type="button"
             variant="ghost"
             size="icon"
-            className="h-9 w-8 shrink-0 rounded-none text-muted-foreground hover:text-foreground"
+            className="h-full w-8 shrink-0 rounded-none text-muted-foreground hover:text-foreground"
             aria-label={
               triggerMode === "create"
                 ? "Add Eidos File view"

@@ -121,13 +121,16 @@ export function EidosFileViewTabStrip({
   } = useEidosFileTabStrip({ items: views, activeId: activeViewId, onSelect })
 
   return (
-    <div data-eidos-file-view-tabs className="flex min-w-0 flex-1 items-end">
+    <div
+      data-eidos-file-view-tabs
+      className="flex h-[var(--eidos-file-view-tab-height,2.25rem)] min-w-0 flex-1 items-stretch self-end"
+    >
       {canScrollBackward ? (
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="mb-1 h-7 w-6 shrink-0 text-muted-foreground"
+          className="h-full w-6 shrink-0 text-muted-foreground"
           aria-label="Scroll Eidos File views backward"
           disabled={disabled}
           onClick={() => scrollTabs(-1)}
@@ -140,7 +143,7 @@ export function EidosFileViewTabStrip({
         role="tablist"
         aria-label="Eidos File views"
         aria-orientation="horizontal"
-        className="flex min-w-0 items-end overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex h-full min-w-0 items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onScroll={updateScrollState}
       >
         {views.map((view, index) => (
@@ -156,7 +159,7 @@ export function EidosFileViewTabStrip({
             onClick={() => onSelect(view.id)}
             onKeyDown={(event) => navigateTabs(event, index)}
             className={cn(
-              "relative flex h-[var(--eidos-file-view-tab-height,2.25rem)] max-w-48 shrink-0 items-center gap-1.5 px-3 text-[13px] text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50",
+              "relative flex h-full max-w-48 shrink-0 items-center gap-1.5 px-3 text-[13px] text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50",
               view.id === activeViewId && "text-foreground"
             )}
           >
@@ -177,7 +180,7 @@ export function EidosFileViewTabStrip({
           type="button"
           variant="ghost"
           size="icon"
-          className="mb-1 h-7 w-6 shrink-0 text-muted-foreground"
+          className="h-full w-6 shrink-0 text-muted-foreground"
           aria-label="Scroll Eidos File views forward"
           disabled={disabled}
           onClick={() => scrollTabs(1)}
