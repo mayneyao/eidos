@@ -182,6 +182,23 @@ async function regularFileIfPresent(
   relativePath: string
 ): Promise<Buffer | null> {
   const filePath = path.join(root, ...relativePath.split("/"))
+  let pathStats
+  try {
+    pathStats = await lstat(filePath, { bigint: true })
+  } catch (error) {
+    if (isNodeError(error, "ENOENT")) return null
+    throw error
+  }
+  if (pathStats.isSymbolicLink()) {
+    throw new Error(
+      `Legacy archive entry must not be a symbolic link: ${relativePath}`
+    )
+  }
+  if (!pathStats.isFile() || pathStats.nlink !== 1n) {
+    throw new Error(
+      `Legacy archive entry must be a regular file: ${relativePath}`
+    )
+  }
   let handle
   try {
     handle = await open(filePath, constants.O_RDONLY | constants.O_NOFOLLOW)
@@ -196,7 +213,12 @@ async function regularFileIfPresent(
   }
   try {
     const before = await handle.stat({ bigint: true })
-    if (!before.isFile() || before.nlink !== 1n) {
+    if (
+      !before.isFile() ||
+      before.nlink !== 1n ||
+      before.dev !== pathStats.dev ||
+      before.ino !== pathStats.ino
+    ) {
       throw new Error(
         `Legacy archive entry must be a regular file: ${relativePath}`
       )
@@ -206,11 +228,17 @@ async function regularFileIfPresent(
     }
     const content = await handle.readFile()
     const after = await handle.stat({ bigint: true })
+    const finalPathStats = await lstat(filePath, { bigint: true })
     if (
       before.dev !== after.dev ||
       before.ino !== after.ino ||
       before.size !== after.size ||
-      before.mtimeNs !== after.mtimeNs
+      before.mtimeNs !== after.mtimeNs ||
+      finalPathStats.isSymbolicLink() ||
+      !finalPathStats.isFile() ||
+      finalPathStats.nlink !== 1n ||
+      after.dev !== finalPathStats.dev ||
+      after.ino !== finalPathStats.ino
     ) {
       throw new Error(
         `Legacy archive entry changed while it was being read: ${relativePath}`
