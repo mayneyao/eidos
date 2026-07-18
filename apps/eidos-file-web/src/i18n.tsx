@@ -46,12 +46,6 @@ const en = {
   formatTitleTwo: "Many useful views.",
   formatIntro:
     "A .eidos file is a portable SQLite database, not an opaque export. Its versioned schema describes records, typed properties, relations, and saved views; Desktop and Web share the same runtime contract.",
-  fileModelLabel: "One file · many views",
-  fileModelTitle: "The records stay put. The view changes.",
-  fileModelBody:
-    "Grid, Timeline, Gallery, and custom views are projections over the same typed records and persisted view state—not separate copies.",
-  fileModelAlt:
-    "One Eidos File branches into Grid, Timeline, and Gallery views that all use the same records.",
   formatFile: "01 / file",
   formatFileTitle: "SQLite container",
   formatFileBody:
@@ -232,12 +226,6 @@ const zh: Record<MessageKey, string> = {
   formatTitleTwo: "多种工作视图。",
   formatIntro:
     ".eidos 是可携带的 SQLite 数据库，不是不透明的导出文件。版本化 schema 描述记录、字段类型、关系和视图；桌面端与 Web 端共享同一 runtime 契约。",
-  fileModelLabel: "一个文件 · 多种视图",
-  fileModelTitle: "记录保持不动，视图按工作方式变化。",
-  fileModelBody:
-    "Grid、Timeline、Gallery 与自定义视图共享同一份类型化记录和持久化视图状态，不复制数据。",
-  fileModelAlt:
-    "一个 Eidos File 分别呈现为 Grid、Timeline 与 Gallery，所有视图共享同一份记录。",
   formatFile: "01 / 文件",
   formatFileTitle: "SQLite 容器",
   formatFileBody:
