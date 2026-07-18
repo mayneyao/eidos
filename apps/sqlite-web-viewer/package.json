@@ -1,0 +1,39 @@
+{
+  "name": "@eidos.space/sqlite-web-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "fixture": "node ../../scripts/use-better-sqlite3-runtime.cjs node && node scripts/create-fixtures.mjs",
+    "lint": "oxlint src e2e scripts vite.config.ts vitest.config.ts playwright.config.ts",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit"
+  },
+  "dependencies": {
+    "@glideapps/glide-data-grid": "^6.0.0",
+    "@sqlite.org/sqlite-wasm": "3.45.3-build2",
+    "lucide-react": "^0.471.2",
+    "marked": "^4.3.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/react": "^18.2.14",
+    "@types/react-dom": "^18.2.6",
+    "@vitejs/plugin-react": "^5.2.0",
+    "better-sqlite3": "^12.0.0",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.8.3",
+    "vite": "^8.1.5",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.6.0",
+    "vitest": "^3.2.6"
+  }
+}

@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "pnpm run --filter web-app dev",
     "dev:eidos-file-web": "pnpm run --filter @eidos.space/eidos-file-web dev",
+    "dev:sqlite-viewer": "pnpm run --filter @eidos.space/sqlite-web-viewer dev",
     "dev:desktop": "pnpm run --filter eidos dev",
     "dev:desktop:qa": "pnpm run --filter eidos dev:qa",
     "dev:web": "pnpm run --filter web-app dev",
@@ -15,6 +16,7 @@
     "dev:legacy-docs": "pnpm run --filter legacy-docs dev",
     "build": "pnpm run --filter web-app build",
     "build:eidos-file-web": "pnpm run --filter @eidos.space/eidos-file-web build",
+    "build:sqlite-viewer": "pnpm run --filter @eidos.space/sqlite-web-viewer build",
     "build:eidos-file-ui": "pnpm run --filter @eidos.space/eidos-file-ui build",
     "deploy:eidos-file-web": "pnpm run --filter @eidos.space/eidos-file-web deploy",
     "build:desktop": "pnpm run --filter eidos build",
