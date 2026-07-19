@@ -48,6 +48,8 @@
     "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "monaco-editor": "^0.52.0",
     "yaml": "^2.9.0"
   },
   "peerDependencies": {

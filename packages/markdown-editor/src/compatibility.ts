@@ -78,7 +78,15 @@ export function findUnsupportedMarkdown(
   collect(
     visible,
     /(?<!\\)\$(?![\s$])(?:[^$\n\\]|\\.)+?(?<![\s\\])\$/g,
-    (match) => add("math", match)
+    (match) => {
+      // A pair of dollar-prefixed prices such as "$2/$10" also looks like a
+      // pair of inline-math delimiters to a regular expression. The first
+      // closing dollar is immediately followed by the second price amount,
+      // which is not valid inline math in normal prose. Keep the visual
+      // editor available for these common pricing expressions.
+      if (isDollarPricePair(visible, match)) return
+      add("math", match)
+    }
   )
   collect(visible, /%%[^\n]*(?:%%|$)/g, (match) =>
     add("obsidian-comment", match)
@@ -100,6 +108,17 @@ function collect(
   visit: (match: RegExpMatchArray) => void
 ) {
   for (const match of value.matchAll(pattern)) visit(match)
+}
+
+function isDollarPricePair(value: string, match: RegExpMatchArray): boolean {
+  const index = match.index ?? 0
+  const nextCharacter = value[index + match[0].length]
+
+  return (
+    /^\$\d/.test(match[0]) &&
+    nextCharacter !== undefined &&
+    /\d/.test(nextCharacter)
+  )
 }
 
 function lineAt(source: string, index: number): number {

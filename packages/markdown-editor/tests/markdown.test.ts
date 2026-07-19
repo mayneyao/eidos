@@ -187,6 +187,20 @@ describe("Markdown semantic conversion", () => {
     expect(inspectMarkdownCompatibility(markdown).safeToEdit).toBe(true)
   })
 
+  it("does not mistake dollar-denominated price pairs for TeX math", () => {
+    const markdown = [
+      "- **定价**：$3 / $15 per MTok（与 Sonnet 4 相同）",
+      "- **Claude Sonnet 5** — 2026 年 6 月 30 日（下一代 Sonnet，$2/$10 入门定价）",
+      "- **价格区间**：$30-$50 per MTok",
+    ].join("\n")
+
+    expect(findUnsupportedMarkdown(markdown)).toEqual([])
+    expect(inspectMarkdownCompatibility(markdown).safeToEdit).toBe(true)
+    expect(findUnsupportedMarkdown("数学仍是 $2/3$。")).toMatchObject([
+      { code: "math" },
+    ])
+  })
+
   it("keeps wiki targets lossless across UTF-16 and punctuation edge cases", () => {
     const source =
       "😀 See [[A ) folder/Plan|label \\| detail]] and ![[图 (1).png]]."

@@ -26,6 +26,51 @@ import { matchWikiLinkTypeahead } from "../src/wiki-link-plugin"
 
 import "../src/styles.css"
 
+vi.mock("@monaco-editor/react", async () => {
+  const React = await import("react")
+
+  function MonacoEditorMock({
+    onChange,
+    onMount,
+    options,
+    value = "",
+  }: {
+    onChange?: (value: string) => void
+    onMount?: (editor: {
+      focus: () => void
+      getModel: () => null
+      getSelection: () => null
+      onDidBlurEditorText: () => { dispose: () => void }
+      onDidChangeCursorSelection: () => { dispose: () => void }
+      onDidFocusEditorText: () => { dispose: () => void }
+    }) => void
+    options?: { ariaLabel?: string }
+    value?: string
+  }) {
+    React.useEffect(() => {
+      const disposable = { dispose: () => undefined }
+      onMount?.({
+        focus: () => undefined,
+        getModel: () => null,
+        getSelection: () => null,
+        onDidBlurEditorText: () => disposable,
+        onDidChangeCursorSelection: () => disposable,
+        onDidFocusEditorText: () => disposable,
+      })
+    }, [onMount])
+
+    return React.createElement("textarea", {
+      "aria-label": options?.ariaLabel,
+      "data-monaco-editor": "true",
+      onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) =>
+        onChange?.(event.currentTarget.value),
+      value,
+    })
+  }
+
+  return { default: MonacoEditorMock }
+})
+
 function placeCaret(node: Node, offset: number) {
   const selection = window.getSelection()
   const range = document.createRange()
@@ -50,6 +95,22 @@ function pressKey(editor: HTMLElement, key: string) {
   editor.dispatchEvent(
     new KeyboardEvent("keydown", { bubbles: true, cancelable: true, key })
   )
+}
+
+function setInputValue(
+  input: HTMLInputElement | HTMLTextAreaElement,
+  value: string
+) {
+  const prototype =
+    input instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype
+  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set
+  if (!setter) throw new Error("Expected an input value setter")
+  act(() => {
+    setter.call(input, value)
+    input.dispatchEvent(new Event("input", { bubbles: true }))
+  })
 }
 
 function lastTextNode(element: Element): Text {
@@ -218,20 +279,108 @@ describe("MarkdownEditor", () => {
     )
   })
 
-  it("renders unsupported syntax as exact, non-editable source", async () => {
-    const markdown = "Before\n\n<div>keep me</div>\n"
+  it("falls back to editable, source-preserving Markdown for unsupported syntax", async () => {
+    const markdown = "Before\n\n$$\nt = s/v\n$$\n"
+    const onChange = vi.fn()
     const container = render(
-      <MarkdownEditor defaultValue={markdown} ariaLabel="Raw note" />
+      <MarkdownEditor
+        defaultValue={markdown}
+        ariaLabel="Raw note"
+        onChange={onChange}
+      />
     )
     await settle()
 
     expect(
       container.querySelector('[data-unsupported-markdown="true"]')
     ).not.toBeNull()
-    expect(container.querySelector('[role="textbox"]')).toBeNull()
+    expect(container.textContent).toContain("Markdown source mode")
+    const source = container.querySelector<HTMLTextAreaElement>(
+      'textarea[data-monaco-editor="true"][aria-label="Raw note"]'
+    )
+    expect(source?.value).toBe(markdown)
+
+    const edited = "Before\n\n$$\nt = d/v\n$$\n"
+    setInputValue(source!, edited)
+    expect(onChange).toHaveBeenLastCalledWith(
+      edited,
+      expect.objectContaining({ sourcePreserved: true })
+    )
+  })
+
+  it("returns to the visual editor after raw source removes unsupported syntax", async () => {
+    const container = render(
+      <MarkdownEditor defaultValue={"$$\nt = s/v\n$$\n"} />
+    )
+    await settle()
+
+    const source = container.querySelector<HTMLTextAreaElement>("textarea")
+    setInputValue(source!, "# Safe document")
+    await settle()
+
+    expect(container.querySelector("textarea")).toBeNull()
+    expect(container.querySelector('[role="textbox"]')?.textContent).toBe(
+      "Safe document"
+    )
+  })
+
+  it("keeps CRLF line endings when editing raw Markdown source", async () => {
+    const onChange = vi.fn()
+    const container = render(
+      <MarkdownEditor
+        defaultValue={"$$\r\nt = s/v\r\n$$\r\n"}
+        onChange={onChange}
+      />
+    )
+    await settle()
+
+    setInputValue(
+      container.querySelector<HTMLTextAreaElement>("textarea")!,
+      "$$\nt = d/v\n$$\n"
+    )
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      "$$\r\nt = d/v\r\n$$\r\n",
+      expect.objectContaining({ sourcePreserved: true })
+    )
+  })
+
+  it("updates the raw fallback when a controlled document changes externally", async () => {
+    function ControlledRawEditor() {
+      const [value, setValue] = useState("$$\nt = s/v\n$$\n")
+      return (
+        <>
+          <button onClick={() => setValue("$$\nt = d/v\n$$\n")}>
+            Replace source
+          </button>
+          <MarkdownEditor value={value} onChange={setValue} />
+        </>
+      )
+    }
+
+    const container = render(<ControlledRawEditor />)
+    await settle()
+
+    const button = container.querySelector("button")!
+    act(() => button.dispatchEvent(new MouseEvent("click", { bubbles: true })))
+    await settle()
+
+    expect(
+      container.querySelector<HTMLTextAreaElement>("textarea")?.value
+    ).toBe("$$\nt = d/v\n$$\n")
+  })
+
+  it("keeps unsupported source read-only when the host requests read-only mode", async () => {
+    const markdown = "Before\n\n$$\nt = s/v\n$$\n"
+    const container = render(
+      <MarkdownEditor defaultValue={markdown} readOnly />
+    )
+    await settle()
+
+    expect(container.textContent).toContain("Read-only Markdown")
+    expect(container.querySelector("textarea")).toBeNull()
     const source = container.querySelector('[role="document"]')
     expect(source?.textContent).toBe(markdown)
-    expect(source?.getAttribute("aria-label")).toBe("Raw note")
   })
 
   it("keeps escaped task-like text in the visual editor", async () => {
@@ -455,6 +604,61 @@ describe("MarkdownEditor", () => {
     act(() => handle?.click())
     await settle()
     expect(first.classList.contains("eidos-md-block-selected")).toBe(true)
+  })
+
+  it("keeps the drag gutter mounted through the space before its button", async () => {
+    const container = render(<MarkdownEditor defaultValue="First block" />)
+    await settle()
+
+    const surface = container.querySelector<HTMLElement>(
+      ".eidos-md-editor-surface"
+    )!
+    const first = container.querySelector<HTMLElement>("p")!
+    first.getBoundingClientRect = () =>
+      ({
+        bottom: 30,
+        height: 30,
+        left: 30,
+        right: 330,
+        top: 0,
+        width: 300,
+        x: 30,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect
+
+    act(() =>
+      first.dispatchEvent(
+        new MouseEvent("mousemove", { bubbles: true, clientY: 10 })
+      )
+    )
+    await settle()
+
+    act(() =>
+      surface.dispatchEvent(
+        new MouseEvent("mousemove", { bubbles: true, clientY: 10 })
+      )
+    )
+    await settle()
+
+    expect(
+      container.querySelector('button[aria-label="Select and drag block"]')
+    ).not.toBeNull()
+
+    act(() =>
+      surface.dispatchEvent(
+        new MouseEvent("mouseleave", {
+          relatedTarget: container.querySelector(
+            'button[aria-label="Select and drag block"]'
+          ),
+        })
+      )
+    )
+    await settle()
+
+    expect(
+      container.querySelector('button[aria-label="Select and drag block"]')
+    ).not.toBeNull()
   })
 
   it("deletes selected blocks and restores an editable caret", async () => {

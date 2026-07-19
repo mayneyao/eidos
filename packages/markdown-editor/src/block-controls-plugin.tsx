@@ -433,6 +433,13 @@ export function DraggableBlockPlugin({
     if (!root || !surface) return
 
     const onMouseMove = (event: MouseEvent) => {
+      const target = event.target
+      if (
+        target instanceof Element &&
+        (target.closest(".eidos-md-block-handle") || target === surface)
+      ) {
+        return
+      }
       const element = blockElementAtTarget(editor, event.target)
       if (!element) {
         setActiveKey(null)
@@ -447,14 +454,21 @@ export function DraggableBlockPlugin({
           2
       )
     }
-    const onMouseLeave = () => {
+    const onMouseLeave = (event: MouseEvent) => {
+      const nextTarget = event.relatedTarget
+      if (
+        nextTarget instanceof Element &&
+        nextTarget.closest(".eidos-md-block-handle")
+      ) {
+        return
+      }
       if (!draggingKeyRef.current) setActiveKey(null)
     }
-    root.addEventListener("mousemove", onMouseMove)
-    root.addEventListener("mouseleave", onMouseLeave)
+    surface.addEventListener("mousemove", onMouseMove)
+    surface.addEventListener("mouseleave", onMouseLeave)
     return () => {
-      root.removeEventListener("mousemove", onMouseMove)
-      root.removeEventListener("mouseleave", onMouseLeave)
+      surface.removeEventListener("mousemove", onMouseMove)
+      surface.removeEventListener("mouseleave", onMouseLeave)
     }
   }, [editor, surfaceRef])
 
@@ -534,6 +548,9 @@ export function DraggableBlockPlugin({
         draggingKeyRef.current = null
       }}
       onDragStart={startDrag}
+      onMouseLeave={() => {
+        if (!draggingKeyRef.current) setActiveKey(null)
+      }}
     >
       <span aria-hidden="true">⠿</span>
     </button>

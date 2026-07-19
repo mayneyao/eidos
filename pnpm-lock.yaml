@@ -1810,6 +1810,12 @@ importers:
 
   packages/markdown-editor:
     dependencies:
+      '@monaco-editor/react':
+        specifier: ^4.7.0
+        version: 4.7.0(monaco-editor@0.52.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      monaco-editor:
+        specifier: ^0.52.0
+        version: 0.52.2
       yaml:
         specifier: ^2.9.0
         version: 2.9.0

@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react"
+import MonacoEditor, { type OnMount } from "@monaco-editor/react"
 import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin"
 import { AutoLinkPlugin } from "@lexical/react/LexicalAutoLinkPlugin"
 import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin"
@@ -143,6 +144,140 @@ interface EditorBridgeProps {
   onChange: MarkdownEditorProps["onChange"]
   onSelectionChange: MarkdownEditorProps["onSelectionChange"]
   onInternalSourceChange: (markdown: string) => void
+}
+
+interface MarkdownSourceEditorProps {
+  ariaLabel: string
+  autoFocus: boolean
+  className: string
+  onBlur: () => void
+  onChange: (value: string | undefined) => void
+  onEditorReady: (editor: { focus: () => void } | null) => void
+  onFocus: () => void
+  onSelectionChange: MarkdownEditorProps["onSelectionChange"]
+  theme: string
+  value: string
+}
+
+type MonacoSubscription = { dispose: () => void }
+
+function inferSourceLineEnding(markdown: string): "\n" | "\r\n" {
+  return markdown.includes("\r\n") ? "\r\n" : "\n"
+}
+
+function useMarkdownSourceTheme(): string {
+  const resolveTheme = () =>
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("dark")
+      ? "vs-dark"
+      : "vs"
+  const [theme, setTheme] = useState(resolveTheme)
+
+  useEffect(() => {
+    if (typeof document === "undefined") return
+    const updateTheme = () => setTheme(resolveTheme())
+    const observer = new MutationObserver(updateTheme)
+    observer.observe(document.documentElement, {
+      attributeFilter: ["class"],
+      attributes: true,
+    })
+    return () => observer.disconnect()
+  }, [])
+
+  return theme
+}
+
+function MarkdownSourceEditor({
+  ariaLabel,
+  autoFocus,
+  className,
+  onBlur,
+  onChange,
+  onEditorReady,
+  onFocus,
+  onSelectionChange,
+  theme,
+  value,
+}: MarkdownSourceEditorProps) {
+  const subscriptionsRef = useRef<MonacoSubscription[]>([])
+
+  const disposeSubscriptions = useCallback(() => {
+    for (const subscription of subscriptionsRef.current) {
+      subscription.dispose()
+    }
+    subscriptionsRef.current = []
+  }, [])
+
+  useEffect(
+    () => () => {
+      disposeSubscriptions()
+      onEditorReady(null)
+    },
+    [disposeSubscriptions, onEditorReady]
+  )
+
+  const handleMount = useCallback<OnMount>(
+    (editor) => {
+      disposeSubscriptions()
+      onEditorReady(editor)
+      if (autoFocus) editor.focus()
+
+      const reportSelection = () => {
+        if (!onSelectionChange) return
+        const model = editor.getModel()
+        const selection = editor.getSelection()
+        if (!model || !selection) {
+          onSelectionChange(null)
+          return
+        }
+        onSelectionChange({
+          text: model.getValueInRange(selection),
+          collapsed: selection.isEmpty(),
+        })
+      }
+
+      subscriptionsRef.current = [
+        editor.onDidBlurEditorText(onBlur),
+        editor.onDidFocusEditorText(onFocus),
+        editor.onDidChangeCursorSelection(reportSelection),
+      ]
+    },
+    [
+      autoFocus,
+      disposeSubscriptions,
+      onBlur,
+      onEditorReady,
+      onFocus,
+      onSelectionChange,
+    ]
+  )
+
+  return (
+    <MonacoEditor
+      className={className}
+      height="min(72vh, 56rem)"
+      language="markdown"
+      onChange={onChange}
+      onMount={handleMount}
+      options={{
+        ariaLabel,
+        automaticLayout: true,
+        folding: true,
+        fontFamily:
+          '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+        fontSize: 13,
+        lineNumbers: "on",
+        minimap: { enabled: false },
+        padding: { bottom: 24, top: 14 },
+        scrollBeyondLastLine: false,
+        tabSize: 2,
+        wordWrap: "on",
+      }}
+      theme={theme}
+      value={value}
+      width="100%"
+    />
+  )
 }
 
 function LegacyTaskShortcutPlugin() {
@@ -367,11 +502,18 @@ export const MarkdownEditor = forwardRef<
   compatibilityRef.current = compatibility
   const compatibilityBlocked =
     !compatibility.safeToEdit && !allowUnsupportedMarkdownEditing
-  const effectiveReadOnly = readOnly || compatibilityBlocked
+  const effectiveReadOnly = readOnly
   const lastEmittedRef = useRef<string | null>(null)
   const editorRef = useRef<LexicalEditor | null>(null)
-  const rawViewRef = useRef<HTMLPreElement | null>(null)
+  const rawFallbackRef = useRef<{ focus: () => void } | null>(null)
+  const setRawFallbackRef = useCallback(
+    (node: { focus: () => void } | null) => {
+      rawFallbackRef.current = node
+    },
+    []
+  )
   const surfaceRef = useRef<HTMLDivElement | null>(null)
+  const monacoTheme = useMarkdownSourceTheme()
 
   useEffect(() => {
     onCompatibilityChange?.(compatibility)
@@ -385,7 +527,9 @@ export const MarkdownEditor = forwardRef<
     ) {
       return
     }
-    setCompatibility(inspectMarkdownCompatibility(value))
+    const snapshot = markdownToSourceSnapshot(value)
+    sourceRef.current = snapshot
+    setCompatibility(inspectMarkdownCompatibility(value, snapshot.canonical))
   }, [value])
 
   const editorExtension = useMemo(
@@ -393,9 +537,7 @@ export const MarkdownEditor = forwardRef<
       createMarkdownExtension({
         editable: !effectiveReadOnly,
         initialEditorState: () => {
-          $importMarkdown(
-            splitMarkdownDocument(initialMarkdownRef.current).body
-          )
+          $importMarkdown(splitMarkdownDocument(activeSourceRef.current).body)
         },
         namespace,
         onError,
@@ -412,7 +554,7 @@ export const MarkdownEditor = forwardRef<
     () => ({
       focus: () => {
         if (editorRef.current) editorRef.current.focus()
-        else rawViewRef.current?.focus()
+        else rawFallbackRef.current?.focus()
       },
       getMarkdown: () => {
         const editor = editorRef.current
@@ -431,8 +573,12 @@ export const MarkdownEditor = forwardRef<
       },
       setMarkdown: (markdown) => {
         activeSourceRef.current = markdown
+        const snapshot = markdownToSourceSnapshot(markdown)
+        sourceRef.current = snapshot
         setUncontrolledSource(markdown)
-        setCompatibility(inspectMarkdownCompatibility(markdown))
+        setCompatibility(
+          inspectMarkdownCompatibility(markdown, snapshot.canonical)
+        )
         const editor = editorRef.current
         if (editor) sourceRef.current = setEditorMarkdown(editor, markdown)
       },
@@ -451,42 +597,6 @@ export const MarkdownEditor = forwardRef<
     .filter(Boolean)
     .join(" ")
 
-  if (compatibilityBlocked) {
-    const viewProps = { markdown: activeSource, compatibility, ariaLabel }
-    return (
-      <div
-        className={rootClassName}
-        data-readonly="true"
-        data-unsupported-markdown="true"
-      >
-        {renderUnsupportedMarkdown?.(viewProps) ?? (
-          <div className="eidos-md-unsupported-view">
-            <div className="eidos-md-compatibility-notice" role="note">
-              <strong>Read-only Markdown</strong>
-              <span>
-                This file uses syntax the visual editor cannot safely change
-                yet:{" "}
-                {[
-                  ...new Set(compatibility.issues.map((issue) => issue.code)),
-                ].join(", ")}
-                .
-              </span>
-            </div>
-            <pre
-              aria-label={ariaLabel}
-              className="eidos-md-raw-source"
-              ref={rawViewRef}
-              role="document"
-              tabIndex={0}
-            >
-              {activeSource}
-            </pre>
-          </div>
-        )}
-      </div>
-    )
-  }
-
   const editableClassName = ["eidos-md-content", contentClassName]
     .filter(Boolean)
     .join(" ")
@@ -503,6 +613,84 @@ export const MarkdownEditor = forwardRef<
         label: anchor.textContent ?? "",
       },
       event
+    )
+  }
+
+  if (compatibilityBlocked) {
+    const viewProps = { markdown: activeSource, compatibility, ariaLabel }
+    const unsupportedSyntax = [
+      ...new Set(compatibility.issues.map((issue) => issue.code)),
+    ].join(", ")
+    const rawEditorClassName = ["eidos-md-monaco-source", contentClassName]
+      .filter(Boolean)
+      .join(" ")
+    const handleRawSourceChange = (value: string | undefined) => {
+      const next = (value ?? "").replace(
+        /\r?\n/g,
+        inferSourceLineEnding(activeSourceRef.current)
+      )
+      if (next === activeSourceRef.current) return
+
+      const snapshot = markdownToSourceSnapshot(next)
+      activeSourceRef.current = next
+      sourceRef.current = snapshot
+      lastEmittedRef.current = next
+      setUncontrolledSource(next)
+      setCompatibility(inspectMarkdownCompatibility(next, snapshot.canonical))
+      onChange?.(next, {
+        canonical: snapshot.canonical,
+        frontmatter: snapshot.frontmatter,
+        sourcePreserved: true,
+      })
+    }
+    return (
+      <div
+        className={rootClassName}
+        data-readonly={readOnly || undefined}
+        data-unsupported-markdown="true"
+      >
+        {renderUnsupportedMarkdown?.(viewProps) ?? (
+          <div className="eidos-md-unsupported-view">
+            <div className="eidos-md-compatibility-notice" role="note">
+              <strong>
+                {readOnly ? "Read-only Markdown" : "Markdown source mode"}
+              </strong>
+              <span>
+                {readOnly
+                  ? "This file uses syntax the visual editor cannot safely change yet:"
+                  : "This file uses syntax the visual editor cannot safely change yet. Edit and save the original Markdown with Monaco:"}{" "}
+                {unsupportedSyntax}.
+              </span>
+            </div>
+            {readOnly ? (
+              <pre
+                aria-label={ariaLabel}
+                className="eidos-md-raw-source"
+                ref={setRawFallbackRef}
+                role="document"
+                tabIndex={0}
+              >
+                {activeSource}
+              </pre>
+            ) : (
+              <MarkdownSourceEditor
+                ariaLabel={ariaLabel}
+                autoFocus={autoFocus}
+                className={rawEditorClassName}
+                onBlur={() => onBlur?.({} as React.FocusEvent<HTMLDivElement>)}
+                onChange={handleRawSourceChange}
+                onEditorReady={setRawFallbackRef}
+                onFocus={() =>
+                  onFocus?.({} as React.FocusEvent<HTMLDivElement>)
+                }
+                onSelectionChange={onSelectionChange}
+                theme={monacoTheme}
+                value={activeSource}
+              />
+            )}
+          </div>
+        )}
+      </div>
     )
   }
 

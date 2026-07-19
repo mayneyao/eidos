@@ -24,7 +24,9 @@
 }
 
 .eidos-md-editor-surface {
+  margin-left: -32px;
   min-width: 0;
+  padding-left: 32px;
   position: relative;
 }
 
@@ -40,7 +42,7 @@
   font-size: 17px;
   height: 24px;
   justify-content: center;
-  left: -30px;
+  left: 4px;
   opacity: 0.48;
   padding: 0;
   position: absolute;
@@ -689,6 +691,10 @@
   padding: 0.9rem;
   tab-size: 2;
   white-space: pre-wrap;
+}
+
+.eidos-md-monaco-source {
+  min-height: 18rem;
 }
 
 .eidos-md-raw-source:focus-visible {

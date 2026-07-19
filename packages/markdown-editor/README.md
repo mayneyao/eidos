@@ -68,9 +68,12 @@ byte-identical after semantic edits.
 
 Syntax that cannot yet round-trip without loss—currently raw HTML/MDX,
 footnotes, math, Obsidian comments, highlights, callouts, and block IDs—is
-shown in a source-preserving read-only fallback by default. The host can
-replace that view with `renderUnsupportedMarkdown`; visual editing can only be
-forced with the explicit `allowUnsupportedMarkdownEditing` opt-in.
+shown in an editable, source-preserving Monaco Markdown mode by default. The
+raw source is saved exactly as typed and automatically returns to visual
+editing once the document becomes compatible. A host-level `readOnly` request
+still uses the non-editable source fallback. The host can replace that view
+with `renderUnsupportedMarkdown`; visual editing can only be forced with the
+explicit `allowUnsupportedMarkdownEditing` opt-in.
 
 For diagnostics outside React, use `inspectMarkdownCompatibility(markdown)` or
 `markdownToSourceSnapshot(markdown)`. These APIs return plain data and do not
