@@ -1698,6 +1698,10 @@ importers:
         version: 3.2.6(@types/debug@4.1.12)(@types/node@20.19.1)(happy-dom@20.10.6(bufferutil@4.0.9)(utf-8-validate@6.0.5))(jiti@2.6.1)(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/file-space:
+    dependencies:
+      chokidar:
+        specifier: ^5.0.0
+        version: 5.0.0
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.13

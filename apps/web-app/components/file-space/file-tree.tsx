@@ -315,6 +315,7 @@ export function FileSpaceTree({ spaceId }: FileSpaceTreeProps) {
     spaceId,
     useCallback(
       (event) => {
+        if (event.eventType === "change") return
         if (event.eventType !== "rescan") {
           const parentPath = parentSpacePath(event.path)
           if (

@@ -36,6 +36,15 @@ const navigateMock = vi.hoisted(() => vi.fn())
 const setGlobalSearchOpenMock = vi.hoisted(() => vi.fn())
 const createBaseMock = vi.hoisted(() => vi.fn())
 const preloadSpaceEidosFileEditorMock = vi.hoisted(() => vi.fn())
+const fileChangeMocks = vi.hoisted(() => ({
+  onChange: null as
+    | ((event: {
+        spaceId: string
+        eventType: "rename" | "change" | "rescan"
+        path: string
+      }) => void)
+    | null,
+}))
 const extensionEditorMocks = vi.hoisted(() => ({
   byPath: {} as Record<
     string,
@@ -91,7 +100,12 @@ vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
     remove: vi.fn(),
     reveal: vi.fn(),
   }),
-  useSpaceFileChanges: () => undefined,
+  useSpaceFileChanges: (
+    _spaceId: string,
+    onChange: NonNullable<typeof fileChangeMocks.onChange>
+  ) => {
+    fileChangeMocks.onChange = onChange
+  },
 }))
 
 vi.mock("@/apps/web-app/hooks/use-file-extension-editors", () => ({
@@ -274,6 +288,7 @@ describe("FileSpaceTree accessibility", () => {
       currentEntriesByDirectory[path] = []
     })
     navigateMock.mockClear()
+    fileChangeMocks.onChange = null
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -441,6 +456,43 @@ describe("FileSpaceTree accessibility", () => {
     expect(
       visibleItems.filter((item) => item.getAttribute("tabindex") === "0")
     ).toEqual([getTreeItem("empty")])
+  })
+
+  it("keeps the mounted tree and focus stable for content-only changes", async () => {
+    await renderTree()
+
+    const selected = getTreeItem("root.md")
+    act(() => selected.focus())
+    const listCallsBeforeChange = listMock.mock.calls.length
+
+    await act(async () => {
+      fileChangeMocks.onChange?.({
+        spaceId: "test-space",
+        eventType: "change",
+        path: "root.md",
+      })
+      await Promise.resolve()
+    })
+
+    expect(listMock).toHaveBeenCalledTimes(listCallsBeforeChange)
+    expect(getTreeItem("root.md")).toBe(selected)
+    expect(getActiveTreeElement()).toBe(selected)
+  })
+
+  it("reloads the affected directory for structural rescans", async () => {
+    await renderTree()
+    const listCallsBeforeChange = listMock.mock.calls.length
+
+    await act(async () => {
+      fileChangeMocks.onChange?.({
+        spaceId: "test-space",
+        eventType: "rescan",
+        path: "",
+      })
+      await Promise.resolve()
+    })
+
+    expect(listMock.mock.calls.length).toBeGreaterThan(listCallsBeforeChange)
   })
 
   it("implements tree arrow, Home, and End keyboard navigation", async () => {

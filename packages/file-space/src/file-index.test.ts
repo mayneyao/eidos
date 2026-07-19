@@ -216,6 +216,7 @@ describe("FileSpaceIndex", () => {
       }
     })
     try {
+      await watcher.ready
       await writeFile(
         path.join(root, "projects", "active", ".Plan.md.tmp"),
         "# Product plan\nAtomic replacement marker"

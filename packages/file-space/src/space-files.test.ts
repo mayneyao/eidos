@@ -267,7 +267,7 @@ describe("SpaceFiles", () => {
       debounceMs: 80,
     })
     try {
-      await delay(25)
+      await watcher.ready
       await writeFile(path.join(root, "note.md"), "first")
       await writeFile(path.join(root, "note.md"), "second")
       await waitFor(() => changes.length > 0)
@@ -276,13 +276,7 @@ describe("SpaceFiles", () => {
       watcher.close()
     }
 
-    expect(
-      changes.filter(
-        (change) =>
-          change.path === "note.md" ||
-          (change.eventType === "rescan" && change.path === "")
-      )
-    ).toHaveLength(1)
+    expect(changes).toEqual([{ eventType: "change", path: "note.md" }])
     await expect(files.readText("note.md")).resolves.toMatchObject({
       content: "second",
     })
@@ -295,12 +289,12 @@ describe("SpaceFiles", () => {
       debounceMs: 80,
     })
     try {
-      await delay(25)
+      await watcher.ready
       await writeFile(path.join(root, ".note.md.tmp"), "replacement")
       await rename(path.join(root, ".note.md.tmp"), path.join(root, "note.md"))
       await waitFor(() =>
         changes.some(
-          (change) => change.eventType === "rescan" && change.path === ""
+          (change) => change.eventType === "change" && change.path === "note.md"
         )
       )
       await delay(120)
@@ -308,11 +302,108 @@ describe("SpaceFiles", () => {
       watcher.close()
     }
 
-    expect(changes).toContainEqual({ eventType: "rescan", path: "" })
+    expect(changes).toEqual([{ eventType: "change", path: "note.md" }])
     await expect(files.readText("note.md")).resolves.toMatchObject({
       content: "replacement",
       size: 11,
     })
+  })
+
+  it("reports an internal atomic text save without a structural rescan", async () => {
+    await writeFile(path.join(root, "note.md"), "old")
+    const changes: Array<{ eventType: string; path: string }> = []
+    const watcher = files.watch((change) => changes.push(change), {
+      debounceMs: 80,
+    })
+    try {
+      await watcher.ready
+      const original = await files.readText("note.md")
+      await files.writeText(
+        "note.md",
+        "saved",
+        original.mtimeMs,
+        original.contentDigest
+      )
+      await waitFor(() =>
+        changes.some(
+          (change) => change.eventType === "change" && change.path === "note.md"
+        )
+      )
+      await delay(120)
+    } finally {
+      watcher.close()
+    }
+
+    expect(changes).toEqual([{ eventType: "change", path: "note.md" }])
+  })
+
+  it("ignores transient SQLite sidecars while reporting the Eidos file update", async () => {
+    await writeFile(path.join(root, "tasks.eidos"), "old")
+    const changes: Array<{ eventType: string; path: string }> = []
+    const watcher = files.watch((change) => changes.push(change), {
+      debounceMs: 80,
+    })
+    try {
+      await watcher.ready
+      await writeFile(path.join(root, "tasks.eidos-journal"), "journal")
+      await writeFile(path.join(root, "tasks.eidos"), "updated")
+      await rm(path.join(root, "tasks.eidos-journal"))
+      await waitFor(() =>
+        changes.some(
+          (change) =>
+            change.eventType === "change" && change.path === "tasks.eidos"
+        )
+      )
+      await delay(120)
+    } finally {
+      watcher.close()
+    }
+
+    expect(changes).toEqual([{ eventType: "change", path: "tasks.eidos" }])
+  })
+
+  it("keeps external create, rename, and delete as structural rescans", async () => {
+    const changes: Array<{ eventType: string; path: string }> = []
+    const watcher = files.watch((change) => changes.push(change), {
+      debounceMs: 40,
+    })
+    try {
+      await watcher.ready
+
+      await writeFile(path.join(root, "created.md"), "created")
+      await waitFor(() => changes.length > 0)
+      await delay(120)
+      expect(changes.length).toBeGreaterThan(0)
+      expect(
+        changes.every(
+          (change) => change.eventType === "rescan" && change.path === ""
+        )
+      ).toBe(true)
+      changes.length = 0
+
+      await rename(path.join(root, "created.md"), path.join(root, "renamed.md"))
+      await waitFor(() => changes.length > 0)
+      await delay(120)
+      expect(changes.length).toBeGreaterThan(0)
+      expect(
+        changes.every(
+          (change) => change.eventType === "rescan" && change.path === ""
+        )
+      ).toBe(true)
+      changes.length = 0
+
+      await rm(path.join(root, "renamed.md"))
+      await waitFor(() => changes.length > 0)
+      await delay(120)
+      expect(changes.length).toBeGreaterThan(0)
+      expect(
+        changes.every(
+          (change) => change.eventType === "rescan" && change.path === ""
+        )
+      ).toBe(true)
+    } finally {
+      watcher.close()
+    }
   })
 
   it("refreshes the nearest existing ancestor after a directory is deleted", async () => {
@@ -323,7 +414,7 @@ describe("SpaceFiles", () => {
       debounceMs: 80,
     })
     try {
-      await delay(25)
+      await watcher.ready
       await rm(path.join(root, "scratch"), { recursive: true })
       await waitFor(() =>
         changes.some((change) => change.eventType === "rescan")

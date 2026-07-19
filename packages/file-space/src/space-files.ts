@@ -1,11 +1,4 @@
-import {
-  constants,
-  realpathSync,
-  statSync,
-  watch as watchFileSystem,
-  type FSWatcher,
-  type Stats,
-} from "node:fs"
+import { constants, realpathSync, statSync, type Stats } from "node:fs"
 import { execFile } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
 import {
@@ -24,6 +17,7 @@ import {
 } from "node:fs/promises"
 import path from "node:path"
 import { promisify } from "node:util"
+import { watch as watchFileSystem } from "chokidar"
 
 export { uniqueSpaceEntryName } from "./names"
 
@@ -83,6 +77,7 @@ export interface WatchSpaceFilesOptions {
 }
 
 export interface SpaceFileWatcher {
+  ready: Promise<void>
   close(): void
 }
 
@@ -146,6 +141,21 @@ function isWithinRoot(root: string, candidate: string): boolean {
 
 function toPortablePath(value: string): string {
   return value.split(path.sep).join("/")
+}
+
+function toRelativeWatchPath(root: string, watchedPath: string): string {
+  const relativePath = path.isAbsolute(watchedPath)
+    ? path.relative(root, watchedPath)
+    : watchedPath
+  return toPortablePath(relativePath).replace(/^\.\//, "")
+}
+
+function isTransientEidosFilePath(relativePath: string): boolean {
+  const name = path.posix.basename(relativePath)
+  return (
+    /\.eidos-(?:journal|shm|wal)$/i.test(name) ||
+    /^\..+\.eidos-\d+-[0-9a-f-]+\.tmp(?:\.eidos)?$/i.test(name)
+  )
 }
 
 function parentPortablePath(relativePath: string): string {
@@ -830,37 +840,52 @@ export class SpaceFiles {
       }, debounceMs)
       pending.set(key, timer)
     }
-    const watcher: FSWatcher = watchFileSystem(
-      this.root,
-      { recursive: true },
-      (eventType, filename) => {
-        if (!filename) return
-        const relativePath = toPortablePath(String(filename))
-        if (
-          this.shouldHide(relativePath, {
-            includeHidden: true,
-            includeObsidian: true,
-          })
-        )
-          return
-        queueChange(
-          eventType === "rename"
-            ? {
-                eventType: "rescan",
-                path: parentPortablePath(relativePath),
-              }
-            : { eventType: "change", path: relativePath }
-        )
-      }
-    )
+    const shouldIgnore = (watchedPath: string) => {
+      const relativePath = toRelativeWatchPath(this.root, watchedPath)
+      if (!relativePath) return false
+      return (
+        isTransientEidosFilePath(relativePath) ||
+        this.shouldHide(relativePath, {
+          includeHidden: true,
+          includeObsidian: true,
+        })
+      )
+    }
+    const watcher = watchFileSystem(this.root, {
+      atomic: true,
+      awaitWriteFinish: false,
+      followSymlinks: false,
+      ignoreInitial: true,
+      ignored: shouldIgnore,
+    })
+    const queueContentChange = (watchedPath: string) => {
+      const relativePath = toRelativeWatchPath(this.root, watchedPath)
+      if (!relativePath || shouldIgnore(relativePath)) return
+      queueChange({ eventType: "change", path: relativePath })
+    }
+    const queueStructuralChange = (watchedPath: string) => {
+      const relativePath = toRelativeWatchPath(this.root, watchedPath)
+      if (!relativePath || shouldIgnore(relativePath)) return
+      queueChange({
+        eventType: "rescan",
+        path: parentPortablePath(relativePath),
+      })
+    }
+    watcher.on("change", queueContentChange)
+    watcher.on("add", queueStructuralChange)
+    watcher.on("addDir", queueStructuralChange)
+    watcher.on("unlink", queueStructuralChange)
+    watcher.on("unlinkDir", queueStructuralChange)
     watcher.on("error", () => {
       queueChange({ eventType: "rescan", path: "" })
     })
+    const ready = new Promise<void>((resolve) => watcher.once("ready", resolve))
     return {
+      ready,
       close: () => {
         for (const timer of pending.values()) clearTimeout(timer)
         pending.clear()
-        watcher.close()
+        void watcher.close()
       },
     }
   }
