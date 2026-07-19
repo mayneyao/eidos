@@ -3,6 +3,7 @@
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type {
+  EidosFileRowPage,
   EidosFileRowMutationResult,
   EidosFileRowsMutationResult,
   EidosFileTableSnapshot,
@@ -203,6 +204,76 @@ describe("EidosFileGrid", () => {
       table.fields[0],
       "Write implementation"
     )
+  })
+
+  it("keeps rendered rows, focus, and selection while a .eidos file query revalidates", async () => {
+    const initialLoad = createLoadPage()
+    let resolveRefresh: ((page: EidosFileRowPage) => void) | undefined
+    const refreshLoad = vi.fn(
+      (_offset: number, _limit: number) =>
+        new Promise<EidosFileRowPage>((resolve) => {
+          resolveRefresh = resolve
+        })
+    )
+    const renderGrid = (
+      loadPage: (offset: number, limit: number) => Promise<EidosFileRowPage>
+    ) => (
+      <EidosFileGrid
+        table={table}
+        view={table.views[0]}
+        loadPage={loadPage}
+        onAddRow={vi.fn()}
+        onCellEdit={createCellEdit()}
+      />
+    )
+    await act(async () => {
+      root.render(renderGrid(initialLoad))
+      await Promise.resolve()
+    })
+    const grid = container.querySelector<HTMLElement>(
+      '[data-testid="glide-grid"]'
+    )
+    grid?.focus()
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 0],
+          range: { x: 0, y: 0, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+
+    await act(async () => {
+      root.render(renderGrid(refreshLoad))
+      await Promise.resolve()
+    })
+
+    expect(refreshLoad).toHaveBeenCalledWith(0, 100)
+    expect(container.querySelector('[data-testid="glide-grid"]')).toBe(grid)
+    expect(document.activeElement).toBe(grid)
+    expect(mocks.props?.gridSelection?.current?.cell).toEqual([0, 0])
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Write RFC",
+    })
+
+    await act(async () => {
+      resolveRefresh?.({
+        tableId: "tasks",
+        offset: 0,
+        limit: 100,
+        total: 1,
+        rows: [{ _id: "row_filtered", title: "Filtered result", done: 1 }],
+      })
+      await Promise.resolve()
+    })
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      kind: GridCellKind.Text,
+      data: "Filtered result",
+    })
   })
 
   it("persists a multi-cell paste as one row batch", async () => {

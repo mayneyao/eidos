@@ -7,6 +7,7 @@ import type {
   EidosFileRowPage,
   EidosFileSnapshot,
   EidosFileSqlPrimitive,
+  EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
 
 import { TabProvider } from "@/apps/web-app/components/tab-manager/tab-context"
@@ -62,7 +63,9 @@ const extensionEidosFileViewState = vi.hoisted(() => ({
 const eidosFileViewHostProps = vi.hoisted(() => ({
   grid: [] as Array<{
     table: object
-    view?: { id: string; type: string }
+    view?: EidosFileViewInfo
+    loadPage: (offset: number, limit: number) => Promise<EidosFileRowPage>
+    reloadToken?: number
     onOpenRecordInTab?: (row: EidosFileRow) => void
     onRevealFile: unknown
     onPropertyFieldOpen: unknown
@@ -296,17 +299,30 @@ vi.mock("./eidos-file-view-menu", () => ({
       visibleSystemFields: string[]
     }) => void
   }) => (
-    <button
-      type="button"
-      onClick={() =>
-        onVisibilityChange({
-          hiddenFields: [],
-          visibleSystemFields: ["_created_time"],
-        })
-      }
-    >
-      Show created time
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() =>
+          onVisibilityChange({
+            hiddenFields: [],
+            visibleSystemFields: ["_created_time"],
+          })
+        }
+      >
+        Show created time
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          onVisibilityChange({
+            hiddenFields: [],
+            visibleSystemFields: [],
+          })
+        }
+      >
+        Reset visible fields
+      </button>
+    </>
   ),
 }))
 
@@ -437,6 +453,7 @@ vi.mock("./eidos-file-grid", async () => {
     EidosFileGrid: memo(function EidosFileGrid({
       table,
       view,
+      loadPage,
       onCellEdit,
       onInspectorCellEdit,
       onRowsEdit,
@@ -462,7 +479,8 @@ vi.mock("./eidos-file-grid", async () => {
       reloadToken,
     }: {
       table: (typeof snapshot)["tables"][number]
-      view?: { id: string; type: string }
+      view?: EidosFileViewInfo
+      loadPage: (offset: number, limit: number) => Promise<EidosFileRowPage>
       onCellEdit: (
         row: { _id: string; title: string; status: string },
         field: (typeof snapshot)["tables"][number]["fields"][number],
@@ -523,6 +541,8 @@ vi.mock("./eidos-file-grid", async () => {
       eidosFileViewHostProps.grid.push({
         table,
         view,
+        loadPage,
+        reloadToken,
         onOpenRecordInTab,
         onRevealFile,
         onPropertyFieldOpen,
@@ -1979,6 +1999,78 @@ describe("SpaceEidosFileEditor", () => {
     expect(grid()?.dataset.reloadToken).toBe("2")
   })
 
+  it("checks a watcher event received during save without mistaking self-echo for an external edit", async () => {
+    let resolveUpdate:
+      | ((result: EidosFileRowMutationResult) => void)
+      | undefined
+    updateRowMock.mockImplementationOnce(
+      () =>
+        new Promise<EidosFileRowMutationResult>((resolve) => {
+          resolveUpdate = resolve
+        })
+    )
+    await renderEditor()
+    const grid = () =>
+      container.querySelector<HTMLElement>('[data-testid="eidos-file-grid"]')
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit title")
+        ?.click()
+      await Promise.resolve()
+    })
+    act(() => {
+      spaceFileChanges.handler?.({
+        eventType: "change",
+        path: "projects/tasks.eidos",
+      })
+    })
+    expect(getSnapshotMock).toHaveBeenCalledTimes(1)
+
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      metadata: {
+        ...snapshot.metadata,
+        updatedAt: "2026-07-13T06:00:00.000Z",
+      },
+    })
+    await act(async () => {
+      resolveUpdate?.({
+        tableId: "tasks",
+        row: {
+          _id: "row_1",
+          title: "Write implementation",
+          status: "todo",
+        },
+        rowCount: 1,
+        revision: "2026-07-13T06:00:00.000Z",
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(getSnapshotMock).toHaveBeenCalledTimes(2)
+    expect(grid()?.dataset.reloadToken).toBe("1")
+
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      metadata: {
+        ...snapshot.metadata,
+        updatedAt: "2026-07-13T06:00:01.000Z",
+      },
+    })
+    await act(async () => {
+      spaceFileChanges.handler?.({
+        eventType: "change",
+        path: "projects/tasks.eidos",
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(getSnapshotMock).toHaveBeenCalledTimes(3)
+    expect(grid()?.dataset.reloadToken).toBe("2")
+  })
+
   it("keeps Kanban mounted when adding a row without an active query", async () => {
     getSnapshotMock.mockResolvedValue({
       ...snapshot,
@@ -2045,7 +2137,7 @@ describe("SpaceEidosFileEditor", () => {
       container.querySelector<HTMLElement>('[data-testid="eidos-file-grid"]')
         ?.dataset.disabled
     ).toBe("false")
-    expect(container.textContent).toContain("Saving…")
+    expect(container.textContent).not.toContain("Saving…")
 
     await act(async () => {
       resolveUpdate?.({
@@ -2243,6 +2335,63 @@ describe("SpaceEidosFileEditor", () => {
     expect(container.textContent).toContain("Saved")
   })
 
+  it("keeps Saved visually stable for fast writes and reports a genuinely slow .eidos file save", async () => {
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit title")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(container.textContent).toContain("Saved")
+    expect(container.textContent).not.toContain("Saving…")
+
+    let resolveSlowSave:
+      | ((result: EidosFileRowMutationResult) => void)
+      | undefined
+    updateRowMock.mockImplementationOnce(
+      () =>
+        new Promise<EidosFileRowMutationResult>((resolve) => {
+          resolveSlowSave = resolve
+        })
+    )
+    act(() => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Edit title")
+        ?.click()
+    })
+    await act(async () => Promise.resolve())
+    expect(container.textContent).toContain("Saved")
+    expect(container.textContent).not.toContain("Saving…")
+
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 120)))
+    expect(container.textContent).toContain("Saved")
+    expect(container.textContent).not.toContain("Saving…")
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 80)))
+    expect(container.textContent).toContain("Saving…")
+
+    await act(async () => {
+      resolveSlowSave?.({
+        tableId: "tasks",
+        row: {
+          _id: "row_1",
+          title: "Write implementation",
+          status: "todo",
+        },
+        rowCount: 1,
+        revision: "2026-07-13T04:00:00.000Z",
+      })
+      await Promise.resolve()
+    })
+    expect(container.textContent).toContain("Saving…")
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 320)))
+    expect(container.textContent).toContain("Saving…")
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 120)))
+    expect(container.textContent).toContain("Saved")
+    expect(container.textContent).not.toContain("Saving…")
+  })
+
   it("keeps Saved suppressed until every failed resource is retried", async () => {
     updateRowMock.mockRejectedValueOnce(new Error("Cell write failed"))
     updateRowsMock.mockRejectedValueOnce(new Error("Batch write failed"))
@@ -2322,7 +2471,15 @@ describe("SpaceEidosFileEditor", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(getSnapshotMock).toHaveBeenCalledTimes(2)
+    expect(getSnapshotMock).toHaveBeenCalledTimes(1)
+    expect(
+      container.querySelector('[data-testid="eidos-file-view-tabs"]')
+        ?.textContent
+    ).toContain("Grid")
+    expect(
+      container.querySelector('[data-testid="eidos-file-view-tabs"]')
+        ?.textContent
+    ).not.toContain("Unavailable")
     expect(container.querySelector('[role="alert"]')).toBeNull()
   })
 
@@ -2343,7 +2500,7 @@ describe("SpaceEidosFileEditor", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(getSnapshotMock).toHaveBeenCalledTimes(2)
+    expect(getSnapshotMock).toHaveBeenCalledTimes(1)
     const alerts = document.body.querySelectorAll('[role="alert"]')
     expect(alerts).toHaveLength(1)
     expect(alerts[0]?.textContent).toContain("Filter update failed")
@@ -2635,6 +2792,139 @@ describe("SpaceEidosFileEditor", () => {
         properties: { visibleSystemFields: ["_created_time"] },
       }
     )
+  })
+
+  it("keeps the .eidos file Grid data session stable while visible fields save", async () => {
+    const savedSnapshot: EidosFileSnapshot = {
+      ...snapshot,
+      metadata: {
+        ...snapshot.metadata,
+        updatedAt: "2026-07-13T03:00:00.000Z",
+      },
+      tables: snapshot.tables.map((table) => ({
+        ...table,
+        fields: table.fields.map((field) => ({ ...field })),
+        views: table.views.map((view) => ({
+          ...view,
+          properties: { visibleSystemFields: ["_created_time"] },
+          filter: view.filter ? { ...view.filter } : null,
+          sorts: view.sorts.map((sort) => ({ ...sort })),
+          orderMap: view.orderMap ? { ...view.orderMap } : null,
+          hiddenFields: [...view.hiddenFields],
+        })),
+      })),
+    }
+    updateViewMock.mockResolvedValueOnce(savedSnapshot)
+    await renderEditor()
+
+    const initialGrid = container.querySelector<HTMLElement>(
+      '[data-testid="eidos-file-grid"]'
+    )
+    const initialProps = eidosFileViewHostProps.grid.at(-1)
+    expect(initialGrid).not.toBeNull()
+    expect(initialProps).toBeDefined()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Show created time")
+        ?.click()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const savedProps = eidosFileViewHostProps.grid.at(-1)
+    expect(container.querySelector('[data-testid="eidos-file-grid"]')).toBe(
+      initialGrid
+    )
+    expect(savedProps?.reloadToken).toBe(initialProps?.reloadToken)
+    expect(savedProps?.loadPage).toBe(initialProps?.loadPage)
+  })
+
+  it("keeps the latest optimistic view metadata across rapid serialized saves", async () => {
+    const viewSnapshot = (
+      updatedAt: string,
+      visibleSystemFields: string[]
+    ): EidosFileSnapshot => ({
+      ...snapshot,
+      metadata: { ...snapshot.metadata, updatedAt },
+      tables: snapshot.tables.map((table) => ({
+        ...table,
+        fields: table.fields.map((field) => ({ ...field })),
+        views: table.views.map((view) => ({
+          ...view,
+          properties: { visibleSystemFields },
+          sorts: view.sorts.map((sort) => ({ ...sort })),
+          hiddenFields: [...view.hiddenFields],
+        })),
+      })),
+    })
+    let resolveFirst: ((value: EidosFileSnapshot) => void) | undefined
+    let resolveSecond: ((value: EidosFileSnapshot) => void) | undefined
+    updateViewMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<EidosFileSnapshot>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<EidosFileSnapshot>((resolve) => {
+            resolveSecond = resolve
+          })
+      )
+    await renderEditor()
+    const initialGrid = container.querySelector(
+      '[data-testid="eidos-file-grid"]'
+    )
+    const initialLoader = eidosFileViewHostProps.grid.at(-1)?.loadPage
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Show created time")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(updateViewMock).toHaveBeenCalledTimes(1)
+    expect(eidosFileViewHostProps.grid.at(-1)?.view?.properties).toMatchObject({
+      visibleSystemFields: ["_created_time"],
+    })
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Reset visible fields")
+        ?.click()
+      await Promise.resolve()
+    })
+    expect(updateViewMock).toHaveBeenCalledTimes(1)
+    expect(eidosFileViewHostProps.grid.at(-1)?.view?.properties).toMatchObject({
+      visibleSystemFields: [],
+    })
+
+    await act(async () => {
+      resolveFirst?.(
+        viewSnapshot("2026-07-13T05:00:00.000Z", ["_created_time"])
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(updateViewMock).toHaveBeenCalledTimes(2)
+    expect(eidosFileViewHostProps.grid.at(-1)?.view?.properties).toMatchObject({
+      visibleSystemFields: [],
+    })
+
+    await act(async () => {
+      resolveSecond?.(viewSnapshot("2026-07-13T05:00:01.000Z", []))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(container.querySelector('[data-testid="eidos-file-grid"]')).toBe(
+      initialGrid
+    )
+    expect(eidosFileViewHostProps.grid.at(-1)?.loadPage).toBe(initialLoader)
+    expect(eidosFileViewHostProps.grid.at(-1)?.view?.properties).toMatchObject({
+      visibleSystemFields: [],
+    })
   })
 
   it("imports, opens, and reveals Eidos File attachments as Space files", async () => {

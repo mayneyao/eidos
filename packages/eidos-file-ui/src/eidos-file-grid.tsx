@@ -339,6 +339,15 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const visiblePagesRef = useRef(new Set<number>())
   const historyRowsRef = useRef<ReadonlySet<number>>(new Set())
   const generationRef = useRef(0)
+  const dataScopeRef = useRef<string | null>(null)
+  const tableRowCountRef = useRef(table.rowCount)
+  const onErrorRef = useRef(onError)
+  const onRowCountChangeRef = useRef(onRowCountChange)
+  const onSelectedRowsChangeRef = useRef(onSelectedRowsChange)
+  tableRowCountRef.current = table.rowCount
+  onErrorRef.current = onError
+  onRowCountChangeRef.current = onRowCountChange
+  onSelectedRowsChangeRef.current = onSelectedRowsChange
   const [cacheRevision, setCacheRevision] = useState(0)
   const [rowCount, setRowCount] = useState(table.rowCount)
   const [fieldMenu, setFieldMenu] = useState<EidosFileFieldMenuState | null>(
@@ -457,50 +466,56 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         touchPage(pageIndex)
         prunePageCache()
         setRowCount(page.total)
-        onRowCountChange?.(page.total)
+        onRowCountChangeRef.current?.(page.total)
         setCacheRevision((current) => current + 1)
       } catch (error) {
-        if (generation === generationRef.current) onError?.(error)
+        if (generation === generationRef.current) onErrorRef.current?.(error)
       } finally {
         if (loadingPagesRef.current.get(pageIndex) === generation) {
           loadingPagesRef.current.delete(pageIndex)
         }
       }
     },
-    [loadPage, onError, onRowCountChange, prunePageCache, touchPage]
+    [loadPage, prunePageCache, touchPage]
   )
 
   useEffect(() => {
+    const scope = `${table.table.id}:${view?.id ?? "default"}`
+    const preserveData = dataScopeRef.current === scope
+    const pagesToRefresh = preserveData
+      ? new Set([0, ...visiblePagesRef.current])
+      : new Set([0])
+    dataScopeRef.current = scope
     generationRef.current += 1
-    rowsRef.current.clear()
-    rowMutationRevisionRef.current.clear()
     loadedPagesRef.current.clear()
     loadingPagesRef.current.clear()
     pageAccessRef.current.clear()
     pageAccessClockRef.current = 0
-    visiblePagesRef.current.clear()
-    historyRowsRef.current = new Set()
-    mutationInFlightRef.current = false
-    queuedMutationsRef.current = []
-    setMutationInFlight(false)
-    updateFailedMutation(null)
-    setRowCount(table.rowCount)
-    onRowCountChange?.(null)
+    if (!preserveData) {
+      rowsRef.current.clear()
+      rowMutationRevisionRef.current.clear()
+      visiblePagesRef.current.clear()
+      historyRowsRef.current = new Set()
+      mutationInFlightRef.current = false
+      queuedMutationsRef.current = []
+      setMutationInFlight(false)
+      updateFailedMutation(null)
+      setRowCount(tableRowCountRef.current)
+      onSelectedRowsChangeRef.current?.([])
+      setFieldMenu(null)
+      setColumnStatMenu(null)
+      setCellMenu(null)
+      setInspectedRowIndex(null)
+    }
+    onRowCountChangeRef.current?.(null)
     setCacheRevision((current) => current + 1)
-    onSelectedRowsChange?.([])
-    setFieldMenu(null)
-    setColumnStatMenu(null)
-    setCellMenu(null)
-    setInspectedRowIndex(null)
-    void loadPageIndex(0)
+    for (const pageIndex of pagesToRefresh) void loadPageIndex(pageIndex)
   }, [
     loadPageIndex,
-    onRowCountChange,
-    onSelectedRowsChange,
     reloadToken,
-    table.rowCount,
     table.table.id,
     updateFailedMutation,
+    view?.id,
   ])
 
   useEffect(() => {

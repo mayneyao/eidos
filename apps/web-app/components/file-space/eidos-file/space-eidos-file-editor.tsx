@@ -15,6 +15,7 @@ import type {
   EidosFileSnapshot,
   EidosFileSqlPrimitive,
   UpdateEidosFileFieldInput,
+  UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import {
   EidosFileEditorContent,
@@ -139,6 +140,172 @@ interface EidosFileMutationOptions {
   statusKey: string
   blocking?: boolean
   errorMode?: "global" | "local"
+  reloadOnError?: boolean
+}
+
+interface PendingEidosFileViewMutation {
+  viewId: string
+  changes: UpdateEidosFileViewInput
+}
+
+const EIDOS_FILE_SAVING_DELAY_MS = 180
+const EIDOS_FILE_SAVING_MINIMUM_MS = 420
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function structurallyShareEidosFileValue<T>(previous: T, next: T): T {
+  if (Object.is(previous, next)) return previous
+  if (Array.isArray(previous) && Array.isArray(next)) {
+    if (previous.length !== next.length) {
+      return next.map((value, index) =>
+        structurallyShareEidosFileValue(previous[index], value)
+      ) as T
+    }
+    const shared = next.map((value, index) =>
+      structurallyShareEidosFileValue(previous[index], value)
+    )
+    return shared.every((value, index) => value === previous[index])
+      ? previous
+      : (shared as T)
+  }
+  if (isRecord(previous) && isRecord(next)) {
+    const previousKeys = Object.keys(previous)
+    const nextKeys = Object.keys(next)
+    let unchanged = previousKeys.length === nextKeys.length
+    const shared: Record<string, unknown> = {}
+    for (const key of nextKeys) {
+      const value = structurallyShareEidosFileValue(previous[key], next[key])
+      shared[key] = value
+      if (value !== previous[key] || !(key in previous)) unchanged = false
+    }
+    return unchanged ? previous : (shared as T)
+  }
+  return next
+}
+
+function updateEidosFileSnapshotView(
+  snapshot: EidosFileSnapshot,
+  viewId: string,
+  changes: UpdateEidosFileViewInput
+): EidosFileSnapshot {
+  const tableIndex = snapshot.tables.findIndex((table) =>
+    table.views.some((view) => view.id === viewId)
+  )
+  if (tableIndex < 0) return snapshot
+  const table = snapshot.tables[tableIndex]
+  const viewIndex = table.views.findIndex((view) => view.id === viewId)
+  const view = table.views[viewIndex]
+  if (!view) return snapshot
+
+  const requestedProperties =
+    changes.properties === undefined ? view.properties : changes.properties
+  const properties =
+    changes.sorts === undefined
+      ? requestedProperties
+      : { ...(requestedProperties ?? {}), sorts: changes.sorts }
+  const nextView = structurallyShareEidosFileValue(view, {
+    ...view,
+    ...(changes.name === undefined ? {} : { name: changes.name.trim() }),
+    ...(changes.type === undefined ? {} : { type: changes.type.trim() }),
+    ...(changes.position === undefined ? {} : { position: changes.position }),
+    properties,
+    filter: changes.filter === undefined ? view.filter : changes.filter,
+    sorts: changes.sorts === undefined ? view.sorts : changes.sorts,
+    orderMap: changes.orderMap === undefined ? view.orderMap : changes.orderMap,
+    hiddenFields:
+      changes.hiddenFields === undefined
+        ? view.hiddenFields
+        : changes.hiddenFields,
+  })
+  if (nextView === view) return snapshot
+  const views = [...table.views]
+  views[viewIndex] = nextView
+  const tables = [...snapshot.tables]
+  tables[tableIndex] = { ...table, views }
+  return { ...snapshot, tables }
+}
+
+function updateEidosFileSnapshotRowCount(
+  snapshot: EidosFileSnapshot,
+  tableId: string,
+  rowCount: number
+): EidosFileSnapshot {
+  const target = snapshot.tables.find(
+    (candidate) => candidate.table.id === tableId
+  )
+  if (!target || target.rowCount === rowCount) return snapshot
+  return {
+    ...snapshot,
+    tables: snapshot.tables.map((candidate) =>
+      candidate === target ? { ...candidate, rowCount } : candidate
+    ),
+  }
+}
+
+function useEidosFileSavingVisibility(
+  saving: boolean,
+  hasFailure: boolean
+): boolean {
+  const [visible, setVisible] = useState(false)
+  const visibleRef = useRef(false)
+  const savingRef = useRef(saving)
+  const shownAtRef = useRef(0)
+  const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  savingRef.current = saving
+
+  useEffect(() => {
+    if (saving) {
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current)
+        hideTimerRef.current = null
+      }
+      if (!visibleRef.current && !showTimerRef.current) {
+        showTimerRef.current = setTimeout(() => {
+          showTimerRef.current = null
+          if (!savingRef.current) return
+          visibleRef.current = true
+          shownAtRef.current = Date.now()
+          setVisible(true)
+        }, EIDOS_FILE_SAVING_DELAY_MS)
+      }
+      return
+    }
+
+    if (showTimerRef.current) {
+      clearTimeout(showTimerRef.current)
+      showTimerRef.current = null
+    }
+    if (!visibleRef.current) return
+    const hide = () => {
+      hideTimerRef.current = null
+      visibleRef.current = false
+      setVisible(false)
+    }
+    if (hasFailure) {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+      hide()
+      return
+    }
+    const remaining = Math.max(
+      0,
+      EIDOS_FILE_SAVING_MINIMUM_MS - (Date.now() - shownAtRef.current)
+    )
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    hideTimerRef.current = setTimeout(hide, remaining)
+  }, [hasFailure, saving])
+
+  useEffect(
+    () => () => {
+      if (showTimerRef.current) clearTimeout(showTimerRef.current)
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    },
+    []
+  )
+
+  return visible
 }
 
 function eidosFileMutationStatusKey(
@@ -280,6 +447,12 @@ export function SpaceEidosFileEditor({
   const pendingMutationCountRef = useRef(0)
   const mutationQueueRef = useRef<Promise<void>>(Promise.resolve())
   const knownEidosFileRevisionRef = useRef<string | null>(null)
+  const confirmedSnapshotRef = useRef<EidosFileSnapshot | null>(null)
+  const pendingViewMutationsRef = useRef(
+    new Map<number, PendingEidosFileViewMutation>()
+  )
+  const nextViewMutationIdRef = useRef(0)
+  const fileChangeDuringMutationRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const [gridReloadToken, setGridReloadToken] = useState(0)
   const [recordReloadToken, setRecordReloadToken] = useState(0)
@@ -316,11 +489,39 @@ export function SpaceEidosFileEditor({
     template: EidosFileTemplateId
     message: string
   } | null>(null)
+  const savingStatusVisible = useEidosFileSavingVisibility(
+    pendingMutations > 0,
+    failedMutationKeys.size > 0
+  )
+
+  const snapshotWithPendingViewMutations = useCallback(
+    (confirmed: EidosFileSnapshot) => {
+      let next = confirmed
+      for (const mutation of pendingViewMutationsRef.current.values()) {
+        next = updateEidosFileSnapshotView(
+          next,
+          mutation.viewId,
+          mutation.changes
+        )
+      }
+      return next
+    },
+    []
+  )
 
   const applySnapshot = useCallback(
     (next: EidosFileSnapshot) => {
       knownEidosFileRevisionRef.current = next.metadata.updatedAt
-      setSnapshot(next)
+      const confirmed = confirmedSnapshotRef.current
+        ? structurallyShareEidosFileValue(confirmedSnapshotRef.current, next)
+        : next
+      confirmedSnapshotRef.current = confirmed
+      const displayed = snapshotWithPendingViewMutations(confirmed)
+      setSnapshot((current) =>
+        current
+          ? structurallyShareEidosFileValue(current, displayed)
+          : displayed
+      )
       setActiveTableId((current) => {
         if (
           recordTableId &&
@@ -336,8 +537,17 @@ export function SpaceEidosFileEditor({
         )
       })
     },
-    [recordTableId]
+    [recordTableId, snapshotWithPendingViewMutations]
   )
+
+  const rebasePendingViewMutations = useCallback(() => {
+    const confirmed = confirmedSnapshotRef.current
+    if (!confirmed) return
+    const displayed = snapshotWithPendingViewMutations(confirmed)
+    setSnapshot((current) =>
+      current ? structurallyShareEidosFileValue(current, displayed) : displayed
+    )
+  }, [snapshotWithPendingViewMutations])
 
   const load = useCallback(
     async (options: { preserveError?: boolean } = {}) => {
@@ -392,7 +602,10 @@ export function SpaceEidosFileEditor({
           event.path === filePath ||
           (event.eventType === "rescan" &&
             isSameOrDescendant(filePath, event.path))
-        if (affectsOpenEidosFile && !mutatingRef.current) {
+        if (!affectsOpenEidosFile) return
+        if (mutatingRef.current) {
+          fileChangeDuringMutationRef.current = true
+        } else {
           void refreshFromFileChange()
         }
       },
@@ -650,6 +863,7 @@ export function SpaceEidosFileEditor({
     ): Promise<T> => {
       const blocking = options.blocking !== false
       const errorMode = options.errorMode ?? "global"
+      const reloadOnError = options.reloadOnError !== false
       const { statusKey } = options
       pendingMutationCountRef.current += 1
       mutatingRef.current = true
@@ -680,16 +894,23 @@ export function SpaceEidosFileEditor({
                 )
               )
             }
-            await load({ preserveError: errorMode === "global" })
+            if (reloadOnError) {
+              await load({ preserveError: errorMode === "global" })
+            }
             throw mutationError
           }
         )
         .finally(() => {
           pendingMutationCountRef.current -= 1
-          mutatingRef.current = pendingMutationCountRef.current > 0
+          const stillMutating = pendingMutationCountRef.current > 0
+          mutatingRef.current = stillMutating
           setPendingMutations((current) => Math.max(0, current - 1))
           if (blocking) {
             setBlockingMutations((current) => Math.max(0, current - 1))
+          }
+          if (!stillMutating && fileChangeDuringMutationRef.current) {
+            fileChangeDuringMutationRef.current = false
+            void refreshFromFileChange()
           }
         })
       mutationQueueRef.current = handled.then(
@@ -698,24 +919,69 @@ export function SpaceEidosFileEditor({
       )
       return handled
     },
-    [load, setMutationKeyFailed]
+    [load, refreshFromFileChange, setMutationKeyFailed]
+  )
+
+  const enqueueViewMutation = useCallback(
+    (
+      viewId: string,
+      changes: UpdateEidosFileViewInput,
+      errorMode: "global" | "local" = "local"
+    ): Promise<void> => {
+      nextViewMutationIdRef.current += 1
+      const mutationId = nextViewMutationIdRef.current
+      pendingViewMutationsRef.current.set(mutationId, { viewId, changes })
+      setSnapshot((current) =>
+        current
+          ? structurallyShareEidosFileValue(
+              current,
+              updateEidosFileSnapshotView(current, viewId, changes)
+            )
+          : current
+      )
+      return enqueueMutation(
+        () => updateView(filePath, viewId, changes),
+        (next) => {
+          pendingViewMutationsRef.current.delete(mutationId)
+          applySnapshot(next)
+        },
+        {
+          blocking: false,
+          errorMode,
+          reloadOnError: false,
+          statusKey: eidosFileMutationStatusKey("view", viewId),
+        }
+      )
+        .then(() => undefined)
+        .catch((mutationError) => {
+          pendingViewMutationsRef.current.delete(mutationId)
+          rebasePendingViewMutations()
+          throw mutationError
+        })
+    },
+    [
+      applySnapshot,
+      enqueueMutation,
+      filePath,
+      rebasePendingViewMutations,
+      updateView,
+    ]
   )
 
   const updateTableRowCount = useCallback(
     (tableId: string, rowCount: number) => {
-      setSnapshot((current) => {
-        if (!current) return current
-        const target = current.tables.find(
-          (candidate) => candidate.table.id === tableId
+      if (confirmedSnapshotRef.current) {
+        confirmedSnapshotRef.current = updateEidosFileSnapshotRowCount(
+          confirmedSnapshotRef.current,
+          tableId,
+          rowCount
         )
-        if (!target || target.rowCount === rowCount) return current
-        return {
-          ...current,
-          tables: current.tables.map((candidate) =>
-            candidate === target ? { ...candidate, rowCount } : candidate
-          ),
-        }
-      })
+      }
+      setSnapshot((current) =>
+        current
+          ? updateEidosFileSnapshotRowCount(current, tableId, rowCount)
+          : current
+      )
     },
     []
   )
@@ -1655,31 +1921,16 @@ export function SpaceEidosFileEditor({
 
   const renameViewInEidosFile = useCallback(
     (viewId: string, name: string): Promise<void> =>
-      enqueueMutation(
-        () => updateView(filePath, viewId, { name }),
-        applySnapshot,
-        {
-          errorMode: "local",
-          statusKey: eidosFileMutationStatusKey("view", viewId),
-        }
-      ).then(() => undefined),
-    [applySnapshot, enqueueMutation, filePath, updateView]
+      enqueueViewMutation(viewId, { name }),
+    [enqueueViewMutation]
   )
 
   const updateViewInEidosFile = useCallback(
     (
       viewId: string,
       changes: Parameters<typeof updateView>[2]
-    ): Promise<void> =>
-      enqueueMutation(
-        () => updateView(filePath, viewId, changes),
-        applySnapshot,
-        {
-          errorMode: "local",
-          statusKey: eidosFileMutationStatusKey("view", viewId),
-        }
-      ).then(() => undefined),
-    [applySnapshot, enqueueMutation, filePath, updateView]
+    ): Promise<void> => enqueueViewMutation(viewId, changes),
+    [enqueueViewMutation]
   )
 
   const duplicateViewInEidosFile = useCallback(
@@ -1763,16 +2014,9 @@ export function SpaceEidosFileEditor({
       errorMode: "global" | "local" = "global"
     ): Promise<void> => {
       if (!activeView) return Promise.resolve()
-      return enqueueMutation(
-        () => updateView(filePath, activeView.id, changes),
-        applySnapshot,
-        {
-          errorMode,
-          statusKey: eidosFileMutationStatusKey("view", activeView.id),
-        }
-      ).then(() => undefined)
+      return enqueueViewMutation(activeView.id, changes, errorMode)
     },
-    [activeView, applySnapshot, enqueueMutation, filePath, updateView]
+    [activeView, enqueueViewMutation]
   )
 
   const handleGridError = useCallback((gridError: unknown) => {
@@ -2333,7 +2577,7 @@ export function SpaceEidosFileEditor({
           onRename={(table, name) => renameTableInEidosFile(table.id, name)}
           onDelete={(table) => deleteTableInEidosFile(table.id)}
           status={
-            pendingMutations > 0 ? (
+            savingStatusVisible ? (
               <span className="flex items-center gap-1">
                 <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
                 Saving…
