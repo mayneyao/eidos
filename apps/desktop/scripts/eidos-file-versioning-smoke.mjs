@@ -10,6 +10,7 @@ import {
   createEidosFile,
   openEidosFile,
 } from "../../../packages/eidos-file/dist/better-sqlite3.mjs"
+import { encodeEidosFileAttachmentPaths } from "../../../packages/eidos-file/dist/index.mjs"
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url))
 const desktopDirectory = path.dirname(scriptDirectory)
@@ -75,14 +76,17 @@ if (!existsSync(graft)) {
 const root = mkdtempSync(path.join(tmpdir(), "eidos-file-versioning-"))
 const relativeEidosFilePath = "tasks.eidos"
 const eidosFilePath = path.join(root, relativeEidosFilePath)
+const tasksTableId = "019f8a0d-56a0-70f4-a1bc-7ba848af0dbe"
+const peopleTableId = "019f8a0d-5720-78fc-ad3c-ad8ae6de5077"
 
 try {
   const base = createEidosFile(eidosFilePath, {
     title: "Versioning smoke",
     defaultTable: {
-      id: "tasks",
+      id: tasksTableId,
       name: "Tasks",
       fields: [
+        { name: "title", type: "text", isRecordLabel: true },
         { name: "Done", columnName: "done", type: "checkbox" },
         { name: "Priority", columnName: "priority", type: "number" },
         {
@@ -90,7 +94,7 @@ try {
           columnName: "status",
           type: "select",
           property: {
-            options: [{ value: "todo" }, { value: "doing" }],
+            options: [{ name: "todo" }, { name: "doing" }],
           },
         },
         {
@@ -98,83 +102,118 @@ try {
           columnName: "labels",
           type: "multi-select",
           property: {
-            options: [{ value: "bug" }, { value: "ux" }],
+            options: [{ name: "bug" }, { name: "ux" }],
           },
         },
         { name: "Attachment", columnName: "attachment", type: "file" },
       ],
     },
   })
-  base.createTable({ id: "people", name: "People" })
-  const ada = base.insertRow("people", { title: "Ada Lovelace" })
-  const grace = base.insertRow("people", { title: "Grace Hopper" })
-  base.addField("tasks", {
+  base.createTable({
+    id: peopleTableId,
+    name: "People",
+    fields: [{ name: "title", type: "text", isRecordLabel: true }],
+  })
+  const ada = base.insertRow(peopleTableId, { title: "Ada Lovelace" })
+  const grace = base.insertRow(peopleTableId, { title: "Grace Hopper" })
+  const peopleTitleField = base
+    .listFields(peopleTableId)
+    .find((field) => field.name === "title")
+  assert.ok(peopleTitleField?.id)
+  const ownersField = base.addField(tasksTableId, {
     name: "Owners",
     columnName: "owners",
-    type: "link",
+    type: "relation",
     property: {
-      targetTableId: "people",
-      targetField: "title",
-      multiple: true,
+      targetTableId: peopleTableId,
+      targetField: peopleTitleField.id,
+      direction: "forward",
+      cardinality: "many",
+      onDelete: "restrict",
     },
   })
-  base.addField("tasks", {
+  const scoreField = base.addField(tasksTableId, {
     name: "Score",
     columnName: "score",
     type: "formula",
-    property: { formula: "priority * 10", displayType: "number" },
+    property: { formula: '"Priority" * 10', displayType: "number" },
   })
-  base.addField("tasks", {
+  const ownerCountField = base.addField(tasksTableId, {
     name: "Owner count",
     columnName: "owner_count",
     type: "lookup",
     property: {
-      relationField: "owners",
-      targetField: "title",
+      relationField: ownersField.id,
+      targetField: peopleTitleField.id,
       aggregate: "count",
       displayType: "number",
     },
   })
-  base.addField("tasks", {
+  const capacityField = base.addField(tasksTableId, {
     name: "Capacity",
     columnName: "capacity",
     type: "formula",
     property: {
-      formula: "owner_count * priority",
+      formula: '"Owner count" * "Priority"',
       displayType: "number",
     },
   })
-  const first = base.insertRow("tasks", {
+  const tasksSchema = base
+    .schema()
+    .find((table) => table.table.id === tasksTableId)
+  const tasksPhysicalName = tasksSchema?.table.physicalName
+  assert.ok(tasksPhysicalName)
+  const statusField = tasksSchema.fields.find(
+    (field) => field.name === "Status"
+  )
+  const priorityField = tasksSchema.fields.find(
+    (field) => field.name === "Priority"
+  )
+  const labelsField = tasksSchema.fields.find(
+    (field) => field.name === "Labels"
+  )
+  const titleField = tasksSchema.fields.find((field) => field.name === "title")
+  const attachmentField = tasksSchema.fields.find(
+    (field) => field.name === "Attachment"
+  )
+  assert.ok(statusField?.id)
+  assert.ok(priorityField?.id)
+  assert.ok(labelsField?.id)
+  assert.ok(titleField?.id)
+  assert.ok(attachmentField?.id)
+  const attachmentValue = encodeEidosFileAttachmentPaths(["assets/spec.pdf"])
+  assert.ok(attachmentValue)
+  const first = base.insertRow(tasksTableId, {
     title: "Prove Eidos File diff",
-    done: false,
-    priority: 2,
-    status: "doing",
-    labels: JSON.stringify(["bug", "ux"]),
-    attachment: JSON.stringify(["assets/spec.pdf"]),
-    owners: JSON.stringify([ada._id]),
+    Done: false,
+    Priority: 2,
+    Status: "doing",
+    Labels: JSON.stringify(["bug", "ux"]),
+    Attachment: attachmentValue,
+    Owners: JSON.stringify([ada._id]),
   })
-  assert.equal(first.attachment, '["assets/spec.pdf"]')
-  assert.equal(first.owners, JSON.stringify([ada._id]))
-  assert.equal(first.score, 20)
-  assert.equal(first.owner_count, 1)
-  assert.equal(first.capacity, 2)
+  assert.equal(first.Attachment, attachmentValue)
+  assert.equal(first.Owners, JSON.stringify([ada._id]))
+  assert.equal(first[scoreField.id], 20)
+  assert.equal(first[ownerCountField.id], 1)
+  assert.equal(first[capacityField.id], 2)
   assert.equal(
-    first.owners__display,
+    first.Owners__display,
     JSON.stringify([{ id: ada._id, title: "Ada Lovelace" }])
   )
-  const queryOnly = base.insertRow("tasks", {
+  const queryOnly = base.insertRow(tasksTableId, {
     title: "Query-only row",
-    done: false,
-    priority: 3,
-    status: "doing",
-    labels: JSON.stringify(["ux"]),
+    Done: false,
+    Priority: 3,
+    Status: "doing",
+    Labels: JSON.stringify(["ux"]),
   })
-  base.insertRow("tasks", {
+  base.insertRow(tasksTableId, {
     title: "Low priority row",
-    done: false,
-    priority: 1,
-    status: "todo",
-    labels: null,
+    Done: false,
+    Priority: 1,
+    Status: "todo",
+    Labels: null,
   })
   const query = {
     filter: {
@@ -183,106 +222,126 @@ try {
       children: [
         {
           type: "rule",
-          field: "priority",
+          field: priorityField.id,
           operator: "greater-than-or-equal",
           value: 2,
         },
         {
           type: "rule",
-          field: "labels",
+          field: labelsField.id,
           operator: "is-any-of",
           value: ["ux"],
         },
       ],
     },
     sorts: [
-      { field: "priority", direction: "desc" },
-      { field: "title", direction: "asc" },
+      { field: priorityField.id, direction: "desc", nulls: "last" },
+      { field: titleField.id, direction: "asc", nulls: "last" },
     ],
   }
   assert.deepEqual(
-    base.getRowPage("tasks", 0, 100, query).rows.map((row) => row.title),
+    base.getRowPage(tasksTableId, 0, 100, query).rows.map((row) => row.title),
     ["Query-only row", "Prove Eidos File diff"]
   )
-  const gridView = base.listViews("tasks")[0]
+  const gridView = base.listViews(tasksTableId)[0]
   assert.ok(gridView, "Eidos File should create a default Grid view")
   base.updateView(gridView.id, {
     filter: query.filter,
     sorts: query.sorts,
   })
-  const galleryView = base.createView("tasks", {
+  const galleryView = base.createView(tasksTableId, {
     name: "Cards",
     type: "gallery",
     properties: {
       cardSize: "medium",
-      coverPreview: "attachment",
+      coverPreview: attachmentField.id,
       fitContent: true,
       hideEmptyFields: true,
     },
   })
-  const kanbanView = base.createView("tasks", {
+  const kanbanView = base.createView(tasksTableId, {
     name: "Status board",
     type: "kanban",
     properties: {
       cardSize: "medium",
-      groupByField: "status",
+      groupByField: statusField.id,
     },
   })
   assert.equal(
-    base.deleteRowRanges("tasks", [{ startIndex: 0, endIndex: 1 }], query),
+    base.deleteRowRanges(tasksTableId, [{ startIndex: 0, endIndex: 0 }], query),
     1
   )
   assert.equal(
     base
-      .listRows("tasks")
+      .listRows(tasksTableId)
       .some((row) => String(row._id) === String(queryOnly._id)),
     false
   )
   base.close()
 
   const persisted = openEidosFile(eidosFilePath)
-  const persistedViews = persisted.listViews("tasks")
+  const persistedViews = persisted.listViews(tasksTableId)
   const persistedView = persistedViews.find((view) => view.type === "grid")
   assert.ok(persistedView, "Reopened Eidos File should retain its Grid view")
   assert.deepEqual(persistedView?.filter, query.filter)
   assert.deepEqual(persistedView?.sorts, query.sorts)
+  const persistedGallery = persistedViews.find(
+    (view) => view.id === galleryView.id
+  )
+  const persistedKanban = persistedViews.find(
+    (view) => view.id === kanbanView.id
+  )
+  assert.ok(persistedGallery)
+  assert.ok(persistedKanban)
   assert.deepEqual(
     persistedViews.map((view) => ({
       id: view.id,
       name: view.name,
       type: view.type,
-      properties: view.properties,
     })),
     [
       {
         id: persistedView.id,
         name: persistedView.name,
         type: "grid",
-        properties: persistedView.properties,
       },
       {
         id: galleryView.id,
         name: "Cards",
         type: "gallery",
-        properties: {
-          cardSize: "medium",
-          coverPreview: "attachment",
-          fitContent: true,
-          hideEmptyFields: true,
-        },
       },
       {
         id: kanbanView.id,
         name: "Status board",
         type: "kanban",
-        properties: { cardSize: "medium", groupByField: "status" },
       },
     ]
+  )
+  assert.deepEqual(
+    {
+      cardSize: persistedGallery.properties.cardSize,
+      coverPreview: persistedGallery.properties.coverPreview,
+      fitContent: persistedGallery.properties.fitContent,
+      hideEmptyFields: persistedGallery.properties.hideEmptyFields,
+    },
+    {
+      cardSize: "medium",
+      coverPreview: attachmentField.id,
+      fitContent: true,
+      hideEmptyFields: true,
+    }
+  )
+  assert.deepEqual(
+    {
+      cardSize: persistedKanban.properties.cardSize,
+      groupByField: persistedKanban.properties.groupByField,
+    },
+    { cardSize: "medium", groupByField: statusField.id }
   )
   const copiedView = persisted.duplicateView(persistedView.id, "QA copy")
   assert.deepEqual(
     persisted
-      .reorderViews("tasks", [
+      .reorderViews(tasksTableId, [
         copiedView.id,
         kanbanView.id,
         galleryView.id,
@@ -293,7 +352,7 @@ try {
   )
   assert.equal(persisted.deleteView(copiedView.id), true)
   assert.deepEqual(
-    persisted.listViews("tasks").map((view) => view.id),
+    persisted.listViews(tasksTableId).map((view) => view.id),
     [kanbanView.id, galleryView.id, persistedView.id]
   )
   persisted.close()
@@ -311,22 +370,25 @@ try {
   assert.equal(typeof initialRevision, "string")
 
   const updated = openEidosFile(eidosFilePath)
-  const linked = updated.updateRow("tasks", String(first._id), {
-    done: true,
-    priority: 4,
-    owners: JSON.stringify([ada._id, grace._id]),
+  const linked = updated.updateRow(tasksTableId, String(first._id), {
+    Done: true,
+    Priority: 4,
+    Owners: JSON.stringify([ada._id, grace._id]),
   })
-  assert.equal(linked.score, 40)
-  assert.equal(linked.owner_count, 2)
-  assert.equal(linked.capacity, 8)
+  assert.equal(linked[scoreField.id], 40)
+  assert.equal(linked[ownerCountField.id], 2)
+  assert.equal(linked[capacityField.id], 8)
   assert.equal(
-    linked.owners__display,
+    linked.Owners__display,
     JSON.stringify([
       { id: ada._id, title: "Ada Lovelace" },
       { id: grace._id, title: "Grace Hopper" },
     ])
   )
-  updated.insertRow("tasks", { title: "Render row changes", done: false })
+  updated.insertRow(tasksTableId, {
+    title: "Render row changes",
+    Done: false,
+  })
   updated.close()
 
   const rawDiff = runGraft(root, ["diff", "--rows", "--json"])
@@ -335,7 +397,7 @@ try {
   )
   if (anonymousSessionEntries.length > 0) {
     console.warn(
-      "Graft v0.6.0 exposes its anonymous .graft workspace session in an " +
+      "Graft v0.6.1 exposes its anonymous .graft workspace session in an " +
         "unscoped CLI row diff; Eidos path-scoped row diffs exclude it"
     )
   }
@@ -356,16 +418,28 @@ try {
   const file = diff.files.find((entry) => entry.path === relativeEidosFilePath)
   assert.ok(file, "Graft should return row details for tasks.eidos")
   assert.equal(file.row_diff_available, true)
-  assert.equal(file.logical_status, "logical_changes")
-
-  const tasks = file.tables.find((table) => table.name === "tb_tasks")
-  assert.ok(tasks, "Graft should expand the Eidos File records table")
-  assert.deepEqual(tasks.changes.map((change) => change.op).sort(), [
-    "insert",
-    "update",
-  ])
-  assert.ok(tasks.columns.includes("title"))
-  assert.ok(tasks.columns.includes("done"))
+  assert.equal(
+    file.logical_status,
+    "unsupported_logical_surface",
+    JSON.stringify(file, null, 2)
+  )
+  assert.ok(
+    file.limitations.some(
+      (limitation) =>
+        limitation.kind === "without_rowid_table" &&
+        limitation.subject === tasksPhysicalName
+    ),
+    "Graft should report the 0.6.1 WITHOUT ROWID logical diff limitation"
+  )
+  assert.ok(
+    file.opaque_changes.some(
+      (change) =>
+        change.name === tasksPhysicalName &&
+        change.change === "modified" &&
+        change.reason === "without_rowid_table"
+    ),
+    "Graft should preserve the changed Eidos table as an opaque snapshot"
+  )
 
   const restore = runGraft(root, [
     "restore",
@@ -385,19 +459,19 @@ try {
   )
 
   const restored = openEidosFile(eidosFilePath)
-  const restoredRows = restored.listRows("tasks")
+  const restoredRows = restored.listRows(tasksTableId)
   const restoredFirst = restoredRows.find(
     (row) => String(row._id) === String(first._id)
   )
-  assert.equal(restoredFirst?.done, 0)
-  assert.equal(restoredFirst?.priority, 2)
-  assert.equal(restoredFirst?.owner_count, 1)
+  assert.equal(restoredFirst?.Done, 0)
+  assert.equal(restoredFirst?.Priority, 2)
+  assert.equal(restoredFirst?.[ownerCountField.id], 1)
   assert.equal(
     restoredRows.some((row) => row.title === "Render row changes"),
     false
   )
   assert.deepEqual(
-    restored.listViews("tasks").map((view) => view.type),
+    restored.listViews(tasksTableId).map((view) => view.type),
     ["kanban", "gallery", "grid"]
   )
   restored.close()
@@ -410,20 +484,24 @@ try {
   // Electron helper process intentionally keeps its VFS registered for the
   // process lifetime, so no separate Graft CLI process should follow it.
   const scopedUpdated = openEidosFile(eidosFilePath)
-  scopedUpdated.updateRow("tasks", String(first._id), {
-    done: true,
-    priority: 4,
-    owners: JSON.stringify([ada._id, grace._id]),
+  scopedUpdated.updateRow(tasksTableId, String(first._id), {
+    Done: true,
+    Priority: 4,
+    Owners: JSON.stringify([ada._id, grace._id]),
   })
-  scopedUpdated.insertRow("tasks", {
+  scopedUpdated.insertRow(tasksTableId, {
     title: "Render row changes",
-    done: false,
+    Done: false,
   })
   scopedUpdated.close()
   const scopedDiff = runPathScopedPragmaDiff(root)
   assert.deepEqual(scopedDiff.paths, diff.paths)
   assert.equal(scopedDiff.files[0]?.path, relativeEidosFilePath)
   assert.equal(scopedDiff.files[0]?.row_diff_available, true)
+  assert.equal(
+    scopedDiff.files[0]?.logical_status,
+    "unsupported_logical_surface"
+  )
 
   console.log(
     JSON.stringify(
@@ -431,10 +509,7 @@ try {
         path: file.path,
         logicalStatus: file.logical_status,
         restoredRevision: initialRevision,
-        tables: file.tables.map((table) => ({
-          name: table.name,
-          operations: table.changes.map((change) => change.op),
-        })),
+        opaqueChanges: file.opaque_changes,
       },
       null,
       2

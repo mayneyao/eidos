@@ -1800,7 +1800,7 @@ function runMultiSqliteWorkspaceSmoke() {
     const afterRollback = runGraftPragmaJson(workspace, "graft_json_status")
     if (afterRollback.dirty) {
       console.warn(
-        "Graft v0.6.0 marks an empty rolled-back write transaction dirty; " +
+        "Graft v0.6.1 marks an empty rolled-back write transaction dirty; " +
           "resetting the affected binding before continuing the smoke"
       )
       runGraftPragmaJson(workspace, "graft_json_reset", "--hard HEAD")

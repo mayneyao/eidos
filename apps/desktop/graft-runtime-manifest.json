@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "repository": "eidos-space/graft",
-  "tag": "v0.6.0",
-  "version": "0.6.0",
-  "releaseCommit": "c84d2f2f5bfdc8142d2f5286069c9a8bc649b9e3",
+  "tag": "v0.6.1",
+  "version": "0.6.1",
+  "releaseCommit": "09b601c2db8e64114779f2b3e11258b404790990",
   "checksumsAsset": {
     "name": "SHA256SUMS",
-    "sha256": "b98054cb533716421436babe30722b1a8fad3e5a47b9c900bd6da9e3f7b0c09c"
+    "sha256": "7c5729a9545d675031728f1a7fcdb6557f0b37c51fe35dd4bedf265ee575ae0b"
   },
   "platforms": {
     "darwin-arm64": {
@@ -14,18 +14,18 @@
       "archiveExtension": "tar.gz",
       "libraryExtension": "dylib",
       "cli": {
-        "asset": "graft-cli-0.6.0-aarch64-apple-darwin.tar.gz",
-        "archiveSha256": "1ce040aeb8cd4935f697bab85399b43c59c2e41a190b14e9caa9785be4f52707",
+        "asset": "graft-cli-0.6.1-aarch64-apple-darwin.tar.gz",
+        "archiveSha256": "d5c69ef10ea81665e314c06a81fc03437f231aa91e5119fcd5c0468defc3e832",
         "sourceFile": "graft",
         "installedFile": "graft",
-        "binarySha256": "e147ef81e057581906b41e34cddb47896dd04402ccb9523b8bfb8974c9091943"
+        "binarySha256": "a02c8ba7527aa652f8531530802c4828b3552278cb5af0766b29a54b866d9143"
       },
       "extension": {
-        "asset": "sqlite-graft-0.6.0-aarch64-apple-darwin.tar.gz",
-        "archiveSha256": "d20e647941f62c3df622c72ac89ef57f53b991ea255647c1e745c39d9a396ded",
+        "asset": "sqlite-graft-0.6.1-aarch64-apple-darwin.tar.gz",
+        "archiveSha256": "875fbf9a888f16081db1aab6ebea7ea45cebc233f6682ed114fd038ed2576222",
         "sourceFile": "libgraft_ext.dylib",
         "installedFile": "libgraft.dylib",
-        "binarySha256": "6d7005295394484f42161d3ca8455e4a2ef944be0215142faf46aad2b86325f7"
+        "binarySha256": "58586e4bd9a20f3f15c17ed5e87be3a4054d5512324d358e84fc325a67de50f9"
       }
     },
     "darwin-x64": {
@@ -33,18 +33,18 @@
       "archiveExtension": "tar.gz",
       "libraryExtension": "dylib",
       "cli": {
-        "asset": "graft-cli-0.6.0-x86_64-apple-darwin.tar.gz",
-        "archiveSha256": "f14df06faa91507db4ab3c53f204e01c29e4e862aa7c0c193e54b40acfabf5b8",
+        "asset": "graft-cli-0.6.1-x86_64-apple-darwin.tar.gz",
+        "archiveSha256": "069b1de28cb940950fa93a1e7413affc4f20eae4563957d0d976c095d19976ad",
         "sourceFile": "graft",
         "installedFile": "graft",
-        "binarySha256": "c96156612bca44821366db0b4a528ea3eb82f34465a4636d71039c095b55a488"
+        "binarySha256": "63f8d25abeffe5eb5b7c63a3aa827adf52175e450112a84615b271255553c4bb"
       },
       "extension": {
-        "asset": "sqlite-graft-0.6.0-x86_64-apple-darwin.tar.gz",
-        "archiveSha256": "4c452725dbc0065a9c7ff3c41931b22d619456d29216e57e27b37e51b1f16e04",
+        "asset": "sqlite-graft-0.6.1-x86_64-apple-darwin.tar.gz",
+        "archiveSha256": "4e771e26c10db7a51f7b3231bd239b31c626b83f54d1d17543c4126651fce942",
         "sourceFile": "libgraft_ext.dylib",
         "installedFile": "libgraft.dylib",
-        "binarySha256": "d45548a5409916b9eb3052fa2c838906c419a848c37ee071e751c0c1dd64cfcf"
+        "binarySha256": "17bde47c590a2348cebd2ecbebd3157fc091fd0cc3339b9285ea8685ef60a53b"
       }
     },
     "linux-arm64": {
@@ -52,18 +52,18 @@
       "archiveExtension": "tar.gz",
       "libraryExtension": "so",
       "cli": {
-        "asset": "graft-cli-0.6.0-aarch64-unknown-linux-gnu.tar.gz",
-        "archiveSha256": "e6ccfb64d7a727ef93e627356026a6c753d60a0fc88a816c64f54f15971183c3",
+        "asset": "graft-cli-0.6.1-aarch64-unknown-linux-gnu.tar.gz",
+        "archiveSha256": "526ae526763aae5cae55eeb850ed3c5ddf5206d5ca58d29f8475749569b298df",
         "sourceFile": "graft",
         "installedFile": "graft",
-        "binarySha256": "42a50c782473bf428c191c70e68a81190506a841bb9869a51601c32aabf61bb0"
+        "binarySha256": "8529e3df62203d58f13d04a3e83e0759aef36d87587859bc4f1bd96decd67839"
       },
       "extension": {
-        "asset": "sqlite-graft-0.6.0-aarch64-unknown-linux-gnu.tar.gz",
-        "archiveSha256": "3a273cb376ff47262a607c34a0f9d2fd9b529429874e5dfa7c6cb4bc09d45aa4",
+        "asset": "sqlite-graft-0.6.1-aarch64-unknown-linux-gnu.tar.gz",
+        "archiveSha256": "45a15100732a8b2481f2abdbee36b7cbac3b186c0da96bd6f862116f7e00b503",
         "sourceFile": "libgraft_ext.so",
         "installedFile": "libgraft.so",
-        "binarySha256": "54431733b9e05fb1ec035040cd5e6722147ab9bef0358c5860714fb8af77f8a0"
+        "binarySha256": "771039903ab62e1f2ac88b42d4503d4358498b5b7442e79166608eada3731276"
       }
     },
     "linux-x64": {
@@ -71,18 +71,18 @@
       "archiveExtension": "tar.gz",
       "libraryExtension": "so",
       "cli": {
-        "asset": "graft-cli-0.6.0-x86_64-unknown-linux-gnu.tar.gz",
-        "archiveSha256": "68ca86ce21a083e111ed68882b003b3651c14361d0e952fc7a93034ba09b5fcd",
+        "asset": "graft-cli-0.6.1-x86_64-unknown-linux-gnu.tar.gz",
+        "archiveSha256": "beb1e206494d5740cd5d60bcae3b7034bfe5e9eee6e442dbd412dcceb0bb588f",
         "sourceFile": "graft",
         "installedFile": "graft",
-        "binarySha256": "6a2942b62b797f496dcad9fb7b8eba23387f4161138a3cf75b1cf8ec4ef1316b"
+        "binarySha256": "9dab0809e708179c937fa9891aec5c86f0c42bb2b4d2ca08824e4e7f234a0a75"
       },
       "extension": {
-        "asset": "sqlite-graft-0.6.0-x86_64-unknown-linux-gnu.tar.gz",
-        "archiveSha256": "fdef0702d1f76dee1197109b5ea9bc6c9bb05d2dc60f05a530941b59647ffab3",
+        "asset": "sqlite-graft-0.6.1-x86_64-unknown-linux-gnu.tar.gz",
+        "archiveSha256": "4dd1d3ed1eb49be33203417568cf008e293adda89b4c120cc81831e6df3e2efb",
         "sourceFile": "libgraft_ext.so",
         "installedFile": "libgraft.so",
-        "binarySha256": "e190a31433eba19db9e92e06fcdad8f4de838148aeddad83e0510442d55c8925"
+        "binarySha256": "1a4abb391cc3a3aa17ce64e9fdf12581dd6a47f07b1aa79ced6f34854d1a5e61"
       }
     },
     "win32-arm64": {
@@ -90,18 +90,18 @@
       "archiveExtension": "zip",
       "libraryExtension": "dll",
       "cli": {
-        "asset": "graft-cli-0.6.0-aarch64-pc-windows-msvc.zip",
-        "archiveSha256": "1cbd3da33410266a351a2e17f436338079fbe6a12684fd596047ebe4d167c0ac",
+        "asset": "graft-cli-0.6.1-aarch64-pc-windows-msvc.zip",
+        "archiveSha256": "b0c35c3e2391acf9708a6d76e49a2c5185df79b7d650db93c51c7f87fcc54a63",
         "sourceFile": "graft.exe",
         "installedFile": "graft.exe",
-        "binarySha256": "5ae18533edc2004d9ee441f3b2344c60d0d077d5f982c8fd301dfc1ac34a6b05"
+        "binarySha256": "cb9c3c9255f47bc7c745af2a2234aa9582121a085ee7ce071f35ba5448d65758"
       },
       "extension": {
-        "asset": "sqlite-graft-0.6.0-aarch64-pc-windows-msvc.zip",
-        "archiveSha256": "bc5adccd5ef94b60f38ebdbaa7da6b3d7e8a1bd7fdc19653380e8c7486a8409b",
+        "asset": "sqlite-graft-0.6.1-aarch64-pc-windows-msvc.zip",
+        "archiveSha256": "6fdbcd952ebeb0cc1052b3826c3bea22cc6c9aa0b12779ced57e820ab22a9ba0",
         "sourceFile": "graft_ext.dll",
         "installedFile": "libgraft.dll",
-        "binarySha256": "d344e30a41b185fb2b6d3f7836bb7921551475fc8d8f08c7f36808dfb6cc3260"
+        "binarySha256": "44f6960f10acc7454cf9fd18ed481be7948d32f8ca87209bae064720411638fa"
       }
     },
     "win32-x64": {
@@ -109,18 +109,18 @@
       "archiveExtension": "zip",
       "libraryExtension": "dll",
       "cli": {
-        "asset": "graft-cli-0.6.0-x86_64-pc-windows-msvc.zip",
-        "archiveSha256": "26606655f9f9b0c67583241de489e32c6b378fd1ec5a506dd2258f2e6a67d19a",
+        "asset": "graft-cli-0.6.1-x86_64-pc-windows-msvc.zip",
+        "archiveSha256": "7d286180b120571958f84636135ad363ef09a12add6e8891b2e7c1afdb74638c",
         "sourceFile": "graft.exe",
         "installedFile": "graft.exe",
-        "binarySha256": "0ba177694a24d2f8efa0f778c0437502b65c90e7f2ada8d39a81edc8eea01208"
+        "binarySha256": "bfe242ea7a240cb62607e119531eec9cab6c4ba18748c3a698c4a976ab11a00a"
       },
       "extension": {
-        "asset": "sqlite-graft-0.6.0-x86_64-pc-windows-msvc.zip",
-        "archiveSha256": "4317e05097b7c6e67fdf1c0401bc8c7f937a671d99eb009b97e43e487e72fae7",
+        "asset": "sqlite-graft-0.6.1-x86_64-pc-windows-msvc.zip",
+        "archiveSha256": "66b78abdace9097c869f3f5ef7e2c5839829dcddd9bb24812d92ff108b06c8e1",
         "sourceFile": "graft_ext.dll",
         "installedFile": "libgraft.dll",
-        "binarySha256": "471ca396f7b0e9d330cb20dd4359b3c685f1e99b48a9709463c3936496ca7084"
+        "binarySha256": "55b5a6d0477e0be7ec0a2563f9f008ebdd433cc325bb62616c647c9758e14b58"
       }
     }
   }

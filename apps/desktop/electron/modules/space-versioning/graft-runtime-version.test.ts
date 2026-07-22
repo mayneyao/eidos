@@ -9,13 +9,13 @@ import {
 
 describe("Graft runtime version guard", () => {
   it("accepts the pinned CLI and extension version formats", () => {
-    expect(EXPECTED_GRAFT_RUNTIME_VERSION).toBe("0.6.0")
+    expect(EXPECTED_GRAFT_RUNTIME_VERSION).toBe("0.6.1")
     expect(() =>
-      assertGraftRuntimeVersion("graft-tool 0.6.0", "CLI")
+      assertGraftRuntimeVersion("graft-tool 0.6.1", "CLI")
     ).not.toThrow()
     expect(() =>
       assertGraftRuntimeVersion(
-        "Graft Version: 0.6.0\nGit Commit: c84d2f2",
+        "Graft Version: 0.6.1\nGit Commit: 09b601c",
         "SQLite extension"
       )
     ).not.toThrow()
@@ -23,10 +23,10 @@ describe("Graft runtime version guard", () => {
 
   it("rejects stale and malformed runtimes", () => {
     expect(() => assertGraftRuntimeVersion("graft-tool 0.5.8", "CLI")).toThrow(
-      "required v0.6.0"
+      "required v0.6.1"
     )
     expect(() => assertGraftRuntimeVersion(undefined, "CLI")).toThrow(
-      "required v0.6.0"
+      "required v0.6.1"
     )
   })
 })
