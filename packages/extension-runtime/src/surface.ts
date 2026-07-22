@@ -285,7 +285,7 @@ ${options.bundleCode}
         eidosFileViewId: message.eidosFileViewId,
         viewId: message.viewId,
         root,
-        base: eidosFileApi,
+        eidosFile: eidosFileApi,
         appearance: appearanceApi,
         subscriptions: subscriptionStore,
       });

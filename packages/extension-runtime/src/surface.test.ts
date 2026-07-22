@@ -25,6 +25,7 @@ describe("extension surface bootstrap", () => {
     expect(source).toContain('message.surfaceKind === "panel"')
     expect(source).toContain('message.surfaceKind === "file-editor"')
     expect(source).toContain('message.surfaceKind === "eidos-file-view"')
+    expect(source).toContain("eidosFile: eidosFileApi")
     expect(source).toContain('type: "eidos-file-page-request"')
     expect(source).toContain('message.type === "eidos-file-page-result"')
     expect(source).toContain('message.type === "eidos-file-context-changed"')
