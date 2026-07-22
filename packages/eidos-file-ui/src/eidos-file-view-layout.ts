@@ -8,6 +8,7 @@ import type {
 import type { GridSelection } from "@glideapps/glide-data-grid"
 
 import {
+  eidosFileFieldKey,
   eidosFileViewVisibleSystemFields,
   visibleEidosFileFields,
 } from "./eidos-file-field-visibility"
@@ -21,8 +22,8 @@ export function orderedEidosFileFields(
     view?.hiddenFields,
     eidosFileViewVisibleSystemFields(view)
   ).sort((left, right) => {
-    const leftOrder = view?.orderMap?.[left.tableColumnName]
-    const rightOrder = view?.orderMap?.[right.tableColumnName]
+    const leftOrder = view?.orderMap?.[eidosFileFieldKey(left)]
+    const rightOrder = view?.orderMap?.[eidosFileFieldKey(right)]
     return (
       (leftOrder ?? Number.MAX_SAFE_INTEGER) -
       (rightOrder ?? Number.MAX_SAFE_INTEGER)

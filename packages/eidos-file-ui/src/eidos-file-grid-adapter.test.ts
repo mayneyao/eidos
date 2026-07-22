@@ -1,6 +1,10 @@
 // @vitest-environment node
 
-import type { EidosFileFieldInfo } from "@eidos.space/eidos-file"
+import {
+  decodeEidosFileAttachmentPaths,
+  encodeEidosFileAttachmentPaths,
+  type EidosFileFieldInfo,
+} from "@eidos.space/eidos-file"
 import { GridCellKind } from "@glideapps/glide-data-grid"
 import { describe, expect, it } from "vitest"
 
@@ -11,11 +15,16 @@ import {
 } from "./eidos-file-grid-adapter"
 import { eidosFileSelectOptions } from "./eidos-file-field-properties"
 
+const ADA_ID = "0198c72d-82b5-7968-b163-98be4b7477df"
+const GRACE_ID = "0198c72d-82b5-7969-8163-98be4b7477df"
+
 function field(
   type: EidosFileFieldInfo["type"],
   property: Record<string, unknown> | null = null
 ): EidosFileFieldInfo {
   return {
+    id: `0198c72d-82b5-7000-8000-${type.length.toString().padStart(12, "0")}`,
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name: type,
     type,
     tableName: "tb_tasks",
@@ -47,9 +56,9 @@ describe("Eidos File Grid adapter", () => {
     expect(
       eidosFileValueToGridCell(
         {
-          ...field("title"),
+          ...field("text"),
           tableColumnName: "title",
-          valueKind: "system",
+          isRecordLabel: true,
         },
         "Editable title"
       )
@@ -96,12 +105,12 @@ describe("Eidos File Grid adapter", () => {
 
   it("adapts direct select values to the shared Grid cell shape", () => {
     const select = field("select", {
-      options: [{ value: "Todo" }, { value: "Done", color: "green" }],
+      options: [{ name: "Todo" }, { name: "Done", color: "green" }],
     })
 
     expect(eidosFileSelectOptions(select)).toEqual([
-      { value: "Todo", color: "default" },
-      { value: "Done", color: "green" },
+      { name: "Todo", value: "Todo", color: "default" },
+      { name: "Done", value: "Done", color: "green" },
     ])
     expect(eidosFileValueToGridCell(select, "Done")).toMatchObject({
       kind: GridCellKind.Custom,
@@ -152,7 +161,10 @@ describe("Eidos File Grid adapter", () => {
     expect(
       eidosFileValueToGridCell(
         { ...field("file"), storageCodec: "json_array" },
-        '["assets/cover.png","assets/report, final.pdf"]'
+        encodeEidosFileAttachmentPaths([
+          "assets/cover.png",
+          "assets/report, final.pdf",
+        ])
       )
     ).toMatchObject({
       kind: GridCellKind.Custom,
@@ -161,23 +173,25 @@ describe("Eidos File Grid adapter", () => {
         paths: ["assets/cover.png", "assets/report, final.pdf"],
       },
     })
-    expect(
-      gridCellToEidosFileValue(field("file"), {
-        kind: GridCellKind.Custom,
-        allowOverlay: true,
-        copyData: "",
-        data: {
-          kind: "eidos-file-file-cell",
-          paths: ["/assets/cover.png", "assets/report, final.pdf"],
-          displayData: [],
-        },
-      })
-    ).toBe('["assets/cover.png","assets/report, final.pdf"]')
+    const encoded = gridCellToEidosFileValue(field("file"), {
+      kind: GridCellKind.Custom,
+      allowOverlay: true,
+      copyData: "",
+      data: {
+        kind: "eidos-file-file-cell",
+        paths: ["assets/cover.png", "assets/report, final.pdf"],
+        displayData: [],
+      },
+    })
+    expect(decodeEidosFileAttachmentPaths(encoded ?? undefined)).toEqual([
+      "assets/cover.png",
+      "assets/report, final.pdf",
+    ])
   })
 
   it("maps relation IDs to hydrated record titles and back", () => {
     const relation = {
-      ...field("link", {
+      ...field("relation", {
         targetTableId: "people",
         targetField: "title",
         multiple: true,
@@ -187,15 +201,30 @@ describe("Eidos File Grid adapter", () => {
       valueKind: "relation" as const,
     }
     expect(
-      eidosFileValueToGridCell(relation, '["row_ada"]', false, {
-        owners: '["row_ada"]',
-        owners__display: '[{"id":"row_ada","title":"Ada Lovelace"}]',
+      eidosFileValueToGridCell(relation, JSON.stringify([ADA_ID]), false, {
+        owners: JSON.stringify([ADA_ID]),
+        owners__display: JSON.stringify([
+          { id: ADA_ID, title: "Ada Lovelace" },
+        ]),
       })
     ).toMatchObject({
       kind: GridCellKind.Custom,
       data: {
         kind: "eidos-file-relation-cell",
-        values: [{ id: "row_ada", title: "Ada Lovelace" }],
+        values: [{ id: ADA_ID, title: "Ada Lovelace" }],
+      },
+    })
+    expect(
+      eidosFileValueToGridCell(
+        relation,
+        JSON.stringify([GRACE_ID]),
+        false,
+        { owners: JSON.stringify([GRACE_ID]) },
+        "Unavailable record"
+      )
+    ).toMatchObject({
+      data: {
+        values: [{ id: GRACE_ID, title: "Unavailable record" }],
       },
     })
     expect(
@@ -206,13 +235,13 @@ describe("Eidos File Grid adapter", () => {
         data: {
           kind: "eidos-file-relation-cell",
           values: [
-            { id: "row_ada", title: "Ada Lovelace" },
-            { id: "row_grace", title: "Grace Hopper" },
+            { id: ADA_ID, title: "Ada Lovelace" },
+            { id: GRACE_ID, title: "Grace Hopper" },
           ],
           multiple: true,
         },
       })
-    ).toBe('["row_ada","row_grace"]')
+    ).toBe(JSON.stringify([ADA_ID, GRACE_ID]))
   })
 
   it("renders formulas with their configured display type as readonly", () => {
@@ -253,8 +282,10 @@ describe("Eidos File Grid adapter", () => {
   })
 
   it("applies per-view field visibility without changing Eidos File schema", () => {
+    const text = field("text")
+    const number = field("number")
     expect(
-      visibleEidosFileFields([field("text"), field("number")], ["number"]).map(
+      visibleEidosFileFields([text, number], [number.id]).map(
         (candidate) => candidate.tableColumnName
       )
     ).toEqual(["text"])
@@ -268,9 +299,9 @@ describe("Eidos File Grid adapter", () => {
       isHidden: true,
     }
     expect(visibleEidosFileFields([createdTime])).toEqual([])
-    expect(
-      visibleEidosFileFields([createdTime], [], ["_created_time"])
-    ).toEqual([createdTime])
+    expect(visibleEidosFileFields([createdTime], [], [createdTime.id])).toEqual(
+      [createdTime]
+    )
     expect(
       eidosFileValueToGridCell(createdTime, "2026-07-14 08:30:00")
     ).toMatchObject({

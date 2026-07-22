@@ -258,27 +258,33 @@ const table: EidosFileTableSnapshot = {
     id: "tasks",
     name: "Tasks",
     rawTableName: "tb_tasks",
+    physicalName: "tb_tasks",
     position: 1,
     icon: null,
     description: null,
-    createdAt: "2026-07-12 00:00:00",
-    updatedAt: "2026-07-12 00:00:00",
+    createdAt: "2026-07-12T00:00:00.000Z",
+    updatedAt: "2026-07-12T00:00:00.000Z",
   },
   fields: [
     {
+      id: "0198c72d-82b5-7000-8000-000000000001",
+      tableId: "0198c72d-82b5-7000-8000-000000000010",
       name: "Title",
-      type: "title",
+      type: "text",
+      isRecordLabel: true,
       tableName: "tb_tasks",
       tableColumnName: "title",
       property: null,
       storageCodec: "scalar",
-      valueKind: "system",
+      valueKind: "source",
       isHidden: false,
       isDerived: false,
       sourceTableColumnName: null,
       dependsOn: null,
     },
     {
+      id: "0198c72d-82b5-7000-8000-000000000002",
+      tableId: "0198c72d-82b5-7000-8000-000000000010",
       name: "Status",
       type: "select",
       tableName: "tb_tasks",
@@ -307,14 +313,17 @@ const view: EidosFileViewInfo = {
   type: "kanban",
   tableId: "tasks",
   query: "SELECT * FROM tb_tasks",
-  properties: { cardSize: "medium", groupByField: "status" },
+  properties: {
+    cardSize: "medium",
+    groupField: "0198c72d-82b5-7000-8000-000000000002",
+  },
   filter: null,
   sorts: [],
   orderMap: null,
   hiddenFields: [],
   position: 1,
-  createdAt: "2026-07-12 00:00:00",
-  updatedAt: "2026-07-12 00:00:00",
+  createdAt: "2026-07-12T00:00:00.000Z",
+  updatedAt: "2026-07-12T00:00:00.000Z",
 }
 
 function deferred<T>() {
@@ -566,6 +575,8 @@ describe("EidosFileKanbanView", () => {
       fields: [
         ...table.fields,
         {
+          id: "0198c72d-82b5-7000-8000-000000000003",
+          tableId: "0198c72d-82b5-7000-8000-000000000010",
           name: "Image URL",
           type: "url",
           tableName: "tb_tasks",
@@ -584,7 +595,7 @@ describe("EidosFileKanbanView", () => {
       ...view,
       properties: {
         ...view.properties,
-        coverPreview: "image_url",
+        coverField: "0198c72d-82b5-7000-8000-000000000003",
         fitContent: false,
         hideEmptyFields: false,
       },
@@ -2217,6 +2228,8 @@ describe("EidosFileKanbanView", () => {
 
   it("does not rerender unaffected columns when an inspected field changes", async () => {
     const priorityField = {
+      id: "0198c72d-82b5-7000-8000-000000000004",
+      tableId: "0198c72d-82b5-7000-8000-000000000010",
       name: "Priority",
       type: "select" as const,
       tableName: "tb_tasks",

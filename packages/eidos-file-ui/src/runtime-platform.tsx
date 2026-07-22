@@ -1,0 +1,451 @@
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type ReactNode,
+} from "react"
+import type {
+  FieldDescriptor,
+  GroupPage,
+  RowPage,
+  ViewDescriptor,
+} from "@eidos.space/eidos-file"
+
+import {
+  eidosUIPresentValue,
+  eidosUIVisibleFields,
+  type EidosUIKernel,
+  type EidosUIKernelState,
+} from "./kernel"
+import { useEidosFileUI } from "./context"
+
+export interface EidosUIRuntimeContextValue {
+  kernel: EidosUIKernel
+  state: EidosUIKernelState
+}
+
+const EidosUIRuntimeContext = createContext<EidosUIRuntimeContextValue | null>(
+  null
+)
+
+export interface EidosUIRuntimeProviderProps {
+  kernel: EidosUIKernel
+  children: ReactNode
+  themeName?: "light" | "dark"
+  className?: string
+  style?: CSSProperties
+}
+
+/** The normative React boundary: one exact UI kernel, no file path or SQL. */
+export function EidosUIRuntimeProvider({
+  kernel,
+  children,
+  themeName = "light",
+  className,
+  style,
+}: EidosUIRuntimeProviderProps) {
+  const state = useSyncExternalStore(
+    kernel.subscribe,
+    kernel.getState,
+    kernel.getState
+  )
+  const value = useMemo(() => ({ kernel, state }), [kernel, state])
+  return (
+    <EidosUIRuntimeContext.Provider value={value}>
+      <div
+        className={["eidos-file-root", className].filter(Boolean).join(" ")}
+        data-eidos-file-root=""
+        data-theme={themeName}
+        style={style}
+      >
+        {children}
+      </div>
+    </EidosUIRuntimeContext.Provider>
+  )
+}
+
+export function useEidosUIRuntime(): EidosUIRuntimeContextValue {
+  const value = useContext(EidosUIRuntimeContext)
+  if (!value) {
+    throw new Error(
+      "useEidosUIRuntime must be used inside EidosUIRuntimeProvider"
+    )
+  }
+  return value
+}
+
+export interface EidosStandardViewProps {
+  tableId?: string
+  viewId?: string
+  search?: string
+  pageSize?: number
+  className?: string
+  renderEmpty?: (state: EidosUIKernelState) => ReactNode
+}
+
+/**
+ * Accessible EU-Viewer-1.0 renderer for the three standard View types. All
+ * rows, order, groups, derived values and Relation labels come from Runtime.
+ */
+export function EidosStandardView({
+  tableId,
+  viewId,
+  search = "",
+  pageSize = 100,
+  className,
+  renderEmpty,
+}: EidosStandardViewProps) {
+  const { kernel, state } = useEidosUIRuntime()
+  const schema = state.schema
+  const table =
+    (tableId ? schema?.tables.get(tableId) : undefined) ??
+    (state.snapshot?.defaultTableId
+      ? schema?.tables.get(state.snapshot.defaultTableId)
+      : undefined) ??
+    schema?.tables.values().next().value
+  const views = table ? (schema?.viewsByTable.get(table.id) ?? []) : []
+  const view =
+    (viewId ? schema?.views.get(viewId) : undefined) ??
+    views.find((candidate) => candidate.type === "grid") ??
+    views[0]
+  const fields = table ? (schema?.fieldsByTable.get(table.id) ?? []) : []
+  const visibleFields = table ? eidosUIVisibleFields(table, fields, view) : []
+  const [cursor, setCursor] = useState<string | undefined>()
+  const [direction, setDirection] = useState<"forward" | "backward">("forward")
+  const [page, setPage] = useState<RowPage | null>(null)
+  const [groups, setGroups] = useState<GroupPage | null>(null)
+  const [error, setError] = useState<unknown>(null)
+  const query = useMemo(
+    () => runtimeQuery(view, search, visibleFields),
+    [search, view, visibleFields]
+  )
+  const projection = useMemo(
+    () => ({
+      fields: visibleFields.map((field) => field.id),
+      resolveRelations: visibleFields
+        .filter((field) => field.kind === "relation")
+        .map((field) => field.id),
+    }),
+    [visibleFields]
+  )
+  const identity = `${state.snapshot?.revision ?? ""}:${table?.id ?? ""}:${view?.id ?? ""}:${search}`
+
+  useEffect(() => {
+    setCursor(undefined)
+    setDirection("forward")
+  }, [identity])
+
+  useEffect(() => {
+    if (!table || !view || state.phase !== "ready") {
+      setPage(null)
+      setGroups(null)
+      return
+    }
+    let mounted = true
+    setError(null)
+    if (view.type === "kanban") {
+      const groupField =
+        typeof view.layout.groupField === "string"
+          ? view.layout.groupField
+          : null
+      if (!groupField) {
+        setGroups(null)
+        return
+      }
+      void kernel
+        .groupRows(`standard:${view.id}`, {
+          tableId: table.id,
+          query,
+          groupBy: [groupField],
+          aggregates: [],
+          projection,
+          groupLimit: Math.min(50, state.runtimeLimits?.groupPageSizeMax ?? 50),
+          rowsPerGroup: Math.min(
+            pageSize,
+            state.runtimeLimits?.pageSizeMax ?? pageSize
+          ),
+          ...(cursor ? { cursor } : {}),
+          direction,
+        })
+        .then((result) => {
+          if (mounted && result) setGroups(result)
+        })
+        .catch((reason: unknown) => {
+          if (mounted) setError(reason)
+        })
+      return () => {
+        mounted = false
+      }
+    }
+    void kernel
+      .queryRows(`standard:${view.id}`, {
+        tableId: table.id,
+        query,
+        projection,
+        limit: Math.min(pageSize, state.runtimeLimits?.pageSizeMax ?? pageSize),
+        ...(cursor ? { cursor } : {}),
+        direction,
+      })
+      .then((result) => {
+        if (mounted && result) setPage(result)
+      })
+      .catch((reason: unknown) => {
+        if (mounted) setError(reason)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [
+    cursor,
+    direction,
+    identity,
+    kernel,
+    pageSize,
+    projection,
+    query,
+    state.phase,
+    state.runtimeLimits,
+    table,
+    view,
+  ])
+
+  if (!table || !view || state.phase !== "ready") {
+    return renderEmpty ? (
+      renderEmpty(state)
+    ) : (
+      <div className={className} role="status">
+        {state.phase === "opening"
+          ? "Opening Eidos File…"
+          : state.phase === "error"
+            ? "The Eidos File could not be presented."
+            : "Open an Eidos File to begin."}
+      </div>
+    )
+  }
+  if (!["grid", "gallery", "kanban"].includes(view.type)) {
+    return (
+      <section className={className} aria-label={view.name}>
+        <h2>{view.name}</h2>
+        <p role="status">Unsupported View renderer: {view.type}</p>
+      </section>
+    )
+  }
+  if (error) {
+    return (
+      <div className={className} role="alert">
+        {runtimeMessage(error)}
+      </div>
+    )
+  }
+  if (view.type === "kanban") {
+    if (typeof view.layout.groupField !== "string") {
+      return (
+        <div className={className} role="status">
+          Configure a group field to present this Kanban View.
+        </div>
+      )
+    }
+    return (
+      <section className={className} aria-label={view.name}>
+        <h2>{view.name}</h2>
+        <div className="eidos-standard-kanban">
+          {groups?.groups.map((group) => (
+            <section
+              key={group.key.map(eidosUIPresentValue).join("\u0000")}
+              aria-label={group.key.map(eidosUIPresentValue).join(", ")}
+            >
+              <h3>
+                {group.key.map(eidosUIPresentValue).join(", ")} ({group.count})
+              </h3>
+              {group.rows.map((row) => (
+                <article key={row.id}>
+                  <strong>
+                    {rowLabel(row.values, visibleFields, table.labelFieldId)}
+                  </strong>
+                  {cardValues(row.values, visibleFields, view).map((item) => (
+                    <div key={item.field.id}>
+                      <span>{item.field.name}: </span>
+                      <span>{eidosUIPresentValue(item.value)}</span>
+                    </div>
+                  ))}
+                </article>
+              ))}
+            </section>
+          ))}
+        </div>
+        <Pagination
+          next={groups?.nextCursor ?? null}
+          previous={groups?.previousCursor ?? null}
+          onMove={(nextCursor, nextDirection) => {
+            setCursor(nextCursor)
+            setDirection(nextDirection)
+          }}
+        />
+      </section>
+    )
+  }
+  if (view.type === "gallery") {
+    return (
+      <section className={className} aria-label={view.name}>
+        <h2>{view.name}</h2>
+        <div className="eidos-standard-gallery">
+          {page?.rows.map((row) => (
+            <article key={row.id}>
+              <strong>
+                {rowLabel(row.values, visibleFields, table.labelFieldId)}
+              </strong>
+              {cardValues(row.values, visibleFields, view).map((item) => (
+                <div key={item.field.id}>
+                  <span>{item.field.name}: </span>
+                  <span>{eidosUIPresentValue(item.value)}</span>
+                </div>
+              ))}
+            </article>
+          ))}
+        </div>
+        <Pagination
+          next={page?.nextCursor ?? null}
+          previous={page?.previousCursor ?? null}
+          onMove={(nextCursor, nextDirection) => {
+            setCursor(nextCursor)
+            setDirection(nextDirection)
+          }}
+        />
+      </section>
+    )
+  }
+  return (
+    <section className={className} aria-label={view.name}>
+      <h2>{view.name}</h2>
+      <div role="region" aria-label={`${view.name} data`} tabIndex={0}>
+        <table>
+          <thead>
+            <tr>
+              {visibleFields.map((field) => (
+                <th key={field.id} scope="col">
+                  {field.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {page?.rows.map((row) => (
+              <tr key={row.id}>
+                {row.values.map((value, index) => (
+                  <td key={visibleFields[index]!.id}>
+                    {eidosUIPresentValue(value)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Pagination
+        next={page?.nextCursor ?? null}
+        previous={page?.previousCursor ?? null}
+        onMove={(nextCursor, nextDirection) => {
+          setCursor(nextCursor)
+          setDirection(nextDirection)
+        }}
+      />
+    </section>
+  )
+}
+
+function Pagination({
+  next,
+  previous,
+  onMove,
+}: {
+  next: string | null
+  previous: string | null
+  onMove(cursor: string, direction: "forward" | "backward"): void
+}) {
+  const { translate: t } = useEidosFileUI()
+  if (!next && !previous) return null
+  return (
+    <nav aria-label={t("Result pages")}>
+      <button
+        type="button"
+        disabled={!previous}
+        onClick={() => previous && onMove(previous, "backward")}
+      >
+        {t("Previous")}
+      </button>
+      <button
+        type="button"
+        disabled={!next}
+        onClick={() => next && onMove(next, "forward")}
+      >
+        {t("Next")}
+      </button>
+    </nav>
+  )
+}
+
+function runtimeQuery(
+  view: ViewDescriptor | undefined,
+  search: string,
+  fields: FieldDescriptor[]
+) {
+  return {
+    ...(view?.query ?? {}),
+    ...(search === ""
+      ? {}
+      : {
+          search: {
+            text: search,
+            fields: fields
+              .filter(
+                (field) =>
+                  typeof field.valueType === "string" &&
+                  ["text", "url", "select", "row-id"].includes(field.valueType)
+              )
+              .map((field) => field.id),
+          },
+        }),
+  }
+}
+
+function rowLabel(
+  values: RowPage["rows"][number]["values"],
+  fields: FieldDescriptor[],
+  labelFieldId: string
+): string {
+  const index = fields.findIndex((field) => field.id === labelFieldId)
+  return index < 0 ? "Untitled" : eidosUIPresentValue(values[index] ?? null)
+}
+
+function cardValues(
+  values: RowPage["rows"][number]["values"],
+  fields: FieldDescriptor[],
+  view: ViewDescriptor
+) {
+  const requested = Array.isArray(view.layout.cardFields)
+    ? new Set(
+        view.layout.cardFields.filter(
+          (value): value is string => typeof value === "string"
+        )
+      )
+    : new Set<string>()
+  return fields.flatMap((field, index) =>
+    requested.has(field.id) ? [{ field, value: values[index] ?? null }] : []
+  )
+}
+
+function runtimeMessage(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message
+  }
+  return "The Runtime request failed."
+}

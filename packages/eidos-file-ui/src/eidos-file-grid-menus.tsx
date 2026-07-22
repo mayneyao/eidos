@@ -32,6 +32,7 @@ import {
 } from "lucide-react"
 
 import { cn } from "./lib/cn"
+import { useEidosFileUI } from "./context"
 import { Popover, PopoverAnchor, PopoverContent } from "./ui/primitives"
 
 import {
@@ -135,6 +136,7 @@ export function EidosFileFieldMenu({
   onToggleFreeze: (fieldIndex: number, frozen: boolean) => void
   onDelete: (field: EidosFileFieldInfo) => void
 }) {
+  const { translate: t } = useEidosFileUI()
   const menuRef = useRef<HTMLDivElement>(null)
   const run = (action: () => void) => {
     onOpenChange(false)
@@ -165,8 +167,10 @@ export function EidosFileFieldMenu({
         role="menu"
         aria-label={
           state
-            ? `Actions for ${eidosFileFieldDisplayName(state.field)}`
-            : "Field actions"
+            ? t("Actions for {field}", {
+                field: eidosFileFieldDisplayName(state.field),
+              })
+            : t("Field actions")
         }
         onKeyDown={menuKeyDown}
         onFocusOutside={(event) => {
@@ -194,7 +198,7 @@ export function EidosFileFieldMenu({
                 {eidosFileFieldDisplayName(state.field)}
               </p>
               <p className="text-[11px] capitalize text-muted-foreground">
-                {state.field.type.replace("-", " ")}
+                {t(state.field.type)}
               </p>
             </div>
             <div className="my-1 h-px bg-border" role="separator" />
@@ -207,7 +211,7 @@ export function EidosFileFieldMenu({
                 onClick={() => run(() => onEditProperty(state.field))}
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
-                Edit property
+                {t("Edit property")}
               </MenuItem>
             ) : null}
             <div className="my-1 h-px bg-border" role="separator" />
@@ -216,10 +220,10 @@ export function EidosFileFieldMenu({
               onClick={() => run(() => onSort(state.field, "asc"))}
             >
               <ArrowUp className="h-3.5 w-3.5" />
-              Sort ascending
+              {t("Sort ascending")}
               {sortDirection === "asc" ? (
                 <span className="ml-auto text-[10px] text-muted-foreground">
-                  Active
+                  {t("Active")}
                 </span>
               ) : null}
             </MenuItem>
@@ -228,10 +232,10 @@ export function EidosFileFieldMenu({
               onClick={() => run(() => onSort(state.field, "desc"))}
             >
               <ArrowDown className="h-3.5 w-3.5" />
-              Sort descending
+              {t("Sort descending")}
               {sortDirection === "desc" ? (
                 <span className="ml-auto text-[10px] text-muted-foreground">
-                  Active
+                  {t("Active")}
                 </span>
               ) : null}
             </MenuItem>
@@ -241,7 +245,7 @@ export function EidosFileFieldMenu({
                 onClick={() => run(() => onSort(state.field, null))}
               >
                 <ListX className="h-3.5 w-3.5" />
-                Clear sort
+                {t("Clear sort")}
               </MenuItem>
             ) : null}
             <div className="my-1 h-px bg-border" role="separator" />
@@ -250,14 +254,14 @@ export function EidosFileFieldMenu({
               onClick={() => run(() => onInsert(state.fieldIndex))}
             >
               <ArrowLeftToLine className="h-3.5 w-3.5" />
-              Insert field left
+              {t("Insert field left")}
             </MenuItem>
             <MenuItem
               disabled={!canEditStructure}
               onClick={() => run(() => onInsert(state.fieldIndex + 1))}
             >
               <ArrowRightToLine className="h-3.5 w-3.5" />
-              Insert field right
+              {t("Insert field right")}
             </MenuItem>
             <MenuItem
               disabled={!canUpdateView}
@@ -270,7 +274,7 @@ export function EidosFileFieldMenu({
               ) : (
                 <Pin className="h-3.5 w-3.5" />
               )}
-              {frozen ? "Unfreeze columns" : "Freeze to this field"}
+              {frozen ? t("Unfreeze columns") : t("Freeze to this field")}
             </MenuItem>
             {onCalculate ? (
               <MenuItem
@@ -279,8 +283,10 @@ export function EidosFileFieldMenu({
               >
                 <Calculator className="h-3.5 w-3.5" />
                 <span className="min-w-0 flex-1 truncate">
-                  Calculate
-                  {statType ? ` · ${eidosFileColumnStatLabel(statType)}` : ""}
+                  {t("Calculate")}
+                  {statType
+                    ? ` · ${t(eidosFileColumnStatLabel(statType))}`
+                    : ""}
                 </span>
               </MenuItem>
             ) : null}
@@ -291,7 +297,7 @@ export function EidosFileFieldMenu({
               onClick={() => run(() => onDelete(state.field))}
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Delete field
+              {t("Delete field")}
             </MenuItem>
           </>
         ) : null}
@@ -317,6 +323,7 @@ export function EidosFileColumnStatMenu({
   onBack: () => void
   onChange: (value: EidosFileColumnStatType | null) => void
 }) {
+  const { translate: t } = useEidosFileUI()
   const options = state ? eidosFileColumnStatTypesForField(state.field) : []
   const choose = (next: EidosFileColumnStatType | null) => {
     onOpenChange(false)
@@ -344,7 +351,11 @@ export function EidosFileColumnStatMenu({
         sideOffset={2}
         className="w-56 p-1"
         role="menu"
-        aria-label={state ? `Calculate ${state.field.name}` : "Calculate"}
+        aria-label={
+          state
+            ? t("Calculate {field}", { field: state.field.name })
+            : t("Calculate")
+        }
         onKeyDown={menuKeyDown}
       >
         {state ? (
@@ -370,7 +381,7 @@ export function EidosFileColumnStatMenu({
                 <span className="w-3.5 text-center text-muted-foreground">
                   —
                 </span>
-                None
+                {t("None")}
                 {value === undefined ? (
                   <Check className="ml-auto h-3.5 w-3.5" />
                 ) : null}
@@ -384,17 +395,9 @@ export function EidosFileColumnStatMenu({
                   onClick={() => choose(type)}
                 >
                   <span className="w-3.5 text-center text-[11px] text-muted-foreground">
-                    {type.startsWith("percent-")
-                      ? "%"
-                      : type === "sum"
-                        ? "Σ"
-                        : type === "average"
-                          ? "μ"
-                          : type === "range"
-                            ? "↔"
-                            : "#"}
+                    {type === "sum" ? "Σ" : type === "average" ? "μ" : "#"}
                   </span>
-                  {eidosFileColumnStatLabel(type)}
+                  {t(eidosFileColumnStatLabel(type))}
                   {value === type ? (
                     <Check className="ml-auto h-3.5 w-3.5" />
                   ) : null}
@@ -439,6 +442,7 @@ export function EidosFileCellMenu({
   onRevealFile?: (path: string) => void
   onDeleteRows: (ranges: EidosFileRowRange[]) => void
 }) {
+  const { translate: t } = useEidosFileUI()
   const run = (action: () => void) => {
     onOpenChange(false)
     action()
@@ -468,21 +472,21 @@ export function EidosFileCellMenu({
         sideOffset={2}
         className="w-56 p-1"
         role="menu"
-        aria-label="Record actions"
+        aria-label={t("Record actions")}
         onKeyDown={menuKeyDown}
       >
         {state ? (
           <>
             <MenuItem onClick={() => run(() => onOpenRecord(state))}>
               <PanelRightOpen className="h-3.5 w-3.5" />
-              Open record
+              {t("Open record")}
             </MenuItem>
             <MenuItem
               disabled={!cellText}
               onClick={() => run(() => onCopyCell(cellText))}
             >
               <Copy className="h-3.5 w-3.5" />
-              Copy cell
+              {t("Copy cell")}
             </MenuItem>
             <MenuItem
               disabled={typeof rowId !== "string" || rowId.length === 0}
@@ -493,24 +497,24 @@ export function EidosFileCellMenu({
               }
             >
               <Copy className="h-3.5 w-3.5" />
-              Copy record ID
+              {t("Copy record ID")}
             </MenuItem>
             {url ? (
               <MenuItem onClick={() => run(() => onOpenUrl(url))}>
                 <ExternalLink className="h-3.5 w-3.5" />
-                Open URL
+                {t("Open URL")}
               </MenuItem>
             ) : null}
             {firstFile && onOpenFile ? (
               <MenuItem onClick={() => run(() => onOpenFile(firstFile))}>
                 <FileSearch className="h-3.5 w-3.5" />
-                Open file
+                {t("Open file")}
               </MenuItem>
             ) : null}
             {firstFile && onRevealFile ? (
               <MenuItem onClick={() => run(() => onRevealFile(firstFile))}>
                 <FolderOpen className="h-3.5 w-3.5" />
-                Show in file manager
+                {t("Show in file manager")}
               </MenuItem>
             ) : null}
             <div className="my-1 h-px bg-border" role="separator" />
@@ -520,8 +524,9 @@ export function EidosFileCellMenu({
               onClick={() => run(() => onDeleteRows(state.rowRanges))}
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Delete{" "}
-              {selectionCount === 1 ? "record" : `${selectionCount} records`}
+              {selectionCount === 1
+                ? t("Delete record")
+                : t("Delete {count} records", { count: selectionCount })}
             </MenuItem>
           </>
         ) : null}

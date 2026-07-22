@@ -1,103 +1,87 @@
 # `@eidos.space/eidos-file-ui`
 
-React provider, view host, and reusable editors for the open Eidos File format.
+Trusted React presentation for the frozen Eidos UI 1.0 boundary.
+
+The exact Viewer composition depends only on `HostServices` and the
+`RuntimeClient` returned by Host. It does not receive SQLite, File bytes,
+filesystem paths/handles, Electron IPC or application stores.
 
 ## Install
 
 ```bash
-pnpm add @eidos.space/eidos-file@0.1.0 \
-  @eidos.space/eidos-file-ui@0.1.0 \
-  @glideapps/glide-data-grid marked@^4 react react-dom
+pnpm add @eidos.space/eidos-file@1.0.0 \
+  @eidos.space/eidos-file-ui@1.0.0 react react-dom
 ```
 
-Import the precompiled stylesheet once. Consumers do not need Tailwind.
+Import the precompiled stylesheet once:
 
 ```ts
 import "@eidos.space/eidos-file-ui/styles.css"
 ```
 
-## Embed a view host
-
-Create an `EidosFileSession` with a host adapter, then provide it to React.
+## EU-Viewer-1.0 composition
 
 ```tsx
-import { useMemo } from "react"
-import { EidosFileSession } from "@eidos.space/eidos-file"
+import { useEffect, useMemo } from "react"
+import type { HostServices } from "@eidos.space/eidos-file"
+import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui"
+import { EidosUIKernel } from "@eidos.space/eidos-file-ui/kernel"
 import {
-  EidosFileBrowserRuntime,
-  IndexedDbEidosFileRecoveryStore,
-} from "@eidos.space/eidos-file/browser"
-import {
-  EidosFileProvider,
-  EidosFileViewHost,
-} from "@eidos.space/eidos-file-ui"
-import "@eidos.space/eidos-file-ui/styles.css"
+  EidosStandardView,
+  EidosUIRuntimeProvider,
+} from "@eidos.space/eidos-file-ui/runtime-platform"
 
-export function Editor() {
-  const session = useMemo(
-    () =>
-      new EidosFileSession(
-        new EidosFileBrowserRuntime(),
-        new IndexedDbEidosFileRecoveryStore()
-      ),
-    []
-  )
+export function Viewer({
+  host,
+  sourceToken,
+}: {
+  host: HostServices
+  sourceToken: string
+}) {
+  const kernel = useMemo(() => new EidosUIKernel(host), [host])
+  useEffect(() => {
+    void kernel.openSource({ sourceToken, access: "read" })
+    return () => {
+      void kernel.close()
+    }
+  }, [kernel, sourceToken])
 
   return (
-    <EidosFileProvider session={session} themeName="light">
-      <EidosFileViewHost />
-    </EidosFileProvider>
+    <EidosFileUIProvider locale="zh" themeName="light">
+      <EidosUIRuntimeProvider kernel={kernel} themeName="light">
+        <EidosStandardView />
+      </EidosUIRuntimeProvider>
+    </EidosFileUIProvider>
   )
 }
 ```
 
-The host owns file selection, session cleanup, view switching, and conflict UI.
-The view host owns only rendering and public data operations.
+`EidosFileUIProvider` supports `locale="en"` and `locale="zh"`. English is the
+default. Hosts can pass `messages` or a `translate` function to override any UI
+copy without changing File content. Locale controls presentation only; table,
+field, view, option and record names remain data stored in the Eidos File.
 
-## Build a view
+`EidosUIKernel` performs Host negotiation, Runtime negotiation, snapshot and
+revision-bound schema paging before presentation. It validates capability and
+limit descriptors, canonical schema order, File/revision/projection bindings
+and columnar row shape. Generated pages are bounded and invalidated on Runtime
+revision or epoch replacement. Latest-wins reads use Runtime cancellation.
 
-Custom views receive a typed table, persisted view descriptor, normalized query,
-async data source, selection, local view state, commands, and explicit
-capabilities.
+`EidosStandardView` declares only `EU-Viewer-1.0`. Grid, Gallery and Kanban
+consume Runtime query/group results; they do not reproduce filtering,
+Formula/Lookup, Relation or grouping semantics locally. Unknown persisted View
+types remain accessible as unsupported renderers.
 
-```tsx
-import {
-  defineEidosFileView,
-  type EidosFileViewRendererProps,
-} from "@eidos.space/eidos-file-ui"
+## Host responsibilities
 
-function Timeline({ source, table, query }: EidosFileViewRendererProps) {
-  // Page through source.getPage(table.table.id, …, query).
-  return <section aria-label={`${table.table.name} timeline`} />
-}
+The product supplies an EA-Host-1.0 `HostServices` implementation. Source,
+destination, session, conflict, recovery and asset tokens are opaque. Host owns
+permission, publication, CAS/conflict checks, recovery, assets and replacement
+Runtime epochs. Dirty close requires an explicit save/discard/cancel decision.
 
-export const timeline = defineEidosFileView({
-  type: "timeline",
-  label: "Timeline",
-  description: "Group records by date",
-  renderer: Timeline,
-  create: { defaultName: "Timeline" },
-})
-```
+React renderers are trusted application code, not an extension sandbox. Asset
+content is obtained only through bounded Host leases and every lease is
+released on close.
 
-Register the renderer directly or include it in a trusted plugin:
-
-```tsx
-<EidosFileViewHost renderers={{ timeline: timeline.renderer }} />
-```
-
-Persisted view type keys round-trip even when a renderer is unavailable.
-
-## Trust and capabilities
-
-React views are trusted, statically imported host code. This package is not an
-extension sandbox. The props contract intentionally does not expose raw file
-bytes, native filesystem access, SQLite, application routes, stores, or IPC.
-`capabilities.rawFile` and `capabilities.nativeFileSystem` are always `false`.
-
-## Styles and theme
-
-`styles.css` contains the utilities used by the package and scoped Eidos theme
-tokens. `EidosFileProvider` applies the `[data-eidos-file-root]` boundary and
-supports `themeName="light" | "dark"`. Hosts can override CSS variables on that
-element without copying Eidos global CSS.
+New interoperable integrations import `./kernel` and `./runtime-platform`
+explicitly and keep all File semantics behind Runtime.

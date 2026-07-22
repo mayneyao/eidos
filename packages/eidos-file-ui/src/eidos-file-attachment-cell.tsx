@@ -78,6 +78,7 @@ function EidosFileAttachmentCard({
   onReveal?: (path: string) => Promise<void> | void
   onRemove: (index: number) => void
 }) {
+  const { translate: t } = useEidosFileUI()
   const sortable = useSortable({ id })
   const image = isImagePath(path)
   return (
@@ -96,7 +97,7 @@ function EidosFileAttachmentCard({
       <button
         type="button"
         className="flex h-6 w-4 shrink-0 cursor-grab items-center justify-center text-muted-foreground/50 active:cursor-grabbing"
-        aria-label={`Reorder ${displayName(path)}`}
+        aria-label={t("Reorder {file}", { file: displayName(path) })}
         {...sortable.attributes}
         {...sortable.listeners}
       >
@@ -127,7 +128,7 @@ function EidosFileAttachmentCard({
           variant="ghost"
           size="icon"
           className="h-7 w-7 text-muted-foreground"
-          aria-label={`Open ${displayName(path)}`}
+          aria-label={t("Open {file}", { file: displayName(path) })}
           onClick={() => onOpen?.(path)}
         >
           <ExternalLink className="h-3.5 w-3.5" />
@@ -138,7 +139,7 @@ function EidosFileAttachmentCard({
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-muted-foreground"
-            aria-label={`Reveal ${displayName(path)}`}
+            aria-label={t("Reveal {file}", { file: displayName(path) })}
             onClick={() => void onReveal?.(path)}
           >
             <FolderOpen className="h-3.5 w-3.5" />
@@ -149,7 +150,7 @@ function EidosFileAttachmentCard({
           variant="ghost"
           size="icon"
           className="h-7 w-7 text-muted-foreground hover:text-destructive"
-          aria-label={`Remove ${displayName(path)}`}
+          aria-label={t("Remove {file}", { file: displayName(path) })}
           onClick={() => onRemove(index)}
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -162,7 +163,7 @@ function EidosFileAttachmentCard({
 export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
   EidosFileAttachmentCell
 > = ({ value: cell, onChange }) => {
-  const { resolveFilePreview } = useEidosFileUI()
+  const { resolveFilePreview, translate: t } = useEidosFileUI()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const items = cell.data.paths.map((path, index) => ({
@@ -175,7 +176,7 @@ export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
     (paths: string[]) => {
       onChange({
         ...cell,
-        copyData: encodeEidosFileAttachmentPaths(paths) ?? "",
+        copyData: encodeEidosFileAttachmentPaths(paths, cell.copyData) ?? "",
         data: {
           ...cell.data,
           paths,
@@ -213,7 +214,7 @@ export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
         />
       ) : (
         <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-          No files attached
+          {t("No files attached")}
         </p>
       )}
       {!cell.readonly && cell.data.onImport ? (
@@ -239,14 +240,14 @@ export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
                   setError(
                     importError instanceof Error
                       ? importError.message
-                      : "Unable to import files"
+                      : t("Unable to import files")
                   )
                 })
                 .finally(() => setBusy(false))
             }}
           >
             <Plus className="h-3.5 w-3.5" />
-            {busy ? "Importing…" : "Add files"}
+            {busy ? t("Importing…") : t("Add files")}
           </Button>
         </>
       ) : null}

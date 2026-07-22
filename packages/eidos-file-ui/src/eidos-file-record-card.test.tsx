@@ -2,22 +2,35 @@
 
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type {
-  EidosFileFieldInfo,
-  EidosFileViewInfo,
+import {
+  encodeEidosFileAttachmentPaths,
+  type EidosFileFieldInfo,
+  type EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileRecordCard } from "./eidos-file-record-card"
 
-const eidosFileUiMocks = vi.hoisted(() => ({
-  useEidosFileUI: vi.fn(() => ({
-    themeName: "light" as const,
-    resolveAssetUrl: (path: string) =>
-      `/~/${path.split("/").map(encodeURIComponent).join("/")}`,
-    resolveFilePreview: (path: string) => path,
-  })),
-}))
+const eidosFileUiMocks = vi.hoisted(() => {
+  const translate = (
+    message: string,
+    values: Record<string, string | number> = {}
+  ) =>
+    Object.entries(values).reduce(
+      (text, [key, value]) => text.split(`{${key}}`).join(String(value)),
+      message
+    )
+  return {
+    translate,
+    useEidosFileUI: vi.fn(() => ({
+      themeName: "light" as const,
+      translate,
+      resolveAssetUrl: (path: string) =>
+        `/~/${path.split("/").map(encodeURIComponent).join("/")}`,
+      resolveFilePreview: (path: string) => path,
+    })),
+  }
+})
 
 vi.mock("./context", () => ({
   useEidosFileUI: eidosFileUiMocks.useEidosFileUI,
@@ -29,19 +42,24 @@ vi.mock("./context", () => ({
 
 const fields: EidosFileFieldInfo[] = [
   {
+    id: "0198c72d-82b5-7000-8000-000000000001",
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name: "Title",
-    type: "title",
+    type: "text",
+    isRecordLabel: true,
     tableName: "tb_tasks",
     tableColumnName: "title",
     property: null,
     storageCodec: "scalar",
-    valueKind: "system",
+    valueKind: "source",
     isHidden: false,
     isDerived: false,
     sourceTableColumnName: null,
     dependsOn: null,
   },
   {
+    id: "0198c72d-82b5-7000-8000-000000000002",
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name: "Cover",
     type: "file",
     tableName: "tb_tasks",
@@ -71,7 +89,7 @@ const view: EidosFileViewInfo = {
   tableId: "tasks",
   query: "SELECT * FROM tb_tasks",
   properties: {
-    coverPreview: "cover",
+    coverField: "0198c72d-82b5-7000-8000-000000000002",
     fitContent: true,
     hideEmptyFields: true,
   },
@@ -80,8 +98,8 @@ const view: EidosFileViewInfo = {
   orderMap: null,
   hiddenFields: [],
   position: 1,
-  createdAt: "2026-07-12 00:00:00",
-  updatedAt: "2026-07-12 00:00:00",
+  createdAt: "2026-07-12T00:00:00.000Z",
+  updatedAt: "2026-07-12T00:00:00.000Z",
 }
 
 describe("EidosFileRecordCard", () => {
@@ -107,7 +125,7 @@ describe("EidosFileRecordCard", () => {
           row={{
             _id: "row_1",
             title: "Write RFC",
-            cover: JSON.stringify(["assets/cover.png"]),
+            cover: encodeEidosFileAttachmentPaths(["assets/cover.png"]),
           }}
           fields={fields}
           view={view}
@@ -149,7 +167,10 @@ describe("EidosFileRecordCard", () => {
           fields={[fields[0], urlField]}
           view={{
             ...view,
-            properties: { ...view.properties, coverPreview: "image_url" },
+            properties: {
+              ...view.properties,
+              coverField: "0198c72d-82b5-7000-8000-000000000002",
+            },
           }}
           onOpen={vi.fn()}
         />
@@ -169,7 +190,7 @@ describe("EidosFileRecordCard", () => {
           row={{
             _id: "row_1",
             title: "Write RFC",
-            cover: JSON.stringify(["Media/hello world#1.png"]),
+            cover: encodeEidosFileAttachmentPaths(["Media/hello world#1.png"]),
           }}
           fields={fields}
           view={view}
@@ -190,7 +211,7 @@ describe("EidosFileRecordCard", () => {
           row={{
             _id: "row_1",
             title: "Write RFC",
-            cover: JSON.stringify([path]),
+            cover: encodeEidosFileAttachmentPaths([path]),
           }}
           fields={fields}
           view={view}
@@ -370,6 +391,8 @@ describe("EidosFileRecordCard", () => {
 
   it("shows an unconfigured direct Select value from SQLite", () => {
     const statusField: EidosFileFieldInfo = {
+      id: "0198c72d-82b5-7000-8000-000000000003",
+      tableId: "0198c72d-82b5-7000-8000-000000000010",
       name: "Status",
       type: "select",
       tableName: "tb_tasks",
@@ -404,6 +427,8 @@ describe("EidosFileRecordCard", () => {
 
   it("skips card work when a virtual parent rerenders with stable props", () => {
     const statusField: EidosFileFieldInfo = {
+      id: "0198c72d-82b5-7000-8000-000000000003",
+      tableId: "0198c72d-82b5-7000-8000-000000000010",
       name: "Status",
       type: "select",
       tableName: "tb_tasks",

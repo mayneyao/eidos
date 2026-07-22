@@ -80,6 +80,7 @@ import {
   type EidosFileFieldMenuState,
 } from "./eidos-file-grid-menus"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
+import { eidosFileFieldKey } from "./eidos-file-field-visibility"
 import { eidosFileRecordFieldText } from "./eidos-file-record-format"
 import { eidosFileGridScrollbarConfig } from "./eidos-file-grid-scrollbar"
 import {
@@ -116,6 +117,7 @@ function themeColorWithAlpha(color: string, alpha: number): string {
 
 export interface EidosFileGridProps {
   table: EidosFileTableSnapshot
+  tables?: readonly EidosFileTableSnapshot[]
   view?: EidosFileViewInfo
   gridTheme?: Partial<Theme>
   disabled?: boolean
@@ -218,7 +220,7 @@ function sameFields(
 function viewWidths(
   view: EidosFileViewInfo | undefined
 ): Record<string, number> {
-  const value = view?.properties?.fieldWidthMap
+  const value = view?.properties?.fieldWidths
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return {}
   }
@@ -240,7 +242,8 @@ function viewColumnStats(
   }
   const record = value as Record<string, unknown>
   return fields.flatMap((field) => {
-    const config = record[field.tableColumnName]
+    const fieldId = eidosFileFieldKey(field)
+    const config = record[fieldId]
     if (
       typeof config !== "object" ||
       config === null ||
@@ -250,7 +253,7 @@ function viewColumnStats(
     }
     const type = (config as { type: EidosFileColumnStatType }).type
     return eidosFileColumnStatTypesForField(field).includes(type)
-      ? [{ columnName: field.tableColumnName, type }]
+      ? [{ fieldId, type }]
       : []
   })
 }
@@ -259,24 +262,13 @@ function columnStatHint(
   result: EidosFileColumnStatResult,
   field: EidosFileFieldInfo
 ): string {
-  const compactLabels: Partial<Record<EidosFileColumnStatType, string>> = {
-    "percent-empty": "Empty",
-    "percent-not-empty": "Not empty",
-    "percent-checked": "Checked",
-    "percent-unchecked": "Unchecked",
-  }
-  const label =
-    compactLabels[result.type] ?? eidosFileColumnStatLabel(result.type)
+  const label = eidosFileColumnStatLabel(result.type)
   if (result.value === null) return `${label}: —`
   if (typeof result.value === "string") return `${label}: ${result.value}`
-  const isPercent = result.type.startsWith("percent-")
-  const maximumFractionDigits =
-    result.type === "average" || result.type === "range" || isPercent ? 2 : 12
+  const maximumFractionDigits = result.type === "average" ? 2 : 12
   const value = new Intl.NumberFormat(undefined, {
     maximumFractionDigits,
   }).format(result.value)
-  if (isPercent) return `${label}: ${value}%`
-  if (result.type === "range") return `${label}: ${value} days`
   if (
     (result.type === "min" || result.type === "max") &&
     (field.type === "date" || field.type === "datetime")
@@ -288,6 +280,7 @@ function columnStatHint(
 
 export const EidosFileGrid = memo(function EidosFileGrid({
   table,
+  tables,
   view,
   gridTheme,
   disabled = false,
@@ -319,7 +312,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   onViewUpdate,
   onError,
 }: EidosFileGridProps) {
-  const { themeName, resolveFilePreview } = useEidosFileUI()
+  const { themeName, resolveFilePreview, translate: t } = useEidosFileUI()
   const defaultTheme = useEidosFileGridTheme(themeName)
   const theme = useMemo(
     () => ({ ...defaultTheme, ...gridTheme }),
@@ -553,9 +546,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       .then((results) => {
         if (generation !== columnStatGenerationRef.current) return
         setColumnStatResults(
-          Object.fromEntries(
-            results.map((result) => [result.columnName, result])
-          )
+          Object.fromEntries(results.map((result) => [result.fieldId, result]))
         )
       })
       .catch((error) => {
@@ -579,15 +570,14 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     () =>
       fields.map((field) => {
         const column = eidosFileGridColumn(field)
-        const stat = columnStatResults[field.tableColumnName]
+        const fieldId = eidosFileFieldKey(field)
+        const stat = columnStatResults[fieldId]
         const configured = columnStatConfigs.find(
-          (config) => config.columnName === field.tableColumnName
+          (config) => config.fieldId === fieldId
         )
         return {
           ...column,
-          width:
-            widths[field.tableColumnName] ??
-            ("width" in column ? column.width : 180),
+          width: widths[fieldId] ?? ("width" in column ? column.width : 180),
           ...(stat && configured?.type === stat.type
             ? {
                 trailingRowOptions: {
@@ -602,9 +592,13 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const gridConfig = useMemo(
     () => ({
       ...defaultConfig,
+      trailingRowOptions: {
+        ...defaultConfig.trailingRowOptions,
+        hint: t("New"),
+      },
       ...eidosFileGridScrollbarConfig(hasHorizontalScroll),
     }),
-    [hasHorizontalScroll]
+    [hasHorizontalScroll, t]
   )
 
   useLayoutEffect(() => {
@@ -650,7 +644,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         field,
         row[field.tableColumnName],
         gridWriteLocked,
-        row
+        row,
+        t("Unavailable record")
       )
       if (
         cell.kind === GridCellKind.Custom &&
@@ -695,6 +690,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       onRevealFile,
       onSearchRelation,
       resolveFilePreview,
+      t,
     ]
   )
 
@@ -1151,7 +1147,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           const paths = [...fileCell.data.paths, ...imported]
           history.onCellEdited(location, {
             ...fileCell,
-            copyData: encodeEidosFileAttachmentPaths(paths) ?? "",
+            copyData:
+              encodeEidosFileAttachmentPaths(paths, fileCell.copyData) ?? "",
             data: {
               ...fileCell.data,
               paths,
@@ -1193,8 +1190,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   )
 
   const onColumnResize = useCallback(
-    (column: GridColumn, _newSize: number, _index: number, newSize: number) => {
-      const id = typeof column.id === "string" ? column.id : column.title
+    (_column: GridColumn, _newSize: number, index: number, newSize: number) => {
+      const field = fields[index]
+      if (!field) return
+      const id = eidosFileFieldKey(field)
       setWidths((current) => {
         const next = { ...current, [id]: newSize }
         if (view && onViewUpdate) {
@@ -1205,7 +1204,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
             void onViewUpdate({
               properties: {
                 ...(view.properties ?? {}),
-                fieldWidthMap: next,
+                fieldWidths: next,
               },
             })
           }, 400)
@@ -1213,7 +1212,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         return next
       })
     },
-    [onViewUpdate, view]
+    [fields, onViewUpdate, view]
   )
 
   const onColumnMoved = useCallback(
@@ -1226,7 +1225,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         if (view && onViewUpdate) {
           void onViewUpdate({
             orderMap: Object.fromEntries(
-              next.map((field, index) => [field.tableColumnName, index])
+              next.map((field, index) => [eidosFileFieldKey(field), index])
             ),
           })
         }
@@ -1303,8 +1302,9 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         typeof stored === "object" && stored !== null && !Array.isArray(stored)
           ? { ...(stored as Record<string, unknown>) }
           : {}
-      if (type) current[field.tableColumnName] = { type }
-      else delete current[field.tableColumnName]
+      const fieldId = eidosFileFieldKey(field)
+      if (type) current[fieldId] = { type }
+      else delete current[fieldId]
       updateView({
         properties: {
           ...(view?.properties ?? {}),
@@ -1330,17 +1330,18 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   )
 
   const fieldSortDirection = fieldMenu
-    ? view?.sorts.find((sort) => sort.field === fieldMenu.field.tableColumnName)
-        ?.direction
+    ? view?.sorts.find(
+        (sort) => sort.field === eidosFileFieldKey(fieldMenu.field)
+      )?.direction
     : undefined
   const fieldStatType = fieldMenu
     ? columnStatConfigs.find(
-        (config) => config.columnName === fieldMenu.field.tableColumnName
+        (config) => config.fieldId === eidosFileFieldKey(fieldMenu.field)
       )?.type
     : undefined
   const columnStatMenuValue = columnStatMenu
     ? columnStatConfigs.find(
-        (config) => config.columnName === columnStatMenu.field.tableColumnName
+        (config) => config.fieldId === eidosFileFieldKey(columnStatMenu.field)
       )?.type
     : undefined
   const cellText = cellMenu
@@ -1403,8 +1404,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
                 type="button"
                 variant="ghost"
                 className="h-9 w-full justify-start rounded-none px-2 text-muted-foreground"
-                aria-label="Add field"
-                title="New field"
+                aria-label={t("Add field")}
+                title={t("New field")}
                 onClick={() => onAddField()}
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -1423,14 +1424,18 @@ export const EidosFileGrid = memo(function EidosFileGrid({
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-destructive">
                   {failedMutation.editedCellCount === 1
-                    ? "Could not save this Grid change"
-                    : `Could not save ${failedMutation.editedCellCount} Grid changes`}
+                    ? t("Could not save this Grid change")
+                    : t("Could not save {count} Grid changes", {
+                        count: failedMutation.editedCellCount,
+                      })}
                 </p>
                 <p className="mt-0.5 break-words leading-4 text-muted-foreground">
                   {failedMutation.message}{" "}
                   {failedMutation.editedCellCount === 1
-                    ? "Your change is preserved in the grid."
-                    : `${failedMutation.editedCellCount} changes are preserved in the grid.`}
+                    ? t("Your change is preserved in the grid.")
+                    : t("{count} changes are preserved in the grid.", {
+                        count: failedMutation.editedCellCount,
+                      })}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
@@ -1442,7 +1447,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
                   disabled={mutationInFlight}
                   onClick={retryFailedMutation}
                 >
-                  {mutationInFlight ? "Retrying…" : "Retry"}
+                  {mutationInFlight ? t("Retrying…") : t("Retry")}
                 </Button>
                 <Button
                   type="button"
@@ -1453,8 +1458,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
                   onClick={discardFailedMutation}
                 >
                   {failedMutation.editedCellCount === 1
-                    ? "Discard change"
-                    : "Discard changes"}
+                    ? t("Discard change")
+                    : t("Discard changes")}
                 </Button>
               </div>
             </div>
@@ -1483,7 +1488,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
             updateView({
               sorts: nextEidosFileFieldSorts(
                 view?.sorts ?? [],
-                field.tableColumnName,
+                eidosFileFieldKey(field),
                 direction
               ),
             })
@@ -1553,6 +1558,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       onDeleteField ? (
         <EidosFileFieldPropertyPanel
           field={propertyField}
+          tables={tables ?? [table]}
           disabled={gridWriteLocked}
           onClose={onPropertyFieldClose}
           onUpdate={onFieldUpdate}

@@ -1,9 +1,18 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react"
 
+import {
+  translateEidosFileUI,
+  type EidosFileUILocale,
+  type EidosFileUIMessageOverrides,
+  type EidosFileUIMessageValues,
+} from "./i18n"
+
 export type EidosFileUIThemeName = "light" | "dark"
 
 export interface EidosFileUIHost {
   themeName: EidosFileUIThemeName
+  locale: EidosFileUILocale
+  translate(message: string, values?: EidosFileUIMessageValues): string
   resolveAssetUrl(path: string): string
   resolveFilePreview(path: string): string
 }
@@ -28,21 +37,46 @@ function defaultFilePreview(path: string): string {
 
 const defaultHost: EidosFileUIHost = {
   themeName: "light",
+  locale: "en",
+  translate: (message, values) => translateEidosFileUI("en", message, values),
   resolveAssetUrl: (path) => path,
   resolveFilePreview: defaultFilePreview,
 }
 
 const EidosFileUIContext = createContext<EidosFileUIHost>(defaultHost)
+const EMPTY_MESSAGES: Partial<EidosFileUIMessageOverrides> = {}
 
 export function EidosFileUIProvider({
   children,
   themeName = "light",
+  locale = "en",
+  messages = EMPTY_MESSAGES,
+  translate: translateOverride,
   resolveAssetUrl = defaultHost.resolveAssetUrl,
   resolveFilePreview = defaultHost.resolveFilePreview,
-}: Partial<EidosFileUIHost> & { children: ReactNode }) {
+}: Partial<EidosFileUIHost> & {
+  children: ReactNode
+  messages?: Partial<EidosFileUIMessageOverrides>
+}) {
   const value = useMemo<EidosFileUIHost>(
-    () => ({ themeName, resolveAssetUrl, resolveFilePreview }),
-    [resolveAssetUrl, resolveFilePreview, themeName]
+    () => ({
+      themeName,
+      locale,
+      translate:
+        translateOverride ??
+        ((message, values) =>
+          translateEidosFileUI(locale, message, values, messages)),
+      resolveAssetUrl,
+      resolveFilePreview,
+    }),
+    [
+      locale,
+      messages,
+      resolveAssetUrl,
+      resolveFilePreview,
+      themeName,
+      translateOverride,
+    ]
   )
   return (
     <EidosFileUIContext.Provider value={value}>

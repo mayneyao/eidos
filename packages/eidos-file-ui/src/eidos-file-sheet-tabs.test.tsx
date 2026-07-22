@@ -16,8 +16,8 @@ const tables: EidosFileTableInfo[] = [
     position: 0,
     icon: null,
     description: null,
-    createdAt: "2026-07-19 00:00:00",
-    updatedAt: "2026-07-19 00:00:00",
+    createdAt: "2026-07-19T00:00:00.000Z",
+    updatedAt: "2026-07-19T00:00:00.000Z",
   },
   {
     id: "projects",
@@ -26,8 +26,8 @@ const tables: EidosFileTableInfo[] = [
     position: 1,
     icon: null,
     description: null,
-    createdAt: "2026-07-19 00:00:00",
-    updatedAt: "2026-07-19 00:00:00",
+    createdAt: "2026-07-19T00:00:00.000Z",
+    updatedAt: "2026-07-19T00:00:00.000Z",
   },
 ]
 

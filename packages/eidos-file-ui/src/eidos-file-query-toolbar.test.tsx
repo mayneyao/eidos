@@ -10,19 +10,24 @@ import { EidosFileQueryToolbar } from "./eidos-file-query-toolbar"
 
 const fields: EidosFileFieldInfo[] = [
   {
+    id: "0198c72d-82b5-7000-8000-000000000001",
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name: "Title",
-    type: "title",
+    type: "text",
+    isRecordLabel: true,
     tableName: "tb_tasks",
     tableColumnName: "title",
     property: null,
     storageCodec: "scalar",
-    valueKind: "system",
+    valueKind: "source",
     isHidden: false,
     isDerived: false,
     sourceTableColumnName: null,
     dependsOn: null,
   },
   {
+    id: "0198c72d-82b5-7000-8000-000000000002",
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name: "Priority",
     type: "number",
     tableName: "tb_tasks",
@@ -36,19 +41,23 @@ const fields: EidosFileFieldInfo[] = [
     dependsOn: null,
   },
   {
+    id: "0198c72d-82b5-7000-8000-000000000003",
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name: "Total",
     type: "formula",
     tableName: "tb_tasks",
     tableColumnName: "total",
-    property: { formula: "priority * 2", displayType: "number" },
+    property: { formula: '"Priority" * 2', displayType: "number" },
     storageCodec: "scalar",
     valueKind: "derived",
     isHidden: false,
     isDerived: true,
     sourceTableColumnName: null,
-    dependsOn: ["priority"],
+    dependsOn: ["0198c72d-82b5-7000-8000-000000000002"],
   },
   {
+    id: "0198c72d-82b5-7000-8000-000000000004",
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name: "Created time",
     type: "created-time",
     tableName: "tb_tasks",
@@ -189,7 +198,7 @@ describe("shared EidosFileQueryToolbar", () => {
       children: [
         {
           type: "rule",
-          field: "title",
+          field: fields[0].id,
           operator: "equals",
           value: "",
         },
@@ -212,7 +221,7 @@ describe("shared EidosFileQueryToolbar", () => {
           children: [
             {
               type: "rule",
-              field: "title",
+              field: fields[0].id,
               operator: "equals",
               value: "",
             },
@@ -268,7 +277,7 @@ describe("shared EidosFileQueryToolbar", () => {
     await act(async () => button("Add sort")?.click())
     await act(async () => button("Apply")?.click())
     expect(onSortsChange).toHaveBeenCalledWith([
-      { field: "title", direction: "asc" },
+      { field: fields[0].id, direction: "asc" },
     ])
   })
 
@@ -306,7 +315,7 @@ describe("shared EidosFileQueryToolbar", () => {
         <EidosFileQueryToolbar
           fields={fields}
           filter={null}
-          sorts={[{ field: "priority", direction: "desc" }]}
+          sorts={[{ field: fields[1].id, direction: "desc" }]}
           search=""
           onSearchChange={onSearchChange}
           onFilterChange={onFilterChange}

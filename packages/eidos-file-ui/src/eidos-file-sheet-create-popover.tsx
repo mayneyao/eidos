@@ -9,6 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "./ui/primitives"
+import { useEidosFileUI } from "./context"
 
 import {
   EidosFileCsvImportPopover,
@@ -31,6 +32,7 @@ export function EidosFileSheetCreatePopover({
   importAction?: ReactNode
   onCreate: (table: CreateEidosFileTableInput) => Promise<void> | void
 }) {
+  const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
   const [screen, setScreen] = useState<"menu" | "create">("menu")
   const [name, setName] = useState("")
@@ -59,7 +61,7 @@ export function EidosFileSheetCreatePopover({
       setError(
         creationError instanceof Error
           ? creationError.message
-          : "Unable to create table"
+          : t("Unable to create table")
       )
       setSubmitting(false)
     }
@@ -78,8 +80,8 @@ export function EidosFileSheetCreatePopover({
         <button
           type="button"
           className="flex h-full w-8 shrink-0 items-center justify-center border-r text-muted-foreground outline-hidden hover:bg-background/70 hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50"
-          aria-label="Add Eidos File table"
-          title="Add table"
+          aria-label={t("Add Eidos File table")}
+          title={t("Add table")}
           disabled={disabled}
         >
           <Plus className="h-3.5 w-3.5" />
@@ -94,9 +96,9 @@ export function EidosFileSheetCreatePopover({
         {screen === "menu" ? (
           <div>
             <div className="border-b px-4 py-3">
-              <h2 className="text-sm font-semibold">Add table</h2>
+              <h2 className="text-sm font-semibold">{t("Add table")}</h2>
               <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                Start blank or import structured data from CSV.
+                {t("Start blank or import structured data from CSV.")}
               </p>
             </div>
             <div className="p-1.5">
@@ -111,10 +113,10 @@ export function EidosFileSheetCreatePopover({
                 <Table2 className="mt-0.5 h-3.5 w-3.5" />
                 <span className="grid min-w-0 gap-0.5">
                   <span className="text-sm font-medium text-foreground">
-                    New table
+                    {t("New table")}
                   </span>
                   <span className="text-xs font-normal leading-4 text-muted-foreground">
-                    Create an empty table in this Eidos File.
+                    {t("Create an empty table in this Eidos File.")}
                   </span>
                 </span>
               </Button>
@@ -139,7 +141,7 @@ export function EidosFileSheetCreatePopover({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 shrink-0"
-                aria-label="Back to table options"
+                aria-label={t("Back to table options")}
                 disabled={submitting}
                 onClick={() => {
                   setScreen("menu")
@@ -149,22 +151,22 @@ export function EidosFileSheetCreatePopover({
                 <ArrowLeft className="h-3.5 w-3.5" />
               </Button>
               <div className="min-w-0 pt-0.5">
-                <h2 className="text-sm font-semibold">New table</h2>
+                <h2 className="text-sm font-semibold">{t("New table")}</h2>
                 <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                  Add an empty table to this Eidos File.
+                  {t("Add an empty table to this Eidos File.")}
                 </p>
               </div>
             </div>
             <form onSubmit={(event) => void submit(event)}>
               <div className="grid gap-1.5 px-4 py-3">
                 <label className="text-xs font-medium" htmlFor={nameId}>
-                  Name
+                  {t("Name")}
                 </label>
                 <Input
                   id={nameId}
                   value={name}
                   autoFocus
-                  placeholder="Projects"
+                  placeholder={t("Projects")}
                   disabled={submitting}
                   onChange={(event) => setName(event.target.value)}
                 />
@@ -184,10 +186,10 @@ export function EidosFileSheetCreatePopover({
                     setError(null)
                   }}
                 >
-                  Cancel
+                  {t("Cancel")}
                 </Button>
                 <Button type="submit" disabled={!name.trim() || submitting}>
-                  {submitting ? "Creating…" : "Create"}
+                  {submitting ? t("Creating…") : t("Create")}
                 </Button>
               </div>
             </form>

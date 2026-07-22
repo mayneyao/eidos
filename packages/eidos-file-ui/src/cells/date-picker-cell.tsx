@@ -2,6 +2,7 @@ import * as React from "react"
 import type { CustomCell, CustomRenderer } from "@glideapps/glide-data-grid"
 import { GridCellKind, drawTextCell } from "@glideapps/glide-data-grid"
 
+import { useEidosFileUI } from "../context"
 import { Calendar } from "../ui/primitives"
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/primitives"
 
@@ -22,7 +23,12 @@ function toDateInputValue(date: Date): string {
 }
 
 function toDatetimeLocalValue(date: Date): string {
-  return date.toISOString().slice(0, 16)
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, "0")
+  const d = String(date.getDate()).padStart(2, "0")
+  const hours = String(date.getHours()).padStart(2, "0")
+  const minutes = String(date.getMinutes()).padStart(2, "0")
+  return `${y}-${m}-${d}T${hours}:${minutes}`
 }
 
 function formatDateForDisplay(
@@ -43,6 +49,7 @@ interface DatePickerEditorProps {
 }
 
 function DatePickerEditor(props: DatePickerEditorProps) {
+  const { locale, translate: t } = useEidosFileUI()
   const { format, date, onFinishedEditing, onCancelEditing } = props
 
   const defaultDate = date ?? new Date()
@@ -135,7 +142,14 @@ function DatePickerEditor(props: DatePickerEditorProps) {
                   commitDate(undefined)
                   return
                 }
-                const d = new Date(v)
+                const d =
+                  format === "date"
+                    ? new Date(
+                        Number(v.slice(0, 4)),
+                        Number(v.slice(5, 7)) - 1,
+                        Number(v.slice(8, 10))
+                      )
+                    : new Date(v)
                 if (!Number.isNaN(d.getTime())) {
                   commitDate(d)
                 }
@@ -150,6 +164,16 @@ function DatePickerEditor(props: DatePickerEditorProps) {
               month={month}
               onMonthChange={setMonth}
               onSelect={commitDate}
+              formatters={
+                locale === "zh"
+                  ? {
+                      formatCaption: (value) =>
+                        `${value.getFullYear()}年${value.getMonth() + 1}月`,
+                      formatWeekdayName: (value) =>
+                        "日一二三四五六"[value.getDay()] ?? "",
+                    }
+                  : undefined
+              }
               className="rounded-md border-none outline-hidden mx-auto"
             />
           </div>
@@ -160,12 +184,12 @@ function DatePickerEditor(props: DatePickerEditorProps) {
               <kbd className="px-1 rounded bg-muted border text-[9px] font-sans">
                 ↵
               </kbd>
-              <span>save</span>
+              <span>{t("save")}</span>
               <span className="mx-0.5">·</span>
               <kbd className="px-1 rounded bg-muted border text-[9px] font-sans">
                 Esc
               </kbd>
-              <span>cancel</span>
+              <span>{t("cancel")}</span>
             </span>
           </div>
         </div>
@@ -213,13 +237,17 @@ const renderer: CustomRenderer<DatePickerCell> = {
     )
   },
   onPaste: (v, d) => {
-    const newDate = new Date(v)
     const format = d.format ?? "date"
+    const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v)
+    const newDate =
+      format === "date" && date
+        ? new Date(Number(date[1]), Number(date[2]) - 1, Number(date[3]))
+        : new Date(v)
 
     return {
       ...d,
-      date: Number.isNaN(newDate) ? undefined : newDate,
-      displayDate: Number.isNaN(newDate)
+      date: Number.isNaN(newDate.getTime()) ? undefined : newDate,
+      displayDate: Number.isNaN(newDate.getTime())
         ? ""
         : formatDateForDisplay(newDate, format),
     }

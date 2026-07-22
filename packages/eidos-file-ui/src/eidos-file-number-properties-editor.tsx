@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react"
 
+import { useEidosFileUI } from "./context"
 import { cn } from "./lib/cn"
 import { Input } from "./ui/primitives"
 import {
@@ -27,6 +28,7 @@ export function EidosFileNumberPropertiesEditor({
   onChange: (property: EidosFileNumberProperty) => Promise<void> | void
   className?: string
 }) {
+  const { translate: t } = useEidosFileUI()
   const [property, setProperty] = useState(sourceProperty)
   const propertyRef = useRef(sourceProperty)
   const [divideBy, setDivideBy] = useState(String(sourceProperty.divideBy))
@@ -73,9 +75,9 @@ export function EidosFileNumberPropertiesEditor({
 
   return (
     <section className={cn("grid gap-3 border-t pt-3", className)}>
-      <h3 className="text-xs font-medium">Number display</h3>
+      <h3 className="text-xs font-medium">{t("Number display")}</h3>
       <label className="grid gap-1.5 text-xs">
-        <span className="font-medium">Format</span>
+        <span className="font-medium">{t("Format")}</span>
         <Select
           value={property.format}
           disabled={disabled}
@@ -87,14 +89,14 @@ export function EidosFileNumberPropertiesEditor({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="number">Number</SelectItem>
-            <SelectItem value="percent">Percent</SelectItem>
-            <SelectItem value="currency">Currency</SelectItem>
+            <SelectItem value="number">{t("Number")}</SelectItem>
+            <SelectItem value="percent">{t("Percent")}</SelectItem>
+            <SelectItem value="currency">{t("Currency")}</SelectItem>
           </SelectContent>
         </Select>
       </label>
       <div className="grid gap-1.5">
-        <span className="text-xs font-medium">Show as</span>
+        <span className="text-xs font-medium">{t("Show as")}</span>
         <div className="grid grid-cols-2 rounded-md border p-0.5">
           {(["number", "bar"] as const).map((showAs) => (
             <button
@@ -109,7 +111,7 @@ export function EidosFileNumberPropertiesEditor({
               disabled={disabled}
               onClick={() => update({ showAs })}
             >
-              {showAs}
+              {t(showAs)}
             </button>
           ))}
         </div>
@@ -117,7 +119,7 @@ export function EidosFileNumberPropertiesEditor({
       {property.showAs === "bar" ? (
         <>
           <label className="grid gap-1.5 text-xs" htmlFor={divideById}>
-            <span className="font-medium">Bar maximum</span>
+            <span className="font-medium">{t("Bar maximum")}</span>
             <Input
               id={divideById}
               value={divideBy}
@@ -137,7 +139,7 @@ export function EidosFileNumberPropertiesEditor({
             />
           </label>
           <label className="grid gap-1.5 text-xs">
-            <span className="font-medium">Bar color</span>
+            <span className="font-medium">{t("Bar color")}</span>
             <Select
               value={property.color}
               disabled={disabled}
@@ -149,7 +151,7 @@ export function EidosFileNumberPropertiesEditor({
               <SelectContent>
                 {EIDOS_FILE_OPTION_COLORS.map((color) => (
                   <SelectItem key={color.name} value={color.name}>
-                    <span className="capitalize">{color.name}</span>
+                    <span className="capitalize">{t(color.name)}</span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -157,9 +159,9 @@ export function EidosFileNumberPropertiesEditor({
           </label>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-medium">Show number</p>
+              <p className="text-xs font-medium">{t("Show number")}</p>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
-                Keep the value visible beside the bar.
+                {t("Keep the value visible beside the bar.")}
               </p>
             </div>
             <Switch

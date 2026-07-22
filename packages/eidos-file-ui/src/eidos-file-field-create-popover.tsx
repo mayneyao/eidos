@@ -23,6 +23,8 @@ import {
   type EidosFileNumberProperty,
   type EidosFileSelectOption,
 } from "./eidos-file-field-properties"
+import { useEidosFileUI } from "./context"
+import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
 import {
   EidosFileFieldTypePicker,
   type EidosFileCreatableFieldType,
@@ -100,6 +102,7 @@ export function EidosFileFieldCreatePopover({
   onCreate,
   onPreviewFormula,
 }: EidosFileFieldCreatePopoverProps) {
+  const { translate: t } = useEidosFileUI()
   const [name, setName] = useState("")
   const [fieldType, setFieldType] =
     useState<EidosFileCreatableFieldType>("text")
@@ -108,7 +111,6 @@ export function EidosFileFieldCreatePopover({
     () => ({ ...DEFAULT_BASE_NUMBER_PROPERTY })
   )
   const [targetTableId, setTargetTableId] = useState("")
-  const [targetField, setTargetField] = useState("title")
   const [multiple, setMultiple] = useState(true)
   const [formula, setFormula] = useState("")
   const [formulaDisplayType, setFormulaDisplayType] =
@@ -135,7 +137,6 @@ export function EidosFileFieldCreatePopover({
         tables[0]?.table.id ??
         ""
     )
-    setTargetField("title")
     setMultiple(true)
     setFormula("")
     setFormulaDisplayType("text")
@@ -154,25 +155,12 @@ export function EidosFileFieldCreatePopover({
   const targetTable = tables.find(
     (candidate) => candidate.table.id === targetTableId
   )
-  const relationTargetFields =
-    targetTable?.fields.filter(
-      (field) =>
-        !field.isHidden && field.valueKind !== "relation" && !field.isDerived
-    ) ?? []
-  const selectedTargetField =
-    relationTargetFields.find(
-      (candidate) => candidate.tableColumnName === targetField
-    ) ??
-    relationTargetFields.find(
-      (candidate) => candidate.tableColumnName === "title"
-    ) ??
-    relationTargetFields[0]
-
-  const relationFields = table.fields.filter((field) => field.type === "link")
+  const relationFields = table.fields.filter(
+    (field) => field.type === "relation"
+  )
   const selectedRelation =
-    relationFields.find(
-      (field) => field.tableColumnName === lookupRelationField
-    ) ?? relationFields[0]
+    relationFields.find((field) => field.id === lookupRelationField) ??
+    relationFields[0]
   const lookupTargetTableId =
     typeof selectedRelation?.property?.targetTableId === "string"
       ? selectedRelation.property.targetTableId
@@ -186,10 +174,8 @@ export function EidosFileFieldCreatePopover({
     (field) => !field.isHidden && (!field.isDerived || field.type === "lookup")
   )
   const selectedLookupTarget =
-    lookupTargetFields.find(
-      (field) => field.tableColumnName === lookupTargetField
-    ) ??
-    lookupTargetFields.find((field) => field.tableColumnName === "title") ??
+    lookupTargetFields.find((field) => field.id === lookupTargetField) ??
+    lookupTargetFields.find(isEidosFileRecordLabelField) ??
     lookupTargetFields[0]
   const lookupAggregateSupported = selectedLookupTarget
     ? eidosFileLookupAggregateSupportsTarget(
@@ -204,16 +190,17 @@ export function EidosFileFieldCreatePopover({
     const trimmedName = name.trim()
     if (!trimmedName || busy) return
     let field: CreateEidosFileFieldInput
-    if (fieldType === "link") {
-      if (!targetTable || !selectedTargetField) return
+    if (fieldType === "relation") {
+      if (!targetTable) return
       field = {
         name: trimmedName,
         columnName,
-        type: "link",
+        type: "relation",
         property: {
           targetTableId: targetTable.table.id,
-          targetField: selectedTargetField.tableColumnName,
           multiple,
+          cardinality: multiple ? "many" : "one",
+          onDelete: "restrict",
         },
       }
     } else if (fieldType === "formula") {
@@ -240,8 +227,8 @@ export function EidosFileFieldCreatePopover({
         columnName,
         type: "lookup",
         property: {
-          relationField: selectedRelation.tableColumnName,
-          targetField: selectedLookupTarget.tableColumnName,
+          relationField: selectedRelation.id!,
+          targetField: selectedLookupTarget.id!,
           aggregate: lookupAggregate,
           displayType: eidosFileLookupDisplayType(
             lookupAggregate,
@@ -275,7 +262,7 @@ export function EidosFileFieldCreatePopover({
       setError(
         creationError instanceof Error
           ? creationError.message
-          : "Unable to create field"
+          : t("Unable to create field")
       )
     } finally {
       setSubmitting(false)
@@ -298,9 +285,11 @@ export function EidosFileFieldCreatePopover({
         }
       >
         <div className="border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">New field</h2>
+          <h2 className="text-sm font-semibold">{t("New field")}</h2>
           <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-            Add a stored, related, or computed field to {table.table.name}.
+            {t("Add a stored, related, or computed field to {table}.", {
+              table: table.table.name,
+            })}
           </p>
         </div>
         <form ref={formRef} onSubmit={(event) => void submit(event)}>
@@ -309,18 +298,18 @@ export function EidosFileFieldCreatePopover({
               className="grid gap-1.5 text-xs font-medium"
               htmlFor={nameId}
             >
-              Name
+              {t("Name")}
               <Input
                 id={nameId}
                 value={name}
                 autoFocus
                 disabled={busy}
-                placeholder="Status"
+                placeholder={t("Status")}
                 onChange={(event) => setName(event.target.value)}
               />
             </label>
             <label className="grid gap-1.5 text-xs font-medium">
-              Type
+              {t("Type")}
               <EidosFileFieldTypePicker
                 value={fieldType}
                 onChange={setFieldType}
@@ -343,20 +332,19 @@ export function EidosFileFieldCreatePopover({
                 className="border-t-0 pt-0"
               />
             ) : null}
-            {fieldType === "link" ? (
+            {fieldType === "relation" ? (
               <div className="grid gap-3">
                 <label className="grid gap-1.5 text-xs font-medium">
-                  Related table
+                  {t("Related table")}
                   <Select
                     value={targetTable?.table.id ?? ""}
                     disabled={busy}
                     onValueChange={(value) => {
                       setTargetTableId(value)
-                      setTargetField("title")
                     }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Choose a table" />
+                      <SelectValue placeholder={t("Choose a table")} />
                     </SelectTrigger>
                     <SelectContent>
                       {tables.map((candidate) => (
@@ -366,48 +354,29 @@ export function EidosFileFieldCreatePopover({
                         >
                           {candidate.table.name}
                           {candidate.table.id === table.table.id
-                            ? " (this table)"
+                            ? t(" (this table)")
                             : ""}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </label>
-                <label className="grid gap-1.5 text-xs font-medium">
-                  Display field
-                  <Select
-                    value={selectedTargetField?.tableColumnName ?? ""}
-                    disabled={busy}
-                    onValueChange={setTargetField}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a field" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {relationTargetFields.map((candidate) => (
-                        <SelectItem
-                          key={candidate.tableColumnName}
-                          value={candidate.tableColumnName}
-                        >
-                          {candidate.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </label>
+                <p className="text-[11px] leading-4 text-muted-foreground">
+                  {t("Related rows use the target table’s Record Label Field.")}
+                </p>
                 <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5">
                   <div>
                     <p className="text-xs font-medium">
-                      Allow multiple records
+                      {t("Allow multiple records")}
                     </p>
                     <p className="text-[10px] leading-4 text-muted-foreground">
-                      Relation values stay ordered in a JSON array.
+                      {t("Relation values stay ordered in a JSON array.")}
                     </p>
                   </div>
                   <Switch
                     checked={multiple}
                     disabled={busy}
-                    aria-label="Allow multiple related records"
+                    aria-label={t("Allow multiple related records")}
                     onCheckedChange={setMultiple}
                   />
                 </div>
@@ -438,9 +407,9 @@ export function EidosFileFieldCreatePopover({
             {fieldType === "lookup" ? (
               <div className="grid gap-3">
                 <label className="grid gap-1.5 text-xs font-medium">
-                  Relation
+                  {t("Relation")}
                   <Select
-                    value={selectedRelation?.tableColumnName ?? ""}
+                    value={selectedRelation?.id ?? ""}
                     disabled={busy}
                     onValueChange={(value) => {
                       setLookupRelationField(value)
@@ -448,14 +417,11 @@ export function EidosFileFieldCreatePopover({
                     }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Choose a relation" />
+                      <SelectValue placeholder={t("Choose a relation")} />
                     </SelectTrigger>
                     <SelectContent>
                       {relationFields.map((candidate) => (
-                        <SelectItem
-                          key={candidate.tableColumnName}
-                          value={candidate.tableColumnName}
-                        >
+                        <SelectItem key={candidate.id!} value={candidate.id!}>
                           {candidate.name}
                         </SelectItem>
                       ))}
@@ -463,21 +429,18 @@ export function EidosFileFieldCreatePopover({
                   </Select>
                 </label>
                 <label className="grid gap-1.5 text-xs font-medium">
-                  Target field
+                  {t("Target field")}
                   <Select
-                    value={selectedLookupTarget?.tableColumnName ?? ""}
+                    value={selectedLookupTarget?.id ?? ""}
                     disabled={busy}
                     onValueChange={setLookupTargetField}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Choose a target field" />
+                      <SelectValue placeholder={t("Choose a target field")} />
                     </SelectTrigger>
                     <SelectContent>
                       {lookupTargetFields.map((candidate) => (
-                        <SelectItem
-                          key={candidate.tableColumnName}
-                          value={candidate.tableColumnName}
-                        >
+                        <SelectItem key={candidate.id!} value={candidate.id!}>
                           {candidate.name}
                         </SelectItem>
                       ))}
@@ -485,7 +448,7 @@ export function EidosFileFieldCreatePopover({
                   </Select>
                 </label>
                 <label className="grid gap-1.5 text-xs font-medium">
-                  Calculate
+                  {t("Calculate")}
                   <Select
                     value={lookupAggregate}
                     disabled={busy}
@@ -509,7 +472,7 @@ export function EidosFileFieldCreatePopover({
                             )
                           }
                         >
-                          {aggregate.label}
+                          {t(aggregate.label)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -517,7 +480,7 @@ export function EidosFileFieldCreatePopover({
                 </label>
                 {relationFields.length === 0 ? (
                   <p className="text-[11px] leading-4 text-muted-foreground">
-                    Add a Relation field before creating a Lookup.
+                    {t("Add a Relation field before creating a Lookup.")}
                   </p>
                 ) : null}
               </div>
@@ -535,15 +498,14 @@ export function EidosFileFieldCreatePopover({
               disabled={busy}
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               type="submit"
               disabled={
                 busy ||
                 !name.trim() ||
-                (fieldType === "link" &&
-                  (!targetTable || !selectedTargetField)) ||
+                (fieldType === "relation" && !targetTable) ||
                 (fieldType === "formula" &&
                   (!formula.trim() || !formulaValid)) ||
                 (fieldType === "lookup" &&
@@ -552,7 +514,7 @@ export function EidosFileFieldCreatePopover({
                     !lookupAggregateSupported))
               }
             >
-              {submitting ? "Creating…" : "Create field"}
+              {submitting ? t("Creating…") : t("Create field")}
             </Button>
           </div>
         </form>

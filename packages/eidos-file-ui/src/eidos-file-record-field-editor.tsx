@@ -10,6 +10,7 @@ import {
 } from "@eidos.space/eidos-file"
 import { Check } from "lucide-react"
 
+import { useEidosFileUI } from "./context"
 import { Button, Input } from "./ui/primitives"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/primitives"
 import {
@@ -42,6 +43,7 @@ export function EidosFileRecordFieldEditor({
   disabled: boolean
   onChange: (value: EidosFileSqlPrimitive) => Promise<void>
 }) {
+  const { translate: t } = useEidosFileUI()
   const value = row[field.tableColumnName]
   const [draft, setDraft] = useState(
     field.type === "datetime"
@@ -77,7 +79,7 @@ export function EidosFileRecordFieldEditor({
     const checked = value === true || value === 1 || value === "1"
     return (
       <label className="flex items-center justify-between gap-3 text-xs">
-        <span>{checked ? "Checked" : "Unchecked"}</span>
+        <span>{checked ? t("Checked") : t("Unchecked")}</span>
         <Switch
           aria-label={field.name}
           checked={checked}
@@ -102,10 +104,10 @@ export function EidosFileRecordFieldEditor({
         }
       >
         <SelectTrigger className="h-8 text-xs" aria-label={field.name}>
-          <SelectValue placeholder="Empty" />
+          <SelectValue placeholder={t("Empty")} />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="__empty__">Empty</SelectItem>
+          <SelectItem value="__empty__">{t("Empty")}</SelectItem>
           {hasUnconfiguredValue ? (
             <SelectItem value={rawValue}>{rawValue}</SelectItem>
           ) : null}
@@ -136,7 +138,7 @@ export function EidosFileRecordFieldEditor({
             aria-label={field.name}
             disabled={disabled}
           >
-            {selected.length > 0 ? selected.join(", ") : "Empty"}
+            {selected.length > 0 ? selected.join(", ") : t("Empty")}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-64 p-1">
@@ -167,11 +169,11 @@ export function EidosFileRecordFieldEditor({
     )
   }
 
-  if (field.type === "text" || field.type === "title") {
+  if (field.type === "text") {
     return (
       <Textarea
         value={draft}
-        rows={field.type === "title" ? 1 : 3}
+        rows={field.isRecordLabel ? 1 : 3}
         aria-label={field.name}
         disabled={disabled}
         className="min-h-8 resize-y text-xs"

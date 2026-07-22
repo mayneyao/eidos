@@ -94,7 +94,7 @@ export function eidosFileGridColumn(field: EidosFileFieldInfo): GridColumn {
   return {
     id: field.tableColumnName,
     title: eidosFileFieldDisplayName(field),
-    width: field.type === "title" ? 280 : 180,
+    width: field.isRecordLabel ? 280 : 180,
     icon: field.type,
     hasMenu: true,
   }
@@ -114,7 +114,8 @@ export function eidosFileValueToGridCell(
   field: EidosFileFieldInfo,
   value: EidosFileRowValue | undefined,
   readonly = false,
-  row?: EidosFileRow
+  row?: EidosFileRow,
+  unavailableRelationTitle = "Unavailable record"
 ): GridCell {
   if (field.type === "lookup" && field.storageCodec === "json_array") {
     const values = decodeEidosFileJsonArray(value)
@@ -149,10 +150,11 @@ export function eidosFileValueToGridCell(
       },
       value,
       true,
-      row
+      row,
+      unavailableRelationTitle
     )
   }
-  if (field.type === "link") {
+  if (field.type === "relation") {
     const ids = decodeEidosFileRelationIds(value)
     const display = decodeEidosFileRelationDisplay(
       row?.[`${field.tableColumnName}__display`]
@@ -165,7 +167,10 @@ export function eidosFileValueToGridCell(
       copyData: encodeEidosFileRelationIds(ids) ?? "",
       data: {
         kind: "eidos-file-relation-cell",
-        values: ids.map((id) => ({ id, title: titleById.get(id) ?? id })),
+        values: ids.map((id) => ({
+          id,
+          title: titleById.get(id) ?? unavailableRelationTitle,
+        })),
         multiple: field.property?.multiple !== false,
       },
     } satisfies EidosFileRelationCell
@@ -176,7 +181,7 @@ export function eidosFileValueToGridCell(
       kind: GridCellKind.Custom,
       allowOverlay: true,
       readonly,
-      copyData: encodeEidosFileAttachmentPaths(paths) ?? "",
+      copyData: typeof value === "string" ? value : "",
       data: {
         kind: "eidos-file-file-cell",
         paths,
@@ -337,7 +342,7 @@ export function gridCellToEidosFileValue(
             (entry): entry is string => typeof entry === "string"
           )
         : []
-      return encodeEidosFileAttachmentPaths(paths)
+      return encodeEidosFileAttachmentPaths(paths, cell.copyData)
     }
     if (data.kind === "eidos-file-relation-cell") {
       const values = Array.isArray(data.values)

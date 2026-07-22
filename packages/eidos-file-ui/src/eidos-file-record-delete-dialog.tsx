@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import type { EidosFileRow } from "@eidos.space/eidos-file"
+import type { EidosFileFieldInfo, EidosFileRow } from "@eidos.space/eidos-file"
 
 import {
   AlertDialog,
@@ -12,21 +12,25 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog"
 
+import { useEidosFileUI } from "./context"
 import { eidosFileRecordTitle } from "./eidos-file-record-format"
 
 export function EidosFileRecordDeleteDialog({
   row,
+  fields = [],
   disabled = false,
   onOpenChange,
   onDelete,
   onError,
 }: {
   row: EidosFileRow | null
+  fields?: EidosFileFieldInfo[]
   disabled?: boolean
   onOpenChange: (open: boolean) => void
   onDelete: (row: EidosFileRow) => Promise<void>
   onError?: (error: unknown) => void
 }) {
+  const { translate: t } = useEidosFileUI()
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
@@ -51,15 +55,20 @@ export function EidosFileRecordDeleteDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            Delete “{eidosFileRecordTitle(row ?? {})}”?
+            {t("Delete “{title}”?", {
+              title: eidosFileRecordTitle(row ?? {}, fields),
+            })}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            This removes the record from the Eidos File. This action cannot be
-            undone from the current view.
+            {t(
+              "This removes the record from the Eidos File. This action cannot be undone from the current view."
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={deleting}>
+            {t("Cancel")}
+          </AlertDialogCancel>
           <AlertDialogAction
             disabled={disabled || deleting}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -68,7 +77,7 @@ export function EidosFileRecordDeleteDialog({
               void confirm()
             }}
           >
-            {deleting ? "Deleting…" : "Delete record"}
+            {deleting ? t("Deleting…") : t("Delete record")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

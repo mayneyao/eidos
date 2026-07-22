@@ -13,6 +13,7 @@ import type {
 } from "@eidos.space/eidos-file"
 import { AlertTriangle, FileUp, LoaderCircle, Table2 } from "lucide-react"
 
+import { useEidosFileUI } from "./context"
 import { cn } from "./lib/cn"
 import {
   Button,
@@ -59,7 +60,7 @@ export interface EidosFileCsvImportPopoverProps {
 interface CsvColumnDraft {
   sourceIndex: number
   name: string
-  type: "title" | EidosFileCsvFieldType
+  type: "record-label" | EidosFileCsvFieldType
 }
 
 const FIELD_TYPES: Array<{ value: EidosFileCsvFieldType; label: string }> = [
@@ -116,6 +117,7 @@ export function EidosFileCsvImportPopover({
   onCancel,
   onImported,
 }: EidosFileCsvImportPopoverProps) {
+  const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
   const [selecting, setSelecting] = useState(false)
   const [token, setToken] = useState<string | null>(null)
@@ -147,7 +149,7 @@ export function EidosFileCsvImportPopover({
       columns: columns.map((column) => ({
         sourceIndex: column.sourceIndex,
         name: column.name,
-        ...(column.type === "title" ? {} : { type: column.type }),
+        ...(column.type === "record-label" ? {} : { type: column.type }),
       })),
     }),
     [columns, tableName]
@@ -156,7 +158,7 @@ export function EidosFileCsvImportPopover({
   optionsRef.current = options
   const namingError = namesValid
     ? null
-    : "Table and field names cannot be empty"
+    : t("Table and field names cannot be empty")
   const displayedError = namingError ?? error
   const busy = selecting || validating || importing
 
@@ -199,15 +201,17 @@ export function EidosFileCsvImportPopover({
           if (!initialize) {
             pausedTypes.current =
               previewOptions.columns
-                ?.map((column) => column.type ?? "title")
+                ?.map((column) => column.type ?? "record-label")
                 .join("\u0000") ?? ""
           }
-          setNotice("CSV analysis canceled. Choose another file or try again.")
+          setNotice(
+            t("CSV analysis canceled. Choose another file or try again.")
+          )
         } else {
           setError(
             previewError instanceof Error
               ? previewError.message
-              : "Unable to validate CSV"
+              : t("Unable to validate CSV")
           )
         }
       } finally {
@@ -219,7 +223,7 @@ export function EidosFileCsvImportPopover({
         }
       }
     },
-    [onCancel, onPreview]
+    [onCancel, onPreview, t]
   )
 
   const chooseFile = async () => {
@@ -243,7 +247,7 @@ export function EidosFileCsvImportPopover({
       setError(
         selectionError instanceof Error
           ? selectionError.message
-          : "Unable to select CSV"
+          : t("Unable to select CSV")
       )
       setOpen(true)
     } finally {
@@ -319,12 +323,12 @@ export function EidosFileCsvImportPopover({
     const currentOperation = activeOperation.current
     if (!currentOperation || canceling) return
     setCanceling(true)
-    setNotice("Canceling CSV operation…")
+    setNotice(t("Canceling CSV operation…"))
     const canceled = await onCancel(currentOperation).catch(() => false)
     if (!canceled) {
       setCanceling(false)
       setNotice(null)
-      setError("Unable to cancel CSV operation")
+      setError(t("Unable to cancel CSV operation"))
     }
   }
 
@@ -357,12 +361,12 @@ export function EidosFileCsvImportPopover({
       onImported?.()
     } catch (importError) {
       if (isCanceledError(importError)) {
-        setNotice("Import canceled. No rows were added.")
+        setNotice(t("Import canceled. No rows were added."))
       } else {
         setError(
           importError instanceof Error
             ? importError.message
-            : "Unable to import CSV"
+            : t("Unable to import CSV")
         )
       }
     } finally {
@@ -377,16 +381,21 @@ export function EidosFileCsvImportPopover({
 
   const percent = progressPercent(progress)
   const operationLabel = canceling
-    ? "Canceling…"
+    ? t("Canceling…")
     : progress?.phase === "finalizing"
-      ? "Finalizing table…"
+      ? t("Finalizing table…")
       : progress?.phase === "importing" || importing
-        ? `Importing rows… ${percent}%`
-        : `Analyzing CSV… ${percent}%`
+        ? t("Importing rows… {percent}%", { percent })
+        : t("Analyzing CSV… {percent}%", { percent })
   const operationDetail = progress
     ? progress.totalRows !== null
-      ? `${progress.processedRows.toLocaleString()} of ${progress.totalRows.toLocaleString()} rows`
-      : `${progress.processedRows.toLocaleString()} rows read`
+      ? t("{processed} of {total} rows", {
+          processed: progress.processedRows.toLocaleString(),
+          total: progress.totalRows.toLocaleString(),
+        })
+      : t("{processed} rows read", {
+          processed: progress.processedRows.toLocaleString(),
+        })
     : sourceFileName
 
   return (
@@ -416,10 +425,10 @@ export function EidosFileCsvImportPopover({
           )}
           aria-label={
             triggerVariant === "sheet-create"
-              ? (copy?.actionAriaLabel ?? "Import CSV as new Eidos File table")
-              : "Import CSV into Eidos File"
+              ? t(copy?.actionAriaLabel ?? "Import CSV as new Eidos File table")
+              : t("Import CSV into Eidos File")
           }
-          title={copy?.actionLabel ?? "Import CSV"}
+          title={t(copy?.actionLabel ?? "Import CSV")}
           disabled={disabled || selecting}
           onClick={() => void chooseFile()}
         >
@@ -441,10 +450,10 @@ export function EidosFileCsvImportPopover({
           {triggerVariant === "sheet-create" ? (
             <span className="grid min-w-0 gap-0.5">
               <span className="text-sm font-medium text-foreground">
-                {copy?.actionLabel ?? "Import CSV"}
+                {t(copy?.actionLabel ?? "Import CSV")}
               </span>
               <span className="text-xs font-normal leading-4 text-muted-foreground">
-                Create a table from a CSV file.
+                {t("Create a table from a CSV file.")}
               </span>
             </span>
           ) : (
@@ -454,7 +463,7 @@ export function EidosFileCsvImportPopover({
                   "eidos-file-workbar-action-label"
               )}
             >
-              {copy?.actionLabel ?? "Import CSV"}
+              {t(copy?.actionLabel ?? "Import CSV")}
             </span>
           )}
         </Button>
@@ -477,12 +486,17 @@ export function EidosFileCsvImportPopover({
               <div className="min-w-0">
                 <h2 className="flex items-center gap-2 text-sm font-semibold">
                   <Table2 className="h-4 w-4 text-muted-foreground" />
-                  Import as a new table
+                  {t("Import as a new table")}
                 </h2>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {plan.fileName} · {plan.rowCount.toLocaleString()} ready
+                  {plan.fileName} ·{" "}
+                  {t("{count} ready", {
+                    count: plan.rowCount.toLocaleString(),
+                  })}
                   {plan.skippedRowCount > 0
-                    ? ` · ${plan.skippedRowCount.toLocaleString()} skipped`
+                    ? ` · ${t("{count} skipped", {
+                        count: plan.skippedRowCount.toLocaleString(),
+                      })}`
                     : ""}
                 </p>
               </div>
@@ -494,7 +508,7 @@ export function EidosFileCsvImportPopover({
                 disabled={busy}
                 onClick={() => void chooseFile()}
               >
-                Choose another
+                {t("Choose another")}
               </Button>
             </div>
 
@@ -504,7 +518,7 @@ export function EidosFileCsvImportPopover({
                   htmlFor="eidos-file-csv-table-name"
                   className="text-xs font-medium"
                 >
-                  Table name
+                  {t("Table name")}
                 </label>
                 <Input
                   id="eidos-file-csv-table-name"
@@ -517,8 +531,8 @@ export function EidosFileCsvImportPopover({
 
               <div className="border-b">
                 <div className="grid grid-cols-[minmax(140px,1fr)_140px] gap-3 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  <span>Field name</span>
-                  <span>Type</span>
+                  <span>{t("Field name")}</span>
+                  <span>{t("Type")}</span>
                 </div>
                 <div className="max-h-52 overflow-y-auto px-2 pb-2">
                   {columns.map((column, index) => (
@@ -528,7 +542,9 @@ export function EidosFileCsvImportPopover({
                     >
                       <Input
                         value={column.name}
-                        aria-label={`Field ${index + 1} name`}
+                        aria-label={t("Field {index} name", {
+                          index: index + 1,
+                        })}
                         className="h-7 border-transparent bg-transparent px-1.5 shadow-none hover:border-input focus-visible:border-input"
                         disabled={importing}
                         onChange={(event) =>
@@ -541,14 +557,18 @@ export function EidosFileCsvImportPopover({
                           )
                         }
                       />
-                      {column.type === "title" ? (
+                      {column.type === "record-label" ? (
                         <span className="px-2 text-xs text-muted-foreground">
-                          Title
+                          {t("Title")}
                         </span>
                       ) : (
                         <select
                           value={column.type}
-                          aria-label={`${column.name || `Field ${index + 1}`} type`}
+                          aria-label={t("{field} type", {
+                            field:
+                              column.name ||
+                              t("Field {index}", { index: index + 1 }),
+                          })}
                           className="h-7 rounded-md border bg-background px-2 text-xs outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                           disabled={importing}
                           onChange={(event) =>
@@ -567,7 +587,7 @@ export function EidosFileCsvImportPopover({
                         >
                           {FIELD_TYPES.map((type) => (
                             <option key={type.value} value={type.value}>
-                              {type.label}
+                              {t(type.label)}
                             </option>
                           ))}
                         </select>
@@ -579,7 +599,7 @@ export function EidosFileCsvImportPopover({
 
               <div className="px-4 py-3">
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <h3 className="text-xs font-medium">Preview</h3>
+                  <h3 className="text-xs font-medium">{t("Preview")}</h3>
                   <span
                     className={cn(
                       "flex items-center gap-1 text-[11px] text-muted-foreground",
@@ -593,7 +613,7 @@ export function EidosFileCsvImportPopover({
                     ) : null}
                     {validating
                       ? operationLabel
-                      : displayedError || notice || "Ready to import"}
+                      : displayedError || notice || t("Ready to import")}
                   </span>
                 </div>
                 <div className="overflow-x-auto rounded-md border">
@@ -623,7 +643,7 @@ export function EidosFileCsvImportPopover({
                               <span className="block truncate text-foreground/85">
                                 {row[column.sourceIndex] || (
                                   <span className="text-muted-foreground/60">
-                                    Empty
+                                    {t("Empty")}
                                   </span>
                                 )}
                               </span>
@@ -666,7 +686,7 @@ export function EidosFileCsvImportPopover({
                     disabled={canceling}
                     onClick={() => void cancelOperation()}
                   >
-                    {canceling ? "Canceling…" : "Cancel operation"}
+                    {canceling ? t("Canceling…") : t("Cancel operation")}
                   </Button>
                 ) : (
                   <Button
@@ -675,7 +695,7 @@ export function EidosFileCsvImportPopover({
                     size="sm"
                     onClick={() => setOpen(false)}
                   >
-                    Cancel
+                    {t("Cancel")}
                   </Button>
                 )}
                 {!typesValidated && !validating && plan ? (
@@ -684,7 +704,7 @@ export function EidosFileCsvImportPopover({
                     size="sm"
                     onClick={() => void startPreview(token, options, false)}
                   >
-                    Retry check
+                    {t("Retry check")}
                   </Button>
                 ) : (
                   <Button
@@ -702,8 +722,10 @@ export function EidosFileCsvImportPopover({
                       <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
                     ) : null}
                     {importing
-                      ? `Importing ${percent}%`
-                      : `Import ${plan.rowCount.toLocaleString()} rows`}
+                      ? t("Importing {percent}%", { percent })
+                      : t("Import {count} rows", {
+                          count: plan.rowCount.toLocaleString(),
+                        })}
                   </Button>
                 )}
               </div>
@@ -714,7 +736,7 @@ export function EidosFileCsvImportPopover({
             <div className="border-b px-4 py-3">
               <h2 className="flex items-center gap-2 text-sm font-semibold">
                 <Table2 className="h-4 w-4 text-muted-foreground" />
-                Analyze CSV
+                {t("Analyze CSV")}
               </h2>
               <p className="mt-0.5 truncate text-xs text-muted-foreground">
                 {sourceFileName}
@@ -734,7 +756,7 @@ export function EidosFileCsvImportPopover({
                     error && "text-destructive"
                   )}
                 >
-                  {error || notice || "CSV analysis did not finish."}
+                  {error || notice || t("CSV analysis did not finish.")}
                 </p>
               )}
               <div className="flex justify-end gap-2">
@@ -746,7 +768,7 @@ export function EidosFileCsvImportPopover({
                     disabled={canceling}
                     onClick={() => void cancelOperation()}
                   >
-                    {canceling ? "Canceling…" : "Cancel analysis"}
+                    {canceling ? t("Canceling…") : t("Cancel analysis")}
                   </Button>
                 ) : (
                   <>
@@ -756,14 +778,14 @@ export function EidosFileCsvImportPopover({
                       size="sm"
                       onClick={() => void chooseFile()}
                     >
-                      Choose another
+                      {t("Choose another")}
                     </Button>
                     <Button
                       type="button"
                       size="sm"
                       onClick={() => void startPreview(token, {}, true)}
                     >
-                      Try again
+                      {t("Try again")}
                     </Button>
                   </>
                 )}
@@ -772,7 +794,7 @@ export function EidosFileCsvImportPopover({
           </div>
         ) : (
           <div className="px-4 py-3 text-xs text-destructive">
-            {error ?? "Choose a CSV file to continue"}
+            {error ?? t("Choose a CSV file to continue")}
           </div>
         )}
       </PopoverContent>

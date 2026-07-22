@@ -2,6 +2,7 @@
 
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
+import { encodeEidosFileAttachmentPaths } from "@eidos.space/eidos-file"
 import { GridCellKind, type Theme } from "@glideapps/glide-data-grid"
 
 import {
@@ -51,7 +52,10 @@ describe("Eidos File cell", () => {
     }
     expect(
       EidosFileAttachmentCellRenderer.onPaste?.(
-        '["/assets/cover.png","assets/report, final.pdf"]',
+        encodeEidosFileAttachmentPaths([
+          "assets/cover.png",
+          "assets/report, final.pdf",
+        ]) ?? "",
         cell.data
       )
     ).toMatchObject({
@@ -65,7 +69,7 @@ describe("Eidos File cell", () => {
     const cell: EidosFileAttachmentCell = {
       kind: GridCellKind.Custom,
       allowOverlay: true,
-      copyData: '["assets/cover.png"]',
+      copyData: encodeEidosFileAttachmentPaths(["assets/cover.png"]) ?? "",
       data: {
         kind: "eidos-file-file-cell",
         paths: ["assets/cover.png"],

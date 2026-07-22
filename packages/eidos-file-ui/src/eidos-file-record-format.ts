@@ -10,6 +10,8 @@ import {
   decodeEidosFileRelationDisplay,
 } from "@eidos.space/eidos-file"
 
+import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
+
 function scalarText(value: EidosFileRowValue | undefined): string {
   if (value === null || value === undefined || value === "") return "Empty"
   if (value instanceof Uint8Array) return `${value.byteLength} bytes`
@@ -21,7 +23,11 @@ function dateText(
   dateOnly: boolean
 ): string {
   if (typeof value !== "string" || value.length === 0) return "Empty"
-  const parsed = new Date(value)
+  const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  const parsed =
+    dateOnly && date
+      ? new Date(Number(date[1]), Number(date[2]) - 1, Number(date[3]))
+      : new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
   return dateOnly ? parsed.toLocaleDateString() : parsed.toLocaleString()
 }
@@ -53,7 +59,7 @@ export function eidosFileRecordFieldText(
     )
     return values.length > 0 ? values.join(", ") : "Empty"
   }
-  if (field.type === "link") {
+  if (field.type === "relation") {
     const display = decodeEidosFileRelationDisplay(
       row[`${field.tableColumnName}__display`]
     )
@@ -76,6 +82,10 @@ export function eidosFileRecordFieldText(
   return scalarText(value)
 }
 
-export function eidosFileRecordTitle(row: EidosFileRow): string {
-  return scalarText(row.title)
+export function eidosFileRecordTitle(
+  row: EidosFileRow,
+  fields: EidosFileFieldInfo[] = []
+): string {
+  const label = fields.find(isEidosFileRecordLabelField)
+  return scalarText(label ? row[label.tableColumnName] : row.title)
 }

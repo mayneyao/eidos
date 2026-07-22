@@ -7,6 +7,7 @@ import type {
 import { LayoutGrid } from "lucide-react"
 
 import type { EidosFileViewRendererProps } from "../eidos-file-editor-view"
+import { eidosFileFieldKey } from "../eidos-file-field-visibility"
 import { EidosFileGalleryView } from "../eidos-file-gallery-view"
 import { eidosFileRecordCardPageProjection } from "../eidos-file-record-card-layout"
 import { defineEidosFilePlugin } from "../plugin"
@@ -48,7 +49,7 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
       value: EidosFileSqlPrimitive
     ) => {
       const result = await source.updateRow(table.table.id, String(row._id), {
-        [field.tableColumnName]: value,
+        [eidosFileFieldKey(field)]: value,
       })
       onMutation?.(result)
       return result

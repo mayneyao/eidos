@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/eidos-file-ui",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Reusable React editor UI for the open Eidos File format",
   "type": "module",
   "main": "./dist/index.mjs",
@@ -11,6 +11,16 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs",
       "default": "./dist/index.mjs"
+    },
+    "./kernel": {
+      "types": "./dist/kernel.d.mts",
+      "import": "./dist/kernel.mjs",
+      "default": "./dist/kernel.mjs"
+    },
+    "./runtime-platform": {
+      "types": "./dist/runtime-platform.d.mts",
+      "import": "./dist/runtime-platform.mjs",
+      "default": "./dist/runtime-platform.mjs"
     },
     "./eidos-file-data-grid": {
       "types": "./dist/eidos-file-data-grid.d.mts",

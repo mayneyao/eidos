@@ -14,6 +14,8 @@ import {
   EidosFileFormulaComposer,
   type EidosFileFormulaInputRef,
 } from "./eidos-file-formula-composer"
+import { useEidosFileUI } from "./context"
+import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
 import {
   Button,
   Popover,
@@ -56,6 +58,7 @@ export function EidosFileFormulaEditorPopover({
   ) => Promise<EidosFileFormulaPreview>
   onSave: (property: Record<string, unknown>) => Promise<void> | void
 }) {
+  const { translate: t } = useEidosFileUI()
   const editorRef = useRef<EidosFileFormulaInputRef>(null)
   const initializedSessionRef = useRef<string | null>(null)
   const savingRef = useRef(false)
@@ -118,7 +121,7 @@ export function EidosFileFormulaEditorPopover({
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "Unable to save formula"
+          : t("Unable to save formula")
       )
     } finally {
       savingRef.current = false
@@ -146,9 +149,11 @@ export function EidosFileFormulaEditorPopover({
         >
           <div className="flex items-center justify-between gap-3 border-b px-3 py-2">
             <div className="min-w-0">
-              <h2 className="truncate text-xs font-medium">Edit formula</h2>
+              <h2 className="truncate text-xs font-medium">
+                {t("Edit formula")}
+              </h2>
               <p className="truncate text-[10px] text-muted-foreground">
-                {field?.name ?? "Formula"}
+                {field?.name ?? t("Formula")}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -159,21 +164,21 @@ export function EidosFileFormulaEditorPopover({
                 disabled={saving}
                 onClick={() => requestOpenChange(false)}
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button
                 type="submit"
                 size="xs"
                 disabled={saving || !formula.trim() || !formulaValid}
               >
-                {saving ? "Saving…" : "Save"}
+                {saving ? t("Saving…") : t("Save")}
               </Button>
             </div>
           </div>
           <EidosFileFormulaComposer
             field={field}
             fields={fields}
-            name={field?.name ?? "Formula"}
+            name={field?.name ?? t("Formula")}
             columnName={field?.tableColumnName ?? "formula"}
             formula={formula}
             displayType={displayType}
@@ -218,6 +223,7 @@ export function EidosFileLookupEditorPopover({
   onOpenChange: (open: boolean) => void
   onSave: (property: Record<string, unknown>) => Promise<void> | void
 }) {
+  const { translate: t } = useEidosFileUI()
   const [relationField, setRelationField] = useState("")
   const [targetField, setTargetField] = useState("")
   const [aggregate, setAggregate] = useState<EidosFileLookupAggregate>("first")
@@ -246,11 +252,10 @@ export function EidosFileLookupEditorPopover({
     setError(null)
   }, [field, open])
 
-  const relations = fields.filter((candidate) => candidate.type === "link")
+  const relations = fields.filter((candidate) => candidate.type === "relation")
   const selectedRelation =
-    relations.find(
-      (candidate) => candidate.tableColumnName === relationField
-    ) ?? relations[0]
+    relations.find((candidate) => candidate.id === relationField) ??
+    relations[0]
   const targetTableId =
     typeof selectedRelation?.property?.targetTableId === "string"
       ? selectedRelation.property.targetTableId
@@ -269,8 +274,8 @@ export function EidosFileLookupEditorPopover({
           )
       ) ?? []
   const selectedTarget =
-    targets.find((candidate) => candidate.tableColumnName === targetField) ??
-    targets.find((candidate) => candidate.tableColumnName === "title") ??
+    targets.find((candidate) => candidate.id === targetField) ??
+    targets.find(isEidosFileRecordLabelField) ??
     targets[0]
   const aggregateSupported = selectedTarget
     ? eidosFileLookupAggregateSupportsTarget(aggregate, selectedTarget)
@@ -285,15 +290,17 @@ export function EidosFileLookupEditorPopover({
     setError(null)
     try {
       await onSave({
-        relationField: selectedRelation.tableColumnName,
-        targetField: selectedTarget.tableColumnName,
+        relationField: selectedRelation.id!,
+        targetField: selectedTarget.id!,
         aggregate,
         displayType: eidosFileLookupDisplayType(aggregate, selectedTarget),
       })
       onOpenChange(false)
     } catch (saveError) {
       setError(
-        saveError instanceof Error ? saveError.message : "Unable to save lookup"
+        saveError instanceof Error
+          ? saveError.message
+          : t("Unable to save lookup")
       )
     } finally {
       setSaving(false)
@@ -311,17 +318,19 @@ export function EidosFileLookupEditorPopover({
         className="w-80 max-w-[calc(100vw-24px)] p-0"
       >
         <div className="border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">Edit lookup</h2>
+          <h2 className="text-sm font-semibold">{t("Edit lookup")}</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Derive {field?.name ?? "a value"} through an existing relation.
+            {t("Derive {name} through an existing relation.", {
+              name: field?.name ?? t("a value"),
+            })}
           </p>
         </div>
         <form onSubmit={(event) => void submit(event)}>
           <div className="grid gap-3 px-4 py-3">
             <label className="grid gap-1.5 text-xs font-medium">
-              Relation
+              {t("Relation")}
               <Select
-                value={selectedRelation?.tableColumnName ?? ""}
+                value={selectedRelation?.id ?? ""}
                 disabled={saving}
                 onValueChange={(value) => {
                   setRelationField(value)
@@ -329,14 +338,11 @@ export function EidosFileLookupEditorPopover({
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose a relation" />
+                  <SelectValue placeholder={t("Choose a relation")} />
                 </SelectTrigger>
                 <SelectContent>
                   {relations.map((relation) => (
-                    <SelectItem
-                      key={relation.tableColumnName}
-                      value={relation.tableColumnName}
-                    >
+                    <SelectItem key={relation.id!} value={relation.id!}>
                       {relation.name}
                     </SelectItem>
                   ))}
@@ -344,21 +350,18 @@ export function EidosFileLookupEditorPopover({
               </Select>
             </label>
             <label className="grid gap-1.5 text-xs font-medium">
-              Target field
+              {t("Target field")}
               <Select
-                value={selectedTarget?.tableColumnName ?? ""}
+                value={selectedTarget?.id ?? ""}
                 disabled={saving}
                 onValueChange={setTargetField}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose a target field" />
+                  <SelectValue placeholder={t("Choose a target field")} />
                 </SelectTrigger>
                 <SelectContent>
                   {targets.map((target) => (
-                    <SelectItem
-                      key={target.tableColumnName}
-                      value={target.tableColumnName}
-                    >
+                    <SelectItem key={target.id!} value={target.id!}>
                       {target.name}
                     </SelectItem>
                   ))}
@@ -366,7 +369,7 @@ export function EidosFileLookupEditorPopover({
               </Select>
             </label>
             <label className="grid gap-1.5 text-xs font-medium">
-              Calculate
+              {t("Calculate")}
               <Select
                 value={aggregate}
                 disabled={saving}
@@ -390,7 +393,7 @@ export function EidosFileLookupEditorPopover({
                         )
                       }
                     >
-                      {item.label}
+                      {t(item.label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -409,7 +412,7 @@ export function EidosFileLookupEditorPopover({
               disabled={saving}
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button
               type="submit"
@@ -420,7 +423,7 @@ export function EidosFileLookupEditorPopover({
                 !aggregateSupported
               }
             >
-              {saving ? "Saving…" : "Save lookup"}
+              {saving ? t("Saving…") : t("Save lookup")}
             </Button>
           </div>
         </form>

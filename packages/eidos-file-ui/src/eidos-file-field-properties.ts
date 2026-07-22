@@ -1,10 +1,13 @@
 import {
   parseEidosFileSelectOptions,
   type EidosFileFieldInfo,
-  type EidosFileSelectOption,
+  type EidosFileSelectOption as EidosFileCanonicalSelectOption,
 } from "@eidos.space/eidos-file"
 
-export type { EidosFileSelectOption }
+export interface EidosFileSelectOption extends EidosFileCanonicalSelectOption {
+  /** UI alias for the canonical option name/raw value. */
+  value: string
+}
 
 export interface EidosFileNumberProperty extends Record<string, unknown> {
   format: "number" | "percent" | "currency"
@@ -39,7 +42,28 @@ export const EIDOS_FILE_OPTION_COLORS = [
 export function eidosFileSelectOptions(
   field: EidosFileFieldInfo
 ): EidosFileSelectOption[] {
-  return parseEidosFileSelectOptions(field.property)
+  const canonical = parseEidosFileSelectOptions(field.property)
+  const options =
+    canonical.length > 0
+      ? canonical
+      : Array.isArray(field.property?.options)
+        ? field.property.options.flatMap((option) => {
+            if (
+              !option ||
+              Array.isArray(option) ||
+              typeof option !== "object" ||
+              typeof option.value !== "string" ||
+              typeof option.color !== "string"
+            ) {
+              return []
+            }
+            return [{ name: option.value, color: option.color }]
+          })
+        : []
+  return options.map((option) => ({
+    ...option,
+    value: option.name,
+  }))
 }
 
 export function eidosFileNumberProperty(

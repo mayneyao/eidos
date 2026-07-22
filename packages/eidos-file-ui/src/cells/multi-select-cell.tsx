@@ -15,6 +15,7 @@ import {
 } from "@glideapps/glide-data-grid"
 import { XIcon } from "lucide-react"
 
+import { useEidosFileUI } from "../context"
 import { cn } from "../lib/cn"
 import {
   Command,
@@ -46,6 +47,7 @@ const innerPad = 6
 export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
   p
 ) => {
+  const { translate: t } = useEidosFileUI()
   const { value: cell, initialValue, onChange, theme, onFinishedEditing } = p
   const { allowedValues, allowCreate = true, values = [] } = cell.data
 
@@ -201,7 +203,7 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
             })}
           >
             <CommandEmpty>
-              {allowCreate ? "Create option" : "No options"}
+              {allowCreate ? t("Create option") : t("No options")}
             </CommandEmpty>
             <CommandGroup className="h-full border-t">
               {allowedValues.map((option) => (
@@ -228,7 +230,7 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
                       handleSelect(currentValue)
                     }}
                   >
-                    <span>Create</span>
+                    <span>{t("Create")}</span>
                     <SelectOptionItem
                       theme={themeName}
                       option={{

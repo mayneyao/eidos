@@ -16,6 +16,7 @@ import {
   Variable,
 } from "lucide-react"
 
+import { useEidosFileUI } from "./context"
 import {
   eidosFileFormulaCompletions,
   type EidosFileFormulaCompletion,
@@ -41,10 +42,12 @@ const DISPLAY_TYPES: Array<{
 }> = [
   { value: "text", label: "Text" },
   { value: "number", label: "Number" },
+  { value: "integer", label: "Integer" },
   { value: "checkbox", label: "Checkbox" },
   { value: "date", label: "Date" },
   { value: "datetime", label: "Date & time" },
   { value: "url", label: "URL" },
+  { value: "json", label: "JSON" },
 ]
 
 type FormulaStatus = "idle" | "checking" | "valid" | "error"
@@ -68,10 +71,16 @@ function formulaDraftFields(
         dependsOn: null,
       }
     : {
+        id: `preview:${input.columnName}`,
+        tableId: fields[0]?.tableId ?? "preview",
         name: input.name,
         type: "formula",
-        tableName: fields[0]?.tableName ?? "tb_preview",
+        tableName: fields[0]?.tableName ?? "Preview",
         tableColumnName: input.columnName,
+        physicalName: null,
+        isRecordLabel: false,
+        position: fields.length,
+        settings: {},
         property: { formula: input.formula, displayType: input.displayType },
         storageCodec: "scalar",
         valueKind: "derived",
@@ -170,6 +179,7 @@ export function EidosFileFormulaComposer({
   onSaveShortcut,
   disabled = false,
 }: EidosFileFormulaComposerProps) {
+  const { translate: t } = useEidosFileUI()
   const internalEditorRef = useRef<EidosFileFormulaInputRef>(null)
   const editorRef = externalEditorRef ?? internalEditorRef
   const validationSequence = useRef(0)
@@ -298,7 +308,7 @@ export function EidosFileFormulaComposer({
             onEscape={onEscape}
             onSave={onSaveShortcut}
             onCurrentTokenChange={selectToken}
-            placeholder="Enter a SQL expression"
+            placeholder={t("Enter a Formula expression")}
           />
         </div>
         <div
@@ -320,21 +330,32 @@ export function EidosFileFormulaComposer({
           )}
           <span className="min-w-0 leading-5">
             {status === "checking"
-              ? "Checking against this Eidos File…"
+              ? t("Checking against this Eidos File…")
               : status === "error"
                 ? error
                 : status === "valid"
                   ? preview?.samples[0]
-                    ? `Preview · ${preview.samples[0].title || "Untitled"}: ${displayValue(preview.samples[0].value)}`
-                    : `Formula is valid.${preview?.dependencies.length ? ` Uses ${preview.dependencies.map((item) => item.name).join(", ")}.` : ""}`
-                  : "Start typing to validate and preview this formula."}
+                    ? t("Preview · {title}: {value}", {
+                        title: preview.samples[0].title || t("Untitled"),
+                        value: displayValue(preview.samples[0].value),
+                      })
+                    : `${t("Formula is valid.")}${
+                        preview?.dependencies.length
+                          ? ` ${t("Uses {fields}.", {
+                              fields: preview.dependencies
+                                .map((item) => item.name)
+                                .join(", "),
+                            })}`
+                          : ""
+                      }`
+                  : t("Start typing to validate and preview this formula.")}
           </span>
         </div>
         <div className="eidos-file-formula-display-row flex items-center justify-between gap-3 border-t px-3 py-2.5">
           <div className="text-left">
-            <p className="text-xs font-medium">Display as</p>
+            <p className="text-xs font-medium">{t("Display as")}</p>
             <p className="text-[10px] leading-4 text-muted-foreground">
-              Controls the read-only cell format.
+              {t("Controls the read-only cell format.")}
             </p>
           </div>
           <Select
@@ -350,7 +371,7 @@ export function EidosFileFormulaComposer({
             <SelectContent>
               {DISPLAY_TYPES.map((type) => (
                 <SelectItem key={type.value} value={type.value}>
-                  {type.label}
+                  {t(type.label)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -361,7 +382,7 @@ export function EidosFileFormulaComposer({
       <section className="eidos-file-formula-reference-browser grid border-t bg-muted/15">
         <div className="min-w-0 border-r">
           <p className="border-b px-3 py-2 text-xs font-medium">
-            Fields & functions
+            {t("Fields & functions")}
           </p>
           <div className="eidos-file-formula-reference-list overflow-y-auto py-1">
             {completions.length ? (
@@ -400,7 +421,7 @@ export function EidosFileFormulaComposer({
               ))
             ) : (
               <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-                No matching fields or functions.
+                {t("No matching fields or functions.")}
               </p>
             )}
           </div>
@@ -427,17 +448,18 @@ export function EidosFileFormulaComposer({
             </>
           ) : (
             <>
-              <p className="font-medium text-foreground">Reference</p>
+              <p className="font-medium text-foreground">{t("Reference")}</p>
               <p className="mt-2 leading-5">
-                Select a field or function to inspect it, or type in the editor
-                to use autocomplete.
+                {t(
+                  "Select a field or function to inspect it, or type in the editor to use autocomplete."
+                )}
               </p>
             </>
           )}
         </div>
       </section>
       <p className="border-t px-3 py-2 text-[10px] text-muted-foreground">
-        Press ⌘S or Ctrl+S to save. Escape closes the editor.
+        {t("Press ⌘S or Ctrl+S to save. Escape closes the editor.")}
       </p>
     </div>
   )

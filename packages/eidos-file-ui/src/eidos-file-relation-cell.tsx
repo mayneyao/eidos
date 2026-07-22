@@ -10,6 +10,7 @@ import {
 import { Link2, Search, Unlink } from "lucide-react"
 
 import { drawDrilldownCell } from "./cells/grid-cell-helper"
+import { useEidosFileUI } from "./context"
 import { Button, Input } from "./ui/primitives"
 
 import { useEidosFileRelationListbox } from "./eidos-file-relation-listbox"
@@ -27,6 +28,7 @@ export type EidosFileRelationCell = CustomCell<EidosFileRelationCellData>
 export const EidosFileRelationCellEditor: ProvideEditorComponent<
   EidosFileRelationCell
 > = ({ value: cell, onChange, onFinishedEditing }) => {
+  const { translate: t } = useEidosFileUI()
   const [query, setQuery] = useState("")
   const [options, setOptions] = useState<EidosFileRelationValue[]>([])
   const [values, setValues] = useState(cell.data.values)
@@ -51,7 +53,7 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
             setError(
               searchError instanceof Error
                 ? searchError.message
-                : "Unable to load records"
+                : t("Unable to load records")
             )
           })
           .finally(() => {
@@ -132,7 +134,7 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
     >
       <div className="flex h-10 shrink-0 items-center gap-2 border-b px-2.5">
         <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium">Link records</span>
+        <span className="text-xs font-medium">{t("Link records")}</span>
         {values.length > 0 ? (
           <Button
             type="button"
@@ -142,7 +144,7 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
             onClick={() => update([])}
           >
             <Unlink className="h-3 w-3" />
-            Clear
+            {t("Clear")}
           </Button>
         ) : null}
       </div>
@@ -152,14 +154,14 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
           value={query}
           autoFocus
           role="combobox"
-          aria-label="Search relation records"
+          aria-label={t("Search relation records")}
           aria-autocomplete="list"
           aria-expanded="true"
           aria-controls={listboxId}
           aria-activedescendant={activeDescendantId}
           aria-busy={loading}
           className="h-8 pl-8 text-xs"
-          placeholder="Search records"
+          placeholder={t("Search records")}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -188,7 +190,7 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
         <EidosFileRelationOptionList
-          accessibleName="Relation records"
+          accessibleName={t("Relation records")}
           activeOptionId={activeOptionId}
           availableValues={available}
           listboxId={listboxId}
@@ -202,8 +204,8 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
         {!loading && !error && available.length === 0 ? (
           <p className="px-2 py-5 text-center text-xs text-muted-foreground">
             {values.length > 0 && !query
-              ? "All loaded records are linked"
-              : "No records found"}
+              ? t("All loaded records are linked")
+              : t("No records found")}
           </p>
         ) : null}
         {loading ? (
@@ -211,7 +213,7 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
             className="px-2 py-5 text-center text-xs text-muted-foreground"
             role="status"
           >
-            Loading…
+            {t("Loading…")}
           </p>
         ) : null}
         {error ? (
@@ -221,7 +223,7 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
         ) : null}
       </div>
       <div className="flex h-8 shrink-0 items-center justify-between border-t px-2.5 text-[10px] text-muted-foreground">
-        <span>Arrow keys navigate · Enter selects</span>
+        <span>{t("Arrow keys navigate · Enter selects")}</span>
         <Button
           type="button"
           variant="ghost"
@@ -229,7 +231,7 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
           className="h-6 px-2 text-[10px]"
           onClick={finish}
         >
-          Done
+          {t("Done")}
         </Button>
       </div>
     </div>

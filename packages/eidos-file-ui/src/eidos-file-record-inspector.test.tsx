@@ -13,19 +13,24 @@ import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
 
 const fields: EidosFileFieldInfo[] = [
   {
+    id: "0198c72d-82b5-7000-8000-000000000001",
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name: "Title",
-    type: "title",
+    type: "text",
+    isRecordLabel: true,
     tableName: "tb_tasks",
     tableColumnName: "title",
     property: null,
     storageCodec: "scalar",
-    valueKind: "system",
+    valueKind: "source",
     isHidden: false,
     isDerived: false,
     sourceTableColumnName: null,
     dependsOn: null,
   },
   {
+    id: "0198c72d-82b5-7000-8000-000000000002",
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name: "Done",
     type: "checkbox",
     tableName: "tb_tasks",
@@ -39,6 +44,8 @@ const fields: EidosFileFieldInfo[] = [
     dependsOn: null,
   },
   {
+    id: "0198c72d-82b5-7000-8000-000000000003",
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name: "Formula",
     type: "formula",
     tableName: "tb_tasks",
@@ -304,9 +311,13 @@ describe("EidosFileRecordInspector", () => {
   })
 
   it("exposes relation search as a keyboard-navigable combobox", async () => {
+    const adaId = "0198c72d-82b5-7968-b163-98be4b7477df"
+    const graceId = "0198c72d-82b5-7969-8163-98be4b7477df"
     const ownersField: EidosFileFieldInfo = {
+      id: "0198c72d-82b5-7000-8000-000000000004",
+      tableId: "0198c72d-82b5-7000-8000-000000000010",
       name: "Owners",
-      type: "link",
+      type: "relation",
       tableName: "tb_tasks",
       tableColumnName: "owners",
       property: {
@@ -328,8 +339,8 @@ describe("EidosFileRecordInspector", () => {
       rowCount: 1,
     }))
     const onSearchRelation = vi.fn().mockResolvedValue([
-      { id: "row_ada", title: "Ada Lovelace" },
-      { id: "row_grace", title: "Grace Hopper" },
+      { id: adaId, title: "Ada Lovelace" },
+      { id: graceId, title: "Grace Hopper" },
     ])
 
     await act(async () => {
@@ -378,6 +389,10 @@ describe("EidosFileRecordInspector", () => {
       await Promise.resolve()
     })
 
-    expect(onCellEdit).toHaveBeenCalledWith(row, ownersField, '["row_grace"]')
+    expect(onCellEdit).toHaveBeenCalledWith(
+      row,
+      ownersField,
+      JSON.stringify([graceId])
+    )
   })
 })

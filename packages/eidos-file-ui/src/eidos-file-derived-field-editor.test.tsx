@@ -57,12 +57,17 @@ function field(
 ): EidosFileFieldInfo {
   const formula = type === "formula"
   return {
+    id:
+      type === "formula"
+        ? "0198c72d-82b5-7000-8000-000000000002"
+        : "0198c72d-82b5-7000-8000-000000000001",
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name,
     type,
     tableName: "tb_tasks",
     tableColumnName: columnName,
     property: formula
-      ? { formula: "estimate * 2", displayType: "number" }
+      ? { formula: '"Estimate" * 2', displayType: "number" }
       : null,
     storageCodec: "scalar",
     valueKind: formula ? "derived" : "source",
@@ -121,7 +126,7 @@ describe("EidosFileFormulaEditorPopover", () => {
     const expression = document.body.querySelector<HTMLTextAreaElement>(
       '[aria-label="Formula expression"]'
     )
-    expect(expression?.value).toBe("estimate * 2")
+    expect(expression?.value).toBe('"Estimate" * 2')
 
     await act(async () => {
       expression?.dispatchEvent(
@@ -135,7 +140,7 @@ describe("EidosFileFormulaEditorPopover", () => {
       await Promise.resolve()
     })
     expect(onSave).toHaveBeenCalledWith({
-      formula: "estimate * 2",
+      formula: '"Estimate" * 2',
       displayType: "number",
     })
     expect(onOpenChange).toHaveBeenCalledWith(false)
@@ -159,8 +164,8 @@ describe("EidosFileFormulaEditorPopover", () => {
       '[aria-label="Formula expression"]'
     )
     if (!expression) throw new Error("Formula expression was not rendered")
-    await act(async () => setTextareaValue(expression, "estimate * 3"))
-    expect(expression.value).toBe("estimate * 3")
+    await act(async () => setTextareaValue(expression, '"Estimate" * 3'))
+    expect(expression.value).toBe('"Estimate" * 3')
 
     await act(async () => {
       root.render(
@@ -168,6 +173,6 @@ describe("EidosFileFormulaEditorPopover", () => {
       )
       await Promise.resolve()
     })
-    expect(expression.value).toBe("estimate * 3")
+    expect(expression.value).toBe('"Estimate" * 3')
   })
 })

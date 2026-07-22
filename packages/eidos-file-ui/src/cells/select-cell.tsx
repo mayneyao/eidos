@@ -15,6 +15,7 @@ import {
 } from "@glideapps/glide-data-grid"
 import { Check } from "lucide-react"
 
+import { useEidosFileUI } from "../context"
 import { cn } from "../lib/cn"
 import {
   Command,
@@ -48,6 +49,7 @@ interface SelectEditorProps {
 }
 
 function SelectEditor(props: SelectEditorProps) {
+  const { translate: t } = useEidosFileUI()
   const {
     value: valueIn,
     allowedValues,
@@ -118,14 +120,14 @@ function SelectEditor(props: SelectEditorProps) {
         >
           <Command className="[&_[cmdk-input-wrapper]]:px-2.5 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input]]:h-7">
             <CommandInput
-              placeholder="Search..."
+              placeholder={t("Search...")}
               value={searchValue}
               onValueChange={setSearchValue}
               className="border-0 focus:ring-0 text-sm"
             />
             <CommandList className="max-h-[220px] overflow-y-auto">
               <CommandEmpty className="py-4 text-xs text-muted-foreground text-center">
-                No options
+                {t("No options")}
               </CommandEmpty>
               <CommandGroup className="px-1 pb-1">
                 {allowedValues.map((option) => {
@@ -196,7 +198,7 @@ function SelectEditor(props: SelectEditorProps) {
                         }}
                       />
                       <span className="flex-1 truncate text-sm">
-                        Create "{searchValue}"
+                        {t('Create "{value}"', { value: searchValue })}
                       </span>
                     </CommandItem>
                   )}
@@ -211,12 +213,12 @@ function SelectEditor(props: SelectEditorProps) {
               <kbd className="px-1 rounded bg-muted border text-[9px] font-sans">
                 ↵
               </kbd>
-              <span>save</span>
+              <span>{t("save")}</span>
               <span className="mx-0.5">·</span>
               <kbd className="px-1 rounded bg-muted border text-[9px] font-sans">
                 Esc
               </kbd>
-              <span>cancel</span>
+              <span>{t("cancel")}</span>
             </span>
           </div>
         </div>

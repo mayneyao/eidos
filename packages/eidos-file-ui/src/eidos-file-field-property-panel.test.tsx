@@ -4,6 +4,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type {
   EidosFileFieldInfo,
+  EidosFileTableSnapshot,
   UpdateEidosFileFieldInput,
 } from "@eidos.space/eidos-file"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -23,6 +24,11 @@ function field(
   property: Record<string, unknown> | null = null
 ): EidosFileFieldInfo {
   return {
+    id:
+      type === "select"
+        ? "0198c72d-82b5-7000-8000-000000000001"
+        : "0198c72d-82b5-7000-8000-000000000002",
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name: type === "select" ? "Status" : "Estimate",
     type,
     tableName: "tb_tasks",
@@ -34,6 +40,28 @@ function field(
     isDerived: false,
     sourceTableColumnName: null,
     dependsOn: null,
+  }
+}
+
+function table(
+  id: string,
+  name: string,
+  fields: EidosFileFieldInfo[] = []
+): EidosFileTableSnapshot {
+  return {
+    table: {
+      id,
+      name,
+      rawTableName: `tb_${name.toLowerCase()}`,
+      position: 0,
+      icon: null,
+      description: null,
+      createdAt: "",
+      updatedAt: "",
+    },
+    fields,
+    views: [],
+    rowCount: 0,
   }
 }
 
@@ -240,8 +268,8 @@ describe("EidosFileFieldPropertyPanel", () => {
         <EidosFileFieldPropertyPanel
           field={field("select", {
             options: [
-              { value: "Todo", color: "blue" },
-              { value: "Done", color: "green" },
+              { name: "Todo", color: "blue" },
+              { name: "Done", color: "green" },
             ],
           })}
           disabled={false}
@@ -261,7 +289,7 @@ describe("EidosFileFieldPropertyPanel", () => {
 
     expect(onUpdate).toHaveBeenCalledWith(expect.any(Object), {
       property: {
-        options: [{ value: "Done", color: "green" }],
+        options: [{ name: "Done", color: "green" }],
       },
     })
   })
@@ -273,8 +301,8 @@ describe("EidosFileFieldPropertyPanel", () => {
         <EidosFileFieldPropertyPanel
           field={field("select", {
             options: [
-              { value: "Todo", color: "blue" },
-              { value: "Done", color: "green" },
+              { name: "Todo", color: "blue" },
+              { name: "Done", color: "green" },
             ],
           })}
           disabled={false}
@@ -310,7 +338,7 @@ describe("EidosFileFieldPropertyPanel", () => {
       root.render(
         <EidosFileFieldPropertyPanel
           field={field("select", {
-            options: [{ value: "Done", color: "green" }],
+            options: [{ name: "Done", color: "green" }],
           })}
           disabled={false}
           onClose={vi.fn()}
@@ -337,7 +365,7 @@ describe("EidosFileFieldPropertyPanel", () => {
     })
 
     expect(onUpdate).toHaveBeenCalledWith(expect.any(Object), {
-      property: { options: [{ value: "Complete", color: "green" }] },
+      property: { options: [{ name: "Complete", color: "green" }] },
       optionValueChanges: [{ from: "Done", to: "Complete" }],
     })
   })
@@ -348,7 +376,7 @@ describe("EidosFileFieldPropertyPanel", () => {
       root.render(
         <EidosFileFieldPropertyPanel
           field={field("select", {
-            options: [{ value: "Done", color: "green" }],
+            options: [{ name: "Done", color: "green" }],
           })}
           disabled={false}
           onClose={vi.fn()}
@@ -384,7 +412,7 @@ describe("EidosFileFieldPropertyPanel", () => {
       root.render(
         <EidosFileFieldPropertyPanel
           field={field("select", {
-            options: [{ value: "Done", color: "green" }],
+            options: [{ name: "Done", color: "green" }],
           })}
           disabled={false}
           onClose={vi.fn()}
@@ -621,9 +649,9 @@ describe("EidosFileFieldPropertyPanel", () => {
         <EidosFileFieldPropertyPanel
           field={{
             ...field("text"),
-            name: "Title",
-            type: "title",
-            tableColumnName: "title",
+            name: "Row ID",
+            type: "row-id",
+            tableColumnName: "_id",
             valueKind: "system",
           }}
           disabled={false}
@@ -634,7 +662,99 @@ describe("EidosFileFieldPropertyPanel", () => {
       )
     })
 
-    expect(container.textContent).toContain("title")
+    expect(container.textContent).toContain("row id")
     expect(container.textContent).not.toContain("Delete field")
+  })
+
+  it("shows a Relation target by table name and keeps identifiers collapsed", async () => {
+    const targetTableId = "0198c72d-82b5-7000-8000-000000000020"
+    const relation = {
+      ...field("relation", {
+        targetTableId,
+        cardinality: "many",
+      }),
+      name: "People",
+      tableColumnName: "0198c72d-82b5-7000-8000-000000000002",
+      storageCodec: "relation" as const,
+      valueKind: "relation" as const,
+    }
+    await act(async () => {
+      root.render(
+        <EidosFileFieldPropertyPanel
+          field={relation}
+          tables={[
+            table(relation.tableId, "Projects", [relation]),
+            table(targetTableId, "Contacts"),
+          ]}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    const summary = container.querySelector(
+      "[data-eidos-file-relation-summary]"
+    )
+    expect(summary?.textContent).toContain("Contacts")
+    expect(summary?.textContent).toContain("Links to multiple records")
+    expect(summary?.textContent).not.toContain(targetTableId)
+    expect(
+      container.querySelector<HTMLDetailsElement>(
+        "[data-eidos-file-technical-details]"
+      )?.open
+    ).toBe(false)
+  })
+
+  it("summarizes a Lookup with Relation and target field names", async () => {
+    const targetTableId = "0198c72d-82b5-7000-8000-000000000020"
+    const relation = {
+      ...field("relation", { targetTableId }),
+      id: "0198c72d-82b5-7000-8000-000000000021",
+      name: "Owner",
+      storageCodec: "relation" as const,
+      valueKind: "relation" as const,
+    }
+    const target = {
+      ...field("text"),
+      id: "0198c72d-82b5-7000-8000-000000000022",
+      tableId: targetTableId,
+      name: "Name",
+    }
+    const lookup = {
+      ...field("lookup", {
+        relationField: relation.id,
+        targetField: target.id,
+        aggregate: "first",
+      }),
+      name: "Owner name",
+      storageCodec: "scalar" as const,
+      valueKind: "derived" as const,
+      isDerived: true,
+    }
+    await act(async () => {
+      root.render(
+        <EidosFileFieldPropertyPanel
+          field={lookup}
+          tables={[
+            table(lookup.tableId, "Projects", [relation, lookup]),
+            table(targetTableId, "Contacts", [target]),
+          ]}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={vi.fn()}
+          onDelete={vi.fn()}
+          onEditLookup={vi.fn()}
+        />
+      )
+    })
+
+    const summary = container.querySelector("[data-eidos-file-lookup-summary]")
+    expect(summary?.textContent).toContain("Owner")
+    expect(summary?.textContent).toContain("Name")
+    expect(summary?.textContent).toContain("First value")
+    expect(summary?.textContent).not.toContain(relation.id)
+    expect(summary?.textContent).not.toContain(target.id)
   })
 })

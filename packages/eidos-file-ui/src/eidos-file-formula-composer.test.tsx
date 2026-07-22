@@ -13,6 +13,8 @@ import { EidosFileFormulaComposer } from "./eidos-file-formula-composer"
 
 function field(name: string, columnName: string): EidosFileFieldInfo {
   return {
+    id: `0198c72d-82b5-7000-8000-${columnName.length.toString().padStart(12, "0")}`,
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name,
     type: "number",
     tableName: "tb_tasks",
@@ -32,7 +34,7 @@ const fields = [
   field("Unit price", "unit_price"),
 ]
 
-function ComposerHarness({ initialFormula = "estimate * 2" }) {
+function ComposerHarness({ initialFormula = '"Estimate" * 2' }) {
   const [formula, setFormula] = useState(initialFormula)
   return (
     <>
@@ -113,18 +115,18 @@ describe("EidosFileFormulaComposer", () => {
     )
     await act(async () => unitPrice?.click())
     expect(container.querySelector("[data-formula-value]")?.textContent).toBe(
-      'prop("Unit price")'
+      '"Unit price"'
     )
 
-    const round = container.querySelector<HTMLButtonElement>(
-      '[data-formula-reference="function:round"]'
+    const substr = container.querySelector<HTMLButtonElement>(
+      '[data-formula-reference="function:substr"]'
     )
-    await act(async () => round?.click())
+    await act(async () => substr?.click())
     expect(container.querySelector("[data-formula-value]")?.textContent).toBe(
-      'prop("Unit price")ROUND()'
+      '"Unit price"SUBSTR()'
     )
     expect(container.textContent).toContain(
-      "Rounds a number to a chosen precision."
+      "Returns a zero-based Unicode-scalar slice."
     )
   })
 

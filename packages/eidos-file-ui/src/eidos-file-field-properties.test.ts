@@ -11,6 +11,8 @@ import {
 
 function field(property: Record<string, unknown> | null): EidosFileFieldInfo {
   return {
+    id: "0198c72d-82b5-7000-8000-000000000001",
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name: "Field",
     type: "select",
     tableName: "tb_tasks",
@@ -30,16 +32,12 @@ describe("Eidos File field properties", () => {
     expect(
       eidosFileSelectOptions(
         field({
-          options: [
-            { value: "Todo", color: "blue" },
-            { value: "Done" },
-            { name: "Invalid" },
-          ],
+          options: [{ name: "Todo", color: "blue" }, { name: "Done" }],
         })
       )
     ).toEqual([
-      { value: "Todo", color: "blue" },
-      { value: "Done", color: "default" },
+      { name: "Todo", value: "Todo", color: "blue" },
+      { name: "Done", value: "Done", color: "default" },
     ])
   })
 

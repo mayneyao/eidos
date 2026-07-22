@@ -26,6 +26,8 @@ import {
 } from "lucide-react"
 
 import { EidosFileViewTypeIcon } from "./eidos-file-editor-chrome"
+import { eidosFileFieldKey } from "./eidos-file-field-visibility"
+import { useEidosFileUI } from "./context"
 import { cn } from "./lib/cn"
 import {
   Button,
@@ -86,10 +88,11 @@ const VIEW_TYPES: Array<{
 
 function defaultViewName(
   type: EidosFileBuiltInViewType,
-  views: EidosFileViewInfo[]
+  views: EidosFileViewInfo[],
+  translate: (message: string) => string
 ): string {
   const label = VIEW_TYPES.find((candidate) => candidate.type === type)?.label
-  const prefix = label ?? "View"
+  const prefix = translate(label ?? "View")
   const names = new Set(views.map((view) => view.name.trim().toLowerCase()))
   let suffix = views.filter((view) => view.type === type).length + 1
   while (names.has(`${prefix} ${suffix}`.toLowerCase())) suffix += 1
@@ -113,12 +116,13 @@ function EidosFileViewLayoutPicker({
   hasSelectField: boolean
   onChange: (type: EidosFileBuiltInViewType) => void
 }) {
+  const { translate: t } = useEidosFileUI()
   return (
     <div className="grid gap-1.5">
       <div
         className="grid grid-cols-3 gap-1.5"
         role="group"
-        aria-label="View layout"
+        aria-label={t("View layout")}
       >
         {VIEW_TYPES.map((candidate) => {
           const unavailable = candidate.type === "kanban" && !hasSelectField
@@ -132,21 +136,21 @@ function EidosFileViewLayoutPicker({
               )}
               disabled={disabled || unavailable}
               aria-pressed={value === candidate.type}
-              title={candidate.description}
+              title={t(candidate.description)}
               onClick={() => onChange(candidate.type)}
             >
               <EidosFileViewTypeIcon
                 type={candidate.type}
                 className="h-4 w-4"
               />
-              <span className="text-[11px]">{candidate.label}</span>
+              <span className="text-[11px]">{t(candidate.label)}</span>
             </button>
           )
         })}
       </div>
       {!hasSelectField ? (
         <p className="text-[11px] leading-4 text-muted-foreground">
-          Add a Select field to enable Kanban.
+          {t("Add a Select field to enable Kanban.")}
         </p>
       ) : null}
     </div>
@@ -186,6 +190,7 @@ export function EidosFileViewSelector({
   triggerMode?: "current" | "create" | "manage" | "context"
   request?: EidosFileViewSelectorRequest | null
 }) {
+  const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
   const [panel, setPanel] = useState<Panel>("list")
   const [managedViewId, setManagedViewId] = useState<string | null>(null)
@@ -249,7 +254,7 @@ export function EidosFileViewSelector({
     setLocalError(null)
   }
   const prepareCreate = () => {
-    setName(defaultViewName("grid", views))
+    setName(defaultViewName("grid", views, t))
     setIsDefaultName(true)
     setCreateType("grid")
     setLocalError(null)
@@ -264,7 +269,7 @@ export function EidosFileViewSelector({
       after?.()
     } catch (error) {
       setLocalError(
-        error instanceof Error ? error.message : "Unable to update view"
+        error instanceof Error ? error.message : t("Unable to update view")
       )
     } finally {
       setBusy(false)
@@ -292,7 +297,7 @@ export function EidosFileViewSelector({
     if (isDefaultName) {
       setName(
         isEidosFileBuiltInViewType(type)
-          ? defaultViewName(type, views)
+          ? defaultViewName(type, views, t)
           : `${label} ${views.filter((view) => view.type === type).length + 1}`
       )
     }
@@ -331,19 +336,21 @@ export function EidosFileViewSelector({
       void run(() => onUpdate(managedView.id, { type }))
       return
     }
-    const currentGroup = managedView.properties?.groupByField
-    const groupByField =
+    const currentGroup = managedView.properties?.groupField
+    const groupField =
       typeof currentGroup === "string" &&
-      selectFields.some((field) => field.tableColumnName === currentGroup)
+      selectFields.some((field) => eidosFileFieldKey(field) === currentGroup)
         ? currentGroup
-        : selectFields[0]?.tableColumnName
-    if (!groupByField) return
+        : selectFields[0]
+          ? eidosFileFieldKey(selectFields[0])
+          : undefined
+    if (!groupField) return
     void run(() =>
       onUpdate(managedView.id, {
         type,
         properties: {
           ...(managedView.properties ?? {}),
-          groupByField,
+          groupField,
         },
       })
     )
@@ -382,7 +389,7 @@ export function EidosFileViewSelector({
                 type={activeView?.type ?? "grid"}
                 className="h-3.5 w-3.5 shrink-0"
               />
-              <span className="truncate">{activeView?.name ?? "Views"}</span>
+              <span className="truncate">{activeView?.name ?? t("Views")}</span>
               <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
             </Button>
           ) : (
@@ -393,10 +400,12 @@ export function EidosFileViewSelector({
               className="h-full w-8 shrink-0 rounded-none text-muted-foreground hover:text-foreground"
               aria-label={
                 triggerMode === "create"
-                  ? "Add Eidos File view"
-                  : "Manage Eidos File views"
+                  ? t("Add Eidos File view")
+                  : t("Manage Eidos File views")
               }
-              title={triggerMode === "create" ? "New view" : "Manage views"}
+              title={
+                triggerMode === "create" ? t("New view") : t("Manage views")
+              }
               disabled={disabled}
             >
               {triggerMode === "create" ? (
@@ -415,7 +424,7 @@ export function EidosFileViewSelector({
         {panel === "list" ? (
           <>
             <div className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Views
+              {t("Views")}
             </div>
             <div className="max-h-64 space-y-0.5 overflow-y-auto">
               {views.map((view) => {
@@ -459,7 +468,7 @@ export function EidosFileViewSelector({
                       variant="ghost"
                       size="icon"
                       className="mr-0.5 h-7 w-7 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-                      aria-label={`Manage ${view.name} view`}
+                      aria-label={t("Manage {name} view", { name: view.name })}
                       onClick={() => openManage(view)}
                     >
                       <MoreHorizontal className="h-3.5 w-3.5" />
@@ -475,7 +484,7 @@ export function EidosFileViewSelector({
                 onClick={prepareCreate}
               >
                 <Plus className="h-3.5 w-3.5" />
-                New view
+                {t("New view")}
               </button>
               {viewAction}
             </div>
@@ -490,13 +499,13 @@ export function EidosFileViewSelector({
               onClick={() => setPanel("list")}
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Views
+              {t("Views")}
             </button>
             <label
               className="text-xs font-medium"
               htmlFor="eidos-file-view-name"
             >
-              View name
+              {t("View name")}
             </label>
             <Input
               id="eidos-file-view-name"
@@ -512,7 +521,7 @@ export function EidosFileViewSelector({
               }}
             />
             <div className="mt-3 grid gap-1.5">
-              <p className="text-xs font-medium">Layout</p>
+              <p className="text-xs font-medium">{t("Layout")}</p>
               <EidosFileViewLayoutPicker
                 value={
                   isEidosFileBuiltInViewType(createType) ? createType : null
@@ -530,7 +539,7 @@ export function EidosFileViewSelector({
               {extensionViews.length > 0 ? (
                 <div className="mt-2 border-t pt-2">
                   <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Extensions
+                    {t("Extensions")}
                   </p>
                   <div className="grid gap-1">
                     {extensionViews.map((extensionView) => {
@@ -575,7 +584,7 @@ export function EidosFileViewSelector({
                 className="h-7 text-xs"
                 onClick={() => setPanel("list")}
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button
                 type="button"
@@ -584,7 +593,7 @@ export function EidosFileViewSelector({
                 disabled={busy || !name.trim()}
                 onClick={create}
               >
-                Create
+                {t("Create")}
               </Button>
             </div>
           </div>
@@ -598,13 +607,13 @@ export function EidosFileViewSelector({
               onClick={() => setPanel("list")}
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Views
+              {t("Views")}
             </button>
             <label
               className="text-xs font-medium"
               htmlFor="eidos-file-managed-view-name"
             >
-              View name
+              {t("View name")}
             </label>
             <div className="mt-1.5 flex gap-1.5">
               <Input
@@ -630,12 +639,12 @@ export function EidosFileViewSelector({
                 }
                 onClick={saveName}
               >
-                Save
+                {t("Save")}
               </Button>
             </div>
             {isEidosFileBuiltInViewType(managedView.type) ? (
               <div className="mt-3 grid gap-1.5 border-t pt-3">
-                <p className="text-xs font-medium">Layout</p>
+                <p className="text-xs font-medium">{t("Layout")}</p>
                 <EidosFileViewLayoutPicker
                   value={managedView.type}
                   disabled={busy}
@@ -650,29 +659,29 @@ export function EidosFileViewSelector({
             )}
             {managedView.type === "kanban" ? (
               <div className="mt-3 grid gap-1.5 border-t pt-3">
-                <p className="text-xs font-medium">Group by</p>
+                <p className="text-xs font-medium">{t("Group by")}</p>
                 <Select
                   value={
-                    typeof managedView.properties?.groupByField === "string"
-                      ? managedView.properties.groupByField
+                    typeof managedView.properties?.groupField === "string"
+                      ? managedView.properties.groupField
                       : undefined
                   }
                   disabled={busy || selectFields.length === 0}
-                  onValueChange={(groupByField) =>
-                    updateProperties({ groupByField })
+                  onValueChange={(groupField) =>
+                    updateProperties({ groupField })
                   }
                 >
                   <SelectTrigger
                     className="h-8 text-xs"
-                    aria-label="Kanban group field"
+                    aria-label={t("Kanban group field")}
                   >
-                    <SelectValue placeholder="Choose a Select field" />
+                    <SelectValue placeholder={t("Choose a Select field")} />
                   </SelectTrigger>
                   <SelectContent>
                     {selectFields.map((field) => (
                       <SelectItem
-                        key={field.tableColumnName}
-                        value={field.tableColumnName}
+                        key={eidosFileFieldKey(field)}
+                        value={eidosFileFieldKey(field)}
                       >
                         {field.name}
                       </SelectItem>
@@ -681,7 +690,7 @@ export function EidosFileViewSelector({
                 </Select>
                 {selectFields.length === 0 ? (
                   <p className="text-[11px] leading-4 text-muted-foreground">
-                    Add a Select field before configuring this Kanban.
+                    {t("Add a Select field before configuring this Kanban.")}
                   </p>
                 ) : null}
               </div>
@@ -689,33 +698,38 @@ export function EidosFileViewSelector({
             {managedView.type === "gallery" || managedView.type === "kanban" ? (
               <div className="mt-3 grid gap-3 border-t pt-3">
                 <div className="grid gap-1.5">
-                  <p className="text-xs font-medium">Card cover</p>
+                  <p className="text-xs font-medium">{t("Card cover")}</p>
                   <Select
                     value={
-                      typeof managedView.properties?.coverPreview === "string"
-                        ? managedView.properties.coverPreview
+                      typeof managedView.properties?.coverField === "string"
+                        ? managedView.properties.coverField
                         : "__none__"
                     }
                     disabled={busy}
-                    onValueChange={(coverPreview) =>
+                    onValueChange={(coverField) =>
                       updateProperties({
-                        coverPreview:
-                          coverPreview === "__none__" ? null : coverPreview,
+                        coverField:
+                          coverField === "__none__" ? null : coverField,
                       })
                     }
                   >
                     <SelectTrigger
                       className="h-8 text-xs"
-                      aria-label={`${managedView.type === "kanban" ? "Kanban" : "Gallery"} card cover`}
+                      aria-label={t("{view} card cover", {
+                        view:
+                          managedView.type === "kanban"
+                            ? t("Kanban")
+                            : t("Gallery"),
+                      })}
                     >
-                      <SelectValue placeholder="No cover" />
+                      <SelectValue placeholder={t("No cover")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__none__">No cover</SelectItem>
+                      <SelectItem value="__none__">{t("No cover")}</SelectItem>
                       {coverFields.map((field) => (
                         <SelectItem
-                          key={field.tableColumnName}
-                          value={field.tableColumnName}
+                          key={eidosFileFieldKey(field)}
+                          value={eidosFileFieldKey(field)}
                         >
                           {field.name}
                         </SelectItem>
@@ -724,20 +738,21 @@ export function EidosFileViewSelector({
                   </Select>
                   {coverFields.length === 0 ? (
                     <p className="text-[11px] leading-4 text-muted-foreground">
-                      Add a File or URL field to use record images as card
-                      covers.
+                      {t(
+                        "Add a File or URL field to use record images as card covers."
+                      )}
                     </p>
                   ) : null}
                 </div>
-                {managedView.properties?.coverPreview ? (
+                {managedView.properties?.coverField ? (
                   <label
                     className="flex items-center justify-between gap-3 text-xs"
                     htmlFor={fitImageId}
                   >
-                    <span>Fit image</span>
+                    <span>{t("Fit image")}</span>
                     <Switch
                       id={fitImageId}
-                      aria-label="Fit image"
+                      aria-label={t("Fit image")}
                       checked={managedView.properties?.fitContent !== false}
                       disabled={busy}
                       onCheckedChange={(fitContent) =>
@@ -750,11 +765,11 @@ export function EidosFileViewSelector({
             ) : null}
             {managedView.type === "gallery" || managedView.type === "kanban" ? (
               <div className="mt-3 grid gap-1.5 border-t pt-3">
-                <p className="text-xs font-medium">Card size</p>
+                <p className="text-xs font-medium">{t("Card size")}</p>
                 <div
                   className="grid grid-cols-3 rounded-md border p-0.5"
                   role="group"
-                  aria-label="Card size"
+                  aria-label={t("Card size")}
                 >
                   {(["small", "medium", "large"] as const).map((size) => (
                     <button
@@ -772,7 +787,7 @@ export function EidosFileViewSelector({
                       }
                       onClick={() => updateProperties({ cardSize: size })}
                     >
-                      {size}
+                      {t(size)}
                     </button>
                   ))}
                 </div>
@@ -781,14 +796,16 @@ export function EidosFileViewSelector({
             {managedView.type === "gallery" || managedView.type === "kanban" ? (
               <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
                 <label htmlFor={hideEmptyFieldsId}>
-                  <p className="text-xs font-medium">Hide empty fields</p>
+                  <p className="text-xs font-medium">
+                    {t("Hide empty fields")}
+                  </p>
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    Keep cards focused on populated properties.
+                    {t("Keep cards focused on populated properties.")}
                   </p>
                 </label>
                 <Switch
                   id={hideEmptyFieldsId}
-                  aria-label="Hide empty fields"
+                  aria-label={t("Hide empty fields")}
                   checked={managedView.properties?.hideEmptyFields !== false}
                   disabled={busy}
                   onCheckedChange={(hideEmptyFields) =>
@@ -807,7 +824,7 @@ export function EidosFileViewSelector({
                 onClick={() => move(-1)}
               >
                 <ArrowUp className="h-3.5 w-3.5" />
-                Move up
+                {t("Move up")}
               </Button>
               <Button
                 type="button"
@@ -818,7 +835,7 @@ export function EidosFileViewSelector({
                 onClick={() => move(1)}
               >
                 <ArrowDown className="h-3.5 w-3.5" />
-                Move down
+                {t("Move down")}
               </Button>
               <Button
                 type="button"
@@ -837,7 +854,7 @@ export function EidosFileViewSelector({
                 }
               >
                 <Copy className="h-3.5 w-3.5" />
-                Duplicate view
+                {t("Duplicate view")}
               </Button>
             </div>
             <button
@@ -850,23 +867,26 @@ export function EidosFileViewSelector({
               }
               title={
                 managedView.type === "grid" && gridViewCount <= 1
-                  ? "A table must keep one Grid view"
+                  ? t("A table must keep one Grid view")
                   : undefined
               }
               onClick={() => setPanel("delete")}
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Delete view
+              {t("Delete view")}
             </button>
           </div>
         ) : null}
 
         {panel === "delete" && managedView ? (
           <div className="p-2">
-            <p className="text-sm font-medium">Delete “{managedView.name}”?</p>
+            <p className="text-sm font-medium">
+              {t("Delete “{name}”?", { name: managedView.name })}
+            </p>
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              This removes the saved layout, filters, and sorts. Table records
-              are not deleted.
+              {t(
+                "This removes the saved layout, filters, and sorts. Table records are not deleted."
+              )}
             </p>
             <div className="mt-3 flex justify-end gap-1.5">
               <Button
@@ -877,7 +897,7 @@ export function EidosFileViewSelector({
                 disabled={busy}
                 onClick={() => setPanel("manage")}
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button
                 type="button"
@@ -895,7 +915,7 @@ export function EidosFileViewSelector({
                   )
                 }
               >
-                Delete
+                {t("Delete")}
               </Button>
             </div>
           </div>

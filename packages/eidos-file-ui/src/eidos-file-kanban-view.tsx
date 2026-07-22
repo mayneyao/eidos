@@ -33,6 +33,7 @@ import {
 } from "./ui/kanban"
 
 import { eidosFileErrorMessage } from "./eidos-file-error-message"
+import { eidosFileFieldKey } from "./eidos-file-field-visibility"
 import {
   eidosFileOptionColor,
   eidosFileSelectOptions,
@@ -44,6 +45,7 @@ import {
   type EidosFileRecordCardLayout,
 } from "./eidos-file-record-card-layout"
 import { EidosFileRecordDeleteDialog } from "./eidos-file-record-delete-dialog"
+import { eidosFileRecordTitle } from "./eidos-file-record-format"
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
 import {
   mergeRowWindowPage,
@@ -91,11 +93,14 @@ function groupKey(value: string | null): string {
   return `eidos-file-kanban:${value ?? EMPTY_GROUP_VALUE}`
 }
 
-function kanbanMutationErrorMessage(error: unknown): string {
-  return eidosFileErrorMessage(error, "Unable to create record")
+function kanbanMutationErrorMessage(error: unknown, fallback: string): string {
+  return eidosFileErrorMessage(error, fallback)
 }
 
-function groupSpecs(options: EidosFileSelectOption[]): EidosFileKanbanGroup[] {
+function groupSpecs(
+  options: EidosFileSelectOption[],
+  emptyGroupName = "No status"
+): EidosFileKanbanGroup[] {
   return [
     ...options.map((option) => ({
       key: groupKey(option.value),
@@ -114,7 +119,7 @@ function groupSpecs(options: EidosFileSelectOption[]): EidosFileKanbanGroup[] {
     {
       key: groupKey(null),
       value: null,
-      name: "No status",
+      name: emptyGroupName,
       color: "gray",
       rows: [],
       startOffset: 0,
@@ -244,7 +249,7 @@ const EidosFileKanbanCardItem = memo(function EidosFileKanbanCardItem({
   return (
     <KanbanCard
       id={String(row._id)}
-      name={String(row.title ?? "Untitled")}
+      name={eidosFileRecordTitle(row, table.fields)}
       index={index}
       parent={groupKey}
       disabled={disabled}
@@ -343,6 +348,7 @@ const EidosFileKanbanVirtualCard = memo(function EidosFileKanbanVirtualCard({
   onRetry,
   measureElement,
 }: EidosFileKanbanVirtualCardProps) {
+  const { translate: t } = useEidosFileUI()
   const row = rowFromWindow(
     {
       rows: group.rows,
@@ -384,8 +390,10 @@ const EidosFileKanbanVirtualCard = memo(function EidosFileKanbanVirtualCard({
           role={group.loadFailure !== null ? "alert" : "status"}
           aria-label={
             group.loadFailure !== null
-              ? `Could not load more ${group.name} records`
-              : `Loading more ${group.name} records`
+              ? t("Could not load more {group} records", {
+                  group: group.name,
+                })
+              : t("Loading more {group} records", { group: group.name })
           }
         >
           {group.loadFailure !== null ? (
@@ -403,7 +411,8 @@ const EidosFileKanbanVirtualCard = memo(function EidosFileKanbanVirtualCard({
                 className="h-7 shrink-0 px-2 text-[11px]"
                 onClick={() => onRetry(group)}
               >
-                Retry<span className="sr-only"> loading records</span>
+                {t("Retry")}
+                <span className="sr-only"> {t("loading records")}</span>
               </Button>
             </div>
           ) : group.loadingMore ? (
@@ -426,6 +435,7 @@ const EidosFileKanbanCreateRecord = memo(function EidosFileKanbanCreateRecord({
   visible: boolean
   onCreate: (group: EidosFileKanbanGroup, title: string) => Promise<void>
 }) {
+  const { translate: t } = useEidosFileUI()
   const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState("")
   const [creating, setCreating] = useState(false)
@@ -443,7 +453,9 @@ const EidosFileKanbanCreateRecord = memo(function EidosFileKanbanCreateRecord({
       setTitle("")
       setAdding(false)
     } catch (error) {
-      setCreateError(kanbanMutationErrorMessage(error))
+      setCreateError(
+        kanbanMutationErrorMessage(error, t("Unable to create record"))
+      )
     } finally {
       creatingRef.current = false
       setCreating(false)
@@ -457,8 +469,8 @@ const EidosFileKanbanCreateRecord = memo(function EidosFileKanbanCreateRecord({
         autoFocus
         value={title}
         className="h-7 text-xs"
-        placeholder="Record title"
-        aria-label={`Record title in ${group.name}`}
+        placeholder={t("Record title")}
+        aria-label={t("Record title in {group}", { group: group.name })}
         disabled={creating}
         onChange={(event) => {
           setTitle(event.target.value)
@@ -494,7 +506,7 @@ const EidosFileKanbanCreateRecord = memo(function EidosFileKanbanCreateRecord({
             setCreateError(null)
           }}
         >
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button
           type="button"
@@ -503,7 +515,7 @@ const EidosFileKanbanCreateRecord = memo(function EidosFileKanbanCreateRecord({
           disabled={disabled || creating || !title.trim()}
           onClick={() => void create()}
         >
-          Add
+          {t("Add")}
         </Button>
       </div>
     </div>
@@ -520,7 +532,7 @@ const EidosFileKanbanCreateRecord = memo(function EidosFileKanbanCreateRecord({
       }}
     >
       <Plus className="h-3.5 w-3.5" />
-      Add record
+      {t("Add record")}
     </Button>
   )
 })
@@ -568,6 +580,7 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
   collapsed: boolean
   onCollapsedChange: (groupKey: string, collapsed: boolean) => void
 }) {
+  const { translate: t } = useEidosFileUI()
   const scrollRef = useRef<HTMLDivElement>(null)
   const getVirtualCardKey = useCallback(
     (index: number) => `${group.key}:${index}`,
@@ -636,7 +649,10 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
     <KanbanBoard
       id={group.key}
       role="region"
-      aria-label={`${group.name}, ${group.total} records`}
+      aria-label={t("{group}, {count} records", {
+        group: group.name,
+        count: group.total,
+      })}
       className={cn(
         "shrink-0 gap-2 rounded-lg border p-2",
         collapsed && "items-center"
@@ -661,7 +677,7 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
             <button
               type="button"
               className="flex min-h-7 flex-1 items-center rounded-sm text-[11px] font-medium outline-hidden [writing-mode:vertical-rl] focus-visible:ring-1 focus-visible:ring-ring"
-              aria-label={`Expand ${group.name}`}
+              aria-label={t("Expand {group}", { group: group.name })}
               onClick={() => onCollapsedChange(group.key, false)}
             >
               {group.name} · {group.total}
@@ -679,7 +695,7 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6"
-                aria-label={`Collapse ${group.name}`}
+                aria-label={t("Collapse {group}", { group: group.name })}
                 onClick={() => onCollapsedChange(group.key, true)}
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
@@ -703,7 +719,9 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
               <div
                 className="flex h-20 items-center justify-center"
                 role="status"
-                aria-label={`Loading ${group.name} records`}
+                aria-label={t("Loading {group} records", {
+                  group: group.name,
+                })}
               >
                 <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground motion-reduce:animate-none" />
               </div>
@@ -713,7 +731,7 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
                 className="flex h-20 flex-col items-center justify-center gap-1 text-[11px] text-destructive"
                 role="alert"
               >
-                <span>Could not load records.</span>
+                <span>{t("Could not load records.")}</span>
                 <span
                   className="max-w-full truncate px-2 text-muted-foreground"
                   title={group.loadFailure.message}
@@ -727,18 +745,18 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
                   className="h-6 px-2 text-[11px]"
                   onClick={() => onRetry(group)}
                 >
-                  Retry
+                  {t("Retry")}
                 </Button>
               </div>
             ) : group.rows.length === 0 ? (
               <div className="flex h-16 items-center justify-center text-[11px] text-muted-foreground">
-                No records
+                {t("No records")}
               </div>
             ) : (
               <div
                 className="relative w-full"
                 role="list"
-                aria-label={`${group.name} records`}
+                aria-label={t("{group} records", { group: group.name })}
                 data-eidos-file-logical-size={logicalVirtualSize}
                 data-eidos-file-physical-size={physicalVirtualSize}
                 data-eidos-file-measurement-count={measurementCount}
@@ -781,7 +799,7 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
                 className="min-w-0 truncate"
                 title={group.loadFailure.message}
               >
-                Could not refresh records. {group.loadFailure.message}
+                {t("Could not refresh records.")} {group.loadFailure.message}
               </span>
               <Button
                 type="button"
@@ -790,7 +808,7 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
                 className="h-6 px-2 text-[11px]"
                 onClick={() => onRetry(group)}
               >
-                Retry
+                {t("Retry")}
               </Button>
             </div>
           ) : null}
@@ -869,16 +887,19 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
 }) {
-  const { themeName: theme } = useEidosFileUI()
+  const { themeName: theme, translate: t } = useEidosFileUI()
   const generationRef = useRef(0)
   const loadingInitialGroupsRef = useRef(new Map<string, number>())
   const loadingMoreGroupsRef = useRef(new Map<string, number>())
   const loadedGroupGenerationsRef = useRef(new Map<string, number>())
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const groupFieldName = view.properties?.groupByField
+  const groupFieldName =
+    typeof view.properties?.groupField === "string"
+      ? view.properties.groupField
+      : view.properties?.groupByField
   const groupField = table.fields.find(
     (field) =>
-      field.tableColumnName === groupFieldName && field.type === "select"
+      eidosFileFieldKey(field) === groupFieldName && field.type === "select"
   )
   const options = useMemo(
     () => (groupField ? eidosFileSelectOptions(groupField) : []),
@@ -889,7 +910,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     [options]
   )
   const [groups, setGroups] = useState<EidosFileKanbanGroup[]>(() =>
-    groupField ? groupSpecs(options) : []
+    groupField ? groupSpecs(options, t("No status")) : []
   )
   const groupCount = groups.length
   const groupsRef = useRef(groups)
@@ -954,9 +975,9 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
         id: groupKey(option.value),
         label: option.value,
       })),
-      { id: groupKey(null), label: "No status" },
+      { id: groupKey(null), label: t("No status") },
     ],
-    [options]
+    [options, t]
   )
   const columnVirtualizer = useVirtualizer({
     count: moveOptions.length,
@@ -1038,7 +1059,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
       setCountsError(null)
       return
     }
-    const specs = groupSpecs(options)
+    const specs = groupSpecs(options, t("No status"))
     setGroups((current) => {
       const currentByKey = new Map(current.map((group) => [group.key, group]))
       const next = specs.map((spec) =>
@@ -1120,6 +1141,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     table.table.id,
     view.id,
     onRowCountChange,
+    t,
   ])
 
   useEffect(() => {
@@ -1442,7 +1464,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
           return group
         })
       )
-      const title = String(row.title ?? "Untitled")
+      const title = eidosFileRecordTitle(row, table.fields)
       setMoveAnnouncement(`${title} is moving to ${target.name}.`)
       void Promise.resolve()
         .then(() => onCellEdit(row, groupField, target.value))
@@ -1660,10 +1682,11 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     return (
       <div className="flex h-full items-center justify-center px-8 text-center">
         <div>
-          <h2 className="text-sm font-medium">Choose a Select field</h2>
+          <h2 className="text-sm font-medium">{t("Choose a Select field")}</h2>
           <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
-            Open this view's settings and choose the Select field that should
-            define Kanban columns.
+            {t(
+              "Open this view's settings and choose the Select field that should define Kanban columns."
+            )}
           </p>
         </div>
       </div>
@@ -1687,7 +1710,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
             role="alert"
           >
             <span className="min-w-0 truncate" title={countsError}>
-              Could not refresh Kanban records. {countsError}
+              {t("Could not refresh Kanban records.")} {countsError}
             </span>
             <Button
               type="button"
@@ -1696,7 +1719,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
               className="h-6 px-2 text-[11px]"
               onClick={() => setCountsRetryToken((current) => current + 1)}
             >
-              Retry
+              {t("Retry")}
             </Button>
           </div>
         ) : null}
@@ -1712,7 +1735,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
               className="flex h-full min-h-40 flex-col items-center justify-center gap-2 text-xs text-muted-foreground"
               role="alert"
             >
-              <span>Could not load Kanban records.</span>
+              <span>{t("Could not load Kanban records.")}</span>
               <span className="max-w-md break-words text-center text-destructive">
                 {countsError}
               </span>
@@ -1723,7 +1746,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
                 className="h-7 px-2.5 text-xs"
                 onClick={() => setCountsRetryToken((current) => current + 1)}
               >
-                Retry
+                {t("Retry")}
               </Button>
             </div>
           ) : (
@@ -1829,6 +1852,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
       {onDeleteRow ? (
         <EidosFileRecordDeleteDialog
           row={deleteRow}
+          fields={table.fields}
           disabled={disabled}
           onOpenChange={(open) => {
             if (!open) setDeleteRow(null)

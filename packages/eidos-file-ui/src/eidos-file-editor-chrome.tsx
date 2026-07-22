@@ -19,6 +19,7 @@ import {
   Table2,
 } from "lucide-react"
 
+import { useEidosFileUI } from "./context"
 import { cn } from "./lib/cn"
 import {
   createEidosFilePluginRegistry,
@@ -107,6 +108,7 @@ export function EidosFileViewTabStrip({
   onSelect: (viewId: string) => void
   renderTab?: (view: EidosFileViewInfo, tab: ReactNode) => ReactNode
 }) {
+  const { translate: t } = useEidosFileUI()
   const pluginRegistry = useMemo(
     () => createEidosFilePluginRegistry(plugins),
     [plugins]
@@ -133,7 +135,7 @@ export function EidosFileViewTabStrip({
           variant="ghost"
           size="icon"
           className="h-full w-6 shrink-0 text-muted-foreground"
-          aria-label="Scroll Eidos File views backward"
+          aria-label={t("Scroll Eidos File views backward")}
           disabled={disabled}
           onClick={() => scrollTabs(-1)}
         >
@@ -143,7 +145,7 @@ export function EidosFileViewTabStrip({
       <div
         ref={viewportRef}
         role="tablist"
-        aria-label="Eidos File views"
+        aria-label={t("Eidos File views")}
         aria-orientation="horizontal"
         className="flex h-full min-w-0 items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onScroll={updateScrollState}
@@ -193,7 +195,7 @@ export function EidosFileViewTabStrip({
           variant="ghost"
           size="icon"
           className="h-full w-6 shrink-0 text-muted-foreground"
-          aria-label="Scroll Eidos File views forward"
+          aria-label={t("Scroll Eidos File views forward")}
           disabled={disabled}
           onClick={() => scrollTabs(1)}
         >
@@ -222,6 +224,7 @@ export function EidosFileSheetTabStrip({
   onSelect: (tableId: string) => void
   renderTab?: (table: EidosFileTableInfo, tab: ReactNode) => ReactNode
 }) {
+  const { translate: t } = useEidosFileUI()
   const createActionRef = useRef<HTMLDivElement>(null)
   const lastTableId = tables.at(-1)?.id
   const {
@@ -254,7 +257,7 @@ export function EidosFileSheetTabStrip({
           variant="ghost"
           size="icon"
           className="h-full w-6 shrink-0 rounded-none border-r text-muted-foreground"
-          aria-label="Scroll Eidos File tables backward"
+          aria-label={t("Scroll Eidos File tables backward")}
           disabled={disabled}
           onClick={() => scrollTabs(-1)}
         >
@@ -269,7 +272,7 @@ export function EidosFileSheetTabStrip({
       >
         <div
           role="tablist"
-          aria-label="Eidos File tables"
+          aria-label={t("Eidos File tables")}
           aria-orientation="horizontal"
           aria-keyshortcuts="Control+PageUp Control+PageDown"
           className="flex shrink-0 items-stretch"
@@ -324,7 +327,7 @@ export function EidosFileSheetTabStrip({
           variant="ghost"
           size="icon"
           className="h-full w-6 shrink-0 rounded-none border-l text-muted-foreground"
-          aria-label="Scroll Eidos File tables forward"
+          aria-label={t("Scroll Eidos File tables forward")}
           disabled={disabled}
           onClick={() => scrollTabs(1)}
         >

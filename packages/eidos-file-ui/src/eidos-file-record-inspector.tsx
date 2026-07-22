@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react"
 
+import { useEidosFileUI } from "./context"
 import { cn } from "./lib/cn"
 import { Button, ScrollArea } from "./ui/primitives"
 
@@ -38,9 +39,8 @@ interface FailedRecordEdit {
   message: string
 }
 
-function recordEditErrorMessage(error: unknown): string {
-  const message =
-    error instanceof Error ? error.message : "Unable to save record"
+function recordEditErrorMessage(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : fallback
   return message
     .replace(/^Error invoking remote method '[^']+':\s*/i, "")
     .replace(/^Error:\s*/i, "")
@@ -57,6 +57,7 @@ function FieldValue({
   onOpenFile?: (path: string) => void
   onRevealFile?: (path: string) => void
 }) {
+  const { translate: t } = useEidosFileUI()
   const value = row[field.tableColumnName]
   if (field.type === "checkbox") {
     const checked = value === true || value === 1 || value === "1"
@@ -67,14 +68,14 @@ function FieldValue({
         ) : (
           <Minus className="h-3.5 w-3.5 text-muted-foreground" />
         )}
-        {checked ? "Checked" : "Unchecked"}
+        {checked ? t("Checked") : t("Unchecked")}
       </span>
     )
   }
   if (field.type === "file") {
     const paths = decodeEidosFileAttachmentPaths(value)
     if (paths.length === 0) {
-      return <span className="text-xs text-muted-foreground">Empty</span>
+      return <span className="text-xs text-muted-foreground">{t("Empty")}</span>
     }
     return (
       <div className="grid gap-1">
@@ -97,7 +98,7 @@ function FieldValue({
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6 shrink-0 opacity-0 group-hover/file:opacity-100 focus-visible:opacity-100"
-                aria-label={`Show ${path} in file manager`}
+                aria-label={t("Show {path} in file manager", { path })}
                 onClick={() => onRevealFile(path)}
               >
                 <FolderOpen className="h-3.5 w-3.5" />
@@ -129,7 +130,7 @@ function FieldValue({
           : "whitespace-pre-wrap break-words text-xs leading-5"
       }
     >
-      {display}
+      {display === "Empty" ? t("Empty") : display}
     </p>
   )
 }
@@ -180,6 +181,7 @@ export function EidosFileRecordInspector({
   onOpenFile,
   onRevealFile,
 }: EidosFileRecordInspectorProps) {
+  const { translate: t } = useEidosFileUI()
   const [currentRow, setCurrentRow] = useState(row)
   const [savingField, setSavingField] = useState<string | null>(null)
   const [failedEdit, setFailedEdit] = useState<FailedRecordEdit | null>(null)
@@ -208,7 +210,7 @@ export function EidosFileRecordInspector({
       setCurrentRow(row)
     }
   }, [row, rowId, updateFailedEdit])
-  const title = eidosFileRecordTitle(currentRow)
+  const title = eidosFileRecordTitle(currentRow, fields)
   const currentRowId =
     typeof currentRow._id === "string"
       ? currentRow._id
@@ -241,7 +243,7 @@ export function EidosFileRecordInspector({
         field,
         value,
         previousRow,
-        message: recordEditErrorMessage(error),
+        message: recordEditErrorMessage(error, t("Unable to save record")),
       })
     } finally {
       if (String(latestRowRef.current._id ?? "") === editRowId) {
@@ -292,7 +294,7 @@ export function EidosFileRecordInspector({
       )}
       data-eidos-file-detail-panel="record"
       data-eidos-file-record-layout={variant}
-      aria-label={`Record details for ${title}`}
+      aria-label={t("Record details for {title}", { title })}
       aria-busy={loading || savingField !== null ? "true" : undefined}
     >
       <header
@@ -318,7 +320,7 @@ export function EidosFileRecordInspector({
                 className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground"
               >
                 <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
-                Loading…
+                {t("Loading…")}
               </span>
             ) : savingField ? (
               <span
@@ -327,7 +329,7 @@ export function EidosFileRecordInspector({
                 className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground"
               >
                 <Save className="h-3 w-3" />
-                Saving…
+                {t("Saving…")}
               </span>
             ) : null}
           </div>
@@ -346,8 +348,8 @@ export function EidosFileRecordInspector({
             variant="ghost"
             size="icon"
             className="h-7 w-7 shrink-0"
-            aria-label="Open record in tab"
-            title="Open in tab"
+            aria-label={t("Open record in tab")}
+            title={t("Open in tab")}
             disabled={savingField !== null}
             onClick={() => onOpenInTab(currentRow)}
           >
@@ -360,7 +362,7 @@ export function EidosFileRecordInspector({
             variant="ghost"
             size="icon"
             className="h-7 w-7 shrink-0"
-            aria-label="Close record details"
+            aria-label={t("Close record details")}
             disabled={savingField !== null}
             onClick={onClose}
           >
@@ -383,7 +385,7 @@ export function EidosFileRecordInspector({
               disabled={savingField !== null}
               onClick={() => void retryFailedEdit()}
             >
-              {savingField ? "Retrying…" : "Retry"}
+              {savingField ? t("Retrying…") : t("Retry")}
             </Button>
             <Button
               type="button"
@@ -393,7 +395,7 @@ export function EidosFileRecordInspector({
               disabled={savingField !== null}
               onClick={discardFailedEdit}
             >
-              Discard change
+              {t("Discard change")}
             </Button>
           </div>
         </div>
@@ -404,7 +406,7 @@ export function EidosFileRecordInspector({
           aria-hidden="true"
         >
           <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
-          Loading record details…
+          {t("Loading record details…")}
         </div>
       ) : loadError ? (
         <div
@@ -420,7 +422,7 @@ export function EidosFileRecordInspector({
               className="h-7 px-2.5 text-xs"
               onClick={onRetryLoad}
             >
-              Retry
+              {t("Retry")}
             </Button>
           ) : null}
         </div>
@@ -456,7 +458,9 @@ export function EidosFileRecordInspector({
                     onRevealFile={onRevealFile}
                     onError={onError}
                   />
-                ) : onCellEdit && field.type === "link" && onSearchRelation ? (
+                ) : onCellEdit &&
+                  field.type === "relation" &&
+                  onSearchRelation ? (
                   <EidosFileRecordRelationEditor
                     row={currentRow}
                     field={field}
@@ -466,9 +470,9 @@ export function EidosFileRecordInspector({
                     onError={onError}
                   />
                 ) : onCellEdit &&
-                  (field.valueKind === "source" || field.type === "title") &&
+                  field.valueKind === "source" &&
                   field.type !== "file" &&
-                  field.type !== "link" ? (
+                  field.type !== "relation" ? (
                   <EidosFileRecordFieldEditor
                     field={field}
                     row={currentRow}

@@ -9,6 +9,9 @@ import {
   type EidosFileRelationCell,
 } from "./eidos-file-relation-cell"
 
+const ADA_ID = "0198c72d-82b5-7968-b163-98be4b7477df"
+const GRACE_ID = "0198c72d-82b5-7969-8163-98be4b7477df"
+
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
@@ -32,8 +35,8 @@ describe("Eidos File relation cell", () => {
     const onChange = vi.fn()
     const onFinishedEditing = vi.fn()
     const onSearch = vi.fn().mockResolvedValue([
-      { id: "row_ada", title: "Ada Lovelace" },
-      { id: "row_grace", title: "Grace Hopper" },
+      { id: ADA_ID, title: "Ada Lovelace" },
+      { id: GRACE_ID, title: "Grace Hopper" },
     ])
     const cell: EidosFileRelationCell = {
       kind: GridCellKind.Custom,
@@ -89,9 +92,9 @@ describe("Eidos File relation cell", () => {
     })
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
-        copyData: '["row_grace"]',
+        copyData: JSON.stringify([GRACE_ID]),
         data: expect.objectContaining({
-          values: [{ id: "row_grace", title: "Grace Hopper" }],
+          values: [{ id: GRACE_ID, title: "Grace Hopper" }],
         }),
       })
     )
@@ -107,7 +110,7 @@ describe("Eidos File relation cell", () => {
       )
     })
     expect(onFinishedEditing).toHaveBeenCalledWith(
-      expect.objectContaining({ copyData: '["row_grace"]' })
+      expect.objectContaining({ copyData: JSON.stringify([GRACE_ID]) })
     )
   })
 })

@@ -22,6 +22,7 @@ import { LoaderCircle } from "lucide-react"
 
 import { Button } from "./ui/primitives"
 
+import { useEidosFileUI } from "./context"
 import { eidosFileErrorMessage } from "./eidos-file-error-message"
 import { EidosFileRecordCard } from "./eidos-file-record-card"
 import {
@@ -237,6 +238,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   onError?: (error: unknown) => void
   sidePanel?: ReactNode
 }) {
+  const { translate: t } = useEidosFileUI()
   const generationRef = useRef(0)
   const scopeRef = useRef("")
   const requestRef = useRef<{ generation: number; offset: number } | null>(null)
@@ -633,14 +635,14 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
             role="status"
           >
             <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
-            Loading gallery…
+            {t("Loading gallery…")}
           </div>
         ) : failedRequest !== null && rows.length === 0 ? (
           <div
             className="flex h-40 flex-col items-center justify-center gap-2 text-xs text-muted-foreground"
             role="alert"
           >
-            <span>Could not load gallery records.</span>
+            <span>{t("Could not load gallery records.")}</span>
             <span className="max-w-md break-words text-center text-destructive">
               {failedRequest.message}
             </span>
@@ -658,18 +660,18 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
                 )
               }
             >
-              Retry
+              {t("Retry")}
             </Button>
           </div>
         ) : total === 0 ? (
           <div className="flex h-40 items-center justify-center text-xs text-muted-foreground">
-            No records in this view.
+            {t("No records in this view.")}
           </div>
         ) : (
           <div
             className="relative"
             role="list"
-            aria-label={`${view.name} records`}
+            aria-label={t("{view} records", { view: view.name })}
             data-eidos-file-logical-size={logicalVirtualSize}
             data-eidos-file-physical-size={physicalVirtualSize}
             data-eidos-file-measurement-count={measurementCount}
@@ -709,7 +711,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
           >
             <span className="flex h-7 items-center gap-1.5 rounded-full border bg-background/95 px-3 shadow-sm backdrop-blur-sm">
               <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
-              Loading more records…
+              {t("Loading more records…")}
             </span>
           </div>
         ) : failedRequest !== null && rows.length > 0 ? (
@@ -721,8 +723,8 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
             <span className="flex h-8 max-w-[calc(100%_-_1rem)] items-center gap-2 rounded-full border bg-background/95 pl-3 pr-1 shadow-sm backdrop-blur-sm">
               <span className="min-w-0 truncate" title={failedRequest.message}>
                 {failedRequest.mode !== "replace"
-                  ? "Could not load more records."
-                  : "Could not refresh records."}{" "}
+                  ? t("Could not load more records.")
+                  : t("Could not refresh records.")}{" "}
                 {failedRequest.message}
               </span>
               <Button
@@ -739,7 +741,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
                   )
                 }
               >
-                Retry
+                {t("Retry")}
               </Button>
             </span>
           </div>
@@ -777,6 +779,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
       {onDeleteRow ? (
         <EidosFileRecordDeleteDialog
           row={deleteRow}
+          fields={table.fields}
           disabled={disabled}
           onOpenChange={(open) => {
             if (!open) setDeleteRow(null)

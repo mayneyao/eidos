@@ -6,6 +6,7 @@ import {
 } from "@eidos.space/eidos-file"
 import { FileText, FolderOpen, LoaderCircle, Plus, X } from "lucide-react"
 
+import { useEidosFileUI } from "./context"
 import { cn } from "./lib/cn"
 import { Button } from "./ui/primitives"
 
@@ -28,6 +29,7 @@ export function EidosFileRecordAttachmentEditor({
   onRevealFile?: (path: string) => void
   onError?: (error: unknown) => void
 }) {
+  const { translate: t } = useEidosFileUI()
   const paths = decodeEidosFileAttachmentPaths(value)
   const [importing, setImporting] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -35,7 +37,7 @@ export function EidosFileRecordAttachmentEditor({
   const append = async (imported: string[]) => {
     if (imported.length === 0) return
     const next = Array.from(new Set([...paths, ...imported]))
-    await onChange(encodeEidosFileAttachmentPaths(next))
+    await onChange(encodeEidosFileAttachmentPaths(next, value))
   }
 
   const chooseFiles = async () => {
@@ -107,7 +109,7 @@ export function EidosFileRecordAttachmentEditor({
                   variant="ghost"
                   size="icon"
                   className="h-6 w-6 shrink-0 opacity-0 group-hover/file:opacity-100 focus-visible:opacity-100"
-                  aria-label={`Show ${path} in file manager`}
+                  aria-label={t("Show {path} in file manager", { path })}
                   disabled={disabled || importing}
                   onClick={() => onRevealFile(path)}
                 >
@@ -119,12 +121,13 @@ export function EidosFileRecordAttachmentEditor({
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6 shrink-0 opacity-0 group-hover/file:opacity-100 focus-visible:opacity-100"
-                aria-label={`Remove ${path}`}
+                aria-label={t("Remove {path}", { path })}
                 disabled={disabled || importing}
                 onClick={() =>
                   void onChange(
                     encodeEidosFileAttachmentPaths(
-                      paths.filter((candidate) => candidate !== path)
+                      paths.filter((candidate) => candidate !== path),
+                      value
                     )
                   )
                 }
@@ -135,7 +138,7 @@ export function EidosFileRecordAttachmentEditor({
           ))}
         </div>
       ) : (
-        <p className="px-1 text-xs text-muted-foreground">No files</p>
+        <p className="px-1 text-xs text-muted-foreground">{t("No files")}</p>
       )}
       <Button
         type="button"
@@ -150,7 +153,7 @@ export function EidosFileRecordAttachmentEditor({
         ) : (
           <Plus className="h-3.5 w-3.5" />
         )}
-        {importing ? "Importing…" : "Add files"}
+        {importing ? t("Importing…") : t("Add files")}
       </Button>
     </div>
   )

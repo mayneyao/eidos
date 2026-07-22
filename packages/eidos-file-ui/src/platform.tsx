@@ -206,6 +206,7 @@ export function EidosFileViewHost({
       {...props}
       source={source}
       table={activeTable}
+      tables={snapshot.tables}
       view={activeView}
       disabled={disabled}
       commands={commands}

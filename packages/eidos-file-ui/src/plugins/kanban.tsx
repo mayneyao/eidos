@@ -8,6 +8,10 @@ import { SquareKanban } from "lucide-react"
 
 import type { EidosFileViewRendererProps } from "../eidos-file-editor-view"
 import { EidosFileKanbanView } from "../eidos-file-kanban-view"
+import {
+  eidosFileFieldKey,
+  isEidosFileRecordLabelField,
+} from "../eidos-file-field-visibility"
 import { eidosFileRecordCardPageProjection } from "../eidos-file-record-card-layout"
 import { eidosFileViewGroupFilter } from "../eidos-file-view-query"
 import { defineEidosFilePlugin } from "../plugin"
@@ -36,7 +40,7 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
       value: EidosFileSqlPrimitive
     ) => {
       const result = await source.updateRow(table.table.id, String(row._id), {
-        [field.tableColumnName]: value,
+        [eidosFileFieldKey(field)]: value,
       })
       onMutation?.(result)
       return result
@@ -45,9 +49,10 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
   )
   const addRow = useCallback(
     async (field: EidosFileFieldInfo, value: string | null, title: string) => {
+      const labelField = table.fields.find(isEidosFileRecordLabelField)
       const result = await source.insertRow(table.table.id, {
-        title,
-        [field.tableColumnName]: value,
+        ...(labelField ? { [eidosFileFieldKey(labelField)]: title } : {}),
+        [eidosFileFieldKey(field)]: value,
       })
       onMutation?.(result)
       return result
@@ -73,7 +78,7 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
       disabled={disabled}
       reloadToken={reloadToken}
       loadGroupCounts={(field) =>
-        source.getGroupCounts!(table.table.id, field.tableColumnName, query)
+        source.getGroupCounts!(table.table.id, eidosFileFieldKey(field), query)
       }
       loadGroupPage={(field, value, offset, limit, totalHint, cursor) =>
         source.getPage(
@@ -84,7 +89,7 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
             ...query,
             filter: eidosFileViewGroupFilter(
               query.filter,
-              field.tableColumnName,
+              eidosFileFieldKey(field),
               value
             ),
           },
@@ -120,13 +125,13 @@ export const eidosFileKanbanPlugin = defineEidosFilePlugin({
         isAvailable: (fields) =>
           fields.some((field) => field.type === "select"),
         properties: (fields) => {
-          const groupByField = fields.find(
-            (field) => field.type === "select"
-          )?.tableColumnName
+          const groupField = fields.find((field) => field.type === "select")
           return {
             cardSize: "medium",
             hideEmptyFields: true,
-            ...(groupByField ? { groupByField } : {}),
+            ...(groupField
+              ? { groupField: eidosFileFieldKey(groupField) }
+              : {}),
           }
         },
       },

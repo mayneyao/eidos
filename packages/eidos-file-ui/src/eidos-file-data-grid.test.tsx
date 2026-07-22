@@ -27,8 +27,10 @@ vi.mock("./eidos-file-grid", () => ({
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const relationField: EidosFileFieldInfo = {
+  id: "0198c72d-82b5-7000-8000-000000000001",
+  tableId: "0198c72d-82b5-7000-8000-000000000010",
   name: "Owner",
-  type: "link",
+  type: "relation",
   tableName: "tb_tasks",
   tableColumnName: "owner",
   property: {
@@ -52,8 +54,8 @@ const table: EidosFileTableSnapshot = {
     position: 1,
     icon: null,
     description: null,
-    createdAt: "2026-07-18 00:00:00",
-    updatedAt: "2026-07-18 00:00:00",
+    createdAt: "2026-07-18T00:00:00.000Z",
+    updatedAt: "2026-07-18T00:00:00.000Z",
   },
   fields: [relationField],
   views: [],
@@ -134,8 +136,8 @@ describe("EidosFileDataGrid", () => {
             orderMap: null,
             hiddenFields: [],
             position: 0,
-            createdAt: "2026-07-19 00:00:00",
-            updatedAt: "2026-07-19 00:00:00",
+            createdAt: "2026-07-19T00:00:00.000Z",
+            updatedAt: "2026-07-19T00:00:00.000Z",
           }}
         />
       )
@@ -155,7 +157,7 @@ describe("EidosFileDataGrid", () => {
       offset: 0,
       limit: 50,
       total: 1,
-      rows: [{ _id: "person_1", title: "Ada Lovelace" }],
+      rows: [{ _id: "person_1", Name: "Ada Lovelace" }],
     })
     const source = {
       getPage,
@@ -175,7 +177,26 @@ describe("EidosFileDataGrid", () => {
       deleteView: vi.fn(),
       reorderViews: vi.fn(),
       updateView: vi.fn(),
-      getSnapshot: vi.fn(),
+      getSnapshot: vi.fn().mockResolvedValue({
+        tables: [
+          {
+            table: { id: "people" },
+            fields: [
+              {
+                ...table.fields[0],
+                name: "Name",
+                tableName: "People",
+                tableColumnName: "Name",
+                type: "text",
+                valueKind: "source",
+                isRecordLabel: true,
+              },
+            ],
+            views: [],
+            rowCount: 1,
+          },
+        ],
+      }),
     } as unknown as EidosFileDataSource
 
     await act(async () => {
@@ -200,8 +221,8 @@ describe("EidosFileDataGrid", () => {
       undefined,
       undefined,
       {
-        columns: ["title"],
-        preservedColumns: ["_id", "title"],
+        columns: ["Name"],
+        preservedColumns: ["_id"],
         fieldLimit: 1,
       }
     )

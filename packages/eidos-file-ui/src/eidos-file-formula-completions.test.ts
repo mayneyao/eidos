@@ -15,6 +15,8 @@ function field(
   options: { hidden?: boolean } = {}
 ): EidosFileFieldInfo {
   return {
+    id: `0198c72d-82b5-7000-8000-${columnName.length.toString().padStart(12, "0")}`,
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name,
     type: "number",
     tableName: "tb_tasks",
@@ -44,7 +46,7 @@ describe("Eidos File formula completions", () => {
       expect.objectContaining({
         label: "Unit price",
         detail: "unit_price · number",
-        insert: 'prop("Unit price")',
+        insert: '"Unit price"',
       }),
     ])
   })
@@ -61,7 +63,7 @@ describe("Eidos File formula completions", () => {
       ].map((name) => name.toUpperCase())
     )
     expect(
-      eidosFileFormulaCompletions([]).find((item) => item.label === "ROUND")
-    ).toMatchObject({ insert: "ROUND()", cursorOffset: -1 })
+      eidosFileFormulaCompletions([]).find((item) => item.label === "SUBSTR")
+    ).toMatchObject({ insert: "SUBSTR()", cursorOffset: -1 })
   })
 })

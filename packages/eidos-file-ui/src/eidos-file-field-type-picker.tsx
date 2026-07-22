@@ -19,6 +19,7 @@ import {
   TextSearch,
 } from "lucide-react"
 
+import { useEidosFileUI } from "./context"
 import { cn } from "./lib/cn"
 import { Input, Popover, PopoverContent, PopoverTrigger } from "./ui/primitives"
 
@@ -53,6 +54,13 @@ export const EIDOS_FILE_FIELD_TYPE_GROUPS: EidosFileFieldTypeGroup[] = [
         label: "Number",
         description: "Values, currency, percent, or progress",
         keywords: ["numeric", "currency", "percent"],
+        icon: Hash,
+      },
+      {
+        value: "integer",
+        label: "Integer",
+        description: "A whole signed 64-bit value",
+        keywords: ["whole number", "int64"],
         icon: Hash,
       },
       {
@@ -111,6 +119,13 @@ export const EIDOS_FILE_FIELD_TYPE_GROUPS: EidosFileFieldTypeGroup[] = [
         keywords: ["attachment", "asset", "image"],
         icon: ImageIcon,
       },
+      {
+        value: "json",
+        label: "JSON",
+        description: "A canonical structured JSON value",
+        keywords: ["object", "structured"],
+        icon: TextSearch,
+      },
     ],
   },
   {
@@ -124,7 +139,7 @@ export const EIDOS_FILE_FIELD_TYPE_GROUPS: EidosFileFieldTypeGroup[] = [
         icon: Sigma,
       },
       {
-        value: "link",
+        value: "relation",
         label: "Relation",
         description: "Connect records in another table",
         keywords: ["link", "reference"],
@@ -156,6 +171,7 @@ export function EidosFileFieldTypePicker({
   onChange: (value: EidosFileCreatableFieldType) => void
   disabled?: boolean
 }) {
+  const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const selected =
@@ -167,13 +183,19 @@ export function EidosFileFieldTypePicker({
     return EIDOS_FILE_FIELD_TYPE_GROUPS.map((group) => ({
       ...group,
       options: group.options.filter((option) =>
-        [option.label, option.description, ...option.keywords]
+        [
+          option.label,
+          t(option.label),
+          option.description,
+          t(option.description),
+          ...option.keywords,
+        ]
           .join(" ")
           .toLowerCase()
           .includes(needle)
       ),
     })).filter((group) => group.options.length > 0)
-  }, [query])
+  }, [query, t])
 
   return (
     <Popover
@@ -189,13 +211,15 @@ export function EidosFileFieldTypePicker({
           data-eidos-file-field-type-trigger={value}
           disabled={disabled}
           className="flex h-9 w-full items-center gap-2 rounded-md border bg-background px-3 text-left text-xs shadow-sm outline-none hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
-          aria-label="Field type"
+          aria-label={t("Field type")}
         >
           <SelectedIcon className="h-4 w-4 text-muted-foreground" />
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium">{selected.label}</span>
+            <span className="block truncate font-medium">
+              {t(selected.label)}
+            </span>
             <span className="block truncate text-[10px] text-muted-foreground">
-              {selected.description}
+              {t(selected.description)}
             </span>
           </span>
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -211,8 +235,8 @@ export function EidosFileFieldTypePicker({
             autoFocus
             value={query}
             className="h-8 pl-8 text-xs"
-            placeholder="Search field types…"
-            aria-label="Search field types"
+            placeholder={t("Search field types…")}
+            aria-label={t("Search field types")}
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
@@ -221,7 +245,7 @@ export function EidosFileFieldTypePicker({
             groups.map((group) => (
               <section key={group.label} className="mb-2 last:mb-0">
                 <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {group.label}
+                  {t(group.label)}
                 </p>
                 {group.options.map((option) => {
                   const Icon = option.icon
@@ -243,10 +267,10 @@ export function EidosFileFieldTypePicker({
                       <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="min-w-0 flex-1">
                         <span className="block text-xs font-medium">
-                          {option.label}
+                          {t(option.label)}
                         </span>
                         <span className="block text-[10px] leading-4 text-muted-foreground">
-                          {option.description}
+                          {t(option.description)}
                         </span>
                       </span>
                       {active ? <Check className="mt-0.5 h-3.5 w-3.5" /> : null}
@@ -257,7 +281,7 @@ export function EidosFileFieldTypePicker({
             ))
           ) : (
             <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-              No matching field type.
+              {t("No matching field type.")}
             </p>
           )}
         </div>

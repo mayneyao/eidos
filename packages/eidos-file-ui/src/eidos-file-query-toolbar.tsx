@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 
 import { cn } from "./lib/cn"
+import { useEidosFileUI } from "./context"
 import {
   Button,
   Input,
@@ -35,6 +36,8 @@ import {
 
 import {
   eidosFileFieldDisplayName,
+  eidosFileFieldKey,
+  isEidosFileRecordLabelField,
   isOptionalEidosFileSystemField,
 } from "./eidos-file-field-visibility"
 import { eidosFileSelectOptions } from "./eidos-file-field-properties"
@@ -53,6 +56,7 @@ const operatorLabels: Record<EidosFileFilterOperator, string> = {
   "is-empty": "is empty",
   "is-not-empty": "is not empty",
   "is-any-of": "has any of",
+  "is-all-of": "has all of",
   "is-none-of": "has none of",
 }
 
@@ -66,7 +70,7 @@ function filterableFields(fields: EidosFileFieldInfo[]) {
     (field) =>
       isOptionalEidosFileSystemField(field) ||
       (!field.isHidden &&
-        (field.tableColumnName === "title" ||
+        (isEidosFileRecordLabelField(field) ||
           field.valueKind === "source" ||
           field.valueKind === "materialized" ||
           field.valueKind === "derived"))
@@ -77,11 +81,7 @@ function fieldDisplayType(field: EidosFileFieldInfo) {
   if (field.type === "created-time" || field.type === "last-edited-time") {
     return "datetime"
   }
-  if (
-    field.type === "row-id" ||
-    field.type === "created-by" ||
-    field.type === "last-edited-by"
-  ) {
+  if (field.type === "row-id") {
     return "text"
   }
   if (
@@ -157,7 +157,7 @@ function fieldOptions(field: EidosFileFieldInfo) {
 function defaultRule(field: EidosFileFieldInfo): EidosFileFilterRule {
   return {
     type: "rule",
-    field: field.tableColumnName,
+    field: eidosFileFieldKey(field),
     operator: operatorsForField(field)[0] ?? "equals",
     value: fieldDisplayType(field) === "checkbox" ? true : "",
   }
@@ -172,6 +172,7 @@ function FilterValueEditor({
   rule: EidosFileFilterRule
   onChange: (value: EidosFileFilterValue | EidosFileFilterValue[]) => void
 }) {
+  const { translate: t } = useEidosFileUI()
   if (emptyOperators.has(rule.operator)) return null
   const displayType = fieldDisplayType(field)
   const options = fieldOptions(field)
@@ -213,7 +214,7 @@ function FilterValueEditor({
         onValueChange={onChange}
       >
         <SelectTrigger className="h-7 min-w-0 text-xs">
-          <SelectValue placeholder="Choose option" />
+          <SelectValue placeholder={t("Choose option")} />
         </SelectTrigger>
         <SelectContent>
           {options.map((option) => (
@@ -235,8 +236,8 @@ function FilterValueEditor({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="true">Checked</SelectItem>
-          <SelectItem value="false">Unchecked</SelectItem>
+          <SelectItem value="true">{t("Checked")}</SelectItem>
+          <SelectItem value="false">{t("Unchecked")}</SelectItem>
         </SelectContent>
       </Select>
     )
@@ -254,7 +255,7 @@ function FilterValueEditor({
       value={String(
         Array.isArray(rule.value) ? (rule.value[0] ?? "") : (rule.value ?? "")
       )}
-      placeholder="Value"
+      placeholder={t("Value")}
       onChange={(event) =>
         onChange(
           displayType === "number" || displayType === "rating"
@@ -289,17 +290,18 @@ function EidosFileFilterRuleEditor({
   onChange: (rule: EidosFileFilterRule) => void
   onRemove: () => void
 }) {
+  const { translate: t } = useEidosFileUI()
   const field =
-    fields.find((candidate) => candidate.tableColumnName === rule.field) ??
+    fields.find((candidate) => eidosFileFieldKey(candidate) === rule.field) ??
     fields[0]
   if (!field) return null
   return (
     <div className="grid grid-cols-[110px_150px_minmax(120px,1fr)_28px] items-start gap-1.5">
       <Select
-        value={field.tableColumnName}
-        onValueChange={(columnName) => {
+        value={eidosFileFieldKey(field)}
+        onValueChange={(fieldId) => {
           const nextField = fields.find(
-            (candidate) => candidate.tableColumnName === columnName
+            (candidate) => eidosFileFieldKey(candidate) === fieldId
           )
           if (nextField) onChange(defaultRule(nextField))
         }}
@@ -310,8 +312,8 @@ function EidosFileFilterRuleEditor({
         <SelectContent>
           {fields.map((candidate) => (
             <SelectItem
-              key={candidate.tableColumnName}
-              value={candidate.tableColumnName}
+              key={eidosFileFieldKey(candidate)}
+              value={eidosFileFieldKey(candidate)}
             >
               {eidosFileFieldDisplayName(candidate)}
             </SelectItem>
@@ -340,7 +342,7 @@ function EidosFileFilterRuleEditor({
         <SelectContent>
           {operatorsForField(field).map((operator) => (
             <SelectItem key={operator} value={operator}>
-              {operatorLabels[operator]}
+              {t(operatorLabels[operator])}
             </SelectItem>
           ))}
         </SelectContent>
@@ -355,7 +357,7 @@ function EidosFileFilterRuleEditor({
         variant="ghost"
         size="icon"
         className="h-7 w-7 text-muted-foreground"
-        aria-label="Remove filter"
+        aria-label={t("Remove filter")}
         onClick={onRemove}
       >
         <Trash2 className="h-3.5 w-3.5" />
@@ -373,6 +375,7 @@ function EidosFileFilterAddMenu({
   onAddRule: () => void
   onAddGroup: () => void
 }) {
+  const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -384,7 +387,7 @@ function EidosFileFilterAddMenu({
           className="h-7 gap-1 px-2 text-xs"
         >
           <Plus className="h-3.5 w-3.5" />
-          Add filter
+          {t("Add filter")}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-40 p-1">
@@ -396,7 +399,7 @@ function EidosFileFilterAddMenu({
             setOpen(false)
           }}
         >
-          Add condition
+          {t("Add condition")}
         </button>
         {canAddGroup ? (
           <button
@@ -407,7 +410,7 @@ function EidosFileFilterAddMenu({
               setOpen(false)
             }}
           >
-            Add group
+            {t("Add group")}
           </button>
         ) : null}
       </PopoverContent>
@@ -426,6 +429,7 @@ function EidosFileFilterGroupEditor({
   depth: number
   onChange: (group: EidosFileFilterGroup) => void
 }) {
+  const { translate: t } = useEidosFileUI()
   const updateChild = (
     index: number,
     child: EidosFileFilterRule | EidosFileFilterGroup
@@ -453,7 +457,7 @@ function EidosFileFilterGroupEditor({
     >
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">
-          {depth === 0 ? "Show rows where" : "Group where"}
+          {depth === 0 ? t("Show rows where") : t("Group where")}
         </span>
         <Select
           value={group.conjunction}
@@ -465,15 +469,15 @@ function EidosFileFilterGroupEditor({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="and">All match</SelectItem>
-            <SelectItem value="or">Any match</SelectItem>
+            <SelectItem value="and">{t("All match")}</SelectItem>
+            <SelectItem value="or">{t("Any match")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
       <div className="space-y-2">
         {group.children.length === 0 ? (
           <p className="py-2 text-xs text-muted-foreground">
-            No conditions in this group.
+            {t("No conditions in this group.")}
           </p>
         ) : null}
         {group.children.map((child, index) =>
@@ -501,7 +505,7 @@ function EidosFileFilterGroupEditor({
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-muted-foreground"
-                aria-label="Remove filter group"
+                aria-label={t("Remove filter group")}
                 onClick={() => removeChild(index)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -549,6 +553,7 @@ function EidosFileFilterPopover({
   disabled?: boolean
   onChange: (filter: EidosFileFilterGroup | null) => Promise<void> | void
 }) {
+  const { translate: t } = useEidosFileUI()
   const availableFields = useMemo(() => filterableFields(fields), [fields])
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<EidosFileFilterGroup>(
@@ -580,7 +585,7 @@ function EidosFileFilterPopover({
       setError(
         changeError instanceof Error
           ? changeError.message
-          : "Unable to update filters"
+          : t("Unable to update filters")
       )
     } finally {
       pendingRef.current = false
@@ -601,12 +606,12 @@ function EidosFileFilterPopover({
           variant={value?.children.length ? "secondary" : "ghost"}
           size="sm"
           className="eidos-file-workbar-action h-7 gap-1 px-2 text-xs"
-          aria-label="Filter Eidos File rows"
-          title="Filter"
+          aria-label={t("Filter Eidos File rows")}
+          title={t("Filter")}
           disabled={disabled || availableFields.length === 0}
         >
           <Filter className="h-3.5 w-3.5" />
-          <span className="eidos-file-workbar-action-label">Filter</span>
+          <span className="eidos-file-workbar-action-label">{t("Filter")}</span>
           {value && countFilterRules(value) > 0 ? (
             <span className="text-[10px] text-muted-foreground">
               {countFilterRules(value)}
@@ -651,7 +656,7 @@ function EidosFileFilterPopover({
                   {pendingAction === "clear" ? (
                     <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
                   ) : null}
-                  {pendingAction === "clear" ? "Clearing…" : "Clear"}
+                  {pendingAction === "clear" ? t("Clearing…") : t("Clear")}
                 </Button>
               ) : null}
               <Button
@@ -665,7 +670,7 @@ function EidosFileFilterPopover({
                 {pendingAction === "apply" ? (
                   <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
                 ) : null}
-                {pendingAction === "apply" ? "Applying…" : "Apply"}
+                {pendingAction === "apply" ? t("Applying…") : t("Apply")}
               </Button>
             </div>
           </div>
@@ -686,6 +691,7 @@ function EidosFileSortPopover({
   disabled?: boolean
   onChange: (sorts: EidosFileSort[]) => Promise<void> | void
 }) {
+  const { translate: t } = useEidosFileUI()
   const availableFields = useMemo(() => filterableFields(fields), [fields])
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(value)
@@ -712,7 +718,7 @@ function EidosFileSortPopover({
       setError(
         changeError instanceof Error
           ? changeError.message
-          : "Unable to update sorts"
+          : t("Unable to update sorts")
       )
     } finally {
       pendingRef.current = false
@@ -733,12 +739,12 @@ function EidosFileSortPopover({
           variant={value.length ? "secondary" : "ghost"}
           size="sm"
           className="eidos-file-workbar-action h-7 gap-1 px-2 text-xs"
-          aria-label="Sort Eidos File rows"
-          title="Sort"
+          aria-label={t("Sort Eidos File rows")}
+          title={t("Sort")}
           disabled={disabled || availableFields.length === 0}
         >
           <ArrowUpDown className="h-3.5 w-3.5" />
-          <span className="eidos-file-workbar-action-label">Sort</span>
+          <span className="eidos-file-workbar-action-label">{t("Sort")}</span>
           {value.length ? (
             <span className="text-[10px] text-muted-foreground">
               {value.length}
@@ -756,11 +762,11 @@ function EidosFileSortPopover({
           disabled={Boolean(pendingAction)}
           className="m-0 min-w-0 border-0 p-0"
         >
-          <div className="text-xs font-medium">Sort this view</div>
+          <div className="text-xs font-medium">{t("Sort this view")}</div>
           <div className="mt-2 space-y-1.5">
             {draft.length === 0 ? (
               <p className="py-3 text-center text-xs text-muted-foreground">
-                Rows use their original order.
+                {t("Rows use their original order.")}
               </p>
             ) : null}
             {draft.map((sort, index) => (
@@ -782,19 +788,19 @@ function EidosFileSortPopover({
                 >
                   <SelectTrigger
                     className="h-7 min-w-0 text-xs"
-                    aria-label={`Sort field ${index + 1}`}
+                    aria-label={t("Sort field {index}", { index: index + 1 })}
                   >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {availableFields.map((field) => (
                       <SelectItem
-                        key={field.tableColumnName}
-                        value={field.tableColumnName}
+                        key={eidosFileFieldKey(field)}
+                        value={eidosFileFieldKey(field)}
                         disabled={draft.some(
                           (candidate, candidateIndex) =>
                             candidateIndex !== index &&
-                            candidate.field === field.tableColumnName
+                            candidate.field === eidosFileFieldKey(field)
                         )}
                       >
                         {eidosFileFieldDisplayName(field)}
@@ -816,13 +822,15 @@ function EidosFileSortPopover({
                 >
                   <SelectTrigger
                     className="h-7 text-xs"
-                    aria-label={`Sort direction ${index + 1}`}
+                    aria-label={t("Sort direction {index}", {
+                      index: index + 1,
+                    })}
                   >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="asc">Ascending</SelectItem>
-                    <SelectItem value="desc">Descending</SelectItem>
+                    <SelectItem value="asc">{t("Ascending")}</SelectItem>
+                    <SelectItem value="desc">{t("Descending")}</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button
@@ -830,7 +838,7 @@ function EidosFileSortPopover({
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7 text-muted-foreground"
-                  aria-label="Remove sort"
+                  aria-label={t("Remove sort")}
                   onClick={() =>
                     setDraft((current) =>
                       current.filter(
@@ -862,18 +870,18 @@ function EidosFileSortPopover({
               onClick={() => {
                 const used = new Set(draft.map((sort) => sort.field))
                 const field = availableFields.find(
-                  (candidate) => !used.has(candidate.tableColumnName)
+                  (candidate) => !used.has(eidosFileFieldKey(candidate))
                 )
                 if (field) {
                   setDraft((current) => [
                     ...current,
-                    { field: field.tableColumnName, direction: "asc" },
+                    { field: eidosFileFieldKey(field), direction: "asc" },
                   ])
                 }
               }}
             >
               <Plus className="h-3.5 w-3.5" />
-              Add sort
+              {t("Add sort")}
             </Button>
             <div className="flex gap-1.5">
               {value.length ? (
@@ -887,7 +895,7 @@ function EidosFileSortPopover({
                   {pendingAction === "clear" ? (
                     <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
                   ) : null}
-                  {pendingAction === "clear" ? "Clearing…" : "Clear"}
+                  {pendingAction === "clear" ? t("Clearing…") : t("Clear")}
                 </Button>
               ) : null}
               <Button
@@ -899,7 +907,7 @@ function EidosFileSortPopover({
                 {pendingAction === "apply" ? (
                   <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
                 ) : null}
-                {pendingAction === "apply" ? "Applying…" : "Apply"}
+                {pendingAction === "apply" ? t("Applying…") : t("Apply")}
               </Button>
             </div>
           </div>
@@ -936,6 +944,7 @@ export function EidosFileQueryToolbar({
   onFilterChange: (filter: EidosFileFilterGroup | null) => Promise<void> | void
   onSortsChange: (sorts: EidosFileSort[]) => Promise<void> | void
 }) {
+  const { translate: t } = useEidosFileUI()
   const inputRef = useRef<HTMLInputElement>(null)
   const [showSearch, setShowSearch] = useState(Boolean(search))
   useEffect(() => {
@@ -953,10 +962,13 @@ export function EidosFileQueryToolbar({
   const resultStatus = !hasSearch
     ? ""
     : searchResultCount === null
-      ? "Searching"
+      ? t("Searching")
       : searchResultCount === 0
-        ? "No results"
-        : `${(searchResultIndex ?? 0) + 1} of ${searchResultCount}`
+        ? t("No results")
+        : t("{index} of {count}", {
+            index: (searchResultIndex ?? 0) + 1,
+            count: searchResultCount,
+          })
   return (
     <div className="flex min-w-0 shrink-0 items-center gap-0.5">
       {showSearch ? (
@@ -966,7 +978,7 @@ export function EidosFileQueryToolbar({
             ref={inputRef}
             type="search"
             value={search}
-            placeholder="Search rows"
+            placeholder={t("Search rows")}
             className="min-w-0 flex-1 bg-transparent text-xs outline-hidden placeholder:text-muted-foreground"
             onChange={(event) => onSearchChange(event.target.value)}
             onKeyDown={(event) => {
@@ -995,8 +1007,8 @@ export function EidosFileQueryToolbar({
             variant="ghost"
             size="icon"
             className="ml-0.5 h-5 w-5 shrink-0 text-muted-foreground"
-            aria-label="Previous search result"
-            title="Previous result (Shift+Enter)"
+            aria-label={t("Previous search result")}
+            title={t("Previous result (Shift+Enter)")}
             disabled={!hasResults}
             onClick={() => onNavigateSearch?.("previous")}
           >
@@ -1007,8 +1019,8 @@ export function EidosFileQueryToolbar({
             variant="ghost"
             size="icon"
             className="h-5 w-5 shrink-0 text-muted-foreground"
-            aria-label="Next search result"
-            title="Next result (Enter)"
+            aria-label={t("Next search result")}
+            title={t("Next result (Enter)")}
             disabled={!hasResults}
             onClick={() => onNavigateSearch?.("next")}
           >
@@ -1019,7 +1031,7 @@ export function EidosFileQueryToolbar({
             variant="ghost"
             size="icon"
             className="h-5 w-5 shrink-0 text-muted-foreground"
-            aria-label="Close search"
+            aria-label={t("Close search")}
             onClick={() => {
               onSearchChange("")
               setShowSearch(false)
@@ -1034,13 +1046,13 @@ export function EidosFileQueryToolbar({
           variant="ghost"
           size="sm"
           className="eidos-file-workbar-action h-7 gap-1 px-2 text-xs"
-          aria-label="Search Eidos File rows"
-          title="Search"
+          aria-label={t("Search Eidos File rows")}
+          title={t("Search")}
           disabled={disabled}
           onClick={() => setShowSearch(true)}
         >
           <Search className="h-3.5 w-3.5" />
-          <span className="eidos-file-workbar-action-label">Search</span>
+          <span className="eidos-file-workbar-action-label">{t("Search")}</span>
         </Button>
       )}
       <EidosFileFilterPopover

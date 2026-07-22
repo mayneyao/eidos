@@ -1,6 +1,7 @@
 import type { EidosFileRelationValue } from "@eidos.space/eidos-file"
 import { Check } from "lucide-react"
 
+import { useEidosFileUI } from "./context"
 import { cn } from "./lib/cn"
 
 export function EidosFileRelationOptionList({
@@ -28,6 +29,7 @@ export function EidosFileRelationOptionList({
   onActiveOptionChange: (optionId: string) => void
   onToggle: (option: EidosFileRelationValue) => void
 }) {
+  const { translate: t } = useEidosFileUI()
   return (
     <div
       id={listboxId}
@@ -39,10 +41,12 @@ export function EidosFileRelationOptionList({
         <div
           className="mb-1.5"
           role="group"
-          aria-label={`Selected records, ${selectedValues.length}`}
+          aria-label={t("Selected records, {count}", {
+            count: selectedValues.length,
+          })}
         >
           <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Selected · {selectedValues.length}
+            {t("Selected · {count}", { count: selectedValues.length })}
           </p>
           {selectedValues.map((option, index) => (
             <button
@@ -69,9 +73,9 @@ export function EidosFileRelationOptionList({
           ))}
         </div>
       ) : null}
-      <div role="group" aria-label={query ? "Results" : "Records"}>
+      <div role="group" aria-label={query ? t("Results") : t("Records")}>
         <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          {query ? "Results" : "Records"}
+          {query ? t("Results") : t("Records")}
         </p>
         {availableValues.map((option, index) => (
           <button

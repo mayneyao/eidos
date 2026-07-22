@@ -11,19 +11,27 @@ import {
 } from "@eidos.space/eidos-file"
 import { Link2, LoaderCircle, Search, Unlink } from "lucide-react"
 
+import { useEidosFileUI } from "./context"
 import { Button, Input } from "./ui/primitives"
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/primitives"
 
 import { useEidosFileRelationListbox } from "./eidos-file-relation-listbox"
 import { EidosFileRelationOptionList } from "./eidos-file-relation-option-list"
 
-function selectedRelations(row: EidosFileRow, field: EidosFileFieldInfo) {
+function selectedRelations(
+  row: EidosFileRow,
+  field: EidosFileFieldInfo,
+  unavailableTitle: string
+) {
   const ids = decodeEidosFileRelationIds(row[field.tableColumnName])
   const display = decodeEidosFileRelationDisplay(
     row[`${field.tableColumnName}__display`]
   )
   const titleById = new Map(display.map((value) => [value.id, value.title]))
-  return ids.map((id) => ({ id, title: titleById.get(id) ?? id }))
+  return ids.map((id) => ({
+    id,
+    title: titleById.get(id) ?? unavailableTitle,
+  }))
 }
 
 export function EidosFileRecordRelationEditor({
@@ -44,12 +52,16 @@ export function EidosFileRecordRelationEditor({
   ) => Promise<EidosFileRelationValue[]>
   onError?: (error: unknown) => void
 }) {
+  const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [options, setOptions] = useState<EidosFileRelationValue[]>([])
   const [loading, setLoading] = useState(false)
   const requestRef = useRef(0)
-  const values = useMemo(() => selectedRelations(row, field), [field, row])
+  const values = useMemo(
+    () => selectedRelations(row, field, t("Unavailable record")),
+    [field, row, t]
+  )
   const selectedIds = useMemo(
     () => new Set(values.map((value) => value.id)),
     [values]
@@ -132,13 +144,13 @@ export function EidosFileRecordRelationEditor({
           <Link2 className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           {values.length > 0
             ? values.map((value) => value.title).join(", ")
-            : "No linked records"}
+            : t("No linked records")}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-0">
         <div className="flex h-9 items-center gap-2 border-b px-2.5">
           <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium">Link records</span>
+          <span className="text-xs font-medium">{t("Link records")}</span>
           {values.length > 0 ? (
             <Button
               type="button"
@@ -149,7 +161,7 @@ export function EidosFileRecordRelationEditor({
               onClick={() => void update([])}
             >
               <Unlink className="h-3 w-3" />
-              Clear
+              {t("Clear")}
             </Button>
           ) : null}
         </div>
@@ -159,14 +171,14 @@ export function EidosFileRecordRelationEditor({
             value={query}
             autoFocus
             role="combobox"
-            aria-label={`Search records for ${field.name}`}
+            aria-label={t("Search records for {field}", { field: field.name })}
             aria-autocomplete="list"
             aria-expanded={open}
             aria-controls={listboxId}
             aria-activedescendant={activeDescendantId}
             aria-busy={loading}
             className="h-8 pl-8 text-xs"
-            placeholder="Search records"
+            placeholder={t("Search records")}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -195,7 +207,9 @@ export function EidosFileRecordRelationEditor({
         </div>
         <div className="max-h-72 overflow-y-auto p-1.5">
           <EidosFileRelationOptionList
-            accessibleName={`${field.name} relation records`}
+            accessibleName={t("{field} relation records", {
+              field: field.name,
+            })}
             activeOptionId={activeOptionId}
             availableValues={available}
             disabled={disabled}
@@ -213,11 +227,11 @@ export function EidosFileRecordRelationEditor({
               role="status"
             >
               <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
-              Loading…
+              {t("Loading…")}
             </div>
           ) : !loading && available.length === 0 ? (
             <p className="px-2 py-5 text-center text-xs text-muted-foreground">
-              No records found
+              {t("No records found")}
             </p>
           ) : null}
         </div>

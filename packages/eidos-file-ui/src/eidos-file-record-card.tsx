@@ -27,7 +27,7 @@ import {
   Paperclip,
   Trash2,
 } from "lucide-react"
-import { useEidosFileUI } from "./context"
+import { useEidosFileUI, type EidosFileUIHost } from "./context"
 import { cn } from "./lib/cn"
 import { Button } from "./ui/primitives"
 import {
@@ -120,10 +120,12 @@ function CardFieldValue({
   layout,
   row,
   theme,
+  translate,
 }: {
   layout: EidosFileRecordCardFieldLayout
   row: EidosFileRow
   theme: "dark" | "light"
+  translate: EidosFileUIHost["translate"]
 }) {
   const { field, optionByValue } = layout
   const value = row[field.tableColumnName]
@@ -139,7 +141,7 @@ function CardFieldValue({
   if (field.type === "select") {
     const rawValue = typeof value === "string" ? value : ""
     if (!rawValue) {
-      return <span className="text-muted-foreground">Empty</span>
+      return <span className="text-muted-foreground">{translate("Empty")}</span>
     }
     const option = optionByValue?.get(rawValue)
     return (
@@ -161,7 +163,7 @@ function CardFieldValue({
       typeof value === "string" ? value : null
     )
     if (values.length === 0) {
-      return <span className="text-muted-foreground">Empty</span>
+      return <span className="text-muted-foreground">{translate("Empty")}</span>
     }
     return (
       <span className="flex min-w-0 flex-wrap gap-1">
@@ -203,7 +205,7 @@ function CardFieldValue({
         ) : null}
       </span>
     ) : (
-      <span className="text-muted-foreground">Empty</span>
+      <span className="text-muted-foreground">{translate("Empty")}</span>
     )
   }
 
@@ -215,7 +217,7 @@ function CardFieldValue({
         text === "Empty" && "text-muted-foreground"
       )}
     >
-      {text}
+      {text === "Empty" ? translate("Empty") : text}
     </span>
   )
 }
@@ -281,9 +283,9 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
 }) {
   const layout =
     providedLayout ?? createEidosFileRecordCardLayout(fields, view, compact)
-  const { themeName: theme } = useEidosFileUI()
+  const { themeName: theme, translate: t } = useEidosFileUI()
   const visibleFields = selectEidosFileRecordCardFields(layout, row)
-  const title = eidosFileRecordTitle(row)
+  const title = eidosFileRecordTitle(row, fields)
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
   const suppressPointerOpenRef = useRef(false)
   const openFromCard = useCallback(
@@ -369,7 +371,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
               variant="ghost"
               size="icon"
               className="h-7 w-7 opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100"
-              aria-label={`Open ${title}`}
+              aria-label={t("Open {title}", { title })}
               onClick={() => onOpen(row)}
             >
               <Eye className="h-3.5 w-3.5" />
@@ -382,7 +384,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 opacity-0 group-hover/card:opacity-100 data-[state=open]:opacity-100 focus-visible:opacity-100"
-                    aria-label={`More actions for ${title}`}
+                    aria-label={t("More actions for {title}", { title })}
                   >
                     <MoreHorizontal className="h-3.5 w-3.5" />
                   </Button>
@@ -390,13 +392,13 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                 <DropdownMenuContent align="end" className="w-44">
                   <DropdownMenuItem onSelect={() => onOpen(row)}>
                     <Eye className="mr-2 h-3.5 w-3.5" />
-                    Open details
+                    {t("Open details")}
                   </DropdownMenuItem>
                   {onMove && moveOptions?.length ? (
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
                         <MoveRight className="mr-2 h-3.5 w-3.5" />
-                        Move to
+                        {t("Move to")}
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent className="w-44">
                         <DropdownMoveItems
@@ -419,7 +421,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                         onSelect={() => onDelete(row)}
                       >
                         <Trash2 className="mr-2 h-3.5 w-3.5" />
-                        Delete record
+                        {t("Delete record")}
                       </DropdownMenuItem>
                     </>
                   ) : null}
@@ -443,6 +445,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                     layout={fieldLayout}
                     row={row}
                     theme={theme}
+                    translate={t}
                   />
                 </span>
               </div>

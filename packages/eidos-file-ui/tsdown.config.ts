@@ -3,6 +3,8 @@ import { defineConfig } from "tsdown"
 export default defineConfig({
   entry: [
     "src/index.ts",
+    "src/kernel.ts",
+    "src/runtime-platform.tsx",
     "src/eidos-file-data-grid.tsx",
     "src/eidos-file-editor-view.tsx",
     "src/plugin.tsx",

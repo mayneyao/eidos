@@ -11,6 +11,8 @@ import {
 function recordField(index: number): EidosFileRecordCardFieldLayout {
   const tableColumnName = `field_${index}`
   const field: EidosFileFieldInfo = {
+    id: `0198c72d-82b5-7000-8000-${index.toString().padStart(12, "0")}`,
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name: `Field ${index}`,
     type: "text",
     tableName: "tb_tasks",
@@ -143,7 +145,12 @@ describe("eidosFileRecordCardPageProjection", () => {
     expect(
       eidosFileRecordCardPageProjection(
         [
-          { ...title, type: "title", tableColumnName: "title" },
+          {
+            ...title,
+            type: "text",
+            tableColumnName: "title",
+            isRecordLabel: true,
+          },
           visible,
           cover,
           group,
@@ -156,20 +163,16 @@ describe("eidosFileRecordCardPageProjection", () => {
           tableId: "tasks",
           query: "SELECT * FROM tb_tasks",
           properties: {
-            coverPreview: cover.tableColumnName,
-            groupByField: group.tableColumnName,
+            coverField: cover.id,
+            groupField: group.id,
           },
           filter: null,
           sorts: [],
           orderMap: null,
-          hiddenFields: [
-            cover.tableColumnName,
-            group.tableColumnName,
-            hidden.tableColumnName,
-          ],
+          hiddenFields: [cover.id, group.id, hidden.id],
           position: 1,
-          createdAt: "2026-07-14 00:00:00",
-          updatedAt: "2026-07-14 00:00:00",
+          createdAt: "2026-07-14T00:00:00.000Z",
+          updatedAt: "2026-07-14T00:00:00.000Z",
         }
       )
     ).toEqual({
@@ -193,14 +196,16 @@ describe("eidosFileRecordCardPageProjection", () => {
         type: "gallery",
         tableId: "tasks",
         query: "SELECT * FROM tb_tasks",
-        properties: { groupByField: "deleted_status" },
+        properties: {
+          groupField: "0198c72d-82b5-7000-8000-999999999999",
+        },
         filter: null,
         sorts: [],
         orderMap: null,
         hiddenFields: [],
         position: 1,
-        createdAt: "2026-07-14 00:00:00",
-        updatedAt: "2026-07-14 00:00:00",
+        createdAt: "2026-07-14T00:00:00.000Z",
+        updatedAt: "2026-07-14T00:00:00.000Z",
       })
     ).toEqual({
       columns: fields.map((field) => field.tableColumnName),
@@ -228,8 +233,8 @@ describe("eidosFileRecordCardPageProjection", () => {
         orderMap: null,
         hiddenFields: [],
         position: 1,
-        createdAt: "2026-07-14 00:00:00",
-        updatedAt: "2026-07-14 00:00:00",
+        createdAt: "2026-07-14T00:00:00.000Z",
+        updatedAt: "2026-07-14T00:00:00.000Z",
       })
     ).toEqual({
       columns: fields.slice(0, 6).map((field) => field.tableColumnName),

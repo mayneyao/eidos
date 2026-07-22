@@ -19,6 +19,7 @@ import { createEidosFilePluginRegistry, type EidosFilePlugin } from "./plugin"
 export interface EidosFileViewRendererProps {
   source: EidosFileEditorDataSource
   table: EidosFileTableSnapshot
+  tables?: readonly EidosFileTableSnapshot[]
   view?: EidosFileViewInfo
   query: EidosFileRowQuery
   search: string
@@ -117,6 +118,7 @@ export function EidosFileGridRenderer(props: EidosFileViewRendererProps) {
     <EidosFileDataGrid
       source={props.source}
       table={props.table}
+      tables={props.tables}
       view={props.view}
       search={props.search}
       disabled={props.disabled}

@@ -46,7 +46,7 @@ function OptionRow({
   onColor: (color: string) => void
   onDelete: () => void
 }) {
-  const { themeName: theme } = useEidosFileUI()
+  const { themeName: theme, translate: t } = useEidosFileUI()
   const [value, setValue] = useState(option.value)
   const skipNameCommitRef = useRef(false)
   const {
@@ -82,7 +82,7 @@ function OptionRow({
       <button
         type="button"
         className="flex h-6 w-5 shrink-0 cursor-grab items-center justify-center rounded-[3px] text-muted-foreground/50 hover:bg-accent hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring active:cursor-grabbing disabled:cursor-default disabled:opacity-40"
-        aria-label={`Reorder ${option.value}`}
+        aria-label={t("Reorder {option}", { option: option.value })}
         disabled={disabled}
         {...attributes}
         {...listeners}
@@ -97,13 +97,13 @@ function OptionRow({
             style={{
               backgroundColor: eidosFileOptionColor(option.color, theme),
             }}
-            aria-label={`Change ${option.value} color`}
+            aria-label={t("Change {option} color", { option: option.value })}
             disabled={disabled}
           />
         </PopoverTrigger>
         <PopoverContent align="start" side="right" className="w-44 p-2">
           <p className="mb-2 text-[11px] font-medium text-muted-foreground">
-            Color
+            {t("Color")}
           </p>
           <div className="grid grid-cols-6 gap-1.5">
             {EIDOS_FILE_OPTION_COLORS.map((color) => (
@@ -115,7 +115,7 @@ function OptionRow({
                   option.color === color.name && "ring-2 ring-foreground"
                 )}
                 style={{ backgroundColor: color[theme] }}
-                aria-label={color.name}
+                aria-label={t(color.name)}
                 onClick={() => onColor(color.name)}
               />
             ))}
@@ -126,7 +126,7 @@ function OptionRow({
         value={value}
         disabled={disabled}
         className="h-7 min-w-0 flex-1 border-transparent bg-transparent px-1.5 text-xs shadow-none hover:border-border focus-visible:border-ring"
-        aria-label={`${option.value} option value`}
+        aria-label={t("{option} option value", { option: option.value })}
         onChange={(event) => setValue(event.target.value)}
         onBlur={commitName}
         onKeyDown={(event) => {
@@ -143,7 +143,7 @@ function OptionRow({
         variant="ghost"
         size="icon"
         className="h-6 w-6 shrink-0 text-muted-foreground opacity-0 group-hover/option:opacity-100 focus-visible:opacity-100"
-        aria-label={`Delete ${option.value}`}
+        aria-label={t("Delete {option}", { option: option.value })}
         disabled={disabled}
         onClick={onDelete}
       >
@@ -171,6 +171,7 @@ export function EidosFileOptionsEditor({
   ) => Promise<void> | void
   className?: string
 }) {
+  const { translate: t } = useEidosFileUI()
   const [options, setOptions] = useState(sourceOptions)
   const [newName, setNewName] = useState("")
   const sensors = useSensors(
@@ -206,6 +207,7 @@ export function EidosFileOptionsEditor({
     commit([
       ...options,
       {
+        name,
         value: name,
         color:
           EIDOS_FILE_OPTION_COLORS[
@@ -229,7 +231,7 @@ export function EidosFileOptionsEditor({
   return (
     <section className={cn("grid gap-2 border-t pt-3", className)}>
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-medium">Options</h3>
+        <h3 className="text-xs font-medium">{t("Options")}</h3>
         <span className="text-[11px] text-muted-foreground">
           {options.length}
         </span>
@@ -263,7 +265,7 @@ export function EidosFileOptionsEditor({
                     commit(
                       options.map((candidate) =>
                         candidate.value === option.value
-                          ? { ...candidate, value: name }
+                          ? { ...candidate, name, value: name }
                           : candidate
                       ),
                       [{ from: option.value, to: name }]
@@ -292,7 +294,7 @@ export function EidosFileOptionsEditor({
           </DndContext>
         ) : (
           <p className="px-3 py-5 text-center text-xs text-muted-foreground">
-            Add the first option below.
+            {t("Add the first option below.")}
           </p>
         )}
         <div className="flex items-center gap-1 border-t p-1.5">
@@ -303,8 +305,8 @@ export function EidosFileOptionsEditor({
               "h-7 flex-1 text-xs",
               newNameUnavailable && "border-destructive"
             )}
-            placeholder="New option"
-            aria-label="New option value"
+            placeholder={t("New option")}
+            aria-label={t("New option value")}
             aria-invalid={newNameUnavailable || undefined}
             onChange={(event) => setNewName(event.target.value)}
             onKeyDown={(event) => {
@@ -319,7 +321,7 @@ export function EidosFileOptionsEditor({
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            aria-label="Add option"
+            aria-label={t("Add option")}
             disabled={disabled || !newName.trim() || newNameUnavailable}
             onClick={addOption}
           >
@@ -331,7 +333,7 @@ export function EidosFileOptionsEditor({
             className="border-t px-2.5 py-1.5 text-[11px] text-destructive"
             role="status"
           >
-            Option values must be unique.
+            {t("Option values must be unique.")}
           </p>
         ) : null}
       </div>

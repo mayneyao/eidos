@@ -17,10 +17,15 @@ import type {
 
 import { EidosFileGrid } from "./eidos-file-grid"
 import type { EidosFileEditorDataSource } from "./data-source"
+import {
+  eidosFileFieldKey,
+  isEidosFileRecordLabelField,
+} from "./eidos-file-field-visibility"
 
 export interface EidosFileDataGridProps {
   source: EidosFileEditorDataSource
   table: EidosFileTableSnapshot
+  tables?: readonly EidosFileTableSnapshot[]
   view?: EidosFileViewInfo
   search?: string
   disabled?: boolean
@@ -48,6 +53,7 @@ export interface EidosFileDataGridProps {
 export function EidosFileDataGrid({
   source,
   table,
+  tables,
   view,
   search = "",
   disabled = false,
@@ -91,7 +97,7 @@ export function EidosFileDataGrid({
   )
 
   const addRow = useCallback(async () => {
-    const result = await source.insertRow(table.table.id, { title: "" })
+    const result = await source.insertRow(table.table.id, {})
     onMutation?.(result)
     return result
   }, [onMutation, source, table.table.id])
@@ -103,7 +109,7 @@ export function EidosFileDataGrid({
       value: EidosFileSqlPrimitive
     ) => {
       const result = await source.updateRow(table.table.id, String(row._id), {
-        [field.tableColumnName]: value,
+        [eidosFileFieldKey(field)]: value,
       })
       onMutation?.(result)
       return result
@@ -115,7 +121,7 @@ export function EidosFileDataGrid({
     async (field: EidosFileFieldInfo, changes: UpdateEidosFileFieldInput) => {
       const snapshot = await source.updateField(
         table.table.id,
-        field.tableColumnName,
+        eidosFileFieldKey(field),
         changes
       )
       onSnapshot?.(snapshot)
@@ -126,7 +132,7 @@ export function EidosFileDataGrid({
   const deleteField = useCallback(
     (field: EidosFileFieldInfo) => {
       void source
-        .deleteField(table.table.id, field.tableColumnName)
+        .deleteField(table.table.id, eidosFileFieldKey(field))
         .then((snapshot) => {
           onSnapshot?.(snapshot)
           onFieldClose?.()
@@ -152,11 +158,12 @@ export function EidosFileDataGrid({
     ): Promise<EidosFileRelationValue[]> => {
       const targetTableId = field.property?.targetTableId
       if (typeof targetTableId !== "string" || !targetTableId) return []
-      const targetField =
-        typeof field.property?.targetField === "string" &&
-        field.property.targetField
-          ? field.property.targetField
-          : "title"
+      const snapshot = await source.getSnapshot()
+      const targetTable = snapshot.tables.find(
+        (candidate) => candidate.table.id === targetTableId
+      )
+      const labelField = targetTable?.fields.find(isEidosFileRecordLabelField)
+      if (!labelField) return []
       const page = await source.getPage(
         targetTableId,
         0,
@@ -165,15 +172,15 @@ export function EidosFileDataGrid({
         undefined,
         undefined,
         {
-          columns: [targetField],
-          preservedColumns: ["_id", "title"],
+          columns: [labelField.tableColumnName],
+          preservedColumns: ["_id"],
           fieldLimit: 1,
         }
       )
       return page.rows.flatMap((row) => {
         const id = row._id
         if (id === null || id === undefined) return []
-        const display = row[targetField] ?? row.title ?? id
+        const display = row[labelField.tableColumnName] ?? id
         return [{ id: String(id), title: String(display ?? id) }]
       })
     },
@@ -183,6 +190,7 @@ export function EidosFileDataGrid({
   return (
     <EidosFileGrid
       table={table}
+      tables={tables}
       view={view}
       disabled={disabled}
       reloadToken={reloadToken}

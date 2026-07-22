@@ -3,10 +3,11 @@
 import { act } from "react"
 import { flushSync } from "react-dom"
 import { createRoot, type Root } from "react-dom/client"
-import type {
-  EidosFileRowPage,
-  EidosFileTableSnapshot,
-  EidosFileViewInfo,
+import {
+  encodeEidosFileAttachmentPaths,
+  type EidosFileRowPage,
+  type EidosFileTableSnapshot,
+  type EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -16,9 +17,18 @@ import {
   EIDOS_FILE_VIRTUAL_SCROLL_MAX_SIZE,
 } from "./eidos-file-virtual-scroll"
 
+const contextMocks = vi.hoisted(() => ({
+  translate: (message: string, values: Record<string, string | number> = {}) =>
+    Object.entries(values).reduce(
+      (text, [key, value]) => text.split(`{${key}}`).join(String(value)),
+      message
+    ),
+}))
+
 vi.mock("./context", () => ({
   useEidosFileUI: () => ({
     themeName: "light",
+    translate: contextMocks.translate,
     resolveAssetUrl: (path: string) => `/~/${path}`,
     resolveFilePreview: (path: string) => path,
   }),
@@ -84,27 +94,33 @@ const table: EidosFileTableSnapshot = {
     id: "tasks",
     name: "Tasks",
     rawTableName: "tb_tasks",
+    physicalName: "tb_tasks",
     position: 1,
     icon: null,
     description: null,
-    createdAt: "2026-07-12 00:00:00",
-    updatedAt: "2026-07-12 00:00:00",
+    createdAt: "2026-07-12T00:00:00.000Z",
+    updatedAt: "2026-07-12T00:00:00.000Z",
   },
   fields: [
     {
+      id: "0198c72d-82b5-7000-8000-000000000001",
+      tableId: "0198c72d-82b5-7000-8000-000000000010",
       name: "Title",
-      type: "title",
+      type: "text",
+      isRecordLabel: true,
       tableName: "tb_tasks",
       tableColumnName: "title",
       property: null,
       storageCodec: "scalar",
-      valueKind: "system",
+      valueKind: "source",
       isHidden: false,
       isDerived: false,
       sourceTableColumnName: null,
       dependsOn: null,
     },
     {
+      id: "0198c72d-82b5-7000-8000-000000000002",
+      tableId: "0198c72d-82b5-7000-8000-000000000010",
       name: "Status",
       type: "select",
       tableName: "tb_tasks",
@@ -136,8 +152,8 @@ const view: EidosFileViewInfo = {
   orderMap: null,
   hiddenFields: [],
   position: 1,
-  createdAt: "2026-07-12 00:00:00",
-  updatedAt: "2026-07-12 00:00:00",
+  createdAt: "2026-07-12T00:00:00.000Z",
+  updatedAt: "2026-07-12T00:00:00.000Z",
 }
 
 describe("EidosFileGalleryView", () => {
@@ -417,6 +433,8 @@ describe("EidosFileGalleryView", () => {
       fields: [
         ...table.fields,
         {
+          id: "0198c72d-82b5-7000-8000-000000000003",
+          tableId: "0198c72d-82b5-7000-8000-000000000010",
           name: "Cover",
           type: "file",
           tableName: "tb_tasks",
@@ -436,7 +454,7 @@ describe("EidosFileGalleryView", () => {
       ...view,
       properties: {
         ...view.properties,
-        coverPreview: "cover",
+        coverField: "0198c72d-82b5-7000-8000-000000000003",
       },
     }
     await act(async () => {
@@ -453,12 +471,12 @@ describe("EidosFileGalleryView", () => {
               {
                 _id: "row_1",
                 title: "First",
-                cover: '["assets/shared.png"]',
+                cover: encodeEidosFileAttachmentPaths(["assets/shared.png"]),
               },
               {
                 _id: "row_2",
                 title: "Second",
-                cover: '["assets/shared.png"]',
+                cover: encodeEidosFileAttachmentPaths(["assets/shared.png"]),
               },
             ],
           }))}

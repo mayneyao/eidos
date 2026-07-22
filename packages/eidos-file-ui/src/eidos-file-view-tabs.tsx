@@ -9,6 +9,7 @@ import type { EidosFileViewInfo } from "@eidos.space/eidos-file"
 import { Pencil, Settings2, Trash2 } from "lucide-react"
 
 import { EidosFileViewTabStrip } from "./eidos-file-editor-chrome"
+import { useEidosFileUI } from "./context"
 import {
   EidosFileViewSelector,
   eidosFileExtensionContributionId,
@@ -52,6 +53,7 @@ function EidosFileViewTabContextMenu({
   tab: ReactNode
   actions: EidosFileViewTabActions
 }) {
+  const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
@@ -80,14 +82,14 @@ function EidosFileViewTabContextMenu({
           onSelect={() => afterMenuClose(actions.rename)}
         >
           <Pencil />
-          Rename view
+          {t("Rename view")}
         </ContextMenuItem>
         <ContextMenuItem
           disabled={actions.disabled}
           onSelect={() => afterMenuClose(actions.configure)}
         >
           <Settings2 />
-          Configure view
+          {t("Configure view")}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
@@ -97,7 +99,7 @@ function EidosFileViewTabContextMenu({
           onSelect={() => afterMenuClose(actions.delete)}
         >
           <Trash2 />
-          Delete view
+          {t("Delete view")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -108,6 +110,7 @@ export function EidosFileViewTabs({
   renderTab,
   ...props
 }: EidosFileViewTabsProps) {
+  const { translate: t } = useEidosFileUI()
   const { views, activeView, disabled, onSelect } = props
   const rootRef = useRef<HTMLDivElement>(null)
   const requestIdRef = useRef(0)
@@ -168,11 +171,11 @@ export function EidosFileViewTabs({
               if (canDelete) requestPanel(view, "delete")
             },
             deleteDisabledReason: disabled
-              ? "View changes are unavailable while saving"
+              ? t("View changes are unavailable while saving")
               : view.type === "grid" && gridViewCount <= 1
-                ? "A table must keep one Grid view"
+                ? t("A table must keep one Grid view")
                 : views.length <= 1
-                  ? "A table must keep one view"
+                  ? t("A table must keep one view")
                   : undefined,
             disabled: Boolean(disabled),
             rename: () => {

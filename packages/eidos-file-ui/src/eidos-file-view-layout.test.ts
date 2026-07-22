@@ -14,13 +14,16 @@ import {
 
 const fields = ["title", "status", "owner"].map(
   (tableColumnName, index): EidosFileFieldInfo => ({
+    id: `0198c72d-82b5-7000-8000-${index.toString().padStart(12, "0")}`,
+    tableId: "0198c72d-82b5-7000-8000-000000000010",
     name: tableColumnName,
-    type: index === 0 ? "title" : "text",
+    type: "text",
+    isRecordLabel: index === 0,
     tableName: "tb_tasks",
     tableColumnName,
     property: null,
     storageCodec: "scalar",
-    valueKind: index === 0 ? "system" : "source",
+    valueKind: "source",
     isHidden: false,
     isDerived: false,
     sourceTableColumnName: null,
@@ -29,6 +32,8 @@ const fields = ["title", "status", "owner"].map(
 )
 
 const createdTimeField: EidosFileFieldInfo = {
+  id: "0198c72d-82b5-7000-8000-000000000004",
+  tableId: "0198c72d-82b5-7000-8000-000000000010",
   name: "Created time",
   type: "created-time",
   tableName: "tb_tasks",
@@ -51,11 +56,11 @@ const view: EidosFileViewInfo = {
   properties: { freezeColumns: 2 },
   filter: null,
   sorts: [],
-  orderMap: { owner: 0, title: 1, status: 2 },
+  orderMap: { [fields[2].id]: 0, [fields[0].id]: 1, [fields[1].id]: 2 },
   hiddenFields: [],
   position: 1,
-  createdAt: "2026-07-12 00:00:00",
-  updatedAt: "2026-07-12 00:00:00",
+  createdAt: "2026-07-12T00:00:00.000Z",
+  updatedAt: "2026-07-12T00:00:00.000Z",
 }
 
 describe("Eidos File view layout commands", () => {
@@ -76,15 +81,15 @@ describe("Eidos File view layout commands", () => {
     expect(
       nextEidosFileFieldSorts(
         [
-          { field: "owner", direction: "asc" },
-          { field: "status", direction: "desc" },
+          { field: fields[2].id, direction: "asc" },
+          { field: fields[1].id, direction: "desc" },
         ],
-        "status",
+        fields[1].id,
         "asc"
       )
     ).toEqual([
-      { field: "status", direction: "asc" },
-      { field: "owner", direction: "asc" },
+      { field: fields[1].id, direction: "asc" },
+      { field: fields[2].id, direction: "asc" },
     ])
   })
 
@@ -99,7 +104,7 @@ describe("Eidos File view layout commands", () => {
         ...view,
         properties: {
           ...view.properties,
-          visibleSystemFields: ["_created_time", "_created_time", 42],
+          visibleSystemFields: [createdTimeField.id, createdTimeField.id, 42],
         },
       }).map((field) => field.tableColumnName)
     ).toEqual(["owner", "title", "status", "_created_time"])

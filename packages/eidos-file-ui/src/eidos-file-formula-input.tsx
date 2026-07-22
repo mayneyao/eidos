@@ -62,7 +62,7 @@ export const EidosFileFormulaInput = forwardRef<
       completions,
       disabled = false,
       height = "100px",
-      placeholder: placeholderText = "Enter a SQL expression",
+      placeholder: placeholderText = "Enter a Formula expression",
       onChange,
       onEscape,
       onSave,

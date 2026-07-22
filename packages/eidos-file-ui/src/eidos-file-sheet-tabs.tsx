@@ -36,6 +36,7 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "./ui/primitives"
+import { useEidosFileUI } from "./context"
 
 export interface EidosFileSheetTabActions {
   canDelete: boolean
@@ -75,6 +76,7 @@ function EidosFileSheetTabContextMenu({
   tab: ReactNode
   actions: EidosFileSheetTabActions
 }) {
+  const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
@@ -103,7 +105,7 @@ function EidosFileSheetTabContextMenu({
           onSelect={() => afterMenuClose(actions.rename)}
         >
           <Pencil />
-          Rename table
+          {t("Rename table")}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
@@ -113,7 +115,7 @@ function EidosFileSheetTabContextMenu({
           onSelect={() => afterMenuClose(actions.delete)}
         >
           <Trash2 />
-          Delete table
+          {t("Delete table")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -131,6 +133,7 @@ export function EidosFileSheetTabs({
   onDelete,
   renderTab,
 }: EidosFileSheetTabsProps) {
+  const { translate: t } = useEidosFileUI()
   const rootRef = useRef<HTMLDivElement>(null)
   const [renameRequest, setRenameRequest] = useState<RenameRequest | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<EidosFileTableInfo | null>(
@@ -198,7 +201,7 @@ export function EidosFileSheetTabs({
       setError(
         renameError instanceof Error
           ? renameError.message
-          : "Unable to rename table"
+          : t("Unable to rename table")
       )
     } finally {
       setBusy(null)
@@ -216,7 +219,7 @@ export function EidosFileSheetTabs({
       setError(
         deleteError instanceof Error
           ? deleteError.message
-          : "Unable to delete table"
+          : t("Unable to delete table")
       )
     } finally {
       setBusy(null)
@@ -244,11 +247,11 @@ export function EidosFileSheetTabs({
                 setDeleteTarget(table)
               },
               deleteDisabledReason: disabled
-                ? "Table changes are unavailable while saving"
+                ? t("Table changes are unavailable while saving")
                 : !onDelete
-                  ? "Table deletion is unavailable"
+                  ? t("Table deletion is unavailable")
                   : tables.length <= 1
-                    ? "An Eidos File must keep one table"
+                    ? t("An Eidos File must keep one table")
                     : undefined,
               disabled: disabled || !onRename,
               rename: () => requestRename(table),
@@ -282,9 +285,9 @@ export function EidosFileSheetTabs({
         ) : null}
         <PopoverContent align="start" side="top" className="w-80 p-0">
           <div className="border-b px-4 py-3">
-            <h2 className="text-sm font-semibold">Rename table</h2>
+            <h2 className="text-sm font-semibold">{t("Rename table")}</h2>
             <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-              This changes the display name inside the Eidos File.
+              {t("This changes the display name inside the Eidos File.")}
             </p>
           </div>
           <form onSubmit={submitRename}>
@@ -293,7 +296,7 @@ export function EidosFileSheetTabs({
                 className="grid gap-1.5 text-xs font-medium"
                 htmlFor={nameId}
               >
-                Name
+                {t("Name")}
                 <Input
                   id={nameId}
                   value={name}
@@ -325,7 +328,7 @@ export function EidosFileSheetTabs({
                 disabled={busy === "rename"}
                 onClick={() => setRenameRequest(null)}
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button
                 type="submit"
@@ -338,10 +341,10 @@ export function EidosFileSheetTabs({
                 {busy === "rename" ? (
                   <>
                     <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
-                    Renaming…
+                    {t("Renaming…")}
                   </>
                 ) : (
-                  "Rename"
+                  t("Rename")
                 )}
               </Button>
             </div>
@@ -361,11 +364,14 @@ export function EidosFileSheetTabs({
         <AlertDialogContent className="max-w-sm">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Delete table “{deleteTarget?.name}”?
+              {t("Delete table “{name}”?", {
+                name: deleteTarget?.name ?? "",
+              })}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              All rows, fields, and views in this table will be removed from the
-              Eidos File.
+              {t(
+                "All rows, fields, and views in this table will be removed from the Eidos File."
+              )}
             </AlertDialogDescription>
             {error ? (
               <p className="break-words text-xs text-destructive" role="alert">
@@ -375,7 +381,7 @@ export function EidosFileSheetTabs({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={busy === "delete"}>
-              Cancel
+              {t("Cancel")}
             </AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -388,10 +394,10 @@ export function EidosFileSheetTabs({
               {busy === "delete" ? (
                 <>
                   <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
-                  Deleting…
+                  {t("Deleting…")}
                 </>
               ) : (
-                "Delete table"
+                t("Delete table")
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

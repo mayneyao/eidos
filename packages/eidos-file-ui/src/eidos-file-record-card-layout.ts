@@ -10,6 +10,10 @@ import {
   eidosFileSelectOptions,
   type EidosFileSelectOption,
 } from "./eidos-file-field-properties"
+import {
+  eidosFileFieldKey,
+  isEidosFileRecordLabelField,
+} from "./eidos-file-field-visibility"
 import { orderedEidosFileFields } from "./eidos-file-view-layout"
 
 export interface EidosFileRecordCardFieldLayout {
@@ -77,14 +81,16 @@ export function createEidosFileRecordCardLayout(
   compact = false
 ): EidosFileRecordCardLayout {
   const coverFieldName =
-    typeof view.properties?.coverPreview === "string"
-      ? view.properties.coverPreview
-      : null
+    typeof view.properties?.coverField === "string"
+      ? view.properties.coverField
+      : typeof view.properties?.coverPreview === "string"
+        ? view.properties.coverPreview
+        : null
   return {
     fields: orderedEidosFileFields(fields, view)
       .filter(
         (field) =>
-          field.tableColumnName !== "title" && field.valueKind !== "system"
+          !isEidosFileRecordLabelField(field) && field.valueKind !== "system"
       )
       .map((field) => {
         const options =
@@ -102,7 +108,7 @@ export function createEidosFileRecordCardLayout(
     coverField:
       fields.find(
         (field) =>
-          field.tableColumnName === coverFieldName &&
+          eidosFileFieldKey(field) === coverFieldName &&
           isEidosFileRecordCoverField(field)
       ) ?? null,
     fieldLimit: compact ? 4 : 6,
@@ -125,10 +131,13 @@ export function eidosFileRecordCardPageProjection(
     preservedColumns.add(layout.coverField.tableColumnName)
   }
   if (view.type === "kanban") {
+    const groupFieldKey =
+      typeof view.properties?.groupField === "string"
+        ? view.properties.groupField
+        : view.properties?.groupByField
     const groupField = fields.find(
       (field) =>
-        field.tableColumnName === view.properties?.groupByField &&
-        field.type === "select"
+        eidosFileFieldKey(field) === groupFieldKey && field.type === "select"
     )
     if (groupField) preservedColumns.add(groupField.tableColumnName)
   }

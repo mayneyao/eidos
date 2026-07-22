@@ -80,9 +80,10 @@ const snapshot: EidosFileSnapshot = {
   path: "tasks.eidos",
   metadata: {
     format: "eidos-file",
-    formatVersion: 1,
+    fileId: "0198c72d-82b5-7968-b163-98be4b7477df",
+    formatVersion: "1.0",
     schemaVersion: 1,
-    app: "test",
+    revision: 0,
     createdAt: now,
     updatedAt: now,
   },
@@ -231,7 +232,7 @@ describe("EidosFileEditorView registry", () => {
       },
     }
     const configs: EidosFileColumnStatConfig[] = [
-      { columnName: "estimate", type: "sum" },
+      { fieldId: "estimate", type: "sum" },
     ]
 
     act(() => {

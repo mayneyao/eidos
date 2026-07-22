@@ -2,11 +2,13 @@
 
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import type {
-  EidosFileRowPage,
-  EidosFileRowMutationResult,
-  EidosFileRowsMutationResult,
-  EidosFileTableSnapshot,
+import {
+  decodeEidosFileAttachmentPaths,
+  encodeEidosFileAttachmentPaths,
+  type EidosFileRowPage,
+  type EidosFileRowMutationResult,
+  type EidosFileRowsMutationResult,
+  type EidosFileTableSnapshot,
 } from "@eidos.space/eidos-file"
 import {
   CompactSelection,
@@ -16,6 +18,9 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileGrid, type EidosFileGridRowEdit } from "./eidos-file-grid"
+
+const ADA_ID = "0198c72d-82b5-7968-b163-98be4b7477df"
+const GRACE_ID = "0198c72d-82b5-7969-8163-98be4b7477df"
 
 const mocks = vi.hoisted(() => ({
   props: null as DataEditorProps | null,
@@ -55,27 +60,33 @@ const table: EidosFileTableSnapshot = {
     id: "tasks",
     name: "Tasks",
     rawTableName: "tb_tasks",
+    physicalName: "tb_tasks",
     position: 1,
     icon: null,
     description: null,
-    createdAt: "2026-07-12 00:00:00",
-    updatedAt: "2026-07-12 00:00:00",
+    createdAt: "2026-07-12T00:00:00.000Z",
+    updatedAt: "2026-07-12T00:00:00.000Z",
   },
   fields: [
     {
+      id: "0198c72d-82b5-7000-8000-000000000001",
+      tableId: "0198c72d-82b5-7000-8000-000000000010",
       name: "Title",
-      type: "title",
+      type: "text",
+      isRecordLabel: true,
       tableName: "tb_tasks",
       tableColumnName: "title",
       property: null,
       storageCodec: "scalar",
-      valueKind: "system",
+      valueKind: "source",
       isHidden: false,
       isDerived: false,
       sourceTableColumnName: null,
       dependsOn: null,
     },
     {
+      id: "0198c72d-82b5-7000-8000-000000000002",
+      tableId: "0198c72d-82b5-7000-8000-000000000010",
       name: "Done",
       type: "checkbox",
       tableName: "tb_tasks",
@@ -102,8 +113,8 @@ const table: EidosFileTableSnapshot = {
       orderMap: null,
       hiddenFields: [],
       position: 1,
-      createdAt: "2026-07-12 00:00:00",
-      updatedAt: "2026-07-12 00:00:00",
+      createdAt: "2026-07-12T00:00:00.000Z",
+      updatedAt: "2026-07-12T00:00:00.000Z",
     },
   ],
   rowCount: 250,
@@ -732,6 +743,8 @@ describe("EidosFileGrid", () => {
       fields: [
         ...table.fields,
         {
+          id: "0198c72d-82b5-7000-8000-000000000003",
+          tableId: "0198c72d-82b5-7000-8000-000000000010",
           name: "Created time",
           type: "created-time",
           tableName: "tb_tasks",
@@ -748,7 +761,9 @@ describe("EidosFileGrid", () => {
       views: [
         {
           ...table.views[0],
-          properties: { visibleSystemFields: ["_created_time"] },
+          properties: {
+            visibleSystemFields: ["0198c72d-82b5-7000-8000-000000000003"],
+          },
         },
       ],
     }
@@ -823,7 +838,12 @@ describe("EidosFileGrid", () => {
     openDoneMenu()
     clickMenuItem("Sort descending")
     expect(onViewUpdate).toHaveBeenLastCalledWith({
-      sorts: [{ field: "done", direction: "desc" }],
+      sorts: [
+        {
+          field: "0198c72d-82b5-7000-8000-000000000002",
+          direction: "desc",
+        },
+      ],
     })
 
     openDoneMenu()
@@ -838,9 +858,15 @@ describe("EidosFileGrid", () => {
 
     openDoneMenu()
     clickMenuItem("Calculate")
-    clickMenuItem("Checked")
+    clickMenuItem("Count non-null")
     expect(onViewUpdate).toHaveBeenLastCalledWith({
-      properties: { columnStats: { done: { type: "checked" } } },
+      properties: {
+        columnStats: {
+          "0198c72d-82b5-7000-8000-000000000002": {
+            type: "count-non-null",
+          },
+        },
+      },
     })
   })
 
@@ -849,14 +875,26 @@ describe("EidosFileGrid", () => {
       ...table.views[0],
       properties: {
         columnStats: {
-          title: { type: "count-values" },
-          done: { type: "percent-checked" },
+          "0198c72d-82b5-7000-8000-000000000001": {
+            type: "count-non-null",
+          },
+          "0198c72d-82b5-7000-8000-000000000002": {
+            type: "count-distinct",
+          },
         },
       },
     }
     const loadColumnStats = vi.fn().mockResolvedValue([
-      { columnName: "title", type: "count-values", value: 250 },
-      { columnName: "done", type: "percent-checked", value: 40 },
+      {
+        fieldId: "0198c72d-82b5-7000-8000-000000000001",
+        type: "count-non-null",
+        value: 250,
+      },
+      {
+        fieldId: "0198c72d-82b5-7000-8000-000000000002",
+        type: "count-distinct",
+        value: 40,
+      },
     ])
     const onCellEdit = createCellEdit()
     await act(async () => {
@@ -875,14 +913,20 @@ describe("EidosFileGrid", () => {
     })
 
     expect(loadColumnStats).toHaveBeenCalledWith([
-      { columnName: "title", type: "count-values" },
-      { columnName: "done", type: "percent-checked" },
+      {
+        fieldId: "0198c72d-82b5-7000-8000-000000000001",
+        type: "count-non-null",
+      },
+      {
+        fieldId: "0198c72d-82b5-7000-8000-000000000002",
+        type: "count-distinct",
+      },
     ])
     expect(mocks.props?.columns[0].trailingRowOptions?.hint).toBe(
-      "Count values: 250"
+      "Count non-null: 250"
     )
     expect(mocks.props?.columns[1].trailingRowOptions?.hint).toBe(
-      "Checked: 40%"
+      "Count distinct: 40"
     )
 
     await act(async () => {
@@ -901,14 +945,24 @@ describe("EidosFileGrid", () => {
   it("reports a column stat failure once and retries on an explicit reload", async () => {
     const view = {
       ...table.views[0],
-      properties: { columnStats: { done: { type: "checked" } } },
+      properties: {
+        columnStats: {
+          "0198c72d-82b5-7000-8000-000000000002": {
+            type: "count-non-null",
+          },
+        },
+      },
     }
     const error = new Error("stats unavailable")
     const loadColumnStats = vi
       .fn()
       .mockRejectedValueOnce(error)
       .mockResolvedValueOnce([
-        { columnName: "done", type: "checked", value: 100 },
+        {
+          fieldId: "0198c72d-82b5-7000-8000-000000000002",
+          type: "count-non-null",
+          value: 100,
+        },
       ])
     const onError = vi.fn()
     const render = async (reloadToken: number) => {
@@ -944,7 +998,7 @@ describe("EidosFileGrid", () => {
     await render(1)
     expect(loadColumnStats).toHaveBeenCalledTimes(2)
     expect(mocks.props?.columns[1].trailingRowOptions?.hint).toBe(
-      "Checked: 100"
+      "Count non-null: 100"
     )
   })
 
@@ -1011,8 +1065,13 @@ describe("EidosFileGrid", () => {
     const onViewUpdate = vi.fn()
     const view = {
       ...table.views[0],
-      properties: { fieldWidthMap: { done: 140 } },
-      orderMap: { done: 0, title: 1 },
+      properties: {
+        fieldWidths: { "0198c72d-82b5-7000-8000-000000000002": 140 },
+      },
+      orderMap: {
+        "0198c72d-82b5-7000-8000-000000000002": 0,
+        "0198c72d-82b5-7000-8000-000000000001": 1,
+      },
     }
     await act(async () => {
       root.render(
@@ -1045,14 +1104,19 @@ describe("EidosFileGrid", () => {
       vi.advanceTimersByTime(400)
     })
     expect(onViewUpdate).toHaveBeenCalledWith({
-      properties: { fieldWidthMap: { done: 210 } },
+      properties: {
+        fieldWidths: { "0198c72d-82b5-7000-8000-000000000002": 210 },
+      },
     })
 
     act(() => {
       mocks.props?.onColumnMoved?.(0, 1)
     })
     expect(onViewUpdate).toHaveBeenCalledWith({
-      orderMap: { title: 0, done: 1 },
+      orderMap: {
+        "0198c72d-82b5-7000-8000-000000000001": 0,
+        "0198c72d-82b5-7000-8000-000000000002": 1,
+      },
     })
   })
 
@@ -1335,7 +1399,7 @@ describe("EidosFileGrid", () => {
     }
     const row = {
       ...rowAt(0),
-      files: '["assets/existing.pdf"]',
+      files: encodeEidosFileAttachmentPaths(["assets/existing.pdf"]),
     }
     const loadPage = vi.fn(async () => ({
       tableId: "tasks",
@@ -1392,18 +1456,19 @@ describe("EidosFileGrid", () => {
       await Promise.resolve()
     })
     expect(onImportDroppedFiles).toHaveBeenCalledWith([dropped])
-    expect(onCellEdit).toHaveBeenCalledWith(
-      row,
-      fileField,
-      '["assets/existing.pdf","assets/dropped.png"]'
-    )
+    expect(onCellEdit).toHaveBeenCalledWith(row, fileField, expect.any(String))
+    expect(
+      decodeEidosFileAttachmentPaths(
+        onCellEdit.mock.calls.at(-1)?.[2] as string | undefined
+      )
+    ).toEqual(["assets/existing.pdf", "assets/dropped.png"])
   })
 
   it("hydrates relation cells and delegates target record search", async () => {
     const relationField = {
       ...table.fields[1],
       name: "Owners",
-      type: "link" as const,
+      type: "relation" as const,
       tableColumnName: "owners",
       storageCodec: "relation" as const,
       valueKind: "relation" as const,
@@ -1420,12 +1485,12 @@ describe("EidosFileGrid", () => {
     }
     const row = {
       ...rowAt(0),
-      owners: '["row_ada"]',
-      owners__display: '[{"id":"row_ada","title":"Ada Lovelace"}]',
+      owners: JSON.stringify([ADA_ID]),
+      owners__display: JSON.stringify([{ id: ADA_ID, title: "Ada Lovelace" }]),
     }
     const onSearchRelation = vi
       .fn()
-      .mockResolvedValue([{ id: "row_grace", title: "Grace Hopper" }])
+      .mockResolvedValue([{ id: GRACE_ID, title: "Grace Hopper" }])
     await act(async () => {
       root.render(
         <EidosFileGrid
@@ -1450,7 +1515,7 @@ describe("EidosFileGrid", () => {
       kind: GridCellKind.Custom,
       data: {
         kind: "eidos-file-relation-cell",
-        values: [{ id: "row_ada", title: "Ada Lovelace" }],
+        values: [{ id: ADA_ID, title: "Ada Lovelace" }],
       },
     })
     if (
