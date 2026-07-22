@@ -106,6 +106,16 @@ function closeDatabase(db) {
   }
 }
 
+function exitSmoke(code) {
+  // Electron's Windows process can keep the Graft VFS worker alive after the
+  // smoke has closed every database. This script has no asynchronous cleanup
+  // left at this point, so bypass Electron's patched graceful-exit path.
+  if (typeof process.reallyExit === "function") {
+    process.reallyExit(code)
+  }
+  process.exit(code)
+}
+
 function registerGraftExtension() {
   if (graftExtensionRegistered) return
   const registrationDb = new Database(":memory:")
@@ -2037,8 +2047,8 @@ try {
     runMultiSqliteWorkspaceSmoke()
     runPersistentRemoteConflictSmoke()
   }
-  process.exit(0)
+  exitSmoke(0)
 } catch (error) {
   console.error(error)
-  process.exit(1)
+  exitSmoke(1)
 }

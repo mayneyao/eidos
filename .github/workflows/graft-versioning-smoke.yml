@@ -74,4 +74,6 @@ jobs:
         timeout-minutes: 10
         env:
           ELECTRON_RUN_AS_NODE: "1"
-        run: pnpm exec electron scripts/graft-versioning-smoke.cjs
+        run: |
+          $electron = node -p "require('electron')"
+          & $electron scripts/graft-versioning-smoke.cjs
