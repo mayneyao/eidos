@@ -1,4 +1,4 @@
-# RFC: Product UX for Spaces, Bases, and Changes
+# RFC: Product UX for Spaces, Eidos Files, and Changes
 
 Status: Draft, Desktop delivery accepted
 Date: 2026-07-08

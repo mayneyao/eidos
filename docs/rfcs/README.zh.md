@@ -6,6 +6,10 @@
 
 本目录包含 Eidos 转向 file-based 存储模型的一组草案 RFC。
 
+> **规范文本：**[Eidos File 1.0](../specs/eidos-file-1.0.md)，中文说明见
+> [Eidos File 1.0 中文参考译本](../specs/eidos-file-1.0.zh.md)。本目录文档是设计与
+> 实现记录；与 1.0 规范不一致时，以规范为准。
+
 ## 实施状态
 
 | RFC                     | 状态                   | 当前实现边界                                                                                                                                                                                                                                                        |
@@ -30,21 +34,23 @@ Eidos File v1 交付 gate 现已关闭。文件化扩展是独立且当前暂缓
 
 推荐阅读顺序：
 
-1. `eidos-file-storage.zh.md`
+1. `../specs/eidos-file-1.0.zh.md`
+   - Eidos File 最终、implementation-independent 契约的中文参考译本。
+2. `eidos-file-storage.zh.md`
    - 整体产品/存储模型。
-2. `eidos-file-format.zh.md`
-   - `.eidos` SQLite 文件格式与表格运行时。
-3. `eidos-space-markdown-runtime.zh.md`
+3. `eidos-file-format.zh.md`
+   - 已被取代的早期 runtime 设计与实现记录。
+4. `eidos-space-markdown-runtime.zh.md`
    - Space mode 下 Markdown 文件作为 source of truth。
-4. `eidos-file-based-extensions.zh.md`
+5. `eidos-file-based-extensions.zh.md`
    - 扩展源码文件、私有运行时状态、trust 和 graft tracking。
-5. `eidos-graft-space-versioning.zh.md`
+6. `eidos-graft-space-versioning.zh.md`
    - Graft tracking、status、commit、sync 和 conflict 语义。
-6. `eidos-legacy-space-migration.zh.md`
+7. `eidos-legacy-space-migration.zh.md`
    - 从当前 `.eidos/db.sqlite3` spaces 迁移。
-7. `eidos-file-product-ux.zh.md`
+8. `eidos-file-product-ux.zh.md`
    - 文件、Eidos File、Changes、history 和 migration 的产品交互模型。
-8. `eidos-agent-integration.zh.md`
+9. `eidos-agent-integration.zh.md`
    - file-based Space 的 Agent conversation、每 Space 版本管理同意、resource context、tools、权限与恢复。
 
 英文版本不带 `.zh` 后缀。

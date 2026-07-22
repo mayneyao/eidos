@@ -1,9 +1,14 @@
-# RFC: Eidos File File Format and Runtime
+# RFC: Eidos File Format and Runtime
 
-Status: Eidos File v1 accepted
+Status: Superseded by Eidos File 1.0
 Date: 2026-07-08
 Owner: Eidos
 Related: `eidos-file-storage.md`
+
+> This document is retained as a design and implementation record. The
+> normative format and runtime contract is
+> [Eidos File 1.0](../specs/eidos-file-1.0.md). This RFC MUST NOT be used to
+> make a conformance claim.
 
 ## Implementation Status (2026-07-14)
 

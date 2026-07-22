@@ -6,6 +6,10 @@ Implementation snapshot: 2026-07-17
 
 This directory contains draft RFCs for moving Eidos toward a file-based storage model.
 
+> **Normative specification:** [Eidos File 1.0](../specs/eidos-file-1.0.md).
+> The documents in this directory are design and implementation records. Where
+> they differ from Eidos File 1.0, the specification controls.
+
 ## Implementation Status
 
 | RFC                       | Status                 | Current implementation boundary                                                                                                                                                                                                                                                                                      |
@@ -32,21 +36,23 @@ separate developer preview rather than a blocker for the Eidos File release.
 
 Recommended reading order:
 
-1. `eidos-file-storage.md`
+1. `../specs/eidos-file-1.0.md`
+   - Final, implementation-independent Eidos File contract.
+2. `eidos-file-storage.md`
    - Overall product/storage model.
-2. `eidos-file-format.md`
-   - `.eidos` SQLite file format and table runtime.
-3. `eidos-space-markdown-runtime.md`
+3. `eidos-file-format.md`
+   - Superseded design and implementation record for the earlier runtime.
+4. `eidos-space-markdown-runtime.md`
    - Markdown files as source of truth in Space mode.
-4. `eidos-file-based-extensions.md`
+5. `eidos-file-based-extensions.md`
    - Extension source files, private runtime state, trust, and graft tracking.
-5. `eidos-graft-space-versioning.md`
+6. `eidos-graft-space-versioning.md`
    - Graft tracking, status, commit, sync, and conflict semantics.
-6. `eidos-legacy-space-migration.md`
+7. `eidos-legacy-space-migration.md`
    - Migration from current `.eidos/db.sqlite3` spaces.
-7. `eidos-file-product-ux.md`
+8. `eidos-file-product-ux.md`
    - Product interaction model for files, Eidos File, Changes, history, and migration.
-8. `eidos-agent-integration.md`
+9. `eidos-agent-integration.md`
    - Agent conversations, per-Space versioning consent, resource context, tools, permissions, and recovery for file-based Spaces.
 
 Chinese versions use the `.zh.md` suffix.

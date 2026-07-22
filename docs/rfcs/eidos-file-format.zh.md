@@ -1,9 +1,14 @@
 # RFC：Eidos File 文件格式与运行时
 
-状态：Eidos File v1 已验收
+状态：已被 Eidos File 1.0 取代
 日期：2026-07-08
 负责人：Eidos
 相关文档：`eidos-file-storage.zh.md`
+
+> 本文只作为设计与实现记录保留。规范性格式与 runtime 契约见
+> [Eidos File 1.0](../specs/eidos-file-1.0.md)，中文说明见
+> [Eidos File 1.0 中文参考译本](../specs/eidos-file-1.0.zh.md)。本文不能作为
+> conformance claim 的依据。
 
 ## 实施状态（2026-07-14）
 
