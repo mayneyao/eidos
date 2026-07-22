@@ -48,7 +48,7 @@ for (const packageInfo of packages) {
 async function run(
   executable,
   args,
-  { cwd = workspaceRoot, capture = false } = {}
+  { cwd = workspaceRoot, capture = false, env = {} } = {}
 ) {
   let result
   try {
@@ -58,6 +58,7 @@ async function run(
       env: {
         ...process.env,
         CI: "1",
+        ...env,
       },
       maxBuffer: 16 * 1024 * 1024,
     })
@@ -144,6 +145,18 @@ try {
     ],
     { cwd: consumerRoot }
   )
+
+  const pathEnvironmentKey =
+    Object.keys(process.env).find((key) => key.toLowerCase() === "path") ??
+    "PATH"
+  const consumerCommandEnvironment = {
+    [pathEnvironmentKey]: [
+      path.join(consumerRoot, "node_modules", ".bin"),
+      process.env[pathEnvironmentKey],
+    ]
+      .filter(Boolean)
+      .join(path.delimiter),
+  }
 
   for (const packageInfo of packages) {
     const installedManifest = JSON.parse(
@@ -302,7 +315,10 @@ try {
       "this is also deliberately invalid }\n",
       "utf8"
     )
-    await pnpm(["run", "check"], { cwd: projectRoot })
+    await pnpm(["run", "check"], {
+      cwd: projectRoot,
+      env: consumerCommandEnvironment,
+    })
     await pnpm(["exec", "tsc", "--noEmit", "-p", projectRoot], {
       cwd: consumerRoot,
     })

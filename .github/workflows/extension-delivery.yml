@@ -83,10 +83,10 @@ jobs:
         run: pnpm check:extension-packages
 
       - name: Type-check extension CLI
-        run: pnpm --filter @eidos.space/extension-cli typecheck
+        run: pnpm --filter "@eidos.space/extension-cli" typecheck
 
       - name: Test extension CLI
-        run: pnpm --filter @eidos.space/extension-cli test
+        run: pnpm --filter "@eidos.space/extension-cli" test
 
       - name: Test extension release planner
         run: pnpm test:extension-release
