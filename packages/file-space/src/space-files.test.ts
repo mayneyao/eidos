@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { execFile as execFileCallback } from "node:child_process"
+import { createHash } from "node:crypto"
 import {
   chmod,
   link,
@@ -335,6 +336,37 @@ describe("SpaceFiles", () => {
     }
 
     expect(changes).toEqual([{ eventType: "change", path: "note.md" }])
+  })
+
+  it("atomically replaces binary files with compare-and-swap protection", async () => {
+    const originalBytes = new Uint8Array([0, 1, 2, 255])
+    await writeFile(path.join(root, "tasks.eidos"), originalBytes)
+    const original = await files.readBinary("tasks.eidos")
+    const originalDigest = `sha256:${createHash("sha256")
+      .update(originalBytes)
+      .digest("hex")}`
+
+    await expect(
+      files.writeBinary(
+        "tasks.eidos",
+        new Uint8Array([3, 4, 5]),
+        original.mtimeMs,
+        originalDigest
+      )
+    ).resolves.toMatchObject({ size: 3 })
+    await expect(readFile(path.join(root, "tasks.eidos"))).resolves.toEqual(
+      Buffer.from([3, 4, 5])
+    )
+
+    await writeFile(path.join(root, "tasks.eidos"), new Uint8Array([9]))
+    await expect(
+      files.writeBinary(
+        "tasks.eidos",
+        new Uint8Array([6]),
+        undefined,
+        originalDigest
+      )
+    ).rejects.toMatchObject({ code: "file-changed" })
   })
 
   it("ignores transient SQLite sidecars while reporting the Eidos file update", async () => {

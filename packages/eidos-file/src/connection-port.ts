@@ -250,14 +250,21 @@ export function nativeToSqlValue(value: unknown): SqlValue {
   if (typeof value === "string") {
     return { tag: "text", value: assertUnicodeString(value) }
   }
-  if (value instanceof Uint8Array) {
+  if (
+    ArrayBuffer.isView(value) &&
+    Object.prototype.toString.call(value) === "[object Uint8Array]"
+  ) {
     // Buffer overrides Uint8Array#slice() to return another Buffer. Copy via
-    // the Uint8Array constructor so every Adapter binding publishes the exact
-    // cross-host Uint8Array ABI.
-    return { tag: "blob", value: new Uint8Array(value) }
+    // a fresh Uint8Array so every Adapter binding publishes the exact
+    // cross-host ABI, including when Electron supplies a foreign-realm Buffer.
+    const view = value as ArrayBufferView
+    const bytes = new Uint8Array(view.byteLength)
+    bytes.set(new Uint8Array(view.buffer, view.byteOffset, view.byteLength))
+    return { tag: "blob", value: bytes }
   }
-  if (value instanceof ArrayBuffer) {
-    return { tag: "blob", value: new Uint8Array(value.slice(0)) }
+  if (Object.prototype.toString.call(value) === "[object ArrayBuffer]") {
+    const source = new Uint8Array(value as ArrayBuffer)
+    return { tag: "blob", value: new Uint8Array(source) }
   }
   throw new EidosAdapterError(
     "invalid-sql-value",
@@ -287,6 +294,15 @@ export class ConnectionPortEidosFileConnection implements EidosFileConnection {
   }
 
   exec(sql: string): void {
+    // ConnectionPort adapters establish mandatory connection PRAGMAs before
+    // Runtime composition. The compatibility core repeats the same setup in
+    // its constructor; suppress only that exact, idempotent initialization so
+    // Runtime.open can compose over a genuinely read-only Adapter connection.
+    if (
+      sql.trim() === "PRAGMA foreign_keys = ON; PRAGMA trusted_schema = OFF;"
+    ) {
+      return
+    }
     this.port.execSchema(sql)
   }
 

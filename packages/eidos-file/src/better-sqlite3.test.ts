@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
 import Database from "better-sqlite3"
 import { describe, expect, it, vi } from "vitest"
 
@@ -6,6 +9,30 @@ import {
   BetterSqlite3EidosFileConnection,
 } from "./better-sqlite3"
 import { expectConnectionPortConformance } from "./connection-port.conformance"
+import { Runtime } from "./runtime-service"
+import type { RuntimeEnvironment } from "./runtime-contract"
+
+const runtimeEnvironment = (): RuntimeEnvironment => ({
+  clock: {
+    nowInstant: () => "2026-07-23T00:00:00.000Z",
+    nowMilliseconds: () => performance.now(),
+  },
+  entropy: {
+    randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
+  },
+})
+
+const runtimeFactoryContext = {
+  cancellation: {
+    cancelled: () => false,
+    onCancel: () => () => undefined,
+  },
+}
+
+const runtimeContext = (requestId: string) => ({
+  requestId,
+  deadlineMilliseconds: 30_000,
+})
 
 describe("BetterSqlite3EidosFileConnection statement cache", () => {
   it("reuses prepared statements and evicts the least recently used SQL", () => {
@@ -75,6 +102,50 @@ describe("BetterSqlite3ConnectionPort EA-Connection-1.0", () => {
       await expectConnectionPortConformance(connection)
     } finally {
       connection.close()
+    }
+  })
+
+  it("opens a Runtime 1.0 binding over a read-only database", async () => {
+    const directory = await mkdtemp(
+      path.join(tmpdir(), "eidos-runtime-readonly-")
+    )
+    const filePath = path.join(directory, "readonly.eidos")
+    try {
+      const writable = new BetterSqlite3ConnectionPort(new Database(filePath))
+      const created = await Runtime.create(
+        writable,
+        runtimeEnvironment(),
+        { title: "Read-only" },
+        runtimeFactoryContext
+      )
+      await created.service.close(runtimeContext("close-created"))
+      writable.close()
+
+      const readonly = new BetterSqlite3ConnectionPort(
+        new Database(filePath, { fileMustExist: true, readonly: true })
+      )
+      try {
+        const opened = await Runtime.open(
+          readonly,
+          runtimeEnvironment(),
+          "read",
+          runtimeFactoryContext
+        )
+        await expect(
+          opened.service.negotiate(
+            { protocol: "eidos-runtime", versions: ["1.0"] },
+            runtimeContext("negotiate-readonly")
+          )
+        ).resolves.toMatchObject({
+          version: "1.0",
+          capabilities: { readRows: true, mutateRows: false },
+        })
+        await opened.service.close(runtimeContext("close-readonly"))
+      } finally {
+        readonly.close()
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true })
     }
   })
 })

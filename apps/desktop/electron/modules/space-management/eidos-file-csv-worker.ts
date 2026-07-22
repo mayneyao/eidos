@@ -270,25 +270,19 @@ async function importCsv(
       })
   )
   await requireUnchangedFile(request.sourcePath, request.fingerprint)
-  const base = openEidosFile(request.targetPath, { migrate: true })
+  const base = openEidosFile(request.targetPath)
   try {
     base.connection.exec("BEGIN IMMEDIATE")
     try {
       const table = base.createTable({
         name: plan.tableName,
-        fields: plan.columns.flatMap((column) =>
-          column.type === "title"
-            ? []
-            : [
-                {
-                  name: column.name,
-                  columnName: column.columnName,
-                  type: column.type,
-                },
-              ]
-        ),
+        fields: plan.columns.map((column) => ({
+          name: column.name,
+          columnName: column.columnName,
+          type: column.type === "record-label" ? "text" : column.type,
+          isRecordLabel: column.type === "record-label",
+        })),
       })
-      base.updateField(table.id, "title", { name: plan.columns[0].name })
       let batch: EidosFileRow[] = []
       let importedRowCount = 0
       reportProgress({

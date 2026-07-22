@@ -322,6 +322,66 @@ async function replaceTextFileAtomically(
   }
 }
 
+async function replaceBinaryFileAtomically(
+  filename: string,
+  content: Uint8Array,
+  original: Stats,
+  relativePath: string
+): Promise<void> {
+  const directory = path.dirname(filename)
+  const temporaryPath = path.join(
+    directory,
+    "." +
+      path.basename(filename) +
+      ".eidos-" +
+      process.pid +
+      "-" +
+      randomUUID() +
+      ".tmp"
+  )
+  let handle: Awaited<ReturnType<typeof open>> | undefined
+
+  try {
+    if (process.platform !== "win32" && (original.mode & 0o222) === 0) {
+      throw new SpaceFilesError(
+        "not-writable",
+        "Space file is read-only: " + relativePath,
+        relativePath
+      )
+    }
+    if (original.nlink > 1) {
+      throw new SpaceFilesError(
+        "unsupported-file-metadata",
+        "Eidos cannot safely replace a hard-linked Space file: " + relativePath,
+        relativePath
+      )
+    }
+
+    await copyFileWithMetadata(filename, temporaryPath, relativePath)
+    handle = await open(temporaryPath, "r+")
+    await handle.writeFile(content)
+    await handle.truncate(content.byteLength)
+    await handle.sync()
+    await handle.close()
+    handle = undefined
+
+    const beforeReplace = await stat(filename)
+    if (!sameFileSnapshot(original, beforeReplace)) {
+      throw new SpaceFilesError(
+        "file-changed",
+        "Space file changed outside Eidos: " + relativePath,
+        relativePath
+      )
+    }
+
+    await rename(temporaryPath, filename)
+    await syncDirectoryBestEffort(directory)
+  } finally {
+    await handle?.close().catch(() => undefined)
+    await rm(temporaryPath, { force: true }).catch(() => undefined)
+  }
+}
+
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
@@ -616,6 +676,47 @@ export class SpaceFiles {
       }
       throw error
     }
+    return this.readBinary(relativePath)
+  }
+
+  async writeBinary(
+    relativePath: string,
+    content: Uint8Array,
+    expectedMtimeMs?: number,
+    expectedContentDigest?: string
+  ): Promise<SpaceBinaryFile> {
+    this.assertMutablePath(relativePath)
+    const {
+      filename,
+      content: currentContent,
+      stats: currentStats,
+    } = await this.readStableFile(relativePath)
+    if (
+      expectedMtimeMs !== undefined &&
+      currentStats.mtimeMs !== expectedMtimeMs
+    ) {
+      throw new SpaceFilesError(
+        "file-changed",
+        `Space file changed outside Eidos: ${relativePath}`,
+        relativePath
+      )
+    }
+    if (
+      expectedContentDigest !== undefined &&
+      digestContent(currentContent) !== expectedContentDigest
+    ) {
+      throw new SpaceFilesError(
+        "file-changed",
+        `Space file content changed outside Eidos: ${relativePath}`,
+        relativePath
+      )
+    }
+    await replaceBinaryFileAtomically(
+      filename,
+      content,
+      currentStats,
+      relativePath
+    )
     return this.readBinary(relativePath)
   }
 

@@ -135,23 +135,23 @@ describe("EidosFileQueryWorkerRunner", () => {
       "/space",
       "/space/tasks.eidos",
       "tasks",
-      [{ columnName: "points", type: "sum" }],
+      [{ fieldId: "points", type: "sum" }],
       { search: "release" }
     )
     const statsRequest = worker.postMessage.mock.calls[3][0]
     expect(statsRequest).toMatchObject({
       operation: "column-stats",
-      configs: [{ columnName: "points", type: "sum" }],
+      configs: [{ fieldId: "points", type: "sum" }],
       query: { search: "release" },
     })
     worker.emit("message", {
       id: statsRequest.id,
       ok: true,
       operation: "column-stats",
-      stats: [{ columnName: "points", type: "sum", value: 8 }],
+      stats: [{ fieldId: "points", type: "sum", value: 8 }],
     })
     await expect(statsPromise).resolves.toEqual([
-      { columnName: "points", type: "sum", value: 8 },
+      { fieldId: "points", type: "sum", value: 8 },
     ])
     expect(harness.workers).toHaveLength(1)
   })

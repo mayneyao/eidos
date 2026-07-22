@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import type {
   EidosFileColumnStatConfig,
   EidosFileColumnStatResult,
@@ -29,6 +29,9 @@ import type {
   UpdateEidosFileTableInput,
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
+import { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui"
+
+import { desktopEidosFileHost } from "@/apps/web-app/lib/eidos-file/desktop-host-services"
 
 function requireEidosFileApi() {
   if (typeof window === "undefined" || !window.eidos?.spaceMgmt) {
@@ -38,28 +41,178 @@ function requireEidosFileApi() {
 }
 
 export function useSpaceEidosFile(spaceId: string | undefined) {
+  const sessionsRef = useRef(
+    new Map<
+      string,
+      Promise<{
+        sessionId: string
+        sourceToken: string
+        source: EidosRuntimeEditorDataSource
+      }>
+    >()
+  )
+
   const requireSpaceId = useCallback(() => {
     if (!spaceId) throw new Error("No active Space")
     return spaceId
   }, [spaceId])
 
+  const closeSource = useCallback(async (relativePath: string) => {
+    const pending = sessionsRef.current.get(relativePath)
+    sessionsRef.current.delete(relativePath)
+    if (!pending) return
+    try {
+      const opened = await pending
+      await desktopEidosFileHost.close(
+        { sessionId: opened.sessionId },
+        runtimeContext("close")
+      )
+    } catch {
+      // Failed opens and already-closed sessions have no remaining resource.
+    }
+  }, [])
+
+  const openSource = useCallback(
+    (relativePath: string) => {
+      const existing = sessionsRef.current.get(relativePath)
+      if (existing) return existing
+      const opening = (async () => {
+        const { sourceToken } = await desktopEidosFileHost.registerSource(
+          requireSpaceId(),
+          relativePath
+        )
+        let sessionId: string | undefined
+        try {
+          const opened = await desktopEidosFileHost.openSource(
+            { sourceToken, access: "readwrite" },
+            runtimeContext("open")
+          )
+          sessionId = opened.sessionId
+          const source = new EidosRuntimeEditorDataSource(
+            opened.runtime,
+            relativePath
+          )
+          await source.initialize()
+          return { sessionId: opened.sessionId, sourceToken, source }
+        } catch (error) {
+          if (sessionId) {
+            await desktopEidosFileHost
+              .close({ sessionId }, runtimeContext("failed-open-close"))
+              .catch(() => {})
+          }
+          await desktopEidosFileHost.revokeSource(sourceToken).catch(() => {})
+          throw error
+        }
+      })()
+      sessionsRef.current.set(relativePath, opening)
+      void opening.catch(() => {
+        if (sessionsRef.current.get(relativePath) === opening) {
+          sessionsRef.current.delete(relativePath)
+        }
+      })
+      return opening
+    },
+    [requireSpaceId]
+  )
+
+  const reopenSource = useCallback(
+    async (relativePath: string) => {
+      await closeSource(relativePath)
+      return openSource(relativePath)
+    },
+    [closeSource, openSource]
+  )
+
+  const mutate = useCallback(
+    async <T>(
+      relativePath: string,
+      operation: (source: EidosRuntimeEditorDataSource) => Promise<T>
+    ) => {
+      const opened = await openSource(relativePath)
+      const result = await operation(opened.source)
+      await desktopEidosFileHost.save(
+        { sessionId: opened.sessionId },
+        runtimeContext("save")
+      )
+      return result
+    },
+    [openSource]
+  )
+
+  useEffect(
+    () => () => {
+      const pending = [...sessionsRef.current.values()]
+      sessionsRef.current.clear()
+      for (const opening of pending) {
+        void opening.then(({ sessionId }) =>
+          desktopEidosFileHost
+            .close({ sessionId }, runtimeContext("unmount-close"))
+            .catch(() => undefined)
+        )
+      }
+    },
+    []
+  )
+
   const create = useCallback(
-    (relativePath: string, options: CreateEidosFileOptions = {}) =>
-      requireEidosFileApi().createEidosFile(
-        requireSpaceId(),
-        relativePath,
-        options
-      ),
+    async (
+      relativePath: string,
+      options: CreateEidosFileOptions = {}
+    ): Promise<EidosFileSnapshot> => {
+      const { destinationToken } =
+        await desktopEidosFileHost.registerDestination(
+          requireSpaceId(),
+          relativePath
+        )
+      const title =
+        options.title?.trim() ||
+        relativePath
+          .split("/")
+          .at(-1)
+          ?.replace(/\.eidos$/i, "") ||
+        "Untitled"
+      let opened: Awaited<ReturnType<typeof desktopEidosFileHost.createSource>>
+      try {
+        opened = await desktopEidosFileHost.createSource(
+          { destinationToken, title },
+          runtimeContext("create")
+        )
+      } catch (error) {
+        await desktopEidosFileHost
+          .revokeSource(destinationToken)
+          .catch(() => {})
+        throw error
+      }
+      try {
+        const source = new EidosRuntimeEditorDataSource(
+          opened.runtime,
+          relativePath
+        )
+        let snapshot = await source.initialize()
+        if (options.defaultTable) {
+          snapshot = await source.createTable(options.defaultTable)
+          await desktopEidosFileHost.save(
+            { sessionId: opened.sessionId },
+            runtimeContext("create-save")
+          )
+        }
+        return snapshot
+      } finally {
+        await desktopEidosFileHost.close(
+          { sessionId: opened.sessionId },
+          runtimeContext("create-close")
+        )
+      }
+    },
     [requireSpaceId]
   )
 
   const getSnapshot = useCallback(
-    (relativePath: string): Promise<EidosFileSnapshot> =>
-      requireEidosFileApi().getEidosFileSnapshot(
-        requireSpaceId(),
-        relativePath
-      ),
-    [requireSpaceId]
+    async (relativePath: string): Promise<EidosFileSnapshot> => {
+      const opened = await reopenSource(relativePath)
+      return opened.source.getSnapshot()
+    },
+    [reopenSource]
   )
 
   const selectCsv = useCallback(
@@ -83,7 +236,7 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
   )
 
   const importCsv = useCallback(
-    (
+    async (
       relativePath: string,
       token: string,
       options: EidosFileCsvImportOptions = {},
@@ -91,15 +244,17 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
     ): Promise<{
       result: EidosFileCsvImportResult
       snapshot: EidosFileSnapshot
-    }> =>
-      requireEidosFileApi().importEidosFileCsv(
+    }> => {
+      await closeSource(relativePath)
+      return requireEidosFileApi().importEidosFileCsv(
         requireSpaceId(),
         relativePath,
         token,
         options,
         operationId
-      ),
-    [requireSpaceId]
+      )
+    },
+    [closeSource, requireSpaceId]
   )
 
   const getCsvOperation = useCallback(
@@ -157,20 +312,18 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       cursor?: string,
       projection?: EidosFileRowPageProjection
     ): Promise<EidosFileRowPage> =>
-      requireEidosFileApi().getEidosFileTablePage(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        {
+      openSource(relativePath).then(({ source }) =>
+        source.getPage(
+          tableId,
           offset,
           limit,
           query,
           totalHint,
-          ...(cursor ? { cursor } : {}),
-          ...(projection ? { projection } : {}),
-        }
+          cursor,
+          projection
+        )
       ),
-    [requireSpaceId]
+    [openSource]
   )
 
   const getTableRow = useCallback(
@@ -179,13 +332,10 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       tableId: string,
       rowId: string
     ): Promise<EidosFileRow | null> =>
-      requireEidosFileApi().getEidosFileTableRow(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        rowId
+      openSource(relativePath).then(({ source }) =>
+        source.getRow(tableId, rowId)
       ),
-    [requireSpaceId]
+    [openSource]
   )
 
   const getTableGroupCounts = useCallback(
@@ -195,14 +345,10 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       columnName: string,
       query: EidosFileRowQuery = {}
     ): Promise<EidosFileRowGroupCount[]> =>
-      requireEidosFileApi().getEidosFileTableGroupCounts(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        columnName,
-        query
+      openSource(relativePath).then(({ source }) =>
+        source.getGroupCounts(tableId, columnName, query)
       ),
-    [requireSpaceId]
+    [openSource]
   )
 
   const getTableColumnStats = useCallback(
@@ -212,14 +358,10 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       configs: EidosFileColumnStatConfig[],
       query: EidosFileRowQuery = {}
     ): Promise<EidosFileColumnStatResult[]> =>
-      requireEidosFileApi().getEidosFileTableColumnStats(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        configs,
-        query
+      openSource(relativePath).then(({ source }) =>
+        source.calculateColumnStats(tableId, configs, query)
       ),
-    [requireSpaceId]
+    [openSource]
   )
 
   const addField = useCallback(
@@ -229,14 +371,10 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       field: CreateEidosFileFieldInput,
       placement?: EidosFileFieldPlacement
     ): Promise<EidosFileSnapshot> =>
-      requireEidosFileApi().addEidosFileField(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        field,
-        placement
+      mutate(relativePath, (source) =>
+        source.addField(tableId, field, placement)
       ),
-    [requireSpaceId]
+    [mutate]
   )
 
   const previewFormula = useCallback(
@@ -245,13 +383,10 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       tableId: string,
       input: EidosFileFormulaPreviewInput
     ): Promise<EidosFileFormulaPreview> =>
-      requireEidosFileApi().previewEidosFileFormula(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        input
+      openSource(relativePath).then(({ source }) =>
+        source.previewFormula(tableId, input)
       ),
-    [requireSpaceId]
+    [openSource]
   )
 
   const updateField = useCallback(
@@ -261,14 +396,10 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       columnName: string,
       changes: UpdateEidosFileFieldInput
     ): Promise<EidosFileSnapshot> =>
-      requireEidosFileApi().updateEidosFileField(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        columnName,
-        changes
+      mutate(relativePath, (source) =>
+        source.updateField(tableId, columnName, changes)
       ),
-    [requireSpaceId]
+    [mutate]
   )
 
   const deleteField = useCallback(
@@ -277,13 +408,8 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       tableId: string,
       columnName: string
     ): Promise<EidosFileSnapshot> =>
-      requireEidosFileApi().deleteEidosFileField(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        columnName
-      ),
-    [requireSpaceId]
+      mutate(relativePath, (source) => source.deleteField(tableId, columnName)),
+    [mutate]
   )
 
   const createTable = useCallback(
@@ -291,12 +417,8 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       relativePath: string,
       table: CreateEidosFileTableInput
     ): Promise<EidosFileSnapshot> =>
-      requireEidosFileApi().createEidosFileTable(
-        requireSpaceId(),
-        relativePath,
-        table
-      ),
-    [requireSpaceId]
+      mutate(relativePath, (source) => source.createTable(table)),
+    [mutate]
   )
 
   const updateTable = useCallback(
@@ -305,23 +427,14 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       tableId: string,
       changes: UpdateEidosFileTableInput
     ): Promise<EidosFileSnapshot> =>
-      requireEidosFileApi().updateEidosFileTable(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        changes
-      ),
-    [requireSpaceId]
+      mutate(relativePath, (source) => source.updateTable(tableId, changes)),
+    [mutate]
   )
 
   const deleteTable = useCallback(
     (relativePath: string, tableId: string): Promise<EidosFileSnapshot> =>
-      requireEidosFileApi().deleteEidosFileTable(
-        requireSpaceId(),
-        relativePath,
-        tableId
-      ),
-    [requireSpaceId]
+      mutate(relativePath, (source) => source.deleteTable(tableId)),
+    [mutate]
   )
 
   const insertRow = useCallback(
@@ -330,13 +443,8 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       tableId: string,
       row: EidosFileRow
     ): Promise<EidosFileRowMutationResult> =>
-      requireEidosFileApi().insertEidosFileRow(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        row
-      ),
-    [requireSpaceId]
+      mutate(relativePath, (source) => source.insertRow(tableId, row)),
+    [mutate]
   )
 
   const updateView = useCallback(
@@ -345,13 +453,8 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       viewId: string,
       changes: UpdateEidosFileViewInput
     ): Promise<EidosFileSnapshot> =>
-      requireEidosFileApi().updateEidosFileView(
-        requireSpaceId(),
-        relativePath,
-        viewId,
-        changes
-      ),
-    [requireSpaceId]
+      mutate(relativePath, (source) => source.updateView(viewId, changes)),
+    [mutate]
   )
 
   const createView = useCallback(
@@ -360,13 +463,8 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       tableId: string,
       input: CreateEidosFileViewInput
     ): Promise<EidosFileSnapshot> =>
-      requireEidosFileApi().createEidosFileView(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        input
-      ),
-    [requireSpaceId]
+      mutate(relativePath, (source) => source.createView(tableId, input)),
+    [mutate]
   )
 
   const duplicateView = useCallback(
@@ -375,23 +473,14 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       viewId: string,
       name?: string
     ): Promise<EidosFileSnapshot> =>
-      requireEidosFileApi().duplicateEidosFileView(
-        requireSpaceId(),
-        relativePath,
-        viewId,
-        name
-      ),
-    [requireSpaceId]
+      mutate(relativePath, (source) => source.duplicateView(viewId, name)),
+    [mutate]
   )
 
   const deleteView = useCallback(
     (relativePath: string, viewId: string): Promise<EidosFileSnapshot> =>
-      requireEidosFileApi().deleteEidosFileView(
-        requireSpaceId(),
-        relativePath,
-        viewId
-      ),
-    [requireSpaceId]
+      mutate(relativePath, (source) => source.deleteView(viewId)),
+    [mutate]
   )
 
   const reorderViews = useCallback(
@@ -400,13 +489,8 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       tableId: string,
       viewIds: string[]
     ): Promise<EidosFileSnapshot> =>
-      requireEidosFileApi().reorderEidosFileViews(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        viewIds
-      ),
-    [requireSpaceId]
+      mutate(relativePath, (source) => source.reorderViews(tableId, viewIds)),
+    [mutate]
   )
 
   const updateRow = useCallback(
@@ -416,14 +500,10 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       rowId: string,
       changes: EidosFileRow
     ): Promise<EidosFileRowMutationResult> =>
-      requireEidosFileApi().updateEidosFileRow(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        rowId,
-        changes
+      mutate(relativePath, (source) =>
+        source.updateRow(tableId, rowId, changes)
       ),
-    [requireSpaceId]
+    [mutate]
   )
 
   const updateRows = useCallback(
@@ -432,13 +512,23 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       tableId: string,
       updates: EidosFileRowUpdate[]
     ): Promise<EidosFileRowsMutationResult> =>
-      requireEidosFileApi().updateEidosFileRows(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        updates
-      ),
-    [requireSpaceId]
+      mutate(relativePath, async (source) => {
+        const rows: EidosFileRow[] = []
+        let rowCount = 0
+        let revision: EidosFileRowsMutationResult["revision"]
+        for (const update of updates) {
+          const result = await source.updateRow(
+            tableId,
+            update.rowId,
+            update.changes
+          )
+          rows.push(result.row)
+          rowCount = result.rowCount
+          revision = result.revision
+        }
+        return { tableId, rows, rowCount, revision }
+      }),
+    [mutate]
   )
 
   const deleteRows = useCallback(
@@ -447,13 +537,8 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       tableId: string,
       rowIds: string[]
     ): Promise<EidosFileRowsDeleteResult> =>
-      requireEidosFileApi().deleteEidosFileRows(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        rowIds
-      ),
-    [requireSpaceId]
+      mutate(relativePath, (source) => source.deleteRows(tableId, rowIds)),
+    [mutate]
   )
 
   const deleteRowRanges = useCallback(
@@ -463,14 +548,10 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       ranges: EidosFileRowRange[],
       query: EidosFileRowQuery = {}
     ): Promise<EidosFileRowsDeleteResult> =>
-      requireEidosFileApi().deleteEidosFileRowRanges(
-        requireSpaceId(),
-        relativePath,
-        tableId,
-        ranges,
-        query
+      mutate(relativePath, (source) =>
+        source.deleteRowRanges(tableId, ranges, query)
       ),
-    [requireSpaceId]
+    [mutate]
   )
 
   return {
@@ -503,5 +584,12 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
     updateRows,
     deleteRows,
     deleteRowRanges,
+  }
+}
+
+function runtimeContext(action: string) {
+  return {
+    requestId: `desktop-${action}-${crypto.randomUUID()}`,
+    deadlineMilliseconds: 30_000,
   }
 }

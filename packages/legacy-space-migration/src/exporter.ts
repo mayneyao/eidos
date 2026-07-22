@@ -1066,33 +1066,6 @@ export async function exportLegacySpace(
         currentPath: `${plan.eidosFilePath}#${sourceTable.id}`,
       })
     }
-    for (const selfPlan of plan.tables) {
-      for (const reference of selfPlan.references) {
-        const refTableId = sourceTableId(reference.refTableName)
-        const linkTableId = sourceTableId(reference.linkTableName)
-        const refPlan = plan.tables.find((table) => table.id === refTableId)
-        const linkPlan = plan.tables.find((table) => table.id === linkTableId)
-        if (!refPlan || !linkPlan) {
-          throw new Error(
-            "Migration plan is missing a referenced Eidos File table"
-          )
-        }
-        eidosFileRuntime.createReference({
-          selfTableId: selfPlan.id,
-          selfColumnName:
-            fieldColumnMap(selfPlan).get(reference.selfColumnName) ??
-            reference.selfColumnName,
-          refTableId,
-          refColumnName:
-            fieldColumnMap(refPlan).get(reference.refColumnName) ??
-            reference.refColumnName,
-          linkTableId,
-          linkColumnName:
-            fieldColumnMap(linkPlan).get(reference.linkColumnName) ??
-            reference.linkColumnName,
-        })
-      }
-    }
     sourceDatabase.exec("COMMIT")
     sourceDatabase.close()
     sourceDatabase = null

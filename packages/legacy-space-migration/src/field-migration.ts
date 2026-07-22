@@ -16,9 +16,11 @@ import type {
 import { eidosFileSelectPropertyFromLegacy } from "./value-migration"
 
 const EIDOS_FILE_FIELD_TYPES = new Set<EidosFileFieldType>([
-  "title",
   "text",
   "number",
+  "integer",
+  "json",
+  "relation",
   "checkbox",
   "date",
   "datetime",
@@ -28,12 +30,9 @@ const EIDOS_FILE_FIELD_TYPES = new Set<EidosFileFieldType>([
   "select",
   "url",
   "formula",
-  "link",
   "lookup",
   "created-time",
-  "created-by",
   "last-edited-time",
-  "last-edited-by",
   "row-id",
 ])
 const EIDOS_FILE_SYSTEM_COLUMNS = new Set([
@@ -46,11 +45,11 @@ const EIDOS_FILE_SYSTEM_COLUMNS = new Set([
 ])
 const EIDOS_FILE_SYSTEM_FIELD_TYPES = new Map<string, EidosFileFieldType>([
   ["_id", "row-id"],
-  ["title", "title"],
+  ["title", "text"],
   ["_created_time", "created-time"],
   ["_last_edited_time", "last-edited-time"],
-  ["_created_by", "created-by"],
-  ["_last_edited_by", "last-edited-by"],
+  ["_created_by", "text"],
+  ["_last_edited_by", "text"],
 ])
 const FORMULA_DISPLAY_TYPES = new Set<EidosFileFormulaDisplayType>([
   "text",
@@ -186,6 +185,11 @@ export function remapFieldMetadata(
 export function eidosFileFieldTypeForLegacyField(
   field: LegacyField
 ): EidosFileFieldType {
+  if (field.type === "title") return "text"
+  if (field.type === "link") return "relation"
+  if (field.type === "created-by" || field.type === "last-edited-by") {
+    return "text"
+  }
   return EIDOS_FILE_FIELD_TYPES.has(field.type as EidosFileFieldType)
     ? (field.type as EidosFileFieldType)
     : "text"
@@ -525,6 +529,8 @@ export function buildLegacyFieldImportStrategies(
         legacyFieldStrategyKey(table.id, field.columnName)
       )!
       return {
+        id: `${table.id}:${columnMap.get(field.columnName)!}`,
+        tableId: table.id,
         name: field.name,
         type: eidosFileFieldTypeForLegacyField(field),
         tableName: table.rawTableName,
@@ -541,6 +547,8 @@ export function buildLegacyFieldImportStrategies(
     for (const [columnName, type] of EIDOS_FILE_SYSTEM_FIELD_TYPES) {
       if (drafts.some((field) => field.tableColumnName === columnName)) continue
       drafts.push({
+        id: `${table.id}:${columnName}`,
+        tableId: table.id,
         name: columnName === "title" ? "Title" : columnName,
         type,
         tableName: table.rawTableName,

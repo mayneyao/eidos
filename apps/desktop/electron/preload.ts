@@ -326,6 +326,7 @@ function main() {
     license: createPreloadApiByNamespace("license"),
     space: createPreloadApiByNamespace("space"),
     spaceMgmt: createPreloadApiByNamespace("space-mgmt"),
+    eidosFileHost: createPreloadApiByNamespace("eidos-file-host"),
     spaceMigration: createPreloadApiByNamespace("space-migration"),
     spaceVersioning: createPreloadApiByNamespace("space-versioning"),
     fileExtensions: createPreloadApiByNamespace("file-extensions"),

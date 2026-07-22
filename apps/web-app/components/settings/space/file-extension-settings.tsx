@@ -34,6 +34,7 @@ import {
 import { useTranslation } from "react-i18next"
 
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
+import { useSpaceEidosFile } from "@/apps/web-app/hooks/use-space-eidos-file"
 import { useAppRuntimeStore } from "@/apps/web-app/store/runtime-store"
 import { useTabStore } from "@/apps/web-app/store/tabs"
 import { isDesktopMode } from "@/lib/env"
@@ -439,6 +440,7 @@ export function FileExtensionSettings() {
   const setCmdkOpen = useAppRuntimeStore((state) => state.setCmdkOpen)
   const openTab = useTabStore((state) => state.openTab)
   const spaceId = currentSpace?.id
+  const eidosFile = useSpaceEidosFile(spaceId)
   const [discovery, setDiscovery] = useState<FileExtensionDiscovery | null>(
     null
   )
@@ -1016,17 +1018,19 @@ export function FileExtensionSettings() {
           parts.stem,
           parts.extension
         )
-        const tableId = "records"
-        await window.eidos.spaceMgmt.createEidosFile(spaceId, fileName, {
+        const created = await eidosFile.create(fileName, {
           title: `${eidosFileView.displayName} preview`,
           defaultTable: {
-            id: tableId,
             name: "Records",
             createDefaultView: false,
             fields: [
               {
+                name: "Title",
+                type: "text",
+                isRecordLabel: true,
+              },
+              {
                 name: "Status",
-                columnName: "status",
                 type: "select",
                 property: {
                   options: [
@@ -1038,21 +1042,27 @@ export function FileExtensionSettings() {
               },
               {
                 name: "Notes",
-                columnName: "notes",
                 type: "text",
               },
             ],
           },
         })
-        await window.eidos.spaceMgmt.createEidosFileView(
-          spaceId,
-          fileName,
-          tableId,
-          {
-            name: eidosFileView.displayName,
-            type: `extension:${eidosFileView.id}`,
-          }
+        const table = created.tables[0]
+        if (!table) throw new Error("The sample Eidos File has no table")
+        const tableId = table.table.id
+        await eidosFile.createView(fileName, tableId, {
+          name: eidosFileView.displayName,
+          type: `extension:${eidosFileView.id}`,
+        })
+        const fieldIds = Object.fromEntries(
+          table.fields.map((field) => [field.name, field.id])
         )
+        const titleFieldId = fieldIds.Title
+        const statusFieldId = fieldIds.Status
+        const notesFieldId = fieldIds.Notes
+        if (!titleFieldId || !statusFieldId || !notesFieldId) {
+          throw new Error("The sample Eidos File fields are incomplete")
+        }
         for (const row of [
           {
             title: "Explore this extension view",
@@ -1070,12 +1080,11 @@ export function FileExtensionSettings() {
             notes: "Switch back to Grid from the view picker when needed.",
           },
         ]) {
-          await window.eidos.spaceMgmt.insertEidosFileRow(
-            spaceId,
-            fileName,
-            tableId,
-            row
-          )
+          await eidosFile.insertRow(fileName, tableId, {
+            [titleFieldId]: row.title,
+            [statusFieldId]: row.status,
+            [notesFieldId]: row.notes,
+          })
         }
         openTab(toSpaceFileUrl(fileName), fileName)
         setBaseSample(null)
@@ -1093,7 +1102,7 @@ export function FileExtensionSettings() {
         })
       }
     },
-    [baseSample, openTab, spaceId, t]
+    [baseSample, eidosFile, openTab, spaceId, t]
   )
 
   const runCommand = useCallback(

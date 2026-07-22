@@ -1026,7 +1026,7 @@ export class SpaceManagementService extends IpcServiceBase {
           tableId,
           row: inserted,
           rowCount: base.countRows(tableId),
-          revision: base.info().updatedAt,
+          revision: base.info().revision,
         }
       } finally {
         base.close()
@@ -1138,7 +1138,7 @@ export class SpaceManagementService extends IpcServiceBase {
           tableId,
           row: updated,
           rowCount: base.countRows(tableId),
-          revision: base.info().updatedAt,
+          revision: base.info().revision,
         }
       } finally {
         base.close()
@@ -1160,7 +1160,7 @@ export class SpaceManagementService extends IpcServiceBase {
           tableId,
           rows,
           rowCount: base.countRows(tableId),
-          revision: base.info().updatedAt,
+          revision: base.info().revision,
         }
       } finally {
         base.close()
@@ -1182,7 +1182,7 @@ export class SpaceManagementService extends IpcServiceBase {
           tableId,
           deletedCount,
           rowCount: base.countRows(tableId),
-          revision: base.info().updatedAt,
+          revision: base.info().revision,
         }
       } finally {
         base.close()
@@ -1205,7 +1205,7 @@ export class SpaceManagementService extends IpcServiceBase {
           tableId,
           deletedCount,
           rowCount: base.countRows(tableId),
-          revision: base.info().updatedAt,
+          revision: base.info().revision,
         }
       } finally {
         base.close()
@@ -1496,7 +1496,7 @@ export class SpaceManagementService extends IpcServiceBase {
   ) {
     const systemPath =
       await this._getFileSpace(spaceId).getSystemPath(relativePath)
-    return openEidosFile(systemPath, { migrate, readonly })
+    return openEidosFile(systemPath, { readonly })
   }
 
   private async _getEidosFileSnapshot(

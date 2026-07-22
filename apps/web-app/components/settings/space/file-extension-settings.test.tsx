@@ -41,6 +41,14 @@ const createSpaceFileMock = vi.hoisted(() => vi.fn())
 const createSpaceBaseMock = vi.hoisted(() => vi.fn())
 const createSpaceEidosFileViewMock = vi.hoisted(() => vi.fn())
 const insertSpaceBaseRowMock = vi.hoisted(() => vi.fn())
+
+vi.mock("@/apps/web-app/hooks/use-space-eidos-file", () => ({
+  useSpaceEidosFile: () => ({
+    create: createSpaceBaseMock,
+    createView: createSpaceEidosFileViewMock,
+    insertRow: insertSpaceBaseRowMock,
+  }),
+}))
 const translate = vi.hoisted(
   () =>
     (
@@ -330,7 +338,34 @@ describe("FileExtensionSettings", () => {
     createSpaceFileMock.mockReset().mockResolvedValue({
       path: "Extension preview.tasks.md",
     })
-    createSpaceBaseMock.mockReset().mockResolvedValue({ path: "preview.eidos" })
+    createSpaceBaseMock.mockReset().mockResolvedValue({
+      path: "preview.eidos",
+      metadata: {},
+      tables: [
+        {
+          table: {
+            id: "019f8a00-0000-7000-8000-000000000001",
+            name: "Records",
+          },
+          fields: [
+            {
+              id: "019f8a00-0000-7000-8000-000000000002",
+              name: "Title",
+            },
+            {
+              id: "019f8a00-0000-7000-8000-000000000003",
+              name: "Status",
+            },
+            {
+              id: "019f8a00-0000-7000-8000-000000000004",
+              name: "Notes",
+            },
+          ],
+          views: [],
+          rowCount: 0,
+        },
+      ],
+    })
     createSpaceEidosFileViewMock
       .mockReset()
       .mockResolvedValue({ path: "preview.eidos" })
@@ -1957,18 +1992,20 @@ describe("FileExtensionSettings", () => {
 
     expect(listSpaceFilesMock).toHaveBeenCalledWith("file-space", "")
     expect(createSpaceBaseMock).toHaveBeenCalledWith(
-      "file-space",
       "Extension preview 2.eidos",
       {
         title: "Task cards preview",
         defaultTable: {
-          id: "records",
           name: "Records",
           createDefaultView: false,
           fields: [
             {
+              name: "Title",
+              type: "text",
+              isRecordLabel: true,
+            },
+            {
               name: "Status",
-              columnName: "status",
               type: "select",
               property: {
                 options: [
@@ -1978,15 +2015,14 @@ describe("FileExtensionSettings", () => {
                 ],
               },
             },
-            { name: "Notes", columnName: "notes", type: "text" },
+            { name: "Notes", type: "text" },
           ],
         },
       }
     )
     expect(createSpaceEidosFileViewMock).toHaveBeenCalledWith(
-      "file-space",
       "Extension preview 2.eidos",
-      "records",
+      "019f8a00-0000-7000-8000-000000000001",
       {
         name: "Task cards",
         type: "extension:example.task-counter.cards",
@@ -1995,13 +2031,13 @@ describe("FileExtensionSettings", () => {
     expect(insertSpaceBaseRowMock).toHaveBeenCalledTimes(3)
     expect(insertSpaceBaseRowMock).toHaveBeenNthCalledWith(
       1,
-      "file-space",
       "Extension preview 2.eidos",
-      "records",
+      "019f8a00-0000-7000-8000-000000000001",
       {
-        title: "Explore this extension view",
-        status: "active",
-        notes: "Edit the extension source and start a development session.",
+        "019f8a00-0000-7000-8000-000000000002": "Explore this extension view",
+        "019f8a00-0000-7000-8000-000000000003": "active",
+        "019f8a00-0000-7000-8000-000000000004":
+          "Edit the extension source and start a development session.",
       }
     )
     expect(openTabMock).toHaveBeenLastCalledWith(

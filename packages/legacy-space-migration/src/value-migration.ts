@@ -48,7 +48,7 @@ export function eidosFileSelectPropertyFromLegacy(
     if (!value || values.has(value)) continue
     values.add(value)
     options.push({
-      value,
+      name: value,
       color: typeof option.color === "string" ? option.color : "default",
     })
   }

@@ -12,6 +12,12 @@ import { ipcMain, ipcRenderer } from "electron"
 // IPC channel name
 const IPC_FETCH_CHANNEL = "__electron_fetch__"
 
+function ownedArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const owned = new Uint8Array(bytes.byteLength)
+  owned.set(bytes)
+  return owned.buffer as ArrayBuffer
+}
+
 /**
  * Convert various body types to ArrayBuffer for IPC transfer
  */
@@ -31,12 +37,15 @@ async function normalizeBody(
   }
 
   if (typeof body === "string") {
-    return { data: new TextEncoder().encode(body).buffer, type: "string" }
+    return {
+      data: ownedArrayBuffer(new TextEncoder().encode(body)),
+      type: "string",
+    }
   }
 
   if (body instanceof URLSearchParams) {
     return {
-      data: new TextEncoder().encode(body.toString()).buffer,
+      data: ownedArrayBuffer(new TextEncoder().encode(body.toString())),
       type: "urlsearchparams",
     }
   }
@@ -71,14 +80,14 @@ async function normalizeBody(
     }
 
     return {
-      data: new TextEncoder().encode(JSON.stringify(entries)).buffer,
+      data: ownedArrayBuffer(new TextEncoder().encode(JSON.stringify(entries))),
       type: "formdata",
     }
   }
 
   // For ReadableStream or other types, try to read as text
   return {
-    data: new TextEncoder().encode(String(body)).buffer,
+    data: ownedArrayBuffer(new TextEncoder().encode(String(body))),
     type: "string",
   }
 }
