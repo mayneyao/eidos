@@ -1120,16 +1120,6 @@ export class AdapterTransportRuntimeClient implements RuntimeClient {
           true
         )
       }
-      if (
-        Array.from(this.pending.values()).some((pending) =>
-          PREPARED_OPERATIONS.has(pending.operation)
-        )
-      ) {
-        throw runtimeFailure(
-          "resource-limit",
-          "A prepared-capable mutation must settle before another request"
-        )
-      }
       const attachment =
         operation === "importCsv"
           ? extractCsvRequest(logicalRequest as CsvImportRequest)

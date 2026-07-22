@@ -1517,6 +1517,58 @@ test("shows Relation metadata as readable names instead of identifiers", async (
   ).toBeHidden()
 })
 
+test("clears an existing Relation while background reads settle", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the browser Transport and shared record inspector"
+  )
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  const rawRelation = page.locator("[data-testid='glide-cell-6-0']")
+  await expect(rawRelation).toContainText(/\["[0-9a-f-]+"\]/i)
+
+  const canvas = page.locator(
+    ".eidos-file-content canvas[data-testid='data-grid-canvas']"
+  )
+  const bounds = await canvas.boundingBox()
+  if (!bounds) throw new Error("The shared Eidos File Grid is not visible")
+
+  const openRecord = async () => {
+    await page.mouse.click(bounds.x + 44 + 140, bounds.y + 54, {
+      button: "right",
+    })
+    const menu = page.getByRole("menu", { name: "Record actions" })
+    await expect(menu).toBeVisible()
+    await menu.getByRole("menuitem", { name: "Open record" }).click()
+  }
+
+  await openRecord()
+  const inspector = page.locator('[data-eidos-file-detail-panel="record"]')
+  const relation = inspector.getByRole("button", {
+    name: "Team",
+    exact: true,
+  })
+  await expect(relation).toHaveText("Runtime Core")
+  await relation.click()
+  await page.getByRole("button", { name: "Clear", exact: true }).click()
+
+  await expect(inspector).not.toHaveAttribute("aria-busy", "true")
+  await expect(relation).toHaveText("No linked records")
+  await expect(page.getByText("Unable to save record")).toHaveCount(0)
+  await expect(page.getByRole("alert")).toHaveCount(0)
+
+  await page.getByRole("button", { name: "Close record details" }).click()
+  await expect(inspector).toBeHidden()
+  await openRecord()
+  await expect(
+    inspector.getByRole("button", { name: "Team", exact: true })
+  ).toHaveText("No linked records")
+})
+
 test("keeps the Formula editor focused and reachable in a dark touch viewport", async ({
   baseURL,
   browser,

@@ -45,7 +45,7 @@ function context(requestId: string) {
 }
 
 describe("Adapter 1.0 Transport", () => {
-  it("carries Runtime calls and completes the prepared-commit barrier", async () => {
+  it("carries FIFO Runtime calls through the prepared-commit barrier", async () => {
     const [clientChannel, serverChannel] = channelPair()
     const retained: string[] = []
     const settled: string[] = []
@@ -84,6 +84,20 @@ describe("Adapter 1.0 Transport", () => {
         },
       ],
     }
+    const snapshot = {
+      fileId: result.fileId,
+      format: { major: 1 as const, minor: 0 as const },
+      revision: "1",
+      title: "Fixture",
+      defaultTableId: null,
+      schemaCounts: {
+        tables: "0",
+        fields: "0",
+        views: "0",
+        features: "0",
+      },
+    }
+    const executionOrder: string[] = []
     const runtime = {
       async negotiate() {
         return {
@@ -143,6 +157,7 @@ describe("Adapter 1.0 Transport", () => {
         _request: unknown,
         requestContext: { requestId: string }
       ) {
+        executionOrder.push("mutation:start")
         await server.commitBarrier.prepare(
           {
             fileID: result.fileId,
@@ -161,7 +176,12 @@ describe("Adapter 1.0 Transport", () => {
           },
           requestContext
         )
+        executionOrder.push("mutation:end")
         return result
+      },
+      async getSnapshot() {
+        executionOrder.push("snapshot")
+        return snapshot
       },
       async cancel() {},
       async close() {},
@@ -184,16 +204,22 @@ describe("Adapter 1.0 Transport", () => {
     expect("exportCsv" in client).toBe(false)
     expect("importCsv" in client).toBe(false)
 
-    await expect(
-      client.mutateRows(
-        {
-          tableId: "018f0000-0000-7000-8000-000000000003",
-          expectedRevision: "0",
-          changes: [{ kind: "create", clientKey: "row", values: {} }],
-        },
-        context("mutation")
-      )
-    ).resolves.toEqual(result)
+    const mutation = client.mutateRows(
+      {
+        tableId: "018f0000-0000-7000-8000-000000000003",
+        expectedRevision: "0",
+        changes: [{ kind: "create", clientKey: "row", values: {} }],
+      },
+      context("mutation")
+    )
+    const readAfterMutation = client.getSnapshot({}, context("snapshot"))
+    await expect(mutation).resolves.toEqual(result)
+    await expect(readAfterMutation).resolves.toEqual(snapshot)
+    expect(executionOrder).toEqual([
+      "mutation:start",
+      "mutation:end",
+      "snapshot",
+    ])
     expect(retained).toEqual(["receipt-1"])
     expect(clientRetained).toEqual(["receipt-1"])
     expect(settled).toEqual(["receipt-1"])
