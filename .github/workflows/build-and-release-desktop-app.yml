@@ -68,6 +68,9 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y xvfb
           fi
+          electron_sandbox_path="$(dirname "$(node -p "require.resolve('electron')")")/dist/chrome-sandbox"
+          sudo chown root:root "$electron_sandbox_path"
+          sudo chmod 4755 "$electron_sandbox_path"
           xvfb-run --auto-servernum pnpm --filter eidos smoke:file-extension-runtime
 
       - name: Upload frontend build artifacts
