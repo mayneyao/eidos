@@ -1,49 +1,69 @@
 ---
 name: eidos-release
-description: Release Eidos versions. Use when the user asks to bump the Eidos app version, create or push stable release tags, create or push beta tags such as beta.6, or verify an Eidos release tag in this repository.
+description: Release Eidos Desktop, editor.eidos.space, and the bundled Graft runtime. Use when the user asks to deploy eidos-file-web, bump the Eidos app version, update the pinned Graft release, create or recover stable/prerelease tags such as beta.N, run a release pipeline, or verify its remote deployment and artifacts.
 ---
 
 # Eidos Release
 
-Run a tight release: identify the intended version and tag, use the repository version script for version bumps, push, then prove the remote state.
+Release through explicit gates: establish the exact inputs, integrate dependencies, validate locally, create the tag once, monitor the tag-triggered pipeline, and prove the published remote state.
 
-## Release Shape
+## Select the release path
 
-Infer the release shape from the request and repository state.
+Classify the request before writing:
 
-- Version bump plus beta tag: if the user says "更新版本到 0.33.0 并且 tag beta.1 推送", run the matching version script increment, create `v0.33.0-beta.1`, and push the branch plus tag.
-- Beta tag only: if the user says "beta.6 推送", read the current app version from root `package.json`, create `v<current-version>-beta.6` on `HEAD`, and push only that tag.
-- Stable tag: for a stable release, use `v<version>` with the current or newly bumped app version.
-- Bare tags: do not create `beta.N` tags unless the user explicitly asks for a bare tag after being told the repository convention is `v<version>-beta.N`.
+- **Version bump plus prerelease:** bump the app version, then tag `v<version>-beta.N`, `-alpha.N`, or `-rc.N`.
+- **Prerelease tag only:** read the current root app version and tag the current validated `HEAD`.
+- **Stable release:** use `v<version>`.
+- **Bundled Graft update:** integrate the latest official Graft release before the app version/tag work.
+- **Web editor deployment:** validate and deploy `eidos-file-web` to `editor.eidos.space` through Wrangler.
+- **Tag recovery:** repair and recreate a tag only under the empty failed-attempt rules below.
 
-Completion criterion: the intended version, script increment, and exact tag name are known before any write or push.
+For a Desktop release or Graft update, read [references/desktop-release.md](references/desktop-release.md) completely before taking release actions.
 
-## Preflight
+For an `eidos-file-web` deployment, read [references/web-editor-release.md](references/web-editor-release.md) completely before building or deploying.
 
-Inspect before changing anything:
+Do not conflate release surfaces. The Desktop tag workflow does not deploy `editor.eidos.space` or publish `@eidos.space/eidos-file` / `@eidos.space/eidos-file-ui`; Web deployment and npm publishing are separate audited workflows.
+
+Completion criterion: know the requested app version, dependency version, exact tag, target commit, and release channel before any tag or push.
+
+## Preserve release invariants
+
+- Read root and applicable nested `AGENTS.md` files first.
+- Preserve unrelated user changes. Do not stage, format, stash, revert, or commit them.
+- Never weaken a test or compatibility assertion merely to make a release green.
+- Never modify the sibling Graft repository while consuming an official Graft release.
+- Stop any workspace-owned Desktop development process before Node tests.
+- Run Node tests and Desktop builds serially because they share one linked `better-sqlite3` binary.
+- Use lightweight Eidos release tags, matching repository convention.
+- Never create a bare `beta.N` tag unless the user explicitly requests it after being told the convention.
+- Never claim release success from a local tag or a green build job alone. Require the remote tag, completed release workflow, GitHub Release, and expected uploaded assets.
+- Never claim Web deployment success from a successful Wrangler command alone. Require a new active Cloudflare deployment and fresh public bundle evidence.
+
+## Run preflight
+
+Inspect repository and remote state:
 
 ```bash
 git status --short --branch
 git log --oneline --decorate -8
+git branch --show-current
 node -e "const fs=require('fs'); console.log(JSON.parse(fs.readFileSync('package.json','utf8')).version)"
 git tag --list <tag>
 git ls-remote --tags origin refs/tags/<tag>
 git rev-list --left-right --count HEAD...@{u}
 ```
 
-Rules:
+Apply these gates:
 
-- Treat existing uncommitted changes as user work. Do not stage, format, revert, stash, or otherwise modify them unless they are part of the release.
-- Prefer `git ls-remote --tags origin refs/tags/<tag>` for tag existence checks. Avoid `git fetch --tags` in this repo because local historical tags can differ from `origin`.
-- If the target tag already exists locally or remotely, stop and report the commit it points to.
-- If the branch is behind or diverged from upstream, stop unless the user explicitly asked to tag the current local `HEAD`.
-- If the branch is ahead and the release includes a version-bump commit, push the branch with the tag.
+- If unrelated work is present, leave it untouched and determine whether the requested release can proceed safely. The version script itself requires a clean tree.
+- If the target tag exists locally or remotely, stop unless performing an explicitly justified failed-attempt recovery.
+- If the branch is behind or diverged, stop unless the user explicitly authorized tagging the current local `HEAD`.
+- If the branch is ahead, identify every unpublished commit before tagging.
+- Verify that no unrelated changes are staged.
 
-Completion criterion: no unrelated work is staged, the upstream relationship is understood, and the target tag is confirmed absent.
+## Bump the app version
 
-## Version Bump
-
-Use the repository script as the single source of truth for app version changes:
+Use the repository script as the only version source-of-truth writer:
 
 ```bash
 pnpm patch
@@ -51,7 +71,7 @@ pnpm minor
 pnpm major
 ```
 
-These commands call `node scripts/version.cjs <increment>`. The script updates and commits:
+Choose the increment whose `semver.inc(currentVersion, increment)` equals the requested base version. The script requires a clean tree and creates `Update to version <version>` while updating:
 
 - `package.json`
 - `apps/desktop/package.json`
@@ -59,55 +79,97 @@ These commands call `node scripts/version.cjs <increment>`. The script updates a
 - `packages/lib/env.ts`
 - `apps/cli/Cargo.toml`
 
-Choose the increment that makes `semver.inc(currentVersion, increment)` equal the requested version. Example: from `0.32.2` to `0.33.0`, use `pnpm minor`.
+Do not manually bypass the script. If one supported increment cannot produce the requested version, stop and report the limitation.
 
-Script rules:
-
-- The script requires a completely clean worktree. If `git status --porcelain` is non-empty, stop and tell the user the version script cannot run until those changes are committed, stashed, or explicitly approved for temporary stashing.
-- Do not manually edit the five version files to bypass the script.
-- Do not use the script if `patch`, `minor`, or `major` cannot produce the requested version in one increment. Stop and report that the repository script does not support that exact bump.
-- The script creates the commit message `Update to version <version>`.
-
-After the script runs, verify the version commit:
+After the script:
 
 ```bash
 git show --name-only --oneline --stat HEAD
+cd apps/cli && cargo check
 ```
 
-Completion criterion: the script-created commit exists, all five sources report the requested version, and the commit contains only the script-managed version files.
+Inspect `apps/cli/Cargo.lock`. If Cargo refreshes it, verify that only the expected package version changed and commit it separately as `chore(cli): refresh lockfile for <version>`.
 
-## Tag And Push
+Completion criterion: all five version sources and the CLI lockfile agree on the base version, and each release-preparation commit has a coherent scope.
 
-Eidos release tags are lightweight tags. Match existing convention:
+## Validate before tagging
+
+Run validation proportional to the release surface. For Desktop or Graft changes, use every gate in the Desktop reference.
+
+At minimum:
+
+- Run targeted tests for changed release/runtime code.
+- Run type checks and API/fixture checks relevant to changed packages.
+- Run `git diff --check` and the repository formatter check for changed files.
+- Build the Desktop unpacked app with `pnpm build:desktop:dev` when native/runtime delivery changed.
+- Verify the packaged runtime, not only source files.
+
+Classify every failure as a baseline issue, concurrent/user change, or release regression. Fix release regressions before tagging; do not merely record them.
+
+## Tag and start the release
+
+Push cohesive preparation commits before or together with the tag. Resolve the current branch dynamically:
 
 ```bash
 git tag <tag>
-git push origin <branch> <tag>   # use when a release commit was created
-git push origin <tag>            # use for tag-only releases
+git push origin <branch> <tag>
 ```
 
-Use the current branch name from `git status --short --branch` or `git branch --show-current`; do not assume `main`.
+The `v*` tag triggers `.github/workflows/build-and-release-desktop-app.yml`; do not manually create a duplicate GitHub Release. Monitor the exact run:
 
-Completion criterion: the push exits successfully and reports the new tag on `origin`.
+```bash
+gh run list --workflow build-and-release-desktop-app.yml --limit 10
+gh run watch <run-id> --exit-status
+```
 
-## Verification
+Do not stop at the first red job. Read the failing step logs, fix in scope, rerun the relevant local gate, and continue until the release succeeds or a genuine external blocker remains.
 
-Prove the result:
+## Recover an empty failed tag attempt
+
+Treat tags as immutable after distribution. Recreate a failed tag only when all conditions hold:
+
+1. The tag was created during the current release attempt.
+2. Its release workflow failed.
+3. The failed workflow has zero uploaded artifacts.
+4. No GitHub Release exists for the tag.
+5. No user or external consumer could reasonably have received the tag.
+
+Prove conditions 2–4:
+
+```bash
+gh run view <run-id> --json status,conclusion,headSha,url
+gh api repos/<owner>/<repo>/actions/runs/<run-id>/artifacts --jq '.total_count'
+gh release view <tag>
+```
+
+Only then delete the failed remote/local tag, apply and validate the repair, recreate the tag on the repaired commit, and push it. Never move a published tag or a tag with artifacts. After a successful Release, use a new prerelease number for product changes.
+
+If a post-release change affects only CI execution and not shipped product code, push it to the branch, run its focused workflow, and leave the successful release tag unchanged.
+
+## Prove publication
+
+Verify local, remote, workflow, and Release state:
 
 ```bash
 git status --short --branch
-git ls-remote --tags origin refs/tags/<tag>
-git show --no-patch --decorate --oneline <tag>
 git rev-list --left-right --count HEAD...@{u}
+git rev-parse HEAD
+git rev-parse <tag>
+git ls-remote origin refs/heads/<branch> refs/tags/<tag>
+gh run view <run-id> --json status,conclusion,headSha,url
+gh release view <tag> --json url,isDraft,isPrerelease,publishedAt,targetCommitish,assets
 ```
 
-For version bumps, also re-check all five version sources.
+Confirm every expected installer and update metadata file is present, in `uploaded` state, and has a digest. Confirm prerelease/stable classification matches the tag.
 
-Final response must include:
+For Desktop releases, the final response must include:
 
-- The exact tag and commit SHA.
-- Whether a version commit was created and pushed.
-- Whether the working tree still contains unrelated user changes.
-- What validation ran, and any validation intentionally skipped.
+- Exact tag and tag commit SHA.
+- Release URL and successful workflow URL.
+- Dependency version integrated, when applicable.
+- Asset count/platform coverage.
+- Validation performed and any allowed degradation.
+- Any CI-only follow-up commit after the tag.
+- Cleanliness and branch/upstream state.
 
-Completion criterion: the final answer is backed by remote tag evidence and local status evidence.
+For Web deployments, report the deployed commit, Cloudflare deployment/version IDs, public URL, production bundle evidence, PWA update behavior, validation, and remaining unrelated worktree changes.
