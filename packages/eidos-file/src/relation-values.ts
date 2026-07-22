@@ -1,30 +1,76 @@
+import { EidosFileError } from "./errors"
+import { isEidosFileUuid } from "./identifiers"
 import type { EidosFileRelationValue, EidosFileRowValue } from "./types"
-import { decodeEidosFileStringArray } from "./json-array-values"
 
-const MAX_RELATION_VALUES = 500
+const MAX_RELATION_VALUES = 10_000
+
+function parseRelationIds(
+  value: EidosFileRowValue | undefined
+): unknown[] | null {
+  if (typeof value !== "string") return null
+  try {
+    const parsed: unknown = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
 
 export function decodeEidosFileRelationIds(
   value: EidosFileRowValue | undefined
 ): string[] {
-  return Array.from(
-    new Set(
-      decodeEidosFileStringArray(value)
-        .map((entry) => entry.trim())
-        .filter(Boolean)
-        .slice(0, MAX_RELATION_VALUES)
+  if (value === undefined || value === null) return []
+  const parsed = parseRelationIds(value)
+  if (!parsed) {
+    throw new EidosFileError(
+      "invalid-value",
+      "Relation value must be a JSON array"
     )
-  )
+  }
+  if (parsed.length > MAX_RELATION_VALUES) {
+    throw new EidosFileError(
+      "resource-limit",
+      "Relation contains too many targets"
+    )
+  }
+  if (!parsed.every(isEidosFileUuid)) {
+    throw new EidosFileError(
+      "invalid-value",
+      "Relation values must be lowercase hyphenated UUIDv7 strings"
+    )
+  }
+  if (new Set(parsed).size !== parsed.length) {
+    throw new EidosFileError(
+      "invalid-value",
+      "Relation target Row IDs must be unique"
+    )
+  }
+  return parsed as string[]
 }
 
-export function encodeEidosFileRelationIds(
-  ids: readonly string[]
-): string | null {
-  const normalized = Array.from(
-    new Set(ids.map((id) => id.trim()).filter(Boolean))
-  ).slice(0, MAX_RELATION_VALUES)
-  return normalized.length > 0 ? JSON.stringify(normalized) : null
+export function encodeEidosFileRelationIds(ids: readonly string[]): string {
+  if (ids.length > MAX_RELATION_VALUES) {
+    throw new EidosFileError(
+      "resource-limit",
+      "Relation contains too many targets"
+    )
+  }
+  if (!ids.every(isEidosFileUuid)) {
+    throw new EidosFileError(
+      "invalid-value",
+      "Relation values must be lowercase hyphenated UUIDv7 strings"
+    )
+  }
+  if (new Set(ids).size !== ids.length) {
+    throw new EidosFileError(
+      "invalid-value",
+      "Relation target Row IDs must be unique"
+    )
+  }
+  return JSON.stringify(ids)
 }
 
+/** Reads generated Relation presentation values, never canonical cells. */
 export function decodeEidosFileRelationDisplay(
   value: EidosFileRowValue | undefined
 ): EidosFileRelationValue[] {
@@ -38,7 +84,7 @@ export function decodeEidosFileRelationDisplay(
         entry === null ||
         !("id" in entry) ||
         !("title" in entry) ||
-        typeof entry.id !== "string" ||
+        !isEidosFileUuid(entry.id) ||
         typeof entry.title !== "string"
       ) {
         return []

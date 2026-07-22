@@ -1,4 +1,5 @@
 import type { EidosFileFieldInfo } from "./types"
+import { encodeEidosFileAttachmentPaths } from "./file-values"
 import { planEidosFileFieldConversion } from "./field-conversion"
 
 function field(
@@ -6,10 +7,16 @@ function field(
   property: Record<string, unknown> | null = null
 ): EidosFileFieldInfo {
   return {
+    id: "0198c72d-82b5-7000-8000-000000000001",
+    tableId: "0198c72d-82b5-7000-8000-000000000002",
     name: "Value",
     type,
     tableName: "tb_tasks",
     tableColumnName: "value",
+    physicalName: "value",
+    isRecordLabel: false,
+    position: 0,
+    settings: {},
     property,
     storageCodec:
       type === "file" || type === "multi-select" ? "json_array" : "scalar",
@@ -53,7 +60,7 @@ describe("Eidos File field conversion", () => {
 
   it("derives stable select options from existing display values", () => {
     const source = field("select", {
-      options: [{ value: "Todo", color: "red" }],
+      options: [{ name: "Todo", color: "red" }],
     })
     const plan = planEidosFileFieldConversion(
       source,
@@ -64,7 +71,10 @@ describe("Eidos File field conversion", () => {
       "multi-select"
     )
     expect(plan.property).toMatchObject({
-      options: [{ value: "Todo", color: "red" }, { value: "done" }],
+      options: [
+        { name: "Todo", color: "red" },
+        { name: "done", color: "brown" },
+      ],
     })
     expect(plan.values).toEqual([
       { id: "a", value: '["Todo"]' },
@@ -76,9 +86,41 @@ describe("Eidos File field conversion", () => {
     expect(
       planEidosFileFieldConversion(
         field("file"),
-        [{ id: "a", value: '["assets/a.pdf","assets/b.png"]' }],
+        [
+          {
+            id: "a",
+            value: encodeEidosFileAttachmentPaths([
+              "assets/a.pdf",
+              "assets/b.png",
+            ]),
+          },
+        ],
         "text"
       ).values
     ).toEqual([{ id: "a", value: "assets/a.pdf, assets/b.png" }])
+  })
+
+  it("normalizes date and datetime conversions to canonical TEXT", () => {
+    expect(
+      planEidosFileFieldConversion(
+        field("text"),
+        [{ id: "a", value: "2026-07-20" }],
+        "date"
+      ).values
+    ).toEqual([{ id: "a", value: "2026-07-20" }])
+    expect(
+      planEidosFileFieldConversion(
+        field("text"),
+        [{ id: "a", value: "2026-07-20T18:00:00+08:00" }],
+        "datetime"
+      ).values
+    ).toEqual([{ id: "a", value: "2026-07-20T10:00:00.000Z" }])
+    expect(() =>
+      planEidosFileFieldConversion(
+        field("text"),
+        [{ id: "a", value: "2026-02-30" }],
+        "date"
+      )
+    ).toThrow(/canonical YYYY-MM-DD/)
   })
 })

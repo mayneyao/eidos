@@ -4,6 +4,7 @@ import {
   eidosFileLookupAggregateSupportsTarget,
   eidosFileLookupDisplayType,
   eidosFileLookupStorageCodec,
+  eidosFileLookupValueType,
 } from "./lookup"
 
 describe("Eidos File lookup policy", () => {
@@ -17,7 +18,7 @@ describe("Eidos File lookup policy", () => {
     expect(eidosFileLookupDisplayType("first", "number")).toBe("number")
     expect(eidosFileLookupDisplayType("values", "date")).toBe("date")
     expect(eidosFileLookupDisplayType("values", "multi-select")).toBe("text")
-    expect(eidosFileLookupDisplayType("count", "text")).toBe("number")
+    expect(eidosFileLookupDisplayType("count", "text")).toBe("integer")
   })
 
   it("only permits numeric rollups over numeric target fields", () => {
@@ -33,6 +34,19 @@ describe("Eidos File lookup policy", () => {
     expect(
       eidosFileLookupAggregateSupportsTarget("values", { type: "multi-select" })
     ).toBe(true)
+  })
+
+  it("derives exact public TypeRefs after list flattening", () => {
+    expect(eidosFileLookupValueType("values", "multi-select")).toEqual({
+      kind: "list",
+      element: "select",
+    })
+    expect(eidosFileLookupValueType("first", "relation")).toBe("row-id")
+    expect(eidosFileLookupValueType("first", "file")).toBe("file-entry")
+    expect(eidosFileLookupValueType("sum", "integer")).toBe("integer")
+    expect(eidosFileLookupValueType("average", "integer")).toBe("number")
+    expect(eidosFileLookupAggregateSupportsTarget("min", "json")).toBe(false)
+    expect(eidosFileLookupAggregateSupportsTarget("max", "file")).toBe(false)
   })
 
   it("uses the effective display type of a nested lookup", () => {

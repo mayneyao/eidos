@@ -5,11 +5,8 @@ import { parse } from "csv-parse/browser/esm/sync"
 
 import { EidosFileError } from "./errors"
 import { eidosFileFieldDisplayValues } from "./field-conversion"
-import {
-  decodeEidosFileRelationDisplay,
-  decodeEidosFileRelationIds,
-} from "./relation-values"
 import type { EidosFileRuntime } from "./runtime"
+import { isCanonicalEidosFileDate, normalizeEidosFileInstant } from "./temporal"
 import type {
   EidosFileCsvExportColumn,
   EidosFileFieldInfo,
@@ -60,16 +57,6 @@ export function createEidosFileCsvRowEncoder(
   return (row) =>
     encodeEidosFileCsvRecord(
       resolvedFields.map((field) => {
-        if (field.type === "link") {
-          const display = decodeEidosFileRelationDisplay(
-            row[`${field.tableColumnName}__display`]
-          )
-          return (
-            display.length > 0
-              ? display.map((entry) => entry.title)
-              : decodeEidosFileRelationIds(row[field.tableColumnName])
-          ).join(", ")
-        }
         return eidosFileFieldDisplayValues(
           field,
           row[field.tableColumnName] ?? null
@@ -175,38 +162,17 @@ function uniqueName(name: string, used: Set<string>, fallback: string): string {
   return candidate
 }
 
-function columnIdentifier(
-  name: string,
-  index: number,
-  used: Set<string>
-): string {
-  const normalized = name
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-  const stem = /^[a-z]/.test(normalized) ? normalized : `field_${index + 1}`
-  let candidate = stem === "title" ? `field_${index + 1}` : stem
-  let suffix = 2
-  while (used.has(candidate)) {
-    candidate = `${stem}_${suffix}`
-    suffix += 1
-  }
-  used.add(candidate)
-  return candidate
-}
-
 function isIsoDate(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value))
+  return isCanonicalEidosFileDate(value)
 }
 
 function isIsoDateTime(value: string): boolean {
-  return (
-    /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?$/.test(
-      value
-    ) && !Number.isNaN(Date.parse(value))
-  )
+  try {
+    normalizeEidosFileInstant(value)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function isUrl(value: string): boolean {
@@ -245,7 +211,6 @@ function buildColumns(
   rows: string[][]
 ): EidosFileCsvImportColumn[] {
   const usedNames = new Set<string>()
-  const usedColumns = new Set<string>(["title"])
   return header.map((sourceName, sourceIndex) => {
     const name = uniqueName(sourceName, usedNames, `Column ${sourceIndex + 1}`)
     if (sourceIndex === 0) {
@@ -253,15 +218,15 @@ function buildColumns(
         sourceIndex,
         sourceName,
         name,
-        columnName: "title",
-        type: "title",
+        columnName: name,
+        type: "record-label",
       }
     }
     return {
       sourceIndex,
       sourceName,
       name,
-      columnName: columnIdentifier(name, sourceIndex, usedColumns),
+      columnName: name,
       type: inferType(
         rows
           .slice(0, EIDOS_FILE_CSV_INFERENCE_ROW_COUNT)
@@ -301,29 +266,23 @@ export function importEidosFileCsv(
   options: EidosFileCsvImportOptions = {}
 ): EidosFileCsvImportResult {
   const { plan, rows } = prepareEidosFileCsvImport(file, options)
-  return eidosFile.connection.transaction(() => {
-    const table = eidosFile.createTable({
+  const table = eidosFile.importTable(
+    {
       name: plan.tableName,
-      fields: plan.columns.flatMap((column) =>
-        column.type === "title"
-          ? []
-          : [
-              {
-                name: column.name,
-                columnName: column.columnName,
-                type: column.type,
-              },
-            ]
-      ),
-    })
-    eidosFile.updateField(table.id, "title", { name: plan.columns[0].name })
-    if (rows.length > 0) eidosFile.insertImportedRows(table.id, rows)
-    return {
-      table,
-      importedRowCount: rows.length,
-      skippedRowCount: plan.skippedRowCount,
-    }
-  })
+      fields: plan.columns.map((column) => ({
+        name: column.name,
+        columnName: column.columnName,
+        type: column.type === "record-label" ? "text" : column.type,
+        isRecordLabel: column.type === "record-label",
+      })),
+    },
+    rows
+  )
+  return {
+    table,
+    importedRowCount: rows.length,
+    skippedRowCount: plan.skippedRowCount,
+  }
 }
 
 function buildImportPlan(
@@ -377,7 +336,8 @@ export function createEidosFileCsvImportPlan(
       }
       column.name = name
     }
-    if (column.type !== "title" && override.type) column.type = override.type
+    if (column.type !== "record-label" && override.type)
+      column.type = override.type
   }
   const tableName =
     options.tableName?.trim() || defaultTableName(source.fileName)
@@ -418,6 +378,24 @@ function convertValue(
       )
     }
     return /^true$/i.test(trimmed) ? 1 : 0
+  }
+  if (type === "date") {
+    if (!isIsoDate(trimmed)) {
+      throw new EidosFileError(
+        "invalid-csv",
+        `CSV row ${rowNumber}, field “${fieldName}” is not a YYYY-MM-DD date`
+      )
+    }
+    return trimmed
+  }
+  if (type === "datetime") {
+    if (!isIsoDateTime(trimmed)) {
+      throw new EidosFileError(
+        "invalid-csv",
+        `CSV row ${rowNumber}, field “${fieldName}” is not an RFC 3339 timestamp`
+      )
+    }
+    return normalizeEidosFileInstant(trimmed, fieldName)
   }
   return value
 }

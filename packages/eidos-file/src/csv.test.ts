@@ -6,6 +6,8 @@ import { createEidosFile } from "./better-sqlite3"
 import { EidosFileError } from "./errors"
 import {
   eidosFileCsvExportHeader,
+  eidosFileCsvRowToEidosFileRow,
+  encodeEidosFileCsvRecord,
   createEidosFileCsvRowEncoder,
   importEidosFileCsv,
   parseEidosFileCsvRows,
@@ -36,13 +38,13 @@ describe("Eidos File CSV import", () => {
       rowCount: 1,
       skippedRowCount: 0,
       columns: [
-        { name: "Name", columnName: "title", type: "title" },
-        { name: "Count", columnName: "count", type: "number" },
-        { name: "Active", columnName: "active", type: "checkbox" },
-        { name: "Published", columnName: "published", type: "date" },
-        { name: "Website", columnName: "website", type: "url" },
-        { name: "Name 2", columnName: "name_2", type: "text" },
-        { name: "Column 7", columnName: "column_7", type: "text" },
+        { name: "Name", columnName: "Name", type: "record-label" },
+        { name: "Count", columnName: "Count", type: "number" },
+        { name: "Active", columnName: "Active", type: "checkbox" },
+        { name: "Published", columnName: "Published", type: "date" },
+        { name: "Website", columnName: "Website", type: "url" },
+        { name: "Name 2", columnName: "Name 2", type: "text" },
+        { name: "Column 7", columnName: "Column 7", type: "text" },
       ],
     })
     expect(plan.sampleRows[0][0]).toBe("Portable, stand")
@@ -63,6 +65,36 @@ describe("Eidos File CSV import", () => {
         count: 2,
       }),
     ])
+  })
+
+  it("keeps dates as text and normalizes datetime offsets to UTC", () => {
+    const plan = planEidosFileCsvImport({
+      name: "events.csv",
+      content: "Name,Day,Starts\nLaunch,2026-07-20,2026-07-20T18:00:00+08:00",
+    })
+
+    expect(plan.columns.map((column) => column.type)).toEqual([
+      "record-label",
+      "date",
+      "datetime",
+    ])
+    expect(
+      eidosFileCsvRowToEidosFileRow(
+        ["Launch", "2026-07-20", "2026-07-20T18:00:00+08:00"],
+        2,
+        plan
+      )
+    ).toMatchObject({
+      Day: "2026-07-20",
+      Starts: "2026-07-20T10:00:00.000Z",
+    })
+    expect(() =>
+      eidosFileCsvRowToEidosFileRow(
+        ["Launch", "2026-07-20", "2026-07-20T10:00:00.0001Z"],
+        2,
+        plan
+      )
+    ).toThrow(/RFC 3339 timestamp/)
   })
 
   it("rejects empty and structurally invalid files with Eidos File errors", () => {
@@ -104,28 +136,29 @@ describe("Eidos File CSV import", () => {
       expect.arrayContaining([
         expect.objectContaining({
           name: "Item",
-          tableColumnName: "title",
-          type: "title",
+          tableColumnName: "Item",
+          type: "text",
+          isRecordLabel: true,
         }),
         expect.objectContaining({
           name: "Quantity",
-          tableColumnName: "quantity",
+          tableColumnName: "Quantity",
           type: "number",
         }),
         expect.objectContaining({
           name: "Available",
-          tableColumnName: "available",
+          tableColumnName: "Available",
           type: "checkbox",
         }),
       ])
     )
     expect(eidosFile.listRows(result.table.id)).toEqual([
       expect.objectContaining({
-        title: "Portable stand",
-        quantity: 3,
-        available: 1,
+        Item: "Portable stand",
+        Quantity: 3,
+        Available: 1,
       }),
-      expect.objectContaining({ title: "Desk", quantity: 1, available: 0 }),
+      expect.objectContaining({ Item: "Desk", Quantity: 1, Available: 0 }),
     ])
     eidosFile.close()
   })
@@ -135,9 +168,12 @@ describe("Eidos File CSV import", () => {
       title: "CSV target",
     })
     const connection = eidosFile.connection
-    const originalRunMany = connection.runMany
-    connection.runMany = () => {
-      throw new EidosFileError("invalid-csv", "simulated write failure")
+    const originalRun = connection.run
+    connection.run = (sql, params) => {
+      if (/^INSERT INTO "people"/u.test(sql.trim())) {
+        throw new EidosFileError("invalid-csv", "simulated write failure")
+      }
+      return originalRun.call(connection, sql, params)
     }
 
     expect(() =>
@@ -148,30 +184,42 @@ describe("Eidos File CSV import", () => {
     ).toThrow("simulated write failure")
     expect(eidosFile.listTables()).toEqual([])
 
-    connection.runMany = originalRunMany
+    connection.run = originalRun
     eidosFile.close()
   })
 
   it("serializes visible field names and displayed values as RFC 4180 rows", () => {
     const fields = [
       {
+        id: "0198c72d-82b5-7000-8000-000000000001",
+        tableId: "0198c72d-82b5-7000-8000-000000000010",
         name: "Task",
-        type: "title" as const,
+        type: "text" as const,
         tableName: "tasks",
         tableColumnName: "title",
+        physicalName: "title",
+        position: 0,
+        settings: {},
         property: null,
         storageCodec: "scalar" as const,
         valueKind: "source" as const,
+        isRecordLabel: true,
         isHidden: false,
         isDerived: false,
         sourceTableColumnName: null,
         dependsOn: null,
       },
       {
+        id: "0198c72d-82b5-7000-8000-000000000002",
+        tableId: "0198c72d-82b5-7000-8000-000000000010",
         name: "Done",
         type: "checkbox" as const,
         tableName: "tasks",
         tableColumnName: "done",
+        physicalName: "done",
+        isRecordLabel: false,
+        position: 1,
+        settings: {},
         property: null,
         storageCodec: "scalar" as const,
         valueKind: "source" as const,
@@ -181,10 +229,16 @@ describe("Eidos File CSV import", () => {
         dependsOn: null,
       },
       {
+        id: "0198c72d-82b5-7000-8000-000000000003",
+        tableId: "0198c72d-82b5-7000-8000-000000000010",
         name: "Owners",
-        type: "link" as const,
+        type: "relation" as const,
         tableName: "tasks",
         tableColumnName: "owners",
+        physicalName: "owners",
+        isRecordLabel: false,
+        position: 2,
+        settings: {},
         property: null,
         storageCodec: "relation" as const,
         valueKind: "relation" as const,
@@ -202,14 +256,24 @@ describe("Eidos File CSV import", () => {
 
     expect(eidosFileCsvExportHeader(columns)).toBe("Task name,Done,Owners\r\n")
     const encodeRow = createEidosFileCsvRowEncoder(fields, columns)
+    const adaId = "0198c72d-82b5-7968-b163-98be4b7477df"
+    const graceId = "0198c72d-82b5-7969-8163-98be4b7477df"
     expect(
       encodeRow({
         title: 'Review "Q3", plan',
         done: 1,
-        owners: '["ada","grace"]',
-        owners__display:
-          '[{"id":"ada","title":"Ada"},{"id":"grace","title":"Grace"}]',
+        owners: JSON.stringify([adaId, graceId]),
+        owners__display: JSON.stringify([
+          { id: adaId, title: "Ada" },
+          { id: graceId, title: "Grace" },
+        ]),
       })
-    ).toBe('"Review ""Q3"", plan",true,"Ada, Grace"\r\n')
+    ).toBe(
+      encodeEidosFileCsvRecord([
+        'Review "Q3", plan',
+        "true",
+        JSON.stringify([adaId, graceId]),
+      ])
+    )
   })
 })

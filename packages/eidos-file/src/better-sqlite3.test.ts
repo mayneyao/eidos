@@ -1,7 +1,11 @@
 import Database from "better-sqlite3"
 import { describe, expect, it, vi } from "vitest"
 
-import { BetterSqlite3EidosFileConnection } from "./better-sqlite3"
+import {
+  BetterSqlite3ConnectionPort,
+  BetterSqlite3EidosFileConnection,
+} from "./better-sqlite3"
+import { expectConnectionPortConformance } from "./connection-port.conformance"
 
 describe("BetterSqlite3EidosFileConnection statement cache", () => {
   it("reuses prepared statements and evicts the least recently used SQL", () => {
@@ -59,6 +63,17 @@ describe("BetterSqlite3EidosFileConnection statement cache", () => {
       ).toHaveLength(2)
     } finally {
       prepare.mockRestore()
+      connection.close()
+    }
+  })
+})
+
+describe("BetterSqlite3ConnectionPort EA-Connection-1.0", () => {
+  it("passes the shared Browser/Desktop connection transcript", async () => {
+    const connection = new BetterSqlite3ConnectionPort(new Database(":memory:"))
+    try {
+      await expectConnectionPortConformance(connection)
+    } finally {
       connection.close()
     }
   })

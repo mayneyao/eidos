@@ -31,6 +31,6 @@ export function decodeEidosFileStringArray(
 
 export function encodeEidosFileJsonArray(
   values: readonly EidosFileJsonArrayValue[]
-): string | null {
-  return values.length > 0 ? JSON.stringify(values) : null
+): string {
+  return JSON.stringify(values)
 }

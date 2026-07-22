@@ -1,10 +1,16 @@
+import type sqlite3InitModule from "@sqlite.org/sqlite-wasm"
+
 import type {
   EidosFileConnection,
   EidosFileRunResult,
   EidosFileSqlParams,
   EidosFileSqlPrimitive,
 } from "./connection"
-import { EIDOS_FILE_EXTENSION, EIDOS_FILE_MIME_TYPE } from "./constants"
+import {
+  EIDOS_FILE_EXTENSION,
+  EIDOS_FILE_MIME_TYPE,
+  hasEidosFileSqliteHeader,
+} from "./constants"
 import { EidosFileRuntimeDataSource } from "./data-source"
 import { EidosFileError } from "./errors"
 import type {
@@ -20,7 +26,6 @@ import type {
   EidosFileWriteOptions,
 } from "./host"
 import { EidosFileHostError } from "./host"
-import { migrateEidosFileSchema } from "./migrations"
 import { EidosFileRuntime } from "./runtime"
 import { validateEidosFile } from "./validation"
 
@@ -29,6 +34,11 @@ export {
   EIDOS_FILE_FORMAT,
   EIDOS_FILE_MIME_TYPE,
 } from "./constants"
+export { SQLiteWasmConnectionPort } from "./sqlite-wasm"
+export type { SQLiteWasmConnectionPortOptions } from "./sqlite-wasm"
+export * from "./adapter-transport"
+export type * from "./adapter-contract"
+export type * from "./runtime-contract"
 export type * from "./connection"
 export type { EidosFileDataSource } from "./data-source"
 export type {
@@ -44,8 +54,15 @@ export type {
   EidosFileWriteOptions,
 } from "./host"
 export type * from "./types"
+export {
+  currentEidosFileInstant,
+  isCanonicalEidosFileDate,
+  isCanonicalEidosFileInstant,
+  normalizeEidosFileDate,
+  normalizeEidosFileInstant,
+} from "./temporal"
 
-type Sqlite3Initializer = (typeof import("@sqlite.org/sqlite-wasm"))["default"]
+type Sqlite3Initializer = typeof sqlite3InitModule
 type Sqlite3Static = Awaited<ReturnType<Sqlite3Initializer>>
 type SqliteDatabase = InstanceType<Sqlite3Static["oo1"]["DB"]>
 
@@ -362,9 +379,20 @@ function sqliteValue(value: unknown): EidosFileSqlPrimitive {
 }
 
 class SQLiteWasmEidosFileConnection implements EidosFileConnection {
+  readonly capabilities = {
+    int64: true,
+    json1: true,
+    returning: true,
+    interrupt: true,
+    scalarFunctions: true,
+  } as const
+
   private transactionDepth = 0
 
-  constructor(readonly database: SqliteDatabase) {}
+  constructor(
+    readonly database: SqliteDatabase,
+    private readonly sqlite3: Sqlite3Static
+  ) {}
 
   exec(sql: string): void {
     this.database.exec(sql)
@@ -420,6 +448,18 @@ class SQLiteWasmEidosFileConnection implements EidosFileConnection {
     }
   }
 
+  registerFunction(
+    name: string,
+    operation: (...values: EidosFileSqlPrimitive[]) => EidosFileSqlPrimitive,
+    arity = operation.length
+  ): void {
+    this.database.createFunction(
+      name,
+      (_context, ...values) => operation(...values.map(sqliteValue)),
+      { arity, deterministic: true }
+    )
+  }
+
   transaction<T>(operation: () => T): T {
     const depth = this.transactionDepth++
     const savepoint = `eidos_file_${depth}`
@@ -442,6 +482,20 @@ class SQLiteWasmEidosFileConnection implements EidosFileConnection {
     }
   }
 
+  dataVersion(): number {
+    return (
+      this.get<{ data_version: number }>("PRAGMA data_version")?.data_version ??
+      0
+    )
+  }
+
+  interrupt(): void {
+    const capi = this.sqlite3.capi as unknown as {
+      sqlite3_interrupt(pointer: unknown): void
+    }
+    capi.sqlite3_interrupt(this.database.pointer)
+  }
+
   close(): void {
     this.database.close()
   }
@@ -460,14 +514,7 @@ function sqlite(): Promise<Sqlite3Static> {
   return sqlitePromise
 }
 
-function validateAndMigrate(connection: EidosFileConnection): void {
-  const initial = validateEidosFile(connection)
-  const migrationAvailable =
-    initial.errors.length === 0 &&
-    initial.warnings.some(
-      (warning) => warning.code === "schema-migration-available"
-    )
-  if (migrationAvailable) migrateEidosFileSchema(connection)
+function validateCanonicalFile(connection: EidosFileConnection): void {
   const result = validateEidosFile(connection)
   if (!result.valid) {
     throw new EidosFileError(
@@ -491,17 +538,23 @@ export class EidosFileBrowserRuntime implements EidosFileRuntimeAdapter {
     options: { signal?: AbortSignal } = {}
   ): Promise<EidosFileDocument> {
     abortIfNeeded(options.signal)
+    if (!hasEidosFileSqliteHeader(read.bytes)) {
+      throw new EidosFileError(
+        "not-eidos-file",
+        "Input does not have a SQLite 3 header"
+      )
+    }
     const sqlite3 = await sqlite()
     abortIfNeeded(options.signal)
     const path = `/eidos-${randomId()}.eidos`
     sqlite3.capi.sqlite3_js_posix_create_file(path, read.bytes)
     const database = new sqlite3.oo1.DB(path, "w")
-    const connection = new SQLiteWasmEidosFileConnection(database)
+    const connection = new SQLiteWasmEidosFileConnection(database, sqlite3)
     try {
       connection.exec(
-        "PRAGMA foreign_keys = ON; PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;"
+        "PRAGMA foreign_keys = ON; PRAGMA trusted_schema = OFF; PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;"
       )
-      validateAndMigrate(connection)
+      validateCanonicalFile(connection)
       const runtime = new EidosFileRuntime(connection, true)
       runtime.optimizeViewQueries()
       const source = new EidosFileRuntimeDataSource(

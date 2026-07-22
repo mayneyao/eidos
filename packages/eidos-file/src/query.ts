@@ -1,6 +1,7 @@
 import type { EidosFileSqlParams, EidosFileSqlPrimitive } from "./connection"
 import { EidosFileError } from "./errors"
 import { quoteIdentifier } from "./identifiers"
+import { normalizeEidosFileDate, normalizeEidosFileInstant } from "./temporal"
 import type {
   EidosFileFieldInfo,
   EidosFileFilterGroup,
@@ -24,8 +25,107 @@ const FILTER_OPERATORS = new Set<EidosFileFilterRule["operator"]>([
   "is-empty",
   "is-not-empty",
   "is-any-of",
+  "is-all-of",
   "is-none-of",
 ])
+
+const MAX_QUERY_DEPTH = 8
+const MAX_QUERY_FILTER_NODES = 100
+const MAX_QUERY_SORTS = 32
+const MAX_QUERY_SEARCH_LENGTH = 1_000
+
+/** Rejects malformed or over-budget public query documents before normalization. */
+export function assertEidosFileRowQuery(value: unknown): void {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new EidosFileError("invalid-query", "Row query must be an object")
+  }
+  const query = value as Record<string, unknown>
+  if (
+    query.search !== undefined &&
+    (typeof query.search !== "string" ||
+      query.search.length > MAX_QUERY_SEARCH_LENGTH)
+  ) {
+    throw new EidosFileError(
+      "query-limit",
+      "Search text exceeds the 1000-character limit"
+    )
+  }
+  if (query.sorts !== undefined) {
+    if (!Array.isArray(query.sorts) || query.sorts.length > MAX_QUERY_SORTS) {
+      throw new EidosFileError(
+        "query-limit",
+        "A query may contain at most 32 sort keys"
+      )
+    }
+    for (const sort of query.sorts) {
+      if (
+        !sort ||
+        typeof sort !== "object" ||
+        Array.isArray(sort) ||
+        typeof (sort as { field?: unknown }).field !== "string" ||
+        !["asc", "desc"].includes(
+          String((sort as { direction?: unknown }).direction ?? "asc")
+        ) ||
+        ((sort as { nulls?: unknown }).nulls !== undefined &&
+          !["first", "last"].includes(
+            String((sort as { nulls?: unknown }).nulls)
+          ))
+      ) {
+        throw new EidosFileError("invalid-query", "Invalid sort document")
+      }
+    }
+  }
+  let nodeCount = 0
+  const visit = (node: unknown, depth: number): void => {
+    nodeCount += 1
+    if (depth > MAX_QUERY_DEPTH || nodeCount > MAX_QUERY_FILTER_NODES) {
+      throw new EidosFileError(
+        "query-limit",
+        "Filter exceeds the query complexity limit"
+      )
+    }
+    if (!node || typeof node !== "object" || Array.isArray(node)) {
+      throw new EidosFileError("invalid-query", "Filter nodes must be objects")
+    }
+    const filter = node as Record<string, unknown>
+    if (filter.type === "group") {
+      if (
+        !["and", "or"].includes(String(filter.conjunction)) ||
+        !Array.isArray(filter.children)
+      ) {
+        throw new EidosFileError("invalid-query", "Invalid filter group")
+      }
+      filter.children.forEach((child) => visit(child, depth + 1))
+      return
+    }
+    if (
+      filter.type !== "rule" ||
+      typeof filter.field !== "string" ||
+      !FILTER_OPERATORS.has(filter.operator as EidosFileFilterRule["operator"])
+    ) {
+      throw new EidosFileError("invalid-query", "Invalid filter rule")
+    }
+    const values = Array.isArray(filter.value) ? filter.value : [filter.value]
+    if (
+      values.length > 500 ||
+      values.some(
+        (entry) =>
+          entry !== undefined &&
+          entry !== null &&
+          typeof entry !== "string" &&
+          typeof entry !== "number" &&
+          typeof entry !== "boolean"
+      )
+    ) {
+      throw new EidosFileError(
+        "query-limit",
+        "Filter values exceed the query limit"
+      )
+    }
+  }
+  if (query.filter !== undefined && query.filter !== null)
+    visit(query.filter, 0)
+}
 
 export interface CompiledEidosFileRowQuery {
   whereSql: string
@@ -46,7 +146,8 @@ function normalizeFilterNode(
   value: unknown,
   depth: number
 ): EidosFileFilterRule | EidosFileFilterGroup | null {
-  if (depth > 8 || typeof value !== "object" || value === null) return null
+  if (depth > MAX_QUERY_DEPTH || typeof value !== "object" || value === null)
+    return null
   const candidate = value as Record<string, unknown>
   if (candidate.type === "rule") {
     if (
@@ -76,7 +177,8 @@ function normalizeFilterNode(
   return {
     type: "group",
     conjunction: candidate.conjunction === "or" ? "or" : "and",
-    children: candidate.children.slice(0, 100).flatMap((child) => {
+    ...(candidate.negated === true ? { negated: true } : {}),
+    children: candidate.children.flatMap((child) => {
       const normalized = normalizeFilterNode(child, depth + 1)
       return normalized ? [normalized] : []
     }),
@@ -112,7 +214,7 @@ export function removeEidosFileFilterField(
 
 export function normalizeEidosFileSorts(value: unknown): EidosFileSort[] {
   if (!Array.isArray(value)) return []
-  return value.slice(0, 32).flatMap((entry) => {
+  return value.flatMap((entry) => {
     if (
       typeof entry !== "object" ||
       entry === null ||
@@ -127,6 +229,10 @@ export function normalizeEidosFileSorts(value: unknown): EidosFileSort[] {
           (entry as { direction?: unknown }).direction === "desc"
             ? ("desc" as const)
             : ("asc" as const),
+        nulls:
+          (entry as { nulls?: unknown }).nulls === "first"
+            ? ("first" as const)
+            : ("last" as const),
       },
     ]
   })
@@ -137,7 +243,11 @@ export function normalizeEidosFileRowQuery(value: unknown): EidosFileRowQuery {
   const candidate = value as Record<string, unknown>
   return {
     ...(typeof candidate.search === "string"
-      ? { search: candidate.search.slice(0, 1_000) }
+      ? { search: candidate.search }
+      : {}),
+    ...(Array.isArray(candidate.searchFields) &&
+    candidate.searchFields.every((field) => typeof field === "string")
+      ? { searchFields: [...candidate.searchFields] as string[] }
       : {}),
     filter: normalizeEidosFileFilter(candidate.filter),
     sorts: normalizeEidosFileSorts(candidate.sorts),
@@ -148,11 +258,16 @@ function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, "\\$&")
 }
 
-function searchableFields(fields: EidosFileFieldInfo[]): EidosFileFieldInfo[] {
+function searchableFields(
+  fields: EidosFileFieldInfo[],
+  selected?: readonly string[]
+): EidosFileFieldInfo[] {
+  const selection = selected ? new Set(selected) : null
   return fields.filter(
     (field) =>
+      (!selection || (!!field.id && selection.has(field.id))) &&
       !field.isHidden &&
-      (field.tableColumnName === "title" ||
+      (field.isRecordLabel ||
         field.valueKind === "source" ||
         field.valueKind === "materialized" ||
         field.valueKind === "derived")
@@ -185,8 +300,8 @@ export function eidosFileRowQueryPredicateColumns(
 ): Set<string> {
   const normalized = normalizeEidosFileRowQuery(query)
   const columns = new Set<string>()
-  if (normalized.search?.trim()) {
-    for (const field of searchableFields(fields)) {
+  if (normalized.search !== undefined && normalized.search !== "") {
+    for (const field of searchableFields(fields, normalized.searchFields)) {
       columns.add(field.tableColumnName)
     }
   }
@@ -264,6 +379,64 @@ function sqlValue(value: EidosFileFilterValue): EidosFileSqlPrimitive {
   return typeof value === "boolean" ? (value ? 1 : 0) : value
 }
 
+function sqlFieldValue(
+  field: EidosFileFieldInfo,
+  value: EidosFileFilterValue
+): EidosFileSqlPrimitive {
+  if (value === null) return null
+  const type =
+    (field.type === "formula" || field.type === "lookup") &&
+    typeof field.property?.displayType === "string"
+      ? field.property.displayType
+      : field.type
+  if (type === "date") {
+    if (typeof value !== "string") {
+      throw new EidosFileError(
+        "invalid-query",
+        `${field.name} filter values must use canonical YYYY-MM-DD text`
+      )
+    }
+    return normalizeEidosFileDate(value, `${field.name} filter`)
+  }
+  if (
+    type === "datetime" ||
+    type === "created-time" ||
+    type === "last-edited-time"
+  ) {
+    if (typeof value !== "string") {
+      throw new EidosFileError(
+        "invalid-query",
+        `${field.name} filter values must be RFC 3339 text`
+      )
+    }
+    return normalizeEidosFileInstant(value, `${field.name} filter`)
+  }
+  if (type === "integer") {
+    if (
+      typeof value !== "string" ||
+      !/^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/u.test(value) ||
+      value === "-0"
+    ) {
+      throw new EidosFileError(
+        "invalid-query",
+        `${field.name} filter values must be canonical signed int64 decimal text`
+      )
+    }
+    const integer = BigInt(value)
+    if (
+      integer < -9_223_372_036_854_775_808n ||
+      integer > 9_223_372_036_854_775_807n
+    ) {
+      throw new EidosFileError(
+        "invalid-query",
+        `${field.name} filter value is outside signed int64`
+      )
+    }
+    return integer
+  }
+  return sqlValue(value)
+}
+
 function likeExpression(
   field: EidosFileFieldInfo,
   operator: EidosFileFilterRule["operator"],
@@ -280,6 +453,14 @@ function likeExpression(
         : `%${escaped}%`
   const arrayCodec =
     field.storageCodec === "json_array" || field.storageCodec === "relation"
+  if (arrayCodec && (operator === "contains" || operator === "not-contains")) {
+    params.push(value)
+    const expression = `EXISTS (
+      SELECT 1 FROM json_each(${column}) item
+       WHERE item.type = 'text' AND item.value = ?
+    )`
+    return operator === "not-contains" ? `NOT (${expression})` : expression
+  }
   const expression = arrayCodec
     ? `EXISTS (
          SELECT 1
@@ -290,9 +471,11 @@ function likeExpression(
                ELSE '[]'
              END
            )
-          WHERE COALESCE(CAST(value AS TEXT), '') LIKE ? ESCAPE '\\' COLLATE NOCASE
+          WHERE eidos_casefold(COALESCE(CAST(value AS TEXT), ''))
+                LIKE eidos_casefold(?) ESCAPE '\\'
        )`
-    : `COALESCE(CAST(${column} AS TEXT), '') LIKE ? ESCAPE '\\' COLLATE NOCASE`
+    : `eidos_casefold(COALESCE(CAST(${column} AS TEXT), ''))
+         LIKE eidos_casefold(?) ESCAPE '\\'`
   params.push(pattern)
   return operator === "not-contains" ? `NOT (${expression})` : expression
 }
@@ -307,8 +490,8 @@ function compileRule(
   const arrayCodec =
     field.storageCodec === "json_array" || field.storageCodec === "relation"
   const empty = arrayCodec
-    ? `(${column} IS NULL OR CAST(${column} AS TEXT) = '' OR (json_valid(${column}) AND json_type(${column}) = 'array' AND json_array_length(${column}) = 0))`
-    : `(${column} IS NULL OR CAST(${column} AS TEXT) = '')`
+    ? `(json_valid(${column}) AND json_type(${column}) = 'array' AND json_array_length(${column}) = 0)`
+    : `(${column} IS NULL)`
 
   if (rule.operator === "is-empty") {
     return empty
@@ -317,7 +500,11 @@ function compileRule(
     return `NOT ${empty}`
   }
 
-  if (rule.operator === "is-any-of" || rule.operator === "is-none-of") {
+  if (
+    rule.operator === "is-any-of" ||
+    rule.operator === "is-all-of" ||
+    rule.operator === "is-none-of"
+  ) {
     const values = Array.isArray(rule.value) ? rule.value : []
     if (values.length === 0) return rule.operator === "is-any-of" ? "0" : "1"
     if (
@@ -326,6 +513,14 @@ function compileRule(
     ) {
       const expressions = values.map((entry) => {
         params.push(sqlValue(entry))
+        const typePredicate =
+          typeof entry === "boolean"
+            ? `type = '${entry ? "true" : "false"}'`
+            : typeof entry === "number"
+              ? "type IN ('integer', 'real')"
+              : entry === null
+                ? "type = 'null'"
+                : "type = 'text'"
         return `EXISTS (
           SELECT 1
             FROM json_each(
@@ -335,28 +530,31 @@ function compileRule(
                 ELSE '[]'
               END
             )
-           WHERE CAST(value AS TEXT) = CAST(? AS TEXT)
+           WHERE ${typePredicate} AND value IS ?
         )`
       })
-      const expression = `(${expressions.join(" OR ")})`
+      const expression = `(${expressions.join(
+        rule.operator === "is-all-of" ? " AND " : " OR "
+      )})`
       return rule.operator === "is-none-of" ? `NOT (${expression})` : expression
     }
-    params.push(...values.map(sqlValue))
+    params.push(...values.map((entry) => sqlFieldValue(field, entry)))
+    if (rule.operator === "is-all-of") return "0"
     const expression = `${column} IN (${values.map(() => "?").join(", ")})`
-    return rule.operator === "is-none-of"
-      ? `(${column} IS NULL OR NOT (${expression}))`
-      : expression
+    return rule.operator === "is-none-of" ? `NOT (${expression})` : expression
   }
 
   const value = Array.isArray(rule.value) ? rule.value[0] : rule.value
   if (rule.operator === "equals" || rule.operator === "not-equals") {
+    if (arrayCodec && Array.isArray(rule.value)) {
+      params.push(JSON.stringify(rule.value.map(sqlValue)))
+      return rule.operator === "not-equals" ? `${column} <> ?` : `${column} = ?`
+    }
     if (value === null || value === undefined) {
       return `${column} IS ${rule.operator === "not-equals" ? "NOT " : ""}NULL`
     }
-    params.push(sqlValue(value))
-    return rule.operator === "not-equals"
-      ? `(${column} IS NULL OR ${column} <> ?)`
-      : `${column} = ?`
+    params.push(sqlFieldValue(field, value))
+    return rule.operator === "not-equals" ? `${column} <> ?` : `${column} = ?`
   }
 
   if (
@@ -376,7 +574,7 @@ function compileRule(
     "less-than-or-equal": "<=",
   }[rule.operator]
   if (!comparison) return "0"
-  params.push(sqlValue(value))
+  params.push(sqlFieldValue(field, value))
   return `${column} ${comparison} ?`
 }
 
@@ -390,8 +588,22 @@ function compileGroup(
       ? compileGroup(child, fields, params)
       : compileRule(child, fields, params)
   )
-  if (children.length === 0) return "1"
-  return `(${children.join(group.conjunction === "or" ? " OR " : " AND ")})`
+  const expression =
+    children.length === 0
+      ? group.conjunction === "or"
+        ? "0"
+        : "1"
+      : `(${children.join(group.conjunction === "or" ? " OR " : " AND ")})`
+  return group.negated ? `NOT (${expression})` : expression
+}
+
+export function eidosFileSortExpression(field: EidosFileFieldInfo): string {
+  const column = quoteIdentifier(field.tableColumnName)
+  return field.storageCodec === "json_array" ||
+    field.storageCodec === "relation"
+    ? `(SELECT item.value FROM json_each(${column}) item
+         WHERE item.value IS NOT NULL ORDER BY CAST(item.key AS INTEGER) LIMIT 1)`
+    : column
 }
 
 function compileSorts(
@@ -404,28 +616,11 @@ function compileSorts(
     if (seen.has(sort.field)) continue
     const field = requireField(fields, sort.field)
     seen.add(sort.field)
-    const column = quoteIdentifier(field.tableColumnName)
-    const expression =
-      field.storageCodec === "json_array" || field.storageCodec === "relation"
-        ? `json_extract(${column}, '$[0]')`
-        : column
-    const displayType =
-      (field.type === "formula" || field.type === "lookup") &&
-      typeof field.property?.displayType === "string"
-        ? field.property.displayType
-        : field.type
-    const textLike = new Set([
-      "title",
-      "text",
-      "url",
-      "select",
-      "multi-select",
-      "file",
-    ]).has(displayType)
+    const expression = eidosFileSortExpression(field)
     clauses.push(
-      `${expression}${textLike ? " COLLATE NOCASE" : ""} ${
+      `${expression} ${
         sort.direction === "desc" ? "DESC" : "ASC"
-      }`
+      } NULLS ${sort.nulls === "first" ? "FIRST" : "LAST"}`
     )
   }
   clauses.push('"__base_rowid" ASC')
@@ -442,13 +637,16 @@ export function compileEidosFileRowQuery(
   )
   const params: EidosFileSqlPrimitive[] = []
   const where: string[] = []
-  const search = query.search?.trim()
-  if (search) {
+  const search = query.search
+  if (search !== undefined && search !== "") {
     const pattern = `%${escapeLike(search)}%`
-    const searchClauses = searchableFields(fields).map((field) => {
-      params.push(pattern)
-      return `COALESCE(CAST(${quoteIdentifier(field.tableColumnName)} AS TEXT), '') LIKE ? ESCAPE '\\' COLLATE NOCASE`
-    })
+    const searchClauses = searchableFields(fields, query.searchFields).map(
+      (field) => {
+        params.push(pattern)
+        return `eidos_casefold(COALESCE(CAST(${quoteIdentifier(field.tableColumnName)} AS TEXT), ''))
+                LIKE eidos_casefold(?) ESCAPE '\\'`
+      }
+    )
     if (searchClauses.length > 0) where.push(`(${searchClauses.join(" OR ")})`)
   }
   if (query.filter) where.push(compileGroup(query.filter, byColumn, params))

@@ -2,9 +2,11 @@ import type { EidosFileSqlPrimitive } from "./connection"
 
 export interface EidosFileMetadata {
   format: "eidos-file"
-  formatVersion: number
+  /** Stable UUIDv7 file identity. */
+  fileId: string
+  formatVersion: "1.0"
   schemaVersion: number
-  app: string
+  revision: number | bigint
   createdAt: string
   updatedAt: string
   title?: string
@@ -15,6 +17,9 @@ export interface EidosFileMetadata {
 export interface EidosFileTableInfo {
   id: string
   name: string
+  /** Exact SQLite table identifier (without quote characters). */
+  physicalName?: string
+  /** @deprecated Use physicalName. */
   rawTableName: string
   position: number | null
   icon: string | null
@@ -24,7 +29,9 @@ export interface EidosFileTableInfo {
 }
 
 export type EidosFileFieldType =
-  | "title"
+  | "integer"
+  | "json"
+  | "relation"
   | "text"
   | "number"
   | "checkbox"
@@ -36,13 +43,20 @@ export type EidosFileFieldType =
   | "select"
   | "url"
   | "formula"
-  | "link"
   | "lookup"
   | "created-time"
-  | "created-by"
   | "last-edited-time"
-  | "last-edited-by"
   | "row-id"
+
+export type EidosFileSourceFieldType = Exclude<
+  EidosFileFieldType,
+  | "row-id"
+  | "formula"
+  | "relation"
+  | "lookup"
+  | "created-time"
+  | "last-edited-time"
+>
 
 export type EidosFileStorageCodec =
   | "scalar"
@@ -58,10 +72,21 @@ export type EidosFileValueKind =
   | "system"
 
 export interface EidosFileFieldInfo {
+  /** Stable UUIDv7 Field identity. */
+  id: string
+  tableId: string
   name: string
   type: EidosFileFieldType
   tableName: string
   tableColumnName: string
+  /** Exact SQLite column name, or null for a virtual Field. */
+  physicalName?: string | null
+  /** Canonical system role, independent of the persisted Field type. */
+  systemRole?: "row-id" | "created-time" | "updated-time" | null
+  nullable?: boolean
+  isRecordLabel?: boolean
+  position?: number
+  settings?: Record<string, unknown>
   property: Record<string, unknown> | null
   storageCodec: EidosFileStorageCodec
   valueKind: EidosFileValueKind
@@ -99,6 +124,7 @@ export interface UpdateEidosFileViewInput {
 }
 
 export interface CreateEidosFileOptions {
+  fileId?: string
   title?: string
   description?: string
   createdAt?: string
@@ -127,7 +153,7 @@ export interface EidosFileCsvImportColumn {
   sourceName: string
   name: string
   columnName: string
-  type: "title" | EidosFileCsvFieldType
+  type: "record-label" | EidosFileCsvFieldType
 }
 
 export interface EidosFileCsvImportIssue {
@@ -184,34 +210,34 @@ export interface UpdateEidosFileTableInput {
 }
 
 export interface CreateEidosFileSourceFieldInput {
+  id?: string
   name: string
-  columnName: string
-  type: Exclude<
-    EidosFileFieldType,
-    | "title"
-    | "row-id"
-    | "formula"
-    | "link"
-    | "lookup"
-    | "created-time"
-    | "created-by"
-    | "last-edited-time"
-    | "last-edited-by"
-  >
+  /** @deprecated The Runtime derives the SQLite physical name from name. */
+  columnName?: string
+  type: EidosFileSourceFieldType
   property?: Record<string, unknown>
   storageCodec?: EidosFileStorageCodec
+  /** SQL NULL policy for scalar and JSON storage. */
+  nullable?: boolean
+  isRecordLabel?: boolean
 }
 
 export interface EidosFileRelationProperty extends Record<string, unknown> {
   targetTableId: string
-  targetField: string
-  multiple: boolean
+  targetField?: string
+  multiple?: boolean
+  direction?: "forward" | "inverse"
+  sourceFieldId?: string
+  cardinality?: "one" | "many"
+  onDelete?: "restrict" | "detach" | "preserve"
 }
 
 export interface CreateEidosFileRelationFieldInput {
+  id?: string
   name: string
-  columnName: string
-  type: "link"
+  /** @deprecated The Runtime derives the SQLite physical name from name. */
+  columnName?: string
+  type: "relation"
   property: EidosFileRelationProperty
   storageCodec?: "relation"
 }
@@ -219,10 +245,12 @@ export interface CreateEidosFileRelationFieldInput {
 export type EidosFileFormulaDisplayType =
   | "text"
   | "number"
+  | "integer"
   | "checkbox"
   | "date"
   | "datetime"
   | "url"
+  | "json"
 
 export interface EidosFileFormulaProperty extends Record<string, unknown> {
   formula: string
@@ -231,11 +259,14 @@ export interface EidosFileFormulaProperty extends Record<string, unknown> {
 }
 
 export interface CreateEidosFileFormulaFieldInput {
+  id?: string
   name: string
-  columnName: string
+  /** @deprecated Formula Fields are virtual and have no physical column. */
+  columnName?: string
   type: "formula"
   property: EidosFileFormulaProperty
   storageCodec?: "scalar"
+  isRecordLabel?: boolean
 }
 
 export interface EidosFileFormulaPreviewInput {
@@ -279,7 +310,8 @@ export interface EidosFileLookupProperty extends Record<string, unknown> {
 }
 
 export interface EidosFileSelectOption {
-  value: string
+  /** Canonical option identity and raw cell value. */
+  name: string
   color: string
 }
 
@@ -289,11 +321,14 @@ export interface EidosFileOptionValueChange {
 }
 
 export interface CreateEidosFileLookupFieldInput {
+  id?: string
   name: string
-  columnName: string
+  /** @deprecated Lookup Fields are virtual and have no physical column. */
+  columnName?: string
   type: "lookup"
   property: EidosFileLookupProperty
   storageCodec?: "scalar" | "json_array"
+  isRecordLabel?: boolean
 }
 
 export type CreateEidosFileFieldInput =
@@ -338,30 +373,90 @@ export interface CreateEidosFileViewInput {
   position?: number | null
 }
 
-export interface CreateEidosFileReferenceInput {
-  selfTableId: string
-  selfColumnName: string
-  refTableId: string
-  refColumnName: string
-  linkTableId: string
-  linkColumnName: string
-}
-
 export interface UpdateEidosFileFieldInput {
   name?: string
   type?: EidosFileFieldType
   property?: Record<string, unknown> | null
   optionValueChanges?: EidosFileOptionValueChange[]
+  isRecordLabel?: boolean
 }
 
+export type EidosFileLogicalValue =
+  | EidosFileSqlPrimitive
+  | boolean
+  | EidosFileLogicalValue[]
+  | { readonly [key: string]: EidosFileLogicalValue }
+
+export interface EidosFileFileValue {
+  id: string
+  uri: string
+  name: string
+  mediaType: string
+  /** Canonical non-negative signed-int64 decimal string. */
+  size: string
+  /** Extension members are preserved through parse and serialization. */
+  [key: string]: unknown
+}
 export type EidosFileRowValue = EidosFileSqlPrimitive | boolean
 export type EidosFileRow = Record<string, EidosFileRowValue>
+
+/** Language-neutral Runtime row shape from Eidos File 1.0 §16. */
+export interface EidosFileLogicalRow {
+  id: string
+  fields: Record<string, EidosFileLogicalValue>
+  /** Generated Relation targets, requested separately from canonical values. */
+  resolved?: Record<string, EidosFileResolvedRelationValue[]>
+}
+
+export interface EidosFileResolvedRelationValue {
+  id: string
+  label: EidosFileLogicalValue
+}
+
+export interface EidosFileLogicalRowDraft {
+  id?: string
+  fields: Record<string, EidosFileLogicalValue>
+}
+
+export interface EidosFileLogicalRowUpdate {
+  id: string
+  fields: Record<string, EidosFileLogicalValue>
+}
+
+export interface EidosFileRowsMutation {
+  tableId: string
+  insert?: EidosFileLogicalRowDraft[]
+  update?: EidosFileLogicalRowUpdate[]
+  delete?: string[]
+  expectedRevision?: number | bigint
+}
+
+export type EidosFileSchemaMutation =
+  | { type: "create-table"; table: CreateEidosFileTableInput }
+  | {
+      type: "update-table"
+      tableId: string
+      changes: UpdateEidosFileTableInput
+    }
+  | { type: "delete-table"; tableId: string }
+  | { type: "add-field"; tableId: string; field: CreateEidosFileFieldInput }
+  | {
+      type: "update-field"
+      tableId: string
+      fieldId: string
+      changes: UpdateEidosFileFieldInput
+    }
+  | { type: "delete-field"; tableId: string; fieldId: string }
+  | { type: "create-view"; tableId: string; view: CreateEidosFileViewInput }
+  | { type: "update-view"; viewId: string; changes: UpdateEidosFileViewInput }
+  | { type: "delete-view"; viewId: string }
 
 export type EidosFileSortDirection = "asc" | "desc"
 
 export interface EidosFileSort {
   field: string
   direction: EidosFileSortDirection
+  nulls?: "first" | "last"
 }
 
 export type EidosFileFilterOperator =
@@ -378,6 +473,7 @@ export type EidosFileFilterOperator =
   | "is-empty"
   | "is-not-empty"
   | "is-any-of"
+  | "is-all-of"
   | "is-none-of"
 
 export type EidosFileFilterValue = string | number | boolean | null
@@ -392,11 +488,15 @@ export interface EidosFileFilterRule {
 export interface EidosFileFilterGroup {
   type: "group"
   conjunction: "and" | "or"
+  /** Internal compatibility representation of Runtime's three-valued NOT. */
+  negated?: boolean
   children: Array<EidosFileFilterRule | EidosFileFilterGroup>
 }
 
 export interface EidosFileRowQuery {
   search?: string
+  /** Exact Runtime search Field restriction, expressed as canonical Field IDs. */
+  searchFields?: string[]
   filter?: EidosFileFilterGroup | null
   sorts?: EidosFileSort[]
 }
@@ -410,6 +510,10 @@ export interface EidosFileRowPageProjection {
   fieldLimit?: number
   /** Skip null, undefined, and empty-string candidates before applying the limit. */
   omitEmptyFields?: boolean
+  /** @internal Include the Table's current Record Label Field in compatibility projections. */
+  includeRecordLabel?: boolean
+  /** @internal Include resolved Relation label arrays for compatibility editors. */
+  includeRelationDisplays?: boolean
 }
 
 export interface EidosFileRowPageOptions {
@@ -417,7 +521,7 @@ export interface EidosFileRowPageOptions {
   limit: number
   query?: EidosFileRowQuery
   /**
-   * Optional per-row response projection. Record identity and title are always
+   * Optional per-row response projection. Record identity is always
    * included. Query-only fields may be read internally for filtering, sorting,
    * and cursor generation but are not exposed in the returned rows.
    */
@@ -438,6 +542,7 @@ export interface EidosFileValidationIssue {
   code: string
   message: string
   table?: string
+  severity?: "fatal" | "error" | "warning" | "info"
 }
 
 export interface EidosFileValidationResult {
@@ -472,24 +577,19 @@ export interface EidosFileRowGroupCount {
 
 export type EidosFileColumnStatType =
   | "count-all"
-  | "count-values"
-  | "count-unique"
+  | "count-non-null"
+  | "count-distinct"
   | "count-empty"
-  | "count-not-empty"
-  | "checked"
-  | "unchecked"
-  | "percent-empty"
-  | "percent-not-empty"
-  | "percent-checked"
-  | "percent-unchecked"
   | "sum"
   | "average"
   | "min"
   | "max"
-  | "range"
+  | "relation-value-count"
+  | "relation-row-count"
+  | "relation-distinct-target-count"
 
 export interface EidosFileColumnStatConfig {
-  columnName: string
+  fieldId: string
   type: EidosFileColumnStatType
 }
 
@@ -502,7 +602,7 @@ export interface EidosFileRowMutationResult {
   row: EidosFileRow
   rowCount: number
   /** Eidos File metadata revision after the committed mutation. */
-  revision?: string
+  revision?: number | bigint
 }
 
 export interface EidosFileRowUpdate {
@@ -515,7 +615,7 @@ export interface EidosFileRowsMutationResult {
   rows: EidosFileRow[]
   rowCount: number
   /** Eidos File metadata revision after the committed mutation. */
-  revision?: string
+  revision?: number | bigint
 }
 
 export interface EidosFileRowRange {
@@ -528,7 +628,7 @@ export interface EidosFileRowsDeleteResult {
   deletedCount: number
   rowCount: number
   /** Eidos File metadata revision after the committed mutation. */
-  revision?: string
+  revision?: number | bigint
 }
 
 export interface EidosFileSnapshot {

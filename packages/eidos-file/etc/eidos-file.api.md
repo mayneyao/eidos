@@ -4,23 +4,547 @@
 
 ```ts
 
+import sqlite3InitModule from '@sqlite.org/sqlite-wasm';
+
 // @public (undocumented)
+export interface AdapterAttachmentDescriptor {
+    // (undocumented)
+    byteLength: number;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    slot: string;
+}
+
+// @public (undocumented)
+export interface AdapterCommitReceipt {
+    // (undocumented)
+    baseRevision: string;
+    // (undocumented)
+    commitRevision: string;
+    // (undocumented)
+    epoch: string;
+    // (undocumented)
+    fileID: string;
+    // (undocumented)
+    operation: string;
+    // (undocumented)
+    protocol: "eidos-commit-receipt";
+    // (undocumented)
+    receiptID: string;
+    // (undocumented)
+    reconciliation: CommitReconciliation;
+    // (undocumented)
+    requestDigest: string;
+    // (undocumented)
+    requestID: string;
+    // (undocumented)
+    sequence: number;
+    // (undocumented)
+    sessionID: string;
+    // (undocumented)
+    version: "1.0";
+    // (undocumented)
+    workingID: string;
+}
+
+// @public (undocumented)
+export interface AdapterError {
+    // (undocumented)
+    code: AdapterErrorCode;
+    // (undocumented)
+    details?: JsonObject;
+    // (undocumented)
+    fatal: boolean;
+    // (undocumented)
+    message: string;
+    // (undocumented)
+    retryable: boolean;
+    // (undocumented)
+    sqliteExtendedCode?: number;
+    // (undocumented)
+    sqlitePrimaryCode?: number;
+}
+
+// @public (undocumented)
+export type AdapterErrorCode = "adapter-closed" | "invalid-argument" | "invalid-sql-value" | "unsupported-capability" | "sql-error" | "sql-function-error" | "constraint" | "busy" | "locked" | "cancelled" | "deadline-exceeded" | "resource-limit" | "out-of-memory" | "io-error" | "corrupt" | "not-a-database" | "read-only" | "permission-denied" | "source-changed" | "writer-unavailable" | "publication-failed" | "recovery-required" | "asset-unavailable" | "protocol-error" | "backpressure" | "commit-outcome-unknown" | "transport-closed" | "transport-fatal";
+
+// @public (undocumented)
+export interface AdapterStructuredCloneCarrier {
+    // (undocumented)
+    buffers: ArrayBuffer[];
+    // (undocumented)
+    envelope: AdapterWireEnvelope;
+}
+
+// @public (undocumented)
+export interface AdapterTransportChannel {
+    // (undocumented)
+    close?(): void;
+    // (undocumented)
+    post(carrier: AdapterStructuredCloneCarrier, transfers?: Transferable[]): void;
+    // (undocumented)
+    subscribe(listener: (carrier: AdapterStructuredCloneCarrier) => void, onClose?: (reason?: unknown) => void): () => void;
+}
+
+// @public (undocumented)
+export interface AdapterTransportLimits {
+    // (undocumented)
+    commitAckTimeoutMs: number;
+    // (undocumented)
+    defaultTimeoutMs: number;
+    // (undocumented)
+    maxOutstandingRequests: number;
+    // (undocumented)
+    maxQueuedBytes: number;
+    // (undocumented)
+    maxRequestBytes: number;
+    // (undocumented)
+    maxResponseBytes: number;
+    // (undocumented)
+    maxTimeoutMs: number;
+}
+
+// @public (undocumented)
+export class AdapterTransportRuntimeClient implements RuntimeClient {
+    constructor(channel: AdapterTransportChannel, options: AdapterTransportRuntimeClientOptions);
+    // (undocumented)
+    aggregate(request: Parameters<RuntimeClient["aggregate"]>[0], context: RequestContext): ReturnType<RuntimeClient["aggregate"]>;
+    // (undocumented)
+    cancel(request: {
+        requestId: string;
+    }): Promise<void>;
+    // (undocumented)
+    close(context: RequestContext): Promise<void>;
+    // (undocumented)
+    connect(): Promise<this>;
+    // (undocumented)
+    exportCsv: RuntimeClient["exportCsv"];
+    // (undocumented)
+    getRowsById(request: Parameters<RuntimeClient["getRowsById"]>[0], context: RequestContext): ReturnType<RuntimeClient["getRowsById"]>;
+    // (undocumented)
+    getSchemaPage(request: Parameters<RuntimeClient["getSchemaPage"]>[0], context: RequestContext): ReturnType<RuntimeClient["getSchemaPage"]>;
+    // (undocumented)
+    getSchemaPlanDependencies(request: Parameters<RuntimeClient["getSchemaPlanDependencies"]>[0], context: RequestContext): ReturnType<RuntimeClient["getSchemaPlanDependencies"]>;
+    // (undocumented)
+    getSnapshot(request: Parameters<RuntimeClient["getSnapshot"]>[0], context: RequestContext): ReturnType<RuntimeClient["getSnapshot"]>;
+    // (undocumented)
+    groupRows(request: Parameters<RuntimeClient["groupRows"]>[0], context: RequestContext): ReturnType<RuntimeClient["groupRows"]>;
+    // (undocumented)
+    importCsv: RuntimeClient["importCsv"];
+    // (undocumented)
+    mutateRows(request: Parameters<RuntimeClient["mutateRows"]>[0], context: RequestContext): ReturnType<RuntimeClient["mutateRows"]>;
+    // (undocumented)
+    mutateSchema(request: Parameters<RuntimeClient["mutateSchema"]>[0], context: RequestContext): ReturnType<RuntimeClient["mutateSchema"]>;
+    // (undocumented)
+    mutateView(request: Parameters<RuntimeClient["mutateView"]>[0], context: RequestContext): ReturnType<RuntimeClient["mutateView"]>;
+    // (undocumented)
+    negotiate(request: Parameters<RuntimeClient["negotiate"]>[0], context: RequestContext): ReturnType<RuntimeClient["negotiate"]>;
+    // (undocumented)
+    preflightSchema(request: Parameters<RuntimeClient["preflightSchema"]>[0], context: RequestContext): ReturnType<RuntimeClient["preflightSchema"]>;
+    // (undocumented)
+    previewFormula(request: Parameters<RuntimeClient["previewFormula"]>[0], context: RequestContext): ReturnType<RuntimeClient["previewFormula"]>;
+    // (undocumented)
+    queryGroupRows(request: Parameters<RuntimeClient["queryGroupRows"]>[0], context: RequestContext): ReturnType<RuntimeClient["queryGroupRows"]>;
+    // (undocumented)
+    queryRows(request: Parameters<RuntimeClient["queryRows"]>[0], context: RequestContext): ReturnType<RuntimeClient["queryRows"]>;
+    // (undocumented)
+    revertMutation: RuntimeClient["revertMutation"];
+    // (undocumented)
+    validate(request: Parameters<RuntimeClient["validate"]>[0], context: RequestContext): ReturnType<RuntimeClient["validate"]>;
+}
+
+// @public (undocumented)
+export interface AdapterTransportRuntimeClientOptions {
+    // (undocumented)
+    retainPreparedReceipt(receipt: AdapterCommitReceipt): void;
+    // (undocumented)
+    settlePreparedReceipt(receipt: AdapterCommitReceipt): void;
+    workingID: string;
+}
+
+// @public (undocumented)
+export class AdapterTransportServer {
+    constructor(send: (carrier: AdapterStructuredCloneCarrier, transfers?: Transferable[]) => void, options: AdapterTransportServerOptions);
+    // (undocumented)
+    attachRuntime(runtime: RuntimeClient): void;
+    // (undocumented)
+    readonly commitBarrier: TransportCommitBarrier;
+    // (undocumented)
+    receive(carrier: unknown): void;
+}
+
+// @public (undocumented)
+export interface AdapterTransportServerOptions {
+    // (undocumented)
+    allocateReceiptID(): string;
+    // (undocumented)
+    cancelMode: "interrupt" | "terminate";
+    // (undocumented)
+    closeConnection(): void;
+    // (undocumented)
+    epoch: string;
+    // (undocumented)
+    limits?: AdapterTransportLimits;
+    // (undocumented)
+    retainPreparedReceipt?(receipt: AdapterCommitReceipt): void;
+    // (undocumented)
+    sessionID: string;
+    // (undocumented)
+    settlePreparedReceipt?(receipt: AdapterCommitReceipt, committed: boolean): void;
+    // (undocumented)
+    workingID: string;
+}
+
+// Warning: (ae-forgotten-export) The symbol "AdapterWireBase" needs to be exported by the entry point index.d.mts
+// Warning: (ae-forgotten-export) The symbol "AdapterWireSessionBase" needs to be exported by the entry point index.d.mts
+//
+// @public (undocumented)
+export type AdapterWireEnvelope = (AdapterWireBase & {
+    kind: "hello";
+    versions: string[];
+}) | (AdapterWireBase & {
+    kind: "hello-error";
+    error: AdapterError;
+}) | (AdapterWireSessionBase & {
+    kind: "hello-result";
+    limits: AdapterTransportLimits;
+    cancelMode: "interrupt" | "terminate";
+}) | (AdapterWireSessionBase & {
+    kind: "request";
+    requestID: string;
+    sequence: number;
+    timeoutMs?: number;
+    operation: string;
+    payload: JsonValue;
+    attachments?: AdapterAttachmentDescriptor[];
+}) | (AdapterWireSessionBase & {
+    kind: "response";
+    requestID: string;
+    sequence: number;
+    ok: true;
+    result: JsonValue;
+    attachments?: AdapterAttachmentDescriptor[];
+}) | (AdapterWireSessionBase & {
+    kind: "response";
+    requestID: string;
+    sequence: number;
+    ok: false;
+    error: {
+        source: "runtime";
+        error: RuntimeError;
+    } | {
+        source: "adapter";
+        error: AdapterError;
+    };
+}) | (AdapterWireSessionBase & {
+    kind: "commit-prepared";
+    requestID: string;
+    sequence: number;
+    receipt: AdapterCommitReceipt;
+}) | (AdapterWireSessionBase & {
+    kind: "commit-ack";
+    requestID: string;
+    sequence: number;
+    receiptID: string;
+    requestDigest: string;
+}) | (AdapterWireSessionBase & {
+    kind: "cancel";
+    requestID: string;
+}) | (AdapterWireSessionBase & {
+    kind: "close";
+    requestID: string;
+    timeoutMs?: number;
+}) | (AdapterWireSessionBase & {
+    kind: "close-result";
+    requestID: string;
+});
+
+// @public (undocumented)
+export type AggregateItem = {
+    key: string;
+    op: "count-all";
+} | {
+    key: string;
+    op: "count" | "distinct-count" | "sum" | "average" | "min" | "max";
+    fieldId: string;
+} | {
+    key: string;
+    op: "statistics";
+    fieldId: string;
+};
+
+// @public (undocumented)
+export interface AggregateRequest {
+    // (undocumented)
+    items: AggregateItem[];
+    // (undocumented)
+    query?: RowQuery;
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
+export interface AggregateResponse {
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    results: AggregateResult[];
+    // (undocumented)
+    revision: string;
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
+export type AggregateResult = {
+    key: string;
+    value: LogicalValue;
+} | {
+    key: string;
+    statistics: ColumnStatistics;
+};
+
+// @public @deprecated (undocumented)
 export function assertEidosFileColumnName(columnName: string): string;
+
+// @public (undocumented)
+export function assertEidosFileDisplayName(name: string, label: string): string;
+
+// @public
+export function assertEidosFileRowQuery(value: unknown): void;
 
 // @public (undocumented)
 export function assertEidosFileSelectOptions(property: Record<string, unknown> | null | undefined): EidosFileSelectOption[];
 
-// @public (undocumented)
+// @public
 export function assertEidosFileTableId(tableId: string): string;
 
 // @public (undocumented)
-export interface CompiledEidosFileFormula {
+export function assertEidosFileUuid(value: string, label?: string): string;
+
+// @public (undocumented)
+export function assertEidosFileValues(value: unknown): EidosFileFileValue[];
+
+// @public (undocumented)
+export function assertInt64Decimal(value: string): bigint;
+
+// @public (undocumented)
+export function assertUnicodeString(value: string, label?: string): string;
+
+// @public (undocumented)
+export interface AssetLease {
     // (undocumented)
+    entryId: string;
+    // (undocumented)
+    expiresAt: string;
+    // (undocumented)
+    leaseId: string;
+    // (undocumented)
+    mediaType: string;
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    purpose: "thumbnail" | "preview" | "download";
+    // (undocumented)
+    resourceToken: string;
+    // (undocumented)
+    size: string;
+}
+
+// @public (undocumented)
+export type AtomicType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "json" | "select" | "row-id" | "file-entry";
+
+// @public (undocumented)
+export interface ByteSource {
+    // (undocumented)
+    read(offset: string, length: number, context: PublicationContext): Promise<OwnedBytes>;
+    // (undocumented)
+    size: string;
+}
+
+// @public (undocumented)
+export interface CancellationPort {
+    // (undocumented)
+    cancelled(): boolean;
+    // (undocumented)
+    onCancel(callback: () => void): () => void;
+}
+
+// @public (undocumented)
+export function cancellationPortFromSignal(signal?: CancellationSignal): CancellationPort;
+
+// @public (undocumented)
+export interface CancellationSignal {
+    // (undocumented)
+    readonly aborted: boolean;
+    // (undocumented)
+    onAbort(callback: () => void): () => void;
+}
+
+// @public (undocumented)
+export type CanonicalConversionClassification = "metadata-only" | "lossless-rewrite" | "explicit-lossy" | "forbidden";
+
+// @public (undocumented)
+export interface CanonicalConversionInput {
+    // (undocumented)
+    from: StoredFieldType;
+    // (undocumented)
+    policies?: readonly ConversionPolicy[];
+    // (undocumented)
+    relationCardinality?: "one" | "many";
+    // (undocumented)
+    relationIdValid?: (id: string) => boolean;
+    // (undocumented)
+    rows: readonly CanonicalConversionRow[];
+    // (undocumented)
+    to: StoredFieldType;
+    // (undocumented)
+    toNullable: boolean;
+}
+
+// @public (undocumented)
+export interface CanonicalConversionPlan {
+    // (undocumented)
+    affectedRows: string;
+    // (undocumented)
+    classification: CanonicalConversionClassification;
+    // (undocumented)
+    error?: string;
+    // (undocumented)
+    rows: CanonicalConvertedRow[];
+    // (undocumented)
+    valueChanges: Array<{
+        code: SchemaValueChangeCode;
+        rows: string;
+    }>;
+}
+
+// @public (undocumented)
+export interface CanonicalConversionRow {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    value: EidosFileSqlPrimitive;
+}
+
+// @public (undocumented)
+export interface CanonicalConvertedRow extends CanonicalConversionRow {
+    // (undocumented)
+    changed: boolean;
+}
+
+// @public
+export function canonicalizeEidosFileJson(value: unknown): string;
+
+// @public (undocumented)
+export interface ClockPort {
+    // (undocumented)
+    nowInstant(): string;
+    // (undocumented)
+    nowMilliseconds(): number;
+}
+
+// @public (undocumented)
+export interface Column {
+    // (undocumented)
+    name: string;
+}
+
+// @public (undocumented)
+export interface ColumnDescriptor {
+    // (undocumented)
+    fieldId: string;
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    source: "stored" | "formula" | "lookup" | "inverse-relation";
+    // (undocumented)
+    valueType: TypeRef;
+    // (undocumented)
+    writable: boolean;
+}
+
+// @public (undocumented)
+export interface ColumnStatistics {
+    // (undocumented)
+    average?: number | null;
+    // (undocumented)
+    distinct: string;
+    // (undocumented)
+    max?: LogicalValue;
+    // (undocumented)
+    min?: LogicalValue;
+    // (undocumented)
+    nulls: string;
+    // (undocumented)
+    rows: string;
+    // (undocumented)
+    sum?: LogicalValue;
+}
+
+// @public (undocumented)
+export type CommitReconciliation = {
+    operation: "mutateRows" | "revertMutation";
+    result: {
+        fileId: string;
+        revision: string;
+        changed: true;
+        created: Array<{
+            clientKey: string;
+            rowId: string;
+        }>;
+        affectedRows: Array<{
+            tableId: string;
+            rowId: string;
+        }>;
+    };
+} | {
+    operation: "mutateView";
+    result: {
+        fileId: string;
+        revision: string;
+        changed: true;
+        createdViews: Array<{
+            clientKey: string;
+            viewId: string;
+        }>;
+        affectedViewIds: string[];
+    };
+} | {
+    operation: "mutateSchema";
+    result: {
+        fileId: string;
+        revision: string;
+        changed: true;
+        createdObjects: CreatedSchemaObject[];
+        affectedTableIds: string[];
+        affectedFieldIds: string[];
+    };
+} | {
+    operation: "importCsv";
+    result: {
+        fileId: string;
+        tableId: string;
+        revision: string;
+        changed: true;
+        createdRows: Array<{
+            recordIndex: number;
+            rowId: string;
+        }>;
+    };
+};
+
+// @public (undocumented)
+export interface CompiledEidosFileFormula {
     dependencies: string[];
+    dependencyFieldIds: string[];
     // (undocumented)
     expression: string;
     // (undocumented)
     field: EidosFileFieldInfo;
+    // (undocumented)
+    references: EidosFileFormulaReference[];
 }
 
 // @public (undocumented)
@@ -39,16 +563,190 @@ export function compileEidosFileFormula(field: EidosFileFieldInfo, fields: Eidos
 // @public (undocumented)
 export function compileEidosFileFormulaFields(fields: EidosFileFieldInfo[]): CompiledEidosFileFormula[];
 
+// @public
+export function compileEidosFileFormulaSource(source: string, fields: EidosFileFieldInfo[], resolve: (field: EidosFileFieldInfo) => string, declaredResultType?: string): {
+    expression: string;
+    dependencyFieldIds: string[];
+};
+
 // @public (undocumented)
 export function compileEidosFileRowQuery(fields: EidosFileFieldInfo[], query?: EidosFileRowQuery): CompiledEidosFileRowQuery;
+
+// @public (undocumented)
+export function configureEidosFileConnection(connection: EidosFileConnection): void;
+
+// @public (undocumented)
+export interface ConnectionCapabilities {
+    // (undocumented)
+    adapterVersion: "1.0";
+    // (undocumented)
+    busyTimeoutMs: number;
+    // (undocumented)
+    defensiveMode: boolean;
+    // (undocumented)
+    directOnlyFunctions: boolean;
+    // (undocumented)
+    int64: boolean;
+    // (undocumented)
+    interrupt: boolean;
+    // (undocumented)
+    json1: boolean;
+    // (undocumented)
+    maxResultBytes: number;
+    // (undocumented)
+    maxResultRows: number;
+    // (undocumented)
+    maxSqlBytes: number;
+    // (undocumented)
+    maxValueBytes: number;
+    // (undocumented)
+    maxVariables: number;
+    // (undocumented)
+    returning: boolean;
+    // (undocumented)
+    scalarFunctions: boolean;
+    // (undocumented)
+    snapshot: true;
+    // (undocumented)
+    sqliteVersion: string;
+    // (undocumented)
+    strict: boolean;
+}
+
+// @public (undocumented)
+export interface ConnectionPort {
+    // (undocumented)
+    capabilities(): ConnectionCapabilities;
+    // (undocumented)
+    close(): void;
+    // (undocumented)
+    dataVersion(): string;
+    // (undocumented)
+    execSchema(sql: string): void;
+    // (undocumented)
+    get(sql: string, bindings?: readonly SqlValue[]): {
+        columns: Column[];
+        row: SqlValue[] | null;
+    };
+    // (undocumented)
+    interrupt(): void;
+    // (undocumented)
+    query(sql: string, bindings?: readonly SqlValue[]): QueryResult;
+    // (undocumented)
+    registerScalar(definition: ScalarDefinition, operation: (...values: SqlValue[]) => SqlValue): void;
+    // (undocumented)
+    run(sql: string, bindings?: readonly SqlValue[]): RunResult;
+    // (undocumented)
+    runMany(sql: string, bindingSets: readonly (readonly SqlValue[])[]): RunResult[];
+    // (undocumented)
+    snapshot(context: SnapshotContext): Promise<ConnectionSnapshot>;
+    // (undocumented)
+    transaction<T>(mode: "read" | "write", operation: () => T): T;
+    // (undocumented)
+    transaction<T>(mode: "read" | "write", operation: () => Promise<T>): Promise<T>;
+}
+
+// @public
+export class ConnectionPortEidosFileConnection implements EidosFileConnection {
+    constructor(port: ConnectionPort);
+    // (undocumented)
+    readonly capabilities: {
+        int64: boolean;
+        json1: boolean;
+        returning: boolean;
+        interrupt: boolean;
+        scalarFunctions: boolean;
+    };
+    // (undocumented)
+    close(): void;
+    // (undocumented)
+    dataVersion(): number;
+    // (undocumented)
+    exec(sql: string): void;
+    // (undocumented)
+    get<T extends object>(sql: string, params?: readonly EidosFileSqlPrimitive[]): T | undefined;
+    // (undocumented)
+    interrupt(): void;
+    // (undocumented)
+    readonly port: ConnectionPort;
+    // (undocumented)
+    query<T extends object>(sql: string, params?: readonly EidosFileSqlPrimitive[]): T[];
+    // (undocumented)
+    registerFunction(name: string, operation: (...values: EidosFileSqlPrimitive[]) => EidosFileSqlPrimitive, arity?: number): void;
+    // (undocumented)
+    run(sql: string, params?: readonly EidosFileSqlPrimitive[]): {
+        changes: number;
+        lastInsertRowid: bigint;
+    };
+    // (undocumented)
+    runMany(sql: string, parameterSets: readonly (readonly EidosFileSqlPrimitive[])[]): void;
+    // (undocumented)
+    transaction<T>(operation: () => T): T;
+}
+
+// @public (undocumented)
+export interface ConnectionSnapshot {
+    // (undocumented)
+    bytes: ByteSource;
+    // (undocumented)
+    release(): Promise<void>;
+}
+
+// @public (undocumented)
+export type ConversionPolicy = "round-binary64" | "truncate-toward-zero" | "round-ties-even" | "zero-false-nonzero-true" | "utc-date" | "first" | "json-null-to-sql-null" | "null-to-empty-list";
+
+// @public (undocumented)
+export type ConvertFieldChange = {
+    kind: "convert-field";
+    fieldId: string;
+    to: ScalarStoredFieldType;
+    toNullable: boolean;
+    policies?: ConversionPolicy[];
+} | {
+    kind: "convert-field";
+    fieldId: string;
+    to: "multi-select" | "file";
+    policies?: ConversionPolicy[];
+} | {
+    kind: "convert-field";
+    fieldId: string;
+    to: "relation";
+    definition: ForwardRelationDefinition;
+    policies?: ConversionPolicy[];
+};
+
+// @public (undocumented)
+export type CreatedSchemaObject = {
+    id: string;
+    object: "table";
+    clientKey: string;
+} | {
+    id: string;
+    object: "field";
+    clientKey: string;
+} | {
+    id: string;
+    object: "field";
+    systemRole: "row-id" | "created-time" | "updated-time";
+};
+
+// @public (undocumented)
+export function createEidosFileCsvImportPlan(source: EidosFileCsvImportPlanSource, options?: EidosFileCsvImportOptions): EidosFileCsvImportPlan;
+
+// @public (undocumented)
+export function createEidosFileCsvRowEncoder(fields: readonly EidosFileFieldInfo[], columns: readonly EidosFileCsvExportColumn[]): (row: EidosFileRow) => string;
 
 // @public (undocumented)
 export type CreateEidosFileFieldInput = CreateEidosFileSourceFieldInput | CreateEidosFileRelationFieldInput | CreateEidosFileFormulaFieldInput | CreateEidosFileLookupFieldInput;
 
 // @public (undocumented)
 export interface CreateEidosFileFormulaFieldInput {
+    // @deprecated (undocumented)
+    columnName?: string;
     // (undocumented)
-    columnName: string;
+    id?: string;
+    // (undocumented)
+    isRecordLabel?: boolean;
     // (undocumented)
     name: string;
     // (undocumented)
@@ -59,13 +757,17 @@ export interface CreateEidosFileFormulaFieldInput {
     type: "formula";
 }
 
-// @public (undocumented)
+// @public @deprecated (undocumented)
 export function createEidosFileIdentifier(): string;
 
 // @public (undocumented)
 export interface CreateEidosFileLookupFieldInput {
+    // @deprecated (undocumented)
+    columnName?: string;
     // (undocumented)
-    columnName: string;
+    id?: string;
+    // (undocumented)
+    isRecordLabel?: boolean;
     // (undocumented)
     name: string;
     // (undocumented)
@@ -85,29 +787,17 @@ export interface CreateEidosFileOptions {
     // (undocumented)
     description?: string;
     // (undocumented)
+    fileId?: string;
+    // (undocumented)
     title?: string;
 }
 
 // @public (undocumented)
-export interface CreateEidosFileReferenceInput {
-    // (undocumented)
-    linkColumnName: string;
-    // (undocumented)
-    linkTableId: string;
-    // (undocumented)
-    refColumnName: string;
-    // (undocumented)
-    refTableId: string;
-    // (undocumented)
-    selfColumnName: string;
-    // (undocumented)
-    selfTableId: string;
-}
-
-// @public (undocumented)
 export interface CreateEidosFileRelationFieldInput {
+    // @deprecated (undocumented)
+    columnName?: string;
     // (undocumented)
-    columnName: string;
+    id?: string;
     // (undocumented)
     name: string;
     // (undocumented)
@@ -115,21 +805,26 @@ export interface CreateEidosFileRelationFieldInput {
     // (undocumented)
     storageCodec?: "relation";
     // (undocumented)
-    type: "link";
+    type: "relation";
 }
 
 // @public (undocumented)
 export interface CreateEidosFileSourceFieldInput {
+    // @deprecated (undocumented)
+    columnName?: string;
     // (undocumented)
-    columnName: string;
+    id?: string;
+    // (undocumented)
+    isRecordLabel?: boolean;
     // (undocumented)
     name: string;
+    nullable?: boolean;
     // (undocumented)
     property?: Record<string, unknown>;
     // (undocumented)
     storageCodec?: EidosFileStorageCodec;
     // (undocumented)
-    type: Exclude<EidosFileFieldType, "title" | "row-id" | "formula" | "link" | "lookup" | "created-time" | "created-by" | "last-edited-time" | "last-edited-by">;
+    type: EidosFileSourceFieldType;
 }
 
 // @public (undocumented)
@@ -148,8 +843,8 @@ export interface CreateEidosFileTableInput {
     name: string;
 }
 
-// @public (undocumented)
-export function createEidosFileUuid(): string;
+// @public
+export function createEidosFileUuid(timestamp?: number): string;
 
 // @public (undocumented)
 export interface CreateEidosFileViewInput {
@@ -176,6 +871,71 @@ export interface CreateEidosFileViewInput {
 }
 
 // @public (undocumented)
+export interface CsvExportRequest {
+    // (undocumented)
+    fields: string[];
+    // (undocumented)
+    includeHeader: boolean;
+    // (undocumented)
+    query: RowQuery;
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
+export interface CsvExportResult {
+    // (undocumented)
+    csv: OwnedBytes;
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    revision: string;
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
+export interface CsvImportRequest {
+    // (undocumented)
+    columns: Array<{
+        csvIndex: number;
+        fieldId: string;
+    }>;
+    // (undocumented)
+    csv: OwnedBytes;
+    // (undocumented)
+    expectedRevision: string;
+    // (undocumented)
+    hasHeader: boolean;
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
+export interface CsvImportResult {
+    // (undocumented)
+    changed: boolean;
+    // (undocumented)
+    createdRows: Array<{
+        recordIndex: number;
+        rowId: string;
+    }>;
+    // (undocumented)
+    evictedUndoTokens?: string[];
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    revision: string;
+    // (undocumented)
+    tableId: string;
+    // (undocumented)
+    undoToken?: string;
+}
+
+// @public
+export function currentEidosFileInstant(now?: Date): string;
+
+// @public (undocumented)
 export function decodeEidosFileAttachmentPaths(value: EidosFileRowValue | undefined): string[];
 
 // @public (undocumented)
@@ -184,7 +944,7 @@ export function decodeEidosFileJsonArray(value: EidosFileRowValue | undefined): 
 // @public (undocumented)
 export function decodeEidosFileMultiSelectValues(value: EidosFileSqlPrimitive): string[];
 
-// @public (undocumented)
+// @public
 export function decodeEidosFileRelationDisplay(value: EidosFileRowValue | undefined): EidosFileRelationValue[];
 
 // @public (undocumented)
@@ -194,22 +954,49 @@ export function decodeEidosFileRelationIds(value: EidosFileRowValue | undefined)
 export function decodeEidosFileStringArray(value: EidosFileRowValue | undefined): string[];
 
 // @public (undocumented)
-export const EIDOS_FILE_COLUMNS_TABLE: "eidos__columns";
+export function decodeEidosFileValues(value: EidosFileRowValue | undefined): EidosFileFileValue[];
+
+// @public (undocumented)
+export const EIDOS_ADAPTER_TRANSPORT_LIMITS: Readonly<AdapterTransportLimits>;
+
+// @public (undocumented)
+export const EIDOS_FILE_APPLICATION_ID: 1162429523;
+
+// @public (undocumented)
+export const EIDOS_FILE_CSV_INFERENCE_ROW_COUNT = 1000;
+
+// @public (undocumented)
+export const EIDOS_FILE_CSV_PREVIEW_ROW_COUNT = 5;
 
 // @public (undocumented)
 export const EIDOS_FILE_EXTENSION: ".eidos";
 
 // @public (undocumented)
+export const EIDOS_FILE_FEATURES_TABLE: "eidos__features";
+
+// @public (undocumented)
+export const EIDOS_FILE_FIELDS_TABLE: "eidos__fields";
+
+// @public
 export const EIDOS_FILE_FORMAT: "eidos-file";
 
 // @public (undocumented)
-export const EIDOS_FILE_FORMAT_VERSION: 1;
+export const EIDOS_FILE_FORMAT_VERSION: "1.0";
+
+// @public
+export const EIDOS_FILE_FORMAT_VERSION_TEXT: "1.0";
+
+// @public
+export const EIDOS_FILE_FORMULA_FIELD_FUNCTION_NAMES: readonly [];
 
 // @public (undocumented)
-export const EIDOS_FILE_FORMULA_FIELD_FUNCTION_NAMES: readonly ["prop", "props"];
+export const EIDOS_FILE_FORMULA_FIELDS_TABLE: "eidos__formula_fields";
 
 // @public (undocumented)
-export const EIDOS_FILE_FORMULA_FUNCTION_NAMES: readonly ["abs", "coalesce", "date", "datetime", "ifnull", "iif", "julianday", "length", "lower", "ltrim", "max", "min", "nullif", "replace", "round", "rtrim", "strftime", "substr", "substring", "time", "trim", "typeof", "unicode", "unixepoch", "upper"];
+export const EIDOS_FILE_FORMULA_FUNCTION_NAMES: readonly ["abs", "coalesce", "if", "is_null", "floor", "ceil", "concat", "length", "max", "min", "substr", "lower_ascii", "upper_ascii", "date_add_days", "date_diff_days", "datetime_add_milliseconds", "datetime_diff_milliseconds"];
+
+// @public (undocumented)
+export const EIDOS_FILE_LOOKUP_FIELDS_TABLE: "eidos__lookup_fields";
 
 // @public (undocumented)
 export const EIDOS_FILE_META_TABLE: "eidos__meta";
@@ -218,25 +1005,45 @@ export const EIDOS_FILE_META_TABLE: "eidos__meta";
 export const EIDOS_FILE_MIME_TYPE: "application/vnd.eidos+sqlite3";
 
 // @public (undocumented)
-export const EIDOS_FILE_REFERENCES_TABLE: "eidos__references";
+export const EIDOS_FILE_RELATION_FIELDS_TABLE: "eidos__relation_fields";
 
 // @public (undocumented)
-export const EIDOS_FILE_REQUIRED_META_KEYS: readonly ["format", "format_version", "app", "created_at", "updated_at"];
+export const EIDOS_FILE_REQUIRED_TABLES: readonly ["eidos__meta", "eidos__features", "eidos__tables", "eidos__fields", "eidos__relation_fields", "eidos__formula_fields", "eidos__lookup_fields", "eidos__views"];
 
-// @public (undocumented)
-export const EIDOS_FILE_REQUIRED_TABLES: readonly ["eidos__meta", "eidos__tables", "eidos__columns", "eidos__views", "eidos__references"];
-
-// @public (undocumented)
-export const EIDOS_FILE_SCHEMA_SQL: string;
+// @public
+export const EIDOS_FILE_SCHEMA_SQL = "\nCREATE TABLE eidos__tables(\n  id TEXT PRIMARY KEY COLLATE BINARY\n    CHECK(length(CAST(id AS BLOB))=36 AND instr(id,char(0))=0\n      AND substr(id,9,1)='-' AND substr(id,14,1)='-'\n      AND substr(id,15,1)='7' AND substr(id,19,1)='-'\n      AND substr(id,20,1) IN ('8','9','a','b') AND substr(id,24,1)='-'\n      AND lower(id)=id AND length(CAST(replace(id,'-','') AS BLOB))=32\n      AND replace(id,'-','') NOT GLOB '*[^0-9a-f]*'),\n  name TEXT NOT NULL\n    CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024 AND instr(name,char(0))=0),\n  physical_name TEXT NOT NULL COLLATE NOCASE UNIQUE\n    CHECK(length(CAST(physical_name AS BLOB)) BETWEEN 1 AND 1024\n      AND instr(physical_name,char(0))=0),\n  label_field_id TEXT NOT NULL COLLATE BINARY,\n  position INTEGER NOT NULL DEFAULT 0,\n  settings_json TEXT NOT NULL DEFAULT '{}'\n    CHECK(json_valid(settings_json) AND json_type(settings_json)='object'),\n  created_at TEXT NOT NULL\n    CHECK(length(CAST(created_at AS BLOB))=24\n      AND created_at GLOB\n        '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z'\n      AND substr(created_at,1,4)<>'0000'\n      AND coalesce(\n        strftime('%Y-%m-%dT%H:%M:%fZ',created_at,'+0 seconds')=created_at,0)),\n  updated_at TEXT NOT NULL\n    CHECK(length(CAST(updated_at AS BLOB))=24\n      AND updated_at GLOB\n        '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z'\n      AND substr(updated_at,1,4)<>'0000'\n      AND coalesce(\n        strftime('%Y-%m-%dT%H:%M:%fZ',updated_at,'+0 seconds')=updated_at,0)),\n  FOREIGN KEY(label_field_id) REFERENCES eidos__fields(id)\n    DEFERRABLE INITIALLY DEFERRED\n) STRICT, WITHOUT ROWID;\n\nCREATE TABLE eidos__fields(\n  id TEXT PRIMARY KEY COLLATE BINARY\n    CHECK(length(CAST(id AS BLOB))=36 AND instr(id,char(0))=0\n      AND substr(id,9,1)='-' AND substr(id,14,1)='-'\n      AND substr(id,15,1)='7' AND substr(id,19,1)='-'\n      AND substr(id,20,1) IN ('8','9','a','b') AND substr(id,24,1)='-'\n      AND lower(id)=id AND length(CAST(replace(id,'-','') AS BLOB))=32\n      AND replace(id,'-','') NOT GLOB '*[^0-9a-f]*'),\n  table_id TEXT NOT NULL COLLATE BINARY\n    REFERENCES eidos__tables(id) ON DELETE CASCADE,\n  name TEXT NOT NULL\n    CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024 AND instr(name,char(0))=0),\n  physical_name TEXT COLLATE NOCASE\n    CHECK(physical_name IS NULL OR\n      (length(CAST(physical_name AS BLOB)) BETWEEN 1 AND 1024\n       AND instr(physical_name,char(0))=0)),\n  type TEXT NOT NULL CHECK(type IN (\n    'text','number','integer','checkbox','date','datetime','url','json',\n    'select','multi-select','file','relation','formula','lookup'\n  )),\n  system_role TEXT CHECK(system_role IN ('row-id','created-time','updated-time')),\n  nullable INTEGER NOT NULL DEFAULT 1 CHECK(nullable IN (0,1)),\n  position INTEGER NOT NULL DEFAULT 0,\n  settings_json TEXT NOT NULL DEFAULT '{}'\n    CHECK(json_valid(settings_json) AND json_type(settings_json)='object'),\n  created_at TEXT NOT NULL\n    CHECK(length(CAST(created_at AS BLOB))=24\n      AND created_at GLOB\n        '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z'\n      AND substr(created_at,1,4)<>'0000'\n      AND coalesce(\n        strftime('%Y-%m-%dT%H:%M:%fZ',created_at,'+0 seconds')=created_at,0)),\n  updated_at TEXT NOT NULL\n    CHECK(length(CAST(updated_at AS BLOB))=24\n      AND updated_at GLOB\n        '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z'\n      AND substr(updated_at,1,4)<>'0000'\n      AND coalesce(\n        strftime('%Y-%m-%dT%H:%M:%fZ',updated_at,'+0 seconds')=updated_at,0)),\n  UNIQUE(table_id,name COLLATE NOCASE),\n  UNIQUE(table_id,physical_name COLLATE NOCASE),\n  CHECK(physical_name IS NOT NULL OR type IN ('relation','formula','lookup')),\n  CHECK(system_role IS NULL OR\n    (system_role='row-id' AND type='text' AND physical_name='_id' AND nullable=0) OR\n    (system_role='created-time' AND type='datetime'\n      AND physical_name='_created_at' AND nullable=0) OR\n    (system_role='updated-time' AND type='datetime'\n      AND physical_name='_updated_at' AND nullable=0))\n) STRICT, WITHOUT ROWID;\n\nCREATE UNIQUE INDEX eidos__fields_one_system_role\n  ON eidos__fields(table_id,system_role) WHERE system_role IS NOT NULL;\n\nCREATE TABLE eidos__meta(\n  singleton INTEGER PRIMARY KEY CHECK(singleton=1),\n  format_major INTEGER NOT NULL CHECK(format_major=1),\n  format_minor INTEGER NOT NULL CHECK(format_minor=0),\n  file_id TEXT NOT NULL UNIQUE COLLATE BINARY\n    CHECK(length(CAST(file_id AS BLOB))=36 AND instr(file_id,char(0))=0\n      AND substr(file_id,9,1)='-' AND substr(file_id,14,1)='-'\n      AND substr(file_id,15,1)='7' AND substr(file_id,19,1)='-'\n      AND substr(file_id,20,1) IN ('8','9','a','b') AND substr(file_id,24,1)='-'\n      AND lower(file_id)=file_id\n      AND length(CAST(replace(file_id,'-','') AS BLOB))=32\n      AND replace(file_id,'-','') NOT GLOB '*[^0-9a-f]*'),\n  title TEXT NOT NULL\n    CHECK(length(CAST(title AS BLOB)) BETWEEN 1 AND 1024 AND instr(title,char(0))=0),\n  default_table_id TEXT COLLATE BINARY\n    REFERENCES eidos__tables(id) DEFERRABLE INITIALLY DEFERRED,\n  revision INTEGER NOT NULL DEFAULT 0 CHECK(revision>=0),\n  created_at TEXT NOT NULL\n    CHECK(length(CAST(created_at AS BLOB))=24\n      AND created_at GLOB\n        '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z'\n      AND substr(created_at,1,4)<>'0000'\n      AND coalesce(\n        strftime('%Y-%m-%dT%H:%M:%fZ',created_at,'+0 seconds')=created_at,0)),\n  updated_at TEXT NOT NULL\n    CHECK(length(CAST(updated_at AS BLOB))=24\n      AND updated_at GLOB\n        '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z'\n      AND substr(updated_at,1,4)<>'0000'\n      AND coalesce(\n        strftime('%Y-%m-%dT%H:%M:%fZ',updated_at,'+0 seconds')=updated_at,0))\n) STRICT, WITHOUT ROWID;\n\nCREATE TRIGGER eidos__meta_no_delete BEFORE DELETE ON eidos__meta\nBEGIN SELECT RAISE(ABORT,'eidos_meta_required'); END;\n\nCREATE TRIGGER eidos__meta_no_key_update BEFORE UPDATE OF singleton ON eidos__meta\nBEGIN SELECT RAISE(ABORT,'eidos_meta_singleton'); END;\n\nCREATE TABLE eidos__features(\n  name TEXT PRIMARY KEY COLLATE BINARY\n    CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 255 AND instr(name,char(0))=0),\n  version TEXT NOT NULL\n    CHECK(length(CAST(version AS BLOB)) BETWEEN 1 AND 64 AND instr(version,char(0))=0),\n  required INTEGER NOT NULL DEFAULT 0 CHECK(required IN (0,1)),\n  config_json TEXT NOT NULL DEFAULT '{}'\n    CHECK(json_valid(config_json) AND json_type(config_json)='object')\n) STRICT, WITHOUT ROWID;\n\nCREATE TABLE eidos__relation_fields(\n  field_id TEXT PRIMARY KEY COLLATE BINARY\n    REFERENCES eidos__fields(id) ON DELETE CASCADE,\n  direction TEXT NOT NULL CHECK(direction IN ('forward','inverse')),\n  target_table_id TEXT NOT NULL COLLATE BINARY REFERENCES eidos__tables(id),\n  cardinality TEXT NOT NULL CHECK(cardinality IN ('one','many')),\n  inverse_of_field_id TEXT COLLATE BINARY\n    REFERENCES eidos__fields(id) ON DELETE RESTRICT,\n  on_delete TEXT DEFAULT 'restrict'\n    CHECK(on_delete IN ('restrict','detach','preserve')),\n  CHECK((direction='forward' AND inverse_of_field_id IS NULL AND on_delete IS NOT NULL)\n     OR (direction='inverse' AND inverse_of_field_id IS NOT NULL\n         AND cardinality='many' AND on_delete IS NULL))\n) STRICT, WITHOUT ROWID;\n\nCREATE UNIQUE INDEX eidos__relation_one_inverse\n  ON eidos__relation_fields(inverse_of_field_id)\n  WHERE inverse_of_field_id IS NOT NULL;\n\nCREATE TABLE eidos__formula_fields(\n  field_id TEXT PRIMARY KEY COLLATE BINARY\n    REFERENCES eidos__fields(id) ON DELETE CASCADE,\n  source_text TEXT NOT NULL\n    CHECK(length(CAST(source_text AS BLOB)) BETWEEN 1 AND 4096),\n  result_type TEXT NOT NULL\n    CHECK(result_type IN ('text','number','integer','checkbox','date','datetime','url','json'))\n) STRICT, WITHOUT ROWID;\n\nCREATE TABLE eidos__lookup_fields(\n  field_id TEXT PRIMARY KEY COLLATE BINARY\n    REFERENCES eidos__fields(id) ON DELETE CASCADE,\n  relation_field_id TEXT NOT NULL COLLATE BINARY REFERENCES eidos__fields(id),\n  target_field_id TEXT NOT NULL COLLATE BINARY REFERENCES eidos__fields(id),\n  aggregate TEXT NOT NULL\n    CHECK(aggregate IN ('values','first','count','sum','average','min','max')),\n  distinct_values INTEGER NOT NULL DEFAULT 0 CHECK(distinct_values IN (0,1))\n) STRICT, WITHOUT ROWID;\n\nCREATE TABLE eidos__views(\n  id TEXT PRIMARY KEY COLLATE BINARY\n    CHECK(length(CAST(id AS BLOB))=36 AND instr(id,char(0))=0\n      AND substr(id,9,1)='-' AND substr(id,14,1)='-'\n      AND substr(id,15,1)='7' AND substr(id,19,1)='-'\n      AND substr(id,20,1) IN ('8','9','a','b') AND substr(id,24,1)='-'\n      AND lower(id)=id AND length(CAST(replace(id,'-','') AS BLOB))=32\n      AND replace(id,'-','') NOT GLOB '*[^0-9a-f]*'),\n  table_id TEXT NOT NULL COLLATE BINARY\n    REFERENCES eidos__tables(id) ON DELETE CASCADE,\n  name TEXT NOT NULL\n    CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024 AND instr(name,char(0))=0),\n  type TEXT NOT NULL\n    CHECK(length(CAST(type AS BLOB)) BETWEEN 1 AND 64 AND instr(type,char(0))=0),\n  query_json TEXT NOT NULL DEFAULT '{}'\n    CHECK(json_valid(query_json) AND json_type(query_json)='object'),\n  layout_json TEXT NOT NULL DEFAULT '{}'\n    CHECK(json_valid(layout_json) AND json_type(layout_json)='object'),\n  position INTEGER NOT NULL DEFAULT 0,\n  created_at TEXT NOT NULL\n    CHECK(length(CAST(created_at AS BLOB))=24\n      AND created_at GLOB\n        '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z'\n      AND substr(created_at,1,4)<>'0000'\n      AND coalesce(\n        strftime('%Y-%m-%dT%H:%M:%fZ',created_at,'+0 seconds')=created_at,0)),\n  updated_at TEXT NOT NULL\n    CHECK(length(CAST(updated_at AS BLOB))=24\n      AND updated_at GLOB\n        '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9].[0-9][0-9][0-9]Z'\n      AND substr(updated_at,1,4)<>'0000'\n      AND coalesce(\n        strftime('%Y-%m-%dT%H:%M:%fZ',updated_at,'+0 seconds')=updated_at,0)),\n  UNIQUE(table_id,name COLLATE NOCASE)\n) STRICT, WITHOUT ROWID;\n";
 
 // @public (undocumented)
 export const EIDOS_FILE_SCHEMA_VERSION: 1;
+
+// @public (undocumented)
+export const EIDOS_FILE_SYSTEM_COLUMNS: readonly ["_id", "_created_at", "_updated_at"];
 
 // @public (undocumented)
 export const EIDOS_FILE_TABLES_TABLE: "eidos__tables";
 
 // @public (undocumented)
 export const EIDOS_FILE_VIEWS_TABLE: "eidos__views";
+
+// @public (undocumented)
+export const EIDOS_RUNTIME_LIMITS: RuntimeLimits;
+
+// @public (undocumented)
+export class EidosAdapterError extends Error implements AdapterError {
+    constructor(code: AdapterErrorCode, message: string, retryable?: boolean, fatal?: boolean, sqlitePrimaryCode?: number | undefined, sqliteExtendedCode?: number | undefined);
+    // (undocumented)
+    readonly code: AdapterErrorCode;
+    // (undocumented)
+    readonly fatal: boolean;
+    // (undocumented)
+    readonly name = "EidosAdapterError";
+    // (undocumented)
+    readonly retryable: boolean;
+    // (undocumented)
+    readonly sqliteExtendedCode?: number | undefined;
+    // (undocumented)
+    readonly sqlitePrimaryCode?: number | undefined;
+}
 
 // @public (undocumented)
 export interface EidosFileCandidateDescriptor {
@@ -249,7 +1056,7 @@ export interface EidosFileCandidateDescriptor {
 // @public (undocumented)
 export interface EidosFileColumnStatConfig {
     // (undocumented)
-    columnName: string;
+    fieldId: string;
     // (undocumented)
     type: EidosFileColumnStatType;
 }
@@ -264,7 +1071,7 @@ export interface EidosFileColumnStatResult extends EidosFileColumnStatConfig {
 }
 
 // @public (undocumented)
-export type EidosFileColumnStatType = "count-all" | "count-values" | "count-unique" | "count-empty" | "count-not-empty" | "checked" | "unchecked" | "percent-empty" | "percent-not-empty" | "percent-checked" | "percent-unchecked" | "sum" | "average" | "min" | "max" | "range";
+export type EidosFileColumnStatType = "count-all" | "count-non-null" | "count-distinct" | "count-empty" | "sum" | "average" | "min" | "max" | "relation-value-count" | "relation-row-count" | "relation-distinct-target-count";
 
 // @public (undocumented)
 export function eidosFileColumnStatTypesForField(field: EidosFileFieldInfo): readonly EidosFileColumnStatType[];
@@ -280,19 +1087,34 @@ export interface EidosFileConflict {
 // @public (undocumented)
 export interface EidosFileConnection {
     // (undocumented)
+    readonly capabilities: EidosFileConnectionCapabilities;
+    // (undocumented)
     close?(): void;
+    dataVersion(): number;
     // (undocumented)
     exec(sql: string): void;
     // (undocumented)
     get<T extends object>(sql: string, params?: EidosFileSqlParams): T | undefined;
+    interrupt(): void;
     // (undocumented)
     query<T extends object>(sql: string, params?: EidosFileSqlParams): T[];
+    // (undocumented)
+    registerFunction(name: string, operation: (...values: EidosFileSqlPrimitive[]) => EidosFileSqlPrimitive, arity?: number): void;
     // (undocumented)
     run(sql: string, params?: EidosFileSqlParams): EidosFileRunResult;
     // (undocumented)
     runMany?(sql: string, parameterSets: readonly EidosFileSqlParams[]): void;
     // (undocumented)
     transaction<T>(operation: () => T): T;
+}
+
+// @public (undocumented)
+export interface EidosFileConnectionCapabilities {
+    int64: boolean;
+    interrupt: boolean;
+    json1: boolean;
+    returning: boolean;
+    scalarFunctions: boolean;
 }
 
 // @public (undocumented)
@@ -312,6 +1134,9 @@ export interface EidosFileCsvExportColumn {
     // (undocumented)
     name: string;
 }
+
+// @public (undocumented)
+export function eidosFileCsvExportHeader(columns: readonly EidosFileCsvExportColumn[]): string;
 
 // @public (undocumented)
 export interface EidosFileCsvExportOptions {
@@ -341,7 +1166,7 @@ export interface EidosFileCsvImportColumn {
     // (undocumented)
     sourceName: string;
     // (undocumented)
-    type: "title" | EidosFileCsvFieldType;
+    type: "record-label" | EidosFileCsvFieldType;
 }
 
 // @public (undocumented)
@@ -381,6 +1206,24 @@ export interface EidosFileCsvImportPlan {
 }
 
 // @public (undocumented)
+export interface EidosFileCsvImportPlanSource {
+    // (undocumented)
+    fileName: string;
+    // (undocumented)
+    header: string[];
+    // (undocumented)
+    inferenceRows: string[][];
+    // (undocumented)
+    issues: EidosFileCsvImportIssue[];
+    // (undocumented)
+    rowCount: number;
+    // (undocumented)
+    sampleRows: string[][];
+    // (undocumented)
+    skippedRowCount: number;
+}
+
+// @public (undocumented)
 export interface EidosFileCsvImportResult {
     // (undocumented)
     importedRowCount: number;
@@ -389,6 +1232,9 @@ export interface EidosFileCsvImportResult {
     // (undocumented)
     table: EidosFileTableInfo;
 }
+
+// @public (undocumented)
+export function eidosFileCsvRowToEidosFileRow(row: string[], rowNumber: number, plan: EidosFileCsvImportPlan): EidosFileRow;
 
 // @public
 export interface EidosFileDataSource {
@@ -401,7 +1247,7 @@ export interface EidosFileDataSource {
     // (undocumented)
     createView(tableId: string, input: CreateEidosFileViewInput): Promise<EidosFileSnapshot>;
     // (undocumented)
-    deleteField(tableId: string, columnName: string): Promise<EidosFileSnapshot>;
+    deleteField(tableId: string, fieldId: string): Promise<EidosFileSnapshot>;
     // (undocumented)
     deleteRowRanges(tableId: string, ranges: EidosFileRowRange[], query: EidosFileRowQuery): Promise<EidosFileRowsDeleteResult>;
     // (undocumented)
@@ -413,7 +1259,7 @@ export interface EidosFileDataSource {
     // (undocumented)
     duplicateView(viewId: string, name?: string): Promise<EidosFileSnapshot>;
     // (undocumented)
-    getGroupCounts?(tableId: string, columnName: string, query: EidosFileRowQuery): Promise<EidosFileRowGroupCount[]>;
+    getGroupCounts?(tableId: string, fieldId: string, query: EidosFileRowQuery): Promise<EidosFileRowGroupCount[]>;
     // (undocumented)
     getPage(tableId: string, offset: number, limit: number, query: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): Promise<EidosFileRowPage>;
     // (undocumented)
@@ -421,14 +1267,14 @@ export interface EidosFileDataSource {
     // (undocumented)
     getSnapshot(): Promise<EidosFileSnapshot>;
     // (undocumented)
-    insertRow(tableId: string, row: EidosFileRow): Promise<EidosFileRowMutationResult>;
+    insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
     previewFormula?(tableId: string, input: EidosFileFormulaPreviewInput): Promise<EidosFileFormulaPreview>;
     // (undocumented)
     reorderViews(tableId: string, viewIds: string[]): Promise<EidosFileSnapshot>;
     // (undocumented)
-    updateField(tableId: string, columnName: string, changes: UpdateEidosFileFieldInput): Promise<EidosFileSnapshot>;
+    updateField(tableId: string, fieldId: string, changes: UpdateEidosFileFieldInput): Promise<EidosFileSnapshot>;
     // (undocumented)
-    updateRow(tableId: string, rowId: string, changes: EidosFileRow): Promise<EidosFileRowMutationResult>;
+    updateRow(tableId: string, rowId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
     // (undocumented)
     updateTable(tableId: string, changes: UpdateEidosFileTableInput): Promise<EidosFileSnapshot>;
     // (undocumented)
@@ -473,7 +1319,7 @@ export class EidosFileError extends Error {
 }
 
 // @public (undocumented)
-export type EidosFileErrorCode = "invalid-sqlite" | "not-eidos-file" | "unsupported-format" | "invalid-schema" | "invalid-identifier" | "invalid-query" | "invalid-range" | "invalid-csv" | "protected-field" | "protected-view" | "relation-in-use" | "formula-in-use" | "lookup-in-use" | "table-not-found" | "row-not-found" | "field-not-found" | "view-not-found" | "file-exists" | "file-not-found";
+export type EidosFileErrorCode = "invalid-sqlite" | "not-eidos-file" | "unsupported-version" | "unsupported-feature" | "invalid-schema" | "invalid-formula" | "invalid-value" | "constraint-conflict" | "dependency-cycle" | "stale-revision" | "file-conflict" | "permission-denied" | "query-limit" | "resource-limit" /** @deprecated Use unsupported-version. */ | "unsupported-format" | "invalid-identifier" | "invalid-query" | "invalid-range" | "invalid-csv" | "protected-field" | "protected-view" | "relation-in-use" | "formula-in-use" | "lookup-in-use" | "table-not-found" | "row-not-found" | "field-not-found" | "view-not-found" | "file-exists" | "file-not-found";
 
 // @public (undocumented)
 export interface EidosFileFieldConversionPlan {
@@ -495,20 +1341,33 @@ export function eidosFileFieldDisplayValues(field: EidosFileFieldInfo, value: Ei
 export interface EidosFileFieldInfo {
     // (undocumented)
     dependsOn: unknown;
+    id: string;
     // (undocumented)
     isDerived: boolean;
     // (undocumented)
     isHidden: boolean;
     // (undocumented)
+    isRecordLabel?: boolean;
+    // (undocumented)
     name: string;
     // (undocumented)
+    nullable?: boolean;
+    physicalName?: string | null;
+    // (undocumented)
+    position?: number;
+    // (undocumented)
     property: Record<string, unknown> | null;
+    // (undocumented)
+    settings?: Record<string, unknown>;
     // (undocumented)
     sourceTableColumnName: string | null;
     // (undocumented)
     storageCodec: EidosFileStorageCodec;
+    systemRole?: "row-id" | "created-time" | "updated-time" | null;
     // (undocumented)
     tableColumnName: string;
+    // (undocumented)
+    tableId: string;
     // (undocumented)
     tableName: string;
     // (undocumented)
@@ -529,7 +1388,7 @@ export interface EidosFileFieldPlacement {
 export function eidosFileFieldStoresJsonArray(field: Pick<EidosFileFieldInfo, "storageCodec">): boolean;
 
 // @public (undocumented)
-export type EidosFileFieldType = "title" | "text" | "number" | "checkbox" | "date" | "datetime" | "file" | "multi-select" | "rating" | "select" | "url" | "formula" | "link" | "lookup" | "created-time" | "created-by" | "last-edited-time" | "last-edited-by" | "row-id";
+export type EidosFileFieldType = "integer" | "json" | "relation" | "text" | "number" | "checkbox" | "date" | "datetime" | "file" | "multi-select" | "rating" | "select" | "url" | "formula" | "lookup" | "created-time" | "last-edited-time" | "row-id";
 
 // @public (undocumented)
 export interface EidosFileFieldValueRow {
@@ -540,17 +1399,32 @@ export interface EidosFileFieldValueRow {
 }
 
 // @public (undocumented)
+export interface EidosFileFileValue {
+    [key: string]: unknown;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    mediaType: string;
+    // (undocumented)
+    name: string;
+    size: string;
+    // (undocumented)
+    uri: string;
+}
+
+// @public (undocumented)
 export interface EidosFileFilterGroup {
     // (undocumented)
     children: Array<EidosFileFilterRule | EidosFileFilterGroup>;
     // (undocumented)
     conjunction: "and" | "or";
+    negated?: boolean;
     // (undocumented)
     type: "group";
 }
 
 // @public (undocumented)
-export type EidosFileFilterOperator = "equals" | "not-equals" | "contains" | "not-contains" | "starts-with" | "ends-with" | "greater-than" | "greater-than-or-equal" | "less-than" | "less-than-or-equal" | "is-empty" | "is-not-empty" | "is-any-of" | "is-none-of";
+export type EidosFileFilterOperator = "equals" | "not-equals" | "contains" | "not-contains" | "starts-with" | "ends-with" | "greater-than" | "greater-than-or-equal" | "less-than" | "less-than-or-equal" | "is-empty" | "is-not-empty" | "is-any-of" | "is-all-of" | "is-none-of";
 
 // @public (undocumented)
 export interface EidosFileFilterRule {
@@ -568,7 +1442,7 @@ export interface EidosFileFilterRule {
 export type EidosFileFilterValue = string | number | boolean | null;
 
 // @public (undocumented)
-export type EidosFileFormulaDisplayType = "text" | "number" | "checkbox" | "date" | "datetime" | "url";
+export type EidosFileFormulaDisplayType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "json";
 
 // @public (undocumented)
 export interface EidosFileFormulaPreview {
@@ -619,6 +1493,19 @@ export interface EidosFileFormulaProperty extends Record<string, unknown> {
     // (undocumented)
     formula: string;
 }
+
+// @public (undocumented)
+export interface EidosFileFormulaReference {
+    // (undocumented)
+    end: number;
+    // (undocumented)
+    fieldName: string;
+    // (undocumented)
+    start: number;
+}
+
+// @public
+export function eidosFileFormulaReferences(source: string): EidosFileFormulaReference[];
 
 // @public (undocumented)
 export interface EidosFileHandle {
@@ -683,13 +1570,51 @@ export type EidosFileHostErrorCode = "closed" | "permission-denied" | "read-fail
 export type EidosFileJsonArrayValue = string | number | boolean | null;
 
 // @public (undocumented)
+export type EidosFileJsonValue = null | boolean | number | string | EidosFileJsonValue[] | {
+    [key: string]: EidosFileJsonValue;
+};
+
+// @public
+export interface EidosFileLogicalRow {
+    // (undocumented)
+    fields: Record<string, EidosFileLogicalValue>;
+    // (undocumented)
+    id: string;
+    resolved?: Record<string, EidosFileResolvedRelationValue[]>;
+}
+
+// @public (undocumented)
+export interface EidosFileLogicalRowDraft {
+    // (undocumented)
+    fields: Record<string, EidosFileLogicalValue>;
+    // (undocumented)
+    id?: string;
+}
+
+// @public (undocumented)
+export interface EidosFileLogicalRowUpdate {
+    // (undocumented)
+    fields: Record<string, EidosFileLogicalValue>;
+    // (undocumented)
+    id: string;
+}
+
+// @public (undocumented)
+export type EidosFileLogicalValue = EidosFileSqlPrimitive | boolean | EidosFileLogicalValue[] | {
+    readonly [key: string]: EidosFileLogicalValue;
+};
+
+// @public (undocumented)
 export type EidosFileLookupAggregate = "first" | "values" | "count" | "sum" | "average" | "min" | "max";
 
 // @public (undocumented)
-export function eidosFileLookupAggregateSupportsTarget(aggregate: EidosFileLookupAggregate, target: EidosFileLookupTarget): boolean;
+export function eidosFileLookupAggregateSupportsTarget(aggregate: EidosFileLookupAggregate, target: EidosFileFieldType | EidosFileLookupTarget): boolean;
 
 // @public (undocumented)
 export function eidosFileLookupDisplayType(aggregate: EidosFileLookupAggregate, target: EidosFileFieldType | EidosFileLookupTarget): EidosFileFormulaDisplayType;
+
+// @public (undocumented)
+export function eidosFileLookupElementType(target: EidosFileFieldType | EidosFileLookupTarget): AtomicType;
 
 // @public (undocumented)
 export interface EidosFileLookupProperty extends Record<string, unknown> {
@@ -713,19 +1638,26 @@ export type EidosFileLookupTarget = Pick<EidosFileFieldInfo, "type"> & Partial<P
 export function eidosFileLookupTargetDisplayType(target: EidosFileFieldType | EidosFileLookupTarget): EidosFileFormulaDisplayType;
 
 // @public (undocumented)
+export function eidosFileLookupTargetValueType(target: EidosFileFieldType | EidosFileLookupTarget): TypeRef;
+
+// @public (undocumented)
+export function eidosFileLookupValueType(aggregate: EidosFileLookupAggregate, target: EidosFileFieldType | EidosFileLookupTarget): TypeRef;
+
+// @public (undocumented)
 export interface EidosFileMetadata {
-    // (undocumented)
-    app: string;
     // (undocumented)
     createdAt: string;
     // (undocumented)
     defaultTableId?: string;
     // (undocumented)
     description?: string;
+    fileId: string;
     // (undocumented)
     format: "eidos-file";
     // (undocumented)
-    formatVersion: number;
+    formatVersion: "1.0";
+    // (undocumented)
+    revision: number | bigint;
     // (undocumented)
     schemaVersion: number;
     // (undocumented)
@@ -744,6 +1676,12 @@ export interface EidosFileOptionValueChange {
 
 // @public (undocumented)
 export type EidosFilePermissionState = "granted" | "prompt" | "denied" | "unavailable";
+
+// @public
+export function eidosFilePhysicalName(kind: EidosFilePhysicalNameKind, displayName: string, stableId: string, existingNames?: Iterable<string>): string;
+
+// @public (undocumented)
+export type EidosFilePhysicalNameKind = "table" | "field";
 
 // @public (undocumented)
 export interface EidosFileReadResult {
@@ -778,9 +1716,17 @@ export interface EidosFileRecoveryStore {
 // @public (undocumented)
 export interface EidosFileRelationProperty extends Record<string, unknown> {
     // (undocumented)
-    multiple: boolean;
+    cardinality?: "one" | "many";
     // (undocumented)
-    targetField: string;
+    direction?: "forward" | "inverse";
+    // (undocumented)
+    multiple?: boolean;
+    // (undocumented)
+    onDelete?: "restrict" | "detach" | "preserve";
+    // (undocumented)
+    sourceFieldId?: string;
+    // (undocumented)
+    targetField?: string;
     // (undocumented)
     targetTableId: string;
 }
@@ -791,6 +1737,14 @@ export interface EidosFileRelationValue {
     id: string;
     // (undocumented)
     title: string;
+}
+
+// @public (undocumented)
+export interface EidosFileResolvedRelationValue {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    label: EidosFileLogicalValue;
 }
 
 // @public (undocumented)
@@ -806,7 +1760,7 @@ export interface EidosFileRowGroupCount {
 
 // @public (undocumented)
 export interface EidosFileRowMutationResult {
-    revision?: string;
+    revision?: number | bigint;
     // (undocumented)
     row: EidosFileRow;
     // (undocumented)
@@ -847,6 +1801,10 @@ export interface EidosFileRowPageOptions {
 export interface EidosFileRowPageProjection {
     columns: string[];
     fieldLimit?: number;
+    // @internal
+    includeRecordLabel?: boolean;
+    // @internal
+    includeRelationDisplays?: boolean;
     omitEmptyFields?: boolean;
     preservedColumns?: string[];
 }
@@ -857,6 +1815,7 @@ export interface EidosFileRowQuery {
     filter?: EidosFileFilterGroup | null;
     // (undocumented)
     search?: string;
+    searchFields?: string[];
     // (undocumented)
     sorts?: EidosFileSort[];
 }
@@ -879,7 +1838,7 @@ export interface EidosFileRowRange {
 export interface EidosFileRowsDeleteResult {
     // (undocumented)
     deletedCount: number;
-    revision?: string;
+    revision?: number | bigint;
     // (undocumented)
     rowCount: number;
     // (undocumented)
@@ -887,8 +1846,22 @@ export interface EidosFileRowsDeleteResult {
 }
 
 // @public (undocumented)
+export interface EidosFileRowsMutation {
+    // (undocumented)
+    delete?: string[];
+    // (undocumented)
+    expectedRevision?: number | bigint;
+    // (undocumented)
+    insert?: EidosFileLogicalRowDraft[];
+    // (undocumented)
+    tableId: string;
+    // (undocumented)
+    update?: EidosFileLogicalRowUpdate[];
+}
+
+// @public (undocumented)
 export interface EidosFileRowsMutationResult {
-    revision?: string;
+    revision?: number | bigint;
     // (undocumented)
     rowCount: number;
     // (undocumented)
@@ -918,27 +1891,44 @@ export interface EidosFileRunResult {
 
 // @public (undocumented)
 export class EidosFileRuntime {
-    constructor(connection: EidosFileConnection, closeConnection?: boolean);
+    constructor(connection: EidosFileConnection, ownsConnection?: boolean, environment?: {
+        nowInstant?: () => string;
+        allocateId?: () => string;
+    });
     // (undocumented)
-    addField(tableId: string, field: CreateEidosFileFieldInput, placement?: EidosFileFieldPlacement): EidosFileFieldInfo;
+    addField(tableId: string, input: CreateEidosFileFieldInput, placement?: EidosFileFieldPlacement): EidosFileFieldInfo;
+    // (undocumented)
+    aggregate(tableId: string, configs: EidosFileColumnStatConfig[], query?: EidosFileRowQuery): EidosFileColumnStatResult[];
+    // @internal
+    applyCanonicalMutation<T>(operation: (instant: string) => T, expectedRevision?: number | bigint): T;
     // (undocumented)
     calculateColumnStats(tableId: string, configs: EidosFileColumnStatConfig[], query?: EidosFileRowQuery): EidosFileColumnStatResult[];
     // (undocumented)
     close(): void;
     // (undocumented)
     readonly connection: EidosFileConnection;
+    // @internal
+    convertStoredField(fieldId: string, targetType: EidosFileFieldType, nullable: boolean, rows: readonly {
+        id: string;
+        value: EidosFileSqlPrimitive;
+        changed: boolean;
+    }[], relation?: {
+        targetTableId: string;
+        cardinality: "one" | "many";
+        onDelete: "restrict" | "detach" | "preserve";
+    }): EidosFileFieldInfo;
     // (undocumented)
     countRows(tableId: string, query?: EidosFileRowQuery): number;
     // (undocumented)
-    countRowsByField(tableId: string, columnName: string, query?: EidosFileRowQuery): EidosFileRowGroupCount[];
-    // (undocumented)
-    createReference(input: CreateEidosFileReferenceInput): void;
+    countRowsByField(tableId: string, fieldKey: string, query?: EidosFileRowQuery): EidosFileRowGroupCount[];
+    // @internal
+    createRowCursor(tableId: string, query: EidosFileRowQuery, row: EidosFileLogicalRow): string;
     // (undocumented)
     createTable(input: CreateEidosFileTableInput): EidosFileTableInfo;
     // (undocumented)
     createView(tableId: string, input: CreateEidosFileViewInput): EidosFileViewInfo;
     // (undocumented)
-    deleteField(tableId: string, columnName: string): boolean;
+    deleteField(tableId: string, fieldKey: string, replacementRecordLabelFieldId?: string): boolean;
     // (undocumented)
     deleteRow(tableId: string, rowId: string): boolean;
     // (undocumented)
@@ -954,11 +1944,13 @@ export class EidosFileRuntime {
     // (undocumented)
     getRow(tableId: string, rowId: string): EidosFileRow | null;
     // (undocumented)
-    getRowPage(tableId: string, offset?: number, limit?: number, query?: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): EidosFileRowPage;
+    getRowPage(tableId: string, offset: number, limit: number, query?: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): EidosFileRowPage;
     // (undocumented)
     getTable(tableId: string): EidosFileTableInfo;
     // (undocumented)
-    importField(tableId: string, field: ImportEidosFileFieldInput): EidosFileFieldInfo;
+    importField(tableId: string, input: ImportEidosFileFieldInput): EidosFileFieldInfo;
+    // @internal
+    importTable(table: CreateEidosFileTableInput, rows: EidosFileRow[]): EidosFileTableInfo;
     // (undocumented)
     info(): EidosFileMetadata;
     // (undocumented)
@@ -968,7 +1960,15 @@ export class EidosFileRuntime {
     // (undocumented)
     insertRow(tableId: string, row: EidosFileRow): EidosFileRow;
     // (undocumented)
+    inspect(): EidosFileValidationResult;
+    // (undocumented)
     listFields(tableId: string): EidosFileFieldInfo[];
+    // (undocumented)
+    listRows(tableId: string, options?: {
+        offset?: number;
+        limit?: number;
+        query?: EidosFileRowQuery;
+    }): EidosFileRow[];
     // (undocumented)
     listRows(tableId: string, limit?: number, offset?: number, query?: EidosFileRowQuery): EidosFileRow[];
     // (undocumented)
@@ -976,13 +1976,52 @@ export class EidosFileRuntime {
     // (undocumented)
     listViews(tableId: string): EidosFileViewInfo[];
     // (undocumented)
-    optimizeViewQueries(tableId?: string): void;
+    metadata(): EidosFileMetadata;
+    // (undocumented)
+    mutateRows(input: EidosFileRowsMutation): {
+        revision: number | bigint;
+        rows: EidosFileLogicalRow[];
+        deleted: string[]; /** @internal Exact Runtime affected-row composition, including detach. */
+        affected?: Array<{
+            tableId: string;
+            rowId: string;
+        }>;
+    };
+    // (undocumented)
+    mutateSchema(operations: EidosFileSchemaMutation[], expectedRevision?: number | bigint): {
+        revision: number | bigint;
+        results: unknown[];
+    };
+    // (undocumented)
+    optimizeViewQueries(): void;
     // (undocumented)
     previewFormula(tableId: string, input: EidosFileFormulaPreviewInput): EidosFileFormulaPreview;
     // (undocumented)
-    reorderViews(tableId: string, viewIds: string[]): EidosFileViewInfo[];
+    queryRows(tableId: string, options?: {
+        fields?: string[];
+        query?: EidosFileRowQuery;
+        limit?: number;
+        offset?: number;
+        cursor?: string;
+        resolveRelations?: boolean;
+    }): {
+        rows: EidosFileLogicalRow[];
+        nextCursor?: string;
+    };
     // (undocumented)
-    updateField(tableId: string, columnName: string, changes: UpdateEidosFileFieldInput): EidosFileFieldInfo;
+    reorderViews(tableId: string, viewIds: string[]): EidosFileViewInfo[];
+    // @internal
+    runtimeScanLogicalRows(tableId: string, fieldIds: string[], query: EidosFileRowQuery): EidosFileLogicalRow[];
+    // (undocumented)
+    schema(tableId?: string): {
+        table: EidosFileTableInfo;
+        fields: EidosFileFieldInfo[];
+        views: EidosFileViewInfo[];
+    }[];
+    // (undocumented)
+    setFieldNullable(fieldId: string, nullable: boolean): EidosFileFieldInfo;
+    // (undocumented)
+    updateField(tableId: string, fieldKey: string, changes: UpdateEidosFileFieldInput): EidosFileFieldInfo;
     // (undocumented)
     updateRow(tableId: string, rowId: string, changes: EidosFileRow): EidosFileRow;
     // (undocumented)
@@ -991,6 +2030,10 @@ export class EidosFileRuntime {
     updateTable(tableId: string, changes: UpdateEidosFileTableInput): EidosFileTableInfo;
     // (undocumented)
     updateView(viewId: string, changes: UpdateEidosFileViewInput): EidosFileViewInfo;
+    // (undocumented)
+    validate(options?: {
+        level?: "identity" | "structural" | "content" | "semantic" | "full";
+    }): EidosFileValidationResult;
 }
 
 // @public (undocumented)
@@ -1013,7 +2056,7 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     // (undocumented)
     createView(tableId: string, input: CreateEidosFileViewInput): Promise<EidosFileSnapshot>;
     // (undocumented)
-    deleteField(tableId: string, columnName: string): Promise<EidosFileSnapshot>;
+    deleteField(tableId: string, fieldId: string): Promise<EidosFileSnapshot>;
     // (undocumented)
     deleteRowRanges(tableId: string, ranges: EidosFileRowRange[], query: EidosFileRowQuery): Promise<EidosFileRowsDeleteResult>;
     // (undocumented)
@@ -1025,7 +2068,7 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     // (undocumented)
     duplicateView(viewId: string, name?: string): Promise<EidosFileSnapshot>;
     // (undocumented)
-    getGroupCounts(tableId: string, columnName: string, query: EidosFileRowQuery): Promise<EidosFileRowGroupCount[]>;
+    getGroupCounts(tableId: string, fieldId: string, query: EidosFileRowQuery): Promise<EidosFileRowGroupCount[]>;
     // (undocumented)
     getPage(tableId: string, offset: number, limit: number, query: EidosFileRowQuery, totalHint?: number, cursor?: string, projection?: EidosFileRowPageProjection): Promise<EidosFileRowPage>;
     // (undocumented)
@@ -1033,7 +2076,7 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     // (undocumented)
     getSnapshot(): Promise<EidosFileSnapshot>;
     // (undocumented)
-    insertRow(tableId: string, row: EidosFileRow): Promise<EidosFileRowMutationResult>;
+    insertRow(tableId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
     // (undocumented)
     readonly path: string;
     // (undocumented)
@@ -1043,9 +2086,9 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
     // (undocumented)
     readonly runtime: EidosFileRuntime;
     // (undocumented)
-    updateField(tableId: string, columnName: string, changes: UpdateEidosFileFieldInput): Promise<EidosFileSnapshot>;
+    updateField(tableId: string, fieldId: string, changes: UpdateEidosFileFieldInput): Promise<EidosFileSnapshot>;
     // (undocumented)
-    updateRow(tableId: string, rowId: string, changes: EidosFileRow): Promise<EidosFileRowMutationResult>;
+    updateRow(tableId: string, rowId: string, fields: Record<string, EidosFileLogicalValue>): Promise<EidosFileRowMutationResult>;
     // (undocumented)
     updateTable(tableId: string, changes: UpdateEidosFileTableInput): Promise<EidosFileSnapshot>;
     // (undocumented)
@@ -1053,11 +2096,47 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
 }
 
 // @public (undocumented)
+export type EidosFileSchemaMutation = {
+    type: "create-table";
+    table: CreateEidosFileTableInput;
+} | {
+    type: "update-table";
+    tableId: string;
+    changes: UpdateEidosFileTableInput;
+} | {
+    type: "delete-table";
+    tableId: string;
+} | {
+    type: "add-field";
+    tableId: string;
+    field: CreateEidosFileFieldInput;
+} | {
+    type: "update-field";
+    tableId: string;
+    fieldId: string;
+    changes: UpdateEidosFileFieldInput;
+} | {
+    type: "delete-field";
+    tableId: string;
+    fieldId: string;
+} | {
+    type: "create-view";
+    tableId: string;
+    view: CreateEidosFileViewInput;
+} | {
+    type: "update-view";
+    viewId: string;
+    changes: UpdateEidosFileViewInput;
+} | {
+    type: "delete-view";
+    viewId: string;
+};
+
+// @public (undocumented)
 export interface EidosFileSelectOption {
     // (undocumented)
     color: string;
-    // (undocumented)
-    value: string;
+    name: string;
 }
 
 // @public (undocumented)
@@ -1137,10 +2216,18 @@ export interface EidosFileSort {
     direction: EidosFileSortDirection;
     // (undocumented)
     field: string;
+    // (undocumented)
+    nulls?: "first" | "last";
 }
 
 // @public (undocumented)
 export type EidosFileSortDirection = "asc" | "desc";
+
+// @public (undocumented)
+export function eidosFileSortExpression(field: EidosFileFieldInfo): string;
+
+// @public (undocumented)
+export type EidosFileSourceFieldType = Exclude<EidosFileFieldType, "row-id" | "formula" | "relation" | "lookup" | "created-time" | "last-edited-time">;
 
 // @public (undocumented)
 export type EidosFileSqlParams = readonly EidosFileSqlPrimitive[];
@@ -1163,9 +2250,10 @@ export interface EidosFileTableInfo {
     id: string;
     // (undocumented)
     name: string;
+    physicalName?: string;
     // (undocumented)
     position: number | null;
-    // (undocumented)
+    // @deprecated (undocumented)
     rawTableName: string;
     // (undocumented)
     updatedAt: string;
@@ -1207,8 +2295,13 @@ export interface EidosFileValidationIssue {
     // (undocumented)
     message: string;
     // (undocumented)
+    severity?: "fatal" | "error" | "warning" | "info";
+    // (undocumented)
     table?: string;
 }
+
+// @public (undocumented)
+export type EidosFileValidationLevel = "identity" | "structural" | "content" | "semantic" | "full";
 
 // @public (undocumented)
 export interface EidosFileValidationResult {
@@ -1268,19 +2361,652 @@ export interface EidosFileWriteOptions {
 }
 
 // @public (undocumented)
-export function encodeEidosFileAttachmentPaths(paths: readonly string[]): string | null;
+export class EidosRuntimeService implements RuntimeClient {
+    constructor(connection: ConnectionPort, core: EidosFileRuntime, environment: RuntimeEnvironment, writable: boolean, generator: EidosUuidV7Generator);
+    // (undocumented)
+    aggregate(request: AggregateRequest, context: RequestContext): Promise<AggregateResponse>;
+    // (undocumented)
+    cancel(request: {
+        requestId: string;
+    }): Promise<void>;
+    // (undocumented)
+    close(context: RequestContext): Promise<void>;
+    // (undocumented)
+    getRowsById(request: {
+        tableId: string;
+        rowIds: string[];
+        projection: ProjectionSpec;
+    }, context: RequestContext): Promise<RowBatch>;
+    // (undocumented)
+    getSchemaPage(request: GetSchemaPageRequest, context: RequestContext): Promise<{
+        fileId: string;
+        revision: string;
+        objects: SchemaDescriptor[];
+        nextCursor: string | null;
+    }>;
+    // (undocumented)
+    getSchemaPlanDependencies(request: {
+        planToken: string;
+        cursor?: string;
+        limit: number;
+    }, context: RequestContext): Promise<SchemaDependencyPage>;
+    // (undocumented)
+    getSnapshot(request: {
+        minimumRevision?: string;
+    }, context: RequestContext): Promise<RuntimeSnapshot>;
+    // (undocumented)
+    groupRows(request: GroupRequest, context: RequestContext): Promise<GroupPage>;
+    // (undocumented)
+    readonly hostBridge: RuntimeHostBridge;
+    // (undocumented)
+    mutateRows(request: RowMutation, context: RequestContext): Promise<MutationResult>;
+    // (undocumented)
+    mutateSchema(request: SchemaMutationRequest, context: RequestContext): Promise<SchemaMutationResult>;
+    // (undocumented)
+    mutateView(request: ViewMutationRequest, context: RequestContext): Promise<ViewMutationResult>;
+    // (undocumented)
+    negotiate(request: {
+        protocol: "eidos-runtime";
+        versions: ["1.0"];
+    }, context: RequestContext): Promise<{
+        version: "1.0";
+        capabilities: {
+            readRows: boolean;
+            schemaPaging: boolean;
+            cursorPaging: boolean;
+            aggregate: boolean;
+            groupRows: boolean;
+            formulaPreview: boolean;
+            mutateRows: boolean;
+            mutationUndo: boolean;
+            mutateView: boolean;
+            schemaPreflight: boolean;
+            mutateSchema: boolean;
+            validate: boolean;
+            events: boolean;
+            csvExport: boolean;
+            csvImport: boolean;
+        };
+        limits: {
+            requestBytesMax: number;
+            responseBytesMax: number;
+            schemaPageSizeMax: number;
+            pageSizeMax: number;
+            projectionFieldsMax: number;
+            rowsByIdMax: number;
+            mutationRowsMax: number;
+            mutationCellsMax: number;
+            mutationBytesMax: number;
+            aggregateItemsMax: number;
+            groupPageSizeMax: number;
+            formulaPreviewRowsMax: number;
+            filterDepthMax: number;
+            filterNodesMax: number;
+            sortFieldsMax: number;
+            groupFieldsMax: number;
+            searchBytesMax: number;
+            listElementsMax: number;
+            logicalValueBytesMax: number;
+            jsonCellBytesMax: number;
+            formulaBytesMax: number;
+            formulaNodesMax: number;
+            formulaDepthMax: number;
+            diagnosticsMax: number;
+            foregroundTimeMsMax: number;
+            csvBytesMax: number;
+            schemaPlanEntriesMax: number;
+            schemaPlanBytesMax: number;
+            undoEntriesMax: number;
+            undoBytesMax: number;
+        };
+    }>;
+    // (undocumented)
+    preflightSchema(request: SchemaPreflightRequest, context: RequestContext): Promise<SchemaPreflightResult>;
+    // (undocumented)
+    previewFormula(request: FormulaPreviewRequest, context: RequestContext): Promise<FormulaPreviewResult>;
+    // (undocumented)
+    queryGroupRows(request: GroupRowsRequest, context: RequestContext): Promise<GroupRowPage>;
+    // (undocumented)
+    queryRows(request: QueryRowsRequest, context: RequestContext): Promise<RowPage>;
+    // (undocumented)
+    validate(request: ValidationRequest, context: RequestContext): Promise<ValidationReport>;
+}
+
+// @public
+export class EidosUuidV7Generator {
+    constructor(nowInstant: () => string, randomBytes: (length: number) => Uint8Array);
+    // (undocumented)
+    next(): string;
+}
+
+// @public
+export function encodeEidosFileAttachmentPaths(paths: readonly string[], previousValue?: EidosFileRowValue): string | null;
 
 // @public (undocumented)
-export function encodeEidosFileJsonArray(values: readonly EidosFileJsonArrayValue[]): string | null;
+export function encodeEidosFileCsvRecord(values: readonly string[]): string;
+
+// @public (undocumented)
+export function encodeEidosFileJsonArray(values: readonly EidosFileJsonArrayValue[]): string;
 
 // @public (undocumented)
 export function encodeEidosFileMultiSelectValues(values: readonly string[]): string | null;
 
 // @public (undocumented)
-export function encodeEidosFileRelationIds(ids: readonly string[]): string | null;
+export function encodeEidosFileRelationIds(ids: readonly string[]): string;
 
 // @public (undocumented)
-export function getEidosFileSchemaVersion(connection: EidosFileConnection): number;
+export function encodeEidosFileValues(values: readonly EidosFileFileValue[]): string;
+
+// @public (undocumented)
+export interface EntropyPort {
+    // (undocumented)
+    randomBytes(length: number): OwnedBytes;
+}
+
+// @public (undocumented)
+export interface FeatureDescriptor {
+    // (undocumented)
+    config: JsonObject;
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    object: "feature";
+    // (undocumented)
+    required: boolean;
+    // (undocumented)
+    version: string;
+}
+
+// @public (undocumented)
+export interface FieldDescriptor {
+    // (undocumented)
+    definition?: RelationDefinition | FormulaDefinition | LookupDefinition;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    kind: ScalarType | "formula" | "lookup";
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    nullable: boolean;
+    // (undocumented)
+    object: "field";
+    // (undocumented)
+    position: string;
+    // (undocumented)
+    settings: JsonObject;
+    // (undocumented)
+    systemRole: "row-id" | "created-time" | "updated-time" | null;
+    // (undocumented)
+    tableId: string;
+    // (undocumented)
+    valueType: TypeRef;
+    // (undocumented)
+    writable: boolean;
+}
+
+// @public (undocumented)
+export interface FileEntry extends JsonObject {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    mediaType: string;
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    size: string;
+    // (undocumented)
+    uri: string;
+}
+
+// @public (undocumented)
+export type FilterNode = {
+    op: "and" | "or";
+    args: FilterNode[];
+} | {
+    op: "not";
+    arg: FilterNode;
+} | {
+    op: "is-null" | "is-not-null";
+    fieldId: string;
+} | {
+    op: "eq" | "ne" | "lt" | "lte" | "gt" | "gte";
+    fieldId: string;
+    value: LogicalValue;
+} | {
+    op: "between";
+    fieldId: string;
+    lower: LogicalValue;
+    upper: LogicalValue;
+} | {
+    op: "in";
+    fieldId: string;
+    values: LogicalValue[];
+} | {
+    op: "contains" | "starts-with" | "ends-with";
+    fieldId: string;
+    value: string;
+} | {
+    op: "has-any" | "has-all";
+    fieldId: string;
+    values: LogicalValue[];
+} | {
+    op: "relation-has";
+    fieldId: string;
+    rowId: string;
+};
+
+// @public (undocumented)
+export interface FormulaDefinition {
+    // (undocumented)
+    resultType: FormulaResultType;
+    // (undocumented)
+    sourceText: string;
+}
+
+// @public (undocumented)
+export interface FormulaPreviewRequest {
+    // (undocumented)
+    candidateName?: string;
+    // (undocumented)
+    declaredResultType: FormulaResultType;
+    // (undocumented)
+    fieldId?: string;
+    // (undocumented)
+    rowIds?: string[];
+    // (undocumented)
+    sourceText: string;
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
+export interface FormulaPreviewResult {
+    // (undocumented)
+    dependencies?: string[];
+    // (undocumented)
+    diagnostics: RuntimeDiagnostic[];
+    // (undocumented)
+    diagnosticsTruncated: boolean;
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    inferredType?: FormulaResultType;
+    // (undocumented)
+    revision: string;
+    // (undocumented)
+    rows?: Array<{
+        rowId: string;
+        value?: LogicalValue;
+        error?: RuntimeError;
+    }>;
+    // (undocumented)
+    valid: boolean;
+}
+
+// @public (undocumented)
+export type FormulaResultType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "json";
+
+// @public (undocumented)
+export interface ForwardRelationDefinition {
+    // (undocumented)
+    cardinality: "one" | "many";
+    // (undocumented)
+    direction: "forward";
+    // (undocumented)
+    onDelete: "restrict" | "detach" | "preserve";
+    // (undocumented)
+    targetTableId: string;
+}
+
+// @public (undocumented)
+export interface GetSchemaPageRequest {
+    // (undocumented)
+    cursor?: string;
+    // (undocumented)
+    limit: number;
+    // (undocumented)
+    revision: string;
+}
+
+// @public (undocumented)
+export interface GroupPage {
+    // (undocumented)
+    columns: ColumnDescriptor[];
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    groups: Array<{
+        key: LogicalValue[];
+        count: string;
+        aggregates: AggregateResult[];
+        rows: ProjectedRow[];
+        nextRowCursor: string | null;
+    }>;
+    // (undocumented)
+    nextCursor: string | null;
+    // (undocumented)
+    previousCursor: string | null;
+    // (undocumented)
+    projectionHash: string;
+    // (undocumented)
+    revision: string;
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
+export interface GroupRequest {
+    // (undocumented)
+    aggregates: AggregateItem[];
+    // (undocumented)
+    cursor?: string;
+    // (undocumented)
+    direction?: "forward" | "backward";
+    // (undocumented)
+    groupBy: string[];
+    // (undocumented)
+    groupLimit: number;
+    // (undocumented)
+    projection: ProjectionSpec;
+    // (undocumented)
+    query: RowQuery;
+    // (undocumented)
+    rowsPerGroup: number;
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
+export interface GroupRowPage {
+    // (undocumented)
+    columns: ColumnDescriptor[];
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    groupKey: LogicalValue[];
+    // (undocumented)
+    nextCursor: string | null;
+    // (undocumented)
+    previousCursor: string | null;
+    // (undocumented)
+    projectionHash: string;
+    // (undocumented)
+    revision: string;
+    // (undocumented)
+    rows: ProjectedRow[];
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
+export interface GroupRowsRequest {
+    // (undocumented)
+    cursor: string;
+    // (undocumented)
+    direction?: "forward" | "backward";
+    // (undocumented)
+    limit: number;
+}
+
+// @public (undocumented)
+export function hasEidosFileSqliteHeader(bytes: ArrayBuffer | Uint8Array): boolean;
+
+// @public (undocumented)
+export interface HostCapabilities {
+    // (undocumented)
+    assetReadSchemes: string[];
+    // (undocumented)
+    assetWriteSchemes: string[];
+    // (undocumented)
+    atomicReplace: boolean;
+    // (undocumented)
+    canRequestPermission: boolean;
+    // (undocumented)
+    canSaveCopy: boolean;
+    // (undocumented)
+    canWriteCurrent: boolean;
+    // (undocumented)
+    casGuarantee: "strong" | "cooperative" | "none";
+    // (undocumented)
+    durability: "durable" | "best-effort";
+    // (undocumented)
+    hasRecovery: boolean;
+}
+
+// @public (undocumented)
+export interface HostCommitReconciliationResult {
+    // (undocumented)
+    outcome: "committed" | "rolled-back" | "conflict";
+    // (undocumented)
+    reconciliation?: CommitReconciliation;
+    // (undocumented)
+    runtime?: RuntimeClient;
+    // (undocumented)
+    state: HostSessionState;
+}
+
+// @public (undocumented)
+export interface HostConflictResult {
+    // (undocumented)
+    runtime?: RuntimeClient;
+    // (undocumented)
+    state: HostSessionState;
+}
+
+// @public (undocumented)
+export interface HostError {
+    // (undocumented)
+    code: "invalid-request" | "unsupported" | "invalid-source" | "conflict" | "permission-denied" | "source-changed" | "writer-unavailable" | "publication-failed" | "recovery-required" | "asset-unavailable" | "cancelled" | "deadline-exceeded" | "resource-limit" | "io-error" | "unknown-commit" | "closed" | "fatal";
+    // (undocumented)
+    details?: JsonObject;
+    // (undocumented)
+    message: string;
+    // (undocumented)
+    retryable: boolean;
+}
+
+// @public (undocumented)
+export interface HostLimits {
+    // (undocumented)
+    assetBytesMax: string;
+    // (undocumented)
+    assetPreviewBytesMax: string;
+    // (undocumented)
+    candidateBytesMax: string;
+    // (undocumented)
+    concurrentAssetLeasesMax: number;
+    // (undocumented)
+    concurrentSessionsMax: number;
+    // (undocumented)
+    recoveryBytesMax: string;
+    // (undocumented)
+    recoveryEntriesMax: number;
+    // (undocumented)
+    recoveryRetentionSecondsMax: number;
+    // (undocumented)
+    sourceBytesMax: string;
+}
+
+// @public (undocumented)
+export type HostPhase = "opening" | "ready-readonly" | "ready-clean" | "ready-dirty" | "publishing" | "commit-unknown" | "conflict" | "recovery-required" | "fatal" | "closed";
+
+// @public (undocumented)
+export interface HostRecoveryReport {
+    // (undocumented)
+    items: Array<{
+        recoveryToken: string;
+        fileId: string;
+        revision: string;
+        createdAt: string;
+        size: string;
+    }>;
+}
+
+// @public (undocumented)
+export interface HostRecoveryResult {
+    // (undocumented)
+    runtime?: RuntimeClient;
+    // (undocumented)
+    state: HostSessionState;
+}
+
+// @public (undocumented)
+export interface HostSaveCopyResult {
+    // (undocumented)
+    adopted: boolean;
+    // (undocumented)
+    runtime?: RuntimeClient;
+    // (undocumented)
+    state: HostSessionState;
+}
+
+// @public (undocumented)
+export interface HostSaveResult {
+    // (undocumented)
+    state: HostSessionState;
+}
+
+// @public (undocumented)
+export interface HostServiceCapabilities {
+    // (undocumented)
+    canCreateSource: boolean;
+    // (undocumented)
+    canOpenSource: true;
+    // (undocumented)
+    canReconcileCommit: boolean;
+    // (undocumented)
+    canRecover: boolean;
+    // (undocumented)
+    canRequestPermission: boolean;
+    // (undocumented)
+    canResolveConflict: boolean;
+    // (undocumented)
+    canSaveCopy: boolean;
+    // (undocumented)
+    canUseAssets: boolean;
+}
+
+// @public (undocumented)
+export interface HostServices {
+    // (undocumented)
+    acquireAsset(request: {
+        sessionId: string;
+        sourceToken: string;
+    }, context: RequestContext): Promise<{
+        entry: FileEntry;
+    }>;
+    // (undocumented)
+    close(request: {
+        sessionId: string;
+    }, context: RequestContext): Promise<void>;
+    // (undocumented)
+    createSource(request: {
+        destinationToken: string;
+        title: string;
+    }, context: RequestContext): Promise<{
+        sessionId: string;
+        runtime: RuntimeClient;
+        state: HostSessionState;
+    }>;
+    // (undocumented)
+    discardRecovery(request: {
+        sessionId: string;
+        recoveryToken: string;
+    }, context: RequestContext): Promise<HostRecoveryResult>;
+    // (undocumented)
+    listRecovery(request: {
+        sessionId: string;
+    }, context: RequestContext): Promise<HostRecoveryReport>;
+    // (undocumented)
+    negotiate(request: {
+        protocol: "eidos-host";
+        versions: ["1.0"];
+    }, context: RequestContext): Promise<{
+        version: "1.0";
+        serviceCapabilities: HostServiceCapabilities;
+        limits: HostLimits;
+    }>;
+    // (undocumented)
+    openSource(request: {
+        sourceToken: string;
+        access: "read" | "readwrite";
+    }, context: RequestContext): Promise<{
+        sessionId: string;
+        runtime: RuntimeClient;
+        state: HostSessionState;
+    }>;
+    // (undocumented)
+    reconcileCommit(request: {
+        sessionId: string;
+    }, context: RequestContext): Promise<HostCommitReconciliationResult>;
+    // (undocumented)
+    releaseAsset(request: {
+        sessionId: string;
+        leaseId: string;
+    }, context: RequestContext): Promise<void>;
+    // (undocumented)
+    requestWritePermission(request: {
+        sessionId: string;
+    }, context: RequestContext): Promise<HostSessionState>;
+    // (undocumented)
+    resolveAsset(request: {
+        sessionId: string;
+        entryId: string;
+        purpose: "thumbnail" | "preview" | "download";
+    }, context: RequestContext): Promise<AssetLease>;
+    // (undocumented)
+    resolveConflict(request: {
+        sessionId: string;
+        strategy: "reload" | "save-copy" | "merge";
+        conflictToken: string;
+        destinationToken?: string;
+        adopt?: "keep-current" | "adopt-copy";
+    }, context: RequestContext): Promise<HostConflictResult>;
+    // (undocumented)
+    restoreRecovery(request: {
+        sessionId: string;
+        recoveryToken: string;
+    }, context: RequestContext): Promise<HostRecoveryResult>;
+    // (undocumented)
+    save(request: {
+        sessionId: string;
+    }, context: RequestContext): Promise<HostSaveResult>;
+    // (undocumented)
+    saveCopy(request: {
+        sessionId: string;
+        destinationToken: string;
+        adopt: "keep-current" | "adopt-copy";
+    }, context: RequestContext): Promise<HostSaveCopyResult>;
+    // (undocumented)
+    subscribe(sessionId: string, listener: (state: HostSessionState) => void): () => void;
+}
+
+// @public (undocumented)
+export interface HostSessionState {
+    // (undocumented)
+    capabilities: HostCapabilities;
+    // (undocumented)
+    conflictToken?: string;
+    // (undocumented)
+    error?: HostError;
+    // (undocumented)
+    fileId?: string;
+    // (undocumented)
+    limits: HostLimits;
+    // (undocumented)
+    phase: HostPhase;
+    // (undocumented)
+    revision?: string;
+    // (undocumented)
+    sessionId: string;
+}
+
+// @public (undocumented)
+export function importEidosFileCsv(eidosFile: EidosFileRuntime, file: {
+    name: string;
+    content: string;
+}, options?: EidosFileCsvImportOptions): EidosFileCsvImportResult;
 
 // @public (undocumented)
 export interface ImportEidosFileFieldInput {
@@ -1307,13 +3033,75 @@ export interface ImportEidosFileFieldInput {
 }
 
 // @public (undocumented)
-export function initializeEidosFileSchema(connection: EidosFileConnection, options?: CreateEidosFileOptions): void;
+export function incrementEidosFileRevision(connection: EidosFileConnection, updatedAt?: string): number;
+
+// @public (undocumented)
+export function initializeEidosFileSchema(connection: EidosFileConnection, options?: CreateEidosFileOptions, transaction?: boolean): void;
+
+// @public (undocumented)
+export interface InverseRelationDefinition {
+    // (undocumented)
+    cardinality: "many";
+    // (undocumented)
+    direction: "inverse";
+    // (undocumented)
+    inverseOfFieldId: string;
+    // (undocumented)
+    targetTableId: string;
+}
+
+// @public
+export function isCanonicalEidosFileDate(value: unknown): value is string;
+
+// @public
+export function isCanonicalEidosFileInstant(value: unknown): value is string;
+
+// @public (undocumented)
+export function isCanonicalEidosFileJson(text: string): boolean;
+
+// @public (undocumented)
+export function isEidosFileUuid(value: unknown): value is string;
 
 // @public (undocumented)
 export function isMutableEidosFileFieldType(type: EidosFileFieldType): type is MutableEidosFileFieldType;
 
 // @public (undocumented)
-export function migrateEidosFileSchema(connection: EidosFileConnection): number;
+export function isSafeEidosFileUri(uri: string): boolean;
+
+// @public
+export interface JsonObject {
+    // (undocumented)
+    [key: string]: JsonValue;
+}
+
+// @public (undocumented)
+export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
+
+// @public (undocumented)
+export type LogicalValue = null | boolean | number | string | FileEntry | LogicalValue[];
+
+// @public (undocumented)
+export interface LookupDefinition {
+    // (undocumented)
+    aggregate: "values" | "first" | "count" | "sum" | "average" | "min" | "max";
+    // (undocumented)
+    distinctValues: boolean;
+    // (undocumented)
+    relationFieldId: string;
+    // (undocumented)
+    targetFieldId: string;
+}
+
+// @public (undocumented)
+export class MemoryByteSource implements ByteSource {
+    constructor(bytes: Uint8Array | ArrayBuffer);
+    // (undocumented)
+    read(offset: string, length: number, context: PublicationContext): Promise<OwnedBytes>;
+    // (undocumented)
+    release(): void;
+    // (undocumented)
+    readonly size: string;
+}
 
 // @public (undocumented)
 export const MUTABLE_BASE_FIELD_TYPES: readonly ["text", "number", "checkbox", "date", "datetime", "file", "multi-select", "rating", "select", "url"];
@@ -1322,10 +3110,63 @@ export const MUTABLE_BASE_FIELD_TYPES: readonly ["text", "number", "checkbox", "
 export type MutableEidosFileFieldType = (typeof MUTABLE_BASE_FIELD_TYPES)[number];
 
 // @public (undocumented)
+export interface MutationResult {
+    // (undocumented)
+    affectedRows: Array<{
+        tableId: string;
+        rowId: string;
+    }>;
+    // (undocumented)
+    changed: boolean;
+    // (undocumented)
+    created: Array<{
+        clientKey: string;
+        rowId: string;
+    }>;
+    // (undocumented)
+    evictedUndoTokens?: string[];
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    returnedRows?: RowBatch;
+    // (undocumented)
+    revision: string;
+    // (undocumented)
+    undoToken?: string;
+}
+
+// @public (undocumented)
+export function nativeToSqlValue(value: unknown): SqlValue;
+
+// @public (undocumented)
+export interface NewField {
+    // (undocumented)
+    clientKey: string;
+    // (undocumented)
+    definition?: RelationDefinition | FormulaDefinition | LookupDefinition;
+    // (undocumented)
+    kind: StoredFieldType | "formula" | "lookup";
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    nullable?: boolean;
+    // (undocumented)
+    position: string;
+    // (undocumented)
+    settings?: JsonObject;
+}
+
+// @public (undocumented)
 export function normalizeEidosFileAttachmentPath(value: string): string | null;
+
+// @public
+export function normalizeEidosFileDate(value: string, label?: string): string;
 
 // @public (undocumented)
 export function normalizeEidosFileFilter(value: unknown): EidosFileFilterGroup | null;
+
+// @public
+export function normalizeEidosFileInstant(value: string, label?: string): string;
 
 // @public (undocumented)
 export function normalizeEidosFileRowQuery(value: unknown): EidosFileRowQuery;
@@ -1333,29 +3174,931 @@ export function normalizeEidosFileRowQuery(value: unknown): EidosFileRowQuery;
 // @public (undocumented)
 export function normalizeEidosFileSorts(value: unknown): EidosFileSort[];
 
+// @public
+export type OwnedBytes = Uint8Array;
+
+// @public (undocumented)
+export function parseEidosFileCsvRows(file: {
+    name: string;
+    content: string;
+}, plan: EidosFileCsvImportPlan): EidosFileRow[];
+
+// @public (undocumented)
+export function parseEidosFileJson(text: string): EidosFileJsonValue;
+
 // @public (undocumented)
 export function parseEidosFileSelectOptions(property: Record<string, unknown> | null | undefined): EidosFileSelectOption[];
+
+// @public (undocumented)
+export function parseNonNegativeInt64(value: string, label: string): bigint;
+
+// @public (undocumented)
+export function planCanonicalFieldConversion(input: CanonicalConversionInput): CanonicalConversionPlan;
+
+// @public (undocumented)
+export function planEidosFileCsvImport(file: {
+    name: string;
+    content: string;
+}, options?: EidosFileCsvImportOptions): EidosFileCsvImportPlan;
 
 // @public (undocumented)
 export function planEidosFileFieldConversion(field: EidosFileFieldInfo, rows: EidosFileFieldValueRow[], targetType: MutableEidosFileFieldType): EidosFileFieldConversionPlan;
 
 // @public (undocumented)
-export function quoteIdentifier(identifier: string): string;
+export function prepareEidosFileCsvImport(file: {
+    name: string;
+    content: string;
+}, options?: EidosFileCsvImportOptions): {
+    plan: EidosFileCsvImportPlan;
+    rows: EidosFileRow[];
+};
 
 // @public (undocumented)
+export interface ProjectedRow {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    resolvedRelations?: Array<{
+        column: number;
+        items: ResolvedRelationItem[];
+    }>;
+    // (undocumented)
+    values: LogicalValue[];
+}
+
+// @public (undocumented)
+export interface ProjectionSpec {
+    // (undocumented)
+    fields: string[];
+    // (undocumented)
+    resolveRelations: string[];
+}
+
+// @public (undocumented)
+export interface PublicationContext {
+    // (undocumented)
+    cancellation: CancellationPort;
+    // (undocumented)
+    deadlineMilliseconds?: number;
+}
+
+// @public (undocumented)
+export interface QueryResult {
+    // (undocumented)
+    columns: Column[];
+    // (undocumented)
+    rows: SqlValue[][];
+}
+
+// @public (undocumented)
+export interface QueryRowsRequest {
+    // (undocumented)
+    cursor?: string;
+    // (undocumented)
+    direction?: "forward" | "backward";
+    // (undocumented)
+    limit: number;
+    // (undocumented)
+    projection: ProjectionSpec;
+    // (undocumented)
+    query: RowQuery;
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
+export function quoteIdentifier(identifier: string): string;
+
+// @public @deprecated (undocumented)
 export function rawTableNameForId(tableId: string): string;
+
+// @public (undocumented)
+export type RelationDefinition = ForwardRelationDefinition | InverseRelationDefinition;
 
 // @public (undocumented)
 export function removeEidosFileFilterField(group: EidosFileFilterGroup | null, field: string): EidosFileFilterGroup | null;
 
 // @public (undocumented)
+export interface RequestContext {
+    // (undocumented)
+    deadlineMilliseconds?: number;
+    // (undocumented)
+    requestId: string;
+    // (undocumented)
+    signal?: CancellationSignal;
+}
+
+// @public (undocumented)
+export type ResolvedRelationItem = {
+    id: string;
+    state: "unresolved";
+} | {
+    id: string;
+    state: "resolved";
+    labelFieldId: string;
+    labelType: TypeRef;
+    label: LogicalValue;
+};
+
+// @public (undocumented)
+export type Revision = string;
+
+// @public (undocumented)
+export function rewriteEidosFileFormulaFieldReferences(source: string, oldFieldName: string, newFieldName: string): string;
+
+// @public (undocumented)
+export interface RowBatch {
+    // (undocumented)
+    columns: ColumnDescriptor[];
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    missingRowIds: string[];
+    // (undocumented)
+    projectionHash: string;
+    // (undocumented)
+    revision: string;
+    // (undocumented)
+    rows: ProjectedRow[];
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
+export type RowChange = {
+    kind: "create";
+    clientKey: string;
+    values: Record<string, LogicalValue>;
+} | {
+    kind: "update";
+    rowId: string;
+    values: Record<string, LogicalValue>;
+} | {
+    kind: "delete";
+    rowId: string;
+};
+
+// @public (undocumented)
+export interface RowMutation {
+    // (undocumented)
+    changes: RowChange[];
+    // (undocumented)
+    expectedRevision: string;
+    // (undocumented)
+    returning?: ProjectionSpec;
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
+export interface RowPage {
+    // (undocumented)
+    columns: ColumnDescriptor[];
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    nextCursor: string | null;
+    // (undocumented)
+    previousCursor: string | null;
+    // (undocumented)
+    projectionHash: string;
+    // (undocumented)
+    revision: string;
+    // (undocumented)
+    rows: ProjectedRow[];
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
+export interface RowQuery {
+    // (undocumented)
+    filter?: FilterNode;
+    // (undocumented)
+    search?: {
+        text: string;
+        fields: string[];
+    };
+    // (undocumented)
+    sort?: Array<{
+        fieldId: string;
+        direction: "asc" | "desc";
+        nulls?: "first" | "last";
+    }>;
+}
+
+// @public (undocumented)
+export interface RunResult {
+    // (undocumented)
+    changes: string;
+    // (undocumented)
+    lastInsertRowid: string;
+}
+
+// @public (undocumented)
+export class Runtime {
+    // (undocumented)
+    static create(connection: ConnectionPort, environment: RuntimeEnvironment, createInput: RuntimeCreateInput, context: RuntimeFactoryContext): Promise<RuntimeBinding>;
+    // (undocumented)
+    static open(connection: ConnectionPort, environment: RuntimeEnvironment, mode: "read" | "readwrite", context: RuntimeFactoryContext): Promise<RuntimeBinding>;
+}
+
+// @public (undocumented)
+export interface RuntimeBinding {
+    // (undocumented)
+    hostBridge: RuntimeHostBridge;
+    // (undocumented)
+    service: RuntimeService;
+}
+
+// @public (undocumented)
+export interface RuntimeCapabilities {
+    // (undocumented)
+    aggregate: boolean;
+    // (undocumented)
+    csvExport: boolean;
+    // (undocumented)
+    csvImport: boolean;
+    // (undocumented)
+    cursorPaging: boolean;
+    // (undocumented)
+    events: boolean;
+    // (undocumented)
+    formulaPreview: boolean;
+    // (undocumented)
+    groupRows: boolean;
+    // (undocumented)
+    mutateRows: boolean;
+    // (undocumented)
+    mutateSchema: boolean;
+    // (undocumented)
+    mutateView: boolean;
+    // (undocumented)
+    mutationUndo: boolean;
+    // (undocumented)
+    readRows: boolean;
+    // (undocumented)
+    schemaPaging: boolean;
+    // (undocumented)
+    schemaPreflight: boolean;
+    // (undocumented)
+    validate: boolean;
+}
+
+// @public (undocumented)
+export interface RuntimeClient {
+    // (undocumented)
+    aggregate(request: AggregateRequest, context: RequestContext): Promise<AggregateResponse>;
+    // (undocumented)
+    cancel(request: {
+        requestId: string;
+    }): Promise<void>;
+    // (undocumented)
+    close(context: RequestContext): Promise<void>;
+    // (undocumented)
+    exportCsv?(request: CsvExportRequest, context: RequestContext): Promise<CsvExportResult>;
+    // (undocumented)
+    getRowsById(request: {
+        tableId: string;
+        rowIds: string[];
+        projection: ProjectionSpec;
+    }, context: RequestContext): Promise<RowBatch>;
+    // (undocumented)
+    getSchemaPage(request: GetSchemaPageRequest, context: RequestContext): Promise<SchemaPage>;
+    // (undocumented)
+    getSchemaPlanDependencies(request: {
+        planToken: string;
+        cursor?: string;
+        limit: number;
+    }, context: RequestContext): Promise<SchemaDependencyPage>;
+    // (undocumented)
+    getSnapshot(request: {
+        minimumRevision?: string;
+    }, context: RequestContext): Promise<RuntimeSnapshot>;
+    // (undocumented)
+    groupRows(request: GroupRequest, context: RequestContext): Promise<GroupPage>;
+    // (undocumented)
+    importCsv?(request: CsvImportRequest, context: RequestContext): Promise<CsvImportResult>;
+    // (undocumented)
+    mutateRows(request: RowMutation, context: RequestContext): Promise<MutationResult>;
+    // (undocumented)
+    mutateSchema(request: SchemaMutationRequest, context: RequestContext): Promise<SchemaMutationResult>;
+    // (undocumented)
+    mutateView(request: ViewMutationRequest, context: RequestContext): Promise<ViewMutationResult>;
+    // (undocumented)
+    negotiate(request: {
+        protocol: "eidos-runtime";
+        versions: ["1.0"];
+    }, context: RequestContext): Promise<{
+        version: "1.0";
+        capabilities: RuntimeCapabilities;
+        limits: RuntimeLimits;
+    }>;
+    // (undocumented)
+    preflightSchema(request: SchemaPreflightRequest, context: RequestContext): Promise<SchemaPreflightResult>;
+    // (undocumented)
+    previewFormula(request: FormulaPreviewRequest, context: RequestContext): Promise<FormulaPreviewResult>;
+    // (undocumented)
+    queryGroupRows(request: GroupRowsRequest, context: RequestContext): Promise<GroupRowPage>;
+    // (undocumented)
+    queryRows(request: QueryRowsRequest, context: RequestContext): Promise<RowPage>;
+    // (undocumented)
+    revertMutation?(request: {
+        undoToken: string;
+        expectedRevision: string;
+    }, context: RequestContext): Promise<MutationResult>;
+    // (undocumented)
+    subscribe?(listener: (event: RuntimeEvent) => void): () => void;
+    // (undocumented)
+    validate(request: ValidationRequest, context: RequestContext): Promise<ValidationReport>;
+}
+
+// @public (undocumented)
+export interface RuntimeCreateInput {
+    // (undocumented)
+    createdAt?: string;
+    // (undocumented)
+    fileId?: string;
+    // (undocumented)
+    title: string;
+}
+
+// @public (undocumented)
+export interface RuntimeDiagnostic {
+    // (undocumented)
+    code: RuntimeDiagnosticCode;
+    // (undocumented)
+    fieldId?: string;
+    // (undocumented)
+    fileId?: string;
+    // (undocumented)
+    message?: string;
+    // (undocumented)
+    path?: string;
+    // (undocumented)
+    relatedFieldIds?: string[];
+    // (undocumented)
+    rowId?: string;
+    // (undocumented)
+    severity: "fatal" | "error" | "warning" | "info";
+    // (undocumented)
+    sourceByteOffset?: number;
+    // (undocumented)
+    tableId?: string;
+    // (undocumented)
+    viewId?: string;
+}
+
+// @public (undocumented)
+export type RuntimeDiagnosticCode = "file-not-sqlite" | "file-identity-invalid" | "file-format-unsupported" | "file-feature-unsupported" | "file-core-object-invalid" | "file-metadata-invalid" | "file-foreign-key-invalid" | "file-physical-schema-invalid" | "file-definition-invalid" | "file-trigger-invalid" | "file-index-invalid" | "file-extension-invalid" | "file-cell-invalid" | "file-json-invalid" | "file-reference-invalid" | "file-unresolved-relation" | "file-integrity-invalid" | "semantic-field-invalid" | "formula-parse-invalid" | "formula-name-invalid" | "formula-type-invalid" | "semantic-cycle" | "lookup-invalid" | "relation-invalid" | "record-label-invalid" | "view-query-invalid" | "option-catalog-invalid" | "validation-prerequisite-failed" | "fraction-loss" | "precision-loss" | "truthiness-loss" | "time-loss" | "null-distinction-loss" | "list-tail-loss" | "option-merge-loss" | "object-delete-loss" | "dependent-source-rewritten" | "dependency-blocked" | "conversion-domain-invalid" | "non-nullability-blocked" | "relation-definition-invalid" | "cardinality-blocked" | "record-label-blocked" | `x.${string}.${string}`;
+
+// @public (undocumented)
+export interface RuntimeEnvironment {
+    // (undocumented)
+    clock: ClockPort;
+    // (undocumented)
+    entropy: EntropyPort;
+    // (undocumented)
+    transportCommitBarrier?: TransportCommitBarrier;
+}
+
+// @public (undocumented)
+export interface RuntimeError {
+    // (undocumented)
+    code: RuntimeErrorCode;
+    // (undocumented)
+    currentRevision?: string;
+    // (undocumented)
+    details?: JsonObject;
+    // (undocumented)
+    fieldId?: string;
+    // (undocumented)
+    fileId?: string;
+    // (undocumented)
+    message: string;
+    // (undocumented)
+    path?: string;
+    // (undocumented)
+    retryable: boolean;
+    // (undocumented)
+    rowId?: string;
+    // (undocumented)
+    tableId?: string;
+}
+
+// @public (undocumented)
+export type RuntimeErrorCode = "invalid-request" | "unsupported" | "not-found" | "already-exists" | "invalid-value" | "invalid-query" | "invalid-formula" | "cycle" | "constraint" | "stale-revision" | "conflict" | "forbidden" | "lossy-confirmation-required" | "invalid-plan" | "plan-expired" | "resource-limit" | "cancelled" | "deadline-exceeded" | "busy" | "corrupt-file" | "adapter-error" | "unknown-commit" | "closed" | "fatal";
+
+// @public (undocumented)
+export interface RuntimeEvent {
+    // (undocumented)
+    fieldIds?: string[];
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    kind: "revision-changed" | "schema-changed" | "fatal";
+    // (undocumented)
+    revision: string;
+    // (undocumented)
+    tableIds?: string[];
+}
+
+// @public (undocumented)
+export interface RuntimeFactoryContext {
+    // (undocumented)
+    cancellation: CancellationPort;
+    // (undocumented)
+    deadlineMilliseconds?: number;
+}
+
+// @public (undocumented)
+export interface RuntimeHostBridge {
+    // (undocumented)
+    allocateFileEntry(request: {
+        name: string;
+        mediaType: string;
+        size: string;
+        uri: string;
+        extensions?: Record<string, JsonValue>;
+    }, context: RequestContext): Promise<FileEntry>;
+    // (undocumented)
+    createPublicationSnapshot(request: {
+        maxBytes: string;
+    }, context: RequestContext): Promise<RuntimePublicationSnapshot>;
+}
+
+// @public (undocumented)
+export interface RuntimeLimits {
+    // (undocumented)
+    aggregateItemsMax: number;
+    // (undocumented)
+    csvBytesMax: number;
+    // (undocumented)
+    diagnosticsMax: number;
+    // (undocumented)
+    filterDepthMax: number;
+    // (undocumented)
+    filterNodesMax: number;
+    // (undocumented)
+    foregroundTimeMsMax: number;
+    // (undocumented)
+    formulaBytesMax: number;
+    // (undocumented)
+    formulaDepthMax: number;
+    // (undocumented)
+    formulaNodesMax: number;
+    // (undocumented)
+    formulaPreviewRowsMax: number;
+    // (undocumented)
+    groupFieldsMax: number;
+    // (undocumented)
+    groupPageSizeMax: number;
+    // (undocumented)
+    jsonCellBytesMax: number;
+    // (undocumented)
+    listElementsMax: number;
+    // (undocumented)
+    logicalValueBytesMax: number;
+    // (undocumented)
+    mutationBytesMax: number;
+    // (undocumented)
+    mutationCellsMax: number;
+    // (undocumented)
+    mutationRowsMax: number;
+    // (undocumented)
+    pageSizeMax: number;
+    // (undocumented)
+    projectionFieldsMax: number;
+    // (undocumented)
+    requestBytesMax: number;
+    // (undocumented)
+    responseBytesMax: number;
+    // (undocumented)
+    rowsByIdMax: number;
+    // (undocumented)
+    schemaPageSizeMax: number;
+    // (undocumented)
+    schemaPlanBytesMax: number;
+    // (undocumented)
+    schemaPlanEntriesMax: number;
+    // (undocumented)
+    searchBytesMax: number;
+    // (undocumented)
+    sortFieldsMax: number;
+    // (undocumented)
+    undoBytesMax: number;
+    // (undocumented)
+    undoEntriesMax: number;
+}
+
+// @public (undocumented)
+export interface RuntimePublicationSnapshot {
+    // (undocumented)
+    bytes: ByteSource;
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    release(): Promise<void>;
+    // (undocumented)
+    revision: string;
+}
+
+// @public (undocumented)
+export type RuntimeService = RuntimeClient;
+
+// @public (undocumented)
+export interface RuntimeSnapshot {
+    // (undocumented)
+    defaultTableId: string | null;
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    format: {
+        major: 1;
+        minor: 0;
+    };
+    // (undocumented)
+    revision: string;
+    // (undocumented)
+    schemaCounts: {
+        tables: string;
+        fields: string;
+        views: string;
+        features: string;
+    };
+    // (undocumented)
+    title: string;
+}
+
+// @public (undocumented)
+export interface SavedViewQuery {
+    // (undocumented)
+    filter?: FilterNode;
+    // (undocumented)
+    sort?: Array<{
+        fieldId: string;
+        direction: "asc" | "desc";
+        nulls?: "first" | "last";
+    }>;
+}
+
+// @public (undocumented)
+export interface ScalarDefinition {
+    // (undocumented)
+    arity: number;
+    // (undocumented)
+    deterministic: true;
+    // (undocumented)
+    directOnly: true;
+    // (undocumented)
+    name: string;
+}
+
+// @public (undocumented)
+export type ScalarStoredFieldType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "json" | "select";
+
+// @public (undocumented)
+export type ScalarType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "json" | "select" | "multi-select" | "file" | "relation";
+
+// @public (undocumented)
+export type SchemaChange = SchemaLeafChange | {
+    kind: "batch";
+    changes: SchemaLeafChange[];
+};
+
+// @public (undocumented)
+export interface SchemaDependency {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    object: "table" | "field" | "view";
+}
+
+// @public (undocumented)
+export interface SchemaDependencyPage {
+    // (undocumented)
+    dependencies: SchemaDependency[];
+    // (undocumented)
+    dependencyCount: string;
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    nextCursor: string | null;
+    // (undocumented)
+    revision: string;
+}
+
+// @public (undocumented)
+export type SchemaDescriptor = TableDescriptor | FieldDescriptor | ViewDescriptor | FeatureDescriptor;
+
+// @public (undocumented)
+export type SchemaLeafChange = {
+    kind: "create-table";
+    clientKey: string;
+    name: string;
+    position: string;
+    settings?: JsonObject;
+    fields: NewField[];
+    labelFieldClientKey?: string;
+} | {
+    kind: "set-file-title";
+    title: string;
+} | {
+    kind: "set-default-table";
+    tableId: string | null;
+} | {
+    kind: "delete-table";
+    tableId: string;
+} | {
+    kind: "rename-table";
+    tableId: string;
+    name: string;
+} | {
+    kind: "set-table-settings";
+    tableId: string;
+    settings: JsonObject;
+} | {
+    kind: "set-table-position";
+    tableId: string;
+    position: string;
+} | {
+    kind: "create-field";
+    tableId: string;
+    field: NewField;
+} | {
+    kind: "delete-field";
+    fieldId: string;
+    replacementLabelFieldId?: string;
+} | {
+    kind: "rename-field";
+    fieldId: string;
+    name: string;
+} | {
+    kind: "set-field-nullable";
+    fieldId: string;
+    nullable: boolean;
+} | {
+    kind: "set-field-settings";
+    fieldId: string;
+    settings: JsonObject;
+} | {
+    kind: "set-field-position";
+    fieldId: string;
+    position: string;
+} | {
+    kind: "set-record-label";
+    tableId: string;
+    fieldId: string;
+} | {
+    kind: "set-formula";
+    fieldId: string;
+    definition: FormulaDefinition;
+} | {
+    kind: "set-lookup";
+    fieldId: string;
+    definition: LookupDefinition;
+} | {
+    kind: "set-relation";
+    fieldId: string;
+    definition: RelationDefinition;
+} | ConvertFieldChange | {
+    kind: "rename-option";
+    fieldId: string;
+    from: string;
+    to: string;
+    collision: "reject" | "merge";
+};
+
+// @public (undocumented)
+export interface SchemaMutationRequest {
+    // (undocumented)
+    actionsHash: string;
+    // (undocumented)
+    confirmLossy?: true;
+    // (undocumented)
+    expectedRevision: string;
+    // (undocumented)
+    planToken: string;
+}
+
+// @public (undocumented)
+export interface SchemaMutationResult {
+    // (undocumented)
+    affectedFieldIds: string[];
+    // (undocumented)
+    affectedTableIds: string[];
+    // (undocumented)
+    changed: boolean;
+    // (undocumented)
+    createdObjects: CreatedSchemaObject[];
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    revision: string;
+}
+
+// @public (undocumented)
+export interface SchemaPage {
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    nextCursor: string | null;
+    // (undocumented)
+    objects: SchemaDescriptor[];
+    // (undocumented)
+    revision: string;
+}
+
+// @public (undocumented)
+export interface SchemaPreflightRequest {
+    // (undocumented)
+    change: SchemaChange;
+    // (undocumented)
+    expectedRevision: string;
+}
+
+// @public (undocumented)
+export interface SchemaPreflightResult {
+    // (undocumented)
+    actionsHash: string;
+    // (undocumented)
+    affectedRows: string;
+    // (undocumented)
+    baseRevision: string;
+    // (undocumented)
+    classification: "metadata-only" | "lossless-rewrite" | "explicit-lossy" | "forbidden";
+    // (undocumented)
+    dependencies: SchemaDependency[];
+    // (undocumented)
+    dependencyCount: string;
+    // (undocumented)
+    dependencyCursor?: string;
+    // (undocumented)
+    expiresAt: string;
+    // (undocumented)
+    expiresInMilliseconds: number;
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    planToken: string;
+    // (undocumented)
+    valueChanges: SchemaValueChange[];
+    // (undocumented)
+    valueChangesTruncated: boolean;
+    // (undocumented)
+    warnings: RuntimeDiagnostic[];
+    // (undocumented)
+    warningsTruncated: boolean;
+}
+
+// @public (undocumented)
+export interface SchemaValueChange {
+    // (undocumented)
+    code: SchemaValueChangeCode;
+    // (undocumented)
+    fieldId: string;
+    // (undocumented)
+    rows: string;
+    // (undocumented)
+    tableId: string;
+}
+
+// @public (undocumented)
+export type SchemaValueChangeCode = "value-reencoded" | "binary64-rounded" | "fraction-truncated" | "integer-rounded" | "numeric-to-checkbox" | "datetime-to-date" | "json-null-to-sql-null" | "null-to-empty-list" | "list-empty-to-null" | "list-tail-dropped" | "relation-detached" | "option-value-renamed" | "option-duplicate-collapsed";
+
+// @public
 export function setEidosFileMetadata(connection: EidosFileConnection, entries: Record<string, string | undefined>): void;
+
+// @public (undocumented)
+export interface SnapshotContext {
+    // (undocumented)
+    cancellation: CancellationPort;
+    // (undocumented)
+    deadlineMilliseconds?: number;
+    // (undocumented)
+    maxBytes: string;
+}
 
 // @public (undocumented)
 export const SQLITE_HEADER: "SQLite format 3\0";
 
+// @public
+export class SQLiteWasmConnectionPort implements ConnectionPort {
+    constructor(database: SqliteDatabase, sqlite3: Sqlite3Static, options?: SQLiteWasmConnectionPortOptions);
+    // (undocumented)
+    capabilities(): ConnectionCapabilities;
+    // (undocumented)
+    close(): void;
+    // Warning: (ae-forgotten-export) The symbol "SqliteDatabase" needs to be exported by the entry point index.d.mts
+    //
+    // (undocumented)
+    readonly database: SqliteDatabase;
+    // (undocumented)
+    dataVersion(): string;
+    // (undocumented)
+    execSchema(sql: string): void;
+    // (undocumented)
+    get(sql: string, bindings?: readonly SqlValue[]): {
+        columns: Array<{
+            name: string;
+        }>;
+        row: SqlValue[] | null;
+    };
+    // (undocumented)
+    interrupt(): void;
+    // (undocumented)
+    query(sql: string, bindings?: readonly SqlValue[]): QueryResult;
+    // (undocumented)
+    registerScalar(definition: ScalarDefinition, operation: (...values: SqlValue[]) => SqlValue): void;
+    // (undocumented)
+    run(sql: string, bindings?: readonly SqlValue[]): RunResult;
+    // (undocumented)
+    runMany(sql: string, bindingSets: readonly (readonly SqlValue[])[]): RunResult[];
+    // (undocumented)
+    snapshot(context: SnapshotContext): Promise<ConnectionSnapshot>;
+    // Warning: (ae-forgotten-export) The symbol "Sqlite3Static" needs to be exported by the entry point index.d.mts
+    //
+    // (undocumented)
+    readonly sqlite3: Sqlite3Static;
+    // (undocumented)
+    transaction<T>(mode: "read" | "write", operation: () => T): T;
+    // (undocumented)
+    transaction<T>(mode: "read" | "write", operation: () => Promise<T>): Promise<T>;
+}
+
+// @public (undocumented)
+export interface SQLiteWasmConnectionPortOptions {
+    // (undocumented)
+    busyTimeoutMs?: number;
+    // (undocumented)
+    maxResultBytes?: number;
+    // (undocumented)
+    maxResultRows?: number;
+}
+
+// @public (undocumented)
+export type SqlValue = {
+    tag: "null";
+} | {
+    tag: "integer";
+    value: string;
+} | {
+    tag: "real";
+    value: number;
+} | {
+    tag: "text";
+    value: string;
+} | {
+    tag: "blob";
+    value: OwnedBytes;
+};
+
+// @public (undocumented)
+export function sqlValueToNative(value: SqlValue): EidosFileSqlPrimitive;
+
+// @public (undocumented)
+export type StoredFieldType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "json" | "select" | "multi-select" | "file" | "relation";
+
+// @public (undocumented)
+export interface TableDescriptor {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    labelFieldId: string;
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    object: "table";
+    // (undocumented)
+    position: string;
+    // (undocumented)
+    settings: JsonObject;
+}
+
+// @public (undocumented)
+export interface TransportCommitBarrier {
+    // (undocumented)
+    prepare(preparation: {
+        fileID: string;
+        baseRevision: string;
+        commitRevision: string;
+        reconciliation: CommitReconciliation;
+    }, context: RequestContext): Promise<void>;
+}
+
+// @public
+export function transportFitsHostLimit(bytes: number, limit: HostLimits["candidateBytesMax"]): boolean;
+
+// @public (undocumented)
+export type TypeRef = ScalarType | "row-id" | "file-entry" | {
+    kind: "list";
+    element: AtomicType;
+};
+
 // @public (undocumented)
 export interface UpdateEidosFileFieldInput {
+    // (undocumented)
+    isRecordLabel?: boolean;
     // (undocumented)
     name?: string;
     // (undocumented)
@@ -1397,7 +4140,109 @@ export interface UpdateEidosFileViewInput {
 }
 
 // @public (undocumented)
-export function validateEidosFile(connection: EidosFileConnection): EidosFileValidationResult;
+export function validateAdapterCarrier(carrier: unknown): asserts carrier is AdapterStructuredCloneCarrier;
+
+// @public (undocumented)
+export function validateAdapterEnvelope(envelope: unknown): asserts envelope is AdapterWireEnvelope;
+
+// @public (undocumented)
+export function validateEidosFile(connection: EidosFileConnection, options?: {
+    level?: EidosFileValidationLevel;
+}): EidosFileValidationResult;
+
+// @public (undocumented)
+export interface ValidationReport {
+    // (undocumented)
+    diagnostics: RuntimeDiagnostic[];
+    // (undocumented)
+    fileId?: string;
+    // (undocumented)
+    level: ValidationRequest["level"];
+    // (undocumented)
+    revision?: string;
+    // (undocumented)
+    truncated: boolean;
+    // (undocumented)
+    valid: boolean;
+}
+
+// @public (undocumented)
+export interface ValidationRequest {
+    // (undocumented)
+    diagnosticsLimit: number;
+    // (undocumented)
+    level: "identity" | "structural" | "content" | "semantic" | "full";
+}
+
+// @public (undocumented)
+export type ViewChange = {
+    kind: "create-view";
+    clientKey: string;
+    tableId: string;
+    name: string;
+    type: string;
+    query: SavedViewQuery;
+    layout: JsonObject;
+    position: string;
+} | {
+    kind: "update-view";
+    viewId: string;
+    patch: {
+        name?: string;
+        type?: string;
+        query?: SavedViewQuery;
+        layout?: JsonObject;
+        position?: string;
+    };
+} | {
+    kind: "delete-view";
+    viewId: string;
+};
+
+// @public (undocumented)
+export interface ViewDescriptor {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    layout: JsonObject;
+    // (undocumented)
+    name: string;
+    // (undocumented)
+    object: "view";
+    // (undocumented)
+    position: string;
+    // (undocumented)
+    query: SavedViewQuery;
+    // (undocumented)
+    tableId: string;
+    // (undocumented)
+    type: string;
+}
+
+// @public (undocumented)
+export interface ViewMutationRequest {
+    // (undocumented)
+    changes: ViewChange[];
+    // (undocumented)
+    expectedRevision: string;
+}
+
+// @public (undocumented)
+export interface ViewMutationResult {
+    // (undocumented)
+    affectedViewIds: string[];
+    // (undocumented)
+    changed: boolean;
+    // (undocumented)
+    createdViews: Array<{
+        clientKey: string;
+        viewId: string;
+    }>;
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    revision: string;
+}
 
 // (No @packageDocumentation comment for this package)
 

@@ -1,127 +1,94 @@
 # `@eidos.space/eidos-file`
 
-Headless runtime and host contracts for portable Eidos `.eidos` files.
+Portable Eidos File 1.0 contracts and the reference headless Runtime.
 
-An Eidos File is a normal SQLite database containing portable table, field,
-view, and relation metadata. The package does not depend on the Eidos app,
-Zustand stores, routes, Electron IPC, or a database singleton.
+The normative specifications are [`docs/specs`](../../docs/specs/README.md).
+Implementations compose in one direction:
+
+```text
+Eidos File 1.0 → Eidos Runtime 1.0 → Eidos Adapter 1.0 → Eidos UI 1.0
+```
+
+The File is an ordinary SQLite application file. Runtime alone owns format
+semantics. Adapters own SQLite execution, transport, persistence and Host
+authority. UI receives only `RuntimeClient` and `HostServices`; it never
+receives SQL, a database, a path or a native file handle.
 
 ## Install
 
 ```bash
-pnpm add @eidos.space/eidos-file@0.1.0
+pnpm add @eidos.space/eidos-file@1.0.0
 ```
 
-Add `@eidos.space/eidos-file-ui@0.1.0` when rendering React views.
+Add `@eidos.space/eidos-file-ui` for the React Viewer binding.
 
-## Browser host
+## Exact Runtime binding
 
-The browser entry includes a SQLite WASM runtime, native file picker adapter,
-copy-mode fallback, conflict detection, and IndexedDB recovery store.
+`Runtime.create` initializes an empty `ConnectionPort`; `Runtime.open` validates
+an existing one. Both return a public service plus a trusted Host-only bridge.
 
 ```ts
-import { EidosFileSession } from "@eidos.space/eidos-file"
 import {
-  EidosFileBrowserRuntime,
-  IndexedDbEidosFileRecoveryStore,
-  openBrowserEidosFile,
-  pickBrowserEidosFile,
-} from "@eidos.space/eidos-file/browser"
+  Runtime,
+  type ConnectionPort,
+  type RuntimeEnvironment,
+} from "@eidos.space/eidos-file"
 
-const session = new EidosFileSession(
-  new EidosFileBrowserRuntime(),
-  new IndexedDbEidosFileRecoveryStore()
+const binding = await Runtime.open(
+  connection satisfies ConnectionPort,
+  environment satisfies RuntimeEnvironment,
+  "readwrite",
+  { cancellation, deadlineMilliseconds: 30_000 }
 )
 
-const direct = await pickBrowserEidosFile()
-const imported = fileInput.files?.[0]
-  ? await openBrowserEidosFile(fileInput.files[0])
-  : null
-const handle = direct ?? imported
-
-if (handle) await session.open(handle)
+const negotiated = await binding.service.negotiate(
+  { protocol: "eidos-runtime", versions: ["1.0"] },
+  { requestId: "negotiate" }
+)
 ```
 
-SQLite WASM uses WebAssembly and top-level await. A Vite host should enable the
-same two standard plugins:
+The service exposes the frozen columnar query, authenticated keyset cursor,
+aggregate/group, validation and transactional mutation contracts. Integer
+values are decimal strings at public boundaries; JSON Field values are RFC
+8785 JCS text strings. Optional undo/events/CSV methods exist exactly when the
+matching negotiated capability is true.
 
-```ts
-import { defineConfig } from "vite"
-import topLevelAwait from "vite-plugin-top-level-await"
-import wasm from "vite-plugin-wasm"
+## Adapter profiles
 
-export default defineConfig({
-  plugins: [wasm(), topLevelAwait()],
-  optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm"] },
-})
+- `BetterSqlite3ConnectionPort` in `@eidos.space/eidos-file/better-sqlite3`
+  implements the Desktop EA-Connection binding.
+- `SQLiteWasmConnectionPort` in `@eidos.space/eidos-file/browser` implements
+  the Browser Worker EA-Connection binding using the same conformance contract.
+- `AdapterTransportServer` and `AdapterTransportRuntimeClient` implement the
+  Eidos Adapter 1.0 structured-clone transport, including sequence binding,
+  cancellation, attachment limits and the prepared-commit acknowledgement
+  barrier.
+
+The browser-conforming composition keeps SQLite and Runtime in a Dedicated
+Worker. Window receives only the transported `RuntimeClient`; SQLite, File
+bytes, and trusted Host authority remain outside UI.
+
+## File rules implemented here
+
+- canonical File DDL, `STRICT` user tables and File-owned triggers;
+- lowercase hyphenated UUIDv7 identity;
+- exact physical naming, rename and conversion behavior;
+- canonical date/datetime, JSON, list, File and Relation values;
+- virtual Formula, Lookup and inverse-Relation projection;
+- revision, no-op mutation, delete policy and cache invalidation semantics;
+- cumulative identity/structural/content/semantic/full validation.
+
+Unsupported pre-1.0 draft schemas are rejected rather than guessed or
+silently migrated.
+
+## Verification
+
+```bash
+pnpm --filter @eidos.space/eidos-file typecheck
+pnpm --filter @eidos.space/eidos-file typecheck:public
+pnpm --filter @eidos.space/eidos-file build
+pnpm --filter @eidos.space/eidos-file api:check
 ```
 
-Call `session.markDirty()` after a committed mutation. `checkpoint()` stores a
-recoverable working copy. `save()` exports an integrity-checked database and
-performs a compare-and-swap write against the revision observed at open time.
-
-```ts
-import { EidosFileHostError } from "@eidos.space/eidos-file"
-
-session.markDirty()
-await session.checkpoint()
-
-try {
-  await session.save()
-} catch (error) {
-  if (error instanceof EidosFileHostError && error.code === "conflict") {
-    // Offer reload, forced overwrite, or Save As. Do not silently choose.
-  }
-}
-```
-
-Chromium-based browsers can write to the original file after user permission.
-Other browsers open an imported copy; hosts can offer Save As when supported or
-`downloadEidosFile()` as the fallback. File bytes stay in the browser.
-
-## Node and Electron
-
-The optional `better-sqlite3` entry owns native file access. The main entry
-remains browser-safe and works against the small `EidosFileConnection`
-interface.
-
-```ts
-import { createEidosFile } from "@eidos.space/eidos-file/better-sqlite3"
-
-const file = createEidosFile("tasks.eidos", {
-  title: "Tasks",
-  defaultTable: { name: "Tasks" },
-})
-
-file.insertRow(file.info().defaultTableId!, { title: "Ship Eidos File" })
-file.close()
-```
-
-## Public boundaries
-
-- `EidosFileDescriptor` is adapter-owned identity, metadata, size, and an
-  opaque revision token.
-- `EidosFileHandle` owns reading, permissions, and optional verified writes.
-- `EidosFileRuntimeAdapter` turns bytes into an `EidosFileDocument`.
-- `EidosFileDataSource` is the async paging and mutation contract consumed by
-  views.
-- `EidosFileSession` owns open, dirty, saving, conflict, error, recovery, and
-  cleanup states.
-- `EidosFileHandlerRegistry` matches file types. It does not install or execute
-  extensions.
-
-See [DEVELOPER_PLATFORM.md](./DEVELOPER_PLATFORM.md) for the audited product
-boundary and first-release scope.
-
-## Security
-
-Adapters are the authority boundary. A view never receives SQLite, a native
-file handle, the browser picker, Electron IPC, or host application state.
-React views are trusted application code, not sandboxed extensions. A host must
-review and statically import them just like any other dependency.
-
-## Format notes
-
-Files remain valid SQLite databases and can be inspected with ordinary SQLite
-tools. Gallery and Kanban query indexes are disposable SQLite indexes maintained
-by the runtime; they are not Eidos metadata or user data.
+The package is framework-agnostic. React bindings live in
+`@eidos.space/eidos-file-ui`.

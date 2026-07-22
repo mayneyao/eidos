@@ -1,18 +1,29 @@
-import type { EidosFileConnection } from "./connection"
+import type { EidosFileConnection, EidosFileSqlPrimitive } from "./connection"
 import {
-  EIDOS_FILE_COLUMNS_TABLE,
+  EIDOS_FILE_APPLICATION_ID,
+  EIDOS_FILE_FEATURES_TABLE,
+  EIDOS_FILE_FIELDS_TABLE,
   EIDOS_FILE_FORMAT,
   EIDOS_FILE_FORMAT_VERSION,
+  EIDOS_FILE_FORMULA_FIELDS_TABLE,
+  EIDOS_FILE_LOOKUP_FIELDS_TABLE,
   EIDOS_FILE_META_TABLE,
-  EIDOS_FILE_REQUIRED_META_KEYS,
+  EIDOS_FILE_RELATION_FIELDS_TABLE,
   EIDOS_FILE_REQUIRED_TABLES,
   EIDOS_FILE_SCHEMA_VERSION,
   EIDOS_FILE_TABLES_TABLE,
   EIDOS_FILE_VIEWS_TABLE,
-  EIDOS_FILE_REFERENCES_TABLE,
 } from "./constants"
-import { quoteIdentifier } from "./identifiers"
-import { compileEidosFileFormulaFields } from "./formula"
+import { compileEidosFileFormula } from "./formula"
+import { smallestDependencyCycle } from "./dependency-graph"
+import { assertEidosFileValues } from "./file-values"
+import { isEidosFileUuid, quoteIdentifier } from "./identifiers"
+import { isCanonicalEidosFileJson, parseEidosFileJson } from "./canonical-json"
+import { assertEidosFileSelectOptions } from "./select-options"
+import {
+  isCanonicalEidosFileDate,
+  isCanonicalEidosFileInstant,
+} from "./temporal"
 import type {
   EidosFileFieldInfo,
   EidosFileFieldType,
@@ -24,852 +35,1836 @@ import type {
   EidosFileValueKind,
 } from "./types"
 
-interface MetaRow {
-  key: string
-  value: string
-}
+export type EidosFileValidationLevel =
+  | "identity"
+  | "structural"
+  | "content"
+  | "semantic"
+  | "full"
 
-interface RegistryRow {
-  id: string
-  name: string
-  raw_table_name: string
-  position: number | null
-  icon: string | null
-  description: string | null
+interface MetaRow {
+  singleton: number
+  format_major: number
+  format_minor: number
+  file_id: string
+  revision: number | bigint
+  title: string
+  default_table_id: string | null
   created_at: string
   updated_at: string
 }
 
-interface FieldValidationRow {
-  name: string
-  type: string
-  table_name: string
-  table_column_name: string
-  property: string | null
-  storage_codec: string
-  value_kind: string
-  is_hidden: number
-  is_derived: number
-  source_table_column_name: string | null
-  depends_on: string | null
-}
-
-interface ViewValidationRow {
+interface TableRow {
   id: string
   name: string
-  type: string
+  physical_name: string
+  label_field_id: string
+  position: number
+  settings_json: string
+  created_at: string
+  updated_at: string
+}
+
+interface FieldRow {
+  id: string
   table_id: string
-  properties: string | null
-  filter: string | null
-  order_map: string | null
-  hidden_fields: string | null
+  name: string
+  physical_name: string | null
+  type: string
+  system_role: "row-id" | "created-time" | "updated-time" | null
+  nullable: number
+  position: number
+  settings_json: string
+  created_at: string
+  updated_at: string
 }
 
-const FIELD_TYPES = new Set<EidosFileFieldType>([
-  "title",
-  "text",
-  "number",
-  "checkbox",
-  "date",
-  "datetime",
-  "file",
-  "multi-select",
-  "rating",
-  "select",
-  "url",
-  "formula",
-  "link",
-  "lookup",
-  "created-time",
-  "created-by",
-  "last-edited-time",
-  "last-edited-by",
-  "row-id",
-])
-const STORAGE_CODECS = new Set<EidosFileStorageCodec>([
-  "scalar",
-  "json_array",
-  "relation",
-  "materialized_text",
-])
-const VALUE_KINDS = new Set<EidosFileValueKind>([
-  "source",
-  "relation",
-  "derived",
-  "materialized",
-  "system",
-])
-const FORMULA_DISPLAY_TYPES = new Set([
-  "text",
-  "number",
-  "checkbox",
-  "date",
-  "datetime",
-  "url",
-])
-const LOOKUP_AGGREGATES = new Set([
-  "first",
-  "values",
-  "count",
-  "sum",
-  "average",
-  "min",
-  "max",
-])
-const MAX_REGISTRY_ROWS = 10_000
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
+interface RelationRow {
+  field_id: string
+  direction: "forward" | "inverse"
+  inverse_of_field_id: string | null
+  target_table_id: string
+  cardinality: "one" | "many"
+  on_delete: "restrict" | "detach" | "preserve" | null
 }
 
-function parseMetadataJson(
-  value: string | null,
-  label: string,
-  errors: EidosFileValidationIssue[],
-  table?: string
-): { valid: boolean; value: unknown } {
-  if (value === null) return { valid: true, value: null }
-  try {
-    return { valid: true, value: JSON.parse(value) as unknown }
-  } catch {
-    errors.push({
-      code: "invalid-metadata-json",
-      message: `${label} must contain valid JSON`,
-      table,
-    })
-    return { valid: false, value: null }
-  }
+interface FormulaRow {
+  field_id: string
+  source_text: string
+  result_type: string
 }
 
-function validateFormulaProperty(
-  field: FieldValidationRow,
-  property: unknown,
-  errors: EidosFileValidationIssue[]
-): void {
-  if (field.type !== "formula" || field.value_kind !== "derived") return
-  if (
-    !isRecord(property) ||
-    typeof property.formula !== "string" ||
-    property.formula.trim().length === 0 ||
-    !FORMULA_DISPLAY_TYPES.has(String(property.displayType))
-  ) {
-    errors.push({
-      code: "invalid-formula-property",
-      message: `Formula field ${field.table_name}.${field.table_column_name} has invalid formula metadata`,
-      table: field.table_name,
-    })
-  }
+interface LookupRow {
+  field_id: string
+  relation_field_id: string
+  target_field_id: string
+  aggregate: "first" | "values" | "count" | "sum" | "average" | "min" | "max"
+  distinct_values: number
 }
 
-function validateLookupProperty(
-  field: FieldValidationRow,
-  property: unknown,
-  errors: EidosFileValidationIssue[]
-): void {
-  if (field.type !== "lookup" || field.value_kind !== "derived") return
-  if (
-    !isRecord(property) ||
-    typeof property.relationField !== "string" ||
-    typeof property.targetField !== "string" ||
-    !LOOKUP_AGGREGATES.has(String(property.aggregate)) ||
-    !FORMULA_DISPLAY_TYPES.has(String(property.displayType))
-  ) {
-    errors.push({
-      code: "invalid-lookup-property",
-      message: `Lookup field ${field.table_name}.${field.table_column_name} has invalid lookup metadata`,
-      table: field.table_name,
-    })
-  }
-}
-
-function validateSelectProperty(
-  field: FieldValidationRow,
-  property: unknown,
-  errors: EidosFileValidationIssue[]
-): void {
-  if (field.type !== "select" && field.type !== "multi-select") return
-  if (!isRecord(property) || !Array.isArray(property.options)) {
-    errors.push({
-      code: "invalid-select-property",
-      message: `Select field ${field.table_name}.${field.table_column_name} requires an options array`,
-      table: field.table_name,
-    })
-    return
-  }
-  const values = new Set<string>()
-  const invalid = property.options.some((option) => {
-    if (
-      !isRecord(option) ||
-      typeof option.value !== "string" ||
-      option.value.trim().length === 0 ||
-      values.has(option.value)
-    ) {
-      return true
-    }
-    values.add(option.value)
-    return false
-  })
-  if (invalid) {
-    errors.push({
-      code: "invalid-select-property",
-      message: `Select field ${field.table_name}.${field.table_column_name} has invalid option values`,
-      table: field.table_name,
-    })
-  }
-}
-
-function validateCanonicalStorageCodec(
-  field: FieldValidationRow,
-  property: unknown,
-  errors: EidosFileValidationIssue[]
-): void {
-  const expected =
-    field.type === "multi-select" || field.type === "file"
-      ? "json_array"
-      : field.type === "link"
-        ? "relation"
-        : field.type === "lookup" &&
-            field.value_kind === "derived" &&
-            isRecord(property) &&
-            property.aggregate === "values"
-          ? "json_array"
-          : field.value_kind === "derived"
-            ? "scalar"
-            : null
-  if (expected !== null && field.storage_codec !== expected) {
-    errors.push({
-      code: "invalid-storage-codec",
-      message: `Field ${field.table_name}.${field.table_column_name} must use ${expected} storage`,
-      table: field.table_name,
-    })
-  }
-}
-
-const REQUIRED_COLUMNS: Record<string, string[]> = {
-  [EIDOS_FILE_META_TABLE]: ["key", "value"],
+const REQUIRED_COLUMNS: Record<string, readonly string[]> = {
+  [EIDOS_FILE_META_TABLE]: [
+    "singleton",
+    "format_major",
+    "format_minor",
+    "file_id",
+    "revision",
+    "title",
+    "default_table_id",
+    "created_at",
+    "updated_at",
+  ],
+  [EIDOS_FILE_FEATURES_TABLE]: ["name", "version", "required", "config_json"],
   [EIDOS_FILE_TABLES_TABLE]: [
     "id",
     "name",
-    "raw_table_name",
+    "physical_name",
+    "label_field_id",
     "position",
-    "icon",
-    "description",
+    "settings_json",
     "created_at",
     "updated_at",
   ],
-  [EIDOS_FILE_COLUMNS_TABLE]: [
+  [EIDOS_FILE_FIELDS_TABLE]: [
+    "id",
+    "table_id",
     "name",
+    "physical_name",
     "type",
-    "table_name",
-    "table_column_name",
-    "property",
-    "storage_codec",
-    "value_kind",
-    "is_hidden",
-    "is_derived",
-    "source_table_column_name",
-    "depends_on",
+    "system_role",
+    "nullable",
+    "position",
+    "settings_json",
     "created_at",
     "updated_at",
+  ],
+  [EIDOS_FILE_RELATION_FIELDS_TABLE]: [
+    "field_id",
+    "direction",
+    "inverse_of_field_id",
+    "target_table_id",
+    "cardinality",
+    "on_delete",
+  ],
+  [EIDOS_FILE_FORMULA_FIELDS_TABLE]: ["field_id", "source_text", "result_type"],
+  [EIDOS_FILE_LOOKUP_FIELDS_TABLE]: [
+    "field_id",
+    "relation_field_id",
+    "target_field_id",
+    "aggregate",
+    "distinct_values",
   ],
   [EIDOS_FILE_VIEWS_TABLE]: [
     "id",
+    "table_id",
     "name",
     "type",
-    "table_id",
-    "query",
-    "properties",
-    "filter",
-    "order_map",
-    "hidden_fields",
+    "query_json",
+    "layout_json",
     "position",
     "created_at",
     "updated_at",
   ],
-  [EIDOS_FILE_REFERENCES_TABLE]: [
-    "self_table_name",
-    "self_table_column_name",
-    "ref_table_name",
-    "ref_table_column_name",
-    "link_table_name",
-    "link_table_column_name",
-    "self",
-    "ref",
-    "link",
-    "created_at",
-  ],
 }
 
-const REQUIRED_USER_COLUMNS = [
-  "_id",
-  "title",
-  "_created_time",
-  "_last_edited_time",
-  "_created_by",
-  "_last_edited_by",
-]
+const ID_COLUMNS: Record<string, readonly string[]> = {
+  [EIDOS_FILE_META_TABLE]: ["file_id", "default_table_id"],
+  [EIDOS_FILE_TABLES_TABLE]: ["id"],
+  [EIDOS_FILE_FIELDS_TABLE]: ["id", "table_id"],
+  [EIDOS_FILE_RELATION_FIELDS_TABLE]: [
+    "field_id",
+    "inverse_of_field_id",
+    "target_table_id",
+  ],
+  [EIDOS_FILE_FORMULA_FIELDS_TABLE]: ["field_id"],
+  [EIDOS_FILE_LOOKUP_FIELDS_TABLE]: [
+    "field_id",
+    "relation_field_id",
+    "target_field_id",
+  ],
+  [EIDOS_FILE_VIEWS_TABLE]: ["id", "table_id"],
+}
 
-const MIGRATABLE_V1_COLUMNS = new Set([
-  "storage_codec",
-  "value_kind",
-  "is_hidden",
-  "is_derived",
-  "source_table_column_name",
-  "depends_on",
+const REQUIRED_INDEXES = new Set([
+  "eidos__fields_one_system_role",
+  "eidos__relation_one_inverse",
 ])
 
-function metadataFromRows(rows: MetaRow[]): Record<string, string> {
-  return Object.fromEntries(rows.map((row) => [row.key, row.value]))
+const REQUIRED_TRIGGERS = new Set([
+  "eidos__meta_no_delete",
+  "eidos__meta_no_key_update",
+])
+
+const DYNAMIC_TRIGGER_NAME =
+  /^eidos__(?:row_id_immutable|relation_(?:validate_(?:insert|update)|restrict|detach))__[0-9a-f]{32}$/
+
+const FIELD_TYPES = new Set<EidosFileFieldType>([
+  "text",
+  "number",
+  "integer",
+  "checkbox",
+  "date",
+  "datetime",
+  "url",
+  "file",
+  "json",
+  "select",
+  "multi-select",
+  "relation",
+  "formula",
+  "lookup",
+])
+
+const LABEL_SCALAR_TYPES = new Set([
+  "text",
+  "number",
+  "integer",
+  "checkbox",
+  "date",
+  "datetime",
+  "url",
+  "select",
+])
+
+const FORMULA_RESULT_TYPES = new Set([
+  "text",
+  "number",
+  "integer",
+  "checkbox",
+  "date",
+  "datetime",
+  "url",
+  "json",
+])
+
+const NUMERIC_LOOKUP_TYPES = new Set(["number", "integer"])
+const FILTER_OPERATORS = new Set([
+  "equals",
+  "not-equals",
+  "contains",
+  "not-contains",
+  "starts-with",
+  "ends-with",
+  "greater-than",
+  "greater-than-or-equal",
+  "less-than",
+  "less-than-or-equal",
+  "is-empty",
+  "is-not-empty",
+  "is-any-of",
+  "is-none-of",
+])
+
+const LEVELS: Record<EidosFileValidationLevel, number> = {
+  identity: 0,
+  structural: 1,
+  content: 2,
+  semantic: 3,
+  full: 4,
 }
 
-function mapMetadata(values: Record<string, string>): EidosFileMetadata | null {
-  if (values.format !== EIDOS_FILE_FORMAT) return null
-  return {
-    format: EIDOS_FILE_FORMAT,
-    formatVersion: Number(values.format_version),
-    schemaVersion: Number(values.schema_version ?? 0),
-    app: values.app,
-    createdAt: values.created_at,
-    updatedAt: values.updated_at,
-    title: values.title,
-    description: values.description,
-    defaultTableId: values.default_table_id,
+function uuid(value: unknown, label: string): string {
+  if (!isEidosFileUuid(value)) {
+    throw new Error(`${label} is not canonical lowercase UUIDv7 TEXT`)
   }
+  return value
 }
 
-function mapTable(row: RegistryRow): EidosFileTableInfo {
-  return {
-    id: row.id,
-    name: row.name,
-    rawTableName: row.raw_table_name,
-    position: row.position,
-    icon: row.icon,
-    description: row.description,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+function subtypeMap<T extends { field_id: string }>(rows: T[]): Map<string, T> {
+  return new Map(rows.map((row) => [uuid(row.field_id, "Field ID"), row]))
+}
+
+function storageCodec(
+  field: FieldRow,
+  relation?: RelationRow
+): EidosFileStorageCodec {
+  if (field.type === "relation" && relation?.direction === "forward")
+    return "relation"
+  if (field.type === "file" || field.type === "multi-select")
+    return "json_array"
+  return "scalar"
+}
+
+function valueKind(
+  field: FieldRow,
+  relation?: RelationRow
+): EidosFileValueKind {
+  if (field.system_role !== null) return "system"
+  if (field.type === "formula" || field.type === "lookup") return "derived"
+  if (field.type === "relation") {
+    return relation?.direction === "inverse" ? "derived" : "relation"
   }
+  return "source"
+}
+
+function validPhysicalMapping(
+  kind: "table" | "field",
+  name: string,
+  physicalName: string,
+  id: string
+): boolean {
+  const folded = name.replace(/[A-Z]/g, (character) => character.toLowerCase())
+  const reserved =
+    kind === "table"
+      ? ["sqlite_", "eidos__", "x__"].some((prefix) =>
+          folded.startsWith(prefix)
+        )
+      : ["_id", "_created_at", "_updated_at"].includes(folded)
+  const hex = id.replace(/-/g, "")
+  if (kind === "table" && reserved) {
+    return [8, 12, 32].some((length) => {
+      const prefix = `t__${hex.slice(0, length)}__`
+      return (
+        physicalName.startsWith(prefix) &&
+        new TextEncoder().encode(physicalName).byteLength <= 1024
+      )
+    })
+  }
+  if (physicalName === name) return !reserved
+  // A formerly-colliding suffixed mapping remains valid after the other object
+  // is removed (§6.3); validation therefore cannot require re-minimization.
+  return [8, 12, 32].some(
+    (length) => physicalName === `${name}__${hex.slice(0, length)}`
+  )
+}
+
+function expectedColumnType(type: string): string | null {
+  if (
+    [
+      "text",
+      "url",
+      "select",
+      "date",
+      "datetime",
+      "file",
+      "json",
+      "multi-select",
+      "relation",
+    ].includes(type)
+  ) {
+    return "TEXT"
+  }
+  if (["integer", "checkbox"].includes(type)) {
+    return "INTEGER"
+  }
+  if (type === "number") return "REAL"
+  return null
+}
+
+function relationIds(value: EidosFileSqlPrimitive): string[] | null {
+  if (typeof value !== "string" || !isCanonicalEidosFileJson(value)) return null
+  const parsed = parseEidosFileJson(value)
+  if (!Array.isArray(parsed) || !parsed.every(isEidosFileUuid)) return null
+  if (new Set(parsed).size !== parsed.length) return null
+  return parsed
+}
+
+function declaresBinaryText(sql: string | null, column: string): boolean {
+  if (!sql) return false
+  const escaped = column.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const identifier = `(?:"${escaped}"|\\[${escaped}\\]|\`${escaped}\`|${escaped})`
+  return new RegExp(
+    `(?:\\(|,)\\s*${identifier}\\s+TEXT\\b[^,)]*\\bCOLLATE\\s+BINARY\\b`,
+    "i"
+  ).test(sql)
 }
 
 export function validateEidosFile(
-  connection: EidosFileConnection
+  connection: EidosFileConnection,
+  options: { level?: EidosFileValidationLevel } = {}
 ): EidosFileValidationResult {
+  const level = options.level ?? "full"
   const errors: EidosFileValidationIssue[] = []
   const warnings: EidosFileValidationIssue[] = []
-  const quickCheck = connection.get<{ quick_check: string }>(
-    "PRAGMA quick_check"
-  )
-  if (quickCheck?.quick_check !== "ok") {
-    errors.push({
-      code: "sqlite-integrity",
-      message: `SQLite integrity check failed: ${quickCheck?.quick_check ?? "unknown"}`,
-    })
+  const add = (
+    target: EidosFileValidationIssue[],
+    code: string,
+    message: string,
+    table?: string
+  ): void => {
+    target.push({ code, message, ...(table ? { table } : {}) })
   }
 
-  const sqliteTables = new Set(
-    connection
-      .query<{ name: string }>(
-        "SELECT name FROM sqlite_master WHERE type = 'table'"
-      )
-      .map((row) => row.name)
+  const applicationId = connection.get<{ application_id: number }>(
+    "PRAGMA application_id"
+  )?.application_id
+  const userVersion = connection.get<{ user_version: number }>(
+    "PRAGMA user_version"
+  )?.user_version
+  if (applicationId !== EIDOS_FILE_APPLICATION_ID) {
+    add(errors, "not-eidos-file", "SQLite application_id is not EIDS")
+  }
+  if (userVersion !== EIDOS_FILE_SCHEMA_VERSION) {
+    add(
+      errors,
+      "unsupported-version",
+      `Unsupported Eidos File schema revision: ${userVersion ?? "missing"}`
+    )
+  }
+
+  const sqliteObjects = connection.query<{
+    name: string
+    type: string
+    tbl_name: string
+    sql: string | null
+  }>("SELECT name, type, tbl_name, sql FROM sqlite_master")
+  const sqliteTables = new Map(
+    sqliteObjects
+      .filter((object) => object.type === "table")
+      .map((object) => [object.name, object])
   )
   for (const tableName of EIDOS_FILE_REQUIRED_TABLES) {
     if (!sqliteTables.has(tableName)) {
-      errors.push({
-        code: "missing-required-table",
-        message: `Missing required Eidos File table: ${tableName}`,
-        table: tableName,
-      })
+      add(
+        errors,
+        "invalid-schema",
+        `Missing required metadata table: ${tableName}`,
+        tableName
+      )
     }
   }
-
+  const allowedStaticObjects = new Set([
+    ...EIDOS_FILE_REQUIRED_TABLES,
+    ...REQUIRED_INDEXES,
+    ...REQUIRED_TRIGGERS,
+  ])
+  for (const object of sqliteObjects) {
+    if (
+      object.name
+        .replace(/[A-Z]/g, (character) => character.toLowerCase())
+        .startsWith("eidos__") &&
+      !allowedStaticObjects.has(object.name) &&
+      !DYNAMIC_TRIGGER_NAME.test(object.name)
+    ) {
+      add(
+        errors,
+        "invalid-schema",
+        `Undeclared reserved SQLite object: ${object.type} ${object.name}`,
+        object.name
+      )
+    }
+  }
+  const indexes = new Set(
+    sqliteObjects
+      .filter((object) => object.type === "index")
+      .map((object) => object.name)
+  )
+  for (const indexName of REQUIRED_INDEXES) {
+    if (!indexes.has(indexName)) {
+      add(
+        errors,
+        "invalid-schema",
+        `Missing required metadata index: ${indexName}`
+      )
+    }
+  }
+  const triggers = new Set(
+    sqliteObjects
+      .filter((object) => object.type === "trigger")
+      .map((object) => object.name)
+  )
+  for (const triggerName of REQUIRED_TRIGGERS) {
+    if (!triggers.has(triggerName)) {
+      add(errors, "invalid-schema", `Missing required trigger: ${triggerName}`)
+    }
+  }
   if (!sqliteTables.has(EIDOS_FILE_META_TABLE)) {
     return { valid: false, metadata: null, tables: [], errors, warnings }
   }
 
-  const metadataCount =
-    connection.get<{ count: number }>(
-      `SELECT COUNT(*) AS count FROM ${EIDOS_FILE_META_TABLE}`
-    )?.count ?? 0
-  if (metadataCount > MAX_REGISTRY_ROWS) {
-    errors.push({
-      code: "metadata-limit-exceeded",
-      message: `Eidos File contains too many metadata entries (${metadataCount})`,
-      table: EIDOS_FILE_META_TABLE,
-    })
-  }
-  const metadataValues = metadataFromRows(
-    connection.query<MetaRow>(
-      `SELECT key, value FROM ${EIDOS_FILE_META_TABLE} LIMIT ${MAX_REGISTRY_ROWS + 1}`
+  let meta: MetaRow | undefined
+  try {
+    const metaRows = connection.query<MetaRow>(
+      `SELECT * FROM ${EIDOS_FILE_META_TABLE}`
     )
-  )
-  for (const key of EIDOS_FILE_REQUIRED_META_KEYS) {
-    if (!metadataValues[key]) {
-      errors.push({
-        code: "missing-metadata",
-        message: `Missing required Eidos File metadata: ${key}`,
-      })
+    if (metaRows.length !== 1 || metaRows[0]?.singleton !== 1) {
+      add(
+        errors,
+        "invalid-schema",
+        "eidos__meta must contain exactly singleton row 1"
+      )
+    } else {
+      meta = metaRows[0]
     }
-  }
-  if (metadataValues.format !== EIDOS_FILE_FORMAT) {
-    errors.push({
-      code: "invalid-format",
-      message: `Expected Eidos File format ${EIDOS_FILE_FORMAT}`,
-    })
-  }
-  const formatVersion = Number(metadataValues.format_version)
-  if (formatVersion !== EIDOS_FILE_FORMAT_VERSION) {
-    errors.push({
-      code: "unsupported-format-version",
-      message: `Unsupported Eidos File format version: ${metadataValues.format_version ?? "missing"}`,
-    })
-  }
-  const schemaVersion = Number(metadataValues.schema_version ?? 0)
-  if (schemaVersion > EIDOS_FILE_SCHEMA_VERSION) {
-    errors.push({
-      code: "unsupported-schema-version",
-      message: `Eidos File schema version ${schemaVersion} is newer than ${EIDOS_FILE_SCHEMA_VERSION}`,
-    })
-  } else if (schemaVersion < EIDOS_FILE_SCHEMA_VERSION) {
-    warnings.push({
-      code: "schema-migration-available",
-      message: `Eidos File schema can be migrated from ${schemaVersion} to ${EIDOS_FILE_SCHEMA_VERSION}`,
-    })
+  } catch {
+    add(
+      errors,
+      "invalid-schema",
+      "Unable to read the canonical metadata singleton"
+    )
   }
 
-  const tableColumns = new Map<string, Set<string>>()
+  let metadata: EidosFileMetadata | null = null
+  if (meta) {
+    try {
+      const fileId = uuid(meta.file_id, "File ID")
+      const defaultTableId = meta.default_table_id
+        ? uuid(meta.default_table_id, "Default Table ID")
+        : undefined
+      if (meta.format_major !== 1 || meta.format_minor !== 0) {
+        add(
+          errors,
+          "unsupported-version",
+          `Unsupported Eidos File format: ${meta.format_major}.${meta.format_minor}`
+        )
+      }
+      if (
+        (typeof meta.revision !== "number" &&
+          typeof meta.revision !== "bigint") ||
+        (typeof meta.revision === "number" &&
+          !Number.isSafeInteger(meta.revision)) ||
+        BigInt(meta.revision) < 0n
+      ) {
+        add(
+          errors,
+          "invalid-schema",
+          "File revision must be a non-negative integer"
+        )
+      }
+      if (
+        !isCanonicalEidosFileInstant(meta.created_at) ||
+        !isCanonicalEidosFileInstant(meta.updated_at)
+      ) {
+        add(
+          errors,
+          "invalid-schema",
+          "File metadata timestamps must be canonical UTC millisecond text"
+        )
+      }
+      metadata = {
+        format: EIDOS_FILE_FORMAT,
+        fileId,
+        formatVersion: EIDOS_FILE_FORMAT_VERSION,
+        schemaVersion: EIDOS_FILE_SCHEMA_VERSION,
+        revision: meta.revision,
+        createdAt: meta.created_at,
+        updatedAt: meta.updated_at,
+        title: meta.title,
+        ...(defaultTableId ? { defaultTableId } : {}),
+      }
+    } catch (error) {
+      add(
+        errors,
+        "invalid-schema",
+        error instanceof Error ? error.message : "Invalid metadata ID"
+      )
+    }
+  }
+
+  if (LEVELS[level] === LEVELS.identity) {
+    return {
+      valid: errors.length === 0,
+      metadata,
+      tables: [],
+      errors,
+      warnings,
+    }
+  }
+
   for (const [tableName, requiredColumns] of Object.entries(REQUIRED_COLUMNS)) {
     if (!sqliteTables.has(tableName)) continue
-    const actualColumns = new Set(
+    const columns = new Map(
       connection
-        .query<{ name: string }>(
+        .query<{ name: string; type: string }>(
           `PRAGMA table_xinfo(${quoteIdentifier(tableName)})`
         )
-        .map((column) => column.name)
+        .map((column) => [column.name, column.type.toUpperCase()])
     )
-    tableColumns.set(tableName, actualColumns)
-    for (const columnName of requiredColumns) {
-      if (actualColumns.has(columnName)) continue
-      const isMigratable =
-        tableName === EIDOS_FILE_COLUMNS_TABLE &&
-        schemaVersion < EIDOS_FILE_SCHEMA_VERSION &&
-        MIGRATABLE_V1_COLUMNS.has(columnName)
-      const issues = isMigratable ? warnings : errors
-      issues.push({
-        code: isMigratable
-          ? "schema-column-migration-available"
-          : "missing-required-column",
-        message: `Missing required column ${tableName}.${columnName}`,
-        table: tableName,
-      })
+    for (const column of requiredColumns) {
+      if (!columns.has(column)) {
+        add(
+          errors,
+          "invalid-schema",
+          `Missing required column ${tableName}.${column}`,
+          tableName
+        )
+      }
     }
-  }
-
-  for (const [key, value] of [
-    ["created_at", metadataValues.created_at],
-    ["updated_at", metadataValues.updated_at],
-  ] as const) {
-    if (value && Number.isNaN(Date.parse(value))) {
-      errors.push({
-        code: "invalid-metadata-timestamp",
-        message: `Invalid Eidos File metadata timestamp: ${key}`,
-      })
+    for (const column of ID_COLUMNS[tableName] ?? []) {
+      if (
+        columns.get(column) !== "TEXT" ||
+        !declaresBinaryText(sqliteTables.get(tableName)?.sql ?? null, column)
+      ) {
+        add(
+          errors,
+          "invalid-schema",
+          `${tableName}.${column} must use canonical UUIDv7 TEXT COLLATE BINARY`,
+          tableName
+        )
+      }
     }
-  }
-
-  const tableRegistryReady = REQUIRED_COLUMNS[EIDOS_FILE_TABLES_TABLE].every(
-    (column) => tableColumns.get(EIDOS_FILE_TABLES_TABLE)?.has(column)
-  )
-  const tableCount =
-    sqliteTables.has(EIDOS_FILE_TABLES_TABLE) && tableRegistryReady
-      ? (connection.get<{ count: number }>(
-          `SELECT COUNT(*) AS count FROM ${EIDOS_FILE_TABLES_TABLE}`
-        )?.count ?? 0)
-      : 0
-  if (tableCount > MAX_REGISTRY_ROWS) {
-    errors.push({
-      code: "metadata-limit-exceeded",
-      message: `Eidos File contains too many table definitions (${tableCount})`,
-      table: EIDOS_FILE_TABLES_TABLE,
-    })
-  }
-  const tables =
-    sqliteTables.has(EIDOS_FILE_TABLES_TABLE) &&
-    tableRegistryReady &&
-    tableCount <= MAX_REGISTRY_ROWS
-      ? connection
-          .query<RegistryRow>(
-            `SELECT id, name, raw_table_name, position, icon, description,
-                  created_at, updated_at
-             FROM ${EIDOS_FILE_TABLES_TABLE}
-            ORDER BY position, created_at, id`
+    if (
+      new Set<string>([
+        EIDOS_FILE_META_TABLE,
+        EIDOS_FILE_TABLES_TABLE,
+        EIDOS_FILE_FIELDS_TABLE,
+        EIDOS_FILE_VIEWS_TABLE,
+      ]).has(tableName)
+    ) {
+      for (const column of ["created_at", "updated_at"]) {
+        if (columns.get(column) !== "TEXT") {
+          add(
+            errors,
+            "invalid-schema",
+            `${tableName}.${column} must use SQLite TEXT`,
+            tableName
           )
-          .map(mapTable)
-      : []
-
-  for (const table of tables) {
-    if (table.rawTableName !== `tb_${table.id}`) {
-      errors.push({
-        code: "invalid-raw-table-name",
-        message: `Table ${table.id} must use raw table name tb_${table.id}`,
-        table: table.rawTableName,
-      })
+        }
+      }
     }
-    if (!sqliteTables.has(table.rawTableName)) {
-      errors.push({
-        code: "missing-user-table",
-        message: `Registered table is missing: ${table.rawTableName}`,
-        table: table.rawTableName,
+  }
+
+  const tableModes = new Map(
+    connection
+      .query<{ name: string; wr: number; strict: number }>("PRAGMA table_list")
+      .map((row) => [row.name, row])
+  )
+  for (const tableName of EIDOS_FILE_REQUIRED_TABLES) {
+    const mode = tableModes.get(tableName)
+    if (!mode) continue
+    if (mode.strict !== 1) {
+      add(errors, "invalid-schema", `${tableName} must be STRICT`, tableName)
+    }
+    if (mode.wr !== 1) {
+      add(
+        errors,
+        "invalid-schema",
+        `${tableName} has the wrong WITHOUT ROWID mode`,
+        tableName
+      )
+    }
+  }
+
+  if (sqliteTables.has(EIDOS_FILE_FEATURES_TABLE)) {
+    for (const feature of connection.query<{
+      name: string
+      required: number
+      config_json: string
+    }>(
+      `SELECT name, required, config_json FROM ${EIDOS_FILE_FEATURES_TABLE}`
+    )) {
+      if (!isCanonicalEidosFileJson(feature.config_json)) {
+        add(
+          errors,
+          "invalid-schema",
+          `Feature ${feature.name} has non-canonical config_json`
+        )
+      }
+      if (feature.required === 1) {
+        add(
+          errors,
+          "unsupported-feature",
+          `Unknown required feature: ${feature.name}`
+        )
+      }
+    }
+  }
+
+  const tableRows = sqliteTables.has(EIDOS_FILE_TABLES_TABLE)
+    ? connection.query<TableRow>(
+        `SELECT * FROM ${EIDOS_FILE_TABLES_TABLE} ORDER BY position, id`
+      )
+    : []
+  const tables: EidosFileTableInfo[] = []
+  const tableRowsById = new Map<string, TableRow>()
+  for (const row of tableRows) {
+    try {
+      const id = uuid(row.id, "Table ID")
+      tableRowsById.set(id, row)
+      const tableSettings = isCanonicalEidosFileJson(row.settings_json)
+        ? parseEidosFileJson(row.settings_json)
+        : null
+      const settings =
+        tableSettings &&
+        !Array.isArray(tableSettings) &&
+        typeof tableSettings === "object"
+          ? tableSettings
+          : {}
+      tables.push({
+        id,
+        name: row.name,
+        physicalName: row.physical_name,
+        rawTableName: row.physical_name,
+        position: row.position,
+        icon: typeof settings.icon === "string" ? settings.icon : null,
+        description:
+          typeof settings.description === "string"
+            ? settings.description
+            : null,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
       })
+      if (
+        !isCanonicalEidosFileInstant(row.created_at) ||
+        !isCanonicalEidosFileInstant(row.updated_at)
+      ) {
+        add(
+          errors,
+          "invalid-schema",
+          `Table ${row.name} metadata timestamps are not canonical instants`,
+          row.physical_name
+        )
+      }
+      if (!isCanonicalEidosFileJson(row.settings_json)) {
+        add(
+          errors,
+          "invalid-schema",
+          `Table ${row.name} has non-canonical settings_json`,
+          row.physical_name
+        )
+      }
+      if (!validPhysicalMapping("table", row.name, row.physical_name, id)) {
+        add(
+          errors,
+          "invalid-schema",
+          `Table ${row.name} has an invalid physical name`,
+          row.physical_name
+        )
+      }
+      const tableObject = sqliteTables.get(row.physical_name)
+      if (!tableObject) {
+        add(
+          errors,
+          "invalid-schema",
+          `Missing user table ${row.physical_name}`,
+          row.physical_name
+        )
+      } else if (!/\bSTRICT\b/i.test(tableObject.sql ?? "")) {
+        add(
+          errors,
+          "invalid-schema",
+          `User table ${row.physical_name} must be STRICT`,
+          row.physical_name
+        )
+      }
+    } catch (error) {
+      add(
+        errors,
+        "invalid-schema",
+        error instanceof Error ? error.message : "Invalid Table ID"
+      )
+    }
+  }
+  if (metadata?.defaultTableId && !tableRowsById.has(metadata.defaultTableId)) {
+    add(
+      errors,
+      "invalid-schema",
+      "default_table_id does not reference a registered Table"
+    )
+  }
+
+  const relationRows = sqliteTables.has(EIDOS_FILE_RELATION_FIELDS_TABLE)
+    ? connection.query<RelationRow>(
+        `SELECT * FROM ${EIDOS_FILE_RELATION_FIELDS_TABLE}`
+      )
+    : []
+  const formulaRows = sqliteTables.has(EIDOS_FILE_FORMULA_FIELDS_TABLE)
+    ? connection.query<FormulaRow>(
+        `SELECT * FROM ${EIDOS_FILE_FORMULA_FIELDS_TABLE}`
+      )
+    : []
+  const lookupRows = sqliteTables.has(EIDOS_FILE_LOOKUP_FIELDS_TABLE)
+    ? connection.query<LookupRow>(
+        `SELECT * FROM ${EIDOS_FILE_LOOKUP_FIELDS_TABLE}`
+      )
+    : []
+  const relations = subtypeMap(relationRows)
+  const formulas = subtypeMap(formulaRows)
+  const lookups = subtypeMap(lookupRows)
+
+  const fieldRows = sqliteTables.has(EIDOS_FILE_FIELDS_TABLE)
+    ? connection.query<FieldRow>(
+        `SELECT * FROM ${EIDOS_FILE_FIELDS_TABLE} ORDER BY table_id, position, id`
+      )
+    : []
+  const fieldRowsById = new Map<string, FieldRow>()
+  const fieldsByTable = new Map<string, EidosFileFieldInfo[]>()
+  for (const row of fieldRows) {
+    try {
+      const id = uuid(row.id, "Field ID")
+      const tableId = uuid(row.table_id, "Field Table ID")
+      const table = tableRowsById.get(tableId)
+      fieldRowsById.set(id, row)
+      if (!table) {
+        add(errors, "invalid-schema", `Field ${id} references an unknown Table`)
+        continue
+      }
+      if (!FIELD_TYPES.has(row.type as EidosFileFieldType)) {
+        add(
+          errors,
+          "invalid-schema",
+          `Field ${row.name} has unsupported type ${row.type}`
+        )
+      }
+      if (
+        !isCanonicalEidosFileInstant(row.created_at) ||
+        !isCanonicalEidosFileInstant(row.updated_at)
+      ) {
+        add(
+          errors,
+          "invalid-schema",
+          `Field ${row.name} metadata timestamps are not canonical instants`
+        )
+      }
+      if (!isCanonicalEidosFileJson(row.settings_json)) {
+        add(
+          errors,
+          "invalid-schema",
+          `Field ${row.name} has non-canonical settings_json`
+        )
+      }
+      let settings: Record<string, unknown> = {}
+      try {
+        const parsed = parseEidosFileJson(row.settings_json)
+        if (
+          Array.isArray(parsed) ||
+          parsed === null ||
+          typeof parsed !== "object"
+        ) {
+          throw new Error("settings_json must be an object")
+        }
+        settings = parsed
+      } catch (error) {
+        add(
+          errors,
+          "invalid-schema",
+          `Field ${row.name}: ${error instanceof Error ? error.message : "invalid settings"}`
+        )
+      }
+      if (row.type === "select" || row.type === "multi-select") {
+        try {
+          assertEidosFileSelectOptions(settings)
+        } catch (error) {
+          add(
+            errors,
+            "invalid-schema",
+            error instanceof Error ? error.message : "Invalid Select catalog"
+          )
+        }
+      }
+      const relation = relations.get(id)
+      const virtual =
+        row.type === "formula" ||
+        row.type === "lookup" ||
+        (row.type === "relation" && relation?.direction === "inverse")
+      const requiresNonNull =
+        row.system_role !== null ||
+        row.type === "file" ||
+        row.type === "multi-select" ||
+        row.type === "relation"
+      const requiresNullable = row.type === "formula" || row.type === "lookup"
+      if (
+        (requiresNonNull && row.nullable !== 0) ||
+        (requiresNullable && row.nullable !== 1)
+      ) {
+        add(
+          errors,
+          "invalid-schema",
+          `Field ${row.name} has invalid nullable metadata for ${row.type}`
+        )
+      }
+      if (virtual && row.physical_name !== null) {
+        add(
+          errors,
+          "invalid-schema",
+          `Virtual Field ${row.name} must not have a physical column`
+        )
+      }
+      if (!virtual && row.physical_name === null) {
+        add(
+          errors,
+          "invalid-schema",
+          `Stored Field ${row.name} requires a physical column`
+        )
+      }
+      const systemMapping =
+        (row.system_role === "row-id" &&
+          row.type === "text" &&
+          row.physical_name === "_id" &&
+          row.nullable === 0) ||
+        (row.system_role === "created-time" &&
+          row.type === "datetime" &&
+          row.physical_name === "_created_at" &&
+          row.nullable === 0) ||
+        (row.system_role === "updated-time" &&
+          row.type === "datetime" &&
+          row.physical_name === "_updated_at" &&
+          row.nullable === 0)
+      if (
+        row.physical_name &&
+        !systemMapping &&
+        !validPhysicalMapping("field", row.name, row.physical_name, id)
+      ) {
+        add(
+          errors,
+          "invalid-schema",
+          `Field ${row.name} has an invalid physical name`
+        )
+      }
+
+      const formula = formulas.get(id)
+      const lookup = lookups.get(id)
+      const property: Record<string, unknown> | null = formula
+        ? { formula: formula.source_text, displayType: formula.result_type }
+        : lookup
+          ? {
+              relationField: uuid(
+                lookup.relation_field_id,
+                "Lookup Relation Field ID"
+              ),
+              targetField: uuid(
+                lookup.target_field_id,
+                "Lookup Target Field ID"
+              ),
+              aggregate: lookup.aggregate,
+              displayType: lookup.aggregate === "values" ? "json" : "text",
+            }
+          : relation
+            ? {
+                targetTableId: uuid(
+                  relation.target_table_id,
+                  "Relation Target Table ID"
+                ),
+                direction: relation.direction,
+                sourceFieldId: relation.inverse_of_field_id
+                  ? uuid(
+                      relation.inverse_of_field_id,
+                      "Relation inverse Field ID"
+                    )
+                  : undefined,
+                cardinality: relation.cardinality,
+                onDelete: relation.on_delete,
+              }
+            : settings
+      const field: EidosFileFieldInfo = {
+        id,
+        tableId,
+        name: row.name,
+        type:
+          row.system_role === "row-id"
+            ? "row-id"
+            : row.system_role === "created-time"
+              ? "created-time"
+              : row.system_role === "updated-time"
+                ? "last-edited-time"
+                : (row.type as EidosFileFieldType),
+        tableName: table.physical_name,
+        tableColumnName: row.physical_name ?? id,
+        physicalName: row.physical_name,
+        systemRole: row.system_role,
+        nullable: row.nullable === 1,
+        isRecordLabel: table.label_field_id === id,
+        position: row.position,
+        settings,
+        property,
+        storageCodec: storageCodec(row, relation),
+        valueKind: valueKind(row, relation),
+        isHidden: row.system_role !== null,
+        isDerived: virtual,
+        sourceTableColumnName:
+          relation?.direction === "inverse" && relation.inverse_of_field_id
+            ? uuid(relation.inverse_of_field_id, "Inverse source Field ID")
+            : null,
+        dependsOn: null,
+      }
+      const fields = fieldsByTable.get(tableId) ?? []
+      fields.push(field)
+      fieldsByTable.set(tableId, fields)
+    } catch (error) {
+      add(
+        errors,
+        "invalid-schema",
+        error instanceof Error ? error.message : "Invalid Field metadata"
+      )
+    }
+  }
+
+  for (const [tableId, fields] of fieldsByTable) {
+    const table = tableRowsById.get(tableId)
+    if (!table) continue
+    const requiredSystemFields = [
+      ["row-id", "_id"],
+      ["created-time", "_created_at"],
+      ["last-edited-time", "_updated_at"],
+    ] as const
+    for (const [type, physicalName] of requiredSystemFields) {
+      const matches = fields.filter(
+        (field) => field.type === type && field.physicalName === physicalName
+      )
+      if (matches.length !== 1) {
+        add(
+          errors,
+          "invalid-schema",
+          `Table ${table.name} must register exactly one ${type} Field mapped to ${physicalName}`
+        )
+      }
+    }
+    const mappedNames = fields.flatMap((field) =>
+      field.physicalName ? [field.physicalName] : []
+    )
+    if (
+      new Set(
+        mappedNames.map((name) =>
+          name.replace(/[A-Z]/g, (character) => character.toLowerCase())
+        )
+      ).size !== mappedNames.length
+    ) {
+      add(
+        errors,
+        "invalid-schema",
+        `Table ${table.name} maps more than one Field to a physical column`
+      )
+    }
+  }
+
+  const triggerObjects = new Map(
+    sqliteObjects
+      .filter((object) => object.type === "trigger")
+      .map((object) => [object.name, object])
+  )
+  const expectedTriggers = new Map<
+    string,
+    { table: string; fragments: string[] }
+  >()
+  for (const [tableId, table] of tableRowsById) {
+    expectedTriggers.set(
+      `eidos__row_id_immutable__${tableId.replace(/-/g, "")}`,
+      {
+        table: table.physical_name,
+        fragments: ["before update of", "_id", "eidos_row_id_immutable"],
+      }
+    )
+  }
+  for (const [fieldId, relation] of relations) {
+    if (relation.direction !== "forward") continue
+    const field = fieldRowsById.get(fieldId)
+    if (!field) continue
+    try {
+      const sourceTable = tableRowsById.get(
+        uuid(field.table_id, "Relation owner Table ID")
+      )
+      const targetTable = tableRowsById.get(
+        uuid(relation.target_table_id, "Relation target Table ID")
+      )
+      if (!sourceTable || !targetTable) continue
+      const hex = fieldId.replace(/-/g, "")
+      expectedTriggers.set(`eidos__relation_validate_insert__${hex}`, {
+        table: sourceTable.physical_name,
+        fragments: ["before insert", "eidos_invalid_relation_value"],
+      })
+      expectedTriggers.set(`eidos__relation_validate_update__${hex}`, {
+        table: sourceTable.physical_name,
+        fragments: ["before update", "eidos_invalid_relation_value"],
+      })
+      if (
+        relation.on_delete === "restrict" ||
+        relation.on_delete === "detach"
+      ) {
+        expectedTriggers.set(`eidos__relation_${relation.on_delete}__${hex}`, {
+          table: targetTable.physical_name,
+          fragments:
+            relation.on_delete === "restrict"
+              ? [
+                  "before delete",
+                  "eidos_relation_restrict",
+                  "item.value",
+                  'old."_id"',
+                ]
+              : [
+                  "before delete",
+                  "update",
+                  "json_each",
+                  "json_group_array",
+                  "order by",
+                  'old."_id"',
+                  "_updated_at",
+                  "strftime",
+                ],
+        })
+      }
+    } catch (error) {
+      add(
+        errors,
+        "invalid-schema",
+        error instanceof Error
+          ? error.message
+          : "Invalid Relation trigger identity"
+      )
+    }
+  }
+  for (const [name, expected] of expectedTriggers) {
+    const trigger = triggerObjects.get(name)
+    if (!trigger) {
+      add(
+        errors,
+        "invalid-schema",
+        `Missing required portable trigger: ${name}`
+      )
       continue
     }
-    const actualColumns = new Set(
-      connection
-        .query<{ name: string }>(
-          `PRAGMA table_xinfo(${quoteIdentifier(table.rawTableName)})`
+    const sql = (trigger.sql ?? "").toLowerCase()
+    if (
+      trigger.tbl_name !== expected.table ||
+      sql.includes("hex(") ||
+      expected.fragments.some((fragment) => !sql.includes(fragment))
+    ) {
+      add(
+        errors,
+        "invalid-schema",
+        `Portable trigger ${name} has an invalid definition`
+      )
+    }
+  }
+  for (const name of triggerObjects.keys()) {
+    if (DYNAMIC_TRIGGER_NAME.test(name) && !expectedTriggers.has(name)) {
+      add(
+        errors,
+        "invalid-schema",
+        `Undeclared or stale portable trigger: ${name}`
+      )
+    }
+  }
+
+  if (LEVELS[level] === LEVELS.structural) {
+    return { valid: errors.length === 0, metadata, tables, errors, warnings }
+  }
+
+  if (level === "semantic" || level === "full") {
+    const dependencyGraph = new Map<string, string[]>()
+    for (const [fieldId] of relations) {
+      if (fieldRowsById.get(fieldId)?.type !== "relation") {
+        add(
+          errors,
+          "invalid-schema",
+          `Relation subtype ${fieldId} does not belong to a Relation Field`
         )
-        .map((column) => column.name)
-    )
-    tableColumns.set(table.rawTableName, actualColumns)
-    for (const columnName of REQUIRED_USER_COLUMNS) {
-      if (!actualColumns.has(columnName)) {
-        errors.push({
-          code: "missing-user-table-column",
-          message: `Missing required column ${table.rawTableName}.${columnName}`,
-          table: table.rawTableName,
-        })
       }
     }
-  }
-
-  if (
-    sqliteTables.has(EIDOS_FILE_COLUMNS_TABLE) &&
-    sqliteTables.has(EIDOS_FILE_TABLES_TABLE)
-  ) {
-    const registeredNames = new Set(tables.map((table) => table.rawTableName))
-    const orphanFields = connection.query<{ table_name: string }>(
-      `SELECT DISTINCT table_name FROM ${EIDOS_FILE_COLUMNS_TABLE}
-        WHERE table_name NOT IN (SELECT raw_table_name FROM ${EIDOS_FILE_TABLES_TABLE})`
-    )
-    for (const field of orphanFields) {
-      if (!registeredNames.has(field.table_name)) {
-        errors.push({
-          code: "orphan-field-metadata",
-          message: `Field metadata references an unregistered table: ${field.table_name}`,
-          table: field.table_name,
-        })
+    for (const [fieldId] of formulas) {
+      if (fieldRowsById.get(fieldId)?.type !== "formula") {
+        add(
+          errors,
+          "invalid-schema",
+          `Formula subtype ${fieldId} does not belong to a Formula Field`
+        )
       }
     }
-  }
+    for (const [fieldId] of lookups) {
+      if (fieldRowsById.get(fieldId)?.type !== "lookup") {
+        add(
+          errors,
+          "invalid-schema",
+          `Lookup subtype ${fieldId} does not belong to a Lookup Field`
+        )
+      }
+    }
 
-  const fieldMetadataReady = REQUIRED_COLUMNS[EIDOS_FILE_COLUMNS_TABLE].every(
-    (column) => tableColumns.get(EIDOS_FILE_COLUMNS_TABLE)?.has(column)
-  )
-  if (sqliteTables.has(EIDOS_FILE_COLUMNS_TABLE) && fieldMetadataReady) {
-    const fieldCount =
-      connection.get<{ count: number }>(
-        `SELECT COUNT(*) AS count FROM ${EIDOS_FILE_COLUMNS_TABLE}`
-      )?.count ?? 0
-    if (fieldCount > MAX_REGISTRY_ROWS) {
-      errors.push({
-        code: "metadata-limit-exceeded",
-        message: `Eidos File contains too many field definitions (${fieldCount})`,
-        table: EIDOS_FILE_COLUMNS_TABLE,
-      })
-    } else {
-      const fields = connection.query<FieldValidationRow>(
-        `SELECT name, type, table_name, table_column_name, property,
-                storage_codec, value_kind, is_hidden, is_derived,
-                source_table_column_name, depends_on
-           FROM ${EIDOS_FILE_COLUMNS_TABLE}`
+    const logicalType = (
+      fieldId: string,
+      visiting = new Set<string>()
+    ): string => {
+      if (visiting.has(fieldId)) return "invalid"
+      const row = fieldRowsById.get(fieldId)
+      if (!row) return "invalid"
+      if (row.type === "formula")
+        return formulas.get(fieldId)?.result_type ?? "invalid"
+      if (row.type !== "lookup") {
+        if (row.system_role === "row-id") return "row-id"
+        return row.type
+      }
+      const lookup = lookups.get(fieldId)
+      if (!lookup) return "invalid"
+      const element = lookupElementType(
+        uuid(lookup.target_field_id, "Lookup Target Field ID"),
+        new Set([...visiting, fieldId])
       )
-      const formulaFields = new Map<string, EidosFileFieldInfo[]>()
-      const registeredTables = new Map(
-        tables.map((table) => [table.rawTableName, table])
-      )
+      if (lookup.aggregate === "values") return `list:${element}`
+      if (lookup.aggregate === "count") return "integer"
+      if (lookup.aggregate === "average") return "number"
+      if (lookup.aggregate === "sum")
+        return element === "integer" ? "integer" : "number"
+      return element
+    }
+    const lookupElementType = (
+      fieldId: string,
+      visiting = new Set<string>()
+    ) => {
+      const type = logicalType(fieldId, visiting)
+      if (type.startsWith("list:")) return type.slice(5)
+      if (type === "multi-select") return "select"
+      if (type === "file") return "file-entry"
+      if (type === "relation") return "row-id"
+      return type
+    }
+    for (const fields of fieldsByTable.values()) {
       for (const field of fields) {
-        const fieldLabel = `${field.table_name}.${field.table_column_name}`
-        const registeredTable = registeredTables.get(field.table_name)
-        const typeValid = FIELD_TYPES.has(field.type as EidosFileFieldType)
-        const codecValid = STORAGE_CODECS.has(
-          field.storage_codec as EidosFileStorageCodec
-        )
-        const valueKindValid = VALUE_KINDS.has(
-          field.value_kind as EidosFileValueKind
-        )
-        if (!field.name.trim() || !field.table_column_name.trim()) {
-          errors.push({
-            code: "invalid-field-identifier",
-            message: `Field ${fieldLabel} requires a name and column name`,
-            table: field.table_name,
-          })
-        }
-        if (!typeValid) {
-          errors.push({
-            code: "invalid-field-type",
-            message: `Field ${fieldLabel} has unsupported type: ${field.type}`,
-            table: field.table_name,
-          })
-        }
-        if (!codecValid) {
-          errors.push({
-            code: "invalid-storage-codec",
-            message: `Field ${fieldLabel} has unsupported storage codec: ${field.storage_codec}`,
-            table: field.table_name,
-          })
-        }
-        if (!valueKindValid) {
-          errors.push({
-            code: "invalid-value-kind",
-            message: `Field ${fieldLabel} has unsupported value kind: ${field.value_kind}`,
-            table: field.table_name,
-          })
-        }
-        if (
-          ![0, 1].includes(field.is_hidden) ||
-          ![0, 1].includes(field.is_derived)
-        ) {
-          errors.push({
-            code: "invalid-field-flag",
-            message: `Field ${fieldLabel} has invalid boolean flags`,
-            table: field.table_name,
-          })
-        }
-        if (
-          registeredTable &&
-          tableColumns.has(registeredTable.rawTableName) &&
-          field.value_kind !== "derived" &&
-          !tableColumns
-            .get(registeredTable.rawTableName)
-            ?.has(field.table_column_name)
-        ) {
-          errors.push({
-            code: "missing-field-column",
-            message: `Stored field column is missing: ${fieldLabel}`,
-            table: field.table_name,
-          })
-        }
-
-        const parsedProperty = parseMetadataJson(
-          field.property,
-          `Field property ${fieldLabel}`,
+        if (field.type !== "lookup" || !field.property) continue
+        const valueType = logicalType(field.id!)
+        field.property.valueType = valueType.startsWith("list:")
+          ? { kind: "list", element: valueType.slice(5) }
+          : valueType
+        const atom = valueType.startsWith("list:")
+          ? valueType.slice(5)
+          : valueType
+        field.property.displayType =
+          atom === "row-id" || atom === "select"
+            ? "text"
+            : atom === "file-entry"
+              ? "json"
+              : atom
+      }
+    }
+    for (const [tableId, fields] of fieldsByTable) {
+      const table = tableRowsById.get(tableId)!
+      const labels = fields.filter((field) => field.isRecordLabel)
+      if (labels.length !== 1) {
+        add(
           errors,
-          field.table_name
+          "invalid-schema",
+          `Table ${table.name} must have exactly one Record Label Field`
         )
-        if (
-          parsedProperty.valid &&
-          parsedProperty.value !== null &&
-          !isRecord(parsedProperty.value)
-        ) {
-          errors.push({
-            code: "invalid-field-property",
-            message: `Field property ${fieldLabel} must be a JSON object`,
-            table: field.table_name,
-          })
-        }
-        validateFormulaProperty(field, parsedProperty.value, errors)
-        validateLookupProperty(field, parsedProperty.value, errors)
-        validateSelectProperty(field, parsedProperty.value, errors)
-        validateCanonicalStorageCodec(field, parsedProperty.value, errors)
-
-        const parsedDependencies = parseMetadataJson(
-          field.depends_on,
-          `Field dependencies ${fieldLabel}`,
-          errors,
-          field.table_name
-        )
-        if (
-          parsedDependencies.valid &&
-          parsedDependencies.value !== null &&
-          (!Array.isArray(parsedDependencies.value) ||
-            !parsedDependencies.value.every(
-              (dependency) => typeof dependency === "string"
-            ))
-        ) {
-          errors.push({
-            code: "invalid-field-dependencies",
-            message: `Field dependencies ${fieldLabel} must be an array of column names`,
-            table: field.table_name,
-          })
-        }
-
-        if (
-          registeredTable &&
-          typeValid &&
-          codecValid &&
-          valueKindValid &&
-          parsedProperty.valid &&
-          parsedDependencies.valid
-        ) {
-          const tableFields = formulaFields.get(field.table_name) ?? []
-          tableFields.push({
-            name: field.name,
-            type: field.type as EidosFileFieldType,
-            tableName: field.table_name,
-            tableColumnName: field.table_column_name,
-            property: isRecord(parsedProperty.value)
-              ? parsedProperty.value
-              : null,
-            storageCodec: field.storage_codec as EidosFileStorageCodec,
-            valueKind: field.value_kind as EidosFileValueKind,
-            isHidden: field.is_hidden === 1,
-            isDerived: field.is_derived === 1,
-            sourceTableColumnName: field.source_table_column_name,
-            dependsOn: parsedDependencies.value,
-          })
-          formulaFields.set(field.table_name, tableFields)
+      }
+      for (const label of labels) {
+        const resultType = logicalType(label.id!)
+        if (label.type === "lookup" || !LABEL_SCALAR_TYPES.has(resultType)) {
+          add(
+            errors,
+            "invalid-schema",
+            `Record Label Field ${label.name} is not scalar`
+          )
         }
       }
-      for (const [tableName, tableFields] of formulaFields) {
-        try {
-          compileEidosFileFormulaFields(tableFields)
-        } catch (error) {
-          errors.push({
-            code: "invalid-formula-definition",
-            message:
-              error instanceof Error
-                ? error.message
-                : `Unable to validate formulas in ${tableName}`,
-            table: tableName,
-          })
+
+      const physicalColumnRows = connection.query<{
+        name: string
+        type: string
+        notnull: number
+      }>(`PRAGMA table_xinfo(${quoteIdentifier(table.physical_name)})`)
+      const physicalColumns = new Map(
+        physicalColumnRows.map((column) => [
+          column.name,
+          column.type.toUpperCase(),
+        ])
+      )
+      const physicalNullability = new Map(
+        physicalColumnRows.map((column) => [column.name, column.notnull === 0])
+      )
+      for (const required of ["_id", "_created_at", "_updated_at"]) {
+        if (!physicalColumns.has(required)) {
+          add(
+            errors,
+            "invalid-schema",
+            `User table ${table.name} is missing ${required}`
+          )
+        }
+      }
+      if (
+        physicalColumns.get("_id") !== "TEXT" ||
+        !declaresBinaryText(
+          sqliteTables.get(table.physical_name)?.sql ?? null,
+          "_id"
+        )
+      ) {
+        add(
+          errors,
+          "invalid-schema",
+          `User table ${table.name}._id must use canonical UUIDv7 TEXT COLLATE BINARY`
+        )
+      }
+      for (const field of fields) {
+        const fieldId = field.id!
+        if (field.physicalName) {
+          const actualType = physicalColumns.get(field.physicalName)
+          const expected = expectedColumnType(field.type)
+          if (!actualType) {
+            add(
+              errors,
+              "invalid-schema",
+              `Stored Field ${field.name} has no physical column`
+            )
+          } else if (expected && actualType !== expected) {
+            add(
+              errors,
+              "invalid-schema",
+              `Field ${field.name} must use SQLite ${expected}, found ${actualType}`
+            )
+          }
+          if (
+            !["row-id", "created-time", "last-edited-time"].includes(
+              field.type
+            ) &&
+            physicalNullability.get(field.physicalName) !== field.nullable
+          ) {
+            add(
+              errors,
+              "invalid-schema",
+              `Field ${field.name} nullable metadata does not match its physical column`
+            )
+          }
+        }
+        if (field.type === "formula") {
+          if (!formulas.has(fieldId)) {
+            add(
+              errors,
+              "invalid-schema",
+              `Formula Field ${field.name} is missing subtype metadata`
+            )
+          } else {
+            if (!FORMULA_RESULT_TYPES.has(formulas.get(fieldId)!.result_type)) {
+              add(
+                errors,
+                "invalid-schema",
+                `Formula Field ${field.name} has an invalid result type`
+              )
+            }
+            try {
+              const compiled = compileEidosFileFormula(field, fields)
+              dependencyGraph.set(fieldId, compiled.dependencyFieldIds)
+            } catch (error) {
+              add(
+                errors,
+                "invalid-schema",
+                error instanceof Error ? error.message : "Invalid Formula"
+              )
+            }
+          }
+        } else if (field.type === "lookup") {
+          const lookup = lookups.get(fieldId)
+          if (!lookup) {
+            add(
+              errors,
+              "invalid-schema",
+              `Lookup Field ${field.name} is missing subtype metadata`
+            )
+          } else {
+            const relationFieldId = uuid(
+              lookup.relation_field_id,
+              "Lookup Relation Field ID"
+            )
+            const targetFieldId = uuid(
+              lookup.target_field_id,
+              "Lookup Target Field ID"
+            )
+            const relationField = fieldRowsById.get(relationFieldId)
+            const relation = relations.get(relationFieldId)
+            const targetField = fieldRowsById.get(targetFieldId)
+            if (
+              !relationField ||
+              !relation ||
+              relationField.type !== "relation"
+            ) {
+              add(
+                errors,
+                "invalid-schema",
+                `Lookup ${field.name} does not reference a Relation Field`
+              )
+            } else {
+              const relationOwner = uuid(
+                relationField.table_id,
+                "Relation owner Table ID"
+              )
+              const logicalTarget = uuid(
+                relation.target_table_id,
+                "Relation target Table ID"
+              )
+              const targetOwner = targetField
+                ? uuid(targetField.table_id, "Lookup target owner Table ID")
+                : ""
+              if (relationOwner !== tableId) {
+                add(
+                  errors,
+                  "invalid-schema",
+                  `Lookup ${field.name} Relation belongs to another Table`
+                )
+              }
+              if (!targetField || targetOwner !== logicalTarget) {
+                add(
+                  errors,
+                  "invalid-schema",
+                  `Lookup ${field.name} target is outside the Relation target Table`
+                )
+              }
+            }
+            const targetType = lookupElementType(targetFieldId)
+            if (
+              (lookup.aggregate === "sum" || lookup.aggregate === "average") &&
+              !NUMERIC_LOOKUP_TYPES.has(targetType)
+            ) {
+              add(
+                errors,
+                "invalid-schema",
+                `Lookup ${field.name} ${lookup.aggregate} requires a numeric target`
+              )
+            }
+            if (
+              (lookup.aggregate === "min" || lookup.aggregate === "max") &&
+              ![
+                "text",
+                "url",
+                "select",
+                "row-id",
+                "integer",
+                "number",
+                "checkbox",
+                "date",
+                "datetime",
+              ].includes(targetType)
+            ) {
+              add(
+                errors,
+                "invalid-schema",
+                `Lookup ${field.name} ${lookup.aggregate} requires a scalar target`
+              )
+            }
+            dependencyGraph.set(fieldId, [relationFieldId, targetFieldId])
+          }
+        } else if (field.type === "relation") {
+          const relation = relations.get(fieldId)
+          if (!relation) {
+            add(
+              errors,
+              "invalid-schema",
+              `Relation Field ${field.name} is missing subtype metadata`
+            )
+          } else if (
+            relation.direction === "inverse" &&
+            relation.inverse_of_field_id
+          ) {
+            const sourceFieldId = uuid(
+              relation.inverse_of_field_id,
+              "Inverse source Field ID"
+            )
+            const sourceField = fieldRowsById.get(sourceFieldId)
+            const sourceRelation = relations.get(sourceFieldId)
+            const sourceTableId = sourceField
+              ? uuid(sourceField.table_id, "Forward Relation owner Table ID")
+              : ""
+            if (
+              !sourceField ||
+              !sourceRelation ||
+              sourceRelation.direction !== "forward" ||
+              uuid(
+                sourceRelation.target_table_id,
+                "Forward Relation target Table ID"
+              ) !== tableId ||
+              uuid(
+                relation.target_table_id,
+                "Inverse Relation target Table ID"
+              ) !== sourceTableId ||
+              relation.cardinality !== "many"
+            ) {
+              add(
+                errors,
+                "invalid-schema",
+                `Inverse Relation ${field.name} has inconsistent endpoints`
+              )
+            }
+            dependencyGraph.set(fieldId, [sourceFieldId])
+          } else if (relation.direction === "forward") {
+            const targetTableId = uuid(
+              relation.target_table_id,
+              "Relation target Table ID"
+            )
+            if (!tableRowsById.has(targetTableId)) {
+              add(
+                errors,
+                "invalid-schema",
+                `Relation ${field.name} targets a missing Table`
+              )
+            }
+          }
         }
       }
     }
-  }
 
-  const viewMetadataReady = REQUIRED_COLUMNS[EIDOS_FILE_VIEWS_TABLE].every(
-    (column) => tableColumns.get(EIDOS_FILE_VIEWS_TABLE)?.has(column)
-  )
-  if (sqliteTables.has(EIDOS_FILE_VIEWS_TABLE) && viewMetadataReady) {
-    const viewCount =
-      connection.get<{ count: number }>(
-        `SELECT COUNT(*) AS count FROM ${EIDOS_FILE_VIEWS_TABLE}`
-      )?.count ?? 0
-    if (viewCount > MAX_REGISTRY_ROWS) {
-      errors.push({
-        code: "metadata-limit-exceeded",
-        message: `Eidos File contains too many view definitions (${viewCount})`,
-        table: EIDOS_FILE_VIEWS_TABLE,
-      })
-    } else {
-      const tableIds = new Set(tables.map((table) => table.id))
-      for (const view of connection.query<ViewValidationRow>(
-        `SELECT id, name, type, table_id, properties, filter, order_map,
-                hidden_fields FROM ${EIDOS_FILE_VIEWS_TABLE}`
+    for (const id of fieldRowsById.keys())
+      dependencyGraph.set(id, dependencyGraph.get(id) ?? [])
+    const canonicalGraph = new Map<string, Set<string>>(
+      Array.from(fieldRowsById.keys(), (id) => [id, new Set<string>()])
+    )
+    for (const [dependent, dependencies] of dependencyGraph) {
+      for (const dependency of dependencies) {
+        if (!fieldRowsById.has(dependency)) {
+          add(
+            errors,
+            "invalid-schema",
+            `Field ${dependent} depends on missing Field ${dependency}`
+          )
+        } else {
+          canonicalGraph.get(dependency)!.add(dependent)
+        }
+      }
+    }
+    const dependencyCycle = smallestDependencyCycle(canonicalGraph)
+    if (dependencyCycle) {
+      const cycle = dependencyCycle
+        .map((fieldId) => {
+          const field = fieldRowsById.get(fieldId)
+          return field ? `${field.name} (${fieldId})` : fieldId
+        })
+        .join(" → ")
+      add(errors, "dependency-cycle", `Eidos File dependency cycle: ${cycle}`)
+    }
+
+    if (sqliteTables.has(EIDOS_FILE_VIEWS_TABLE)) {
+      for (const view of connection.query<{
+        id: string
+        table_id: string
+        query_json: string
+        layout_json: string
+        created_at: string
+        updated_at: string
+      }>(
+        `SELECT id, table_id, query_json, layout_json, created_at, updated_at FROM ${EIDOS_FILE_VIEWS_TABLE}`
       )) {
-        if (!view.id.trim() || !view.name.trim() || !view.type.trim()) {
-          errors.push({
-            code: "invalid-view-identifier",
-            message: `Eidos File view ${view.id || "<missing>"} requires an id, name, and type`,
-            table: EIDOS_FILE_VIEWS_TABLE,
-          })
-        }
-        if (!tableIds.has(view.table_id)) {
-          errors.push({
-            code: "orphan-view-metadata",
-            message: `Eidos File view ${view.id} references an unknown table: ${view.table_id}`,
-            table: EIDOS_FILE_VIEWS_TABLE,
-          })
-        }
-        const properties = parseMetadataJson(
-          view.properties,
-          `View properties ${view.id}`,
-          errors,
-          EIDOS_FILE_VIEWS_TABLE
-        )
-        if (
-          properties.valid &&
-          properties.value !== null &&
-          !isRecord(properties.value)
-        ) {
-          errors.push({
-            code: "invalid-view-properties",
-            message: `View properties ${view.id} must be a JSON object`,
-            table: EIDOS_FILE_VIEWS_TABLE,
-          })
-        }
-        const filter = parseMetadataJson(
-          view.filter,
-          `View filter ${view.id}`,
-          errors,
-          EIDOS_FILE_VIEWS_TABLE
-        )
-        if (filter.valid && filter.value !== null && !isRecord(filter.value)) {
-          errors.push({
-            code: "invalid-view-filter",
-            message: `View filter ${view.id} must be a JSON object`,
-            table: EIDOS_FILE_VIEWS_TABLE,
-          })
-        }
-        const orderMap = parseMetadataJson(
-          view.order_map,
-          `View order map ${view.id}`,
-          errors,
-          EIDOS_FILE_VIEWS_TABLE
-        )
-        if (
-          orderMap.valid &&
-          orderMap.value !== null &&
-          (!isRecord(orderMap.value) ||
-            !Object.values(orderMap.value).every(
-              (position) =>
-                typeof position === "number" && Number.isFinite(position)
-            ))
-        ) {
-          errors.push({
-            code: "invalid-view-order-map",
-            message: `View order map ${view.id} must map fields to finite numbers`,
-            table: EIDOS_FILE_VIEWS_TABLE,
-          })
-        }
-        const hiddenFields = parseMetadataJson(
-          view.hidden_fields,
-          `View hidden fields ${view.id}`,
-          errors,
-          EIDOS_FILE_VIEWS_TABLE
-        )
-        if (
-          hiddenFields.valid &&
-          hiddenFields.value !== null &&
-          (!Array.isArray(hiddenFields.value) ||
-            !hiddenFields.value.every((field) => typeof field === "string"))
-        ) {
-          errors.push({
-            code: "invalid-view-hidden-fields",
-            message: `View hidden fields ${view.id} must be an array of column names`,
-            table: EIDOS_FILE_VIEWS_TABLE,
-          })
+        try {
+          uuid(view.id, "View ID")
+          const tableId = uuid(view.table_id, "View Table ID")
+          if (!tableRowsById.has(tableId))
+            throw new Error("View references an unknown Table")
+          if (
+            !isCanonicalEidosFileInstant(view.created_at) ||
+            !isCanonicalEidosFileInstant(view.updated_at)
+          ) {
+            throw new Error("View timestamps must be canonical instants")
+          }
+          if (
+            !isCanonicalEidosFileJson(view.query_json) ||
+            !isCanonicalEidosFileJson(view.layout_json)
+          ) {
+            throw new Error(
+              "View query_json and layout_json must be canonical JSON"
+            )
+          }
+          const viewFields = fieldsByTable.get(tableId) ?? []
+          const fieldsById = new Map(
+            viewFields.map((field) => [field.id!, field])
+          )
+          const fieldIds = new Set(fieldsById.keys())
+          const query = parseEidosFileJson(view.query_json)
+          const layout = parseEidosFileJson(view.layout_json)
+          if (!query || Array.isArray(query) || typeof query !== "object") {
+            throw new Error("View query_json must be an object")
+          }
+          if (!layout || Array.isArray(layout) || typeof layout !== "object") {
+            throw new Error("View layout_json must be an object")
+          }
+          const checkFilter = (value: unknown): void => {
+            if (!value || typeof value !== "object" || Array.isArray(value)) {
+              throw new Error("View filter nodes must be objects")
+            }
+            const node = value as Record<string, unknown>
+            if (Array.isArray(node.args)) {
+              if (node.op !== "and" && node.op !== "or") {
+                throw new Error("View filter group has an invalid op")
+              }
+              node.args.forEach(checkFilter)
+              return
+            }
+            if (typeof node.field !== "string" || !fieldIds.has(node.field)) {
+              throw new Error("View filter references an unknown Field ID")
+            }
+            if (typeof node.op !== "string" || !FILTER_OPERATORS.has(node.op)) {
+              throw new Error("View filter rule has an invalid operator")
+            }
+            const field = fieldsById.get(node.field)!
+            const list =
+              field.storageCodec === "json_array" ||
+              field.storageCodec === "relation"
+            if (
+              list &&
+              [
+                "greater-than",
+                "greater-than-or-equal",
+                "less-than",
+                "less-than-or-equal",
+                "starts-with",
+                "ends-with",
+              ].includes(node.op)
+            ) {
+              throw new Error(
+                "View filter uses a scalar comparison on a list Field"
+              )
+            }
+            if (field.type === "relation" && "value" in node) {
+              const values = Array.isArray(node.value)
+                ? node.value
+                : [node.value]
+              if (
+                !values.every(
+                  (entry) => entry === null || isEidosFileUuid(entry)
+                )
+              ) {
+                throw new Error(
+                  "View Relation filter values must be canonical Row IDs"
+                )
+              }
+            }
+          }
+          if ("filter" in query) checkFilter(query.filter)
+          if ("sort" in query) {
+            if (!Array.isArray(query.sort))
+              throw new Error("View sort must be an array")
+            for (const item of query.sort) {
+              if (
+                !item ||
+                Array.isArray(item) ||
+                typeof item !== "object" ||
+                typeof item.field !== "string" ||
+                !fieldIds.has(item.field) ||
+                (item.direction !== "asc" && item.direction !== "desc") ||
+                (item.nulls !== "first" && item.nulls !== "last")
+              ) {
+                throw new Error(
+                  "View sort contains an invalid Field reference or direction"
+                )
+              }
+            }
+          }
+          for (const key of [
+            "cardFields",
+            "fieldOrder",
+            "hiddenFields",
+          ] as const) {
+            const value = layout[key]
+            if (
+              value !== undefined &&
+              (!Array.isArray(value) ||
+                !value.every(
+                  (fieldId) =>
+                    typeof fieldId === "string" && fieldIds.has(fieldId)
+                ))
+            ) {
+              throw new Error(
+                `View ${key} must contain Field IDs from its Table`
+              )
+            }
+          }
+          for (const key of ["coverField", "groupField"] as const) {
+            const value = layout[key]
+            if (
+              value !== undefined &&
+              value !== null &&
+              (typeof value !== "string" || !fieldIds.has(value))
+            ) {
+              throw new Error(
+                `View ${key} must be null or a Field ID from its Table`
+              )
+            }
+          }
+          if (layout.fieldWidths !== undefined) {
+            if (
+              !layout.fieldWidths ||
+              Array.isArray(layout.fieldWidths) ||
+              typeof layout.fieldWidths !== "object" ||
+              Object.keys(layout.fieldWidths).some(
+                (fieldId) => !fieldIds.has(fieldId)
+              )
+            ) {
+              throw new Error(
+                "View fieldWidths keys must be Field IDs from its Table"
+              )
+            }
+          }
+        } catch (error) {
+          add(
+            errors,
+            "invalid-schema",
+            error instanceof Error ? error.message : "Invalid View"
+          )
         }
       }
     }
-  }
 
-  if (sqliteTables.has(EIDOS_FILE_REFERENCES_TABLE)) {
-    const referenceCount =
-      connection.get<{ count: number }>(
-        `SELECT COUNT(*) AS count FROM ${EIDOS_FILE_REFERENCES_TABLE}`
-      )?.count ?? 0
-    if (referenceCount > MAX_REGISTRY_ROWS) {
-      errors.push({
-        code: "metadata-limit-exceeded",
-        message: `Eidos File contains too many reference definitions (${referenceCount})`,
-        table: EIDOS_FILE_REFERENCES_TABLE,
-      })
+    const foreignKeyRows = connection.query<{ table: string; rowid: number }>(
+      "PRAGMA foreign_key_check"
+    )
+    for (const violation of foreignKeyRows) {
+      add(
+        errors,
+        "invalid-schema",
+        `Foreign-key violation in ${violation.table}`,
+        violation.table
+      )
     }
   }
 
-  if (
-    metadataValues.default_table_id &&
-    !tables.some((table) => table.id === metadataValues.default_table_id)
-  ) {
-    errors.push({
-      code: "invalid-default-table",
-      message: `Default table is not registered: ${metadataValues.default_table_id}`,
-    })
+  if (level === "content" || level === "full") {
+    const quickCheck = connection.get<{ quick_check: string }>(
+      "PRAGMA quick_check"
+    )
+    if (quickCheck?.quick_check !== "ok") {
+      add(
+        errors,
+        "invalid-schema",
+        `SQLite quick_check failed: ${quickCheck?.quick_check ?? "unknown"}`
+      )
+    }
+    for (const [tableId, fields] of fieldsByTable) {
+      const table = tableRowsById.get(tableId)!
+      const stored = fields.filter((field) => field.physicalName)
+      if (stored.length === 0) continue
+      const selection = stored
+        .map((field) => quoteIdentifier(field.physicalName!))
+        .join(", ")
+      for (const row of connection.query<Record<string, EidosFileSqlPrimitive>>(
+        `SELECT ${selection} FROM ${quoteIdentifier(table.physical_name)}`
+      )) {
+        for (const field of stored) {
+          const value = row[field.physicalName!]
+          if (value === null || value === undefined) continue
+          if (field.type === "row-id") {
+            if (!isEidosFileUuid(value)) {
+              add(
+                errors,
+                "invalid-value",
+                `${table.name}._id must be canonical lowercase UUIDv7 TEXT`
+              )
+            }
+          }
+          if (
+            field.type === "number" &&
+            (typeof value !== "number" || !Number.isFinite(value))
+          ) {
+            add(
+              errors,
+              "invalid-value",
+              `${table.name}.${field.name} must be finite REAL`
+            )
+          }
+          if (field.type === "checkbox" && value !== 0 && value !== 1) {
+            add(
+              errors,
+              "invalid-value",
+              `${table.name}.${field.name} must be 0, 1, or NULL`
+            )
+          }
+          if (field.type === "date" && !isCanonicalEidosFileDate(value)) {
+            add(
+              errors,
+              "invalid-value",
+              `${table.name}.${field.name} must be canonical YYYY-MM-DD text`
+            )
+          }
+          if (
+            ["datetime", "created-time", "last-edited-time"].includes(
+              field.type
+            ) &&
+            !isCanonicalEidosFileInstant(value)
+          ) {
+            add(
+              errors,
+              "invalid-value",
+              `${table.name}.${field.name} must be canonical UTC millisecond text`
+            )
+          }
+          if (["multi-select", "file"].includes(field.type)) {
+            const parsed =
+              typeof value === "string" && isCanonicalEidosFileJson(value)
+                ? parseEidosFileJson(value)
+                : null
+            if (!Array.isArray(parsed)) {
+              add(
+                errors,
+                "invalid-value",
+                `${table.name}.${field.name} must be a canonical JSON array`
+              )
+            }
+            if (
+              field.type === "multi-select" &&
+              Array.isArray(parsed) &&
+              (!parsed.every((entry) => typeof entry === "string") ||
+                new Set(parsed).size !== parsed.length)
+            ) {
+              add(
+                errors,
+                "invalid-value",
+                `${table.name}.${field.name} must be a unique string array`
+              )
+            }
+            if (field.type === "file" && Array.isArray(parsed)) {
+              try {
+                assertEidosFileValues(parsed)
+              } catch (error) {
+                add(
+                  errors,
+                  "invalid-value",
+                  `${table.name}.${field.name}: ${error instanceof Error ? error.message : "invalid File value"}`
+                )
+              }
+            }
+          }
+          if (
+            field.type === "json" &&
+            (typeof value !== "string" || !isCanonicalEidosFileJson(value))
+          ) {
+            add(
+              errors,
+              "invalid-value",
+              `${table.name}.${field.name} must be canonical JSON`
+            )
+          }
+          if (field.type === "relation") {
+            const ids = relationIds(value)
+            const relation = relations.get(field.id!)
+            if (!ids || relation?.direction !== "forward") {
+              add(
+                errors,
+                "invalid-value",
+                `${table.name}.${field.name} must be a canonical UUID array`
+              )
+            } else if (relation.cardinality === "one" && ids.length > 1) {
+              add(
+                errors,
+                "invalid-value",
+                `${table.name}.${field.name} exceeds cardinality one`
+              )
+            }
+          }
+        }
+      }
+      for (const field of fields) {
+        const relation = field.id ? relations.get(field.id) : undefined
+        if (
+          field.type !== "relation" ||
+          relation?.direction !== "forward" ||
+          !field.physicalName
+        ) {
+          continue
+        }
+        const targetTable = tableRowsById.get(
+          uuid(relation.target_table_id, "Relation target Table ID")
+        )
+        if (!targetTable) continue
+        const missing =
+          connection.get<{ total: number }>(
+            `SELECT count(*) AS total
+             FROM ${quoteIdentifier(table.physical_name)} source,
+                  json_each(CASE
+                    WHEN json_valid(source.${quoteIdentifier(field.physicalName)})
+                     AND json_type(source.${quoteIdentifier(field.physicalName)}) = 'array'
+                    THEN source.${quoteIdentifier(field.physicalName)} ELSE '[]' END
+                  ) item
+            WHERE NOT EXISTS (
+              SELECT 1 FROM ${quoteIdentifier(targetTable.physical_name)} target
+               WHERE item.value = target."_id"
+            )`
+          )?.total ?? 0
+        if (missing > 0) {
+          add(
+            warnings,
+            "unresolved-relation",
+            `${table.name}.${field.name} contains ${missing} unresolved Relation value${missing === 1 ? "" : "s"}`,
+            table.physical_name
+          )
+        }
+      }
+    }
   }
 
   return {
     valid: errors.length === 0,
-    metadata: mapMetadata(metadataValues),
+    metadata,
     tables,
     errors,
     warnings,

@@ -1,79 +1,76 @@
-import type {
-  EidosFileConnection,
-  EidosFileSqlParams,
-  EidosFileSqlPrimitive,
-} from "./connection"
+import { canonicalizeEidosFileJson, parseEidosFileJson } from "./canonical-json"
+import { normalizeEidosFileColumnStatConfigs } from "./column-stats"
+import type { EidosFileConnection, EidosFileSqlPrimitive } from "./connection"
 import {
-  EIDOS_FILE_COLUMNS_TABLE,
+  EIDOS_FILE_FIELDS_TABLE,
+  EIDOS_FILE_FORMULA_FIELDS_TABLE,
+  EIDOS_FILE_LOOKUP_FIELDS_TABLE,
   EIDOS_FILE_META_TABLE,
-  EIDOS_FILE_REFERENCES_TABLE,
+  EIDOS_FILE_RELATION_FIELDS_TABLE,
   EIDOS_FILE_TABLES_TABLE,
   EIDOS_FILE_VIEWS_TABLE,
 } from "./constants"
-import {
-  EIDOS_FILE_SORTED_CURSOR_MAX_FIELDS,
-  appendEidosFileCursorWhere,
-  eidosFileCursorQuerySignature,
-  eidosFileCursorSorts,
-  eidosFileSortedCursorBranches,
-  decodeEidosFileRowCursor,
-  decodeEidosFileSortedCursor,
-  encodeEidosFileRowCursor,
-  encodeEidosFileSortedCursor,
-} from "./cursor-paging"
 import { EidosFileError } from "./errors"
-import {
-  decodeEidosFileMultiSelectValues,
-  encodeEidosFileMultiSelectValues,
-  isMutableEidosFileFieldType,
-  planEidosFileFieldConversion,
-} from "./field-conversion"
-import {
-  decodeEidosFileAttachmentPaths,
-  encodeEidosFileAttachmentPaths,
-} from "./file-values"
+import { assertEidosFileValues } from "./file-values"
+import { registerEidosFormulaFunctions } from "./formula-functions"
 import {
   compileEidosFileFormula,
-  compileEidosFileFormulaFields,
-  type CompiledEidosFileFormula,
+  compileEidosFileFormulaSource,
+  rewriteEidosFileFormulaFieldReferences,
 } from "./formula"
+import {
+  assertEidosFileDisplayName,
+  assertEidosFileUuid,
+  createEidosFileUuid,
+  eidosFilePhysicalName,
+  quoteIdentifier,
+} from "./identifiers"
+import {
+  eidosFileLookupDisplayType,
+  eidosFileLookupElementType,
+  eidosFileLookupStorageCodec,
+  eidosFileLookupTargetDisplayType,
+  eidosFileLookupValueType,
+} from "./lookup"
+import { registerEidosLookupFunctions } from "./lookup-functions"
+import {
+  assertEidosFileRowQuery,
+  compileEidosFileRowQuery,
+  eidosFileSortExpression,
+  normalizeEidosFileFilter,
+  normalizeEidosFileRowQuery,
+  normalizeEidosFileSorts,
+} from "./query"
 import {
   decodeEidosFileRelationIds,
   encodeEidosFileRelationIds,
 } from "./relation-values"
+import { incrementEidosFileRevision } from "./schema"
+import { assertEidosFileSelectOptions } from "./select-options"
 import {
-  assertEidosFileColumnName,
-  assertEidosFileTableId,
-  createEidosFileIdentifier,
-  createEidosFileUuid,
-  quoteIdentifier,
-  rawTableNameForId,
-} from "./identifiers"
-import {
-  eidosFileFieldStoresJsonArray,
-  eidosFileLookupAggregateSupportsTarget,
-  eidosFileLookupDisplayType,
-  eidosFileLookupStorageCodec,
-} from "./lookup"
-import { setEidosFileMetadata } from "./schema"
-import {
-  eidosFileRowQueryPredicateColumns,
-  compileEidosFileRowQuery,
-  normalizeEidosFileFilter,
-  normalizeEidosFileRowQuery,
-  normalizeEidosFileSorts,
-  removeEidosFileFilterField,
-} from "./query"
+  currentEidosFileInstant,
+  eidosFileDateSqlCheck,
+  eidosFileInstantSqlCheck,
+  normalizeEidosFileDate,
+  normalizeEidosFileInstant,
+} from "./temporal"
 import type {
+  CreateEidosFileFieldInput,
+  CreateEidosFileTableInput,
+  CreateEidosFileViewInput,
   EidosFileColumnStatConfig,
   EidosFileColumnStatResult,
   EidosFileFieldInfo,
   EidosFileFieldPlacement,
   EidosFileFieldType,
+  EidosFileFilterGroup,
+  EidosFileFilterRule,
   EidosFileFormulaPreview,
   EidosFileFormulaPreviewInput,
-  EidosFileMetadata,
+  EidosFileLogicalRow,
+  EidosFileLogicalValue,
   EidosFileLookupAggregate,
+  EidosFileMetadata,
   EidosFileRow,
   EidosFileRowGroupCount,
   EidosFileRowPage,
@@ -81,934 +78,1329 @@ import type {
   EidosFileRowQuery,
   EidosFileRowRange,
   EidosFileRowUpdate,
-  EidosFileStorageCodec,
+  EidosFileRowsMutation,
+  EidosFileSchemaMutation,
+  EidosFileSourceFieldType,
+  EidosFileSort,
   EidosFileTableInfo,
   EidosFileViewInfo,
-  CreateEidosFileFieldInput,
-  CreateEidosFileReferenceInput,
-  CreateEidosFileTableInput,
-  CreateEidosFileViewInput,
   ImportEidosFileFieldInput,
   UpdateEidosFileFieldInput,
   UpdateEidosFileTableInput,
   UpdateEidosFileViewInput,
 } from "./types"
-import {
-  eidosFileColumnStatTypesForField,
-  compileEidosFileColumnStatExpression,
-  normalizeEidosFileColumnStatConfigs,
-} from "./column-stats"
 import { validateEidosFile } from "./validation"
-import {
-  assertEidosFileSelectOptions,
-  parseEidosFileSelectOptions,
-} from "./select-options"
 
-interface RegistryRow {
+interface TableRow {
   id: string
   name: string
-  raw_table_name: string
-  position: number | null
-  icon: string | null
-  description: string | null
+  physical_name: string
+  label_field_id: string
+  position: number
+  settings_json: string
   created_at: string
   updated_at: string
 }
 
-const EIDOS_FILE_VIEW_QUERY_INDEX_PREFIX = "eidos__view_query_"
-const EIDOS_FILE_NOCASE_SORT_TYPES = new Set([
-  "title",
-  "text",
-  "url",
-  "select",
-  "multi-select",
-  "file",
-])
-
-function eidosFileViewQueryIndexName(viewId: string): string {
-  return `${EIDOS_FILE_VIEW_QUERY_INDEX_PREFIX}${viewId}`
-}
-
-function eidosFileFieldUsesNoCaseSort(field: EidosFileFieldInfo): boolean {
-  const displayType =
-    (field.type === "formula" || field.type === "lookup") &&
-    typeof field.property?.displayType === "string"
-      ? field.property.displayType
-      : field.type
-  return EIDOS_FILE_NOCASE_SORT_TYPES.has(displayType)
-}
-
-function normalizedSql(sql: string): string {
-  return sql.replace(/\s+/g, " ").trim()
-}
-
 interface FieldRow {
+  id: string
+  table_id: string
   name: string
+  physical_name: string | null
   type: EidosFileFieldType
-  table_name: string
-  table_column_name: string
-  property: string | null
-  storage_codec: EidosFileStorageCodec
-  value_kind: EidosFileFieldInfo["valueKind"]
-  is_hidden: number
-  is_derived: number
-  source_table_column_name: string | null
-  depends_on: string | null
+  system_role: "row-id" | "created-time" | "updated-time" | null
+  nullable: number
+  position: number
+  settings_json: string
+  created_at: string
+  updated_at: string
+}
+
+interface RelationRow {
+  field_id: string
+  direction: "forward" | "inverse"
+  inverse_of_field_id: string | null
+  target_table_id: string
+  cardinality: "one" | "many"
+  on_delete: "restrict" | "detach" | "preserve" | null
+}
+
+interface FormulaRow {
+  field_id: string
+  source_text: string
+  result_type: string
+}
+
+interface LookupRow {
+  field_id: string
+  relation_field_id: string
+  target_field_id: string
+  aggregate: EidosFileLookupAggregate
+  distinct_values: number
+}
+
+function sameSqlValue(
+  left: EidosFileSqlPrimitive | undefined,
+  right: EidosFileSqlPrimitive
+): boolean {
+  if (left instanceof Uint8Array && right instanceof Uint8Array) {
+    return (
+      left.byteLength === right.byteLength &&
+      left.every((value, index) => value === right[index])
+    )
+  }
+  if (
+    (typeof left === "number" || typeof left === "bigint") &&
+    (typeof right === "number" || typeof right === "bigint") &&
+    (typeof left === "bigint" || Number.isInteger(left)) &&
+    (typeof right === "bigint" || Number.isInteger(right))
+  ) {
+    return BigInt(left) === BigInt(right)
+  }
+  return Object.is(left, right)
 }
 
 interface ViewRow {
   id: string
+  table_id: string
   name: string
   type: string
-  table_id: string
-  query: string
-  properties: string | null
-  filter: string | null
-  order_map: string | null
-  hidden_fields: string | null
-  position: number | null
+  query_json: string
+  layout_json: string
+  position: number
   created_at: string
   updated_at: string
 }
 
-interface EidosFileRowReadSchema {
-  table: EidosFileTableInfo
-  fields: EidosFileFieldInfo[]
+interface RuntimeSchema {
+  tables: Map<string, TableRow>
+  fields: Map<string, EidosFileFieldInfo>
+  fieldsByTable: Map<string, EidosFileFieldInfo[]>
+  relations: Map<string, RelationRow>
+  formulas: Map<string, FormulaRow>
+  lookups: Map<string, LookupRow>
 }
 
-interface EidosFileLookupCompilationNode {
-  key: string
-  label: string
-}
-
-interface EidosFileLookupCompilationContext {
-  path: EidosFileLookupCompilationNode[]
-  overrides?: ReadonlyMap<string, EidosFileFieldInfo>
-}
-
-const EMPTY_LOOKUP_COMPILATION_CONTEXT: EidosFileLookupCompilationContext = {
-  path: [],
-}
-
-function eidosFileLookupFieldKey(tableId: string, columnName: string): string {
-  return `${tableId}\u0000${columnName}`
-}
-
-const SYSTEM_FIELDS: Array<{
+interface PreparedField {
+  id: string
   name: string
   type: EidosFileFieldType
-  columnName: string
-  hidden: boolean
-}> = [
-  { name: "_id", type: "row-id", columnName: "_id", hidden: true },
-  { name: "title", type: "title", columnName: "title", hidden: false },
-  {
-    name: "Created time",
-    type: "created-time",
-    columnName: "_created_time",
-    hidden: true,
-  },
-  {
-    name: "Last edited time",
-    type: "last-edited-time",
-    columnName: "_last_edited_time",
-    hidden: true,
-  },
-  {
-    name: "Created by",
-    type: "created-by",
-    columnName: "_created_by",
-    hidden: true,
-  },
-  {
-    name: "Last edited by",
-    type: "last-edited-by",
-    columnName: "_last_edited_by",
-    hidden: true,
-  },
-]
-
-const SYSTEM_FIELD_COLUMNS = new Set(
-  SYSTEM_FIELDS.map((field) => field.columnName)
-)
-
-function assertKnownFieldColumnName(columnName: string): string {
-  return SYSTEM_FIELD_COLUMNS.has(columnName)
-    ? columnName
-    : assertEidosFileColumnName(columnName)
+  physicalName: string | null
+  settings: Record<string, unknown>
+  input?: CreateEidosFileFieldInput
+  isRecordLabel: boolean
+  systemRole: "row-id" | "created-time" | "updated-time" | null
+  nullable: boolean
 }
 
-function isEmptyProjectedFieldValue(value: EidosFileRow[string]): boolean {
-  return value === null || value === undefined || value === ""
+const SYSTEM_FIELD_NAMES = {
+  "row-id": "_id",
+  "created-time": "_created_at",
+  "last-edited-time": "_updated_at",
+} as const
+
+const SYSTEM_FIELD_PHYSICAL_NAMES = {
+  "row-id": "_id",
+  "created-time": "_created_at",
+  "last-edited-time": "_updated_at",
+} as const
+
+const LABEL_TYPES = new Set<EidosFileFieldType>([
+  "row-id",
+  "created-time",
+  "last-edited-time",
+  "text",
+  "number",
+  "integer",
+  "checkbox",
+  "date",
+  "datetime",
+  "url",
+  "rating",
+  "select",
+  "formula",
+  "lookup",
+])
+
+function uuid(value: string): string {
+  return assertEidosFileUuid(value)
 }
 
-function tableInfoFromRow(row: RegistryRow): EidosFileTableInfo {
-  return {
-    id: row.id,
-    name: row.name,
-    rawTableName: row.raw_table_name,
-    position: row.position,
-    icon: row.icon,
-    description: row.description,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }
-}
-
-function parseJson(value: string | null): unknown {
-  if (value === null) return null
+function jsonObject(value: string): Record<string, unknown> {
   try {
-    return JSON.parse(value)
+    const parsed = parseEidosFileJson(value)
+    return parsed && !Array.isArray(parsed) && typeof parsed === "object"
+      ? parsed
+      : {}
   } catch {
-    return null
+    return {}
   }
 }
 
-function sqlTypeForField(type: EidosFileFieldType): string {
-  if (type === "checkbox") return "BOOLEAN"
-  if (type === "number") return "REAL"
-  if (type === "rating") return "INT"
-  return "TEXT"
+function canonicalFieldType(input: {
+  type: EidosFileFieldType
+}): EidosFileFieldType {
+  return input.type === "rating" ? "integer" : input.type
 }
 
-function defaultStorageCodec(type: EidosFileFieldType): EidosFileStorageCodec {
-  if (type === "multi-select" || type === "file") return "json_array"
-  if (type === "link") return "relation"
-  if (type === "formula" || type === "lookup") return "scalar"
-  return "scalar"
+function persistedFieldType(type: EidosFileFieldType): EidosFileFieldType {
+  if (type === "row-id") return "text"
+  if (type === "created-time" || type === "last-edited-time") return "datetime"
+  if (type === "rating") return "integer"
+  return type
 }
 
-function sqliteParameter(
-  value: EidosFileRow[string]
-): EidosFileSqlParams[number] {
-  return typeof value === "boolean" ? (value ? 1 : 0) : value
-}
-
-function writableFieldValue(
-  field: EidosFileFieldInfo | undefined,
-  value: EidosFileRow[string]
-): EidosFileRow[string] {
-  if (value === null) return value
-  if (field?.type === "file") {
-    return encodeEidosFileAttachmentPaths(decodeEidosFileAttachmentPaths(value))
+function canonicalTemporalProjection(expression: string, type: string): string {
+  if (type === "date") {
+    return `CASE WHEN (${expression}) IS NULL THEN NULL
+      ELSE strftime('%Y-%m-%d', (${expression}), '+0 days') END`
   }
-  if (field?.type === "multi-select") {
-    return encodeEidosFileMultiSelectValues(
-      decodeEidosFileMultiSelectValues(
-        typeof value === "boolean" ? null : value
-      )
+  if (type === "datetime") {
+    return `CASE WHEN (${expression}) IS NULL THEN NULL
+      ELSE strftime('%Y-%m-%dT%H:%M:%fZ', (${expression})) END`
+  }
+  return expression
+}
+
+function isVirtualField(
+  type: EidosFileFieldType,
+  input?: CreateEidosFileFieldInput
+): boolean {
+  if (type === "formula" || type === "lookup") return true
+  return (
+    type === "relation" &&
+    input !== undefined &&
+    input.type === "relation" &&
+    input.property.direction === "inverse"
+  )
+}
+
+function fieldColumnSql(field: PreparedField): string | null {
+  if (!field.physicalName) return null
+  const column = quoteIdentifier(field.physicalName)
+  switch (field.type) {
+    case "row-id":
+      return `${column} TEXT PRIMARY KEY COLLATE BINARY
+        CHECK(length(CAST(${column} AS BLOB))=36 AND instr(${column},char(0))=0
+          AND substr(${column},9,1)='-' AND substr(${column},14,1)='-'
+          AND substr(${column},15,1)='7' AND substr(${column},19,1)='-'
+          AND substr(${column},20,1) IN ('8','9','a','b') AND substr(${column},24,1)='-'
+          AND lower(${column})=${column}
+          AND length(CAST(replace(${column},'-','') AS BLOB))=32
+          AND replace(${column},'-','') NOT GLOB '*[^0-9a-f]*')`
+    case "created-time":
+    case "last-edited-time":
+      return `${column} TEXT NOT NULL CHECK(${eidosFileInstantSqlCheck(column)})`
+    case "text":
+    case "url":
+    case "select":
+      return `${column} TEXT${field.nullable ? "" : " NOT NULL"}`
+    case "number":
+      return `${column} REAL${field.nullable ? "" : " NOT NULL"}`
+    case "integer":
+      return `${column} INTEGER${field.nullable ? "" : " NOT NULL"}`
+    case "date":
+      return `${column} TEXT${field.nullable ? "" : " NOT NULL"} CHECK(${eidosFileDateSqlCheck(column)})`
+    case "datetime":
+      return `${column} TEXT${field.nullable ? "" : " NOT NULL"} CHECK(${eidosFileInstantSqlCheck(column)})`
+    case "rating":
+      return `${column} INTEGER`
+    case "checkbox":
+      return `${column} INTEGER${field.nullable ? "" : " NOT NULL"} CHECK(${column} IS NULL OR ${column} IN (0, 1))`
+    case "json":
+      return `${column} TEXT${field.nullable ? "" : " NOT NULL"} CHECK(${column} IS NULL OR json_valid(${column}))`
+    case "file":
+    case "multi-select":
+    case "relation":
+      return `${column} TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(${column}) AND json_type(${column}) = 'array')`
+    default:
+      return null
+  }
+}
+
+function stablePosition(
+  value: number | null | undefined,
+  fallback: number
+): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.trunc(value))
+    : fallback
+}
+
+function presentationSettingsObject(
+  source: Record<string, unknown> | null | undefined
+): Record<string, unknown> {
+  const property = source ? { ...source } : {}
+  for (const key of [
+    "formula",
+    "displayType",
+    "targetTableId",
+    "targetField",
+    "multiple",
+    "direction",
+    "sourceFieldId",
+    "cardinality",
+    "onDelete",
+    "relationField",
+    "aggregate",
+    "distinct",
+  ]) {
+    delete property[key]
+  }
+  return property
+}
+
+function presentationSettings(
+  input: CreateEidosFileFieldInput
+): Record<string, unknown> {
+  const property = presentationSettingsObject(
+    "property" in input ? input.property : undefined
+  )
+  if (input.type === "select" || input.type === "multi-select") {
+    const options = assertEidosFileSelectOptions(
+      "property" in input ? input.property : undefined
     )
+    property.options = options.map((option) => ({
+      color: option.color,
+      name: option.name,
+    }))
   }
-  if (field?.type === "link") {
-    return encodeEidosFileRelationIds(decodeEidosFileRelationIds(value))
+  return property
+}
+
+function transformOptionValue(
+  value: unknown,
+  fieldId: string,
+  changes: Map<string, string>
+): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => transformOptionValue(entry, fieldId, changes))
+  }
+  if (!value || typeof value !== "object") return value
+  const object = value as Record<string, unknown>
+  const next: Record<string, unknown> = {}
+  for (const [key, entry] of Object.entries(object)) {
+    if (object.field === fieldId && key === "value") {
+      next[key] = Array.isArray(entry)
+        ? entry.map((item) =>
+            typeof item === "string" ? (changes.get(item) ?? item) : item
+          )
+        : typeof entry === "string"
+          ? (changes.get(entry) ?? entry)
+          : entry
+    } else {
+      next[key] = transformOptionValue(entry, fieldId, changes)
+    }
+  }
+  return next
+}
+
+function rowValue(value: EidosFileSqlPrimitive): EidosFileRow[string] {
+  return value
+}
+
+function cursorSortValue(
+  row: Record<string, EidosFileSqlPrimitive>,
+  field: EidosFileFieldInfo
+): EidosFileSqlPrimitive {
+  const value = row[field.tableColumnName] ?? null
+  if (
+    typeof value === "string" &&
+    (field.storageCodec === "json_array" || field.storageCodec === "relation")
+  ) {
+    try {
+      const parsed = parseEidosFileJson(value)
+      if (Array.isArray(parsed)) {
+        const first = parsed.find((entry) => entry !== null)
+        return typeof first === "string" ||
+          typeof first === "number" ||
+          typeof first === "boolean" ||
+          first === null ||
+          first === undefined
+          ? first === true
+            ? 1
+            : first === false
+              ? 0
+              : (first ?? null)
+          : canonicalizeEidosFileJson(first)
+      }
+    } catch {
+      return null
+    }
   }
   return value
 }
 
+function encodeCursorSqlValue(value: EidosFileSqlPrimitive): unknown {
+  if (typeof value === "bigint") return { integer: value.toString() }
+  if (
+    value === null ||
+    typeof value === "string" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return value
+  }
+  throw new EidosFileError(
+    "invalid-query",
+    "Sort boundary is not a scalar JSON cursor value"
+  )
+}
+
+function decodeCursorSqlValue(value: unknown): EidosFileSqlPrimitive {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return value
+  }
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.keys(value).length === 1 &&
+    "integer" in value &&
+    typeof value.integer === "string" &&
+    /^-?(?:0|[1-9][0-9]*)$/.test(value.integer)
+  ) {
+    const integer = BigInt(value.integer)
+    if (
+      integer >= -9_223_372_036_854_775_808n &&
+      integer <= 9_223_372_036_854_775_807n
+    ) {
+      return integer
+    }
+  }
+  throw new EidosFileError("invalid-query", "Cursor sort value is invalid")
+}
+
+function uniqueSortFields(
+  fields: EidosFileFieldInfo[],
+  sorts: EidosFileSort[] | undefined
+): Array<{ field: EidosFileFieldInfo; sort: EidosFileSort }> {
+  const byColumn = new Map(
+    fields.map((field) => [field.tableColumnName, field])
+  )
+  const seen = new Set<string>()
+  return (sorts ?? []).flatMap((sort) => {
+    if (seen.has(sort.field)) return []
+    const field = byColumn.get(sort.field)
+    if (!field) return []
+    seen.add(sort.field)
+    return [{ field, sort }]
+  })
+}
+
+function compileKeysetAfter(
+  sorts: Array<{ field: EidosFileFieldInfo; sort: EidosFileSort }>,
+  values: EidosFileSqlPrimitive[],
+  lastId: string
+): { sql: string; params: EidosFileSqlPrimitive[] } {
+  if (values.length !== sorts.length) {
+    throw new EidosFileError("invalid-query", "Cursor sort tuple is invalid")
+  }
+  const params: EidosFileSqlPrimitive[] = []
+  const branches: string[] = []
+  // Equality placeholders occur in every later branch, so construct the
+  // parameter list in the same branch order instead of sharing SQL prefixes.
+  sorts.forEach(({ field, sort }, index) => {
+    const expression = eidosFileSortExpression(field)
+    const value = values[index] ?? null
+    let after: string
+    if (value === null) {
+      after = sort.nulls === "first" ? `${expression} IS NOT NULL` : "0"
+    } else {
+      const comparison = sort.direction === "desc" ? "<" : ">"
+      after =
+        sort.nulls === "last"
+          ? `(${expression} ${comparison} ? OR ${expression} IS NULL)`
+          : `${expression} ${comparison} ?`
+    }
+    if (after !== "0") {
+      const parts: string[] = []
+      for (let prefixIndex = 0; prefixIndex < index; prefixIndex += 1) {
+        const prefixExpression = eidosFileSortExpression(
+          sorts[prefixIndex]!.field
+        )
+        const prefixValue = values[prefixIndex] ?? null
+        if (prefixValue === null) parts.push(`${prefixExpression} IS NULL`)
+        else {
+          parts.push(`${prefixExpression} IS ?`)
+          params.push(prefixValue)
+        }
+      }
+      parts.push(after)
+      if (value !== null) params.push(value)
+      branches.push(`(${parts.join(" AND ")})`)
+    }
+  })
+  const finalParts: string[] = []
+  sorts.forEach(({ field }, index) => {
+    const expression = eidosFileSortExpression(field)
+    const value = values[index] ?? null
+    if (value === null) finalParts.push(`${expression} IS NULL`)
+    else {
+      finalParts.push(`${expression} IS ?`)
+      params.push(value)
+    }
+  })
+  finalParts.push('"__base_rowid" > ?')
+  params.push(assertEidosFileUuid(lastId, "Cursor Row ID"))
+  branches.push(`(${finalParts.join(" AND ")})`)
+  return { sql: `(${branches.join(" OR ")})`, params }
+}
+
+function filterToStorage(
+  filter: EidosFileFilterGroup | null | undefined,
+  fields: EidosFileFieldInfo[]
+): Record<string, unknown> | null {
+  const normalized = normalizeEidosFileFilter(filter)
+  if (!normalized) return null
+  const byKey = new Map<string, string>()
+  for (const field of fields) {
+    if (field.id) {
+      byKey.set(field.id, field.id)
+      byKey.set(field.tableColumnName, field.id)
+      byKey.set(field.name, field.id)
+    }
+  }
+  const convert = (group: EidosFileFilterGroup): Record<string, unknown> => {
+    const args: Record<string, unknown>[] = []
+    for (const child of group.children) {
+      if (child.type === "group") args.push(convert(child))
+      else {
+        const field = byKey.get(child.field)
+        if (field) {
+          args.push({
+            field,
+            op: child.operator,
+            ...("value" in child ? { value: child.value } : {}),
+          })
+        }
+      }
+    }
+    return { args, op: group.conjunction }
+  }
+  return convert(normalized)
+}
+
+function filterFromStorage(
+  value: unknown,
+  fields: EidosFileFieldInfo[]
+): EidosFileFilterGroup | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null
+  const ids = new Set(fields.flatMap((field) => (field.id ? [field.id] : [])))
+  const convert = (input: unknown): EidosFileFilterGroup | null => {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return null
+    const group = input as Record<string, unknown>
+    if (!Array.isArray(group.args)) return null
+    const children: EidosFileFilterGroup["children"] = []
+    for (const child of group.args) {
+      if (!child || typeof child !== "object" || Array.isArray(child)) continue
+      const object = child as Record<string, unknown>
+      if (Array.isArray(object.args)) {
+        const nested = convert(object)
+        if (nested) children.push(nested)
+      } else if (
+        typeof object.field === "string" &&
+        typeof object.op === "string"
+      ) {
+        if (ids.has(object.field)) {
+          children.push({
+            type: "rule",
+            field: object.field,
+            operator: object.op as EidosFileFilterRule["operator"],
+            ...("value" in object ? { value: object.value as never } : {}),
+          } as EidosFileFilterGroup["children"][number])
+        }
+      }
+    }
+    return {
+      type: "group",
+      conjunction: group.op === "or" ? "or" : "and",
+      children,
+    }
+  }
+  return normalizeEidosFileFilter(convert(value))
+}
+
 export class EidosFileRuntime {
-  private readonly formulaCompilationCache = new Map<
-    string,
-    { signature: string; formulas: CompiledEidosFileFormula[] }
-  >()
-  private readonly rowReadSchemaCache = new Map<
-    string,
-    EidosFileRowReadSchema
-  >()
-  private rowReadDataVersion: number | null = null
+  private mutationDepth = 0
+  private mutationInstant: string | null = null
+  private schemaCache:
+    | { dataVersion: number; schema: RuntimeSchema }
+    | undefined
+  private readonly nowInstant: () => string
+  private readonly allocateId: () => string
 
   constructor(
     readonly connection: EidosFileConnection,
-    private readonly closeConnection = false
-  ) {}
+    private readonly ownsConnection = false,
+    environment: {
+      nowInstant?: () => string
+      allocateId?: () => string
+    } = {}
+  ) {
+    this.nowInstant = environment.nowInstant ?? currentEidosFileInstant
+    this.allocateId = environment.allocateId ?? (() => createEidosFileUuid())
+    connection.exec("PRAGMA foreign_keys = ON; PRAGMA trusted_schema = OFF;")
+    connection.registerFunction("eidos_casefold", (value) =>
+      value === null ? null : String(value).toUpperCase().toLowerCase()
+    )
+    registerEidosFormulaFunctions(connection)
+    registerEidosLookupFunctions(connection)
+  }
 
   close(): void {
-    this.formulaCompilationCache.clear()
-    this.rowReadSchemaCache.clear()
-    if (this.closeConnection) this.connection.close?.()
+    if (this.ownsConnection) this.connection.close?.()
   }
 
-  private invalidateRowReadSchema(): void {
-    this.rowReadSchemaCache.clear()
-    this.rowReadDataVersion = null
+  inspect() {
+    return validateEidosFile(this.connection)
   }
 
-  private touchMetadata(entries: Record<string, string | undefined>): void {
-    setEidosFileMetadata(this.connection, entries)
-    this.invalidateRowReadSchema()
-  }
-
-  private rowReadSchema(tableId: string): EidosFileRowReadSchema {
-    const observed = this.connection.get<{ data_version: number | bigint }>(
-      "PRAGMA data_version"
-    )?.data_version
-    const dataVersion =
-      (typeof observed === "number" || typeof observed === "bigint") &&
-      Number.isSafeInteger(Number(observed))
-        ? Number(observed)
-        : null
-    if (
-      this.rowReadDataVersion !== null &&
-      dataVersion !== null &&
-      dataVersion !== this.rowReadDataVersion
-    ) {
-      this.rowReadSchemaCache.clear()
-    }
-    this.rowReadDataVersion = dataVersion
-
-    const cached = this.rowReadSchemaCache.get(tableId)
-    if (cached) return cached
-    const table = this.getTable(tableId)
-    const schema = { table, fields: this.queryFields(table) }
-    this.rowReadSchemaCache.set(tableId, schema)
-    return schema
-  }
-
-  private compiledFormulaFields(
-    tableId: string,
-    fields: EidosFileFieldInfo[]
-  ): CompiledEidosFileFormula[] {
-    const signature = JSON.stringify(
-      fields.map((field) => [
-        field.name,
-        field.tableColumnName,
-        field.type,
-        field.valueKind,
-        field.isDerived,
-        field.type === "formula" ? field.property?.formula : null,
-      ])
-    )
-    const cached = this.formulaCompilationCache.get(tableId)
-    if (cached?.signature === signature) return cached.formulas
-    const formulas = compileEidosFileFormulaFields(fields)
-    this.formulaCompilationCache.set(tableId, { signature, formulas })
-    return formulas
-  }
-
-  private relationTarget(
-    field: EidosFileFieldInfo
-  ): { tableId: string; columnName: string } | null {
-    if (field.type !== "link") return null
-    const targetTableId = field.property?.targetTableId
-    const targetField = field.property?.targetField
-    if (typeof targetTableId === "string" && typeof targetField === "string") {
-      return { tableId: targetTableId, columnName: targetField }
-    }
-    return null
-  }
-
-  private rowSourceSql(
-    tableId: string,
-    fields: EidosFileFieldInfo[],
-    requestedDerivedColumns?: ReadonlySet<string>,
-    table = this.getTable(tableId),
-    lookupContext = EMPTY_LOOKUP_COMPILATION_CONTEXT
-  ): string {
-    const requiredDerivedColumns = requestedDerivedColumns
-      ? this.requiredDerivedColumns(fields, requestedDerivedColumns)
-      : null
-    const includesDerivedColumn = (field: EidosFileFieldInfo) =>
-      requiredDerivedColumns === null ||
-      requiredDerivedColumns.has(field.tableColumnName)
-    let alias = "base_rows"
-    let source = `(SELECT rowid AS "__base_rowid", *
-                     FROM ${quoteIdentifier(table.rawTableName)}) AS ${quoteIdentifier(alias)}`
-    fields
-      .filter(
-        (field) =>
-          field.type === "lookup" &&
-          field.valueKind === "derived" &&
-          field.isDerived &&
-          includesDerivedColumn(field)
-      )
-      .forEach((field, index) => {
-        const expression = this.lookupExpression(
-          tableId,
-          field,
-          fields,
-          alias,
-          lookupContext
-        )
-        const nextAlias = `lookup_layer_${index + 1}`
-        source = `(SELECT ${quoteIdentifier(alias)}.*, (${expression}) AS ${quoteIdentifier(field.tableColumnName)}
-                     FROM ${source}) AS ${quoteIdentifier(nextAlias)}`
-        alias = nextAlias
-      })
-    const compiledFormulas =
-      requiredDerivedColumns?.size === 0
-        ? []
-        : this.compiledFormulaFields(tableId, fields)
-    compiledFormulas
-      .filter((formula) => includesDerivedColumn(formula.field))
-      .forEach((formula, index) => {
-        const nextAlias = `formula_layer_${index + 1}`
-        source = `(SELECT *, (${formula.expression}) AS ${quoteIdentifier(formula.field.tableColumnName)}
-                     FROM ${source}) AS ${quoteIdentifier(nextAlias)}`
-        alias = nextAlias
-      })
-    return source
-  }
-
-  private requiredDerivedColumns(
-    fields: EidosFileFieldInfo[],
-    requestedColumns: ReadonlySet<string>
-  ): Set<string> {
-    const fieldsByColumn = new Map(
-      fields.map((field) => [field.tableColumnName, field])
-    )
-    const required = new Set<string>()
-    const visit = (columnName: string) => {
-      const field = fieldsByColumn.get(columnName)
-      if (!field?.isDerived || required.has(columnName)) return
-      required.add(columnName)
-      if (typeof field.sourceTableColumnName === "string") {
-        visit(field.sourceTableColumnName)
-      }
-      if (!Array.isArray(field.dependsOn)) return
-      for (const dependency of field.dependsOn) {
-        if (typeof dependency === "string") visit(dependency)
-      }
-    }
-    requestedColumns.forEach(visit)
-    return required
-  }
-
-  private countRowSourceSql(
-    tableId: string,
-    fields: EidosFileFieldInfo[],
-    query: EidosFileRowQuery,
-    projectedColumns: Iterable<string> = [],
-    table = this.getTable(tableId)
-  ): string {
-    const requestedColumns = eidosFileRowQueryPredicateColumns(fields, query)
-    for (const columnName of projectedColumns) {
-      requestedColumns.add(columnName)
-    }
-    return this.rowSourceSql(tableId, fields, requestedColumns, table)
-  }
-
-  private viewQueryIndexSql(view: EidosFileViewInfo): string | null {
-    if (view.type !== "gallery" && view.type !== "kanban") return null
-    const table = this.getTable(view.tableId)
-    const fields = this.listFields(view.tableId)
-    const fieldsByColumn = new Map(
-      fields.map((field) => [field.tableColumnName, field])
-    )
-    const columns: string[] = []
-    const seen = new Set<string>()
-    const groupByField =
-      view.type === "kanban" &&
-      typeof view.properties?.groupByField === "string"
-        ? fieldsByColumn.get(view.properties.groupByField)
-        : undefined
-
-    if (groupByField && !groupByField.isDerived) {
-      columns.push(quoteIdentifier(groupByField.tableColumnName))
-      seen.add(groupByField.tableColumnName)
-    }
-
-    for (const sort of view.sorts) {
-      if (seen.has(sort.field)) continue
-      const field = fieldsByColumn.get(sort.field)
-      if (!field || field.isDerived) break
-      columns.push(
-        `${quoteIdentifier(field.tableColumnName)}${
-          eidosFileFieldUsesNoCaseSort(field) ? " COLLATE NOCASE" : ""
-        } ${sort.direction === "desc" ? "DESC" : "ASC"}`
-      )
-      seen.add(field.tableColumnName)
-    }
-
-    if (columns.length === 0) return null
-    return `CREATE INDEX ${quoteIdentifier(
-      eidosFileViewQueryIndexName(view.id)
-    )} ON ${quoteIdentifier(table.rawTableName)} (${columns.join(", ")})`
-  }
-
-  private syncViewQueryIndex(view: EidosFileViewInfo): void {
-    const indexName = eidosFileViewQueryIndexName(view.id)
-    const expectedSql = this.viewQueryIndexSql(view)
-    const existing = this.connection.get<{ sql: string | null }>(
-      `SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?`,
-      [indexName]
-    )
-    if (
-      expectedSql &&
-      existing?.sql &&
-      normalizedSql(existing.sql) === normalizedSql(expectedSql)
-    ) {
-      return
-    }
-    if (existing) {
-      this.connection.exec(`DROP INDEX ${quoteIdentifier(indexName)}`)
-    }
-    if (expectedSql) this.connection.exec(expectedSql)
-  }
-
-  private dropViewQueryIndexes(tableId: string): void {
-    const table = this.getTable(tableId)
-    const indexes = this.connection.query<{ name: string }>(
-      `SELECT name FROM sqlite_master
-        WHERE type = 'index' AND tbl_name = ? AND name GLOB ?`,
-      [table.rawTableName, `${EIDOS_FILE_VIEW_QUERY_INDEX_PREFIX}*`]
-    )
-    for (const index of indexes) {
-      this.connection.exec(`DROP INDEX ${quoteIdentifier(index.name)}`)
-    }
-  }
-
-  optimizeViewQueries(tableId?: string): void {
-    const tables = tableId ? [this.getTable(tableId)] : this.listTables()
-    for (const table of tables) {
-      const views = this.listViews(table.id)
-      const expectedNames = new Set(
-        views.map((view) => eidosFileViewQueryIndexName(view.id))
-      )
-      const indexes = this.connection.query<{ name: string }>(
-        `SELECT name FROM sqlite_master
-          WHERE type = 'index' AND tbl_name = ? AND name GLOB ?`,
-        [table.rawTableName, `${EIDOS_FILE_VIEW_QUERY_INDEX_PREFIX}*`]
-      )
-      for (const index of indexes) {
-        if (!expectedNames.has(index.name)) {
-          this.connection.exec(`DROP INDEX ${quoteIdentifier(index.name)}`)
-        }
-      }
-      for (const view of views) this.syncViewQueryIndex(view)
-    }
-  }
-
-  private lookupExpression(
-    tableId: string,
-    field: EidosFileFieldInfo,
-    fields: EidosFileFieldInfo[],
-    sourceAlias: string,
-    context: EidosFileLookupCompilationContext = EMPTY_LOOKUP_COMPILATION_CONTEXT
-  ): string {
-    const fieldKey = eidosFileLookupFieldKey(tableId, field.tableColumnName)
-    const cycleStart = context.path.findIndex((node) => node.key === fieldKey)
-    if (cycleStart >= 0) {
-      const cycle = [
-        ...context.path.slice(cycleStart).map((node) => node.label),
-        field.name,
-      ].join(" → ")
-      throw new EidosFileError(
-        "invalid-schema",
-        `Circular Eidos File lookup dependency: ${cycle}`
-      )
-    }
-    if (context.path.length >= 32) {
-      throw new EidosFileError(
-        "invalid-schema",
-        "Eidos File lookup dependency depth cannot exceed 32 fields"
-      )
-    }
-    const nextContext: EidosFileLookupCompilationContext = {
-      ...context,
-      path: [...context.path, { key: fieldKey, label: field.name }],
-    }
-    const relationColumn = field.property?.relationField
-    const targetColumn = field.property?.targetField
-    const aggregate = field.property?.aggregate
-    const aggregates = new Set<EidosFileLookupAggregate>([
-      "first",
-      "values",
-      "count",
-      "sum",
-      "average",
-      "min",
-      "max",
-    ])
-    if (
-      typeof relationColumn !== "string" ||
-      typeof targetColumn !== "string" ||
-      typeof aggregate !== "string" ||
-      !aggregates.has(aggregate as EidosFileLookupAggregate)
-    ) {
-      throw new EidosFileError(
-        "invalid-schema",
-        `Lookup field “${field.name}” has incomplete settings`
-      )
-    }
-    const lookupAggregate = aggregate as EidosFileLookupAggregate
-    const relation = fields.find(
-      (candidate) => candidate.tableColumnName === relationColumn
-    )
-    if (!relation || relation.type !== "link") {
-      throw new EidosFileError(
-        "field-not-found",
-        `Lookup relation field not found: ${relationColumn}`
-      )
-    }
-    const target = this.relationTarget(relation)
-    if (!target) {
-      throw new EidosFileError(
-        "invalid-schema",
-        `Relation field “${relation.name}” has no target table`
-      )
-    }
-    const targetTable = this.getTable(target.tableId)
-    const targetFields = this.queryFields(targetTable).map(
-      (candidate) =>
-        context.overrides?.get(
-          eidosFileLookupFieldKey(target.tableId, candidate.tableColumnName)
-        ) ?? candidate
-    )
-    const targetField = targetFields.find(
-      (candidate) => candidate.tableColumnName === targetColumn
-    )
-    if (!targetField) {
-      throw new EidosFileError(
-        "field-not-found",
-        `Lookup target field not found: ${targetColumn}`
-      )
-    }
-    const nestedLookup =
-      targetField.type === "lookup" &&
-      targetField.valueKind === "derived" &&
-      targetField.isDerived
-    if (targetField.isDerived && !nestedLookup) {
-      throw new EidosFileError(
-        "invalid-schema",
-        "An Eidos File lookup target must be stored or another Lookup field"
-      )
-    }
-    if (this.getTable(tableId).rawTableName !== field.tableName) {
-      throw new EidosFileError(
-        "invalid-schema",
-        "Lookup field belongs to another table"
-      )
-    }
-    const outerRelation = `${quoteIdentifier(sourceAlias)}.${quoteIdentifier(relationColumn)}`
-    const targetAlias = quoteIdentifier("lookup_target")
-    const targetValue = `${targetAlias}.${quoteIdentifier(targetColumn)}`
-    if (!eidosFileLookupAggregateSupportsTarget(lookupAggregate, targetField)) {
-      throw new EidosFileError(
-        "invalid-schema",
-        `${lookupAggregate} lookup requires a number or rating target field`
-      )
-    }
-    const expectedDisplayType = eidosFileLookupDisplayType(
-      lookupAggregate,
-      targetField
-    )
-    if (field.property?.displayType !== expectedDisplayType) {
-      throw new EidosFileError(
-        "invalid-schema",
-        `Lookup field “${field.name}” must use ${expectedDisplayType} display values`
-      )
-    }
-    const relationAlias = quoteIdentifier("lookup_relation")
-    const relationRows = `json_each(
-      CASE
-        WHEN json_valid(${outerRelation})
-         AND json_type(${outerRelation}) = 'array'
-          THEN ${outerRelation}
-        ELSE '[]'
-      END
-    ) AS ${relationAlias}`
-    const from = nestedLookup
-      ? `(SELECT * FROM ${this.rowSourceSql(
-          targetTable.id,
-          targetFields,
-          new Set([targetField.tableColumnName]),
-          targetTable,
-          nextContext
-        )}) AS ${targetAlias}`
-      : `${quoteIdentifier(targetTable.rawTableName)} AS ${targetAlias}`
-    const targetJoin = `JOIN ${from}
-      ON CAST(${targetAlias}._id AS TEXT) = CAST(${relationAlias}.value AS TEXT)`
-    const valueAlias = quoteIdentifier("lookup_value")
-    const stream = eidosFileFieldStoresJsonArray(targetField)
-      ? `SELECT CAST(${relationAlias}.key AS INTEGER) AS record_order,
-                CAST(${valueAlias}.key AS INTEGER) AS value_order,
-                ${valueAlias}.value AS value
-           FROM ${relationRows}
-           ${targetJoin}
-           JOIN json_each(
-             CASE
-               WHEN json_valid(${targetValue})
-                AND json_type(${targetValue}) = 'array'
-                 THEN ${targetValue}
-               ELSE '[]'
-             END
-           ) AS ${valueAlias} ON TRUE`
-      : `SELECT CAST(${relationAlias}.key AS INTEGER) AS record_order,
-                0 AS value_order,
-                ${targetValue} AS value
-           FROM ${relationRows}
-           ${targetJoin}
-          WHERE ${targetValue} IS NOT NULL`
-    if (lookupAggregate === "first") {
-      return `SELECT value FROM (${stream})
-               ORDER BY record_order, value_order LIMIT 1`
-    }
-    if (lookupAggregate === "values") {
-      return `SELECT COALESCE(json_group_array(value), '[]')
-                FROM (
-                  SELECT value FROM (${stream})
-                   ORDER BY record_order, value_order
-                )`
-    }
-    if (lookupAggregate === "count") {
-      return `SELECT COUNT(*) FROM (${stream})`
-    }
-    const functionName =
-      lookupAggregate === "average" ? "AVG" : lookupAggregate.toUpperCase()
-    return `SELECT ${functionName}(CAST(value AS REAL))
-              FROM (${stream})`
-  }
-
-  private validateLookupTargetDependents(
-    targetTableId: string,
-    targetColumnName: string,
-    overrides: ReadonlyMap<string, EidosFileFieldInfo>
-  ): void {
-    for (const sourceTable of this.listTables()) {
-      const sourceFields = this.queryFields(sourceTable).map(
-        (candidate) =>
-          overrides.get(
-            eidosFileLookupFieldKey(sourceTable.id, candidate.tableColumnName)
-          ) ?? candidate
-      )
-      for (const candidate of sourceFields) {
-        if (
-          candidate.type !== "lookup" ||
-          candidate.valueKind !== "derived" ||
-          !candidate.isDerived ||
-          candidate.property?.targetField !== targetColumnName
-        ) {
-          continue
-        }
-        const relation = sourceFields.find(
-          (field) => field.tableColumnName === candidate.property?.relationField
-        )
-        if (
-          relation &&
-          this.relationTarget(relation)?.tableId === targetTableId
-        ) {
-          this.lookupExpression(
-            sourceTable.id,
-            candidate,
-            sourceFields,
-            "lookup_source",
-            { path: [], overrides }
-          )
-        }
-      }
-    }
-  }
-
-  private getComputedRow(
-    tableId: string,
-    rowId: EidosFileSqlParams[number],
-    fields: EidosFileFieldInfo[],
-    table = this.getTable(tableId)
-  ): EidosFileRow | undefined {
-    const row = this.connection.get<EidosFileRow>(
-      `SELECT * FROM ${this.rowSourceSql(tableId, fields, undefined, table)} WHERE _id = ?`,
-      [rowId]
-    )
-    if (row) delete row.__base_rowid
-    return row
-  }
-
-  previewFormula(
-    tableId: string,
-    input: EidosFileFormulaPreviewInput
-  ): EidosFileFormulaPreview {
-    const table = this.getTable(tableId)
-    const columnName = assertEidosFileColumnName(input.columnName)
-    const fields = this.listFields(tableId)
-    const existing = fields.find(
-      (field) => field.tableColumnName === columnName
-    )
-    if (existing && existing.type !== "formula") {
-      throw new EidosFileError(
-        "invalid-schema",
-        `Eidos File field “${existing.name}” is not a formula`
-      )
-    }
-    const draft: EidosFileFieldInfo = existing
-      ? {
-          ...existing,
-          name: input.name.trim() || existing.name,
-          property: {
-            formula: input.formula,
-            displayType: input.displayType,
-          },
-          dependsOn: null,
-        }
-      : {
-          name: input.name.trim() || columnName,
-          type: "formula",
-          tableName: table.rawTableName,
-          tableColumnName: columnName,
-          property: {
-            formula: input.formula,
-            displayType: input.displayType,
-          },
-          storageCodec: "scalar",
-          valueKind: "derived",
-          isHidden: false,
-          isDerived: true,
-          sourceTableColumnName: null,
-          dependsOn: null,
-        }
-    const draftFields = existing
-      ? fields.map((field) =>
-          field.tableColumnName === columnName ? draft : field
-        )
-      : [...fields, draft]
-    const compiled = compileEidosFileFormula(draft, draftFields)
-    const resolvedDraft: EidosFileFieldInfo = {
-      ...draft,
-      property: {
-        ...draft.property,
-        expression: compiled.expression,
-      },
-      dependsOn: compiled.dependencies,
-    }
-    const previewFields = draftFields.map((field) =>
-      field.tableColumnName === columnName ? resolvedDraft : field
-    )
-    compileEidosFileFormulaFields(previewFields)
-    const samples = this.connection.query<{
-      row_id: EidosFileRow[string]
-      title: EidosFileRow[string]
-      value: EidosFileRow[string]
-    }>(
-      `SELECT _id AS row_id, title, ${quoteIdentifier(columnName)} AS value
-         FROM ${this.rowSourceSql(tableId, previewFields)}
-        ORDER BY "__base_rowid" ASC
-        LIMIT 3`
-    )
-    return {
-      expression: compiled.expression,
-      dependencies: compiled.dependencies.map((dependency) => {
-        const field = previewFields.find(
-          (candidate) => candidate.tableColumnName === dependency
-        )
-        return {
-          name: field?.name ?? dependency,
-          columnName: dependency,
-        }
-      }),
-      samples: samples.map((sample) => ({
-        rowId: String(sample.row_id),
-        title: sample.title === null ? null : String(sample.title),
-        value: sample.value,
-      })),
-    }
+  validate(
+    options: {
+      level?: "identity" | "structural" | "content" | "semantic" | "full"
+    } = {}
+  ) {
+    return validateEidosFile(this.connection, options)
   }
 
   info(): EidosFileMetadata {
-    const result = validateEidosFile(this.connection)
-    if (!result.valid || !result.metadata) {
+    const result = validateEidosFile(this.connection, { level: "identity" })
+    if (!result.metadata || !result.valid) {
       throw new EidosFileError(
-        "invalid-schema",
-        result.errors.map((issue) => issue.message).join("; ") ||
-          "Invalid Eidos File"
+        "not-eidos-file",
+        result.errors.map((issue) => issue.message).join("; ")
       )
     }
     return result.metadata
   }
 
-  listTables(): EidosFileTableInfo[] {
-    return this.connection
-      .query<RegistryRow>(
-        `SELECT id, name, raw_table_name, position, icon, description,
-                created_at, updated_at
-           FROM ${EIDOS_FILE_TABLES_TABLE}
-          ORDER BY position, created_at, id`
-      )
-      .map(tableInfoFromRow)
+  metadata(): EidosFileMetadata {
+    return this.info()
   }
 
-  getTable(tableId: string): EidosFileTableInfo {
-    assertEidosFileTableId(tableId)
-    const row = this.connection.get<RegistryRow>(
-      `SELECT id, name, raw_table_name, position, icon, description,
-              created_at, updated_at
-         FROM ${EIDOS_FILE_TABLES_TABLE}
-        WHERE id = ?`,
-      [tableId]
+  private tableRow(tableId: string): TableRow {
+    const row = this.allSchema().tables.get(
+      assertEidosFileUuid(tableId, "Table ID")
     )
     if (!row) {
       throw new EidosFileError(
         "table-not-found",
-        `Eidos File table not found: ${tableId}`
+        `Eidos File Table not found: ${tableId}`
       )
     }
-    return tableInfoFromRow(row)
+    return row
+  }
+
+  private fieldRows(tableId: string): FieldRow[] {
+    return this.connection.query<FieldRow>(
+      `SELECT * FROM ${EIDOS_FILE_FIELDS_TABLE}
+        WHERE table_id = ? ORDER BY position, id`,
+      [assertEidosFileUuid(tableId, "Table ID")]
+    )
+  }
+
+  private allSchema(): RuntimeSchema {
+    const dataVersion = this.connection.dataVersion()
+    if (
+      this.mutationDepth === 0 &&
+      this.schemaCache?.dataVersion === dataVersion
+    ) {
+      return this.schemaCache.schema
+    }
+    const tableRows = this.connection.query<TableRow>(
+      `SELECT * FROM ${EIDOS_FILE_TABLES_TABLE}`
+    )
+    const tables = new Map(tableRows.map((table) => [uuid(table.id), table]))
+    const relationRows = this.connection.query<RelationRow>(
+      `SELECT * FROM ${EIDOS_FILE_RELATION_FIELDS_TABLE}`
+    )
+    const formulaRows = this.connection.query<FormulaRow>(
+      `SELECT * FROM ${EIDOS_FILE_FORMULA_FIELDS_TABLE}`
+    )
+    const lookupRows = this.connection.query<LookupRow>(
+      `SELECT * FROM ${EIDOS_FILE_LOOKUP_FIELDS_TABLE}`
+    )
+    const relations = new Map(
+      relationRows.map((row) => [uuid(row.field_id), row])
+    )
+    const formulas = new Map(
+      formulaRows.map((row) => [uuid(row.field_id), row])
+    )
+    const lookups = new Map(lookupRows.map((row) => [uuid(row.field_id), row]))
+    const fields = new Map<string, EidosFileFieldInfo>()
+    const fieldsByTable = new Map<string, EidosFileFieldInfo[]>()
+    for (const row of this.connection.query<FieldRow>(
+      `SELECT * FROM ${EIDOS_FILE_FIELDS_TABLE} ORDER BY table_id, position, id`
+    )) {
+      const id = uuid(row.id)
+      const tableId = uuid(row.table_id)
+      const table = tables.get(tableId)
+      if (!table) continue
+      const relation = relations.get(id)
+      const formula = formulas.get(id)
+      const lookup = lookups.get(id)
+      const settings = jsonObject(row.settings_json)
+      const type: EidosFileFieldType =
+        row.system_role === "row-id"
+          ? "row-id"
+          : row.system_role === "created-time"
+            ? "created-time"
+            : row.system_role === "updated-time"
+              ? "last-edited-time"
+              : row.type
+      const virtual =
+        type === "formula" ||
+        type === "lookup" ||
+        (type === "relation" && relation?.direction === "inverse")
+      let property: Record<string, unknown> | null = settings
+      if (relation) {
+        property = {
+          ...settings,
+          targetTableId: uuid(relation.target_table_id),
+          targetField: "",
+          multiple: relation.cardinality === "many",
+          direction: relation.direction,
+          sourceFieldId: relation.inverse_of_field_id
+            ? uuid(relation.inverse_of_field_id)
+            : undefined,
+          cardinality: relation.cardinality,
+          onDelete: relation.on_delete,
+        }
+      } else if (formula) {
+        property = {
+          ...settings,
+          formula: formula.source_text,
+          displayType: formula.result_type,
+        }
+      } else if (lookup) {
+        const target = fields.get(uuid(lookup.target_field_id))
+        property = {
+          ...settings,
+          relationField: uuid(lookup.relation_field_id),
+          targetField: uuid(lookup.target_field_id),
+          aggregate: lookup.aggregate,
+          displayType: target
+            ? eidosFileLookupDisplayType(lookup.aggregate, target)
+            : lookup.aggregate === "count"
+              ? "number"
+              : "text",
+          distinct: lookup.distinct_values === 1,
+        }
+      }
+      const field: EidosFileFieldInfo = {
+        id,
+        tableId,
+        name: row.name,
+        type,
+        tableName: table.physical_name,
+        tableColumnName: row.physical_name ?? id,
+        physicalName: row.physical_name,
+        systemRole: row.system_role,
+        nullable: row.nullable === 1,
+        isRecordLabel: table.label_field_id === id,
+        position: row.position,
+        settings,
+        property,
+        storageCodec:
+          type === "relation" && relation?.direction === "forward"
+            ? "relation"
+            : type === "file" ||
+                type === "multi-select" ||
+                (type === "lookup" && lookup?.aggregate === "values")
+              ? "json_array"
+              : "scalar",
+        valueKind: ["row-id", "created-time", "last-edited-time"].includes(type)
+          ? "system"
+          : virtual
+            ? "derived"
+            : type === "relation"
+              ? "relation"
+              : "source",
+        isHidden: ["row-id", "created-time", "last-edited-time"].includes(type),
+        isDerived: virtual,
+        sourceTableColumnName:
+          relation?.direction === "inverse" && relation.inverse_of_field_id
+            ? uuid(relation.inverse_of_field_id)
+            : null,
+        dependsOn: formula
+          ? []
+          : lookup
+            ? [uuid(lookup.relation_field_id), uuid(lookup.target_field_id)]
+            : null,
+      }
+      fields.set(id, field)
+      const ownerFields = fieldsByTable.get(tableId) ?? []
+      ownerFields.push(field)
+      fieldsByTable.set(tableId, ownerFields)
+    }
+    // Resolve nested Lookup result TypeRefs after every Field is known.
+    for (let pass = 0; pass < fields.size; pass += 1) {
+      let changed = false
+      for (const [id, lookup] of lookups) {
+        const field = fields.get(id)
+        const target = fields.get(uuid(lookup.target_field_id))
+        if (field?.property && target) {
+          const valueType = eidosFileLookupValueType(lookup.aggregate, target)
+          const displayType = eidosFileLookupDisplayType(
+            lookup.aggregate,
+            target
+          )
+          if (
+            JSON.stringify(field.property.valueType) !==
+              JSON.stringify(valueType) ||
+            field.property.displayType !== displayType
+          ) {
+            field.property.valueType = valueType
+            field.property.displayType = displayType
+            changed = true
+          }
+        }
+      }
+      if (!changed) break
+    }
+    const schema = {
+      tables,
+      fields,
+      fieldsByTable,
+      relations,
+      formulas,
+      lookups,
+    }
+    if (this.mutationDepth === 0) this.schemaCache = { dataVersion, schema }
+    return schema
+  }
+
+  listTables(): EidosFileTableInfo[] {
+    return Array.from(this.allSchema().tables.values())
+      .sort(
+        (left, right) =>
+          left.position - right.position ||
+          uuid(left.id).localeCompare(uuid(right.id))
+      )
+      .map((row) => ({
+        ...(() => {
+          const settings = jsonObject(row.settings_json)
+          return {
+            icon: typeof settings.icon === "string" ? settings.icon : null,
+            description:
+              typeof settings.description === "string"
+                ? settings.description
+                : null,
+          }
+        })(),
+        id: uuid(row.id),
+        name: row.name,
+        physicalName: row.physical_name,
+        rawTableName: row.physical_name,
+        position: row.position,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }))
+  }
+
+  getTable(tableId: string): EidosFileTableInfo {
+    const row = this.tableRow(tableId)
+    const settings = jsonObject(row.settings_json)
+    return {
+      id: uuid(row.id),
+      name: row.name,
+      physicalName: row.physical_name,
+      rawTableName: row.physical_name,
+      position: row.position,
+      icon: typeof settings.icon === "string" ? settings.icon : null,
+      description:
+        typeof settings.description === "string" ? settings.description : null,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+  }
+
+  listFields(tableId: string): EidosFileFieldInfo[] {
+    this.tableRow(tableId)
+    return this.allSchema().fieldsByTable.get(tableId) ?? []
+  }
+
+  private fieldByKey(tableId: string, key: string): EidosFileFieldInfo {
+    const fields = this.listFields(tableId)
+    const field = fields.find(
+      (candidate) =>
+        candidate.id === key ||
+        candidate.tableColumnName === key ||
+        candidate.physicalName === key ||
+        candidate.name === key
+    )
+    if (!field) {
+      throw new EidosFileError(
+        "field-not-found",
+        `Eidos File Field not found: ${key}`
+      )
+    }
+    return field
+  }
+
+  /** @internal Exact Runtime service transaction composition hook. */
+  applyCanonicalMutation<T>(
+    operation: (instant: string) => T,
+    expectedRevision?: number | bigint
+  ): T {
+    return this.mutate(
+      () => operation(this.operationInstant()),
+      expectedRevision
+    )
+  }
+
+  private mutate<T>(operation: () => T, expectedRevision?: number | bigint): T {
+    if (this.mutationDepth > 0) return operation()
+    return this.connection.transaction(() => {
+      this.schemaCache = undefined
+      const revision = this.info().revision ?? 0
+      if (
+        expectedRevision !== undefined &&
+        BigInt(revision) !== BigInt(expectedRevision)
+      ) {
+        throw new EidosFileError(
+          "stale-revision",
+          `Expected revision ${expectedRevision}, found ${revision}`
+        )
+      }
+      const totalChangesBefore =
+        this.connection.get<{ total: number | bigint }>(
+          "SELECT total_changes() AS total"
+        )?.total ?? 0
+      this.mutationInstant = this.nowInstant()
+      this.mutationDepth += 1
+      try {
+        const result = operation()
+        const totalChangesAfter =
+          this.connection.get<{ total: number | bigint }>(
+            "SELECT total_changes() AS total"
+          )?.total ?? totalChangesBefore
+        if (BigInt(totalChangesAfter) === BigInt(totalChangesBefore)) {
+          return result
+        }
+        const validation = validateEidosFile(this.connection, {
+          level: "semantic",
+        })
+        if (!validation.valid) {
+          throw new EidosFileError(
+            "invalid-schema",
+            validation.errors.map((issue) => issue.message).join("; ")
+          )
+        }
+        incrementEidosFileRevision(this.connection, this.operationInstant())
+        return result
+      } finally {
+        this.mutationDepth -= 1
+        this.mutationInstant = null
+        this.schemaCache = undefined
+      }
+    })
+  }
+
+  private operationInstant(): string {
+    return this.mutationInstant ?? this.nowInstant()
+  }
+
+  private prepareFields(input: CreateEidosFileTableInput): PreparedField[] {
+    const systemIds = [this.allocateId(), this.allocateId(), this.allocateId()]
+    const userFields: PreparedField[] = (input.fields ?? []).map((field) => {
+      const id = field.id ?? this.allocateId()
+      assertEidosFileUuid(id, "Field ID")
+      assertEidosFileDisplayName(field.name, "Field name")
+      return {
+        id,
+        name: field.name,
+        type: canonicalFieldType(field),
+        physicalName: null,
+        settings: {
+          ...presentationSettings(field),
+          ...(field.type === "rating" ? { display: { kind: "rating" } } : {}),
+        },
+        input: field,
+        isRecordLabel: "isRecordLabel" in field && field.isRecordLabel === true,
+        systemRole: null,
+        nullable:
+          field.type === "formula" || field.type === "lookup"
+            ? true
+            : field.type === "file" ||
+                field.type === "multi-select" ||
+                field.type === "relation"
+              ? false
+              : "nullable" in field
+                ? field.nullable !== false
+                : true,
+      } satisfies PreparedField
+    })
+    const names = new Set<string>(
+      Object.values(SYSTEM_FIELD_NAMES).map((name) =>
+        name.replace(/[A-Z]/g, (character) => character.toLowerCase())
+      )
+    )
+    if (userFields.filter((field) => field.isRecordLabel).length > 1) {
+      throw new EidosFileError(
+        "constraint-conflict",
+        "A Table can declare only one Record Label Field"
+      )
+    }
+    for (const field of userFields) {
+      const folded = field.name.replace(/[A-Z]/g, (character) =>
+        character.toLowerCase()
+      )
+      if (names.has(folded)) {
+        throw new EidosFileError(
+          "constraint-conflict",
+          `Field names must be unique under SQLite NOCASE: ${field.name}`
+        )
+      }
+      names.add(folded)
+    }
+    const systemTypes = ["row-id", "created-time", "last-edited-time"] as const
+    const system = systemTypes.map(
+      (type, index) =>
+        ({
+          id: systemIds[index]!,
+          name: SYSTEM_FIELD_NAMES[type],
+          type,
+          physicalName: SYSTEM_FIELD_PHYSICAL_NAMES[type],
+          settings: {},
+          isRecordLabel: false,
+          systemRole: type === "last-edited-time" ? "updated-time" : type,
+          nullable: false,
+        }) satisfies PreparedField
+    )
+    if (!userFields.some((field) => field.isRecordLabel)) {
+      const firstScalar = userFields.find(
+        (field) =>
+          LABEL_TYPES.has(field.type) &&
+          !isVirtualField(field.type, field.input)
+      )
+      ;(firstScalar ?? system[0]!).isRecordLabel = true
+    }
+    const existing = new Set<string>(system.map((field) => field.physicalName!))
+    for (const field of userFields) {
+      if (isVirtualField(field.type, field.input)) continue
+      field.physicalName = eidosFilePhysicalName(
+        "field",
+        field.name,
+        field.id,
+        existing
+      )
+      existing.add(field.physicalName)
+    }
+    return [...system, ...userFields]
   }
 
   createTable(input: CreateEidosFileTableInput): EidosFileTableInfo {
-    const tableId = assertEidosFileTableId(
-      input.id ?? createEidosFileIdentifier()
+    assertEidosFileDisplayName(input.name, "Table name")
+    const tableId = input.id ?? this.allocateId()
+    assertEidosFileUuid(tableId, "Table ID")
+    const existing = this.listTables().map(
+      (table) => table.physicalName ?? table.rawTableName
     )
-    const rawTableName = rawTableNameForId(tableId)
-    const quotedTable = quoteIdentifier(rawTableName)
-    const position =
-      this.connection.get<{ position: number }>(
-        `SELECT COALESCE(MAX(position), 0) + 1 AS position FROM ${EIDOS_FILE_TABLES_TABLE}`
-      )?.position ?? 1
-
-    this.connection.transaction(() => {
-      this.connection.exec(`
-        CREATE TABLE ${quotedTable} (
-          _id TEXT PRIMARY KEY NOT NULL,
-          title TEXT NULL,
-          _created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          _last_edited_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          _created_by TEXT DEFAULT 'unknown',
-          _last_edited_by TEXT DEFAULT 'unknown'
-        );
-      `)
+    const physicalName = eidosFilePhysicalName(
+      "table",
+      input.name,
+      tableId,
+      existing
+    )
+    const fields = this.prepareFields(input)
+    const position = this.listTables().length
+    return this.mutate(() => {
+      const now = this.operationInstant()
+      const definitions = fields.flatMap((field) => {
+        const definition = fieldColumnSql(field)
+        return definition ? [definition] : []
+      })
+      this.connection.exec(
+        `CREATE TABLE ${quoteIdentifier(physicalName)} (${definitions.join(", ")}) STRICT, WITHOUT ROWID`
+      )
+      const labelField = fields.find((field) => field.isRecordLabel)
+      if (!labelField) {
+        throw new EidosFileError(
+          "invalid-schema",
+          "A Table requires exactly one Record Label Field"
+        )
+      }
+      const tableSettings = canonicalizeEidosFileJson({
+        ...(input.icon === undefined ? {} : { icon: input.icon }),
+        ...(input.description === undefined
+          ? {}
+          : { description: input.description }),
+      })
       this.connection.run(
         `INSERT INTO ${EIDOS_FILE_TABLES_TABLE}
-          (id, name, raw_table_name, position, icon, description)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+          (id, name, physical_name, label_field_id, position, settings_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           tableId,
           input.name,
-          rawTableName,
+          physicalName,
+          labelField.id,
           position,
-          input.icon ?? null,
-          input.description ?? null,
+          tableSettings,
+          now,
+          now,
         ]
       )
-      for (const field of SYSTEM_FIELDS) {
+      // Insert every base Field first. Lookup and inverse definitions may
+      // reference siblings whose position is later in the input list.
+      fields.forEach((field, fieldPosition) => {
+        const position =
+          field.systemRole === "row-id"
+            ? -3
+            : field.systemRole === "created-time"
+              ? -2
+              : field.systemRole === "updated-time"
+                ? -1
+                : fieldPosition - 3
+        this.insertFieldMetadata(tableId, field, position, now)
+      })
+      fields.forEach((field) => {
+        this.insertFieldSubtypeMetadata(tableId, field)
+      })
+      this.installRowIdTrigger(tableId, physicalName)
+      for (const field of fields) {
+        if (field.type === "relation" && field.input) {
+          this.installRelationTriggers(field.id)
+        }
+      }
+      if (input.createDefaultView !== false) {
+        const viewId = this.allocateId()
+        const fieldOrder = fields.map((field) => field.id)
         this.connection.run(
-          `INSERT INTO ${EIDOS_FILE_COLUMNS_TABLE}
-            (name, type, table_name, table_column_name, storage_codec,
-             value_kind, is_hidden, is_derived)
-           VALUES (?, ?, ?, ?, 'scalar', 'system', ?, 0)`,
+          `INSERT INTO ${EIDOS_FILE_VIEWS_TABLE}
+            (id, table_id, name, type, query_json, layout_json, position, created_at, updated_at)
+           VALUES (?, ?, ?, 'grid', '{}', ?, 0, ?, ?)`,
           [
-            field.name,
-            field.type,
-            rawTableName,
-            field.columnName,
-            field.hidden ? 1 : 0,
+            viewId,
+            tableId,
+            "Grid",
+            canonicalizeEidosFileJson({
+              cardFields: [],
+              coverField: null,
+              fieldOrder,
+              fieldWidths: {},
+              groupField: null,
+              hiddenFields: fields
+                .filter(
+                  (field) =>
+                    !field.isRecordLabel &&
+                    ["row-id", "created-time", "last-edited-time"].includes(
+                      field.type
+                    )
+                )
+                .map((field) => field.id),
+            }),
+            now,
+            now,
           ]
         )
       }
-      for (const field of input.fields ?? []) this.addField(tableId, field)
-      if (input.createDefaultView !== false) {
-        this.connection.run(
-          `INSERT INTO ${EIDOS_FILE_VIEWS_TABLE}
-            (id, name, type, table_id, query, position)
-           VALUES (?, 'Grid', 'grid', ?, ?, 1)`,
-          [createEidosFileUuid(), tableId, `SELECT * FROM ${quotedTable}`]
-        )
-      }
-      const currentDefault = this.connection.get<{ value: string }>(
-        `SELECT value FROM ${EIDOS_FILE_META_TABLE} WHERE key = 'default_table_id'`
-      )
-      if (!currentDefault) {
-        this.touchMetadata({ default_table_id: tableId })
+      return {
+        id: tableId,
+        name: input.name,
+        physicalName,
+        rawTableName: physicalName,
+        position,
+        icon: input.icon ?? null,
+        description: input.description ?? null,
+        createdAt: now,
+        updatedAt: now,
       }
     })
-    return this.getTable(tableId)
+  }
+
+  private insertFieldMetadata(
+    tableId: string,
+    field: PreparedField,
+    position: number,
+    now: string
+  ): void {
+    this.connection.run(
+      `INSERT INTO ${EIDOS_FILE_FIELDS_TABLE}
+        (id, table_id, name, physical_name, type, system_role, nullable, position,
+         settings_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        field.id,
+        tableId,
+        field.name,
+        field.physicalName,
+        persistedFieldType(field.type),
+        field.systemRole,
+        field.nullable ? 1 : 0,
+        position,
+        canonicalizeEidosFileJson(field.settings),
+        now,
+        now,
+      ]
+    )
+  }
+
+  private insertFieldSubtypeMetadata(
+    tableId: string,
+    field: PreparedField
+  ): void {
+    const input = field.input
+    if (!input) return
+    if (field.type === "formula" && input.type === "formula") {
+      this.connection.run(
+        `INSERT INTO ${EIDOS_FILE_FORMULA_FIELDS_TABLE}
+          (field_id, source_text, result_type) VALUES (?, ?, ?)`,
+        [field.id, input.property.formula, input.property.displayType]
+      )
+    }
+    if (field.type === "relation" && input.type === "relation") {
+      const direction = input.property.direction ?? "forward"
+      const sourceFieldId = input.property.sourceFieldId ?? null
+      const cardinality =
+        direction === "inverse"
+          ? "many"
+          : (input.property.cardinality ??
+            (input.property.multiple ? "many" : "one"))
+      this.connection.run(
+        `INSERT INTO ${EIDOS_FILE_RELATION_FIELDS_TABLE}
+          (field_id, direction, inverse_of_field_id, target_table_id, cardinality, on_delete)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          field.id,
+          direction,
+          sourceFieldId
+            ? assertEidosFileUuid(sourceFieldId, "Source Field ID")
+            : null,
+          assertEidosFileUuid(input.property.targetTableId, "Target Table ID"),
+          cardinality,
+          direction === "forward"
+            ? (input.property.onDelete ?? "restrict")
+            : null,
+        ]
+      )
+    }
+    if (field.type === "lookup" && input.type === "lookup") {
+      const relation = this.fieldByKey(tableId, input.property.relationField)
+      const schema = this.allSchema()
+      const relationDefinition = schema.relations.get(relation.id!)
+      if (!relationDefinition) {
+        throw new EidosFileError(
+          "invalid-schema",
+          "Lookup requires a Relation Field"
+        )
+      }
+      const targetTableId = uuid(relationDefinition.target_table_id)
+      const target = this.fieldByKey(targetTableId, input.property.targetField)
+      this.connection.run(
+        `INSERT INTO ${EIDOS_FILE_LOOKUP_FIELDS_TABLE}
+          (field_id, relation_field_id, target_field_id, aggregate, distinct_values)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          field.id,
+          relation.id!,
+          target.id!,
+          input.property.aggregate,
+          input.property.distinct === true ? 1 : 0,
+        ]
+      )
+    }
+  }
+
+  private installRowIdTrigger(tableId: string, physicalName: string): void {
+    const trigger = `eidos__row_id_immutable__${tableId.replace(/-/g, "")}`
+    this.connection.exec(`
+      CREATE TRIGGER ${quoteIdentifier(trigger)}
+      BEFORE UPDATE OF "_id" ON ${quoteIdentifier(physicalName)}
+      WHEN NEW."_id" IS NOT OLD."_id"
+      BEGIN SELECT RAISE(ABORT, 'EIDOS_ROW_ID_IMMUTABLE'); END;
+    `)
+  }
+
+  private installRelationTriggers(fieldId: string): void {
+    const schema = this.allSchema()
+    const field = schema.fields.get(fieldId)
+    const relation = schema.relations.get(fieldId)
+    if (
+      !field ||
+      !relation ||
+      relation.direction !== "forward" ||
+      !field.physicalName
+    )
+      return
+    const sourceTable = schema.tables.get(field.tableId!)!
+    const targetTable = schema.tables.get(uuid(relation.target_table_id))!
+    const hex = fieldId.replace(/-/g, "")
+    const column = quoteIdentifier(field.physicalName)
+    const invalidUuid = `(typeof(item.value) <> 'text' OR length(item.value) <> 36
+      OR substr(item.value, 9, 1) <> '-' OR substr(item.value, 14, 1) <> '-'
+      OR substr(item.value, 19, 1) <> '-' OR substr(item.value, 24, 1) <> '-'
+      OR substr(item.value, 15, 1) <> '7'
+      OR substr(item.value, 20, 1) NOT IN ('8','9','a','b')
+      OR replace(item.value, '-', '') GLOB '*[^0-9a-f]*')`
+    for (const event of ["INSERT", "UPDATE"] as const) {
+      const triggerName = `eidos__relation_validate_${event.toLowerCase()}__${hex}`
+      const newValue = `NEW.${column}`
+      const safeArray = `CASE WHEN json_valid(${newValue}) AND json_type(${newValue}) = 'array' THEN ${newValue} ELSE '[]' END`
+      const updateOf = event === "UPDATE" ? ` OF ${column}` : ""
+      this.connection.exec(`
+        CREATE TRIGGER ${quoteIdentifier(triggerName)}
+        BEFORE ${event}${updateOf} ON ${quoteIdentifier(sourceTable.physical_name)}
+        WHEN NOT json_valid(${newValue})
+          OR json_type(${newValue}) <> 'array'
+          OR EXISTS (SELECT 1 FROM json_each(${safeArray}) item WHERE ${invalidUuid})
+          OR (SELECT count(*) FROM json_each(${safeArray})) <>
+             (SELECT count(DISTINCT value) FROM json_each(${safeArray}))
+          ${relation.cardinality === "one" ? `OR json_array_length(${safeArray}) > 1` : ""}
+        BEGIN SELECT RAISE(ABORT, 'EIDOS_INVALID_RELATION_VALUE'); END;
+      `)
+    }
+    if (relation.on_delete === "preserve") return
+    const targetUuid = `OLD."_id"`
+    const triggerName = `eidos__relation_${relation.on_delete}__${hex}`
+    if (relation.on_delete === "restrict") {
+      this.connection.exec(`
+        CREATE TRIGGER ${quoteIdentifier(triggerName)}
+        BEFORE DELETE ON ${quoteIdentifier(targetTable.physical_name)}
+        WHEN EXISTS (
+          SELECT 1 FROM ${quoteIdentifier(sourceTable.physical_name)} source,
+          json_each(source.${column}) item WHERE item.value = ${targetUuid}
+        )
+        BEGIN SELECT RAISE(ABORT, 'EIDOS_RELATION_RESTRICT'); END;
+      `)
+    } else {
+      this.connection.exec(`
+        CREATE TRIGGER ${quoteIdentifier(triggerName)}
+        BEFORE DELETE ON ${quoteIdentifier(targetTable.physical_name)}
+        WHEN EXISTS (
+          SELECT 1 FROM ${quoteIdentifier(sourceTable.physical_name)} source,
+          json_each(source.${column}) item WHERE item.value = ${targetUuid}
+        )
+        BEGIN
+          UPDATE ${quoteIdentifier(sourceTable.physical_name)}
+          SET ${column} = (
+            SELECT coalesce(json_group_array(value), '[]') FROM (
+              SELECT item.value AS value FROM json_each(${column}) item
+              WHERE item.value <> ${targetUuid} ORDER BY CAST(item.key AS INTEGER)
+            )
+          ), "_updated_at" = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          WHERE EXISTS (SELECT 1 FROM json_each(${column}) item WHERE item.value = ${targetUuid});
+        END;
+      `)
+    }
+  }
+
+  private dropRelationTriggers(fieldId: string): void {
+    const hex = fieldId.replace(/-/g, "")
+    for (const name of [
+      `eidos__relation_validate_insert__${hex}`,
+      `eidos__relation_validate_update__${hex}`,
+      `eidos__relation_restrict__${hex}`,
+      `eidos__relation_detach__${hex}`,
+      `eidos__relation_preserve__${hex}`,
+    ]) {
+      this.connection.exec(`DROP TRIGGER IF EXISTS ${quoteIdentifier(name)}`)
+    }
   }
 
   updateTable(
@@ -1016,374 +1408,1181 @@ export class EidosFileRuntime {
     changes: UpdateEidosFileTableInput
   ): EidosFileTableInfo {
     const table = this.getTable(tableId)
-    const name = changes.name === undefined ? table.name : changes.name.trim()
-    if (!name) {
-      throw new EidosFileError(
-        "invalid-identifier",
-        "Eidos File table name is required"
-      )
-    }
-    this.connection.transaction(() => {
+    return this.mutate(() => {
+      let name = table.name
+      let physicalName = table.physicalName ?? table.rawTableName
+      if (changes.name !== undefined && changes.name !== table.name) {
+        name = assertEidosFileDisplayName(changes.name, "Table name")
+        physicalName = eidosFilePhysicalName(
+          "table",
+          name,
+          tableId,
+          this.listTables()
+            .filter((candidate) => candidate.id !== tableId)
+            .map(
+              (candidate) => candidate.physicalName ?? candidate.rawTableName
+            )
+        )
+        if (physicalName !== (table.physicalName ?? table.rawTableName)) {
+          const previousPhysicalName = table.physicalName ?? table.rawTableName
+          if (
+            previousPhysicalName !== physicalName &&
+            previousPhysicalName.replace(/[A-Z]/g, (character) =>
+              character.toLowerCase()
+            ) ===
+              physicalName.replace(/[A-Z]/g, (character) =>
+                character.toLowerCase()
+              )
+          ) {
+            const baseTemporary = `t__rename__${tableId.replace(/-/g, "")}`
+            let temporary = baseTemporary
+            let suffix = 0
+            const occupied = new Set(
+              this.listTables().map((candidate) =>
+                (candidate.physicalName ?? candidate.rawTableName).replace(
+                  /[A-Z]/g,
+                  (character) => character.toLowerCase()
+                )
+              )
+            )
+            while (occupied.has(temporary.toLowerCase())) {
+              suffix += 1
+              temporary = `${baseTemporary}__${suffix}`
+            }
+            this.connection.exec(
+              `ALTER TABLE ${quoteIdentifier(previousPhysicalName)} RENAME TO ${quoteIdentifier(temporary)}`
+            )
+            this.connection.exec(
+              `ALTER TABLE ${quoteIdentifier(temporary)} RENAME TO ${quoteIdentifier(physicalName)}`
+            )
+          } else {
+            this.connection.exec(
+              `ALTER TABLE ${quoteIdentifier(previousPhysicalName)} RENAME TO ${quoteIdentifier(physicalName)}`
+            )
+          }
+        }
+      }
+      const now = this.operationInstant()
+      const settings = canonicalizeEidosFileJson({
+        ...(changes.icon === undefined
+          ? table.icon === null
+            ? {}
+            : { icon: table.icon }
+          : changes.icon === null
+            ? {}
+            : { icon: changes.icon }),
+        ...(changes.description === undefined
+          ? table.description === null
+            ? {}
+            : { description: table.description }
+          : changes.description === null
+            ? {}
+            : { description: changes.description }),
+      })
       this.connection.run(
         `UPDATE ${EIDOS_FILE_TABLES_TABLE}
-            SET name = ?, icon = ?, description = ?,
-                updated_at = CURRENT_TIMESTAMP
+            SET name = ?, physical_name = ?, settings_json = ?, updated_at = ?
           WHERE id = ?`,
-        [
-          name,
-          changes.icon === undefined ? table.icon : changes.icon,
-          changes.description === undefined
-            ? table.description
-            : changes.description,
-          tableId,
-        ]
+        [name, physicalName, settings, now, tableId]
       )
-      this.touchMetadata({})
+      return this.getTable(tableId)
     })
-    return this.getTable(tableId)
   }
 
   deleteTable(tableId: string): boolean {
     const table = this.getTable(tableId)
-    const inboundRelations = this.listTables().flatMap((sourceTable) =>
-      sourceTable.id === tableId
-        ? []
-        : this.listFields(sourceTable.id).filter(
-            (field) => this.relationTarget(field)?.tableId === tableId
-          )
-    )
-    if (inboundRelations.length > 0) {
-      throw new EidosFileError(
-        "relation-in-use",
-        `Eidos File table “${table.name}” is used by ${inboundRelations.length} relation field${inboundRelations.length === 1 ? "" : "s"}`
+    return this.mutate(() => {
+      this.connection.exec(
+        `DROP TABLE ${quoteIdentifier(table.physicalName ?? table.rawTableName)}`
       )
-    }
-    return this.connection.transaction(() => {
-      this.connection.run(
-        `DELETE FROM ${EIDOS_FILE_REFERENCES_TABLE}
-          WHERE self_table_name = ? OR ref_table_name = ? OR link_table_name = ?`,
-        [table.rawTableName, table.rawTableName, table.rawTableName]
-      )
-      this.connection.run(
-        `DELETE FROM ${EIDOS_FILE_VIEWS_TABLE} WHERE table_id = ?`,
-        [tableId]
-      )
-      this.connection.run(
-        `DELETE FROM ${EIDOS_FILE_COLUMNS_TABLE} WHERE table_name = ?`,
-        [table.rawTableName]
-      )
-      this.connection.run(
+      const result = this.connection.run(
         `DELETE FROM ${EIDOS_FILE_TABLES_TABLE} WHERE id = ?`,
         [tableId]
       )
-      this.connection.exec(`DROP TABLE ${quoteIdentifier(table.rawTableName)}`)
-
-      const currentDefault = this.connection.get<{ value: string }>(
-        `SELECT value FROM ${EIDOS_FILE_META_TABLE} WHERE key = 'default_table_id'`
-      )
-      if (currentDefault?.value === tableId) {
-        const nextDefault = this.connection.get<{ id: string }>(
-          `SELECT id FROM ${EIDOS_FILE_TABLES_TABLE}
-            ORDER BY position, created_at, id LIMIT 1`
-        )
-        if (nextDefault) {
-          this.connection.run(
-            `UPDATE ${EIDOS_FILE_META_TABLE} SET value = ? WHERE key = 'default_table_id'`,
-            [nextDefault.id]
-          )
-        } else {
-          this.connection.run(
-            `DELETE FROM ${EIDOS_FILE_META_TABLE} WHERE key = 'default_table_id'`
-          )
-        }
-      }
-      this.touchMetadata({})
-      return true
+      return result.changes > 0
     })
   }
 
-  private queryFields(table: EidosFileTableInfo): EidosFileFieldInfo[] {
-    return this.connection
-      .query<FieldRow>(
-        `SELECT name, type, table_name, table_column_name, property,
-                storage_codec, value_kind, is_hidden, is_derived,
-                source_table_column_name, depends_on
-           FROM ${EIDOS_FILE_COLUMNS_TABLE}
-          WHERE table_name = ?
-          ORDER BY created_at, rowid`,
-        [table.rawTableName]
+  addField(
+    tableId: string,
+    input: CreateEidosFileFieldInput,
+    placement?: EidosFileFieldPlacement
+  ): EidosFileFieldInfo {
+    const table = this.getTable(tableId)
+    assertEidosFileDisplayName(input.name, "Field name")
+    const id = input.id ?? this.allocateId()
+    assertEidosFileUuid(id, "Field ID")
+    const type = canonicalFieldType(input)
+    const fields = this.listFields(tableId)
+    if (
+      fields.some(
+        (field) =>
+          field.name.replace(/[A-Z]/g, (character) =>
+            character.toLowerCase()
+          ) ===
+          input.name.replace(/[A-Z]/g, (character) => character.toLowerCase())
       )
-      .map((field) => ({
-        name: field.name,
-        type: field.type,
-        tableName: field.table_name,
-        tableColumnName: field.table_column_name,
-        property: parseJson(field.property) as Record<string, unknown> | null,
-        storageCodec: field.storage_codec,
-        valueKind: field.value_kind,
-        isHidden: field.is_hidden === 1,
-        isDerived: field.is_derived === 1,
-        sourceTableColumnName: field.source_table_column_name,
-        dependsOn: parseJson(field.depends_on),
-      }))
+    ) {
+      throw new EidosFileError(
+        "constraint-conflict",
+        `Duplicate Field name: ${input.name}`
+      )
+    }
+    const physicalName = isVirtualField(type, input)
+      ? null
+      : eidosFilePhysicalName(
+          "field",
+          input.name,
+          id,
+          fields.flatMap((field) =>
+            field.physicalName ? [field.physicalName] : []
+          )
+        )
+    const prepared: PreparedField = {
+      id,
+      name: input.name,
+      type,
+      physicalName,
+      settings: {
+        ...presentationSettings(input),
+        ...(input.type === "rating" ? { display: { kind: "rating" } } : {}),
+      },
+      input,
+      isRecordLabel: "isRecordLabel" in input && input.isRecordLabel === true,
+      systemRole: null,
+      nullable:
+        input.type === "formula" || input.type === "lookup"
+          ? true
+          : input.type === "file" ||
+              input.type === "multi-select" ||
+              input.type === "relation"
+            ? false
+            : "nullable" in input
+              ? input.nullable !== false
+              : true,
+    }
+    if (
+      prepared.physicalName &&
+      !prepared.nullable &&
+      !["file", "multi-select", "relation"].includes(prepared.type) &&
+      this.countRows(tableId) > 0
+    ) {
+      throw new EidosFileError(
+        "constraint-conflict",
+        "A populated Table cannot add a non-null scalar Field without a default"
+      )
+    }
+    return this.mutate(() => {
+      if (prepared.isRecordLabel && prepared.type === "lookup") {
+        throw new EidosFileError(
+          "invalid-schema",
+          "A Lookup cannot be the Record Label Field in Eidos File 1.0"
+        )
+      }
+      const definition = fieldColumnSql(prepared)
+      if (definition) {
+        this.connection.exec(
+          `ALTER TABLE ${quoteIdentifier(table.physicalName ?? table.rawTableName)} ADD COLUMN ${definition}`
+        )
+      }
+      this.insertFieldMetadata(
+        tableId,
+        prepared,
+        fields.length,
+        this.operationInstant()
+      )
+      this.insertFieldSubtypeMetadata(tableId, prepared)
+      if (prepared.isRecordLabel) {
+        this.connection.run(
+          `UPDATE ${EIDOS_FILE_TABLES_TABLE}
+              SET label_field_id = ?, updated_at = ? WHERE id = ?`,
+          [id, this.operationInstant(), tableId]
+        )
+      }
+      if (type === "relation") this.installRelationTriggers(id)
+      if (placement) {
+        const view = this.viewRow(placement.viewId)
+        const layout = jsonObject(view.layout_json)
+        const order = Array.isArray(layout.fieldOrder)
+          ? layout.fieldOrder.filter(
+              (value): value is string => typeof value === "string"
+            )
+          : fields.flatMap((field) => (field.id ? [field.id] : []))
+        order.splice(
+          Math.max(0, Math.min(placement.index, order.length)),
+          0,
+          id
+        )
+        layout.fieldOrder = order
+        this.connection.run(
+          `UPDATE ${EIDOS_FILE_VIEWS_TABLE} SET layout_json = ?, updated_at = ? WHERE id = ?`,
+          [canonicalizeEidosFileJson(layout), this.operationInstant(), view.id]
+        )
+      }
+      return this.fieldByKey(tableId, id)
+    })
   }
 
-  listFields(tableId: string): EidosFileFieldInfo[] {
-    return this.queryFields(this.getTable(tableId))
+  importField(
+    tableId: string,
+    input: ImportEidosFileFieldInput
+  ): EidosFileFieldInfo {
+    if (
+      input.type === "formula" ||
+      input.type === "lookup" ||
+      input.type === "relation"
+    ) {
+      throw new EidosFileError(
+        "invalid-schema",
+        "Import derived and Relation Fields through canonical subtype definitions"
+      )
+    }
+    return this.addField(tableId, {
+      name: input.name,
+      columnName: input.columnName,
+      type: input.type as EidosFileSourceFieldType,
+      property: input.property ?? undefined,
+      storageCodec: input.storageCodec,
+    })
   }
 
-  listViews(tableId: string): EidosFileViewInfo[] {
-    this.getTable(tableId)
-    return this.connection
-      .query<ViewRow>(
-        `SELECT id, name, type, table_id, query, properties, filter,
-                order_map, hidden_fields, position, created_at, updated_at
-           FROM ${EIDOS_FILE_VIEWS_TABLE}
-          WHERE table_id = ?
-          ORDER BY position, created_at, id`,
-        [tableId]
+  updateField(
+    tableId: string,
+    fieldKey: string,
+    changes: UpdateEidosFileFieldInput
+  ): EidosFileFieldInfo {
+    const table = this.getTable(tableId)
+    const field = this.fieldByKey(tableId, fieldKey)
+    const fieldId = field.id
+    if (
+      changes.type !== undefined &&
+      canonicalFieldType({
+        type: changes.type,
+      } as CreateEidosFileFieldInput) !== field.type
+    ) {
+      throw new EidosFileError(
+        "invalid-schema",
+        "Field type conversion requires an explicit canonical conversion operation"
       )
-      .map((view) => {
-        const properties = parseJson(view.properties) as Record<
-          string,
-          unknown
-        > | null
-        return {
-          id: view.id,
-          name: view.name,
-          type: view.type,
-          tableId: view.table_id,
-          query: view.query,
-          properties,
-          filter: normalizeEidosFileFilter(parseJson(view.filter)),
-          sorts: normalizeEidosFileSorts(properties?.sorts),
-          orderMap: parseJson(view.order_map) as Record<string, number> | null,
-          hiddenFields:
-            (parseJson(view.hidden_fields) as string[] | null) ?? [],
-          position: view.position,
-          createdAt: view.created_at,
-          updatedAt: view.updated_at,
+    }
+    return this.mutate(() => {
+      let name = field.name
+      let physicalName: string | null = field.physicalName ?? null
+      if (changes.name !== undefined && changes.name !== field.name) {
+        name = assertEidosFileDisplayName(changes.name, "Field name")
+        const fields = this.listFields(tableId)
+        if (
+          fields.some(
+            (candidate) =>
+              candidate.id !== field.id &&
+              candidate.name.replace(/[A-Z]/g, (character) =>
+                character.toLowerCase()
+              ) ===
+                name.replace(/[A-Z]/g, (character) => character.toLowerCase())
+          )
+        ) {
+          throw new EidosFileError(
+            "constraint-conflict",
+            `Duplicate Field name: ${name}`
+          )
         }
-      })
+        if (field.physicalName) {
+          physicalName = eidosFilePhysicalName(
+            "field",
+            name,
+            fieldId,
+            fields
+              .filter((candidate) => candidate.id !== field.id)
+              .flatMap((candidate) =>
+                candidate.physicalName ? [candidate.physicalName] : []
+              )
+          )
+          if (physicalName !== field.physicalName) {
+            this.connection.exec(
+              `ALTER TABLE ${quoteIdentifier(table.physicalName ?? table.rawTableName)} RENAME COLUMN ${quoteIdentifier(field.physicalName)} TO ${quoteIdentifier(physicalName)}`
+            )
+          }
+        }
+        const formulaRows = this.connection.query<{
+          field_id: string
+          source_text: string
+        }>(
+          `SELECT formula.field_id, formula.source_text
+             FROM ${EIDOS_FILE_FORMULA_FIELDS_TABLE} formula
+             JOIN ${EIDOS_FILE_FIELDS_TABLE} owner ON owner.id = formula.field_id
+            WHERE owner.table_id = ?`,
+          [tableId]
+        )
+        for (const formula of formulaRows) {
+          const expression = rewriteEidosFileFormulaFieldReferences(
+            formula.source_text,
+            field.name,
+            name
+          )
+          if (expression !== formula.source_text) {
+            this.connection.run(
+              `UPDATE ${EIDOS_FILE_FORMULA_FIELDS_TABLE} SET source_text = ? WHERE field_id = ?`,
+              [expression, formula.field_id]
+            )
+          }
+        }
+      }
+
+      let settings = field.settings ?? {}
+      if (changes.property !== undefined) {
+        settings = presentationSettingsObject(changes.property)
+      }
+      if (field.type === "select" || field.type === "multi-select") {
+        settings.options = assertEidosFileSelectOptions(settings).map(
+          (option) => ({
+            color: option.color,
+            name: option.name,
+          })
+        )
+      }
+      if (changes.optionValueChanges && changes.optionValueChanges.length > 0) {
+        if (field.type !== "select" && field.type !== "multi-select") {
+          throw new EidosFileError(
+            "invalid-schema",
+            "Only Select Fields have option values"
+          )
+        }
+        const replacements = new Map(
+          changes.optionValueChanges.map((change) => [change.from, change.to])
+        )
+        for (const [from, to] of replacements) {
+          if (field.type === "select") {
+            this.connection.run(
+              `UPDATE ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
+                  SET ${quoteIdentifier(field.physicalName!)} = ?, "_updated_at" = ?
+                WHERE ${quoteIdentifier(field.physicalName!)} = ?`,
+              [to, this.operationInstant(), from]
+            )
+          } else {
+            this.connection.run(
+              `UPDATE ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
+                  SET ${quoteIdentifier(field.physicalName!)} = (
+                    SELECT json_group_array(value) FROM (
+                      SELECT value FROM (
+                        SELECT CASE WHEN value = ? THEN ? ELSE value END AS value,
+                               CAST(key AS INTEGER) AS position
+                          FROM json_each(${quoteIdentifier(field.physicalName!)})
+                      ) GROUP BY value ORDER BY min(position)
+                    )
+                  ), "_updated_at" = ?
+                WHERE EXISTS (
+                  SELECT 1 FROM json_each(${quoteIdentifier(field.physicalName!)}) WHERE value = ?
+                )`,
+              [from, to, this.operationInstant(), from]
+            )
+          }
+        }
+        for (const view of this.connection.query<ViewRow>(
+          `SELECT * FROM ${EIDOS_FILE_VIEWS_TABLE}`
+        )) {
+          const query = transformOptionValue(
+            parseEidosFileJson(view.query_json),
+            fieldId,
+            replacements
+          )
+          const layout = transformOptionValue(
+            parseEidosFileJson(view.layout_json),
+            fieldId,
+            replacements
+          )
+          this.connection.run(
+            `UPDATE ${EIDOS_FILE_VIEWS_TABLE} SET query_json = ?, layout_json = ?, updated_at = ? WHERE id = ?`,
+            [
+              canonicalizeEidosFileJson(query),
+              canonicalizeEidosFileJson(layout),
+              this.operationInstant(),
+              view.id,
+            ]
+          )
+        }
+      }
+
+      if (field.type === "formula" && changes.property) {
+        const expression = changes.property.formula
+        const resultType = changes.property.displayType
+        if (typeof expression !== "string" || typeof resultType !== "string") {
+          throw new EidosFileError(
+            "invalid-schema",
+            "Formula requires expression and result type"
+          )
+        }
+        const draft: EidosFileFieldInfo = {
+          ...field,
+          name,
+          physicalName,
+          property: {
+            ...changes.property,
+            formula: expression,
+            displayType: resultType,
+          },
+        }
+        compileEidosFileFormula(
+          draft,
+          this.listFields(tableId).map((candidate) =>
+            candidate.id === fieldId ? draft : candidate
+          )
+        )
+        this.connection.run(
+          `UPDATE ${EIDOS_FILE_FORMULA_FIELDS_TABLE}
+              SET source_text = ?, result_type = ? WHERE field_id = ?`,
+          [expression, resultType, fieldId]
+        )
+      }
+
+      if (field.type === "lookup" && changes.property) {
+        const relationKey = changes.property.relationField
+        const targetKey = changes.property.targetField
+        const aggregate = changes.property.aggregate
+        if (
+          typeof relationKey !== "string" ||
+          typeof targetKey !== "string" ||
+          ![
+            "first",
+            "values",
+            "count",
+            "sum",
+            "average",
+            "min",
+            "max",
+          ].includes(String(aggregate))
+        ) {
+          throw new EidosFileError(
+            "invalid-schema",
+            "Lookup requires Relation and target Field IDs"
+          )
+        }
+        const relationField = this.fieldByKey(tableId, relationKey)
+        const relation = this.allSchema().relations.get(relationField.id!)
+        if (!relation)
+          throw new EidosFileError(
+            "invalid-schema",
+            "Lookup requires a Relation Field"
+          )
+        const targetField = this.fieldByKey(
+          uuid(relation.target_table_id),
+          targetKey
+        )
+        this.connection.run(
+          `UPDATE ${EIDOS_FILE_LOOKUP_FIELDS_TABLE}
+              SET relation_field_id = ?, target_field_id = ?, aggregate = ?, distinct_values = ?
+            WHERE field_id = ?`,
+          [
+            relationField.id!,
+            targetField.id!,
+            String(aggregate),
+            changes.property.distinct === true ? 1 : 0,
+            fieldId,
+          ]
+        )
+      }
+
+      if (field.type === "relation" && changes.property) {
+        const current = this.allSchema().relations.get(fieldId)
+        if (!current)
+          throw new EidosFileError(
+            "invalid-schema",
+            "Relation subtype is missing"
+          )
+        const direction = changes.property.direction ?? current.direction
+        if (direction !== current.direction) {
+          throw new EidosFileError(
+            "invalid-schema",
+            "Changing Relation direction in place is not supported; create the inverse Field explicitly"
+          )
+        }
+        const targetTableId =
+          changes.property.targetTableId ?? uuid(current.target_table_id)
+        const sourceFieldId =
+          changes.property.sourceFieldId ??
+          (current.inverse_of_field_id
+            ? uuid(current.inverse_of_field_id)
+            : null)
+        const cardinality =
+          direction === "inverse"
+            ? "many"
+            : (changes.property.cardinality ?? current.cardinality)
+        const onDelete =
+          direction === "forward"
+            ? (changes.property.onDelete ?? current.on_delete ?? "restrict")
+            : null
+        if (
+          (direction !== "forward" && direction !== "inverse") ||
+          typeof targetTableId !== "string" ||
+          (cardinality !== "one" && cardinality !== "many") ||
+          (onDelete !== null &&
+            !["restrict", "detach", "preserve"].includes(String(onDelete)))
+        ) {
+          throw new EidosFileError(
+            "invalid-schema",
+            "Invalid Relation definition"
+          )
+        }
+        this.dropRelationTriggers(fieldId)
+        this.connection.run(
+          `UPDATE ${EIDOS_FILE_RELATION_FIELDS_TABLE}
+              SET direction = ?, inverse_of_field_id = ?, target_table_id = ?, cardinality = ?, on_delete = ?
+            WHERE field_id = ?`,
+          [
+            direction,
+            sourceFieldId
+              ? assertEidosFileUuid(String(sourceFieldId), "Source Field ID")
+              : null,
+            assertEidosFileUuid(String(targetTableId), "Target Table ID"),
+            cardinality,
+            onDelete === null ? null : String(onDelete),
+            fieldId,
+          ]
+        )
+        this.installRelationTriggers(fieldId)
+      }
+
+      const now = this.operationInstant()
+      this.connection.run(
+        `UPDATE ${EIDOS_FILE_FIELDS_TABLE}
+            SET name = ?, physical_name = ?, settings_json = ?, updated_at = ?
+          WHERE id = ?`,
+        [name, physicalName, canonicalizeEidosFileJson(settings), now, fieldId]
+      )
+      if (changes.isRecordLabel === true) {
+        if (field.type === "lookup") {
+          throw new EidosFileError(
+            "invalid-schema",
+            "A Lookup cannot be the Record Label Field in Eidos File 1.0"
+          )
+        }
+        this.connection.run(
+          `UPDATE ${EIDOS_FILE_TABLES_TABLE}
+              SET label_field_id = ?, updated_at = ? WHERE id = ?`,
+          [fieldId, now, tableId]
+        )
+      }
+      return this.fieldByKey(tableId, fieldId)
+    })
   }
 
-  updateView(
-    viewId: string,
-    changes: UpdateEidosFileViewInput
-  ): EidosFileViewInfo {
-    const existing = this.connection.get<ViewRow>(
-      `SELECT id, name, type, table_id, query, properties, filter,
-              order_map, hidden_fields, position, created_at, updated_at
-         FROM ${EIDOS_FILE_VIEWS_TABLE}
-        WHERE id = ?`,
-      [viewId]
+  setFieldNullable(fieldId: string, nullable: boolean): EidosFileFieldInfo {
+    const field = Array.from(this.allSchema().fields.values()).find(
+      (candidate) => candidate.id === fieldId
     )
-    if (!existing) {
+    if (!field) {
       throw new EidosFileError(
-        "view-not-found",
-        `Eidos File view not found: ${viewId}`
-      )
-    }
-    const name =
-      changes.name === undefined ? existing.name : changes.name.trim()
-    if (!name) {
-      throw new EidosFileError(
-        "invalid-identifier",
-        "Eidos File view name is required"
-      )
-    }
-    const type =
-      changes.type === undefined ? existing.type : changes.type.trim()
-    if (!type) {
-      throw new EidosFileError(
-        "invalid-identifier",
-        "Eidos File view type is required"
+        "field-not-found",
+        "Eidos File Field not found: " + fieldId
       )
     }
     if (
-      changes.position !== undefined &&
-      changes.position !== null &&
-      (!Number.isSafeInteger(changes.position) || changes.position < 0)
+      field.systemRole ||
+      !field.physicalName ||
+      ["file", "multi-select", "relation", "formula", "lookup"].includes(
+        field.type
+      )
     ) {
       throw new EidosFileError(
-        "invalid-range",
-        "Eidos File view position must be a non-negative integer"
+        "protected-field",
+        "Only stored scalar and JSON Fields have configurable nullability"
       )
     }
-    const currentProperties = parseJson(existing.properties) as Record<
-      string,
-      unknown
-    > | null
-    const requestedProperties =
-      changes.properties === undefined ? currentProperties : changes.properties
-    const properties =
-      changes.sorts === undefined
-        ? requestedProperties
-        : {
-            ...(requestedProperties ?? {}),
-            sorts: normalizeEidosFileSorts(changes.sorts),
-          }
-    this.connection.transaction(() => {
+    if ((field.nullable ?? true) === nullable) return field
+    return this.mutate(() => {
+      const table = this.getTable(field.tableId)
+      if (!nullable) {
+        const nulls =
+          this.connection.get<{ count: number | bigint }>(
+            "SELECT count(*) AS count FROM " +
+              quoteIdentifier(table.physicalName ?? table.rawTableName) +
+              " WHERE " +
+              quoteIdentifier(field.physicalName!) +
+              " IS NULL"
+          )?.count ?? 0
+        if (BigInt(nulls) > 0n) {
+          throw new EidosFileError(
+            "constraint-conflict",
+            "Existing SQL NULL values block non-nullability"
+          )
+        }
+      }
       this.connection.run(
-        `UPDATE ${EIDOS_FILE_VIEWS_TABLE}
-            SET name = ?, type = ?, position = ?, properties = ?, filter = ?,
-                order_map = ?, hidden_fields = ?,
-                updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?`,
+        "UPDATE " + EIDOS_FILE_FIELDS_TABLE + " SET nullable=? WHERE id=?",
+        [nullable ? 1 : 0, fieldId]
+      )
+      this.rebuildUserTable(field.tableId)
+      return this.fieldByKey(field.tableId, fieldId)
+    })
+  }
+
+  /** @internal Applies a preflighted Runtime 1.0 stored-type conversion. */
+  convertStoredField(
+    fieldId: string,
+    targetType: EidosFileFieldType,
+    nullable: boolean,
+    rows: readonly {
+      id: string
+      value: EidosFileSqlPrimitive
+      changed: boolean
+    }[],
+    relation?: {
+      targetTableId: string
+      cardinality: "one" | "many"
+      onDelete: "restrict" | "detach" | "preserve"
+    }
+  ): EidosFileFieldInfo {
+    const field = Array.from(this.allSchema().fields.values()).find(
+      (candidate) => candidate.id === fieldId
+    )
+    if (
+      !field ||
+      field.systemRole ||
+      !field.physicalName ||
+      ["formula", "lookup"].includes(field.type) ||
+      [
+        "formula",
+        "lookup",
+        "row-id",
+        "created-time",
+        "last-edited-time",
+      ].includes(targetType)
+    ) {
+      throw new EidosFileError(
+        "protected-field",
+        "Stored-type conversion requires a writable stored Field"
+      )
+    }
+    if (targetType === "relation" && !relation) {
+      throw new EidosFileError(
+        "invalid-schema",
+        "Relation conversion requires a forward Relation definition"
+      )
+    }
+    const expectedRows = this.countRows(field.tableId)
+    if (
+      rows.length !== expectedRows ||
+      new Set(rows.map((row) => row.id)).size !== rows.length
+    ) {
+      throw new EidosFileError(
+        "stale-revision",
+        "Conversion rows no longer match the Table"
+      )
+    }
+    return this.mutate(() => {
+      const relationFieldIdsBefore = Array.from(
+        this.allSchema().relations.keys()
+      )
+      for (const relationFieldId of relationFieldIdsBefore) {
+        this.dropRelationTriggers(relationFieldId)
+      }
+      this.connection.run(
+        `DELETE FROM ${EIDOS_FILE_RELATION_FIELDS_TABLE} WHERE field_id = ?`,
+        [fieldId]
+      )
+      this.connection.run(
+        `UPDATE ${EIDOS_FILE_FIELDS_TABLE}
+            SET type = ?, nullable = ? WHERE id = ?`,
         [
-          name,
-          type,
-          changes.position === undefined ? existing.position : changes.position,
-          JSON.stringify(properties),
-          JSON.stringify(
-            changes.filter === undefined
-              ? normalizeEidosFileFilter(parseJson(existing.filter))
-              : normalizeEidosFileFilter(changes.filter)
-          ),
-          JSON.stringify(
-            changes.orderMap === undefined
-              ? parseJson(existing.order_map)
-              : changes.orderMap
-          ),
-          JSON.stringify(
-            changes.hiddenFields === undefined
-              ? parseJson(existing.hidden_fields)
-              : changes.hiddenFields
-          ),
-          viewId,
+          targetType,
+          targetType === "file" ||
+          targetType === "multi-select" ||
+          targetType === "relation"
+            ? 0
+            : nullable
+              ? 1
+              : 0,
+          fieldId,
         ]
       )
-      const updated = this.listViews(existing.table_id).find(
-        (view) => view.id === viewId
-      )
-      if (!updated) {
-        throw new EidosFileError(
-          "view-not-found",
-          `Eidos File view not found: ${viewId}`
+      if (targetType === "relation" && relation) {
+        this.connection.run(
+          `INSERT INTO ${EIDOS_FILE_RELATION_FIELDS_TABLE}
+            (field_id, direction, target_table_id, cardinality, inverse_of_field_id, on_delete)
+           VALUES (?, 'forward', ?, ?, NULL, ?)`,
+          [
+            fieldId,
+            assertEidosFileUuid(relation.targetTableId, "Target Table ID"),
+            relation.cardinality,
+            relation.onDelete,
+          ]
         )
       }
-      this.syncViewQueryIndex(updated)
-      this.touchMetadata({})
+      this.schemaCache = undefined
+      this.rebuildUserTable(
+        field.tableId,
+        {
+          fieldId,
+          rows: new Map(rows.map((row) => [row.id, row])),
+        },
+        relationFieldIdsBefore
+      )
+      this.connection.run(
+        `UPDATE ${EIDOS_FILE_TABLES_TABLE} SET updated_at = ? WHERE id = ?`,
+        [this.operationInstant(), field.tableId]
+      )
+      return this.fieldByKey(field.tableId, fieldId)
     })
-    const updated = this.listViews(existing.table_id).find(
-      (view) => view.id === viewId
+  }
+
+  private rebuildUserTable(
+    tableId: string,
+    transformed?: {
+      fieldId: string
+      rows: Map<
+        string,
+        { id: string; value: EidosFileSqlPrimitive; changed: boolean }
+      >
+    },
+    relationFieldIdsBefore?: string[]
+  ): void {
+    this.schemaCache = undefined
+    const table = this.getTable(tableId)
+    const physicalName = table.physicalName ?? table.rawTableName
+    const fields = this.listFields(tableId)
+    const stored = fields.filter((field) => field.physicalName)
+    const definitions = stored.map(
+      (field) =>
+        fieldColumnSql({
+          id: field.id!,
+          name: field.name,
+          type: field.type,
+          physicalName: field.physicalName!,
+          settings: field.settings ?? {},
+          isRecordLabel: field.isRecordLabel === true,
+          systemRole: field.systemRole ?? null,
+          nullable: field.nullable ?? false,
+        })!
     )
-    if (!updated) {
-      throw new EidosFileError(
-        "view-not-found",
-        `Eidos File view not found: ${viewId}`
+    const temporary = this.transientTableName(
+      "t__rebuild__" + tableId.replace(/-/g, "")
+    )
+    const staging = this.transientTableName(
+      "t__rebuild_old__" + tableId.replace(/-/g, "")
+    )
+    const relationFieldIds = Array.from(
+      new Set([
+        ...(relationFieldIdsBefore ?? []),
+        ...Array.from(this.allSchema().relations.keys()),
+      ])
+    )
+    for (const relationFieldId of relationFieldIds) {
+      this.dropRelationTriggers(relationFieldId)
+    }
+    const organization = this.connection.get<{ sql: string }>(
+      "SELECT sql FROM sqlite_schema WHERE type='table' AND name=?",
+      [physicalName]
+    )?.sql
+    const withoutRowid = /\bWITHOUT\s+ROWID\b/i.test(organization ?? "")
+    this.connection.exec(
+      "CREATE TABLE " +
+        quoteIdentifier(temporary) +
+        " (" +
+        definitions.join(", ") +
+        `) STRICT${withoutRowid ? ", WITHOUT ROWID" : ""}`
+    )
+    const columns = stored.map((field) => quoteIdentifier(field.physicalName!))
+    if (transformed) {
+      const sourceRows = this.connection.query<
+        Record<string, EidosFileSqlPrimitive>
+      >(
+        `SELECT * FROM ${quoteIdentifier(physicalName)} ORDER BY "_id" COLLATE BINARY`
+      )
+      const parameterSets = sourceRows.map((row) => {
+        const rowId = String(row._id)
+        const conversion = transformed.rows.get(rowId)
+        if (!conversion) {
+          throw new EidosFileError(
+            "stale-revision",
+            "Conversion row set changed before apply"
+          )
+        }
+        return stored.map((storedField) => {
+          if (storedField.id === transformed.fieldId) return conversion.value
+          if (storedField.systemRole === "updated-time" && conversion.changed) {
+            return this.operationInstant()
+          }
+          return row[storedField.physicalName!]
+        })
+      })
+      const placeholders = columns.map(() => "?").join(", ")
+      const sql = `INSERT INTO ${quoteIdentifier(temporary)} (${columns.join(", ")}) VALUES (${placeholders})`
+      if (this.connection.runMany) this.connection.runMany(sql, parameterSets)
+      else
+        for (const parameters of parameterSets)
+          this.connection.run(sql, parameters)
+    } else {
+      this.connection.exec(
+        "INSERT INTO " +
+          quoteIdentifier(temporary) +
+          " (" +
+          columns.join(", ") +
+          ") SELECT " +
+          columns.join(", ") +
+          " FROM " +
+          quoteIdentifier(physicalName)
       )
     }
-    return updated
+    this.connection.exec(
+      `DROP TRIGGER IF EXISTS ${quoteIdentifier(
+        `eidos__row_id_immutable__${tableId.replace(/-/g, "")}`
+      )}`
+    )
+    this.connection.exec(
+      `ALTER TABLE ${quoteIdentifier(physicalName)} RENAME TO ${quoteIdentifier(staging)}`
+    )
+    this.connection.exec(
+      "ALTER TABLE " +
+        quoteIdentifier(temporary) +
+        " RENAME TO " +
+        quoteIdentifier(physicalName)
+    )
+    this.connection.exec("DROP TABLE " + quoteIdentifier(staging))
+    this.installRowIdTrigger(tableId, physicalName)
+    for (const relationFieldId of relationFieldIds) {
+      this.installRelationTriggers(relationFieldId)
+    }
+    this.schemaCache = undefined
+  }
+
+  private transientTableName(base: string): string {
+    const names = new Set(
+      this.connection
+        .query<{ name: string }>("SELECT name FROM sqlite_schema")
+        .map((row) => row.name)
+    )
+    if (!names.has(base)) return base
+    for (let suffix = 1; suffix < Number.MAX_SAFE_INTEGER; suffix += 1) {
+      const candidate = `${base}__${suffix}`
+      if (!names.has(candidate)) return candidate
+    }
+    throw new EidosFileError(
+      "resource-limit",
+      "No collision-free rebuild Table name is available"
+    )
+  }
+
+  deleteField(
+    tableId: string,
+    fieldKey: string,
+    replacementRecordLabelFieldId?: string
+  ): boolean {
+    const table = this.getTable(tableId)
+    const field = this.fieldByKey(tableId, fieldKey)
+    if (!field.id) return false
+    if (field.valueKind === "system") {
+      throw new EidosFileError(
+        "protected-field",
+        "System Fields cannot be deleted"
+      )
+    }
+    if (field.isRecordLabel && !replacementRecordLabelFieldId) {
+      throw new EidosFileError(
+        "constraint-conflict",
+        "Deleting the Record Label Field requires a replacement Field ID"
+      )
+    }
+    const replacement = replacementRecordLabelFieldId
+      ? this.fieldByKey(tableId, replacementRecordLabelFieldId)
+      : undefined
+    if (replacement?.id === field.id) {
+      throw new EidosFileError(
+        "constraint-conflict",
+        "The replacement Record Label Field must be a different Field"
+      )
+    }
+    return this.mutate(() => {
+      if (field.isRecordLabel && replacement?.id) {
+        this.connection.run(
+          `UPDATE ${EIDOS_FILE_TABLES_TABLE}
+              SET label_field_id = ?, updated_at = ? WHERE id = ?`,
+          [replacement.id, this.operationInstant(), tableId]
+        )
+      }
+      const dependentLookup = this.connection.get<{ field_id: string }>(
+        `SELECT field_id FROM ${EIDOS_FILE_LOOKUP_FIELDS_TABLE}
+          WHERE relation_field_id = ? OR target_field_id = ? LIMIT 1`,
+        [field.id!, field.id!]
+      )
+      const dependentInverse = this.connection.get<{ field_id: string }>(
+        `SELECT field_id FROM ${EIDOS_FILE_RELATION_FIELDS_TABLE}
+          WHERE inverse_of_field_id = ? LIMIT 1`,
+        [field.id!]
+      )
+      if (dependentLookup || dependentInverse) {
+        throw new EidosFileError(
+          "constraint-conflict",
+          `Field ${field.name} has structural dependents`
+        )
+      }
+      for (const formula of this.listFields(tableId).filter(
+        (candidate) => candidate.type === "formula"
+      )) {
+        const compiled = compileEidosFileFormula(
+          formula,
+          this.listFields(tableId)
+        )
+        if (compiled.dependencyFieldIds.includes(field.id!)) {
+          throw new EidosFileError(
+            "formula-in-use",
+            `Formula ${formula.name} depends on ${field.name}`
+          )
+        }
+      }
+      if (field.type === "relation") this.dropRelationTriggers(field.id!)
+      if (field.physicalName) {
+        this.connection.exec(
+          `ALTER TABLE ${quoteIdentifier(table.physicalName ?? table.rawTableName)} DROP COLUMN ${quoteIdentifier(field.physicalName)}`
+        )
+      }
+      const result = this.connection.run(
+        `DELETE FROM ${EIDOS_FILE_FIELDS_TABLE} WHERE id = ?`,
+        [field.id!]
+      )
+      return result.changes > 0
+    })
+  }
+
+  private viewRow(viewId: string): ViewRow {
+    const row = this.connection.get<ViewRow>(
+      `SELECT * FROM ${EIDOS_FILE_VIEWS_TABLE} WHERE id = ?`,
+      [assertEidosFileUuid(viewId, "View ID")]
+    )
+    if (!row)
+      throw new EidosFileError(
+        "view-not-found",
+        `Eidos File View not found: ${viewId}`
+      )
+    return row
+  }
+
+  private mapView(row: ViewRow): EidosFileViewInfo {
+    const tableId = uuid(row.table_id)
+    const fields = this.listFields(tableId)
+    const query = jsonObject(row.query_json)
+    const layout = jsonObject(row.layout_json)
+    const storedSorts = normalizeEidosFileSorts(query.sort)
+    const fieldIds = new Set(
+      fields.flatMap((field) => (field.id ? [field.id] : []))
+    )
+    const fieldOrder = Array.isArray(layout.fieldOrder)
+      ? layout.fieldOrder.flatMap((value) =>
+          typeof value === "string" && fieldIds.has(value) ? [value] : []
+        )
+      : []
+    const properties = { ...layout }
+    return {
+      id: uuid(row.id),
+      name: row.name,
+      type: row.type,
+      tableId,
+      query: "",
+      properties,
+      filter: filterFromStorage(query.filter, fields),
+      sorts: storedSorts.filter((sort) => fieldIds.has(sort.field)),
+      orderMap: Object.fromEntries(
+        fieldOrder.map((fieldId, index) => [fieldId, index])
+      ),
+      hiddenFields: Array.isArray(layout.hiddenFields)
+        ? layout.hiddenFields.flatMap((value) =>
+            typeof value === "string" && fieldIds.has(value) ? [value] : []
+          )
+        : [],
+      position: row.position,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+  }
+
+  listViews(tableId: string): EidosFileViewInfo[] {
+    this.tableRow(tableId)
+    return this.connection
+      .query<ViewRow>(
+        `SELECT * FROM ${EIDOS_FILE_VIEWS_TABLE}
+          WHERE table_id = ? ORDER BY position, id`,
+        [tableId]
+      )
+      .map((row) => this.mapView(row))
   }
 
   createView(
     tableId: string,
     input: CreateEidosFileViewInput
   ): EidosFileViewInfo {
-    const table = this.getTable(tableId)
-    const name = input.name.trim()
-    const type = input.type.trim()
-    if (!name || !type) {
-      throw new EidosFileError(
-        "invalid-identifier",
-        "Eidos File view name and type are required"
-      )
+    const fields = this.listFields(tableId)
+    const id = input.id ?? this.allocateId()
+    const now = this.operationInstant()
+    const fieldByKey = new Map<string, string>()
+    for (const field of fields) {
+      if (!field.id) continue
+      fieldByKey.set(field.id, field.id)
+      fieldByKey.set(field.tableColumnName, field.id)
     }
-    if (
-      input.position !== undefined &&
-      input.position !== null &&
-      (!Number.isSafeInteger(input.position) || input.position < 0)
-    ) {
-      throw new EidosFileError(
-        "invalid-range",
-        "Eidos File view position must be a non-negative integer"
-      )
-    }
-    const viewId = input.id ?? createEidosFileUuid()
-    const position =
-      input.position ??
-      this.connection.get<{ position: number }>(
-        `SELECT COALESCE(MAX(position), 0) + 1 AS position
-           FROM ${EIDOS_FILE_VIEWS_TABLE} WHERE table_id = ?`,
-        [tableId]
-      )?.position ??
-      1
-    this.connection.transaction(() => {
+    const sorts = normalizeEidosFileSorts(input.sorts).flatMap((sort) => {
+      const field = fieldByKey.get(sort.field)
+      return field ? [{ ...sort, field }] : []
+    })
+    const properties = input.properties ?? {}
+    const mapFieldList = (value: unknown): string[] =>
+      Array.isArray(value)
+        ? value.flatMap((key) => {
+            const fieldId =
+              typeof key === "string" ? fieldByKey.get(key) : undefined
+            return fieldId ? [fieldId] : []
+          })
+        : []
+    const hiddenFields = (
+      input.hiddenFields ?? mapFieldList(properties.hiddenFields)
+    ).flatMap((key) => {
+      const id = fieldByKey.get(key)
+      return id ? [id] : []
+    })
+    const orderSource = input.orderMap
+      ? Object.entries(input.orderMap)
+          .sort((left, right) => left[1] - right[1])
+          .map(([key]) => key)
+      : Array.isArray(properties.fieldOrder)
+        ? properties.fieldOrder.flatMap((key) =>
+            typeof key === "string" ? [key] : []
+          )
+        : fields.flatMap((field) => (field.id ? [field.id] : []))
+    const fieldOrder = orderSource.flatMap((key) => {
+      const id = fieldByKey.get(key)
+      return id ? [id] : []
+    })
+    const fieldWidths =
+      properties.fieldWidths &&
+      typeof properties.fieldWidths === "object" &&
+      !Array.isArray(properties.fieldWidths)
+        ? Object.fromEntries(
+            Object.entries(properties.fieldWidths).flatMap(([key, value]) => {
+              const fieldId = fieldByKey.get(key)
+              return fieldId &&
+                typeof value === "number" &&
+                Number.isFinite(value)
+                ? [[fieldId, value]]
+                : []
+            })
+          )
+        : {}
+    const mappedLayoutField = (value: unknown): string | null =>
+      typeof value === "string" ? (fieldByKey.get(value) ?? null) : null
+    return this.mutate(() => {
       this.connection.run(
         `INSERT INTO ${EIDOS_FILE_VIEWS_TABLE}
-          (id, name, type, table_id, query, properties, filter,
-           order_map, hidden_fields, position)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (id, table_id, name, type, query_json, layout_json, position, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          viewId,
-          name,
-          type,
-          tableId,
-          input.query ?? `SELECT * FROM ${quoteIdentifier(table.rawTableName)}`,
-          input.properties === undefined && input.sorts === undefined
-            ? null
-            : JSON.stringify({
-                ...(input.properties ?? {}),
-                ...(input.sorts === undefined
-                  ? {}
-                  : { sorts: normalizeEidosFileSorts(input.sorts) }),
-              }),
-          input.filter === undefined
-            ? null
-            : JSON.stringify(normalizeEidosFileFilter(input.filter)),
-          input.orderMap === undefined ? null : JSON.stringify(input.orderMap),
-          JSON.stringify(input.hiddenFields ?? []),
-          position,
+          assertEidosFileUuid(id, "View ID"),
+          assertEidosFileUuid(tableId, "Table ID"),
+          input.name,
+          input.type,
+          canonicalizeEidosFileJson({
+            ...(filterToStorage(input.filter, fields)
+              ? { filter: filterToStorage(input.filter, fields) }
+              : {}),
+            ...(sorts.length > 0 ? { sort: sorts } : {}),
+          }),
+          canonicalizeEidosFileJson({
+            ...properties,
+            cardFields: mapFieldList(properties.cardFields),
+            coverField: mappedLayoutField(properties.coverField),
+            fieldOrder,
+            fieldWidths,
+            groupField: mappedLayoutField(properties.groupField),
+            hiddenFields,
+          }),
+          stablePosition(input.position, this.listViews(tableId).length),
+          now,
+          now,
         ]
       )
-      const created = this.listViews(tableId).find((view) => view.id === viewId)
-      if (!created) {
-        throw new EidosFileError(
-          "view-not-found",
-          `Unable to create Eidos File view: ${viewId}`
-        )
-      }
-      this.syncViewQueryIndex(created)
-      this.touchMetadata({})
+      return this.mapView(this.viewRow(id))
     })
-    const created = this.listViews(tableId).find((view) => view.id === viewId)
-    if (!created) {
-      throw new EidosFileError(
-        "view-not-found",
-        `Unable to create Eidos File view: ${viewId}`
-      )
+  }
+
+  updateView(
+    viewId: string,
+    changes: UpdateEidosFileViewInput
+  ): EidosFileViewInfo {
+    const current = this.mapView(this.viewRow(viewId))
+    const fields = this.listFields(current.tableId)
+    const next: CreateEidosFileViewInput = {
+      name: changes.name ?? current.name,
+      type: changes.type ?? current.type,
+      position: changes.position ?? current.position,
+      properties:
+        changes.properties === undefined
+          ? current.properties
+          : changes.properties,
+      filter: changes.filter === undefined ? current.filter : changes.filter,
+      sorts: changes.sorts === undefined ? current.sorts : changes.sorts,
+      orderMap:
+        changes.orderMap === undefined ? current.orderMap : changes.orderMap,
+      hiddenFields:
+        changes.hiddenFields === undefined
+          ? current.hiddenFields
+          : changes.hiddenFields,
     }
-    return created
+    return this.mutate(() => {
+      const fieldByKey = new Map(
+        fields.flatMap((field) =>
+          field.id
+            ? [
+                [field.tableColumnName, field.id],
+                [field.id, field.id],
+              ]
+            : []
+        )
+      )
+      const sorts = normalizeEidosFileSorts(next.sorts).flatMap((sort) => {
+        const id = fieldByKey.get(sort.field)
+        return id ? [{ ...sort, field: id }] : []
+      })
+      const hiddenFields = (next.hiddenFields ?? []).flatMap((key) => {
+        const id = fieldByKey.get(key)
+        return id ? [id] : []
+      })
+      const fieldOrder = next.orderMap
+        ? Object.entries(next.orderMap)
+            .sort((left, right) => left[1] - right[1])
+            .flatMap(([key]) => {
+              const id = fieldByKey.get(key)
+              return id ? [id] : []
+            })
+        : fields.flatMap((field) => (field.id ? [field.id] : []))
+      const layout = {
+        ...(next.properties ?? {}),
+        fieldOrder,
+        hiddenFields,
+      }
+      this.connection.run(
+        `UPDATE ${EIDOS_FILE_VIEWS_TABLE}
+            SET name = ?, type = ?, query_json = ?, layout_json = ?, position = ?, updated_at = ?
+          WHERE id = ?`,
+        [
+          next.name,
+          next.type,
+          canonicalizeEidosFileJson({
+            ...(filterToStorage(next.filter, fields)
+              ? { filter: filterToStorage(next.filter, fields) }
+              : {}),
+            ...(sorts.length ? { sort: sorts } : {}),
+          }),
+          canonicalizeEidosFileJson(layout),
+          stablePosition(next.position, current.position ?? 0),
+          this.operationInstant(),
+          viewId,
+        ]
+      )
+      return this.mapView(this.viewRow(viewId))
+    })
   }
 
   duplicateView(viewId: string, name?: string): EidosFileViewInfo {
-    const existing = this.connection.get<ViewRow>(
-      `SELECT id, name, type, table_id, query, properties, filter,
-              order_map, hidden_fields, position, created_at, updated_at
-         FROM ${EIDOS_FILE_VIEWS_TABLE}
-        WHERE id = ?`,
-      [viewId]
-    )
-    if (!existing) {
-      throw new EidosFileError(
-        "view-not-found",
-        `Eidos File view not found: ${viewId}`
-      )
-    }
-    const view = this.listViews(existing.table_id).find(
-      (candidate) => candidate.id === viewId
-    )
-    if (!view) {
-      throw new EidosFileError(
-        "view-not-found",
-        `Eidos File view not found: ${viewId}`
-      )
-    }
+    const view = this.mapView(this.viewRow(viewId))
     return this.createView(view.tableId, {
-      name: name?.trim() || `${view.name} copy`,
+      name: name ?? `${view.name} copy`,
       type: view.type,
-      query: view.query,
       properties: view.properties,
       filter: view.filter,
       sorts: view.sorts,
@@ -1393,1195 +2592,808 @@ export class EidosFileRuntime {
   }
 
   deleteView(viewId: string): boolean {
-    const existing = this.connection.get<{ table_id: string }>(
-      `SELECT table_id FROM ${EIDOS_FILE_VIEWS_TABLE} WHERE id = ?`,
-      [viewId]
-    )
-    if (!existing) {
-      throw new EidosFileError(
-        "view-not-found",
-        `Eidos File view not found: ${viewId}`
-      )
-    }
-    const count =
-      this.connection.get<{ count: number }>(
-        `SELECT COUNT(*) AS count FROM ${EIDOS_FILE_VIEWS_TABLE} WHERE table_id = ?`,
-        [existing.table_id]
-      )?.count ?? 0
-    if (count <= 1) {
+    const view = this.mapView(this.viewRow(viewId))
+    if (this.listViews(view.tableId).length <= 1) {
       throw new EidosFileError(
         "protected-view",
-        "An Eidos File table must keep at least one view"
+        "A Table must retain at least one View"
       )
     }
-    return this.connection.transaction(() => {
-      this.connection.exec(
-        `DROP INDEX IF EXISTS ${quoteIdentifier(eidosFileViewQueryIndexName(viewId))}`
-      )
-      const result = this.connection.run(
-        `DELETE FROM ${EIDOS_FILE_VIEWS_TABLE} WHERE id = ?`,
-        [viewId]
-      )
-      if (result.changes > 0) this.touchMetadata({})
-      return result.changes > 0
-    })
+    return this.mutate(
+      () =>
+        this.connection.run(
+          `DELETE FROM ${EIDOS_FILE_VIEWS_TABLE} WHERE id = ?`,
+          [viewId]
+        ).changes > 0
+    )
   }
 
   reorderViews(tableId: string, viewIds: string[]): EidosFileViewInfo[] {
-    const current = this.listViews(tableId)
-    const expected = new Set(current.map((view) => view.id))
+    const current = this.listViews(tableId).map((view) => view.id)
     if (
-      viewIds.length !== current.length ||
-      new Set(viewIds).size !== viewIds.length ||
-      viewIds.some((viewId) => !expected.has(viewId))
+      current.length !== viewIds.length ||
+      current.some((id) => !viewIds.includes(id))
     ) {
       throw new EidosFileError(
-        "invalid-range",
-        "Eidos File view order must contain every table view exactly once"
+        "invalid-value",
+        "View reorder must contain every View exactly once"
       )
     }
-    this.connection.transaction(() => {
-      viewIds.forEach((viewId, index) => {
+    this.mutate(() => {
+      viewIds.forEach((id, position) => {
         this.connection.run(
-          `UPDATE ${EIDOS_FILE_VIEWS_TABLE}
-              SET position = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ? AND table_id = ?`,
-          [index + 1, viewId, tableId]
+          `UPDATE ${EIDOS_FILE_VIEWS_TABLE} SET position = ?, updated_at = ? WHERE id = ?`,
+          [position, this.operationInstant(), id]
         )
       })
-      this.touchMetadata({})
     })
     return this.listViews(tableId)
   }
 
-  addField(
-    tableId: string,
-    field: CreateEidosFileFieldInput,
-    placement?: EidosFileFieldPlacement
-  ): EidosFileFieldInfo {
-    const table = this.getTable(tableId)
-    const columnName = assertEidosFileColumnName(field.columnName)
-    const quotedTable = quoteIdentifier(table.rawTableName)
-    const quotedColumn = quoteIdentifier(columnName)
-    let property: Record<string, unknown> | null = field.property ?? null
-    let dependsOn: string[] | null = null
-    let storageCodec = defaultStorageCodec(field.type)
-    if (
-      placement &&
-      (!Number.isSafeInteger(placement.index) || placement.index < 0)
-    ) {
+  private fieldExpression(
+    field: EidosFileFieldInfo,
+    rowAlias: string,
+    schema: RuntimeSchema,
+    stack: string[] = []
+  ): string {
+    if (!field.id) throw new EidosFileError("invalid-schema", "Field has no ID")
+    if (stack.includes(field.id)) {
       throw new EidosFileError(
-        "invalid-range",
-        "Eidos File field placement index must be a non-negative integer"
+        "dependency-cycle",
+        `Dependency cycle: ${[...stack, field.id].join(" → ")}`
       )
     }
-    const placementView = placement
-      ? this.connection.get<Pick<ViewRow, "id" | "order_map">>(
-          `SELECT id, order_map
-             FROM ${EIDOS_FILE_VIEWS_TABLE}
-            WHERE id = ? AND table_id = ?`,
-          [placement.viewId, tableId]
-        )
-      : undefined
-    if (placement && !placementView) {
-      throw new EidosFileError(
-        "view-not-found",
-        `Eidos File view not found: ${placement.viewId}`
-      )
+    if (field.type === "row-id") return `${rowAlias}."_id"`
+    if (field.physicalName)
+      return `${rowAlias}.${quoteIdentifier(field.physicalName)}`
+    const nextStack = [...stack, field.id]
+    const formula = schema.formulas.get(field.id)
+    if (formula) {
+      const ownerFields = schema.fieldsByTable.get(field.tableId!) ?? []
+      const expression = compileEidosFileFormulaSource(
+        formula.source_text,
+        ownerFields,
+        (dependency) =>
+          this.fieldExpression(dependency, rowAlias, schema, nextStack),
+        formula.result_type
+      ).expression
+      return canonicalTemporalProjection(expression, formula.result_type)
     }
-    if (
-      (field.type === "select" || field.type === "multi-select") &&
-      property === null
-    ) {
-      property = { options: [] }
-    }
-    if (field.type === "select" || field.type === "multi-select") {
-      assertEidosFileSelectOptions(property)
-    }
-    if (field.type === "link") {
-      const targetTable = this.getTable(field.property.targetTableId)
-      const targetField = this.getField(
-        targetTable.id,
-        field.property.targetField
-      )
-      if (targetField.valueKind === "relation") {
+    const relation = schema.relations.get(field.id)
+    if (relation?.direction === "inverse" && relation.inverse_of_field_id) {
+      const sourceField = schema.fields.get(uuid(relation.inverse_of_field_id))
+      if (!sourceField?.physicalName)
         throw new EidosFileError(
           "invalid-schema",
-          "An Eidos File relation cannot display another relation field"
+          "Inverse Relation source is invalid"
         )
-      }
-      if (targetField.isDerived) {
-        throw new EidosFileError(
-          "invalid-schema",
-          "An Eidos File relation display field must be stored on the target table"
+      const sourceTable = schema.tables.get(sourceField.tableId!)!
+      return `coalesce((
+        SELECT json_group_array(source_id) FROM (
+          SELECT source."_id" AS source_id
+          FROM ${quoteIdentifier(sourceTable.physical_name)} source,
+               json_each(source.${quoteIdentifier(sourceField.physicalName)}) item
+          WHERE item.value = ${rowAlias}."_id"
+          ORDER BY source."_id"
         )
-      }
-    } else if (field.type === "formula") {
-      const draft: EidosFileFieldInfo = {
-        name: field.name,
-        type: "formula",
-        tableName: table.rawTableName,
-        tableColumnName: columnName,
-        property: field.property,
-        storageCodec: "scalar",
-        valueKind: "derived",
-        isHidden: false,
-        isDerived: true,
-        sourceTableColumnName: null,
-        dependsOn: null,
-      }
-      const fields = [...this.listFields(tableId), draft]
-      const compiled = compileEidosFileFormula(draft, fields)
-      dependsOn = compiled.dependencies
-      property = { ...field.property, expression: compiled.expression }
-      compileEidosFileFormulaFields([
-        ...fields.slice(0, -1),
-        { ...draft, property, dependsOn },
-      ])
-    } else if (field.type === "lookup") {
-      storageCodec = eidosFileLookupStorageCodec(field.property.aggregate)
-      const draft: EidosFileFieldInfo = {
-        name: field.name,
-        type: "lookup",
-        tableName: table.rawTableName,
-        tableColumnName: columnName,
-        property: field.property,
-        storageCodec,
-        valueKind: "derived",
-        isHidden: false,
-        isDerived: true,
-        sourceTableColumnName: null,
-        dependsOn: [field.property.relationField],
-      }
-      const fields = [...this.listFields(tableId), draft]
-      this.lookupExpression(tableId, draft, fields, "lookup_source", {
-        path: [],
-        overrides: new Map([
-          [eidosFileLookupFieldKey(tableId, columnName), draft],
-        ]),
-      })
-      dependsOn = [field.property.relationField]
+      ), '[]')`
     }
-    this.connection.transaction(() => {
-      if (field.type !== "formula" && field.type !== "lookup") {
-        this.connection.exec(
-          `ALTER TABLE ${quotedTable} ADD COLUMN ${quotedColumn} ${sqlTypeForField(field.type)} NULL`
-        )
-      }
-      this.connection.run(
-        `INSERT INTO ${EIDOS_FILE_COLUMNS_TABLE}
-          (name, type, table_name, table_column_name, property,
-           storage_codec, value_kind, is_hidden, is_derived, depends_on)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-        [
-          field.name,
-          field.type,
-          table.rawTableName,
-          columnName,
-          property ? JSON.stringify(property) : null,
-          storageCodec,
-          field.type === "link"
-            ? "relation"
-            : field.type === "formula" || field.type === "lookup"
-              ? "derived"
-              : "source",
-          field.type === "formula" || field.type === "lookup" ? 1 : 0,
-          dependsOn ? JSON.stringify(dependsOn) : null,
-        ]
-      )
-      if (placement && placementView) {
-        const currentOrder =
-          (parseJson(placementView.order_map) as Record<
-            string,
-            number
-          > | null) ?? {}
-        const fields = this.listFields(tableId)
-        const createdField = fields.find(
-          (candidate) => candidate.tableColumnName === columnName
-        )
-        const orderedFields = fields
-          .filter(
-            (candidate) =>
-              candidate.tableColumnName !== columnName &&
-              !candidate.isHidden &&
-              (candidate.tableColumnName === "title" ||
-                candidate.valueKind === "source" ||
-                candidate.valueKind === "relation" ||
-                candidate.valueKind === "derived")
-          )
-          .sort(
-            (left, right) =>
-              (currentOrder[left.tableColumnName] ?? Number.MAX_SAFE_INTEGER) -
-              (currentOrder[right.tableColumnName] ?? Number.MAX_SAFE_INTEGER)
-          )
-        if (createdField) {
-          orderedFields.splice(
-            Math.min(placement.index, orderedFields.length),
-            0,
-            createdField
-          )
-        }
-        this.connection.run(
-          `UPDATE ${EIDOS_FILE_VIEWS_TABLE}
-              SET order_map = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?`,
-          [
-            JSON.stringify(
-              Object.fromEntries(
-                orderedFields.map((candidate, index) => [
-                  candidate.tableColumnName,
-                  index,
-                ])
-              )
-            ),
-            placement.viewId,
-          ]
-        )
-      }
-      this.touchMetadata({})
-    })
-    const created = this.listFields(tableId).find(
-      (candidate) => candidate.tableColumnName === columnName
+    const lookup = schema.lookups.get(field.id)
+    if (lookup)
+      return this.lookupExpression(lookup, rowAlias, schema, nextStack)
+    throw new EidosFileError(
+      "invalid-schema",
+      `No logical projection for Field ${field.name}`
     )
-    if (!created) {
-      throw new EidosFileError(
-        "field-not-found",
-        `Unable to create Eidos File field: ${columnName}`
-      )
-    }
-    return created
   }
 
-  importField(
-    tableId: string,
-    field: ImportEidosFileFieldInput
-  ): EidosFileFieldInfo {
-    const table = this.getTable(tableId)
-    const existing = this.listFields(tableId).find(
-      (candidate) => candidate.tableColumnName === field.columnName
-    )
-    const columnName = existing
-      ? existing.tableColumnName
-      : assertEidosFileColumnName(field.columnName)
-    const importAsLiveDerived =
-      !existing &&
-      (field.type === "formula" || field.type === "lookup") &&
-      field.valueKind === "derived" &&
-      field.isDerived === true
-    this.connection.transaction(() => {
-      if (!existing) {
-        if (!importAsLiveDerived) {
-          this.connection.exec(
-            `ALTER TABLE ${quoteIdentifier(table.rawTableName)}
-               ADD COLUMN ${quoteIdentifier(columnName)} ${sqlTypeForField(field.type)} NULL`
-          )
-        }
-        this.connection.run(
-          `INSERT INTO ${EIDOS_FILE_COLUMNS_TABLE}
-            (name, type, table_name, table_column_name, property,
-             storage_codec, value_kind, is_hidden, is_derived,
-             source_table_column_name, depends_on)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            field.name,
-            field.type,
-            table.rawTableName,
-            columnName,
-            field.property === undefined || field.property === null
-              ? null
-              : JSON.stringify(field.property),
-            field.storageCodec ?? defaultStorageCodec(field.type),
-            field.valueKind ?? "source",
-            field.isHidden ? 1 : 0,
-            field.isDerived ? 1 : 0,
-            field.sourceTableColumnName ?? null,
-            field.dependsOn === undefined
-              ? null
-              : JSON.stringify(field.dependsOn),
-          ]
-        )
-      } else {
-        this.connection.run(
-          `UPDATE ${EIDOS_FILE_COLUMNS_TABLE}
-              SET name = ?, type = ?, property = ?, storage_codec = ?,
-                  value_kind = ?, is_hidden = ?, is_derived = ?,
-                  source_table_column_name = ?, depends_on = ?,
-                  updated_at = CURRENT_TIMESTAMP
-            WHERE table_name = ? AND table_column_name = ?`,
-          [
-            field.name,
-            field.type,
-            field.property === undefined || field.property === null
-              ? null
-              : JSON.stringify(field.property),
-            field.storageCodec ?? existing.storageCodec,
-            field.valueKind ?? existing.valueKind,
-            field.isHidden === undefined
-              ? existing.isHidden
-                ? 1
-                : 0
-              : field.isHidden
-                ? 1
-                : 0,
-            field.isDerived === undefined
-              ? existing.isDerived
-                ? 1
-                : 0
-              : field.isDerived
-                ? 1
-                : 0,
-            field.sourceTableColumnName === undefined
-              ? existing.sourceTableColumnName
-              : field.sourceTableColumnName,
-            field.dependsOn === undefined
-              ? existing.dependsOn === null
-                ? null
-                : JSON.stringify(existing.dependsOn)
-              : JSON.stringify(field.dependsOn),
-            table.rawTableName,
-            columnName,
-          ]
-        )
-      }
-      this.touchMetadata({})
-    })
-    return this.getField(tableId, columnName)
-  }
-
-  createReference(input: CreateEidosFileReferenceInput): void {
-    const selfTable = this.getTable(input.selfTableId)
-    const refTable = this.getTable(input.refTableId)
-    const linkTable = this.getTable(input.linkTableId)
-    const selfField = this.getField(input.selfTableId, input.selfColumnName)
-    const refField = this.getField(input.refTableId, input.refColumnName)
-    const linkField = this.getField(input.linkTableId, input.linkColumnName)
-    this.connection.run(
-      `INSERT INTO ${EIDOS_FILE_REFERENCES_TABLE}
-        (self_table_name, self_table_column_name,
-         ref_table_name, ref_table_column_name,
-         link_table_name, link_table_column_name)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        selfTable.rawTableName,
-        selfField.tableColumnName,
-        refTable.rawTableName,
-        refField.tableColumnName,
-        linkTable.rawTableName,
-        linkField.tableColumnName,
-      ]
-    )
-    this.touchMetadata({})
-  }
-
-  private removeUnsupportedColumnStats(
-    tableId: string,
-    field: EidosFileFieldInfo
-  ): void {
-    for (const view of this.listViews(tableId)) {
-      const properties = { ...(view.properties ?? {}) }
-      const columnStats = properties.columnStats
-      if (
-        typeof columnStats !== "object" ||
-        columnStats === null ||
-        Array.isArray(columnStats)
-      ) {
-        continue
-      }
-      const nextStats: Record<string, unknown> = { ...columnStats }
-      const config = nextStats[field.tableColumnName]
-      if (config === undefined) continue
-      const type =
-        typeof config === "object" &&
-        config !== null &&
-        typeof (config as { type?: unknown }).type === "string"
-          ? (config as { type: EidosFileColumnStatConfig["type"] }).type
-          : null
-      if (type && eidosFileColumnStatTypesForField(field).includes(type))
-        continue
-      delete nextStats[field.tableColumnName]
-      properties.columnStats = nextStats
-      this.connection.run(
-        `UPDATE ${EIDOS_FILE_VIEWS_TABLE}
-            SET properties = ?, updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?`,
-        [JSON.stringify(properties), view.id]
-      )
-    }
-  }
-
-  updateField(
-    tableId: string,
-    columnName: string,
-    changes: UpdateEidosFileFieldInput
-  ): EidosFileFieldInfo {
-    const table = this.getTable(tableId)
-    const field = this.getField(tableId, columnName)
-    const name = changes.name === undefined ? field.name : changes.name.trim()
-    if (!name) {
-      throw new EidosFileError(
-        "invalid-identifier",
-        "Eidos File field name is required"
-      )
-    }
-    const targetType = changes.type ?? field.type
-    if (targetType !== field.type) {
-      if (
-        field.valueKind !== "source" ||
-        !isMutableEidosFileFieldType(field.type) ||
-        !isMutableEidosFileFieldType(targetType)
-      ) {
-        throw new EidosFileError(
-          "invalid-schema",
-          `Eidos File field “${field.name}” cannot change from ${field.type} to ${targetType}`
-        )
-      }
-      const quotedTable = quoteIdentifier(table.rawTableName)
-      const quotedColumn = quoteIdentifier(field.tableColumnName)
-      const rows = this.connection.query<{
-        id: string
-        value: EidosFileSqlPrimitive
-      }>(
-        `SELECT CAST(_id AS TEXT) AS id, ${quotedColumn} AS value
-           FROM ${quotedTable}`
-      )
-      const plan = planEidosFileFieldConversion(field, rows, targetType)
-      const property =
-        changes.property === undefined ? plan.property : changes.property
-      const convertedField: EidosFileFieldInfo = {
-        ...field,
-        name,
-        type: targetType,
-        property,
-        storageCodec: plan.storageCodec,
-        valueKind: "source",
-        isDerived: false,
-        sourceTableColumnName: null,
-        dependsOn: null,
-      }
-      this.validateLookupTargetDependents(
-        tableId,
-        field.tableColumnName,
-        new Map([
-          [
-            eidosFileLookupFieldKey(tableId, field.tableColumnName),
-            convertedField,
-          ],
-        ])
-      )
-      const currentSqlType = sqlTypeForField(field.type)
-      const targetSqlType = sqlTypeForField(targetType)
-      this.connection.transaction(() => {
-        this.dropViewQueryIndexes(tableId)
-        let targetColumn = quotedColumn
-        let backupColumn: string | null = null
-        if (currentSqlType !== targetSqlType) {
-          const suffix = createEidosFileIdentifier()
-          const nextName = `${field.tableColumnName}_${suffix}_next`
-          const backupName = `${field.tableColumnName}_${suffix}_old`
-          targetColumn = quoteIdentifier(nextName)
-          backupColumn = quoteIdentifier(backupName)
-          this.connection.exec(
-            `ALTER TABLE ${quotedTable} ADD COLUMN ${targetColumn} ${targetSqlType}`
-          )
-        }
-        const statement = `UPDATE ${quotedTable}
-                              SET ${targetColumn} = ?
-                            WHERE _id = ?`
-        const parameterSets = plan.values.map(
-          ({ value, id }) => [value, id] as const
-        )
-        if (this.connection.runMany) {
-          this.connection.runMany(statement, parameterSets)
-        } else {
-          for (const parameters of parameterSets) {
-            this.connection.run(statement, parameters)
-          }
-        }
-        if (backupColumn) {
-          this.connection.exec(`
-            ALTER TABLE ${quotedTable}
-              RENAME COLUMN ${quotedColumn} TO ${backupColumn};
-            ALTER TABLE ${quotedTable}
-              RENAME COLUMN ${targetColumn} TO ${quotedColumn};
-            ALTER TABLE ${quotedTable} DROP COLUMN ${backupColumn};
-          `)
-        }
-        this.connection.run(
-          `UPDATE ${EIDOS_FILE_COLUMNS_TABLE}
-              SET name = ?, type = ?, property = ?, storage_codec = ?,
-                  value_kind = 'source', is_derived = 0,
-                  source_table_column_name = NULL, depends_on = NULL,
-                  updated_at = CURRENT_TIMESTAMP
-            WHERE table_name = ? AND table_column_name = ?`,
-          [
-            name,
-            targetType,
-            property === null ? null : JSON.stringify(property),
-            plan.storageCodec,
-            table.rawTableName,
-            field.tableColumnName,
-          ]
-        )
-        this.removeUnsupportedColumnStats(tableId, convertedField)
-        this.optimizeViewQueries(tableId)
-        this.touchMetadata({})
-      })
-      return this.getField(tableId, field.tableColumnName)
-    }
-    let property =
-      changes.property === undefined ? field.property : changes.property
-    let dependsOn = field.dependsOn
-    let storageCodec = field.storageCodec
-    const previousOptions =
-      field.type === "select" || field.type === "multi-select"
-        ? parseEidosFileSelectOptions(field.property)
-        : []
-    const nextOptions =
-      field.type === "select" || field.type === "multi-select"
-        ? changes.property !== undefined
-          ? assertEidosFileSelectOptions(property)
-          : previousOptions
-        : []
-    if (
-      changes.optionValueChanges !== undefined &&
-      (changes.property === undefined ||
-        (field.type !== "select" && field.type !== "multi-select"))
-    ) {
+  private lookupExpression(
+    lookup: LookupRow,
+    rowAlias: string,
+    schema: RuntimeSchema,
+    stack: string[]
+  ): string {
+    const relationField = schema.fields.get(uuid(lookup.relation_field_id))
+    const targetField = schema.fields.get(uuid(lookup.target_field_id))
+    if (!relationField || !targetField) {
       throw new EidosFileError(
         "invalid-schema",
-        "Option value changes require updated select options"
+        "Lookup references a missing Field"
       )
     }
-    const previousOptionValues = new Set(
-      previousOptions.map((option) => option.value)
+    const relation = schema.relations.get(relationField.id!)
+    if (!relation)
+      throw new EidosFileError("invalid-schema", "Lookup relation is invalid")
+    const targetTableId = uuid(relation.target_table_id)
+    const targetTable = schema.tables.get(targetTableId)
+    if (!targetTable || targetField.tableId !== targetTableId) {
+      throw new EidosFileError(
+        "invalid-schema",
+        "Lookup target does not belong to the Relation target Table"
+      )
+    }
+    const targetAlias = `lookup_${stack.length}`
+    const relationExpression = this.fieldExpression(
+      relationField,
+      rowAlias,
+      schema,
+      stack
     )
-    const nextOptionValues = new Set(nextOptions.map((option) => option.value))
-    const optionValueChanges = new Map<string, string>()
-    for (const change of changes.optionValueChanges ?? []) {
-      if (
-        !change.from ||
-        !change.to ||
-        change.from === change.to ||
-        !previousOptionValues.has(change.from) ||
-        !nextOptionValues.has(change.to) ||
-        optionValueChanges.has(change.from)
-      ) {
-        throw new EidosFileError(
-          "invalid-schema",
-          "Invalid select option rename"
-        )
-      }
-      optionValueChanges.set(change.from, change.to)
-    }
-    const removedOptionValues = new Set(
-      [...previousOptionValues].filter(
-        (value) =>
-          !nextOptionValues.has(value) && !optionValueChanges.has(value)
-      )
+    const targetExpression = this.fieldExpression(
+      targetField,
+      targetAlias,
+      schema,
+      stack
     )
-    if (field.type === "formula" && changes.property !== undefined) {
-      const formulaProperty = { ...(property ?? {}) }
-      delete formulaProperty.expression
-      const draft: EidosFileFieldInfo = {
-        ...field,
-        name,
-        property: formulaProperty,
-        dependsOn: null,
+    const targetIsList =
+      targetField.type === "relation" ||
+      targetField.type === "multi-select" ||
+      targetField.type === "file" ||
+      (targetField.type === "lookup" &&
+        targetField.property?.aggregate === "values")
+    const targetResultType = eidosFileLookupElementType(targetField)
+    const base = `
+      SELECT CAST(item.key AS INTEGER) AS relation_order,
+             ${targetExpression} AS value,
+             ${targetExpression} AS typed_value
+      FROM json_each(${relationExpression}) item
+      JOIN ${quoteIdentifier(targetTable.physical_name)} ${targetAlias}
+        ON item.value = ${targetAlias}."_id"
+    `
+    const flattened = targetIsList
+      ? `SELECT relation_order, CAST(flat.key AS INTEGER) AS nested_order,
+                flat.value AS value
+           FROM (${base}) valueset,
+                json_each(CASE WHEN json_valid(valueset.typed_value) THEN valueset.typed_value ELSE '[]' END) flat`
+      : `SELECT relation_order, 0 AS nested_order, typed_value AS value FROM (${base})`
+    const encoded =
+      targetResultType === "integer"
+        ? "CASE WHEN value IS NULL THEN NULL ELSE CAST(value AS TEXT) END"
+        : targetResultType === "json" || targetResultType === "file-entry"
+          ? "CASE WHEN value IS NULL THEN NULL ELSE json(value) END"
+          : "value"
+    const payload = `(SELECT coalesce(
+      json_group_array(
+        json_object('v', ${encoded})
+        ORDER BY relation_order, nested_order
+      ),
+      '[]'
+    ) FROM (${flattened}))`
+    return `eidos_lookup_aggregate(
+      ${payload},
+      '${lookup.aggregate}',
+      ${lookup.distinct_values === 1 ? 1 : 0},
+      '${targetResultType}'
+    )`
+  }
+
+  private relationDisplayExpression(
+    field: EidosFileFieldInfo,
+    rowAlias: string,
+    schema: RuntimeSchema
+  ): string {
+    const relation = schema.relations.get(field.id!)
+    if (!relation) return "'[]'"
+    const targetTableId = uuid(relation.target_table_id)
+    const targetTable = schema.tables.get(targetTableId)!
+    const label = (schema.fieldsByTable.get(targetTableId) ?? []).find(
+      (candidate) => candidate.isRecordLabel
+    )
+    if (!label) return "'[]'"
+    const ids = this.fieldExpression(field, rowAlias, schema)
+    const labelExpression = this.fieldExpression(
+      label,
+      "relation_target",
+      schema
+    )
+    return `coalesce((
+      SELECT json_group_array(json_object('id', id, 'title', label)) FROM (
+        SELECT item.value AS id, ${labelExpression} AS label
+        FROM json_each(${ids}) item
+        JOIN ${quoteIdentifier(targetTable.physical_name)} relation_target
+          ON item.value = relation_target."_id"
+        ORDER BY CAST(item.key AS INTEGER)
+      )
+    ), '[]')`
+  }
+
+  private requiredQueryFieldKeys(
+    fields: EidosFileFieldInfo[],
+    query: EidosFileRowQuery
+  ): Set<string> {
+    const required = new Set<string>()
+    const collectFilter = (
+      group: EidosFileFilterGroup | null | undefined
+    ): void => {
+      if (!group) return
+      for (const child of group.children) {
+        if (child.type === "group") collectFilter(child)
+        else required.add(child.field)
       }
-      const fields = this.listFields(tableId).map((candidate) =>
-        candidate.tableColumnName === field.tableColumnName ? draft : candidate
-      )
-      const compiled = compileEidosFileFormula(draft, fields)
-      property = { ...formulaProperty, expression: compiled.expression }
-      dependsOn = compiled.dependencies
-      compileEidosFileFormulaFields(
-        fields.map((candidate) =>
-          candidate.tableColumnName === field.tableColumnName
-            ? { ...draft, property, dependsOn }
-            : candidate
-        )
-      )
-    } else if (field.type === "lookup" && changes.property !== undefined) {
-      const relationField = property?.relationField
-      if (typeof relationField !== "string") {
-        throw new EidosFileError(
-          "invalid-schema",
-          `Lookup field “${field.name}” requires a relation field`
-        )
-      }
-      const draft: EidosFileFieldInfo = {
-        ...field,
-        name,
-        property,
-        storageCodec: eidosFileLookupStorageCodec(
-          property?.aggregate as EidosFileLookupAggregate
-        ),
-        dependsOn: [relationField],
-      }
-      const fields = this.listFields(tableId).map((candidate) =>
-        candidate.tableColumnName === field.tableColumnName ? draft : candidate
-      )
-      const overrides = new Map([
-        [eidosFileLookupFieldKey(tableId, field.tableColumnName), draft],
-      ])
-      this.lookupExpression(tableId, draft, fields, "lookup_source", {
-        path: [],
-        overrides,
-      })
-      this.validateLookupTargetDependents(
-        tableId,
-        field.tableColumnName,
-        overrides
-      )
-      dependsOn = [relationField]
-      storageCodec = draft.storageCodec
     }
-    this.connection.transaction(() => {
-      if (
-        (removedOptionValues.size > 0 || optionValueChanges.size > 0) &&
-        (field.type === "select" || field.type === "multi-select")
-      ) {
-        const quotedTable = quoteIdentifier(table.rawTableName)
-        const quotedField = quoteIdentifier(field.tableColumnName)
-        if (field.type === "select") {
-          const renamedValues = [...optionValueChanges]
-          const affectedValues = [
-            ...optionValueChanges.keys(),
-            ...removedOptionValues,
-          ]
-          const cases = renamedValues.map(() => "WHEN ? THEN ?").join(" ")
-          const nextValue = cases
-            ? `CASE ${quotedField} ${cases} ELSE NULL END`
-            : "NULL"
-          this.connection.run(
-            `UPDATE ${quotedTable}
-                SET ${quotedField} = ${nextValue}
-              WHERE ${quotedField} IN (${affectedValues.map(() => "?").join(", ")})`,
-            [
-              ...renamedValues.flatMap(([from, to]) => [from, to]),
-              ...affectedValues,
-            ]
-          )
-        } else {
-          const affectedValues = [
-            ...removedOptionValues,
-            ...optionValueChanges.keys(),
-          ]
-          const rows = this.connection.query<{
-            id: string
-            value: EidosFileSqlPrimitive
-          }>(
-            `SELECT CAST(_id AS TEXT) AS id,
-                    ${quotedField} AS value
-               FROM ${quotedTable}
-              WHERE EXISTS (
-                SELECT 1
-                  FROM json_each(
-                    CASE
-                      WHEN json_valid(${quotedField})
-                       AND json_type(${quotedField}) = 'array'
-                        THEN ${quotedField}
-                      ELSE '[]'
-                    END
-                  )
-                 WHERE CAST(value AS TEXT) IN (${affectedValues.map(() => "?").join(", ")})
-              )`,
-            affectedValues
-          )
-          const statement = `UPDATE ${quotedTable}
-                              SET ${quotedField} = ?
-                            WHERE _id = ?`
-          const parameterSets = rows.map((row) => {
-            const nextValues = decodeEidosFileMultiSelectValues(
-              row.value
-            ).flatMap((value) => {
-              const renamed = optionValueChanges.get(value)
-              if (renamed) return [renamed]
-              return removedOptionValues.has(value) ? [] : [value]
-            })
-            return [
-              encodeEidosFileMultiSelectValues(nextValues),
-              row.id,
-            ] as const
+    collectFilter(query.filter)
+    for (const sort of query.sorts ?? []) required.add(sort.field)
+    if (query.search?.trim()) {
+      for (const field of fields) {
+        if (
+          !field.isHidden &&
+          (field.isRecordLabel ||
+            field.valueKind === "source" ||
+            field.valueKind === "relation" ||
+            field.valueKind === "derived")
+        ) {
+          required.add(field.id)
+        }
+      }
+    }
+    return required
+  }
+
+  private logicalSource(
+    tableId: string,
+    requestedKeys?: Iterable<string>,
+    includeRecordLabel = true,
+    includeRelationDisplays = true
+  ): {
+    sql: string
+    fields: EidosFileFieldInfo[]
+    schema: RuntimeSchema
+  } {
+    const schema = this.allSchema()
+    const table = schema.tables.get(tableId)
+    if (!table)
+      throw new EidosFileError("table-not-found", `Table not found: ${tableId}`)
+    const fields = schema.fieldsByTable.get(tableId) ?? []
+    const byKey = new Map<string, EidosFileFieldInfo>()
+    for (const field of fields) {
+      byKey.set(field.id!, field)
+      byKey.set(field.tableColumnName, field)
+      byKey.set(field.name, field)
+    }
+    const projected = requestedKeys
+      ? new Set(
+          [...requestedKeys].flatMap((key) => {
+            const field = byKey.get(key)
+            return field?.id ? [field.id] : []
           })
-          if (this.connection.runMany) {
-            this.connection.runMany(statement, parameterSets)
-          } else {
-            for (const parameters of parameterSets) {
-              this.connection.run(statement, parameters)
-            }
-          }
-        }
-      }
-      this.connection.run(
-        `UPDATE ${EIDOS_FILE_COLUMNS_TABLE}
-            SET name = ?, property = ?, storage_codec = ?, depends_on = ?,
-                updated_at = CURRENT_TIMESTAMP
-          WHERE table_name = ? AND table_column_name = ?`,
-        [
-          name,
-          property === null ? null : JSON.stringify(property),
-          storageCodec,
-          dependsOn === null ? null : JSON.stringify(dependsOn),
-          table.rawTableName,
-          field.tableColumnName,
+        )
+      : new Set(fields.flatMap((field) => (field.id ? [field.id] : [])))
+    const rowId = fields.find((field) => field.type === "row-id")
+    const label = fields.find((field) => field.isRecordLabel)
+    if (rowId?.id) projected.add(rowId.id)
+    if (includeRecordLabel && label?.id) projected.add(label.id)
+    const projections = fields
+      .filter((field) => projected.has(field.id!))
+      .flatMap((field) => {
+        const expression = this.fieldExpression(field, "base", schema)
+        const result = [
+          `${expression} AS ${quoteIdentifier(field.tableColumnName)}`,
         ]
-      )
-      this.removeUnsupportedColumnStats(tableId, {
-        ...field,
-        name,
-        property,
-        storageCodec,
-        dependsOn,
+        if (includeRelationDisplays && field.type === "relation") {
+          result.push(
+            `${this.relationDisplayExpression(field, "base", schema)} AS ${quoteIdentifier(`${field.tableColumnName}__display`)}`
+          )
+        }
+        return result
       })
-      this.touchMetadata({})
-    })
-    return this.getField(tableId, field.tableColumnName)
+    return {
+      sql: `SELECT base."_id" AS "__base_rowid", ${projections.join(", ")}
+              FROM ${quoteIdentifier(table.physical_name)} base`,
+      fields,
+      schema,
+    }
   }
 
-  deleteField(tableId: string, columnName: string): boolean {
-    const table = this.getTable(tableId)
-    const field = this.getField(tableId, columnName)
-    if (field.valueKind === "system" || field.tableColumnName === "title") {
-      throw new EidosFileError(
-        "protected-field",
-        `Eidos File system field cannot be deleted: ${field.name}`
-      )
+  private compatibilityQuery(
+    tableId: string,
+    query: EidosFileRowQuery
+  ): EidosFileRowQuery {
+    assertEidosFileRowQuery(query)
+    const fields = this.listFields(tableId)
+    const byKey = new Map<string, string>()
+    for (const field of fields) {
+      byKey.set(field.tableColumnName, field.tableColumnName)
+      byKey.set(field.name, field.tableColumnName)
+      if (field.id) byKey.set(field.id, field.tableColumnName)
     }
-    const dependentFormulas = this.listFields(tableId).filter(
-      (candidate) =>
-        candidate.type === "formula" &&
-        candidate.tableColumnName !== field.tableColumnName &&
-        Array.isArray(candidate.dependsOn) &&
-        candidate.dependsOn.includes(field.tableColumnName)
-    )
-    if (dependentFormulas.length > 0) {
-      throw new EidosFileError(
-        "formula-in-use",
-        `Eidos File field “${field.name}” is used by ${dependentFormulas.length} formula field${dependentFormulas.length === 1 ? "" : "s"}`
-      )
-    }
-    const dependentLookups = this.listFields(tableId).filter(
-      (candidate) =>
-        candidate.type === "lookup" &&
-        candidate.tableColumnName !== field.tableColumnName &&
-        Array.isArray(candidate.dependsOn) &&
-        candidate.dependsOn.includes(field.tableColumnName)
-    )
-    if (dependentLookups.length > 0) {
-      throw new EidosFileError(
-        "lookup-in-use",
-        `Eidos File field “${field.name}” is used by ${dependentLookups.length} lookup field${dependentLookups.length === 1 ? "" : "s"}`
-      )
-    }
-    const targetLookups = this.listTables().flatMap((sourceTable) => {
-      const sourceFields = this.listFields(sourceTable.id)
-      return sourceFields.filter((candidate) => {
-        if (
-          candidate.type !== "lookup" ||
-          candidate.property?.targetField !== columnName
-        ) {
-          return false
+    const normalized = normalizeEidosFileRowQuery(query)
+    const convertFilter = (
+      group: EidosFileFilterGroup | null | undefined
+    ): EidosFileFilterGroup | null => {
+      if (!group) return null
+      const children: EidosFileFilterGroup["children"] = []
+      for (const child of group.children) {
+        if (child.type === "group") {
+          const nested = convertFilter(child)
+          if (nested) children.push(nested)
+        } else {
+          const field = byKey.get(child.field)
+          if (field) children.push({ ...child, field })
         }
-        const relationColumn = candidate.property?.relationField
-        const relation = sourceFields.find(
-          (sourceField) => sourceField.tableColumnName === relationColumn
-        )
-        return relation
-          ? this.relationTarget(relation)?.tableId === tableId
-          : false
-      })
-    })
-    if (targetLookups.length > 0) {
-      throw new EidosFileError(
-        "lookup-in-use",
-        `Eidos File field “${field.name}” is used as a lookup target`
-      )
-    }
-    const inboundRelations = this.listTables().flatMap((sourceTable) =>
-      this.listFields(sourceTable.id).filter((candidate) => {
-        const target = this.relationTarget(candidate)
-        return target?.tableId === tableId && target.columnName === columnName
-      })
-    )
-    if (inboundRelations.length > 0) {
-      throw new EidosFileError(
-        "relation-in-use",
-        `Eidos File field “${field.name}” is used as a relation display field`
-      )
-    }
-    return this.connection.transaction(() => {
-      this.dropViewQueryIndexes(tableId)
-      this.connection.run(
-        `DELETE FROM ${EIDOS_FILE_REFERENCES_TABLE}
-          WHERE (self_table_name = ? AND self_table_column_name = ?)
-             OR (ref_table_name = ? AND ref_table_column_name = ?)
-             OR (link_table_name = ? AND link_table_column_name = ?)`,
-        [
-          table.rawTableName,
-          field.tableColumnName,
-          table.rawTableName,
-          field.tableColumnName,
-          table.rawTableName,
-          field.tableColumnName,
-        ]
-      )
-      if (
-        !(
-          (field.type === "formula" || field.type === "lookup") &&
-          field.valueKind === "derived"
-        )
-      ) {
-        this.connection.exec(
-          `ALTER TABLE ${quoteIdentifier(table.rawTableName)}
-            DROP COLUMN ${quoteIdentifier(field.tableColumnName)}`
-        )
       }
-      this.connection.run(
-        `DELETE FROM ${EIDOS_FILE_COLUMNS_TABLE}
-          WHERE table_name = ? AND table_column_name = ?`,
-        [table.rawTableName, field.tableColumnName]
-      )
-      for (const view of this.listViews(tableId)) {
-        const orderMap = Object.fromEntries(
-          Object.entries(view.orderMap ?? {})
-            .filter(([columnName]) => columnName !== field.tableColumnName)
-            .sort((left, right) => left[1] - right[1])
-            .map(([columnName], index) => [columnName, index])
-        )
-        const properties = { ...(view.properties ?? {}) }
-        properties.sorts = view.sorts.filter(
-          (sort) => sort.field !== field.tableColumnName
-        )
-        const fieldWidthMap = properties.fieldWidthMap
-        if (
-          typeof fieldWidthMap === "object" &&
-          fieldWidthMap !== null &&
-          !Array.isArray(fieldWidthMap)
-        ) {
-          const nextWidths: Record<string, unknown> = { ...fieldWidthMap }
-          delete nextWidths[field.tableColumnName]
-          properties.fieldWidthMap = nextWidths
-        }
-        const columnStats = properties.columnStats
-        if (
-          typeof columnStats === "object" &&
-          columnStats !== null &&
-          !Array.isArray(columnStats)
-        ) {
-          const nextStats: Record<string, unknown> = { ...columnStats }
-          delete nextStats[field.tableColumnName]
-          properties.columnStats = nextStats
-        }
-        this.connection.run(
-          `UPDATE ${EIDOS_FILE_VIEWS_TABLE}
-              SET properties = ?, filter = ?, order_map = ?, hidden_fields = ?,
-                  updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?`,
-          [
-            JSON.stringify(properties),
-            JSON.stringify(
-              removeEidosFileFilterField(view.filter, field.tableColumnName)
-            ),
-            JSON.stringify(orderMap),
-            JSON.stringify(
-              view.hiddenFields.filter(
-                (candidate) => candidate !== field.tableColumnName
-              )
-            ),
-            view.id,
-          ]
-        )
-      }
-      this.optimizeViewQueries(tableId)
-      this.touchMetadata({})
-      return true
-    })
-  }
-
-  private getField(tableId: string, columnName: string): EidosFileFieldInfo {
-    const safeColumnName = assertKnownFieldColumnName(columnName)
-    const field = this.listFields(tableId).find(
-      (candidate) => candidate.tableColumnName === safeColumnName
-    )
-    if (!field) {
-      throw new EidosFileError(
-        "field-not-found",
-        `Eidos File field not found: ${safeColumnName}`
-      )
+      return { ...group, children }
     }
-    return field
+    return {
+      ...normalized,
+      filter: convertFilter(normalized.filter),
+      sorts: normalized.sorts?.flatMap((sort) => {
+        const field = byKey.get(sort.field)
+        return field ? [{ ...sort, field }] : []
+      }),
+    }
   }
 
   listRows(
     tableId: string,
-    limit = 200,
-    offset = 0,
-    query: EidosFileRowQuery = {}
-  ): EidosFileRow[] {
-    return this.listRowPage(tableId, limit, offset, query).rows
-  }
-
-  getRow(tableId: string, rowId: string): EidosFileRow | null {
-    const { table, fields } = this.rowReadSchema(tableId)
-    const row = this.getComputedRow(tableId, rowId, fields, table)
-    if (!row) return null
-    return this.hydrateRelationRows([row], fields)[0] ?? null
-  }
-
-  private listRowPage(
+    options?: { offset?: number; limit?: number; query?: EidosFileRowQuery }
+  ): EidosFileRow[]
+  listRows(
     tableId: string,
-    limit: number,
+    limit?: number,
+    offset?: number,
+    query?: EidosFileRowQuery
+  ): EidosFileRow[]
+  listRows(
+    tableId: string,
+    optionsOrLimit:
+      | { offset?: number; limit?: number; query?: EidosFileRowQuery }
+      | number = {},
+    legacyOffset = 0,
+    legacyQuery: EidosFileRowQuery = {}
+  ): EidosFileRow[] {
+    const options =
+      typeof optionsOrLimit === "number"
+        ? { limit: optionsOrLimit, offset: legacyOffset, query: legacyQuery }
+        : optionsOrLimit
+    return this.getRowPage(
+      tableId,
+      options.offset ?? 0,
+      options.limit ?? 100,
+      options.query ?? {}
+    ).rows
+  }
+
+  getRowPage(
+    tableId: string,
     offset: number,
-    query: EidosFileRowQuery,
+    limit: number,
+    query: EidosFileRowQuery = {},
+    totalHint?: number,
     cursor?: string,
     projection?: EidosFileRowPageProjection
-  ): { rows: EidosFileRow[]; nextCursor?: string } {
-    const { table, fields } = this.rowReadSchema(tableId)
-    const fieldsByColumn = new Map(
-      fields.map((field) => [field.tableColumnName, field])
-    )
-    const normalizedQuery = normalizeEidosFileRowQuery(query)
-    const compiled = compileEidosFileRowQuery(fields, normalizedQuery)
-    const sorts = eidosFileCursorSorts(fields, normalizedQuery)
-    const sortedCursorEligible =
-      sorts.length > 0 &&
-      sorts.length <= EIDOS_FILE_SORTED_CURSOR_MAX_FIELDS &&
-      sorts.every((sort) => !sort.field.isDerived)
-    const safeLimit = Math.max(0, limit)
-    const candidateColumns = projection
-      ? Array.from(new Set(projection.columns))
-      : []
-    const preservedColumns = projection
-      ? Array.from(new Set(projection.preservedColumns ?? []))
-      : []
+  ): EidosFileRowPage {
     if (
-      projection?.fieldLimit !== undefined &&
-      (!Number.isSafeInteger(projection.fieldLimit) ||
-        projection.fieldLimit < 0)
+      !Number.isSafeInteger(offset) ||
+      offset < 0 ||
+      !Number.isSafeInteger(limit) ||
+      limit < 1 ||
+      limit > 10_000
     ) {
-      throw new EidosFileError(
-        "invalid-query",
-        "Eidos File row page projection field limit must be a non-negative integer"
-      )
+      throw new EidosFileError("query-limit", "Invalid Eidos File page bounds")
     }
-    const outputColumns = projection
-      ? new Set(["_id", "title", ...candidateColumns, ...preservedColumns])
-      : null
-    if (outputColumns) {
-      for (const columnName of outputColumns) {
-        const safeColumnName = assertKnownFieldColumnName(columnName)
-        if (!fieldsByColumn.has(safeColumnName)) {
-          throw new EidosFileError(
-            "field-not-found",
-            `Eidos File field not found: ${safeColumnName}`
-          )
-        }
-      }
-    }
-    const queryColumns = outputColumns
-      ? eidosFileRowQueryPredicateColumns(fields, normalizedQuery)
-      : null
-    if (queryColumns) {
-      for (const columnName of outputColumns ?? []) {
-        queryColumns.add(columnName)
-      }
-      for (const sort of sorts) {
-        queryColumns.add(sort.field.tableColumnName)
-      }
-    }
-    const rowSource = this.rowSourceSql(
+    const compatibleQuery = this.compatibilityQuery(tableId, query)
+    const fields = this.listFields(tableId)
+    const requested = projection
+      ? new Set([
+          ...projection.columns,
+          ...(projection.preservedColumns ?? []),
+          ...this.requiredQueryFieldKeys(fields, compatibleQuery),
+        ])
+      : undefined
+    const source = this.logicalSource(
       tableId,
-      fields,
-      queryColumns ?? undefined,
-      table
+      requested,
+      projection?.includeRecordLabel !== false,
+      projection?.includeRelationDisplays !== false
     )
-    const selectedColumns = outputColumns
-      ? Array.from(
-          new Set([
-            "__base_rowid",
-            ...outputColumns,
-            ...sorts.map((sort) => sort.field.tableColumnName),
-          ])
+    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery)
+    const querySignature = canonicalizeEidosFileJson(compatibleQuery)
+    const sorts = uniqueSortFields(source.fields, compatibleQuery.sorts)
+    const revision = String(this.info().revision ?? 0)
+    let effectiveOffset = offset
+    let cursorWhere = ""
+    let cursorParams: EidosFileSqlPrimitive[] = []
+    if (cursor) {
+      try {
+        const payload = JSON.parse(decodeURIComponent(cursor)) as {
+          version: number
+          revision: string
+          tableId: string
+          query: string
+          offset: number
+          values: unknown[]
+          lastId: string
+          direction: "forward"
+        }
+        if (
+          payload.version !== 1 ||
+          payload.direction !== "forward" ||
+          payload.revision !== revision ||
+          payload.tableId !== tableId ||
+          payload.query !== querySignature ||
+          !Array.isArray(payload.values)
+        ) {
+          throw new Error("cursor binding mismatch")
+        }
+        effectiveOffset = payload.offset
+        const keyset = compileKeysetAfter(
+          sorts,
+          payload.values.map(decodeCursorSqlValue),
+          payload.lastId
         )
-          .map(quoteIdentifier)
-          .join(", ")
-      : "*"
-    let rows: EidosFileRow[]
-
-    if (cursor && sorts.length === 0) {
-      const afterRowId = decodeEidosFileRowCursor(cursor)
-      const cursorWhere = appendEidosFileCursorWhere(
-        compiled.whereSql,
-        '"__base_rowid" > ?'
-      )
-      rows = this.connection.query<EidosFileRow>(
-        `SELECT ${selectedColumns} FROM ${rowSource}
-          ${cursorWhere} ${compiled.orderSql} LIMIT ?`,
-        [...compiled.params, afterRowId, safeLimit]
-      )
-    } else if (cursor && sortedCursorEligible) {
-      const querySignature = eidosFileCursorQuerySignature(normalizedQuery)
-      const decodedCursor = decodeEidosFileSortedCursor(
-        cursor,
-        querySignature,
-        sorts.length
-      )
-      rows = []
-      for (const branch of eidosFileSortedCursorBranches(
-        sorts,
-        decodedCursor
-      )) {
-        const remaining = safeLimit - rows.length
-        if (remaining <= 0) break
-        const cursorWhere = appendEidosFileCursorWhere(
-          compiled.whereSql,
-          branch.sql
-        )
-        rows.push(
-          ...this.connection.query<EidosFileRow>(
-            `SELECT ${selectedColumns} FROM ${rowSource}
-              ${cursorWhere} ${compiled.orderSql} LIMIT ?`,
-            [...compiled.params, ...branch.params, remaining]
-          )
+        cursorWhere = keyset.sql
+        cursorParams = keyset.params
+      } catch {
+        throw new EidosFileError(
+          "invalid-query",
+          "Invalid or stale Eidos File cursor"
         )
       }
-    } else if (cursor) {
-      throw new EidosFileError(
-        "invalid-query",
-        "Invalid Eidos File row page cursor"
-      )
-    } else {
-      rows = this.connection.query<EidosFileRow>(
-        `SELECT ${selectedColumns} FROM ${rowSource}
-          ${compiled.whereSql} ${compiled.orderSql} LIMIT ? OFFSET ?`,
-        [...compiled.params, safeLimit, Math.max(0, offset)]
-      )
     }
-
-    const nextCursor =
-      sorts.length === 0
-        ? encodeEidosFileRowCursor(rows.at(-1)?.__base_rowid)
-        : sortedCursorEligible
-          ? encodeEidosFileSortedCursor(
-              rows.at(-1),
-              sorts,
-              eidosFileCursorQuerySignature(normalizedQuery)
-            )
-          : undefined
-    rows.forEach((row) => {
-      delete row.__base_rowid
-      if (!outputColumns) return
-      for (const sort of sorts) {
-        const columnName = sort.field.tableColumnName
-        if (!outputColumns.has(columnName)) delete row[columnName]
+    const whereSql = cursorWhere
+      ? compiled.whereSql
+        ? `${compiled.whereSql} AND ${cursorWhere}`
+        : `WHERE ${cursorWhere}`
+      : compiled.whereSql
+    const rawRows = this.connection.query<
+      Record<string, EidosFileSqlPrimitive>
+    >(
+      `WITH logical AS (${source.sql})
+         SELECT * FROM logical ${whereSql} ${compiled.orderSql}
+         LIMIT ?${cursor ? "" : " OFFSET ?"}`,
+      cursor
+        ? [...compiled.params, ...cursorParams, limit]
+        : [...compiled.params, limit, effectiveOffset]
+    )
+    const rows = rawRows.map((row) => {
+      const mapped: EidosFileRow = {}
+      for (const [key, value] of Object.entries(row)) {
+        if (key !== "__base_rowid") mapped[key] = rowValue(value)
       }
+      if (!projection) return mapped
+      const preserved = new Set(["_id", ...(projection.preservedColumns ?? [])])
+      const candidates = projection.columns
+      const selected = new Set<string>(preserved)
+      let count = 0
+      for (const key of candidates) {
+        const value = mapped[key]
+        if (
+          projection.omitEmptyFields &&
+          (value === null ||
+            value === undefined ||
+            value === "" ||
+            value === "[]")
+        )
+          continue
+        if (
+          projection.fieldLimit !== undefined &&
+          count >= projection.fieldLimit
+        )
+          break
+        selected.add(key)
+        if (`${key}__display` in mapped) selected.add(`${key}__display`)
+        count += 1
+      }
+      return Object.fromEntries(
+        Object.entries(mapped).filter(([key]) => selected.has(key))
+      )
     })
-    if (projection) {
-      const preserved = new Set(["_id", "title", ...preservedColumns])
-      const fieldLimit = projection.fieldLimit
-      rows = rows.map((row) => {
-        const projectedRow: EidosFileRow = {}
-        for (const columnName of preserved) {
-          if (Object.prototype.hasOwnProperty.call(row, columnName)) {
-            projectedRow[columnName] = row[columnName]
-          }
-        }
-        let fieldCount = 0
-        for (const columnName of candidateColumns) {
-          if (preserved.has(columnName)) continue
-          if (fieldLimit !== undefined && fieldCount >= fieldLimit) break
-          const value = row[columnName]
-          if (projection.omitEmptyFields && isEmptyProjectedFieldValue(value)) {
-            continue
-          }
-          projectedRow[columnName] = value
-          fieldCount += 1
-        }
-        return projectedRow
-      })
-    }
-    const projectedResultColumns = outputColumns
-      ? new Set(rows.flatMap((row) => Object.keys(row)))
-      : null
-    const hydratedFields = projectedResultColumns
-      ? fields.filter((field) =>
-          projectedResultColumns.has(field.tableColumnName)
-        )
-      : fields
+    const total = totalHint ?? this.countRows(tableId, query)
+    const nextOffset = effectiveOffset + rawRows.length
+    const lastRawRow = rawRows.at(-1)
+    const nextCursor =
+      lastRawRow && rawRows.length === limit && nextOffset < total
+        ? encodeURIComponent(
+            JSON.stringify({
+              version: 1,
+              revision,
+              tableId,
+              query: querySignature,
+              offset: nextOffset,
+              values: sorts.map(({ field }) =>
+                encodeCursorSqlValue(cursorSortValue(lastRawRow, field))
+              ),
+              lastId: String(lastRawRow.__base_rowid),
+              direction: "forward",
+            })
+          )
+        : undefined
     return {
-      rows: this.hydrateRelationRows(rows, hydratedFields),
+      tableId,
+      offset: effectiveOffset,
+      limit,
+      total,
+      rows,
       ...(nextCursor ? { nextCursor } : {}),
     }
   }
 
-  private hydrateRelationRows(
-    rows: EidosFileRow[],
-    fields: EidosFileFieldInfo[]
-  ): EidosFileRow[] {
-    if (rows.length === 0) return rows
-    const relationFields = fields.filter(
-      (field) => field.type === "link" && field.valueKind === "relation"
+  getRow(tableId: string, rowId: string): EidosFileRow | null {
+    const source = this.logicalSource(tableId)
+    const row = this.connection.get<Record<string, EidosFileSqlPrimitive>>(
+      `WITH logical AS (${source.sql}) SELECT * FROM logical WHERE "__base_rowid" = ?`,
+      [assertEidosFileUuid(rowId, "Row ID")]
     )
-    if (relationFields.length === 0) return rows
-
-    const hydrated = rows.map((row) => ({ ...row }))
-    for (const field of relationFields) {
-      const target = this.relationTarget(field)
-      if (!target) continue
-      const targetTable = this.getTable(target.tableId)
-      this.getField(target.tableId, target.columnName)
-      const ids = Array.from(
-        new Set(
-          hydrated.flatMap((row) =>
-            Object.prototype.hasOwnProperty.call(row, field.tableColumnName)
-              ? decodeEidosFileRelationIds(row[field.tableColumnName])
-              : []
-          )
-        )
+    if (!row) return null
+    return Object.fromEntries(
+      Object.entries(row).flatMap(([key, value]) =>
+        key === "__base_rowid" ? [] : [[key, rowValue(value)]]
       )
-      const titles = new Map<string, string>()
-      for (let start = 0; start < ids.length; start += 400) {
-        const batch = ids.slice(start, start + 400)
-        if (batch.length === 0) continue
-        const records = this.connection.query<{
-          _id: EidosFileSqlParams[number]
-          display_value: EidosFileSqlParams[number]
-        }>(
-          `SELECT _id, ${quoteIdentifier(target.columnName)} AS display_value
-             FROM ${quoteIdentifier(targetTable.rawTableName)}
-            WHERE _id IN (${batch.map(() => "?").join(", ")})`,
-          batch
-        )
-        for (const record of records) {
-          titles.set(
-            String(record._id),
-            record.display_value === null
-              ? "Untitled"
-              : String(record.display_value)
+    )
+  }
+
+  queryRows(
+    tableId: string,
+    options: {
+      fields?: string[]
+      query?: EidosFileRowQuery
+      limit?: number
+      offset?: number
+      cursor?: string
+      resolveRelations?: boolean
+    } = {}
+  ): { rows: EidosFileLogicalRow[]; nextCursor?: string } {
+    const fields = this.listFields(tableId)
+    const requested = options.fields
+      ? options.fields.map((id) => this.fieldByKey(tableId, id))
+      : fields
+    const rowIdField = fields.find((field) => field.type === "row-id")!
+    const page = this.getRowPage(
+      tableId,
+      options.offset ?? 0,
+      options.limit ?? 100,
+      options.query ?? {},
+      undefined,
+      options.cursor,
+      {
+        columns: requested.map((field) => field.tableColumnName),
+        preservedColumns: [rowIdField.tableColumnName],
+        fieldLimit: requested.length,
+        includeRecordLabel: false,
+        includeRelationDisplays: options.resolveRelations === true,
+      }
+    )
+    const rows = page.rows.map((row) => {
+      const logicalFields = Object.fromEntries(
+        requested.map((field) => {
+          const raw = row[field.tableColumnName]
+          let value: EidosFileLogicalValue = raw ?? null
+          const resultType =
+            field.type === "formula" || field.type === "lookup"
+              ? String(field.property?.displayType ?? field.type)
+              : field.type
+          if (
+            typeof raw === "string" &&
+            (field.type === "file" ||
+              field.type === "multi-select" ||
+              field.type === "relation" ||
+              (field.type === "lookup" &&
+                field.property?.aggregate === "values") ||
+              field.type === "json")
+          ) {
+            value = parseEidosFileJson(raw)
+          } else if (resultType === "checkbox" && typeof raw === "number") {
+            value = raw === 1
+          }
+          return [field.id!, value]
+        })
+      )
+      const resolved = options.resolveRelations
+        ? Object.fromEntries(
+            requested.flatMap((field) => {
+              if (field.type !== "relation") return []
+              const display = row[`${field.tableColumnName}__display`]
+              if (typeof display !== "string") return [[field.id!, []]]
+              const parsed = parseEidosFileJson(display)
+              if (!Array.isArray(parsed)) return [[field.id!, []]]
+              return [
+                [
+                  field.id!,
+                  parsed.flatMap((entry) =>
+                    entry &&
+                    !Array.isArray(entry) &&
+                    typeof entry === "object" &&
+                    typeof entry.id === "string"
+                      ? [{ id: entry.id, label: entry.title ?? null }]
+                      : []
+                  ),
+                ],
+              ]
+            })
           )
-        }
+        : undefined
+      return {
+        id: String(row[rowIdField.tableColumnName]),
+        fields: logicalFields,
+        ...(resolved && Object.keys(resolved).length > 0 ? { resolved } : {}),
       }
-      for (const row of hydrated) {
-        if (!Object.prototype.hasOwnProperty.call(row, field.tableColumnName)) {
-          continue
-        }
-        const values = decodeEidosFileRelationIds(
-          row[field.tableColumnName]
-        ).map((id) => ({ id, title: titles.get(id) ?? "Missing record" }))
-        row[`${field.tableColumnName}__display`] = JSON.stringify(values)
-      }
+    })
+    return { rows, ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}) }
+  }
+
+  /**
+   * @internal Exact Runtime aggregate/group scan. One set-based SQL statement
+   * returns typed logical inputs in effective query order; the public Runtime
+   * remains responsible for aggregate arithmetic and response bounds.
+   */
+  runtimeScanLogicalRows(
+    tableId: string,
+    fieldIds: string[],
+    query: EidosFileRowQuery
+  ): EidosFileLogicalRow[] {
+    const compatibleQuery = this.compatibilityQuery(tableId, query)
+    const source = this.logicalSource(tableId, fieldIds, false, false)
+    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery)
+    const selectedFields = fieldIds.map((fieldId) =>
+      this.fieldByKey(tableId, fieldId)
+    )
+    const encodedValues = selectedFields.map((field) => {
+      const column = quoteIdentifier(field.tableColumnName)
+      return `json_object(
+        'storage', typeof(${column}),
+        'value', CASE WHEN typeof(${column})='integer'
+                      THEN CAST(${column} AS TEXT) ELSE ${column} END
+      )`
+    })
+    const payload = this.connection.get<{ payload: string }>(
+      `WITH logical AS (${source.sql}), ordered AS (
+         SELECT * FROM logical ${compiled.whereSql} ${compiled.orderSql}
+         LIMIT -1
+       )
+       SELECT coalesce(
+         json_group_array(
+           json_object(
+             'id', "__base_rowid",
+             'values', json_array(${encodedValues.join(", ")})
+           )
+         ),
+         '[]'
+       ) AS payload
+       FROM ordered`,
+      compiled.params
+    )?.payload
+    const parsed = parseEidosFileJson(payload ?? "[]")
+    if (!Array.isArray(parsed)) {
+      throw new EidosFileError(
+        "invalid-value",
+        "Logical aggregate scan returned an invalid payload"
+      )
     }
-    return hydrated
+    return parsed.map((entry) => {
+      if (!entry || Array.isArray(entry) || typeof entry !== "object") {
+        throw new EidosFileError(
+          "invalid-value",
+          "Logical aggregate scan returned an invalid row"
+        )
+      }
+      const rowId = entry.id
+      const rowValues = entry.values
+      if (
+        typeof rowId !== "string" ||
+        !Array.isArray(rowValues) ||
+        rowValues.length !== selectedFields.length
+      ) {
+        throw new EidosFileError(
+          "invalid-value",
+          "Logical aggregate scan returned an invalid row"
+        )
+      }
+      return {
+        id: rowId,
+        fields: Object.fromEntries(
+          selectedFields.map((field, index) => {
+            const wrapped = rowValues[index]
+            if (
+              !wrapped ||
+              Array.isArray(wrapped) ||
+              typeof wrapped !== "object"
+            ) {
+              throw new EidosFileError(
+                "invalid-value",
+                "Logical aggregate scan returned an invalid value"
+              )
+            }
+            const storage = wrapped.storage
+            const value = wrapped.value
+            if (storage === "null") return [field.id!, null]
+            if (storage === "integer") {
+              if (typeof value !== "string") {
+                throw new EidosFileError(
+                  "invalid-value",
+                  "Logical aggregate INTEGER lost precision"
+                )
+              }
+              return [
+                field.id!,
+                fieldValueTypeForScan(field) === "checkbox"
+                  ? value === "1"
+                  : fieldValueTypeForScan(field) === "integer"
+                    ? BigInt(value)
+                    : Number(value),
+              ]
+            }
+            if (storage === "real") return [field.id!, Number(value)]
+            if (storage === "text") {
+              const logicalType = fieldValueTypeForScan(field)
+              if (
+                logicalType === "json" ||
+                logicalType === "file" ||
+                logicalType === "multi-select" ||
+                logicalType === "relation" ||
+                logicalType === "file-entry" ||
+                typeof logicalType === "object"
+              ) {
+                return [field.id!, parseEidosFileJson(String(value))]
+              }
+              return [field.id!, String(value)]
+            }
+            throw new EidosFileError(
+              "invalid-value",
+              "Logical aggregate scan returned an unsupported storage class"
+            )
+          })
+        ),
+      }
+    })
+  }
+
+  /** @internal Builds the keyset boundary used by the exact Runtime service. */
+  createRowCursor(
+    tableId: string,
+    query: EidosFileRowQuery,
+    row: EidosFileLogicalRow
+  ): string {
+    const compatibleQuery = this.compatibilityQuery(tableId, query)
+    const fields = this.listFields(tableId)
+    const sorts = uniqueSortFields(fields, compatibleQuery.sorts)
+    const values = sorts.map(({ field }) => {
+      const value = row.fields[field.id!] ?? null
+      return typeof value === "boolean" ? (value ? 1 : 0) : value
+    })
+    if (
+      values.some(
+        (value) =>
+          value !== null &&
+          typeof value !== "string" &&
+          typeof value !== "number" &&
+          typeof value !== "bigint" &&
+          !(value instanceof Uint8Array)
+      )
+    ) {
+      throw new EidosFileError(
+        "invalid-query",
+        "Sort boundary is not a scalar SQLite value"
+      )
+    }
+    return encodeURIComponent(
+      JSON.stringify({
+        version: 1,
+        revision: String(this.info().revision ?? 0),
+        tableId,
+        query: canonicalizeEidosFileJson(compatibleQuery),
+        offset: 0,
+        values: values.map((value) =>
+          encodeCursorSqlValue(value as EidosFileSqlPrimitive)
+        ),
+        lastId: row.id,
+        direction: "forward",
+      })
+    )
   }
 
   countRows(tableId: string, query: EidosFileRowQuery = {}): number {
-    const { table, fields } = this.rowReadSchema(tableId)
-    const compiled = compileEidosFileRowQuery(fields, query)
+    const compatibleQuery = this.compatibilityQuery(tableId, query)
+    const fields = this.listFields(tableId)
+    const source = this.logicalSource(
+      tableId,
+      this.requiredQueryFieldKeys(fields, compatibleQuery),
+      false,
+      false
+    )
+    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery)
     return (
       this.connection.get<{ count: number }>(
-        `SELECT COUNT(*) AS count FROM ${this.countRowSourceSql(tableId, fields, query, [], table)}
-          ${compiled.whereSql}`,
+        `WITH logical AS (${source.sql}) SELECT count(*) AS count FROM logical ${compiled.whereSql}`,
         compiled.params
       )?.count ?? 0
     )
@@ -2589,34 +3401,46 @@ export class EidosFileRuntime {
 
   countRowsByField(
     tableId: string,
-    columnName: string,
+    fieldKey: string,
     query: EidosFileRowQuery = {}
   ): EidosFileRowGroupCount[] {
-    const { table, fields } = this.rowReadSchema(tableId)
-    const safeColumnName = assertKnownFieldColumnName(columnName)
-    const field = fields.find(
-      (candidate) => candidate.tableColumnName === safeColumnName
+    const field = this.fieldByKey(tableId, fieldKey)
+    const compatibleQuery = this.compatibilityQuery(tableId, query)
+    const fields = this.listFields(tableId)
+    const source = this.logicalSource(
+      tableId,
+      [field.id!, ...this.requiredQueryFieldKeys(fields, compatibleQuery)],
+      false,
+      false
     )
-    if (!field) {
-      throw new EidosFileError(
-        "field-not-found",
-        `Eidos File field not found: ${safeColumnName}`
-      )
-    }
-    const compiled = compileEidosFileRowQuery(fields, query)
+    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery)
     const column = quoteIdentifier(field.tableColumnName)
-    return this.connection
-      .query<{ value: EidosFileSqlPrimitive; total: number }>(
-        `SELECT ${column} AS value, COUNT(*) AS total
-           FROM ${this.countRowSourceSql(tableId, fields, query, [field.tableColumnName], table)}
-           ${compiled.whereSql}
-          GROUP BY ${column}`,
+    if (
+      field.storageCodec === "json_array" ||
+      field.storageCodec === "relation"
+    ) {
+      return this.connection.query<{
+        value: EidosFileSqlPrimitive
+        total: number
+      }>(
+        `WITH logical AS (${source.sql}), filtered AS (
+           SELECT * FROM logical ${compiled.whereSql}
+         )
+         SELECT item.value AS value, count(*) AS total
+         FROM filtered, json_each(filtered.${column}) item
+         GROUP BY item.value ORDER BY total DESC, item.value`,
         compiled.params
       )
-      .map((group) => ({
-        value: group.value,
-        total: Number(group.total),
-      }))
+    }
+    return this.connection.query<{
+      value: EidosFileSqlPrimitive
+      total: number
+    }>(
+      `WITH logical AS (${source.sql})
+       SELECT ${column} AS value, count(*) AS total FROM logical
+       ${compiled.whereSql} GROUP BY ${column} ORDER BY total DESC, ${column}`,
+      compiled.params
+    )
   }
 
   calculateColumnStats(
@@ -2624,194 +3448,341 @@ export class EidosFileRuntime {
     configs: EidosFileColumnStatConfig[],
     query: EidosFileRowQuery = {}
   ): EidosFileColumnStatResult[] {
-    const { table, fields } = this.rowReadSchema(tableId)
-    const normalized = normalizeEidosFileColumnStatConfigs(configs, fields)
-    if (normalized.length === 0) return []
-    const byColumn = new Map(
-      fields.map((field) => [field.tableColumnName, field])
+    const compatibleQuery = this.compatibilityQuery(tableId, query)
+    const fields = this.listFields(tableId)
+    configs = normalizeEidosFileColumnStatConfigs(configs, fields)
+    const source = this.logicalSource(
+      tableId,
+      [
+        ...configs.map((config) => config.fieldId),
+        ...this.requiredQueryFieldKeys(fields, compatibleQuery),
+      ],
+      false,
+      false
     )
-    const compiled = compileEidosFileRowQuery(fields, query)
-    const aliases = normalized.map((_, index) => `__base_stat_${index}`)
-    const select = normalized.map((config, index) => {
-      const field = byColumn.get(config.columnName)
-      if (!field) {
-        throw new EidosFileError(
-          "field-not-found",
-          `Eidos File field not found: ${config.columnName}`
-        )
-      }
-      return `${compileEidosFileColumnStatExpression(field, config.type)} AS ${quoteIdentifier(aliases[index])}`
-    })
-    const result = this.connection.get<Record<string, EidosFileSqlPrimitive>>(
-      `SELECT ${select.join(", ")}
-         FROM ${this.rowSourceSql(tableId, fields, undefined, table)}
-         ${compiled.whereSql}`,
-      compiled.params
-    )
-    return normalized.map((config, index) => {
-      const value = result?.[aliases[index]] ?? null
-      if (value instanceof Uint8Array) {
+    const compiled = compileEidosFileRowQuery(source.fields, compatibleQuery)
+    return configs.map((config) => {
+      const field = this.fieldByKey(tableId, config.fieldId)
+      const column = quoteIdentifier(field.tableColumnName)
+      const list =
+        field.storageCodec === "json_array" || field.storageCodec === "relation"
+      if (config.type.startsWith("relation-") && field.type !== "relation") {
         throw new EidosFileError(
           "invalid-query",
-          `Column stat returned binary data for ${config.columnName}`
+          `${config.type} requires a Relation Field`
         )
       }
-      return {
-        ...config,
-        value: typeof value === "bigint" ? Number(value) : value,
+      const flattened = `(SELECT item.value AS value, item.type AS value_type
+          FROM filtered, json_each(filtered.${column}) item
+         WHERE item.value IS NOT NULL)`
+      const expression = {
+        "count-all": "count(*)",
+        "count-non-null": list ? "count(*)" : `count(${column})`,
+        "count-empty": `sum(CASE WHEN ${column} IS NULL${list ? ` OR json_array_length(${column}) = 0` : ""} THEN 1 ELSE 0 END)`,
+        "count-distinct": list
+          ? `(SELECT count(DISTINCT value_type || ':' || json_quote(value)) FROM ${flattened})`
+          : `count(DISTINCT ${column})`,
+        sum: list
+          ? `(SELECT sum(value) FROM ${flattened} WHERE value_type IN ('integer','real'))`
+          : `sum(${column})`,
+        average: list
+          ? `(SELECT avg(value) FROM ${flattened} WHERE value_type IN ('integer','real'))`
+          : `avg(${column})`,
+        min: list ? `(SELECT min(value) FROM ${flattened})` : `min(${column})`,
+        max: list ? `(SELECT max(value) FROM ${flattened})` : `max(${column})`,
+        "relation-value-count": `sum(json_array_length(${column}))`,
+        "relation-row-count": `sum(CASE WHEN json_array_length(${column}) > 0 THEN 1 ELSE 0 END)`,
+        "relation-distinct-target-count": `(SELECT count(DISTINCT value) FROM ${flattened} WHERE value_type = 'text')`,
+      }[config.type]
+      if (!expression) {
+        throw new EidosFileError(
+          "invalid-query",
+          `Unsupported statistic: ${config.type}`
+        )
       }
+      const value =
+        this.connection.get<{ value: number | string | null }>(
+          `WITH logical AS (${source.sql}), filtered AS (
+           SELECT * FROM logical ${compiled.whereSql}
+         ) SELECT ${expression} AS value FROM filtered`,
+          compiled.params
+        )?.value ?? null
+      return { ...config, value }
     })
   }
 
-  getRowPage(
+  aggregate(
     tableId: string,
-    offset = 0,
-    limit = 100,
-    query: EidosFileRowQuery = {},
-    totalHint?: number,
-    cursor?: string,
-    projection?: EidosFileRowPageProjection
-  ): EidosFileRowPage {
-    const safeOffset = Math.max(0, Math.trunc(offset))
-    const safeLimit = Math.min(500, Math.max(1, Math.trunc(limit)))
-    const safeTotalHint =
-      typeof totalHint === "number" &&
-      Number.isSafeInteger(totalHint) &&
-      totalHint >= 0
-        ? totalHint
-        : null
-    const page = this.listRowPage(
-      tableId,
-      safeLimit,
-      safeOffset,
-      query,
-      cursor,
-      projection
-    )
-    return {
-      tableId,
-      offset: safeOffset,
-      limit: safeLimit,
-      total: safeTotalHint ?? this.countRows(tableId, query),
-      rows: page.rows,
-      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {}),
+    configs: EidosFileColumnStatConfig[],
+    query: EidosFileRowQuery = {}
+  ): EidosFileColumnStatResult[] {
+    return this.calculateColumnStats(tableId, configs, query)
+  }
+
+  private normalizeStoredValue(
+    field: EidosFileFieldInfo,
+    value: EidosFileRow[string],
+    allowUnresolvedRelations: boolean
+  ): EidosFileSqlPrimitive {
+    if (value === null || value === undefined) {
+      if (
+        field.type === "file" ||
+        field.type === "multi-select" ||
+        field.type === "relation"
+      )
+        return "[]"
+      return null
     }
+    if (field.type === "checkbox") {
+      if (value === true || value === 1) return 1
+      if (value === false || value === 0) return 0
+      throw new EidosFileError(
+        "invalid-value",
+        `${field.name} must be boolean or NULL`
+      )
+    }
+    if (field.type === "number") {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new EidosFileError(
+          "invalid-value",
+          `${field.name} must be finite number or NULL`
+        )
+      }
+      return value
+    }
+    if (field.type === "date") {
+      if (typeof value !== "string") {
+        throw new EidosFileError(
+          "invalid-value",
+          `${field.name} must be canonical YYYY-MM-DD text or NULL`
+        )
+      }
+      return normalizeEidosFileDate(value, field.name)
+    }
+    if (field.type === "datetime") {
+      if (typeof value !== "string") {
+        throw new EidosFileError(
+          "invalid-value",
+          `${field.name} must be RFC 3339 text or NULL`
+        )
+      }
+      return normalizeEidosFileInstant(value, field.name)
+    }
+    if (["integer", "rating"].includes(field.type)) {
+      if (typeof value !== "number" && typeof value !== "bigint") {
+        throw new EidosFileError(
+          "invalid-value",
+          `${field.name} must be an integer or NULL`
+        )
+      }
+      const integer =
+        typeof value === "bigint"
+          ? value >= -9_223_372_036_854_775_808n &&
+            value <= 9_223_372_036_854_775_807n
+          : typeof value === "number" && Number.isSafeInteger(value)
+      if (!integer) {
+        throw new EidosFileError(
+          "invalid-value",
+          `${field.name} must be an integer or NULL`
+        )
+      }
+      if (field.type === "rating") {
+        const maximum =
+          typeof field.settings?.max === "number" ? field.settings.max : 5
+        if (typeof value !== "number" || value < 0 || value > maximum) {
+          throw new EidosFileError(
+            "invalid-value",
+            `${field.name} must be between 0 and ${maximum}`
+          )
+        }
+      }
+      return value
+    }
+    if (
+      field.type === "select" ||
+      field.type === "text" ||
+      field.type === "url"
+    ) {
+      if (typeof value !== "string") {
+        throw new EidosFileError(
+          "invalid-value",
+          `${field.name} must be text or NULL`
+        )
+      }
+      return value
+    }
+    if (field.type === "json") {
+      const text =
+        typeof value === "string" ? value : canonicalizeEidosFileJson(value)
+      return canonicalizeEidosFileJson(parseEidosFileJson(text))
+    }
+    if (field.type === "multi-select") {
+      const parsed =
+        typeof value === "string" ? parseEidosFileJson(value) : value
+      if (
+        !Array.isArray(parsed) ||
+        !parsed.every((entry) => typeof entry === "string") ||
+        new Set(parsed).size !== parsed.length
+      ) {
+        throw new EidosFileError(
+          "invalid-value",
+          `${field.name} must be a unique string array`
+        )
+      }
+      return canonicalizeEidosFileJson(parsed)
+    }
+    if (field.type === "file") {
+      const parsed =
+        typeof value === "string" ? parseEidosFileJson(value) : value
+      return canonicalizeEidosFileJson(assertEidosFileValues(parsed))
+    }
+    if (field.type === "relation") {
+      const ids = Array.isArray(value)
+        ? value.map(String)
+        : decodeEidosFileRelationIds(
+            typeof value === "string" ? value : undefined
+          )
+      const encoded = encodeEidosFileRelationIds(ids)
+      const schema = this.allSchema()
+      const relation = schema.relations.get(field.id!)
+      if (!relation || relation.direction !== "forward") {
+        throw new EidosFileError(
+          "invalid-value",
+          "Inverse Relations are read-only"
+        )
+      }
+      if (relation.cardinality === "one" && ids.length > 1) {
+        throw new EidosFileError(
+          "invalid-value",
+          `${field.name} accepts at most one target`
+        )
+      }
+      if (!allowUnresolvedRelations && ids.length > 0) {
+        const target = schema.tables.get(uuid(relation.target_table_id))!
+        const placeholders = ids.map(() => "?").join(", ")
+        const count =
+          this.connection.get<{ count: number }>(
+            `SELECT count(*) AS count FROM ${quoteIdentifier(target.physical_name)}
+            WHERE "_id" IN (${placeholders})`,
+            ids
+          )?.count ?? 0
+        if (count !== ids.length) {
+          throw new EidosFileError(
+            "invalid-value",
+            `${field.name} contains a missing target Row ID`
+          )
+        }
+      }
+      return encoded
+    }
+    if (
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "bigint"
+    ) {
+      return value
+    }
+    throw new EidosFileError(
+      "invalid-value",
+      `Unsupported value for ${field.name}`
+    )
+  }
+
+  private rowChanges(
+    tableId: string,
+    row: EidosFileRow,
+    allowUnresolvedRelations: boolean
+  ): Array<{ field: EidosFileFieldInfo; value: EidosFileSqlPrimitive }> {
+    const changes: Array<{
+      field: EidosFileFieldInfo
+      value: EidosFileSqlPrimitive
+    }> = []
+    for (const [key, value] of Object.entries(row)) {
+      if (key === "_id" || key === "id" || key.endsWith("__display")) continue
+      const field = this.fieldByKey(tableId, key)
+      if (!field.physicalName || field.valueKind === "system") {
+        throw new EidosFileError(
+          "protected-field",
+          `Field ${field.name} is read-only`
+        )
+      }
+      changes.push({
+        field,
+        value: this.normalizeStoredValue(
+          field,
+          value,
+          allowUnresolvedRelations
+        ),
+      })
+    }
+    return changes
+  }
+
+  private insertRowInTransaction(
+    tableId: string,
+    row: EidosFileRow,
+    allowUnresolvedRelations: boolean
+  ): string {
+    const table = this.getTable(tableId)
+    const requestedId = row._id ?? row.id
+    const rowId =
+      typeof requestedId === "string"
+        ? assertEidosFileUuid(requestedId, "Row ID")
+        : this.allocateId()
+    const now = this.operationInstant()
+    const changes = this.rowChanges(tableId, row, allowUnresolvedRelations)
+    const columns = [
+      "_id",
+      "_created_at",
+      "_updated_at",
+      ...changes.map((change) => change.field.physicalName!),
+    ]
+    const values: EidosFileSqlPrimitive[] = [
+      rowId,
+      now,
+      now,
+      ...changes.map((change) => change.value),
+    ]
+    this.connection.run(
+      `INSERT INTO ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
+        (${columns.map(quoteIdentifier).join(", ")})
+       VALUES (${values.map(() => "?").join(", ")})`,
+      values
+    )
+    return rowId
   }
 
   insertRow(tableId: string, row: EidosFileRow): EidosFileRow {
-    const table = this.getTable(tableId)
-    const fields = this.listFields(tableId)
-    const fieldsByColumn = new Map(
-      fields.map((field) => [field.tableColumnName, field])
+    const id = this.mutate(() =>
+      this.insertRowInTransaction(tableId, row, true)
     )
-    const allowedColumns = new Set([
-      "_id",
-      ...fields
-        .filter(
-          (field) =>
-            field.tableColumnName === "title" ||
-            field.valueKind === "source" ||
-            field.valueKind === "relation"
-        )
-        .map((field) => field.tableColumnName),
-    ])
-    const record: EidosFileRow = {
-      ...Object.fromEntries(
-        Object.entries(row).map(([column, value]) => [
-          column,
-          writableFieldValue(fieldsByColumn.get(column), value),
-        ])
-      ),
-      _id: row._id ?? createEidosFileUuid(),
-    }
-    const columns = Object.keys(record)
-    for (const column of columns) {
-      if (!allowedColumns.has(column)) {
-        throw new EidosFileError(
-          "field-not-found",
-          `Eidos File field cannot be written: ${column}`
-        )
-      }
-    }
-    const placeholders = columns.map(() => "?").join(", ")
-    this.connection.run(
-      `INSERT INTO ${quoteIdentifier(table.rawTableName)}
-        (${columns.map(quoteIdentifier).join(", ")}) VALUES (${placeholders})`,
-      columns.map((column) => sqliteParameter(record[column]))
-    )
-    this.touchMetadata({})
-    const inserted = this.getComputedRow(
-      tableId,
-      sqliteParameter(record._id),
-      fields
-    )!
-    return this.hydrateRelationRows([inserted], fields)[0]
+    return this.getRow(tableId, id)!
   }
 
   insertImportedRow(tableId: string, row: EidosFileRow): EidosFileRow {
-    const record = this.insertImportedRows(tableId, [row])[0]
-    const table = this.getTable(tableId)
-    return this.connection.get<EidosFileRow>(
-      `SELECT * FROM ${quoteIdentifier(table.rawTableName)} WHERE _id = ?`,
-      [sqliteParameter(record._id)]
-    )!
+    const id = this.mutate(() =>
+      this.insertRowInTransaction(tableId, row, true)
+    )
+    return this.getRow(tableId, id)!
   }
 
   insertImportedRows(tableId: string, rows: EidosFileRow[]): EidosFileRow[] {
-    if (rows.length === 0) return []
-    const table = this.getTable(tableId)
-    const writableColumns = new Set(
-      this.connection
-        .query<{ name: string; hidden: number }>(
-          `PRAGMA table_xinfo(${quoteIdentifier(table.rawTableName)})`
-        )
-        .filter((column) => column.hidden === 0)
-        .map((column) => column.name)
+    const ids = this.mutate(() =>
+      rows.map((row) => this.insertRowInTransaction(tableId, row, true))
     )
-    const records: EidosFileRow[] = rows.map((row) => ({
-      ...row,
-      _id: row._id ?? createEidosFileUuid(),
-    }))
-    this.connection.transaction(() => {
-      const batches = new Map<
-        string,
-        { columns: string[]; parameterSets: EidosFileSqlParams[] }
-      >()
-      for (const record of records) {
-        const columns = Object.keys(record)
-        for (const column of columns) {
-          if (!writableColumns.has(column)) {
-            throw new EidosFileError(
-              "field-not-found",
-              `Eidos File field cannot be imported: ${column}`
-            )
-          }
-        }
-        const signature = columns.join("\u0000")
-        const batch = batches.get(signature) ?? {
-          columns,
-          parameterSets: [],
-        }
-        batch.parameterSets.push(
-          columns.map((column) => sqliteParameter(record[column]))
-        )
-        batches.set(signature, batch)
-      }
-      for (const batch of batches.values()) {
-        const sql = `INSERT INTO ${quoteIdentifier(table.rawTableName)}
-            (${batch.columns.map(quoteIdentifier).join(", ")})
-           VALUES (${batch.columns.map(() => "?").join(", ")})`
-        if (this.connection.runMany) {
-          this.connection.runMany(sql, batch.parameterSets)
-        } else {
-          for (const params of batch.parameterSets) {
-            this.connection.run(sql, params)
-          }
-        }
-      }
+    return ids.map((id) => this.getRow(tableId, id)!)
+  }
+
+  /** @internal Used by the transactional CSV interchange layer. */
+  importTable(
+    table: CreateEidosFileTableInput,
+    rows: EidosFileRow[]
+  ): EidosFileTableInfo {
+    return this.mutate(() => {
+      const created = this.createTable(table)
+      rows.forEach((row) => this.insertRowInTransaction(created.id, row, true))
+      return created
     })
-    this.touchMetadata({})
-    return records
   }
 
   updateRow(
@@ -2819,79 +3790,41 @@ export class EidosFileRuntime {
     rowId: string,
     changes: EidosFileRow
   ): EidosFileRow {
-    return this.updateRows(tableId, [{ rowId, changes }])[0]
+    return this.updateRows(tableId, [{ rowId, changes }])[0]!
   }
 
   updateRows(tableId: string, updates: EidosFileRowUpdate[]): EidosFileRow[] {
     const table = this.getTable(tableId)
-    const fields = this.listFields(tableId)
-    const fieldsByColumn = new Map(
-      fields.map((field) => [field.tableColumnName, field])
-    )
-    const allowedColumns = new Set(
-      fields
-        .filter(
-          (field) =>
-            field.tableColumnName === "title" ||
-            field.valueKind === "source" ||
-            field.valueKind === "relation"
+    const ids = this.mutate(() => {
+      for (const update of updates) {
+        const rowId = assertEidosFileUuid(update.rowId, "Row ID")
+        const changes = this.rowChanges(tableId, update.changes, true)
+        if (changes.length === 0) continue
+        const assignments = [
+          ...changes.map(
+            (change) => `${quoteIdentifier(change.field.physicalName!)} = ?`
+          ),
+          `"_updated_at" = ?`,
+        ]
+        const result = this.connection.run(
+          `UPDATE ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
+              SET ${assignments.join(", ")} WHERE "_id" = ?`,
+          [
+            ...changes.map((change) => change.value),
+            this.operationInstant(),
+            rowId,
+          ]
         )
-        .map((field) => field.tableColumnName)
-    )
-    const prepared = updates.map(({ rowId, changes }) => {
-      const columns = Object.keys(changes).filter((column) => column !== "_id")
-      for (const column of columns) {
-        if (!allowedColumns.has(column)) {
+        if (result.changes === 0) {
           throw new EidosFileError(
-            "field-not-found",
-            `Eidos File field not found: ${column}`
+            "row-not-found",
+            `Eidos File Row not found: ${rowId}`
           )
         }
       }
-      return { rowId, changes, columns }
+      return updates.map((update) => update.rowId)
     })
-    if (prepared.length === 0) return []
-
-    const rows = this.connection.transaction(() => {
-      let mutated = false
-      for (const { rowId, changes, columns } of prepared) {
-        if (columns.length > 0) {
-          const assignments = columns
-            .map((column) => `${quoteIdentifier(column)} = ?`)
-            .join(", ")
-          const result = this.connection.run(
-            `UPDATE ${quoteIdentifier(table.rawTableName)}
-                SET ${assignments}, _last_edited_time = CURRENT_TIMESTAMP
-              WHERE _id = ?`,
-            [
-              ...columns.map((column) =>
-                sqliteParameter(
-                  writableFieldValue(
-                    fieldsByColumn.get(column),
-                    changes[column]
-                  )
-                )
-              ),
-              rowId,
-            ]
-          )
-          if (result.changes === 0) {
-            throw new EidosFileError("row-not-found", `Row not found: ${rowId}`)
-          }
-          mutated = true
-        }
-      }
-      if (mutated) this.touchMetadata({})
-
-      return prepared.map(({ rowId }) => {
-        const updated = this.getComputedRow(tableId, rowId, fields)
-        if (!updated) {
-          throw new EidosFileError("row-not-found", `Row not found: ${rowId}`)
-        }
-        return updated
-      })
-    })
-    return this.hydrateRelationRows(rows, fields)
+    return ids.map((id) => this.getRow(tableId, id)!)
   }
 
   deleteRow(tableId: string, rowId: string): boolean {
@@ -2899,12 +3832,35 @@ export class EidosFileRuntime {
   }
 
   deleteRows(tableId: string, rowIds: string[]): string[] {
+    if (rowIds.length === 0) return []
     const table = this.getTable(tableId)
-    const uniqueIds = [...new Set(rowIds)]
-    if (uniqueIds.length === 0) return []
-    return this.connection.transaction(() =>
-      this.deleteRowsInTransaction(table.rawTableName, uniqueIds)
+    const ids = Array.from(
+      new Set(rowIds.map((id) => assertEidosFileUuid(id, "Row ID")))
     )
+    if (ids.length > 500) {
+      throw new EidosFileError(
+        "resource-limit",
+        "deleteRows accepts at most 500 Row IDs"
+      )
+    }
+    return this.mutate(() => {
+      const existing = this.connection
+        .query<{ id: string }>(
+          `SELECT "_id" AS id
+             FROM ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
+            WHERE "_id" IN (${ids.map(() => "?").join(", ")})`,
+          ids
+        )
+        .map((row) => uuid(row.id))
+      if (existing.length > 0) {
+        this.connection.run(
+          `DELETE FROM ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
+            WHERE "_id" IN (${existing.map(() => "?").join(", ")})`,
+          existing
+        )
+      }
+      return existing
+    })
   }
 
   deleteRowRanges(
@@ -2912,71 +3868,480 @@ export class EidosFileRuntime {
     ranges: EidosFileRowRange[],
     query: EidosFileRowQuery = {}
   ): number {
-    const table = this.getTable(tableId)
-    const fields = this.listFields(tableId)
-    const compiled = compileEidosFileRowQuery(fields, query)
-    const normalized = this.normalizeRowRanges(ranges)
-    if (normalized.length === 0) return 0
-    return this.connection.transaction(() => {
-      let deletedCount = 0
-      for (const { startIndex, endIndex } of normalized.reverse()) {
-        const result = this.connection.run(
-          `DELETE FROM ${quoteIdentifier(table.rawTableName)}
-            WHERE _id IN (
-              SELECT _id FROM ${this.rowSourceSql(tableId, fields)}
-              ${compiled.whereSql} ${compiled.orderSql} LIMIT ? OFFSET ?
-            )`,
-          [...compiled.params, endIndex - startIndex, startIndex]
-        )
-        deletedCount += result.changes
-      }
-      if (deletedCount > 0) this.touchMetadata({})
-      return deletedCount
+    const rowIdField = this.listFields(tableId).find(
+      (field) => field.type === "row-id"
+    )!
+    const ids = ranges.flatMap((range) => {
+      const start = Math.max(0, Math.trunc(range.startIndex))
+      const end = Math.max(start, Math.trunc(range.endIndex))
+      return this.getRowPage(
+        tableId,
+        start,
+        end - start + 1,
+        query
+      ).rows.flatMap((row) => {
+        const id = row[rowIdField.tableColumnName]
+        return typeof id === "string" ? [id] : []
+      })
     })
+    return this.deleteRows(tableId, ids).length
   }
 
-  private normalizeRowRanges(ranges: EidosFileRowRange[]): EidosFileRowRange[] {
-    const sorted = ranges
-      .map(({ startIndex, endIndex }) => {
-        if (
-          !Number.isSafeInteger(startIndex) ||
-          !Number.isSafeInteger(endIndex) ||
-          startIndex < 0 ||
-          endIndex <= startIndex
-        ) {
+  previewFormula(
+    tableId: string,
+    input: EidosFileFormulaPreviewInput
+  ): EidosFileFormulaPreview {
+    const fields = this.listFields(tableId)
+    const draft: EidosFileFieldInfo = {
+      id: this.allocateId(),
+      tableId,
+      name: input.name,
+      type: "formula",
+      tableName: this.getTable(tableId).rawTableName,
+      tableColumnName: input.columnName,
+      physicalName: null,
+      isRecordLabel: false,
+      position: fields.length,
+      settings: {},
+      property: { formula: input.formula, displayType: input.displayType },
+      storageCodec: "scalar",
+      valueKind: "derived",
+      isHidden: false,
+      isDerived: true,
+      sourceTableColumnName: null,
+      dependsOn: null,
+    }
+    const compiled = compileEidosFileFormula(draft, fields)
+    const schema = this.allSchema()
+    const expression = compileEidosFileFormulaSource(
+      input.formula,
+      fields,
+      (dependency) => this.fieldExpression(dependency, "base", schema),
+      input.displayType
+    ).expression
+    const sampleExpression = canonicalTemporalProjection(
+      expression,
+      input.displayType
+    )
+    const table = this.getTable(tableId)
+    const label = fields.find((field) => field.isRecordLabel)!
+    const samples = this.connection.query<{
+      row_id: string
+      title: EidosFileSqlPrimitive
+      value: EidosFileSqlPrimitive
+    }>(
+      `SELECT base."_id" AS row_id,
+              ${this.fieldExpression(label, "base", schema)} AS title,
+              ${sampleExpression} AS value
+         FROM ${quoteIdentifier(table.physicalName ?? table.rawTableName)} base
+        ORDER BY base."_id" LIMIT 5`
+    )
+    return {
+      expression,
+      dependencies: compiled.dependencyFieldIds.map((id) => {
+        const field = fields.find((candidate) => candidate.id === id)!
+        return { name: field.name, columnName: field.tableColumnName }
+      }),
+      samples: samples.map((sample) => ({
+        rowId: sample.row_id,
+        title: sample.title === null ? null : String(sample.title),
+        value: rowValue(sample.value),
+      })),
+    }
+  }
+
+  optimizeViewQueries(): void {
+    // Optional indexes are generated state. The 1.0 Runtime currently relies
+    // on SQLite query planning and never persists a second multivalue source.
+  }
+
+  schema(tableId?: string) {
+    const tables = tableId ? [this.getTable(tableId)] : this.listTables()
+    return tables.map((table) => ({
+      table,
+      fields: this.listFields(table.id),
+      views: this.listViews(table.id),
+    }))
+  }
+
+  mutateSchema(
+    operations: EidosFileSchemaMutation[],
+    expectedRevision?: number | bigint
+  ): { revision: number | bigint; results: unknown[] } {
+    if (operations.length === 0) {
+      throw new EidosFileError(
+        "invalid-value",
+        "mutateSchema requires at least one operation"
+      )
+    }
+    const results = this.mutate(
+      () =>
+        operations.map((operation) => {
+          switch (operation.type) {
+            case "create-table":
+              return this.createTable(operation.table)
+            case "update-table":
+              return this.updateTable(operation.tableId, operation.changes)
+            case "delete-table":
+              return this.deleteTable(operation.tableId)
+            case "add-field":
+              return this.addField(operation.tableId, operation.field)
+            case "update-field":
+              return this.updateField(
+                operation.tableId,
+                operation.fieldId,
+                operation.changes
+              )
+            case "delete-field":
+              return this.deleteField(operation.tableId, operation.fieldId)
+            case "create-view":
+              return this.createView(operation.tableId, operation.view)
+            case "update-view":
+              return this.updateView(operation.viewId, operation.changes)
+            case "delete-view":
+              return this.deleteView(operation.viewId)
+          }
+        }),
+      expectedRevision
+    )
+    return { revision: this.info().revision ?? 0, results }
+  }
+
+  private logicalMutationFields(
+    tableId: string,
+    fields: Record<string, EidosFileLogicalValue>,
+    id?: string
+  ): EidosFileRow {
+    const row: Record<string, EidosFileLogicalValue> = id ? { _id: id } : {}
+    for (const [fieldId, value] of Object.entries(fields)) {
+      const field = this.fieldByKey(tableId, fieldId)
+      if (
+        field.isDerived ||
+        (field.valueKind === "system" && field.type !== "row-id")
+      ) {
+        throw new EidosFileError(
+          "invalid-value",
+          `Field ${field.name} is read-only`
+        )
+      }
+      row[field.id!] = value
+    }
+    return row as unknown as EidosFileRow
+  }
+
+  mutateRows(input: EidosFileRowsMutation): {
+    revision: number | bigint
+    rows: EidosFileLogicalRow[]
+    deleted: string[]
+    /** @internal Exact Runtime affected-row composition, including detach. */
+    affected?: Array<{ tableId: string; rowId: string }>
+  } {
+    const operationCount =
+      (input.insert?.length ?? 0) +
+      (input.update?.length ?? 0) +
+      (input.delete?.length ?? 0)
+    if (operationCount === 0) {
+      throw new EidosFileError(
+        "invalid-value",
+        "mutateRows requires at least one operation"
+      )
+    }
+    if (operationCount > 500) {
+      throw new EidosFileError(
+        "resource-limit",
+        "mutateRows accepts at most 500 row operations per atomic batch"
+      )
+    }
+    const table = this.getTable(input.tableId)
+    const result = this.mutate(() => {
+      const operationInstant = this.operationInstant()
+      const deleteIds = (input.delete ?? []).map((id) =>
+        assertEidosFileUuid(id, "Row ID")
+      )
+      const deleteSet = new Set(deleteIds)
+      if (deleteSet.size !== deleteIds.length) {
+        throw new EidosFileError(
+          "invalid-value",
+          "A Row ID may occur only once in one mutation"
+        )
+      }
+      for (const rowId of deleteIds) {
+        const exists = this.connection.get<{ present: number }>(
+          `SELECT 1 AS present FROM ${quoteIdentifier(table.physicalName ?? table.rawTableName)} WHERE "_id" = ?`,
+          [rowId]
+        )
+        if (!exists) {
+          throw new EidosFileError("row-not-found", `Row not found: ${rowId}`)
+        }
+      }
+
+      const preparedUpdates = (input.update ?? []).map((update) => {
+        const rowId = assertEidosFileUuid(update.id, "Row ID")
+        const requestedChanges = this.rowChanges(
+          input.tableId,
+          this.logicalMutationFields(input.tableId, update.fields),
+          false
+        )
+        const current = this.connection.get<
+          Record<string, EidosFileSqlPrimitive>
+        >(
+          `SELECT * FROM ${quoteIdentifier(table.physicalName ?? table.rawTableName)} WHERE "_id" = ?`,
+          [rowId]
+        )
+        if (!current) {
+          throw new EidosFileError("row-not-found", `Row not found: ${rowId}`)
+        }
+        const changes = requestedChanges.filter(
+          (change) =>
+            !sameSqlValue(current[change.field.physicalName!], change.value)
+        )
+        return { rowId, requestedChanges, changes }
+      })
+
+      type DetachAction = {
+        tableId: string
+        physicalTable: string
+        physicalColumn: string
+        rowId: string
+        value: string
+      }
+      const detachActions: DetachAction[] = []
+      if (deleteSet.size > 0) {
+        const schema = this.allSchema()
+        const proposedRelationValues = new Map<string, EidosFileSqlPrimitive>()
+        for (const update of preparedUpdates) {
+          for (const change of update.requestedChanges) {
+            if (change.field.type === "relation") {
+              proposedRelationValues.set(
+                `${update.rowId}\u0000${change.field.id}`,
+                change.value
+              )
+            }
+          }
+        }
+        for (const [fieldId, relation] of schema.relations) {
+          if (
+            relation.direction !== "forward" ||
+            uuid(relation.target_table_id) !== input.tableId ||
+            relation.on_delete === "preserve"
+          ) {
+            continue
+          }
+          const field = Array.from(schema.fieldsByTable.values())
+            .flat()
+            .find((candidate) => candidate.id === fieldId)
+          if (!field?.tableId || !field.physicalName) continue
+          const sourceTable = schema.tables.get(field.tableId)
+          if (!sourceTable) continue
+          const sourceRows = this.connection.query<{
+            _id: string
+            relation_value: string
+          }>(
+            `SELECT "_id", ${quoteIdentifier(field.physicalName)} AS relation_value FROM ${quoteIdentifier(sourceTable.physical_name)} ORDER BY "_id" COLLATE BINARY`
+          )
+          for (const sourceRow of sourceRows) {
+            if (
+              field.tableId === input.tableId &&
+              deleteSet.has(sourceRow._id)
+            ) {
+              continue
+            }
+            const proposed = proposedRelationValues.get(
+              `${sourceRow._id}\u0000${fieldId}`
+            )
+            const raw = proposed ?? sourceRow.relation_value
+            if (typeof raw !== "string") {
+              throw new EidosFileError(
+                "invalid-value",
+                `Relation ${fieldId} has a non-text stored value`
+              )
+            }
+            const parsed = parseEidosFileJson(raw)
+            if (!Array.isArray(parsed)) {
+              throw new EidosFileError(
+                "invalid-value",
+                `Relation ${fieldId} has a non-array stored value`
+              )
+            }
+            const referenced = parsed.some(
+              (entry) => typeof entry === "string" && deleteSet.has(entry)
+            )
+            if (!referenced) continue
+            if (relation.on_delete === "restrict") {
+              throw new EidosFileError(
+                "constraint-conflict",
+                `Relation ${fieldId} restricts deletion of a referenced Row`
+              )
+            }
+            const survivors = parsed.filter(
+              (entry) => typeof entry !== "string" || !deleteSet.has(entry)
+            )
+            detachActions.push({
+              tableId: field.tableId,
+              physicalTable: sourceTable.physical_name,
+              physicalColumn: field.physicalName,
+              rowId: sourceRow._id,
+              value: canonicalizeEidosFileJson(survivors),
+            })
+          }
+        }
+      }
+
+      const inserted = (input.insert ?? []).map((row) =>
+        this.insertRowInTransaction(
+          input.tableId,
+          this.logicalMutationFields(input.tableId, row.fields, row.id),
+          false
+        )
+      )
+      const changedUpdates: string[] = []
+      for (const { rowId, changes } of preparedUpdates) {
+        if (changes.length === 0) continue
+        const response = this.connection.run(
+          `UPDATE ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
+              SET ${changes.map((change) => `${quoteIdentifier(change.field.physicalName!)} = ?`).join(", ")},
+                  "_updated_at" = ?
+            WHERE "_id" = ?`,
+          [...changes.map((change) => change.value), operationInstant, rowId]
+        )
+        if (response.changes === 0)
+          throw new EidosFileError("row-not-found", `Row not found: ${rowId}`)
+        changedUpdates.push(rowId)
+      }
+      for (const detach of detachActions) {
+        const response = this.connection.run(
+          `UPDATE ${quoteIdentifier(detach.physicalTable)}
+              SET ${quoteIdentifier(detach.physicalColumn)} = ?, "_updated_at" = ?
+            WHERE "_id" = ? AND ${quoteIdentifier(detach.physicalColumn)} IS NOT ?`,
+          [detach.value, operationInstant, detach.rowId, detach.value]
+        )
+        if (response.changes === 0) {
           throw new EidosFileError(
-            "invalid-range",
-            `Invalid Eidos File row range: ${startIndex}..${endIndex}`
+            "stale-revision",
+            "Relation source changed during composed delete"
           )
         }
-        return { startIndex, endIndex }
-      })
-      .sort((left, right) => left.startIndex - right.startIndex)
-    const merged: EidosFileRowRange[] = []
-    for (const range of sorted) {
-      const previous = merged.at(-1)
-      if (!previous || range.startIndex > previous.endIndex) {
-        merged.push({ ...range })
-      } else {
-        previous.endIndex = Math.max(previous.endIndex, range.endIndex)
       }
-    }
-    return merged
-  }
 
-  private deleteRowsInTransaction(
-    rawTableName: string,
-    rowIds: string[]
-  ): string[] {
-    const deleted: string[] = []
-    for (const rowId of new Set(rowIds)) {
-      const result = this.connection.run(
-        `DELETE FROM ${quoteIdentifier(rawTableName)} WHERE _id = ?`,
-        [rowId]
-      )
-      if (result.changes > 0) deleted.push(rowId)
+      // Deleted source rows are excluded from incoming policy checks. Clearing
+      // their outgoing arrays prevents the portable single-row safety triggers
+      // from reintroducing order-dependent behavior during the physical delete.
+      if (deleteSet.size > 0) {
+        const schema = this.allSchema()
+        const outgoing = (schema.fieldsByTable.get(input.tableId) ?? []).filter(
+          (field) =>
+            field.type === "relation" &&
+            field.physicalName &&
+            schema.relations.get(field.id!)?.direction === "forward"
+        )
+        for (const field of outgoing) {
+          this.connection.run(
+            `UPDATE ${quoteIdentifier(table.physicalName ?? table.rawTableName)} SET ${quoteIdentifier(field.physicalName!)} = '[]' WHERE "_id" IN (${deleteIds.map(() => "?").join(",")})`,
+            deleteIds
+          )
+        }
+      }
+      const deleted: string[] = []
+      for (const rowId of deleteIds) {
+        const response = this.connection.run(
+          `DELETE FROM ${quoteIdentifier(table.physicalName ?? table.rawTableName)} WHERE "_id" = ?`,
+          [rowId]
+        )
+        if (response.changes) deleted.push(rowId)
+      }
+      return {
+        inserted,
+        updated: preparedUpdates.map(({ rowId }) => rowId),
+        deleted,
+        affected: [
+          ...inserted.map((rowId) => ({ tableId: input.tableId, rowId })),
+          ...changedUpdates.map((rowId) => ({ tableId: input.tableId, rowId })),
+          ...deleted.map((rowId) => ({ tableId: input.tableId, rowId })),
+          ...detachActions.map(({ tableId, rowId }) => ({ tableId, rowId })),
+        ],
+      }
+    }, input.expectedRevision)
+    const requestedIds = [...new Set([...result.inserted, ...result.updated])]
+    const rowIdField = this.listFields(input.tableId).find(
+      (field) => field.type === "row-id"
+    )!
+    const queried =
+      requestedIds.length === 0
+        ? []
+        : this.queryRows(input.tableId, {
+            query: {
+              filter: {
+                type: "group",
+                conjunction: "and",
+                children: [
+                  {
+                    type: "rule",
+                    field: rowIdField.id!,
+                    operator: "is-any-of",
+                    value: requestedIds,
+                  },
+                ],
+              },
+            },
+            limit: requestedIds.length,
+          }).rows
+    const rowsById = new Map(queried.map((row) => [row.id, row]))
+    return {
+      revision: this.info().revision ?? 0,
+      rows: requestedIds.flatMap((id) => {
+        const row = rowsById.get(id)
+        return row ? [row] : []
+      }),
+      deleted: result.deleted,
+      affected: Array.from(
+        new Map(
+          result.affected.map((entry) => [
+            `${entry.tableId}\u0000${entry.rowId}`,
+            entry,
+          ])
+        ).values()
+      ).sort((left, right) =>
+        left.tableId === right.tableId
+          ? left.rowId < right.rowId
+            ? -1
+            : left.rowId > right.rowId
+              ? 1
+              : 0
+          : left.tableId < right.tableId
+            ? -1
+            : 1
+      ),
     }
-    if (deleted.length > 0) this.touchMetadata({})
-    return deleted
   }
+}
+
+function fieldValueTypeForScan(
+  field: EidosFileFieldInfo
+): string | { kind: "list"; element: string } {
+  if (field.systemRole === "row-id") return "row-id"
+  if (
+    field.systemRole === "created-time" ||
+    field.systemRole === "updated-time"
+  ) {
+    return "datetime"
+  }
+  if (field.type === "lookup" && field.property?.aggregate === "values") {
+    const display = String(field.property?.displayType ?? "text")
+    return {
+      kind: "list",
+      element:
+        display === "file"
+          ? "file-entry"
+          : display === "relation"
+            ? "row-id"
+            : display === "multi-select"
+              ? "select"
+              : display,
+    }
+  }
+  if (field.type === "formula" || field.type === "lookup") {
+    const display = String(field.property?.displayType ?? "text")
+    return display === "file" ? "file-entry" : display
+  }
+  return field.type
 }

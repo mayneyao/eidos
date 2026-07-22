@@ -9,6 +9,7 @@ import {
   encodeEidosFileJsonArray,
 } from "./json-array-values"
 import { parseEidosFileSelectOptions } from "./select-options"
+import { normalizeEidosFileDate, normalizeEidosFileInstant } from "./temporal"
 import type {
   EidosFileFieldInfo,
   EidosFileFieldType,
@@ -109,7 +110,7 @@ function optionPlan(
 ): EidosFileSelectOption[] {
   const existingByName = new Map(
     parseEidosFileSelectOptions(field.property).map((option) => [
-      option.value,
+      option.name,
       option,
     ])
   )
@@ -121,7 +122,7 @@ function optionPlan(
   return names.map(
     (name, index) =>
       existingByName.get(name) ?? {
-        value: name,
+        name,
         color: OPTION_COLORS[index % OPTION_COLORS.length],
       }
   )
@@ -187,6 +188,16 @@ function convertedValue(
   }
   if (type === "multi-select") {
     return encodeEidosFileMultiSelectValues(values)
+  }
+  if (type === "date") {
+    return values.length > 0
+      ? normalizeEidosFileDate(values.join(", "), "Converted date")
+      : null
+  }
+  if (type === "datetime") {
+    return values.length > 0
+      ? normalizeEidosFileInstant(values.join(", "), "Converted datetime")
+      : null
   }
   return values.length > 0 ? values.join(", ") : null
 }

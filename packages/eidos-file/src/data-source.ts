@@ -8,6 +8,7 @@ import type {
   EidosFileFieldPlacement,
   EidosFileFormulaPreview,
   EidosFileFormulaPreviewInput,
+  EidosFileLogicalValue,
   EidosFileRow,
   EidosFileRowGroupCount,
   EidosFileRowMutationResult,
@@ -43,7 +44,7 @@ export interface EidosFileDataSource {
   getRow?(tableId: string, rowId: string): Promise<EidosFileRow | null>
   getGroupCounts?(
     tableId: string,
-    columnName: string,
+    fieldId: string,
     query: EidosFileRowQuery
   ): Promise<EidosFileRowGroupCount[]>
   calculateColumnStats(
@@ -62,12 +63,12 @@ export interface EidosFileDataSource {
   ): Promise<EidosFileFormulaPreview>
   insertRow(
     tableId: string,
-    row: EidosFileRow
+    fields: Record<string, EidosFileLogicalValue>
   ): Promise<EidosFileRowMutationResult>
   updateRow(
     tableId: string,
     rowId: string,
-    changes: EidosFileRow
+    fields: Record<string, EidosFileLogicalValue>
   ): Promise<EidosFileRowMutationResult>
   deleteRowRanges(
     tableId: string,
@@ -80,7 +81,7 @@ export interface EidosFileDataSource {
   ): Promise<EidosFileRowsDeleteResult>
   updateField(
     tableId: string,
-    columnName: string,
+    fieldId: string,
     changes: UpdateEidosFileFieldInput
   ): Promise<EidosFileSnapshot>
   addField(
@@ -88,7 +89,7 @@ export interface EidosFileDataSource {
     field: CreateEidosFileFieldInput,
     placement?: EidosFileFieldPlacement
   ): Promise<EidosFileSnapshot>
-  deleteField(tableId: string, columnName: string): Promise<EidosFileSnapshot>
+  deleteField(tableId: string, fieldId: string): Promise<EidosFileSnapshot>
   createTable(input: CreateEidosFileTableInput): Promise<EidosFileSnapshot>
   updateTable(
     tableId: string,
@@ -161,10 +162,10 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
 
   async getGroupCounts(
     tableId: string,
-    columnName: string,
+    fieldId: string,
     query: EidosFileRowQuery
   ): Promise<EidosFileRowGroupCount[]> {
-    return this.runtime.countRowsByField(tableId, columnName, query)
+    return this.runtime.countRowsByField(tableId, fieldId, query)
   }
 
   async calculateColumnStats(
@@ -184,19 +185,29 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
 
   async insertRow(
     tableId: string,
-    row: EidosFileRow
+    fields: Record<string, EidosFileLogicalValue>
   ): Promise<EidosFileRowMutationResult> {
-    return this.mutationResult(tableId, this.runtime.insertRow(tableId, row))
+    const mutation = this.runtime.mutateRows({
+      tableId,
+      insert: [{ fields }],
+    })
+    return this.mutationResult(
+      tableId,
+      this.runtime.getRow(tableId, mutation.rows[0]!.id)!
+    )
   }
 
   async updateRow(
     tableId: string,
     rowId: string,
-    changes: EidosFileRow
+    fields: Record<string, EidosFileLogicalValue>
   ): Promise<EidosFileRowMutationResult> {
     return this.mutationResult(
       tableId,
-      this.runtime.updateRow(tableId, rowId, changes)
+      (() => {
+        this.runtime.mutateRows({ tableId, update: [{ id: rowId, fields }] })
+        return this.runtime.getRow(tableId, rowId)!
+      })()
     )
   }
 
@@ -221,10 +232,10 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
 
   async updateField(
     tableId: string,
-    columnName: string,
+    fieldId: string,
     changes: UpdateEidosFileFieldInput
   ): Promise<EidosFileSnapshot> {
-    this.runtime.updateField(tableId, columnName, changes)
+    this.runtime.updateField(tableId, fieldId, changes)
     return this.getSnapshot()
   }
 
@@ -239,9 +250,9 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
 
   async deleteField(
     tableId: string,
-    columnName: string
+    fieldId: string
   ): Promise<EidosFileSnapshot> {
-    this.runtime.deleteField(tableId, columnName)
+    this.runtime.deleteField(tableId, fieldId)
     return this.getSnapshot()
   }
 
@@ -310,7 +321,7 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
       tableId,
       row,
       rowCount: this.runtime.countRows(tableId),
-      revision: this.runtime.info().updatedAt,
+      revision: this.runtime.info().revision,
     }
   }
 
@@ -322,7 +333,7 @@ export class EidosFileRuntimeDataSource implements EidosFileDataSource {
       tableId,
       deletedCount,
       rowCount: this.runtime.countRows(tableId),
-      revision: this.runtime.info().updatedAt,
+      revision: this.runtime.info().revision,
     }
   }
 }

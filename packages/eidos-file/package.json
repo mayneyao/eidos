@@ -1,6 +1,6 @@
 {
   "name": "@eidos.space/eidos-file",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Independent SQLite-backed runtime for the open Eidos File format",
   "type": "module",
   "main": "./dist/index.mjs",
@@ -74,8 +74,7 @@
   },
   "dependencies": {
     "@sqlite.org/sqlite-wasm": "3.45.3-build2",
-    "csv-parse": "^5.6.0",
-    "pgsql-ast-parser": "^11.2.0"
+    "csv-parse": "^5.6.0"
   },
   "devDependencies": {
     "@microsoft/api-extractor": "7.58.11",
