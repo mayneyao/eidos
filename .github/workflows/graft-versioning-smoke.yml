@@ -71,4 +71,7 @@ jobs:
 
       - name: Run Graft versioning smoke
         working-directory: apps/desktop
+        timeout-minutes: 10
+        env:
+          ELECTRON_RUN_AS_NODE: "1"
         run: pnpm exec electron scripts/graft-versioning-smoke.cjs
