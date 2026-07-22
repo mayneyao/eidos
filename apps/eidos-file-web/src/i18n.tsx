@@ -396,7 +396,7 @@ interface I18nContextValue {
 const I18nContext = createContext<I18nContextValue | null>(null)
 
 function browserLocale(): Locale {
-  const stored = localStorage.getItem("eidos-file-locale")
+  const stored = window.localStorage.getItem("eidos-file-locale")
   if (stored === "en" || stored === "zh") return stored
   return navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en"
 }
@@ -413,7 +413,7 @@ export function I18nProvider({
   )
 
   useEffect(() => {
-    localStorage.setItem("eidos-file-locale", locale)
+    window.localStorage.setItem("eidos-file-locale", locale)
     document.documentElement.lang = locale === "zh" ? "zh-CN" : "en"
   }, [locale])
 

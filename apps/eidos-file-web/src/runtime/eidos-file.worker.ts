@@ -1,18 +1,18 @@
 /// <reference lib="webworker" />
 
 import {
+  AdapterTransportServer,
+  ConnectionPortEidosFileConnection,
   EidosFileError,
-  EidosFileRuntime,
-  migrateEidosFileSchema,
+  hasEidosFileSqliteHeader,
+  Runtime,
+  SQLiteWasmConnectionPort,
   validateEidosFile,
 } from "@eidos.space/eidos-file"
-import {
-  importEidosFileCsv,
-  planEidosFileCsvImport,
-} from "@eidos.space/eidos-file/csv"
 import type {
-  EidosFileRowMutationResult,
-  EidosFileSnapshot,
+  AdapterStructuredCloneCarrier,
+  RuntimeHostBridge,
+  RuntimeService,
 } from "@eidos.space/eidos-file"
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm"
 
@@ -21,8 +21,8 @@ import type {
   EidosFileWorkerRequest,
   EidosFileWorkerResponse,
   EidosFileWorkerStorage,
+  EidosFileWorkerTransportMessage,
 } from "./protocol"
-import { SQLiteWasmEidosFileConnection } from "./sqlite-wasm-connection"
 
 const WORKING_FILE = "/working.eidos"
 const workerScope = self as DedicatedWorkerGlobalScope
@@ -35,8 +35,10 @@ interface OpenEidosFileContext {
   fileName: string
   sqlite: Sqlite3Static
   database: SqliteDatabase
-  connection: SQLiteWasmEidosFileConnection
-  runtime: EidosFileRuntime
+  port: SQLiteWasmConnectionPort
+  runtimeService: RuntimeService
+  hostBridge: RuntimeHostBridge
+  transport: AdapterTransportServer
   pool: SAHPool | null
   storage: EidosFileWorkerStorage
 }
@@ -71,25 +73,14 @@ function recoveryDirectory(recoveryId: string): string {
   return `/eidos-file-web/${recoveryId}`
 }
 
-function closeCurrent(): void {
+async function closeCurrent(): Promise<void> {
   if (!context) return
-  context.runtime.close()
+  const current = context
   context = null
-}
-
-function snapshot(): EidosFileSnapshot {
-  if (!context) throw new Error("No Eidos File is open")
-  const { runtime, fileName } = context
-  const metadata = runtime.info()
-  return {
-    path: fileName,
-    metadata,
-    tables: runtime.listTables().map((table) => ({
-      table,
-      fields: runtime.listFields(table.id),
-      views: runtime.listViews(table.id),
-      rowCount: runtime.countRows(table.id),
-    })),
+  try {
+    await current.runtimeService.close({ requestId: "host-close" })
+  } finally {
+    current.port.close()
   }
 }
 
@@ -111,15 +102,8 @@ async function installPool(
 }
 
 function validateAndMigrate(
-  connection: SQLiteWasmEidosFileConnection
+  connection: ConnectionPortEidosFileConnection
 ): boolean {
-  const initial = validateEidosFile(connection)
-  const migrationAvailable =
-    initial.errors.length === 0 &&
-    initial.warnings.some(
-      (warning) => warning.code === "schema-migration-available"
-    )
-  if (migrationAvailable) migrateEidosFileSchema(connection)
   const result = validateEidosFile(connection)
   if (!result.valid) {
     throw new EidosFileError(
@@ -128,7 +112,7 @@ function validateAndMigrate(
         "This SQLite file is not an Eidos File"
     )
   }
-  return migrationAvailable
+  return false
 }
 
 async function openEidosFile(
@@ -137,7 +121,16 @@ async function openEidosFile(
     { type: "open-source" | "open-recovery" }
   >
 ) {
-  closeCurrent()
+  await closeCurrent()
+  if (
+    action.type === "open-source" &&
+    !hasEidosFileSqliteHeader(action.bytes)
+  ) {
+    throw new EidosFileError(
+      "not-eidos-file",
+      "Input does not have a SQLite 3 header"
+    )
+  }
   const sqlite = await getSqlite()
   const pool = await installPool(sqlite, action.recoveryId)
   let database: SqliteDatabase
@@ -162,25 +155,71 @@ async function openEidosFile(
     storage = "memory"
   }
 
-  const connection = new SQLiteWasmEidosFileConnection(database)
+  const port = new SQLiteWasmConnectionPort(database, sqlite)
+  const connection = new ConnectionPortEidosFileConnection(port)
   try {
     connection.exec(
-      "PRAGMA foreign_keys = ON; PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;"
+      "PRAGMA foreign_keys = ON; PRAGMA trusted_schema = OFF; PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;"
     )
     const migrated = validateAndMigrate(connection)
-    const runtime = new EidosFileRuntime(connection, true)
-    runtime.optimizeViewQueries()
+    const epoch = crypto.randomUUID()
+    const sessionID = crypto.randomUUID()
+    const transport = new AdapterTransportServer(
+      (carrier, transfers) => {
+        const message: EidosFileWorkerTransportMessage = { transport: carrier }
+        workerScope.postMessage(message, transfers ?? [])
+      },
+      {
+        epoch,
+        sessionID,
+        workingID: action.recoveryId,
+        cancelMode: "interrupt",
+        allocateReceiptID: () => crypto.randomUUID(),
+        closeConnection: () => port.close(),
+      }
+    )
+    const runtimeBinding = await Runtime.open(
+      port,
+      {
+        clock: {
+          nowInstant: () => new Date().toISOString(),
+          nowMilliseconds: () => performance.now(),
+        },
+        entropy: {
+          randomBytes: (length) =>
+            crypto.getRandomValues(new Uint8Array(length)),
+        },
+        transportCommitBarrier: transport.commitBarrier,
+      },
+      action.access ?? "readwrite",
+      {
+        cancellation: {
+          cancelled: () => false,
+          onCancel: () => () => undefined,
+        },
+      }
+    )
+    transport.attachRuntime(runtimeBinding.service)
+    const runtimeSnapshot = await runtimeBinding.service.getSnapshot(
+      {},
+      {
+        requestId: crypto.randomUUID(),
+        deadlineMilliseconds: 30_000,
+      }
+    )
     context = {
       fileName: action.fileName,
       sqlite,
       database,
-      connection,
-      runtime,
+      port,
+      runtimeService: runtimeBinding.service,
+      hostBridge: runtimeBinding.hostBridge,
+      transport,
       pool,
       storage,
     }
     return {
-      snapshot: snapshot(),
+      snapshot: runtimeSnapshot,
       migrated,
       recovered: action.type === "open-recovery",
       storage,
@@ -191,167 +230,99 @@ async function openEidosFile(
   }
 }
 
-function mutationResult(
-  tableId: string,
-  row: ReturnType<EidosFileRuntime["updateRow"]>
-): EidosFileRowMutationResult {
-  if (!context) throw new Error("No Eidos File is open")
-  return {
-    tableId,
-    row,
-    rowCount: context.runtime.countRows(tableId),
-    revision: context.runtime.info().updatedAt,
-  }
-}
-
-function csvSource(fileName: string, bytes: ArrayBuffer) {
-  return { name: fileName, content: new TextDecoder().decode(bytes) }
-}
-
 async function handleAction(action: EidosFileWorkerAction) {
   if (action.type === "open-source" || action.type === "open-recovery") {
     return openEidosFile(action)
   }
   if (action.type === "discard-recovery") {
-    closeCurrent()
+    await closeCurrent()
     const sqlite = await getSqlite()
     const pool = await installPool(sqlite, action.recoveryId)
     if (pool) await pool.wipeFiles()
     return { discarded: true as const }
   }
   if (action.type === "close") {
-    closeCurrent()
+    await closeCurrent()
     return { closed: true as const }
   }
   if (!context) throw new Error("No Eidos File is open")
 
-  const { runtime } = context
   switch (action.type) {
-    case "snapshot":
-      return snapshot()
-    case "page":
-      return runtime.getRowPage(
-        action.tableId,
-        action.offset,
-        action.limit,
-        action.query,
-        action.totalHint,
-        action.cursor,
-        action.projection
-      )
-    case "row":
-      return runtime.getRow(action.tableId, action.rowId)
-    case "group-counts":
-      return runtime.countRowsByField(
-        action.tableId,
-        action.columnName,
-        action.query
-      )
-    case "column-stats":
-      return runtime.calculateColumnStats(
-        action.tableId,
-        action.configs,
-        action.query
-      )
-    case "formula-preview":
-      return runtime.previewFormula(action.tableId, action.input)
-    case "insert-row":
-      return mutationResult(
-        action.tableId,
-        runtime.insertRow(action.tableId, action.row)
-      )
-    case "update-row":
-      return mutationResult(
-        action.tableId,
-        runtime.updateRow(action.tableId, action.rowId, action.changes)
-      )
-    case "delete-row-ranges": {
-      const deletedCount = runtime.deleteRowRanges(
-        action.tableId,
-        action.ranges,
-        action.query
-      )
-      return {
-        tableId: action.tableId,
-        deletedCount,
-        rowCount: runtime.countRows(action.tableId),
-        revision: runtime.info().updatedAt,
-      }
-    }
-    case "delete-rows": {
-      const deletedCount = runtime.deleteRows(
-        action.tableId,
-        action.rowIds
-      ).length
-      return {
-        tableId: action.tableId,
-        deletedCount,
-        rowCount: runtime.countRows(action.tableId),
-        revision: runtime.info().updatedAt,
-      }
-    }
-    case "update-field":
-      runtime.updateField(action.tableId, action.columnName, action.changes)
-      return snapshot()
-    case "add-field":
-      runtime.addField(action.tableId, action.field, action.placement)
-      return snapshot()
-    case "delete-field":
-      runtime.deleteField(action.tableId, action.columnName)
-      return snapshot()
-    case "create-table":
-      runtime.createTable(action.input)
-      return snapshot()
-    case "update-table":
-      runtime.updateTable(action.tableId, action.changes)
-      return snapshot()
-    case "delete-table":
-      runtime.deleteTable(action.tableId)
-      return snapshot()
-    case "create-view":
-      runtime.createView(action.tableId, action.input)
-      return snapshot()
-    case "duplicate-view":
-      runtime.duplicateView(action.viewId, action.name)
-      return snapshot()
-    case "delete-view":
-      runtime.deleteView(action.viewId)
-      return snapshot()
-    case "reorder-views":
-      runtime.reorderViews(action.tableId, action.viewIds)
-      return snapshot()
-    case "update-view":
-      runtime.updateView(action.viewId, action.changes)
-      return snapshot()
-    case "csv-preview":
-      return planEidosFileCsvImport(
-        csvSource(action.fileName, action.bytes),
-        action.options
-      )
-    case "csv-import": {
-      const result = importEidosFileCsv(
-        runtime,
-        csvSource(action.fileName, action.bytes),
-        action.options
-      )
-      return { snapshot: snapshot(), result }
-    }
     case "export": {
-      const check = context.connection.get<{ integrity_check: string }>(
-        "PRAGMA integrity_check"
-      )?.integrity_check
-      if (check !== "ok") {
-        throw new Error(`SQLite integrity check failed: ${check ?? "unknown"}`)
+      const frozen = await context.hostBridge.createPublicationSnapshot(
+        { maxBytes: action.maxBytes },
+        {
+          requestId: crypto.randomUUID(),
+          deadlineMilliseconds: 30_000,
+        }
+      )
+      try {
+        const length = Number(frozen.bytes.size)
+        const bytes = await frozen.bytes.read("0", length, {
+          cancellation: {
+            cancelled: () => false,
+            onCancel: () => () => undefined,
+          },
+        })
+        validatePublicationCandidate(context.sqlite, bytes)
+        return { bytes, integrity: "ok" as const }
+      } finally {
+        await frozen.release()
       }
-      const bytes = context.pool
-        ? await context.pool.exportFile(WORKING_FILE)
-        : context.sqlite.capi.sqlite3_js_db_export(context.database)
-      return { bytes, integrity: "ok" as const }
     }
   }
 }
 
-workerScope.onmessage = (event: MessageEvent<EidosFileWorkerRequest>) => {
+function validatePublicationCandidate(
+  sqlite: Sqlite3Static,
+  bytes: Uint8Array
+): void {
+  const database = new sqlite.oo1.DB(":memory:", "c")
+  const pointer = sqlite.wasm.allocFromTypedArray(bytes)
+  let ownedByDatabase = false
+  let port: SQLiteWasmConnectionPort | undefined
+  try {
+    database.checkRc(
+      sqlite.capi.sqlite3_deserialize(
+        database.pointer!,
+        "main",
+        pointer,
+        bytes.byteLength,
+        bytes.byteLength,
+        sqlite.capi.SQLITE_DESERIALIZE_FREEONCLOSE |
+          sqlite.capi.SQLITE_DESERIALIZE_READONLY
+      )
+    )
+    ownedByDatabase = true
+    port = new SQLiteWasmConnectionPort(database, sqlite)
+    const validation = validateEidosFile(
+      new ConnectionPortEidosFileConnection(port),
+      { level: "full" }
+    )
+    if (!validation.valid) {
+      throw new EidosFileError(
+        "not-eidos-file",
+        validation.errors.map((issue) => issue.message).join("; ") ||
+          "Publication candidate failed Eidos File validation"
+      )
+    }
+  } finally {
+    if (port) port.close()
+    else if (ownedByDatabase) database.close()
+    else {
+      sqlite.wasm.dealloc(pointer)
+      database.close()
+    }
+  }
+}
+
+workerScope.onmessage = (
+  event: MessageEvent<EidosFileWorkerRequest | EidosFileWorkerTransportMessage>
+) => {
+  if ("transport" in event.data) {
+    context?.transport.receive(event.data.transport)
+    return
+  }
   const { id, action } = event.data
   void handleAction(action)
     .then((result) => {
@@ -368,8 +339,7 @@ workerScope.onmessage = (event: MessageEvent<EidosFileWorkerRequest>) => {
       workerScope.postMessage(response, transfers)
     })
     .catch((error: unknown) => {
-      const normalized =
-        error instanceof Error ? error : new Error(String(error))
+      const normalized = normalizeWorkerError(error)
       const response: EidosFileWorkerResponse = {
         id,
         ok: false,
@@ -377,8 +347,36 @@ workerScope.onmessage = (event: MessageEvent<EidosFileWorkerRequest>) => {
           name: normalized.name,
           message: normalized.message,
           stack: normalized.stack,
+          ...("code" in normalized && typeof normalized.code === "string"
+            ? { code: normalized.code }
+            : {}),
+          ...("retryable" in normalized &&
+          typeof normalized.retryable === "boolean"
+            ? { retryable: normalized.retryable }
+            : {}),
+          ...("fatal" in normalized && typeof normalized.fatal === "boolean"
+            ? { fatal: normalized.fatal }
+            : {}),
         },
       }
       workerScope.postMessage(response)
     })
+}
+
+function normalizeWorkerError(error: unknown): Error & Record<string, unknown> {
+  if (error instanceof Error) return error as Error & Record<string, unknown>
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return Object.assign(new Error(error.message), error, {
+      name:
+        "name" in error && typeof error.name === "string"
+          ? error.name
+          : "Error",
+    }) as Error & Record<string, unknown>
+  }
+  return new Error(String(error)) as Error & Record<string, unknown>
 }

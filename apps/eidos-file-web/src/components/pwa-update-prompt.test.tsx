@@ -11,12 +11,27 @@ import { PwaUpdatePrompt, type PwaUpdatePromptProps } from "./pwa-update-prompt"
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
+const storageValues = new Map<string, string>()
+Object.defineProperty(window, "localStorage", {
+  configurable: true,
+  value: {
+    get length() {
+      return storageValues.size
+    },
+    clear: () => storageValues.clear(),
+    getItem: (key: string) => storageValues.get(key) ?? null,
+    key: (index: number) => Array.from(storageValues.keys())[index] ?? null,
+    removeItem: (key: string) => storageValues.delete(key),
+    setItem: (key: string, value: string) => storageValues.set(key, value),
+  } satisfies Storage,
+})
+
 describe("PwaUpdatePrompt", () => {
   let container: HTMLDivElement
   let root: Root
 
   beforeEach(() => {
-    localStorage.setItem("eidos-file-locale", "en")
+    window.localStorage.setItem("eidos-file-locale", "en")
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -25,7 +40,7 @@ describe("PwaUpdatePrompt", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
-    localStorage.clear()
+    window.localStorage.clear()
   })
 
   function renderPrompt(overrides: Partial<PwaUpdatePromptProps> = {}) {

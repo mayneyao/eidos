@@ -463,6 +463,168 @@ test("opens the bundled sample without a picker", async ({ page }) => {
   ).toBeVisible()
 })
 
+test("opens an advanced starter file from the template picker", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the template picker and SQLite worker handoff"
+  )
+  await installFallbackMode(page)
+  await page.goto("/")
+
+  await page.getByRole("button", { name: "Choose a template" }).click()
+  const picker = page.locator("#eidos-file-template-list")
+  await expect(picker).toBeVisible()
+  await expect(
+    picker.getByRole("heading", { name: "Start from a template" })
+  ).toBeVisible()
+  await expect(picker.getByRole("listitem")).toHaveCount(6)
+  await expect(picker).toContainText("Relations · Lookups · Formula · Timeline")
+
+  const templateResponse = page.waitForResponse((response) =>
+    response.url().includes("personal-crm")
+  )
+  await picker
+    .getByRole("button", { name: "Open Personal CRM template" })
+    .click()
+  await expect((await templateResponse).status()).toBeLessThan(400)
+
+  await expect(
+    page.getByRole("tab", { name: "People", exact: true })
+  ).toHaveAttribute("aria-selected", "true")
+  await expect(
+    page.getByRole("tab", { name: "Companies", exact: true })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("tab", { name: "Interactions", exact: true })
+  ).toBeVisible()
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
+    "Avery Stone"
+  )
+  await expect(page.locator("[data-testid='glide-cell-5-0']")).toContainText(
+    "100"
+  )
+})
+
+test("opens every additional template on its primary table", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers every generated template through the browser runtime"
+  )
+  await installFallbackMode(page)
+
+  const templates = [
+    {
+      button: "Open Household finance template",
+      asset: "household-finance",
+      table: "Transactions",
+      firstRecord: "Monthly salary",
+    },
+    {
+      button: "Open Reading library template",
+      asset: "reading-library",
+      table: "Books",
+      firstRecord: "The Dispossessed",
+    },
+    {
+      button: "Open Habit journal template",
+      asset: "habit-journal",
+      table: "Daily logs",
+      firstRecord: "Morning walk",
+    },
+    {
+      button: "Open Content calendar template",
+      asset: "content-calendar",
+      table: "Content",
+      firstRecord: "Why files still matter",
+    },
+  ] as const
+
+  for (const template of templates) {
+    await page.goto("/")
+    await page.getByRole("button", { name: "Choose a template" }).click()
+    const templateResponse = page.waitForResponse((response) =>
+      response.url().includes(template.asset)
+    )
+    await page.getByRole("button", { name: template.button }).click()
+    await expect((await templateResponse).status()).toBeLessThan(400)
+    await expect(
+      page.getByRole("tab", { name: template.table, exact: true })
+    ).toHaveAttribute("aria-selected", "true")
+    await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
+      template.firstRecord
+    )
+  }
+})
+
+test("opens every template with Chinese schema and sample data", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers localized fixtures through the browser runtime"
+  )
+  await installFallbackMode(page)
+  await page.addInitScript(() => {
+    localStorage.setItem("eidos-file-locale", "zh")
+  })
+
+  const templates = [
+    {
+      button: "打开 个人关系管理模板",
+      asset: "personal-crm.zh",
+      table: "联系人",
+      firstRecord: "Avery Stone",
+    },
+    {
+      button: "打开 家庭财务模板",
+      asset: "household-finance.zh",
+      table: "流水",
+      firstRecord: "月度工资",
+    },
+    {
+      button: "打开 阅读资料库模板",
+      asset: "reading-library.zh",
+      table: "书籍",
+      firstRecord: "The Dispossessed",
+    },
+    {
+      button: "打开 习惯日志模板",
+      asset: "habit-journal.zh",
+      table: "每日日志",
+      firstRecord: "晨间散步",
+    },
+    {
+      button: "打开 内容日历模板",
+      asset: "content-calendar.zh",
+      table: "内容",
+      firstRecord: "为什么文件依然重要",
+    },
+  ] as const
+
+  for (const template of templates) {
+    await page.goto("/")
+    await page.getByRole("button", { name: "选择体验模板" }).click()
+    const templateResponse = page.waitForResponse((response) =>
+      response.url().includes(template.asset)
+    )
+    await page.getByRole("button", { name: template.button }).click()
+    await expect((await templateResponse).status()).toBeLessThan(400)
+    await expect(
+      page.getByRole("tab", { name: template.table, exact: true })
+    ).toHaveAttribute("aria-selected", "true")
+    await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
+      template.firstRecord
+    )
+  }
+})
+
 test("uses the filtered row count for the Grid virtual height", async ({
   page,
   browserName,
@@ -535,9 +697,6 @@ test("keeps the landing-page live demo bounded in a narrow window", async ({
     const panel = document
       .querySelector(".launch-panel")
       ?.getBoundingClientRect()
-    const detailRows = Array.from(
-      document.querySelectorAll(".launch-details > div")
-    ).map((element) => element.getBoundingClientRect().toJSON())
     return {
       demo: demo?.toJSON(),
       documentHeight: document.documentElement.scrollHeight,
@@ -546,7 +705,6 @@ test("keeps the landing-page live demo bounded in a narrow window", async ({
         document.documentElement.scrollWidth -
         document.documentElement.clientWidth,
       panel: panel?.toJSON(),
-      detailRows,
       scroller: scroller
         ? {
             clientHeight: scroller.clientHeight,
@@ -558,11 +716,6 @@ test("keeps the landing-page live demo bounded in a narrow window", async ({
   })
 
   expect(demoGeometry.pageOverflow).toBe(0)
-  expect(
-    demoGeometry.detailRows.every(
-      (row) => row.bottom <= (demoGeometry.panel?.bottom ?? 0) + 1
-    )
-  ).toBe(true)
   expect(demoGeometry.demo?.height).toBeLessThanOrEqual(512)
   expect(demoGeometry.demo?.height).toBeGreaterThanOrEqual(384)
   expect(demoGeometry.grid?.height).toBeLessThan(450)
@@ -656,11 +809,11 @@ test("keeps the desktop landing workbench bounded after rows load", async ({
     )
     return {
       copy: rect(".launch-copy"),
-      details: rect(".launch-details"),
       grid: rect(".live-demo-grid"),
       panel: rect(".launch-panel"),
       workbench: rect(".launch-workbench"),
       documentHeight: document.documentElement.scrollHeight,
+      viewportHeight: window.innerHeight,
       scroller: scroller
         ? {
             clientHeight: scroller.clientHeight,
@@ -670,19 +823,23 @@ test("keeps the desktop landing workbench bounded after rows load", async ({
     }
   })
 
-  expect(geometry.workbench?.height).toBeLessThanOrEqual(961)
+  expect(geometry.workbench?.height).toBeLessThanOrEqual(
+    geometry.viewportHeight
+  )
+  expect(geometry.workbench?.bottom).toBeLessThanOrEqual(
+    geometry.viewportHeight + 1
+  )
   expect(geometry.panel?.bottom).toBeLessThanOrEqual(
     (geometry.workbench?.bottom ?? 0) + 1
   )
   expect(geometry.copy?.top).toBeGreaterThanOrEqual(
     geometry.workbench?.top ?? 0
   )
-  expect(geometry.details?.bottom).toBeLessThanOrEqual(
-    (geometry.workbench?.bottom ?? 0) + 1
+  expect(geometry.grid?.height).toBeLessThan(geometry.viewportHeight)
+  expect(geometry.documentHeight).toBeLessThanOrEqual(
+    geometry.viewportHeight + 1
   )
-  expect(geometry.grid?.height).toBeLessThan(900)
-  expect(geometry.documentHeight).toBeLessThan(10_000)
-  expect(geometry.scroller?.clientHeight).toBeLessThan(900)
+  expect(geometry.scroller?.clientHeight).toBeLessThan(geometry.viewportHeight)
   expect(geometry.scroller?.scrollHeight).toBeGreaterThan(
     geometry.scroller?.clientHeight ?? 0
   )
@@ -692,6 +849,7 @@ test("keeps the desktop landing workbench bounded after rows load", async ({
   await expect(
     page.getByRole("button", { name: "Open .eidos file" })
   ).toBeInViewport()
+  await expect(page.locator(".landing-section")).toHaveCount(0)
 })
 
 test("anchors landing-page field menus to their grid headers", async ({
@@ -1143,7 +1301,7 @@ test("matches Desktop table, view, Grid edit, field placement, and row delete wo
   await projectsTableTab.click({ button: "right" })
   await expect(
     page.getByRole("menuitem", { name: "Delete table" })
-  ).toHaveAttribute("data-disabled", "")
+  ).not.toHaveAttribute("data-disabled", "")
 })
 
 test("creates Formula, Relation, and Lookup fields through the shared editor UI", async ({
@@ -1176,11 +1334,14 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
   })
 
   const openFieldCreator = async (name: string, type: string) => {
-    await page
+    const creator = page.locator("[data-eidos-file-field-create='true']")
+    const propertyButton = page
       .locator("[data-eidos-file-workbar-actions]")
       .getByRole("button", { name: "Property" })
-      .click()
-    const creator = page.locator("[data-eidos-file-field-create='true']")
+    await expect(async () => {
+      if (!(await creator.isVisible())) await propertyButton.click()
+      await expect(creator).toBeVisible({ timeout: 2_000 })
+    }).toPass({ timeout: 15_000 })
     await creator.getByLabel("Name").fill(name)
     await creator.locator("[data-eidos-file-field-type-trigger]").click()
     await page.locator(`[data-eidos-file-field-type='${type}']`).click()
@@ -1189,30 +1350,49 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
 
   const formulaCreator = await openFieldCreator("Double estimate", "formula")
   const formulaExpression = formulaCreator.getByLabel("Formula expression")
-  const estimateReference = formulaCreator.locator(
-    '[data-formula-reference$=":estimate"]'
-  )
+  const estimateReference = formulaCreator
+    .locator("[data-formula-reference]")
+    .filter({ hasText: "Estimate" })
   await expect(formulaCreator.locator(".cm-editor")).toBeVisible()
   await expect(estimateReference).toContainText("Estimate")
   await estimateReference.click()
-  await expect(formulaExpression).toContainText('prop("Estimate")')
-  await formulaExpression.fill("ROU")
-  await expect(page.getByRole("option", { name: /ROUND/ })).toBeVisible()
-  await formulaExpression.press("Enter")
-  await formulaExpression.pressSequentially("estimate")
-  await expect(formulaExpression).toContainText("ROUND(estimate)")
-  await formulaExpression.fill("estimate * 2")
+  await expect(formulaExpression).toContainText('"Estimate"')
+  await formulaExpression.fill("AB")
+  const absCompletion = page.getByRole("option", { name: /^ABS/ })
+  await expect(absCompletion).toBeVisible()
+  await absCompletion.click()
+  await expect(formulaExpression).toContainText("ABS()")
+  await formulaCreator.locator(".eidos-file-formula-display-select").click()
+  await page.getByRole("option", { name: "Number", exact: true }).click()
+  await formulaExpression.fill('"Estimate" * 2')
   await expect(formulaCreator).toContainText(
     "Preview · Ship Eidos File Web Editor: 4"
   )
   await formulaExpression.press("ControlOrMeta+s")
   await expect(formulaCreator).toBeHidden()
 
-  const relationCreator = await openFieldCreator("Related project", "link")
+  const relationCreator = await openFieldCreator("Related project", "relation")
   await expect(relationCreator).toContainText("Related table")
+  await relationCreator
+    .locator("label")
+    .filter({ hasText: "Related table" })
+    .getByRole("combobox")
+    .click()
+  await page
+    .getByRole("option", { name: "Projects (this table)", exact: true })
+    .click()
   await relationCreator.getByRole("button", { name: "Create field" }).click()
+  await expect(relationCreator).toBeHidden()
 
   const lookupCreator = await openFieldCreator("Related estimate", "lookup")
+  await lookupCreator
+    .locator("label")
+    .filter({ hasText: "Relation" })
+    .getByRole("combobox")
+    .click()
+  await page
+    .getByRole("option", { name: "Related project", exact: true })
+    .click()
   await lookupCreator
     .locator("label")
     .filter({ hasText: "Target field" })
@@ -1220,54 +1400,121 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
     .click()
   await page.getByRole("option", { name: "Estimate" }).click()
   await lookupCreator.getByRole("button", { name: "Create field" }).click()
+  await expect(lookupCreator).toBeHidden()
 
   await expect
     .poll(() =>
       page.evaluate(() => {
         const messages = window.__eidosFileWorkerMessages ?? []
+        const fields = new Map<string, string>()
         for (let index = messages.length - 1; index >= 0; index -= 1) {
           const message = messages[index]
-          if (
-            typeof message !== "object" ||
-            message === null ||
-            !("ok" in message) ||
-            message.ok !== true ||
-            !("result" in message) ||
-            typeof message.result !== "object" ||
-            message.result === null ||
-            !("tables" in message.result) ||
-            !Array.isArray(message.result.tables)
-          ) {
-            continue
+          if (typeof message !== "object" || message === null) continue
+          const transport = (message as { transport?: unknown }).transport
+          if (typeof transport !== "object" || transport === null) continue
+          const envelope = (transport as { envelope?: unknown }).envelope
+          if (typeof envelope !== "object" || envelope === null) continue
+          const response = envelope as {
+            kind?: unknown
+            ok?: unknown
+            result?: unknown
           }
-          const fields = message.result.tables[0]?.fields
-          if (!Array.isArray(fields)) continue
-          return fields
-            .filter(
-              (field) =>
-                typeof field === "object" &&
-                field !== null &&
-                "name" in field &&
-                [
-                  "Double estimate",
-                  "Related project",
-                  "Related estimate",
-                ].includes(String(field.name))
+          if (
+            response.kind !== "response" ||
+            response.ok !== true ||
+            typeof response.result !== "object" ||
+            response.result === null
+          )
+            continue
+          const objects = (response.result as { objects?: unknown }).objects
+          if (!Array.isArray(objects)) continue
+          for (const field of objects) {
+            if (
+              typeof field !== "object" ||
+              field === null ||
+              !("object" in field) ||
+              field.object !== "field" ||
+              !("name" in field) ||
+              !("kind" in field)
             )
-            .map((field) => ({
-              name: String(field.name),
-              type: "type" in field ? String(field.type) : "",
-            }))
-            .sort((left, right) => left.name.localeCompare(right.name))
+              continue
+            const name = String(field.name)
+            if (
+              [
+                "Double estimate",
+                "Related project",
+                "Related estimate",
+              ].includes(name)
+            )
+              fields.set(name, String(field.kind))
+          }
         }
-        return []
+        return [...fields]
+          .map(([name, type]) => ({ name, type }))
+          .sort((left, right) => left.name.localeCompare(right.name))
       })
     )
     .toEqual([
       { name: "Double estimate", type: "formula" },
       { name: "Related estimate", type: "lookup" },
-      { name: "Related project", type: "link" },
+      { name: "Related project", type: "relation" },
     ])
+})
+
+test("shows Relation metadata as readable names instead of identifiers", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the shared Relation property panel"
+  )
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await page.locator("[data-testid='glide-cell-1-0']").waitFor({
+    state: "attached",
+  })
+  await page.getByRole("tab", { name: "Teams", exact: true }).click()
+
+  const scroller = page.locator(".eidos-file-content .dvn-scroller")
+  await scroller.evaluate((element) => {
+    element.scrollLeft = element.scrollWidth
+    element.dispatchEvent(new Event("scroll"))
+  })
+  await expect
+    .poll(() => scroller.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(0)
+
+  const canvasBounds = await page
+    .locator(".eidos-file-content canvas[data-testid='data-grid-canvas']")
+    .boundingBox()
+  if (!canvasBounds) {
+    throw new Error("The Projects Relation header is not visible")
+  }
+  // At the horizontal end, Teams keeps Name frozen, then shows Active and
+  // Projects. Hit the Projects header using the shared Grid column widths.
+  await page.mouse.click(
+    canvasBounds.x + 44 + 280 + 180 + 90,
+    canvasBounds.y + 18,
+    { button: "right" }
+  )
+  const menu = page.getByRole("menu", { name: "Actions for Projects" })
+  await expect(menu).toBeVisible()
+  await menu.getByRole("menuitem", { name: "Edit property" }).click()
+
+  const panel = page.locator('[data-eidos-file-detail-panel="field"]')
+  const relationSummary = panel.locator("[data-eidos-file-relation-summary]")
+  await expect(relationSummary).toContainText("Projects")
+  await expect(relationSummary).not.toContainText(
+    /[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/
+  )
+  await expect(
+    panel.locator("[data-eidos-file-technical-details]")
+  ).not.toHaveAttribute("open")
+  await expect(
+    panel.locator("[data-eidos-file-technical-details] code")
+  ).toBeHidden()
 })
 
 test("keeps the Formula editor focused and reachable in a dark touch viewport", async ({
@@ -1309,7 +1556,11 @@ test("keeps the Formula editor focused and reachable in a dark touch viewport", 
     await expect(
       creator.locator('[data-eidos-file-formula-status="error"]')
     ).toContainText("Unsupported Eidos File formula function")
-    await expression.fill("estimate * 2")
+    await creator.locator(".eidos-file-formula-display-select").click()
+    await page.getByRole("option", { name: "Number", exact: true }).click()
+    await expression.click()
+    await expression.press("ControlOrMeta+a")
+    await expression.pressSequentially('"Estimate" * 2')
     await expect(
       creator.locator('[data-eidos-file-formula-status="valid"]')
     ).toContainText("Preview")
@@ -1395,24 +1646,39 @@ test("calculates Grid column summaries through the browser runtime", async ({
     .poll(() =>
       page.evaluate(() => {
         for (const message of window.__eidosFileWorkerMessages ?? []) {
-          if (
-            typeof message !== "object" ||
-            message === null ||
-            !("ok" in message) ||
-            message.ok !== true ||
-            !("result" in message) ||
-            !Array.isArray(message.result)
-          ) {
-            continue
+          if (typeof message !== "object" || message === null) continue
+          const transport = (message as { transport?: unknown }).transport
+          if (typeof transport !== "object" || transport === null) continue
+          const envelope = (transport as { envelope?: unknown }).envelope
+          if (typeof envelope !== "object" || envelope === null) continue
+          const response = envelope as {
+            kind?: unknown
+            ok?: unknown
+            result?: unknown
           }
-          const result = message.result.find(
+          if (
+            response.kind !== "response" ||
+            response.ok !== true ||
+            typeof response.result !== "object" ||
+            response.result === null
+          )
+            continue
+          const results = (response.result as { results?: unknown }).results
+          if (!Array.isArray(results)) continue
+          const result = results.find(
             (entry) =>
               typeof entry === "object" &&
               entry !== null &&
-              entry.columnName === "estimate" &&
-              entry.type === "sum"
+              "key" in entry &&
+              entry.key === "0"
           )
-          if (result && typeof result.value === "number") return result.value
+          if (
+            result &&
+            "value" in result &&
+            typeof result.value === "number" &&
+            result.value === 17_486
+          )
+            return result.value
         }
         return null
       })
@@ -1436,12 +1702,26 @@ test("uses the shared Gallery and Kanban renderers for the sample", async ({
   await installFallbackMode(page)
   await page.goto("/")
   await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await expect(
+    page.getByRole("tab", { name: "Teams", exact: true })
+  ).toBeVisible()
 
   await page.getByRole("tab", { name: "Project cards" }).click()
   const gallery = page.locator("[data-eidos-file-gallery-scroll]")
   await expect(gallery).toBeVisible()
-  const firstCard = gallery.locator('[data-eidos-file-row-id="project_00001"]')
+  const firstCard = gallery
+    .getByRole("listitem")
+    .filter({ hasText: "Ship Eidos File Web Editor" })
+    .first()
   await expect(firstCard).toContainText("Ship Eidos File Web Editor")
+  await expect(firstCard.getByText("Team", { exact: true })).toBeVisible()
+  await expect(firstCard).toContainText("Runtime Core")
+  await expect(firstCard.getByText("Team lead", { exact: true })).toBeVisible()
+  await expect(firstCard).toContainText("Maya Chen")
+  await expect(
+    firstCard.getByText("Effort score", { exact: true })
+  ).toBeVisible()
+  await expect(firstCard.getByText("10", { exact: true })).toBeVisible()
   await firstCard.locator("h3").click()
 
   const inspector = page.locator('[data-eidos-file-detail-panel="record"]')
@@ -1453,11 +1733,31 @@ test("uses the shared Gallery and Kanban renderers for the sample", async ({
   await page.getByRole("button", { name: "Close record details" }).click()
   await expect(firstCard).toContainText("verified")
 
+  await page.getByRole("tab", { name: "Teams", exact: true }).click()
+  await page.getByRole("tab", { name: "Capacity cards" }).click()
+  const teamCard = page
+    .locator("[data-eidos-file-gallery-scroll]")
+    .getByRole("listitem")
+    .filter({ hasText: "Runtime Core" })
+    .first()
+  await expect(teamCard).toContainText("Maya Chen")
+  await expect(
+    teamCard.getByText("Project count", { exact: true })
+  ).toBeVisible()
+  await expect(
+    teamCard.getByText("Total effort", { exact: true })
+  ).toBeVisible()
+
+  await page.getByRole("tab", { name: "Projects", exact: true }).click()
   await page.getByRole("tab", { name: "By status" }).click()
   const kanban = page.locator("[data-eidos-file-kanban-scroll]")
   await expect(kanban).toBeVisible()
   const backlog = page.getByRole("region", { name: /Backlog, \d+ records/ })
   await expect(backlog).toBeVisible()
+  await expect(backlog).toHaveAttribute(
+    "aria-label",
+    /Backlog, [1-9]\d* records/
+  )
   const backlogCount = Number(
     (await backlog.getAttribute("aria-label"))?.match(/\d+/)?.[0] ?? "0"
   )
@@ -1529,23 +1829,49 @@ test("switches the live Eidos File experience between English and Chinese", asyn
   )
   await installFallbackMode(page)
   await page.goto("/")
+  const chineseSample = page.waitForResponse((response) =>
+    response.url().includes("project-tracker.zh")
+  )
   await page.getByRole("button", { name: "切换到中文" }).click()
+  await expect((await chineseSample).status()).toBeLessThan(400)
 
   await expect(
     page.getByRole("heading", { name: /打开 Eidos File。/ })
   ).toBeVisible()
-  await expect(page.getByText("格式、历史与应用。")).toBeVisible()
-  await expect(page.getByText("SQLite 版本引擎")).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "打开 .eidos 文件" })
+  ).toBeVisible()
+  await expect(page.getByRole("button", { name: "选择体验模板" })).toBeVisible()
+  await expect(page.locator(".landing-section")).toHaveCount(0)
 
   await expect(
     page.locator(".live-demo-grid [data-testid='glide-cell-1-0']")
-  ).toContainText("Ship Eidos File Web Editor")
-  await page.getByPlaceholder("搜索示例").fill("Project 2442")
+  ).toContainText("发布 Eidos File Web 编辑器")
+  await page.getByPlaceholder("搜索示例").fill("项目 2442")
   await expect(
     page.locator(".live-demo-grid [data-testid='glide-cell-1-0']")
-  ).toContainText("Project 2442")
+  ).toContainText("项目 2442")
 
   await page.getByRole("button", { name: "打开完整编辑器" }).click()
+  await expect(
+    page.getByRole("tab", { name: "项目", exact: true })
+  ).toHaveAttribute("aria-selected", "true")
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
+    "发布 Eidos File Web 编辑器"
+  )
+  await expect(
+    page.getByRole("button", { name: "搜索 Eidos File 记录" })
+  ).toBeVisible()
+  const filterButton = page.getByRole("button", {
+    name: "筛选 Eidos File 记录",
+  })
+  await expect(filterButton).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "排序 Eidos File 记录" })
+  ).toBeVisible()
+  await filterButton.click()
+  await expect(page.getByRole("button", { name: "添加筛选" })).toBeVisible()
+  await page.keyboard.press("Escape")
   await expect(page.locator("[data-eidos-file-sheet-tabs]")).toContainText(
     "导入的副本"
   )
@@ -1591,7 +1917,7 @@ test("keeps the editor first and publishes server-rendered Eidos File documentat
   expect(chineseStaticResponse.status()).toBe(200)
   const chineseStaticHtml = await chineseStaticResponse.text()
   expect(chineseStaticHtml).toContain('<html lang="zh-CN">')
-  expect(chineseStaticHtml).toContain("<h1>基于 Eidos File 构建</h1>")
+  expect(chineseStaticHtml).toContain("<h1>基于 Eidos File 1.0 构建</h1>")
 
   await page.goto("/")
 
@@ -1635,7 +1961,7 @@ test("keeps the editor first and publishes server-rendered Eidos File documentat
     })
   ).toBeVisible()
   await expect(
-    page.locator("code").filter({ hasText: "EidosFileSession" }).first()
+    page.locator("code").filter({ hasText: "EidosFileUIProvider" }).first()
   ).toBeVisible()
   await expect(
     page.locator('.markdown-body pre[data-highlighted="true"]').first()
@@ -1661,7 +1987,7 @@ test("keeps the editor first and publishes server-rendered Eidos File documentat
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "基于 Eidos File 构建",
+      name: "基于 Eidos File 1.0 构建",
     })
   ).toBeVisible()
   expect(browserErrors).toEqual([])

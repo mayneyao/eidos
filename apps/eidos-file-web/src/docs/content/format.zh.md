@@ -1,138 +1,135 @@
-# Eidos File 文件格式 v1
+# Eidos File 1.0 文件格式
 
-`.eidos` 文件是一个 SQLite 3 数据库，其中包含少量元数据表，以及一个或多个用户数据表。本文定义公开、稳定的 Eidos File 格式 v1 契约。
+Eidos File 是扩展名为 `.eidos` 的 SQLite 3 Application File。唯一规范文本是
+[Eidos File 1.0](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-file-1.0.md)，
+中文参考译本位于同一规范目录。
 
-## 文件标识
+## 文件身份
 
-| 属性             | 值                              |
-| ---------------- | ------------------------------- |
-| 文件扩展名       | `.eidos`                        |
-| SQLite 文件头    | `SQLite format 3\0`             |
-| MIME type        | `application/vnd.eidos+sqlite3` |
-| `format`         | `eidos-file`                    |
-| `format_version` | `1`                             |
-| `schema_version` | `1`                             |
+| 属性                         | 值                              |
+| ---------------------------- | ------------------------------- |
+| 扩展名                       | `.eidos`                        |
+| Media type                   | `application/vnd.eidos+sqlite3` |
+| SQLite header                | `SQLite format 3\0`             |
+| `PRAGMA application_id`      | `0x45494453`（`EIDS`）          |
+| `PRAGMA user_version`        | `1`                             |
+| `eidos__meta.format_version` | `1.0`                           |
 
-读取方应同时检查 SQLite 文件头和 Eidos File 元数据。仅仅使用 `.eidos` 扩展名，并不能让普通 SQLite 数据库成为 Eidos File。
+Reader 必须同时验证这些身份和唯一 `eidos__meta` 行。SQLite、API、JSON 与 CSV 中
+所有持久 ID 都使用同一种 RFC 9562 UUIDv7 表示：小写、带连字符的 36-character
+`TEXT COLLATE BINARY`。BLOB、大写、花括号、URN 与 32-character 形式都不是 canonical
+ID。连接必须开启 `foreign_keys` 并关闭 `trusted_schema`。
 
-## 数据库布局
+## Canonical layout
 
 ```text
 project.eidos
 ├── eidos__meta
+├── eidos__features
 ├── eidos__tables
-├── eidos__columns
+├── eidos__fields
+├── eidos__relation_fields
+├── eidos__formula_fields
+├── eidos__lookup_fields
 ├── eidos__views
-├── eidos__references
-└── tb_<table_id>        一个或多个用户数据表
+└── 用户命名的 STRICT, WITHOUT ROWID tables
 ```
 
-以 `eidos__` 开头的名称由 Eidos File 元数据保留。用户数据表必须登记在 `eidos__tables` 中；不要只扫描表名前缀来识别它们。
+`eidos__tables.name` 与 `eidos__fields.name` 是 display name，`physical_name`
+是真实 SQLite identifier。新建或明确重命名时，中文、空格、标点和 SQL keyword
+都直接作为带引号的物理名；SQLite identifier collision 和保留的系统 Field 名才追加
+稳定 UUID suffix。Table display name 以 `sqlite_`、`eidos__` 或 `x__` 开头时，
+使用已经冻结的可读 fallback `t__<前-8-ID-hex>__<display-name>`（碰撞时按规范
+扩展），因此物理对象不会落入保留 namespace。
+同一 Table 内 Field name 按 SQLite `NOCASE` 唯一。
 
-## 元数据表
+## User table 与值
 
-### `eidos__meta`
-
-保存文件级键值元数据。必需 key 包括 `format`、`format_version`、`app`、`created_at` 与 `updated_at`；常见可选 key 包括 `schema_version`、`title`、`description` 与 `default_table_id`。
-
-### `eidos__tables`
-
-登记每个逻辑数据表。`id` 是稳定标识，`name` 面向用户，`raw_table_name` 是 `tb_<id>` 形式的物理 SQLite 表名。重命名数据表不会改变其 ID 或物理表名。
-
-### `eidos__columns`
-
-描述系统字段、存储字段、关系字段与派生字段。关键列包括：
-
-| 列                  | 含义                                                        |
-| ------------------- | ----------------------------------------------------------- |
-| `name`              | 用户看到的字段名称                                          |
-| `type`              | 逻辑字段类型                                                |
-| `table_name`        | 所属物理表                                                  |
-| `table_column_name` | 稳定的列名或 projection 名称                                |
-| `property`          | 类型专用 JSON object                                        |
-| `storage_codec`     | `scalar`、`json_array`、`relation` 或 `materialized_text`   |
-| `value_kind`        | `source`、`relation`、`derived`、`materialized` 或 `system` |
-| `is_hidden`         | 默认隐藏状态                                                |
-| `is_derived`        | 是否由 runtime 计算                                         |
-| `depends_on`        | JSON 依赖描述                                               |
-
-### `eidos__views`
-
-保存视图状态。每个视图属于一个数据表，包含稳定 `id`、用户可见 `name`、开放的 `type`、结构化筛选与排序、字段顺序、隐藏字段和 renderer 专用 `properties`。
-
-内置视图类型是 `grid`、`gallery` 与 `kanban`。其他字符串同样有效并应被无损保留，宿主可以为其注册自定义 renderer。
-
-### `eidos__references`
-
-保存连接相关字段的 schema 级引用。Relation cell 的实际值仍保存在用户数据表中。
-
-## 用户数据表与记录 ID
-
-每个用户数据表命名为 `tb_<table_id>`，并包含六个系统列：
+每张用户 Table 都是 `STRICT, WITHOUT ROWID`，并包含：
 
 ```sql
-CREATE TABLE "tb_<table_id>" (
-  _id TEXT PRIMARY KEY NOT NULL,
-  title TEXT NULL,
-  _created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  _last_edited_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  _created_by TEXT DEFAULT 'unknown',
-  _last_edited_by TEXT DEFAULT 'unknown'
-);
+"_id"         TEXT COLLATE BINARY PRIMARY KEY CHECK(length("_id") = 36)
+"_created_at" TEXT NOT NULL
+"_updated_at" TEXT NOT NULL
 ```
 
-Runtime 创建的 table ID 是移除连字符的 UUID，row ID 是标准 UUID 字符串。ID 不带 `table_`、`row_` 或 `view_` 业务前缀；请始终将 ID 视为不透明值。
+hidden SQLite `rowid` 不是 Eidos identity。每张 Table 恰好一个 Record Label
+Field，但规范不要求固定 `Title` 或 `Name` Field。
 
-Source 与 Relation 字段拥有物理列。Formula 和 Lookup 是 runtime projection，不创建物理列。
+| Field            | Canonical stored value           |
+| ---------------- | -------------------------------- |
+| Text、URL        | `TEXT` 或 `NULL`                 |
+| Number           | finite `REAL` 或 `NULL`          |
+| Integer          | `INTEGER` 或 `NULL`              |
+| date、datetime   | 规范化 `TEXT` 或 `NULL`          |
+| Checkbox         | `0`、`1` 或 `NULL`               |
+| Select           | option name `TEXT`               |
+| Multi-select     | ordered unique JSON string array |
+| File             | ordered JSON object array        |
+| JSON             | canonical JSON text              |
+| Forward Relation | ordered unique JSON UUID array   |
 
-## 字段值编码
+date 必须是准确的 `YYYY-MM-DD`。datetime 以及所有 `created_at` / `updated_at`
+必须使用固定 UTC 形式 `YYYY-MM-DDTHH:MM:SS.sssZ`。API 与 CSV 输入若带时区偏移，
+写入前必须归一化为 UTC；除非调用方明确要求有损转换，否则拒绝亚毫秒精度。
+固定宽度字符串使用 SQLite `BINARY` 顺序，因此字节序就是时间顺序。
 
-| 字段类型                         | SQLite 值                 | 示例                   |
-| -------------------------------- | ------------------------- | ---------------------- |
-| Text、title、URL、date、datetime | `TEXT`                    | `"Ship v1"`            |
-| Number                           | 数值                      | `12.5`                 |
-| Checkbox                         | 整数布尔值                | `0` 或 `1`             |
-| Rating                           | 整数                      | `4`                    |
-| Select                           | 直接 `TEXT` 值            | `"In progress"`        |
-| Multi-select                     | JSON array 文本           | `["Backend","Urgent"]` |
-| File                             | JSON array 文本           | `["assets/spec.pdf"]`  |
-| Link                             | 目标 row ID 的 JSON array | `["019f…"]`            |
-| Formula                          | 派生 projection           | 无物理列               |
-| Lookup                           | 派生标量或 JSON array     | 无物理列               |
+Option 没有 ID 或独立 value table。可选展示 catalog 位于 `settings_json`：
+`{ "options": [{ "name", "color" }] }`。Catalog 外的 raw cell value 仍是有效数据。
 
-Select option 使用 `{ "value", "color" }`。Cell 直接保存用户看到的 value，不存在独立的 option ID/name 映射。
+File item 必须包含 canonical UUIDv7 `id`、非空 `name`、RFC 6838
+`mediaType`、`uri`，以及使用非负 int64 十进制字符串表示的 `size`。未知成员必须
+保留。相对 URI 从 Eidos File 所在目录解析，使用 `/`，不能是绝对路径，也不能通过
+`..` 逃逸；同时允许 HTTPS URI。二进制内容不保存在 SQLite cell 中；资产存在性、
+授权、传输、解析与垃圾回收属于 Adapter 职责。
 
-Multi-select、File 与 Link 使用合法 JSON array，不使用逗号拼接字符串。这样可以保留值内逗号、顺序，并保证解析无歧义。空的存储型 array 使用 SQL `NULL`；派生结果也可能返回空 JSON array，读取方应正确处理两者。
+## Relation、Formula 与 Lookup
 
-File 值保存引用，通常是相对于所在 Space 的规范化路径；Eidos File cell 不会嵌入附件二进制内容。
+forward Relation 是真实 JSON source column；subtype metadata 保存 target Table、
+cardinality 与 `restrict` / `detach` / `preserve` delete policy。inverse Relation
+是 virtual reverse projection，不保存 mirror column 或 global edge table。
 
-## Formula 与 Lookup
+Formula source 中 Field reference 始终使用当前准确 name 的双引号形式：
 
-Formula 定义保存在字段元数据中，由 Eidos File runtime 编译为受约束的 SQLite 表达式。Lookup 沿 Link 字段读取目标字段，并应用 `first`、`values`、`count`、`sum`、`average`、`min` 或 `max` 聚合。
+```sql
+"Estimate" * 1.2
+coalesce("Project budget", 0)
+```
 
-Lookup 可以继续指向另一个 Lookup。产生 array 的目标会在每层边界展开一层，并保留 Relation 顺序和元素顺序。循环依赖无效，最大 Lookup 嵌套深度为 32。
+Field rename 解析 Formula，只重写 reference nodes，不修改 string literals。
+Formula、Lookup 与 inverse Relation 都是 virtual；全文件 Field-ID dependency graph
+必须无环，Runtime 只按请求的 transitive dependencies 做 set-based evaluation。
 
-Formula 与 Lookup 在查询时派生，因此源数据变化后会立即得到新结果，无需维护第二份存储值。
+## Query 与写入
 
-## 视图
+View `query_json` / `layout_json` 使用 Field ID。projection、filter、multi-sort、
+keyset paging、group 与 statistics 共用同一套 live logical values，包括 Formula
+和 Lookup。
 
-视图不拥有记录，只保存查询和呈现同一数据表的方式：
+每个 logical mutation 必须在一个 transaction 内校验 expected revision、更新
+canonical state、验证 invariant，并令 `eidos__meta.revision` 恰好加一；失败时完整
+rollback。
 
-- renderer 类型；
-- 筛选树与排序；
-- 显示与隐藏字段；
-- 字段顺序；
-- Gallery 封面、Kanban 分组等 renderer 专用属性。
+generated index、resolved label、compiled plan 与 cache 都是可丢弃的 Host-private
+state，不能成为解释 `.eidos` 文件的必要条件。
 
-Renderer 不可用时，兼容读取方可以回退到 Grid；保存时仍应保留原始视图类型及其属性。
+## Feature negotiation 与 extension
 
-## 安全读写
+Feature support 是大小写敏感的准确 `(name, version)` tuple；版本不隐含 SemVer
+兼容。遇到不支持或无效的 required feature 时，Reader 和 Writer 都不能声称
+canonical conformance。未知 optional state 必须按字节语义保留，否则 Writer 必须
+拒绝写入。
 
-你可以用 SQLite 工具直接检查 Eidos File 值。应用写入应优先使用 `@eidos.space/eidos-file`：它会验证标识符与元数据、规范化 JSON 值、保持关联元数据一致，并用事务处理多步骤操作。
-
-其他工具若直接编辑存储记录，必须保持 `_id` 唯一并写入合法字段编码。Schema 修改应通过 runtime 完成，而不是直接执行 `ALTER TABLE`，因为物理列与 `eidos__columns` 共同构成公开契约。
+第三方 object 与 feature 使用 `x__<vendor>__*` namespace，每个 extension object
+都必须有匹配的 feature declaration。Extension 不能新增 `eidos__*` object，不能向
+core 或 user table 添加 trigger，不能遮蔽用户 physical name，也不能重新解释 core
+raw value。
 
 ## 相关指南
 
 - [基于 Eidos File 构建](build.zh.md)
 - [体验 Eidos File Web Editor](/)
+- [Eidos File 1.0](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-file-1.0.md)
+- [Eidos Runtime 1.0](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-runtime-1.0.md)
+- [Eidos Adapter 1.0](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-adapter-1.0.md)
+- [Eidos UI 1.0](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-ui-1.0.md)

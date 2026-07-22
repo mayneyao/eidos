@@ -92,7 +92,7 @@ export default defineConfig({
         name: "Eidos File",
         short_name: "Eidos File",
         description:
-          "Open and edit the Eidos open multidimensional table format locally.",
+          "Open Eidos File 1.0 locally through the portable Runtime, Adapter, and UI contracts.",
         start_url: "./",
         scope: "./",
         lang: "en",

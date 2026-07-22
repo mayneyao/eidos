@@ -34,13 +34,24 @@ function sqliteParams(
 
 /**
  * The browser driver for @eidos.space/eidos-file. It deliberately stays at the
- * package's EidosFileConnection boundary: schema, migrations and query semantics
+ * package's EidosFileConnection boundary: schema and query semantics
  * continue to live in the shared runtime.
  */
 export class SQLiteWasmEidosFileConnection implements EidosFileConnection {
+  readonly capabilities = {
+    int64: true,
+    json1: true,
+    returning: true,
+    interrupt: true,
+    scalarFunctions: true,
+  } as const
+
   private transactionDepth = 0
 
-  constructor(readonly database: SqliteDatabase) {}
+  constructor(
+    readonly database: SqliteDatabase,
+    private readonly sqlite3: Sqlite3Static
+  ) {}
 
   exec(sql: string): void {
     this.database.exec(sql)
@@ -95,6 +106,18 @@ export class SQLiteWasmEidosFileConnection implements EidosFileConnection {
     }
   }
 
+  registerFunction(
+    name: string,
+    operation: (...values: EidosFileSqlPrimitive[]) => EidosFileSqlPrimitive,
+    arity = operation.length
+  ): void {
+    this.database.createFunction(
+      name,
+      (_context, ...values) => operation(...values.map(sqliteValue)),
+      { arity, deterministic: true }
+    )
+  }
+
   transaction<T>(operation: () => T): T {
     const depth = this.transactionDepth
     const savepoint = `eidos_base_${depth}`
@@ -116,6 +139,20 @@ export class SQLiteWasmEidosFileConnection implements EidosFileConnection {
     } finally {
       this.transactionDepth -= 1
     }
+  }
+
+  dataVersion(): number {
+    return (
+      this.get<{ data_version: number }>("PRAGMA data_version")?.data_version ??
+      0
+    )
+  }
+
+  interrupt(): void {
+    const capi = this.sqlite3.capi as unknown as {
+      sqlite3_interrupt(pointer: unknown): void
+    }
+    capi.sqlite3_interrupt(this.database.pointer)
   }
 
   close(): void {

@@ -1,37 +1,26 @@
 import type {
-  EidosFileColumnStatConfig,
-  EidosFileColumnStatResult,
+  AdapterCommitReceipt,
+  AdapterStructuredCloneCarrier,
+  AdapterTransportChannel,
   EidosFileCsvImportOptions,
   EidosFileCsvImportPlan,
-  EidosFileFieldPlacement,
-  EidosFileFormulaPreview,
-  EidosFileFormulaPreviewInput,
-  EidosFileRow,
-  EidosFileRowGroupCount,
-  EidosFileRowMutationResult,
-  EidosFileRowPage,
-  EidosFileRowPageProjection,
-  EidosFileRowRange,
-  EidosFileRowQuery,
-  EidosFileRowsDeleteResult,
+  EidosFileCsvImportResult,
   EidosFileSnapshot,
-  CreateEidosFileFieldInput,
-  CreateEidosFileTableInput,
-  CreateEidosFileViewInput,
-  UpdateEidosFileFieldInput,
-  UpdateEidosFileTableInput,
-  UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
-import type { EidosFileEditorDataSource } from "@eidos.space/eidos-file-ui"
+import { AdapterTransportRuntimeClient } from "@eidos.space/eidos-file"
+import {
+  EidosRuntimeEditorDataSource,
+  type EidosFileEditorDataSource,
+} from "@eidos.space/eidos-file-ui"
 
 import type {
   EidosFileWorkerAction,
-  EidosFileWorkerCsvImportResult,
   EidosFileWorkerExportResult,
   EidosFileWorkerOpenResult,
   EidosFileWorkerRequest,
   EidosFileWorkerResponse,
   EidosFileWorkerResult,
+  EidosFileWorkerTransportMessage,
 } from "./protocol"
 
 interface PendingCall {
@@ -39,21 +28,40 @@ interface PendingCall {
   reject: (reason: Error) => void
 }
 
-export type { EidosFileEditorDataSource } from "@eidos.space/eidos-file-ui"
-
-export class EidosFileWorkerClient implements EidosFileEditorDataSource {
+/**
+ * Host-side Worker controller. Logical File operations are intentionally not
+ * exposed here; UI receives only the RuntimeClient created by runtimeClient().
+ */
+export class EidosFileWorkerClient {
   private readonly worker = new Worker(
     new URL("./eidos-file.worker.ts", import.meta.url),
     { type: "module", name: "eidos-file-runtime" }
   )
   private readonly pending = new Map<number, PendingCall>()
+  private readonly transportListeners = new Set<
+    (carrier: AdapterStructuredCloneCarrier) => void
+  >()
+  private readonly transportCloseListeners = new Set<
+    (reason?: unknown) => void
+  >()
   private nextId = 1
   private terminated = false
+  private editor: EidosRuntimeEditorDataSource | null = null
 
   constructor() {
     this.worker.addEventListener(
       "message",
-      (event: MessageEvent<EidosFileWorkerResponse>) => {
+      (
+        event: MessageEvent<
+          EidosFileWorkerResponse | EidosFileWorkerTransportMessage
+        >
+      ) => {
+        if ("transport" in event.data) {
+          for (const listener of this.transportListeners) {
+            listener(event.data.transport)
+          }
+          return
+        }
         const pending = this.pending.get(event.data.id)
         if (!pending) return
         this.pending.delete(event.data.id)
@@ -63,6 +71,17 @@ export class EidosFileWorkerClient implements EidosFileEditorDataSource {
           const error = new Error(event.data.error.message)
           error.name = event.data.error.name
           if (event.data.error.stack) error.stack = event.data.error.stack
+          Object.assign(error, {
+            ...(event.data.error.code === undefined
+              ? {}
+              : { code: event.data.error.code }),
+            ...(event.data.error.retryable === undefined
+              ? {}
+              : { retryable: event.data.error.retryable }),
+            ...(event.data.error.fatal === undefined
+              ? {}
+              : { fatal: event.data.error.fatal }),
+          })
           pending.reject(error)
         }
       }
@@ -73,7 +92,259 @@ export class EidosFileWorkerClient implements EidosFileEditorDataSource {
       )
       for (const pending of this.pending.values()) pending.reject(error)
       this.pending.clear()
+      for (const listener of this.transportCloseListeners) listener(error)
     })
+  }
+
+  runtimeClient(
+    workingID: string,
+    receipts: {
+      retain(receipt: AdapterCommitReceipt): void
+      settle(receipt: AdapterCommitReceipt): void
+    }
+  ): Promise<AdapterTransportRuntimeClient> {
+    const channel: AdapterTransportChannel = {
+      post: (carrier, transfers = []) => {
+        const message: EidosFileWorkerTransportMessage = { transport: carrier }
+        this.worker.postMessage(message, transfers)
+      },
+      subscribe: (listener, onClose) => {
+        this.transportListeners.add(listener)
+        if (onClose) this.transportCloseListeners.add(onClose)
+        return () => {
+          this.transportListeners.delete(listener)
+          if (onClose) this.transportCloseListeners.delete(onClose)
+        }
+      },
+      close: () => undefined,
+    }
+    return new AdapterTransportRuntimeClient(channel, {
+      workingID,
+      retainPreparedReceipt: receipts.retain,
+      settlePreparedReceipt: receipts.settle,
+    }).connect()
+  }
+
+  openSource(
+    fileName: string,
+    recoveryId: string,
+    bytes: ArrayBuffer,
+    access: "read" | "readwrite" = "readwrite"
+  ): Promise<EidosFileWorkerOpenResult> {
+    return this.call(
+      { type: "open-source", fileName, recoveryId, bytes, access },
+      [bytes]
+    )
+  }
+
+  async openEditorSource(
+    fileName: string,
+    recoveryId: string,
+    bytes: ArrayBuffer,
+    access: "read" | "readwrite" = "readwrite"
+  ): Promise<
+    Omit<EidosFileWorkerOpenResult, "snapshot"> & {
+      snapshot: EidosFileSnapshot
+    }
+  > {
+    const opened = await this.openSource(fileName, recoveryId, bytes, access)
+    return {
+      ...opened,
+      snapshot: await this.connectEditor(recoveryId, fileName),
+    }
+  }
+
+  openRecovery(
+    fileName: string,
+    recoveryId: string,
+    access: "read" | "readwrite" = "readwrite"
+  ): Promise<EidosFileWorkerOpenResult> {
+    return this.call({ type: "open-recovery", fileName, recoveryId, access })
+  }
+
+  async openEditorRecovery(
+    fileName: string,
+    recoveryId: string,
+    access: "read" | "readwrite" = "readwrite"
+  ): Promise<
+    Omit<EidosFileWorkerOpenResult, "snapshot"> & {
+      snapshot: EidosFileSnapshot
+    }
+  > {
+    const opened = await this.openRecovery(fileName, recoveryId, access)
+    return {
+      ...opened,
+      snapshot: await this.connectEditor(recoveryId, fileName),
+    }
+  }
+
+  getSnapshot(...args: Parameters<EidosFileEditorDataSource["getSnapshot"]>) {
+    return this.requireEditor().getSnapshot(...args)
+  }
+
+  getPage(...args: Parameters<EidosFileEditorDataSource["getPage"]>) {
+    return this.requireEditor().getPage(...args)
+  }
+
+  getRow(
+    ...args: Parameters<NonNullable<EidosFileEditorDataSource["getRow"]>>
+  ) {
+    return this.requireEditor().getRow(...args)
+  }
+
+  getGroupCounts(
+    ...args: Parameters<
+      NonNullable<EidosFileEditorDataSource["getGroupCounts"]>
+    >
+  ) {
+    return this.requireEditor().getGroupCounts(...args)
+  }
+
+  calculateColumnStats(
+    ...args: Parameters<EidosFileEditorDataSource["calculateColumnStats"]>
+  ) {
+    return this.requireEditor().calculateColumnStats(...args)
+  }
+
+  previewFormula(
+    ...args: Parameters<
+      NonNullable<EidosFileEditorDataSource["previewFormula"]>
+    >
+  ) {
+    return this.requireEditor().previewFormula(...args)
+  }
+
+  insertRow(...args: Parameters<EidosFileEditorDataSource["insertRow"]>) {
+    return this.requireEditor().insertRow(...args)
+  }
+
+  updateRow(...args: Parameters<EidosFileEditorDataSource["updateRow"]>) {
+    return this.requireEditor().updateRow(...args)
+  }
+
+  deleteRowRanges(
+    ...args: Parameters<EidosFileEditorDataSource["deleteRowRanges"]>
+  ) {
+    return this.requireEditor().deleteRowRanges(...args)
+  }
+
+  deleteRows(...args: Parameters<EidosFileEditorDataSource["deleteRows"]>) {
+    return this.requireEditor().deleteRows(...args)
+  }
+
+  updateField(...args: Parameters<EidosFileEditorDataSource["updateField"]>) {
+    return this.requireEditor().updateField(...args)
+  }
+
+  addField(...args: Parameters<EidosFileEditorDataSource["addField"]>) {
+    return this.requireEditor().addField(...args)
+  }
+
+  deleteField(...args: Parameters<EidosFileEditorDataSource["deleteField"]>) {
+    return this.requireEditor().deleteField(...args)
+  }
+
+  createTable(...args: Parameters<EidosFileEditorDataSource["createTable"]>) {
+    return this.requireEditor().createTable(...args)
+  }
+
+  updateTable(...args: Parameters<EidosFileEditorDataSource["updateTable"]>) {
+    return this.requireEditor().updateTable(...args)
+  }
+
+  deleteTable(...args: Parameters<EidosFileEditorDataSource["deleteTable"]>) {
+    return this.requireEditor().deleteTable(...args)
+  }
+
+  createView(...args: Parameters<EidosFileEditorDataSource["createView"]>) {
+    return this.requireEditor().createView(...args)
+  }
+
+  duplicateView(
+    ...args: Parameters<EidosFileEditorDataSource["duplicateView"]>
+  ) {
+    return this.requireEditor().duplicateView(...args)
+  }
+
+  deleteView(...args: Parameters<EidosFileEditorDataSource["deleteView"]>) {
+    return this.requireEditor().deleteView(...args)
+  }
+
+  reorderViews(...args: Parameters<EidosFileEditorDataSource["reorderViews"]>) {
+    return this.requireEditor().reorderViews(...args)
+  }
+
+  updateView(...args: Parameters<EidosFileEditorDataSource["updateView"]>) {
+    return this.requireEditor().updateView(...args)
+  }
+
+  previewCsv(
+    fileName: string,
+    bytes: ArrayBuffer,
+    options: EidosFileCsvImportOptions = {}
+  ): Promise<EidosFileCsvImportPlan> {
+    return this.requireEditor().previewCsv(fileName, bytes, options)
+  }
+
+  importCsv(
+    fileName: string,
+    bytes: ArrayBuffer,
+    options: EidosFileCsvImportOptions = {}
+  ): Promise<{
+    snapshot: EidosFileSnapshot
+    result: EidosFileCsvImportResult
+  }> {
+    return this.requireEditor().importCsv(fileName, bytes, options)
+  }
+
+  discardRecovery(recoveryId: string): Promise<{ discarded: true }> {
+    return this.call({ type: "discard-recovery", recoveryId })
+  }
+
+  exportFile(maxBytes = "268435456"): Promise<EidosFileWorkerExportResult> {
+    return this.call({ type: "export", maxBytes })
+  }
+
+  async close(): Promise<void> {
+    if (this.terminated) return
+    try {
+      await this.call({ type: "close" })
+    } finally {
+      this.terminate()
+    }
+  }
+
+  terminate(): void {
+    if (this.terminated) return
+    this.terminated = true
+    this.worker.terminate()
+    const error = new Error("The Eidos File runtime worker was closed")
+    for (const pending of this.pending.values()) pending.reject(error)
+    this.pending.clear()
+    for (const listener of this.transportCloseListeners) listener(error)
+    this.transportListeners.clear()
+    this.transportCloseListeners.clear()
+    this.editor = null
+  }
+
+  private async connectEditor(
+    workingID: string,
+    path: string
+  ): Promise<EidosFileSnapshot> {
+    const runtime = await this.runtimeClient(workingID, {
+      retain: () => undefined,
+      settle: () => undefined,
+    })
+    const editor = new EidosRuntimeEditorDataSource(runtime, path)
+    this.editor = editor
+    return editor.initialize()
+  }
+
+  private requireEditor(): EidosRuntimeEditorDataSource {
+    if (!this.editor) {
+      throw new Error("The Eidos File editor Runtime is not connected")
+    }
+    return this.editor
   }
 
   private call<T extends EidosFileWorkerResult>(
@@ -94,221 +365,5 @@ export class EidosFileWorkerClient implements EidosFileEditorDataSource {
       })
       this.worker.postMessage(request, transfers)
     })
-  }
-
-  openSource(
-    fileName: string,
-    recoveryId: string,
-    bytes: ArrayBuffer
-  ): Promise<EidosFileWorkerOpenResult> {
-    return this.call({ type: "open-source", fileName, recoveryId, bytes }, [
-      bytes,
-    ])
-  }
-
-  openRecovery(
-    fileName: string,
-    recoveryId: string
-  ): Promise<EidosFileWorkerOpenResult> {
-    return this.call({ type: "open-recovery", fileName, recoveryId })
-  }
-
-  discardRecovery(recoveryId: string): Promise<{ discarded: true }> {
-    return this.call({ type: "discard-recovery", recoveryId })
-  }
-
-  getSnapshot(): Promise<EidosFileSnapshot> {
-    return this.call({ type: "snapshot" })
-  }
-
-  getPage(
-    tableId: string,
-    offset: number,
-    limit: number,
-    query: EidosFileRowQuery,
-    totalHint?: number,
-    cursor?: string,
-    projection?: EidosFileRowPageProjection
-  ): Promise<EidosFileRowPage> {
-    return this.call({
-      type: "page",
-      tableId,
-      offset,
-      limit,
-      query,
-      ...(totalHint === undefined ? {} : { totalHint }),
-      ...(cursor === undefined ? {} : { cursor }),
-      ...(projection === undefined ? {} : { projection }),
-    })
-  }
-
-  getRow(tableId: string, rowId: string): Promise<EidosFileRow | null> {
-    return this.call({ type: "row", tableId, rowId })
-  }
-
-  getGroupCounts(
-    tableId: string,
-    columnName: string,
-    query: EidosFileRowQuery
-  ): Promise<EidosFileRowGroupCount[]> {
-    return this.call({ type: "group-counts", tableId, columnName, query })
-  }
-
-  calculateColumnStats(
-    tableId: string,
-    configs: EidosFileColumnStatConfig[],
-    query: EidosFileRowQuery
-  ): Promise<EidosFileColumnStatResult[]> {
-    return this.call({ type: "column-stats", tableId, configs, query })
-  }
-
-  previewFormula(
-    tableId: string,
-    input: EidosFileFormulaPreviewInput
-  ): Promise<EidosFileFormulaPreview> {
-    return this.call({ type: "formula-preview", tableId, input })
-  }
-
-  insertRow(
-    tableId: string,
-    row: EidosFileRow
-  ): Promise<EidosFileRowMutationResult> {
-    return this.call({ type: "insert-row", tableId, row })
-  }
-
-  updateRow(
-    tableId: string,
-    rowId: string,
-    changes: EidosFileRow
-  ): Promise<EidosFileRowMutationResult> {
-    return this.call({ type: "update-row", tableId, rowId, changes })
-  }
-
-  deleteRowRanges(
-    tableId: string,
-    ranges: EidosFileRowRange[],
-    query: EidosFileRowQuery
-  ): Promise<EidosFileRowsDeleteResult> {
-    return this.call({ type: "delete-row-ranges", tableId, ranges, query })
-  }
-
-  deleteRows(
-    tableId: string,
-    rowIds: string[]
-  ): Promise<EidosFileRowsDeleteResult> {
-    return this.call({ type: "delete-rows", tableId, rowIds })
-  }
-
-  updateField(
-    tableId: string,
-    columnName: string,
-    changes: UpdateEidosFileFieldInput
-  ): Promise<EidosFileSnapshot> {
-    return this.call({
-      type: "update-field",
-      tableId,
-      columnName,
-      changes,
-    })
-  }
-
-  addField(
-    tableId: string,
-    field: CreateEidosFileFieldInput,
-    placement?: EidosFileFieldPlacement
-  ): Promise<EidosFileSnapshot> {
-    return this.call({
-      type: "add-field",
-      tableId,
-      field,
-      ...(placement ? { placement } : {}),
-    })
-  }
-
-  deleteField(tableId: string, columnName: string): Promise<EidosFileSnapshot> {
-    return this.call({ type: "delete-field", tableId, columnName })
-  }
-
-  createTable(input: CreateEidosFileTableInput): Promise<EidosFileSnapshot> {
-    return this.call({ type: "create-table", input })
-  }
-
-  updateTable(
-    tableId: string,
-    changes: UpdateEidosFileTableInput
-  ): Promise<EidosFileSnapshot> {
-    return this.call({ type: "update-table", tableId, changes })
-  }
-
-  deleteTable(tableId: string): Promise<EidosFileSnapshot> {
-    return this.call({ type: "delete-table", tableId })
-  }
-
-  createView(
-    tableId: string,
-    input: CreateEidosFileViewInput
-  ): Promise<EidosFileSnapshot> {
-    return this.call({ type: "create-view", tableId, input })
-  }
-
-  duplicateView(viewId: string, name?: string): Promise<EidosFileSnapshot> {
-    return this.call({
-      type: "duplicate-view",
-      viewId,
-      ...(name ? { name } : {}),
-    })
-  }
-
-  deleteView(viewId: string): Promise<EidosFileSnapshot> {
-    return this.call({ type: "delete-view", viewId })
-  }
-
-  reorderViews(tableId: string, viewIds: string[]): Promise<EidosFileSnapshot> {
-    return this.call({ type: "reorder-views", tableId, viewIds })
-  }
-
-  updateView(
-    viewId: string,
-    changes: UpdateEidosFileViewInput
-  ): Promise<EidosFileSnapshot> {
-    return this.call({ type: "update-view", viewId, changes })
-  }
-
-  previewCsv(
-    fileName: string,
-    bytes: ArrayBuffer,
-    options: EidosFileCsvImportOptions = {}
-  ): Promise<EidosFileCsvImportPlan> {
-    return this.call({ type: "csv-preview", fileName, bytes, options }, [bytes])
-  }
-
-  importCsv(
-    fileName: string,
-    bytes: ArrayBuffer,
-    options: EidosFileCsvImportOptions = {}
-  ): Promise<EidosFileWorkerCsvImportResult> {
-    return this.call({ type: "csv-import", fileName, bytes, options }, [bytes])
-  }
-
-  exportFile(): Promise<EidosFileWorkerExportResult> {
-    return this.call({ type: "export" })
-  }
-
-  async close(): Promise<void> {
-    if (this.terminated) return
-    try {
-      await this.call({ type: "close" })
-    } finally {
-      this.terminate()
-    }
-  }
-
-  terminate(): void {
-    if (this.terminated) return
-    this.terminated = true
-    this.worker.terminate()
-    const error = new Error("The Eidos File runtime worker was closed")
-    for (const pending of this.pending.values()) pending.reject(error)
-    this.pending.clear()
   }
 }

@@ -2,6 +2,8 @@ import { lazy, Suspense } from "react"
 import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui/context"
 import type { EidosFileEditorViewProps } from "@eidos.space/eidos-file-ui/eidos-file-editor-view"
 
+import { useI18n } from "../i18n"
+
 const EidosFileEditorView = lazy(() =>
   import("@eidos.space/eidos-file-ui/eidos-file-editor-view").then(
     (module) => ({
@@ -25,8 +27,9 @@ export function SharedEidosFileEditorView({
   loadingLabel = "Loading Eidos File editor…",
   ...props
 }: SharedEidosFileEditorViewProps) {
+  const { locale } = useI18n()
   return (
-    <EidosFileUIProvider themeName={theme}>
+    <EidosFileUIProvider themeName={theme} locale={locale}>
       <Suspense
         fallback={
           <div className="shared-grid-loading" role="status">

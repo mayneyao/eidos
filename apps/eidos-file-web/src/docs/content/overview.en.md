@@ -2,15 +2,15 @@
 
 Eidos File is a multidimensional table stored as one portable `.eidos` file. It is a standard SQLite database containing records, typed fields, relations, and saved views. The file stays useful in Eidos, ordinary SQLite tools, and applications built with the public packages.
 
-![One Eidos File branches into Grid, Timeline, and Gallery views that all use the same records.](/eidos-file-model.png)
+![One Eidos File branches into Grid, Kanban, and Gallery views that all use the same records.](/eidos-file-model.png)
 
-Grid, Timeline, Gallery, Kanban, and custom views are different ways to work with the same records. A view stores query and presentation state; it does not create another copy of the table.
+Grid, Gallery, Kanban, and custom views are different ways to work with the same records. A view stores query and presentation state; it does not create another copy of the table.
 
 ## Try it in the editor
 
 1. Return to the [Eidos File editor](/).
-2. Choose **Open .eidos file**, or open the included 2,500-row sample.
-3. Edit records or switch between Grid, Gallery, and Kanban.
+2. Choose **Open .eidos file**, open the 2,500-row sample, or choose a template.
+3. Explore Project Portfolio, CRM, Personal Finance, Reading Library, Habit Tracker, and Content Calendar files. Together they cover Formula, Relation, Lookup, Select, Multi-select, dates, attachments, saved filters, grouping, statistics, Gallery, and Kanban.
 4. Save the original file or download a new copy.
 
 Chromium-based browsers can write back to the original after you grant permission. Other browsers use an explicit copy workflow. In both modes, the database is processed locally with SQLite WASM and a Web Worker.
@@ -37,4 +37,6 @@ Unsupported custom view types remain in the file. A host may fall back to Grid, 
 
 The `.eidos` file is the source of truth. The editor does not upload file contents to Eidos servers. When unsaved work needs recovery, the browser may retain a private local checkpoint that you can discard from the editor or remove by clearing site data.
 
-Read the [format reference](format.en.md) for the stable SQLite contract, or [build with Eidos File](build.en.md) using the published `0.1.0` packages.
+The editor and templates are available in English and Chinese. Changing the interface language selects the corresponding localized template file; it never translates or rewrites user-authored names or values in an existing file.
+
+Read the [format reference](format.en.md) for the stable SQLite contract, or [build with Eidos File](build.en.md) using the published `1.0.0` packages.

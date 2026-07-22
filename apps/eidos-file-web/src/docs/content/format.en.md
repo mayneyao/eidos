@@ -1,138 +1,154 @@
-# Eidos File format v1
+# Eidos File 1.0 format
 
-A `.eidos` file is a SQLite 3 database with a small set of metadata tables and one or more user tables. This page defines the public Eidos File format v1 contract.
+An Eidos File is a SQLite 3 application file with the `.eidos` extension. The
+canonical, implementation-independent contract is
+[Eidos File 1.0](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-file-1.0.md).
 
 ## File identity
 
-| Property         | Value                           |
-| ---------------- | ------------------------------- |
-| File extension   | `.eidos`                        |
-| SQLite header    | `SQLite format 3\0`             |
-| MIME type        | `application/vnd.eidos+sqlite3` |
-| `format`         | `eidos-file`                    |
-| `format_version` | `1`                             |
-| `schema_version` | `1`                             |
+| Property                     | Value                           |
+| ---------------------------- | ------------------------------- |
+| Extension                    | `.eidos`                        |
+| Media type                   | `application/vnd.eidos+sqlite3` |
+| SQLite header                | `SQLite format 3\0`             |
+| `PRAGMA application_id`      | `0x45494453` (`EIDS`)           |
+| `PRAGMA user_version`        | `1`                             |
+| `eidos__meta.format_version` | `1.0`                           |
 
-Consumers should check both the SQLite header and Eidos File metadata. A SQLite database is not an Eidos File merely because it uses the `.eidos` extension.
+Readers verify all of these identities and the singleton `eidos__meta` row.
+The extension alone is not sufficient. Every persistent ID is the same RFC
+9562 UUIDv7 representation in SQLite, APIs, JSON, and CSV: lowercase,
+hyphenated, 36-character `TEXT COLLATE BINARY`. BLOB, uppercase, braced, URN,
+and 32-character forms are not canonical IDs.
 
-## Database layout
+Every connection enables `foreign_keys` and disables `trusted_schema`.
+
+## Canonical layout
 
 ```text
 project.eidos
 ├── eidos__meta
+├── eidos__features
 ├── eidos__tables
-├── eidos__columns
+├── eidos__fields
+├── eidos__relation_fields
+├── eidos__formula_fields
+├── eidos__lookup_fields
 ├── eidos__views
-├── eidos__references
-└── tb_<table_id>        one or more user tables
+└── user-named STRICT, WITHOUT ROWID tables
 ```
 
-Names beginning with `eidos__` are reserved for Eidos File metadata. User tables are registered in `eidos__tables`; do not discover them by scanning table-name prefixes alone.
+`eidos__tables.name` and `eidos__fields.name` are display names.
+`physical_name` is the exact quoted SQLite identifier. A new or explicitly
+renamed object first uses its display name verbatim—even when it contains
+spaces, Chinese text, punctuation, or an SQL keyword. A stable UUID suffix is
+added for a SQLite identifier collision and for reserved system Field names.
+A Table display name beginning with `sqlite_`, `eidos__`, or `x__` uses the
+frozen readable fallback `t__<first-8-id-hex>__<display-name>` (with the
+specified bounded collision extension), so the physical object never enters a
+reserved namespace.
 
-## Metadata tables
+Field names are unique within a Table under SQLite `NOCASE`. Field IDs remain
+stable across rename and are used by Views, Lookup, inverse Relation, and the
+dependency graph.
 
-### `eidos__meta`
+## User tables and values
 
-Stores file-level key/value metadata. Required keys are `format`, `format_version`, `app`, `created_at`, and `updated_at`. Common optional keys include `schema_version`, `title`, `description`, and `default_table_id`.
-
-### `eidos__tables`
-
-Registers each logical table. `id` is stable, `name` is user-facing, and `raw_table_name` is the physical SQLite name `tb_<id>`. Renaming a table does not change its ID or physical table name.
-
-### `eidos__columns`
-
-Describes every system, stored, relation, and derived field. Important columns are:
-
-| Column              | Meaning                                                      |
-| ------------------- | ------------------------------------------------------------ |
-| `name`              | User-facing field name                                       |
-| `type`              | Logical field type                                           |
-| `table_name`        | Owning physical table                                        |
-| `table_column_name` | Stable column or projection name                             |
-| `property`          | Type-specific JSON object                                    |
-| `storage_codec`     | `scalar`, `json_array`, `relation`, or `materialized_text`   |
-| `value_kind`        | `source`, `relation`, `derived`, `materialized`, or `system` |
-| `is_hidden`         | Default visibility flag                                      |
-| `is_derived`        | Whether the runtime computes the value                       |
-| `depends_on`        | JSON dependency description                                  |
-
-### `eidos__views`
-
-Stores saved view state. Each view belongs to a table and has a stable `id`, user-facing `name`, open-ended `type`, structured filter and sort state, field order, hidden fields, and renderer-specific `properties`.
-
-The built-in view types are `grid`, `gallery`, and `kanban`. Other strings are valid and remain round-trippable so a host can register a custom renderer.
-
-### `eidos__references`
-
-Stores schema-level field references used to connect related fields. Relation cell values themselves remain in the user table.
-
-## User tables and row identity
-
-Every user table is named `tb_<table_id>` and begins with six system columns:
+Each user Table is `STRICT, WITHOUT ROWID` and contains:
 
 ```sql
-CREATE TABLE "tb_<table_id>" (
-  _id TEXT PRIMARY KEY NOT NULL,
-  title TEXT NULL,
-  _created_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  _last_edited_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  _created_by TEXT DEFAULT 'unknown',
-  _last_edited_by TEXT DEFAULT 'unknown'
-);
+"_id"         TEXT COLLATE BINARY PRIMARY KEY CHECK(length("_id") = 36)
+"_created_at" TEXT NOT NULL
+"_updated_at" TEXT NOT NULL
 ```
 
-Runtime-created table IDs are UUIDs without hyphens. Runtime-created row IDs are standard UUID strings. IDs have no `table_`, `row_`, or `view_` business prefix; treat every ID as opaque.
+The hidden SQLite `rowid` is never Eidos identity. Every Table has exactly one
+Record Label Field, but there is no required `Title` or `Name` Field.
 
-Stored source and relation fields have physical columns. Formula and Lookup fields are runtime projections and do not create physical columns.
+| Field            | Canonical stored value           |
+| ---------------- | -------------------------------- |
+| Text, URL        | `TEXT` or `NULL`                 |
+| Number           | finite `REAL` or `NULL`          |
+| Integer          | `INTEGER` or `NULL`              |
+| Date, datetime   | canonical `TEXT` or `NULL`       |
+| Checkbox         | `0`, `1`, or `NULL`              |
+| Select           | option name as `TEXT`            |
+| Multi-select     | ordered unique JSON string array |
+| File             | ordered JSON object array        |
+| JSON             | canonical JSON text              |
+| Forward Relation | ordered unique JSON UUID array   |
 
-## Field value encodings
+A date is exactly `YYYY-MM-DD`. A datetime and every `created_at` /
+`updated_at` value use the fixed UTC form `YYYY-MM-DDTHH:MM:SS.sssZ`. API and
+CSV offset inputs are normalized to UTC before storage; sub-millisecond input
+is rejected unless the caller explicitly requests a lossy conversion. These
+fixed-width strings use SQLite `BINARY` ordering, so lexical order is
+chronological order.
 
-| Field type                       | SQLite value                 | Example                |
-| -------------------------------- | ---------------------------- | ---------------------- |
-| Text, title, URL, date, datetime | `TEXT`                       | `"Ship v1"`            |
-| Number                           | numeric                      | `12.5`                 |
-| Checkbox                         | integer boolean              | `0` or `1`             |
-| Rating                           | integer                      | `4`                    |
-| Select                           | direct `TEXT` value          | `"In progress"`        |
-| Multi-select                     | JSON array text              | `["Backend","Urgent"]` |
-| File                             | JSON array text              | `["assets/spec.pdf"]`  |
-| Link                             | JSON array of target row IDs | `["019f…"]`            |
-| Formula                          | derived projection           | no physical column     |
-| Lookup                           | derived scalar or JSON array | no physical column     |
+Select options have no IDs or separate value table. The optional display
+catalog lives in `settings_json` as `{ "options": [{ "name", "color" }] }`;
+unconfigured raw cell values remain valid.
 
-Select options use `{ "value", "color" }`. The cell stores the same value shown to the user; there is no separate option ID/name mapping.
+A File item contains canonical UUIDv7 `id`, non-empty `name`, RFC 6838
+`mediaType`, `uri`, and `size` as a non-negative int64 decimal string. Unknown
+members are preserved. Relative URIs resolve from the directory containing the
+Eidos File, use `/`, and cannot be absolute or escape with `..`; HTTPS URIs are
+also allowed. The bytes remain external to the SQLite cell. Asset existence,
+authorization, transfer, resolution, and garbage collection belong to the
+Adapter.
 
-Multi-select, File, and Link use valid JSON arrays rather than comma-separated strings. This preserves commas inside values, ordering, and unambiguous parsing. Empty stored arrays are represented as SQL `NULL`; readers should also accept an empty JSON array where one is produced by a derived result.
+## Relation, Formula, and Lookup
 
-File values are references, usually normalized paths relative to the surrounding Space. An Eidos File does not embed attachment bytes in the cell.
+A forward Relation is a real JSON source column. Its subtype row records the
+target Table, cardinality, and `restrict`, `detach`, or `preserve` deletion
+policy. An inverse Relation is a virtual reverse projection and stores no
+mirror column or global edge table.
 
-## Formula and Lookup
+Formula source is one deterministic expression. Every Field reference uses
+the exact current Field name as a double-quoted identifier, for example:
 
-Formula definitions live in field metadata and are compiled into safe SQLite expressions by the Eidos File runtime. Lookup traverses a Link field, reads a target field, and applies one of these aggregates: `first`, `values`, `count`, `sum`, `average`, `min`, or `max`.
+```sql
+"Estimate" * 1.2
+coalesce("Project budget", 0)
+```
 
-Lookup can target another Lookup. Array-producing targets are flattened one level at each boundary, preserving relation order and element order. Cycles are invalid, and the maximum Lookup nesting depth is 32.
+Field rename parses Formula source and rewrites only reference nodes; string
+literals are unchanged. Formula, Lookup, and inverse Relation results are
+virtual. Their file-wide Field-ID dependency graph must be acyclic, and Runtime
+queries evaluate only requested transitive dependencies with set-based SQL.
 
-Because Formula and Lookup values are derived at query time, changing source data immediately changes their result without maintaining a second stored copy.
+## Queries and writes
 
-## Saved views
+View `query_json` and `layout_json` use Field IDs. Runtime projection,
+filtering, multi-sort, keyset paging, grouping, and statistics operate over the
+same live logical values, including Formula and Lookup results.
 
-A view does not own records. It stores how a table should be queried and presented:
+Every logical mutation is one transaction. It validates the optional expected
+revision, updates canonical state, checks affected invariants, increments
+`eidos__meta.revision` exactly once, and either commits everything or rolls it
+all back.
 
-- renderer type;
-- filter tree and sort order;
-- visible and hidden fields;
-- field order;
-- renderer-specific properties such as Gallery cover fields or Kanban grouping.
+Generated indexes, resolved labels, compiled plans, and caches are disposable
+Host-private state. They are never required to interpret the `.eidos` file.
 
-A compatible reader may fall back to Grid when a renderer is unavailable, but it should preserve the original view type and properties when saving.
+## Feature negotiation and extensions
 
-## Reading and writing safely
+Feature support is an exact, case-sensitive `(name, version)` tuple; versions
+do not imply Semantic Versioning compatibility. An unsupported or invalid
+required feature blocks canonical Reader and Writer conformance. Unknown
+optional state must be preserved byte-semantically, otherwise the Writer must
+refuse the write.
 
-SQLite tools can inspect Eidos File values directly. For application writes, prefer `@eidos.space/eidos-file`: it validates identifiers and metadata, normalizes JSON values, keeps related metadata consistent, and wraps multi-step operations in transactions.
-
-If another tool edits stored rows directly, it must preserve `_id` uniqueness and valid field encodings. Schema edits should go through the runtime rather than raw `ALTER TABLE`, because physical columns and `eidos__columns` form one public contract.
+Third-party objects and features use the `x__<vendor>__*` namespace. Every
+extension object needs a matching feature declaration. Extensions cannot add
+`eidos__*` objects, attach triggers to core or user tables, shadow user physical
+names, or reinterpret core raw values.
 
 ## Related guides
 
 - [Build with Eidos File](build.en.md)
 - [Try the Eidos File Web Editor](/)
+- [Eidos File 1.0](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-file-1.0.md)
+- [Eidos Runtime 1.0](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-runtime-1.0.md)
+- [Eidos Adapter 1.0](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-adapter-1.0.md)
+- [Eidos UI 1.0](https://github.com/mayneyao/eidos/blob/main/docs/specs/eidos-ui-1.0.md)

@@ -66,7 +66,7 @@ const message: string = "Hello Eidos File"
     expect(rendered.html).toContain('class="token string"')
   })
 
-  it("publishes one focused external editor and custom-view path", () => {
+  it("publishes one focused four-layer interoperability path", () => {
     const build = EIDOS_FILE_DOCUMENTS.find(
       (document) => document.slug === "build"
     )!
@@ -89,15 +89,13 @@ const message: string = "Hello Eidos File"
     for (const markdown of [build.markdown.en, build.markdown.zh]) {
       expect(markdown).toContain("@eidos.space/eidos-file")
       expect(markdown).toContain("@eidos.space/eidos-file-ui")
-      expect(markdown).toContain("EidosFileSession")
-      expect(markdown).toContain("EidosFileProvider")
-      expect(markdown).toContain("EidosFileViewHost")
-      expect(markdown).toContain("EidosFileViewRenderer")
-      expect(markdown).toContain("defineEidosFileView")
-      expect(markdown).toContain("com.example.timeline")
-      expect(markdown).toMatch(/source\s*\.getPage/)
-      expect(markdown).toContain("session.save()")
-      expect(markdown).toMatch(/Eidos Space [Ee]xtensions?/)
+      expect(markdown).toContain("Runtime.open")
+      expect(markdown).toContain("ConnectionPort")
+      expect(markdown).toContain("HostServices")
+      expect(markdown).toContain("EidosUIKernel")
+      expect(markdown).toContain("EidosUIRuntimeProvider")
+      expect(markdown).toContain("EidosStandardView")
+      expect(markdown).toContain("File Format → Runtime → Adapter → UI")
     }
   })
 

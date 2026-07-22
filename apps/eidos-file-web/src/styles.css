@@ -31,6 +31,43 @@
   text-rendering: optimizeLegibility;
 }
 
+/* The editor landing route is a focused, single-screen workbench. Detailed
+   format and implementation guidance lives under the Open Format tab. */
+@media (min-width: 62.001rem) {
+  .launch-shell-compact {
+    overflow: hidden;
+  }
+
+  .launch-shell-compact .launch-workbench {
+    height: calc(100svh - 5.25rem);
+    min-height: 0;
+  }
+
+  .launch-shell-compact .launch-copy {
+    padding-block: clamp(1rem, 4vh, 2.5rem);
+  }
+
+  .launch-shell-compact .launch-copy h1 {
+    font-size: clamp(2.25rem, 4vw, 4.25rem);
+  }
+
+  .launch-shell-compact .launch-actions {
+    margin-top: clamp(1rem, 3vh, 1.75rem);
+  }
+
+  .launch-shell-compact .recovery-strip {
+    position: fixed;
+    z-index: 20;
+    right: clamp(1rem, 3vw, 3rem);
+    bottom: 1rem;
+    left: clamp(1rem, 3vw, 3rem);
+    width: auto;
+    margin: 0;
+    box-shadow: 0 0.75rem 2rem
+      color-mix(in oklch, var(--foreground) 12%, transparent);
+  }
+}
+
 .dark {
   color-scheme: dark;
   --shell: color-mix(in oklch, var(--background) 95%, oklch(28% 0.018 250));
@@ -1587,6 +1624,175 @@
   font-size: 0.8125rem;
 }
 
+.template-picker {
+  position: relative;
+  z-index: 8;
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.launch-actions .template-picker-trigger {
+  width: 100%;
+}
+
+.template-picker-count {
+  margin-left: auto;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.template-picker-panel {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 12;
+  width: min(38rem, 100%);
+  max-height: min(32rem, 62svh);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  background: var(--background);
+  box-shadow: 0 1rem 2.5rem
+    color-mix(in oklch, var(--foreground) 16%, transparent);
+}
+
+.template-picker-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklch, var(--background) 94%, transparent);
+  backdrop-filter: blur(0.75rem);
+}
+
+.template-picker-header h2,
+.template-picker-header p {
+  margin: 0;
+}
+
+.template-picker-header h2 {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.template-picker-header p {
+  max-width: 28rem;
+  margin-top: 0.25rem;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  line-height: 1.5;
+}
+
+.template-picker-header > span {
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  line-height: 1.25rem;
+}
+
+.template-picker-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.template-picker-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+.template-picker-list button {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 4.25rem;
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+}
+
+.template-picker-list button:hover,
+.template-picker-list button:focus-visible {
+  background: var(--surface-sunken);
+}
+
+.template-picker-list button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.template-picker-icon {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface-raised);
+  color: var(--muted-foreground);
+}
+
+.template-picker-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+}
+
+.template-picker-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.template-picker-title-row strong {
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-picker-title-row small {
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.template-picker-description {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-picker-highlights {
+  overflow: hidden;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 0.59375rem;
+  opacity: 0.68;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .privacy-line {
   max-width: 32rem;
   margin-top: 1rem;
@@ -1923,6 +2129,15 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .template-picker-panel {
+    position: relative;
+    top: auto;
+    bottom: auto;
+    width: 100%;
+    max-height: 32rem;
+    margin-top: 0.5rem;
+  }
+
   .launch-details {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1965,6 +2180,23 @@
 
   .launch-actions {
     grid-template-columns: 1fr;
+  }
+
+  .template-picker-header {
+    padding-inline: 0.75rem;
+  }
+
+  .template-picker-header > span {
+    display: none;
+  }
+
+  .template-picker-list button {
+    min-height: 5.5rem;
+    padding-inline: 0.75rem;
+  }
+
+  .template-picker-description {
+    white-space: normal;
   }
 
   .button-shortcut {

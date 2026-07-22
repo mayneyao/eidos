@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test"
 
 const port = process.env.EIDOS_FILE_WEB_E2E_PORT ?? "4174"
 const baseURL = `http://127.0.0.1:${port}`
+const chromiumChannel = process.env.EIDOS_FILE_WEB_CHROMIUM_CHANNEL
 
 export default defineConfig({
   testDir: "./e2e",
@@ -18,7 +19,13 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(chromiumChannel ? { channel: chromiumChannel } : {}),
+      },
+    },
     { name: "firefox", use: { ...devices["Desktop Firefox"] } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],

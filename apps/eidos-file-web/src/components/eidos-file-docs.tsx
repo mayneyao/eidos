@@ -35,7 +35,7 @@ const copy = {
     documents: "Guide and reference",
     contents: "On this page",
     edition: "Document",
-    notice: "Package examples target the published 0.1.0 release.",
+    notice: "Package examples target the published 1.0.0 release.",
     theme: "Toggle color theme",
   },
   zh: {
@@ -48,7 +48,7 @@ const copy = {
     documents: "指南与参考",
     contents: "本文目录",
     edition: "文档",
-    notice: "Package 示例对应已公开发布的 0.1.0 版本。",
+    notice: "Package 示例对应已公开发布的 1.0.0 版本。",
     theme: "切换颜色主题",
   },
 } as const

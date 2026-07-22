@@ -69,6 +69,7 @@ import { useRegisterSW } from "virtual:pwa-register/react"
 
 import { LiveEidosFileDemo } from "./components/live-eidos-file-demo"
 import { EidosFileDocs } from "./components/eidos-file-docs"
+import { EidosFileTemplatePicker } from "./components/eidos-file-template-picker"
 import { PwaUpdatePrompt } from "./components/pwa-update-prompt"
 import { SharedEidosFileEditorView } from "./components/shared-eidos-file-editor-view"
 import {
@@ -102,7 +103,12 @@ import {
   legacyEidosFileDocsSlugFromHash,
 } from "./docs/routes"
 import { EidosFileWorkerClient } from "./runtime/worker-client"
-import { loadSampleEidosFile } from "./sample-eidos-file"
+import {
+  getEidosFileTemplateSource,
+  loadSampleEidosFile,
+  loadTemplateEidosFile,
+  type EidosFileTemplateId,
+} from "./sample-eidos-file"
 import {
   canSaveToOriginal,
   hasUnsavedChanges,
@@ -125,13 +131,20 @@ type Theme = "light" | "dark"
 const PWA_UPDATE_PROMPT_CACHE = "eidos-file-pwa-update-prompt-ready-v1"
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : "The operation did not complete. Your recoverable working copy is unchanged."
+  if (error instanceof Error && error.message) return error.message
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  ) {
+    return error.message
+  }
+  return "The operation did not complete. Your recoverable working copy is unchanged."
 }
 
 function initialTheme(): Theme {
-  const stored = localStorage.getItem("eidos-file-theme")
+  const stored = window.localStorage.getItem("eidos-file-theme")
   if (stored === "light" || stored === "dark") return stored
   return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
 }
@@ -203,7 +216,7 @@ function updateSnapshotRowCount(
     ...snapshot,
     metadata: {
       ...snapshot.metadata,
-      updatedAt: result.revision ?? snapshot.metadata.updatedAt,
+      ...(result.revision === undefined ? {} : { revision: result.revision }),
     },
     tables: snapshot.tables.map((table) =>
       table.table.id === result.tableId
@@ -235,6 +248,8 @@ export function App() {
   )
   const [fieldInsertIndex, setFieldInsertIndex] = useState<number | null>(null)
   const [viewReloadToken, setViewReloadToken] = useState(0)
+  const [openingTemplateId, setOpeningTemplateId] =
+    useState<EidosFileTemplateId | null>(null)
   const [theme, setTheme] = useState<Theme>(initialTheme)
   const docsRoute = eidosFileDocsRouteFromPathname(window.location.pathname)
   const [pwaRegistration, setPwaRegistration] =
@@ -353,7 +368,7 @@ export function App() {
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark")
     document.documentElement.dataset.theme = theme
-    localStorage.setItem("eidos-file-theme", theme)
+    window.localStorage.setItem("eidos-file-theme", theme)
   }, [theme])
 
   useEffect(() => {
@@ -454,7 +469,8 @@ export function App() {
     async (
       client: EidosFileWorkerClient,
       opened: Omit<OpenSession, "storage">,
-      result: Awaited<ReturnType<EidosFileWorkerClient["openSource"]>>
+      result: Awaited<ReturnType<EidosFileWorkerClient["openEditorSource"]>>,
+      preferredTableName?: string
     ) => {
       const previous = clientRef.current
       clientRef.current = client
@@ -462,8 +478,14 @@ export function App() {
       const nextSession: OpenSession = { ...opened, storage: result.storage }
       setSession(nextSession)
       setSnapshot(result.snapshot)
+      const preferredTable = preferredTableName
+        ? result.snapshot.tables.find(
+            (table) => table.table.name === preferredTableName
+          )
+        : undefined
       setActiveTableId(
-        result.snapshot.metadata.defaultTableId ??
+        preferredTable?.table.id ??
+          result.snapshot.metadata.defaultTableId ??
           result.snapshot.tables[0]?.table.id ??
           null
       )
@@ -487,12 +509,12 @@ export function App() {
   )
 
   const openPreparedFile = useCallback(
-    async (opened: OpenedBrowserFile) => {
+    async (opened: OpenedBrowserFile, preferredTableName?: string) => {
       dispatch({ type: "OPEN_START" })
       const client = new EidosFileWorkerClient()
       const id = crypto.randomUUID()
       try {
-        const result = await client.openSource(
+        const result = await client.openEditorSource(
           opened.fileName,
           id,
           opened.bytes
@@ -507,7 +529,8 @@ export function App() {
             sourceVersion: opened.version,
             ...(opened.handle ? { handle: opened.handle } : {}),
           },
-          result
+          result,
+          preferredTableName
         )
       } catch (error) {
         client.terminate()
@@ -554,14 +577,41 @@ export function App() {
     if (!confirmSwitch()) return
     setNotice(null)
     try {
-      const file = await loadSampleEidosFile()
-      await openPreparedFile(await openImportedEidosFile(file))
+      const source = getEidosFileTemplateSource("project-portfolio", locale)
+      const file = await loadSampleEidosFile(locale)
+      await openPreparedFile(
+        await openImportedEidosFile(file),
+        source.startTable
+      )
     } catch (error) {
       const message = errorMessage(error)
       setNotice(message)
       dispatch({ type: "OPEN_FAILURE", message })
     }
-  }, [confirmSwitch, openPreparedFile])
+  }, [confirmSwitch, locale, openPreparedFile])
+
+  const openTemplate = useCallback(
+    async (templateId: EidosFileTemplateId) => {
+      if (!confirmSwitch()) return
+      setNotice(null)
+      setOpeningTemplateId(templateId)
+      try {
+        const source = getEidosFileTemplateSource(templateId, locale)
+        const file = await loadTemplateEidosFile(templateId, locale)
+        await openPreparedFile(
+          await openImportedEidosFile(file),
+          source.startTable
+        )
+      } catch (error) {
+        const message = errorMessage(error)
+        setNotice(message)
+        dispatch({ type: "OPEN_FAILURE", message })
+      } finally {
+        setOpeningTemplateId(null)
+      }
+    },
+    [confirmSwitch, locale, openPreparedFile]
+  )
 
   const returnHome = useCallback(() => {
     if (hasUnsavedChanges(saveState)) {
@@ -596,7 +646,10 @@ export function App() {
       const permission = recovery.handle
         ? await queryWritePermission(recovery.handle)
         : "denied"
-      const result = await client.openRecovery(recovery.fileName, recovery.id)
+      const result = await client.openEditorRecovery(
+        recovery.fileName,
+        recovery.id
+      )
       await installOpenResult(
         client,
         {
@@ -1170,7 +1223,7 @@ export function App() {
 
   if (!snapshot || !session || !activeTable) {
     return (
-      <main className="launch-shell" id="main-content">
+      <main className="launch-shell launch-shell-compact" id="main-content">
         <a className="skip-link" href="#open-eidos-file">
           Skip to open file
         </a>
@@ -1235,17 +1288,12 @@ export function App() {
 
         <section className="launch-workbench" aria-labelledby="launch-title">
           <div className="launch-panel">
-            <div className="launch-panel-kicker">
-              <span aria-hidden="true" />
-              {t("heroEyebrow")}
-            </div>
             <div className="launch-copy">
               <h1 id="launch-title">
                 {t("heroTitleOne")}
                 <br />
                 {t("heroTitleTwo")}
               </h1>
-              <p className="launch-lede">{t("heroLede")}</p>
               <div className="launch-actions">
                 <button
                   id="open-eidos-file"
@@ -1277,6 +1325,12 @@ export function App() {
                   <FileSpreadsheet size={16} aria-hidden="true" />
                   {t("openSample")}
                 </button>
+                <EidosFileTemplatePicker
+                  locale={locale}
+                  disabled={saveState.phase === "opening"}
+                  openingTemplateId={openingTemplateId}
+                  onSelect={(templateId) => void openTemplate(templateId)}
+                />
               </div>
               <div className="privacy-line">
                 <ShieldCheck size={15} aria-hidden="true" />
@@ -1285,20 +1339,6 @@ export function App() {
                 </span>
               </div>
             </div>
-            <dl className="launch-details">
-              <div>
-                <dt>{t("launchFormatLabel")}</dt>
-                <dd>.eidos · SQLite</dd>
-              </div>
-              <div>
-                <dt>{t("launchViewsLabel")}</dt>
-                <dd>Grid · Gallery · Kanban</dd>
-              </div>
-              <div>
-                <dt>{t("launchRuntimeLabel")}</dt>
-                <dd>WASM · Web Worker</dd>
-              </div>
-            </dl>
           </div>
           <LiveEidosFileDemo
             embedded
@@ -1335,140 +1375,6 @@ export function App() {
             </button>
           </section>
         ) : null}
-
-        <section
-          className="landing-section format-section"
-          aria-labelledby="format-title"
-        >
-          <header className="section-intro">
-            <div>
-              <p className="eyebrow">01 · {t("formatEyebrow")}</p>
-              <h2 id="format-title">
-                {t("formatTitleOne")}
-                <br />
-                {t("formatTitleTwo")}
-              </h2>
-            </div>
-            <p>
-              {t("formatIntro").split(".eidos")[0]}
-              <code>.eidos</code>
-              {t("formatIntro").split(".eidos").slice(1).join(".eidos")}
-            </p>
-          </header>
-
-          <ol className="format-ledger" aria-label="Eidos File format layers">
-            <li>
-              <span>{t("formatFile")}</span>
-              <div>
-                <strong>{t("formatFileTitle")}</strong>
-                <code>project-tracker.eidos</code>
-              </div>
-              <p>{t("formatFileBody")}</p>
-            </li>
-            <li>
-              <span>{t("formatMeaning")}</span>
-              <div>
-                <strong>{t("formatMeaningTitle")}</strong>
-                <code>eidos__meta · columns · views</code>
-              </div>
-              <p>{t("formatMeaningBody")}</p>
-            </li>
-            <li>
-              <span>{t("formatBehavior")}</span>
-              <div>
-                <strong>{t("formatBehaviorTitle")}</strong>
-                <code>EidosFileConnection → EidosFileRuntime</code>
-              </div>
-              <p>{t("formatBehaviorBody")}</p>
-            </li>
-            <li>
-              <span>{t("formatExperience")}</span>
-              <div>
-                <strong>{t("formatExperienceTitle")}</strong>
-                <code>data + view config → UI</code>
-              </div>
-              <p>{t("formatExperienceBody")}</p>
-            </li>
-          </ol>
-
-          <div
-            className="format-principles"
-            aria-label="Open format principles"
-          >
-            <span>{t("principleOwned")}</span>
-            <span>{t("principleAccount")}</span>
-            <span>{t("principleDrivers")}</span>
-            <span>{t("principleLocal")}</span>
-          </div>
-          <a
-            className="section-link"
-            href={eidosFileDocsPath("format", locale)}
-          >
-            <BookOpen size={14} aria-hidden="true" />
-            {t("readEidosFileDocs")}
-            <ChevronRight size={13} aria-hidden="true" />
-          </a>
-        </section>
-
-        <section
-          className="landing-section stack-section"
-          aria-labelledby="stack-title"
-        >
-          <header className="section-intro stack-intro">
-            <div>
-              <p className="eyebrow">02 · {t("stackEyebrow")}</p>
-              <h2 id="stack-title">{t("stackTitle")}</h2>
-            </div>
-            <p>{t("graftIntro")}</p>
-          </header>
-
-          <div className="stack-layers" aria-label="Eidos technology stack">
-            <article>
-              <span>01</span>
-              <div className="stack-layer-name">
-                <strong>Graft</strong>
-                <h3>{t("stackGraft")}</h3>
-              </div>
-              <p>{t("stackGraftBody")}</p>
-              <a className="stack-layer-link" href="https://graft.eidos.space/">
-                {t("openGraft")}
-                <ArrowUpRight size={13} aria-hidden="true" />
-              </a>
-            </article>
-            <article>
-              <span>02</span>
-              <div className="stack-layer-name">
-                <strong>Eidos File</strong>
-                <h3>{t("stackEidosFile")}</h3>
-              </div>
-              <p>{t("stackEidosFileBody")}</p>
-            </article>
-            <article>
-              <span>03</span>
-              <div className="stack-layer-name">
-                <strong>Eidos Desktop</strong>
-                <h3>{t("stackEidos")}</h3>
-              </div>
-              <p>{t("stackEidosBody")}</p>
-            </article>
-          </div>
-
-          <div className="stack-boundary">
-            <code>commit · diff · branch · checkout · merge · sync</code>
-            <div>
-              <p>{t("graftBoundary")}</p>
-              <a href="https://graft.eidos.space/">
-                {t("navGraft")}
-                <ArrowUpRight size={12} aria-hidden="true" />
-              </a>
-            </div>
-          </div>
-        </section>
-
-        <footer className="launch-footer">
-          <span>Eidos File</span>
-          <span>{t("launchFooter")}</span>
-        </footer>
 
         {notice || saveState.error ? (
           <div className="launch-error" role="alert">
@@ -1722,6 +1628,7 @@ export function App() {
             plugins={editorPlugins}
             source={clientRef.current!}
             table={activeTable}
+            tables={snapshot.tables}
             view={activeView}
             search={search}
             disabled={saveState.phase === "saving"}

@@ -44,7 +44,7 @@ export const EIDOS_FILE_DOCUMENTS: EidosFileDocument[] = [
   },
   {
     slug: "build",
-    edition: { en: "Packages 0.1.0", zh: "Package 0.1.0" },
+    edition: { en: "Packages 1.0.0", zh: "Package 1.0.0" },
     title: {
       en: "Build with Eidos File",
       zh: "基于 Eidos File 构建",

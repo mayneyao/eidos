@@ -15,7 +15,10 @@ import {
 
 import { useI18n } from "../i18n"
 import { EidosFileWorkerClient } from "../runtime/worker-client"
-import { loadSampleEidosFile } from "../sample-eidos-file"
+import {
+  getEidosFileTemplateSource,
+  loadSampleEidosFile,
+} from "../sample-eidos-file"
 import { SharedEidosFileEditorView } from "./shared-eidos-file-editor-view"
 interface LiveEidosFileDemoProps {
   embedded?: boolean
@@ -44,7 +47,7 @@ export function LiveEidosFileDemo({
   theme,
   onOpenFullEditor,
 }: LiveEidosFileDemoProps) {
-  const { t } = useI18n()
+  const { locale, t } = useI18n()
   const clientRef = useRef<EidosFileWorkerClient | null>(null)
   const [generation, setGeneration] = useState(0)
   const [phase, setPhase] = useState<DemoPhase>("loading")
@@ -67,9 +70,9 @@ export function LiveEidosFileDemo({
     setMessage(null)
     setPropertyField(null)
 
-    void loadSampleEidosFile()
+    void loadSampleEidosFile(locale)
       .then(async (file) => {
-        const result = await client.openSource(
+        const result = await client.openEditorSource(
           file.name,
           "live-demo-preview",
           await file.arrayBuffer()
@@ -91,7 +94,7 @@ export function LiveEidosFileDemo({
       if (clientRef.current === client) clientRef.current = null
       client.terminate()
     }
-  }, [generation])
+  }, [generation, locale])
 
   const table = snapshot?.tables[0] ?? null
   const gridView = useMemo(
@@ -122,7 +125,12 @@ export function LiveEidosFileDemo({
           <div>
             <FileSpreadsheet size={15} aria-hidden="true" />
             <div>
-              <h2 id="live-demo-title">project-tracker.eidos</h2>
+              <h2 id="live-demo-title">
+                {
+                  getEidosFileTemplateSource("project-portfolio", locale)
+                    .fileName
+                }
+              </h2>
               <small>{t("demoTitle")}</small>
             </div>
           </div>
@@ -200,6 +208,7 @@ export function LiveEidosFileDemo({
               theme={theme}
               source={clientRef.current}
               table={table}
+              tables={snapshot?.tables}
               view={gridView}
               search={search}
               propertyField={propertyField}
