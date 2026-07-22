@@ -68,3 +68,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.gstack/
+.playwright-cli
