@@ -706,6 +706,13 @@ Core storage is:
 | `formula`          | no column              | definition in `eidos__formula_fields`  |
 | `lookup`           | no column              | definition in `eidos__lookup_fields`   |
 
+This table defines File storage only. The one normative cross-layer overview
+of mutation, filtering, sorting, grouping, search, whole-cell aggregation,
+semantic summary, Formula/Lookup, Record Label, CSV, and UI/Adapter ownership
+is the Eidos Runtime 1.0 Section 5.2 Field capability matrix. A sample
+`.eidos` matrix or rendered documentation embed is illustrative and MUST NOT
+replace either normative table.
+
 Stored and forward Relation Fields MUST have a non-NULL `physical_name`.
 Formula, Lookup, and inverse Relation Fields MUST have `physical_name = NULL`.
 Structural validation MUST enforce this complete, mutually exclusive subtype
@@ -874,11 +881,57 @@ Each object MUST contain canonical UUIDv7 `id`, non-empty `name`, RFC 6838
 string. The size string is `"0"` or begins with `1..9` followed by zero or more
 ASCII digits, and its numeric value is at most `9223372036854775807`; a JSON
 number is not canonical. Unknown object members are
-preserved. Relative URI paths use `/`, resolve against the directory containing
-the Eidos File, and MUST NOT be absolute or escape it with `..`; `https` URIs
-MAY be used. Binary bytes are external and are not duplicated into the SQLite
-cell. File existence, authorization, upload, download, resolution, and garbage
-collection belong to Eidos Adapter 1.0.
+preserved. The five required members are metadata plus one resource reference;
+they do not create an attachment object store inside SQLite.
+
+Core 1.0 permits exactly these File-entry URI classes:
+
+1. a relative URI-reference such as `assets/diagram.png`;
+2. an absolute `https:` URI; or
+3. a canonical inline image Data URL.
+
+A relative reference uses `/`, has no scheme or authority, resolves against
+the directory containing the Eidos File, and MUST NOT be absolute or escape
+that directory after percent-decoding and dot-segment removal. A Reader or
+Writer MUST NOT reinterpret it against a process working directory,
+application origin, web-page base URL, or another File. Moving the `.eidos`
+file together with its relative assets preserves the references; moving it
+alone may leave them unresolved without making the canonical value invalid.
+
+An inline image URI has exactly this form:
+
+```text
+data:<mediaType>;base64,<payload>
+```
+
+For example, this entry contains one 68-octet PNG and no separate asset:
+
+```json
+{
+  "id": "0198c6b9-c9a3-7cb9-82d0-dfb39d51c45f",
+  "mediaType": "image/png",
+  "name": "dot.png",
+  "size": "68",
+  "uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+}
+```
+
+The scheme and `base64` marker are lowercase. `<mediaType>` is the exact
+ASCII-lowercase `image/*` type also stored in the entry's `mediaType` member,
+with no Data-URL media-type parameters. `<payload>` is canonical padded RFC
+4648 Base64 using the standard alphabet, with no whitespace or non-alphabet
+characters. Its decoded length MUST equal the decimal `size`, MUST be at least
+one octet, and MUST NOT exceed 1,048,576 octets. The complete JSON cell still
+obeys the 16 MiB limit in Section 19. `image/svg+xml` is valid stored data but
+does not authorize unsandboxed inline rendering.
+
+For relative and `https:` entries, the referenced bytes are external and MUST
+NOT be duplicated into a SQLite BLOB, hidden attachment table, or second
+canonical value. A Data URL is the deliberately narrow exception: its decoded
+image bytes are embedded once in the canonical `uri` string and MUST NOT also
+be copied elsewhere in the File. File existence, authorization, upload,
+download, resolution, preview generation, and external-asset garbage
+collection belong to Eidos Adapter 1.0. Rendering belongs to Eidos UI 1.0.
 
 ### 8.4 Stored type changes
 
@@ -1448,10 +1501,13 @@ hard limit is not Eidos File Format 1.0 content. There is no universal total-fil
 row-count limit; an Adapter or Runtime advertises lower operational limits and
 returns a bounded error rather than partially reading a value.
 
-URI validation never grants authority to fetch, reveal, or write a resource.
-Relative File URIs cannot escape the file directory. Security bootstrap,
-authorizers, defensive mode, busy/deadline policy, Worker isolation,
-permissions, and asset authorization are owned by Eidos Adapter 1.0.
+URI validation never grants authority to fetch, reveal, decode for display, or
+write a resource. Relative File URIs cannot escape the File's scoped asset
+root. A Data URL is untrusted active input despite containing no network
+location; its media type, Base64, decoded size, decoder cost, and presentation
+isolation remain bounded. Security bootstrap, authorizers, defensive mode,
+busy/deadline policy, Worker isolation, permissions, and asset authorization
+are owned by Eidos Adapter 1.0.
 
 ## 20. Extensibility and Versioning
 
@@ -1533,7 +1589,10 @@ At minimum, shared fixtures and executable SQL MUST cover:
 - every subtype-row/physical-name/`nullable` matrix branch and every stored
   Field declaration and boundary raw value, including int64
   extrema, binary64 finite extrema and negative-zero normalization, NULL/empty
-  distinctions, and File objects;
+  distinctions, and File objects; File vectors include valid/unresolved
+  relative and `https:` references, canonical inline images, Base64 alphabet/
+  padding/size/media-type mismatch negatives, traversal after percent-decoding,
+  and the 1 MiB inline-image boundary;
 - Select without Option IDs, unconfigured raw values, and ordered unique
   Multi-select strings;
 - forward Relation shape/cardinality, distinct INSERT/UPDATE validator names,
@@ -1714,6 +1773,8 @@ disposable.
 - [BCP 14](https://www.rfc-editor.org/info/bcp14)
 - [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339)
 - [RFC 3986](https://www.rfc-editor.org/rfc/rfc3986)
+- [RFC 2397: The `data` URL scheme](https://www.rfc-editor.org/rfc/rfc2397)
+- [RFC 4648: Base-N encodings](https://www.rfc-editor.org/rfc/rfc4648)
 - [RFC 6838](https://www.rfc-editor.org/rfc/rfc6838)
 - [RFC 7493 — I-JSON](https://www.rfc-editor.org/rfc/rfc7493)
 - [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259)

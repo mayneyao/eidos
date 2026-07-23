@@ -53,6 +53,10 @@ Eidos UI
 binding。它们可以使用 in-process call、structured-clone message、IPC 或其他
 transport，但 UI 可观察结果必须一致。
 
+第 5.2 节 optional framework-native `AssetPresenter` 只是已获授权 Host lease 的
+presentation callback，不是第三个 data/authority service；它不能解析 canonical URI 或
+acquire bytes。
+
 Eidos UI：
 
 - 必须用 stable ID 寻址 File、Table、Field、View 与 Row；
@@ -709,8 +713,9 @@ source-specific permission、CAS、atomicity 或 durability。Opened session 中
 `HostCapabilities` 声明 `canWriteCurrent`、`canSaveCopy`、
 `canRequestPermission`、`hasRecovery`、`assetReadSchemes`、
 `assetWriteSchemes`、`casGuarantee`、`atomicReplace` 与 `durability`。
-`assetReadSchemes` 和 `assetWriteSchemes` 是 Host 识别的 scheme name 数组；UI
-本身不得实现 scheme。`casGuarantee` 是 `strong`、`cooperative` 或 `none`；
+`assetReadSchemes` 和 `assetWriteSchemes` 是 Host 识别的 scheme name 数组，包括特殊
+`relative` token 或 `data`/`https` 等 lowercase scheme；UI 本身不得实现 scheme。
+`casGuarantee` 是 `strong`、`cooperative` 或 `none`；
 `atomicReplace` 是 boolean；`durability` 是 `durable` 或 `best-effort`。
 `HostLimits` 精确声明 `sourceBytesMax`、`candidateBytesMax`、`assetBytesMax`、
 `recoveryBytesMax`、`recoveryEntriesMax`、`recoveryRetentionSecondsMax`、`assetPreviewBytesMax`、
@@ -761,6 +766,46 @@ undo。UI 绝不能取得、展示、持久化、记录或让 renderer 处理 Ho
 UI-facing `EA-Host-1.0` binding。它不是 Adapter `PublicationPort`，也不暴露
 lower-level operation。Source/destination picker 属于 composition layer，只产生
 opaque token，永远不让 path 或 native handle 经过 UI code。
+
+可复用 Eidos UI library 必须把 `HostServices` 暴露为 injected constructor/provider
+dependency；不得把 relative-path、network 或 Data-URL handling 隐藏在 package-global
+resolver 中。embedding application 实现 `HostServices.resolveAsset`，因此由它决定如何
+在 active session 内解析 entry ID，也可以 deny/omit 任意 scheme。
+
+如果 UI framework 不能直接消费 `AssetLease.resourceToken`，UI library 还必须暴露
+等价的 injected presentation binding：
+
+```ts
+interface AssetPresenter<Surface> {
+  renderImage(request: {
+    sessionId: string
+    lease: AssetLease
+    altText: string
+  }): Surface
+  loadImage?(request: {
+    sessionId: string
+    lease: AssetLease
+    altText: string
+  }): Promise<CanvasImageSource>
+  activate(
+    request: {
+      sessionId: string
+      lease: AssetLease
+      action: "open" | "download"
+    },
+    context: RequestContext
+  ): Promise<void>
+}
+```
+
+`Surface` 是 framework-native、non-canonical presentation object，不通过 Runtime 或
+Adapter Transport。presenter 只消费 scoped lease/token；它不会得到 native path、
+database handle，也没有重新解释 canonical URI 的权限。`loadImage` 是 Grid renderer
+使用的 optional Canvas-native 等价能力：trusted presenter 解码 lease token，只返回
+drawable image source。Grid 不得用 `FileEntry.uri` 构造该 source，也不得自行解释
+`resourceToken`。同一 trusted composition layer 可以同时提供两种 binding。presenter
+缺失时 inline image/open/download action disabled；`loadImage` 缺失时只禁用 Canvas
+thumbnail。两种情况仍可使用第 10 节的 metadata/icon/URI fallback。
 
 ### 5.3 Negotiation 顺序
 
@@ -888,7 +933,9 @@ disabled/absent control 及 accessible reason，不能 speculative call。
    array。
 10. File 是 ordered File-entry object array。每个 entry 的 `size` 是 non-negative
     int64 decimal string，必须 lossless。UI 把 entry `id` 交给
-    `HostServices.resolveAsset`，不得自行 fetch 或 join entry URI。
+    `HostServices.resolveAsset`，不得自行 fetch、resolve 或 join entry URI。canonical
+    `uri` 只能作为 inert display/copy text 和第 10 节 fallback；relative、`https:` 与
+    `data:` 使用同一个 Host call。
 11. Formula/Lookup result 使用 declared Runtime result type；list 仍是 list，不能为了
     edit flatten 成 comma-delimited Text。
 12. System Row ID 和 timestamp 是具有 Field metadata read-only role 的普通
@@ -960,23 +1007,50 @@ parse 后 rewrite stale copy。
 `grid`、`gallery`、`kanban` 共用唯一 root schema。对当前 type 不适用的 key 仍保留、
 但 rendering 时忽略，因此 explicit type change 及 reversal 不丢 layout intent。
 
+View 配置有两个彼此独立的分类维度。`query.filter` 与 `query.sort` 是通用功能配置，
+其 row-set 语义由 Runtime 拥有；layout key 则分为通用配置与 renderer 专用配置。
+`groupField`、`columnStats` 等 renderer 专用 key 会选择 Runtime operation，但仍属于
+layout recipe：返回的 group 或 aggregate value 是 generated state，绝不能复制进
+layout。UI 不得把“功能与展示”等同于“通用与 View 专用”。
+
 Core layout 绝不存 Row ID、cell/group value、resolved label、selection、scroll、
 hover、open editor 或 collapsed transient group；它们是 query result 或 UI state。
 
-### 8.2 Core key 与默认值
+### 8.2 配置注册表与默认值
 
-| Key               | Type                             | Default                                | 含义                                                                      |
-| ----------------- | -------------------------------- | -------------------------------------- | ------------------------------------------------------------------------- |
-| `fieldOrder`      | unique Field-ID array            | metadata Field position，再按 Field ID | leading-to-trailing field order                                           |
-| `hiddenFields`    | unique Field-ID array            | `[]`                                   | 从 View 省略的 Field，不是 delete                                         |
-| `fieldWidths`     | Field-ID → number map            | `{}`；缺失 entry 为 `1`                | dimensionless preferred relative width，范围 `0.25..8`                    |
-| `rowDensity`      | `compact\|standard\|comfortable` | `standard`                             | Grid density hint                                                         |
-| `cardFields`      | unique Field-ID array            | `[]`                                   | Gallery/Kanban card 的 ordered secondary field；Record Label 始终是 title |
-| `coverField`      | Field ID 或 `null`               | `null`                                 | 作为 card cover 的 File Field                                             |
-| `coverFit`        | `cover\|contain`                 | `cover`                                | semantic cover fitting hint                                               |
-| `cardSize`        | `small\|medium\|large`           | `medium`                               | semantic card-size hint                                                   |
-| `groupField`      | Field ID 或 `null`               | `null`                                 | Kanban grouping Field；`null` 是 incomplete configuration                 |
-| `showEmptyGroups` | boolean                          | `true`                                 | 是否展示从 Field canonical option catalog 派生的 zero-row group           |
+“适用 View”列是规范性的。Editor 必须在每个标准 View 暴露通用 Field layout 控件，
+并且只在相应 key 适用时暴露 View 专用控件。不适用于当前 type 的 key 必须保留，但不
+影响 rendering 或 request。
+
+| Key                   | Type                             | Default                                | 适用 View      | 分类               | 含义                                                                 |
+| --------------------- | -------------------------------- | -------------------------------------- | -------------- | ------------------ | -------------------------------------------------------------------- |
+| `fieldOrder`          | unique Field-ID array            | metadata Field position，再按 Field ID | 全部标准 View  | 通用展示           | 从前到后的 Field 顺序                                                |
+| `hiddenFields`        | unique Field-ID array            | `[]`                                   | 全部标准 View  | 通用展示           | 从 View 省略的普通 Field，不是删除                                   |
+| `visibleSystemFields` | unique Field-ID array            | `[]`                                   | 全部标准 View  | 通用展示           | 在当前 View 明确展示的 optional hidden system Field                  |
+| `fieldWidths`         | Field-ID → number map            | `{}`；缺失 entry 为 `1`                | Grid           | Grid 展示          | dimensionless preferred relative width，范围 `0.25..8`               |
+| `rowDensity`          | `compact\|standard\|comfortable` | `standard`                             | Grid           | Grid 展示          | semantic row-density hint                                            |
+| `freezeColumns`       | non-negative integer             | `1`                                    | Grid           | Grid 展示          | 冻结 leading visible Field 的数量，并按 visible count clamp          |
+| `columnStats`         | Field-ID → `{type}` map          | `{}`                                   | Grid           | Grid 功能 recipe   | 每列 aggregate footer 请求；value 由 Runtime 生成                    |
+| `cardFields`          | unique Field-ID array            | `[]`                                   | Gallery/Kanban | Card 展示          | 有序 secondary card Field；Record Label 始终是 title                 |
+| `coverField`          | Field ID 或 `null`               | `null`                                 | Gallery/Kanban | Card 展示          | 作为 card cover 的 File Field                                        |
+| `coverFit`            | `cover\|contain`                 | `cover`                                | Gallery/Kanban | Card 展示          | semantic cover fitting hint                                          |
+| `cardSize`            | `small\|medium\|large`           | `medium`                               | Gallery/Kanban | Card 展示          | semantic card-size hint                                              |
+| `hideEmptyFields`     | boolean                          | `true`                                 | Gallery/Kanban | Card 展示          | configured secondary Field 的 logical value 为空时从该 card 省略     |
+| `groupField`          | Field ID 或 `null`               | `null`                                 | Kanban         | Kanban 功能 recipe | grouping Field；`null` 是 incomplete configuration                   |
+| `showEmptyGroups`     | boolean                          | `true`                                 | Kanban         | Kanban 展示/功能   | 展示从 grouping Field canonical option catalog 派生的 zero-row group |
+
+`columnStats[*].type` 只能是 `count-all`、`count-non-null`、
+`count-distinct`、`count-empty`、`sum`、`average`、`min`、`max`、
+`relation-value-count`、`relation-row-count` 或
+`relation-distinct-target-count`。UI 只启用与 Field 兼容的 Runtime choice，发送对应
+`AggregateRequest`，并且只显示 revision 匹配的结果。Aggregate result 绝不持久化。
+
+普通 Field 的可见性由 `hiddenFields` 控制；optional system Field 的可见性只由
+`visibleSystemFields` 控制，同一个 system Field 即使也在 `hiddenFields` 中也没有额外
+效果。当前 Field role 与 key 不匹配的 ID 必须保留并忽略。Conforming Editor 必须在
+每个标准 View 提供一个易发现的 Field 控件，可显示/隐藏每个当前 configurable Field
+并更新 `fieldOrder`。编辑当前 Field 时必须保留 unknown/deleted ID；即使 View 当前
+没有任何 visible Field，也必须保留可恢复入口。
 
 Width 和 size token 不规定 pixel、grid library、breakpoint 或 rendering engine。
 实现自行选择 physical presentation，但必须保持 relative order 和 semantic size
@@ -989,10 +1063,24 @@ advisory diagnostic。
 
 Grid 按 `fieldOrder` 展示 visible Field，再按 metadata order 追加剩余 visible Field。
 Gallery/Kanban 用 Table Record Label 作为 card title，`cardFields` 是 secondary
-content。`coverField` missing、hidden、非 File、logical null、empty、denied 或 unresolved 时
+content；同时存在于 `hiddenFields` 的 `cardFields` member 必须省略。`coverField`
+missing、hidden、非 File、logical null、empty、denied 或 unresolved 时
 只显示 non-persisted placeholder。`groupField:null` 的 Kanban 必须显示 accessible
 configuration-required state，不能虚构 Field；Field 不能 group 时结合 Runtime
 diagnostic 显示同一状态。
+
+通用 Fields 控件与 Card 配置是前后两级 pipeline，不是彼此竞争的两套显隐控件。
+Fields 负责 View 的通用可用性（`hiddenFields`/`visibleSystemFields`）、通用
+`fieldOrder`，以及进入 Field schema property 的入口。Card 配置只负责 card 专用内容与
+展示：`cardFields`、cover、fit、size 和空值处理。Card content chooser 只能提供当前
+View 中可见的 Field；其中的拖拽只改变 `cardFields`。在 Fields 中隐藏 Field 始终优先，
+Card 配置不得让它重新可见。编辑当前可用 member 时，unknown 或暂时 unavailable 的
+`cardFields` member 仍须保留。
+
+当 `showEmptyGroups:false` 时，只有 Runtime 已对 active revision 和 saved query
+权威报告某 catalog group 为 zero row 后，Kanban 才省略该 group。该 option 仍是合法
+move target；成功 move 后 group 重新可见。Count resolve 前的省略只是 provisional UI
+state，绝不能持久化。`freezeColumns` 在 visibility 与 ordering 之后计算。
 
 只有 `groupField` 是 writable stored scalar 且 Runtime 提供 destination exact logical
 group value 时，Kanban 才能 move card。Move 是一个带 `expectedRevision` 的 sparse
@@ -1022,6 +1110,10 @@ envelope 本身不存储。
           "$ref": "#/$defs/fieldIdArray",
           "default": []
         },
+        "visibleSystemFields": {
+          "$ref": "#/$defs/fieldIdArray",
+          "default": []
+        },
         "fieldWidths": {
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/fieldId" },
@@ -1036,6 +1128,18 @@ envelope 本身不存储。
           "enum": ["compact", "standard", "comfortable"],
           "default": "standard"
         },
+        "freezeColumns": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647,
+          "default": 1
+        },
+        "columnStats": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/fieldId" },
+          "additionalProperties": { "$ref": "#/$defs/columnStat" },
+          "default": {}
+        },
         "cardFields": {
           "$ref": "#/$defs/fieldIdArray",
           "default": []
@@ -1049,6 +1153,7 @@ envelope 本身不存储。
           "enum": ["small", "medium", "large"],
           "default": "medium"
         },
+        "hideEmptyFields": { "type": "boolean", "default": true },
         "groupField": {
           "oneOf": [{ "$ref": "#/$defs/fieldId" }, { "type": "null" }],
           "default": null
@@ -1068,6 +1173,28 @@ envelope 本身不存储。
       "type": "array",
       "items": { "$ref": "#/$defs/fieldId" },
       "uniqueItems": true
+    },
+    "columnStat": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": [
+            "count-all",
+            "count-non-null",
+            "count-distinct",
+            "count-empty",
+            "sum",
+            "average",
+            "min",
+            "max",
+            "relation-value-count",
+            "relation-row-count",
+            "relation-distinct-target-count"
+          ]
+        }
+      },
+      "additionalProperties": false
     }
   }
 }
@@ -1161,30 +1288,40 @@ Editability 由 Runtime `ColumnDescriptor.writable`、Field role 和 negotiated 
 capability 决定。UI 不得从 `valueType` 或 `source` 推断 write permission。
 `writable:false` 表示不能 cell commit；仍可以 filter、sort、copy、display。
 
-| Field/role                         | Presentation                                      | Cell editability                                                                    |
-| ---------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Text、URL                          | scalar text；URL 在 explicit activation 前 inert  | editable stored value                                                               |
-| Number                             | localized finite number，并提供 raw-copy path     | editable stored value                                                               |
-| Integer                            | lossless decimal input；可 localized display      | editable stored value                                                               |
-| Integer 且 `display.kind="rating"` | rating affordance 加 accessible numeric value     | editable Integer；display min/max 只引导 input，不得 clamp existing value           |
-| Checkbox                           | nullable 时 tri-state                             | editable stored value                                                               |
-| Date                               | 无 timezone 的 calendar date                      | editable stored value                                                               |
-| Datetime                           | localized instant，并明确 display timezone        | editable stored value                                                               |
-| JSON                               | structured 或 textual JSON editor                 | Runtime validation 后 editable                                                      |
-| Select                             | raw option name 加 catalog color/label decoration | editable；unconfigured raw name 仍可展示/选择                                       |
-| Multi-select                       | ordered raw option-name chips                     | editable；保留 order                                                                |
-| File                               | metadata 加 Host-resolved preview                 | 只能通过 `acquireAsset` 后 Runtime mutation 编辑                                    |
-| forward Relation                   | ordered target Row ID 加 separate resolved label  | 通过 paged target selector 编辑                                                     |
-| inverse Relation                   | generated source Row ID                           | read-only                                                                           |
-| Formula                            | generated declared result                         | read-only；definition 属 Schema UI                                                  |
-| Lookup                             | generated scalar/list                             | read-only；definition 属 Schema UI                                                  |
-| Row ID、created time、updated time | system value                                      | read-only                                                                           |
-| unknown optional Field kind        | typed/raw fallback 加 diagnostic                  | read-only；除非 registered isolated renderer 获得 explicit scoped writer capability |
+| Field/role                         | Presentation                                       | Cell editability                                                                    |
+| ---------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Text、URL                          | scalar text；URL 在 explicit activation 前 inert   | editable stored value                                                               |
+| Number                             | localized finite number，并提供 raw-copy path      | editable stored value                                                               |
+| Integer                            | lossless decimal input；可 localized display       | editable stored value                                                               |
+| Integer 且 `display.kind="rating"` | rating affordance 加 accessible numeric value      | editable Integer；display min/max 只引导 input，不得 clamp existing value           |
+| Checkbox                           | nullable 时 tri-state                              | editable stored value                                                               |
+| Date                               | 无 timezone 的 calendar date                       | editable stored value                                                               |
+| Datetime                           | localized instant，并明确 display timezone         | editable stored value                                                               |
+| JSON                               | structured 或 textual JSON editor                  | Runtime validation 后 editable                                                      |
+| Select                             | raw option name 加 catalog color/label decoration  | editable；unconfigured raw name 仍可展示/选择                                       |
+| Multi-select                       | ordered raw option-name chips                      | editable；保留 order                                                                |
+| File                               | image preview，再 type icon，再 inert URI fallback | 只能通过 `acquireAsset` 后 Runtime mutation 编辑                                    |
+| forward Relation                   | ordered target Row ID 加 separate resolved label   | 通过 paged target selector 编辑                                                     |
+| inverse Relation                   | generated source Row ID                            | read-only                                                                           |
+| Formula                            | generated declared result                          | read-only；definition 属 Schema UI                                                  |
+| Lookup                             | generated scalar/list                              | read-only；definition 属 Schema UI                                                  |
+| Row ID、created time、updated time | system value                                       | read-only                                                                           |
+| unknown optional Field kind        | typed/raw fallback 加 diagnostic                   | read-only；除非 registered isolated renderer 获得 explicit scoped writer capability |
 
 Table 当前 Record Label Field 在所有场合提供 row title，包括 Relation selector。
 不能假设存在 `Title` 或 `Name` Field。切换 Record Label role 是 schema operation。
 Label value/role 改变后 Relation presentation 必须动态更新；resolved label 绝不能写回
 Relation cell。
+
+每个面向用户的 Field 类型选择器，包括创建、转换、CSV mapping 以及 Formula
+结果/展示类型控件，必须在关闭状态的 trigger 和每个菜单行中，用同一个 canonical
+Field type icon 配合本地化类型名称。图标只是辅助信息：可见文字和 accessible name
+仍然必须存在。
+
+配置过的 Select 或 Multi-select option 出现在 Grid editor、记录界面、过滤控件、
+card、group 或其他标准 UI surface 时，UI 必须保留其 catalog color decoration 和
+可见 option name。已知 catalog color 不得退化成纯文字显示；颜色也不能成为 option
+value 或 selection state 的唯一载体。
 
 Unresolved Relation item 在原位置显示 Row ID 加 localized unresolved status。它不是
 empty Relation，绝不能 silent remove。Detach 是 explicit ordered-ID mutation；以后
@@ -1199,9 +1336,29 @@ timezone identifier，并在 editor 附近清楚暴露。DST overlap/gap input �
 unambiguous instant 或 offset；提交值遵守 Runtime canonical UTC binding。Locale 与
 timezone 是 UI state，除非 extension 明确定义 canonical setting。
 
-URL/File content 不得只因 cell visible 就 fetch。Activation 必须 explicit，并受 Host
-policy 约束。Image/media/document preview 失败时 logical File entry 仍可见并带
-diagnostic。
+普通 URL Field 保持 inert，不得只因 cell visible 就 fetch。File presentation 使用以下
+deterministic ladder：
+
+1. entry declared `mediaType` 为 `image/*` 时，UI 应在 item 处于 rendered surface
+   期间请求 `thumbnail` lease，并通过 injected `AssetPresenter` 把返回资源渲染为 image。
+   只有 `canUseAssets`、entry URI class、当前 Host policy、byte/decode limit 与
+   concurrent-lease limit 都允许时才能请求。因此 `https:` 永远不会造成未经批准的
+   network request；canonical inline Data URL 即使无需 network，也经过同一 Host boundary。
+   Canvas-backed Grid 使用 `AssetPresenter.loadImage`，decode 完成后重绘对应 cell，并在
+   row 离开 bounded render window 时 release lease。这个 optional presenter method 缺失
+   时必须 fallback，不能改用 canonical URI。
+2. thumbnail pending、denied、unsupported、unsafe、over-limit 或 failed 时，以及每个
+   non-image entry，UI 应显示由 declared media-type family 的 trusted mapping 选择的
+   non-executing icon。filename suffix 只能作为 display hint，不能作为 authority；
+   unknown type 使用 generic file icon。显示 icon 不需要 asset resolution。
+3. graphical icon presentation 不可用时，UI 必须把 inert raw `uri` 显示为可 select/copy
+   text。即使 preview 或 icon 成功，每个 File surface 也必须通过 accessible detail/copy
+   action 提供 URI fallback。长值可以 visual elide，但 lossless copy 暴露完整 string。
+
+整个 ladder 中 entry `name` 都是 primary accessible label；media type 与 lossless size
+应当可发现。Open/download 是 explicit user action：UI 请求对应 Host lease，再交给
+`AssetPresenter.activate`；绝不 navigate 到 canonical URI。Preview/activation failure
+仍保留 File entry、name、metadata 与 URI fallback，展示 diagnostic，且绝不 mutation。
 
 ## 11. Row editing 与 optimistic state
 
@@ -1363,7 +1520,47 @@ Layout edit 只更新 Section 8 known key，并保留 unknown key。Saved query 
 Field ID 和 Runtime logical filter value，不能发送 display/physical name。Operator/
 type compatibility 和 query result 以 Runtime 为准。
 
-### 12.4 Formula、Lookup、Relation definition
+Section 8 的通用 Fields 控件以及适用的 Grid/Card/Kanban 控件是 Editor required
+surface，不是 optional authoring convenience。每个控件通过一次 revision-checked
+View mutation 提交；当前 renderer 没有 row 或 visible Field 时仍须可用；成功或
+conflict 后都必须反映最新返回的 View descriptor。
+
+标准 workbar 的 query/layout action cluster 使用稳定顺序：**搜索、筛选、排序、字段**。
+搜索是最左侧的 non-contextual action，字段紧跟在排序右侧。Schema creation
+（`+ Property`）与 host action 位于该 cluster 之后，并与 Fields 保持独立，因为它们创建
+或操作 resource，而不是配置 active View。
+
+Fields 是唯一的主要 Field 浏览入口。每一行必须提供三个独立且无歧义的 target：显隐
+checkbox 更新 View visibility，drag handle 更新适用的 Field order，名称/type target
+打开 Field schema property。触发其中一个 target 不得连带触发另外两个。Grid column
+header 的 property command 可以保留为 contextual shortcut，但 Editor 不得要求用户去
+发现另一个 structure menu 才能查看 Field。
+
+### 12.4 结构顺序交互
+
+Table、View 与 Field 的顺序统一使用 direct-manipulation 交互模型。产品只要开放
+canonical Table `position`、View `position`、`fieldOrder` 或 `cardFields` 顺序，就必须
+提供可识别的拖拽 affordance，在这些 surface 使用一致的 drag-handle pattern，并且不得
+用独立的“上移”“下移”、上箭头、下箭头按钮或 menu command 改变该结构顺序。
+
+Reorder affordance 必须支持键盘操作：`Space` 或 `Enter` 开始和完成 keyboard drag；
+drag active 时用方向键选择 insertion position；`Escape` 取消。UI 在不移动 focus 的
+前提下 announce pickup、当前位置、drop 与 cancellation。该 keyboard drag contract
+就是 non-pointer path；不得为了 accessibility 重新添加 up/down control。
+
+一维 reorder list 必须把 drag feedback 限制在 primary axis。尤其 vertical Field 或
+card-Field reorder 在拖拽时不得出现横向滚动条、横向 layout shift 或 cross-axis drop
+position。
+
+Drag result 只能用 stable ID 表达。UI 可以 optimistic projection，但必须提交一次带
+revision check 的 atomic mutation（或 Runtime 规定的 atomic position-patch set）；成功后
+用返回 descriptor 替换 projection，失败或 conflict 时恢复最后 authoritative order。
+除非能精确保留所有未显示 member，否则 reorder list 被 filter 时必须 disable drag。
+
+本规则只约束结构顺序。Saved row sort 的升序/降序、搜索结果的上一条/下一条以及
+Kanban Row move 是 semantic operation，不会因此变成结构 reorder control。
+
+### 12.5 Formula、Lookup、Relation definition
 
 Formula editor 展示并提交 Runtime `sourceText`，其中 reference 是 quoted human
 Field name。Autocomplete 按 Runtime grammar 插入 escaped quoted form；不得把
@@ -1436,11 +1633,14 @@ Dirty session 调 `close` 前，UI 提供 `save`、`discard`、`cancel`。`save`
 publication；`cancel` 不调用 `close`；只有 explicit `discard` 直接 `close`。关闭窗口
 不等于 implicit discard；recovery discard 也必须 explicit user action。
 
-`AssetLease` 只含 `leaseId`、purpose、media type、name、lossless int64
+`AssetLease` 只含 `leaseId`、`entryId`、purpose、media type、name、lossless int64
 decimal-string `size`、expiry 和 presentation-safe opaque URL/token。UI 必须执行
 negotiated size/lease limit，surface 移除时 release，expiry/session close 后停止使用。
 不得把 File-entry URI 变成 network request，不得让 active content 继承 application
 origin，不得跨 File/session 使用 lease。
+UI 只能把 lease 交给 injected `AssetPresenter` 或精确等价的 platform-native presenter；
+可复用 UI package 不得使用把 canonical relative/`https:`/`data:` URI 直接返回为
+presentation URL 的 default identity resolver。
 
 `acquireAsset` 返回 Host-staged File-entry logical object，其 ID 由 Runtime 分配。UI
 在 sparse Runtime mutation 中原样提交，只能 reorder/remove 整个 entry；不得
@@ -1510,8 +1710,9 @@ Grid：
 | `Delete` / `Backspace`           | selection/editability check 后才 request clear/delete       |
 
 Active cell editor 拥有普通 text-navigation key，并说明 commit/cancel。Focus 必须可见、
-不被遮挡。Gallery/Kanban 提供等效 linear keyboard navigation、named group/card，并为
-每个 reorder/move 提供 non-drag alternative。
+不被遮挡。Gallery/Kanban 提供等效 linear keyboard navigation 与 named group/card。
+结构性的 Table/View/Field reorder 遵循第 12.4 节 keyboard drag contract，且不得添加
+up/down control；不属于结构排序的 Row/card move 必须提供 non-drag alternative。
 
 ### 15.3 Localization 与 time
 
@@ -1985,10 +2186,17 @@ fixture identifier：
 此外所有 profile 必须测试 logical null/empty、unknown View/layout preservation、advisory 与
 authoritative validation、cancellation race、limit error、accessible keyboard
 completion、reduced motion、localized format/raw round-trip、permission denial、
-conflict、recovery、asset expiry、isolated-renderer capability revocation。Editor 还须
+conflict、recovery、asset expiry、injected HostServices/AssetPresenter、relative/
+`https:`/`data:` entry 从 image thumbnail 到 media icon 再到 lossless URI 的 fallback、
+zero direct URI fetch/navigation，以及 isolated-renderer capability revocation。Editor 还须
 覆盖 atomic paste、delete/undo、stale conflict，以及 Host commit-reconciliation 的
 三种 outcome；必须断言 fatal 旧 RuntimeClient 上没有任何 read/retry，并对每个 returned
-replacement client 完整执行 negotiation/snapshot/schema bootstrap。Schema 还须覆盖
+replacement client 完整执行 negotiation/snapshot/schema bootstrap。Editor 还须覆盖
+Table、View、`fieldOrder`、`cardFields` 的 pointer 与 keyboard drag completion，并断言
+不存在结构性的 up/down control；还须覆盖 Grid、Gallery、Kanban 的通用 Field
+visibility/order、Section 8.2 每个 View 专用 key、
+type change 时 non-applicable/unknown key 的保留，以及 generated aggregate/group result
+绝不进入 layout。Schema 还须覆盖
 四种 conversion classification、dependency paging/display、display-name-only rename、
 plan expiry。
 
@@ -2001,6 +2209,10 @@ plan expiry。
 - [Eidos Adapter 1.0](./eidos-adapter-1.0.md)
 - [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) 与
   [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174) — normative terminology
+- [RFC 2397](https://www.rfc-editor.org/rfc/rfc2397) — inline Data URL 与其
+  media-type security boundary
+- [RFC 6454](https://www.rfc-editor.org/rfc/rfc6454) — non-server-based URI 的
+  origin isolation
 - [JSON Schema Draft 2020-12 Core](https://json-schema.org/draft/2020-12/json-schema-core)
   与 [Validation](https://json-schema.org/draft/2020-12/json-schema-validation)
 - [WCAG 2.2](https://www.w3.org/TR/WCAG22/) — accessibility conformance

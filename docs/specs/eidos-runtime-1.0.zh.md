@@ -52,7 +52,7 @@ Runtime 拥有：
 - logical Field type 与无损 public value binding；
 - raw storage 之上的 Reference Policy enforcement；
 - Relation resolution、Formula parsing/evaluation 与 Lookup evaluation；
-- filter、search、sort、keyset paging、grouping 与 aggregation；
+- filter、search、sort、keyset paging、grouping、aggregation 与 Field-aware summary；
 - row、View 与 schema mutation semantics；
 - conversion classification 与精确 conversion algorithm；
 - optimistic revision concurrency、generated dependency state 与 error；
@@ -70,7 +70,7 @@ Runtime 不拥有：
 一致性 profile 如下：
 
 - **ER-Reader-1.0**：打开一个符合 EF-Reader 的文件；暴露本规范规定的 schema、
-  logical value、query、Relation、Formula、Lookup、aggregate/group 与 validation
+  logical value、query、Relation、Formula、Lookup、aggregate/summary/group 与 validation
   behavior。
 - **ER-Writer-1.0**：ER-Reader 加上 canonical row、View 和 schema mutation、
   conversion、revision postcondition 与 rollback behavior。它要求
@@ -207,6 +207,12 @@ metadata/URI/size，拒绝与 `id`、`name`、`mediaType`、`size` 或
 `uri` collision 的 extension key，分配 UUIDv7 ID，并返回一个 inert logical
 candidate。它不执行 row mutation。Host 仅在 staging/authorizing asset 后调用它；
 只有 client 随后通过 `mutateRows` 提交该 exact entry，canonical state 才会改变。
+
+bridge 与每次 File mutation 都精确执行 File Format 第 8.3 节。relative 与 `https:`
+URI 保持 inert string。`data:` URI 只接受 canonical inline-image form；Runtime 在返回或
+存储 entry 前验证 media-type match、RFC 4648 alphabet/padding、decoded byte count 与
+1 MiB decoded limit。这些验证既不授权 presentation decode，也不授予 external resource
+access。
 
 `createPublicationSnapshot` 是唯一 Host save boundary。Runtime 通过相同的
 serialized request queue 接纳它，等待所有更早 operation settle，并阻止更晚
@@ -410,7 +416,8 @@ interface RuntimeLimits {
 
 每个 limit 都是 `1..2147483647` 内的 JSON safe integer，并在产生 partial output
 或 mutation 前强制执行。implementation MAY 公布低于 File Format hard limit 的
-数值。ER-Reader 要求 `readRows`、`cursorPaging`、`aggregate`、`groupRows`、
+数值。ER-Reader 要求 `readRows`、`cursorPaging`、`aggregate`（包括
+`summarizeFields`）、`groupRows`、
 `schemaPaging`、`validate` 与 Formula/Lookup evaluation，即使
 `formulaPreview=false` 亦然。
 ER-Writer 还要求 `mutateRows`、`mutateView`、`schemaPreflight` 和
@@ -423,7 +430,8 @@ Capability dependency 是精确的：`cursorPaging`、`aggregate`、`groupRows` 
 `csvExport` 各自要求 `readRows`；`groupRows` 还要求 `cursorPaging`；
 `mutationUndo` 与 `csvImport` 各自要求 `mutateRows`；`mutateSchema` 要求
 `schemaPreflight`。true capability 配合 false prerequisite 是 protocol error。
-每个 non-optional `RuntimeClient` method 始终存在：其 capability 为 false 时，
+`aggregate=true` 同时覆盖 `aggregate` 与 `summarizeFields`；两者不能暴露更弱的
+query/revision domain。每个 non-optional `RuntimeClient` method 始终存在：其 capability 为 false 时，
 在执行 work 前以 `unsupported` 拒绝。`getSnapshot`、`cancel` 与 `close` 没有
 capability bit，只要 lifecycle 允许就始终可用。
 
@@ -693,14 +701,52 @@ storage class：
 | -------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | typed `eq`/`ne`/`in`、`distinct-count`       | 每个 `TypeRef`；object 比较 RFC 8785 JCS byte，list 比较 length 与 ordered typed element |
 | ordered comparison、sort、group、`min`/`max` | `text`、`url`、`select`、`row-id`、`integer`、`number`、`checkbox`、`date`、`datetime`   |
-| `contains`/`starts-with`/`ends-with`、search | `text`、`url`、`select`、`row-id`                                                        |
+| `contains`/`starts-with`/`ends-with`         | `text`、`url`、`select`、`row-id`                                                        |
+| search                                       | 第 5.2 与 7.1 节 Field-aware Search Fragment；绝不从 SQLite storage class 推断           |
 | `sum`/`average`                              | `integer`、`number`                                                                      |
 
 因此，对 Relation 执行 Lookup `first` 可 sort/group，因为其 `valueType` 是
 `row-id`；对 File 执行 Lookup `first` 则不可，因为其 `valueType` 是
 `file-entry`。`json`、`multi-select`、`file`、`relation`、`file-entry` 与每个
-list TypeRef 只能用于 equality/distinct。Null 永远不是 ordered operand，但 sort
+list TypeRef 对 ordinary typed operator 只能用于 equality/distinct；Field-aware
+search 与 semantic summary 改用第 5.2、7.1、7.3 节的明确规则。Null 永远不是 ordered operand，但 sort
 按 explicit null-rank 放置它，grouping 则形成一个 null group。
+
+### 5.2 规范性 Field 能力矩阵
+
+本矩阵是 core 1.0 每种 Field kind 的跨层索引。`C/D` 表示 whole-cell `count` 与
+`distinct-count`；`O` 再包含 `min`/`max`；`N` 再包含 `sum`/`average`；`T`
+表示准确 result `TypeRef`。标记为“特殊”的 cell 只能使用所指向的详细规则，不能
+coerce physical SQLite value。Whole-cell aggregate 与 semantic summary 刻意分开：
+前者把 ordered list 视为一个 typed value；后者使用第 7.3 节 Field-aware scalar 或
+exploded value domain。
+
+| Field kind       | Canonical / public value                       | Mutation | Filter                                        | Sort | Group | Search Fragment                                   | Whole-cell aggregate | Semantic summary                                              | Formula operand      | Lookup result        | Record Label | CSV                               | UI / Adapter boundary                                         |
+| ---------------- | ---------------------------------------------- | -------- | --------------------------------------------- | ---- | ----- | ------------------------------------------------- | -------------------- | ------------------------------------------------------------- | -------------------- | -------------------- | ------------ | --------------------------------- | ------------------------------------------------------------- |
+| Row-ID system    | UUIDv7 TEXT / `row-id`                         | 只读     | `eq`、`ne`、`in`                              | 是   | 是    | 仅在明确请求其 Field ID 时搜索 UUID               | C/D/O                | selected row 与不同 stable ID                                 | text                 | `row-id` atom        | 特殊回退     | export；仅 explicit replay import | UI 通常隐藏；绝不是 SQLite `rowid`                            |
+| created/updated  | UTC datetime TEXT / `datetime`                 | 只读     | equality、`in`、ordered range                 | 是   | 是    | 仅在充当 Record Label 时使用 canonical label text | C/D/O                | null/distinct、earliest/latest                                | 是                   | `datetime` atom      | 可用         | canonical UTC datetime            | UI 只 localize display                                        |
+| Text             | TEXT / `text`                                  | 可写     | equality、`in`、contains/prefix/suffix        | 是   | 是    | raw string                                        | C/D/O                | null/empty/non-empty/distinct                                 | 是                   | `text` atom          | 可用         | text                              | ordinary text editor                                          |
+| Number           | finite REAL / `number`                         | 可写     | equality、`in`、ordered range                 | 是   | 是    | 仅在充当 Record Label 时使用 canonical label text | C/D/O/N              | null/distinct/min/max/sum/average                             | 是                   | `number` atom        | 可用         | canonical finite number           | formatting 属于 UI state                                      |
+| Integer          | INTEGER / int64 decimal string                 | 可写     | equality、`in`、ordered range                 | 是   | 是    | 仅在充当 Record Label 时使用 canonical label text | C/D/O/N              | null/distinct/min/max/sum/average                             | 是                   | `integer` atom       | 可用         | canonical int64 decimal           | `rating` 仅是 Integer display setting                         |
+| Checkbox         | INTEGER 0/1 / Boolean                          | 可写     | equality、`in`                                | 是   | 是    | 仅在充当 Record Label 时使用 `true`/`false`       | C/D/O                | null/true/false count 与 ratio                                | 是                   | `checkbox` atom      | 可用         | `true` / `false`                  | Checkbox presentation 归 UI                                   |
+| Date             | `YYYY-MM-DD` TEXT / `date`                     | 可写     | equality、`in`、ordered range                 | 是   | 是    | 仅在充当 Record Label 时使用 canonical label text | C/D/O                | null/distinct、earliest/latest、explicit bucket               | 是                   | `date` atom          | 可用         | canonical date                    | 无 timezone；calendar presentation 归 UI                      |
+| Datetime         | UTC instant TEXT / `datetime`                  | 可写     | equality、`in`、ordered range                 | 是   | 是    | 仅在充当 Record Label 时使用 canonical label text | C/D/O                | null/distinct、earliest/latest、explicit UTC bucket           | 是                   | `datetime` atom      | 可用         | canonical UTC datetime            | UI localize；import 在 mutation 前 normalize                  |
+| URL              | URI-reference TEXT / `url`                     | 可写     | equality、`in`、contains/prefix/suffix        | 是   | 是    | raw URI-reference                                 | C/D/O                | null/empty/non-empty/distinct；optional raw-scheme facet      | 是                   | `url` atom           | 可用         | raw URI-reference                 | UI link/copy/text fallback；不自动 fetch                      |
+| JSON             | JCS TEXT / `json` JCS string                   | 可写     | typed equality 与 `in`                        | 否   | 否    | 无                                                | C/D                  | null 与 distinct complete JCS value                           | 是                   | `json` atom          | 否           | JCS text                          | inert JSON editor；无 implicit JSON-path statistics           |
+| Select           | Option-name TEXT / `select`                    | 可写     | equality、`in`、contains                      | 是   | 是    | Option name                                       | C/D/O                | null、observed Option facet、uncatalogued raw value           | text                 | `select` atom        | 可用         | Option name                       | color/icon 与 zero-use catalog entry 属于 UI state            |
+| Multi-select     | unique Option-name JSON array / `multi-select` | 可写     | whole equality/`in`；`has-any`/`has-all`      | 否   | 否    | 每个 Option name                                  | C/D on whole array   | empty row、selection count、distinct Option、Option facet     | 否                   | list of `select`     | 否           | JCS string array                  | UI 渲染 chips 并补充 zero-use catalog entry                   |
+| File             | FileEntry JSON array / `file`                  | 可写     | whole typed equality 与 `in`                  | 否   | 否    | entry name、非 `data:` URI、raw media type        | C/D on whole array   | File row、entry、exact byte、MIME/URI-kind facet、fan-out     | 否                   | list of `file-entry` | 否           | JCS FileEntry array               | UI 负责 preview/icon/URI fallback；Adapter resolve/read asset |
+| forward Relation | Row-ID JSON array / `relation`                 | 可写     | whole equality/`in`；membership               | 否   | 否    | target 当前 Record Label；unresolved Row ID       | C/D on whole array   | row、edge、distinct target、unresolved、fan-out、target facet | 否                   | list of `row-id`     | 否           | JCS Row-ID array                  | Runtime resolve label；UI 渲染 chooser/chips                  |
+| inverse Relation | definition / virtual `relation`                | 只读     | whole equality/`in`；membership               | 否   | 否    | source 当前 Record Label                          | C/D on result array  | 与 forward Relation 相同的 edge/target summary                | 否                   | list of `row-id`     | 否           | 仅 export evaluated Row-ID array  | Runtime 执行 reverse projection；UI 只读                      |
+| Formula          | definition / declared `T`                      | 只读     | 按 `T`                                        | 按 T | 按 T  | 按 `T`；充当 Record Label 时应用其专门规则        | 按 T                 | 按 `T`；row-value evaluation failure 为 null                  | 是，受 DAG 约束      | result atom          | 合格 scalar  | 仅 export evaluated value         | UI 分开展示只读结果与 definition                              |
+| Lookup scalar    | definition / inferred scalar `T`               | 只读     | 按 `T`                                        | 按 T | 按 T  | 按 `T`                                            | 按 T                 | 按 `T`                                                        | Formula-compatible T | result atom          | 否           | 仅 export evaluated value         | UI 展示只读 value 与 source path                              |
+| Lookup list      | definition / flattened list `T`                | 只读     | whole equality/`in`；typed element membership | 否   | 否    | 每个 flattened atom 的 fragment                   | C/D on whole list    | empty row、element、distinct atom、typed facet                | 否                   | flattened list       | 否           | 仅 export evaluated JCS array     | UI 使用 element renderer；public list 不嵌套                  |
+
+File Format 负责 canonical/raw column 与 definition；Runtime 负责 logical value、
+operator、Search Fragment、aggregate、summary 与 derived evaluation；Adapter 负责
+需要授权的 asset resolution/content service；UI 负责 formatting、icon、localized
+alias、preview 与 input affordance。可执行 template fixture 只是本矩阵的 example；
+它不具规范性，也不能替代本表或下方详细规则。
 
 完整 non-null order 是精确的。Text/URL/select/row-id 比较 unsigned UTF-8 byte
 （`BINARY`）。Integer 比较 mathematical signed-int64 value。Number 比较
@@ -711,7 +757,7 @@ comparison 将 Integer 视为 exact mathematical real value，与 finite binary6
 value 进行 mathematical comparison；MUST NOT 先把超出 safe range 的 Integer
 round 为 binary64。不同 non-numeric type 的 value 之间不进行 ordering comparison。
 
-### 5.2 Snapshot
+### 5.3 Snapshot
 
 `getSnapshot({minimumRevision?})` 返回同一 committed revision 上有界的 File
 header 与 schema count：
@@ -1131,20 +1177,49 @@ text，`file-entry` object 使用其完整 JCS object，list/Multi-select/File/R
 text/URL/select/row-id，并在把 ASCII `A..Z` fold 为 `a..z` 后比较 Unicode
 scalar sequence；非 ASCII 保持不变。`search` 也使用同一 portable fold。
 
-`has-any` 与 `has-all` 使用 typed exact equality，适用于 Multi-select 和
-Relation list。empty `has-any` 为 FALSE，empty `has-all` 为 TRUE。
+`has-any` 与 `has-all` 使用 typed exact element equality，适用于 Multi-select、
+Relation、File 与每个 public list TypeRef。empty `has-any` 为 FALSE，empty
+`has-all` 为 TRUE。
 `in` 是 typed `eq` comparison 的 three-valued OR；empty `in` 为 FALSE。
 `relation-has` 是优化后的精确 Row-ID membership test，接受 forward 或 inverse
 Relation。Runtime 把 list predicate 编译为 `json_each` 或等价 set operation；
 它 MUST NOT 为每行各 fetch 一个 list。
 
-Search Field MUST 具有 `text`、`url`、`select` 或 `row-id` value type。只有
-Record Label Field 的 value type 是这四种之一时才可 search；numeric、checkbox、
-date 与 datetime label 不会隐式 stringify。`search.fields` unique、non-empty，
-且不长于 `projectionFieldsMax`。Search 是相同 ASCII fold 后所有 non-empty
-substring match 的 OR。它不 tokenize、不 normalize Unicode、不 resolve URL，
-也不使用 implementation-dependent full-text tokenizer。implementation MAY 用
-generated index 加速精确结果，且 MUST 回退到这里定义的 semantics。
+Search 匹配 **Search Fragment**，绝不对 SQLite storage class cast 或 JSON
+serialization 做搜索。对一行与一个 requested Field，Runtime 按以下顺序产生 fragment：
+
+| Field/result                              | Search Fragment                                                                                                                                    |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `text`、`url`、`select`                   | logical string                                                                                                                                     |
+| Row-ID system Field                       | UUID；把该 system Field ID 放入 `search.fields` 就是 explicit ID-search request                                                                    |
+| Number、Integer、Checkbox、Date、Datetime | 无，但下方 Record Label 规则除外                                                                                                                   |
+| JSON                                      | 无；Runtime 绝不搜索 JCS punctuation 或 member serialization                                                                                       |
+| Multi-select                              | 按 stored order 的每个 Option name                                                                                                                 |
+| File                                      | 按 entry 顺序的 `name`、`mediaType`，以及仅 relative/`https:` URI；完整 `data:` URI/Base64 payload 永不参与搜索                                    |
+| forward/inverse Relation                  | 每个 resolved target/source 当前 Record Label text；unresolved item 贡献其可见 Row-ID fallback                                                     |
+| Formula 或 scalar Lookup                  | 其 result TypeRef 的 fragment；充当 Record Label 的 Formula 还应用 Record Label 规则                                                               |
+| list Lookup                               | 按既定 Lookup 顺序的每个 flattened atom fragment；source metadata 提供 target/entry context 时，`row-id`/`file-entry` atom 使用 Relation/File 规则 |
+
+**Record Label search text** 对 null 不存在；其他值为：text/URL/select 的 logical
+string；Number 的 RFC 8785 number serialization；Integer 的 canonical decimal
+string；Checkbox 的 lowercase `true`/`false`；Date/Datetime 的 canonical stored
+spelling。该规则让 Relation search 跟随 portable UI 可展示的值，而不引入 locale
+formatting；它不会让每个普通 numeric/date Field 都自动可搜索。
+
+`search.fields` 包含 unique Field ID、non-empty，且最多 `projectionFieldsMax`
+项。任一 requested Field 的任一 non-empty fragment，在把 ASCII `A..Z` fold 为
+`a..z` 后包含 non-empty `search.text`，该行即匹配。Runtime 不执行 trim、
+tokenization、Unicode normalization、percent-decode、locale collation、fuzzy
+matching、recursive Relation traversal、asset resolution、network request、file
+read、Base64 decode 或 implementation-dependent full-text tokenization。Relation
+search 恰好跨一条 edge；同一 owner 的重复 fragment match 只返回一次。
+
+Option rename、File-entry metadata mutation、Relation edge mutation、target Record
+Label value/role mutation 与 Formula/Lookup dependency mutation 都在 commit
+revision 改变 live result。Runtime MUST 以 set-wise cold plan（`json_each`/join 或
+等价 bounded plan）执行 search，不得为每行、element 或 Relation target 单独查询。
+generated FTS、fragment 与 reverse-edge index 都是 disposable state；warm result
+MUST 与 cold result 完全相同。
 
 ### 7.2 Sort 与 keyset cursor
 
@@ -1234,6 +1309,87 @@ interface ColumnStatistics {
   sum?: LogicalValue
   average?: number | null
 }
+
+interface FieldSummaryRequest {
+  tableId: string
+  query?: RowQuery
+  items: FieldSummaryItem[]
+}
+
+interface FieldSummaryItem {
+  key: string
+  fieldId: string
+  facet?: {
+    dimension: FieldSummaryFacetDimension
+    limit: number
+  }
+}
+
+type FieldSummaryFacetDimension =
+  | "value"
+  | "relation-target"
+  | "file-media-type"
+  | "file-uri-kind"
+
+interface FieldSummaryResponse {
+  fileId: string
+  tableId: string
+  revision: string
+  results: Array<{ key: string; summary: FieldSummary }>
+}
+
+interface FieldSummary {
+  rowCount: string
+  nullRowCount: string
+  emptyRowCount: string
+  nonEmptyRowCount: string
+  valueCount: string
+  distinctValueCount: string
+  min?: LogicalValue
+  max?: LogicalValue
+  sum?: LogicalValue
+  average?: number | null
+  elementCountMin?: string | null
+  elementCountMax?: string | null
+  elementCountAverage?: number | null
+  totalBytes?: string
+  facet?: {
+    dimension: FieldSummaryFacetDimension
+    items: FieldSummaryFacet[]
+    truncated: boolean
+  }
+}
+
+type FieldSummaryFacet =
+  | {
+      kind: "value"
+      value: LogicalValue
+      rows: string
+      occurrences: string
+    }
+  | {
+      kind: "relation-target"
+      rowId: string
+      state: "unresolved"
+      rows: string
+      occurrences: string
+    }
+  | {
+      kind: "relation-target"
+      rowId: string
+      state: "resolved"
+      labelFieldId: string
+      labelType: TypeRef
+      label: LogicalValue
+      rows: string
+      occurrences: string
+    }
+  | {
+      kind: "file-media-type" | "file-uri-kind"
+      value: string
+      rows: string
+      occurrences: string
+    }
 ```
 
 Item key 是 unique non-empty string。`AggregateResponse.results` 保持 request
@@ -1260,6 +1416,61 @@ null；inapplicable optional member 会被省略。所有 member 在一次 set-b
 中计算。若提供 convenience `countRows` binding，它 MUST 只是包含一个
 `count-all` item 的 `aggregate`，且 MUST NOT 具有不同的 filter 或 revision
 semantics。
+
+上述 `aggregate` 与 `ColumnStatistics` 是 whole-cell operation。特别是，对
+non-nullable Multi-select/File/Relation 执行 `count` 会把 `[]` 行也计入；
+`distinct-count` 区分完整 ordered array。它们绝不能悄悄改成 exploded-element
+semantics。
+
+`summarizeFields` 是 Field-aware overview operation。item key 必须 unique 且
+non-empty；`items` 有 `1..aggregateItemsMax` 项并保持 request order。同一 Field
+可以用不同 key/facet dimension 重复请求。facet limit 是
+`1..groupPageSizeMax`。除 `totalBytes` 外，每个 count 都是 non-negative int64
+decimal string；`totalBytes` 是 canonical File-entry `size` 的精确 arbitrary-
+precision non-negative decimal sum，只受 `responseBytesMax` 约束。
+
+summary value domain 精确定义如下：
+
+- `rowCount` 是同一 normalized `RowQuery` 选中的 row 数。
+- `nullRowCount` 统计 scalar SQL/derived null。Multi-select、File、Relation 与
+  list result 使用 `[]`，不是 null。
+- `emptyRowCount` 统计 text/URL/select 的 non-null empty logical string，或
+  zero-length Multi-select/File/Relation/list。null 不是 empty；JSON literal
+  string/array 不会被重新解释。
+- `nonEmptyRowCount = rowCount - nullRowCount - emptyRowCount`。
+- non-null scalar 贡献一个 value；Multi-select 贡献 Option-name element，Relation
+  贡献 Row ID，File 贡献完整 FileEntry object，list Lookup 贡献 flattened typed
+  atom。其总数与 typed-distinct 数分别为 `valueCount` 与
+  `distinctValueCount`。empty string 仍是 value，即使其 row 同时计入 empty。
+- `min`/`max` 与 numeric `sum`/`average` 当且仅当该 scalar 或 exploded atomic
+  domain 按第 5.1 节接受相应 operation 时存在；empty-result 与 arithmetic rule
+  与 aggregate 相同。Formula row-value failure 已按第 6.2 节产生 null，因此属于
+  null row，不存在第二个 hidden error population。
+- `elementCountMin`/`elementCountMax`/`elementCountAverage` 仅对 list-shaped
+  Field 存在并计入 zero-length row。前两个是 canonical non-negative int64
+  decimal，average 是一次 rounded binary64；`rowCount` 为零时三者都为 null。
+- `totalBytes` 仅对 File 或 `file-entry` atom list 存在。它只汇总 metadata；
+  没有 entry 时为 `"0"`；Runtime 不 resolve、read、download、decode 或 inspect
+  referenced bytes。
+
+`value` facet 使用 summary domain 的 typed identity。`relation-target` 只适用于
+Relation，或 Lookup path 能提供唯一 target Table 的 row-id list；identity 是 Row
+ID，当前 Record Label 是 same-revision projection。相同 label 仍是不同 target，
+unresolved target 仍是单独 Row-ID item。`file-media-type` 使用 exact stored media
+type；`file-uri-kind` value 恰好是 `relative`、`https` 或 `data-image`。Catalog
+alias、localized type name、icon 与 zero-use Select option 不是 Runtime facet value；
+UI MAY 在收到结果后合并 zero-use catalog entry。
+
+每个 facet item 同时报告 distinct owner `rows` 与 element 总 `occurrences`；同一
+File row 有多个相同 media type entry 时两者可不同。facet 按 occurrences
+descending、rows descending、再按 typed identity 的 RFC 8785 JCS bytes ascending
+排序。`truncated` 当且仅当存在超出 requested limit 的 item。
+
+response 与每个 projected Relation label 绑定同一个 revision。Runtime MUST 以
+set-wise 或 bounded batch 计算所有 requested summary/facet，绝不能为每个 Field、
+row、list element 或 Relation target 各执行一次 query。statistics、fragment 与
+reverse-edge cache 都是 disposable generated state；cold scan 与 warm cache MUST
+返回相同 member、count、label、order 与 truncation。
 
 ### 7.4 Grouping
 
@@ -1755,6 +1966,10 @@ interface RuntimeClient {
     request: AggregateRequest,
     context: RequestContext
   ): Promise<AggregateResponse>
+  summarizeFields(
+    request: FieldSummaryRequest,
+    context: RequestContext
+  ): Promise<FieldSummaryResponse>
   groupRows(request: GroupRequest, context: RequestContext): Promise<GroupPage>
   queryGroupRows(
     request: GroupRowsRequest,
@@ -3030,7 +3245,8 @@ commit 前运行受影响的 structural/content/semantic check。
 - 对 SQLite work 使用 set-based bounded plan 与 interrupt/deadline check；
 - 从 public error/log 中 redact physical SQL、bound value、Formula compilation、
   path、token、credential、native handle 与 stack trace；
-- 把 URL/File entry 视作 inert value；Runtime 不授予 fetch authority。
+- 把 URL/File entry 视作 inert value；inline Data URL validation 不授予 fetch、
+  decode-for-presentation 或 rendering authority。
 
 通过 transported `RuntimeClient` 返回的 effective limit，是 Runtime semantic
 limit 与 Adapter Transport request/result/time limit 的最小值。Composition 在
@@ -3066,15 +3282,21 @@ ER-Reader 至少覆盖：
 
 1. int64 minimum/maximum/zero、finite binary64 edge value、negative-zero
    normalization、SQL NULL 与 JSON literal null 的区别、Unicode、empty value、
-   canonical date/datetime、File entry 与 malformed-value rejection；
+   canonical date/datetime、File entry 与 malformed-value rejection，包括
+   relative/`https:`/inline-image URI classes、exact Base64、media-type/decoded-size
+   agreement 与 1 MiB boundary；
 2. name 中含中文/space/keyword/quote 的 snapshot，且 public result 中没有任何
    physical name；
 3. column/value length/order、两个 projection SHA-256 example、missing row
    batch，以及对 unresolved ID 保持相同长度的 Relation label resolution；
-4. 所有 filter operator 与 T/F/U table、ASCII-fold search、typed sort、null
-   placement、duplicate sort rejection、forward/backward keyset cursor 与 stale
-   cursor error；
-5. aggregate 的 empty/null/distinct/overflow/order 与 column statistics；
+4. 所有 filter operator 与 T/F/U table；scalar、Multi-select、File、Relation、
+   Formula、scalar/list Lookup、dynamic Record Label、unresolved ID 的 ASCII-fold
+   Search Fragment，以及排除 JSON/Base64/asset read；typed sort、null placement、
+   duplicate sort rejection、forward/backward keyset cursor 与 stale cursor error；
+5. aggregate 的 empty/null/distinct/overflow/order 与 column statistics；每种
+   scalar/list `summarizeFields` count、whole-cell 与 exploded identity、Relation/
+   MIME/URI-kind facet、rows 与 occurrences、exact File bytes、query/revision
+   binding、truncation 与 cold/warm equality；
 6. 不使用 per-group query 的 grouped inline row 与 stable group cursor；
 7. forward/inverse Relation order、cardinality、unresolved state、cold
    `json_each` 与 warm-index equality，以及 dynamic Record Label；
@@ -3151,6 +3373,8 @@ SQLite 的优势；与此同时，定义明确的 cold algorithm 防止 private 
 - [BCP 14: RFC 2119 and RFC 8174](https://www.rfc-editor.org/info/bcp14)
 - [RFC 3339: Date and Time on the Internet](https://www.rfc-editor.org/rfc/rfc3339)
 - [RFC 3986: URI Generic Syntax](https://www.rfc-editor.org/rfc/rfc3986)
+- [RFC 2397：`data` URL scheme](https://www.rfc-editor.org/rfc/rfc2397)
+- [RFC 4648：Base-N encodings](https://www.rfc-editor.org/rfc/rfc4648)
 - [RFC 4180: Common Format and MIME Type for CSV](https://www.rfc-editor.org/rfc/rfc4180)
 - [RFC 6901: JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901)
 - [RFC 8259: JSON](https://www.rfc-editor.org/rfc/rfc8259)

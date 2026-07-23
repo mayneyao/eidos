@@ -54,7 +54,8 @@ Runtime owns:
 - logical Field types and lossless public value bindings;
 - Reference Policy enforcement above raw storage;
 - Relation resolution, Formula parsing/evaluation, and Lookup evaluation;
-- filtering, searching, sorting, keyset paging, grouping, and aggregation;
+- filtering, searching, sorting, keyset paging, grouping, aggregation, and
+  Field-aware summaries;
 - row, View, and schema mutation semantics;
 - conversion classification and exact conversion algorithms;
 - optimistic revision concurrency, generated dependency state, and errors;
@@ -72,7 +73,7 @@ Runtime does not own:
 Conformance profiles are:
 
 - **ER-Reader-1.0**: open an EF-Reader-valid file; expose schema, logical
-  values, query, Relation, Formula, Lookup, aggregate/group, and validation
+  values, query, Relation, Formula, Lookup, aggregate/summary/group, and validation
   behavior in this specification.
 - **ER-Writer-1.0**: ER-Reader plus canonical row, View, and schema mutations,
   conversion, revision postconditions, and rollback behavior. It requires an
@@ -212,6 +213,13 @@ with `id`, `name`, `mediaType`, `size`, or `uri`, allocates the UUIDv7 ID, and
 returns an inert logical candidate. It performs no row mutation. Host calls it
 only after staging/authorizing the asset; canonical state changes only when a
 client later submits that exact entry through `mutateRows`.
+
+The bridge and every File mutation apply File Format Section 8.3 exactly.
+Relative and `https:` URIs remain inert strings. A `data:` URI is accepted only
+in the canonical inline-image form; Runtime validates the media-type match,
+RFC 4648 alphabet/padding, decoded byte count, and 1 MiB decoded limit before
+returning or storing the entry. This validation grants neither decoding for
+presentation nor access to an external resource.
 
 `createPublicationSnapshot` is the sole Host save boundary. Runtime admits it
 through the same serialized request queue, waits for every earlier operation
@@ -432,7 +440,7 @@ interface RuntimeLimits {
 Every limit is a JSON safe integer in `1..2147483647` and is enforced before
 partial output or mutation. An implementation MAY advertise less than the
 File Format hard limit. ER-Reader requires `readRows`, `schemaPaging`, `cursorPaging`,
-`aggregate`, `groupRows`, `validate`, and Formula/Lookup evaluation even when
+`aggregate` (including `summarizeFields`), `groupRows`, `validate`, and Formula/Lookup evaluation even when
 `formulaPreview=false`. ER-Writer additionally requires `mutateRows`,
 `mutateView`, `schemaPreflight`, and `mutateSchema`. `mutationUndo`, `events`,
 `formulaPreview`, `csvExport`, and `csvImport` describe optional public
@@ -444,7 +452,9 @@ Capability dependencies are exact: `cursorPaging`, `aggregate`,
 `groupRows`, and `csvExport` each require `readRows`; `groupRows` additionally
 requires `cursorPaging`; `mutationUndo` and `csvImport` each require
 `mutateRows`; and `mutateSchema` requires `schemaPreflight`. A true capability
-with a false prerequisite is a protocol error. Every non-optional
+with a false prerequisite is a protocol error. `aggregate=true` covers both
+`aggregate` and `summarizeFields`; neither may expose a weaker query/revision
+domain. Every non-optional
 `RuntimeClient` method remains present: when its capability is false it rejects
 with `unsupported` before doing work. `getSnapshot`, `cancel`, and `close`
 have no capability bit and are always available while lifecycle permits them.
@@ -726,15 +736,56 @@ SQLite storage class:
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | typed `eq`/`ne`/`in`, `distinct-count`       | every `TypeRef`; objects compare RFC 8785 JCS bytes and lists compare length plus ordered typed elements |
 | ordered comparison, sort, group, `min`/`max` | `text`, `url`, `select`, `row-id`, `integer`, `number`, `checkbox`, `date`, `datetime`                   |
-| `contains`/`starts-with`/`ends-with`, search | `text`, `url`, `select`, `row-id`                                                                        |
+| `contains`/`starts-with`/`ends-with`         | `text`, `url`, `select`, `row-id`                                                                        |
+| search                                       | Field-aware Search Fragments in Sections 5.2 and 7.1; never inferred from SQLite storage class           |
 | `sum`/`average`                              | `integer`, `number`                                                                                      |
 
 Thus a Lookup `first` over a Relation is sortable/groupable because its
 `valueType` is `row-id`; a Lookup `first` over File is not because its
 `valueType` is `file-entry`. `json`, `multi-select`, `file`, `relation`,
-`file-entry`, and every list TypeRef are equality/distinct-only. Null is never
+`file-entry`, and every list TypeRef are equality/distinct-only for ordinary
+typed operators; Field-aware search and semantic summary use the explicit
+Sections 5.2, 7.1, and 7.3 rules instead. Null is never
 an ordered operand, but sort places it by the explicit null-rank and grouping
 forms one null group.
+
+### 5.2 Normative Field capability matrix
+
+This matrix is the cross-layer index for every core 1.0 Field kind. `C/D`
+means whole-cell `count` and `distinct-count`; `O` adds `min`/`max`; `N` adds
+`sum`/`average`. `T` means the exact result `TypeRef`. A cell marked
+“special” is supported only by the named detailed rule, not by coercing the
+physical SQLite value. Whole-cell aggregate and semantic summary are
+deliberately separate: the former treats an ordered list as one typed value;
+the latter uses Section 7.3's Field-aware scalar or exploded value domain.
+
+| Field kind       | Canonical / public value                       | Mutation  | Filter                                        | Sort | Group | Search Fragment                                     | Whole-cell aggregate | Semantic summary                                                  | Formula operand      | Lookup result        | Record Label     | CSV                                 | UI / Adapter boundary                                                  |
+| ---------------- | ---------------------------------------------- | --------- | --------------------------------------------- | ---- | ----- | --------------------------------------------------- | -------------------- | ----------------------------------------------------------------- | -------------------- | -------------------- | ---------------- | ----------------------------------- | ---------------------------------------------------------------------- |
+| Row-ID system    | UUIDv7 TEXT / `row-id`                         | read-only | `eq`, `ne`, `in`                              | yes  | yes   | UUID only when its Field ID is explicitly requested | C/D/O                | selected rows and distinct stable IDs                             | text                 | `row-id` atom        | special fallback | export; explicit replay import only | UI normally hides it; it is never SQLite `rowid`                       |
+| created/updated  | UTC datetime TEXT / `datetime`                 | read-only | equality, `in`, ordered range                 | yes  | yes   | only canonical Record-Label text when in that role  | C/D/O                | null/distinct, earliest/latest                                    | yes                  | `datetime` atom      | eligible         | canonical UTC datetime              | UI localizes display only                                              |
+| Text             | TEXT / `text`                                  | writable  | equality, `in`, contains/prefix/suffix        | yes  | yes   | raw string                                          | C/D/O                | null/empty/non-empty/distinct                                     | yes                  | `text` atom          | eligible         | text                                | ordinary text editor                                                   |
+| Number           | finite REAL / `number`                         | writable  | equality, `in`, ordered range                 | yes  | yes   | only canonical Record-Label text when in that role  | C/D/O/N              | null/distinct/min/max/sum/average                                 | yes                  | `number` atom        | eligible         | canonical finite number             | formatting is UI state                                                 |
+| Integer          | INTEGER / int64 decimal string                 | writable  | equality, `in`, ordered range                 | yes  | yes   | only canonical Record-Label text when in that role  | C/D/O/N              | null/distinct/min/max/sum/average                                 | yes                  | `integer` atom       | eligible         | canonical int64 decimal             | `rating` is only an Integer display setting                            |
+| Checkbox         | INTEGER 0/1 / Boolean                          | writable  | equality, `in`                                | yes  | yes   | only `true`/`false` when it is the Record Label     | C/D/O                | null/true/false counts and ratios                                 | yes                  | `checkbox` atom      | eligible         | `true` / `false`                    | Checkbox presentation is UI-owned                                      |
+| Date             | `YYYY-MM-DD` TEXT / `date`                     | writable  | equality, `in`, ordered range                 | yes  | yes   | only canonical Record-Label text when in that role  | C/D/O                | null/distinct, earliest/latest, explicit buckets                  | yes                  | `date` atom          | eligible         | canonical date                      | no timezone; calendar presentation is UI-owned                         |
+| Datetime         | UTC instant TEXT / `datetime`                  | writable  | equality, `in`, ordered range                 | yes  | yes   | only canonical Record-Label text when in that role  | C/D/O                | null/distinct, earliest/latest, explicit UTC buckets              | yes                  | `datetime` atom      | eligible         | canonical UTC datetime              | UI localizes; import normalizes before mutation                        |
+| URL              | URI-reference TEXT / `url`                     | writable  | equality, `in`, contains/prefix/suffix        | yes  | yes   | raw URI-reference                                   | C/D/O                | null/empty/non-empty/distinct; optional raw-scheme facet          | yes                  | `url` atom           | eligible         | raw URI-reference                   | UI link/copy/text fallback; no automatic fetch                         |
+| JSON             | JCS TEXT / `json` JCS string                   | writable  | typed equality and `in`                       | no   | no    | none                                                | C/D                  | null and distinct complete JCS values                             | yes                  | `json` atom          | no               | JCS text                            | inert JSON editor; no implicit JSON-path statistics                    |
+| Select           | Option-name TEXT / `select`                    | writable  | equality, `in`, contains                      | yes  | yes   | Option name                                         | C/D/O                | null, observed Option facets, uncatalogued raw values             | text                 | `select` atom        | eligible         | Option name                         | color/icon and zero-use catalog entries are UI state                   |
+| Multi-select     | unique Option-name JSON array / `multi-select` | writable  | whole equality/`in`; `has-any`/`has-all`      | no   | no    | each Option name                                    | C/D on whole array   | empty rows, selection count, distinct Options, Option facets      | no                   | list of `select`     | no               | JCS string array                    | UI renders chips and adds zero-use catalog entries                     |
+| File             | FileEntry JSON array / `file`                  | writable  | whole typed equality and `in`                 | no   | no    | entry name, non-`data:` URI, raw media type         | C/D on whole array   | File rows, entries, exact bytes, MIME/URI-kind facets, fan-out    | no                   | list of `file-entry` | no               | JCS FileEntry array                 | UI renders preview/icon/URI fallback; Adapter resolves or reads assets |
+| forward Relation | Row-ID JSON array / `relation`                 | writable  | whole equality/`in`; membership               | no   | no    | target current Record Label; unresolved Row ID      | C/D on whole array   | rows, edges, distinct targets, unresolved, fan-out, target facets | no                   | list of `row-id`     | no               | JCS Row-ID array                    | Runtime resolves labels; UI renders chooser/chips                      |
+| inverse Relation | definition / virtual `relation`                | read-only | whole equality/`in`; membership               | no   | no    | source current Record Label                         | C/D on result array  | the same edge/target summary as its forward Relation              | no                   | list of `row-id`     | no               | evaluated Row-ID array export only  | Runtime performs the reverse projection; UI is read-only               |
+| Formula          | definition / declared `T`                      | read-only | by `T`                                        | by T | by T  | by `T`; Record-Label rule when it has that role     | by T                 | by `T`; row-value evaluation failure is null                      | yes, subject to DAG  | result atom          | eligible scalar  | evaluated export only               | UI presents a read-only result and the definition separately           |
+| Lookup scalar    | definition / inferred scalar `T`               | read-only | by `T`                                        | by T | by T  | by `T`                                              | by T                 | by `T`                                                            | Formula-compatible T | result atom          | no               | evaluated export only               | UI presents a read-only value and its source path                      |
+| Lookup list      | definition / flattened list `T`                | read-only | whole equality/`in`; typed element membership | no   | no    | every flattened atom's fragments                    | C/D on whole list    | empty rows, elements, distinct atoms, typed facets                | no                   | flattened list       | no               | evaluated JCS array export only     | UI uses the element renderer; no nested public list                    |
+
+The File Format owns canonical/raw columns and definitions. Runtime owns
+logical values, operators, Search Fragments, aggregates, summaries, and
+derived evaluation. Adapter owns permissioned asset resolution/content
+services. UI owns formatting, icons, localized aliases, previews, and input
+affordances. The executable template fixture is an example of this matrix; it
+is not normative and cannot replace this table or the detailed rules below.
 
 The total non-null order is exact. Text/URL/select/row-id compare unsigned
 UTF-8 bytes (`BINARY`). Integer compares mathematical signed-int64 value.
@@ -746,7 +797,7 @@ mathematical real value and compares mathematically against the finite
 binary64 value; it MUST NOT first round an out-of-safe-range Integer to
 binary64. No ordering compares values of different non-numeric types.
 
-### 5.2 Snapshot
+### 5.3 Snapshot
 
 `getSnapshot({minimumRevision?})` returns the bounded File header and schema
 counts at one committed revision:
@@ -1175,23 +1226,55 @@ text/URL/select/row-id and compare Unicode scalar sequences after folding ASCII
 `A..Z` to `a..z`; non-ASCII is unchanged. This same portable fold is used by
 `search`.
 
-`has-any` and `has-all` apply to Multi-select and Relation lists using typed
-exact equality. Empty `has-any` is FALSE and empty `has-all` is TRUE.
+`has-any` and `has-all` apply to Multi-select, Relation, File, and every public
+list TypeRef using typed exact element equality. Empty `has-any` is FALSE and
+empty `has-all` is TRUE.
 `in` is the three-valued OR of typed `eq` comparisons; an empty `in` is FALSE.
 `relation-has` is an optimized exact Row-ID membership test and accepts a
 forward or inverse Relation. Runtime compiles list predicates to `json_each`
 or an equivalent set operation; it MUST NOT fetch a list per row.
 
-Search fields MUST have `text`, `url`, `select`, or `row-id` value type. A Record Label
-Field is searchable only when its value type is one of those four; numeric,
-checkbox, date, and datetime labels are not implicitly stringified.
-`search.fields` is unique, non-empty, and no longer than
-`projectionFieldsMax`. Search is the OR of non-empty substring matches after
-the same ASCII fold. It does not
-tokenize, normalize Unicode, resolve URLs, or use an
-implementation-dependent full-text tokenizer. Implementations MAY accelerate
-the exact result with generated indexes and MUST fall back to the defined
-semantics.
+Search matches **Search Fragments**, never a SQLite storage-class cast or a
+JSON serialization. For one row and requested Field, Runtime produces this
+ordered fragment sequence:
+
+| Field/result                              | Search Fragments                                                                                                                                                                |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `text`, `url`, `select`                   | the logical string                                                                                                                                                              |
+| Row-ID system Field                       | its UUID; including that system Field ID in `search.fields` is the explicit ID-search request                                                                                   |
+| Number, Integer, Checkbox, Date, Datetime | none, except the Record Label rule below                                                                                                                                        |
+| JSON                                      | none; Runtime never searches JCS punctuation or member serialization                                                                                                            |
+| Multi-select                              | each Option name in stored order                                                                                                                                                |
+| File                                      | for every entry in order: `name`, `mediaType`, and `uri` only for relative/`https:` URIs; a complete `data:` URI/Base64 payload is never searched                               |
+| forward/inverse Relation                  | each resolved target/source current Record Label text; an unresolved item contributes its visible Row ID fallback                                                               |
+| Formula or scalar Lookup                  | fragments of its result TypeRef; a Formula that is the Record Label additionally uses the Record Label rule                                                                     |
+| list Lookup                               | fragments of every flattened atom in defined Lookup order; `row-id` and `file-entry` atoms use the Relation/File rules when source metadata supplies their target/entry context |
+
+The **Record Label search text** is absent for null and otherwise is: the
+logical string for text/URL/select; RFC 8785 number serialization for Number;
+the canonical decimal string for Integer; lowercase `true` or `false` for
+Checkbox; and the canonical stored spelling for Date or Datetime. This rule
+exists so Relation search follows the value a portable UI can display without
+locale-dependent formatting. It does not make every ordinary numeric/date
+Field searchable.
+
+`search.fields` contains unique Field IDs, is non-empty, and has at most
+`projectionFieldsMax` items. A row matches when any non-empty fragment of any
+requested Field contains the non-empty `search.text` after folding ASCII
+`A..Z` to `a..z`. Runtime performs no trimming, tokenization, Unicode
+normalization, percent-decoding, locale collation, fuzzy matching, recursive
+Relation traversal, asset resolution, network request, file read, Base64
+decode, or implementation-dependent full-text tokenization. Relation search
+is exactly one edge hop; duplicate matching fragments return the owner row
+once.
+
+Option rename, File-entry metadata mutation, Relation edge mutation, target
+Record Label value/role mutation, and Formula/Lookup dependency mutation
+change the live result at the committing revision. Runtime MUST evaluate cold
+search set-wise (`json_each`/joins or an equivalent bounded plan), not by one
+query per row, element, or Relation target. Generated FTS, fragment, and
+reverse-edge indexes MAY accelerate the exact result, are disposable state,
+and MUST produce exactly the cold result.
 
 ### 7.2 Sort and keyset cursors
 
@@ -1287,6 +1370,87 @@ interface ColumnStatistics {
   sum?: LogicalValue
   average?: number | null
 }
+
+interface FieldSummaryRequest {
+  tableId: string
+  query?: RowQuery
+  items: FieldSummaryItem[]
+}
+
+interface FieldSummaryItem {
+  key: string
+  fieldId: string
+  facet?: {
+    dimension: FieldSummaryFacetDimension
+    limit: number
+  }
+}
+
+type FieldSummaryFacetDimension =
+  | "value"
+  | "relation-target"
+  | "file-media-type"
+  | "file-uri-kind"
+
+interface FieldSummaryResponse {
+  fileId: string
+  tableId: string
+  revision: string
+  results: Array<{ key: string; summary: FieldSummary }>
+}
+
+interface FieldSummary {
+  rowCount: string
+  nullRowCount: string
+  emptyRowCount: string
+  nonEmptyRowCount: string
+  valueCount: string
+  distinctValueCount: string
+  min?: LogicalValue
+  max?: LogicalValue
+  sum?: LogicalValue
+  average?: number | null
+  elementCountMin?: string | null
+  elementCountMax?: string | null
+  elementCountAverage?: number | null
+  totalBytes?: string
+  facet?: {
+    dimension: FieldSummaryFacetDimension
+    items: FieldSummaryFacet[]
+    truncated: boolean
+  }
+}
+
+type FieldSummaryFacet =
+  | {
+      kind: "value"
+      value: LogicalValue
+      rows: string
+      occurrences: string
+    }
+  | {
+      kind: "relation-target"
+      rowId: string
+      state: "unresolved"
+      rows: string
+      occurrences: string
+    }
+  | {
+      kind: "relation-target"
+      rowId: string
+      state: "resolved"
+      labelFieldId: string
+      labelType: TypeRef
+      label: LogicalValue
+      rows: string
+      occurrences: string
+    }
+  | {
+      kind: "file-media-type" | "file-uri-kind"
+      value: string
+      rows: string
+      occurrences: string
+    }
 ```
 
 Item keys are unique non-empty strings. `AggregateResponse.results` retains
@@ -1316,6 +1480,69 @@ and is null for an empty input; an inapplicable optional member is omitted.
 All members are computed in one set-based scan. A convenience `countRows` binding, if
 provided, MUST be only `aggregate` with one `count-all` item and MUST NOT have
 different filter or revision semantics.
+
+`aggregate` and `ColumnStatistics` above are whole-cell operations. In
+particular, `count` over non-nullable Multi-select/File/Relation counts rows
+including `[]`, and `distinct-count` distinguishes complete ordered arrays.
+They MUST NOT silently acquire exploded-element semantics.
+
+`summarizeFields` is the Field-aware overview operation. Item keys are unique
+and non-empty; `items` has `1..aggregateItemsMax` entries and retains request
+order. The same Field MAY occur under different keys/facet dimensions. A
+facet limit is `1..groupPageSizeMax`. Every count is a non-negative decimal
+int64 string except `totalBytes`, which is the exact arbitrary-precision
+non-negative decimal sum of canonical File-entry `size` values and is bounded
+only by `responseBytesMax`.
+
+The summary value domain is exact:
+
+- `rowCount` is the number of rows selected by the same normalized `RowQuery`.
+- `nullRowCount` counts scalar SQL/derived null. Multi-select, File, Relation,
+  and list results use `[]`, not null.
+- `emptyRowCount` counts a non-null empty logical string for
+  text/URL/select, or a zero-length Multi-select/File/Relation/list. Null is
+  not empty; JSON literal strings/arrays are not reinterpreted.
+- `nonEmptyRowCount = rowCount - nullRowCount - emptyRowCount`.
+- A scalar contributes one value when non-null. A Multi-select contributes
+  its Option-name elements, Relation contributes Row IDs, File contributes
+  complete FileEntry objects, and a list Lookup contributes its flattened
+  typed atoms. Their total and typed-distinct counts are `valueCount` and
+  `distinctValueCount`. Empty strings remain values even though their rows
+  are also counted as empty.
+- `min`/`max`, and numeric `sum`/`average`, are present exactly when this
+  scalar or exploded atomic domain accepts that operation under Section 5.1;
+  their empty-result and arithmetic rules are the same as aggregate. Formula
+  row-value failure already yields null under Section 6.2 and is therefore a
+  null row, not a second hidden error population.
+- `elementCountMin`/`elementCountMax`/`elementCountAverage` are present only
+  for a list-shaped Field and include zero-length rows. The first two are
+  canonical non-negative int64 decimals; average is one rounded binary64.
+  All three are null when `rowCount` is zero.
+- `totalBytes` is present only for File or a list of `file-entry` atoms. It
+  sums metadata and is `"0"` when no entry exists; Runtime does not resolve,
+  read, download, decode, or inspect the referenced bytes.
+
+The `value` facet uses the summary domain's typed identity. `relation-target`
+is valid only for Relation or a row-id list whose Lookup path supplies one
+target Table; identity is Row ID and the current Record Label is a same-revision
+projection. Equal labels remain separate targets and unresolved targets remain
+separate Row-ID items. `file-media-type` uses the exact stored media type;
+`file-uri-kind` values are exactly `relative`, `https`, or `data-image`.
+Catalog aliases, localized type names, icons, and zero-use Select options are
+not Runtime facet values; UI MAY merge zero-use catalog entries after receipt.
+
+Each facet item reports both distinct owner `rows` and total element
+`occurrences`; they can differ when one File row has multiple entries with the
+same media type. Facets are ordered by occurrences descending, rows
+descending, then the RFC 8785 JCS bytes of their typed identity ascending.
+`truncated` is true exactly when more items exist than the requested limit.
+
+The response and every projected Relation label bind one revision. Runtime
+MUST compute all requested summaries/facets set-wise or in bounded batches,
+never one query per Field, row, list element, or Relation target. Statistics,
+fragment, and reverse-edge caches are disposable generated state; a cold scan
+and warm cache MUST return the same members, counts, labels, order, and
+truncation.
 
 ### 7.4 Grouping
 
@@ -1838,6 +2065,10 @@ interface RuntimeClient {
     request: AggregateRequest,
     context: RequestContext
   ): Promise<AggregateResponse>
+  summarizeFields(
+    request: FieldSummaryRequest,
+    context: RequestContext
+  ): Promise<FieldSummaryResponse>
   groupRows(request: GroupRequest, context: RequestContext): Promise<GroupPage>
   queryGroupRows(
     request: GroupRowsRequest,
@@ -3206,7 +3437,8 @@ result is untrusted. Runtime MUST:
 - use set-based bounded plans and interrupt/deadline checks for SQLite work;
 - redact physical SQL, bound values, Formula compilation, paths, tokens,
   credentials, native handles, and stack traces from public errors/logs;
-- treat URLs/File entries as inert values; Runtime grants no fetch authority.
+- treat URLs/File entries as inert values; validation of an inline Data URL
+  grants no fetch, decode-for-presentation, or rendering authority.
 
 The effective limits returned through a transported `RuntimeClient` are the
 minimum of Runtime semantic limits and Adapter Transport request/result/time
@@ -3244,15 +3476,22 @@ ER-Reader covers at least:
 
 1. int64 minimum/maximum/zero, finite binary64 edge values, negative-zero
    normalization, SQL NULL versus JSON literal null, Unicode, empty values,
-   canonical date/datetime, File entries, and malformed-value rejection;
+   canonical date/datetime, File entries, and malformed-value rejection,
+   including relative/`https:`/inline-image URI classes, exact Base64,
+   media-type and decoded-size agreement, and the 1 MiB boundary;
 2. snapshots with Chinese/spaces/keywords/quotes in names and zero physical
    names in the public result;
 3. column/value length/order, both projection SHA-256 examples, missing row
    batches, and same-length Relation label resolution with unresolved IDs;
-4. all filter operators and the T/F/U table, ASCII-fold search, typed sort,
-   null placement, duplicate sort rejection, forward/backward keyset cursors,
-   and stale cursor errors;
-5. aggregate empty/null/distinct/overflow/order and column statistics;
+4. all filter operators and the T/F/U table; ASCII-fold Search Fragments for
+   scalar, Multi-select, File, Relation, Formula, scalar/list Lookup, dynamic
+   Record Labels, unresolved IDs, and exclusion of JSON/Base64/asset reads;
+   typed sort, null placement, duplicate sort rejection, forward/backward
+   keyset cursors, and stale cursor errors;
+5. aggregate empty/null/distinct/overflow/order and column statistics; every
+   scalar/list `summarizeFields` count, whole-cell versus exploded identity,
+   Relation/MIME/URI-kind facets, rows versus occurrences, exact File bytes,
+   query/revision binding, truncation, and cold/warm equality;
 6. grouped inline rows without per-group queries and stable group cursors;
 7. forward/inverse Relation order, cardinality, unresolved state, cold
    `json_each` versus warm-index equality, and dynamic Record Labels;
@@ -3329,6 +3568,8 @@ private cache or driver from becoming a second format.
 - [BCP 14: RFC 2119 and RFC 8174](https://www.rfc-editor.org/info/bcp14)
 - [RFC 3339: Date and Time on the Internet](https://www.rfc-editor.org/rfc/rfc3339)
 - [RFC 3986: URI Generic Syntax](https://www.rfc-editor.org/rfc/rfc3986)
+- [RFC 2397: The `data` URL scheme](https://www.rfc-editor.org/rfc/rfc2397)
+- [RFC 4648: Base-N encodings](https://www.rfc-editor.org/rfc/rfc4648)
 - [RFC 4180: Common Format and MIME Type for CSV](https://www.rfc-editor.org/rfc/rfc4180)
 - [RFC 6901: JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901)
 - [RFC 8259: JSON](https://www.rfc-editor.org/rfc/rfc8259)

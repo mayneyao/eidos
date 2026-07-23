@@ -149,8 +149,8 @@ validator，但 Adapter 仍不拥有 File 语义。
     "writerLease": "exclusive",
     "atomicReplace": true,
     "durability": "durable",
-    "assetReadSchemes": ["relative"],
-    "assetWriteSchemes": ["relative"]
+    "assetReadSchemes": ["relative", "data"],
+    "assetWriteSchemes": ["relative", "data"]
   },
   "publicationLimits": {
     "sourceBytesMax": "10737418240",
@@ -949,9 +949,12 @@ Recovery 在 platform guarantee 内跨 Worker/process restart 与普通 crash �
 
 ### 8.7 Assets
 
-asset schemes 必须声明；network 默认禁用。AssetLease 限定 authority，防 traversal/
-symlink/origin escape/credential escalation，限制 bytes/time/media，释放资源，
-不得因平台 path 变化重写 canonical URI。数据库与 asset 同操作时先 durable
+File Format 第 8.3 节没有 attachment store。relative/`https:` File-entry URI 引用
+SQLite 外的 bytes；canonical `data:` inline image 是唯一的 narrow exception，其 bytes
+已在 URI text 中，但 UI 仍只能通过同一 scoped asset flow 访问。asset schemes 必须
+声明；network 默认禁用。AssetLease 限定 authority，防 traversal/symlink/origin
+escape/credential escalation，限制 bytes/time/media/decode，释放资源，不得因平台 path
+变化重写 canonical URI。数据库与 asset 同操作时先 durable
 stage assets，再 publish DB，保留 recovery manifest；失败宁可 orphan staged
 asset，也不能发布指向 missing asset 的 DB；无真实 transaction 不声称跨资源原子。
 
@@ -960,7 +963,24 @@ scheme、只在 session scoped asset
 root 中解析的 File URI，例如 `assets/diagram.png`。其他 token 是匹配
 `[a-z][a-z0-9+.-]*` 的 lowercase RFC 3986 scheme，例如 `https`；`assets` 是 path
 segment，不是 scheme。列出 network scheme 仍要求 Host 授权；writer 通常只列
-`relative`。
+`relative`，只有明确支持 bounded inline-image representation 时才加入 `data`。
+
+`data` token 表示 Host 能验证并解析 canonical inline-image Data URL，不授权其他 Data
+URL。resolve Host 必须核对 File entry declared media type/size 与 Data URL，拒绝
+non-canonical Base64，在 allocation 前执行 1 MiB decoded format limit，并返回
+purpose-scoped presentation token，不能把 decoded bytes 暴露给 UI code。inline SVG 与
+所有含 active feature 的格式采用和 external content 相同的 isolation policy。
+
+对 `relative`，scoped asset root 表示 opened `.eidos` source 所在目录或明确等价的
+directory grant。没有该 root 的 Host 必须报告 entry unavailable，并从
+`assetReadSchemes` 省略 `relative`；不得 fallback 到 web application origin、process
+current directory、download directory 或猜测的 sibling path。打开 bytes 前必须完成
+percent-decoding、dot-segment removal、symlink check 与 final containment。
+
+asset import 时，Host policy 在调用 Runtime `allocateFileEntry` 前选择 canonical
+representation：通常是 relative external reference；只有 image 在 format limit 内且
+`assetWriteSchemes` 含 `data` 时才可选择 inline Data URL。UI 不选择 storage placement，
+也不创建 URI。
 
 ## 9. Transport Profile
 
@@ -2508,7 +2528,9 @@ Transport cancel 等价。
 Host fault injection 覆盖 lease 前后 source change、permission/lease、active mutation、
 checkpoint/backup、validator、short/disk/quota/flush/close/replace/digest、crash 每个
 边界、Save Copy、rename/replacement/symlink/delete/restore、clean reload/dirty
-conflict、recovery、asset security。每次断言 source bytes、candidate/recovery、state、
+conflict、recovery、asset security，包括 missing relative root、unauthorized network、
+canonical/invalid Data URL、media-type/decoded-size mismatch、limit/staging/release。每次
+断言 source bytes、candidate/recovery、state、
 descriptor/token、logical revision、sidecar，而非只看 exception。
 
 还必须断言每 PublicationSession 最多一个 live SourceSnapshot、immutable token-
@@ -2571,6 +2593,8 @@ invalidation、source CAS；混用会 lost update/false conflict。浏览器与�
 - [NIST FIPS 180-4](https://doi.org/10.6028/NIST.FIPS.180-4)
 - [RFC 9562](https://www.rfc-editor.org/rfc/rfc9562)
 - [RFC 3986](https://www.rfc-editor.org/rfc/rfc3986)
+- [RFC 2397：`data` URL scheme](https://www.rfc-editor.org/rfc/rfc2397)
+- [RFC 4648：Base-N encodings](https://www.rfc-editor.org/rfc/rfc4648)
 - [SQLite 3.45.0 release history](https://www.sqlite.org/changes.html#version_3_45_0)
 - [SQLite transactions](https://www.sqlite.org/lang_transaction.html)
 - [SQLite savepoints](https://www.sqlite.org/lang_savepoint.html)

@@ -57,6 +57,10 @@ binding of the host operations owned by Eidos Adapter 1.0. They MAY use
 in-process calls, structured-clone messages, IPC, or another transport, but
 the UI-observable result MUST be the same.
 
+The optional framework-native `AssetPresenter` in Section 5.2 is the
+presentation callback for an already authorized Host lease, not a third data
+or authority service. It cannot resolve a canonical URI or acquire bytes.
+
 An Eidos UI:
 
 - MUST address File, Table, Field, View, and Row objects by stable ID;
@@ -741,7 +745,8 @@ cannot claim source-specific permission, CAS, atomicity, or durability.
 `canRequestPermission`, `hasRecovery`, `assetReadSchemes`,
 `assetWriteSchemes`, `casGuarantee`, `atomicReplace`, and `durability`.
 `assetReadSchemes` and `assetWriteSchemes` are arrays of Host-recognized
-scheme names; the UI never implements a scheme itself. `casGuarantee` is
+scheme names, including the special `relative` token or lowercase schemes such
+as `data` and `https`; the UI never implements a scheme itself. `casGuarantee` is
 `strong`, `cooperative`, or `none`; `atomicReplace` is boolean; `durability`
 is `durable` or `best-effort`. `HostLimits` declares exactly
 `sourceBytesMax`, `candidateBytesMax`, `assetBytesMax`,
@@ -806,6 +811,51 @@ Adapter and supplied by the product composition layer. It is not an Adapter
 `PublicationPort` and does not expose lower-level operations. Source and destination pickers
 belong to that composition layer and produce opaque tokens; they never pass a
 path or native handle through UI code.
+
+A reusable Eidos UI library MUST expose `HostServices` as an injected
+constructor/provider dependency; it MUST NOT hide relative-path, network, or
+Data-URL handling in a package-global resolver. The embedding application
+implements `HostServices.resolveAsset`, so it decides how an entry ID is
+resolved inside the active session and may deny or omit any scheme.
+
+If the UI framework cannot consume `AssetLease.resourceToken` directly, the UI
+library MUST additionally expose an injected presentation binding equivalent
+to:
+
+```ts
+interface AssetPresenter<Surface> {
+  renderImage(request: {
+    sessionId: string
+    lease: AssetLease
+    altText: string
+  }): Surface
+  loadImage?(request: {
+    sessionId: string
+    lease: AssetLease
+    altText: string
+  }): Promise<CanvasImageSource>
+  activate(
+    request: {
+      sessionId: string
+      lease: AssetLease
+      action: "open" | "download"
+    },
+    context: RequestContext
+  ): Promise<void>
+}
+```
+
+`Surface` is a framework-native, non-canonical presentation object and never
+crosses Runtime or Adapter Transport. The presenter consumes only the scoped
+lease/token; it does not receive a native path, database handle, or permission
+to reinterpret the canonical URI. `loadImage` is the optional Canvas-native
+equivalent used by Grid renderers: the trusted presenter decodes the lease
+token and returns only a drawable image source. Grid MUST NOT construct that
+source from `FileEntry.uri` or inspect `resourceToken` itself. The same trusted
+composition layer MAY provide both bindings. An absent presenter disables
+inline image/open/download actions; an absent `loadImage` disables Canvas
+thumbnails only. Both cases still permit the metadata/icon/URI fallback in
+Section 10.
 
 ### 5.3 Negotiation order
 
@@ -944,7 +994,9 @@ Rules:
 10. File arrives as an ordered array of File-entry objects. Each entry's
     `size` is a non-negative int64 decimal string and MUST remain lossless.
     The UI passes an entry's `id` to `HostServices.resolveAsset`; it MUST NOT
-    fetch or join the entry URI itself.
+    fetch, resolve, or join the entry URI itself. The canonical `uri` remains
+    available only as inert display/copy text and the Section 10 fallback;
+    relative, `https:`, and `data:` use the same Host call.
 11. Formula and Lookup results use their declared Runtime result type. A list
     result remains a list; the UI MUST NOT flatten it into comma-delimited
     Text for editing.
@@ -1029,24 +1081,59 @@ The same root schema is used by `grid`, `gallery`, and `kanban`. A key not
 applicable to the current type is preserved and ignored. This allows an
 explicit type change and reversal without losing layout intent.
 
+View configuration has two independent classifications. `query.filter` and
+`query.sort` are common functional configuration whose row-set semantics are
+owned by Runtime. Layout keys are either common or renderer-specific. Some
+renderer-specific keys, such as `groupField` and `columnStats`, select a
+Runtime operation, but they remain layout recipes: returned groups and
+aggregate values are generated state and MUST NOT be copied into layout. A UI
+MUST NOT treat "functional versus presentation" as equivalent to "common
+versus View-specific".
+
 Core layout never stores Row IDs, cell/group values, resolved labels,
 selection, scroll, hover, open editor, or collapsed transient groups. Those
 are query results or UI state.
 
-### 8.2 Core keys and defaults
+### 8.2 Configuration registry and defaults
 
-| Key               | Type                             | Default                                | Meaning                                                                             |
-| ----------------- | -------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------- |
-| `fieldOrder`      | unique Field-ID array            | metadata Field position, then Field ID | leading-to-trailing field order                                                     |
-| `hiddenFields`    | unique Field-ID array            | `[]`                                   | fields omitted from the View, never deleted                                         |
-| `fieldWidths`     | Field-ID to number map           | `{}`; missing entry is `1`             | preferred dimensionless relative width, range `0.25..8`                             |
-| `rowDensity`      | `compact\|standard\|comfortable` | `standard`                             | Grid density hint                                                                   |
-| `cardFields`      | unique Field-ID array            | `[]`                                   | ordered secondary fields on Gallery/Kanban cards; Record Label is always the title  |
-| `coverField`      | Field ID or `null`               | `null`                                 | File field used as card cover                                                       |
-| `coverFit`        | `cover\|contain`                 | `cover`                                | semantic cover fitting hint                                                         |
-| `cardSize`        | `small\|medium\|large`           | `medium`                               | semantic card-size hint                                                             |
-| `groupField`      | Field ID or `null`               | `null`                                 | Kanban grouping Field; `null` is an incomplete configuration                        |
-| `showEmptyGroups` | boolean                          | `true`                                 | whether zero-row groups derived from the Field's canonical option catalog are shown |
+The applicability column is normative. An Editor MUST expose the common Field
+layout on every standard View and MUST expose type-specific controls only when
+the key applies. A non-applicable key is preserved but has no rendering or
+request effect.
+
+| Key                   | Type                             | Default                                | Applies to     | Class                        | Meaning                                                                         |
+| --------------------- | -------------------------------- | -------------------------------------- | -------------- | ---------------------------- | ------------------------------------------------------------------------------- |
+| `fieldOrder`          | unique Field-ID array            | metadata Field position, then Field ID | all standard   | common presentation          | leading-to-trailing Field order                                                 |
+| `hiddenFields`        | unique Field-ID array            | `[]`                                   | all standard   | common presentation          | ordinary Fields omitted from the View, never deleted                            |
+| `visibleSystemFields` | unique Field-ID array            | `[]`                                   | all standard   | common presentation          | optional hidden system Fields explicitly shown in this View                     |
+| `fieldWidths`         | Field-ID to number map           | `{}`; missing entry is `1`             | Grid           | Grid presentation            | preferred dimensionless relative width, range `0.25..8`                         |
+| `rowDensity`          | `compact\|standard\|comfortable` | `standard`                             | Grid           | Grid presentation            | semantic row-density hint                                                       |
+| `freezeColumns`       | non-negative integer             | `1`                                    | Grid           | Grid presentation            | count of leading visible Fields kept frozen, clamped to the visible count       |
+| `columnStats`         | Field-ID to `{type}` map         | `{}`                                   | Grid           | Grid functional recipe       | requested per-column aggregate footer; values are generated by Runtime          |
+| `cardFields`          | unique Field-ID array            | `[]`                                   | Gallery/Kanban | Card presentation            | ordered secondary card Fields; Record Label is always the title                 |
+| `coverField`          | Field ID or `null`               | `null`                                 | Gallery/Kanban | Card presentation            | File Field used as card cover                                                   |
+| `coverFit`            | `cover\|contain`                 | `cover`                                | Gallery/Kanban | Card presentation            | semantic cover fitting hint                                                     |
+| `cardSize`            | `small\|medium\|large`           | `medium`                               | Gallery/Kanban | Card presentation            | semantic card-size hint                                                         |
+| `hideEmptyFields`     | boolean                          | `true`                                 | Gallery/Kanban | Card presentation            | omit a configured secondary Field when its logical value is empty               |
+| `groupField`          | Field ID or `null`               | `null`                                 | Kanban         | Kanban functional recipe     | grouping Field; `null` is an incomplete configuration                           |
+| `showEmptyGroups`     | boolean                          | `true`                                 | Kanban         | Kanban presentation/function | show zero-row groups derived from the grouping Field's canonical option catalog |
+
+`columnStats[*].type` is exactly one of `count-all`, `count-non-null`,
+`count-distinct`, `count-empty`, `sum`, `average`, `min`, `max`,
+`relation-value-count`, `relation-row-count`, or
+`relation-distinct-target-count`. UI enables only Runtime-compatible choices
+for the Field, sends the corresponding `AggregateRequest`, and displays only a
+matching revision-bearing result. The aggregate result is never persisted.
+
+An ordinary Field's visibility is controlled by `hiddenFields`. An optional
+system Field's visibility is controlled only by `visibleSystemFields`; placing
+the same system Field in `hiddenFields` has no additional effect. IDs whose
+current Field role does not match the key are preserved and ignored. A
+conforming Editor provides one discoverable Field control for every standard
+View that can show/hide every current configurable Field and update
+`fieldOrder`. It MUST preserve unknown/deleted IDs while editing current
+Fields and MUST expose a recovery path even when the View currently has zero
+visible Fields.
 
 Widths and size tokens do not mandate pixels, a grid library, a breakpoint,
 or a rendering engine. Implementations choose physical presentation while
@@ -1060,11 +1147,29 @@ an explicit layout edit, and reports an advisory diagnostic.
 
 Grid renders visible Fields in `fieldOrder`, followed by remaining visible
 Fields in metadata order. Gallery and Kanban use the Table Record Label as the
-card title and `cardFields` as secondary content. A `coverField` that is
+card title and `cardFields` as secondary content. A `cardFields` member also
+present in `hiddenFields` is omitted. A `coverField` that is
 missing, hidden, non-File, NULL, empty, denied, or unresolved yields a
 non-persisted placeholder. Kanban with `groupField:null` MUST show an
 accessible configuration-required state, not invent a Field. A non-groupable
 Field produces the same state with the Runtime diagnostic.
+
+The common Fields control and Card configuration form a two-stage pipeline,
+not competing visibility controls. Fields owns common View availability
+(`hiddenFields`/`visibleSystemFields`), common `fieldOrder`, and the entry to
+the Field's schema properties. Card configuration owns only card-specific
+content and presentation: `cardFields`, cover, fit, size, and empty-value
+handling. Its Card content chooser offers only Fields currently visible in the
+View, and dragging there changes only `cardFields`. Hiding a Field in Fields
+always wins and Card configuration MUST NOT make it visible again. Unknown or
+temporarily unavailable `cardFields` members remain preserved while editing
+the currently available members.
+
+With `showEmptyGroups:false`, a Kanban omits a catalog group after Runtime has
+authoritatively reported zero rows for the active revision and saved query.
+That option remains a valid move target; a successful move makes the group
+visible. Before counts resolve, omission is provisional UI state and MUST NOT
+be persisted. `freezeColumns` is evaluated after visibility and ordering.
 
 A Kanban move is available only when `groupField` is a writable stored scalar
 and Runtime supplies the destination's exact logical group value. The move is
@@ -1096,6 +1201,10 @@ parsed layout object. The envelope itself is not stored.
           "$ref": "#/$defs/fieldIdArray",
           "default": []
         },
+        "visibleSystemFields": {
+          "$ref": "#/$defs/fieldIdArray",
+          "default": []
+        },
         "fieldWidths": {
           "type": "object",
           "propertyNames": { "$ref": "#/$defs/fieldId" },
@@ -1110,6 +1219,18 @@ parsed layout object. The envelope itself is not stored.
           "enum": ["compact", "standard", "comfortable"],
           "default": "standard"
         },
+        "freezeColumns": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483647,
+          "default": 1
+        },
+        "columnStats": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/fieldId" },
+          "additionalProperties": { "$ref": "#/$defs/columnStat" },
+          "default": {}
+        },
         "cardFields": {
           "$ref": "#/$defs/fieldIdArray",
           "default": []
@@ -1123,6 +1244,7 @@ parsed layout object. The envelope itself is not stored.
           "enum": ["small", "medium", "large"],
           "default": "medium"
         },
+        "hideEmptyFields": { "type": "boolean", "default": true },
         "groupField": {
           "oneOf": [{ "$ref": "#/$defs/fieldId" }, { "type": "null" }],
           "default": null
@@ -1142,6 +1264,28 @@ parsed layout object. The envelope itself is not stored.
       "type": "array",
       "items": { "$ref": "#/$defs/fieldId" },
       "uniqueItems": true
+    },
+    "columnStat": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": [
+            "count-all",
+            "count-non-null",
+            "count-distinct",
+            "count-empty",
+            "sum",
+            "average",
+            "min",
+            "max",
+            "relation-value-count",
+            "relation-row-count",
+            "relation-distinct-target-count"
+          ]
+        }
+      },
+      "additionalProperties": false
     }
   }
 }
@@ -1265,7 +1409,7 @@ display.
 | JSON                                 | structured or textual JSON editor                      | editable stored value after Runtime validation                                           |
 | Select                               | raw option name with catalog color/label decoration    | editable; unconfigured raw names remain selectable/displayable                           |
 | Multi-select                         | ordered raw option-name chips                          | editable; order is preserved                                                             |
-| File                                 | metadata plus Host-resolved preview                    | editable only through `acquireAsset` and a Runtime mutation                              |
+| File                                 | image preview, then type icon, then inert URI fallback | editable only through `acquireAsset` and a Runtime mutation                              |
 | forward Relation                     | ordered target Row IDs with separately resolved labels | editable through a paged target selector                                                 |
 | inverse Relation                     | generated source Row IDs                               | read-only                                                                                |
 | Formula                              | generated declared result                              | read-only; definition belongs to Schema UI                                               |
@@ -1278,6 +1422,18 @@ including Relation selectors. There is no assumed `Title` or `Name` Field.
 Changing the Record Label role is a schema operation. Relation presentation
 MUST update dynamically after the label value or role changes; a resolved
 label MUST never be written back into a Relation cell.
+
+Every user-facing Field-type selector, including create, conversion, CSV
+mapping, and Formula result/display controls, MUST pair the localized type label
+with the same canonical Field-type icon in both its closed trigger and every
+menu row. The icon is supplemental: the visible label and accessible name remain
+required.
+
+Whenever a configured Select or Multi-select option is shown in a Grid editor,
+record surface, filter control, card, group, or other standard UI surface, the
+UI MUST preserve its catalog color decoration and visible option name. A known
+catalog color MUST NOT degrade to text-only presentation. Color is never the
+only carrier of the option value or selection state.
 
 An unresolved Relation item displays its Row ID plus a localized unresolved
 status in its original position. It is not an empty Relation and is never
@@ -1296,9 +1452,37 @@ or offset before submission. The submitted value follows Runtime's canonical
 UTC binding. Locale and timezone choices are UI state unless an extension
 explicitly defines canonical settings.
 
-URL and File content MUST NOT be fetched merely because a cell becomes
-visible. Activation is explicit and subject to Host policy. Image, media, and
-document failures leave the logical File entry visible with a diagnostic.
+An ordinary URL Field remains inert and MUST NOT be fetched merely because a
+cell becomes visible. File presentation follows this deterministic ladder:
+
+1. For an entry whose declared `mediaType` is `image/*`, UI SHOULD request a
+   `thumbnail` lease while the item is on a rendered surface and use the
+   injected `AssetPresenter` to render the returned resource as an image. The
+   request is allowed only when `canUseAssets`, the entry's URI class, current
+   Host policy, byte/decode limits, and concurrent-lease limits permit it.
+   `https:` therefore never causes an unapproved network request; a canonical
+   inline Data URL uses the same Host boundary despite requiring no network.
+   A Canvas-backed Grid uses `AssetPresenter.loadImage`, redraws the affected
+   cell when decoding completes, and releases the lease when the row leaves
+   its bounded render window. It MUST fall back rather than using the
+   canonical URI when this optional presenter method is absent.
+2. While a thumbnail is pending, denied, unsupported, unsafe, over limit, or
+   failed, and for every non-image entry, UI SHOULD show a non-executing icon
+   selected from a trusted mapping of the declared media-type family. It MAY
+   use a filename suffix only as a display hint, never as authority. Unknown
+   types use a generic file icon. Icons do not require asset resolution.
+3. If graphical icon presentation is unavailable, UI MUST show the inert raw
+   `uri` as selectable/copyable text. Every File surface MUST make that URI
+   fallback available through an accessible detail or copy action even when a
+   preview or icon succeeds. Long values MAY be visually elided, but lossless
+   copy exposes the complete string.
+
+The entry `name` remains the primary accessible label throughout the ladder;
+media type and lossless size SHOULD remain discoverable. Open/download is an
+explicit user action: UI requests the corresponding Host lease and passes it
+to `AssetPresenter.activate`. It never navigates to the canonical URI. Preview
+or activation failure leaves the File entry, name, metadata, and URI fallback
+visible with a diagnostic and never mutates the value.
 
 ## 11. Row editing and optimistic state
 
@@ -1489,7 +1673,60 @@ preserves unknown keys. When editing the saved query, it sends Field IDs and
 Runtime logical filter values; it never sends display or physical names.
 Runtime is authoritative for operator/type compatibility and query results.
 
-### 12.4 Formula, Lookup, and Relation definitions
+The common Fields control and the applicable Grid/Card/Kanban controls from
+Section 8 are required Editor surfaces, not optional authoring conveniences.
+Each control commits one revision-checked View mutation, remains usable when
+the current renderer has no rows or no visible Fields, and reflects the latest
+returned View descriptor after success or conflict.
+
+Within the standard workbar query/layout action cluster, controls appear in
+the stable order **Search, Filter, Sort, Fields**. Search is the leftmost
+non-contextual action and Fields immediately follows Sort. Schema creation
+(`+ Property`) and host actions follow that cluster and remain distinct from
+Fields because they create or operate on resources rather than configure the
+active View.
+
+Fields is the single primary Field-browsing surface. Each row has separate,
+unambiguous targets: its visibility checkbox updates View visibility, its drag
+handle updates the applicable Field order, and its name/type target opens
+Field schema properties. Activating one target MUST NOT trigger either of the
+others. Grid column-header property commands MAY remain as contextual
+shortcuts, but an Editor MUST NOT require users to discover a separate
+structure menu to inspect a Field.
+
+### 12.4 Structural ordering interaction
+
+Table, View, and Field ordering use one direct-manipulation interaction model.
+Whenever a product exposes canonical Table `position`, View `position`,
+`fieldOrder`, or `cardFields` ordering, it MUST provide a visibly identifiable
+drag affordance, use the same drag-handle pattern across those surfaces, and
+MUST NOT provide separate **Move up**, **Move down**, up-arrow, or down-arrow
+buttons or menu commands for that structural reorder.
+
+The reorder affordance MUST be keyboard operable. `Space` or `Enter` starts
+and completes a keyboard drag, directional arrow keys choose the insertion
+position while the drag is active, and `Escape` cancels it. The UI announces
+pickup, current position, drop, and cancellation without moving focus. This
+keyboard drag contract is the non-pointer path; an implementation MUST NOT add
+up/down controls as an accessibility fallback.
+
+A one-dimensional reorder list constrains drag feedback to its primary axis.
+In particular, a vertical Field or card-Field reorder MUST NOT introduce a
+horizontal scrollbar, horizontal layout shift, or cross-axis drop position
+while dragging.
+
+The drag result is expressed only with stable IDs. The UI MAY project the
+result optimistically, but it submits one revision-checked atomic mutation (or
+the Runtime-prescribed atomic position-patch set), replaces the projection
+with the returned descriptors after success, and restores the last
+authoritative order on failure or conflict. Filtering a reorder list MUST
+disable dragging unless the UI can preserve every non-visible member exactly.
+
+This rule concerns structural ordering. Ascending/descending saved row-sort
+direction, previous/next search-result navigation, and Kanban Row movement are
+semantic operations and do not become structural reorder controls.
+
+### 12.5 Formula, Lookup, and Relation definitions
 
 A Formula editor shows and submits Runtime `sourceText`, whose references are
 quoted human Field names. Autocomplete inserts the Runtime grammar's escaped
@@ -1580,13 +1817,18 @@ Before calling `close` on a dirty session, UI presents `save`, `discard`, and
 only explicit `discard` proceeds directly to `close`. Dismissal of a window is
 not implicit discard. Recovery discard also requires an explicit user action.
 
-An `AssetLease` contains only `leaseId`, purpose, media type, name, lossless
-int64 decimal-string `size`, expiry, and a presentation-safe opaque URL/token.
+An `AssetLease` contains only `leaseId`, `entryId`, purpose, media type, name,
+lossless int64 decimal-string `size`, expiry, and a presentation-safe opaque
+URL/token.
 The UI MUST enforce the negotiated size and lease limits, release a lease when
 its surface is removed,
 and stop using it after expiry/session close. It MUST NOT turn a File-entry
 URI into a network request, allow active content to inherit application
 origin, or make an asset lease available to another File/session.
+It passes the lease only to the injected `AssetPresenter` (or an exactly
+equivalent platform-native presenter); a reusable UI package MUST NOT use a
+default identity resolver that returns the canonical relative/`https:`/`data:`
+URI as the presentation URL.
 
 `acquireAsset` returns a Host-staged File-entry logical object whose ID was
 allocated by Runtime. UI submits
@@ -1670,8 +1912,10 @@ For Grid:
 
 An active cell editor owns ordinary text-navigation keys and advertises how to
 commit or cancel. Focus MUST remain visible and not be obscured. Gallery and
-Kanban provide equivalent linear keyboard navigation, named groups/cards,
-and non-drag alternatives for every reorder or move operation.
+Kanban provide equivalent linear keyboard navigation and named groups/cards.
+Structural Table/View/Field reorders follow the keyboard drag contract in
+Section 12.4 and MUST NOT add up/down controls. Row or card moves that are not
+structural ordering provide a non-drag alternative.
 
 ### 15.3 Localization and time
 
@@ -2154,11 +2398,18 @@ In addition, every profile MUST test NULL versus empty, unknown View and layout
 preservation, advisory-versus-authoritative validation, cancellation races,
 limit errors, accessible keyboard completion, reduced motion, localized
 format/raw round-trip, permission denial, conflict, recovery, asset expiry,
-and isolated-renderer capability revocation. Editor tests MUST cover atomic
+injected HostServices/AssetPresenter use, image-thumbnail to media-icon to
+lossless-URI fallback for relative/`https:`/`data:` entries, zero direct URI
+fetch/navigation, and isolated-renderer capability revocation. Editor tests MUST cover atomic
 paste, delete/undo, stale conflict, and all three Host commit-reconciliation
 outcomes; they assert zero reads/retries on the fatal old RuntimeClient and a
 complete negotiation/snapshot/schema bootstrap of each returned replacement
-client. Schema tests MUST cover all four conversion classifications,
+client. Editor tests also cover pointer and keyboard drag completion for
+Table, View, `fieldOrder`, and `cardFields` ordering, with no structural
+up/down controls present; common Field visibility/order in Grid,
+Gallery, and Kanban; every type-specific key in Section 8.2; preservation of
+non-applicable and unknown keys across type changes; and generated aggregate
+or group results never entering layout. Schema tests MUST cover all four conversion classifications,
 dependency paging/display, display-name-only rename, and plan expiry.
 
 ## 18. References
@@ -2170,6 +2421,10 @@ The references below directly support requirements used here:
 - [Eidos Adapter 1.0](./eidos-adapter-1.0.md)
 - [RFC 2119](https://www.rfc-editor.org/rfc/rfc2119) and
   [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174) — normative terminology
+- [RFC 2397](https://www.rfc-editor.org/rfc/rfc2397) — inline Data URLs and
+  their media-type security boundary
+- [RFC 6454](https://www.rfc-editor.org/rfc/rfc6454) — origin isolation for
+  non-server-based URIs
 - [JSON Schema Draft 2020-12 Core](https://json-schema.org/draft/2020-12/json-schema-core)
   and [Validation](https://json-schema.org/draft/2020-12/json-schema-validation)
 - [WCAG 2.2](https://www.w3.org/TR/WCAG22/) — accessibility conformance

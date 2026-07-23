@@ -172,8 +172,8 @@ when the original source is read-only; they MAY require Save Copy.
     "writerLease": "exclusive",
     "atomicReplace": true,
     "durability": "durable",
-    "assetReadSchemes": ["relative"],
-    "assetWriteSchemes": ["relative"]
+    "assetReadSchemes": ["relative", "data"],
+    "assetWriteSchemes": ["relative", "data"]
   },
   "publicationLimits": {
     "sourceBytesMax": "10737418240",
@@ -1153,12 +1153,15 @@ or disclosed expiry. It never enters `.eidos` canonical state.
 
 ### 8.7 Assets
 
-Asset bytes referenced by canonical File-field URIs are outside SQLite bytes.
-Capabilities list readable/writable URI schemes. Network is disabled by
-default and requires explicit Host policy/permission. `acquireAsset` returns a
-scoped lease, not ambient path/network access. Adapter MUST prevent traversal,
-symlink/origin escape, credential escalation; enforce byte/time/media limits;
-treat media type/filename as untrusted; release handles/object URLs; and never
+File Format Section 8.3 has no attachment store. Relative and `https:`
+File-entry URIs refer to bytes outside SQLite. A canonical `data:` inline image
+is the narrow exception: its bytes are already inside the URI text, but the UI
+still accesses them only through the same scoped asset flow. Capabilities list
+readable/writable URI schemes. Network is disabled by default and requires
+explicit Host policy/permission. `acquireAsset` returns a scoped lease, not
+ambient path/network access. Adapter MUST prevent traversal, symlink/origin
+escape, credential escalation; enforce byte/time/media/decode limits; treat
+media type/filename as untrusted; release handles/object URLs; and never
 rewrite canonical URI due only to platform path change.
 
 The capability token `relative` means a File URI without an
@@ -1168,7 +1171,30 @@ root. Every other token is a lowercase RFC 3986 scheme matching
 `[a-z][a-z0-9+.-]*`, for example `https`. `assets` is a path segment, not a
 scheme token. Listing `https` or another network scheme is an explicit
 capability declaration but still requires per-Host authorization. Writers
-normally declare only `relative`.
+normally declare `relative`, adding `data` only when they intentionally support
+the bounded inline-image representation.
+
+The `data` token means the Host can validate and resolve canonical inline-image
+Data URLs. It does not authorize other Data URLs. A resolving Host MUST verify
+the File entry's declared media type and size against the Data URL, reject
+non-canonical Base64, enforce the 1 MiB decoded format limit before allocation,
+and return a purpose-scoped presentation token without exposing decoded bytes
+to UI code. Inline SVG and every format with active features follow the same
+isolation policy as externally referenced content.
+
+For `relative`, the scoped asset root represents the directory containing the
+opened `.eidos` source or an explicitly equivalent directory grant. A Host
+without that root reports the entry unavailable and omits `relative` from
+`assetReadSchemes`; it MUST NOT fall back to the web application origin,
+process current directory, download directory, or a guessed sibling path.
+Percent-decoding, dot-segment removal, symlink checks, and final containment
+all occur before opening bytes.
+
+On asset import, Host policy chooses the canonical representation before it
+calls Runtime `allocateFileEntry`: normally a relative external reference, or
+an inline Data URL only for an image within the format limit when `data` is
+listed in `assetWriteSchemes`. UI neither chooses storage placement nor creates
+the URI.
 
 When one operation changes assets and database, Host stages assets first,
 publishes database only after required assets are durable, and retains a
@@ -2880,7 +2906,8 @@ validation; short write, disk/quota, flush, close, replace, digest mismatch;
 crash before/after recovery/during write/after replace/before recovery delete;
 new/existing Save Copy; rename/replacement/symlink/deletion/restore; clean
 reload vs dirty conflict; recovery order/expiry/discard/restore; asset traversal,
-unauthorized network, limits, staging, release.
+missing relative root, unauthorized network, canonical/invalid Data URLs,
+media-type/decoded-size mismatch, limits, staging, release.
 
 Source transcripts additionally assert at most one live SourceSnapshot,
 immutable token-consistent reads, `finally` release on import/validation
@@ -2964,6 +2991,8 @@ is an atomic filesystem rename.
 - [RFC 8174](https://www.rfc-editor.org/rfc/rfc8174)
 - [RFC 9562: Universally Unique IDentifiers](https://www.rfc-editor.org/rfc/rfc9562)
 - [RFC 3986: Uniform Resource Identifier](https://www.rfc-editor.org/rfc/rfc3986)
+- [RFC 2397: The `data` URL scheme](https://www.rfc-editor.org/rfc/rfc2397)
+- [RFC 4648: Base-N encodings](https://www.rfc-editor.org/rfc/rfc4648)
 - [RFC 6901: JavaScript Object Notation Pointer](https://www.rfc-editor.org/rfc/rfc6901)
 - [RFC 8785: JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785)
 - [JSON Schema 2020-12 Core](https://json-schema.org/draft/2020-12/json-schema-core)

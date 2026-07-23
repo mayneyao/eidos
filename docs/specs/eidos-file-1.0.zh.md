@@ -621,6 +621,12 @@ BEGIN SELECT RAISE(ABORT,'EIDOS_ROW_ID_IMMUTABLE'); END;
 | `formula`          | 无列            | `eidos__formula_fields` definition  |
 | `lookup`           | 无列            | `eidos__lookup_fields` definition   |
 
+本表只定义 File storage。mutation、filter、sort、group、search、whole-cell
+aggregate、semantic summary、Formula/Lookup、Record Label、CSV 与 UI/Adapter
+ownership 的唯一规范性跨层总览，是 Eidos Runtime 1.0 第 5.2 节 Field capability
+matrix。`.eidos` matrix 样本或文档中的 rendered embed 只是说明性材料，MUST NOT
+替代任一规范性表格。
+
 `created-time`、`updated-time`、所有 metadata `created_at`/`updated_at` 以及 user
 table `_created_at`/`_updated_at` 都使用 canonical instant TEXT。portable Writer 使用
 `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`；实现也可以从 Runtime Clock port bind 等价的
@@ -762,10 +768,51 @@ File value 是有序的 canonical JSON array：
 每个 object 必须有 UUIDv7 `id`、非空 `name`、RFC 6838 `mediaType`、`uri`，以及唯一
 表示为 non-negative int64 canonical decimal string 的 `size`。size string 只能是
 `"0"`，或从 `1..9` 开始后接零个或多个 ASCII digits，数值最多
-`9223372036854775807`；JSON number 不合法。未知 object member 必须保留。relative URI
-以 `.eidos` 所在目录为基准并使用 `/`，不能是 absolute，也不能通过 `..` 越界；可以
-使用 `https` URI。binary bytes 不复制进 SQLite cell；存在性、授权、上传、下载、解析与
-回收归 Adapter。
+`9223372036854775807`；JSON number 不合法。未知 object member 必须保留。这五个必需
+member 是 metadata 加一个资源引用，不会在 SQLite 中建立 attachment object store。
+
+core 1.0 的 File-entry URI 只允许以下三类：
+
+1. `assets/diagram.png` 这样的 relative URI-reference；
+2. absolute `https:` URI；
+3. canonical inline image Data URL。
+
+relative reference 使用 `/`，没有 scheme/authority，以 `.eidos` 所在目录为基准；经过
+percent-decode 和 dot-segment removal 后也不能是 absolute 或越出该目录。Reader/Writer
+不得把它改为相对 process working directory、application origin、web-page base URL 或
+另一份 File 解析。`.eidos` 与 relative assets 一起移动时 reference 保持有效；只移动
+`.eidos` 可能使资源 unresolved，但不会让 canonical value 本身失效。
+
+inline image URI 的 exact form 是：
+
+```text
+data:<mediaType>;base64,<payload>
+```
+
+例如，以下 entry 自包含一个 68-octet PNG，不存在 separate asset：
+
+```json
+{
+  "id": "0198c6b9-c9a3-7cb9-82d0-dfb39d51c45f",
+  "mediaType": "image/png",
+  "name": "dot.png",
+  "size": "68",
+  "uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+}
+```
+
+scheme 与 `base64` marker 为 lowercase。`<mediaType>` 是与 entry `mediaType` member
+完全相同的 ASCII-lowercase `image/*` type，不允许 Data-URL media-type parameter。
+`<payload>` 使用 standard alphabet 的 canonical padded RFC 4648 Base64，不能有 whitespace
+或 non-alphabet character。decode 后长度必须等于 decimal `size`，至少一个 octet，最多
+1,048,576 octets；完整 JSON cell 仍受第 19 节 16 MiB limit 约束。`image/svg+xml` 可以
+作为 stored data，但不授权 unsandboxed inline rendering。
+
+relative/`https:` entry 的 referenced bytes 在 SQLite 外，不能再复制到 SQLite BLOB、
+hidden attachment table 或第二份 canonical value。Data URL 是刻意收窄的唯一例外：
+decoded image bytes 只在 canonical `uri` string 中嵌入一次，也不能在 File 内另存副本。
+存在性、授权、上传、下载、解析、preview generation 与 external-asset garbage collection
+归 Adapter；rendering 归 UI。
 
 ### 8.4 Stored type change
 
@@ -1230,9 +1277,11 @@ elements；一个 canonical JSON cell 为 16 MiB。
 
 第 7 节更小的 DDL limits 同时生效。1.0 不规定 total file/row limit；Adapter/Runtime
 advertise 可更低的 operational limits，超限必须 bounded error，不能 partial read。
-URI validation 不授予 fetch/reveal/write 权限；relative File URI 不能逃逸文件目录。
-authorizer、defensive mode、busy/deadline、Worker isolation、permission 与 asset
-authorization 归 Adapter。
+URI validation 不授予 fetch/reveal/decode-for-display/write 权限；relative File URI
+不能逃逸 File 的 scoped asset root。Data URL 即使没有 network location 也仍是
+untrusted active input；media type、Base64、decoded size、decoder cost 与 presentation
+isolation 都必须受限。authorizer、defensive mode、busy/deadline、Worker isolation、
+permission 与 asset authorization 归 Adapter。
 
 ## 20. Extension 与 versioning
 
@@ -1295,7 +1344,10 @@ shared fixtures/executable SQL 至少覆盖：
   exhausted fallback、case-only Table rename 与全部 reserved fallback/rename；
 - ordinary STRICT rowid 与 `STRICT, WITHOUT ROWID`；
 - exact subtype/`nullable` matrix 与每个 stored Field 的 boundary raw value，包括
-  int64/binary64 extrema、negative-zero normalization、NULL/empty 与 File objects；
+  int64/binary64 extrema、negative-zero normalization、NULL/empty 与 File objects；File
+  vectors 必须覆盖 valid/unresolved relative 与 `https:` reference、canonical inline
+  image、Base64 alphabet/padding/size/media-type mismatch negative、percent-decode 后
+  traversal，以及 1 MiB inline-image boundary；
 - Select 无 Option ID、unconfigured value、Multi-select ordered unique strings；
 - Relation shape/cardinality、distinct INSERT/UPDATE validator names、inverse lifecycle、
   immutable Row ID 与 self/cycle/multi-row set-based restrict/detach/preserve；
@@ -1458,6 +1510,8 @@ reverse index 被推荐且可随时丢弃。
 - [BCP 14](https://www.rfc-editor.org/info/bcp14)
 - [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339)
 - [RFC 3986](https://www.rfc-editor.org/rfc/rfc3986)
+- [RFC 2397：`data` URL scheme](https://www.rfc-editor.org/rfc/rfc2397)
+- [RFC 4648：Base-N encodings](https://www.rfc-editor.org/rfc/rfc4648)
 - [RFC 6838](https://www.rfc-editor.org/rfc/rfc6838)
 - [RFC 7493 — I-JSON](https://www.rfc-editor.org/rfc/rfc7493)
 - [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259)
