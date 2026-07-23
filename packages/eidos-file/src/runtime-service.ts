@@ -3519,6 +3519,14 @@ function runtimeQueryToCompatibility(query: RowQuery) {
   }
 }
 
+function runtimeListElementType(type: TypeRef): AtomicType | undefined {
+  if (typeof type === "object") return type.element
+  if (type === "multi-select") return "select"
+  if (type === "relation") return "row-id"
+  if (type === "file") return "file-entry"
+  return undefined
+}
+
 function assertRuntimeRowQuery(
   fields: ReturnType<EidosFileRuntime["listFields"]>,
   query: RowQuery
@@ -3637,12 +3645,13 @@ function assertRuntimeRowQuery(
       return
     }
     if (node.op === "has-any" || node.op === "has-all") {
+      const elementType = runtimeListElementType(type)
       if (
-        typeof type === "string" ||
+        !elementType ||
         !Array.isArray(node.values) ||
         !node.values.every(
           (value) =>
-            value !== null && logicalValueMatchesType(value, type.element)
+            value !== null && logicalValueMatchesType(value, elementType)
         )
       ) {
         throw runtimeError("invalid-query", "List Filter operand is invalid")
