@@ -14,6 +14,7 @@ import {
 } from "../eidos-file-field-visibility"
 import { EidosFileGalleryView } from "../eidos-file-gallery-view"
 import { eidosFileRecordCardPageProjection } from "../eidos-file-record-card-layout"
+import { searchEidosFileRelationRecords } from "../eidos-file-relation-search"
 import { defineEidosFilePlugin } from "../plugin"
 
 function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
@@ -60,6 +61,11 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
     },
     [onMutation, source, table.table.id]
   )
+  const searchRelation = useCallback(
+    (field: EidosFileFieldInfo, relationQuery: string) =>
+      searchEidosFileRelationRecords(source, field, relationQuery),
+    [source]
+  )
 
   if (!view) return null
   return (
@@ -76,6 +82,7 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
       }
       onCellEdit={editCell}
       onDeleteRow={onDeleteRow}
+      onSearchRelation={searchRelation}
       onError={onError}
       sidePanel={
         props.propertyField ? (

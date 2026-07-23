@@ -5,6 +5,7 @@ import type {
   EidosFileSqlPrimitive,
 } from "@eidos.space/eidos-file"
 import {
+  canonicalizeEidosFileJson,
   decodeEidosFileMultiSelectValues,
   encodeEidosFileMultiSelectValues,
 } from "@eidos.space/eidos-file"
@@ -69,6 +70,16 @@ export function EidosFileRecordFieldEditor({
     if (field.type === "number" || field.type === "rating") {
       const number = Number(draft)
       next = draft.trim().length > 0 && Number.isFinite(number) ? number : null
+    } else if (field.type === "integer" && draft.trim().length > 0) {
+      next = /^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/.test(draft.trim())
+        ? BigInt(draft.trim())
+        : draft
+    } else if (field.type === "json" && draft.trim().length > 0) {
+      try {
+        next = canonicalizeEidosFileJson(JSON.parse(draft))
+      } catch {
+        next = draft
+      }
     } else if (field.type === "datetime" && draft) {
       const date = new Date(draft)
       next = Number.isNaN(date.getTime()) ? null : date.toISOString()
@@ -189,14 +200,18 @@ export function EidosFileRecordFieldEditor({
     )
   }
 
-  if (field.type === "text") {
+  if (field.type === "text" || field.type === "json") {
     return (
       <Textarea
         value={draft}
-        rows={field.isRecordLabel ? 1 : 3}
+        rows={field.isRecordLabel ? 1 : field.type === "json" ? 5 : 3}
         aria-label={field.name}
         disabled={disabled}
-        className="min-h-8 resize-y text-xs"
+        className={
+          field.type === "json"
+            ? "min-h-24 resize-y font-mono text-xs"
+            : "min-h-8 resize-y text-xs"
+        }
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commitDraft}
         onKeyDown={(event) => {
@@ -211,6 +226,7 @@ export function EidosFileRecordFieldEditor({
   const supportedInput = new Set([
     "url",
     "number",
+    "integer",
     "rating",
     "date",
     "datetime",
@@ -221,15 +237,18 @@ export function EidosFileRecordFieldEditor({
         type={
           field.type === "number" || field.type === "rating"
             ? "number"
-            : field.type === "date"
-              ? "date"
-              : field.type === "datetime"
-                ? "datetime-local"
-                : "url"
+            : field.type === "integer"
+              ? "text"
+              : field.type === "date"
+                ? "date"
+                : field.type === "datetime"
+                  ? "datetime-local"
+                  : "url"
         }
         value={draft}
         aria-label={field.name}
         disabled={disabled}
+        inputMode={field.type === "integer" ? "numeric" : undefined}
         className="h-8 text-xs"
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commitDraft}

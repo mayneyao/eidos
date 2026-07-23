@@ -415,7 +415,7 @@ export function EidosFileRecordInspector({
                 >
                   {eidosFileFieldDisplayName(field)}
                 </p>
-                {onCellEdit && field.type === "file" && onImportFiles ? (
+                {onCellEdit && field.type === "file" ? (
                   <EidosFileRecordAttachmentEditor
                     value={currentRow[field.tableColumnName]}
                     disabled={editorDisabled}

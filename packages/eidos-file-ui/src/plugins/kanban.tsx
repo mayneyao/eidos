@@ -14,6 +14,7 @@ import {
   isEidosFileRecordLabelField,
 } from "../eidos-file-field-visibility"
 import { eidosFileRecordCardPageProjection } from "../eidos-file-record-card-layout"
+import { searchEidosFileRelationRecords } from "../eidos-file-relation-search"
 import { eidosFileViewGroupFilter } from "../eidos-file-view-query"
 import { defineEidosFilePlugin } from "../plugin"
 
@@ -47,6 +48,11 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
       return result
     },
     [onMutation, source, table.table.id]
+  )
+  const searchRelation = useCallback(
+    (field: EidosFileFieldInfo, relationQuery: string) =>
+      searchEidosFileRelationRecords(source, field, relationQuery),
+    [source]
   )
   const addRow = useCallback(
     async (field: EidosFileFieldInfo, value: string | null, title: string) => {
@@ -107,6 +113,7 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
       onCellEdit={editCell}
       onAddRow={addRow}
       onDeleteRow={onDeleteRow}
+      onSearchRelation={searchRelation}
       onError={onError}
       sidePanel={
         props.propertyField ? (

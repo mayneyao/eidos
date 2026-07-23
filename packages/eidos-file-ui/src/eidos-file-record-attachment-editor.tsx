@@ -23,7 +23,7 @@ export function EidosFileRecordAttachmentEditor({
   value: EidosFileRow[string]
   disabled: boolean
   onChange: (value: string | null) => Promise<void>
-  onImportFiles: () => Promise<FileEntry[]>
+  onImportFiles?: () => Promise<FileEntry[]>
   onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
   onError?: (error: unknown) => void
 }) {
@@ -45,7 +45,7 @@ export function EidosFileRecordAttachmentEditor({
   }
 
   const chooseFiles = async () => {
-    if (disabled || importing) return
+    if (disabled || importing || !onImportFiles) return
     setImporting(true)
     try {
       await append(await onImportFiles())
@@ -124,21 +124,23 @@ export function EidosFileRecordAttachmentEditor({
       ) : (
         <p className="px-1 text-xs text-muted-foreground">{t("No files")}</p>
       )}
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-7 justify-start gap-1.5 px-1.5 text-[11px] text-muted-foreground"
-        disabled={disabled || importing}
-        onClick={() => void chooseFiles()}
-      >
-        {importing ? (
-          <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
-        ) : (
-          <Plus className="h-3.5 w-3.5" />
-        )}
-        {importing ? t("Importing…") : t("Add files")}
-      </Button>
+      {onImportFiles ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 justify-start gap-1.5 px-1.5 text-[11px] text-muted-foreground"
+          disabled={disabled || importing}
+          onClick={() => void chooseFiles()}
+        >
+          {importing ? (
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+          ) : (
+            <Plus className="h-3.5 w-3.5" />
+          )}
+          {importing ? t("Importing…") : t("Add files")}
+        </Button>
+      ) : null}
     </div>
   )
 }
