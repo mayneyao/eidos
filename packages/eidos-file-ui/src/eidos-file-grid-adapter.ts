@@ -247,10 +247,11 @@ export function eidosFileValueToGridCell(
   ) {
     const date = dateValue(value)
     const dateOnly = field.type === "date"
+    const cellReadonly = readonly || isOptionalEidosFileSystemField(field)
     return {
       kind: GridCellKind.Custom,
-      allowOverlay: true,
-      readonly: readonly || isOptionalEidosFileSystemField(field),
+      allowOverlay: !cellReadonly,
+      readonly: cellReadonly,
       copyData: typeof value === "string" ? value : "",
       data: {
         kind: "date-picker-cell",

@@ -206,6 +206,22 @@ describe("EidosFileViewFieldsPopover", () => {
     })
   })
 
+  it("does not expose field-property editing for system fields", async () => {
+    expect(
+      document.body.querySelector(
+        `button[data-eidos-file-field-properties="${fields[2]!.id}"]`
+      )
+    ).toBeNull()
+    expect(
+      document.body.querySelector(
+        `[data-eidos-file-system-field="${fields[2]!.id}"]`
+      )?.textContent
+    ).toContain("Created time")
+
+    await clickButton("Edit Created time properties")
+    expect(onFieldOpen).not.toHaveBeenCalled()
+  })
+
   it("opens field properties from the field name without changing visibility", async () => {
     await clickButton("Edit Assets properties")
     expect(onFieldOpen).toHaveBeenCalledWith(fields[1])

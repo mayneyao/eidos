@@ -391,7 +391,7 @@ export function EidosFileViewFieldsPopover({
                         }
                       />
                     </label>
-                    {onFieldOpen ? (
+                    {onFieldOpen && field.valueKind !== "system" ? (
                       <button
                         type="button"
                         className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded px-1 text-xs outline-hidden hover:bg-background/70 focus-visible:ring-1 focus-visible:ring-ring"
@@ -411,7 +411,12 @@ export function EidosFileViewFieldsPopover({
                         <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
                       </button>
                     ) : (
-                      <div className="flex h-7 min-w-0 flex-1 items-center gap-2 px-1 text-xs">
+                      <div
+                        className="flex h-7 min-w-0 flex-1 items-center gap-2 px-1 text-xs"
+                        data-eidos-file-system-field={
+                          field.valueKind === "system" ? fieldId : undefined
+                        }
+                      >
                         {fieldSummary}
                       </div>
                     )}

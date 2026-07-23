@@ -88,6 +88,7 @@ export function EidosFileFieldPropertyPanel({
   const skipNameCommitRef = useRef(false)
   const [error, setError] = useState<string | null>(null)
   const nameId = useId()
+  const systemReadOnly = field.valueKind === "system"
   const numberProperty = useMemo(() => eidosFileNumberProperty(field), [field])
   const mutable =
     field.valueKind === "source" &&
@@ -160,6 +161,11 @@ export function EidosFileFieldPropertyPanel({
   const busy = disabled || pendingUpdate
 
   const saveName = () => {
+    if (systemReadOnly) {
+      setName(field.name)
+      setError(null)
+      return
+    }
     if (skipNameCommitRef.current) {
       skipNameCommitRef.current = false
       return
@@ -272,7 +278,7 @@ export function EidosFileFieldPropertyPanel({
             <Input
               id={nameId}
               value={name}
-              disabled={busy}
+              disabled={busy || systemReadOnly}
               className="h-8 text-xs"
               onChange={(event) => setName(event.target.value)}
               onBlur={saveName}

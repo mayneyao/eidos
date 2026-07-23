@@ -738,6 +738,7 @@ describe("EidosFileGrid", () => {
   })
 
   it("keeps visible system fields read-only in the field menu", async () => {
+    const onCellEdit = createCellEdit()
     const systemTable: EidosFileTableSnapshot = {
       ...table,
       fields: [
@@ -772,9 +773,26 @@ describe("EidosFileGrid", () => {
         <EidosFileGrid
           table={systemTable}
           view={systemTable.views[0]}
-          loadPage={createLoadPage()}
+          loadPage={vi.fn(async (offset: number, limit: number) => ({
+            tableId: systemTable.table.id,
+            offset,
+            limit,
+            total: systemTable.rowCount,
+            rows: Array.from(
+              {
+                length: Math.min(
+                  limit,
+                  Math.max(0, systemTable.rowCount - offset)
+                ),
+              },
+              (_, index) => ({
+                ...rowAt(offset + index),
+                _created_time: "2026-07-14T08:30:00.000Z",
+              })
+            ),
+          }))}
           onAddRow={vi.fn()}
-          onCellEdit={createCellEdit()}
+          onCellEdit={onCellEdit}
           onPropertyFieldOpen={vi.fn()}
           onDeleteField={vi.fn()}
         />
@@ -799,6 +817,22 @@ describe("EidosFileGrid", () => {
       menuButtons.find((button) => button.textContent?.includes("Delete field"))
         ?.disabled
     ).toBe(true)
+
+    await act(async () => {
+      mocks.props?.onCellEdited?.([2, 0], {
+        kind: GridCellKind.Custom,
+        allowOverlay: true,
+        copyData: "2027-01-01T00:00:00.000Z",
+        data: {
+          kind: "date-picker-cell",
+          date: new Date("2027-01-01T00:00:00.000Z"),
+          displayDate: "1/1/2027, 12:00:00 AM",
+          format: "datetime-local",
+        },
+      })
+      await Promise.resolve()
+    })
+    expect(onCellEdit).not.toHaveBeenCalled()
   })
 
   it("persists sort, insertion, and freeze commands from the field menu", async () => {

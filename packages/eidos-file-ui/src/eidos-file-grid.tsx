@@ -955,7 +955,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       } of edits) {
         const field = fields[columnIndex]
         const row = rowsRef.current.get(rowIndex)
-        if (!field || !row) continue
+        if (!field || !row || field.valueKind === "system") continue
         const nextValue = gridCellToEidosFileValue(field, newValue)
         const group = grouped.get(rowIndex) ?? {
           rowIndex,

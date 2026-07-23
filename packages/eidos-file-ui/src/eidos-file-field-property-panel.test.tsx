@@ -649,7 +649,8 @@ describe("EidosFileFieldPropertyPanel", () => {
     expect(container.textContent).not.toContain("Bar maximum")
   })
 
-  it("shows immutable system field types without an empty selector", async () => {
+  it("keeps all system field properties read-only", async () => {
+    const onUpdate = vi.fn()
     await act(async () => {
       root.render(
         <EidosFileFieldPropertyPanel
@@ -662,7 +663,7 @@ describe("EidosFileFieldPropertyPanel", () => {
           }}
           disabled={false}
           onClose={vi.fn()}
-          onUpdate={vi.fn()}
+          onUpdate={onUpdate}
           onDelete={vi.fn()}
         />
       )
@@ -670,6 +671,15 @@ describe("EidosFileFieldPropertyPanel", () => {
 
     expect(container.textContent).toContain("row id")
     expect(container.textContent).not.toContain("Delete field")
+    const nameInput = container.querySelector<HTMLInputElement>(
+      'input[value="Row ID"]'
+    )
+    expect(nameInput?.disabled).toBe(true)
+    await act(async () => {
+      nameInput?.dispatchEvent(new Event("blur", { bubbles: true }))
+      await Promise.resolve()
+    })
+    expect(onUpdate).not.toHaveBeenCalled()
   })
 
   it("shows a Relation target by table name and keeps identifiers collapsed", async () => {

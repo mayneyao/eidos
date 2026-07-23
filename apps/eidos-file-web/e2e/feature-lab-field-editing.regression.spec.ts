@@ -241,6 +241,65 @@ test("edits every writable Feature Lab field through the Chromium editor", async
   expect(pageErrors).toEqual([])
 })
 
+test("keeps system fields read-only in the unified field manager", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the production Grid field manager"
+  )
+  await installFallbackMode(page)
+
+  await page.goto("/")
+  await page.getByRole("button", { name: "Choose a template" }).click()
+  await page
+    .getByRole("button", { name: "Open Eidos 1.0 Feature Lab template" })
+    .click()
+  await page.getByRole("tab", { name: "Grid", exact: true }).click()
+  await page
+    .locator("[data-eidos-file-workbar-actions]")
+    .getByRole("button", { name: "Manage fields" })
+    .click()
+
+  const systemFields = page.locator("[data-eidos-file-system-field]")
+  await expect(systemFields).toHaveCount(3)
+  await expect(systemFields).toContainText([
+    "Record ID",
+    "_created_at",
+    "_updated_at",
+  ])
+  await expect(
+    page.getByRole("button", { name: /Edit Record ID properties/ })
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole("button", { name: /Edit _created_at properties/ })
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole("button", { name: /Edit _updated_at properties/ })
+  ).toHaveCount(0)
+
+  const recordIdVisibility = page.getByRole("checkbox", {
+    name: "Show Record ID",
+  })
+  await page
+    .locator("[data-eidos-file-view-fields-list] label")
+    .filter({ has: recordIdVisibility })
+    .click()
+  await expect(recordIdVisibility).toBeChecked()
+  await page
+    .locator("[data-eidos-file-workbar-actions]")
+    .getByRole("button", { name: "Manage fields" })
+    .click()
+  await page
+    .locator("[data-eidos-file-workbar-actions]")
+    .getByRole("button", { name: "Manage fields" })
+    .click()
+  await expect(
+    page.getByRole("checkbox", { name: "Show Record ID" })
+  ).toBeChecked()
+})
+
 test("replaces a Formula expression after inserting a function", async ({
   page,
   browserName,

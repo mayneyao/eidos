@@ -361,6 +361,7 @@ describe("Eidos File Grid adapter", () => {
       eidosFileValueToGridCell(createdTime, "2026-07-14 08:30:00")
     ).toMatchObject({
       kind: GridCellKind.Custom,
+      allowOverlay: false,
       readonly: true,
       data: { kind: "date-picker-cell", format: "datetime-local" },
     })

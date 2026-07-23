@@ -1028,6 +1028,9 @@ test("persists a Grid multi-select edit when its popover closes", async ({
   }
   await expect(signalsVisibility).toBeChecked()
   await page.getByRole("textbox", { name: "Search fields" }).fill("")
+  await expect(
+    page.getByRole("checkbox", { name: "Show Experiment" })
+  ).toBeVisible()
   const visibleFieldNames = await page
     .locator("[data-eidos-file-view-fields-list]")
     .getByRole("checkbox")

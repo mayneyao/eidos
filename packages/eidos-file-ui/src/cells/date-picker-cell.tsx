@@ -207,34 +207,41 @@ const renderer: CustomRenderer<DatePickerCell> = {
     drawTextCell(args, displayDate, cell.contentAlign)
     return true
   },
-  provideEditor: () => (p) => {
-    const cellData = p.value.data
-    const { format, date } = cellData
+  provideEditor: (cell) => {
+    if (cell.readonly === true) {
+      return undefined
+    }
+    return (p) => {
+      const cellData = p.value.data
+      const { format, date } = cellData
 
-    const handleFinishedEditing = (finalDate: Date | undefined) => {
-      const newCell = {
-        ...p.value,
-        data: {
-          ...p.value.data,
-          date: finalDate,
-          displayDate: finalDate ? formatDateForDisplay(finalDate, format) : "",
-        },
+      const handleFinishedEditing = (finalDate: Date | undefined) => {
+        const newCell = {
+          ...p.value,
+          data: {
+            ...p.value.data,
+            date: finalDate,
+            displayDate: finalDate
+              ? formatDateForDisplay(finalDate, format)
+              : "",
+          },
+        }
+        p.onFinishedEditing(newCell, [0, 1])
       }
-      p.onFinishedEditing(newCell, [0, 1])
-    }
 
-    const handleCancelEditing = () => {
-      p.onFinishedEditing(undefined, [0, 0])
-    }
+      const handleCancelEditing = () => {
+        p.onFinishedEditing(undefined, [0, 0])
+      }
 
-    return (
-      <DatePickerEditor
-        format={format}
-        date={date}
-        onFinishedEditing={handleFinishedEditing}
-        onCancelEditing={handleCancelEditing}
-      />
-    )
+      return (
+        <DatePickerEditor
+          format={format}
+          date={date}
+          onFinishedEditing={handleFinishedEditing}
+          onCancelEditing={handleCancelEditing}
+        />
+      )
+    }
   },
   onPaste: (v, d) => {
     const format = d.format ?? "date"
@@ -253,6 +260,9 @@ const renderer: CustomRenderer<DatePickerCell> = {
     }
   },
   onDelete: (d) => {
+    if (d.readonly === true) {
+      return undefined
+    }
     return {
       ...d,
       data: {
