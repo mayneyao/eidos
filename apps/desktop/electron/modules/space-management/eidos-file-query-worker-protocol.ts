@@ -26,7 +26,7 @@ export interface EidosFileRowWorkerRequest extends EidosFileQueryWorkerRequestEi
 
 export interface EidosFileGroupCountsWorkerRequest extends EidosFileQueryWorkerRequestEidosFile {
   operation: "group-counts"
-  columnName: string
+  fieldId: string
   query: EidosFileRowQuery
 }
 

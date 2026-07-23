@@ -104,12 +104,19 @@ try {
   if (
     response.result.importedRowCount !== 2 ||
     rows.length !== 2 ||
-    rows[0].quantity !== 3 ||
+    rows[0].Quantity !== 3 ||
     !progress.some((entry) => entry.phase === "analyzing") ||
     !progress.some((entry) => entry.phase === "importing") ||
     !progress.some((entry) => entry.phase === "finalizing")
   ) {
-    throw new Error("Eidos File CSV worker smoke verification failed")
+    throw new Error(
+      `Eidos File CSV worker smoke verification failed: ${JSON.stringify({
+        result: response.result,
+        firstRow: rows[0],
+        rowCount: rows.length,
+        progress: progress.map((entry) => entry.phase),
+      })}`
+    )
   }
 
   const canceledSourcePath = path.join(root, "cancel.csv")

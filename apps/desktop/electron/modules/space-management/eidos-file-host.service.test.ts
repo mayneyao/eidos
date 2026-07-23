@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import type { FileEntry } from "@eidos.space/eidos-file"
 
 const harness = vi.hoisted(() => ({
   instances: [] as Array<{
@@ -12,6 +13,8 @@ const harness = vi.hoisted(() => ({
     export: ReturnType<typeof vi.fn>
     close: ReturnType<typeof vi.fn>
     terminate: ReturnType<typeof vi.fn>
+    allocateFileEntry: ReturnType<typeof vi.fn>
+    findFileEntry: ReturnType<typeof vi.fn>
   }>,
   runtime: {
     mutateRows: vi.fn(),
@@ -34,6 +37,11 @@ vi.mock("./eidos-file-runtime-worker-client", () => ({
     export = vi.fn(async () => harness.candidate.slice())
     close = vi.fn(async () => undefined)
     terminate = vi.fn(async () => undefined)
+    allocateFileEntry = vi.fn(async (entry) => ({
+      id: "019f8a00-0000-7000-8000-000000000099",
+      ...entry,
+    }))
+    findFileEntry = vi.fn()
 
     constructor(readonly workerData: unknown) {
       harness.instances.push(this)
@@ -42,6 +50,7 @@ vi.mock("./eidos-file-runtime-worker-client", () => ({
 }))
 
 import { DesktopEidosFileHostService } from "./eidos-file-host.service"
+import { EidosFileAssetLeaseStore } from "./eidos-file-asset-leases"
 import type { SpaceRegistry } from "./space-registry"
 import type { SpaceResourceLifecycle } from "./space-resource-lifecycle"
 
@@ -53,6 +62,7 @@ const context = (action: string) => ({
 describe("DesktopEidosFileHostService", () => {
   let root: string
   let service: DesktopEidosFileHostService
+  let assetLeases: EidosFileAssetLeaseStore
 
   beforeEach(async () => {
     root = await mkdtemp(path.join(tmpdir(), "eidos-desktop-host-test-"))
@@ -64,7 +74,8 @@ describe("DesktopEidosFileHostService", () => {
       getSpace: vi.fn(() => ({ id: "space", mode: "file", path: root })),
     } as unknown as SpaceRegistry
     const lifecycle = { register: vi.fn() } as unknown as SpaceResourceLifecycle
-    service = new DesktopEidosFileHostService(registry, lifecycle)
+    assetLeases = new EidosFileAssetLeaseStore()
+    service = new DesktopEidosFileHostService(registry, lifecycle, assetLeases)
   })
 
   afterEach(async () => {
@@ -229,6 +240,135 @@ describe("DesktopEidosFileHostService", () => {
     ).rejects.toMatchObject({ code: "file-exists" })
     await expect(readFile(path.join(root, "created.eidos"))).resolves.toEqual(
       Buffer.from(harness.candidate)
+    )
+  })
+
+  it("acquires relative assets through Runtime and resolves revocable image leases", async () => {
+    await writeFile(
+      path.join(root, "image.png"),
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    )
+    const { sourceToken } = await service.registerSource("space", "tasks.eidos")
+    const opened = await service.openSource(
+      { sourceToken, access: "readwrite" },
+      context("open-assets")
+    )
+    expect(opened.state).toMatchObject({
+      capabilities: {
+        assetReadSchemes: ["relative", "data"],
+        assetWriteSchemes: ["relative"],
+      },
+      limits: { concurrentAssetLeasesMax: 16 },
+    })
+
+    const staged = await service.registerAssetSource(
+      opened.sessionId,
+      "image.png"
+    )
+    const acquired = await service.acquireAsset(
+      { sessionId: opened.sessionId, sourceToken: staged.sourceToken },
+      context("acquire-asset")
+    )
+    expect(acquired.entry).toEqual({
+      id: "019f8a00-0000-7000-8000-000000000099",
+      name: "image.png",
+      mediaType: "image/png",
+      size: "8",
+      uri: "image.png",
+    })
+
+    harness.instances[0]?.findFileEntry.mockResolvedValue(acquired.entry)
+    const lease = await service.resolveAsset(
+      {
+        sessionId: opened.sessionId,
+        entryId: acquired.entry.id,
+        purpose: "thumbnail",
+      },
+      context("resolve-asset")
+    )
+    expect(lease).toMatchObject({
+      entryId: acquired.entry.id,
+      purpose: "thumbnail",
+      mediaType: "image/png",
+      size: "8",
+    })
+    const presentationToken = lease.resourceToken.split("/").at(-1)!
+    expect(
+      assetLeases.resolvePresentation(presentationToken, "space")?.bytes
+    ).toEqual(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+    service.releaseAsset(
+      { sessionId: opened.sessionId, leaseId: lease.leaseId },
+      context("release-asset")
+    )
+    expect(
+      assetLeases.resolvePresentation(presentationToken, "space")
+    ).toBeNull()
+    harness.instances[0]?.findFileEntry.mockResolvedValue({
+      ...acquired.entry,
+      size: "9",
+    })
+    await expect(
+      service.resolveAsset(
+        {
+          sessionId: opened.sessionId,
+          entryId: acquired.entry.id,
+          purpose: "thumbnail",
+        },
+        context("resolve-size-mismatch")
+      )
+    ).rejects.toMatchObject({ code: "asset-unavailable" })
+    await service.close(
+      { sessionId: opened.sessionId },
+      context("close-assets")
+    )
+  })
+
+  it("uses the same Host lease for inline data and denies active SVG thumbnails", async () => {
+    const { sourceToken } = await service.registerSource("space", "tasks.eidos")
+    const opened = await service.openSource(
+      { sourceToken, access: "read" },
+      context("open-inline")
+    )
+    const png: FileEntry = {
+      id: "019f8a00-0000-7000-8000-000000000088",
+      name: "inline.png",
+      mediaType: "image/png",
+      size: "8",
+      uri: "data:image/png;base64,iVBORw0KGgo=",
+    }
+    harness.instances[0]?.findFileEntry.mockResolvedValue(png)
+    await expect(
+      service.resolveAsset(
+        {
+          sessionId: opened.sessionId,
+          entryId: png.id,
+          purpose: "thumbnail",
+        },
+        context("resolve-inline")
+      )
+    ).resolves.toMatchObject({ mediaType: "image/png", size: "8" })
+
+    const svg: FileEntry = {
+      id: "019f8a00-0000-7000-8000-000000000077",
+      name: "inline.svg",
+      mediaType: "image/svg+xml",
+      size: "6",
+      uri: "data:image/svg+xml;base64,PHN2Zy8+",
+    }
+    harness.instances[0]?.findFileEntry.mockResolvedValue(svg)
+    await expect(
+      service.resolveAsset(
+        {
+          sessionId: opened.sessionId,
+          entryId: svg.id,
+          purpose: "thumbnail",
+        },
+        context("resolve-svg")
+      )
+    ).rejects.toMatchObject({ code: "asset-unavailable" })
+    await service.close(
+      { sessionId: opened.sessionId },
+      context("close-inline")
     )
   })
 })

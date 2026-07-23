@@ -19,6 +19,10 @@ const worker = new Worker(
 )
 const pending = new Map()
 let sequence = 0
+const TABLE_ID = "019f8ba0-0000-7000-8000-000000000001"
+const TITLE_FIELD_ID = "019f8ba0-0000-7000-8000-000000000011"
+const STATUS_FIELD_ID = "019f8ba0-0000-7000-8000-000000000012"
+const POINTS_FIELD_ID = "019f8ba0-0000-7000-8000-000000000013"
 
 worker.on("message", (response) => {
   const operation = pending.get(response.id)
@@ -48,54 +52,71 @@ function createTasks(filePath, count, titlePrefix) {
   const base = createEidosFile(filePath, {
     title: "Query worker smoke",
     defaultTable: {
-      id: "tasks",
+      id: TABLE_ID,
       name: "Tasks",
       fields: [
         {
+          id: TITLE_FIELD_ID,
+          name: "Title",
+          type: "text",
+          isRecordLabel: true,
+        },
+        {
+          id: STATUS_FIELD_ID,
           name: "Status",
-          columnName: "status",
           type: "select",
           property: {
-            options: [{ value: "todo" }, { value: "done" }],
+            options: [
+              { name: "To do", value: "todo" },
+              { name: "Done", value: "done" },
+            ],
           },
         },
         {
+          id: POINTS_FIELD_ID,
           name: "Points",
-          columnName: "points",
           type: "number",
         },
       ],
     },
   })
+  const fields = base.listFields(TABLE_ID)
+  const title = fields.find((field) => field.id === TITLE_FIELD_ID)
+  const status = fields.find((field) => field.id === STATUS_FIELD_ID)
+  const points = fields.find((field) => field.id === POINTS_FIELD_ID)
+  assert.ok(title && status && points)
   base.connection.transaction(() => {
     for (let index = 0; index < count; index += 1) {
-      base.insertRow("tasks", {
-        title: `${titlePrefix} ${index + 1}`,
-        status: index % 2 === 0 ? "todo" : "done",
-        points: index + 1,
+      base.insertRow(TABLE_ID, {
+        [title.tableColumnName]: `${titlePrefix} ${index + 1}`,
+        [status.tableColumnName]: index % 2 === 0 ? "todo" : "done",
+        [points.tableColumnName]: index + 1,
       })
     }
   })
   base.close()
+  return {
+    titleColumnName: title.tableColumnName,
+  }
 }
 
 try {
-  createTasks(eidosFilePath, 2_000, "Task")
+  const schema = createTasks(eidosFilePath, 2_000, "Task")
   const firstPage = await request({
     operation: "page",
     filePath: eidosFilePath,
-    tableId: "tasks",
+    tableId: TABLE_ID,
     options: { offset: 1_000, limit: 25 },
   })
   assert.equal(firstPage.page.total, 2_000)
   assert.equal(firstPage.page.rows.length, 25)
-  assert.equal(firstPage.page.rows[0].title, "Task 1001")
+  assert.equal(firstPage.page.rows[0][schema.titleColumnName], "Task 1001")
 
   const counts = await request({
     operation: "group-counts",
     filePath: eidosFilePath,
-    tableId: "tasks",
-    columnName: "status",
+    tableId: TABLE_ID,
+    fieldId: STATUS_FIELD_ID,
     query: {},
   })
   assert.deepEqual(
@@ -111,10 +132,10 @@ try {
   const stats = await request({
     operation: "column-stats",
     filePath: eidosFilePath,
-    tableId: "tasks",
+    tableId: TABLE_ID,
     configs: [
-      { columnName: "points", type: "sum" },
-      { columnName: "points", type: "average" },
+      { fieldId: POINTS_FIELD_ID, type: "sum" },
+      { fieldId: POINTS_FIELD_ID, type: "average" },
     ],
     query: {
       filter: {
@@ -123,7 +144,7 @@ try {
         children: [
           {
             type: "rule",
-            field: "status",
+            field: STATUS_FIELD_ID,
             operator: "equals",
             value: "todo",
           },
@@ -132,8 +153,8 @@ try {
     },
   })
   assert.deepEqual(stats.stats, [
-    { columnName: "points", type: "sum", value: 1_000_000 },
-    { columnName: "points", type: "average", value: 1_000 },
+    { fieldId: POINTS_FIELD_ID, type: "sum", value: 1_000_000 },
+    { fieldId: POINTS_FIELD_ID, type: "average", value: 1_000 },
   ])
 
   createTasks(replacementPath, 1, "Replacement")
@@ -141,11 +162,14 @@ try {
   const replacedPage = await request({
     operation: "page",
     filePath: eidosFilePath,
-    tableId: "tasks",
+    tableId: TABLE_ID,
     options: { offset: 0, limit: 25 },
   })
   assert.equal(replacedPage.page.total, 1)
-  assert.equal(replacedPage.page.rows[0].title, "Replacement 1")
+  assert.equal(
+    replacedPage.page.rows[0][schema.titleColumnName],
+    "Replacement 1"
+  )
 
   console.log(
     JSON.stringify({
@@ -155,7 +179,8 @@ try {
         0
       ),
       filteredSum: stats.stats[0].value,
-      replacementInvalidation: replacedPage.page.rows[0].title,
+      replacementInvalidation:
+        replacedPage.page.rows[0][schema.titleColumnName],
     })
   )
 } finally {

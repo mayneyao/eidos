@@ -1,8 +1,15 @@
 import type {
   AdapterStructuredCloneCarrier,
+  FileEntry,
+  JsonValue,
   RuntimeCreateInput,
   RuntimeSnapshot,
 } from "@eidos.space/eidos-file"
+
+export type EidosFileRuntimeWorkerFileEntryInput = Pick<
+  FileEntry,
+  "name" | "mediaType" | "size" | "uri"
+> & { extensions?: Record<string, JsonValue> }
 
 export interface EidosFileRuntimeWorkerData {
   workingPath: string
@@ -13,6 +20,12 @@ export interface EidosFileRuntimeWorkerData {
 
 export type EidosFileRuntimeWorkerControl =
   | { id: string; operation: "export"; maxBytes: string }
+  | {
+      id: string
+      operation: "allocate-file-entry"
+      entry: EidosFileRuntimeWorkerFileEntryInput
+    }
+  | { id: string; operation: "find-file-entry"; entryId: string }
   | { id: string; operation: "close" }
 
 export type EidosFileRuntimeWorkerRequest =
@@ -28,6 +41,8 @@ export type EidosFileRuntimeWorkerResponse =
       ok: true
       result:
         | { operation: "export"; bytes: Uint8Array; integrity: "ok" }
+        | { operation: "allocate-file-entry"; entry: FileEntry }
+        | { operation: "find-file-entry"; entry: FileEntry }
         | { operation: "close"; closed: true }
     }
   | {

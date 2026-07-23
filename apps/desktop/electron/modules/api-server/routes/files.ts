@@ -13,6 +13,28 @@ import type { ServerContext } from "../server"
  * Setup file serving routes
  */
 export function setupFileRoutes(app: Hono, ctx: ServerContext) {
+  app.get("/_eidos-file-assets/:token", (c) => {
+    const authorization = authorizeSpaceRequest(c)
+    if (!authorization.allowed) {
+      return c.text(authorization.message, authorization.status)
+    }
+    const record = ctx.eidosFileAssets?.resolvePresentation(
+      c.req.param("token"),
+      authorization.spaceId
+    )
+    if (!record) return c.text("Asset lease unavailable", 404)
+    const headers = new Headers({
+      "Cache-Control": "no-store",
+      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(record.lease.name)}`,
+      "Content-Length": record.lease.size,
+      "Content-Security-Policy": "default-src 'none'; sandbox",
+      "Content-Type": record.lease.mediaType,
+      "Cross-Origin-Resource-Policy": "same-origin",
+      "X-Content-Type-Options": "nosniff",
+    })
+    return c.newResponse(new Uint8Array(record.bytes), { headers })
+  })
+
   // Files from space storage
   app.get("/files/*", async (c) => {
     try {

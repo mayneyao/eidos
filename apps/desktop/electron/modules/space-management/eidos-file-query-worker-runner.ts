@@ -106,14 +106,14 @@ export class EidosFileQueryWorkerRunner {
     spacePath: string,
     filePath: string,
     tableId: string,
-    columnName: string,
+    fieldId: string,
     query: EidosFileRowQuery
   ): Promise<EidosFileRowGroupCount[]> {
     const response = await this.run(spacePath, {
       operation: "group-counts",
       filePath,
       tableId,
-      columnName,
+      fieldId,
       query,
     })
     if (!response.ok) throw this.error(response.name, response.message)

@@ -13,6 +13,7 @@ import { SpaceResourceLifecycle } from "./space-resource-lifecycle"
 import { EidosFileCsvWorkerRunner } from "./eidos-file-csv-worker-runner"
 import { EidosFileQueryWorkerRunner } from "./eidos-file-query-worker-runner"
 import { DesktopEidosFileHostService } from "./eidos-file-host.service"
+import { EidosFileAssetLeaseStore } from "./eidos-file-asset-leases"
 
 /**
  * Space Management Module
@@ -33,6 +34,7 @@ import { DesktopEidosFileHostService } from "./eidos-file-host.service"
     SpaceResourceLifecycle,
     EidosFileCsvWorkerRunner,
     EidosFileQueryWorkerRunner,
+    EidosFileAssetLeaseStore,
     DesktopEidosFileHostService,
   ],
   exports: [
@@ -42,6 +44,7 @@ import { DesktopEidosFileHostService } from "./eidos-file-host.service"
     SpaceResourceLifecycle,
     EidosFileCsvWorkerRunner,
     EidosFileQueryWorkerRunner,
+    EidosFileAssetLeaseStore,
     DesktopEidosFileHostService,
   ],
 })
@@ -57,6 +60,7 @@ export {
 export { MainWindowProvider } from "./main-window.provider"
 export { SpaceResourceLifecycle } from "./space-resource-lifecycle"
 export { DesktopEidosFileHostService } from "./eidos-file-host.service"
+export { EidosFileAssetLeaseStore } from "./eidos-file-asset-leases"
 export { resolveStartupSpace } from "./space-registry"
 
 // Backward compatibility helper

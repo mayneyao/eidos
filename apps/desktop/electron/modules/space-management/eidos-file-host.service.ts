@@ -1,10 +1,15 @@
 import { createHash, randomUUID } from "node:crypto"
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { IpcServiceBase } from "@eidos.space/electron-ipc"
 import {
+  assertEidosFileValues,
+  eidosFileUriClass,
+  normalizeEidosFileAttachmentPath,
   type AdapterCommitReceipt,
+  type AssetLease,
+  type FileEntry,
   type HostCapabilities,
   type HostError,
   type HostLimits,
@@ -17,11 +22,23 @@ import {
 import { SpaceFiles, SpaceFilesError } from "@eidos.space/file-space"
 
 import { Inject, IpcInjectable } from "../../common/di"
+import { EidosFileAssetLeaseStore } from "./eidos-file-asset-leases"
 import { EidosFileRuntimeWorkerClient } from "./eidos-file-runtime-worker-client"
 import { SpaceRegistry } from "./space-registry"
 import { SpaceResourceLifecycle } from "./space-resource-lifecycle"
 
 const SOURCE_BYTES_MAX = 268_435_456
+const ASSET_PREVIEW_BYTES_MAX = 67_108_864
+const ASSET_LEASE_SECONDS = 300
+const SAFE_RASTER_MEDIA_TYPES = new Set([
+  "image/avif",
+  "image/bmp",
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/x-icon",
+])
 const MUTATION_OPERATIONS = new Set<DesktopEidosFileRuntimeOperation>([
   "mutateRows",
   "revertMutation",
@@ -58,7 +75,7 @@ const SERVICE_CAPABILITIES: HostServiceCapabilities = Object.freeze({
   canReconcileCommit: true,
   canResolveConflict: true,
   canRecover: false,
-  canUseAssets: false,
+  canUseAssets: true,
 })
 
 const SERVICE_LIMITS: HostLimits = Object.freeze({
@@ -67,9 +84,9 @@ const SERVICE_LIMITS: HostLimits = Object.freeze({
   recoveryBytesMax: "0",
   recoveryEntriesMax: 0,
   recoveryRetentionSecondsMax: 0,
-  assetBytesMax: "0",
-  assetPreviewBytesMax: "0",
-  concurrentAssetLeasesMax: 0,
+  assetBytesMax: String(SOURCE_BYTES_MAX),
+  assetPreviewBytesMax: String(ASSET_PREVIEW_BYTES_MAX),
+  concurrentAssetLeasesMax: 16,
   concurrentSessionsMax: 16,
 })
 
@@ -78,8 +95,8 @@ const DESKTOP_CAPABILITIES: HostCapabilities = Object.freeze({
   canSaveCopy: false,
   canRequestPermission: false,
   hasRecovery: false,
-  assetReadSchemes: [],
-  assetWriteSchemes: [],
+  assetReadSchemes: ["relative", "data"],
+  assetWriteSchemes: ["relative"],
   casGuarantee: "cooperative",
   atomicReplace: true,
   durability: "best-effort",
@@ -104,6 +121,12 @@ interface SourceGrant {
 }
 
 type DestinationGrant = SourceGrant
+
+interface AssetSourceGrant {
+  token: string
+  sessionId: string
+  relativePath: string
+}
 
 interface SourceVersion {
   mtimeMs: number
@@ -138,13 +161,16 @@ export class DesktopEidosFileHostService extends IpcServiceBase {
   private readonly files = new Map<string, SpaceFiles>()
   private readonly sources = new Map<string, SourceGrant>()
   private readonly destinations = new Map<string, DestinationGrant>()
+  private readonly assetSources = new Map<string, AssetSourceGrant>()
   private readonly sessions = new Map<string, DesktopHostSession>()
   private readonly writers = new Map<string, string>()
 
   constructor(
     @Inject(SpaceRegistry) private readonly registry: SpaceRegistry,
     @Inject(SpaceResourceLifecycle)
-    resourceLifecycle: SpaceResourceLifecycle
+    resourceLifecycle: SpaceResourceLifecycle,
+    @Inject(EidosFileAssetLeaseStore)
+    private readonly assetLeases: EidosFileAssetLeaseStore
   ) {
     super()
     resourceLifecycle.register(
@@ -181,7 +207,17 @@ export class DesktopEidosFileHostService extends IpcServiceBase {
       throw hostFailure("invalid-source", "Eidos File path must end in .eidos")
     }
     const files = this.getFiles(spaceId)
-    await files.getSystemPath(relativePath)
+    const sourceSystemPath = await files.getSystemPath(relativePath)
+    const expectedSystemPath = path.resolve(
+      files.root,
+      ...relativePath.split("/")
+    )
+    if (sourceSystemPath !== expectedSystemPath) {
+      throw hostFailure(
+        "invalid-source",
+        "Eidos File source symlinks cannot define an asset root"
+      )
+    }
     const token = `source-${randomUUID()}`
     this.sources.set(token, {
       token,
@@ -532,6 +568,7 @@ export class DesktopEidosFileHostService extends IpcServiceBase {
     if (session.state.phase !== "commit-unknown" || !receipt) {
       throw hostFailure("invalid-request", "Session has no unknown commit")
     }
+    this.assetLeases.releaseSession(session.id)
     await session.worker.terminate()
     const replacement = await this.openExistingWorkingCopy(session)
     session.worker = replacement.worker
@@ -599,6 +636,189 @@ export class DesktopEidosFileHostService extends IpcServiceBase {
   ): { items: [] } {
     checkpoint(context)
     return { items: [] }
+  }
+
+  async registerAssetSource(
+    sessionId: string,
+    relativePath: string
+  ): Promise<{ sourceToken: string }> {
+    const session = this.session(sessionId)
+    if (!session.state.capabilities.assetWriteSchemes.includes("relative")) {
+      throw hostFailure("unsupported", "Relative asset import is unavailable")
+    }
+    await this.assertRelativeAssetPath(session, relativePath)
+    const token = `asset-source-${randomUUID()}`
+    this.assetSources.set(token, { token, sessionId, relativePath })
+    return { sourceToken: token }
+  }
+
+  async acquireAsset(
+    request: { sessionId: string; sourceToken: string },
+    context: DesktopEidosFileRequestContext
+  ): Promise<{ entry: FileEntry }> {
+    checkpoint(context)
+    const session = this.session(request.sessionId)
+    const source = this.assetSources.get(request.sourceToken)
+    if (!source || source.sessionId !== session.id) {
+      throw hostFailure("invalid-request", "Asset source token is invalid")
+    }
+    this.assetSources.delete(source.token)
+    const relativeToRoot = await this.assertRelativeAssetPath(
+      session,
+      source.relativePath
+    )
+    const file = await session.source.files.readBinary(source.relativePath)
+    if (file.size > SOURCE_BYTES_MAX) {
+      throw hostFailure("resource-limit", "Asset exceeds assetBytesMax")
+    }
+    const uri = normalizeEidosFileAttachmentPath(relativeToRoot)
+    if (!uri || eidosFileUriClass(uri) !== "relative") {
+      throw hostFailure("invalid-request", "Asset URI is invalid")
+    }
+    let entry: FileEntry
+    try {
+      entry = await session.worker.allocateFileEntry({
+        name: path.posix.basename(source.relativePath),
+        mediaType: detectAssetMediaType(file.content, source.relativePath),
+        size: String(file.size),
+        uri,
+      })
+    } catch (error) {
+      throw assetHostFailure(error, "invalid-request")
+    }
+    return { entry }
+  }
+
+  async resolveAsset(
+    request: {
+      sessionId: string
+      entryId: string
+      purpose: "thumbnail" | "preview" | "download"
+    },
+    context: DesktopEidosFileRequestContext
+  ): Promise<AssetLease> {
+    checkpoint(context)
+    const session = this.session(request.sessionId)
+    if (
+      this.assetLeases.countSession(session.id) >=
+      SERVICE_LIMITS.concurrentAssetLeasesMax
+    ) {
+      throw hostFailure(
+        "resource-limit",
+        "Concurrent asset lease limit reached"
+      )
+    }
+    let entry: FileEntry
+    try {
+      entry = assertEidosFileValues([
+        await session.worker.findFileEntry(request.entryId),
+      ])[0] as FileEntry
+    } catch (error) {
+      throw assetHostFailure(error, "asset-unavailable")
+    }
+    const uriClass = eidosFileUriClass(entry.uri)
+    if (
+      !uriClass ||
+      !session.state.capabilities.assetReadSchemes.includes(uriClass)
+    ) {
+      throw hostFailure("asset-unavailable", "Asset URI scheme is unavailable")
+    }
+    const maximum =
+      request.purpose === "download"
+        ? SOURCE_BYTES_MAX
+        : ASSET_PREVIEW_BYTES_MAX
+    const declaredSize = Number(entry.size)
+    if (!Number.isSafeInteger(declaredSize) || declaredSize > maximum) {
+      throw hostFailure("resource-limit", "Asset exceeds the purpose limit")
+    }
+    let bytes: Uint8Array
+    try {
+      bytes = await this.readAssetBytes(session, entry, uriClass)
+    } catch (error) {
+      throw assetHostFailure(error, "asset-unavailable")
+    }
+    if (bytes.byteLength !== declaredSize) {
+      throw hostFailure(
+        "asset-unavailable",
+        "Asset size does not match File metadata"
+      )
+    }
+    if (request.purpose === "thumbnail") {
+      if (!SAFE_RASTER_MEDIA_TYPES.has(entry.mediaType)) {
+        throw hostFailure(
+          "asset-unavailable",
+          "Asset is not a safe raster image"
+        )
+      }
+      const detected = detectRasterMediaType(bytes)
+      if (detected !== entry.mediaType) {
+        throw hostFailure(
+          "asset-unavailable",
+          "Image bytes do not match File media type"
+        )
+      }
+    }
+    const leaseId = `asset-lease-${randomUUID()}`
+    const expiresAtMilliseconds = Date.now() + ASSET_LEASE_SECONDS * 1_000
+    return this.assetLeases.issue({
+      sessionId: session.id,
+      spaceId: session.source.spaceId,
+      bytes,
+      expiresAtMilliseconds,
+      lease: {
+        leaseId,
+        entryId: entry.id,
+        purpose: request.purpose,
+        mediaType: entry.mediaType,
+        name: entry.name,
+        size: entry.size,
+        expiresAt: new Date(expiresAtMilliseconds).toISOString(),
+      },
+    })
+  }
+
+  releaseAsset(
+    request: { sessionId: string; leaseId: string },
+    context: DesktopEidosFileRequestContext
+  ): void {
+    checkpoint(context)
+    this.session(request.sessionId)
+    this.assetLeases.release(request.sessionId, request.leaseId)
+  }
+
+  async activateAsset(
+    request: {
+      sessionId: string
+      leaseId: string
+      action: "open" | "download"
+    },
+    context: DesktopEidosFileRequestContext
+  ): Promise<void> {
+    checkpoint(context)
+    const session = this.session(request.sessionId)
+    const record = this.assetLeases.get(session.id, request.leaseId)
+    if (
+      (request.action === "open" && record.lease.purpose !== "preview") ||
+      (request.action === "download" && record.lease.purpose !== "download")
+    ) {
+      throw hostFailure("invalid-request", "Asset lease purpose is invalid")
+    }
+    const electron = await import("electron")
+    const safeName = safeAssetFilename(record.lease.name)
+    if (request.action === "download") {
+      const selected = await electron.dialog.showSaveDialog({
+        defaultPath: safeName,
+      })
+      if (selected.canceled || !selected.filePath) return
+      await writeFile(selected.filePath, record.bytes, { mode: 0o600 })
+      return
+    }
+    const directory = path.join(session.workingDirectory, "opened-assets")
+    await mkdir(directory, { recursive: true, mode: 0o700 })
+    const target = path.join(directory, `${record.lease.leaseId}-${safeName}`)
+    await writeFile(target, record.bytes, { mode: 0o600 })
+    const failure = await electron.shell.openPath(target)
+    if (failure) throw hostFailure("asset-unavailable", failure)
   }
 
   async close(
@@ -703,6 +923,7 @@ export class DesktopEidosFileHostService extends IpcServiceBase {
   }
 
   private async replaceFromSource(session: DesktopHostSession): Promise<void> {
+    this.assetLeases.releaseSession(session.id)
     await session.worker.terminate()
     await rm(session.workingDirectory, { recursive: true, force: true })
     const opened = await this.openWorkingCopy(session.source, session.access)
@@ -728,7 +949,11 @@ export class DesktopEidosFileHostService extends IpcServiceBase {
       sessionId: session.id,
       phase: readonly ? "ready-readonly" : phase,
       capabilities: readonly
-        ? { ...DESKTOP_CAPABILITIES, canWriteCurrent: false }
+        ? {
+            ...DESKTOP_CAPABILITIES,
+            canWriteCurrent: false,
+            assetWriteSchemes: [],
+          }
         : { ...DESKTOP_CAPABILITIES },
       limits: { ...SERVICE_LIMITS },
       fileId: snapshot.fileId,
@@ -768,6 +993,11 @@ export class DesktopEidosFileHostService extends IpcServiceBase {
   private async closeSession(session: DesktopHostSession): Promise<void> {
     if (!this.sessions.has(session.id)) return
     this.sessions.delete(session.id)
+    this.assetLeases.releaseSession(session.id)
+    for (const source of this.assetSources.values()) {
+      if (source.sessionId === session.id)
+        this.assetSources.delete(source.token)
+    }
     try {
       await this.waitForRuntime(session)
       await session.worker.close()
@@ -785,6 +1015,73 @@ export class DesktopEidosFileHostService extends IpcServiceBase {
         }
       }
     }
+  }
+
+  private async assertRelativeAssetPath(
+    session: DesktopHostSession,
+    relativePath: string
+  ): Promise<string> {
+    const assetRoot = path.posix.dirname(session.source.relativePath)
+    const relativeToRoot = path.posix.relative(assetRoot, relativePath)
+    if (
+      !relativeToRoot ||
+      relativeToRoot === ".." ||
+      relativeToRoot.startsWith("../") ||
+      path.posix.isAbsolute(relativeToRoot)
+    ) {
+      throw hostFailure(
+        "permission-denied",
+        "Asset is outside the session asset root"
+      )
+    }
+    const [rootSystemPath, assetSystemPath] = await Promise.all([
+      session.source.files.getSystemPath(assetRoot === "." ? "" : assetRoot),
+      session.source.files.getSystemPath(relativePath),
+    ])
+    const canonicalRelative = path.relative(rootSystemPath, assetSystemPath)
+    if (
+      canonicalRelative === ".." ||
+      canonicalRelative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(canonicalRelative)
+    ) {
+      throw hostFailure(
+        "permission-denied",
+        "Asset symlink escapes the session asset root"
+      )
+    }
+    return relativeToRoot
+      .split("/")
+      .map((segment) => encodeURIComponent(segment))
+      .join("/")
+  }
+
+  private async readAssetBytes(
+    session: DesktopHostSession,
+    entry: FileEntry,
+    uriClass: "relative" | "data" | "https"
+  ): Promise<Uint8Array> {
+    if (uriClass === "data") {
+      const payload = entry.uri.slice(entry.uri.indexOf(",") + 1)
+      return new Uint8Array(Buffer.from(payload, "base64"))
+    }
+    if (uriClass !== "relative") {
+      throw hostFailure("asset-unavailable", "Network assets are disabled")
+    }
+    const parsed = new URL(entry.uri, "https://eidos.invalid/")
+    let decodedPath: string
+    try {
+      decodedPath = parsed.pathname
+        .slice(1)
+        .split("/")
+        .map((segment) => decodeURIComponent(segment))
+        .join("/")
+    } catch {
+      throw hostFailure("asset-unavailable", "Asset URI encoding is invalid")
+    }
+    const assetRoot = path.posix.dirname(session.source.relativePath)
+    const relativePath = path.posix.join(assetRoot, decodedPath)
+    await this.assertRelativeAssetPath(session, relativePath)
+    return (await session.source.files.readBinary(relativePath)).content
   }
 
   private writerKey(source: SourceGrant): string {
@@ -836,6 +1133,102 @@ function digest(bytes: Uint8Array): string {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`
 }
 
+function detectRasterMediaType(bytes: Uint8Array): string | null {
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return "image/png"
+  }
+  if (
+    bytes.length >= 3 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8 &&
+    bytes[2] === 0xff
+  ) {
+    return "image/jpeg"
+  }
+  const ascii = (start: number, length: number) =>
+    Buffer.from(bytes.subarray(start, start + length)).toString("ascii")
+  if (bytes.length >= 6 && ["GIF87a", "GIF89a"].includes(ascii(0, 6))) {
+    return "image/gif"
+  }
+  if (bytes.length >= 12 && ascii(0, 4) === "RIFF" && ascii(8, 4) === "WEBP") {
+    return "image/webp"
+  }
+  if (bytes.length >= 2 && ascii(0, 2) === "BM") return "image/bmp"
+  if (
+    bytes.length >= 12 &&
+    ascii(4, 4) === "ftyp" &&
+    ["avif", "avis"].includes(ascii(8, 4))
+  ) {
+    return "image/avif"
+  }
+  if (
+    bytes.length >= 4 &&
+    ((bytes[0] === 0x00 &&
+      bytes[1] === 0x00 &&
+      bytes[2] === 0x01 &&
+      bytes[3] === 0x00) ||
+      (bytes[0] === 0x00 &&
+        bytes[1] === 0x00 &&
+        bytes[2] === 0x02 &&
+        bytes[3] === 0x00))
+  ) {
+    return "image/x-icon"
+  }
+  return null
+}
+
+function detectAssetMediaType(bytes: Uint8Array, filename: string): string {
+  const raster = detectRasterMediaType(bytes)
+  if (raster) return raster
+  if (
+    bytes.length >= 5 &&
+    Buffer.from(bytes.subarray(0, 5)).toString("ascii") === "%PDF-"
+  ) {
+    return "application/pdf"
+  }
+  if (
+    bytes.length >= 4 &&
+    bytes[0] === 0x50 &&
+    bytes[1] === 0x4b &&
+    bytes[2] === 0x03 &&
+    bytes[3] === 0x04
+  ) {
+    return "application/zip"
+  }
+  const extension = path.posix.extname(filename).toLowerCase()
+  return (
+    {
+      ".csv": "text/csv",
+      ".json": "application/json",
+      ".md": "text/markdown",
+      ".mp3": "audio/mpeg",
+      ".mp4": "video/mp4",
+      ".ogg": "audio/ogg",
+      ".txt": "text/plain",
+      ".wav": "audio/wav",
+      ".webm": "video/webm",
+    }[extension] ?? "application/octet-stream"
+  )
+}
+
+function safeAssetFilename(value: string): string {
+  const sanitized = value
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
+    .replace(/[. ]+$/g, "")
+    .slice(0, 180)
+  return sanitized || "attachment"
+}
+
 function hostFailure(
   code: HostError["code"],
   message: string,
@@ -847,6 +1240,24 @@ function hostFailure(
     message,
     retryable,
   })
+}
+
+function assetHostFailure(
+  error: unknown,
+  fallback: "asset-unavailable" | "invalid-request"
+): Error & HostError {
+  if (isRecord(error) && error.name === "EidosHostError") {
+    return error as unknown as Error & HostError
+  }
+  const message =
+    error instanceof Error
+      ? error.message
+      : String(error ?? "Asset unavailable")
+  const code =
+    isRecord(error) && error.code === "resource-limit"
+      ? "resource-limit"
+      : fallback
+  return hostFailure(code, message)
 }
 
 function runtimeFailure(

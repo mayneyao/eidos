@@ -3,7 +3,11 @@ import { performance } from "node:perf_hooks"
 import { parentPort, workerData as rawWorkerData } from "node:worker_threads"
 import {
   AdapterTransportServer,
+  decodeEidosFileValues,
+  encodeEidosFileValues,
+  quoteIdentifier,
   Runtime,
+  type FileEntry,
   type RuntimeBinding,
 } from "@eidos.space/eidos-file"
 import { BetterSqlite3ConnectionPort } from "@eidos.space/eidos-file/better-sqlite3"
@@ -17,6 +21,7 @@ import type {
   EidosFileRuntimeWorkerControl,
   EidosFileRuntimeWorkerData,
   EidosFileRuntimeWorkerError,
+  EidosFileRuntimeWorkerFileEntryInput,
   EidosFileRuntimeWorkerRequest,
   EidosFileRuntimeWorkerResponse,
 } from "./eidos-file-runtime-worker-protocol"
@@ -151,6 +156,72 @@ async function exportCandidate(maxBytes: string): Promise<Uint8Array> {
   }
 }
 
+async function allocateFileEntry(
+  entry: EidosFileRuntimeWorkerFileEntryInput
+): Promise<FileEntry> {
+  if (!hostBridge) throw new Error("Runtime is not open")
+  return hostBridge.allocateFileEntry(entry, {
+    requestId: randomUUID(),
+    deadlineMilliseconds: 30_000,
+  })
+}
+
+function findFileEntry(entryId: string): FileEntry {
+  if (!database) throw new Error("Runtime is not open")
+  const fields = database
+    .prepare(
+      `SELECT t.physical_name AS table_name, f.physical_name AS column_name
+         FROM eidos__fields f
+         JOIN eidos__tables t ON t.id = f.table_id
+        WHERE f.type = 'file' AND f.physical_name IS NOT NULL
+        ORDER BY f.table_id COLLATE BINARY, f.id COLLATE BINARY`
+    )
+    .all() as Array<{ table_name: string; column_name: string }>
+  let matched: FileEntry | null = null
+  for (const field of fields) {
+    const column = quoteIdentifier(field.column_name)
+    const table = quoteIdentifier(field.table_name)
+    const values = database
+      .prepare(
+        `SELECT ${column} AS value
+           FROM ${table}
+          WHERE ${column} IS NOT NULL
+            AND (json_valid(${column}) = 0 OR EXISTS (
+              SELECT 1 FROM json_each(${column}) item
+               WHERE json_extract(item.value, '$.id') = ?
+            ))`
+      )
+      .all(entryId) as Array<{ value: unknown }>
+    for (const row of values) {
+      if (typeof row.value !== "string") {
+        throw Object.assign(new Error("Stored File value is not TEXT"), {
+          code: "invalid-source",
+        })
+      }
+      const entry = decodeEidosFileValues(row.value).find(
+        (candidate) => candidate.id === entryId
+      )
+      if (!entry) continue
+      if (
+        matched &&
+        encodeEidosFileValues([matched]) !== encodeEidosFileValues([entry])
+      ) {
+        throw Object.assign(
+          new Error("File entry ID resolves to conflicting metadata"),
+          { code: "invalid-source" }
+        )
+      }
+      matched = entry
+    }
+  }
+  if (!matched) {
+    throw Object.assign(new Error("File entry is unavailable"), {
+      code: "asset-unavailable",
+    })
+  }
+  return matched
+}
+
 async function handleControl(
   control: EidosFileRuntimeWorkerControl
 ): Promise<void> {
@@ -166,6 +237,26 @@ async function handleControl(
         },
         [bytes.buffer as ArrayBuffer]
       )
+      return
+    }
+    if (control.operation === "allocate-file-entry") {
+      const entry = await allocateFileEntry(control.entry)
+      send({
+        type: "control",
+        id: control.id,
+        ok: true,
+        result: { operation: "allocate-file-entry", entry },
+      })
+      return
+    }
+    if (control.operation === "find-file-entry") {
+      const entry = findFileEntry(control.entryId)
+      send({
+        type: "control",
+        id: control.id,
+        ok: true,
+        result: { operation: "find-file-entry", entry },
+      })
       return
     }
     try {

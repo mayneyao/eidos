@@ -16,7 +16,10 @@ import {
 } from "./server"
 import { ConfigManager } from "../config/config.module"
 import { CredentialsManager } from "../sync/sync.module"
-import { SpaceRegistry } from "../space-management/space-management.module"
+import {
+  EidosFileAssetLeaseStore,
+  SpaceRegistry,
+} from "../space-management/space-management.module"
 import { LoggerService } from "../logger/logger.module"
 import { DataSpaceManager } from "../data-space"
 import { isPortInUse, getProcessByPort } from "./port-checker"
@@ -41,6 +44,8 @@ export class ApiServerService {
     @Inject(SpaceRegistry) private spaceRegistry: SpaceRegistry,
     @Inject(LoggerService) private logger: LoggerService,
     @Inject(DataSpaceManager) private dataSpaceManager: DataSpaceManager,
+    @Inject(EidosFileAssetLeaseStore)
+    private eidosFileAssets: EidosFileAssetLeaseStore,
     @Inject(WindowService) private windowService: WindowService,
     @Inject(BrowserExplorerService)
     private browserExplorer: BrowserExplorerService
@@ -124,6 +129,7 @@ export class ApiServerService {
     }
 
     return {
+      eidosFileAssets: this.eidosFileAssets,
       dataSpaceManager: {
         getOrSetDataSpace: (spaceId: string, opts?: any) =>
           this.dataSpaceManager.getOrSetDataSpace(spaceId, opts),

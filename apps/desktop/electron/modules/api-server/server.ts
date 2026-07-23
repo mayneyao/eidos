@@ -73,6 +73,15 @@ export interface PortChecker {
 
 // Server context interface (passed during server start)
 export interface ServerContext {
+  eidosFileAssets?: {
+    resolvePresentation(
+      presentationToken: string,
+      spaceId: string
+    ): {
+      lease: { mediaType: string; name: string; size: string }
+      bytes: Uint8Array
+    } | null
+  }
   dataSpaceManager: {
     getOrSetDataSpace(spaceId: string): Promise<any | null>
     getDataSpace(): any | null

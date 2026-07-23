@@ -122,6 +122,10 @@ describe("EidosFileQueryWorkerRunner", () => {
       {}
     )
     const countsRequest = worker.postMessage.mock.calls[2][0]
+    expect(countsRequest).toMatchObject({
+      operation: "group-counts",
+      fieldId: "status",
+    })
     worker.emit("message", {
       id: countsRequest.id,
       ok: true,

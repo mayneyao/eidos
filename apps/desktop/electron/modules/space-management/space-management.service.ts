@@ -852,7 +852,7 @@ export class SpaceManagementService extends IpcServiceBase {
     spaceId: string,
     relativePath: string,
     tableId: string,
-    columnName: string,
+    fieldId: string,
     query: EidosFileRowQuery = {}
   ): Promise<EidosFileRowGroupCount[]> {
     return withFileSpaceReadLock(spaceId, async () => {
@@ -862,7 +862,7 @@ export class SpaceManagementService extends IpcServiceBase {
         files.root,
         systemPath,
         tableId,
-        columnName,
+        fieldId,
         query
       )
     })

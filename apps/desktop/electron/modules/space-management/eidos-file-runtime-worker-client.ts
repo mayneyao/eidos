@@ -5,6 +5,7 @@ import {
   type AdapterCommitReceipt,
   type AdapterStructuredCloneCarrier,
   type AdapterTransportChannel,
+  type FileEntry,
   type RuntimeClient,
   type RuntimeSnapshot,
 } from "@eidos.space/eidos-file"
@@ -12,11 +13,12 @@ import {
 import type {
   EidosFileRuntimeWorkerData,
   EidosFileRuntimeWorkerError,
+  EidosFileRuntimeWorkerFileEntryInput,
   EidosFileRuntimeWorkerResponse,
 } from "./eidos-file-runtime-worker-protocol"
 
 interface PendingControl {
-  resolve: (value: Uint8Array | void) => void
+  resolve: (value: Uint8Array | FileEntry | void) => void
   reject: (reason: Error) => void
   timer: ReturnType<typeof setTimeout>
 }
@@ -99,7 +101,26 @@ export class EidosFileRuntimeWorkerClient {
   }
 
   export(maxBytes: string): Promise<Uint8Array> {
-    return this.control("export", maxBytes) as Promise<Uint8Array>
+    return this.control({
+      operation: "export",
+      maxBytes,
+    }) as Promise<Uint8Array>
+  }
+
+  allocateFileEntry(
+    entry: EidosFileRuntimeWorkerFileEntryInput
+  ): Promise<FileEntry> {
+    return this.control({
+      operation: "allocate-file-entry",
+      entry,
+    }) as Promise<FileEntry>
+  }
+
+  findFileEntry(entryId: string): Promise<FileEntry> {
+    return this.control({
+      operation: "find-file-entry",
+      entryId,
+    }) as Promise<FileEntry>
   }
 
   async close(): Promise<void> {
@@ -111,7 +132,7 @@ export class EidosFileRuntimeWorkerClient {
           deadlineMilliseconds: 30_000,
         })
       } else {
-        await this.control("close")
+        await this.control({ operation: "close" })
       }
     } finally {
       await this.terminate()
@@ -137,9 +158,15 @@ export class EidosFileRuntimeWorkerClient {
   }
 
   private control(
-    operation: "export" | "close",
-    maxBytes?: string
-  ): Promise<Uint8Array | void> {
+    request:
+      | { operation: "export"; maxBytes: string }
+      | {
+          operation: "allocate-file-entry"
+          entry: EidosFileRuntimeWorkerFileEntryInput
+        }
+      | { operation: "find-file-entry"; entryId: string }
+      | { operation: "close" }
+  ): Promise<Uint8Array | FileEntry | void> {
     if (this.terminated) {
       return Promise.reject(new Error("Eidos File Runtime Worker is closed"))
     }
@@ -147,16 +174,11 @@ export class EidosFileRuntimeWorkerClient {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingControls.delete(id)
-        reject(new Error(`Eidos File Runtime ${operation} timed out`))
+        reject(new Error(`Eidos File Runtime ${request.operation} timed out`))
         void this.terminate()
       }, 30_000)
       this.pendingControls.set(id, { resolve, reject, timer })
-      this.worker.postMessage({
-        control:
-          operation === "export"
-            ? { id, operation, maxBytes: maxBytes! }
-            : { id, operation },
-      })
+      this.worker.postMessage({ control: { id, ...request } })
     })
   }
 
@@ -184,7 +206,12 @@ export class EidosFileRuntimeWorkerClient {
       return
     }
     pending.resolve(
-      message.result.operation === "export" ? message.result.bytes : undefined
+      message.result.operation === "export"
+        ? message.result.bytes
+        : message.result.operation === "allocate-file-entry" ||
+            message.result.operation === "find-file-entry"
+          ? message.result.entry
+          : undefined
     )
   }
 

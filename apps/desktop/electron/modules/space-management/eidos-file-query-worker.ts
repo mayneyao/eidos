@@ -72,7 +72,7 @@ function run(
       operation: "group-counts",
       counts: base.countRowsByField(
         request.tableId,
-        request.columnName,
+        request.fieldId,
         request.query
       ),
     }
