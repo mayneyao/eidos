@@ -514,6 +514,7 @@ function assertExactFormulaAst(root: ExactFormulaNode): void {
 function formulaOperandType(field: EidosFileFieldInfo): FormulaStaticType {
   let type: unknown
   if (field.systemRole === "row-id" || field.type === "row-id") type = "text"
+  else if (field.type === "rating") type = "integer"
   else if (
     field.systemRole === "created-time" ||
     field.systemRole === "updated-time" ||
