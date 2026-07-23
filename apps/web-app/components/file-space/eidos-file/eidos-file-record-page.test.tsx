@@ -16,13 +16,16 @@ import {
 
 const fields: EidosFileFieldInfo[] = [
   {
+    id: "field-title",
+    tableId: "tasks",
     name: "Title",
-    type: "title",
+    type: "text",
     tableName: "tb_tasks",
     tableColumnName: "title",
     property: null,
     storageCodec: "scalar",
-    valueKind: "system",
+    valueKind: "source",
+    isRecordLabel: true,
     isHidden: false,
     isDerived: false,
     sourceTableColumnName: null,

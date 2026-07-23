@@ -1,3 +1,4 @@
+import { createElement, type ReactNode } from "react"
 import type {
   AggregateRequest,
   AssetLease,
@@ -27,6 +28,7 @@ import type {
   ValidationRequest,
   ViewMutationRequest,
 } from "@eidos.space/eidos-file"
+import type { AssetPresenter } from "@eidos.space/eidos-file-ui"
 
 type RuntimeOperation = Exclude<
   keyof RuntimeClient,
@@ -206,6 +208,10 @@ export class DesktopEidosFileHostServices implements HostServices {
     return api().registerDestination(spaceId, relativePath)
   }
 
+  registerAssetSource(sessionId: string, relativePath: string) {
+    return api().registerAssetSource(sessionId, relativePath)
+  }
+
   revokeSource(sourceToken: string): Promise<void> {
     return api().revokeSource(sourceToken)
   }
@@ -361,31 +367,28 @@ export class DesktopEidosFileHostServices implements HostServices {
   }
 
   async acquireAsset(
-    _request: { sessionId: string; sourceToken: string },
+    request: { sessionId: string; sourceToken: string },
     context: RequestContext
-  ): Promise<never> {
-    assertContext(context)
-    throw hostError("unsupported", "Use Space asset grants")
+  ) {
+    return api().acquireAsset(request, serializableContext(context))
   }
 
   async resolveAsset(
-    _request: {
+    request: {
       sessionId: string
       entryId: string
       purpose: "thumbnail" | "preview" | "download"
     },
     context: RequestContext
   ): Promise<AssetLease> {
-    assertContext(context)
-    throw hostError("unsupported", "Use Space asset grants")
+    return api().resolveAsset(request, serializableContext(context))
   }
 
   async releaseAsset(
-    _request: { sessionId: string; leaseId: string },
+    request: { sessionId: string; leaseId: string },
     context: RequestContext
   ): Promise<void> {
-    assertContext(context)
-    throw hostError("unsupported", "Use Space asset grants")
+    await api().releaseAsset(request, serializableContext(context))
   }
 
   async close(
@@ -412,6 +415,12 @@ export class DesktopEidosFileHostServices implements HostServices {
     return () => listeners.delete(listener)
   }
 
+  getState(sessionId: string): HostSessionState {
+    const state = this.states.get(sessionId)
+    if (!state) throw hostError("closed", "Host session is closed")
+    return state
+  }
+
   private setState(sessionId: string, state: HostSessionState): void {
     this.states.set(sessionId, state)
     for (const listener of this.listeners.get(sessionId) ?? []) listener(state)
@@ -429,6 +438,40 @@ export class DesktopEidosFileHostServices implements HostServices {
 }
 
 export const desktopEidosFileHost = new DesktopEidosFileHostServices()
+
+function loadDesktopAssetImage(
+  resourceToken: string,
+  altText: string
+): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    image.alt = altText
+    image.decoding = "async"
+    image.draggable = false
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error("Asset image could not be decoded"))
+    image.src = resourceToken
+  })
+}
+
+/** Electron presentation binding; reusable UI never interprets the token. */
+export const desktopEidosFileAssetPresenter: AssetPresenter<ReactNode> = {
+  renderImage: ({ lease, altText }) =>
+    createElement("img", {
+      src: lease.resourceToken,
+      alt: altText,
+      draggable: false,
+      decoding: "async",
+    }),
+  loadImage: ({ lease, altText }) =>
+    loadDesktopAssetImage(lease.resourceToken, altText),
+  activate: async ({ sessionId, lease, action }, context) => {
+    await api().activateAsset(
+      { sessionId, leaseId: lease.leaseId, action },
+      serializableContext(context)
+    )
+  },
+}
 
 function serializableContext(context: RequestContext) {
   assertContext(context)

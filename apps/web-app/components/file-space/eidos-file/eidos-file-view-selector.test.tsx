@@ -50,6 +50,8 @@ const views: EidosFileViewInfo[] = [
 
 const fields: EidosFileFieldInfo[] = [
   {
+    id: "field-status",
+    tableId: "tasks",
     name: "Status",
     type: "select",
     tableName: "tb_tasks",
@@ -65,6 +67,8 @@ const fields: EidosFileFieldInfo[] = [
     dependsOn: null,
   },
   {
+    id: "field-cover",
+    tableId: "tasks",
     name: "Cover",
     type: "file",
     tableName: "tb_tasks",
@@ -81,6 +85,7 @@ const fields: EidosFileFieldInfo[] = [
 
 const urlField: EidosFileFieldInfo = {
   ...fields[1],
+  id: "field-image-url",
   name: "Image URL",
   type: "url",
   tableColumnName: "image_url",
@@ -102,9 +107,9 @@ const kanbanView: EidosFileViewInfo = {
   type: "kanban",
   properties: {
     cardSize: "medium",
-    coverPreview: "cover",
+    coverField: "field-cover",
     fitContent: true,
-    groupByField: "status",
+    groupField: "field-status",
     hideEmptyFields: true,
   },
 }
@@ -329,8 +334,11 @@ describe("EidosFileViewSelector", () => {
     expect(input?.value).toBe("Grid 99")
   })
 
-  it("renames, duplicates, and reorders views without a centered dialog", async () => {
+  it("renames and duplicates views without structural up/down controls", async () => {
     await act(async () => exactButton("All tasks")?.click())
+    expect(
+      document.body.querySelector('[aria-label="Reorder By priority view"]')
+    ).not.toBeNull()
     await act(async () =>
       document
         .querySelector<HTMLButtonElement>(
@@ -348,8 +356,8 @@ describe("EidosFileViewSelector", () => {
     await act(async () => exactButton("Save")?.click())
     expect(onRename).toHaveBeenCalledWith("view_priority", "Priority board")
 
-    await act(async () => exactButton("Move up")?.click())
-    expect(onReorder).toHaveBeenCalledWith(["view_priority", "view_all"])
+    expect(exactButton("Move up")).toBeUndefined()
+    expect(exactButton("Move down")).toBeUndefined()
     await act(async () => exactButton("Duplicate view")?.click())
     expect(onDuplicate).toHaveBeenCalledWith("view_priority")
     expect(document.body.querySelector('[role="alertdialog"]')).toBeNull()
@@ -377,7 +385,7 @@ describe("EidosFileViewSelector", () => {
 
     expect(onUpdate).toHaveBeenCalledWith("view_priority", {
       type: "kanban",
-      properties: { groupByField: "status" },
+      properties: { groupField: "field-status" },
     })
     expect(document.body.querySelector('[role="alertdialog"]')).toBeNull()
   })
@@ -472,7 +480,7 @@ describe("EidosFileViewSelector", () => {
       properties: {
         cardSize: "medium",
         hideEmptyFields: true,
-        coverPreview: "cover",
+        coverField: "field-cover",
       },
     })
     expect(
@@ -492,7 +500,7 @@ describe("EidosFileViewSelector", () => {
     ).toBe("medium")
   })
 
-  it("configures a URL field as a portable Gallery cover", async () => {
+  it("does not treat a URL field as an auto-fetched Gallery cover", async () => {
     await act(async () => {
       root.render(
         <EidosFileViewSelector
@@ -518,23 +526,15 @@ describe("EidosFileViewSelector", () => {
         ?.click()
     )
     await act(async () => exactButton("No cover")?.click())
-    await act(async () => {
-      const option = Array.from(
+    expect(
+      Array.from(
         document.body.querySelectorAll<HTMLElement>('[role="option"]')
       ).find((candidate) => candidate.textContent?.trim() === "Image URL")
-      option?.click()
-    })
-
-    expect(onUpdate).toHaveBeenCalledWith("view_gallery", {
-      properties: {
-        cardSize: "medium",
-        hideEmptyFields: true,
-        coverPreview: "image_url",
-      },
-    })
+    ).toBeUndefined()
+    expect(onUpdate).not.toHaveBeenCalled()
   })
 
-  it("exposes the supported cover and field controls for Kanban cards", async () => {
+  it("exposes File cover controls for Kanban cards without URL fetching", async () => {
     await act(async () => {
       root.render(
         <EidosFileViewSelector
@@ -571,22 +571,12 @@ describe("EidosFileViewSelector", () => {
     ).not.toBeNull()
 
     await act(async () => exactButton("Cover")?.click())
-    await act(async () => {
-      const option = Array.from(
+    expect(
+      Array.from(
         document.body.querySelectorAll<HTMLElement>('[role="option"]')
       ).find((candidate) => candidate.textContent?.trim() === "Image URL")
-      option?.click()
-    })
-
-    expect(onUpdate).toHaveBeenCalledWith("view_kanban", {
-      properties: {
-        cardSize: "medium",
-        coverPreview: "image_url",
-        fitContent: true,
-        groupByField: "status",
-        hideEmptyFields: true,
-      },
-    })
+    ).toBeUndefined()
+    expect(onUpdate).not.toHaveBeenCalled()
   })
 
   it("announces a failed view update and keeps its settings available", async () => {

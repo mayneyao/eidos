@@ -60,7 +60,7 @@ const views: EidosFileViewInfo[] = [
     type: "kanban",
     tableId: "tasks",
     query: "SELECT * FROM tb_tasks",
-    properties: { groupByField: "status" },
+    properties: { groupField: "field-status" },
     filter: null,
     sorts: [],
     orderMap: null,
@@ -174,7 +174,7 @@ describe("Eidos File navigation hierarchy", () => {
       "[data-eidos-file-sheet-create-action]"
     )
     expect(sheetViewport?.lastElementChild).toBe(createAction)
-    expect(createAction?.previousElementSibling).toBe(sheetTabs)
+    expect(sheetViewport?.contains(sheetTabs ?? null)).toBe(true)
 
     await act(async () => {
       Array.from(viewTabs?.querySelectorAll<HTMLButtonElement>("button") ?? [])
@@ -360,11 +360,11 @@ describe("Eidos File navigation hierarchy", () => {
       )
     })
 
-    const viewTabs = container.querySelector<HTMLElement>(
-      '[role="tablist"][aria-label="Eidos File views"]'
+    const viewViewport = container.querySelector<HTMLElement>(
+      "[data-eidos-file-view-tabs-viewport]"
     )
-    expect(viewTabs).not.toBeNull()
-    Object.defineProperties(viewTabs as HTMLElement, {
+    expect(viewViewport).not.toBeNull()
+    Object.defineProperties(viewViewport as HTMLElement, {
       clientWidth: { configurable: true, value: 180 },
       scrollLeft: { configurable: true, value: 0, writable: true },
       scrollWidth: { configurable: true, value: 600 },
@@ -382,7 +382,7 @@ describe("Eidos File navigation hierarchy", () => {
 
     act(() => forward?.click())
 
-    expect(viewTabs?.scrollLeft).toBeGreaterThan(0)
+    expect(viewViewport?.scrollLeft).toBeGreaterThan(0)
     expect(
       container.querySelector('[aria-label="Scroll Eidos File views backward"]')
     ).not.toBeNull()

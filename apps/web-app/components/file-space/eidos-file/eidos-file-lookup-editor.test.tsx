@@ -14,13 +14,16 @@ import { EidosFileLookupEditor } from "./eidos-file-lookup-editor"
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const titleField: EidosFileFieldInfo = {
+  id: "field-people-title",
+  tableId: "people",
   name: "title",
-  type: "title",
+  type: "text",
   tableName: "tb_people",
   tableColumnName: "title",
   property: null,
   storageCodec: "scalar",
-  valueKind: "system",
+  valueKind: "source",
+  isRecordLabel: true,
   isHidden: false,
   isDerived: false,
   sourceTableColumnName: null,
@@ -28,13 +31,15 @@ const titleField: EidosFileFieldInfo = {
 }
 const relationField: EidosFileFieldInfo = {
   ...titleField,
+  id: "field-project-owners",
+  tableId: "projects",
   name: "Owners",
-  type: "link",
+  type: "relation",
   tableName: "tb_projects",
   tableColumnName: "owners",
   property: {
     targetTableId: "people",
-    targetField: "title",
+    targetField: "field-people-title",
     multiple: true,
   },
   storageCodec: "relation",
@@ -42,15 +47,17 @@ const relationField: EidosFileFieldInfo = {
 }
 const lookupField: EidosFileFieldInfo = {
   ...titleField,
+  id: "field-project-owner-count",
+  tableId: "projects",
   name: "Owner count",
   type: "lookup",
   tableName: "tb_projects",
   tableColumnName: "owner_count",
   property: {
-    relationField: "owners",
-    targetField: "title",
+    relationField: "field-project-owners",
+    targetField: "field-people-title",
     aggregate: "count",
-    displayType: "number",
+    displayType: "integer",
   },
   valueKind: "derived",
   isDerived: true,
@@ -113,24 +120,25 @@ describe("EidosFileLookupEditor", () => {
       await Promise.resolve()
     })
     expect(onSave).toHaveBeenCalledWith({
-      relationField: "owners",
-      targetField: "title",
+      relationField: "field-project-owners",
+      targetField: "field-people-title",
       aggregate: "count",
-      displayType: "number",
+      displayType: "integer",
     })
   })
 
   it("allows another lookup as the target field", async () => {
     const nestedTarget: EidosFileFieldInfo = {
       ...titleField,
+      id: "field-people-owner-count",
       name: "Owner count",
       type: "lookup",
       tableColumnName: "owner_count",
       property: {
-        relationField: "members",
-        targetField: "title",
+        relationField: "field-people-members",
+        targetField: "field-people-title",
         aggregate: "count",
-        displayType: "number",
+        displayType: "integer",
       },
       valueKind: "derived",
       isDerived: true,
@@ -155,10 +163,10 @@ describe("EidosFileLookupEditor", () => {
       await Promise.resolve()
     })
     expect(onSave).toHaveBeenCalledWith({
-      relationField: "owners",
-      targetField: "owner_count",
+      relationField: "field-project-owners",
+      targetField: "field-people-owner-count",
       aggregate: "count",
-      displayType: "number",
+      displayType: "integer",
     })
   })
 

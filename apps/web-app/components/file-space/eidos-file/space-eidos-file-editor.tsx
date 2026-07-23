@@ -14,6 +14,7 @@ import type {
   EidosFileRowsDeleteResult,
   EidosFileSnapshot,
   EidosFileSqlPrimitive,
+  FileEntry,
   UpdateEidosFileFieldInput,
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
@@ -23,11 +24,15 @@ import {
   EidosFileEditorWorkbar,
 } from "@eidos.space/eidos-file-ui/eidos-file-editor-chrome"
 import { EidosFileFieldCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-field-create-popover"
+import { EidosFileViewFieldsPopover } from "@eidos.space/eidos-file-ui/eidos-file-view-fields-popover"
 import {
   EidosFileFormulaEditorPopover,
   EidosFileLookupEditorPopover,
 } from "@eidos.space/eidos-file-ui/eidos-file-derived-field-editor"
-import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui/context"
+import {
+  EidosFileUIProvider,
+  type EidosFileUIAssetSession,
+} from "@eidos.space/eidos-file-ui/context"
 import { eidosFileRecordCardPageProjection } from "@eidos.space/eidos-file-ui/eidos-file-record-card-layout"
 import { uniqueSpaceEntryName } from "@eidos.space/file-space/names"
 import {
@@ -46,7 +51,6 @@ import { useOptionalTabContext } from "@/apps/web-app/components/tab-manager/tab
 import {
   isSameOrDescendant,
   type SpaceEidosFileRecordTarget,
-  toSpaceAssetUrl,
   toSpaceEidosFileRecordUrl,
   toSpaceFileUrl,
 } from "@/apps/web-app/components/file-space/file-path"
@@ -63,6 +67,7 @@ import { useTabStore } from "@/apps/web-app/store/tabs"
 import { useQuickOpenStore } from "@/apps/web-app/store/quick-open-store"
 import { useFileSpaceSettings } from "@/apps/web-app/store/file-space-settings"
 import { openSettings } from "@/components/settings/settings-events"
+import { desktopEidosFileAssetPresenter } from "@/apps/web-app/lib/eidos-file/desktop-host-services"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -85,11 +90,7 @@ import {
 } from "./eidos-file-create-options"
 import { EidosFileEmptyState } from "./eidos-file-empty-state"
 import { eidosFileErrorMessage } from "./eidos-file-error-message"
-import {
-  eidosFileFieldDisplayName,
-  eidosFileViewVisibleSystemFields,
-  isOptionalEidosFileSystemField,
-} from "./eidos-file-field-visibility"
+import { eidosFileFieldDisplayName } from "./eidos-file-field-visibility"
 import { EidosFileFieldPropertyPanel } from "./eidos-file-field-property-panel"
 import { eidosFileAssetDirectory } from "./eidos-file-settings"
 import { eidosFileOpenErrorPresentation } from "./eidos-file-open-error"
@@ -103,7 +104,6 @@ import { EidosFileRenameDialog } from "./eidos-file-rename-dialog"
 import { EidosFileSheetCreatePopover } from "./eidos-file-sheet-create-popover"
 import { EidosFileSheetTabs } from "./eidos-file-sheet-tabs"
 import { EidosFileStructureMenu } from "./eidos-file-structure-menu"
-import { EidosFileViewMenu } from "./eidos-file-view-menu"
 import {
   eidosFileExtensionContributionId,
   isEidosFileBuiltInViewType,
@@ -125,6 +125,7 @@ type DeleteTarget =
   | {
       kind: "field"
       tableId: string
+      fieldId: string
       columnName: string
       name: string
     }
@@ -316,20 +317,19 @@ function eidosFileMutationStatusKey(
 
 function eidosFileMutationRevision(result: unknown): string | null {
   if (!result || typeof result !== "object") return null
-  if (
-    "revision" in result &&
-    typeof (result as { revision?: unknown }).revision === "string"
-  ) {
-    return (result as { revision: string }).revision
+  if ("revision" in result) {
+    const revision = (result as { revision?: unknown }).revision
+    if (typeof revision === "number" || typeof revision === "bigint") {
+      return String(revision)
+    }
   }
   if (
     "metadata" in result &&
     result.metadata &&
     typeof result.metadata === "object" &&
-    "updatedAt" in result.metadata &&
-    typeof (result.metadata as { updatedAt?: unknown }).updatedAt === "string"
+    "revision" in result.metadata
   ) {
-    return (result.metadata as { updatedAt: string }).updatedAt
+    return eidosFileMutationRevision(result.metadata)
   }
   if ("snapshot" in result) {
     return eidosFileMutationRevision(
@@ -418,6 +418,7 @@ export function SpaceEidosFileEditor({
     createTable,
     updateTable,
     deleteTable,
+    reorderTables,
     addField,
     previewFormula: previewFormulaDraft,
     updateField,
@@ -432,8 +433,12 @@ export function SpaceEidosFileEditor({
     updateRows,
     deleteRows,
     deleteRowRanges,
+    getAssetSession,
+    acquireAsset,
   } = useSpaceEidosFile(currentSpace?.id)
   const [snapshot, setSnapshot] = useState<EidosFileSnapshot | null>(null)
+  const [assetSession, setAssetSession] =
+    useState<EidosFileUIAssetSession | null>(null)
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const [activeViewIds, setActiveViewIds] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
@@ -494,6 +499,33 @@ export function SpaceEidosFileEditor({
     failedMutationKeys.size > 0
   )
 
+  useEffect(() => {
+    if (!snapshot) {
+      setAssetSession(null)
+      return
+    }
+    let active = true
+    let unsubscribe: (() => void) | undefined
+    void getAssetSession(filePath)
+      .then((binding) => {
+        if (!active) return
+        setAssetSession(binding)
+        unsubscribe = binding.services.subscribe(
+          binding.state.sessionId,
+          (state) => {
+            if (active) setAssetSession({ ...binding, state })
+          }
+        )
+      })
+      .catch(() => {
+        if (active) setAssetSession(null)
+      })
+    return () => {
+      active = false
+      unsubscribe?.()
+    }
+  }, [filePath, getAssetSession, snapshot?.metadata.fileId])
+
   const snapshotWithPendingViewMutations = useCallback(
     (confirmed: EidosFileSnapshot) => {
       let next = confirmed
@@ -511,7 +543,7 @@ export function SpaceEidosFileEditor({
 
   const applySnapshot = useCallback(
     (next: EidosFileSnapshot) => {
-      knownEidosFileRevisionRef.current = next.metadata.updatedAt
+      knownEidosFileRevisionRef.current = String(next.metadata.revision)
       const confirmed = confirmedSnapshotRef.current
         ? structurallyShareEidosFileValue(confirmedSnapshotRef.current, next)
         : next
@@ -573,7 +605,9 @@ export function SpaceEidosFileEditor({
   const refreshFromFileChange = useCallback(async () => {
     try {
       const next = await getSnapshot(filePath)
-      if (next.metadata.updatedAt === knownEidosFileRevisionRef.current) {
+      if (
+        String(next.metadata.revision) === knownEidosFileRevisionRef.current
+      ) {
         setError(null)
         return
       }
@@ -998,7 +1032,7 @@ export function SpaceEidosFileEditor({
     }
   }, [attachmentDirectory, createDirectory, listFiles])
 
-  const importEidosFiles = useCallback(async (): Promise<string[]> => {
+  const importEidosFiles = useCallback(async (): Promise<FileEntry[]> => {
     await ensureAttachmentDirectory()
     const result = await importFiles(attachmentDirectory)
     if (result.errors.length > 0) {
@@ -1007,17 +1041,25 @@ export function SpaceEidosFileEditor({
         result.errors
       )
     }
-    return result.imported.map((entry) => entry.path)
-  }, [attachmentDirectory, ensureAttachmentDirectory, importFiles])
+    return Promise.all(
+      result.imported.map((entry) => acquireAsset(filePath, entry.path))
+    )
+  }, [
+    acquireAsset,
+    attachmentDirectory,
+    ensureAttachmentDirectory,
+    filePath,
+    importFiles,
+  ])
 
   const importDroppedEidosFiles = useCallback(
-    async (files: File[]): Promise<string[]> => {
+    async (files: File[]): Promise<FileEntry[]> => {
       if (files.length === 0) return []
       await ensureAttachmentDirectory()
       const existingNames = (await listFiles(attachmentDirectory)).map(
         (entry) => entry.name
       )
-      const imported: string[] = []
+      const imported: FileEntry[] = []
       for (const file of files) {
         const name = uniqueSpaceEntryName(
           existingNames,
@@ -1026,26 +1068,18 @@ export function SpaceEidosFileEditor({
         existingNames.push(name)
         const path = `${attachmentDirectory}/${name}`
         await createBinary(path, new Uint8Array(await file.arrayBuffer()))
-        imported.push(path)
+        imported.push(await acquireAsset(filePath, path))
       }
       return imported
     },
-    [attachmentDirectory, createBinary, ensureAttachmentDirectory, listFiles]
-  )
-
-  const openEidosFileReference = useCallback((path: string) => {
-    if (/^https?:/i.test(path)) {
-      window.open(path, "_blank")
-      return
-    }
-    useTabStore
-      .getState()
-      .openTab(toSpaceFileUrl(path), path.split("/").at(-1) ?? path)
-  }, [])
-
-  const revealEidosFileReference = useCallback(
-    (path: string) => reveal(path).then(() => undefined),
-    [reveal]
+    [
+      acquireAsset,
+      attachmentDirectory,
+      createBinary,
+      ensureAttachmentDirectory,
+      filePath,
+      listFiles,
+    ]
   )
 
   const loadRequestedRecord = useCallback(
@@ -1268,8 +1302,14 @@ export function SpaceEidosFileEditor({
     if (!activeTable)
       return Promise.reject(new Error("No active Eidos File table"))
     const tableId = activeTable.table.id
+    const labelField = activeTable.fields.find(
+      (field) => field.isRecordLabel && field.valueKind === "source"
+    )
     return enqueueMutation(
-      () => insertRow(filePath, tableId, { title: "Untitled" }),
+      () =>
+        insertRow(filePath, tableId, {
+          ...(labelField ? { [labelField.id]: "Untitled" } : {}),
+        }),
       (result) => {
         updateTableRowCount(tableId, result.rowCount)
         if (hasActiveQuery || activeView?.type !== "grid") {
@@ -1301,11 +1341,15 @@ export function SpaceEidosFileEditor({
         return Promise.reject(new Error("No active Eidos File table"))
       }
       const tableId = activeTable.table.id
+      const labelField = activeTable.fields.find(
+        (candidate) =>
+          candidate.isRecordLabel && candidate.valueKind === "source"
+      )
       return enqueueMutation(
         () =>
           insertRow(filePath, tableId, {
-            title,
-            [field.tableColumnName]: value,
+            ...(labelField ? { [labelField.id]: title } : {}),
+            [field.id]: value,
           }),
         (result) => {
           updateTableRowCount(tableId, result.rowCount)
@@ -1706,6 +1750,15 @@ export function SpaceEidosFileEditor({
     [applySnapshot, deleteTable, enqueueMutation, filePath]
   )
 
+  const reorderTablesInEidosFile = useCallback(
+    (tableIds: string[]): Promise<void> =>
+      enqueueMutation(() => reorderTables(filePath, tableIds), applySnapshot, {
+        errorMode: "local",
+        statusKey: eidosFileMutationStatusKey("reorder-tables", filePath),
+      }).then(() => undefined),
+    [applySnapshot, enqueueMutation, filePath, reorderTables]
+  )
+
   const renameStructure = useCallback(
     (name: string): Promise<void> => {
       if (!renameTarget) return Promise.resolve()
@@ -1722,12 +1775,12 @@ export function SpaceEidosFileEditor({
       })
     }
     const operation = () =>
-      deleteField(filePath, deleteTarget.tableId, deleteTarget.columnName)
+      deleteField(filePath, deleteTarget.tableId, deleteTarget.fieldId)
     return enqueueMutation(operation, applySnapshot, {
       statusKey: eidosFileMutationStatusKey(
         "delete-field",
         deleteTarget.tableId,
-        deleteTarget.columnName
+        deleteTarget.fieldId
       ),
     }).then(() => {
       setFieldPropertyColumn((current) =>
@@ -1753,13 +1806,7 @@ export function SpaceEidosFileEditor({
         return Promise.reject(new Error("No active Eidos File table"))
       }
       return enqueueMutation(
-        () =>
-          updateField(
-            filePath,
-            activeTable.table.id,
-            field.tableColumnName,
-            changes
-          ),
+        () => updateField(filePath, activeTable.table.id, field.id, changes),
         (next) => {
           applySnapshot(next)
           if (changes.type !== undefined || changes.property !== undefined) {
@@ -1771,7 +1818,7 @@ export function SpaceEidosFileEditor({
           statusKey: eidosFileMutationStatusKey(
             "field",
             activeTable.table.id,
-            field.tableColumnName
+            field.id
           ),
         }
       ).then(() => undefined)
@@ -1784,12 +1831,9 @@ export function SpaceEidosFileEditor({
       if (!activeTable || !formulaTarget) return Promise.resolve()
       return enqueueMutation(
         () =>
-          updateField(
-            filePath,
-            activeTable.table.id,
-            formulaTarget.tableColumnName,
-            { property }
-          ),
+          updateField(filePath, activeTable.table.id, formulaTarget.id, {
+            property,
+          }),
         (next) => {
           applySnapshot(next)
           setGridReloadToken((current) => current + 1)
@@ -1799,7 +1843,7 @@ export function SpaceEidosFileEditor({
           statusKey: eidosFileMutationStatusKey(
             "field",
             activeTable.table.id,
-            formulaTarget.tableColumnName
+            formulaTarget.id
           ),
         }
       ).then(() => undefined)
@@ -1829,12 +1873,9 @@ export function SpaceEidosFileEditor({
       if (!activeTable || !lookupTarget) return Promise.resolve()
       return enqueueMutation(
         () =>
-          updateField(
-            filePath,
-            activeTable.table.id,
-            lookupTarget.tableColumnName,
-            { property }
-          ),
+          updateField(filePath, activeTable.table.id, lookupTarget.id, {
+            property,
+          }),
         (next) => {
           applySnapshot(next)
           setGridReloadToken((current) => current + 1)
@@ -1844,7 +1885,7 @@ export function SpaceEidosFileEditor({
           statusKey: eidosFileMutationStatusKey(
             "field",
             activeTable.table.id,
-            lookupTarget.tableColumnName
+            lookupTarget.id
           ),
         }
       ).then(() => undefined)
@@ -1883,9 +1924,7 @@ export function SpaceEidosFileEditor({
           ? {
               cardSize: "medium",
               hideEmptyFields: true,
-              ...(firstSelectField
-                ? { groupByField: firstSelectField.tableColumnName }
-                : {}),
+              ...(firstSelectField ? { groupField: firstSelectField.id } : {}),
             }
           : type === "gallery"
             ? { cardSize: "medium", hideEmptyFields: true }
@@ -2038,6 +2077,7 @@ export function SpaceEidosFileEditor({
       setDeleteTarget({
         kind: "field",
         tableId: activeTableIdForActions,
+        fieldId: field.id,
         columnName: field.tableColumnName,
         name: field.name,
       })
@@ -2119,36 +2159,39 @@ export function SpaceEidosFileEditor({
       : { _id: recordId, title: "Loading…" }
 
     return (
-      <EidosFileRecordPage
-        eidosFileName={eidosFileName}
-        tableName={requestedRecordTable.table.name}
-        row={row}
-        fields={orderedEidosFileFields(requestedRecordTable.fields)}
-        disabled={blockingMutations > 0}
-        loading={!rowMatchesTarget || requestedRecordLoading}
-        loadError={requestedRecordLoadError}
-        error={error}
-        onBack={openEidosFileFromRecord}
-        onDismissError={() => setError(null)}
-        onRetryLoad={retryRequestedRecord}
-        onCopyRecordId={copyRequestedRecordId}
-        onCellEdit={saveRequestedRecordCell}
-        onError={handleGridError}
-        onImportFiles={importEidosFiles}
-        onImportDroppedFiles={importDroppedEidosFiles}
-        onSearchRelation={searchRelationRecords}
-        onOpenFile={openEidosFileReference}
-        onRevealFile={(path) => {
-          void revealEidosFileReference(path).catch(handleGridError)
-        }}
-      />
+      <EidosFileUIProvider
+        themeName={resolvedTheme === "dark" ? "dark" : "light"}
+        assetSession={assetSession ?? undefined}
+        assetPresenter={desktopEidosFileAssetPresenter}
+      >
+        <EidosFileRecordPage
+          eidosFileName={eidosFileName}
+          tableName={requestedRecordTable.table.name}
+          row={row}
+          fields={orderedEidosFileFields(requestedRecordTable.fields)}
+          disabled={blockingMutations > 0}
+          loading={!rowMatchesTarget || requestedRecordLoading}
+          loadError={requestedRecordLoadError}
+          error={error}
+          onBack={openEidosFileFromRecord}
+          onDismissError={() => setError(null)}
+          onRetryLoad={retryRequestedRecord}
+          onCopyRecordId={copyRequestedRecordId}
+          onCellEdit={saveRequestedRecordCell}
+          onError={handleGridError}
+          onImportFiles={importEidosFiles}
+          onImportDroppedFiles={importDroppedEidosFiles}
+          onSearchRelation={searchRelationRecords}
+        />
+      </EidosFileUIProvider>
     )
   }
 
   return (
     <EidosFileUIProvider
       themeName={resolvedTheme === "dark" ? "dark" : "light"}
-      resolveAssetUrl={toSpaceAssetUrl}
+      assetSession={assetSession ?? undefined}
+      assetPresenter={desktopEidosFileAssetPresenter}
     >
       <EidosFileEditorRoot ref={editorRef}>
         <EidosFileEditorWorkbar>
@@ -2208,6 +2251,15 @@ export function SpaceEidosFileEditor({
                   }
                 />
                 {activeView ? (
+                  <EidosFileViewFieldsPopover
+                    fields={activeTable.fields}
+                    view={activeView}
+                    disabled={blockingMutations > 0}
+                    onUpdate={(changes) => updateActiveView(changes, "local")}
+                    onFieldOpen={openFieldProperty}
+                  />
+                ) : null}
+                {activeView ? (
                   <EidosFileCsvExportPopover
                     triggerVariant="workbar"
                     disabled={loading || pendingMutations > 0}
@@ -2217,30 +2269,6 @@ export function SpaceEidosFileEditor({
                     onCancel={cancelCsvOperation}
                   />
                 ) : null}
-                <EidosFileViewMenu
-                  fields={activeTable.fields.filter(
-                    (field) =>
-                      isOptionalEidosFileSystemField(field) ||
-                      (!field.isHidden &&
-                        (field.valueKind === "source" ||
-                          field.valueKind === "relation" ||
-                          field.valueKind === "derived"))
-                  )}
-                  hiddenFields={activeView?.hiddenFields ?? []}
-                  visibleSystemFields={eidosFileViewVisibleSystemFields(
-                    activeView
-                  )}
-                  disabled={blockingMutations > 0}
-                  onVisibilityChange={({ hiddenFields, visibleSystemFields }) =>
-                    void updateActiveView({
-                      hiddenFields,
-                      properties: {
-                        ...(activeView?.properties ?? {}),
-                        visibleSystemFields,
-                      },
-                    })
-                  }
-                />
                 <EidosFileStructureMenu
                   table={activeTable.table}
                   fields={activeTable.fields}
@@ -2378,8 +2406,6 @@ export function SpaceEidosFileEditor({
                 onSearchRelation={searchRelationRecords}
                 onDeleteRow={deleteSingleRow}
                 onOpenRecordInTab={openRecordInTab}
-                onOpenFile={openEidosFileReference}
-                onRevealFile={revealEidosFileReference}
                 onRowCountChange={handleSearchResultCountChange}
                 onError={handleGridError}
                 sidePanel={fieldPropertySidePanel}
@@ -2402,8 +2428,6 @@ export function SpaceEidosFileEditor({
                 onSearchRelation={searchRelationRecords}
                 onDeleteRow={deleteSingleRow}
                 onOpenRecordInTab={openRecordInTab}
-                onOpenFile={openEidosFileReference}
-                onRevealFile={revealEidosFileReference}
                 onRowCountChange={handleSearchResultCountChange}
                 onError={handleGridError}
                 sidePanel={fieldPropertySidePanel}
@@ -2475,8 +2499,6 @@ export function SpaceEidosFileEditor({
                     onImportFiles={importEidosFiles}
                     onImportDroppedFiles={importDroppedEidosFiles}
                     onOpenRecordInTab={openRecordInTab}
-                    onOpenFile={openEidosFileReference}
-                    onRevealFile={revealEidosFileReference}
                     onSearchRelation={searchRelationRecords}
                     propertyField={fieldPropertyTarget}
                     onPropertyFieldOpen={openFieldProperty}
@@ -2574,6 +2596,7 @@ export function SpaceEidosFileEditor({
             />
           }
           onSelect={setActiveTableId}
+          onReorder={reorderTablesInEidosFile}
           onRename={(table, name) => renameTableInEidosFile(table.id, name)}
           onDelete={(table) => deleteTableInEidosFile(table.id)}
           status={

@@ -1,4 +1,4 @@
-import { memo, useCallback } from "react"
+import { memo } from "react"
 import {
   EidosFileGrid as SharedEidosFileGrid,
   EidosFileUIProvider,
@@ -6,10 +6,8 @@ import {
   type EidosFileGridRowEdit,
 } from "@eidos.space/eidos-file-ui"
 
-import { toSpaceAssetUrl } from "@/apps/web-app/components/file-space/file-path"
 import { useCurrentTheme } from "@/apps/web-app/hooks/use-current-theme"
 import { useTheme } from "@/components/theme-provider"
-import { getFilePreviewImage, getFileType } from "@/lib/mime/mime"
 import { useDynamicTheme } from "@/components/table/views/grid/theme"
 
 export type { EidosFileGridProps, EidosFileGridRowEdit }
@@ -24,20 +22,9 @@ export const EidosFileGrid = memo(function EidosFileGrid(
   const { resolvedTheme } = useTheme()
   const { css: spaceThemeCss } = useCurrentTheme()
   const gridTheme = useDynamicTheme(resolvedTheme, spaceThemeCss)
-  const resolveFilePreview = useCallback((path: string) => {
-    if (/^(?:https?:|data:|blob:)/i.test(path)) {
-      return getFilePreviewImage(path)
-    }
-    return getFileType(path) === "image"
-      ? toSpaceAssetUrl(path)
-      : getFilePreviewImage(path)
-  }, [])
-
   return (
     <EidosFileUIProvider
       themeName={resolvedTheme === "dark" ? "dark" : "light"}
-      resolveAssetUrl={toSpaceAssetUrl}
-      resolveFilePreview={resolveFilePreview}
     >
       <SharedEidosFileGrid {...props} gridTheme={gridTheme} />
     </EidosFileUIProvider>

@@ -8,6 +8,7 @@ import {
   eidosFileLookupAggregateSupportsTarget,
   eidosFileLookupDisplayType,
 } from "@eidos.space/eidos-file"
+import { isEidosFileRecordLabelField } from "@eidos.space/eidos-file-ui"
 
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
@@ -90,11 +91,10 @@ export function EidosFileLookupEditor({
     onOpenChange(nextOpen)
   }
 
-  const relations = fields.filter((candidate) => candidate.type === "link")
+  const relations = fields.filter((candidate) => candidate.type === "relation")
   const selectedRelation =
-    relations.find(
-      (candidate) => candidate.tableColumnName === relationField
-    ) ?? relations[0]
+    relations.find((candidate) => candidate.id === relationField) ??
+    relations[0]
   const targetTableId =
     typeof selectedRelation?.property?.targetTableId === "string"
       ? selectedRelation.property.targetTableId
@@ -113,8 +113,8 @@ export function EidosFileLookupEditor({
           )
       ) ?? []
   const selectedTarget =
-    targets.find((candidate) => candidate.tableColumnName === targetField) ??
-    targets.find((candidate) => candidate.tableColumnName === "title") ??
+    targets.find((candidate) => candidate.id === targetField) ??
+    targets.find(isEidosFileRecordLabelField) ??
     targets[0]
   const aggregateSupported = selectedTarget
     ? eidosFileLookupAggregateSupportsTarget(aggregate, selectedTarget)
@@ -135,8 +135,8 @@ export function EidosFileLookupEditor({
     setError(null)
     try {
       await onSave({
-        relationField: selectedRelation.tableColumnName,
-        targetField: selectedTarget.tableColumnName,
+        relationField: selectedRelation.id,
+        targetField: selectedTarget.id,
         aggregate,
         displayType: eidosFileLookupDisplayType(aggregate, selectedTarget),
       })
@@ -169,7 +169,7 @@ export function EidosFileLookupEditor({
             <label className="grid gap-1.5 text-xs font-medium">
               Relation
               <Select
-                value={selectedRelation?.tableColumnName ?? ""}
+                value={selectedRelation?.id ?? ""}
                 disabled={saving}
                 onValueChange={(value) => {
                   setRelationField(value)
@@ -181,10 +181,7 @@ export function EidosFileLookupEditor({
                 </SelectTrigger>
                 <SelectContent>
                   {relations.map((relation) => (
-                    <SelectItem
-                      key={relation.tableColumnName}
-                      value={relation.tableColumnName}
-                    >
+                    <SelectItem key={relation.id} value={relation.id}>
                       {relation.name}
                     </SelectItem>
                   ))}
@@ -194,7 +191,7 @@ export function EidosFileLookupEditor({
             <label className="grid gap-1.5 text-xs font-medium">
               Target field
               <Select
-                value={selectedTarget?.tableColumnName ?? ""}
+                value={selectedTarget?.id ?? ""}
                 disabled={saving}
                 onValueChange={setTargetField}
               >
@@ -203,10 +200,7 @@ export function EidosFileLookupEditor({
                 </SelectTrigger>
                 <SelectContent>
                   {targets.map((target) => (
-                    <SelectItem
-                      key={target.tableColumnName}
-                      value={target.tableColumnName}
-                    >
+                    <SelectItem key={target.id} value={target.id}>
                       {target.name}
                     </SelectItem>
                   ))}

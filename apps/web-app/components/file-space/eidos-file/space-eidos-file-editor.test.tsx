@@ -27,6 +27,7 @@ const getTableRowMock = vi.hoisted(() => vi.fn())
 const createTableMock = vi.hoisted(() => vi.fn())
 const updateTableMock = vi.hoisted(() => vi.fn())
 const deleteTableMock = vi.hoisted(() => vi.fn())
+const reorderTablesMock = vi.hoisted(() => vi.fn())
 const addFieldMock = vi.hoisted(() => vi.fn())
 const previewFormulaMock = vi.hoisted(() => vi.fn())
 const updateFieldMock = vi.hoisted(() => vi.fn())
@@ -51,6 +52,8 @@ const deleteRowRangesMock = vi.hoisted(() => vi.fn())
 const exportCsvMock = vi.hoisted(() => vi.fn())
 const getCsvOperationMock = vi.hoisted(() => vi.fn())
 const cancelCsvOperationMock = vi.hoisted(() => vi.fn())
+const getAssetSessionMock = vi.hoisted(() => vi.fn())
+const acquireAssetMock = vi.hoisted(() => vi.fn())
 const spaceFileChanges = vi.hoisted(() => ({
   handler: undefined as
     | ((event: { eventType: "change" | "rescan"; path: string }) => void)
@@ -67,7 +70,6 @@ const eidosFileViewHostProps = vi.hoisted(() => ({
     loadPage: (offset: number, limit: number) => Promise<EidosFileRowPage>
     reloadToken?: number
     onOpenRecordInTab?: (row: EidosFileRow) => void
-    onRevealFile: unknown
     onPropertyFieldOpen: unknown
     onPropertyFieldClose: unknown
     onDeleteField: unknown
@@ -87,7 +89,6 @@ const eidosFileViewHostProps = vi.hoisted(() => ({
       field: EidosFileFieldInfo,
       value: EidosFileSqlPrimitive
     ) => Promise<EidosFileRowMutationResult>
-    onRevealFile: unknown
     onOpenRecordInTab?: (row: EidosFileRow) => void
   }>,
   kanban: [] as Array<{
@@ -106,7 +107,6 @@ const eidosFileViewHostProps = vi.hoisted(() => ({
       field: EidosFileFieldInfo,
       value: EidosFileSqlPrimitive
     ) => Promise<EidosFileRowMutationResult>
-    onRevealFile: unknown
     onOpenRecordInTab?: (row: EidosFileRow) => void
   }>,
 }))
@@ -139,6 +139,7 @@ vi.mock("@/apps/web-app/hooks/use-space-eidos-file", () => ({
     createTable: createTableMock,
     updateTable: updateTableMock,
     deleteTable: deleteTableMock,
+    reorderTables: reorderTablesMock,
     addField: addFieldMock,
     previewFormula: previewFormulaMock,
     updateField: updateFieldMock,
@@ -156,6 +157,8 @@ vi.mock("@/apps/web-app/hooks/use-space-eidos-file", () => ({
     exportCsv: exportCsvMock,
     getCsvOperation: getCsvOperationMock,
     cancelCsvOperation: cancelCsvOperationMock,
+    getAssetSession: getAssetSessionMock,
+    acquireAsset: acquireAssetMock,
   }),
 }))
 
@@ -230,6 +233,69 @@ vi.mock("@eidos.space/eidos-file-ui/eidos-file-field-create-popover", () => ({
     ) : null,
 }))
 
+vi.mock("@eidos.space/eidos-file-ui/eidos-file-view-fields-popover", () => ({
+  EidosFileViewFieldsPopover: ({
+    fields,
+    view,
+    onUpdate,
+    onFieldOpen,
+  }: {
+    fields: (typeof snapshot)["tables"][number]["fields"]
+    view: (typeof snapshot)["tables"][number]["views"][number]
+    onUpdate: (changes: {
+      hiddenFields?: string[]
+      properties?: Record<string, unknown>
+    }) => void
+    onFieldOpen?: (
+      field: (typeof snapshot)["tables"][number]["fields"][number]
+    ) => void
+  }) => {
+    const field = fields.find(
+      (candidate) => candidate.tableColumnName === "status"
+    )
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() =>
+            onUpdate({
+              hiddenFields: [],
+              properties: {
+                ...(view.properties ?? {}),
+                visibleSystemFields: ["_created_time"],
+              },
+            })
+          }
+        >
+          Show created time
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onUpdate({
+              hiddenFields: [],
+              properties: {
+                ...(view.properties ?? {}),
+                visibleSystemFields: [],
+              },
+            })
+          }
+        >
+          Reset visible fields
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            if (field) onFieldOpen?.(field)
+          }}
+        >
+          Browse Status field
+        </button>
+      </>
+    )
+  },
+}))
+
 vi.mock("./eidos-file-structure-menu", () => ({
   EidosFileStructureMenu: ({
     fields,
@@ -290,42 +356,6 @@ vi.mock("./eidos-file-structure-menu", () => ({
   },
 }))
 
-vi.mock("./eidos-file-view-menu", () => ({
-  EidosFileViewMenu: ({
-    onVisibilityChange,
-  }: {
-    onVisibilityChange: (visibility: {
-      hiddenFields: string[]
-      visibleSystemFields: string[]
-    }) => void
-  }) => (
-    <>
-      <button
-        type="button"
-        onClick={() =>
-          onVisibilityChange({
-            hiddenFields: [],
-            visibleSystemFields: ["_created_time"],
-          })
-        }
-      >
-        Show created time
-      </button>
-      <button
-        type="button"
-        onClick={() =>
-          onVisibilityChange({
-            hiddenFields: [],
-            visibleSystemFields: [],
-          })
-        }
-      >
-        Reset visible fields
-      </button>
-    </>
-  ),
-}))
-
 vi.mock("@eidos.space/eidos-file-ui/eidos-file-derived-field-editor", () => ({
   EidosFileFormulaEditorPopover: ({
     open,
@@ -349,7 +379,7 @@ vi.mock("@eidos.space/eidos-file-ui/eidos-file-derived-field-editor", () => ({
             onPreview({
               name: "Total",
               columnName: "total",
-              formula: "price * quantity",
+              formula: '"Price" * "Quantity"',
               displayType: "number",
             })
           }
@@ -361,7 +391,7 @@ vi.mock("@eidos.space/eidos-file-ui/eidos-file-derived-field-editor", () => ({
           onClick={() =>
             void Promise.resolve(
               onSave({
-                formula: "price * quantity",
+                formula: '"Price" * "Quantity"',
                 displayType: "number",
               })
             ).catch(() => undefined)
@@ -384,10 +414,10 @@ vi.mock("@eidos.space/eidos-file-ui/eidos-file-derived-field-editor", () => ({
         onClick={() =>
           void Promise.resolve(
             onSave({
-              relationField: "owners",
-              targetField: "title",
+              relationField: "field-owners",
+              targetField: "field-people-title",
               aggregate: "count",
-              displayType: "number",
+              displayType: "integer",
             })
           ).catch(() => undefined)
         }
@@ -460,8 +490,6 @@ vi.mock("./eidos-file-grid", async () => {
       onSelectedRowsChange,
       onImportFiles,
       onImportDroppedFiles,
-      onOpenFile,
-      onRevealFile,
       onOpenRecordInTab,
       onSearchRelation,
       propertyField,
@@ -502,8 +530,6 @@ vi.mock("./eidos-file-grid", async () => {
       ) => void
       onImportFiles?: () => Promise<string[]>
       onImportDroppedFiles?: (files: File[]) => Promise<string[]>
-      onOpenFile?: (path: string) => void
-      onRevealFile?: (path: string) => Promise<void> | void
       onOpenRecordInTab?: (row: EidosFileRow) => void
       onSearchRelation?: (
         field: (typeof snapshot)["tables"][number]["fields"][number],
@@ -544,7 +570,6 @@ vi.mock("./eidos-file-grid", async () => {
         loadPage,
         reloadToken,
         onOpenRecordInTab,
-        onRevealFile,
         onPropertyFieldOpen,
         onPropertyFieldClose,
         onDeleteField,
@@ -667,20 +692,8 @@ vi.mock("./eidos-file-grid", async () => {
           >
             Drop attachment
           </button>
-          <button
-            type="button"
-            onClick={() => onOpenFile?.("assets/report.pdf")}
-          >
-            Open attachment
-          </button>
           <button type="button" onClick={() => onOpenRecordInTab?.(row)}>
             Open record in tab
-          </button>
-          <button
-            type="button"
-            onClick={() => void onRevealFile?.("assets/report.pdf")}
-          >
-            Reveal attachment
           </button>
           <button
             type="button"
@@ -688,14 +701,15 @@ vi.mock("./eidos-file-grid", async () => {
               void onSearchRelation?.(
                 {
                   ...title!,
+                  id: "field-owners",
                   name: "Owners",
-                  type: "link",
+                  type: "relation",
                   tableColumnName: "owners",
                   storageCodec: "relation",
                   valueKind: "relation",
                   property: {
                     targetTableId: "people",
-                    targetField: "title",
+                    targetField: "field-people-title",
                     multiple: true,
                   },
                 },
@@ -710,6 +724,7 @@ vi.mock("./eidos-file-grid", async () => {
             onClick={() =>
               onEditFormula?.({
                 ...title!,
+                id: "field-total",
                 name: "Total",
                 type: "formula",
                 tableColumnName: "total",
@@ -726,14 +741,15 @@ vi.mock("./eidos-file-grid", async () => {
             onClick={() =>
               onEditLookup?.({
                 ...title!,
+                id: "field-owner-count",
                 name: "Owner count",
                 type: "lookup",
                 tableColumnName: "owner_count",
                 valueKind: "derived",
                 isDerived: true,
                 property: {
-                  relationField: "owners",
-                  targetField: "title",
+                  relationField: "field-owners",
+                  targetField: "field-people-title",
                   aggregate: "count",
                   displayType: "number",
                 },
@@ -836,7 +852,6 @@ vi.mock("./eidos-file-gallery-view", async () => {
       loadRow,
       onCellEdit,
       onDeleteRow,
-      onRevealFile,
       onOpenRecordInTab,
       reloadToken,
     }: {
@@ -855,7 +870,6 @@ vi.mock("./eidos-file-gallery-view", async () => {
         value: EidosFileSqlPrimitive
       ) => Promise<EidosFileRowMutationResult>
       onDeleteRow?: (row: { _id: string; title: string }) => Promise<void>
-      onRevealFile?: (path: string) => Promise<void> | void
       onOpenRecordInTab?: (row: EidosFileRow) => void
       reloadToken?: number
     }) {
@@ -864,7 +878,6 @@ vi.mock("./eidos-file-gallery-view", async () => {
         loadPage,
         loadRow,
         onCellEdit,
-        onRevealFile,
         onOpenRecordInTab,
       })
       const title = table.fields.find(
@@ -915,7 +928,6 @@ vi.mock("./eidos-file-kanban-view", async () => {
       loadRow,
       onAddRow,
       onCellEdit,
-      onRevealFile,
       onOpenRecordInTab,
       reloadToken,
     }: {
@@ -940,7 +952,6 @@ vi.mock("./eidos-file-kanban-view", async () => {
         field: EidosFileFieldInfo,
         value: EidosFileSqlPrimitive
       ) => Promise<EidosFileRowMutationResult>
-      onRevealFile?: (path: string) => Promise<void> | void
       onOpenRecordInTab?: (row: EidosFileRow) => void
       reloadToken?: number
     }) {
@@ -949,7 +960,6 @@ vi.mock("./eidos-file-kanban-view", async () => {
         loadGroupPage,
         loadRow,
         onCellEdit,
-        onRevealFile,
         onOpenRecordInTab,
       })
       const title = table.fields.find(
@@ -997,9 +1007,10 @@ const snapshot: EidosFileSnapshot = {
   path: "projects/tasks.eidos",
   metadata: {
     format: "eidos-file",
-    formatVersion: 1,
+    fileId: "0198f1a0-0000-7000-8000-000000000001",
+    formatVersion: "1.0",
     schemaVersion: 1,
-    app: "eidos",
+    revision: 1,
     createdAt: "2026-07-12T00:00:00.000Z",
     updatedAt: "2026-07-12T00:00:00.000Z",
     title: "Tasks",
@@ -1019,6 +1030,8 @@ const snapshot: EidosFileSnapshot = {
       },
       fields: [
         {
+          id: "field-row-id",
+          tableId: "tasks",
           name: "_id",
           type: "row-id",
           tableName: "tb_tasks",
@@ -1032,19 +1045,24 @@ const snapshot: EidosFileSnapshot = {
           dependsOn: null,
         },
         {
+          id: "field-title",
+          tableId: "tasks",
           name: "Title",
-          type: "title",
+          type: "text",
           tableName: "tb_tasks",
           tableColumnName: "title",
           property: null,
           storageCodec: "scalar",
-          valueKind: "system",
+          valueKind: "source",
           isHidden: false,
           isDerived: false,
+          isRecordLabel: true,
           sourceTableColumnName: null,
           dependsOn: null,
         },
         {
+          id: "field-status",
+          tableId: "tasks",
           name: "Status",
           type: "select",
           tableName: "tb_tasks",
@@ -1093,6 +1111,7 @@ describe("SpaceEidosFileEditor", () => {
     createTableMock.mockReset()
     updateTableMock.mockReset()
     deleteTableMock.mockReset()
+    reorderTablesMock.mockReset()
     addFieldMock.mockReset()
     previewFormulaMock.mockReset()
     updateFieldMock.mockReset()
@@ -1117,6 +1136,8 @@ describe("SpaceEidosFileEditor", () => {
     exportCsvMock.mockReset()
     getCsvOperationMock.mockReset()
     cancelCsvOperationMock.mockReset()
+    getAssetSessionMock.mockReset()
+    acquireAssetMock.mockReset()
     eidosFileViewHostProps.grid.length = 0
     eidosFileViewHostProps.gallery.length = 0
     eidosFileViewHostProps.kanban.length = 0
@@ -1141,6 +1162,7 @@ describe("SpaceEidosFileEditor", () => {
     createTableMock.mockResolvedValue(snapshot)
     updateTableMock.mockResolvedValue(snapshot)
     deleteTableMock.mockResolvedValue(snapshot)
+    reorderTablesMock.mockResolvedValue(snapshot)
     addFieldMock.mockResolvedValue(snapshot)
     previewFormulaMock.mockResolvedValue({
       expression: "price * quantity",
@@ -1163,11 +1185,38 @@ describe("SpaceEidosFileEditor", () => {
       errors: [],
     })
     revealFileMock.mockResolvedValue({ success: true })
+    getAssetSessionMock.mockResolvedValue({
+      services: { subscribe: () => () => undefined },
+      serviceCapabilities: { canUseAssets: false },
+      state: {
+        sessionId: "session-1",
+        phase: "ready-clean",
+        capabilities: { assetReadSchemes: [], assetWriteSchemes: [] },
+        limits: {
+          assetBytesMax: "0",
+          assetPreviewBytesMax: "0",
+          concurrentAssetLeasesMax: 0,
+        },
+      },
+    })
+    acquireAssetMock.mockImplementation(
+      async (_eidosFilePath: string, relativePath: string) => ({
+        id: relativePath.endsWith("cover.png")
+          ? "019f8a00-0000-7000-8000-000000000102"
+          : "019f8a00-0000-7000-8000-000000000101",
+        name: relativePath.split("/").at(-1) ?? "attachment",
+        mediaType: relativePath.endsWith(".png")
+          ? "image/png"
+          : "application/pdf",
+        size: relativePath.endsWith(".png") ? "3" : "10",
+        uri: relativePath.replace(/^projects\//, ""),
+      })
+    )
     insertRowMock.mockResolvedValue({
       tableId: "tasks",
       row: { _id: "row_2", title: "Untitled", status: null },
       rowCount: 2,
-      revision: "2026-07-13T01:00:00.000Z",
+      revision: 2,
     })
     updateRowMock.mockResolvedValue({
       tableId: "tasks",
@@ -1177,7 +1226,7 @@ describe("SpaceEidosFileEditor", () => {
         status: "todo",
       },
       rowCount: 1,
-      revision: "2026-07-13T01:00:00.000Z",
+      revision: 2,
     })
     updateRowsMock.mockResolvedValue({
       tableId: "tasks",
@@ -1189,19 +1238,19 @@ describe("SpaceEidosFileEditor", () => {
         },
       ],
       rowCount: 1,
-      revision: "2026-07-13T01:00:00.000Z",
+      revision: 2,
     })
     deleteRowsMock.mockResolvedValue({
       tableId: "tasks",
       deletedCount: 1,
       rowCount: 0,
-      revision: "2026-07-13T01:00:00.000Z",
+      revision: 2,
     })
     deleteRowRangesMock.mockResolvedValue({
       tableId: "tasks",
       deletedCount: 1,
       rowCount: 0,
-      revision: "2026-07-13T01:00:00.000Z",
+      revision: 2,
     })
     exportCsvMock.mockResolvedValue({
       canceled: false,
@@ -1258,6 +1307,51 @@ describe("SpaceEidosFileEditor", () => {
       )
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+  }
+
+  async function keyboardDragTable(
+    label: string,
+    direction: "ArrowLeft" | "ArrowRight"
+  ) {
+    const handle = container.querySelector<HTMLButtonElement>(
+      `button[aria-label="${label}"]`
+    )
+    Array.from(
+      container.querySelectorAll<HTMLElement>("[data-eidos-file-sortable-tab]")
+    ).forEach((item, index) => {
+      item.getBoundingClientRect = () => new DOMRect(index * 120, 0, 112, 32)
+    })
+    await act(async () => {
+      handle?.focus()
+      handle?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          code: "Space",
+          key: " ",
+        })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    await act(async () => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          code: direction,
+          key: direction,
+        })
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    await act(async () => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          bubbles: true,
+          code: "Space",
+          key: " ",
+        })
+      )
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
   }
@@ -1438,7 +1532,8 @@ describe("SpaceEidosFileEditor", () => {
     const title = container.querySelector<HTMLTextAreaElement>("textarea")
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(
-        HTMLTextAreaElement.prototype,
+        title?.ownerDocument.defaultView?.HTMLTextAreaElement.prototype ??
+          HTMLTextAreaElement.prototype,
         "value"
       )?.set
       setter?.call(title, "Ship record tabs")
@@ -1489,6 +1584,7 @@ describe("SpaceEidosFileEditor", () => {
       ...snapshot,
       metadata: {
         ...snapshot.metadata,
+        revision: 3,
         updatedAt: "2026-07-13T03:00:00.000Z",
       },
     })
@@ -1590,7 +1686,7 @@ describe("SpaceEidosFileEditor", () => {
       "projects/tasks.eidos",
       "tasks",
       {
-        title: "Untitled",
+        "field-title": "Untitled",
       }
     )
 
@@ -1605,6 +1701,50 @@ describe("SpaceEidosFileEditor", () => {
       "tasks",
       "row_1",
       { title: "Write implementation" }
+    )
+  })
+
+  it("creates a row through the table Record Label Field ID", async () => {
+    const recordLabelFieldId = "field-name"
+    getSnapshotMock.mockResolvedValue({
+      ...snapshot,
+      tables: snapshot.tables.map((table) => ({
+        ...table,
+        fields: table.fields.map((field) =>
+          field.isRecordLabel
+            ? {
+                ...field,
+                id: recordLabelFieldId,
+                name: "Name",
+                tableColumnName: recordLabelFieldId,
+              }
+            : field
+        ),
+        rowCount: 0,
+      })),
+    })
+    getTablePageMock.mockResolvedValue({
+      tableId: "tasks",
+      offset: 0,
+      limit: 100,
+      total: 0,
+      rows: [],
+    })
+
+    await renderEditor()
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent?.includes("New row"))
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(insertRowMock).toHaveBeenCalledWith(
+      "projects/tasks.eidos",
+      "tasks",
+      {
+        [recordLabelFieldId]: "Untitled",
+      }
     )
   })
 
@@ -1623,7 +1763,6 @@ describe("SpaceEidosFileEditor", () => {
 
     const savedProps = eidosFileViewHostProps.grid.at(-1)
     expect(savedProps?.table).toBe(initialProps?.table)
-    expect(savedProps?.onRevealFile).toBe(initialProps?.onRevealFile)
     expect(savedProps?.onPropertyFieldOpen).toBe(
       initialProps?.onPropertyFieldOpen
     )
@@ -1785,7 +1924,7 @@ describe("SpaceEidosFileEditor", () => {
           ...view,
           name: "Board",
           type: "kanban" as const,
-          properties: { cardSize: "medium", groupByField: "status" },
+          properties: { cardSize: "medium", groupField: "field-status" },
         })),
       })),
     })
@@ -1817,7 +1956,7 @@ describe("SpaceEidosFileEditor", () => {
           ...view,
           name: "Board",
           type: "kanban" as const,
-          properties: { cardSize: "medium", groupByField: "status" },
+          properties: { cardSize: "medium", groupField: "field-status" },
         })),
       })),
     })
@@ -1963,6 +2102,7 @@ describe("SpaceEidosFileEditor", () => {
       ...snapshot,
       metadata: {
         ...snapshot.metadata,
+        revision: 2,
         updatedAt: "2026-07-13T01:00:00.000Z",
       },
     })
@@ -1983,6 +2123,7 @@ describe("SpaceEidosFileEditor", () => {
       ...snapshot,
       metadata: {
         ...snapshot.metadata,
+        revision: 3,
         updatedAt: "2026-07-13T02:00:00.000Z",
       },
     })
@@ -2031,6 +2172,7 @@ describe("SpaceEidosFileEditor", () => {
       ...snapshot,
       metadata: {
         ...snapshot.metadata,
+        revision: 6,
         updatedAt: "2026-07-13T06:00:00.000Z",
       },
     })
@@ -2043,7 +2185,7 @@ describe("SpaceEidosFileEditor", () => {
           status: "todo",
         },
         rowCount: 1,
-        revision: "2026-07-13T06:00:00.000Z",
+        revision: 6,
       })
       await Promise.resolve()
       await Promise.resolve()
@@ -2056,6 +2198,7 @@ describe("SpaceEidosFileEditor", () => {
       ...snapshot,
       metadata: {
         ...snapshot.metadata,
+        revision: 7,
         updatedAt: "2026-07-13T06:00:01.000Z",
       },
     })
@@ -2080,7 +2223,7 @@ describe("SpaceEidosFileEditor", () => {
           ...view,
           name: "Board",
           type: "kanban" as const,
-          properties: { cardSize: "medium", groupByField: "status" },
+          properties: { cardSize: "medium", groupField: "field-status" },
         })),
       })),
     })
@@ -2088,7 +2231,7 @@ describe("SpaceEidosFileEditor", () => {
       tableId: "tasks",
       row: { _id: "row_2", title: "Draft release", status: "todo" },
       rowCount: 2,
-      revision: "2026-07-13T02:00:00.000Z",
+      revision: 3,
     })
     await renderEditor()
     const kanban = () =>
@@ -2109,8 +2252,8 @@ describe("SpaceEidosFileEditor", () => {
       "projects/tasks.eidos",
       "tasks",
       {
-        title: "Draft release",
-        status: "todo",
+        "field-title": "Draft release",
+        "field-status": "todo",
       }
     )
     expect(kanban()?.dataset.reloadToken).toBe("1")
@@ -2148,7 +2291,7 @@ describe("SpaceEidosFileEditor", () => {
           status: "todo",
         },
         rowCount: 1,
-        revision: "2026-07-13T01:00:00.000Z",
+        revision: 2,
       })
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))
@@ -2169,7 +2312,7 @@ describe("SpaceEidosFileEditor", () => {
             properties:
               type === "gallery"
                 ? { cardSize: "medium" }
-                : { cardSize: "medium", groupByField: "status" },
+                : { cardSize: "medium", groupField: "field-status" },
           })),
         })),
       }
@@ -2380,7 +2523,7 @@ describe("SpaceEidosFileEditor", () => {
           status: "todo",
         },
         rowCount: 1,
-        revision: "2026-07-13T04:00:00.000Z",
+        revision: 4,
       })
       await Promise.resolve()
     })
@@ -2692,7 +2835,7 @@ describe("SpaceEidosFileEditor", () => {
         type: "kanban",
         properties: {
           cardSize: "medium",
-          groupByField: "status",
+          groupField: "field-status",
           hideEmptyFields: true,
         },
       }
@@ -2715,6 +2858,42 @@ describe("SpaceEidosFileEditor", () => {
       "tasks",
       ["view_tasks"]
     )
+  })
+
+  it("persists the table-tab drag order through the Eidos File API", async () => {
+    const projects = {
+      ...snapshot.tables[0],
+      table: {
+        ...snapshot.tables[0]!.table,
+        id: "projects",
+        name: "Projects",
+        rawTableName: "tb_projects",
+        position: 2,
+      },
+      fields: snapshot.tables[0]!.fields.map((field) => ({
+        ...field,
+        id: `${field.id ?? field.tableColumnName}-projects`,
+        tableId: "projects",
+        tableName: "Projects",
+      })),
+      views: snapshot.tables[0]!.views.map((view) => ({
+        ...view,
+        id: `${view.id}-projects`,
+        tableId: "projects",
+      })),
+    }
+    getSnapshotMock.mockResolvedValueOnce({
+      ...snapshot,
+      tables: [...snapshot.tables, projects],
+    })
+    await renderEditor()
+
+    await keyboardDragTable("Reorder Projects table", "ArrowLeft")
+
+    expect(reorderTablesMock).toHaveBeenCalledWith("projects/tasks.eidos", [
+      "projects",
+      "tasks",
+    ])
   })
 
   it("reveals the current Eidos File from its overflow actions", async () => {
@@ -2792,6 +2971,19 @@ describe("SpaceEidosFileEditor", () => {
         properties: { visibleSystemFields: ["_created_time"] },
       }
     )
+  })
+
+  it("opens field properties from the shared Fields browser", async () => {
+    await renderEditor()
+
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Browse Status field")
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).toContain("Properties for Status")
   })
 
   it("keeps the .eidos file Grid data session stable while visible fields save", async () => {
@@ -2927,14 +3119,14 @@ describe("SpaceEidosFileEditor", () => {
     })
   })
 
-  it("imports, opens, and reveals Eidos File attachments as Space files", async () => {
+  it("imports Eidos File attachments through Host-staged File entries", async () => {
     importFilesMock.mockResolvedValue({
       canceled: false,
       imported: [
         {
           name: "report.pdf",
-          path: "assets/report.pdf",
-          parentPath: "assets",
+          path: "projects/assets/report.pdf",
+          parentPath: "projects/assets",
           kind: "file",
           size: 10,
           mtimeMs: 1,
@@ -2951,8 +3143,12 @@ describe("SpaceEidosFileEditor", () => {
       await Promise.resolve()
       await Promise.resolve()
     })
-    expect(listFilesMock).toHaveBeenCalledWith("assets")
-    expect(importFilesMock).toHaveBeenCalledWith("assets")
+    expect(listFilesMock).toHaveBeenCalledWith("projects/assets")
+    expect(importFilesMock).toHaveBeenCalledWith("projects/assets")
+    expect(acquireAssetMock).toHaveBeenCalledWith(
+      "projects/tasks.eidos",
+      "projects/assets/report.pdf"
+    )
 
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
@@ -2962,27 +3158,13 @@ describe("SpaceEidosFileEditor", () => {
       await Promise.resolve()
     })
     expect(createBinaryMock).toHaveBeenCalledWith(
-      "assets/cover.png",
+      "projects/assets/cover.png",
       expect.any(Uint8Array)
     )
-
-    act(() => {
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Open attachment")
-        ?.click()
-    })
-    expect(openTabMock).toHaveBeenCalledWith(
-      "/space-file#assets%2Freport.pdf",
-      "report.pdf"
+    expect(acquireAssetMock).toHaveBeenCalledWith(
+      "projects/tasks.eidos",
+      "projects/assets/cover.png"
     )
-
-    await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Reveal attachment")
-        ?.click()
-      await Promise.resolve()
-    })
-    expect(revealFileMock).toHaveBeenCalledWith("assets/report.pdf")
   })
 
   it("imports attachments beside the Eidos File when configured for this Space", async () => {
@@ -3102,7 +3284,7 @@ describe("SpaceEidosFileEditor", () => {
       {
         name: "Total",
         columnName: "total",
-        formula: "price * quantity",
+        formula: '"Price" * "Quantity"',
         displayType: "number",
       }
     )
@@ -3115,9 +3297,12 @@ describe("SpaceEidosFileEditor", () => {
     expect(updateFieldMock).toHaveBeenCalledWith(
       "projects/tasks.eidos",
       "tasks",
-      "total",
+      "field-total",
       {
-        property: { formula: "price * quantity", displayType: "number" },
+        property: {
+          formula: '"Price" * "Quantity"',
+          displayType: "number",
+        },
       }
     )
   })
@@ -3138,13 +3323,13 @@ describe("SpaceEidosFileEditor", () => {
     expect(updateFieldMock).toHaveBeenCalledWith(
       "projects/tasks.eidos",
       "tasks",
-      "owner_count",
+      "field-owner-count",
       {
         property: {
-          relationField: "owners",
-          targetField: "title",
+          relationField: "field-owners",
+          targetField: "field-people-title",
           aggregate: "count",
-          displayType: "number",
+          displayType: "integer",
         },
       }
     )
@@ -3185,7 +3370,7 @@ describe("SpaceEidosFileEditor", () => {
     expect(updateFieldMock).toHaveBeenLastCalledWith(
       "projects/tasks.eidos",
       "tasks",
-      "status",
+      "field-status",
       {
         property: {
           options: [{ value: "done", color: "default" }],
@@ -3202,7 +3387,7 @@ describe("SpaceEidosFileEditor", () => {
     expect(updateFieldMock).toHaveBeenLastCalledWith(
       "projects/tasks.eidos",
       "tasks",
-      "status",
+      "field-status",
       { type: "text" }
     )
 
@@ -3222,7 +3407,7 @@ describe("SpaceEidosFileEditor", () => {
     expect(deleteFieldMock).toHaveBeenCalledWith(
       "projects/tasks.eidos",
       "tasks",
-      "status"
+      "field-status"
     )
 
     await act(async () => {

@@ -24,7 +24,7 @@ const plan: EidosFileCsvImportPlan = {
       sourceName: "Item",
       name: "Item",
       columnName: "title",
-      type: "title",
+      type: "record-label",
     },
     {
       sourceIndex: 1,
@@ -41,12 +41,35 @@ const plan: EidosFileCsvImportPlan = {
   issues: [],
 }
 
+async function chooseFieldType(ariaLabel: string, label: string) {
+  const trigger = document.body.querySelector<HTMLButtonElement>(
+    `button[role="combobox"][aria-label="${ariaLabel}"]`
+  )
+  await act(async () => {
+    trigger?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+    )
+    await Promise.resolve()
+  })
+  const option = Array.from(
+    document.body.querySelectorAll<HTMLElement>('[role="option"]')
+  ).find((candidate) => candidate.textContent?.trim() === label)
+  await act(async () => {
+    option?.click()
+    await Promise.resolve()
+  })
+}
+
 describe("EidosFileCsvImportPopover", () => {
   let container: HTMLDivElement
   let root: Root
 
   beforeEach(() => {
     vi.useFakeTimers()
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    })
     container = document.createElement("div")
     document.body.append(container)
     root = createRoot(container)
@@ -158,18 +181,13 @@ describe("EidosFileCsvImportPopover", () => {
     expect(document.body.textContent).toContain("Portable stand")
     expect(document.body.querySelector('[aria-modal="true"]')).toBeNull()
 
-    const type = document.body.querySelector<HTMLSelectElement>(
-      'select[aria-label="Quantity type"]'
+    const type = document.body.querySelector<HTMLButtonElement>(
+      'button[role="combobox"][aria-label="Quantity type"]'
     )
-    await act(async () => {
-      if (type) {
-        Object.getOwnPropertyDescriptor(
-          HTMLSelectElement.prototype,
-          "value"
-        )?.set?.call(type, "text")
-        type.dispatchEvent(new Event("change", { bubbles: true }))
-      }
-    })
+    expect(
+      type?.querySelector('[data-eidos-file-field-type-icon="number"]')
+    ).toBeTruthy()
+    await chooseFieldType("Quantity type", "Text")
     await act(async () => {
       vi.advanceTimersByTime(300)
       await Promise.resolve()
@@ -239,18 +257,7 @@ describe("EidosFileCsvImportPopover", () => {
       await Promise.resolve()
       await Promise.resolve()
     })
-    const type = document.body.querySelector<HTMLSelectElement>(
-      'select[aria-label="Quantity type"]'
-    )
-    await act(async () => {
-      if (type) {
-        Object.getOwnPropertyDescriptor(
-          HTMLSelectElement.prototype,
-          "value"
-        )?.set?.call(type, "text")
-        type.dispatchEvent(new Event("change", { bubbles: true }))
-      }
-    })
+    await chooseFieldType("Quantity type", "Text")
     await act(async () => {
       vi.advanceTimersByTime(300)
       await Promise.resolve()

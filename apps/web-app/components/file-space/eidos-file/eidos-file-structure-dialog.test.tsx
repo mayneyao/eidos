@@ -274,10 +274,12 @@ describe("EidosFileStructureDialog", () => {
       property: {
         options: [
           {
+            name: "Todo",
             value: "Todo",
             color: "red",
           },
           {
+            name: "Done",
             value: "Done",
             color: "gray",
           },
@@ -408,7 +410,7 @@ describe("EidosFileStructureDialog", () => {
         ?.click()
     })
     const relation = document.body.querySelector<HTMLElement>(
-      '[data-field-type="link"]'
+      '[data-field-type="relation"]'
     )
     await act(async () => relation?.click())
 
@@ -423,11 +425,12 @@ describe("EidosFileStructureDialog", () => {
     expect(onCreateField).toHaveBeenCalledWith({
       name: "Owners",
       columnName: "owners",
-      type: "link",
+      type: "relation",
       property: {
         targetTableId: "people",
-        targetField: "title",
         multiple: true,
+        cardinality: "many",
+        onDelete: "restrict",
       },
     })
   })
@@ -435,6 +438,8 @@ describe("EidosFileStructureDialog", () => {
   it("creates a calculated formula field in the anchored field flow", async () => {
     const onCreateField = vi.fn()
     const sourceFields = ["price", "quantity"].map((columnName) => ({
+      id: `field-${columnName}`,
+      tableId: "orders",
       name: columnName,
       type: "number" as const,
       tableName: "tb_orders",
@@ -476,7 +481,15 @@ describe("EidosFileStructureDialog", () => {
       'textarea[aria-label="Formula expression"]'
     )
     await act(async () => {
-      if (formula) setInput(formula, "price * quantity")
+      if (formula) setInput(formula, '"price" * "quantity"')
+      document.body
+        .querySelector<HTMLButtonElement>(".eidos-file-formula-display-select")
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(document.body.querySelectorAll<HTMLElement>('[role="option"]'))
+        .find((option) => option.textContent?.trim() === "Number")
+        ?.click()
     })
     await act(async () => {
       document.body
@@ -490,20 +503,23 @@ describe("EidosFileStructureDialog", () => {
       name: "Total",
       columnName: "total",
       type: "formula",
-      property: { formula: "price * quantity", displayType: "text" },
+      property: { formula: '"price" * "quantity"', displayType: "number" },
     })
   })
 
   it("creates a lookup through an existing relation", async () => {
     const onCreateField = vi.fn()
     const titleField = {
+      id: "field-people-title",
+      tableId: "people",
       name: "title",
-      type: "title" as const,
+      type: "text" as const,
       tableName: "tb_people",
       tableColumnName: "title",
       property: null,
       storageCodec: "scalar" as const,
-      valueKind: "system" as const,
+      valueKind: "source" as const,
+      isRecordLabel: true,
       isHidden: false,
       isDerived: false,
       sourceTableColumnName: null,
@@ -511,13 +527,15 @@ describe("EidosFileStructureDialog", () => {
     }
     const relationField = {
       ...titleField,
+      id: "field-project-owners",
+      tableId: "projects",
       name: "Owners",
-      type: "link" as const,
+      type: "relation" as const,
       tableName: "tb_projects",
       tableColumnName: "owners",
       property: {
         targetTableId: "people",
-        targetField: "title",
+        targetField: "field-people-title",
         multiple: true,
       },
       storageCodec: "relation" as const,
@@ -575,8 +593,8 @@ describe("EidosFileStructureDialog", () => {
       columnName: "owner_name",
       type: "lookup",
       property: {
-        relationField: "owners",
-        targetField: "title",
+        relationField: "field-project-owners",
+        targetField: "field-people-title",
         aggregate: "first",
         displayType: "text",
       },

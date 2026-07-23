@@ -44,6 +44,8 @@ vi.mock("@/components/formula-editor/codemirror-editor", async () => {
 
 const fields: EidosFileFieldInfo[] = ["price", "quantity"].map(
   (columnName) => ({
+    id: `field-${columnName}`,
+    tableId: "orders",
     name: columnName === "price" ? "Unit price" : "Quantity",
     type: "number",
     tableName: "tb_orders",
@@ -118,7 +120,7 @@ describe("EidosFileFormulaComposer", () => {
     await act(async () => {
       root.render(
         <Harness
-          initialFormula="price * quantity"
+          initialFormula='"Unit price" * "Quantity"'
           onPreview={onPreview}
           onValidityChange={onValidityChange}
         />
@@ -134,7 +136,7 @@ describe("EidosFileFormulaComposer", () => {
     expect(onPreview).toHaveBeenCalledWith({
       name: "Total",
       columnName: "total",
-      formula: "price * quantity",
+      formula: '"Unit price" * "Quantity"',
       displayType: "number",
     })
     expect(document.body.textContent).toContain("Formula is valid")
@@ -148,11 +150,11 @@ describe("EidosFileFormulaComposer", () => {
     const onPreview = vi.fn()
     await act(async () => {
       root.render(
-        <Harness initialFormula="missing + 1" onPreview={onPreview} />
+        <Harness initialFormula='"Missing" + 1' onPreview={onPreview} />
       )
     })
     expect(document.body.querySelector('[role="alert"]')?.textContent).toMatch(
-      /not found: missing/i
+      /not found.*Missing/i
     )
     await act(async () => vi.advanceTimersByTime(500))
     expect(onPreview).not.toHaveBeenCalled()

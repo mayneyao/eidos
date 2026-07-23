@@ -28,7 +28,9 @@ import type {
   UpdateEidosFileFieldInput,
   UpdateEidosFileTableInput,
   UpdateEidosFileViewInput,
+  FileEntry,
 } from "@eidos.space/eidos-file"
+import type { EidosFileUIAssetSession } from "@eidos.space/eidos-file-ui"
 import { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui"
 
 import { desktopEidosFileHost } from "@/apps/web-app/lib/eidos-file/desktop-host-services"
@@ -93,7 +95,12 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
             relativePath
           )
           await source.initialize()
-          return { sessionId: opened.sessionId, sourceToken, source }
+          return {
+            sessionId: opened.sessionId,
+            sourceToken,
+            source,
+            state: opened.state,
+          }
         } catch (error) {
           if (sessionId) {
             await desktopEidosFileHost
@@ -121,6 +128,41 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       return openSource(relativePath)
     },
     [closeSource, openSource]
+  )
+
+  const getAssetSession = useCallback(
+    async (relativePath: string): Promise<EidosFileUIAssetSession> => {
+      const [opened, negotiated] = await Promise.all([
+        openSource(relativePath),
+        desktopEidosFileHost.negotiate(
+          { protocol: "eidos-host", versions: ["1.0"] },
+          runtimeContext("asset-negotiate")
+        ),
+      ])
+      return {
+        services: desktopEidosFileHost,
+        serviceCapabilities: negotiated.serviceCapabilities,
+        state: desktopEidosFileHost.getState(opened.sessionId),
+      }
+    },
+    [openSource]
+  )
+
+  const acquireAsset = useCallback(
+    async (eidosFilePath: string, relativePath: string): Promise<FileEntry> => {
+      const opened = await openSource(eidosFilePath)
+      const { sourceToken } = await desktopEidosFileHost.registerAssetSource(
+        opened.sessionId,
+        relativePath
+      )
+      return (
+        await desktopEidosFileHost.acquireAsset(
+          { sessionId: opened.sessionId, sourceToken },
+          runtimeContext("asset-acquire")
+        )
+      ).entry
+    },
+    [openSource]
   )
 
   const mutate = useCallback(
@@ -342,11 +384,11 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
     (
       relativePath: string,
       tableId: string,
-      columnName: string,
+      fieldId: string,
       query: EidosFileRowQuery = {}
     ): Promise<EidosFileRowGroupCount[]> =>
       openSource(relativePath).then(({ source }) =>
-        source.getGroupCounts(tableId, columnName, query)
+        source.getGroupCounts(tableId, fieldId, query)
       ),
     [openSource]
   )
@@ -393,11 +435,11 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
     (
       relativePath: string,
       tableId: string,
-      columnName: string,
+      fieldId: string,
       changes: UpdateEidosFileFieldInput
     ): Promise<EidosFileSnapshot> =>
       mutate(relativePath, (source) =>
-        source.updateField(tableId, columnName, changes)
+        source.updateField(tableId, fieldId, changes)
       ),
     [mutate]
   )
@@ -406,9 +448,9 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
     (
       relativePath: string,
       tableId: string,
-      columnName: string
+      fieldId: string
     ): Promise<EidosFileSnapshot> =>
-      mutate(relativePath, (source) => source.deleteField(tableId, columnName)),
+      mutate(relativePath, (source) => source.deleteField(tableId, fieldId)),
     [mutate]
   )
 
@@ -434,6 +476,12 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
   const deleteTable = useCallback(
     (relativePath: string, tableId: string): Promise<EidosFileSnapshot> =>
       mutate(relativePath, (source) => source.deleteTable(tableId)),
+    [mutate]
+  )
+
+  const reorderTables = useCallback(
+    (relativePath: string, tableIds: string[]): Promise<EidosFileSnapshot> =>
+      mutate(relativePath, (source) => source.reorderTables(tableIds)),
     [mutate]
   )
 
@@ -570,6 +618,7 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
     createTable,
     updateTable,
     deleteTable,
+    reorderTables,
     addField,
     previewFormula,
     updateField,
@@ -584,6 +633,8 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
     updateRows,
     deleteRows,
     deleteRowRanges,
+    getAssetSession,
+    acquireAsset,
   }
 }
 

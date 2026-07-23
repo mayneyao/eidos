@@ -56,6 +56,8 @@ function field(
   isHidden = false
 ): EidosFileFieldInfo {
   return {
+    id: `field-${tableColumnName}`,
+    tableId: "tasks",
     name,
     type,
     tableName: "tb_tasks",
@@ -63,6 +65,7 @@ function field(
     property: null,
     storageCodec: "scalar",
     valueKind,
+    isRecordLabel: tableColumnName === "title",
     isHidden,
     isDerived: false,
     sourceTableColumnName: null,
@@ -75,7 +78,7 @@ describe("EidosFileViewMenu", () => {
   let root: Root
   const onVisibilityChange = vi.fn()
   const fields = [
-    field("Title", "title", "title", "system"),
+    field("Title", "text", "title", "source"),
     field("Status", "select", "status", "source"),
     field("_id", "row-id", "_id", "system", true),
     field("Created time", "created-time", "_created_time", "system", true),

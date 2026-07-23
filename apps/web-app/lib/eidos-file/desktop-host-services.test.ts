@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { DesktopEidosFileHostServices } from "./desktop-host-services"
+import {
+  desktopEidosFileAssetPresenter,
+  DesktopEidosFileHostServices,
+} from "./desktop-host-services"
 
 const hostState = {
   sessionId: "session-1",
@@ -34,16 +37,27 @@ describe("DesktopEidosFileHostServices", () => {
   const getSessionState = vi.fn()
   const save = vi.fn()
   const close = vi.fn()
+  const acquireAsset = vi.fn()
+  const resolveAsset = vi.fn()
+  const releaseAsset = vi.fn()
+  const activateAsset = vi.fn()
 
   beforeEach(() => {
     invokeRuntime.mockReset()
     getSessionState.mockReset().mockResolvedValue(hostState)
     save.mockReset()
     close.mockReset()
+    acquireAsset.mockReset()
+    resolveAsset.mockReset()
+    releaseAsset.mockReset()
+    activateAsset.mockReset()
     Object.assign(window, {
       eidos: {
         eidosFileHost: {
           registerSource: vi.fn(async () => ({ sourceToken: "source-1" })),
+          registerAssetSource: vi.fn(async () => ({
+            sourceToken: "asset-source-1",
+          })),
           revokeSource: vi.fn(async () => undefined),
           negotiate: vi.fn(async () => ({
             version: "1.0",
@@ -61,6 +75,10 @@ describe("DesktopEidosFileHostServices", () => {
           reconcileCommit: vi.fn(),
           resolveConflict: vi.fn(),
           listRecovery: vi.fn(async () => ({ items: [] })),
+          acquireAsset,
+          resolveAsset,
+          releaseAsset,
+          activateAsset,
           close,
         },
       },
@@ -126,5 +144,87 @@ describe("DesktopEidosFileHostServices", () => {
     close.mockResolvedValue(undefined)
     await host.close({ sessionId: opened.sessionId }, { requestId: "close" })
     expect(close).toHaveBeenCalledOnce()
+  })
+
+  it("delegates assets to HostServices and the injected presenter", async () => {
+    const host = new DesktopEidosFileHostServices()
+    const lease = {
+      leaseId: "lease-1",
+      entryId: "019f8a00-0000-7000-8000-000000000099",
+      purpose: "thumbnail" as const,
+      mediaType: "image/png",
+      name: "image.png",
+      size: "8",
+      expiresAt: "2099-01-01T00:00:00.000Z",
+      resourceToken: "/_eidos-file-assets/token-1",
+    }
+    resolveAsset.mockResolvedValue(lease)
+    releaseAsset.mockResolvedValue(undefined)
+    activateAsset.mockResolvedValue(undefined)
+
+    await expect(
+      host.resolveAsset(
+        {
+          sessionId: "session-1",
+          entryId: lease.entryId,
+          purpose: "thumbnail",
+        },
+        { requestId: "resolve" }
+      )
+    ).resolves.toEqual(lease)
+    const image = desktopEidosFileAssetPresenter.renderImage({
+      sessionId: "session-1",
+      lease,
+      altText: "Image",
+    }) as { props: { src: string; alt: string } }
+    expect(image.props).toMatchObject({
+      src: "/_eidos-file-assets/token-1",
+      alt: "Image",
+    })
+
+    const OriginalImage = window.Image
+    class LoadedImage {
+      alt = ""
+      decoding = "auto"
+      draggable = true
+      onerror: (() => void) | null = null
+      onload: (() => void) | null = null
+      private value = ""
+
+      set src(value: string) {
+        this.value = value
+        queueMicrotask(() => this.onload?.())
+      }
+
+      get src() {
+        return this.value
+      }
+    }
+    window.Image = LoadedImage as unknown as typeof Image
+    const canvasImage = (await desktopEidosFileAssetPresenter.loadImage?.({
+      sessionId: "session-1",
+      lease,
+      altText: "Canvas image",
+    })) as unknown as LoadedImage
+    expect(canvasImage).toMatchObject({
+      src: "/_eidos-file-assets/token-1",
+      alt: "Canvas image",
+      decoding: "async",
+      draggable: false,
+    })
+    window.Image = OriginalImage
+
+    await desktopEidosFileAssetPresenter.activate(
+      {
+        sessionId: "session-1",
+        lease: { ...lease, purpose: "preview" },
+        action: "open",
+      },
+      { requestId: "activate" }
+    )
+    expect(activateAsset).toHaveBeenCalledWith(
+      { sessionId: "session-1", leaseId: "lease-1", action: "open" },
+      { requestId: "activate" }
+    )
   })
 })

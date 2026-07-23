@@ -110,7 +110,7 @@ export const EIDOS_FILE_FIELD_TYPE_GROUPS: FieldTypePickerGroup<EidosFileCreatab
           icon: <Sigma className="h-4 w-4" />,
         },
         {
-          value: "link",
+          value: "relation",
           label: "Relation",
           description: "Connect records in another table",
           keywords: ["link", "reference"],

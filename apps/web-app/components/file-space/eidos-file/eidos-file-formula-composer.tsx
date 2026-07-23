@@ -70,6 +70,8 @@ function formulaDraftFields(
         dependsOn: null,
       }
     : {
+        id: `preview:${input.columnName}`,
+        tableId: fields[0]?.tableId ?? "preview",
         name: input.name,
         type: "formula",
         tableName: fields[0]?.tableName ?? "tb_preview",

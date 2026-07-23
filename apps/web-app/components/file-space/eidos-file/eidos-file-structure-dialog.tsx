@@ -13,6 +13,7 @@ import {
   eidosFileLookupAggregateSupportsTarget,
   eidosFileLookupDisplayType,
 } from "@eidos.space/eidos-file"
+import { isEidosFileRecordLabelField } from "@eidos.space/eidos-file-ui"
 
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
@@ -133,11 +134,10 @@ export function EidosFileStructureDialog({
   }, [activeTableId, mode, open, tables])
 
   const hasOptions = fieldType === "select" || fieldType === "multi-select"
-  const relationFields = fields.filter((field) => field.type === "link")
+  const relationFields = fields.filter((field) => field.type === "relation")
   const selectedRelation =
-    relationFields.find(
-      (field) => field.tableColumnName === lookupRelationField
-    ) ?? relationFields[0]
+    relationFields.find((field) => field.id === lookupRelationField) ??
+    relationFields[0]
   const lookupTargetTableId =
     typeof selectedRelation?.property?.targetTableId === "string"
       ? selectedRelation.property.targetTableId
@@ -148,10 +148,8 @@ export function EidosFileStructureDialog({
     (field) => !field.isHidden && (!field.isDerived || field.type === "lookup")
   )
   const selectedLookupTarget =
-    lookupTargetFields.find(
-      (field) => field.tableColumnName === lookupTargetField
-    ) ??
-    lookupTargetFields.find((field) => field.tableColumnName === "title") ??
+    lookupTargetFields.find((field) => field.id === lookupTargetField) ??
+    lookupTargetFields.find(isEidosFileRecordLabelField) ??
     lookupTargetFields[0]
   const lookupAggregateSupported = selectedLookupTarget
     ? eidosFileLookupAggregateSupportsTarget(
@@ -166,16 +164,17 @@ export function EidosFileStructureDialog({
     let creation: Promise<void> | void
     if (mode === "table") {
       creation = onCreateTable({ name: trimmedName })
-    } else if (fieldType === "link") {
+    } else if (fieldType === "relation") {
       if (!targetTableId) return
       creation = onCreateField({
         name: trimmedName,
         columnName: columnNameFor(trimmedName),
-        type: "link",
+        type: "relation",
         property: {
           targetTableId,
-          targetField: "title",
           multiple: true,
+          cardinality: "many",
+          onDelete: "restrict",
         },
       })
     } else if (fieldType === "formula") {
@@ -202,8 +201,8 @@ export function EidosFileStructureDialog({
         columnName: columnNameFor(trimmedName),
         type: "lookup",
         property: {
-          relationField: selectedRelation.tableColumnName,
-          targetField: selectedLookupTarget.tableColumnName,
+          relationField: selectedRelation.id,
+          targetField: selectedLookupTarget.id,
           aggregate: lookupAggregate,
           displayType: eidosFileLookupDisplayType(
             lookupAggregate,
@@ -311,7 +310,7 @@ export function EidosFileStructureDialog({
                 className="border-t-0 pt-0"
               />
             ) : null}
-            {mode === "field" && fieldType === "link" ? (
+            {mode === "field" && fieldType === "relation" ? (
               <label className="grid gap-1.5 text-xs font-medium">
                 Related table
                 <Select value={targetTableId} onValueChange={setTargetTableId}>
@@ -357,7 +356,7 @@ export function EidosFileStructureDialog({
                 <label className="grid gap-1.5 text-xs font-medium">
                   Relation
                   <Select
-                    value={selectedRelation?.tableColumnName ?? ""}
+                    value={selectedRelation?.id ?? ""}
                     onValueChange={(value) => {
                       setLookupRelationField(value)
                       setLookupTargetField("")
@@ -368,10 +367,7 @@ export function EidosFileStructureDialog({
                     </SelectTrigger>
                     <SelectContent>
                       {relationFields.map((field) => (
-                        <SelectItem
-                          key={field.tableColumnName}
-                          value={field.tableColumnName}
-                        >
+                        <SelectItem key={field.id} value={field.id}>
                           {field.name}
                         </SelectItem>
                       ))}
@@ -381,7 +377,7 @@ export function EidosFileStructureDialog({
                 <label className="grid gap-1.5 text-xs font-medium">
                   Target field
                   <Select
-                    value={selectedLookupTarget?.tableColumnName ?? ""}
+                    value={selectedLookupTarget?.id ?? ""}
                     onValueChange={setLookupTargetField}
                   >
                     <SelectTrigger>
@@ -389,10 +385,7 @@ export function EidosFileStructureDialog({
                     </SelectTrigger>
                     <SelectContent>
                       {lookupTargetFields.map((field) => (
-                        <SelectItem
-                          key={field.tableColumnName}
-                          value={field.tableColumnName}
-                        >
+                        <SelectItem key={field.id} value={field.id}>
                           {field.name}
                         </SelectItem>
                       ))}
@@ -456,7 +449,9 @@ export function EidosFileStructureDialog({
               disabled={
                 !name.trim() ||
                 submitting ||
-                (mode === "field" && fieldType === "link" && !targetTableId) ||
+                (mode === "field" &&
+                  fieldType === "relation" &&
+                  !targetTableId) ||
                 (mode === "field" &&
                   fieldType === "formula" &&
                   (!formula.trim() || !formulaValid)) ||

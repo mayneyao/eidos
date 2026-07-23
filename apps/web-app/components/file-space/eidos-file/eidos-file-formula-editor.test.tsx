@@ -51,11 +51,13 @@ vi.mock("@/components/formula-editor/codemirror-editor", async () => {
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const formulaField: EidosFileFieldInfo = {
+  id: "field-total",
+  tableId: "orders",
   name: "Total",
   type: "formula",
   tableName: "tb_orders",
   tableColumnName: "total",
-  property: { formula: "price * quantity", displayType: "number" },
+  property: { formula: '"price" * "quantity"', displayType: "number" },
   storageCodec: "scalar",
   valueKind: "derived",
   isHidden: false,
@@ -67,6 +69,7 @@ const formulaField: EidosFileFieldInfo = {
 const sourceFields: EidosFileFieldInfo[] = ["price", "quantity"].map(
   (columnName) => ({
     ...formulaField,
+    id: `field-${columnName}`,
     name: columnName,
     type: "number",
     tableColumnName: columnName,
@@ -123,13 +126,13 @@ describe("EidosFileFormulaEditor", () => {
     })
     expect(document.body.querySelector('[aria-modal="true"]')).toBeNull()
     const textarea = document.body.querySelector("textarea")
-    expect(textarea?.value).toBe("price * quantity")
+    expect(textarea?.value).toBe('"price" * "quantity"')
     await act(async () => {
       submitFormula()
       await Promise.resolve()
     })
     expect(onSave).toHaveBeenCalledWith({
-      formula: "price * quantity",
+      formula: '"price" * "quantity"',
       displayType: "number",
     })
   })
@@ -155,7 +158,7 @@ describe("EidosFileFormulaEditor", () => {
     }
 
     await renderEditor(formulaField)
-    await act(async () => changeFormula("price + quantity"))
+    await act(async () => changeFormula('"price" + "quantity"'))
     await act(async () => {
       submitFormula()
       await Promise.resolve()
@@ -168,10 +171,10 @@ describe("EidosFileFormulaEditor", () => {
 
     await renderEditor({
       ...formulaField,
-      property: { formula: "price", displayType: "number" },
+      property: { formula: '"price"', displayType: "number" },
     })
     expect(document.body.querySelector("textarea")?.value).toBe(
-      "price + quantity"
+      '"price" + "quantity"'
     )
     expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
       "Formula file is read-only"
