@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import { EidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
 import {
   eidosFileFormulaCompletions,
   type EidosFileFormulaCompletion,
@@ -371,7 +372,13 @@ export function EidosFileFormulaComposer({
             <SelectContent>
               {DISPLAY_TYPES.map((type) => (
                 <SelectItem key={type.value} value={type.value}>
-                  {t(type.label)}
+                  <span className="flex items-center gap-2">
+                    <EidosFileFieldTypeIcon
+                      type={type.value}
+                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                    />
+                    <span>{t(type.label)}</span>
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>

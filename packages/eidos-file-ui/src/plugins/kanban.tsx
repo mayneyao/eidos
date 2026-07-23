@@ -7,6 +7,7 @@ import type {
 import { SquareKanban } from "lucide-react"
 
 import type { EidosFileViewRendererProps } from "../eidos-file-editor-view"
+import { EidosFileRendererFieldPropertyPanel } from "../eidos-file-renderer-field-property-panel"
 import { EidosFileKanbanView } from "../eidos-file-kanban-view"
 import {
   eidosFileFieldKey,
@@ -107,6 +108,22 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
       onAddRow={addRow}
       onDeleteRow={onDeleteRow}
       onError={onError}
+      sidePanel={
+        props.propertyField ? (
+          <EidosFileRendererFieldPropertyPanel
+            source={source}
+            table={table}
+            tables={props.tables}
+            field={props.propertyField}
+            disabled={disabled}
+            onSnapshot={props.onSnapshot}
+            onClose={props.onFieldClose}
+            onEditFormula={props.onEditFormula}
+            onEditLookup={props.onEditLookup}
+            onError={onError}
+          />
+        ) : undefined
+      }
     />
   )
 }
@@ -127,7 +144,17 @@ export const eidosFileKanbanPlugin = defineEidosFilePlugin({
         properties: (fields) => {
           const groupField = fields.find((field) => field.type === "select")
           return {
+            cardFields: fields
+              .filter(
+                (field) =>
+                  !isEidosFileRecordLabelField(field) &&
+                  field.valueKind !== "system" &&
+                  field !== groupField
+              )
+              .slice(0, 4)
+              .map(eidosFileFieldKey),
             cardSize: "medium",
+            coverFit: "cover",
             hideEmptyFields: true,
             ...(groupField
               ? { groupField: eidosFileFieldKey(groupField) }

@@ -103,6 +103,10 @@ describe("EidosFileRecordInspector", () => {
       container.querySelector('[data-eidos-file-detail-panel="record"]')
         ?.classList
     ).toContain("eidos-file-detail-panel")
+    expect(
+      container.querySelector('[data-eidos-file-detail-panel="record"]')
+        ?.classList
+    ).toContain("eidos-file-record-panel")
     const title = container.querySelector<HTMLTextAreaElement>("textarea")
     await act(async () => {
       if (!title) return

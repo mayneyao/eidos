@@ -1,86 +1,127 @@
 import { useCallback, useState } from "react"
 import {
-  decodeEidosFileAttachmentPaths,
-  encodeEidosFileAttachmentPaths,
+  decodeEidosFileValues,
+  encodeEidosFileValues,
+  type FileEntry,
 } from "@eidos.space/eidos-file"
 import {
+  drawTextCell,
   GridCellKind,
   type CustomCell,
   type CustomRenderer,
   type ProvideEditorComponent,
 } from "@glideapps/glide-data-grid"
-import {
-  ExternalLink,
-  FileIcon,
-  FolderOpen,
-  GripVertical,
-  Plus,
-  Trash2,
-} from "lucide-react"
+import { GripVertical, Plus, Trash2 } from "lucide-react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 
-import { resolveDefaultFilePreview, useEidosFileUI } from "./context"
-import { drawImage } from "./cells/grid-cell-helper"
+import { useEidosFileUI } from "./context"
+import { EidosFileEntrySurface } from "./eidos-file-entry-surface"
 import { cn } from "./lib/cn"
 import { Button } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
 
-interface EidosFileAttachmentCellData {
+export interface EidosFileAttachmentCellData {
   readonly kind: "eidos-file-file-cell"
-  readonly paths: string[]
-  readonly displayData: string[]
-  readonly onImport?: () => Promise<string[]>
-  readonly onOpen?: (path: string) => void
-  readonly onReveal?: (path: string) => Promise<void> | void
+  readonly entries: FileEntry[]
+  /** Host-approved, decoded image sources for the current rendered Grid cell. */
+  readonly thumbnails?: readonly CanvasImageSource[]
+  /** Returns Host-acquired entries; UI never manufactures File metadata. */
+  readonly onImport?: () => Promise<FileEntry[]>
 }
 
 export type EidosFileAttachmentCell = CustomCell<EidosFileAttachmentCellData>
 
-export function eidosFileAttachmentDisplayData(
-  paths: readonly string[],
-  resolvePreview: (path: string) => string = resolveDefaultFilePreview
-): string[] {
-  return paths.map(resolvePreview)
+function imageDimensions(source: CanvasImageSource): {
+  height: number
+  width: number
+} | null {
+  const candidate = source as unknown as Record<string, unknown>
+  const width =
+    typeof candidate.naturalWidth === "number"
+      ? candidate.naturalWidth
+      : typeof candidate.videoWidth === "number"
+        ? candidate.videoWidth
+        : candidate.width
+  const height =
+    typeof candidate.naturalHeight === "number"
+      ? candidate.naturalHeight
+      : typeof candidate.videoHeight === "number"
+        ? candidate.videoHeight
+        : candidate.height
+  return typeof width === "number" &&
+    width > 0 &&
+    typeof height === "number" &&
+    height > 0
+    ? { height, width }
+    : null
 }
 
-function isImagePath(path: string): boolean {
-  return (
-    /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/i.test(path) ||
-    /^data:image\//i.test(path)
+function drawAttachmentThumbnails(
+  args: Parameters<
+    NonNullable<CustomRenderer<EidosFileAttachmentCell>["draw"]>
+  >[0]
+): boolean {
+  const thumbnails = args.cell.data.thumbnails ?? []
+  if (thumbnails.length === 0) return false
+  const { ctx, rect, theme } = args
+  const padding = Math.max(3, theme.cellVerticalPadding)
+  const size = Math.max(8, rect.height - padding * 2)
+  const available = Math.max(
+    1,
+    Math.floor((rect.width - theme.cellHorizontalPadding * 2 + 4) / (size + 4))
   )
-}
-
-function displayName(path: string): string {
-  try {
-    return decodeURIComponent(
-      path.split(/[?#]/, 1)[0].split("/").at(-1) ?? path
+  const visible = thumbnails.slice(0, available)
+  let drawX = rect.x + theme.cellHorizontalPadding
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(rect.x, rect.y, rect.width, rect.height)
+  ctx.clip()
+  for (const source of visible) {
+    const dimensions = imageDimensions(source)
+    if (!dimensions) continue
+    const sourceSize = Math.min(dimensions.width, dimensions.height)
+    const sourceX = (dimensions.width - sourceSize) / 2
+    const sourceY = (dimensions.height - sourceSize) / 2
+    ctx.save()
+    ctx.beginPath()
+    ctx.roundRect(drawX, rect.y + padding, size, size, 4)
+    ctx.clip()
+    ctx.drawImage(
+      source,
+      sourceX,
+      sourceY,
+      sourceSize,
+      sourceSize,
+      drawX,
+      rect.y + padding,
+      size,
+      size
     )
-  } catch {
-    return path.split("/").at(-1) ?? path
+    ctx.restore()
+    drawX += size + 4
   }
+  const hiddenCount = args.cell.data.entries.length - visible.length
+  if (hiddenCount > 0 && drawX < rect.x + rect.width - 12) {
+    ctx.fillStyle = theme.textLight
+    ctx.font = `${theme.baseFontStyle} ${theme.fontFamily}`
+    ctx.fillText(`+${hiddenCount}`, drawX, rect.y + rect.height / 2 + 4)
+  }
+  ctx.restore()
+  return true
 }
 
 function EidosFileAttachmentCard({
-  id,
-  path,
-  preview,
+  entry,
   index,
-  onOpen,
-  onReveal,
   onRemove,
 }: {
-  id: string
-  path: string
-  preview: string
+  entry: FileEntry
   index: number
-  onOpen?: (path: string) => void
-  onReveal?: (path: string) => Promise<void> | void
   onRemove: (index: number) => void
 }) {
   const { translate: t } = useEidosFileUI()
-  const sortable = useSortable({ id })
-  const image = isImagePath(path)
+  const sortable = useSortable({ id: entry.id })
   return (
     <div
       ref={sortable.setNodeRef}
@@ -90,72 +131,30 @@ function EidosFileAttachmentCard({
         opacity: sortable.isDragging ? 0.55 : 1,
       }}
       className={cn(
-        "group flex h-9 min-w-0 items-center gap-1.5 rounded-md px-1.5 hover:bg-accent/60",
+        "group flex min-w-0 items-center gap-1 rounded-md px-1 hover:bg-accent/60",
         sortable.isDragging && "bg-accent shadow-sm"
       )}
     >
       <button
         type="button"
         className="flex h-6 w-4 shrink-0 cursor-grab items-center justify-center text-muted-foreground/50 active:cursor-grabbing"
-        aria-label={t("Reorder {file}", { file: displayName(path) })}
+        aria-label={t("Reorder {file}", { file: entry.name })}
         {...sortable.attributes}
         {...sortable.listeners}
       >
         <GripVertical className="h-3.5 w-3.5" />
       </button>
-      {image ? (
-        <img
-          src={preview}
-          alt=""
-          className="h-7 w-7 shrink-0 rounded object-cover"
-        />
-      ) : (
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-muted">
-          <FileIcon className="h-3.5 w-3.5 text-muted-foreground" />
-        </span>
-      )}
-      <button
+      <EidosFileEntrySurface entry={entry} compact className="min-w-0 flex-1" />
+      <Button
         type="button"
-        className="min-w-0 flex-1 truncate text-left text-xs"
-        title={path}
-        onClick={() => onOpen?.(path)}
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+        aria-label={t("Remove {file}", { file: entry.name })}
+        onClick={() => onRemove(index)}
       >
-        {displayName(path)}
-      </button>
-      <div className="flex shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-muted-foreground"
-          aria-label={t("Open {file}", { file: displayName(path) })}
-          onClick={() => onOpen?.(path)}
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-        </Button>
-        {!/^(?:https?:|data:)/i.test(path) ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-muted-foreground"
-            aria-label={t("Reveal {file}", { file: displayName(path) })}
-            onClick={() => void onReveal?.(path)}
-          >
-            <FolderOpen className="h-3.5 w-3.5" />
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-          aria-label={t("Remove {file}", { file: displayName(path) })}
-          onClick={() => onRemove(index)}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
-      </div>
+        <Trash2 className="h-3.5 w-3.5" />
+      </Button>
     </div>
   )
 }
@@ -163,49 +162,36 @@ function EidosFileAttachmentCard({
 export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
   EidosFileAttachmentCell
 > = ({ value: cell, onChange }) => {
-  const { resolveFilePreview, translate: t } = useEidosFileUI()
+  const { translate: t } = useEidosFileUI()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const items = cell.data.paths.map((path, index) => ({
-    id: `${path}:${index}`,
-    path,
-    preview: cell.data.displayData[index] ?? resolveFilePreview(path),
-    index,
-  }))
-  const updatePaths = useCallback(
-    (paths: string[]) => {
+  const updateEntries = useCallback(
+    (entries: FileEntry[]) => {
       onChange({
         ...cell,
-        copyData: encodeEidosFileAttachmentPaths(paths, cell.copyData) ?? "",
-        data: {
-          ...cell.data,
-          paths,
-          displayData: eidosFileAttachmentDisplayData(
-            paths,
-            resolveFilePreview
-          ),
-        },
+        copyData: entries.length > 0 ? encodeEidosFileValues(entries) : "",
+        data: { ...cell.data, entries },
       })
     },
-    [cell, onChange, resolveFilePreview]
+    [cell, onChange]
   )
 
   return (
     <div className="min-w-72 max-w-96 p-1.5">
-      {items.length > 0 ? (
+      {cell.data.entries.length > 0 ? (
         <SortableContainer
-          items={items}
-          onReorder={(next) => updatePaths(next.map((item) => item.path))}
+          items={cell.data.entries}
+          onReorder={updateEntries}
           className="space-y-0.5"
-          renderItem={(item) => (
+          renderItem={(entry, index) => (
             <EidosFileAttachmentCard
-              {...item}
-              onOpen={cell.data.onOpen}
-              onReveal={cell.data.onReveal}
-              onRemove={(index) =>
-                updatePaths(
-                  cell.data.paths.filter(
-                    (_candidate, candidateIndex) => candidateIndex !== index
+              entry={entry}
+              index={index}
+              onRemove={(removeIndex) =>
+                updateEntries(
+                  cell.data.entries.filter(
+                    (_candidate, candidateIndex) =>
+                      candidateIndex !== removeIndex
                   )
                 )
               }
@@ -219,7 +205,9 @@ export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
       )}
       {!cell.readonly && cell.data.onImport ? (
         <>
-          {items.length > 0 ? <div className="my-1 h-px bg-border" /> : null}
+          {cell.data.entries.length > 0 ? (
+            <div className="my-1 h-px bg-border" />
+          ) : null}
           <Button
             type="button"
             variant="ghost"
@@ -231,9 +219,9 @@ export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
               setError(null)
               void cell.data
                 .onImport?.()
-                .then((paths) => {
-                  if (paths.length > 0) {
-                    updatePaths([...cell.data.paths, ...paths])
+                .then((entries) => {
+                  if (entries.length > 0) {
+                    updateEntries([...cell.data.entries, ...entries])
                   }
                 })
                 .catch((importError) => {
@@ -265,21 +253,29 @@ export const EidosFileAttachmentCellRenderer: CustomRenderer<EidosFileAttachment
     kind: GridCellKind.Custom,
     needsHover: false,
     needsHoverPosition: false,
-    draw: (args) => drawImage(args, args.cell.data.displayData),
-    measure: (_context, cell) => Math.max(160, cell.data.paths.length * 42),
+    draw: (args) =>
+      drawAttachmentThumbnails(args) ||
+      drawTextCell(
+        args,
+        args.cell.data.entries.map((entry) => entry.name).join(", ")
+      ),
+    measure: (_context, cell) =>
+      Math.max(
+        160,
+        cell.data.entries.reduce(
+          (length, entry) => length + entry.name.length,
+          0
+        ) * 8
+      ),
     onDelete: (cell) => ({
       ...cell,
       copyData: "",
-      data: { ...cell.data, paths: [], displayData: [] },
+      data: { ...cell.data, entries: [] },
     }),
     provideEditor: () => EidosFileAttachmentCellEditor,
     onPaste: (value, data) => {
-      const paths = decodeEidosFileAttachmentPaths(value)
-      if (paths.length === 0) return undefined
-      return {
-        ...data,
-        paths,
-        displayData: eidosFileAttachmentDisplayData(paths),
-      }
+      const entries = decodeEidosFileValues(value)
+      if (entries.length === 0) return undefined
+      return { ...data, entries }
     },
   }

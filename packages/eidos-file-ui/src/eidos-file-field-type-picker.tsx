@@ -25,6 +25,45 @@ import { Input, Popover, PopoverContent, PopoverTrigger } from "./ui/primitives"
 
 export type EidosFileCreatableFieldType = CreateEidosFileFieldInput["type"]
 
+const EIDOS_FILE_FIELD_TYPE_ICONS = {
+  text: Baseline,
+  number: Hash,
+  integer: Hash,
+  select: Tag,
+  "multi-select": Tags,
+  checkbox: CheckSquare,
+  rating: Star,
+  url: Link2,
+  date: CalendarDays,
+  datetime: Clock3,
+  file: ImageIcon,
+  json: TextSearch,
+  formula: Sigma,
+  relation: Link,
+  lookup: TextSearch,
+} satisfies Record<
+  EidosFileCreatableFieldType,
+  ComponentType<{ className?: string }>
+>
+
+/** Shared visual identity for every field-type choice and selected value. */
+export function EidosFileFieldTypeIcon({
+  type,
+  className,
+}: {
+  type: EidosFileCreatableFieldType
+  className?: string
+}) {
+  const Icon = EIDOS_FILE_FIELD_TYPE_ICONS[type]
+  return (
+    <Icon
+      aria-hidden="true"
+      data-eidos-file-field-type-icon={type}
+      className={className}
+    />
+  )
+}
+
 interface EidosFileFieldTypeOption {
   value: EidosFileCreatableFieldType
   label: string
@@ -47,84 +86,84 @@ export const EIDOS_FILE_FIELD_TYPE_GROUPS: EidosFileFieldTypeGroup[] = [
         label: "Text",
         description: "Free-form text content",
         keywords: ["string"],
-        icon: Baseline,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.text,
       },
       {
         value: "number",
         label: "Number",
         description: "Values, currency, percent, or progress",
         keywords: ["numeric", "currency", "percent"],
-        icon: Hash,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.number,
       },
       {
         value: "integer",
         label: "Integer",
         description: "A whole signed 64-bit value",
         keywords: ["whole number", "int64"],
-        icon: Hash,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.integer,
       },
       {
         value: "select",
         label: "Select",
         description: "Choose one predefined option",
         keywords: ["single choice", "status"],
-        icon: Tag,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.select,
       },
       {
         value: "multi-select",
         label: "Multi-select",
         description: "Choose multiple predefined options",
         keywords: ["multiple choice", "tags"],
-        icon: Tags,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS["multi-select"],
       },
       {
         value: "checkbox",
         label: "Checkbox",
         description: "A true or false value",
         keywords: ["boolean", "done"],
-        icon: CheckSquare,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.checkbox,
       },
       {
         value: "rating",
         label: "Rating",
         description: "A five-star score",
         keywords: ["stars", "score"],
-        icon: Star,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.rating,
       },
       {
         value: "url",
         label: "URL",
         description: "A clickable web address",
         keywords: ["website", "link"],
-        icon: Link2,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.url,
       },
       {
         value: "date",
         label: "Date",
         description: "A calendar date",
         keywords: ["calendar", "day"],
-        icon: CalendarDays,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.date,
       },
       {
         value: "datetime",
         label: "Date & time",
         description: "A calendar date with time",
         keywords: ["timestamp", "calendar"],
-        icon: Clock3,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.datetime,
       },
       {
         value: "file",
         label: "File",
         description: "Portable file and image references",
         keywords: ["attachment", "asset", "image"],
-        icon: ImageIcon,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.file,
       },
       {
         value: "json",
         label: "JSON",
         description: "A canonical structured JSON value",
         keywords: ["object", "structured"],
-        icon: TextSearch,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.json,
       },
     ],
   },
@@ -136,21 +175,21 @@ export const EIDOS_FILE_FIELD_TYPE_GROUPS: EidosFileFieldTypeGroup[] = [
         label: "Formula",
         description: "Calculate a value from other fields",
         keywords: ["expression", "computed"],
-        icon: Sigma,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.formula,
       },
       {
         value: "relation",
         label: "Relation",
         description: "Connect records in another table",
         keywords: ["link", "reference"],
-        icon: Link,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.relation,
       },
       {
         value: "lookup",
         label: "Lookup / rollup",
         description: "Read or aggregate related values",
         keywords: ["aggregate", "relation"],
-        icon: TextSearch,
+        icon: EIDOS_FILE_FIELD_TYPE_ICONS.lookup,
       },
     ],
   },
@@ -176,7 +215,6 @@ export function EidosFileFieldTypePicker({
   const [query, setQuery] = useState("")
   const selected =
     selectedOption(value) ?? EIDOS_FILE_FIELD_TYPE_GROUPS[0].options[0]
-  const SelectedIcon = selected.icon
   const groups = useMemo(() => {
     const needle = query.trim().toLowerCase()
     if (!needle) return EIDOS_FILE_FIELD_TYPE_GROUPS
@@ -213,7 +251,10 @@ export function EidosFileFieldTypePicker({
           className="flex h-9 w-full items-center gap-2 rounded-md border bg-background px-3 text-left text-xs shadow-sm outline-none hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
           aria-label={t("Field type")}
         >
-          <SelectedIcon className="h-4 w-4 text-muted-foreground" />
+          <EidosFileFieldTypeIcon
+            type={selected.value}
+            className="h-4 w-4 text-muted-foreground"
+          />
           <span className="min-w-0 flex-1">
             <span className="block truncate font-medium">
               {t(selected.label)}
@@ -248,7 +289,6 @@ export function EidosFileFieldTypePicker({
                   {t(group.label)}
                 </p>
                 {group.options.map((option) => {
-                  const Icon = option.icon
                   const active = option.value === value
                   return (
                     <button
@@ -264,7 +304,10 @@ export function EidosFileFieldTypePicker({
                         setOpen(false)
                       }}
                     >
-                      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      <EidosFileFieldTypeIcon
+                        type={option.value}
+                        className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+                      />
                       <span className="min-w-0 flex-1">
                         <span className="block text-xs font-medium">
                           {t(option.label)}

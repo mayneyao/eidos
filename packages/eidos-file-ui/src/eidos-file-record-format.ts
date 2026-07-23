@@ -4,7 +4,7 @@ import type {
   EidosFileRowValue,
 } from "@eidos.space/eidos-file"
 import {
-  decodeEidosFileAttachmentPaths,
+  decodeEidosFileValues,
   decodeEidosFileJsonArray,
   decodeEidosFileMultiSelectValues,
   decodeEidosFileRelationDisplay,
@@ -68,8 +68,10 @@ export function eidosFileRecordFieldText(
       : "Empty"
   }
   if (field.type === "file") {
-    const files = decodeEidosFileAttachmentPaths(value)
-    return files.length > 0 ? files.join(", ") : "Empty"
+    const files = decodeEidosFileValues(value)
+    return files.length > 0
+      ? files.map((entry) => entry.name).join(", ")
+      : "Empty"
   }
   if (field.type === "date") return dateText(value, true)
   if (

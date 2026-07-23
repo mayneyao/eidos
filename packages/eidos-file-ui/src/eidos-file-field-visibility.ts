@@ -8,7 +8,7 @@ export function eidosFileFieldKey(field: EidosFileFieldInfo): string {
   return field.id
 }
 
-/** Canonical Record Label role with read-only support for pre-1.0 UI fixtures. */
+/** Canonical Record Label role. */
 export function isEidosFileRecordLabelField(
   field: EidosFileFieldInfo
 ): boolean {

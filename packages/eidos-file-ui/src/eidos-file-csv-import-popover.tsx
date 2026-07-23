@@ -14,6 +14,7 @@ import type {
 import { AlertTriangle, FileUp, LoaderCircle, Table2 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import { EidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
 import { cn } from "./lib/cn"
 import {
   Button,
@@ -21,6 +22,11 @@ import {
   Popover,
   PopoverAnchor,
   PopoverContent,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "./ui/primitives"
 
 import {
@@ -558,39 +564,54 @@ export function EidosFileCsvImportPopover({
                         }
                       />
                       {column.type === "record-label" ? (
-                        <span className="px-2 text-xs text-muted-foreground">
-                          {t("Title")}
+                        <span className="flex h-7 items-center gap-2 px-2 text-xs text-muted-foreground">
+                          <EidosFileFieldTypeIcon
+                            type="text"
+                            className="h-3.5 w-3.5 shrink-0"
+                          />
+                          <span>{t("Title")}</span>
                         </span>
                       ) : (
-                        <select
+                        <Select
                           value={column.type}
-                          aria-label={t("{field} type", {
-                            field:
-                              column.name ||
-                              t("Field {index}", { index: index + 1 }),
-                          })}
-                          className="h-7 rounded-md border bg-background px-2 text-xs outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
                           disabled={importing}
-                          onChange={(event) =>
+                          onValueChange={(type) =>
                             setColumns((current) =>
                               current.map((candidate) =>
                                 candidate.sourceIndex === column.sourceIndex
                                   ? {
                                       ...candidate,
-                                      type: event.target
-                                        .value as EidosFileCsvFieldType,
+                                      type: type as EidosFileCsvFieldType,
                                     }
                                   : candidate
                               )
                             )
                           }
                         >
-                          {FIELD_TYPES.map((type) => (
-                            <option key={type.value} value={type.value}>
-                              {t(type.label)}
-                            </option>
-                          ))}
-                        </select>
+                          <SelectTrigger
+                            className="h-7 w-full text-xs"
+                            aria-label={t("{field} type", {
+                              field:
+                                column.name ||
+                                t("Field {index}", { index: index + 1 }),
+                            })}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {FIELD_TYPES.map((type) => (
+                              <SelectItem key={type.value} value={type.value}>
+                                <span className="flex items-center gap-2">
+                                  <EidosFileFieldTypeIcon
+                                    type={type.value}
+                                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                                  />
+                                  <span>{t(type.label)}</span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       )}
                     </div>
                   ))}

@@ -14,7 +14,7 @@ import type {
   EidosFileViewInfo,
 } from "@eidos.space/eidos-file"
 import {
-  decodeEidosFileAttachmentPaths,
+  decodeEidosFileValues,
   decodeEidosFileMultiSelectValues,
 } from "@eidos.space/eidos-file"
 import {
@@ -28,6 +28,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { useEidosFileUI, type EidosFileUIHost } from "./context"
+import { EidosFileEntryCoverSurface } from "./eidos-file-entry-surface"
 import { cn } from "./lib/cn"
 import { Button } from "./ui/primitives"
 import {
@@ -75,22 +76,8 @@ function EidosFileRecordCover({
   compact: boolean
   fitContent: boolean
 }) {
-  const { resolveAssetUrl } = useEidosFileUI()
   const value = row[field.tableColumnName]
-  const reference =
-    field.type === "url"
-      ? typeof value === "string" && /^https?:\/\//i.test(value.trim())
-        ? value.trim()
-        : undefined
-      : decodeEidosFileAttachmentPaths(value).at(0)
-  const source = reference
-    ? /^https?:\/\//i.test(reference)
-      ? reference
-      : resolveAssetUrl(reference)
-    : null
-  const [failedSource, setFailedSource] = useState<string | null>(null)
-  useEffect(() => setFailedSource(null), [source])
-  const visibleSource = source === failedSource ? null : source
+  const entry = decodeEidosFileValues(value).at(0)
 
   return (
     <div
@@ -99,18 +86,8 @@ function EidosFileRecordCover({
         compact ? "h-28" : "h-36"
       )}
     >
-      {visibleSource ? (
-        <img
-          src={visibleSource}
-          alt=""
-          decoding="async"
-          loading="lazy"
-          onError={() => setFailedSource(visibleSource)}
-          className={cn(
-            "h-full w-full",
-            fitContent ? "object-contain" : "object-cover"
-          )}
-        />
+      {entry ? (
+        <EidosFileEntryCoverSurface entry={entry} fitContent={fitContent} />
       ) : null}
     </div>
   )
@@ -193,14 +170,14 @@ function CardFieldValue({
     )
   }
   if (field.type === "file") {
-    const paths = decodeEidosFileAttachmentPaths(value)
-    return paths.length > 0 ? (
+    const entries = decodeEidosFileValues(value)
+    return entries.length > 0 ? (
       <span className="flex min-w-0 items-center gap-1 text-xs">
         <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
-        <span className="truncate">{paths.at(0)?.split("/").at(-1)}</span>
-        {paths.length > 1 ? (
+        <span className="truncate">{entries.at(0)?.name}</span>
+        {entries.length > 1 ? (
           <span className="shrink-0 text-muted-foreground">
-            +{paths.length - 1}
+            +{entries.length - 1}
           </span>
         ) : null}
       </span>

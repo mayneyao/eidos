@@ -1,16 +1,17 @@
 import type {
+  FileEntry,
   EidosFileFieldInfo,
   EidosFileRow,
   EidosFileRowValue,
   EidosFileSqlPrimitive,
 } from "@eidos.space/eidos-file"
 import {
-  decodeEidosFileAttachmentPaths,
+  decodeEidosFileValues,
   decodeEidosFileJsonArray,
   decodeEidosFileMultiSelectValues,
   decodeEidosFileRelationDisplay,
   decodeEidosFileRelationIds,
-  encodeEidosFileAttachmentPaths,
+  encodeEidosFileValues,
   encodeEidosFileMultiSelectValues,
   encodeEidosFileRelationIds,
 } from "@eidos.space/eidos-file"
@@ -30,10 +31,7 @@ import {
   eidosFileFieldDisplayName,
   isOptionalEidosFileSystemField,
 } from "./eidos-file-field-visibility"
-import {
-  eidosFileAttachmentDisplayData,
-  type EidosFileAttachmentCell,
-} from "./eidos-file-attachment-cell"
+import type { EidosFileAttachmentCell } from "./eidos-file-attachment-cell"
 import type { EidosFileRelationCell } from "./eidos-file-relation-cell"
 
 export { visibleEidosFileFields } from "./eidos-file-field-visibility"
@@ -176,7 +174,7 @@ export function eidosFileValueToGridCell(
     } satisfies EidosFileRelationCell
   }
   if (field.type === "file") {
-    const paths = decodeEidosFileAttachmentPaths(value)
+    const entries = decodeEidosFileValues(value)
     return {
       kind: GridCellKind.Custom,
       allowOverlay: true,
@@ -184,8 +182,7 @@ export function eidosFileValueToGridCell(
       copyData: typeof value === "string" ? value : "",
       data: {
         kind: "eidos-file-file-cell",
-        paths,
-        displayData: eidosFileAttachmentDisplayData(paths),
+        entries,
       },
     } satisfies EidosFileAttachmentCell
   }
@@ -268,8 +265,16 @@ export function eidosFileValueToGridCell(
     }
   }
   if (field.type === "number") {
-    const number = typeof value === "number" ? value : Number(value)
-    const data = Number.isFinite(number) ? number : undefined
+    const number =
+      value === null ||
+      value === undefined ||
+      (typeof value === "string" && value.trim().length === 0)
+        ? undefined
+        : typeof value === "number"
+          ? value
+          : Number(value)
+    const data =
+      number !== undefined && Number.isFinite(number) ? number : undefined
     const property = eidosFileNumberProperty(field)
     if (data !== undefined && property.showAs === "bar") {
       return {
@@ -337,12 +342,15 @@ export function gridCellToEidosFileValue(
       return encodeEidosFileMultiSelectValues(values)
     }
     if (data.kind === "eidos-file-file-cell") {
-      const paths = Array.isArray(data.paths)
-        ? data.paths.filter(
-            (entry): entry is string => typeof entry === "string"
+      const entries = Array.isArray(data.entries)
+        ? data.entries.filter(
+            (entry): entry is FileEntry =>
+              typeof entry === "object" &&
+              entry !== null &&
+              typeof (entry as { id?: unknown }).id === "string"
           )
         : []
-      return encodeEidosFileAttachmentPaths(paths, cell.copyData)
+      return entries.length > 0 ? encodeEidosFileValues(entries) : null
     }
     if (data.kind === "eidos-file-relation-cell") {
       const values = Array.isArray(data.values)

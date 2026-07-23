@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "./ui/primitives"
 import { Switch, Textarea } from "./ui/primitives"
+import { SelectOptionItem } from "./ui/select-option-item"
 
 import { eidosFileSelectOptions } from "./eidos-file-field-properties"
 
@@ -109,11 +110,13 @@ export function EidosFileRecordFieldEditor({
         <SelectContent>
           <SelectItem value="__empty__">{t("Empty")}</SelectItem>
           {hasUnconfiguredValue ? (
-            <SelectItem value={rawValue}>{rawValue}</SelectItem>
+            <SelectItem value={rawValue}>
+              <SelectOptionItem option={{ name: rawValue, color: "default" }} />
+            </SelectItem>
           ) : null}
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
-              {option.value}
+              <SelectOptionItem option={option} />
             </SelectItem>
           ))}
         </SelectContent>
@@ -138,7 +141,24 @@ export function EidosFileRecordFieldEditor({
             aria-label={field.name}
             disabled={disabled}
           >
-            {selected.length > 0 ? selected.join(", ") : t("Empty")}
+            {selected.length > 0 ? (
+              <span className="flex min-w-0 flex-wrap gap-1">
+                {selected.map((selectedValue) => {
+                  const option = options.find(
+                    (candidate) => candidate.value === selectedValue
+                  ) ?? { name: selectedValue, color: "default" }
+                  return (
+                    <SelectOptionItem
+                      key={selectedValue}
+                      option={option}
+                      className="max-w-[180px]"
+                    />
+                  )
+                })}
+              </span>
+            ) : (
+              t("Empty")
+            )}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-64 p-1">
@@ -160,7 +180,7 @@ export function EidosFileRecordFieldEditor({
                     <Check className="h-3 w-3" />
                   ) : null}
                 </span>
-                <span className="truncate">{option.value}</span>
+                <SelectOptionItem option={option} className="max-w-[190px]" />
               </button>
             ))}
           </div>

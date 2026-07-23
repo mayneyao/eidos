@@ -13,20 +13,26 @@ import type {
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import {
-  ArrowDown,
   ArrowLeft,
-  ArrowUp,
   Check,
   ChevronDown,
   Copy,
+  GripVertical,
   MoreHorizontal,
   Plus,
   Puzzle,
   Trash2,
 } from "lucide-react"
+import { useSortable } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 import { EidosFileViewTypeIcon } from "./eidos-file-editor-chrome"
-import { eidosFileFieldKey } from "./eidos-file-field-visibility"
+import {
+  eidosFileFieldKey,
+  eidosFileViewVisibleSystemFields,
+  isEidosFileRecordLabelField,
+  visibleEidosFileFields,
+} from "./eidos-file-field-visibility"
 import { useEidosFileUI } from "./context"
 import { cn } from "./lib/cn"
 import {
@@ -43,6 +49,7 @@ import {
   SelectValue,
   Switch,
 } from "./ui/primitives"
+import { SortableContainer } from "./ui/sortable"
 import { isEidosFileRecordCoverField } from "./eidos-file-record-card-layout"
 
 export interface EidosFileExternalViewContribution {
@@ -157,6 +164,49 @@ function EidosFileViewLayoutPicker({
   )
 }
 
+function SortableSelectorRow({
+  id,
+  label,
+  disabled,
+  children,
+}: {
+  id: string
+  label: string
+  disabled: boolean
+  children: ReactNode
+}) {
+  const sortable = useSortable({ id, disabled })
+  return (
+    <div
+      ref={sortable.setNodeRef}
+      className={cn(
+        "group flex min-w-0 items-center rounded-md",
+        sortable.isDragging && "z-10 bg-accent shadow-sm"
+      )}
+      style={{
+        opacity: sortable.isDragging ? 0.72 : 1,
+        transform: CSS.Transform.toString(
+          sortable.transform ? { ...sortable.transform, x: 0 } : null
+        ),
+        transition: sortable.transition,
+      }}
+    >
+      <button
+        ref={sortable.setActivatorNodeRef}
+        type="button"
+        className="flex h-7 w-5 shrink-0 cursor-grab items-center justify-center text-muted-foreground/50 outline-hidden hover:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring active:cursor-grabbing disabled:cursor-default disabled:opacity-30"
+        aria-label={label}
+        disabled={disabled}
+        {...sortable.attributes}
+        {...sortable.listeners}
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+      {children}
+    </div>
+  )
+}
+
 export function EidosFileViewSelector({
   views,
   extensionViews = [],
@@ -201,6 +251,7 @@ export function EidosFileViewSelector({
   const [localError, setLocalError] = useState<string | null>(null)
   const fitImageId = useId()
   const hideEmptyFieldsId = useId()
+  const showEmptyGroupsId = useId()
   const handledRequestIdRef = useRef<number | null>(null)
   const managedView = useMemo(
     () => views.find((view) => view.id === managedViewId),
@@ -208,7 +259,51 @@ export function EidosFileViewSelector({
   )
   const gridViewCount = views.filter((view) => view.type === "grid").length
   const selectFields = fields.filter((field) => field.type === "select")
-  const coverFields = fields.filter(isEidosFileRecordCoverField)
+  const visibleFieldIds = new Set(
+    visibleEidosFileFields(
+      fields,
+      managedView?.hiddenFields,
+      eidosFileViewVisibleSystemFields(managedView)
+    ).map(eidosFileFieldKey)
+  )
+  const coverFields = fields.filter(
+    (field) =>
+      visibleFieldIds.has(eidosFileFieldKey(field)) &&
+      isEidosFileRecordCoverField(field)
+  )
+  const cardCandidateFields = fields.filter(
+    (field) =>
+      visibleFieldIds.has(eidosFileFieldKey(field)) &&
+      !isEidosFileRecordLabelField(field) &&
+      field.valueKind !== "system"
+  )
+  const configuredCardFieldIds = Array.isArray(
+    managedView?.properties?.cardFields
+  )
+    ? managedView.properties.cardFields.filter(
+        (fieldId): fieldId is string => typeof fieldId === "string"
+      )
+    : null
+  const cardFieldIds = configuredCardFieldIds
+    ? configuredCardFieldIds.filter((fieldId): fieldId is string =>
+        cardCandidateFields.some(
+          (field) => eidosFileFieldKey(field) === fieldId
+        )
+      )
+    : cardCandidateFields.map(eidosFileFieldKey)
+  const unavailableCardFieldIds = (configuredCardFieldIds ?? []).filter(
+    (fieldId) =>
+      !cardCandidateFields.some((field) => eidosFileFieldKey(field) === fieldId)
+  )
+  const selectedCardFields = cardFieldIds.flatMap((fieldId) => {
+    const field = cardCandidateFields.find(
+      (candidate) => eidosFileFieldKey(candidate) === fieldId
+    )
+    return field ? [field] : []
+  })
+  const unselectedCardFields = cardCandidateFields.filter(
+    (field) => !cardFieldIds.includes(eidosFileFieldKey(field))
+  )
 
   useEffect(() => {
     if (managedView) setName(managedView.name)
@@ -307,15 +402,6 @@ export function EidosFileViewSelector({
     if (!managedView || !nextName || nextName === managedView.name) return
     void run(() => onRename(managedView.id, nextName))
   }
-  const move = (direction: -1 | 1) => {
-    if (!managedView) return
-    const index = views.findIndex((view) => view.id === managedView.id)
-    const target = index + direction
-    if (index < 0 || target < 0 || target >= views.length) return
-    const next = views.map((view) => view.id)
-    ;[next[index], next[target]] = [next[target], next[index]]
-    void run(() => onReorder(next))
-  }
   const updateProperties = (changes: Record<string, unknown>) => {
     if (!managedView) return
     void run(() =>
@@ -323,6 +409,14 @@ export function EidosFileViewSelector({
         properties: { ...(managedView.properties ?? {}), ...changes },
       })
     )
+  }
+  const toggleCardField = (fieldId: string, checked: boolean) => {
+    const next = checked
+      ? [...cardFieldIds, fieldId]
+      : cardFieldIds.filter((candidate) => candidate !== fieldId)
+    updateProperties({
+      cardFields: [...new Set([...next, ...unavailableCardFieldIds])],
+    })
   }
   const changeManagedLayout = (type: EidosFileBuiltInViewType) => {
     if (
@@ -419,29 +513,37 @@ export function EidosFileViewSelector({
       )}
       <PopoverContent
         align={triggerMode === "current" ? "end" : "start"}
-        className="w-72 p-1.5"
+        className="max-h-[min(42rem,calc(100vh-2rem))] w-72 overflow-y-auto p-1.5"
       >
         {panel === "list" ? (
           <>
             <div className="px-2 py-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {t("Views")}
             </div>
-            <div className="max-h-64 space-y-0.5 overflow-y-auto">
-              {views.map((view) => {
+            <SortableContainer
+              items={views}
+              optimistic={false}
+              disabled={Boolean(disabled) || busy}
+              onReorder={(next) =>
+                void run(() => onReorder(next.map((view) => view.id)))
+              }
+              className="max-h-64 space-y-0.5 overflow-x-hidden overflow-y-auto"
+              renderItem={(view) => {
                 const supported =
                   isEidosFileBuiltInViewType(view.type) ||
                   Boolean(eidosFileExtensionContributionId(view.type))
                 return (
-                  <div
-                    key={view.id}
-                    className={cn(
-                      "group flex min-w-0 items-center rounded-md",
-                      view.id === activeView?.id && "bg-accent"
-                    )}
+                  <SortableSelectorRow
+                    id={view.id}
+                    label={t("Reorder {name} view", { name: view.name })}
+                    disabled={Boolean(disabled) || busy}
                   >
                     <button
                       type="button"
-                      className="flex h-8 min-w-0 flex-1 items-center gap-2 px-2 text-left text-xs disabled:cursor-not-allowed disabled:opacity-55"
+                      className={cn(
+                        "flex h-8 min-w-0 flex-1 items-center gap-2 px-1.5 text-left text-xs disabled:cursor-not-allowed disabled:opacity-55",
+                        view.id === activeView?.id && "bg-accent"
+                      )}
                       disabled={!supported}
                       onClick={() => {
                         onSelect(view.id)
@@ -473,10 +575,10 @@ export function EidosFileViewSelector({
                     >
                       <MoreHorizontal className="h-3.5 w-3.5" />
                     </Button>
-                  </div>
+                  </SortableSelectorRow>
                 )
-              })}
-            </div>
+              }}
+            />
             <div className="mt-1 border-t pt-1">
               <button
                 type="button"
@@ -657,6 +759,36 @@ export function EidosFileViewSelector({
                 {managedView.type} layout
               </p>
             )}
+            {managedView.type === "grid" ? (
+              <div className="mt-3 grid gap-1.5 border-t pt-3">
+                <p className="text-xs font-medium">{t("Row density")}</p>
+                <Select
+                  value={
+                    typeof managedView.properties?.rowDensity === "string"
+                      ? managedView.properties.rowDensity
+                      : "standard"
+                  }
+                  disabled={busy}
+                  onValueChange={(rowDensity) =>
+                    updateProperties({ rowDensity })
+                  }
+                >
+                  <SelectTrigger
+                    className="h-8 text-xs"
+                    aria-label={t("Grid row density")}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="compact">{t("Compact")}</SelectItem>
+                    <SelectItem value="standard">{t("Standard")}</SelectItem>
+                    <SelectItem value="comfortable">
+                      {t("Comfortable")}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
             {managedView.type === "kanban" ? (
               <div className="mt-3 grid gap-1.5 border-t pt-3">
                 <p className="text-xs font-medium">{t("Group by")}</p>
@@ -693,10 +825,114 @@ export function EidosFileViewSelector({
                     {t("Add a Select field before configuring this Kanban.")}
                   </p>
                 ) : null}
+                <label
+                  className="mt-1 flex items-center justify-between gap-3 text-xs"
+                  htmlFor={showEmptyGroupsId}
+                >
+                  <span>{t("Show empty groups")}</span>
+                  <Switch
+                    id={showEmptyGroupsId}
+                    aria-label={t("Show empty groups")}
+                    checked={managedView.properties?.showEmptyGroups !== false}
+                    disabled={busy}
+                    onCheckedChange={(showEmptyGroups) =>
+                      updateProperties({ showEmptyGroups })
+                    }
+                  />
+                </label>
               </div>
             ) : null}
             {managedView.type === "gallery" || managedView.type === "kanban" ? (
               <div className="mt-3 grid gap-3 border-t pt-3">
+                <div className="grid gap-1.5">
+                  <p className="text-xs font-medium">{t("Card content")}</p>
+                  <p className="text-[11px] leading-4 text-muted-foreground">
+                    {t(
+                      "Choose visible fields for each card and drag to set their order."
+                    )}
+                  </p>
+                  <div className="max-h-40 overflow-x-hidden overflow-y-auto rounded-md border p-1">
+                    {cardCandidateFields.length > 0 ? (
+                      <>
+                        <SortableContainer
+                          items={selectedCardFields.map((field) => ({
+                            id: eidosFileFieldKey(field),
+                            field,
+                          }))}
+                          optimistic={false}
+                          disabled={busy}
+                          onReorder={(next) =>
+                            updateProperties({
+                              cardFields: [
+                                ...next.map(({ id }) => id),
+                                ...unavailableCardFieldIds,
+                              ],
+                            })
+                          }
+                          className="grid gap-0.5"
+                          renderItem={({ id: fieldId, field }) => (
+                            <SortableSelectorRow
+                              id={fieldId}
+                              label={t("Reorder {field}", {
+                                field: field.name,
+                              })}
+                              disabled={busy}
+                            >
+                              <label className="flex h-8 min-w-0 flex-1 cursor-pointer items-center gap-2 px-1 text-xs">
+                                <input
+                                  type="checkbox"
+                                  checked
+                                  disabled={busy}
+                                  aria-label={t("Show {field} on cards", {
+                                    field: field.name,
+                                  })}
+                                  onChange={(event) =>
+                                    toggleCardField(
+                                      fieldId,
+                                      event.currentTarget.checked
+                                    )
+                                  }
+                                />
+                                <span className="truncate">{field.name}</span>
+                              </label>
+                            </SortableSelectorRow>
+                          )}
+                        />
+                        {unselectedCardFields.map((field) => {
+                          const fieldId = eidosFileFieldKey(field)
+                          return (
+                            <div
+                              key={fieldId}
+                              className="flex h-8 items-center rounded px-1.5 hover:bg-accent"
+                            >
+                              <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-xs">
+                                <input
+                                  type="checkbox"
+                                  checked={false}
+                                  disabled={busy}
+                                  aria-label={t("Show {field} on cards", {
+                                    field: field.name,
+                                  })}
+                                  onChange={(event) =>
+                                    toggleCardField(
+                                      fieldId,
+                                      event.currentTarget.checked
+                                    )
+                                  }
+                                />
+                                <span className="truncate">{field.name}</span>
+                              </label>
+                            </div>
+                          )
+                        })}
+                      </>
+                    ) : (
+                      <p className="px-2 py-3 text-[11px] text-muted-foreground">
+                        {t("No fields are available for cards.")}
+                      </p>
+                    )}
+                  </div>
+                </div>
                 <div className="grid gap-1.5">
                   <p className="text-xs font-medium">{t("Card cover")}</p>
                   <Select
@@ -739,7 +975,7 @@ export function EidosFileViewSelector({
                   {coverFields.length === 0 ? (
                     <p className="text-[11px] leading-4 text-muted-foreground">
                       {t(
-                        "Add a File or URL field to use record images as card covers."
+                        "Add a File field to use record images as card covers."
                       )}
                     </p>
                   ) : null}
@@ -753,10 +989,16 @@ export function EidosFileViewSelector({
                     <Switch
                       id={fitImageId}
                       aria-label={t("Fit image")}
-                      checked={managedView.properties?.fitContent !== false}
+                      checked={
+                        managedView.properties?.coverFit === "contain" ||
+                        (managedView.properties?.coverFit !== "cover" &&
+                          managedView.properties?.fitContent === true)
+                      }
                       disabled={busy}
-                      onCheckedChange={(fitContent) =>
-                        updateProperties({ fitContent })
+                      onCheckedChange={(fitImage) =>
+                        updateProperties({
+                          coverFit: fitImage ? "contain" : "cover",
+                        })
                       }
                     />
                   </label>
@@ -814,34 +1056,12 @@ export function EidosFileViewSelector({
                 />
               </div>
             ) : null}
-            <div className="mt-3 grid grid-cols-2 gap-1.5">
+            <div className="mt-3 grid gap-1.5">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className="h-8 justify-start gap-1.5 text-xs"
-                disabled={busy || views[0]?.id === managedView.id}
-                onClick={() => move(-1)}
-              >
-                <ArrowUp className="h-3.5 w-3.5" />
-                {t("Move up")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 justify-start gap-1.5 text-xs"
-                disabled={busy || views.at(-1)?.id === managedView.id}
-                onClick={() => move(1)}
-              >
-                <ArrowDown className="h-3.5 w-3.5" />
-                {t("Move down")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="col-span-2 h-8 justify-start gap-1.5 text-xs"
                 disabled={busy}
                 onClick={() =>
                   void run(

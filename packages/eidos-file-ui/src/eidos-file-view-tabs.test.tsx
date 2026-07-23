@@ -42,7 +42,7 @@ const views: EidosFileViewInfo[] = [
   },
 ]
 
-function renderViewTabs(root: Root, onDelete = vi.fn()) {
+function renderViewTabs(root: Root, onDelete = vi.fn(), onReorder = vi.fn()) {
   root.render(
     <EidosFileViewTabs
       views={views}
@@ -53,10 +53,57 @@ function renderViewTabs(root: Root, onDelete = vi.fn()) {
       onRename={vi.fn()}
       onDuplicate={vi.fn()}
       onDelete={onDelete}
-      onReorder={vi.fn()}
+      onReorder={onReorder}
       onUpdate={vi.fn()}
     />
   )
+}
+
+async function keyboardDrag(
+  label: string,
+  direction: "ArrowLeft" | "ArrowRight"
+) {
+  const handle = document.body.querySelector<HTMLButtonElement>(
+    `button[aria-label="${label}"]`
+  )
+  Array.from(
+    document.body.querySelectorAll<HTMLElement>(
+      "[data-eidos-file-sortable-tab]"
+    )
+  ).forEach((item, index) => {
+    item.getBoundingClientRect = () => new DOMRect(index * 120, 0, 112, 32)
+  })
+  await act(async () => {
+    handle?.focus()
+    handle?.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        code: "Space",
+        key: " ",
+      })
+    )
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+  })
+  await act(async () => {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        code: direction,
+        key: direction,
+      })
+    )
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+  })
+  await act(async () => {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        code: "Space",
+        key: " ",
+      })
+    )
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+  })
 }
 
 async function openViewMenu(container: HTMLElement, viewId: string) {
@@ -115,6 +162,10 @@ describe("EidosFileViewTabs", () => {
     })
 
     expect(document.body.textContent).toContain("Layout")
+    expect(document.body.textContent).toContain("Card content")
+    expect(document.body.textContent).toContain(
+      "Choose visible fields for each card and drag to set their order."
+    )
     expect(
       document.body.querySelector<HTMLInputElement>(
         "#eidos-file-managed-view-name"
@@ -123,6 +174,41 @@ describe("EidosFileViewTabs", () => {
     expect(
       document.body.querySelector("[data-eidos-file-view-context-anchor]")
     ).not.toBeNull()
+  })
+
+  it("exports the view selected from its context menu", async () => {
+    const onExportCsv = vi.fn().mockResolvedValue(undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileViewTabs
+          views={views}
+          fields={[]}
+          activeView={views[0]}
+          onSelect={vi.fn()}
+          onCreate={vi.fn()}
+          onRename={vi.fn()}
+          onDuplicate={vi.fn()}
+          onDelete={vi.fn()}
+          onUpdate={vi.fn()}
+          onReorder={vi.fn()}
+          onExportCsv={onExportCsv}
+        />
+      )
+    })
+
+    await openViewMenu(container, "gallery")
+    await act(async () => {
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      )
+        .find((item) =>
+          item.textContent?.includes("Export current view as CSV")
+        )
+        ?.click()
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    expect(onExportCsv).toHaveBeenCalledWith(views[1])
   })
 
   it("protects the required Grid view and confirms deletable views", async () => {
@@ -162,5 +248,15 @@ describe("EidosFileViewTabs", () => {
       await Promise.resolve()
     })
     expect(onDelete).toHaveBeenCalledWith("gallery")
+  })
+
+  it("reorders views through the shared drag handle", async () => {
+    const onReorder = vi.fn().mockResolvedValue(undefined)
+    await act(async () => renderViewTabs(root, vi.fn(), onReorder))
+
+    expect(container.textContent).not.toContain("Move up")
+    expect(container.textContent).not.toContain("Move down")
+    await keyboardDrag("Reorder Cards view", "ArrowLeft")
+    expect(onReorder).toHaveBeenCalledWith(["gallery", "grid"])
   })
 })

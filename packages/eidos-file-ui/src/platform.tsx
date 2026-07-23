@@ -56,8 +56,10 @@ export function EidosFileProvider({
   className,
   style,
   themeName = "light",
-  resolveAssetUrl,
-  resolveFilePreview,
+  locale,
+  translate,
+  assetSession,
+  assetPresenter,
 }: EidosFileProviderProps) {
   const state = useSyncExternalStore(
     session.subscribe,
@@ -79,8 +81,10 @@ export function EidosFileProvider({
     <EidosFileReactContext.Provider value={value}>
       <EidosFileUIProvider
         themeName={themeName}
-        resolveAssetUrl={resolveAssetUrl}
-        resolveFilePreview={resolveFilePreview}
+        locale={locale}
+        translate={translate}
+        assetSession={assetSession}
+        assetPresenter={assetPresenter}
       >
         <div
           className={classes}

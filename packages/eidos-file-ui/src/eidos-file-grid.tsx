@@ -21,6 +21,7 @@ import type {
   EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
+  FileEntry,
   UpdateEidosFileFieldInput,
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
@@ -58,19 +59,16 @@ import {
   gridCellToEidosFileValue,
 } from "./eidos-file-grid-adapter"
 import {
-  eidosFileAttachmentDisplayData,
   EidosFileAttachmentCellRenderer,
   type EidosFileAttachmentCell,
 } from "./eidos-file-attachment-cell"
+import { EidosFileAttachmentThumbnailManager } from "./eidos-file-attachment-thumbnails"
 import {
   EidosFileRelationCellRenderer,
   type EidosFileRelationCell,
 } from "./eidos-file-relation-cell"
 import { EidosFileFieldPropertyPanel } from "./eidos-file-field-property-panel"
-import {
-  decodeEidosFileAttachmentPaths,
-  encodeEidosFileAttachmentPaths,
-} from "@eidos.space/eidos-file"
+import { encodeEidosFileValues } from "@eidos.space/eidos-file"
 
 import {
   EidosFileCellMenu,
@@ -143,10 +141,8 @@ export interface EidosFileGridProps {
   onSelectedRowsChange?: (ranges: EidosFileRowRange[]) => void
   onRowCountChange?: (rowCount: number | null) => void
   searchResultIndex?: number | null
-  onImportFiles?: () => Promise<string[]>
-  onImportDroppedFiles?: (files: File[]) => Promise<string[]>
-  onOpenFile?: (path: string) => void
-  onRevealFile?: (path: string) => Promise<void> | void
+  onImportFiles?: () => Promise<FileEntry[]>
+  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
   onOpenRecordInTab?: (row: EidosFileRow) => void
   onSearchRelation?: (
     field: EidosFileFieldInfo,
@@ -232,6 +228,25 @@ function viewWidths(
   )
 }
 
+function columnBaseWidth(column: GridColumn): number {
+  return "width" in column && typeof column.width === "number"
+    ? column.width
+    : 180
+}
+
+function columnPixelWidth(stored: number | undefined, base: number): number {
+  if (stored === undefined) return base
+  // Values above the 1.0 relative-width range are accepted as legacy pixel
+  // widths and normalized the next time the user resizes that column.
+  return stored > 8 ? stored : base * Math.min(8, Math.max(0.25, stored))
+}
+
+function viewRowHeight(view: EidosFileViewInfo | undefined): number {
+  if (view?.properties?.rowDensity === "compact") return 28
+  if (view?.properties?.rowDensity === "comfortable") return 44
+  return 36
+}
+
 function viewColumnStats(
   view: EidosFileViewInfo | undefined,
   fields: EidosFileFieldInfo[]
@@ -296,8 +311,6 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   searchResultIndex = null,
   onImportFiles,
   onImportDroppedFiles,
-  onOpenFile,
-  onRevealFile,
   onOpenRecordInTab,
   onSearchRelation,
   propertyField,
@@ -312,7 +325,12 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   onViewUpdate,
   onError,
 }: EidosFileGridProps) {
-  const { themeName, resolveFilePreview, translate: t } = useEidosFileUI()
+  const {
+    assetPresenter,
+    assetSession,
+    themeName,
+    translate: t,
+  } = useEidosFileUI()
   const defaultTheme = useEidosFileGridTheme(themeName)
   const theme = useMemo(
     () => ({ ...defaultTheme, ...gridTheme }),
@@ -321,6 +339,15 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const searchHighlightColor = themeColorWithAlpha(theme.accentColor, 0.14)
   const fileDropHighlightColor = themeColorWithAlpha(theme.accentColor, 0.18)
   const gridRef = useRef<DataEditorRef>(null)
+  const attachmentThumbnails = useMemo(
+    () =>
+      new EidosFileAttachmentThumbnailManager(
+        assetSession,
+        assetPresenter,
+        (cells) => gridRef.current?.updateCells(cells)
+      ),
+    [assetPresenter, assetSession]
+  )
   const containerRef = useRef<HTMLDivElement>(null)
   const widthSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rowsRef = useRef(new Map<number, EidosFileRow>())
@@ -479,6 +506,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       ? new Set([0, ...visiblePagesRef.current])
       : new Set([0])
     dataScopeRef.current = scope
+    attachmentThumbnails.clear()
     generationRef.current += 1
     loadedPagesRef.current.clear()
     loadingPagesRef.current.clear()
@@ -505,6 +533,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     for (const pageIndex of pagesToRefresh) void loadPageIndex(pageIndex)
   }, [
     loadPageIndex,
+    attachmentThumbnails,
     reloadToken,
     table.table.id,
     updateFailedMutation,
@@ -525,9 +554,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     () => () => {
       generationRef.current += 1
       columnStatGenerationRef.current += 1
+      attachmentThumbnails.clear()
       if (widthSaveTimerRef.current) clearTimeout(widthSaveTimerRef.current)
     },
-    []
+    [attachmentThumbnails]
   )
 
   const columnStatConfigs = useMemo(
@@ -571,13 +601,14 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       fields.map((field) => {
         const column = eidosFileGridColumn(field)
         const fieldId = eidosFileFieldKey(field)
+        const baseWidth = columnBaseWidth(column)
         const stat = columnStatResults[fieldId]
         const configured = columnStatConfigs.find(
           (config) => config.fieldId === fieldId
         )
         return {
           ...column,
-          width: widths[fieldId] ?? ("width" in column ? column.width : 180),
+          width: columnPixelWidth(widths[fieldId], baseWidth),
           ...(stat && configured?.type === stat.type
             ? {
                 trailingRowOptions: {
@@ -651,17 +682,17 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         cell.kind === GridCellKind.Custom &&
         (cell.data as { kind?: unknown }).kind === "eidos-file-file-cell"
       ) {
+        const fileCell = cell as EidosFileAttachmentCell
         return {
-          ...cell,
+          ...fileCell,
           data: {
-            ...cell.data,
-            displayData: eidosFileAttachmentDisplayData(
-              (cell as EidosFileAttachmentCell).data.paths,
-              resolveFilePreview
+            ...fileCell.data,
+            thumbnails: attachmentThumbnails.prepare(
+              fileCell.data.entries,
+              columnIndex,
+              rowIndex
             ),
             onImport: onImportFiles,
-            onOpen: onOpenFile,
-            onReveal: onRevealFile,
           },
         } as EidosFileAttachmentCell
       }
@@ -682,14 +713,12 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       return cell
     },
     [
+      attachmentThumbnails,
       cacheRevision,
       fields,
       gridWriteLocked,
       onImportFiles,
-      onOpenFile,
-      onRevealFile,
       onSearchRelation,
-      resolveFilePreview,
       t,
     ]
   )
@@ -722,7 +751,13 @@ export const EidosFileGrid = memo(function EidosFileGrid({
 
   const onVisibleRegionChanged = useCallback<
     NonNullable<DataEditorProps["onVisibleRegionChanged"]>
-  >((range) => requestVisiblePages(range), [requestVisiblePages])
+  >(
+    (range) => {
+      attachmentThumbnails.retainVisibleRows(range.y, range.height)
+      requestVisiblePages(range)
+    },
+    [attachmentThumbnails, requestVisiblePages]
+  )
 
   useEffect(() => {
     if (
@@ -1144,30 +1179,19 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         .then((imported) => {
           if (imported.length === 0) return
           const fileCell = current as EidosFileAttachmentCell
-          const paths = [...fileCell.data.paths, ...imported]
+          const entries = [...fileCell.data.entries, ...imported]
           history.onCellEdited(location, {
             ...fileCell,
-            copyData:
-              encodeEidosFileAttachmentPaths(paths, fileCell.copyData) ?? "",
+            copyData: encodeEidosFileValues(entries),
             data: {
               ...fileCell.data,
-              paths,
-              displayData: eidosFileAttachmentDisplayData(
-                paths,
-                resolveFilePreview
-              ),
+              entries,
             },
           })
         })
         .catch((error) => onError?.(error))
     },
-    [
-      getCellContent,
-      history.onCellEdited,
-      onError,
-      onImportDroppedFiles,
-      resolveFilePreview,
-    ]
+    [getCellContent, history.onCellEdited, onError, onImportDroppedFiles]
   )
 
   useEffect(() => {
@@ -1194,8 +1218,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       const field = fields[index]
       if (!field) return
       const id = eidosFileFieldKey(field)
+      const baseWidth = columnBaseWidth(eidosFileGridColumn(field))
+      const relativeWidth = Math.min(8, Math.max(0.25, newSize / baseWidth))
       setWidths((current) => {
-        const next = { ...current, [id]: newSize }
+        const next = { ...current, [id]: relativeWidth }
         if (view && onViewUpdate) {
           if (widthSaveTimerRef.current) {
             clearTimeout(widthSaveTimerRef.current)
@@ -1352,13 +1378,6 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     cellMenu.row[cellMenu.field.tableColumnName] === null ||
     cellMenu.row[cellMenu.field.tableColumnName] === undefined ||
     cellMenu.row[cellMenu.field.tableColumnName] === ""
-  const cellFilePaths =
-    cellMenu?.field.type === "file"
-      ? decodeEidosFileAttachmentPaths(
-          cellMenu.row[cellMenu.field.tableColumnName]
-        )
-      : []
-
   return (
     <div
       ref={containerRef}
@@ -1371,6 +1390,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           theme={theme}
           columns={columns}
           rows={rowCount}
+          rowHeight={viewRowHeight(view)}
           freezeColumns={freezeColumns}
           getCellContent={getCellContent}
           onVisibleRegionChanged={onVisibleRegionChanged}
@@ -1502,6 +1522,16 @@ export const EidosFileGrid = memo(function EidosFileGrid({
               },
             })
           }
+          onHide={(field) =>
+            updateView({
+              hiddenFields: [
+                ...new Set([
+                  ...(view?.hiddenFields ?? []),
+                  eidosFileFieldKey(field),
+                ]),
+              ],
+            })
+          }
           onCalculate={setColumnStatMenu}
           onDelete={(field) => onDeleteField?.(field)}
         />
@@ -1527,7 +1557,6 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           open={cellMenu !== null}
           selectionCount={cellMenu ? rowRangeCount(cellMenu.rowRanges) : 0}
           cellText={cellIsEmpty ? "" : cellText}
-          filePaths={cellFilePaths}
           canDelete={!gridWriteLocked && Boolean(onRequestDeleteRows)}
           onOpenChange={(open) => {
             if (!open) setCellMenu(null)
@@ -1539,16 +1568,6 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onCopyCell={copyText}
           onCopyRecordId={copyText}
           onOpenUrl={(url) => window.open(url, "_blank", "noopener,noreferrer")}
-          onOpenFile={onOpenFile}
-          onRevealFile={
-            onRevealFile
-              ? (path) => {
-                  void Promise.resolve(onRevealFile(path)).catch((error) =>
-                    onError?.(error)
-                  )
-                }
-              : undefined
-          }
           onDeleteRows={(ranges) => onRequestDeleteRows?.(ranges)}
         />
       </div>
@@ -1579,16 +1598,6 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onImportFiles={onImportFiles}
           onImportDroppedFiles={onImportDroppedFiles}
           onSearchRelation={onSearchRelation}
-          onOpenFile={onOpenFile}
-          onRevealFile={
-            onRevealFile
-              ? (path) => {
-                  void Promise.resolve(onRevealFile(path)).catch((error) =>
-                    onError?.(error)
-                  )
-                }
-              : undefined
-          }
         />
       ) : null}
     </div>

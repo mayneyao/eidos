@@ -164,6 +164,32 @@
     flex-shrink: 0;
   }
 
+  .eidos-file-record-panel {
+    position: absolute;
+    z-index: 30;
+    inset-block: 0;
+    inset-inline-end: 0;
+    width: min(36rem, calc(100cqi - 1rem));
+    min-width: min(30rem, calc(100cqi - 1rem));
+    max-width: calc(100cqi - 1rem);
+    container-name: eidos-file-record-panel;
+    container-type: inline-size;
+    box-shadow: -0.75rem 0 1.75rem
+      color-mix(in srgb, var(--foreground) 12%, transparent);
+  }
+
+  @container eidos-file-record-panel (min-width: 480px) {
+    .eidos-file-record-field {
+      grid-template-columns: minmax(9rem, 0.4fr) minmax(0, 1fr);
+      align-items: start;
+      column-gap: 1rem;
+    }
+
+    .eidos-file-record-field-label {
+      padding-top: 0.25rem;
+    }
+  }
+
   .eidos-file-formula-composer {
     container-name: eidos-file-formula-composer;
     container-type: inline-size;
@@ -217,7 +243,7 @@
   }
 
   @container eidos-file-detail-layout (max-width: 760px) {
-    .eidos-file-detail-panel {
+    .eidos-file-detail-panel:not(.eidos-file-record-panel) {
       position: absolute;
       z-index: 30;
       inset-block: 0;

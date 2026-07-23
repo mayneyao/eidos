@@ -21,8 +21,7 @@ import {
   ChevronLeft,
   Copy,
   ExternalLink,
-  FileSearch,
-  FolderOpen,
+  EyeOff,
   ListX,
   PanelRightOpen,
   Pin,
@@ -116,6 +115,7 @@ export function EidosFileFieldMenu({
   onSort,
   onInsert,
   onToggleFreeze,
+  onHide,
   onDelete,
 }: {
   state: EidosFileFieldMenuState | null
@@ -134,6 +134,7 @@ export function EidosFileFieldMenu({
   ) => void
   onInsert: (index: number) => void
   onToggleFreeze: (fieldIndex: number, frozen: boolean) => void
+  onHide: (field: EidosFileFieldInfo) => void
   onDelete: (field: EidosFileFieldInfo) => void
 }) {
   const { translate: t } = useEidosFileUI()
@@ -276,6 +277,13 @@ export function EidosFileFieldMenu({
               )}
               {frozen ? t("Unfreeze columns") : t("Freeze to this field")}
             </MenuItem>
+            <MenuItem
+              disabled={!canUpdateView}
+              onClick={() => run(() => onHide(state.field))}
+            >
+              <EyeOff className="h-3.5 w-3.5" />
+              {t("Hide field")}
+            </MenuItem>
             {onCalculate ? (
               <MenuItem
                 disabled={!canUpdateView}
@@ -416,30 +424,24 @@ export function EidosFileCellMenu({
   open,
   selectionCount,
   cellText,
-  filePaths,
   canDelete,
   onOpenChange,
   onOpenRecord,
   onCopyCell,
   onCopyRecordId,
   onOpenUrl,
-  onOpenFile,
-  onRevealFile,
   onDeleteRows,
 }: {
   state: EidosFileCellMenuState | null
   open: boolean
   selectionCount: number
   cellText: string
-  filePaths: string[]
   canDelete: boolean
   onOpenChange: (open: boolean) => void
   onOpenRecord: (state: EidosFileCellMenuState) => void
   onCopyCell: (text: string) => void
   onCopyRecordId: (id: string) => void
   onOpenUrl: (url: string) => void
-  onOpenFile?: (path: string) => void
-  onRevealFile?: (path: string) => void
   onDeleteRows: (ranges: EidosFileRowRange[]) => void
 }) {
   const { translate: t } = useEidosFileUI()
@@ -449,7 +451,6 @@ export function EidosFileCellMenu({
   }
   const rowId = state?.row._id
   const url = state?.field.type === "url" ? cellText : ""
-  const firstFile = filePaths[0]
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -503,18 +504,6 @@ export function EidosFileCellMenu({
               <MenuItem onClick={() => run(() => onOpenUrl(url))}>
                 <ExternalLink className="h-3.5 w-3.5" />
                 {t("Open URL")}
-              </MenuItem>
-            ) : null}
-            {firstFile && onOpenFile ? (
-              <MenuItem onClick={() => run(() => onOpenFile(firstFile))}>
-                <FileSearch className="h-3.5 w-3.5" />
-                {t("Open file")}
-              </MenuItem>
-            ) : null}
-            {firstFile && onRevealFile ? (
-              <MenuItem onClick={() => run(() => onRevealFile(firstFile))}>
-                <FolderOpen className="h-3.5 w-3.5" />
-                {t("Show in file manager")}
               </MenuItem>
             ) : null}
             <div className="my-1 h-px bg-border" role="separator" />

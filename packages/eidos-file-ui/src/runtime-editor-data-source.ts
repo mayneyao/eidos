@@ -1,6 +1,9 @@
 import {
+  assertEidosFileValues,
   canonicalizeEidosFileJson,
+  decodeEidosFileMultiSelectValues,
   decodeEidosFileRelationIds,
+  parseEidosFileJson,
   planEidosFileCsvImport,
   prepareEidosFileCsvImport,
   type AggregateItem,
@@ -760,6 +763,26 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     return this.getSnapshot()
   }
 
+  async reorderTables(tableIds: string[]): Promise<EidosFileSnapshot> {
+    const currentIds = [...this.tables.values()].map((table) => table.id)
+    if (
+      currentIds.length !== tableIds.length ||
+      currentIds.some((tableId) => !tableIds.includes(tableId)) ||
+      new Set(tableIds).size !== tableIds.length
+    ) {
+      throw new Error("Table reorder must contain every Table exactly once")
+    }
+    await this.commitSchema({
+      kind: "batch",
+      changes: tableIds.map((tableId, index) => ({
+        kind: "set-table-position" as const,
+        tableId,
+        position: String(index + 1),
+      })),
+    })
+    return this.getSnapshot()
+  }
+
   async createView(
     tableId: string,
     input: CreateEidosFileViewInput
@@ -1276,6 +1299,21 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     if (field.valueType === "relation") {
       if (Array.isArray(value)) return value as LogicalValue[]
       if (typeof value === "string") return decodeEidosFileRelationIds(value)
+    }
+    if (field.valueType === "multi-select") {
+      if (Array.isArray(value)) {
+        return value.filter(
+          (entry): entry is string => typeof entry === "string"
+        )
+      }
+      if (typeof value === "string") {
+        return decodeEidosFileMultiSelectValues(value)
+      }
+    }
+    if (field.valueType === "file") {
+      const parsed =
+        typeof value === "string" ? parseEidosFileJson(value) : value
+      return assertEidosFileValues(parsed) as LogicalValue[]
     }
     if (field.valueType === "integer") return String(value)
     if (field.valueType === "number") {

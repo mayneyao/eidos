@@ -7,7 +7,11 @@ import type {
 import { LayoutGrid } from "lucide-react"
 
 import type { EidosFileViewRendererProps } from "../eidos-file-editor-view"
-import { eidosFileFieldKey } from "../eidos-file-field-visibility"
+import { EidosFileRendererFieldPropertyPanel } from "../eidos-file-renderer-field-property-panel"
+import {
+  eidosFileFieldKey,
+  isEidosFileRecordLabelField,
+} from "../eidos-file-field-visibility"
 import { EidosFileGalleryView } from "../eidos-file-gallery-view"
 import { eidosFileRecordCardPageProjection } from "../eidos-file-record-card-layout"
 import { defineEidosFilePlugin } from "../plugin"
@@ -73,6 +77,22 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
       onCellEdit={editCell}
       onDeleteRow={onDeleteRow}
       onError={onError}
+      sidePanel={
+        props.propertyField ? (
+          <EidosFileRendererFieldPropertyPanel
+            source={source}
+            table={table}
+            tables={props.tables}
+            field={props.propertyField}
+            disabled={disabled}
+            onSnapshot={props.onSnapshot}
+            onClose={props.onFieldClose}
+            onEditFormula={props.onEditFormula}
+            onEditLookup={props.onEditLookup}
+            onError={onError}
+          />
+        ) : undefined
+      }
     />
   )
 }
@@ -88,7 +108,19 @@ export const eidosFileGalleryPlugin = defineEidosFilePlugin({
       renderer: EidosFileGalleryRenderer,
       create: {
         defaultName: "Gallery",
-        properties: () => ({ cardSize: "medium", hideEmptyFields: true }),
+        properties: (fields) => ({
+          cardFields: fields
+            .filter(
+              (field) =>
+                !isEidosFileRecordLabelField(field) &&
+                field.valueKind !== "system"
+            )
+            .slice(0, 6)
+            .map(eidosFileFieldKey),
+          cardSize: "medium",
+          coverFit: "cover",
+          hideEmptyFields: true,
+        }),
       },
     },
   ],

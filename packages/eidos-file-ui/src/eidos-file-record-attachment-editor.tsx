@@ -1,12 +1,14 @@
 import { useState } from "react"
-import type { EidosFileRow } from "@eidos.space/eidos-file"
 import {
-  decodeEidosFileAttachmentPaths,
-  encodeEidosFileAttachmentPaths,
+  decodeEidosFileValues,
+  encodeEidosFileValues,
+  type EidosFileRow,
+  type FileEntry,
 } from "@eidos.space/eidos-file"
-import { FileText, FolderOpen, LoaderCircle, Plus, X } from "lucide-react"
+import { LoaderCircle, Plus, X } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import { EidosFileEntrySurface } from "./eidos-file-entry-surface"
 import { cn } from "./lib/cn"
 import { Button } from "./ui/primitives"
 
@@ -16,28 +18,30 @@ export function EidosFileRecordAttachmentEditor({
   onChange,
   onImportFiles,
   onImportDroppedFiles,
-  onOpenFile,
-  onRevealFile,
   onError,
 }: {
   value: EidosFileRow[string]
   disabled: boolean
   onChange: (value: string | null) => Promise<void>
-  onImportFiles: () => Promise<string[]>
-  onImportDroppedFiles?: (files: File[]) => Promise<string[]>
-  onOpenFile?: (path: string) => void
-  onRevealFile?: (path: string) => void
+  onImportFiles: () => Promise<FileEntry[]>
+  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
   onError?: (error: unknown) => void
 }) {
   const { translate: t } = useEidosFileUI()
-  const paths = decodeEidosFileAttachmentPaths(value)
+  const entries = decodeEidosFileValues(value)
   const [importing, setImporting] = useState(false)
   const [dragging, setDragging] = useState(false)
 
-  const append = async (imported: string[]) => {
+  const commit = async (next: FileEntry[]) => {
+    await onChange(next.length > 0 ? encodeEidosFileValues(next) : null)
+  }
+  const append = async (imported: FileEntry[]) => {
     if (imported.length === 0) return
-    const next = Array.from(new Set([...paths, ...imported]))
-    await onChange(encodeEidosFileAttachmentPaths(next, value))
+    const existingIds = new Set(entries.map((entry) => entry.id))
+    await commit([
+      ...entries,
+      ...imported.filter((entry) => !existingIds.has(entry.id)),
+    ])
   }
 
   const chooseFiles = async () => {
@@ -88,46 +92,26 @@ export function EidosFileRecordAttachmentEditor({
           .finally(() => setImporting(false))
       }}
     >
-      {paths.length > 0 ? (
+      {entries.length > 0 ? (
         <div className="grid gap-1">
-          {paths.map((path) => (
-            <div
-              key={path}
-              className="group/file flex min-w-0 items-center gap-1 rounded hover:bg-accent"
-            >
-              <button
-                type="button"
-                className="flex min-w-0 flex-1 items-center gap-1.5 px-1 py-1 text-left text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                onClick={() => onOpenFile?.(path)}
-              >
-                <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                <span className="truncate">{path}</span>
-              </button>
-              {onRevealFile ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 shrink-0 opacity-0 group-hover/file:opacity-100 focus-visible:opacity-100"
-                  aria-label={t("Show {path} in file manager", { path })}
-                  disabled={disabled || importing}
-                  onClick={() => onRevealFile(path)}
-                >
-                  <FolderOpen className="h-3.5 w-3.5" />
-                </Button>
-              ) : null}
+          {entries.map((entry, index) => (
+            <div key={entry.id} className="group/file flex min-w-0 gap-1">
+              <EidosFileEntrySurface
+                entry={entry}
+                compact
+                className="min-w-0 flex-1"
+              />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 shrink-0 opacity-0 group-hover/file:opacity-100 focus-visible:opacity-100"
-                aria-label={t("Remove {path}", { path })}
+                className="h-7 w-7 shrink-0 opacity-0 group-hover/file:opacity-100 focus-visible:opacity-100"
+                aria-label={t("Remove {file}", { file: entry.name })}
                 disabled={disabled || importing}
                 onClick={() =>
-                  void onChange(
-                    encodeEidosFileAttachmentPaths(
-                      paths.filter((candidate) => candidate !== path),
-                      value
+                  void commit(
+                    entries.filter(
+                      (_candidate, candidateIndex) => candidateIndex !== index
                     )
                   )
                 }

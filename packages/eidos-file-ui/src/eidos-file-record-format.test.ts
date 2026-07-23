@@ -56,7 +56,7 @@ describe("eidosFileRecordFieldText", () => {
       "Ada"
     )
     expect(eidosFileRecordFieldText(row, field("file", "files"))).toBe(
-      "assets/spec.pdf"
+      "spec.pdf"
     )
   })
 

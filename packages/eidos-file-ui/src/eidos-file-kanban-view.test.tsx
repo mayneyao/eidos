@@ -498,6 +498,43 @@ describe("EidosFileKanbanView", () => {
     )
   })
 
+  it("omits zero-row catalog groups when showEmptyGroups is false", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileKanbanView
+          table={table}
+          view={{
+            ...view,
+            properties: { ...view.properties, showEmptyGroups: false },
+          }}
+          loadGroupCounts={vi.fn(async () => [{ value: "todo", total: 1 }])}
+          loadGroupPage={vi.fn(async (_field, value, offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: value === "todo" ? 1 : 0,
+            rows:
+              value === "todo"
+                ? [{ _id: "row_1", title: "Write RFC", status: "todo" }]
+                : [],
+          }))}
+          onCellEdit={vi.fn()}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(container.querySelectorAll('[role="region"]')).toHaveLength(1)
+    expect(
+      container.querySelector('[role="region"][aria-label="todo, 1 records"]')
+    ).not.toBeNull()
+    expect(
+      container.querySelector('[role="region"][aria-label="done, 0 records"]')
+    ).toBeNull()
+  })
+
   it("loads the complete Kanban record only when its inspector opens", async () => {
     const fullRow = deferred<{
       _id: string
@@ -633,7 +670,7 @@ describe("EidosFileKanbanView", () => {
     })
 
     expect(recordCardMocks.layouts.get("row_cover")).toMatchObject({
-      coverField: { tableColumnName: "image_url", type: "url" },
+      coverField: null,
       fitContent: false,
       hideEmptyFields: false,
     })

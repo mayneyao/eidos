@@ -457,6 +457,9 @@ describe("EidosFileFieldPropertyPanel", () => {
     const typeTrigger = container.querySelector<HTMLElement>(
       'button[role="combobox"]'
     )
+    expect(
+      typeTrigger?.querySelector('[data-eidos-file-field-type-icon="select"]')
+    ).toBeTruthy()
     await act(async () => {
       typeTrigger?.dispatchEvent(
         new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
@@ -467,6 +470,9 @@ describe("EidosFileFieldPropertyPanel", () => {
       document.body.querySelectorAll<HTMLElement>('[role="option"]')
     ).find((option) => option.textContent === "Number")
     expect(numberOption).toBeTruthy()
+    expect(
+      numberOption?.querySelector('[data-eidos-file-field-type-icon="number"]')
+    ).toBeTruthy()
     await act(async () => {
       numberOption?.click()
       await Promise.resolve()

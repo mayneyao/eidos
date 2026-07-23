@@ -17,6 +17,7 @@ import type {
   EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
+  FileEntry,
 } from "@eidos.space/eidos-file"
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { ChevronLeft, ChevronRight, LoaderCircle, Plus } from "lucide-react"
@@ -839,8 +840,6 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
   onImportFiles,
   onImportDroppedFiles,
   onSearchRelation,
-  onOpenFile,
-  onRevealFile,
   onOpenRecordInTab,
   onRowCountChange,
   onError,
@@ -874,14 +873,12 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     title: string
   ) => Promise<EidosFileRowMutationResult>
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
-  onImportFiles?: () => Promise<string[]>
-  onImportDroppedFiles?: (files: File[]) => Promise<string[]>
+  onImportFiles?: () => Promise<FileEntry[]>
+  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
   onSearchRelation?: (
     field: EidosFileFieldInfo,
     query: string
   ) => Promise<EidosFileRelationValue[]>
-  onOpenFile?: (path: string) => void
-  onRevealFile?: (path: string) => Promise<void> | void
   onOpenRecordInTab?: (row: EidosFileRow) => void
   onRowCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
@@ -893,10 +890,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
   const loadingMoreGroupsRef = useRef(new Map<string, number>())
   const loadedGroupGenerationsRef = useRef(new Map<string, number>())
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const groupFieldName =
-    typeof view.properties?.groupField === "string"
-      ? view.properties.groupField
-      : view.properties?.groupByField
+  const groupFieldName = view.properties?.groupField
   const groupField = table.fields.find(
     (field) =>
       eidosFileFieldKey(field) === groupFieldName && field.type === "select"
@@ -912,12 +906,19 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
   const [groups, setGroups] = useState<EidosFileKanbanGroup[]>(() =>
     groupField ? groupSpecs(options, t("No status")) : []
   )
-  const groupCount = groups.length
   const groupsRef = useRef(groups)
   groupsRef.current = groups
   const [countsLoaded, setCountsLoaded] = useState(false)
   const [countsError, setCountsError] = useState<string | null>(null)
   const [countsRetryToken, setCountsRetryToken] = useState(0)
+  const boardGroups = useMemo(
+    () =>
+      countsLoaded && view.properties?.showEmptyGroups === false
+        ? groups.filter((group) => group.total > 0)
+        : groups,
+    [countsLoaded, groups, view.properties?.showEmptyGroups]
+  )
+  const groupCount = boardGroups.length
   const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<Set<string>>(
     new Set()
   )
@@ -980,11 +981,11 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     [options, t]
   )
   const columnVirtualizer = useVirtualizer({
-    count: moveOptions.length,
+    count: boardGroups.length,
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: (index) =>
-      collapsedGroupKeys.has(moveOptions[index]?.id ?? "") ? 48 : columnWidth,
-    getItemKey: (index) => moveOptions[index]?.id ?? index,
+      collapsedGroupKeys.has(boardGroups[index]?.key ?? "") ? 48 : columnWidth,
+    getItemKey: (index) => boardGroups[index]?.key ?? index,
     gap: KANBAN_COLUMN_GAP,
     horizontal: true,
     initialRect: { width: 1024, height: 640 },
@@ -995,20 +996,20 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
   const { estimatedColumnStarts, estimatedTotalWidth } = useMemo(() => {
     const starts: number[] = []
     let totalWidth = 0
-    moveOptions.forEach((option, index) => {
+    boardGroups.forEach((group, index) => {
       starts.push(totalWidth)
-      totalWidth += collapsedGroupKeys.has(option.id) ? 48 : columnWidth
-      if (index < moveOptions.length - 1) totalWidth += KANBAN_COLUMN_GAP
+      totalWidth += collapsedGroupKeys.has(group.key) ? 48 : columnWidth
+      if (index < boardGroups.length - 1) totalWidth += KANBAN_COLUMN_GAP
     })
     return {
       estimatedColumnStarts: starts,
       estimatedTotalWidth: totalWidth,
     }
-  }, [collapsedGroupKeys, columnWidth, moveOptions])
+  }, [boardGroups, collapsedGroupKeys, columnWidth])
   const renderedColumns =
     virtualColumns.length > 0
       ? virtualColumns
-      : groups.slice(0, 4).map((group, index) => ({
+      : boardGroups.slice(0, 4).map((group, index) => ({
           index,
           key: group.key,
           size: collapsedGroupKeys.has(group.key) ? 48 : columnWidth,
@@ -1022,7 +1023,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     renderedColumns.at(-1)?.index ?? firstRenderedColumnIndex
   const visibleGroupLoadSignature = renderedColumns
     .map((column) => {
-      const group = groups[column.index]
+      const group = boardGroups[column.index]
       return group
         ? `${group.key}:${group.loaded ? 1 : 0}:${group.loading ? 1 : 0}`
         : "missing"
@@ -1031,7 +1032,12 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
 
   useEffect(() => {
     columnVirtualizer.measure()
-  }, [collapsedGroupSignature, columnVirtualizer, columnWidth, groups.length])
+  }, [
+    boardGroups.length,
+    collapsedGroupSignature,
+    columnVirtualizer,
+    columnWidth,
+  ])
 
   const setGroupCollapsed = useCallback(
     (groupKey: string, collapsed: boolean) => {
@@ -1273,14 +1279,14 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
 
   useEffect(() => {
     if (!countsLoaded || dragging) return
-    const currentGroups = groupsRef.current
     for (const column of renderedColumns) {
-      const group = currentGroups[column.index]
+      const group = boardGroups[column.index]
       if (group && !collapsedGroupKeys.has(group.key)) {
         void loadInitialGroup(group)
       }
     }
   }, [
+    boardGroups,
     collapsedGroupKeys,
     collapsedGroupSignature,
     countsLoaded,
@@ -1370,7 +1376,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
   let focusedGroupIndex = -1
   if (searchResultIndex !== null && searchResultIndex >= 0) {
     let remaining = searchResultIndex
-    for (const group of groups) {
+    for (const group of boardGroups) {
       if (remaining < group.total) {
         focusedGroup = group
         focusedGroupIndex = remaining
@@ -1391,7 +1397,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
         )
       : undefined
   const focusedGroupPosition = focusedGroup
-    ? groups.findIndex((group) => group.key === focusedGroup?.key)
+    ? boardGroups.findIndex((group) => group.key === focusedGroup?.key)
     : -1
 
   useEffect(() => {
@@ -1769,7 +1775,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
                 }}
               >
                 {renderedColumns.map((virtualColumn) => {
-                  const group = groups[virtualColumn.index]
+                  const group = boardGroups[virtualColumn.index]
                   if (!group) return null
                   return (
                     <div
@@ -1837,16 +1843,6 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
             onImportFiles={onImportFiles}
             onImportDroppedFiles={onImportDroppedFiles}
             onSearchRelation={onSearchRelation}
-            onOpenFile={onOpenFile}
-            onRevealFile={
-              onRevealFile
-                ? (path) => {
-                    void Promise.resolve(onRevealFile(path)).catch((error) =>
-                      onError?.(error)
-                    )
-                  }
-                : undefined
-            }
           />
         ) : null)}
       {onDeleteRow ? (

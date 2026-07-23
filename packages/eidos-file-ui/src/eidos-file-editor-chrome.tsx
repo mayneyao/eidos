@@ -13,11 +13,14 @@ import type {
 import {
   ChevronLeft,
   ChevronRight,
+  GripVertical,
   LayoutGrid,
   Puzzle,
   SquareKanban,
   Table2,
 } from "lucide-react"
+import { useSortable } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 import { useEidosFileUI } from "./context"
 import { cn } from "./lib/cn"
@@ -27,7 +30,14 @@ import {
   type EidosFileViewPluginContribution,
 } from "./plugin"
 import { Button } from "./ui/primitives"
+import { SortableContainer } from "./ui/sortable"
 import { useEidosFileTabStrip } from "./use-eidos-file-tab-strip"
+
+export { exportEidosFileViewCsv } from "./eidos-file-csv-export"
+export type {
+  EidosFileViewCsvExport,
+  ExportEidosFileViewCsvOptions,
+} from "./eidos-file-csv-export"
 
 export const EidosFileEditorRoot = forwardRef<
   HTMLDivElement,
@@ -91,6 +101,50 @@ export function EidosFileViewTypeIcon({
   return <Puzzle className={className} />
 }
 
+function EidosFileSortableTab({
+  id,
+  label,
+  disabled,
+  children,
+}: {
+  id: string
+  label: string
+  disabled: boolean
+  children: ReactNode
+}) {
+  const sortable = useSortable({ id, disabled })
+  return (
+    <div
+      ref={sortable.setNodeRef}
+      data-eidos-file-sortable-tab={id}
+      className={cn(
+        "group/sortable-tab flex shrink-0 items-stretch",
+        sortable.isDragging && "z-10 bg-background shadow-sm"
+      )}
+      style={{
+        opacity: sortable.isDragging ? 0.72 : 1,
+        transform: CSS.Transform.toString(sortable.transform),
+        transition: sortable.transition,
+      }}
+    >
+      {!disabled ? (
+        <button
+          ref={sortable.setActivatorNodeRef}
+          type="button"
+          data-eidos-file-reorder-handle
+          className="flex w-5 shrink-0 cursor-grab items-center justify-center text-muted-foreground/50 outline-hidden hover:text-muted-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring active:cursor-grabbing"
+          aria-label={label}
+          {...sortable.attributes}
+          {...sortable.listeners}
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
+      {children}
+    </div>
+  )
+}
+
 export function EidosFileViewTabStrip({
   views,
   activeViewId,
@@ -98,6 +152,7 @@ export function EidosFileViewTabStrip({
   plugins = [],
   afterTabs,
   onSelect,
+  onReorder,
   renderTab,
 }: {
   views: EidosFileViewInfo[]
@@ -106,6 +161,7 @@ export function EidosFileViewTabStrip({
   plugins?: readonly EidosFilePlugin[]
   afterTabs?: ReactNode
   onSelect: (viewId: string) => void
+  onReorder?: (viewIds: string[]) => Promise<void> | void
   renderTab?: (view: EidosFileViewInfo, tab: ReactNode) => ReactNode
 }) {
   const { translate: t } = useEidosFileUI()
@@ -144,50 +200,60 @@ export function EidosFileViewTabStrip({
       ) : null}
       <div
         ref={viewportRef}
-        role="tablist"
-        aria-label={t("Eidos File views")}
-        aria-orientation="horizontal"
-        className="flex h-full min-w-0 items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        data-eidos-file-view-tabs-viewport
+        className="h-full min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onScroll={updateScrollState}
       >
-        {views.map((view, index) => {
-          const tab = (
-            <button
-              ref={view.id === activeViewId ? activeTabRef : undefined}
-              type="button"
-              role="tab"
-              data-eidos-file-view-id={view.id}
-              aria-selected={view.id === activeViewId}
-              tabIndex={view.id === tabStopId ? 0 : -1}
-              disabled={disabled}
-              onClick={() => onSelect(view.id)}
-              onKeyDown={(event) => navigateTabs(event, index)}
-              className={cn(
-                "relative flex h-full max-w-48 shrink-0 items-center gap-1.5 px-3 text-[13px] text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50",
-                view.id === activeViewId && "text-foreground"
-              )}
-            >
-              <EidosFileViewTypeIcon
-                type={view.type}
-                className="h-3.5 w-3.5 shrink-0"
-                viewTypes={pluginRegistry.views}
-              />
-              <span className="truncate">{view.name}</span>
-              {view.id === activeViewId ? (
-                <span className="absolute inset-x-2 bottom-0 h-0.5 bg-foreground/75" />
-              ) : null}
-            </button>
-          )
-          return renderTab ? (
-            <div key={view.id} className="contents">
-              {renderTab(view, tab)}
-            </div>
-          ) : (
-            <div key={view.id} className="contents">
-              {tab}
-            </div>
-          )
-        })}
+        <SortableContainer
+          items={views}
+          orientation="horizontal"
+          disabled={Boolean(disabled) || !onReorder}
+          onReorder={(next) => onReorder?.(next.map((view) => view.id))}
+          className="flex h-full min-w-max items-stretch"
+          containerProps={{
+            role: "tablist",
+            "aria-label": t("Eidos File views"),
+            "aria-orientation": "horizontal",
+          }}
+          renderItem={(view, index) => {
+            const tab = (
+              <button
+                ref={view.id === activeViewId ? activeTabRef : undefined}
+                type="button"
+                role="tab"
+                data-eidos-file-view-id={view.id}
+                aria-selected={view.id === activeViewId}
+                tabIndex={view.id === tabStopId ? 0 : -1}
+                disabled={disabled}
+                onClick={() => onSelect(view.id)}
+                onKeyDown={(event) => navigateTabs(event, index)}
+                className={cn(
+                  "relative flex h-full max-w-48 shrink-0 items-center gap-1.5 px-3 text-[13px] text-muted-foreground outline-hidden hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50",
+                  view.id === activeViewId && "text-foreground"
+                )}
+              >
+                <EidosFileViewTypeIcon
+                  type={view.type}
+                  className="h-3.5 w-3.5 shrink-0"
+                  viewTypes={pluginRegistry.views}
+                />
+                <span className="truncate">{view.name}</span>
+                {view.id === activeViewId ? (
+                  <span className="absolute inset-x-2 bottom-0 h-0.5 bg-foreground/75" />
+                ) : null}
+              </button>
+            )
+            return (
+              <EidosFileSortableTab
+                id={view.id}
+                label={t("Reorder {name} view", { name: view.name })}
+                disabled={Boolean(disabled) || !onReorder}
+              >
+                {renderTab ? renderTab(view, tab) : tab}
+              </EidosFileSortableTab>
+            )
+          }}
+        />
       </div>
       {canScrollForward ? (
         <Button
@@ -214,6 +280,7 @@ export function EidosFileSheetTabStrip({
   status,
   createAction,
   onSelect,
+  onReorder,
   renderTab,
 }: {
   tables: EidosFileTableInfo[]
@@ -222,6 +289,7 @@ export function EidosFileSheetTabStrip({
   status?: ReactNode
   createAction?: ReactNode
   onSelect: (tableId: string) => void
+  onReorder?: (tableIds: string[]) => Promise<void> | void
   renderTab?: (table: EidosFileTableInfo, tab: ReactNode) => ReactNode
 }) {
   const { translate: t } = useEidosFileUI()
@@ -270,14 +338,19 @@ export function EidosFileSheetTabStrip({
         className="flex min-w-0 flex-1 items-stretch overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         onScroll={updateScrollState}
       >
-        <div
-          role="tablist"
-          aria-label={t("Eidos File tables")}
-          aria-orientation="horizontal"
-          aria-keyshortcuts="Control+PageUp Control+PageDown"
+        <SortableContainer
+          items={tables}
+          orientation="horizontal"
+          disabled={Boolean(disabled) || !onReorder}
+          onReorder={(next) => onReorder?.(next.map((table) => table.id))}
           className="flex shrink-0 items-stretch"
-        >
-          {tables.map((table, index) => {
+          containerProps={{
+            role: "tablist",
+            "aria-label": t("Eidos File tables"),
+            "aria-orientation": "horizontal",
+            "aria-keyshortcuts": "Control+PageUp Control+PageDown",
+          }}
+          renderItem={(table, index) => {
             const tab = (
               <button
                 ref={table.id === activeTableId ? activeTabRef : undefined}
@@ -302,15 +375,17 @@ export function EidosFileSheetTabStrip({
                 ) : null}
               </button>
             )
-            return renderTab ? (
-              <div key={table.id} className="contents">
-                {renderTab(table, tab)}
-              </div>
-            ) : (
-              tab
+            return (
+              <EidosFileSortableTab
+                id={table.id}
+                label={t("Reorder {name} table", { name: table.name })}
+                disabled={Boolean(disabled) || !onReorder}
+              >
+                {renderTab ? renderTab(table, tab) : tab}
+              </EidosFileSortableTab>
             )
-          })}
-        </div>
+          }}
+        />
         {createAction ? (
           <div
             ref={createActionRef}

@@ -1,5 +1,6 @@
 import {
   canonicalizeEidosFileJson,
+  eidosFileUriClass,
   type AssetLease,
   type HostSaveResult,
   type HostLimits,
@@ -22,6 +23,7 @@ import {
   type SchemaDescriptor,
   type TableDescriptor,
   type FieldDescriptor,
+  type FileEntry,
   type ViewDescriptor,
 } from "@eidos.space/eidos-file"
 
@@ -416,7 +418,7 @@ export class EidosUIKernel {
   }
 
   async resolveAsset(
-    entryId: string,
+    entry: FileEntry,
     purpose: "thumbnail" | "preview" | "download"
   ): Promise<AssetLease> {
     const sessionId = this.requireSession()
@@ -427,22 +429,41 @@ export class EidosUIKernel {
     ) {
       throw new Error("Asset resolution is unavailable")
     }
+    const uriClass = eidosFileUriClass(entry.uri)
+    const byteLimit =
+      purpose === "download"
+        ? hostState.limits.assetBytesMax
+        : hostState.limits.assetPreviewBytesMax
     if (
+      !uriClass ||
+      !hostState.capabilities.assetReadSchemes.includes(uriClass) ||
       this.leases.size >= hostState.limits.concurrentAssetLeasesMax ||
-      BigInt(hostState.limits.assetPreviewBytesMax) === 0n
+      BigInt(byteLimit) === 0n ||
+      BigInt(entry.size) > BigInt(byteLimit)
     ) {
       throw new Error("Asset lease limit reached")
     }
     const lease = await this.host.resolveAsset(
-      { sessionId, entryId, purpose },
+      { sessionId, entryId: entry.id, purpose },
       this.context("asset-resolve")
     )
-    if (BigInt(lease.size) > BigInt(hostState.limits.assetPreviewBytesMax)) {
+    if (
+      lease.entryId !== entry.id ||
+      lease.purpose !== purpose ||
+      lease.name !== entry.name ||
+      lease.mediaType !== entry.mediaType ||
+      lease.size !== entry.size ||
+      lease.resourceToken.length === 0 ||
+      BigInt(lease.size) > BigInt(byteLimit) ||
+      !Number.isFinite(Date.parse(lease.expiresAt)) ||
+      Date.parse(lease.expiresAt) <= Date.now() ||
+      this.leases.has(lease.leaseId)
+    ) {
       await this.host.releaseAsset(
         { sessionId, leaseId: lease.leaseId },
         this.context("asset-release-oversize")
       )
-      throw new Error("Asset preview exceeds the negotiated Host limit")
+      throw new Error("Host returned an invalid asset lease")
     }
     this.leases.set(lease.leaseId, lease)
     return lease
@@ -1050,6 +1071,17 @@ function validateHostState(state: HostSessionState, sessionId: string): void {
     !["durable", "best-effort"].includes(state.capabilities.durability)
   ) {
     throw new Error("Invalid Host session capability descriptor")
+  }
+  for (const schemes of [
+    state.capabilities.assetReadSchemes,
+    state.capabilities.assetWriteSchemes,
+  ]) {
+    if (
+      new Set(schemes).size !== schemes.length ||
+      schemes.some((scheme) => !["relative", "data", "https"].includes(scheme))
+    ) {
+      throw new Error("Invalid Host asset scheme descriptor")
+    }
   }
 }
 

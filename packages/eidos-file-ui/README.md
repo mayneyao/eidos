@@ -22,9 +22,12 @@ import "@eidos.space/eidos-file-ui/styles.css"
 ## EU-Viewer-1.0 composition
 
 ```tsx
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, type ReactNode } from "react"
 import type { HostServices } from "@eidos.space/eidos-file"
-import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui"
+import {
+  EidosFileUIProvider,
+  type AssetPresenter,
+} from "@eidos.space/eidos-file-ui"
 import { EidosUIKernel } from "@eidos.space/eidos-file-ui/kernel"
 import {
   EidosStandardView,
@@ -34,9 +37,11 @@ import {
 export function Viewer({
   host,
   sourceToken,
+  assetPresenter,
 }: {
   host: HostServices
   sourceToken: string
+  assetPresenter: AssetPresenter<ReactNode>
 }) {
   const kernel = useMemo(() => new EidosUIKernel(host), [host])
   useEffect(() => {
@@ -48,7 +53,11 @@ export function Viewer({
 
   return (
     <EidosFileUIProvider locale="zh" themeName="light">
-      <EidosUIRuntimeProvider kernel={kernel} themeName="light">
+      <EidosUIRuntimeProvider
+        kernel={kernel}
+        themeName="light"
+        assetPresenter={assetPresenter}
+      >
         <EidosStandardView />
       </EidosUIRuntimeProvider>
     </EidosFileUIProvider>
@@ -81,7 +90,14 @@ Runtime epochs. Dirty close requires an explicit save/discard/cancel decision.
 
 React renderers are trusted application code, not an extension sandbox. Asset
 content is obtained only through bounded Host leases and every lease is
-released on close.
+released on expiry, surface removal, or close. Relative, `https:`, and
+canonical inline image Data URLs all use `HostServices.resolveAsset`; reusable
+UI never joins/fetches/navigates `FileEntry.uri` and has no package-global
+resolver. Canvas-backed Grid thumbnails additionally use the optional
+`AssetPresenter.loadImage`; DOM cards use `renderImage`. Both consume only the
+Host-issued lease token and fall back to trusted metadata when unavailable.
+identity resolver. SVG and other active content require a Host-isolated
+presenter.
 
 New interoperable integrations import `./kernel` and `./runtime-platform`
 explicitly and keep all File semantics behind Runtime.

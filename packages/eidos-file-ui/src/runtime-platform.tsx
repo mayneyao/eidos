@@ -10,7 +10,9 @@ import {
 } from "react"
 import type {
   FieldDescriptor,
+  FileEntry,
   GroupPage,
+  LogicalValue,
   RowPage,
   ViewDescriptor,
 } from "@eidos.space/eidos-file"
@@ -21,7 +23,12 @@ import {
   type EidosUIKernel,
   type EidosUIKernelState,
 } from "./kernel"
-import { useEidosFileUI } from "./context"
+import {
+  EidosFileUIProvider,
+  useEidosFileUI,
+  type AssetPresenter,
+} from "./context"
+import { EidosFileEntrySurface } from "./eidos-file-entry-surface"
 
 export interface EidosUIRuntimeContextValue {
   kernel: EidosUIKernel
@@ -36,6 +43,7 @@ export interface EidosUIRuntimeProviderProps {
   kernel: EidosUIKernel
   children: ReactNode
   themeName?: "light" | "dark"
+  assetPresenter?: AssetPresenter<ReactNode>
   className?: string
   style?: CSSProperties
 }
@@ -45,6 +53,7 @@ export function EidosUIRuntimeProvider({
   kernel,
   children,
   themeName = "light",
+  assetPresenter,
   className,
   style,
 }: EidosUIRuntimeProviderProps) {
@@ -54,16 +63,38 @@ export function EidosUIRuntimeProvider({
     kernel.getState
   )
   const value = useMemo(() => ({ kernel, state }), [kernel, state])
+  const assetSession = useMemo(
+    () =>
+      state.sessionId && state.hostState && state.hostServiceCapabilities
+        ? {
+            services: kernel.host,
+            serviceCapabilities: state.hostServiceCapabilities,
+            state: state.hostState,
+          }
+        : undefined,
+    [
+      kernel.host,
+      state.hostServiceCapabilities,
+      state.hostState,
+      state.sessionId,
+    ]
+  )
   return (
     <EidosUIRuntimeContext.Provider value={value}>
-      <div
-        className={["eidos-file-root", className].filter(Boolean).join(" ")}
-        data-eidos-file-root=""
-        data-theme={themeName}
-        style={style}
+      <EidosFileUIProvider
+        themeName={themeName}
+        assetSession={assetSession}
+        assetPresenter={assetPresenter}
       >
-        {children}
-      </div>
+        <div
+          className={["eidos-file-root", className].filter(Boolean).join(" ")}
+          data-eidos-file-root=""
+          data-theme={themeName}
+          style={style}
+        >
+          {children}
+        </div>
+      </EidosFileUIProvider>
     </EidosUIRuntimeContext.Provider>
   )
 }
@@ -269,7 +300,7 @@ export function EidosStandardView({
                   {cardValues(row.values, visibleFields, view).map((item) => (
                     <div key={item.field.id}>
                       <span>{item.field.name}: </span>
-                      <span>{eidosUIPresentValue(item.value)}</span>
+                      <RuntimeValue field={item.field} value={item.value} />
                     </div>
                   ))}
                 </article>
@@ -301,7 +332,7 @@ export function EidosStandardView({
               {cardValues(row.values, visibleFields, view).map((item) => (
                 <div key={item.field.id}>
                   <span>{item.field.name}: </span>
-                  <span>{eidosUIPresentValue(item.value)}</span>
+                  <RuntimeValue field={item.field} value={item.value} />
                 </div>
               ))}
             </article>
@@ -337,7 +368,7 @@ export function EidosStandardView({
               <tr key={row.id}>
                 {row.values.map((value, index) => (
                   <td key={visibleFields[index]!.id}>
-                    {eidosUIPresentValue(value)}
+                    <RuntimeValue field={visibleFields[index]!} value={value} />
                   </td>
                 ))}
               </tr>
@@ -355,6 +386,50 @@ export function EidosStandardView({
       />
     </section>
   )
+}
+
+function isRuntimeFileEntry(value: LogicalValue): value is FileEntry {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    typeof value.mediaType === "string" &&
+    typeof value.size === "string" &&
+    typeof value.uri === "string"
+  )
+}
+
+function RuntimeValue({
+  field,
+  value,
+}: {
+  field: FieldDescriptor
+  value: LogicalValue
+}) {
+  const fileEntries =
+    field.valueType === "file" ||
+    (typeof field.valueType === "object" &&
+      field.valueType.element === "file-entry")
+      ? Array.isArray(value)
+        ? value.filter(isRuntimeFileEntry)
+        : []
+      : field.valueType === "file-entry" && isRuntimeFileEntry(value)
+        ? [value]
+        : null
+  if (fileEntries) {
+    return fileEntries.length > 0 ? (
+      <div className="grid gap-1">
+        {fileEntries.map((entry) => (
+          <EidosFileEntrySurface key={entry.id} entry={entry} compact />
+        ))}
+      </div>
+    ) : (
+      <>—</>
+    )
+  }
+  return <>{eidosUIPresentValue(value)}</>
 }
 
 function Pagination({

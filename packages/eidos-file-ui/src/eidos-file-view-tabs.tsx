@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react"
 import type { EidosFileViewInfo } from "@eidos.space/eidos-file"
-import { Pencil, Settings2, Trash2 } from "lucide-react"
+import { FileDown, Pencil, Settings2, Trash2 } from "lucide-react"
 
 import { EidosFileViewTabStrip } from "./eidos-file-editor-chrome"
 import { useEidosFileUI } from "./context"
@@ -30,6 +30,8 @@ export interface EidosFileViewTabActions {
   delete: () => void
   deleteDisabledReason?: string
   disabled: boolean
+  exportCsv?: () => void
+  exportingCsv: boolean
   rename: () => void
 }
 
@@ -43,6 +45,8 @@ export type EidosFileViewTabsProps = Omit<
   ComponentProps<typeof EidosFileViewSelector>,
   "request" | "triggerMode"
 > & {
+  onExportCsv?: (view: EidosFileViewInfo) => Promise<void> | void
+  onExportError?: (error: unknown) => void
   renderTab?: EidosFileViewTabRenderer
 }
 
@@ -91,6 +95,17 @@ function EidosFileViewTabContextMenu({
           <Settings2 />
           {t("Configure view")}
         </ContextMenuItem>
+        {actions.exportCsv ? (
+          <ContextMenuItem
+            disabled={actions.disabled || actions.exportingCsv}
+            onSelect={() => afterMenuClose(actions.exportCsv!)}
+          >
+            <FileDown />
+            {actions.exportingCsv
+              ? t("Exporting CSV…")
+              : t("Export current view as CSV")}
+          </ContextMenuItem>
+        ) : null}
         <ContextMenuSeparator />
         <ContextMenuItem
           className="text-destructive focus:text-destructive"
@@ -107,6 +122,8 @@ function EidosFileViewTabContextMenu({
 }
 
 export function EidosFileViewTabs({
+  onExportCsv,
+  onExportError,
   renderTab,
   ...props
 }: EidosFileViewTabsProps) {
@@ -116,6 +133,7 @@ export function EidosFileViewTabs({
   const requestIdRef = useRef(0)
   const [selectorRequest, setSelectorRequest] =
     useState<EidosFileViewSelectorRequest | null>(null)
+  const [exportingViewId, setExportingViewId] = useState<string | null>(null)
   const supportedViews = views.filter(
     (view) =>
       isEidosFileBuiltInViewType(view.type) ||
@@ -157,6 +175,7 @@ export function EidosFileViewTabs({
         activeViewId={activeView?.id}
         disabled={disabled}
         onSelect={onSelect}
+        onReorder={props.onReorder}
         renderTab={(view, tab) => {
           const canDelete =
             !disabled &&
@@ -178,6 +197,16 @@ export function EidosFileViewTabs({
                   ? t("A table must keep one view")
                   : undefined,
             disabled: Boolean(disabled),
+            exportCsv: onExportCsv
+              ? () => {
+                  if (disabled || exportingViewId) return
+                  setExportingViewId(view.id)
+                  void Promise.resolve(onExportCsv(view))
+                    .catch((error) => onExportError?.(error))
+                    .finally(() => setExportingViewId(null))
+                }
+              : undefined,
+            exportingCsv: exportingViewId === view.id,
             rename: () => {
               if (!disabled) requestPanel(view, "manage", true)
             },

@@ -32,7 +32,7 @@ export interface EidosFileRecordCardLayout {
 export function isEidosFileRecordCoverField(
   field: EidosFileFieldInfo
 ): boolean {
-  return field.type === "file" || field.type === "url"
+  return field.type === "file"
 }
 
 function isEmptyEidosFileRecordCardValue(
@@ -80,39 +80,50 @@ export function createEidosFileRecordCardLayout(
   view: EidosFileViewInfo,
   compact = false
 ): EidosFileRecordCardLayout {
-  const coverFieldName =
-    typeof view.properties?.coverField === "string"
-      ? view.properties.coverField
-      : typeof view.properties?.coverPreview === "string"
-        ? view.properties.coverPreview
-        : null
+  const coverFieldName = view.properties?.coverField
+  const availableFields = orderedEidosFileFields(fields, view).filter(
+    (field) =>
+      !isEidosFileRecordLabelField(field) && field.valueKind !== "system"
+  )
+  const configuredCardFields = view.properties?.cardFields
+  const cardFields = Array.isArray(configuredCardFields)
+    ? configuredCardFields.flatMap((fieldId) => {
+        if (typeof fieldId !== "string") return []
+        const field = availableFields.find(
+          (candidate) => eidosFileFieldKey(candidate) === fieldId
+        )
+        return field ? [field] : []
+      })
+    : availableFields
+  const coverFit = view.properties?.coverFit
   return {
-    fields: orderedEidosFileFields(fields, view)
-      .filter(
-        (field) =>
-          !isEidosFileRecordLabelField(field) && field.valueKind !== "system"
-      )
-      .map((field) => {
-        const options =
-          field.type === "select" || field.type === "multi-select"
-            ? eidosFileSelectOptions(field)
-            : []
-        return {
-          field,
-          optionByValue:
-            options.length > 0
-              ? new Map(options.map((option) => [option.value, option]))
-              : undefined,
-        }
-      }),
+    fields: cardFields.map((field) => {
+      const options =
+        field.type === "select" || field.type === "multi-select"
+          ? eidosFileSelectOptions(field)
+          : []
+      return {
+        field,
+        optionByValue:
+          options.length > 0
+            ? new Map(options.map((option) => [option.value, option]))
+            : undefined,
+      }
+    }),
     coverField:
       fields.find(
         (field) =>
           eidosFileFieldKey(field) === coverFieldName &&
           isEidosFileRecordCoverField(field)
       ) ?? null,
-    fieldLimit: compact ? 4 : 6,
-    fitContent: view.properties?.fitContent !== false,
+    fieldLimit: Array.isArray(configuredCardFields)
+      ? cardFields.length
+      : compact
+        ? 4
+        : 6,
+    fitContent:
+      coverFit === "contain" ||
+      (coverFit !== "cover" && view.properties?.fitContent === true),
     hideEmptyFields: view.properties?.hideEmptyFields !== false,
   }
 }
@@ -131,10 +142,7 @@ export function eidosFileRecordCardPageProjection(
     preservedColumns.add(layout.coverField.tableColumnName)
   }
   if (view.type === "kanban") {
-    const groupFieldKey =
-      typeof view.properties?.groupField === "string"
-        ? view.properties.groupField
-        : view.properties?.groupByField
+    const groupFieldKey = view.properties?.groupField
     const groupField = fields.find(
       (field) =>
         eidosFileFieldKey(field) === groupFieldKey && field.type === "select"

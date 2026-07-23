@@ -272,7 +272,10 @@ export function EidosFileFieldCreatePopover({
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverAnchor asChild>
-        <span className="pointer-events-none absolute right-0 top-8 h-px w-px" />
+        <span
+          className="pointer-events-none absolute inset-0"
+          aria-hidden="true"
+        />
       </PopoverAnchor>
       <PopoverContent
         data-eidos-file-field-create="true"

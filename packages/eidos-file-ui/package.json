@@ -157,6 +157,11 @@
       "import": "./dist/eidos-file-view-tabs.mjs",
       "default": "./dist/eidos-file-view-tabs.mjs"
     },
+    "./eidos-file-view-fields-popover": {
+      "types": "./dist/eidos-file-view-fields-popover.d.mts",
+      "import": "./dist/eidos-file-view-fields-popover.mjs",
+      "default": "./dist/eidos-file-view-fields-popover.mjs"
+    },
     "./eidos-file-query-toolbar": {
       "types": "./dist/eidos-file-query-toolbar.d.mts",
       "import": "./dist/eidos-file-query-toolbar.mjs",

@@ -3,7 +3,7 @@
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import {
-  decodeEidosFileAttachmentPaths,
+  decodeEidosFileValues,
   encodeEidosFileAttachmentPaths,
   type EidosFileRowPage,
   type EidosFileRowMutationResult,
@@ -868,6 +868,12 @@ describe("EidosFileGrid", () => {
         },
       },
     })
+
+    openDoneMenu()
+    clickMenuItem("Hide field")
+    expect(onViewUpdate).toHaveBeenLastCalledWith({
+      hiddenFields: ["0198c72d-82b5-7000-8000-000000000002"],
+    })
   })
 
   it("loads configured column stats into the trailing row and refreshes after edits", async () => {
@@ -1105,7 +1111,9 @@ describe("EidosFileGrid", () => {
     })
     expect(onViewUpdate).toHaveBeenCalledWith({
       properties: {
-        fieldWidths: { "0198c72d-82b5-7000-8000-000000000002": 210 },
+        fieldWidths: {
+          "0198c72d-82b5-7000-8000-000000000002": 210 / 180,
+        },
       },
     })
 
@@ -1401,6 +1409,13 @@ describe("EidosFileGrid", () => {
       ...rowAt(0),
       files: encodeEidosFileAttachmentPaths(["assets/existing.pdf"]),
     }
+    const existingEntries = decodeEidosFileValues(row.files)
+    const pickedEntries = decodeEidosFileValues(
+      encodeEidosFileAttachmentPaths(["assets/picked.pdf"])
+    )
+    const droppedEntries = decodeEidosFileValues(
+      encodeEidosFileAttachmentPaths(["assets/dropped.png"])
+    )
     const loadPage = vi.fn(async () => ({
       tableId: "tasks",
       offset: 0,
@@ -1409,10 +1424,8 @@ describe("EidosFileGrid", () => {
       rows: [row],
     }))
     const onCellEdit = createCellEdit()
-    const onImportFiles = vi.fn().mockResolvedValue(["assets/picked.pdf"])
-    const onImportDroppedFiles = vi
-      .fn()
-      .mockResolvedValue(["assets/dropped.png"])
+    const onImportFiles = vi.fn().mockResolvedValue(pickedEntries)
+    const onImportDroppedFiles = vi.fn().mockResolvedValue(droppedEntries)
     await act(async () => {
       root.render(
         <EidosFileGrid
@@ -1431,7 +1444,7 @@ describe("EidosFileGrid", () => {
       kind: GridCellKind.Custom,
       data: {
         kind: "eidos-file-file-cell",
-        paths: ["assets/existing.pdf"],
+        entries: existingEntries,
         onImport: onImportFiles,
       },
     })
@@ -1458,9 +1471,9 @@ describe("EidosFileGrid", () => {
     expect(onImportDroppedFiles).toHaveBeenCalledWith([dropped])
     expect(onCellEdit).toHaveBeenCalledWith(row, fileField, expect.any(String))
     expect(
-      decodeEidosFileAttachmentPaths(
+      decodeEidosFileValues(
         onCellEdit.mock.calls.at(-1)?.[2] as string | undefined
-      )
+      ).map((entry) => entry.uri)
     ).toEqual(["assets/existing.pdf", "assets/dropped.png"])
   })
 

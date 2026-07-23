@@ -102,6 +102,19 @@ describe("EidosFileFormulaComposer", () => {
     expect(container.textContent).toContain("Formula is valid. Uses Estimate.")
     expect(container.textContent).toContain("Fields & functions")
     expect(container.textContent).toContain("Reference")
+    const displayType = container.querySelector<HTMLButtonElement>(
+      ".eidos-file-formula-display-select"
+    )
+    expect(
+      displayType?.querySelector('[data-eidos-file-field-type-icon="number"]')
+    ).toBeTruthy()
+    await act(async () => displayType?.click())
+    const textOption = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent?.trim() === "Text")
+    expect(
+      textOption?.querySelector('[data-eidos-file-field-type-icon="text"]')
+    ).toBeTruthy()
   })
 
   it("inserts fields and functions from the reference browser", async () => {

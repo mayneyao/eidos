@@ -29,8 +29,6 @@ vi.mock("./context", () => ({
   useEidosFileUI: () => ({
     themeName: "light",
     translate: contextMocks.translate,
-    resolveAssetUrl: (path: string) => `/~/${path}`,
-    resolveFilePreview: (path: string) => path,
   }),
 }))
 
@@ -427,7 +425,7 @@ describe("EidosFileGalleryView", () => {
     ).toBe("true")
   })
 
-  it("streams repeated local covers without renderer binary copies", async () => {
+  it("keeps repeated relative covers inert without a Host lease", async () => {
     const coverTable: EidosFileTableSnapshot = {
       ...table,
       fields: [
@@ -486,13 +484,12 @@ describe("EidosFileGalleryView", () => {
       await Promise.resolve()
     })
 
+    expect(container.querySelectorAll("img")).toHaveLength(0)
     expect(
-      container.querySelectorAll('img[src="/~\/assets\/shared.png"]')
+      Array.from(container.querySelectorAll("code")).filter(
+        (element) => element.textContent === "assets/shared.png"
+      )
     ).toHaveLength(2)
-    expect(container.querySelector("img")?.getAttribute("loading")).toBe("lazy")
-    expect(container.querySelector("img")?.getAttribute("decoding")).toBe(
-      "async"
-    )
   })
 
   it("deletes a loaded card without resetting or reloading the gallery", async () => {

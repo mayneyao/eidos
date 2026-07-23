@@ -1,6 +1,11 @@
-import type { EidosFileDataSource } from "@eidos.space/eidos-file"
+import type {
+  EidosFileDataSource,
+  EidosFileSnapshot,
+} from "@eidos.space/eidos-file"
 
-/** @deprecated Use `EidosFileDataSource` from `@eidos.space/eidos-file`. */
-export interface EidosFileEditorDataSource extends EidosFileDataSource {}
+/** Editor-level additions built from normative Runtime mutations. */
+export interface EidosFileEditorDataSource extends EidosFileDataSource {
+  reorderTables?(tableIds: string[]): Promise<EidosFileSnapshot>
+}
 
 export type { EidosFileDataSource } from "@eidos.space/eidos-file"

@@ -2,6 +2,7 @@ import type { EidosFileFieldInfo, EidosFileRow } from "@eidos.space/eidos-file"
 import { describe, expect, it } from "vitest"
 
 import {
+  createEidosFileRecordCardLayout,
   eidosFileRecordCardPageProjection,
   selectEidosFileRecordCardFields,
   type EidosFileRecordCardFieldLayout,
@@ -131,6 +132,39 @@ describe("selectEidosFileRecordCardFields", () => {
         field_0: "[]",
       })
     ).toEqual([])
+  })
+})
+
+describe("createEidosFileRecordCardLayout", () => {
+  it("uses explicit cardFields order and canonical coverFit", () => {
+    const first = recordField(1).field
+    const second = recordField(2).field
+    const omitted = recordField(3).field
+    const layout = createEidosFileRecordCardLayout([first, second, omitted], {
+      id: "view_gallery",
+      name: "Gallery",
+      type: "gallery",
+      tableId: "tasks",
+      query: "{}",
+      properties: {
+        cardFields: [second.id, first.id],
+        coverFit: "contain",
+      },
+      filter: null,
+      sorts: [],
+      orderMap: null,
+      hiddenFields: [],
+      position: 1,
+      createdAt: "2026-07-14T00:00:00.000Z",
+      updatedAt: "2026-07-14T00:00:00.000Z",
+    })
+
+    expect(layout.fields.map(({ field }) => field.id)).toEqual([
+      second.id,
+      first.id,
+    ])
+    expect(layout.fieldLimit).toBe(2)
+    expect(layout.fitContent).toBe(true)
   })
 })
 

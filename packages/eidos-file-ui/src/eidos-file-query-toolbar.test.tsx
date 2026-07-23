@@ -245,6 +245,54 @@ describe("shared EidosFileQueryToolbar", () => {
     ).toBe(true)
   })
 
+  it("keeps Select option colors visible in filter value controls", async () => {
+    const status: EidosFileFieldInfo = {
+      ...fields[0],
+      id: "0198c72d-82b5-7000-8000-000000000005",
+      name: "Status",
+      type: "select",
+      tableColumnName: "status",
+      property: {
+        options: [
+          { name: "Todo", color: "blue" },
+          { name: "Done", color: "green" },
+        ],
+      },
+    }
+    await act(async () => {
+      root.render(
+        <EidosFileQueryToolbar
+          fields={[status]}
+          filter={null}
+          sorts={[]}
+          search=""
+          onSearchChange={onSearchChange}
+          onFilterChange={onFilterChange}
+          onSortsChange={onSortsChange}
+        />
+      )
+    })
+    await act(async () => button("Filter")?.click())
+    await act(async () => button("Add filter")?.click())
+    await act(async () => button("Add condition")?.click())
+    const valueTrigger = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>(
+        'button[role="combobox"]'
+      )
+    ).at(-1)
+    await act(async () => valueTrigger?.click())
+    const done = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent?.trim() === "Done")
+    expect(
+      done?.querySelector('[data-eidos-file-option-color="green"]')
+    ).toBeTruthy()
+    await act(async () => done?.click())
+    expect(
+      valueTrigger?.querySelector('[data-eidos-file-option-color="green"]')
+    ).toBeTruthy()
+  })
+
   it("offers system timestamps to filter and sort controls", async () => {
     await act(async () => button("Filter")?.click())
     await act(async () => button("Add filter")?.click())

@@ -48,11 +48,10 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
   p
 ) => {
   const { translate: t } = useEidosFileUI()
-  const { value: cell, initialValue, onChange, theme, onFinishedEditing } = p
+  const { value: cell, onChange, theme, onFinishedEditing } = p
   const { allowedValues, allowCreate = true, values = [] } = cell.data
 
   const themeName = (theme as any).name
-  const [oldValues, setOldValues] = React.useState(values ?? [])
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   const [newOptions, setNewOptions] = React.useState<SelectOption[]>([])
@@ -103,6 +102,18 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
   }
   const [inputValue, setInputValue] = React.useState("")
 
+  const [open, setOpen] = React.useState(true)
+
+  const handleSave = React.useCallback(() => {
+    setOpen(false)
+    onFinishedEditing(cell, [0, 1])
+  }, [cell, onFinishedEditing])
+
+  const handleCancel = React.useCallback(() => {
+    setOpen(false)
+    onFinishedEditing(undefined, [0, 0])
+  }, [onFinishedEditing])
+
   const handleBackspace: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
     if (e.key === "Backspace" && !inputValue?.length) {
       const _values: string[] = Array.from(values!)
@@ -110,10 +121,10 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
       setNewValues(_values)
     }
     if (e.key === "Escape") {
-      if (JSON.stringify(oldValues) == JSON.stringify(values)) {
-        return
-      }
-      onFinishedEditing(cell)
+      e.preventDefault()
+      e.stopPropagation()
+      handleCancel()
+      return
     }
     if (e.key === "Enter") {
       e.stopPropagation()
@@ -140,17 +151,8 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
     }
   }
 
-  const [open, setOpen] = React.useState(true)
-
-  const handleOpenChange = (open: boolean) => {
-    if (!open) {
-      // on
-    }
-    setOpen(open)
-  }
-
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
+    <Popover open={open}>
       <PopoverTrigger>
         <div />
       </PopoverTrigger>
@@ -160,8 +162,8 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
         align="start"
         sideOffset={-6}
         alignOffset={-9}
-        // onMouseDownCapture={console.log}
         asChild={true}
+        onPointerDownOutside={handleSave}
       >
         <Command value={currentSelect} onValueChange={setCurrentSelect}>
           <div className="flex w-full rounded-md bg-transparent py-3 text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50">

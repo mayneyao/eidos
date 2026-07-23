@@ -26,6 +26,7 @@ import {
   CommandList,
 } from "../ui/primitives"
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/primitives"
+import { SelectOptionItem } from "../ui/select-option-item"
 
 import { roundedRect } from "./grid-cell-helper"
 
@@ -132,10 +133,6 @@ function SelectEditor(props: SelectEditorProps) {
               <CommandGroup className="px-1 pb-1">
                 {allowedValues.map((option) => {
                   const isSelected = selectedValue === option.id
-                  const bgColor = eidosFileOptionColor(
-                    option.color,
-                    themeName === "dark" ? "dark" : "light"
-                  )
                   return (
                     <CommandItem
                       key={option.id}
@@ -153,17 +150,11 @@ function SelectEditor(props: SelectEditorProps) {
                           : "hover:bg-muted"
                       )}
                     >
-                      <span
-                        className={cn(
-                          "w-2 h-2 rounded-full shrink-0",
-                          isSelected && "ring-1 ring-current"
-                        )}
-                        style={{ backgroundColor: bgColor }}
+                      <SelectOptionItem
+                        theme={themeName === "dark" ? "dark" : "light"}
+                        option={option}
+                        className="max-w-[220px]"
                       />
-
-                      <span className="flex-1 truncate text-sm">
-                        {option.name}
-                      </span>
 
                       <Check
                         className={cn(

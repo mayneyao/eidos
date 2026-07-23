@@ -48,6 +48,53 @@ async function openTableMenu(container: HTMLElement, tableId: string) {
   })
 }
 
+async function keyboardDrag(
+  label: string,
+  direction: "ArrowLeft" | "ArrowRight"
+) {
+  const handle = document.body.querySelector<HTMLButtonElement>(
+    `button[aria-label="${label}"]`
+  )
+  Array.from(
+    document.body.querySelectorAll<HTMLElement>(
+      "[data-eidos-file-sortable-tab]"
+    )
+  ).forEach((item, index) => {
+    item.getBoundingClientRect = () => new DOMRect(index * 120, 0, 112, 32)
+  })
+  await act(async () => {
+    handle?.focus()
+    handle?.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        code: "Space",
+        key: " ",
+      })
+    )
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+  })
+  await act(async () => {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        code: direction,
+        key: direction,
+      })
+    )
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+  })
+  await act(async () => {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        bubbles: true,
+        code: "Space",
+        key: " ",
+      })
+    )
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+  })
+}
+
 describe("EidosFileSheetTabs", () => {
   let container: HTMLDivElement
   let root: Root
@@ -162,5 +209,52 @@ describe("EidosFileSheetTabs", () => {
     ).find((item) => item.textContent?.includes("Delete table"))
     expect(deleteItem?.hasAttribute("data-disabled")).toBe(true)
     expect(deleteItem?.title).toBe("An Eidos File must keep one table")
+  })
+
+  it("exports the complete table selected from its context menu", async () => {
+    const onExportCsv = vi.fn().mockResolvedValue(undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileSheetTabs
+          tables={tables}
+          activeTableId="tasks"
+          onSelect={vi.fn()}
+          onExportCsv={onExportCsv}
+        />
+      )
+    })
+
+    await openTableMenu(container, "projects")
+    await act(async () => {
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      )
+        .find((item) =>
+          item.textContent?.includes("Export entire table as CSV")
+        )
+        ?.click()
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    expect(onExportCsv).toHaveBeenCalledWith(tables[1])
+  })
+
+  it("reorders tables through the shared drag handle", async () => {
+    const onReorder = vi.fn().mockResolvedValue(undefined)
+    await act(async () => {
+      root.render(
+        <EidosFileSheetTabs
+          tables={tables}
+          activeTableId="tasks"
+          onSelect={vi.fn()}
+          onReorder={onReorder}
+        />
+      )
+    })
+
+    expect(container.textContent).not.toContain("Move up")
+    expect(container.textContent).not.toContain("Move down")
+    await keyboardDrag("Reorder Projects table", "ArrowLeft")
+    expect(onReorder).toHaveBeenCalledWith(["projects", "tasks"])
   })
 })

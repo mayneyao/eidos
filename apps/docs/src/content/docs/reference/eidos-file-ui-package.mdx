@@ -1,207 +1,126 @@
 ---
 title: Build with Eidos File UI
-description: Embed the published React editor, connect a runtime data source, and register additional Eidos File views.
+description: Embed the Eidos UI 1.0 React viewer through RuntimeClient and HostServices.
 sidebar:
   order: 19
 ---
 
-`@eidos.space/eidos-file-ui` is the published React editing surface for the open
-`.eidos` format. It contains the shared Grid, Gallery, Kanban, query controls,
-field editors, record inspector, and editor chrome used by Eidos applications.
+`@eidos.space/eidos-file-ui` is the React presentation layer for the frozen
+Eidos UI 1.0 contract. The interoperable dependency path is:
 
-The UI package never opens a SQLite database. It reads and writes through an
-`EidosFileEditorDataSource`, so browser Workers, Electron IPC, and native hosts
-can use the same components without moving SQL work onto the React thread.
+```text
+Eidos File → Runtime → Adapter / HostServices → UI
+```
+
+The reusable UI package never receives SQLite, SQL, File bytes, native handles,
+or ambient paths. Filtering, Formula, Lookup, Relation, grouping, validation,
+and mutation semantics remain in `@eidos.space/eidos-file` Runtime.
 
 ## Install
 
 ```sh
-pnpm add @eidos.space/eidos-file @eidos.space/eidos-file-ui \
-  @glideapps/glide-data-grid react react-dom
+pnpm add @eidos.space/eidos-file@1.0.0 \
+  @eidos.space/eidos-file-ui@1.0.0 react react-dom
 ```
 
-Import the shared styles once at the application entry point:
+Import the stylesheet once:
 
 ```ts
 import "@eidos.space/eidos-file-ui/styles.css"
 ```
 
-## Package responsibilities
+## Exact viewer composition
 
-| Layer                        | Owns                                                                                                       |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `@eidos.space/eidos-file`    | Format validation, metadata, queries, mutations, Formula, Lookup, relations, and CSV                       |
-| `@eidos.space/eidos-file-ui` | React rendering, keyboard interaction, selection, field controls, inspectors, and view routing             |
-| Host application             | File handles, Worker/IPC, permissions, dirty/save/recovery state, conflicts, theme, locale, and asset URLs |
-
-Do not copy format rules into a renderer. The runtime is the only layer that
-interprets Eidos File schema and compiles structured queries into SQL.
-
-## Render an Eidos File view
-
-`EidosFileEditorView` routes the selected saved view to Grid, Gallery, Kanban,
-or a host-registered renderer:
+The host application implements `HostServices`. `openSource` returns the only
+`RuntimeClient` the UI consumes. `EidosUIKernel` negotiates both contracts,
+loads the revision-bound schema, and owns page/cursor invalidation.
 
 ```tsx
-import type {
-  EidosFileTableSnapshot,
-  EidosFileViewInfo,
-} from "@eidos.space/eidos-file"
+import { useEffect, useMemo } from "react"
+import type { HostServices } from "@eidos.space/eidos-file"
+import { EidosUIKernel } from "@eidos.space/eidos-file-ui/kernel"
 import {
-  EidosFileEditorView,
-  EidosFileUIProvider,
-  type EidosFileEditorDataSource,
-} from "@eidos.space/eidos-file-ui"
+  EidosStandardView,
+  EidosUIRuntimeProvider,
+} from "@eidos.space/eidos-file-ui/runtime-platform"
 import "@eidos.space/eidos-file-ui/styles.css"
 
-export function ProjectView({
-  source,
-  table,
-  view,
-}: {
-  source: EidosFileEditorDataSource
-  table: EidosFileTableSnapshot
-  view: EidosFileViewInfo
-}) {
+export function ProjectView({ host, sourceToken, assetPresenter }) {
+  const kernel = useMemo(() => new EidosUIKernel(host), [host])
+
+  useEffect(() => {
+    void kernel.openSource({ sourceToken, access: "read" })
+    return () => void kernel.close()
+  }, [kernel, sourceToken])
+
   return (
-    <EidosFileUIProvider
+    <EidosUIRuntimeProvider
+      kernel={kernel}
+      assetPresenter={assetPresenter}
       themeName="light"
-      resolveAssetUrl={(path) => `/files/${encodeURIComponent(path)}`}
     >
-      <EidosFileEditorView
-        source={source}
-        table={table}
-        view={view}
-        onMutation={() => markDocumentDirty()}
-        onError={(error) => reportEditorError(error)}
-      />
-    </EidosFileUIProvider>
+      <EidosStandardView />
+    </EidosUIRuntimeProvider>
   )
 }
 ```
 
-The package includes built-in renderers for persisted `grid`, `gallery`, and
-`kanban` view types. Unknown view types remain intact in the file and render an
-unsupported-view state until the host registers a matching renderer.
+`EidosStandardView` renders standard Grid, Gallery, and Kanban views from
+bounded Runtime results. Unknown namespaced view types remain preserved and
+render as unsupported until the embedding application supplies an isolated
+renderer.
 
-The component must fill a container with an explicit height. Built-in views
-virtualize rows and cards inside that container.
+## File fields and assets
 
-## Supply the data source
+A File cell is an ordered array of complete `FileEntry` objects. Its `uri` is
+one of: a relative URI-reference scoped to the directory containing the open
+`.eidos` file, an absolute `https:` URI, or a canonical inline image Data URL.
+The UI never joins, fetches, or navigates that URI.
 
-The asynchronous data source is the UI boundary. A typical implementation
-forwards each method to one semantic Worker or IPC request:
+For a visible image, UI calls `HostServices.resolveAsset` with the entry ID and
+`thumbnail` purpose. It passes the returned lease only to the injected
+`AssetPresenter`. Open and download are explicit user actions using `preview`
+or `download` leases. Every lease is size/expiry/session bounded and released
+when its surface disappears.
 
-```ts
-const source: EidosFileEditorDataSource = {
-  getSnapshot: () => worker.call({ type: "snapshot" }),
-  getPage: (tableId, offset, limit, query, totalHint, cursor, projection) =>
-    worker.call({
-      type: "page",
-      tableId,
-      offset,
-      limit,
-      query,
-      totalHint,
-      cursor,
-      projection,
-    }),
-  getRow: (tableId, rowId) => worker.call({ type: "row", tableId, rowId }),
-  getGroupCounts: (tableId, columnName, query) =>
-    worker.call({ type: "group-counts", tableId, columnName, query }),
-  insertRow: (tableId, row) =>
-    worker.call({ type: "insert-row", tableId, row }),
-  updateRow: (tableId, rowId, changes) =>
-    worker.call({ type: "update-row", tableId, rowId, changes }),
-  updateField: (tableId, columnName, changes) =>
-    worker.call({ type: "update-field", tableId, columnName, changes }),
-  addField: (tableId, field, placement) =>
-    worker.call({ type: "add-field", tableId, field, placement }),
-  deleteField: (tableId, columnName) =>
-    worker.call({ type: "delete-field", tableId, columnName }),
-  updateView: (viewId, changes) =>
-    worker.call({ type: "update-view", viewId, changes }),
-}
-```
+DOM cards use `AssetPresenter.renderImage`. The Canvas-backed Grid uses the
+optional `AssetPresenter.loadImage`, redraws after decode, and releases leases
+outside its bounded visible-row window. Without that method Grid falls back;
+it never draws from the canonical URI directly.
 
-The Worker calls `@eidos.space/eidos-file`. A renderer must not execute SQL,
-scan the entire table to filter or group rows, or reinterpret cell encodings.
+The deterministic fallback is:
 
-`getRow` powers complete record inspectors. `getGroupCounts` powers Kanban
-without downloading every record. Implement both for the complete built-in
-experience.
+1. Host-resolved image thumbnail;
+2. trusted media-family icon or generic file icon;
+3. inert, lossless URI display/copy text.
 
-## Compose the editor chrome
+Ordinary URL fields remain inert and are never fetched because a cell is
+visible. Hosts without a session-scoped relative asset root omit `relative`
+from `assetReadSchemes`; they must not fall back to the application origin,
+working directory, or downloads folder. SVG and other active content require a
+Host-isolated presenter and must not be rendered unsandboxed.
 
-Hosts that need the complete Desktop-style layout can compose the published
-shell primitives around `EidosFileEditorView`:
+Asset import follows the reverse boundary: composition obtains an opaque source
+token, calls `HostServices.acquireAsset`, and submits the returned `FileEntry`
+unchanged in a Runtime mutation. UI may reorder or remove whole entries, but it
+does not manufacture IDs, URIs, media types, or sizes.
 
-```tsx
-import {
-  EidosFileEditorContent,
-  EidosFileEditorRoot,
-  EidosFileEditorView,
-  EidosFileEditorWorkbar,
-  EidosFileQueryToolbar,
-  EidosFileSheetTabStrip,
-  EidosFileViewTabStrip,
-} from "@eidos.space/eidos-file-ui"
-```
+## Host responsibilities
 
-The host owns active table and view selection. Persist filters, sorts, and view
-properties with `source.updateView`; keep transient search, focus, and open-menu
-state in React.
+The embedding application owns:
 
-Low-level built-ins are also available when an application intentionally owns
-the surrounding shell:
+- source/destination grants, permissions, save/CAS, conflicts, and recovery;
+- Browser Worker or Desktop IPC transport and Runtime replacement;
+- truthful capabilities and limits for relative, Data URL, and HTTPS assets;
+- purpose-scoped `AssetLease` issuance, presentation, activation, and release;
+- isolation, traversal/symlink/origin checks, media/decode limits, and network
+  policy.
 
-```ts
-import { EidosFileDataGrid } from "@eidos.space/eidos-file-ui/eidos-file-data-grid"
-import { EidosFileGalleryView } from "@eidos.space/eidos-file-ui/eidos-file-gallery-view"
-import { EidosFileKanbanView } from "@eidos.space/eidos-file-ui/eidos-file-kanban-view"
-```
+Keep SQLite and expensive work outside React. Preserve unknown schema/view
+extensions. Test cancellation, replacement epochs, read-only behavior,
+keyboard focus, narrow layouts, asset expiry, all three File URI classes, and
+zero direct URI fetch/navigation.
 
-## Register a custom view
-
-Pass an instance-local renderer registry. A namespaced key should match the
-`eidos__views.type` value stored in the file:
-
-```tsx
-import {
-  EidosFileEditorView,
-  builtInEidosFileViewRenderers,
-} from "@eidos.space/eidos-file-ui"
-import { TimelineView } from "@example/eidos-file-timeline-view"
-
-const renderers = {
-  ...builtInEidosFileViewRenderers,
-  "com.example.timeline": TimelineView,
-}
-
-<EidosFileEditorView
-  source={source}
-  table={table}
-  view={view}
-  renderers={renderers}
-/>
-```
-
-The registry controls rendering only. Creating a saved view remains a runtime
-operation, and its `properties` must contain portable JSON values. Read
-[Eidos File format and custom views](/reference/eidos-file-custom-views/) for
-the complete renderer contract.
-
-## Host checklist
-
-- Keep SQLite and expensive queries in a Worker or background process.
-- Page large tables and pass projections for card-style views.
-- Mark the document dirty after successful row, field, or view mutations.
-- Keep failed saves recoverable and detect external changes before overwrite.
-- Disable mutation actions for read-only sources.
-- Resolve File fields through host-controlled asset URLs.
-- Preserve unknown view types and properties without rewriting them.
-- Test keyboard focus, narrow containers, light/dark themes, and large datasets.
-
-View renderers run as trusted React code in the embedding application. The
-sandboxed Eidos Extension surface is a separate capability boundary and does
-not receive direct host React or SQLite access.
+`EidosFileUIProvider` supports `locale="en"` and `locale="zh"`, plus host
+message overrides. Locale affects presentation only; user-authored table,
+field, view, option, and record names remain File data.

@@ -5,14 +5,13 @@ import type {
   EidosFileRowMutationResult,
   EidosFileRelationValue,
   EidosFileSqlPrimitive,
+  FileEntry,
 } from "@eidos.space/eidos-file"
-import { decodeEidosFileAttachmentPaths } from "@eidos.space/eidos-file"
+import { decodeEidosFileValues } from "@eidos.space/eidos-file"
 import {
   Check,
   Copy,
   ExternalLink,
-  FileText,
-  FolderOpen,
   LoaderCircle,
   Minus,
   Save,
@@ -20,6 +19,7 @@ import {
 } from "lucide-react"
 
 import { useEidosFileUI } from "./context"
+import { EidosFileEntrySurface } from "./eidos-file-entry-surface"
 import { cn } from "./lib/cn"
 import { Button, ScrollArea } from "./ui/primitives"
 
@@ -49,13 +49,9 @@ function recordEditErrorMessage(error: unknown, fallback: string): string {
 function FieldValue({
   field,
   row,
-  onOpenFile,
-  onRevealFile,
 }: {
   field: EidosFileFieldInfo
   row: EidosFileRow
-  onOpenFile?: (path: string) => void
-  onRevealFile?: (path: string) => void
 }) {
   const { translate: t } = useEidosFileUI()
   const value = row[field.tableColumnName]
@@ -73,38 +69,14 @@ function FieldValue({
     )
   }
   if (field.type === "file") {
-    const paths = decodeEidosFileAttachmentPaths(value)
-    if (paths.length === 0) {
+    const entries = decodeEidosFileValues(value)
+    if (entries.length === 0) {
       return <span className="text-xs text-muted-foreground">{t("Empty")}</span>
     }
     return (
       <div className="grid gap-1">
-        {paths.map((path) => (
-          <div
-            key={path}
-            className="group/file flex min-w-0 items-center gap-1"
-          >
-            <button
-              type="button"
-              className="flex min-w-0 flex-1 items-center gap-1.5 rounded-[3px] px-1 py-0.5 text-left text-xs hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              onClick={() => onOpenFile?.(path)}
-            >
-              <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span className="truncate">{path}</span>
-            </button>
-            {onRevealFile ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0 opacity-0 group-hover/file:opacity-100 focus-visible:opacity-100"
-                aria-label={t("Show {path} in file manager", { path })}
-                onClick={() => onRevealFile(path)}
-              >
-                <FolderOpen className="h-3.5 w-3.5" />
-              </Button>
-            ) : null}
-          </div>
+        {entries.map((entry) => (
+          <EidosFileEntrySurface key={entry.id} entry={entry} compact />
         ))}
       </div>
     )
@@ -152,14 +124,12 @@ export interface EidosFileRecordInspectorProps {
   loadError?: string | null
   onRetryLoad?: () => void
   onError?: (error: unknown) => void
-  onImportFiles?: () => Promise<string[]>
-  onImportDroppedFiles?: (files: File[]) => Promise<string[]>
+  onImportFiles?: () => Promise<FileEntry[]>
+  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
   onSearchRelation?: (
     field: EidosFileFieldInfo,
     query: string
   ) => Promise<EidosFileRelationValue[]>
-  onOpenFile?: (path: string) => void
-  onRevealFile?: (path: string) => void
 }
 
 export function EidosFileRecordInspector({
@@ -178,8 +148,6 @@ export function EidosFileRecordInspector({
   onImportFiles,
   onImportDroppedFiles,
   onSearchRelation,
-  onOpenFile,
-  onRevealFile,
 }: EidosFileRecordInspectorProps) {
   const { translate: t } = useEidosFileUI()
   const [currentRow, setCurrentRow] = useState(row)
@@ -290,7 +258,7 @@ export function EidosFileRecordInspector({
         "flex h-full min-h-0 flex-col bg-background",
         variant === "page"
           ? "w-full max-w-[760px] border-x"
-          : "eidos-file-detail-panel border-l"
+          : "eidos-file-detail-panel eidos-file-record-panel border-l"
       )}
       data-eidos-file-detail-panel="record"
       data-eidos-file-record-layout={variant}
@@ -300,7 +268,7 @@ export function EidosFileRecordInspector({
       <header
         className={cn(
           "flex items-start gap-2 border-b",
-          variant === "page" ? "min-h-20 px-6 py-4" : "min-h-12 px-3 py-2.5"
+          variant === "page" ? "min-h-20 px-6 py-4" : "min-h-14 px-4 py-3"
         )}
       >
         <div className="min-w-0 flex-1">
@@ -433,15 +401,15 @@ export function EidosFileRecordInspector({
               <div
                 key={field.tableColumnName}
                 className={cn(
-                  "grid",
+                  "eidos-file-record-field grid",
                   variant === "page"
                     ? "gap-3 px-6 py-4 sm:grid-cols-[minmax(140px,0.4fr)_minmax(0,1fr)] sm:items-start"
-                    : "gap-1 px-3 py-2.5"
+                    : "gap-1.5 px-4 py-3"
                 )}
               >
                 <p
                   className={cn(
-                    "font-medium text-muted-foreground",
+                    "eidos-file-record-field-label font-medium text-muted-foreground",
                     variant === "page" ? "pt-1 text-xs" : "text-[11px]"
                   )}
                 >
@@ -454,8 +422,6 @@ export function EidosFileRecordInspector({
                     onChange={(value) => editField(field, value)}
                     onImportFiles={onImportFiles}
                     onImportDroppedFiles={onImportDroppedFiles}
-                    onOpenFile={onOpenFile}
-                    onRevealFile={onRevealFile}
                     onError={onError}
                   />
                 ) : onCellEdit &&
@@ -480,12 +446,7 @@ export function EidosFileRecordInspector({
                     onChange={(value) => editField(field, value)}
                   />
                 ) : (
-                  <FieldValue
-                    field={field}
-                    row={currentRow}
-                    onOpenFile={onOpenFile}
-                    onRevealFile={onRevealFile}
-                  />
+                  <FieldValue field={field} row={currentRow} />
                 )}
               </div>
             ))}

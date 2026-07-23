@@ -31,6 +31,7 @@ export default defineConfig({
     "src/eidos-file-sheet-tabs.tsx",
     "src/eidos-file-view-selector.tsx",
     "src/eidos-file-view-tabs.tsx",
+    "src/eidos-file-view-fields-popover.tsx",
     "src/eidos-file-query-toolbar.tsx",
     "src/eidos-file-field-create-popover.tsx",
     "src/eidos-file-field-type-picker.tsx",

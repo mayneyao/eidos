@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import {
-  decodeEidosFileAttachmentPaths,
+  decodeEidosFileValues,
   encodeEidosFileAttachmentPaths,
   type EidosFileFieldInfo,
 } from "@eidos.space/eidos-file"
@@ -103,6 +103,30 @@ describe("Eidos File Grid adapter", () => {
     expect(gridCellToEidosFileValue(field("number"), bar)).toBe(12)
   })
 
+  it("keeps cleared number values empty after rendering", () => {
+    for (const value of [null, "", "   "]) {
+      expect(eidosFileValueToGridCell(field("number"), value)).toMatchObject({
+        kind: GridCellKind.Number,
+        data: undefined,
+        displayData: "",
+      })
+    }
+
+    expect(
+      eidosFileValueToGridCell(
+        field("number", {
+          showAs: "bar",
+          divideBy: 20,
+        }),
+        null
+      )
+    ).toMatchObject({
+      kind: GridCellKind.Number,
+      data: undefined,
+      displayData: "",
+    })
+  })
+
   it("adapts direct select values to the shared Grid cell shape", () => {
     const select = field("select", {
       options: [{ name: "Todo" }, { name: "Done", color: "green" }],
@@ -124,6 +148,39 @@ describe("Eidos File Grid adapter", () => {
         ],
       },
     })
+  })
+
+  it("round-trips multi-select edits as canonical JSON arrays", () => {
+    const multiSelect = {
+      ...field("multi-select", {
+        options: [
+          { name: "Quality", color: "green" },
+          { name: "Speed", color: "blue" },
+        ],
+      }),
+      storageCodec: "json_array" as const,
+    }
+    const cell = eidosFileValueToGridCell(
+      multiSelect,
+      JSON.stringify(["Quality"])
+    )
+    expect(cell).toMatchObject({
+      kind: GridCellKind.Custom,
+      data: {
+        kind: "multi-select-cell",
+        values: ["Quality"],
+        allowCreate: false,
+      },
+    })
+    if (cell.kind !== GridCellKind.Custom) {
+      throw new Error("Expected a multi-select custom cell")
+    }
+    expect(
+      gridCellToEidosFileValue(multiSelect, {
+        ...cell,
+        data: { ...cell.data, values: ["Quality", "Speed"] },
+      })
+    ).toBe(JSON.stringify(["Quality", "Speed"]))
   })
 
   it("normalizes edited cells to SQLite-compatible values", () => {
@@ -158,19 +215,21 @@ describe("Eidos File Grid adapter", () => {
   })
 
   it("maps file fields to portable multi-attachment cells", () => {
+    const stored = encodeEidosFileAttachmentPaths([
+      "assets/cover.png",
+      "assets/report, final.pdf",
+    ])
+    const entries = decodeEidosFileValues(stored)
     expect(
       eidosFileValueToGridCell(
         { ...field("file"), storageCodec: "json_array" },
-        encodeEidosFileAttachmentPaths([
-          "assets/cover.png",
-          "assets/report, final.pdf",
-        ])
+        stored
       )
     ).toMatchObject({
       kind: GridCellKind.Custom,
       data: {
         kind: "eidos-file-file-cell",
-        paths: ["assets/cover.png", "assets/report, final.pdf"],
+        entries,
       },
     })
     const encoded = gridCellToEidosFileValue(field("file"), {
@@ -179,14 +238,10 @@ describe("Eidos File Grid adapter", () => {
       copyData: "",
       data: {
         kind: "eidos-file-file-cell",
-        paths: ["assets/cover.png", "assets/report, final.pdf"],
-        displayData: [],
+        entries,
       },
     })
-    expect(decodeEidosFileAttachmentPaths(encoded ?? undefined)).toEqual([
-      "assets/cover.png",
-      "assets/report, final.pdf",
-    ])
+    expect(decodeEidosFileValues(encoded ?? undefined)).toEqual(entries)
   })
 
   it("maps relation IDs to hydrated record titles and back", () => {

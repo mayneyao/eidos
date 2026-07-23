@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react"
 import type { EidosFileTableInfo } from "@eidos.space/eidos-file"
-import { LoaderCircle, Pencil, Trash2 } from "lucide-react"
+import { FileDown, LoaderCircle, Pencil, Trash2 } from "lucide-react"
 
 import { EidosFileSheetTabStrip } from "./eidos-file-editor-chrome"
 import {
@@ -43,6 +43,9 @@ export interface EidosFileSheetTabActions {
   delete: () => void
   deleteDisabledReason?: string
   disabled: boolean
+  exportCsv?: () => void
+  exportDisabled: boolean
+  exportingCsv: boolean
   rename: () => void
 }
 
@@ -59,8 +62,11 @@ export interface EidosFileSheetTabsProps {
   status?: ReactNode
   createAction?: ReactNode
   onSelect: (tableId: string) => void
+  onReorder?: (tableIds: string[]) => Promise<void> | void
   onRename?: (table: EidosFileTableInfo, name: string) => Promise<void> | void
   onDelete?: (table: EidosFileTableInfo) => Promise<void> | void
+  onExportCsv?: (table: EidosFileTableInfo) => Promise<void> | void
+  onExportError?: (error: unknown) => void
   renderTab?: EidosFileSheetTabRenderer
 }
 
@@ -107,6 +113,17 @@ function EidosFileSheetTabContextMenu({
           <Pencil />
           {t("Rename table")}
         </ContextMenuItem>
+        {actions.exportCsv ? (
+          <ContextMenuItem
+            disabled={actions.exportDisabled || actions.exportingCsv}
+            onSelect={() => afterMenuClose(actions.exportCsv!)}
+          >
+            <FileDown />
+            {actions.exportingCsv
+              ? t("Exporting CSV…")
+              : t("Export entire table as CSV")}
+          </ContextMenuItem>
+        ) : null}
         <ContextMenuSeparator />
         <ContextMenuItem
           className="text-destructive focus:text-destructive"
@@ -129,8 +146,11 @@ export function EidosFileSheetTabs({
   status,
   createAction,
   onSelect,
+  onReorder,
   onRename,
   onDelete,
+  onExportCsv,
+  onExportError,
   renderTab,
 }: EidosFileSheetTabsProps) {
   const { translate: t } = useEidosFileUI()
@@ -139,6 +159,7 @@ export function EidosFileSheetTabs({
   const [deleteTarget, setDeleteTarget] = useState<EidosFileTableInfo | null>(
     null
   )
+  const [exportingTableId, setExportingTableId] = useState<string | null>(null)
   const [name, setName] = useState("")
   const [busy, setBusy] = useState<"rename" | "delete" | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -236,6 +257,7 @@ export function EidosFileSheetTabs({
           status={status}
           createAction={createAction}
           onSelect={onSelect}
+          onReorder={onReorder}
           renderTab={(table, tab) => {
             const canDelete =
               !disabled && Boolean(onDelete) && tables.length > 1
@@ -254,6 +276,17 @@ export function EidosFileSheetTabs({
                     ? t("An Eidos File must keep one table")
                     : undefined,
               disabled: disabled || !onRename,
+              exportCsv: onExportCsv
+                ? () => {
+                    if (disabled || exportingTableId) return
+                    setExportingTableId(table.id)
+                    void Promise.resolve(onExportCsv(table))
+                      .catch((exportError) => onExportError?.(exportError))
+                      .finally(() => setExportingTableId(null))
+                  }
+                : undefined,
+              exportDisabled: disabled,
+              exportingCsv: exportingTableId === table.id,
               rename: () => requestRename(table),
             }
             return renderTab ? (

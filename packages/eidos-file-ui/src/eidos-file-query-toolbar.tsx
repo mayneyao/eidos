@@ -41,6 +41,7 @@ import {
   isOptionalEidosFileSystemField,
 } from "./eidos-file-field-visibility"
 import { eidosFileSelectOptions } from "./eidos-file-field-properties"
+import { SelectOptionItem } from "./ui/select-option-item"
 
 const operatorLabels: Record<EidosFileFilterOperator, string> = {
   equals: "is",
@@ -188,7 +189,7 @@ function FilterValueEditor({
             key={option.value}
             type="button"
             className={cn(
-              "rounded-md border px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground",
+              "rounded-md border p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground",
               selected.has(option.value) &&
                 "border-foreground/20 bg-secondary text-foreground"
             )}
@@ -199,7 +200,7 @@ function FilterValueEditor({
               onChange([...next] as EidosFileFilterValue[])
             }}
           >
-            {option.value}
+            <SelectOptionItem option={option} className="max-w-[180px]" />
           </button>
         ))}
       </div>
@@ -219,7 +220,7 @@ function FilterValueEditor({
         <SelectContent>
           {options.map((option) => (
             <SelectItem key={option.value} value={option.value}>
-              {option.value}
+              <SelectOptionItem option={option} className="max-w-[190px]" />
             </SelectItem>
           ))}
         </SelectContent>
@@ -970,7 +971,10 @@ export function EidosFileQueryToolbar({
             count: searchResultCount,
           })
   return (
-    <div className="flex min-w-0 shrink-0 items-center gap-0.5">
+    <div
+      className="flex min-w-0 shrink-0 items-center gap-0.5"
+      data-eidos-file-query-toolbar
+    >
       {showSearch ? (
         <div className="eidos-file-workbar-search flex h-7 items-center rounded-md border bg-background pl-2 pr-1 shadow-xs">
           <Search className="mr-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />

@@ -27,6 +27,7 @@ import {
 } from "./ui/primitives"
 
 import { useEidosFileUI } from "./context"
+import { EidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
 import { eidosFileNumberProperty } from "./eidos-file-field-properties"
 import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
 import { EidosFileNumberPropertiesEditor } from "./eidos-file-number-properties-editor"
@@ -303,7 +304,13 @@ export function EidosFileFieldPropertyPanel({
                 <SelectContent>
                   {MUTABLE_BASE_FIELD_TYPES.map((type) => (
                     <SelectItem key={type} value={type}>
-                      {t(TYPE_LABELS[type])}
+                      <span className="flex items-center gap-2">
+                        <EidosFileFieldTypeIcon
+                          type={type}
+                          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+                        />
+                        <span>{t(TYPE_LABELS[type])}</span>
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>

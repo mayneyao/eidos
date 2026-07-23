@@ -3,8 +3,9 @@
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import {
-  decodeEidosFileAttachmentPaths,
+  decodeEidosFileValues,
   encodeEidosFileAttachmentPaths,
+  type FileEntry,
 } from "@eidos.space/eidos-file"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -31,7 +32,14 @@ describe("EidosFileRecordAttachmentEditor", () => {
 
   it("imports and removes Space files without a modal editor", async () => {
     const onChange = vi.fn(async (_value: string | null) => undefined)
-    const onImportFiles = vi.fn(async () => ["assets/new.png"])
+    const imported: FileEntry = {
+      id: "0198c6b9-c9a3-7cb9-82d0-dfb39d51c45e",
+      mediaType: "image/png",
+      name: "new.png",
+      size: "42",
+      uri: "assets/new.png",
+    }
+    const onImportFiles = vi.fn(async () => [imported])
     await act(async () => {
       root.render(
         <EidosFileRecordAttachmentEditor
@@ -50,21 +58,19 @@ describe("EidosFileRecordAttachmentEditor", () => {
       await Promise.resolve()
     })
     expect(onImportFiles).toHaveBeenCalledTimes(1)
-    expect(decodeEidosFileAttachmentPaths(onChange.mock.calls[0]?.[0])).toEqual(
-      ["assets/old.png", "assets/new.png"]
-    )
+    expect(
+      decodeEidosFileValues(onChange.mock.calls[0]?.[0]).map(
+        (entry) => entry.uri
+      )
+    ).toEqual(["assets/old.png", "assets/new.png"])
 
     onChange.mockClear()
     await act(async () => {
       container
-        .querySelector<HTMLButtonElement>(
-          '[aria-label="Remove assets/old.png"]'
-        )
+        .querySelector<HTMLButtonElement>('[aria-label="Remove old.png"]')
         ?.click()
       await Promise.resolve()
     })
-    expect(decodeEidosFileAttachmentPaths(onChange.mock.calls[0]?.[0])).toEqual(
-      []
-    )
+    expect(decodeEidosFileValues(onChange.mock.calls[0]?.[0])).toEqual([])
   })
 })

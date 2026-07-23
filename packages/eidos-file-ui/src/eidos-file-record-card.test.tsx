@@ -25,9 +25,6 @@ const eidosFileUiMocks = vi.hoisted(() => {
     useEidosFileUI: vi.fn(() => ({
       themeName: "light" as const,
       translate,
-      resolveAssetUrl: (path: string) =>
-        `/~/${path.split("/").map(encodeURIComponent).join("/")}`,
-      resolveFilePreview: (path: string) => path,
     })),
   }
 })
@@ -118,7 +115,7 @@ describe("EidosFileRecordCard", () => {
     container.remove()
   })
 
-  it("streams a local File field through the Space asset route", async () => {
+  it("does not reinterpret a relative File URI without a Host lease", async () => {
     await act(async () => {
       root.render(
         <EidosFileRecordCard
@@ -135,12 +132,9 @@ describe("EidosFileRecordCard", () => {
       await Promise.resolve()
     })
 
-    expect(container.querySelector("img")?.getAttribute("src")).toBe(
-      "/~/assets/cover.png"
-    )
-    expect(container.querySelector("img")?.className).toContain(
-      "object-contain"
-    )
+    expect(container.querySelector("img")).toBeNull()
+    expect(container.textContent).toContain("cover.png")
+    expect(container.textContent).toContain("assets/cover.png")
 
     await act(async () => {
       root.render(
@@ -155,7 +149,7 @@ describe("EidosFileRecordCard", () => {
     expect(container.querySelector("img")).toBeNull()
   })
 
-  it("uses a URL field as a portable card cover", async () => {
+  it("keeps a URL field inert instead of using it as a card cover", async () => {
     await act(async () => {
       root.render(
         <EidosFileRecordCard
@@ -178,12 +172,13 @@ describe("EidosFileRecordCard", () => {
       await Promise.resolve()
     })
 
-    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+    expect(container.querySelector("img")).toBeNull()
+    expect(container.textContent).toContain(
       "https://images.example.test/cover.png"
     )
   })
 
-  it("encodes nested local cover paths for the Space route", async () => {
+  it("exposes the lossless nested relative URI as inert text", async () => {
     await act(async () => {
       root.render(
         <EidosFileRecordCard
@@ -199,12 +194,11 @@ describe("EidosFileRecordCard", () => {
       )
     })
 
-    expect(container.querySelector("img")?.getAttribute("src")).toBe(
-      "/~/Media/hello%20world%231.png"
-    )
+    expect(container.querySelector("img")).toBeNull()
+    expect(container.textContent).toContain("Media/hello%20world%231.png")
   })
 
-  it("recovers from a failed cover when the record source changes", async () => {
+  it("updates the inert File fallback when the entry changes", async () => {
     const renderCover = (path: string) =>
       root.render(
         <EidosFileRecordCard
@@ -220,17 +214,12 @@ describe("EidosFileRecordCard", () => {
       )
 
     await act(async () => renderCover("assets/missing.png"))
-    await act(async () => {
-      container
-        .querySelector("img")
-        ?.dispatchEvent(new Event("error", { bubbles: true }))
-    })
     expect(container.querySelector("img")).toBeNull()
+    expect(container.textContent).toContain("assets/missing.png")
 
     await act(async () => renderCover("assets/replacement.png"))
-    expect(container.querySelector("img")?.getAttribute("src")).toBe(
-      "/~/assets/replacement.png"
-    )
+    expect(container.querySelector("img")).toBeNull()
+    expect(container.textContent).toContain("assets/replacement.png")
   })
 
   it("exposes record actions from the card menu", async () => {

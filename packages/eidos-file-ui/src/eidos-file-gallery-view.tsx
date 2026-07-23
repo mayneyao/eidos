@@ -17,6 +17,7 @@ import type {
   EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
+  FileEntry,
 } from "@eidos.space/eidos-file"
 import { LoaderCircle } from "lucide-react"
 
@@ -200,8 +201,6 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   onImportDroppedFiles,
   onSearchRelation,
   onDeleteRow,
-  onOpenFile,
-  onRevealFile,
   onOpenRecordInTab,
   onRowCountChange,
   onError,
@@ -224,15 +223,13 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
     field: EidosFileFieldInfo,
     value: EidosFileSqlPrimitive
   ) => Promise<EidosFileRowMutationResult>
-  onImportFiles?: () => Promise<string[]>
-  onImportDroppedFiles?: (files: File[]) => Promise<string[]>
+  onImportFiles?: () => Promise<FileEntry[]>
+  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
   onSearchRelation?: (
     field: EidosFileFieldInfo,
     query: string
   ) => Promise<EidosFileRelationValue[]>
   onDeleteRow?: (row: EidosFileRow) => Promise<void>
-  onOpenFile?: (path: string) => void
-  onRevealFile?: (path: string) => Promise<void> | void
   onOpenRecordInTab?: (row: EidosFileRow) => void
   onRowCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
@@ -764,16 +761,6 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
             onImportFiles={onImportFiles}
             onImportDroppedFiles={onImportDroppedFiles}
             onSearchRelation={onSearchRelation}
-            onOpenFile={onOpenFile}
-            onRevealFile={
-              onRevealFile
-                ? (path) => {
-                    void Promise.resolve(onRevealFile(path)).catch((error) =>
-                      onError?.(error)
-                    )
-                  }
-                : undefined
-            }
           />
         ) : null)}
       {onDeleteRow ? (
