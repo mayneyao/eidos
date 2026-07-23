@@ -255,11 +255,15 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     configs: EidosFileColumnStatConfig[],
     query: EidosFileRowQuery
   ): Promise<EidosFileColumnStatResult[]> {
-    if (configs.some((config) => config.type.startsWith("relation-"))) {
-      return this.calculateRelationStats(tableId, configs, query)
-    }
+    const structuredConfigs = configs.filter((config) =>
+      this.requiresStructuredColumnStat(config)
+    )
+    const aggregateConfigs = configs.filter(
+      (config) => !this.requiresStructuredColumnStat(config)
+    )
+    const results: EidosFileColumnStatResult[] = []
     const items: AggregateItem[] = []
-    for (const [index, config] of configs.entries()) {
+    for (const [index, config] of aggregateConfigs.entries()) {
       if (config.type === "count-all")
         items.push({ key: String(index), op: "count-all" })
       else if (config.type === "count-empty") {
@@ -285,24 +289,44 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         })
       }
     }
-    const response = await this.runtime.aggregate(
-      { tableId, query: this.runtimeQuery(tableId, query), items },
-      this.context("aggregate")
+    if (items.length > 0) {
+      const response = await this.runtime.aggregate(
+        { tableId, query: this.runtimeQuery(tableId, query), items },
+        this.context("aggregate")
+      )
+      const values = new Map(
+        response.results.map((result) => [
+          result.key,
+          "value" in result ? result.value : null,
+        ])
+      )
+      results.push(
+        ...aggregateConfigs.map((config, index) => {
+          const value =
+            config.type === "count-empty"
+              ? Number(values.get(`${index}:all`) ?? 0) -
+                Number(values.get(`${index}:present`) ?? 0)
+              : (values.get(String(index)) ?? null)
+          return { ...config, value: this.statValue(value) }
+        })
+      )
+    }
+    if (structuredConfigs.length > 0) {
+      results.push(
+        ...(await this.calculateStructuredColumnStats(
+          tableId,
+          structuredConfigs,
+          query
+        ))
+      )
+    }
+    return configs.map(
+      (config) =>
+        results.find(
+          (result) =>
+            result.fieldId === config.fieldId && result.type === config.type
+        ) ?? { ...config, value: null }
     )
-    const values = new Map(
-      response.results.map((result) => [
-        result.key,
-        "value" in result ? result.value : null,
-      ])
-    )
-    return configs.map((config, index) => {
-      const value =
-        config.type === "count-empty"
-          ? Number(values.get(`${index}:all`) ?? 0) -
-            Number(values.get(`${index}:present`) ?? 0)
-          : (values.get(String(index)) ?? null)
-      return { ...config, value: this.statValue(value) }
-    })
   }
 
   async previewFormula(
@@ -1771,13 +1795,27 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     return Number(count && "value" in count ? count.value : 0)
   }
 
-  private async calculateRelationStats(
+  private requiresStructuredColumnStat(
+    config: EidosFileColumnStatConfig
+  ): boolean {
+    if (config.type.startsWith("relation-")) return true
+    if (config.type !== "count-empty") return false
+    const valueType = this.fields.get(config.fieldId)?.valueType
+    return (
+      typeof valueType === "object" ||
+      valueType === "file" ||
+      valueType === "multi-select" ||
+      valueType === "relation"
+    )
+  }
+
+  private async calculateStructuredColumnStats(
     tableId: string,
     configs: EidosFileColumnStatConfig[],
     query: EidosFileRowQuery
   ): Promise<EidosFileColumnStatResult[]> {
     const values = new Map(
-      configs.map((config) => [config.fieldId, [] as string[]])
+      configs.map((config) => [config.fieldId, [] as unknown[][]])
     )
     let cursor: string | undefined
     do {
@@ -1795,23 +1833,15 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       page.rows.forEach((row) => {
         row.values.forEach((value, index) => {
           const bucket = values.get(selected[index]!)!
-          const ids = Array.isArray(value) ? value.map(String) : []
-          bucket.push(...ids, "\u0000")
+          bucket.push(Array.isArray(value) ? value : [])
         })
       })
       cursor = page.nextCursor ?? undefined
     } while (cursor)
     return configs.map((config) => {
-      const bucket = values.get(config.fieldId) ?? []
-      const rowCount = bucket.filter((value) => value === "\u0000").length
-      const targets = bucket.filter((value) => value !== "\u0000")
-      const nonEmptyRows = bucket.reduce(
-        (count, value, index) =>
-          value === "\u0000" && index > 0 && bucket[index - 1] !== "\u0000"
-            ? count + 1
-            : count,
-        0
-      )
+      const rows = values.get(config.fieldId) ?? []
+      const targets = rows.flat().map(String)
+      const nonEmptyRows = rows.filter((value) => value.length > 0).length
       const value =
         config.type === "relation-value-count"
           ? targets.length
@@ -1820,7 +1850,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
             : config.type === "relation-distinct-target-count"
               ? new Set(targets).size
               : config.type === "count-empty"
-                ? rowCount - nonEmptyRows
+                ? rows.length - nonEmptyRows
                 : null
       return { ...config, value }
     })

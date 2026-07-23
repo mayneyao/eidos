@@ -190,7 +190,7 @@ describe("EidosRuntimeEditorDataSource", () => {
               ? "Demo"
               : fieldId === TEAM
                 ? [TEAM_ROW, MISSING_TEAM_ROW]
-                : ["Quality"]
+                : []
           ),
           resolvedRelations: request.projection.resolveRelations.includes(TEAM)
             ? [
@@ -217,10 +217,13 @@ describe("EidosRuntimeEditorDataSource", () => {
       nextCursor: null,
       previousCursor: null,
     }))
-    const aggregate = vi.fn(async (_request: AggregateRequest) => ({
+    const aggregate = vi.fn(async (request: AggregateRequest) => ({
       fileId: FILE,
       revision: "1",
-      results: [{ key: "count", op: "count-all" as const, value: "1" }],
+      results: request.items.map((item) => ({
+        key: item.key,
+        value: "1",
+      })),
     }))
     const mutateRows = vi.fn(
       async (request: RowMutation): Promise<MutationResult> => ({
@@ -408,6 +411,33 @@ describe("EidosRuntimeEditorDataSource", () => {
     expect(page.rows[0]?.[`${TEAM}__display`]).toBe(
       JSON.stringify([{ id: TEAM_ROW, title: "Runtime Core" }])
     )
+
+    await expect(
+      source.calculateColumnStats(
+        PROJECTS,
+        [
+          { fieldId: TITLE, type: "count-all" },
+          { fieldId: TEAM, type: "relation-distinct-target-count" },
+          { fieldId: SIGNALS, type: "count-empty" },
+        ],
+        {}
+      )
+    ).resolves.toEqual([
+      { fieldId: TITLE, type: "count-all", value: 1 },
+      {
+        fieldId: TEAM,
+        type: "relation-distinct-target-count",
+        value: 2,
+      },
+      { fieldId: SIGNALS, type: "count-empty", value: 1 },
+    ])
+    await expect(
+      source.calculateColumnStats(
+        PROJECTS,
+        [{ fieldId: SIGNALS, type: "count-empty" }],
+        {}
+      )
+    ).resolves.toEqual([{ fieldId: SIGNALS, type: "count-empty", value: 1 }])
 
     await source.updateRow(PROJECTS, PROJECT_ROW, { [TEAM]: "[]" })
 

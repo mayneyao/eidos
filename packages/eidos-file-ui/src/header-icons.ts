@@ -1,7 +1,11 @@
 import type { SpriteMap } from "@glideapps/glide-data-grid"
 
+export const EIDOS_FILE_EMPTY_STAT_ICON = "eidos-file-empty-stat"
+
 export const makeHeaderIcons = (size: number): SpriteMap => {
   return {
+    [EIDOS_FILE_EMPTY_STAT_ICON]: () =>
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"></svg>`,
     text: (p) =>
       `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${p.bgColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-baseline"><path d="M4 20h16"/><path d="m6 16 6-12 6 12"/><path d="M8 12h8"/></svg>`,
     number: (p) =>

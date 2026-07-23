@@ -48,6 +48,7 @@ import DatePickerCell from "./cells/date-picker-cell"
 import RatingCell from "./cells/rating-cell"
 import RangeCell from "./cells/range-cell"
 import { defaultConfig } from "./grid-default-config"
+import { EIDOS_FILE_EMPTY_STAT_ICON } from "./header-icons"
 import { type UndoRedoEdit, useUndoRedo } from "./use-undo-redo"
 import { useEidosFileUI } from "./context"
 import { useEidosFileGridTheme } from "./theme"
@@ -613,6 +614,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
             ? {
                 trailingRowOptions: {
                   hint: columnStatHint(stat, field),
+                  addIcon: EIDOS_FILE_EMPTY_STAT_ICON,
                 },
               }
             : {}),

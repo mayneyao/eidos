@@ -965,8 +965,14 @@ describe("EidosFileGrid", () => {
     expect(mocks.props?.columns[0].trailingRowOptions?.hint).toBe(
       "Count non-null: 250"
     )
+    expect(mocks.props?.columns[0].trailingRowOptions?.addIcon).toBe(
+      "eidos-file-empty-stat"
+    )
     expect(mocks.props?.columns[1].trailingRowOptions?.hint).toBe(
       "Count distinct: 40"
+    )
+    expect(mocks.props?.columns[1].trailingRowOptions?.addIcon).toBe(
+      "eidos-file-empty-stat"
     )
 
     await act(async () => {
