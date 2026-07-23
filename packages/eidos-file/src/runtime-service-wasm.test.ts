@@ -5,6 +5,7 @@ import { dirname, join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { expectConnectionPortConformance } from "./connection-port.conformance"
+import { eidosFilePhysicalName, quoteIdentifier } from "./identifiers"
 import { Runtime } from "./runtime-service"
 import { SQLiteWasmConnectionPort } from "./sqlite-wasm"
 import type { RequestContext, RuntimeEnvironment } from "./runtime-contract"
@@ -160,6 +161,12 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
                   resultType: "checkbox",
                 },
               },
+              {
+                clientKey: "files",
+                name: "Files",
+                kind: "file",
+                position: "5",
+              },
             ],
             labelFieldClientKey: "group",
           },
@@ -191,6 +198,9 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
       )!.id
       const mixedFieldId = schema.createdObjects.find(
         (entry) => "clientKey" in entry && entry.clientKey === "mixed"
+      )!.id
+      const fileFieldId = schema.createdObjects.find(
+        (entry) => "clientKey" in entry && entry.clientKey === "files"
       )!.id
       const formulaPreview = await runtime.previewFormula(
         {
@@ -600,6 +610,72 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
           hiddenFields: [overflowFieldId],
         },
       })
+
+      const payload = `${"AAAA".repeat(349_525)}AA==`
+      const inlineEntry = await binding.hostBridge.allocateFileEntry(
+        {
+          name: "boundary.png",
+          mediaType: "image/png",
+          size: "1048576",
+          uri: `data:image/png;base64,${payload}`,
+        },
+        context("allocate-inline-boundary")
+      )
+      const beforeFileMutation = await runtime.getSnapshot(
+        {},
+        context("snapshot-before-file")
+      )
+      const fileMutation = await runtime.mutateRows(
+        {
+          tableId,
+          expectedRevision: beforeFileMutation.revision,
+          changes: [
+            {
+              kind: "update",
+              rowId: firstItemId,
+              values: { [fileFieldId]: [inlineEntry] },
+            },
+          ],
+        },
+        context("mutate-inline-boundary")
+      )
+      const fileRows = await runtime.getRowsById(
+        {
+          tableId,
+          rowIds: [firstItemId],
+          projection: { fields: [fileFieldId], resolveRelations: [] },
+        },
+        context("read-inline-boundary")
+      )
+      expect(fileRows.revision).toBe(fileMutation.revision)
+      expect(fileRows.rows[0]?.values[0]).toEqual([inlineEntry])
+
+      const tablePhysicalName = eidosFilePhysicalName("table", "Items", tableId)
+      const fieldPhysicalName = eidosFilePhysicalName(
+        "field",
+        "Files",
+        fileFieldId,
+        ["_id", "_created_at", "_updated_at", "Group", "Amount"]
+      )
+      connection.transaction("write", () =>
+        connection.query(
+          `UPDATE ${quoteIdentifier(tablePhysicalName)} SET ${quoteIdentifier(fieldPhysicalName)} = ?1 WHERE "_id" = ?2 RETURNING "_id"`,
+          [
+            { tag: "text", value: "[] " },
+            { tag: "text", value: firstItemId },
+          ]
+        )
+      )
+      await expect(
+        runtime.getRowsById(
+          {
+            tableId,
+            rowIds: [firstItemId],
+            projection: { fields: [fileFieldId], resolveRelations: [] },
+          },
+          context("read-corrupt-file-value")
+        )
+      ).rejects.toMatchObject({ code: "corrupt-file" })
     } finally {
       await runtime.close(context("close"))
       connection.close()

@@ -482,6 +482,8 @@ export class BetterSqlite3ConnectionPort implements ConnectionPort {
     const effectiveMode = parent ?? mode
     const savepoint = "eidos_adapter_" + ++this.savepointSequence
     let started = false
+    const noCallbackFailure = Symbol("no-callback-failure")
+    let callbackFailure: unknown = noCallbackFailure
     try {
       this.database.exec(
         outer
@@ -493,7 +495,13 @@ export class BetterSqlite3ConnectionPort implements ConnectionPort {
       started = true
       this.transactionModes.push(effectiveMode)
       if (outer) this.mainReadEstablished = false
-      const result = operation()
+      let result: T | Promise<T>
+      try {
+        result = operation()
+      } catch (error) {
+        callbackFailure = error
+        throw error
+      }
       if (result instanceof Promise) {
         return result.then(
           (value) => {
@@ -512,7 +520,7 @@ export class BetterSqlite3ConnectionPort implements ConnectionPort {
           (error: unknown) => {
             try {
               this.rollbackTransaction(outer, savepoint)
-              throw mapBetterSqliteError(error)
+              throw error
             } finally {
               this.transactionModes.pop()
               if (outer) this.mainReadEstablished = false
@@ -528,7 +536,9 @@ export class BetterSqlite3ConnectionPort implements ConnectionPort {
     } catch (error) {
       try {
         if (started) this.rollbackTransaction(outer, savepoint)
-        throw mapBetterSqliteError(error)
+        throw callbackFailure === error && callbackFailure !== noCallbackFailure
+          ? error
+          : mapBetterSqliteError(error)
       } finally {
         if (started) this.transactionModes.pop()
         if (outer) this.mainReadEstablished = false

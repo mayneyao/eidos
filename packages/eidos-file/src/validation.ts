@@ -16,7 +16,7 @@ import {
 } from "./constants"
 import { compileEidosFileFormula } from "./formula"
 import { smallestDependencyCycle } from "./dependency-graph"
-import { assertEidosFileValues } from "./file-values"
+import { decodeEidosFileValues } from "./file-values"
 import { isEidosFileUuid, quoteIdentifier } from "./identifiers"
 import { isCanonicalEidosFileJson, parseEidosFileJson } from "./canonical-json"
 import { assertEidosFileSelectOptions } from "./select-options"
@@ -1759,10 +1759,23 @@ export function validateEidosFile(
             )
           }
           if (["multi-select", "file"].includes(field.type)) {
-            const parsed =
-              typeof value === "string" && isCanonicalEidosFileJson(value)
-                ? parseEidosFileJson(value)
-                : null
+            let parsed: unknown = null
+            if (field.type === "file" && typeof value === "string") {
+              try {
+                parsed = decodeEidosFileValues(value)
+              } catch (error) {
+                add(
+                  errors,
+                  "invalid-value",
+                  `${table.name}.${field.name}: ${error instanceof Error ? error.message : "invalid File value"}`
+                )
+              }
+            } else if (
+              typeof value === "string" &&
+              isCanonicalEidosFileJson(value)
+            ) {
+              parsed = parseEidosFileJson(value)
+            }
             if (!Array.isArray(parsed)) {
               add(
                 errors,
@@ -1781,17 +1794,6 @@ export function validateEidosFile(
                 "invalid-value",
                 `${table.name}.${field.name} must be a unique string array`
               )
-            }
-            if (field.type === "file" && Array.isArray(parsed)) {
-              try {
-                assertEidosFileValues(parsed)
-              } catch (error) {
-                add(
-                  errors,
-                  "invalid-value",
-                  `${table.name}.${field.name}: ${error instanceof Error ? error.message : "invalid File value"}`
-                )
-              }
             }
           }
           if (

@@ -49,9 +49,11 @@ Runtime replacement. UI bootstraps by Host negotiation, Runtime negotiation,
 snapshot and revision-bound schema paging. It invalidates generated page state
 on revision/epoch change and never interprets File storage.
 
-The older handle/session/data-source and editor component family remains for
-compatibility with the pre-freeze demo. It is deliberately documented as a
-legacy composition and is not evidence of EA-Host or EU profile conformance.
+File assets use the same boundary for relative, `https:`, and canonical inline
+image Data URLs. Runtime validates the logical object; Host policy supplies the
+session asset root, network permission, import placement, bounded lease, and
+isolated presenter. UI passes entry IDs only and never fetches or navigates the
+canonical URI.
 
 ## Interoperability verification
 

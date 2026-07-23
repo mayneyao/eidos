@@ -4,7 +4,7 @@ import {
   parseEidosFileJson,
 } from "./canonical-json"
 import type { EidosFileSqlPrimitive } from "./connection"
-import { assertEidosFileValues } from "./file-values"
+import { decodeEidosFileValues } from "./file-values"
 import { isEidosFileUuid } from "./identifiers"
 import type {
   ConversionPolicy,
@@ -471,8 +471,7 @@ function validateDestination(
       parseStringList(value)
       return
     case "file": {
-      const parsed = parseEidosFileJson(asText(value))
-      assertEidosFileValues(parsed)
+      decodeEidosFileValues(asText(value))
       return
     }
     case "relation": {

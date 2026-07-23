@@ -112,7 +112,7 @@ function copyArrayBuffer(bytes: ArrayBuffer | Uint8Array): ArrayBuffer {
   return copy.buffer
 }
 
-function copyBytes(bytes: ArrayBuffer | Uint8Array): Uint8Array {
+function copyBytes(bytes: ArrayBuffer | Uint8Array): Uint8Array<ArrayBuffer> {
   return new Uint8Array(copyArrayBuffer(bytes))
 }
 

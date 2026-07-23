@@ -1400,7 +1400,7 @@ export interface EidosFileFieldValueRow {
 
 // @public (undocumented)
 export interface EidosFileFileValue {
-    [key: string]: unknown;
+    [key: string]: JsonValue;
     // (undocumented)
     id: string;
     // (undocumented)
@@ -2287,6 +2287,12 @@ export interface EidosFileTypeHandler {
 
 // @public (undocumented)
 export const eidosFileTypeHandler: EidosFileTypeHandler;
+
+// @public (undocumented)
+export type EidosFileUriClass = "relative" | "https" | "data";
+
+// @public (undocumented)
+export function eidosFileUriClass(uri: string): EidosFileUriClass | null;
 
 // @public (undocumented)
 export interface EidosFileValidationIssue {

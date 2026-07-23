@@ -1,4 +1,5 @@
 import type { EidosFileSqlPrimitive } from "./connection"
+import type { JsonValue } from "./protocol-types"
 
 export interface EidosFileMetadata {
   format: "eidos-file"
@@ -395,7 +396,7 @@ export interface EidosFileFileValue {
   /** Canonical non-negative signed-int64 decimal string. */
   size: string
   /** Extension members are preserved through parse and serialization. */
-  [key: string]: unknown
+  [key: string]: JsonValue
 }
 export type EidosFileRowValue = EidosFileSqlPrimitive | boolean
 export type EidosFileRow = Record<string, EidosFileRowValue>

@@ -74,12 +74,20 @@ bytes, and trusted Host authority remain outside UI.
 - lowercase hyphenated UUIDv7 identity;
 - exact physical naming, rename and conversion behavior;
 - canonical date/datetime, JSON, list, File and Relation values;
+- File entries limited to confined relative URI-references, absolute `https:`
+  URIs, or canonical inline image Data URLs; inline bytes are validated against
+  declared media type and size and are capped at 1 MiB;
 - virtual Formula, Lookup and inverse-Relation projection;
 - revision, no-op mutation, delete policy and cache invalidation semantics;
 - cumulative identity/structural/content/semantic/full validation.
 
 Unsupported pre-1.0 draft schemas are rejected rather than guessed or
 silently migrated.
+
+Runtime validates File values but grants no fetch, render, filesystem, or
+network authority. Relative/HTTPS bytes never enter a hidden SQLite attachment
+store. A Host resolves them through session-scoped asset leases; the canonical
+Data URL is the sole inline-byte exception and stores bytes once in `uri`.
 
 ## Verification
 

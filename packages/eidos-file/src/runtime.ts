@@ -11,7 +11,7 @@ import {
   EIDOS_FILE_VIEWS_TABLE,
 } from "./constants"
 import { EidosFileError } from "./errors"
-import { assertEidosFileValues } from "./file-values"
+import { assertEidosFileValues, decodeEidosFileValues } from "./file-values"
 import { registerEidosFormulaFunctions } from "./formula-functions"
 import {
   compileEidosFileFormula,
@@ -3171,7 +3171,18 @@ export class EidosFileRuntime {
                 field.property?.aggregate === "values") ||
               field.type === "json")
           ) {
-            value = parseEidosFileJson(raw)
+            if (field.type === "file") {
+              try {
+                value = decodeEidosFileValues(raw)
+              } catch {
+                throw new EidosFileError(
+                  "invalid-sqlite",
+                  `${field.name} contains an invalid stored File value`
+                )
+              }
+            } else {
+              value = parseEidosFileJson(raw)
+            }
           } else if (resultType === "checkbox" && typeof raw === "number") {
             value = raw === 1
           }
@@ -3632,9 +3643,9 @@ export class EidosFileRuntime {
       return canonicalizeEidosFileJson(parsed)
     }
     if (field.type === "file") {
-      const parsed =
-        typeof value === "string" ? parseEidosFileJson(value) : value
-      return canonicalizeEidosFileJson(assertEidosFileValues(parsed))
+      return typeof value === "string"
+        ? canonicalizeEidosFileJson(decodeEidosFileValues(value))
+        : canonicalizeEidosFileJson(assertEidosFileValues(value))
     }
     if (field.type === "relation") {
       const ids = Array.isArray(value)

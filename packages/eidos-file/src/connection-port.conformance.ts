@@ -92,6 +92,19 @@ export async function expectConnectionPortConformance(
     ).toEqual([{ tag: "integer", value: "6" }])
   })
 
+  const callbackFailure = new Error("connection callback failure")
+  expect(() =>
+    connection.transaction("write", () => {
+      connection.run("INSERT INTO eidos_adapter_conformance(value) VALUES (99)")
+      throw callbackFailure
+    })
+  ).toThrow(callbackFailure)
+  expect(
+    connection.get(
+      "SELECT count(*) FROM eidos_adapter_conformance WHERE value=99"
+    ).row
+  ).toEqual([{ tag: "integer", value: "0" }])
+
   const snapshot = await connection.transaction("read", async () => {
     connection.get("SELECT count(*) FROM sqlite_schema")
     return connection.snapshot({

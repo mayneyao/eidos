@@ -4,32 +4,129 @@ import { createEidosFileUuid, isEidosFileUuid } from "./identifiers"
 import type { EidosFileFileValue, EidosFileRowValue } from "./types"
 
 const MAX_FILE_VALUES = 10_000
+const MAX_FILE_JSON_BYTES = 16 * 1_024 * 1_024
+const MAX_INLINE_IMAGE_BYTES = 1_048_576n
 const NON_NEGATIVE_INT64 = /^(?:0|[1-9][0-9]*)$/u
-const MEDIA_TYPE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+\/[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u
+const MEDIA_TYPE_RESTRICTED_NAME = /^[0-9A-Za-z][!#$&+.^_0-9A-Za-z-]{0,126}$/u
+const URI_SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/u
+const URI_REFERENCE_ASCII =
+  /^(?:[A-Za-z0-9\-._~!$&'()*+,;=:@/?#\[\]]|%[0-9A-Fa-f]{2})*$/u
+const CANONICAL_BASE64 =
+  /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u
 const MAX_SIGNED_INT64 = 9_223_372_036_854_775_807n
+const encoder = new TextEncoder()
 
-export function isSafeEidosFileUri(uri: string): boolean {
-  if (!uri || uri.includes("\0") || uri.includes("\\")) return false
-  if (uri.startsWith("https://")) {
-    try {
-      return new URL(uri).protocol === "https:"
-    } catch {
-      return false
-    }
+export type EidosFileUriClass = "relative" | "https" | "data"
+
+function isEidosFileMediaType(value: string): boolean {
+  const separator = value.indexOf("/")
+  return (
+    separator > 0 &&
+    separator === value.lastIndexOf("/") &&
+    MEDIA_TYPE_RESTRICTED_NAME.test(value.slice(0, separator)) &&
+    MEDIA_TYPE_RESTRICTED_NAME.test(value.slice(separator + 1))
+  )
+}
+
+function decodedBase64Size(payload: string): bigint | null {
+  if (
+    payload.length === 0 ||
+    payload.length % 4 !== 0 ||
+    !CANONICAL_BASE64.test(payload)
+  ) {
+    return null
   }
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/u.test(uri) || uri.startsWith("/")) {
+  const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0
+  const alphabet =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+  if (padding === 2) {
+    const last = alphabet.indexOf(payload[payload.length - 3] ?? "")
+    if (last < 0 || (last & 0b1111) !== 0) return null
+  } else if (padding === 1) {
+    const last = alphabet.indexOf(payload[payload.length - 2] ?? "")
+    if (last < 0 || (last & 0b11) !== 0) return null
+  }
+  return BigInt(payload.length / 4) * 3n - BigInt(padding)
+}
+
+function inlineImageDataUrl(
+  uri: string
+): { mediaType: string; decodedSize: bigint } | null {
+  if (!uri.startsWith("data:")) return null
+  const marker = ";base64,"
+  const markerIndex = uri.indexOf(marker, 5)
+  if (markerIndex < 0 || uri.indexOf(marker, markerIndex + 1) >= 0) return null
+  const mediaType = uri.slice(5, markerIndex)
+  const payload = uri.slice(markerIndex + marker.length)
+  if (
+    !mediaType.startsWith("image/") ||
+    mediaType !== mediaType.toLowerCase() ||
+    !isEidosFileMediaType(mediaType)
+  ) {
+    return null
+  }
+  const decodedSize = decodedBase64Size(payload)
+  if (
+    decodedSize === null ||
+    decodedSize < 1n ||
+    decodedSize > MAX_INLINE_IMAGE_BYTES
+  ) {
+    return null
+  }
+  return { mediaType, decodedSize }
+}
+
+function isContainedRelativeUri(uri: string): boolean {
+  if (
+    !URI_REFERENCE_ASCII.test(uri) ||
+    uri.includes("\0") ||
+    uri.includes("\\") ||
+    uri.startsWith("/") ||
+    URI_SCHEME.test(uri)
+  ) {
     return false
   }
+  const pathEnd = uri.search(/[?#]/u)
+  const path = pathEnd < 0 ? uri : uri.slice(0, pathEnd)
+  let decoded: string
   try {
-    const decoded = decodeURIComponent(uri)
-    return (
-      !decoded.startsWith("/") &&
-      !decoded.includes("\\") &&
-      !decoded.split(/[/?#]/u).includes("..")
-    )
+    decoded = decodeURIComponent(path)
   } catch {
     return false
   }
+  if (decoded.startsWith("/") || decoded.includes("\\")) return false
+  let depth = 0
+  for (const part of decoded.split("/")) {
+    if (!part || part === ".") continue
+    if (part === "..") {
+      if (depth === 0) return false
+      depth -= 1
+    } else {
+      depth += 1
+    }
+  }
+  return true
+}
+
+export function eidosFileUriClass(uri: string): EidosFileUriClass | null {
+  if (uri.startsWith("data:")) return inlineImageDataUrl(uri) ? "data" : null
+  if (/^https:\/\//iu.test(uri)) {
+    try {
+      const parsed = new URL(uri)
+      return URI_REFERENCE_ASCII.test(uri) &&
+        parsed.protocol === "https:" &&
+        parsed.hostname.length > 0
+        ? "https"
+        : null
+    } catch {
+      return null
+    }
+  }
+  return isContainedRelativeUri(uri) ? "relative" : null
+}
+
+export function isSafeEidosFileUri(uri: string): boolean {
+  return eidosFileUriClass(uri) !== null
 }
 
 export function assertEidosFileValues(value: unknown): EidosFileFileValue[] {
@@ -43,7 +140,8 @@ export function assertEidosFileValues(value: unknown): EidosFileFileValue[] {
     )
   }
   const ids = new Set<string>()
-  return value.map((entry) => {
+  let canonicalBytes = 2
+  return value.map((entry, index) => {
     if (!entry || Array.isArray(entry) || typeof entry !== "object") {
       throw new EidosFileError(
         "invalid-value",
@@ -56,12 +154,11 @@ export function assertEidosFileValues(value: unknown): EidosFileFileValue[] {
       !isEidosFileUuid(candidate.id) ||
       ids.has(candidate.id) ||
       typeof candidate.uri !== "string" ||
-      !isSafeEidosFileUri(candidate.uri) ||
       typeof candidate.name !== "string" ||
       candidate.name.length === 0 ||
       candidate.name.includes("\u0000") ||
       typeof candidate.mediaType !== "string" ||
-      !MEDIA_TYPE.test(candidate.mediaType) ||
+      !isEidosFileMediaType(candidate.mediaType) ||
       typeof candidate.size !== "string" ||
       !NON_NEGATIVE_INT64.test(candidate.size) ||
       BigInt(candidate.size) > MAX_SIGNED_INT64
@@ -71,8 +168,22 @@ export function assertEidosFileValues(value: unknown): EidosFileFileValue[] {
         "File value contains an invalid entry"
       )
     }
+    const uriClass = eidosFileUriClass(candidate.uri)
+    const inline =
+      uriClass === "data" ? inlineImageDataUrl(candidate.uri) : null
+    if (
+      !uriClass ||
+      (inline !== null &&
+        (inline.mediaType !== candidate.mediaType ||
+          inline.decodedSize !== BigInt(candidate.size)))
+    ) {
+      throw new EidosFileError(
+        "invalid-value",
+        "File value contains an invalid entry"
+      )
+    }
     ids.add(candidate.id)
-    return {
+    const validated = {
       ...candidate,
       id: candidate.id,
       uri: candidate.uri,
@@ -80,20 +191,66 @@ export function assertEidosFileValues(value: unknown): EidosFileFileValue[] {
       mediaType: candidate.mediaType,
       size: candidate.size,
     } as EidosFileFileValue
+    let entryBytes: number
+    try {
+      entryBytes = encoder.encode(
+        canonicalizeEidosFileJson(validated)
+      ).byteLength
+    } catch {
+      throw new EidosFileError(
+        "invalid-value",
+        "File value contains an invalid entry"
+      )
+    }
+    canonicalBytes += entryBytes + (index === 0 ? 0 : 1)
+    if (canonicalBytes > MAX_FILE_JSON_BYTES) {
+      throw new EidosFileError(
+        "resource-limit",
+        "File value exceeds the 16 MiB canonical JSON limit"
+      )
+    }
+    return validated
   })
 }
 
 export function decodeEidosFileValues(
   value: EidosFileRowValue | undefined
 ): EidosFileFileValue[] {
-  if (value === undefined || value === null || value === "") return []
+  if (value === undefined || value === null) return []
   if (typeof value !== "string") {
     throw new EidosFileError(
       "invalid-value",
       "File value must be canonical JSON"
     )
   }
-  return assertEidosFileValues(parseEidosFileJson(value))
+  if (encoder.encode(value).byteLength > MAX_FILE_JSON_BYTES) {
+    throw new EidosFileError(
+      "resource-limit",
+      "File value exceeds the 16 MiB canonical JSON limit"
+    )
+  }
+  let parsed: unknown
+  try {
+    parsed = parseEidosFileJson(value)
+  } catch {
+    throw new EidosFileError("invalid-value", "File value must be valid JSON")
+  }
+  let canonical: string
+  try {
+    canonical = canonicalizeEidosFileJson(parsed)
+  } catch {
+    throw new EidosFileError(
+      "invalid-value",
+      "File value must be canonical JSON"
+    )
+  }
+  if (canonical !== value) {
+    throw new EidosFileError(
+      "invalid-value",
+      "File value must be canonical JSON"
+    )
+  }
+  return assertEidosFileValues(parsed)
 }
 
 export function encodeEidosFileValues(
@@ -105,7 +262,7 @@ export function encodeEidosFileValues(
 export function normalizeEidosFileAttachmentPath(value: string): string | null {
   const trimmed = value.trim()
   if (!trimmed || trimmed.includes("\0")) return null
-  if (trimmed.startsWith("https://")) {
+  if (/^https:\/\//iu.test(trimmed)) {
     return isSafeEidosFileUri(trimmed) ? trimmed : null
   }
   if (/^[a-z][a-z\d+.-]*:/iu.test(trimmed) || trimmed.startsWith("/")) {
@@ -115,12 +272,19 @@ export function normalizeEidosFileAttachmentPath(value: string): string | null {
   const normalized: string[] = []
   for (const part of parts) {
     if (!part || part === ".") continue
-    if (part === "..") {
+    let decoded: string
+    try {
+      decoded = decodeURIComponent(part)
+    } catch {
+      return null
+    }
+    if (decoded === "..") {
       if (normalized.length === 0) return null
       normalized.pop()
       continue
     }
-    normalized.push(part)
+    if (decoded === ".") continue
+    normalized.push(encodeURIComponent(decoded))
   }
   const uri = normalized.join("/")
   return isSafeEidosFileUri(uri) ? uri : null
@@ -150,7 +314,13 @@ export function encodeEidosFileAttachmentPaths(
     seen.add(uri)
     const existing = previous.get(uri)
     if (existing) return [existing]
-    const pathName = uri.split(/[/?#]/u).at(-1)
+    const encodedName = uri.split(/[/?#]/u).at(-1)
+    let pathName = encodedName
+    try {
+      pathName = encodedName ? decodeURIComponent(encodedName) : encodedName
+    } catch {
+      // normalizeEidosFileAttachmentPath already validated percent encoding.
+    }
     return [
       {
         id: createEidosFileUuid(),

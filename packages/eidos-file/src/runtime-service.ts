@@ -17,7 +17,7 @@ import {
   assertEidosFileUuid,
   EidosUuidV7Generator,
 } from "./identifiers"
-import { assertEidosFileValues } from "./file-values"
+import { assertEidosFileValues, decodeEidosFileValues } from "./file-values"
 import {
   eidosFileLookupAggregateSupportsTarget,
   eidosFileLookupDisplayType,
@@ -124,7 +124,8 @@ export const EIDOS_RUNTIME_LIMITS: RuntimeLimits = Object.freeze({
   groupFieldsMax: 8,
   searchBytesMax: 4_096,
   listElementsMax: 10_000,
-  logicalValueBytesMax: 1_048_576,
+  // A 1 MiB inline image expands to roughly 1.4 MiB as canonical Base64 JSON.
+  logicalValueBytesMax: 2 * 1_048_576,
   jsonCellBytesMax: 1_048_576,
   formulaBytesMax: 4_096,
   formulaNodesMax: 10_000,
@@ -1112,6 +1113,11 @@ export class EidosRuntimeService implements RuntimeClient {
         }
         normalized[fieldId] = null
         continue
+      }
+      if (type === "file") {
+        assertEidosFileValues(value)
+      } else if (type === "file-entry") {
+        assertEidosFileValues([value])
       }
       if (!logicalValueMatchesType(value, type)) {
         throw runtimeError("invalid-value", "Mutation value type is invalid", {
@@ -3108,7 +3114,9 @@ export class EidosRuntimeService implements RuntimeClient {
       return assertEidosFileValues([candidate])[0] as FileEntry
     } catch (error) {
       throw runtimeError(
-        "invalid-value",
+        error instanceof EidosFileError && error.code === "resource-limit"
+          ? "resource-limit"
+          : "invalid-value",
         error instanceof Error ? error.message : "Invalid File entry"
       )
     }
@@ -3748,9 +3756,19 @@ function logicalValueMatchesType(value: LogicalValue, type: TypeRef): boolean {
         value.every((entry) => typeof entry === "string")
       )
     case "file":
-      return Array.isArray(value) && value.every((entry) => isFileEntry(entry))
+      try {
+        assertEidosFileValues(value)
+        return true
+      } catch {
+        return false
+      }
     case "file-entry":
-      return isFileEntry(value)
+      try {
+        assertEidosFileValues([value])
+        return true
+      } catch {
+        return false
+      }
     case "json":
       if (typeof value !== "string") return false
       try {
@@ -3759,18 +3777,6 @@ function logicalValueMatchesType(value: LogicalValue, type: TypeRef): boolean {
         return false
       }
   }
-}
-
-function isFileEntry(value: unknown): value is FileEntry {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false
-  const entry = value as Record<string, unknown>
-  return (
-    typeof entry.id === "string" &&
-    typeof entry.name === "string" &&
-    typeof entry.mediaType === "string" &&
-    typeof entry.size === "string" &&
-    typeof entry.uri === "string"
-  )
 }
 
 function isJsonValue(value: unknown): boolean {
@@ -3970,12 +3976,34 @@ function compatibilityLogicalValue(
   if (
     typeof value === "string" &&
     typeof type === "string" &&
-    ["file", "multi-select", "relation"].includes(type)
+    ["multi-select", "relation"].includes(type)
   ) {
     return JSON.parse(value) as LogicalValue
   }
+  if (type === "file") {
+    try {
+      return typeof value === "string"
+        ? decodeEidosFileValues(value)
+        : assertEidosFileValues(value)
+    } catch {
+      throw runtimeError("corrupt-file", "Stored File value is invalid")
+    }
+  }
   if (typeof value === "string" && type === "file-entry") {
-    return JSON.parse(value) as LogicalValue
+    try {
+      const parsed = JSON.parse(value) as unknown
+      if (canonicalizeEidosFileJson(parsed) !== value) throw new Error()
+      return assertEidosFileValues([parsed])[0]!
+    } catch {
+      throw runtimeError("corrupt-file", "Stored File entry is invalid")
+    }
+  }
+  if (type === "file-entry") {
+    try {
+      return assertEidosFileValues([value])[0]!
+    } catch {
+      throw runtimeError("corrupt-file", "Stored File entry is invalid")
+    }
   }
   if (type === "checkbox" && typeof value === "number") return value === 1
   if (

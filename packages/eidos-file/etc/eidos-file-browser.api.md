@@ -1058,7 +1058,7 @@ export type EidosFileFieldType = "integer" | "json" | "relation" | "text" | "num
 
 // @public (undocumented)
 export interface EidosFileFileValue {
-    [key: string]: unknown;
+    [key: string]: JsonValue;
     // (undocumented)
     id: string;
     // (undocumented)
