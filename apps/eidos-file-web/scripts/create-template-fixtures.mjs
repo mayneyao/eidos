@@ -7,6 +7,7 @@ import {
   initializeEidosFileSchema,
   validateEidosFile,
 } from "../../../packages/eidos-file/dist/index.mjs"
+import { getFieldCapabilityMatrixData } from "./field-capability-matrix-data.mjs"
 import { ZH_TEMPLATE_LOCALIZATIONS } from "./template-localizations.mjs"
 
 class WasmConnection {
@@ -136,7 +137,22 @@ function configureViews(runtime, tableId, config) {
     .find((view) => view.type === "grid")
   if (!defaultGrid) throw new Error("Default Grid view is missing")
   const visible = new Set(config.grid)
+  const gridProperties = {
+    ...(defaultGrid.properties ?? {}),
+    ...(config.gridProperties ?? {}),
+    ...(config.statistics
+      ? {
+          columnStats: Object.fromEntries(
+            config.statistics.map(({ field: name, type }) => [
+              requiredField(runtime, tableId, name).id,
+              { type },
+            ])
+          ),
+        }
+      : {}),
+  }
   runtime.updateView(defaultGrid.id, {
+    properties: gridProperties,
     orderMap: orderMap(config.order ?? config.grid),
     hiddenFields: fields
       .filter(
@@ -154,6 +170,11 @@ function configureViews(runtime, tableId, config) {
       if (typeof layout[key] === "string") {
         layout[key] = byName.get(layout[key])?.id ?? layout[key]
       }
+    }
+    if (Array.isArray(layout.cardFields)) {
+      layout.cardFields = layout.cardFields.map((name) =>
+        typeof name === "string" ? (byName.get(name)?.id ?? name) : name
+      )
     }
     runtime.createView(tableId, {
       name: view.name,
@@ -205,6 +226,181 @@ function selectOptions(values) {
       color: colors[index % colors.length],
     })),
   }
+}
+
+const FEATURE_LAB_INSTANT = "2026-07-23T08:00:00.000Z"
+const FEATURE_LAB_FILE_ID = "019b0000-0000-7000-8000-000000000000"
+const FIELD_CAPABILITY_MATRIX_INSTANT = "2026-07-23T08:00:00.000Z"
+const FIELD_CAPABILITY_MATRIX_FILE_IDS = {
+  en: "019b1000-0000-7000-8000-000000000001",
+  zh: "019b1000-0000-7000-8000-000000000002",
+}
+
+function featureLabEnvironment() {
+  let sequence = 0
+  return {
+    nowInstant: () => FEATURE_LAB_INSTANT,
+    allocateId: () => {
+      sequence += 1
+      return `019b0000-0000-7000-8000-${sequence
+        .toString(16)
+        .padStart(12, "0")}`
+    },
+  }
+}
+
+function featureLabFileValue(sequence, overrides = {}) {
+  return {
+    id: `019b0001-0000-7000-8000-${sequence.toString(16).padStart(12, "0")}`,
+    uri: `assets/feature-lab/asset-${sequence}.png`,
+    name: `feature-lab-${sequence}.png`,
+    mediaType: "image/png",
+    size: String(2_048 + sequence),
+    ...overrides,
+  }
+}
+
+function fieldCapabilityMatrixEnvironment(locale) {
+  let sequence = 0
+  const namespace = locale === "zh" ? "019b1002" : "019b1001"
+  return {
+    nowInstant: () => FIELD_CAPABILITY_MATRIX_INSTANT,
+    allocateId: () => {
+      sequence += 1
+      return `${namespace}-0000-7000-8000-${sequence
+        .toString(16)
+        .padStart(12, "0")}`
+    },
+  }
+}
+
+function fieldCapabilityRows(fields, rows) {
+  return rows.map((row) =>
+    Object.fromEntries(
+      Object.entries(row).map(([key, value]) => [fields[key], value])
+    )
+  )
+}
+
+function buildFieldCapabilityMatrix(runtime, locale) {
+  const data = getFieldCapabilityMatrixData(locale)
+  const fields = data.fields
+  const matrix = runtime.createTable({
+    name: data.matrixTable,
+    icon: "table-properties",
+    description: data.matrixDescription,
+    fields: [
+      { name: fields.fieldKind, type: "text", isRecordLabel: true },
+      { name: fields.canonicalValue, type: "text" },
+      {
+        name: fields.mutation,
+        type: "select",
+        property: selectOptions(data.statuses.mutation),
+      },
+      { name: fields.filter, type: "text" },
+      {
+        name: fields.sort,
+        type: "select",
+        property: selectOptions(data.statuses.support),
+      },
+      {
+        name: fields.group,
+        type: "select",
+        property: selectOptions(data.statuses.support),
+      },
+      { name: fields.search, type: "text" },
+      { name: fields.wholeCellAggregate, type: "text" },
+      { name: fields.semanticSummary, type: "text" },
+      {
+        name: fields.formulaOperand,
+        type: "select",
+        property: selectOptions(data.statuses.formula),
+      },
+      { name: fields.lookupResult, type: "text" },
+      {
+        name: fields.recordLabel,
+        type: "select",
+        property: selectOptions(data.statuses.support),
+      },
+      { name: fields.csv, type: "text" },
+      {
+        name: fields.layerOwners,
+        type: "multi-select",
+        property: selectOptions(data.statuses.layers),
+      },
+      { name: fields.uiAdapter, type: "text" },
+    ],
+  })
+  insertRows(
+    runtime,
+    matrix.id,
+    fieldCapabilityRows(fields, data.capabilityRows)
+  )
+  configureViews(runtime, matrix.id, {
+    grid: [
+      fields.fieldKind,
+      fields.canonicalValue,
+      fields.mutation,
+      fields.filter,
+      fields.sort,
+      fields.group,
+      fields.search,
+      fields.wholeCellAggregate,
+      fields.semanticSummary,
+      fields.formulaOperand,
+      fields.lookupResult,
+      fields.recordLabel,
+      fields.csv,
+      fields.layerOwners,
+      fields.uiAdapter,
+    ],
+    gridProperties: { freezeColumns: 1, rowDensity: "compact" },
+  })
+
+  const statistics = runtime.createTable({
+    name: data.statisticsTable,
+    icon: "chart-no-axes-column-increasing",
+    description: data.statisticsDescription,
+    fields: [
+      { name: fields.metric, type: "text", isRecordLabel: true },
+      { name: fields.meaning, type: "text" },
+      { name: fields.scalar, type: "text" },
+      { name: fields.multiValue, type: "text" },
+    ],
+  })
+  insertRows(
+    runtime,
+    statistics.id,
+    fieldCapabilityRows(fields, data.statisticsRows)
+  )
+  configureViews(runtime, statistics.id, {
+    grid: [fields.metric, fields.meaning, fields.scalar, fields.multiValue],
+    gridProperties: { freezeColumns: 1, rowDensity: "compact" },
+  })
+
+  const glossary = runtime.createTable({
+    name: data.glossaryTable,
+    icon: "book-open-text",
+    description: data.glossaryDescription,
+    fields: [
+      { name: fields.term, type: "text", isRecordLabel: true },
+      { name: fields.definition, type: "text" },
+      {
+        name: fields.owner,
+        type: "select",
+        property: selectOptions(data.statuses.layers),
+      },
+    ],
+  })
+  insertRows(
+    runtime,
+    glossary.id,
+    fieldCapabilityRows(fields, data.glossaryRows)
+  )
+  configureViews(runtime, glossary.id, {
+    grid: [fields.term, fields.definition, fields.owner],
+    gridProperties: { freezeColumns: 1, rowDensity: "compact" },
+  })
 }
 
 function buildPersonalCrm(runtime) {
@@ -1575,6 +1771,744 @@ function buildContentCalendar(runtime) {
   })
 }
 
+function buildFeatureLab(runtime) {
+  const people = runtime.createTable({
+    name: "People",
+    icon: "users-round",
+    description:
+      "Owners and collaborators used by forward and inverse Relations.",
+    fields: [
+      { name: "Name", type: "text", isRecordLabel: true },
+      {
+        name: "Role",
+        type: "select",
+        property: selectOptions([
+          "Research",
+          "Design",
+          "Engineering",
+          "Operations",
+        ]),
+      },
+      { name: "Allocation", type: "integer", nullable: false },
+      { name: "Rate", type: "number" },
+      { name: "Joined", type: "date" },
+      { name: "Last check-in", type: "datetime" },
+      { name: "Active", type: "checkbox" },
+      { name: "Profile", type: "url" },
+      {
+        name: "Skills",
+        type: "multi-select",
+        property: selectOptions(["SQLite", "WASM", "UX", "Research", "QA"]),
+      },
+      { name: "Profile data", type: "json" },
+    ],
+  })
+  const programs = runtime.createTable({
+    name: "Programs",
+    icon: "folders",
+    description: "A second business dimension for portfolio grouping.",
+    fields: [
+      { name: "Name", type: "text", isRecordLabel: true },
+      { name: "Code", type: "text" },
+      { name: "Budget", type: "number", property: { format: "currency" } },
+      { name: "Active", type: "checkbox" },
+      { name: "Sponsor", type: "url" },
+    ],
+  })
+  const reference = runtime.createTable({
+    name: "eidos__Reference",
+    icon: "database",
+    description:
+      "A deliberately reserved display name whose SQLite physical name uses the Eidos fallback rule.",
+    fields: [
+      { name: "Label", type: "text", isRecordLabel: true },
+      {
+        name: "Kind",
+        type: "select",
+        property: selectOptions(["Dataset", "Protocol", "Benchmark"]),
+      },
+      { name: "Version", type: "integer" },
+      { name: "Canonical", type: "checkbox" },
+      { name: "Metadata", type: "json" },
+    ],
+  })
+  const experiments = runtime.createTable({
+    name: "Experiments",
+    icon: "flask-conical",
+    description:
+      "Every editable Eidos 1.0 field type, derived field family, and core View in one lab.",
+    fields: [
+      { name: "Experiment", type: "text", isRecordLabel: true },
+      { name: "Summary", type: "text" },
+      {
+        name: "Budget",
+        type: "number",
+        property: { format: "currency", showAs: "number" },
+      },
+      {
+        name: "Progress",
+        type: "number",
+        property: {
+          format: "percent",
+          showAs: "bar",
+          color: "green",
+          divideBy: 1,
+          showNumber: true,
+        },
+      },
+      { name: "Samples", type: "integer" },
+      {
+        name: "Stage",
+        type: "select",
+        property: selectOptions(["Idea", "Running", "Review", "Complete"]),
+      },
+      {
+        name: "Signals",
+        type: "multi-select",
+        property: selectOptions([
+          "Quality",
+          "Speed",
+          "Cost",
+          "Risk",
+          "Accessibility",
+        ]),
+      },
+      { name: "Approved", type: "checkbox" },
+      { name: "Confidence", type: "rating", property: { max: 5 } },
+      { name: "Website", type: "url" },
+      { name: "Start date", type: "date" },
+      { name: "Review at", type: "datetime" },
+      { name: "Assets", type: "file" },
+      { name: "Payload", type: "json" },
+    ],
+  })
+
+  const peopleSeed = [
+    ["Avery Chen", "Research", 40, 175.5],
+    ["Mina Park", "Design", 32, 160],
+    ["Theo Martin", "Engineering", 38, 190.25],
+    ["Nora Stone", "Operations", 28, 145],
+    ["Sam Rivera", "Research", 36, 172],
+    ["Iris Kim", "Design", 30, 158.75],
+    ["Jonah Shah", "Engineering", 35, 188],
+    ["Leila Rossi", "Operations", 26, 148.5],
+    ["Rowan Li", "Research", 34, 169],
+    ["Alex Garcia", "Design", 29, 155],
+    ["Sofia Wilson", "Engineering", 37, 192],
+    ["Noah Brown", "Operations", 27, 150],
+  ]
+  const peopleRows = peopleSeed.map(([Name, Role, Allocation, Rate], index) =>
+    runtime.insertRow(people.id, {
+      Name,
+      Role,
+      Allocation,
+      Rate,
+      Joined: isoDate(-400 + index * 21),
+      "Last check-in": new Date(
+        Date.UTC(2026, 6, 22 - (index % 10), 8 + (index % 6), 15)
+      ).toISOString(),
+      Active: index !== 11,
+      Profile: `https://example.com/people/${index + 1}`,
+      Skills: [
+        ["SQLite", "Research"],
+        ["UX", "Accessibility"],
+        ["WASM", "QA"],
+        ["QA"],
+      ][index % 4],
+      "Profile data": {
+        locale: index % 2 === 0 ? "en" : "zh",
+        timezone: ["Asia/Shanghai", "Europe/Paris", "America/New_York"][
+          index % 3
+        ],
+      },
+    })
+  )
+  const peopleIds = peopleRows.map((row) => String(row._id))
+
+  const programRows = [
+    ["Open format", "FMT", 420000],
+    ["Browser runtime", "WASM", 360000],
+    ["Editor craft", "UI", 280000],
+    ["Interoperability", "IO", 310000],
+  ].map(([Name, Code, Budget], index) =>
+    runtime.insertRow(programs.id, {
+      Name,
+      Code,
+      Budget,
+      Active: index !== 3,
+      Sponsor: `https://example.com/programs/${String(Code).toLowerCase()}`,
+    })
+  )
+  const programIds = programRows.map((row) => String(row._id))
+
+  const referenceRows = [
+    ["Eidos File 1.0", "Protocol"],
+    ["Runtime conformance", "Benchmark"],
+    ["Accessibility corpus", "Dataset"],
+    ["WASM performance", "Benchmark"],
+    ["Design tokens", "Dataset"],
+    ["Interop checklist", "Protocol"],
+  ].map(([Label, Kind], index) =>
+    runtime.insertRow(reference.id, {
+      Label,
+      Kind,
+      Version: index + 1,
+      Canonical: index < 2,
+      Metadata: { edition: 1, owner: "Feature Lab", sequence: index + 1 },
+    })
+  )
+  const referenceIds = referenceRows.map((row) => String(row._id))
+
+  const owner = runtime.addField(experiments.id, {
+    name: "Owner",
+    type: "relation",
+    property: {
+      targetTableId: people.id,
+      direction: "forward",
+      cardinality: "one",
+      onDelete: "restrict",
+    },
+  })
+  const collaborators = runtime.addField(experiments.id, {
+    name: "Collaborators",
+    type: "relation",
+    property: {
+      targetTableId: people.id,
+      direction: "forward",
+      cardinality: "many",
+      onDelete: "detach",
+    },
+  })
+  const program = runtime.addField(experiments.id, {
+    name: "Program",
+    type: "relation",
+    property: {
+      targetTableId: programs.id,
+      direction: "forward",
+      cardinality: "one",
+      onDelete: "preserve",
+    },
+  })
+  const source = runtime.addField(experiments.id, {
+    name: "Reference source",
+    type: "relation",
+    property: {
+      targetTableId: reference.id,
+      direction: "forward",
+      cardinality: "one",
+      onDelete: "restrict",
+    },
+  })
+
+  const ownerAllocation = runtime.addField(experiments.id, {
+    name: "Owner allocation",
+    type: "lookup",
+    property: {
+      relationField: owner.id,
+      targetField: requiredField(runtime, people.id, "Allocation").id,
+      aggregate: "first",
+      displayType: "integer",
+    },
+  })
+  runtime.addField(experiments.id, {
+    name: "Owner active",
+    type: "lookup",
+    property: {
+      relationField: owner.id,
+      targetField: requiredField(runtime, people.id, "Active").id,
+      aggregate: "first",
+      displayType: "checkbox",
+    },
+  })
+  runtime.addField(experiments.id, {
+    name: "Owner profile",
+    type: "lookup",
+    property: {
+      relationField: owner.id,
+      targetField: requiredField(runtime, people.id, "Profile").id,
+      aggregate: "first",
+      displayType: "url",
+    },
+  })
+  runtime.addField(experiments.id, {
+    name: "Owner profile data",
+    type: "lookup",
+    property: {
+      relationField: owner.id,
+      targetField: requiredField(runtime, people.id, "Profile data").id,
+      aggregate: "first",
+      displayType: "json",
+    },
+  })
+  runtime.addField(experiments.id, {
+    name: "Contributor names",
+    type: "lookup",
+    property: {
+      relationField: collaborators.id,
+      targetField: requiredField(runtime, people.id, "Name").id,
+      aggregate: "values",
+      displayType: "text",
+      distinct: true,
+    },
+  })
+  runtime.addField(experiments.id, {
+    name: "First collaborator",
+    type: "lookup",
+    property: {
+      relationField: collaborators.id,
+      targetField: requiredField(runtime, people.id, "Name").id,
+      aggregate: "first",
+      displayType: "text",
+    },
+  })
+  const contributorCount = runtime.addField(experiments.id, {
+    name: "Contributor count",
+    type: "lookup",
+    property: {
+      relationField: collaborators.id,
+      targetField: requiredField(runtime, people.id, "Allocation").id,
+      aggregate: "count",
+      displayType: "integer",
+    },
+  })
+  runtime.addField(experiments.id, {
+    name: "Total allocation",
+    type: "lookup",
+    property: {
+      relationField: collaborators.id,
+      targetField: requiredField(runtime, people.id, "Allocation").id,
+      aggregate: "sum",
+      displayType: "integer",
+    },
+  })
+  runtime.addField(experiments.id, {
+    name: "Average rate",
+    type: "lookup",
+    property: {
+      relationField: collaborators.id,
+      targetField: requiredField(runtime, people.id, "Rate").id,
+      aggregate: "average",
+      displayType: "number",
+    },
+  })
+  runtime.addField(experiments.id, {
+    name: "Earliest join",
+    type: "lookup",
+    property: {
+      relationField: collaborators.id,
+      targetField: requiredField(runtime, people.id, "Joined").id,
+      aggregate: "min",
+      displayType: "date",
+    },
+  })
+  runtime.addField(experiments.id, {
+    name: "Latest check-in",
+    type: "lookup",
+    property: {
+      relationField: collaborators.id,
+      targetField: requiredField(runtime, people.id, "Last check-in").id,
+      aggregate: "max",
+      displayType: "datetime",
+    },
+  })
+
+  const weightedBudget = runtime.addField(experiments.id, {
+    name: "Weighted budget",
+    type: "formula",
+    property: { formula: '"Budget" * "Progress"', displayType: "number" },
+  })
+  runtime.addField(experiments.id, {
+    name: "Sample successor",
+    type: "formula",
+    property: { formula: '"Samples" + 1', displayType: "integer" },
+  })
+  runtime.addField(experiments.id, {
+    name: "Lab headline",
+    type: "formula",
+    property: {
+      formula: "CONCAT(\"Experiment\", ' · lab')",
+      displayType: "text",
+    },
+  })
+  runtime.addField(experiments.id, {
+    name: "Ready",
+    type: "formula",
+    property: { formula: '"Approved" = TRUE', displayType: "checkbox" },
+  })
+  runtime.addField(experiments.id, {
+    name: "Next review",
+    type: "formula",
+    property: {
+      formula: 'DATE_ADD_DAYS("Start date", 14)',
+      displayType: "date",
+    },
+  })
+  runtime.addField(experiments.id, {
+    name: "Follow-up at",
+    type: "formula",
+    property: {
+      formula: 'DATETIME_ADD_MILLISECONDS("Review at", 3600000)',
+      displayType: "datetime",
+    },
+  })
+  runtime.addField(experiments.id, {
+    name: "Canonical page",
+    type: "formula",
+    property: { formula: '"Website"', displayType: "url" },
+  })
+  runtime.addField(experiments.id, {
+    name: "Payload mirror",
+    type: "formula",
+    property: { formula: '"Payload"', displayType: "json" },
+  })
+  const relationBackedLoad = runtime.addField(experiments.id, {
+    name: "Relation-backed load",
+    type: "formula",
+    property: {
+      formula: '"Owner allocation" + "Contributor count"',
+      displayType: "integer",
+    },
+  })
+
+  const ownedExperiments = runtime.addField(people.id, {
+    name: "Owned experiments",
+    type: "relation",
+    property: {
+      targetTableId: experiments.id,
+      direction: "inverse",
+      sourceFieldId: owner.id,
+      cardinality: "many",
+    },
+  })
+  runtime.addField(people.id, {
+    name: "Owned count",
+    type: "lookup",
+    property: {
+      relationField: ownedExperiments.id,
+      targetField: requiredField(runtime, experiments.id, "Samples").id,
+      aggregate: "count",
+      displayType: "integer",
+    },
+  })
+  const collaboratingExperiments = runtime.addField(people.id, {
+    name: "Collaborating experiments",
+    type: "relation",
+    property: {
+      targetTableId: experiments.id,
+      direction: "inverse",
+      sourceFieldId: collaborators.id,
+      cardinality: "many",
+    },
+  })
+  runtime.addField(people.id, {
+    name: "Collaborating budget",
+    type: "lookup",
+    property: {
+      relationField: collaboratingExperiments.id,
+      targetField: weightedBudget.id,
+      aggregate: "sum",
+      displayType: "number",
+    },
+  })
+
+  const experimentNames = [
+    "Feature Lab launch",
+    "Relation labels",
+    "Formula dependency graph",
+    "Lookup aggregation",
+    "Canonical dates",
+    "Portable attachments",
+    "Saved View behavior",
+    "Physical naming",
+  ]
+  const experimentRows = Array.from({ length: 180 }, (_, index) => {
+    const sequence = index + 1
+    const start = new Date(Date.UTC(2026, 0, 1 + (index % 300)))
+    const ownerIndex = index % peopleIds.length
+    const collaboratorsForRow =
+      index % 9 === 8
+        ? []
+        : [
+            peopleIds[(ownerIndex + 1) % peopleIds.length],
+            ...(index % 3 === 0
+              ? [peopleIds[(ownerIndex + 2) % peopleIds.length]]
+              : []),
+          ]
+    return {
+      Experiment:
+        index < experimentNames.length
+          ? experimentNames[index]
+          : `Feature experiment ${String(sequence).padStart(3, "0")}`,
+      Summary:
+        index === 1
+          ? ""
+          : index % 11 === 0
+            ? null
+            : "Change one source value and watch derived fields update.",
+      Budget:
+        index === 2 ? -1_234.5 : index === 3 ? 0 : 125_000.5 + index * 725.25,
+      Progress:
+        index === 0
+          ? 0.8
+          : index === 1
+            ? 0
+            : index === 2
+              ? 1
+              : (index % 10) / 10,
+      Samples:
+        index === 2
+          ? -9_223_372_036_854_775_808n
+          : index === 3
+            ? 9_223_372_036_854_775_807n
+            : 120 + index,
+      Stage:
+        index % 13 === 12
+          ? null
+          : ["Running", "Idea", "Review", "Complete"][index % 4],
+      Signals:
+        index % 10 === 9
+          ? []
+          : [
+              ["Quality", "Accessibility"],
+              ["Speed"],
+              ["Cost", "Risk"],
+              ["Quality", "Speed", "Cost"],
+            ][index % 4],
+      Approved: index % 7 === 6 ? null : index % 3 !== 1,
+      Confidence: index % 6,
+      Website: `https://editor.eidos.space/feature-lab#experiment-${sequence}`,
+      "Start date":
+        index === 4
+          ? "0001-01-01"
+          : index === 5
+            ? "9999-12-01"
+            : start.toISOString().slice(0, 10),
+      "Review at":
+        index === 4
+          ? "0001-01-01T00:00:00.000Z"
+          : index === 5
+            ? "9999-12-01T23:59:59.999Z"
+            : new Date(start.getTime() + 9 * 3_600_000).toISOString(),
+      Assets:
+        index === 0
+          ? [
+              featureLabFileValue(1, {
+                uri: "https://editor.eidos.space/docs/format",
+                name: "Eidos File 1.0",
+                mediaType: "text/html",
+                size: "0",
+              }),
+              featureLabFileValue(2),
+            ]
+          : index % 12 === 0
+            ? [featureLabFileValue(100 + index)]
+            : [],
+      Payload:
+        index % 14 === 13
+          ? null
+          : {
+              flags: ["offline-first", index % 2 === 0 ? "wasm" : "sqlite"],
+              measurement: index / 10,
+              nested: { empty: "", exactInteger: "9223372036854775807" },
+              sequence,
+            },
+      Owner: [peopleIds[ownerIndex]],
+      Collaborators: collaboratorsForRow,
+      Program: [programIds[index % programIds.length]],
+      "Reference source": [referenceIds[index % referenceIds.length]],
+    }
+  })
+  insertRows(runtime, experiments.id, experimentRows)
+
+  configureViews(runtime, experiments.id, {
+    grid: [
+      "Experiment",
+      "Stage",
+      "Owner",
+      "Collaborators",
+      "Progress",
+      "Assets",
+      "Samples",
+      "Weighted budget",
+      "Contributor names",
+      "Relation-backed load",
+    ],
+    order: [
+      "Experiment",
+      "Stage",
+      "Owner",
+      "Collaborators",
+      "Program",
+      "Reference source",
+      "Progress",
+      "Budget",
+      "Samples",
+      "Approved",
+      "Confidence",
+      "Signals",
+      "Start date",
+      "Review at",
+      "Website",
+      "Assets",
+      "Summary",
+      "Payload",
+      "Weighted budget",
+      "Sample successor",
+      "Lab headline",
+      "Ready",
+      "Next review",
+      "Follow-up at",
+      "Canonical page",
+      "Payload mirror",
+      "Owner allocation",
+      "Owner active",
+      "Owner profile",
+      "Owner profile data",
+      "Contributor names",
+      "First collaborator",
+      "Contributor count",
+      "Total allocation",
+      "Average rate",
+      "Earliest join",
+      "Latest check-in",
+      "Relation-backed load",
+    ],
+    gridProperties: { freezeColumns: 2, rowDensity: "compact" },
+    statistics: [
+      { field: "Budget", type: "sum" },
+      { field: "Samples", type: "average" },
+      { field: "Stage", type: "count-distinct" },
+      { field: "Collaborators", type: "relation-distinct-target-count" },
+    ],
+    views: [
+      {
+        name: "By stage",
+        type: "kanban",
+        properties: {
+          groupField: "Stage",
+          coverField: "Assets",
+          cardFields: ["Owner", "Progress", "Ready", "Contributor names"],
+          cardSize: "medium",
+          coverFit: "contain",
+          hideEmptyFields: true,
+          showEmptyGroups: false,
+        },
+      },
+      {
+        name: "Lab gallery",
+        type: "gallery",
+        properties: {
+          coverField: "Assets",
+          cardFields: [
+            "Stage",
+            "Owner",
+            "Collaborators",
+            "Weighted budget",
+            "Next review",
+          ],
+          cardSize: "large",
+          coverFit: "contain",
+          hideEmptyFields: false,
+        },
+        sorts: [{ field: "Review at", direction: "asc", nulls: "last" }],
+      },
+      {
+        name: "Ready queue",
+        type: "grid",
+        filter: [
+          { field: "Approved", operator: "equals", value: true },
+          { field: "Progress", operator: "greater-than", value: 0.5 },
+        ],
+        sorts: [
+          { field: "Stage", direction: "asc" },
+          { field: "Weighted budget", direction: "desc" },
+        ],
+      },
+      {
+        name: "Missing summaries",
+        type: "grid",
+        filter: [{ field: "Summary", operator: "is-empty" }],
+        sorts: [{ field: "Experiment", direction: "asc" }],
+      },
+      {
+        name: "Quality signals",
+        type: "grid",
+        filter: [
+          { field: "Signals", operator: "is-any-of", value: ["Quality"] },
+        ],
+        sorts: [{ field: "Start date", direction: "desc" }],
+      },
+    ],
+  })
+  configureViews(runtime, people.id, {
+    grid: [
+      "Name",
+      "Role",
+      "Allocation",
+      "Active",
+      "Owned experiments",
+      "Owned count",
+      "Collaborating budget",
+    ],
+    order: [
+      "Name",
+      "Role",
+      "Allocation",
+      "Rate",
+      "Joined",
+      "Last check-in",
+      "Active",
+      "Profile",
+      "Skills",
+      "Profile data",
+      "Owned experiments",
+      "Owned count",
+      "Collaborating experiments",
+      "Collaborating budget",
+    ],
+    views: [
+      {
+        name: "People cards",
+        type: "gallery",
+        properties: {
+          cardFields: ["Role", "Allocation", "Owned count"],
+          cardSize: "small",
+        },
+      },
+    ],
+  })
+  configureViews(runtime, programs.id, {
+    grid: ["Name", "Code", "Budget", "Active", "Sponsor"],
+    statistics: [{ field: "Budget", type: "sum" }],
+  })
+  configureViews(runtime, reference.id, {
+    grid: ["Label", "Kind", "Version", "Canonical", "Metadata"],
+  })
+
+  const first = runtime.queryRows(experiments.id, {
+    query: { search: "Feature Lab launch" },
+    limit: 1,
+    resolveRelations: true,
+  }).rows[0]
+  if (
+    Math.abs(Number(first?.fields[weightedBudget.id]) - 100_000.4) > 0.001 ||
+    Number(first.fields[contributorCount.id]) !== 2 ||
+    Number(first.fields[ownerAllocation.id]) !== 40 ||
+    Number(first.fields[relationBackedLoad.id]) !== 42 ||
+    first.resolved?.[owner.id]?.[0]?.label !== "Avery Chen"
+  ) {
+    throw new Error(
+      `Feature Lab derived fields or Relation labels are invalid: ${[
+        first?.fields[weightedBudget.id],
+        first?.fields[contributorCount.id],
+        first?.fields[ownerAllocation.id],
+        first?.fields[relationBackedLoad.id],
+        first?.resolved?.[owner.id]?.[0]?.label,
+      ].map(String)}`
+    )
+  }
+}
+
 const templates = [
   {
     fileName: "personal-crm.eidos",
@@ -1605,6 +2539,41 @@ const templates = [
     title: "Content calendar",
     description: "Campaigns, channels, editorial stages, and workload",
     build: buildContentCalendar,
+  },
+  {
+    fileName: "feature-lab.eidos",
+    title: "Eidos 1.0 Feature Lab",
+    description:
+      "All editable fields, Relations, Lookups, Formulas, and core Views",
+    fileOptions: {
+      fileId: FEATURE_LAB_FILE_ID,
+      createdAt: FEATURE_LAB_INSTANT,
+    },
+    environment: featureLabEnvironment,
+    build: buildFeatureLab,
+  },
+  {
+    fileName: "field-capability-matrix.eidos",
+    title: "Eidos Field Capability Matrix 1.0",
+    description:
+      "A self-contained overview of every Eidos Field kind and capability",
+    fileOptions: {
+      fileId: FIELD_CAPABILITY_MATRIX_FILE_IDS.en,
+      createdAt: FIELD_CAPABILITY_MATRIX_INSTANT,
+    },
+    environment: () => fieldCapabilityMatrixEnvironment("en"),
+    build: (runtime) => buildFieldCapabilityMatrix(runtime, "en"),
+  },
+  {
+    fileName: "field-capability-matrix.zh.eidos",
+    title: "Eidos 字段能力矩阵 1.0",
+    description: "Eidos Field kind 与跨层能力的自包含总览",
+    fileOptions: {
+      fileId: FIELD_CAPABILITY_MATRIX_FILE_IDS.zh,
+      createdAt: FIELD_CAPABILITY_MATRIX_INSTANT,
+    },
+    environment: () => fieldCapabilityMatrixEnvironment("zh"),
+    build: (runtime) => buildFieldCapabilityMatrix(runtime, "zh"),
   },
 ]
 
@@ -1696,7 +2665,13 @@ function localizeFixture(sqlite, outputDirectory, localization) {
   const database = mutableDatabaseFromBytes(sqlite, bytes)
   const connection = new WasmConnection(database, sqlite)
   try {
-    const runtime = new EidosFileRuntime(connection)
+    const runtime = new EidosFileRuntime(
+      connection,
+      false,
+      localization.source === "feature-lab.eidos"
+        ? featureLabEnvironment()
+        : undefined
+    )
     const tables = runtime.listTables()
     for (const table of tables) {
       const translatedTable = localization.tables[table.name]
@@ -1795,16 +2770,31 @@ const sqlite = await sqlite3InitModule({
 })
 
 fs.mkdirSync(outputDirectory, { recursive: true })
+const requestedTemplate = process.argv[2]
+const selectedTemplates = requestedTemplate
+  ? templates.filter(
+      (template) =>
+        template.fileName.replace(/\.eidos$/u, "") === requestedTemplate
+    )
+  : templates
+if (requestedTemplate && selectedTemplates.length === 0) {
+  throw new Error(`Unknown template fixture: ${requestedTemplate}`)
+}
 const generated = []
-for (const template of templates) {
+for (const template of selectedTemplates) {
   const database = new sqlite.oo1.DB(":memory:", "c")
   const connection = new WasmConnection(database, sqlite)
   try {
     initializeEidosFileSchema(connection, {
       title: template.title,
       description: template.description,
+      ...(template.fileOptions ?? {}),
     })
-    const runtime = new EidosFileRuntime(connection)
+    const runtime = new EidosFileRuntime(
+      connection,
+      false,
+      template.environment?.()
+    )
     template.build(runtime)
     const validation = validateEidosFile(connection, { level: "full" })
     if (!validation.valid) {
@@ -1836,8 +2826,12 @@ for (const template of templates) {
   }
 }
 
-const localized = ZH_TEMPLATE_LOCALIZATIONS.map((localization) =>
-  localizeFixture(sqlite, outputDirectory, localization)
+const selectedSources = new Set(
+  selectedTemplates.map((template) => template.fileName)
 )
+const localized = ZH_TEMPLATE_LOCALIZATIONS.filter(
+  (localization) =>
+    !requestedTemplate || selectedSources.has(localization.source)
+).map((localization) => localizeFixture(sqlite, outputDirectory, localization))
 
 console.log(JSON.stringify({ generated, localized }, null, 2))

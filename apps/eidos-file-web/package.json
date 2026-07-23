@@ -10,6 +10,8 @@
     "build:docs": "vite build --config vite.prerender.config.ts && node scripts/prerender-docs.mjs",
     "deploy": "pnpm run build && wrangler deploy",
     "fixture": "pnpm --filter @eidos.space/eidos-file build && node scripts/create-fixture.mjs && node scripts/create-template-fixtures.mjs",
+    "fixture:field-capabilities": "pnpm --filter @eidos.space/eidos-file build && node scripts/create-template-fixtures.mjs field-capability-matrix && node scripts/create-template-fixtures.mjs field-capability-matrix.zh",
+    "fixture:feature-lab": "pnpm --filter @eidos.space/eidos-file build && node scripts/create-template-fixtures.mjs feature-lab && node scripts/verify-feature-lab-fixtures.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:e2e": "playwright test",

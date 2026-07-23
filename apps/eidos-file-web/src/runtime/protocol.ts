@@ -24,6 +24,12 @@ export interface EidosFileWorkerExportResult {
 /** Host-only Worker control messages. Logical operations use Adapter Transport. */
 export type EidosFileWorkerAction =
   | {
+      type: "create-source"
+      fileName: string
+      recoveryId: string
+      title: string
+    }
+  | {
       type: "open-source"
       fileName: string
       recoveryId: string

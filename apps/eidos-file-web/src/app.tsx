@@ -14,6 +14,8 @@ import type {
   EidosFileRowMutationResult,
   EidosFileRowRange,
   EidosFileSnapshot,
+  EidosFileTableSnapshot,
+  EidosFileViewInfo,
   CreateEidosFileFieldInput,
   CreateEidosFileTableInput,
   UpdateEidosFileViewInput,
@@ -22,6 +24,7 @@ import {
   EidosFileEditorContent,
   EidosFileEditorRoot,
   EidosFileEditorWorkbar,
+  exportEidosFileViewCsv,
 } from "@eidos.space/eidos-file-ui/eidos-file-editor-chrome"
 import { EidosFileSheetCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-sheet-create-popover"
 import { EidosFileSheetTabs } from "@eidos.space/eidos-file-ui/eidos-file-sheet-tabs"
@@ -31,6 +34,7 @@ import {
   EidosFileLookupEditorPopover,
 } from "@eidos.space/eidos-file-ui/eidos-file-derived-field-editor"
 import { EidosFileViewTabs } from "@eidos.space/eidos-file-ui/eidos-file-view-tabs"
+import { EidosFileViewFieldsPopover } from "@eidos.space/eidos-file-ui/eidos-file-view-fields-popover"
 import {
   createEidosFilePluginRegistry,
   EidosFilePluginSlot,
@@ -54,11 +58,11 @@ import {
   Database,
   Download,
   FileKey,
+  FilePlus2,
   FileSpreadsheet,
   FolderOpen,
   LoaderCircle,
   Moon,
-  Plus,
   RotateCcw,
   Save,
   ShieldCheck,
@@ -69,6 +73,7 @@ import { useRegisterSW } from "virtual:pwa-register/react"
 
 import { LiveEidosFileDemo } from "./components/live-eidos-file-demo"
 import { EidosFileDocs } from "./components/eidos-file-docs"
+import { EidosFileLanguageSelect } from "./components/eidos-file-language-select"
 import { EidosFileTemplatePicker } from "./components/eidos-file-template-picker"
 import { PwaUpdatePrompt } from "./components/pwa-update-prompt"
 import { SharedEidosFileEditorView } from "./components/shared-eidos-file-editor-view"
@@ -164,6 +169,24 @@ function pickBrowserCsvFile(): Promise<File | null> {
   })
 }
 
+function csvFileNameSegment(value: string): string {
+  return value.replace(/[\\/:*?"<>|]+/g, "-").trim() || "view"
+}
+
+function downloadBrowserCsv(bytes: Uint8Array, fileName: string): void {
+  const blob = new Blob([new Uint8Array(bytes)], {
+    type: "text/csv;charset=utf-8",
+  })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = fileName.toLowerCase().endsWith(".csv")
+    ? fileName
+    : `${fileName}.csv`
+  anchor.click()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+}
+
 function statusPresentation(
   phase: ReturnType<typeof saveReducer>["phase"],
   mode: FileAccessMode | null,
@@ -227,7 +250,7 @@ function updateSnapshotRowCount(
 }
 
 export function App() {
-  const { locale, setLocale, t } = useI18n()
+  const { locale, t } = useI18n()
   const [saveState, dispatch] = useReducer(saveReducer, initialSaveState)
   const [snapshot, setSnapshot] = useState<EidosFileSnapshot | null>(null)
   const [session, setSession] = useState<OpenSession | null>(null)
@@ -273,6 +296,7 @@ export function App() {
     },
   })
   const clientRef = useRef<EidosFileWorkerClient | null>(null)
+  const structureMutationQueueRef = useRef<Promise<void>>(Promise.resolve())
   const inputRef = useRef<HTMLInputElement>(null)
   const csvFilesRef = useRef(new Map<string, File>())
   const editorPlugins = useMemo(
@@ -470,7 +494,8 @@ export function App() {
       client: EidosFileWorkerClient,
       opened: Omit<OpenSession, "storage">,
       result: Awaited<ReturnType<EidosFileWorkerClient["openEditorSource"]>>,
-      preferredTableName?: string
+      preferredTableName?: string,
+      initiallyDirty = false
     ) => {
       const previous = clientRef.current
       clientRef.current = client
@@ -499,9 +524,12 @@ export function App() {
         type: "OPEN_SUCCESS",
         mode: nextSession.mode,
         permission: nextSession.permission,
-        dirty: result.migrated || result.recovered,
+        dirty: initiallyDirty || result.migrated || result.recovered,
       })
-      if (result.migrated || result.recovered) {
+      if (
+        nextSession.storage === "opfs-sahpool" &&
+        (initiallyDirty || result.migrated || result.recovered)
+      ) {
         await rememberRecovery(nextSession)
       }
     },
@@ -572,6 +600,68 @@ export function App() {
       setNotice(errorMessage(error))
     }
   }, [confirmSwitch, openPreparedFile])
+
+  const createBlankFile = useCallback(async () => {
+    if (!confirmSwitch()) return
+    setNotice(null)
+    dispatch({ type: "OPEN_START" })
+    const client = new EidosFileWorkerClient()
+    const id = crypto.randomUUID()
+    const createdAt = Date.now()
+    const copy =
+      locale === "zh"
+        ? {
+            fileName: "未命名.eidos",
+            title: "未命名",
+            tableName: "数据表",
+            labelFieldName: "名称",
+          }
+        : {
+            fileName: "untitled.eidos",
+            title: "Untitled",
+            tableName: "Table",
+            labelFieldName: "Name",
+          }
+    try {
+      const result = await client.createEditorSource(
+        copy.fileName,
+        id,
+        copy.title
+      )
+      const snapshotWithTable = await client.createTable({
+        name: copy.tableName,
+        fields: [
+          {
+            name: copy.labelFieldName,
+            type: "text",
+            isRecordLabel: true,
+          },
+        ],
+      })
+      await installOpenResult(
+        client,
+        {
+          id,
+          fileName: copy.fileName,
+          mode: "copy",
+          permission: "denied",
+          sourceVersion: {
+            size: 0,
+            lastModified: createdAt,
+            digest: "",
+          },
+        },
+        { ...result, snapshot: snapshotWithTable },
+        copy.tableName,
+        true
+      )
+    } catch (error) {
+      client.terminate()
+      const message = errorMessage(error)
+      setNotice(message)
+      dispatch({ type: "OPEN_FAILURE", message })
+    }
+  }, [confirmSwitch, installOpenResult, locale])
 
   const openSample = useCallback(async () => {
     if (!confirmSwitch()) return
@@ -903,17 +993,64 @@ export function App() {
     [activeTable, markCommitted]
   )
 
+  const runStructureMutation = useCallback(
+    (
+      client: EidosFileWorkerClient,
+      mutate: () => Promise<EidosFileSnapshot>
+    ): Promise<void> => {
+      const pending = structureMutationQueueRef.current
+        .catch(() => undefined)
+        .then(mutate)
+        .then((next) => {
+          if (clientRef.current === client) onStructureSnapshot(next)
+        })
+      structureMutationQueueRef.current = pending.catch(() => undefined)
+      return pending
+    },
+    [onStructureSnapshot]
+  )
+
   const updateActiveView = useCallback(
     async (changes: UpdateEidosFileViewInput) => {
       const client = clientRef.current
       if (!client || !activeView) return
       try {
-        onStructureSnapshot(await client.updateView(activeView.id, changes))
+        await runStructureMutation(client, () =>
+          client.updateView(activeView.id, changes)
+        )
       } catch (error) {
         setNotice(errorMessage(error))
       }
     },
-    [activeView, onStructureSnapshot]
+    [activeView, runStructureMutation]
+  )
+
+  const exportTableCsv = useCallback(
+    async (
+      table: EidosFileTableSnapshot,
+      view?: EidosFileViewInfo,
+      scopedSearch = ""
+    ) => {
+      const source = clientRef.current
+      if (!source || !session) {
+        throw new Error("No active Eidos File table")
+      }
+      const result = await exportEidosFileViewCsv({
+        source,
+        table,
+        view,
+        search: scopedSearch,
+      })
+      const fileBase = session.fileName.replace(/\.eidos$/i, "")
+      downloadBrowserCsv(
+        result.bytes,
+        [fileBase, table.table.name, view?.name]
+          .filter((segment): segment is string => Boolean(segment))
+          .map(csvFileNameSegment)
+          .join(" - ")
+      )
+    },
+    [session]
   )
 
   const addProperty = useCallback(
@@ -1029,6 +1166,15 @@ export function App() {
     [activeTableId, onStructureSnapshot, snapshot]
   )
 
+  const reorderTables = useCallback(
+    async (tableIds: string[]) => {
+      const client = clientRef.current
+      if (!client) return
+      await runStructureMutation(client, () => client.reorderTables(tableIds))
+    },
+    [runStructureMutation]
+  )
+
   const createView = useCallback(
     async (name: string, type: string) => {
       const client = clientRef.current
@@ -1108,11 +1254,11 @@ export function App() {
     async (viewIds: string[]) => {
       const client = clientRef.current
       if (!client || !activeTable) return
-      onStructureSnapshot(
-        await client.reorderViews(activeTable.table.id, viewIds)
+      await runStructureMutation(client, () =>
+        client.reorderViews(activeTable.table.id, viewIds)
       )
     },
-    [activeTable, onStructureSnapshot]
+    [activeTable, runStructureMutation]
   )
 
   const deleteSingleRow = useCallback(
@@ -1267,14 +1413,7 @@ export function App() {
             </a>
           </nav>
           <div className="launch-header-actions">
-            <button
-              className="language-button"
-              type="button"
-              aria-label={t("languageAction")}
-              onClick={() => setLocale(locale === "en" ? "zh" : "en")}
-            >
-              {locale === "en" ? "中文" : "EN"}
-            </button>
+            <EidosFileLanguageSelect />
             <button
               className="icon-button"
               type="button"
@@ -1295,6 +1434,25 @@ export function App() {
                 {t("heroTitleTwo")}
               </h1>
               <div className="launch-actions">
+                <button
+                  className="secondary-button new-file-button"
+                  type="button"
+                  disabled={saveState.phase === "opening"}
+                  onClick={() => void createBlankFile()}
+                >
+                  {saveState.phase === "opening" ? (
+                    <LoaderCircle
+                      className="spin"
+                      size={17}
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <FilePlus2 size={17} aria-hidden="true" />
+                  )}
+                  {saveState.phase === "opening"
+                    ? t("creatingEidosFile")
+                    : t("createEidosFile")}
+                </button>
                 <button
                   id="open-eidos-file"
                   className="primary-button open-button"
@@ -1460,6 +1618,17 @@ export function App() {
           <button
             className="toolbar-button"
             type="button"
+            disabled={
+              saveState.phase === "opening" || saveState.phase === "saving"
+            }
+            onClick={() => void createBlankFile()}
+          >
+            <FilePlus2 size={15} aria-hidden="true" />
+            <span>{t("newEidosFile")}</span>
+          </button>
+          <button
+            className="toolbar-button"
+            type="button"
             onClick={() => void chooseFile()}
           >
             <FolderOpen size={15} aria-hidden="true" />
@@ -1486,14 +1655,7 @@ export function App() {
           >
             <Download size={15} />
           </button>
-          <button
-            className="language-button"
-            type="button"
-            aria-label={t("languageAction")}
-            onClick={() => setLocale(locale === "en" ? "zh" : "en")}
-          >
-            {locale === "en" ? "中文" : "EN"}
-          </button>
+          <EidosFileLanguageSelect />
           <button
             className="icon-button"
             type="button"
@@ -1565,10 +1727,20 @@ export function App() {
             onDuplicate={duplicateView}
             onDelete={deleteView}
             onReorder={reorderViews}
+            onExportCsv={(view) =>
+              exportTableCsv(
+                activeTable,
+                view,
+                view.id === activeView?.id ? search : ""
+              )
+            }
+            onExportError={(error) => setNotice(errorMessage(error))}
             onUpdate={async (viewId, changes) => {
               const client = clientRef.current
               if (!client) return
-              onStructureSnapshot(await client.updateView(viewId, changes))
+              await runStructureMutation(client, () =>
+                client.updateView(viewId, changes)
+              )
             }}
           />
           <div
@@ -1586,34 +1758,31 @@ export function App() {
               onSortsChange={(sorts) => updateActiveView({ sorts })}
             />
             <div className="add-property-wrap">
-              <button
-                className="eidos-file-workbar-action inline-flex h-7 items-center justify-center gap-1 rounded-md px-2 text-xs font-medium hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                type="button"
-                aria-label={t("property")}
-                onClick={() => {
-                  setFieldInsertIndex(null)
-                  setAddPropertyOpen((open) => !open)
-                }}
-              >
-                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                <span className="eidos-file-workbar-action-label">
-                  {t("property")}
-                </span>
-              </button>
-              {addPropertyOpen ? (
-                <EidosFileFieldCreatePopover
-                  open={addPropertyOpen}
-                  onOpenChange={(open) => {
-                    setAddPropertyOpen(open)
-                    if (!open) setFieldInsertIndex(null)
-                  }}
-                  table={activeTable}
-                  tables={snapshot.tables}
+              {activeView ? (
+                <EidosFileViewFieldsPopover
+                  fields={activeTable.fields}
+                  view={activeView}
                   disabled={saveState.phase === "saving"}
-                  onCreate={addProperty}
-                  onPreviewFormula={previewActiveFormula}
+                  onUpdate={updateActiveView}
+                  onFieldOpen={setPropertyField}
+                  onFieldAdd={() => {
+                    setFieldInsertIndex(null)
+                    setAddPropertyOpen(true)
+                  }}
                 />
               ) : null}
+              <EidosFileFieldCreatePopover
+                open={addPropertyOpen}
+                onOpenChange={(open) => {
+                  setAddPropertyOpen(open)
+                  if (!open) setFieldInsertIndex(null)
+                }}
+                table={activeTable}
+                tables={snapshot.tables}
+                disabled={saveState.phase === "saving"}
+                onCreate={addProperty}
+                onPreviewFormula={previewActiveFormula}
+              />
             </div>
           </div>
         </EidosFileEditorWorkbar>
@@ -1675,8 +1844,19 @@ export function App() {
             setFormulaTarget(null)
             setLookupTarget(null)
           }}
+          onReorder={reorderTables}
           onRename={(table, name) => renameTable(table.id, name)}
           onDelete={(table) => deleteTable(table.id)}
+          onExportCsv={(table) => {
+            const tableSnapshot = snapshot.tables.find(
+              (candidate) => candidate.table.id === table.id
+            )
+            if (!tableSnapshot) {
+              return Promise.reject(new Error("Eidos File table not found"))
+            }
+            return exportTableCsv(tableSnapshot)
+          }}
+          onExportError={(error) => setNotice(errorMessage(error))}
           status={
             <span
               className="flex items-center gap-1.5"

@@ -780,19 +780,46 @@ try {
   eidosFile.createView(projects.id, {
     name: "By status",
     type: "kanban",
-    properties: { groupField: statusField.id },
+    properties: {
+      groupField: statusField.id,
+      cardFields: [
+        projectTeam.id,
+        teamLeadLookup.id,
+        effortScore.id,
+        estimateField.id,
+        dueField.id,
+      ],
+    },
     orderMap: cardOrderMap,
   })
   eidosFile.createView(projects.id, {
     name: "Project cards",
     type: "gallery",
-    properties: { titleField: titleField.id },
+    properties: {
+      cardFields: [
+        projectTeam.id,
+        teamLeadLookup.id,
+        effortScore.id,
+        estimateField.id,
+        statusField.id,
+        dueField.id,
+      ],
+    },
     orderMap: cardOrderMap,
   })
   eidosFile.createView(projects.id, {
     name: "Active roadmap",
     type: "gallery",
-    properties: { titleField: titleField.id },
+    properties: {
+      cardFields: [
+        projectTeam.id,
+        teamLeadLookup.id,
+        effortScore.id,
+        estimateField.id,
+        statusField.id,
+        dueField.id,
+      ],
+    },
     filter: {
       type: "group",
       conjunction: "and",
@@ -849,7 +876,15 @@ try {
   eidosFile.createView(teams.id, {
     name: "Capacity cards",
     type: "gallery",
-    properties: { titleField: teamName.id },
+    properties: {
+      cardFields: [
+        teamLead.id,
+        teamProjectCount.id,
+        teamTotalEffort.id,
+        teamFocus.id,
+        teamCapacity.id,
+      ],
+    },
     orderMap: Object.fromEntries(
       teamCardOrder.map((field, index) => [field.id, index])
     ),
@@ -870,7 +905,10 @@ try {
     limit: 1,
     resolveRelations: true,
   }).rows[0]
-  assert(firstProject?.id === firstProjectId, "first Project identity is stable")
+  assert(
+    firstProject?.id === firstProjectId,
+    "first Project identity is stable"
+  )
   assert(
     firstProject?.fields[effortScore.id] === 10,
     "Formula values are evaluated in the exported demo"

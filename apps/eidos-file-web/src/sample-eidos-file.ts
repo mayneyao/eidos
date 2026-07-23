@@ -7,6 +7,8 @@ export type EidosFileTemplateId =
   | "reading-library"
   | "habit-journal"
   | "content-calendar"
+  | "feature-lab"
+  | "field-capabilities"
 
 interface LocalizedTemplateCopy {
   title: string
@@ -200,6 +202,57 @@ export const EIDOS_FILE_TEMPLATES: readonly EidosFileTemplate[] = [
         category: "工作",
         description: "协调内容、渠道、营销活动、阶段与负责人。",
         highlights: ["看板", "日历数据", "查找", "工作量公式"],
+      },
+    },
+  },
+  {
+    id: "feature-lab",
+    sources: localizedSources(
+      "feature-lab",
+      "eidos-1.0-feature-lab.eidos",
+      "Eidos-1.0-全功能实验室.eidos",
+      "Experiments",
+      "实验"
+    ),
+    copy: {
+      en: {
+        title: "Eidos 1.0 Feature Lab",
+        category: "Explore",
+        description:
+          "Test every editable field, derived model, and core view in one file.",
+        highlights: ["All fields", "Relations", "Lookups", "3 view types"],
+      },
+      zh: {
+        title: "Eidos 1.0 全功能实验室",
+        category: "探索",
+        description: "在一个文件中测试全部可编辑字段、派生模型与核心视图。",
+        highlights: ["全部字段", "关联", "查找汇总", "3 种视图"],
+      },
+    },
+  },
+  {
+    id: "field-capabilities",
+    sources: localizedSources(
+      "field-capability-matrix",
+      "eidos-field-capability-matrix.eidos",
+      "Eidos-字段能力矩阵.eidos",
+      "Field capabilities",
+      "字段能力"
+    ),
+    copy: {
+      en: {
+        title: "Field capability matrix",
+        category: "Reference",
+        description:
+          "Explore every Field kind across storage, queries, search, statistics, derivation, CSV, and UI.",
+        highlights: ["All fields", "Search", "Statistics", "Layer ownership"],
+      },
+      zh: {
+        title: "字段能力矩阵",
+        category: "参考",
+        description:
+          "从存储、查询、搜索、统计、派生、CSV 与 UI 纵览全部字段类型。",
+        highlights: ["全部字段", "搜索", "统计", "分层职责"],
       },
     },
   },

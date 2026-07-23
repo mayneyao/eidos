@@ -113,6 +113,14 @@ rollback。
 generated index、resolved label、compiled plan 与 cache 都是可丢弃的 Host-private
 state，不能成为解释 `.eidos` 文件的必要条件。
 
+## 字段能力矩阵
+
+下方不是截图，也不是另一张需要手工同步的 HTML 表。它直接打开编辑器模板选择器中
+同一份自包含 `.eidos` 样本，并强制嵌入的编辑器 surface 为只读。你可以在这里搜索、
+下载文件，或通过 **选择模板 → 字段能力矩阵** 打开可编辑副本。
+
+<div data-eidos-file-embed="field-capabilities"></div>
+
 ## Feature negotiation 与 extension
 
 Feature support 是大小写敏感的准确 `(name, version)` tuple；版本不隐含 SemVer

@@ -131,6 +131,16 @@ all back.
 Generated indexes, resolved labels, compiled plans, and caches are disposable
 Host-private state. They are never required to interpret the `.eidos` file.
 
+## Field capability matrix
+
+The table below is not a screenshot or a second hand-maintained HTML table. It
+opens the same self-contained `.eidos` sample offered by the editor template
+picker and forces the embedded editor surface into read-only mode. Search it
+here, download it, or open an editable copy from **Choose a template → Field
+capability matrix**.
+
+<div data-eidos-file-embed="field-capabilities"></div>
+
 ## Feature negotiation and extensions
 
 Feature support is an exact, case-sensitive `(name, version)` tuple; versions

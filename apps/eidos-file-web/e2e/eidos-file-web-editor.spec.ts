@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 
-import { expect, test, type Page } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 
 const fixturePath = fileURLToPath(
   new URL("../fixtures/project-tracker.eidos", import.meta.url)
@@ -216,9 +216,60 @@ async function toggleFirstComplete(
   // 180px property columns. Click the first row's Complete checkbox.
   await page.mouse.click(bounds.x + 954, bounds.y + 54)
   if (expectSaveState) {
-    await expect(page.getByRole("status")).toContainText(/Unsaved|browser/)
+    await expect(page.locator(".save-status")).toContainText(/Unsaved|browser/)
   }
   await expect(cell).toHaveText("true")
+}
+
+async function dragSortable(
+  page: Page,
+  source: Locator,
+  target: Locator,
+  duringDrag?: () => Promise<void>,
+  constraintViewport?: Locator
+): Promise<void> {
+  const sourceBox = await source.boundingBox()
+  const targetBox = await target.boundingBox()
+  if (!sourceBox || !targetBox)
+    throw new Error("Sortable handle is not visible")
+  const sourceX = sourceBox.x + sourceBox.width / 2
+  const sourceY = sourceBox.y + sourceBox.height / 2
+  const targetX = targetBox.x + targetBox.width / 2
+  const targetY = targetBox.y + targetBox.height / 2
+  await page.mouse.move(sourceX, sourceY)
+  await page.mouse.down()
+  await page.mouse.move(sourceX + 12, sourceY + 4, { steps: 3 })
+  if (constraintViewport) {
+    const viewportBox = await constraintViewport.boundingBox()
+    const sortable = source.locator(
+      "xpath=ancestor::*[@data-eidos-file-sortable-tab][1]"
+    )
+    const sortableBox = await sortable.boundingBox()
+    if (!viewportBox || !sortableBox) {
+      throw new Error("Horizontal sortable track is not visible")
+    }
+    await page.mouse.move(
+      viewportBox.x + viewportBox.width + 240,
+      sourceY + 180,
+      { steps: 8 }
+    )
+    await expect
+      .poll(async () => {
+        const current = await sortable.boundingBox()
+        if (!current) {
+          return { staysInViewport: false, staysOnTrack: false }
+        }
+        const staysOnTrack = Math.abs(current.y - sortableBox.y) <= 1
+        const staysInViewport =
+          current.x >= viewportBox.x - 1 &&
+          current.x + current.width <= viewportBox.x + viewportBox.width + 1
+        return { staysInViewport, staysOnTrack }
+      })
+      .toEqual({ staysInViewport: true, staysOnTrack: true })
+  }
+  await page.mouse.move(targetX, targetY, { steps: 12 })
+  await duringDrag?.()
+  await page.mouse.up()
 }
 
 test.describe("Chromium original-file editing", () => {
@@ -243,7 +294,9 @@ test.describe("Chromium original-file editing", () => {
       .locator(".title-actions .toolbar-button")
       .filter({ hasText: "Save" })
       .click()
-    await expect(page.getByRole("status")).toContainText("Saved to original")
+    await expect(page.locator(".save-status")).toContainText(
+      "Saved to original"
+    )
 
     const savedBytes = await page.evaluate(
       async () => (await window.__eidosFileE2E?.bytes()) ?? []
@@ -298,7 +351,9 @@ test.describe("Chromium original-file editing", () => {
     )
 
     await page.getByRole("button", { name: "Overwrite original" }).click()
-    await expect(page.getByRole("status")).toContainText("Saved to original")
+    await expect(page.locator(".save-status")).toContainText(
+      "Saved to original"
+    )
   })
 
   test("keeps a recoverable copy after an interrupted write", async ({
@@ -412,7 +467,7 @@ test("fallback imports a copy, downloads it, and reopens the edit", async ({
   const download = await downloadPromise
   const savedPath = testInfo.outputPath("portable-fallback.eidos")
   await download.saveAs(savedPath)
-  await expect(page.getByRole("status")).toContainText("Downloaded a copy")
+  await expect(page.locator(".save-status")).toContainText("Downloaded a copy")
 
   await page.reload()
   await page.locator("input[type=file]").setInputFiles(savedPath)
@@ -420,6 +475,60 @@ test("fallback imports a copy, downloads it, and reopens the edit", async ({
     "true"
   )
   await expect(page.getByText("SQLite 1", { exact: true })).toBeVisible()
+})
+
+test("creates a new blank Eidos File and saves an editable copy", async ({
+  page,
+}, testInfo) => {
+  await installFallbackMode(page)
+  await page.goto("/")
+
+  await page.getByRole("button", { name: "New blank Eidos File" }).click()
+  await expect(page.locator(".file-identity strong")).toHaveText(
+    "untitled.eidos"
+  )
+  await expect(
+    page.getByRole("tab", { name: "Table", exact: true })
+  ).toHaveAttribute("aria-selected", "true")
+  await expect(
+    page.getByRole("tab", { name: "Grid", exact: true })
+  ).toHaveAttribute("aria-selected", "true")
+  await expect(page.locator(".save-status")).toContainText(
+    "Changes stay in browser"
+  )
+  await expect(
+    page.locator(".title-actions").getByRole("button", { name: "New" })
+  ).toBeVisible()
+  await expect(
+    page.locator(".eidos-file-content").getByText("Name", { exact: true })
+  ).toHaveText("Name")
+
+  await page.getByRole("button", { name: "Add Eidos File table" }).click()
+  await page.getByRole("button", { name: /^New table/ }).click()
+  await page.getByLabel("Name").fill("Notes")
+  await page.getByRole("button", { name: "Create", exact: true }).click()
+  await expect(
+    page.getByRole("tab", { name: "Notes", exact: true })
+  ).toHaveAttribute("aria-selected", "true")
+
+  const downloadPromise = page.waitForEvent("download")
+  await page
+    .locator(".title-actions .toolbar-button")
+    .filter({ hasText: "Save As" })
+    .click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe("untitled.eidos")
+  const savedPath = testInfo.outputPath("new-blank.eidos")
+  await download.saveAs(savedPath)
+
+  await page.reload()
+  await page.locator("input[type=file]").setInputFiles(savedPath)
+  await expect(
+    page.getByRole("tab", { name: "Table", exact: true })
+  ).toHaveAttribute("aria-selected", "true")
+  await expect(
+    page.getByRole("tab", { name: "Notes", exact: true })
+  ).toBeVisible()
 })
 
 test("opens the bundled sample without a picker", async ({ page }) => {
@@ -480,7 +589,7 @@ test("opens an advanced starter file from the template picker", async ({
   await expect(
     picker.getByRole("heading", { name: "Start from a template" })
   ).toBeVisible()
-  await expect(picker.getByRole("listitem")).toHaveCount(6)
+  await expect(picker.getByRole("listitem")).toHaveCount(8)
   await expect(picker).toContainText("Relations · Lookups · Formula · Timeline")
 
   const templateResponse = page.waitForResponse((response) =>
@@ -542,6 +651,18 @@ test("opens every additional template on its primary table", async ({
       asset: "content-calendar",
       table: "Content",
       firstRecord: "Why files still matter",
+    },
+    {
+      button: "Open Eidos 1.0 Feature Lab template",
+      asset: "feature-lab",
+      table: "Experiments",
+      firstRecord: "Feature Lab launch",
+    },
+    {
+      button: "Open Field capability matrix template",
+      asset: "field-capability-matrix",
+      table: "Field capabilities",
+      firstRecord: "Row ID",
     },
   ] as const
 
@@ -606,6 +727,18 @@ test("opens every template with Chinese schema and sample data", async ({
       table: "内容",
       firstRecord: "为什么文件依然重要",
     },
+    {
+      button: "打开 Eidos 1.0 全功能实验室模板",
+      asset: "feature-lab.zh",
+      table: "实验",
+      firstRecord: "全功能实验室启动",
+    },
+    {
+      button: "打开 字段能力矩阵模板",
+      asset: "field-capability-matrix.zh",
+      table: "字段能力",
+      firstRecord: "行 ID",
+    },
   ] as const
 
   for (const template of templates) {
@@ -623,6 +756,500 @@ test("opens every template with Chinese schema and sample data", async ({
       template.firstRecord
     )
   }
+})
+
+test("loads Feature Lab with readable Relations and editable dependencies", async ({
+  page,
+  browserName,
+}) => {
+  test.setTimeout(90_000)
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers Feature Lab through the SQLite WASM worker"
+  )
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.getByRole("button", { name: "Choose a template" }).click()
+  const response = page.waitForResponse((candidate) =>
+    candidate.url().includes("feature-lab")
+  )
+  await page
+    .getByRole("button", { name: "Open Eidos 1.0 Feature Lab template" })
+    .click()
+  await expect((await response).status()).toBeLessThan(400)
+
+  await expect(
+    page.getByRole("tab", { name: "Experiments", exact: true })
+  ).toHaveAttribute("aria-selected", "true")
+  await expect(
+    page.getByRole("tab", { name: "People", exact: true })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("tab", { name: "By stage", exact: true })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("tab", { name: "Lab gallery", exact: true })
+  ).toBeVisible()
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
+    "Feature Lab launch"
+  )
+
+  const tableTabList = page.getByRole("tablist", {
+    name: "Eidos File tables",
+  })
+  const tableOrder = () =>
+    tableTabList
+      .getByRole("tab")
+      .evaluateAll((tabs) => tabs.map((tab) => tab.textContent?.trim()))
+  const tableOrderBefore = await tableOrder()
+  await dragSortable(
+    page,
+    page.getByRole("button", { name: "Reorder People table" }),
+    page.getByRole("button", { name: "Reorder Experiments table" }),
+    undefined,
+    page.locator("[data-eidos-file-sheet-tabs-viewport]")
+  )
+  await expect.poll(tableOrder).not.toEqual(tableOrderBefore)
+
+  const viewTabList = page.getByRole("tablist", { name: "Eidos File views" })
+  const viewOrder = () =>
+    viewTabList
+      .getByRole("tab")
+      .evaluateAll((tabs) => tabs.map((tab) => tab.textContent?.trim()))
+  const viewOrderBefore = await viewOrder()
+  await dragSortable(
+    page,
+    page.getByRole("button", { name: "Reorder Lab gallery view" }),
+    page.getByRole("button", { name: "Reorder Grid view" }),
+    undefined,
+    page.locator("[data-eidos-file-view-tabs-viewport]")
+  )
+  await expect.poll(viewOrder).not.toEqual(viewOrderBefore)
+
+  const workbarActions = page.locator("[data-eidos-file-workbar-actions]")
+  const actionOrder = await workbarActions
+    .locator("button")
+    .evaluateAll((buttons) =>
+      buttons.map(
+        (button) =>
+          button.getAttribute("aria-label") ?? button.textContent?.trim()
+      )
+    )
+  expect(actionOrder.indexOf("Search Eidos File rows")).toBeLessThan(
+    actionOrder.indexOf("Filter Eidos File rows")
+  )
+  expect(actionOrder.indexOf("Filter Eidos File rows")).toBeLessThan(
+    actionOrder.indexOf("Sort Eidos File rows")
+  )
+  expect(actionOrder.indexOf("Sort Eidos File rows")).toBeLessThan(
+    actionOrder.indexOf("Manage fields")
+  )
+  expect(actionOrder).not.toContain("Property")
+
+  const fieldsButton = page.getByRole("button", { name: "Manage fields" })
+  await expect(fieldsButton).toBeVisible()
+  const fieldSearch = page.getByRole("textbox", { name: "Search fields" })
+  await expect(async () => {
+    if (!(await fieldSearch.isVisible())) await fieldsButton.click()
+    await expect(fieldSearch).toBeVisible({ timeout: 2_000 })
+  }).toPass({ timeout: 15_000 })
+  const fieldList = page.locator("[data-eidos-file-view-fields-list]")
+  const fieldOrder = () =>
+    fieldList
+      .locator('button[aria-label^="Reorder "]')
+      .evaluateAll((handles) =>
+        handles.map((handle) => handle.getAttribute("aria-label"))
+      )
+  const fieldOrderBefore = await fieldOrder()
+  const fieldHandles = fieldList.locator('button[aria-label^="Reorder "]')
+  await expect(fieldHandles).toHaveCount(fieldOrderBefore.length)
+  await dragSortable(
+    page,
+    fieldHandles.nth(0),
+    fieldHandles.nth(1),
+    async () => {
+      expect(
+        await fieldList.evaluate(
+          (element) => element.scrollWidth <= element.clientWidth
+        )
+      ).toBe(true)
+    }
+  )
+  await expect.poll(fieldOrder).not.toEqual(fieldOrderBefore)
+  await expect(
+    page.getByRole("button", { name: /Move (up|down)/ })
+  ).toHaveCount(0)
+  await fieldSearch.fill("Assets")
+  const assetsVisibility = page.getByRole("checkbox", {
+    name: "Show Assets",
+  })
+  const assetsVisibilityLabel = page
+    .locator("[data-eidos-file-view-fields-list] label")
+    .filter({ has: assetsVisibility })
+  await expect(assetsVisibility).toBeChecked()
+  await assetsVisibilityLabel.click()
+  await expect(assetsVisibility).not.toBeChecked()
+  await assetsVisibilityLabel.click()
+  await expect(assetsVisibility).toBeChecked()
+  await fieldSearch.fill("")
+  await page.getByRole("button", { name: "Edit Assets properties" }).click()
+  await expect(
+    page.locator('[data-eidos-file-detail-panel="field"]')
+  ).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "Close field properties" })
+  ).toBeVisible()
+  await page.getByRole("button", { name: "Close field properties" }).click()
+
+  await page.getByRole("tab", { name: "By stage", exact: true }).click()
+  await fieldsButton.click()
+  await page.getByRole("button", { name: "Edit Stage properties" }).click()
+  await expect(
+    page.locator('[data-eidos-file-detail-panel="field"]')
+  ).toBeVisible()
+  await page.getByRole("button", { name: "Close field properties" }).click()
+
+  await page.getByRole("tab", { name: "Lab gallery", exact: true }).click()
+  const firstCard = page
+    .locator("[data-eidos-file-gallery-scroll]")
+    .getByRole("listitem")
+    .filter({ hasText: "Feature Lab launch" })
+    .first()
+  await expect(firstCard).toContainText("Avery Chen")
+  await expect(firstCard).toContainText("Mina Park, Theo Martin")
+  await expect(firstCard).not.toContainText(
+    /[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/
+  )
+  const galleryScroll = page.locator("[data-eidos-file-gallery-scroll]")
+  const galleryWidthBeforeInspector = await galleryScroll.evaluate(
+    (element) => element.clientWidth
+  )
+  await firstCard.locator("h3").click()
+
+  const inspector = page.locator('[data-eidos-file-detail-panel="record"]')
+  await expect(inspector).toBeVisible()
+  await expect(inspector).toHaveCSS("position", "absolute")
+  const inspectorBounds = await inspector.boundingBox()
+  if (!inspectorBounds) throw new Error("Record inspector is not visible")
+  expect(inspectorBounds.width).toBeGreaterThanOrEqual(470)
+  expect(await galleryScroll.evaluate((element) => element.clientWidth)).toBe(
+    galleryWidthBeforeInspector
+  )
+  const summary = inspector.getByRole("textbox", { name: "Summary" })
+  await summary.fill("Edited in the Feature Lab")
+  await summary.press("Control+Enter")
+  await expect(summary).toHaveValue("Edited in the Feature Lab")
+
+  const progress = inspector.getByRole("spinbutton", { name: "Progress" })
+  await progress.fill("0.5")
+  await progress.press("Enter")
+  const weightedBudget = inspector
+    .getByText("Weighted budget", { exact: true })
+    .locator("..")
+  await expect(weightedBudget).toContainText("62500.25")
+
+  await page.getByRole("button", { name: "Close record details" }).click()
+  await page.getByRole("tab", { name: "Grid", exact: true }).click()
+  await page.locator("[data-testid='glide-cell-1-0']").waitFor({
+    state: "attached",
+  })
+  const canvas = page.locator(
+    ".eidos-file-content canvas[data-testid='data-grid-canvas']"
+  )
+  const bounds = await canvas.boundingBox()
+  if (!bounds) throw new Error("Feature Lab Grid is not visible")
+  const recordMenu = page.getByRole("menu", { name: "Record actions" })
+  await expect(async () => {
+    await page.mouse.click(bounds.x + 44 + 140, bounds.y + 54, {
+      button: "right",
+    })
+    await expect(recordMenu).toBeVisible({ timeout: 2_000 })
+  }).toPass({ timeout: 15_000 })
+  await recordMenu.getByRole("menuitem", { name: "Open record" }).click()
+  await expect(inspector).toBeVisible()
+  const gridBoundsWithInspector = await canvas.boundingBox()
+  if (!gridBoundsWithInspector) throw new Error("Feature Lab Grid disappeared")
+  expect(Math.abs(gridBoundsWithInspector.width - bounds.width)).toBeLessThan(1)
+
+  const stage = inspector.getByRole("combobox", { name: "Stage" })
+  await expect(
+    stage.locator('[data-eidos-file-option-color="blue"]')
+  ).toBeVisible()
+  await stage.click()
+  const runningOption = page.getByRole("option", {
+    name: "Running",
+    exact: true,
+  })
+  await expect(
+    runningOption.locator('[data-eidos-file-option-color="blue"]')
+  ).toBeVisible()
+  await runningOption.click()
+
+  const owner = inspector.getByRole("button", { name: "Owner", exact: true })
+  await expect(owner).toHaveText(/Avery Chen/)
+  await owner.click()
+  await page.getByRole("option", { name: "Mina Park", exact: true }).click()
+  await expect(owner).toHaveText(/Mina Park/)
+  const relationBackedLoad = inspector
+    .getByText("Relation-backed load", { exact: true })
+    .locator("..")
+  await expect(relationBackedLoad).toContainText("34")
+  await expect(page.locator(".save-status")).toContainText(/Unsaved|browser/)
+})
+
+test("persists a Grid multi-select edit when its popover closes", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the multi-select overlay and SQLite WASM commit"
+  )
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.getByRole("button", { name: "Choose a template" }).click()
+  await page
+    .getByRole("button", { name: "Open Eidos 1.0 Feature Lab template" })
+    .click()
+  await expect(
+    page.getByRole("tab", { name: "Experiments", exact: true })
+  ).toHaveAttribute("aria-selected", "true")
+
+  await page.getByRole("button", { name: "Manage fields" }).click()
+  await page.getByRole("textbox", { name: "Search fields" }).fill("Signals")
+  const signalsVisibility = page.getByRole("checkbox", {
+    name: "Show Signals",
+  })
+  if (!(await signalsVisibility.isChecked())) {
+    await page
+      .locator("[data-eidos-file-view-fields-list] label")
+      .filter({ has: signalsVisibility })
+      .click()
+  }
+  await expect(signalsVisibility).toBeChecked()
+  await page.getByRole("textbox", { name: "Search fields" }).fill("")
+  const visibleFieldNames = await page
+    .locator("[data-eidos-file-view-fields-list]")
+    .getByRole("checkbox")
+    .evaluateAll((checkboxes) =>
+      checkboxes.flatMap((checkbox) => {
+        if (!(checkbox instanceof HTMLInputElement) || !checkbox.checked) {
+          return []
+        }
+        return [checkbox.getAttribute("aria-label")?.replace(/^Show /, "")]
+      })
+    )
+  const titleColumn = visibleFieldNames.indexOf("Experiment") + 1
+  const signalsColumn = visibleFieldNames.indexOf("Signals") + 1
+  expect(titleColumn).toBeGreaterThan(0)
+  expect(signalsColumn).toBeGreaterThan(titleColumn)
+  await page.keyboard.press("Escape")
+
+  const signalsCell = page.locator(
+    `[data-testid='glide-cell-${signalsColumn}-0']`
+  )
+  const titleCell = page.locator(`[data-testid='glide-cell-${titleColumn}-0']`)
+  const canvas = page.locator(
+    ".eidos-file-content canvas[data-testid='data-grid-canvas']"
+  )
+  const openSignalsCell = async () => {
+    const bounds = await canvas.boundingBox()
+    if (!bounds) throw new Error("Feature Lab Grid is not visible")
+    await page.mouse.click(bounds.x + 44 + 140, bounds.y + 54)
+    await expect(titleCell).toHaveAttribute("aria-selected", "true")
+    for (let column = titleColumn + 1; column <= signalsColumn; column += 1) {
+      await page.keyboard.press("ArrowRight")
+      await expect(
+        page.locator(`[data-testid='glide-cell-${column}-0']`)
+      ).toHaveAttribute("aria-selected", "true")
+    }
+    await page.keyboard.press("Enter")
+  }
+  await expect(signalsCell).toBeAttached()
+  await openSignalsCell()
+
+  const speedOption = page.locator("[cmdk-item]").filter({ hasText: "Speed" })
+  await expect(speedOption).toBeVisible()
+  await speedOption.click()
+  await page.locator(".file-identity").click()
+
+  await expect(
+    page.locator("[data-eidos-file-grid-write-recovery]")
+  ).toHaveCount(0)
+  await page.getByRole("tab", { name: "People", exact: true }).click()
+  await page.getByRole("tab", { name: "Experiments", exact: true }).click()
+  await expect(signalsCell).toBeAttached()
+  await openSignalsCell()
+  await expect(page.locator('svg[data-id="Speed"]')).toBeVisible()
+})
+
+test("exports the current Eidos File view as readable CSV", async ({
+  page,
+  browserName,
+}, testInfo) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the SQLite WASM CSV download"
+  )
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.getByRole("button", { name: "Choose a template" }).click()
+  await page
+    .getByRole("button", { name: "Open Eidos 1.0 Feature Lab template" })
+    .click()
+  await expect(
+    page.getByRole("tab", { name: "Experiments", exact: true })
+  ).toHaveAttribute("aria-selected", "true")
+
+  await page.getByRole("button", { name: "Search Eidos File rows" }).click()
+  await page.locator("input[type='search']").fill("Relation labels")
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
+    "Relation labels"
+  )
+
+  const downloadPromise = page.waitForEvent("download")
+  await page.getByRole("tab", { name: "Grid", exact: true }).click({
+    button: "right",
+  })
+  await page
+    .getByRole("menuitem", { name: "Export current view as CSV" })
+    .click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toBe(
+    "eidos-1.0-feature-lab - Experiments - Grid.csv"
+  )
+  const csvPath = testInfo.outputPath("feature-lab-grid.csv")
+  await download.saveAs(csvPath)
+  const csv = await readFile(csvPath, "utf8")
+  const lines = csv
+    .replace(/^\uFEFF/, "")
+    .trimEnd()
+    .split("\r\n")
+
+  expect(lines).toHaveLength(2)
+  expect(lines[0]).toContain("Experiment")
+  expect(lines[0]).toContain("Owner")
+  expect(lines[0]).not.toContain("Summary")
+  expect(lines[1]).toContain("Relation labels")
+  expect(lines[1]).toContain("Mina Park")
+  expect(lines[1]).toContain("Theo Martin")
+  expect(lines[1]).not.toMatch(
+    /[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/
+  )
+
+  const tableDownloadPromise = page.waitForEvent("download")
+  await page.getByRole("tab", { name: "Experiments", exact: true }).click({
+    button: "right",
+  })
+  await page
+    .getByRole("menuitem", { name: "Export entire table as CSV" })
+    .click()
+  const tableDownload = await tableDownloadPromise
+  expect(tableDownload.suggestedFilename()).toBe(
+    "eidos-1.0-feature-lab - Experiments.csv"
+  )
+  const tableCsvPath = testInfo.outputPath("feature-lab-experiments.csv")
+  await tableDownload.saveAs(tableCsvPath)
+  const tableCsv = await readFile(tableCsvPath, "utf8")
+  const tableLines = tableCsv
+    .replace(/^\uFEFF/, "")
+    .trimEnd()
+    .split("\r\n")
+
+  expect(tableLines).toHaveLength(181)
+  expect(tableLines[0]).toContain("Summary")
+  expect(tableLines[0]).toContain("Signals")
+  expect(tableCsv).toContain("Feature Lab launch")
+  expect(tableCsv).toContain("Feature experiment 180")
+})
+
+test("embeds the template-backed field matrix as a read-only documentation table", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the documentation SQLite WASM worker"
+  )
+  await installFallbackMode(page)
+  await page.goto("/docs/format/")
+
+  const embed = page.locator('[data-eidos-file-doc-embed="field-capabilities"]')
+  await expect(embed).toHaveAttribute("data-eidos-file-readonly", "true")
+  await expect(embed).toContainText(
+    "Read-only · same file as the editor template"
+  )
+  await embed.locator("[data-testid='glide-cell-1-0']").waitFor({
+    state: "attached",
+  })
+  await expect(embed.locator("[data-testid='glide-cell-1-0']")).toContainText(
+    "Row ID"
+  )
+  await embed
+    .getByRole("textbox", { name: "Search fields and capabilities" })
+    .fill("FileEntry JSON array")
+  await expect(embed.locator("[data-testid='glide-cell-1-0']")).toContainText(
+    "File"
+  )
+
+  await embed.getByRole("button", { name: "Maximize table in page" }).click()
+  await expect(embed).toHaveAttribute("data-maximized", "true")
+  const maximizedBounds = await embed.evaluate((element) => {
+    const bounds = element.getBoundingClientRect()
+    return {
+      width: bounds.width,
+      height: bounds.height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }
+  })
+  expect(maximizedBounds.width).toBeGreaterThan(
+    maximizedBounds.viewportWidth - 40
+  )
+  expect(maximizedBounds.height).toBeGreaterThan(
+    maximizedBounds.viewportHeight - 40
+  )
+  expect(maximizedBounds.width).toBeLessThan(maximizedBounds.viewportWidth)
+  expect(maximizedBounds.height).toBeLessThan(maximizedBounds.viewportHeight)
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        fullscreen: document.fullscreenElement !== null,
+        overflow: document.body.style.overflow,
+      }))
+    )
+    .toEqual({ fullscreen: false, overflow: "hidden" })
+
+  await page.keyboard.press("Escape")
+  await expect(embed).toHaveAttribute("data-maximized", "false")
+  await expect(
+    embed.getByRole("button", { name: "Maximize table in page" })
+  ).toBeFocused()
+})
+
+test("keeps the documentation header visible when the TOC scrolls the article", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the desktop documentation scroll-container contract"
+  )
+  await page.goto("/docs/format/")
+
+  await page.locator(".docs-toc button").first().click()
+  await expect
+    .poll(() =>
+      page.locator(".docs-article").evaluate((article) => article.scrollTop)
+    )
+    .toBeGreaterThan(0)
+
+  const scrollState = await page.evaluate(() => ({
+    headerTop:
+      document.querySelector(".docs-header")?.getBoundingClientRect().top ?? -1,
+    windowScrollY: window.scrollY,
+  }))
+  expect(scrollState).toEqual({ headerTop: 0, windowScrollY: 0 })
 })
 
 test("uses the filtered row count for the Grid virtual height", async ({
@@ -1137,7 +1764,7 @@ test("imports CSV through the explicitly composed editor plugin", async ({
   await expect(page.locator("[data-testid='glide-cell-3-0']")).toHaveText(
     "true"
   )
-  await expect(page.getByRole("status")).toContainText(/Unsaved|browser/)
+  await expect(page.locator(".save-status")).toContainText(/Unsaved|browser/)
 
   const downloadPromise = page.waitForEvent("download")
   await page
@@ -1156,8 +1783,8 @@ test("imports CSV through the explicitly composed editor plugin", async ({
   await expect(page.locator("[data-testid='glide-cell-1-0']")).toHaveText(
     "Alpha"
   )
-  await page.getByRole("button", { name: "切换到中文" }).click()
-  await page.getByRole("button", { name: "Add Eidos File table" }).click()
+  await page.getByRole("combobox", { name: "Language" }).selectOption("zh")
+  await page.getByRole("button", { name: "添加 Eidos File 数据表" }).click()
   await expect(
     page.getByRole("button", {
       name: "将 CSV 导入为新的 Eidos File 数据表",
@@ -1335,15 +1962,23 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
 
   const openFieldCreator = async (name: string, type: string) => {
     const creator = page.locator("[data-eidos-file-field-create='true']")
-    const propertyButton = page
+    const fieldsButton = page
       .locator("[data-eidos-file-workbar-actions]")
-      .getByRole("button", { name: "Property" })
+      .getByRole("button", { name: "Manage fields" })
     await expect(async () => {
-      if (!(await creator.isVisible())) await propertyButton.click()
+      if (!(await creator.isVisible())) {
+        await fieldsButton.click()
+        await page.getByRole("button", { name: "New field" }).click()
+      }
       await expect(creator).toBeVisible({ timeout: 2_000 })
     }).toPass({ timeout: 15_000 })
     await creator.getByLabel("Name").fill(name)
     await creator.locator("[data-eidos-file-field-type-trigger]").click()
+    await expect(
+      page.locator(
+        `[data-eidos-file-field-type='${type}'] [data-eidos-file-field-type-icon='${type}']`
+      )
+    ).toBeVisible()
     await page.locator(`[data-eidos-file-field-type='${type}']`).click()
     return creator
   }
@@ -1357,13 +1992,20 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
   await expect(estimateReference).toContainText("Estimate")
   await estimateReference.click()
   await expect(formulaExpression).toContainText('"Estimate"')
-  await formulaExpression.fill("AB")
-  const absCompletion = page.getByRole("option", { name: /^ABS/ })
-  await expect(absCompletion).toBeVisible()
-  await absCompletion.click()
+  await formulaExpression.fill("")
+  await formulaCreator
+    .locator('[data-formula-reference="function:abs"]')
+    .click()
   await expect(formulaExpression).toContainText("ABS()")
   await formulaCreator.locator(".eidos-file-formula-display-select").click()
-  await page.getByRole("option", { name: "Number", exact: true }).click()
+  const numberDisplayType = page.getByRole("option", {
+    name: "Number",
+    exact: true,
+  })
+  await expect(
+    numberDisplayType.locator('[data-eidos-file-field-type-icon="number"]')
+  ).toBeVisible()
+  await numberDisplayType.click()
   await formulaExpression.fill('"Estimate" * 2')
   await expect(formulaCreator).toContainText(
     "Preview · Ship Eidos File Web Editor: 4"
@@ -1595,8 +2237,9 @@ test("keeps the Formula editor focused and reachable in a dark touch viewport", 
     })
     await page
       .locator("[data-eidos-file-workbar-actions]")
-      .getByRole("button", { name: "Property" })
+      .getByRole("button", { name: "Manage fields" })
       .click()
+    await page.getByRole("button", { name: "New field" }).click()
     const creator = page.locator("[data-eidos-file-field-create='true']")
     await creator.getByLabel("Name").fill("Touch formula")
     await creator.locator("[data-eidos-file-field-type-trigger]").click()
@@ -1884,7 +2527,7 @@ test("switches the live Eidos File experience between English and Chinese", asyn
   const chineseSample = page.waitForResponse((response) =>
     response.url().includes("project-tracker.zh")
   )
-  await page.getByRole("button", { name: "切换到中文" }).click()
+  await page.getByRole("combobox", { name: "Language" }).selectOption("zh")
   await expect((await chineseSample).status()).toBeLessThan(400)
 
   await expect(
@@ -1892,6 +2535,9 @@ test("switches the live Eidos File experience between English and Chinese", asyn
   ).toBeVisible()
   await expect(
     page.getByRole("button", { name: "打开 .eidos 文件" })
+  ).toBeVisible()
+  await expect(
+    page.getByRole("button", { name: "新建空白 Eidos File" })
   ).toBeVisible()
   await expect(page.getByRole("button", { name: "选择体验模板" })).toBeVisible()
   await expect(page.locator(".landing-section")).toHaveCount(0)
@@ -1927,7 +2573,7 @@ test("switches the live Eidos File experience between English and Chinese", asyn
   await expect(page.locator("[data-eidos-file-sheet-tabs]")).toContainText(
     "导入的副本"
   )
-  await page.getByRole("button", { name: "Switch to English" }).click()
+  await page.getByRole("combobox", { name: "语言" }).selectOption("en")
   await expect(page.locator("[data-eidos-file-sheet-tabs]")).toContainText(
     "Imported copy"
   )
@@ -2022,7 +2668,7 @@ test("keeps the editor first and publishes server-rendered Eidos File documentat
     page.locator(".markdown-body .token.keyword").first()
   ).toBeVisible()
 
-  await page.getByRole("button", { name: "切换到中文" }).click()
+  await page.getByRole("combobox", { name: "Language" }).selectOption("zh")
   await expect(page).toHaveURL(/\/zh\/docs\/build\/$/)
   await expect(page.locator('.site-nav a[href="/"]')).toHaveText("编辑工具")
   await expect(page.locator('.site-nav a[href="/zh/docs/"]')).toHaveText(

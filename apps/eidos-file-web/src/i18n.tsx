@@ -8,7 +8,7 @@ import {
 } from "react"
 
 const en = {
-  languageAction: "切换到中文",
+  languageSelector: "Language",
   navEditor: "Editor",
   navInspector: "SQLite",
   navInspectorQualifier: "Inspector",
@@ -23,6 +23,9 @@ const en = {
   heroLede:
     "Edit a local .eidos file with the same Grid, Gallery, and Kanban experience as Eidos Desktop. No account. No upload.",
   openingEidosFile: "Opening Eidos File…",
+  creatingEidosFile: "Creating blank Eidos File…",
+  createEidosFile: "New blank Eidos File",
+  newEidosFile: "New",
   openEidosFile: "Open .eidos file",
   openSample: "Open sample Eidos File",
   returnHome: "Return to Eidos File home",
@@ -201,7 +204,7 @@ const en = {
 type MessageKey = keyof typeof en
 
 const zh: Record<MessageKey, string> = {
-  languageAction: "Switch to English",
+  languageSelector: "语言",
   navEditor: "编辑工具",
   navInspector: "SQLite",
   navInspectorQualifier: "检查器",
@@ -216,6 +219,9 @@ const zh: Record<MessageKey, string> = {
   heroLede:
     "直接编辑本地 .eidos 文件，复用 Eidos Desktop 的 Grid、Gallery 与 Kanban 体验。无需账号，不上传文件。",
   openingEidosFile: "正在打开 Eidos File…",
+  creatingEidosFile: "正在新建空白 Eidos File…",
+  createEidosFile: "新建空白 Eidos File",
+  newEidosFile: "新建",
   openEidosFile: "打开 .eidos 文件",
   openSample: "打开示例 Eidos File",
   returnHome: "返回 Eidos File 首页",
@@ -381,7 +387,25 @@ const zh: Record<MessageKey, string> = {
   launchFooter: "默认本地 · 底层 SQLite · 开放 runtime 边界",
 }
 
-export type Locale = "en" | "zh"
+export const EIDOS_FILE_LOCALES = [
+  {
+    value: "en",
+    label: "English",
+    shortLabel: "EN",
+    htmlLang: "en",
+    browserLanguagePrefixes: ["en"],
+  },
+  {
+    value: "zh",
+    label: "简体中文",
+    shortLabel: "中",
+    htmlLang: "zh-CN",
+    browserLanguagePrefixes: ["zh"],
+  },
+] as const
+
+export type Locale = (typeof EIDOS_FILE_LOCALES)[number]["value"]
+const MESSAGES: Record<Locale, Record<MessageKey, string>> = { en, zh }
 export type Translator = (
   key: MessageKey,
   values?: Record<string, string | number>
@@ -397,8 +421,18 @@ const I18nContext = createContext<I18nContextValue | null>(null)
 
 function browserLocale(): Locale {
   const stored = window.localStorage.getItem("eidos-file-locale")
-  if (stored === "en" || stored === "zh") return stored
-  return navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en"
+  if (EIDOS_FILE_LOCALES.some((option) => option.value === stored)) {
+    return stored as Locale
+  }
+  const browserLanguage = navigator.language.toLowerCase()
+  return (
+    EIDOS_FILE_LOCALES.find((option) =>
+      option.browserLanguagePrefixes.some(
+        (prefix) =>
+          browserLanguage === prefix || browserLanguage.startsWith(`${prefix}-`)
+      )
+    )?.value ?? "en"
+  )
 }
 
 export function I18nProvider({
@@ -414,12 +448,14 @@ export function I18nProvider({
 
   useEffect(() => {
     window.localStorage.setItem("eidos-file-locale", locale)
-    document.documentElement.lang = locale === "zh" ? "zh-CN" : "en"
+    document.documentElement.lang =
+      EIDOS_FILE_LOCALES.find((option) => option.value === locale)?.htmlLang ??
+      "en"
   }, [locale])
 
   const value = useMemo<I18nContextValue>(() => {
     const t: Translator = (key, values = {}) => {
-      const template = (locale === "zh" ? zh : en)[key]
+      const template = MESSAGES[locale][key]
       return Object.entries(values).reduce(
         (text, [name, replacement]) =>
           text.replaceAll(`{${name}}`, String(replacement)),

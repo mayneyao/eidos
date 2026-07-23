@@ -66,6 +66,18 @@ const message: string = "Hello Eidos File"
     expect(rendered.html).toContain('class="token string"')
   })
 
+  it("preserves the trusted field-capability Eidos embed marker", () => {
+    const rendered = renderEidosFileMarkdown(`
+## Matrix
+
+<div data-eidos-file-embed="field-capabilities"></div>
+`)
+
+    expect(rendered.html).toContain(
+      '<div data-eidos-file-embed="field-capabilities"></div>'
+    )
+  })
+
   it("publishes one focused four-layer interoperability path", () => {
     const build = EIDOS_FILE_DOCUMENTS.find(
       (document) => document.slug === "build"

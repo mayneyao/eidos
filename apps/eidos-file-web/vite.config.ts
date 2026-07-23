@@ -165,6 +165,10 @@ export default defineConfig({
         directory,
         "../../packages/eidos-file-ui/src/eidos-file-view-tabs.tsx"
       ),
+      "@eidos.space/eidos-file-ui/eidos-file-view-fields-popover": path.resolve(
+        directory,
+        "../../packages/eidos-file-ui/src/eidos-file-view-fields-popover.tsx"
+      ),
       "@eidos.space/eidos-file-ui/eidos-file-query-toolbar": path.resolve(
         directory,
         "../../packages/eidos-file-ui/src/eidos-file-query-toolbar.tsx"

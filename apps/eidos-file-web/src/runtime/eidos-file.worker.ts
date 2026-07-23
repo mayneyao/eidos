@@ -118,7 +118,7 @@ function validateAndMigrate(
 async function openEidosFile(
   action: Extract<
     EidosFileWorkerAction,
-    { type: "open-source" | "open-recovery" }
+    { type: "create-source" | "open-source" | "open-recovery" }
   >
 ) {
   await closeCurrent()
@@ -139,7 +139,10 @@ async function openEidosFile(
   if (pool) {
     if (action.type === "open-source") {
       await pool.importDb(WORKING_FILE, action.bytes)
-    } else if (!pool.getFileNames().includes(WORKING_FILE)) {
+    } else if (
+      action.type === "open-recovery" &&
+      !pool.getFileNames().includes(WORKING_FILE)
+    ) {
       throw new Error("The recoverable working copy is no longer available")
     }
     database = new pool.OpfsSAHPoolDb(WORKING_FILE)
@@ -150,8 +153,12 @@ async function openEidosFile(
         "This browser cannot reopen the persistent recovery copy. Open the original file instead."
       )
     }
-    sqlite.capi.sqlite3_js_posix_create_file(WORKING_FILE, action.bytes)
-    database = new sqlite.oo1.DB(WORKING_FILE, "w")
+    if (action.type === "open-source") {
+      sqlite.capi.sqlite3_js_posix_create_file(WORKING_FILE, action.bytes)
+      database = new sqlite.oo1.DB(WORKING_FILE, "w")
+    } else {
+      database = new sqlite.oo1.DB(WORKING_FILE, "c")
+    }
     storage = "memory"
   }
 
@@ -161,7 +168,8 @@ async function openEidosFile(
     connection.exec(
       "PRAGMA foreign_keys = ON; PRAGMA trusted_schema = OFF; PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;"
     )
-    const migrated = validateAndMigrate(connection)
+    const migrated =
+      action.type === "create-source" ? false : validateAndMigrate(connection)
     const epoch = crypto.randomUUID()
     const sessionID = crypto.randomUUID()
     const transport = new AdapterTransportServer(
@@ -178,27 +186,37 @@ async function openEidosFile(
         closeConnection: () => port.close(),
       }
     )
-    const runtimeBinding = await Runtime.open(
-      port,
-      {
-        clock: {
-          nowInstant: () => new Date().toISOString(),
-          nowMilliseconds: () => performance.now(),
-        },
-        entropy: {
-          randomBytes: (length) =>
-            crypto.getRandomValues(new Uint8Array(length)),
-        },
-        transportCommitBarrier: transport.commitBarrier,
+    const environment = {
+      clock: {
+        nowInstant: () => new Date().toISOString(),
+        nowMilliseconds: () => performance.now(),
       },
-      action.access ?? "readwrite",
-      {
-        cancellation: {
-          cancelled: () => false,
-          onCancel: () => () => undefined,
-        },
-      }
-    )
+      entropy: {
+        randomBytes: (length: number) =>
+          crypto.getRandomValues(new Uint8Array(length)),
+      },
+      transportCommitBarrier: transport.commitBarrier,
+    }
+    const factoryContext = {
+      cancellation: {
+        cancelled: () => false,
+        onCancel: () => () => undefined,
+      },
+    }
+    const runtimeBinding =
+      action.type === "create-source"
+        ? await Runtime.create(
+            port,
+            environment,
+            { title: action.title },
+            factoryContext
+          )
+        : await Runtime.open(
+            port,
+            environment,
+            action.access ?? "readwrite",
+            factoryContext
+          )
     transport.attachRuntime(runtimeBinding.service)
     const runtimeSnapshot = await runtimeBinding.service.getSnapshot(
       {},
@@ -231,7 +249,11 @@ async function openEidosFile(
 }
 
 async function handleAction(action: EidosFileWorkerAction) {
-  if (action.type === "open-source" || action.type === "open-recovery") {
+  if (
+    action.type === "create-source" ||
+    action.type === "open-source" ||
+    action.type === "open-recovery"
+  ) {
     return openEidosFile(action)
   }
   if (action.type === "discard-recovery") {

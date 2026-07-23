@@ -137,6 +137,35 @@ export class EidosFileWorkerClient {
     )
   }
 
+  createSource(
+    fileName: string,
+    recoveryId: string,
+    title: string
+  ): Promise<EidosFileWorkerOpenResult> {
+    return this.call({
+      type: "create-source",
+      fileName,
+      recoveryId,
+      title,
+    })
+  }
+
+  async createEditorSource(
+    fileName: string,
+    recoveryId: string,
+    title: string
+  ): Promise<
+    Omit<EidosFileWorkerOpenResult, "snapshot"> & {
+      snapshot: EidosFileSnapshot
+    }
+  > {
+    const opened = await this.createSource(fileName, recoveryId, title)
+    return {
+      ...opened,
+      snapshot: await this.connectEditor(recoveryId, fileName),
+    }
+  }
+
   async openEditorSource(
     fileName: string,
     recoveryId: string,
@@ -254,6 +283,12 @@ export class EidosFileWorkerClient {
 
   deleteTable(...args: Parameters<EidosFileEditorDataSource["deleteTable"]>) {
     return this.requireEditor().deleteTable(...args)
+  }
+
+  reorderTables(
+    ...args: Parameters<NonNullable<EidosFileEditorDataSource["reorderTables"]>>
+  ) {
+    return this.requireEditor().reorderTables(...args)
   }
 
   createView(...args: Parameters<EidosFileEditorDataSource["createView"]>) {

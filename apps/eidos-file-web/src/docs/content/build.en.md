@@ -51,9 +51,12 @@ bridge; UI does not.
 ## Viewer
 
 ```tsx
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, type ReactNode } from "react"
 import type { HostServices } from "@eidos.space/eidos-file"
-import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui"
+import {
+  EidosFileUIProvider,
+  type AssetPresenter,
+} from "@eidos.space/eidos-file-ui"
 import { EidosUIKernel } from "@eidos.space/eidos-file-ui/kernel"
 import {
   EidosStandardView,
@@ -63,9 +66,11 @@ import {
 function Viewer({
   host,
   sourceToken,
+  assetPresenter,
 }: {
   host: HostServices
   sourceToken: string
+  assetPresenter: AssetPresenter<ReactNode>
 }) {
   const kernel = useMemo(() => new EidosUIKernel(host), [host])
   useEffect(() => {
@@ -76,7 +81,7 @@ function Viewer({
   }, [kernel, sourceToken])
   return (
     <EidosFileUIProvider locale="en">
-      <EidosUIRuntimeProvider kernel={kernel}>
+      <EidosUIRuntimeProvider kernel={kernel} assetPresenter={assetPresenter}>
         <EidosStandardView />
       </EidosUIRuntimeProvider>
     </EidosFileUIProvider>
@@ -95,6 +100,12 @@ labels, input affordances, and formatting only. Canonical option names and
 user-authored Table, Field, and View names remain File data and are never
 translated.
 
+File-entry URIs are never presentation URLs. Relative, `https:`, and canonical
+inline image Data URLs all go through `HostServices.resolveAsset`; only an
+injected `AssetPresenter` consumes the returned lease token. Hosts without a
+session-scoped relative root omit that capability. Open/download is an
+explicit leased action, and ordinary URL fields never auto-fetch.
+
 ## Required interoperability checks
 
 - run the same Runtime contract over Browser WASM and Desktop better-sqlite3;
@@ -103,3 +114,5 @@ translated.
 - verify prepared-commit receipts before COMMIT on transported mutations;
 - verify snapshot/schema/page cursor binding and revision invalidation in UI;
 - treat disabled optional capabilities as absent optional methods, not stubs.
+- verify invalid Base64/media/size, the 1 MiB inline boundary, missing relative
+  root, lease expiry/fallback, and zero direct URI fetch/navigation.

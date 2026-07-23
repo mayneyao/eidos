@@ -7,6 +7,8 @@ import {
   HeartPulse,
   LayoutTemplate,
   LoaderCircle,
+  Microscope,
+  TableProperties,
   WalletCards,
   type LucideIcon,
 } from "lucide-react"
@@ -25,6 +27,8 @@ const templateIcons: Record<EidosFileTemplateId, LucideIcon> = {
   "reading-library": BookOpen,
   "habit-journal": HeartPulse,
   "content-calendar": CalendarRange,
+  "feature-lab": Microscope,
+  "field-capabilities": TableProperties,
 }
 
 interface EidosFileTemplatePickerProps {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type MouseEvent } from "react"
+import { Fragment, useEffect, useMemo, useRef, type MouseEvent } from "react"
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -16,6 +16,8 @@ import {
 import { renderEidosFileMarkdown } from "../docs/markdown"
 import { eidosFileDocsPath } from "../docs/routes"
 import { useI18n } from "../i18n"
+import { EidosFileLanguageSelect } from "./eidos-file-language-select"
+import { ReadonlyEidosFileDocTable } from "./readonly-eidos-file-doc-table"
 
 interface EidosFileDocsProps {
   slug: string | null
@@ -53,6 +55,9 @@ const copy = {
   },
 } as const
 
+const FIELD_CAPABILITY_EMBED =
+  /<div data-eidos-file-embed="field-capabilities"><\/div>/g
+
 export function EidosFileDocs({
   slug,
   theme,
@@ -61,9 +66,14 @@ export function EidosFileDocs({
   const { locale, t } = useI18n()
   const labels = copy[locale]
   const activeDocument = eidosFileDocumentBySlug(slug)
+  const articleRef = useRef<HTMLElement | null>(null)
   const rendered = useMemo(
     () => renderEidosFileMarkdown(activeDocument.markdown[locale], locale),
     [activeDocument, locale]
+  )
+  const markdownSegments = useMemo(
+    () => rendered.html.split(FIELD_CAPABILITY_EMBED),
+    [rendered.html]
   )
 
   useEffect(() => {
@@ -74,7 +84,38 @@ export function EidosFileDocs({
   }, [activeDocument, locale])
 
   const scrollToHeading = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" })
+    const heading = document.getElementById(id)
+    const article = articleRef.current
+    if (!heading || !article) return
+
+    const articleStyle = window.getComputedStyle(article)
+    const articleScrolls =
+      /(auto|scroll)/.test(articleStyle.overflowY) &&
+      article.scrollHeight > article.clientHeight
+    const shell = article.closest<HTMLElement>(".docs-shell")
+    const scrollContainer = articleScrolls ? article : shell
+    if (!scrollContainer) return
+
+    const containerTop = scrollContainer.getBoundingClientRect().top
+    const headingTop = heading.getBoundingClientRect().top
+    const scrollMargin =
+      Number.parseFloat(window.getComputedStyle(heading).scrollMarginTop) || 0
+    const stickyHeaderHeight =
+      scrollContainer === shell
+        ? (shell.querySelector<HTMLElement>(".docs-header")?.offsetHeight ?? 0)
+        : 0
+
+    scrollContainer.scrollTo({
+      top: Math.max(
+        0,
+        scrollContainer.scrollTop +
+          headingTop -
+          containerTop -
+          stickyHeaderHeight -
+          scrollMargin
+      ),
+      behavior: "smooth",
+    })
   }
 
   const handleMarkdownClick = (event: MouseEvent<HTMLDivElement>) => {
@@ -127,21 +168,13 @@ export function EidosFileDocs({
           </a>
         </nav>
         <div className="launch-header-actions">
-          <button
-            className="language-button"
-            type="button"
-            aria-label={t("languageAction")}
-            onClick={() =>
+          <EidosFileLanguageSelect
+            onChange={(nextLocale) =>
               window.location.assign(
-                eidosFileDocsPath(
-                  activeDocument.slug,
-                  locale === "en" ? "zh" : "en"
-                )
+                eidosFileDocsPath(activeDocument.slug, nextLocale)
               )
             }
-          >
-            {locale === "en" ? "中文" : "EN"}
-          </button>
+          />
           <button
             className="icon-button"
             type="button"
@@ -181,7 +214,7 @@ export function EidosFileDocs({
           <p className="docs-notice">{labels.notice}</p>
         </aside>
 
-        <article className="docs-article" id="docs-article">
+        <article ref={articleRef} className="docs-article" id="docs-article">
           <div className="docs-article-meta">
             <span>
               <FileText size={14} aria-hidden="true" />
@@ -189,11 +222,19 @@ export function EidosFileDocs({
             </span>
             <code>{activeDocument.edition[locale]}</code>
           </div>
-          <div
-            className="markdown-body"
-            dangerouslySetInnerHTML={{ __html: rendered.html }}
-            onClick={handleMarkdownClick}
-          />
+          <div className="markdown-body" onClick={handleMarkdownClick}>
+            {markdownSegments.map((html, index) => (
+              <Fragment key={`${activeDocument.slug}-${locale}-${index}`}>
+                <div
+                  className="markdown-body-segment"
+                  dangerouslySetInnerHTML={{ __html: html }}
+                />
+                {index < markdownSegments.length - 1 ? (
+                  <ReadonlyEidosFileDocTable theme={theme} />
+                ) : null}
+              </Fragment>
+            ))}
+          </div>
           <a className="docs-back-link" href="/">
             <ArrowLeft size={14} aria-hidden="true" />
             {labels.back}

@@ -50,9 +50,12 @@ SQLite 或原始文件 handle 发送给 UI。
 ## Viewer
 
 ```tsx
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, type ReactNode } from "react"
 import type { HostServices } from "@eidos.space/eidos-file"
-import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui"
+import {
+  EidosFileUIProvider,
+  type AssetPresenter,
+} from "@eidos.space/eidos-file-ui"
 import { EidosUIKernel } from "@eidos.space/eidos-file-ui/kernel"
 import {
   EidosStandardView,
@@ -62,9 +65,11 @@ import {
 function Viewer({
   host,
   sourceToken,
+  assetPresenter,
 }: {
   host: HostServices
   sourceToken: string
+  assetPresenter: AssetPresenter<ReactNode>
 }) {
   const kernel = useMemo(() => new EidosUIKernel(host), [host])
   useEffect(() => {
@@ -75,7 +80,7 @@ function Viewer({
   }, [kernel, sourceToken])
   return (
     <EidosFileUIProvider locale="zh">
-      <EidosUIRuntimeProvider kernel={kernel}>
+      <EidosUIRuntimeProvider kernel={kernel} assetPresenter={assetPresenter}>
         <EidosStandardView />
       </EidosUIRuntimeProvider>
     </EidosFileUIProvider>
@@ -92,6 +97,12 @@ File filter、Formula、Lookup、Relation、aggregate 或 group 语义。
 input affordance 与 formatting；canonical option name 以及用户创建的 Table、Field、
 View name 始终是 File data，绝不会被翻译。
 
+File-entry URI 不是 presentation URL。relative、`https:` 与 canonical inline
+image Data URL 全部通过 `HostServices.resolveAsset`；只有注入的
+`AssetPresenter` 可以消费 lease token。没有 session-scoped relative root 的
+Host 必须省略该 capability。打开/下载是显式 lease action；普通 URL 字段不会
+自动 fetch。
+
 ## 必需的互操作验证
 
 - Browser WASM 与 Desktop better-sqlite3 跑同一 Runtime contract；
@@ -99,3 +110,5 @@ View name 始终是 File data，绝不会被翻译。
 - transported mutation 必须在 COMMIT 前完成 prepared-commit receipt；
 - UI 验证 snapshot/schema/page cursor binding 与 revision invalidation；
 - optional capability 为 false 时，对应 optional method 必须不存在，不能用 stub 伪装。
+- 覆盖 invalid Base64/media/size、1 MiB inline 边界、missing relative root、
+  lease expiry/fallback，以及 zero direct URI fetch/navigation。

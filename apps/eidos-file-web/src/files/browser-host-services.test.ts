@@ -25,6 +25,9 @@ describe("Browser Eidos Host 1.0 facade", () => {
       limits: {
         sourceBytesMax: "268435456",
         candidateBytesMax: "268435456",
+        assetBytesMax: "0",
+        assetPreviewBytesMax: "0",
+        concurrentAssetLeasesMax: 0,
       },
     })
   })
@@ -46,6 +49,16 @@ describe("Browser Eidos Host 1.0 facade", () => {
         context("\ud800")
       )
     ).rejects.toMatchObject({ code: "invalid-request" })
+    await expect(
+      host.resolveAsset(
+        {
+          sessionId: "session",
+          entryId: "019f8a00-0000-7000-8000-000000000001",
+          purpose: "thumbnail",
+        },
+        context("resolve-without-relative-root")
+      )
+    ).rejects.toMatchObject({ code: "unsupported" })
     await expect(
       host.releaseAsset(
         { sessionId: "session", leaseId: "lease" },
