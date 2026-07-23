@@ -622,7 +622,18 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         changes.type === "rating" ? "integer" : (changes.type ?? field.kind)
       const settings = {
         ...property,
-        ...(changes.type === "rating" ? { control: "rating" } : {}),
+        ...(changes.type === "rating"
+          ? {
+              display: {
+                ...(typeof property.display === "object" &&
+                property.display !== null &&
+                !Array.isArray(property.display)
+                  ? property.display
+                  : {}),
+                kind: "rating",
+              },
+            }
+          : {}),
       } as JsonObject
       leaves.push({ kind: "set-field-settings", fieldId, settings })
       if (kind === "formula") {
@@ -1226,7 +1237,16 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     if (field.systemRole === "row-id") return "row-id"
     if (field.systemRole === "created-time") return "created-time"
     if (field.systemRole === "updated-time") return "last-edited-time"
-    if (field.kind === "integer" && field.settings.control === "rating")
+    const display =
+      typeof field.settings.display === "object" &&
+      field.settings.display !== null &&
+      !Array.isArray(field.settings.display)
+        ? field.settings.display
+        : null
+    if (
+      field.kind === "integer" &&
+      (field.settings.control === "rating" || display?.kind === "rating")
+    )
       return "rating"
     return field.kind
   }
@@ -1287,8 +1307,15 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
 
   private runtimeValue(field: FieldDescriptor, value: unknown): LogicalValue {
     if (value === null || value === undefined || value === "") {
+      if (
+        field.valueType === "multi-select" ||
+        field.valueType === "relation" ||
+        field.valueType === "file"
+      ) {
+        return []
+      }
       return value === "" &&
-        ["text", "url", "select", "json"].includes(String(field.valueType))
+        ["text", "url", "select"].includes(String(field.valueType))
         ? ""
         : null
     }
@@ -1425,11 +1452,32 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     raw: unknown
   ): FilterNode {
     const field = this.fields.get(fieldId)
+    const list =
+      typeof field?.valueType === "object" ||
+      field?.valueType === "multi-select" ||
+      field?.valueType === "relation" ||
+      field?.valueType === "file"
+    const elementField = field
+      ? {
+          ...field,
+          valueType:
+            typeof field.valueType === "object"
+              ? field.valueType.element
+              : field.valueType === "multi-select"
+                ? ("select" as const)
+                : field.valueType === "relation"
+                  ? ("row-id" as const)
+                  : field.valueType === "file"
+                    ? ("file-entry" as const)
+                    : field.valueType,
+        }
+      : undefined
     const values = (Array.isArray(raw) ? raw : [raw ?? null]).map((value) =>
-      field ? this.runtimeValue(field, value) : (value as LogicalValue)
+      elementField
+        ? this.runtimeValue(elementField, value)
+        : (value as LogicalValue)
     )
     const scalar = values[0] ?? null
-    const list = typeof field?.valueType === "object"
     switch (operator) {
       case "is-empty":
         return { op: "is-null", fieldId }
@@ -1626,7 +1674,18 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     const kind = field.type === "rating" ? "integer" : field.type
     const settings = {
       ...(field.property ?? {}),
-      ...(field.type === "rating" ? { control: "rating" } : {}),
+      ...(field.type === "rating"
+        ? {
+            display: {
+              ...(typeof field.property?.display === "object" &&
+              field.property.display !== null &&
+              !Array.isArray(field.property.display)
+                ? field.property.display
+                : {}),
+              kind: "rating",
+            },
+          }
+        : {}),
     } as JsonObject
     return {
       clientKey,
