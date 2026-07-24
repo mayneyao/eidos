@@ -297,7 +297,7 @@ async function importCsv(
         async (row, rowNumber) => {
           batch.push(eidosFileCsvRowToEidosFileRow(row, rowNumber, plan))
           if (batch.length < INSERT_BATCH_SIZE) return
-          base.insertImportedRows(table.id, batch)
+          base.appendImportedRows(table.id, batch)
           importedRowCount += batch.length
           batch = []
         },
@@ -311,7 +311,7 @@ async function importCsv(
           })
       )
       if (batch.length > 0) {
-        base.insertImportedRows(table.id, batch)
+        base.appendImportedRows(table.id, batch)
         importedRowCount += batch.length
       }
       await requireUnchangedFile(request.sourcePath, request.fingerprint)

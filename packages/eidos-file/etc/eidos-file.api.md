@@ -1900,6 +1900,8 @@ export class EidosFileRuntime {
     // (undocumented)
     aggregate(tableId: string, configs: EidosFileColumnStatConfig[], query?: EidosFileRowQuery): EidosFileColumnStatResult[];
     // @internal
+    appendImportedRows(tableId: string, rows: EidosFileRow[]): void;
+    // @internal
     applyCanonicalMutation<T>(operation: (instant: string) => T, expectedRevision?: number | bigint): T;
     // (undocumented)
     calculateColumnStats(tableId: string, configs: EidosFileColumnStatConfig[], query?: EidosFileRowQuery): EidosFileColumnStatResult[];

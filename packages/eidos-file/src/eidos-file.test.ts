@@ -60,6 +60,34 @@ describe("Eidos File 1.0 native Runtime", () => {
       expect(table.fields.filter((field) => field.isRecordLabel)).toHaveLength(
         1
       )
+      const orderedViewFieldNames = (viewId: string) => {
+        const view = runtime
+          .listViews(table.table.id)
+          .find((candidate) => candidate.id === viewId)!
+        const fieldNames = new Map(
+          table.fields.map((field) => [field.id, field.name])
+        )
+        return Object.entries(view.orderMap ?? {})
+          .sort((left, right) => left[1] - right[1])
+          .map(([fieldId]) => fieldNames.get(fieldId))
+      }
+      const defaultView = runtime.listViews(table.table.id)[0]!
+      expect(orderedViewFieldNames(defaultView.id)).toEqual([
+        "Name",
+        "_id",
+        "_created_at",
+        "_updated_at",
+      ])
+      const secondaryView = runtime.createView(table.table.id, {
+        name: "Secondary",
+        type: "grid",
+      })
+      expect(orderedViewFieldNames(secondaryView.id)).toEqual([
+        "Name",
+        "_id",
+        "_created_at",
+        "_updated_at",
+      ])
       expect(
         runtime.connection
           .query<{ type: string }>(
@@ -332,6 +360,39 @@ describe("Eidos File 1.0 native Runtime", () => {
         [`${team.id}:relation-row-count`]: 2,
         [`${team.id}:relation-distinct-target-count`]: 1,
       })
+    } finally {
+      runtime.close()
+    }
+  })
+
+  it("streams imported rows without per-row readback or revision churn", () => {
+    const runtime = createEidosFile(filePath(), { title: "Streaming import" })
+    try {
+      const revisionBefore = Number(runtime.info().revision)
+      const getRow = vi.spyOn(runtime, "getRow")
+      let tableId = ""
+      runtime.connection.transaction(() => {
+        const table = runtime.createTable({
+          name: "Imported",
+          fields: [
+            { name: "Name", type: "text", isRecordLabel: true },
+            { name: "Value", type: "number" },
+          ],
+        })
+        tableId = table.id
+        runtime.appendImportedRows(
+          table.id,
+          Array.from({ length: 1_200 }, (_, index) => ({
+            Name: `Row ${index + 1}`,
+            Value: index + 1,
+          }))
+        )
+      })
+
+      expect(getRow).not.toHaveBeenCalled()
+      expect(runtime.listRows(tableId, { limit: 1_200 })).toHaveLength(1_200)
+      expect(Number(runtime.info().revision)).toBe(revisionBefore + 1)
+      expect(runtime.inspect()).toMatchObject({ valid: true, errors: [] })
     } finally {
       runtime.close()
     }

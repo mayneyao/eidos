@@ -193,6 +193,19 @@ interface PreparedField {
   nullable: boolean
 }
 
+function systemFieldsLast<T extends { systemRole?: string | null }>(
+  fields: readonly T[]
+): T[] {
+  return [
+    ...fields.filter(
+      (field) => field.systemRole === null || field.systemRole === undefined
+    ),
+    ...fields.filter(
+      (field) => field.systemRole !== null && field.systemRole !== undefined
+    ),
+  ]
+}
+
 const SYSTEM_FIELD_NAMES = {
   "row-id": "_id",
   "created-time": "_created_at",
@@ -1170,7 +1183,7 @@ export class EidosFileRuntime {
       }
       if (input.createDefaultView !== false) {
         const viewId = this.allocateId()
-        const fieldOrder = fields.map((field) => field.id)
+        const fieldOrder = systemFieldsLast(fields).map((field) => field.id)
         this.connection.run(
           `INSERT INTO ${EIDOS_FILE_VIEWS_TABLE}
             (id, table_id, name, type, query_json, layout_json, position, created_at, updated_at)
@@ -2444,7 +2457,9 @@ export class EidosFileRuntime {
         ? properties.fieldOrder.flatMap((key) =>
             typeof key === "string" ? [key] : []
           )
-        : fields.flatMap((field) => (field.id ? [field.id] : []))
+        : systemFieldsLast(fields).flatMap((field) =>
+            field.id ? [field.id] : []
+          )
     const fieldOrder = orderSource.flatMap((key) => {
       const id = fieldByKey.get(key)
       return id ? [id] : []
@@ -2549,7 +2564,9 @@ export class EidosFileRuntime {
               const id = fieldByKey.get(key)
               return id ? [id] : []
             })
-        : fields.flatMap((field) => (field.id ? [field.id] : []))
+        : systemFieldsLast(fields).flatMap((field) =>
+            field.id ? [field.id] : []
+          )
       const layout = {
         ...(next.properties ?? {}),
         fieldOrder,
@@ -3782,6 +3799,11 @@ export class EidosFileRuntime {
       rows.map((row) => this.insertRowInTransaction(tableId, row, true))
     )
     return ids.map((id) => this.getRow(tableId, id)!)
+  }
+
+  /** @internal Appends rows inside a caller-owned import transaction. */
+  appendImportedRows(tableId: string, rows: EidosFileRow[]): void {
+    rows.forEach((row) => this.insertRowInTransaction(tableId, row, true))
   }
 
   /** @internal Used by the transactional CSV interchange layer. */
