@@ -1,6 +1,7 @@
 import type { ComponentProps } from "react"
 import type { EidosFileSession, HostServices } from "@eidos.space/eidos-file"
 import {
+  EidosFileEditorShell,
   EidosFileProvider,
   EidosFileViewHost,
   defineEidosFileView,
@@ -39,9 +40,23 @@ function ExactViewer({ host }: { host: HostServices }) {
   )
 }
 
+function EditorShell() {
+  return (
+    <EidosFileEditorShell
+      viewTabs={<nav>Views</nav>}
+      queryToolbar={<menu>Search, Filter, Sort</menu>}
+      fields={<button type="button">Fields</button>}
+      sheetTabs={<nav>Tables</nav>}
+    >
+      <div>Data canvas</div>
+    </EidosFileEditorShell>
+  )
+}
+
 type ProviderProps = ComponentProps<typeof EidosFileProvider>
 const trust: ProviderProps["themeName"] = "dark"
 
 void Host
 void ExactViewer
+void EditorShell
 void trust

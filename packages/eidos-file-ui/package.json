@@ -32,6 +32,16 @@
       "import": "./dist/eidos-file-editor-view.mjs",
       "default": "./dist/eidos-file-editor-view.mjs"
     },
+    "./eidos-file-editor-shell": {
+      "types": "./dist/eidos-file-editor-shell.d.mts",
+      "import": "./dist/eidos-file-editor-shell.mjs",
+      "default": "./dist/eidos-file-editor-shell.mjs"
+    },
+    "./eidos-file-empty-state": {
+      "types": "./dist/eidos-file-empty-state.d.mts",
+      "import": "./dist/eidos-file-empty-state.mjs",
+      "default": "./dist/eidos-file-empty-state.mjs"
+    },
     "./plugin": {
       "types": "./dist/plugin.d.mts",
       "import": "./dist/plugin.mjs",

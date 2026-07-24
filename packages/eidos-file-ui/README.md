@@ -81,6 +81,31 @@ consume Runtime query/group results; they do not reproduce filtering,
 Formula/Lookup, Relation or grouping semantics locally. Unknown persisted View
 types remain accessible as unsupported renderers.
 
+## Shared editor composition
+
+Browser and Desktop products use `EidosFileEditorShell` as the single editor
+layout owner. The Shell fixes the hierarchy and placement of View tabs,
+Search/Filter/Sort, Fields and field creation, the data canvas, Table tabs and
+editor overlays. Hosts supply shared controls and a rendered View as named
+slots; they do not reproduce the workbar or field-action layout.
+
+```tsx
+<EidosFileEditorShell
+  viewTabs={<EidosFileViewTabs {...viewTabs} />}
+  queryToolbar={<EidosFileQueryToolbar {...query} />}
+  fields={<EidosFileViewFieldsPopover {...fields} />}
+  fieldCreator={<EidosFileFieldCreatePopover {...fieldCreator} />}
+  sheetTabs={<EidosFileSheetTabs {...sheets} />}
+>
+  <EidosFileEditorView source={source} table={table} view={view} />
+</EidosFileEditorShell>
+```
+
+Browser file pickers, Desktop filesystem integration, save/conflict handling,
+version history and extension processes remain Host responsibilities. They
+enter the shared editor through data-source methods, plugins, capabilities or
+explicit Host-owned surfaces.
+
 ## Host responsibilities
 
 The product supplies an EA-Host-1.0 `HostServices` implementation. Source,

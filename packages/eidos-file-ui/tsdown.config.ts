@@ -7,6 +7,8 @@ export default defineConfig({
     "src/runtime-platform.tsx",
     "src/eidos-file-data-grid.tsx",
     "src/eidos-file-editor-view.tsx",
+    "src/eidos-file-editor-shell.tsx",
+    "src/eidos-file-empty-state.tsx",
     "src/plugin.tsx",
     "src/platform.tsx",
     "src/plugins/gallery.tsx",
