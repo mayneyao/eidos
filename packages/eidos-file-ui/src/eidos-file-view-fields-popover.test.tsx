@@ -49,12 +49,12 @@ const fields: EidosFileFieldInfo[] = [
   {
     id: "0198c72d-82b5-7000-8000-000000000003",
     tableId,
-    name: "Created time",
+    name: "_created_at",
     type: "created-time",
     systemRole: "created-time",
-    position: 2,
+    position: -2,
     tableName: "Experiments",
-    tableColumnName: "_created_time",
+    tableColumnName: "_created_at",
     property: null,
     storageCodec: "scalar",
     valueKind: "system",
@@ -77,7 +77,6 @@ const view: EidosFileViewInfo = {
   orderMap: {
     [fields[0]!.id]: 0,
     [fields[1]!.id]: 1,
-    [fields[2]!.id]: 2,
   },
   hiddenFields: [fields[1]!.id],
   position: 0,
@@ -192,7 +191,7 @@ describe("EidosFileViewFieldsPopover", () => {
 
   it("exposes optional system fields through visibleSystemFields", async () => {
     const created = document.body.querySelector<HTMLInputElement>(
-      'input[aria-label="Show Created time"]'
+      'input[aria-label="Show Created at"]'
     )
     expect(created?.checked).toBe(false)
     await act(async () => {
@@ -216,10 +215,19 @@ describe("EidosFileViewFieldsPopover", () => {
       document.body.querySelector(
         `[data-eidos-file-system-field="${fields[2]!.id}"]`
       )?.textContent
-    ).toContain("Created time")
+    ).toContain("Created at")
+    expect(document.body.textContent).not.toContain("_created_at")
 
-    await clickButton("Edit Created time properties")
+    await clickButton("Edit Created at properties")
     expect(onFieldOpen).not.toHaveBeenCalled()
+  })
+
+  it("places unordered system fields after business fields", () => {
+    expect(
+      Array.from(
+        document.body.querySelectorAll("[data-eidos-file-sortable-field]")
+      ).map((row) => row.getAttribute("data-eidos-file-sortable-field"))
+    ).toEqual([fields[0]!.id, fields[1]!.id, fields[2]!.id])
   })
 
   it("opens field properties from the field name without changing visibility", async () => {

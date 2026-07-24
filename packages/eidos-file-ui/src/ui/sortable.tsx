@@ -158,6 +158,7 @@ export function SortableContainer<T extends SortableValue>({
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
+      autoScroll={orientation !== "horizontal"}
       modifiers={orientation === "horizontal" ? horizontalModifiers : undefined}
       onDragEnd={onDragEnd}
     >

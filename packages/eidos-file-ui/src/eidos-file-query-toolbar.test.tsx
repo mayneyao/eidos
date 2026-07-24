@@ -302,7 +302,7 @@ describe("shared EidosFileQueryToolbar", () => {
     await act(async () => filterField?.click())
     expect(
       Array.from(document.body.querySelectorAll('[role="option"]')).some(
-        (option) => option.textContent?.trim() === "Created time"
+        (option) => option.textContent?.trim() === "Created at"
       )
     ).toBe(true)
 
@@ -315,7 +315,7 @@ describe("shared EidosFileQueryToolbar", () => {
     await act(async () => sortFields.at(-2)?.click())
     expect(
       Array.from(document.body.querySelectorAll('[role="option"]')).some(
-        (option) => option.textContent?.trim() === "Created time"
+        (option) => option.textContent?.trim() === "Created at"
       )
     ).toBe(true)
   })

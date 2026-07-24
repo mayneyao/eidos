@@ -113,6 +113,9 @@ function EidosFileSortableTab({
   children: ReactNode
 }) {
   const sortable = useSortable({ id, disabled })
+  const transform = sortable.transform
+    ? { ...sortable.transform, scaleX: 1, scaleY: 1 }
+    : null
   return (
     <div
       ref={sortable.setNodeRef}
@@ -123,7 +126,7 @@ function EidosFileSortableTab({
       )}
       style={{
         opacity: sortable.isDragging ? 0.72 : 1,
-        transform: CSS.Transform.toString(sortable.transform),
+        transform: CSS.Transform.toString(transform),
         transition: sortable.transition,
       }}
     >

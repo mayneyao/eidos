@@ -22,7 +22,17 @@ export function isOptionalEidosFileSystemField(
 }
 
 export function eidosFileFieldDisplayName(field: EidosFileFieldInfo): string {
-  return field.type === "row-id" ? "Record ID" : field.name
+  switch (field.systemRole ?? field.type) {
+    case "row-id":
+      return "Record ID"
+    case "created-time":
+      return "Created at"
+    case "updated-time":
+    case "last-edited-time":
+      return "Updated at"
+    default:
+      return field.name
+  }
 }
 
 export function eidosFileViewVisibleSystemFields(

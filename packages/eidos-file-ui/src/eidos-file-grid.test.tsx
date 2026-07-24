@@ -800,7 +800,7 @@ describe("EidosFileGrid", () => {
       await Promise.resolve()
     })
 
-    expect(mocks.props?.columns[2]?.title).toBe("Created time")
+    expect(mocks.props?.columns[2]?.title).toBe("Created at")
     act(() => {
       mocks.props?.onHeaderClicked?.(2, {
         bounds: { x: 400, y: 20, width: 180, height: 36 },

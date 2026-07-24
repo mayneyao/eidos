@@ -54,9 +54,20 @@ function orderedViewFields(
   return configurableViewFields(fields).sort((left, right) => {
     const leftOrder = view.orderMap?.[eidosFileFieldKey(left)]
     const rightOrder = view.orderMap?.[eidosFileFieldKey(right)]
+    if (leftOrder !== undefined || rightOrder !== undefined) {
+      if (leftOrder === undefined) return 1
+      if (rightOrder === undefined) return -1
+      return (
+        leftOrder - rightOrder ||
+        eidosFileFieldKey(left).localeCompare(eidosFileFieldKey(right))
+      )
+    }
+    const leftIsSystem = isOptionalEidosFileSystemField(left)
+    const rightIsSystem = isOptionalEidosFileSystemField(right)
+    if (leftIsSystem !== rightIsSystem) return leftIsSystem ? 1 : -1
     return (
-      (leftOrder ?? left.position ?? Number.MAX_SAFE_INTEGER) -
-        (rightOrder ?? right.position ?? Number.MAX_SAFE_INTEGER) ||
+      (left.position ?? Number.MAX_SAFE_INTEGER) -
+        (right.position ?? Number.MAX_SAFE_INTEGER) ||
       eidosFileFieldKey(left).localeCompare(eidosFileFieldKey(right))
     )
   })
