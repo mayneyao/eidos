@@ -187,6 +187,11 @@ interface EidosFileGridFailedMutation extends EidosFileGridMutation {
   message: string
 }
 
+interface EidosFileGridPageRequest {
+  visiblePages: number[]
+  prefetchPages: number[]
+}
+
 function gridMutationErrorMessage(error: unknown): string {
   const message =
     error instanceof Error && error.message
@@ -358,6 +363,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const pageAccessRef = useRef(new Map<number, number>())
   const pageAccessClockRef = useRef(0)
   const visiblePagesRef = useRef(new Set<number>())
+  const latestPageRequestRef = useRef<EidosFileGridPageRequest | null>(null)
+  const pageLoadRunnerActiveRef = useRef(false)
+  const loadPageIndexRef = useRef<(pageIndex: number) => Promise<boolean>>(
+    async () => false
+  )
   const historyRowsRef = useRef<ReadonlySet<number>>(new Set())
   const generationRef = useRef(0)
   const dataScopeRef = useRef<string | null>(null)
@@ -470,16 +480,17 @@ export const EidosFileGrid = memo(function EidosFileGrid({
 
   const loadPageIndex = useCallback(
     async (pageIndex: number) => {
-      if (pageIndex < 0 || loadingPagesRef.current.has(pageIndex)) return
+      if (pageIndex < 0) return false
+      if (loadingPagesRef.current.has(pageIndex)) return true
       if (loadedPagesRef.current.has(pageIndex)) {
         touchPage(pageIndex)
-        return
+        return true
       }
       const generation = generationRef.current
       loadingPagesRef.current.set(pageIndex, generation)
       try {
         const page = await loadPage(pageIndex * PAGE_SIZE, PAGE_SIZE)
-        if (generation !== generationRef.current) return
+        if (generation !== generationRef.current) return false
         page.rows.forEach((row, index) => {
           rowsRef.current.set(page.offset + index, row)
         })
@@ -489,8 +500,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         setRowCount(page.total)
         onRowCountChangeRef.current?.(page.total)
         setCacheRevision((current) => current + 1)
+        return true
       } catch (error) {
         if (generation === generationRef.current) onErrorRef.current?.(error)
+        return false
       } finally {
         if (loadingPagesRef.current.get(pageIndex) === generation) {
           loadingPagesRef.current.delete(pageIndex)
@@ -498,6 +511,45 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       }
     },
     [loadPage, prunePageCache, touchPage]
+  )
+  loadPageIndexRef.current = loadPageIndex
+
+  const scheduleLatestPageRequest = useCallback(
+    (request: EidosFileGridPageRequest) => {
+      latestPageRequestRef.current = request
+      if (pageLoadRunnerActiveRef.current) return
+
+      pageLoadRunnerActiveRef.current = true
+      void (async () => {
+        try {
+          while (latestPageRequestRef.current) {
+            const latest = latestPageRequestRef.current
+            const pageIndex = [
+              ...latest.visiblePages,
+              ...latest.prefetchPages,
+            ].find(
+              (candidate) =>
+                !loadedPagesRef.current.has(candidate) &&
+                !loadingPagesRef.current.has(candidate)
+            )
+            if (pageIndex === undefined) {
+              if (latestPageRequestRef.current === latest) {
+                latestPageRequestRef.current = null
+              }
+              continue
+            }
+
+            const loaded = await loadPageIndexRef.current(pageIndex)
+            if (!loaded && latestPageRequestRef.current === latest) {
+              latestPageRequestRef.current = null
+            }
+          }
+        } finally {
+          pageLoadRunnerActiveRef.current = false
+        }
+      })()
+    },
+    []
   )
 
   useEffect(() => {
@@ -513,6 +565,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     loadingPagesRef.current.clear()
     pageAccessRef.current.clear()
     pageAccessClockRef.current = 0
+    latestPageRequestRef.current = null
     if (!preserveData) {
       rowsRef.current.clear()
       rowMutationRevisionRef.current.clear()
@@ -531,11 +584,15 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     }
     onRowCountChangeRef.current?.(null)
     setCacheRevision((current) => current + 1)
-    for (const pageIndex of pagesToRefresh) void loadPageIndex(pageIndex)
+    scheduleLatestPageRequest({
+      visiblePages: [...pagesToRefresh],
+      prefetchPages: [],
+    })
   }, [
-    loadPageIndex,
     attachmentThumbnails,
+    loadPageIndex,
     reloadToken,
+    scheduleLatestPageRequest,
     table.table.id,
     updateFailedMutation,
     view?.id,
@@ -555,6 +612,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     () => () => {
       generationRef.current += 1
       columnStatGenerationRef.current += 1
+      latestPageRequestRef.current = null
       attachmentThumbnails.clear()
       if (widthSaveTimerRef.current) clearTimeout(widthSaveTimerRef.current)
     },
@@ -671,7 +729,13 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       const field = fields[columnIndex]
       const row = rowsRef.current.get(rowIndex)
       if (!field || !row) {
-        return { kind: GridCellKind.Loading, allowOverlay: false }
+        return {
+          kind: GridCellKind.Loading,
+          allowOverlay: false,
+          skeletonWidth: 96,
+          skeletonWidthVariability: 32,
+          skeletonHeight: 10,
+        }
       }
       const cell = eidosFileValueToGridCell(
         field,
@@ -727,28 +791,52 @@ export const EidosFileGrid = memo(function EidosFileGrid({
 
   const requestVisiblePages = useCallback(
     (range: Rectangle) => {
-      if (rowCount === 0) return
-      const firstPage = Math.max(
+      if (rowCount === 0) {
+        latestPageRequestRef.current = null
+        return
+      }
+      const maximumPage = Math.ceil(rowCount / PAGE_SIZE) - 1
+      const visibleFirstPage = Math.max(
         0,
-        Math.floor(range.y / PAGE_SIZE) - PAGE_OVERSCAN
+        Math.min(maximumPage, Math.floor(range.y / PAGE_SIZE))
       )
+      const visibleLastPage = Math.max(
+        visibleFirstPage,
+        Math.min(
+          maximumPage,
+          Math.floor((range.y + Math.max(0, range.height - 1)) / PAGE_SIZE)
+        )
+      )
+      const firstPage = Math.max(0, visibleFirstPage - PAGE_OVERSCAN)
       const lastPage = Math.min(
-        Math.ceil(rowCount / PAGE_SIZE) - 1,
+        maximumPage,
         Math.floor((range.y + Math.max(0, range.height - 1)) / PAGE_SIZE) +
           PAGE_OVERSCAN
       )
-      const visiblePages = new Set<number>()
-      visiblePagesRef.current = visiblePages
-      for (let page = firstPage; page <= lastPage; page += 1) {
-        visiblePages.add(page)
+      const centerPage = Math.floor((visibleFirstPage + visibleLastPage) / 2)
+      const closestToCenter = (left: number, right: number) =>
+        Math.abs(left - centerPage) - Math.abs(right - centerPage) ||
+        left - right
+      const visiblePages = Array.from(
+        { length: visibleLastPage - visibleFirstPage + 1 },
+        (_, index) => visibleFirstPage + index
+      ).sort(closestToCenter)
+      const prefetchPages = Array.from(
+        { length: lastPage - firstPage + 1 },
+        (_, index) => firstPage + index
+      )
+        .filter((page) => page < visibleFirstPage || page > visibleLastPage)
+        .sort(closestToCenter)
+      visiblePagesRef.current = new Set([...visiblePages, ...prefetchPages])
+      for (const page of visiblePagesRef.current) {
         touchPage(page)
-        void loadPageIndex(page)
       }
+      scheduleLatestPageRequest({ visiblePages, prefetchPages })
       if (prunePageCache()) {
         setCacheRevision((current) => current + 1)
       }
     },
-    [loadPageIndex, prunePageCache, rowCount, touchPage]
+    [prunePageCache, rowCount, scheduleLatestPageRequest, touchPage]
   )
 
   const onVisibleRegionChanged = useCallback<

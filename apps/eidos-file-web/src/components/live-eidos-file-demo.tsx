@@ -6,7 +6,6 @@ import type {
 } from "@eidos.space/eidos-file"
 import {
   ArrowUpRight,
-  CircleDot,
   FileSpreadsheet,
   LoaderCircle,
   RotateCcw,
@@ -101,6 +100,21 @@ export function LiveEidosFileDemo({
     () => table?.views.find((view) => view.type === "grid"),
     [table]
   )
+  const fileName = getEidosFileTemplateSource(
+    "project-portfolio",
+    locale
+  ).fileName
+  const stateLabel =
+    phase === "loading"
+      ? t("demoLoading")
+      : dirty
+        ? t("demoChanged")
+        : t("demoLive")
+  const stateDescription = [
+    stateLabel,
+    message ?? t("demoTemporary"),
+    t("workerIsolated"),
+  ].join(" · ")
 
   const markMutation = (result: EidosFileRowMutationResult) => {
     setSnapshot((current) =>
@@ -120,30 +134,7 @@ export function LiveEidosFileDemo({
       id="live-demo"
       aria-labelledby="live-demo-title"
     >
-      {embedded ? (
-        <header className="live-demo-document-bar">
-          <div>
-            <FileSpreadsheet size={15} aria-hidden="true" />
-            <div>
-              <h2 id="live-demo-title">
-                {
-                  getEidosFileTemplateSource("project-portfolio", locale)
-                    .fileName
-                }
-              </h2>
-              <small>{t("demoTitle")}</small>
-            </div>
-          </div>
-          <button
-            className="text-button"
-            type="button"
-            onClick={onOpenFullEditor}
-          >
-            {t("openFullEditor")}
-            <ArrowUpRight size={13} aria-hidden="true" />
-          </button>
-        </header>
-      ) : (
+      {!embedded ? (
         <header className="live-demo-heading">
           <div>
             <p className="eyebrow">{t("demoEyebrow")}</p>
@@ -159,26 +150,31 @@ export function LiveEidosFileDemo({
             <ArrowUpRight size={14} aria-hidden="true" />
           </button>
         </header>
-      )}
+      ) : null}
 
       <div className="live-demo-frame">
         <div className="live-demo-toolbar">
-          <div className="live-demo-state" aria-live="polite">
+          {embedded ? (
+            <div className="live-demo-identity">
+              <FileSpreadsheet size={13} aria-hidden="true" />
+              <h2 id="live-demo-title">{fileName}</h2>
+            </div>
+          ) : null}
+          <div
+            className="live-demo-state"
+            aria-label={stateDescription}
+            aria-live="polite"
+            title={stateDescription}
+          >
             {phase === "loading" ? (
-              <LoaderCircle className="spin" size={14} aria-hidden="true" />
+              <LoaderCircle className="spin" size={12} aria-hidden="true" />
             ) : (
-              <CircleDot size={14} aria-hidden="true" />
+              <span className="live-demo-status-dot" aria-hidden="true" />
             )}
-            <span>
-              {phase === "loading"
-                ? t("demoLoading")
-                : dirty
-                  ? t("demoChanged")
-                  : t("demoLive")}
-            </span>
+            <span>{stateLabel}</span>
           </div>
           <label className="search-field live-demo-search">
-            <Search size={14} aria-hidden="true" />
+            <Search size={13} aria-hidden="true" />
             <span className="visually-hidden">Search live demo records</span>
             <input
               value={search}
@@ -188,14 +184,27 @@ export function LiveEidosFileDemo({
             />
           </label>
           <button
-            className="text-button"
+            className={embedded ? "icon-button live-demo-reset" : "text-button"}
             type="button"
+            aria-label={t("demoReset")}
             disabled={phase === "loading"}
+            title={t("demoReset")}
             onClick={() => setGeneration((current) => current + 1)}
           >
             <RotateCcw size={13} aria-hidden="true" />
-            {t("demoReset")}
+            {embedded ? null : t("demoReset")}
           </button>
+          {embedded ? (
+            <button
+              className="text-button live-demo-open"
+              type="button"
+              aria-label={t("openFullEditor")}
+              onClick={onOpenFullEditor}
+            >
+              <span>{t("openFullEditor")}</span>
+              <ArrowUpRight size={13} aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
 
         <div
@@ -256,10 +265,12 @@ export function LiveEidosFileDemo({
             </div>
           )}
         </div>
-        <footer className="live-demo-note">
-          <span>{message ?? t("demoTemporary")}</span>
-          <span>{t("workerIsolated")}</span>
-        </footer>
+        {!embedded ? (
+          <footer className="live-demo-note">
+            <span>{message ?? t("demoTemporary")}</span>
+            <span>{t("workerIsolated")}</span>
+          </footer>
+        ) : null}
       </div>
     </section>
   )

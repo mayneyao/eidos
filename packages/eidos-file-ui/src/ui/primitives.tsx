@@ -318,11 +318,14 @@ export const CommandItem = React.forwardRef<
 ))
 CommandItem.displayName = "CommandItem"
 
-export type CalendarProps = DayPickerProps
+export type CalendarProps = DayPickerProps & {
+  navButtonClassName?: string
+}
 
 export function Calendar({
   className,
   classNames,
+  navButtonClassName,
   showOutsideDays = true,
   ...props
 }: CalendarProps) {
@@ -336,10 +339,6 @@ export function Calendar({
         caption: "relative flex items-center justify-center pt-1",
         caption_label: "text-sm font-medium",
         nav: "flex items-center gap-1",
-        nav_button: cn(
-          buttonVariants({ variant: "outline" }),
-          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
-        ),
         nav_button_previous: "absolute left-1",
         nav_button_next: "absolute right-1",
         table: "w-full border-collapse",
@@ -359,6 +358,12 @@ export function Calendar({
         day_disabled: "text-muted-foreground opacity-50",
         day_hidden: "invisible",
         ...classNames,
+        nav_button: cn(
+          buttonVariants({ variant: "outline" }),
+          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
+          classNames?.nav_button,
+          navButtonClassName
+        ),
       }}
       components={{
         IconLeft: ({ className: iconClassName, ...iconProps }) => (

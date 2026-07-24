@@ -1,10 +1,24 @@
 import * as React from "react"
-import type { CustomCell, CustomRenderer } from "@glideapps/glide-data-grid"
+import type {
+  CustomCell,
+  CustomRenderer,
+  ProvideEditorComponent,
+} from "@glideapps/glide-data-grid"
 import { GridCellKind, drawTextCell } from "@glideapps/glide-data-grid"
+import { CalendarDays } from "lucide-react"
 
 import { useEidosFileUI } from "../context"
-import { Calendar } from "../ui/primitives"
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/primitives"
+import { Button, Calendar } from "../ui/primitives"
+import { Popover, PopoverTrigger } from "../ui/primitives"
+
+import {
+  EIDOS_FILE_GRID_EDITOR_CONTROL_CLASS_NAME,
+  EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME,
+  EidosFileGridEditorHeader,
+  EidosFileGridEditorPopoverContent,
+  EidosFileGridEditorSurface,
+  eidosFileGridPopupEditor,
+} from "./grid-editor-surface"
 
 interface DatePickerCellProps {
   readonly kind: "date-picker-cell"
@@ -56,9 +70,11 @@ function DatePickerEditor(props: DatePickerEditorProps) {
   const [open, setOpen] = React.useState(true)
 
   const [inputValue, setInputValue] = React.useState(
-    format === "date"
-      ? toDateInputValue(defaultDate)
-      : toDatetimeLocalValue(defaultDate)
+    date
+      ? format === "date"
+        ? toDateInputValue(date)
+        : toDatetimeLocalValue(date)
+      : ""
   )
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(date)
   const [month, setMonth] = React.useState<Date>(defaultDate)
@@ -71,20 +87,17 @@ function DatePickerEditor(props: DatePickerEditorProps) {
         setInputValue(
           format === "date" ? toDateInputValue(d) : toDatetimeLocalValue(d)
         )
+      } else {
+        setInputValue("")
       }
     },
     [format]
   )
 
-  const handleSave = React.useCallback(
-    (finalDate?: Date) => {
-      setOpen(false)
-      // 如果没有传值，使用选中的值或默认值
-      const dateToSave = finalDate ?? selectedDate ?? defaultDate
-      onFinishedEditing(dateToSave)
-    },
-    [selectedDate, defaultDate, onFinishedEditing]
-  )
+  const handleSave = React.useCallback(() => {
+    setOpen(false)
+    onFinishedEditing(selectedDate)
+  }, [selectedDate, onFinishedEditing])
 
   const handleCancel = React.useCallback(() => {
     setOpen(false)
@@ -114,23 +127,20 @@ function DatePickerEditor(props: DatePickerEditorProps) {
       <PopoverTrigger>
         <div />
       </PopoverTrigger>
-      <PopoverContent
-        className="click-outside-ignore z-[10000] w-auto p-0 border-0 shadow-none bg-transparent"
-        align="start"
-        sideOffset={-6}
-        alignOffset={-9}
+      <EidosFileGridEditorPopoverContent
         onPointerDownOutside={() => {
           // 点击外部视为 Enter 保存，使用当前选中的值
           handleSave()
         }}
       >
-        <div
-          className="min-w-[280px] bg-popover rounded-lg border shadow-lg overflow-hidden flex flex-col click-outside-ignore"
-          onKeyDown={handleKeyDown}
-        >
-          {/* Content */}
-          <div className="flex flex-col gap-3 p-3 pt-4">
-            {/* Date/DateTime Input */}
+        <EidosFileGridEditorSurface onKeyDown={handleKeyDown}>
+          <EidosFileGridEditorHeader
+            icon={<CalendarDays />}
+            title={
+              format === "date" ? t("Choose date") : t("Choose date & time")
+            }
+          />
+          <div className={EIDOS_FILE_GRID_EDITOR_CONTROL_CLASS_NAME}>
             <input
               type={format === "date" ? "date" : "datetime-local"}
               value={inputValue}
@@ -154,10 +164,11 @@ function DatePickerEditor(props: DatePickerEditorProps) {
                   commitDate(d)
                 }
               }}
-              className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-1 focus:ring-ring"
+              className="h-8 w-full rounded-md border bg-background px-2.5 text-xs outline-none focus:border-ring focus:ring-0"
             />
+          </div>
 
-            {/* Calendar */}
+          <div className="min-h-0 flex-1 overflow-y-auto p-2">
             <Calendar
               mode="single"
               selected={selectedDate}
@@ -174,27 +185,64 @@ function DatePickerEditor(props: DatePickerEditorProps) {
                     }
                   : undefined
               }
-              className="rounded-md border-none outline-hidden mx-auto"
+              className="mx-auto rounded-md border-none p-1 outline-hidden"
+              classNames={{
+                month: "space-y-2",
+                row: "mt-1 flex w-full",
+              }}
+              navButtonClassName="shadow-none"
             />
           </div>
 
-          {/* Footer */}
-          <div className="flex items-center justify-center px-2.5 py-1.5 border-t bg-muted/30 text-[10px] text-muted-foreground shrink-0">
-            <span className="flex items-center gap-1">
-              <kbd className="px-1 rounded bg-muted border text-[9px] font-sans">
-                ↵
-              </kbd>
-              <span>{t("save")}</span>
-              <span className="mx-0.5">·</span>
-              <kbd className="px-1 rounded bg-muted border text-[9px] font-sans">
-                Esc
-              </kbd>
-              <span>{t("cancel")}</span>
-            </span>
+          <div
+            className={`${EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME} justify-between`}
+          >
+            <span>{t("Enter saves · Esc cancels")}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={handleSave}
+            >
+              {t("Done")}
+            </Button>
           </div>
-        </div>
-      </PopoverContent>
+        </EidosFileGridEditorSurface>
+      </EidosFileGridEditorPopoverContent>
     </Popover>
+  )
+}
+
+export const EidosFileDatePickerCellEditor: ProvideEditorComponent<
+  DatePickerCell
+> = (p) => {
+  const cellData = p.value.data
+  const { format, date } = cellData
+
+  const handleFinishedEditing = (finalDate: Date | undefined) => {
+    const newCell = {
+      ...p.value,
+      data: {
+        ...p.value.data,
+        date: finalDate,
+        displayDate: finalDate ? formatDateForDisplay(finalDate, format) : "",
+      },
+    }
+    p.onFinishedEditing(newCell, [0, 1])
+  }
+
+  const handleCancelEditing = () => {
+    p.onFinishedEditing(undefined, [0, 0])
+  }
+
+  return (
+    <DatePickerEditor
+      format={format}
+      date={date}
+      onFinishedEditing={handleFinishedEditing}
+      onCancelEditing={handleCancelEditing}
+    />
   )
 }
 
@@ -211,37 +259,7 @@ const renderer: CustomRenderer<DatePickerCell> = {
     if (cell.readonly === true) {
       return undefined
     }
-    return (p) => {
-      const cellData = p.value.data
-      const { format, date } = cellData
-
-      const handleFinishedEditing = (finalDate: Date | undefined) => {
-        const newCell = {
-          ...p.value,
-          data: {
-            ...p.value.data,
-            date: finalDate,
-            displayDate: finalDate
-              ? formatDateForDisplay(finalDate, format)
-              : "",
-          },
-        }
-        p.onFinishedEditing(newCell, [0, 1])
-      }
-
-      const handleCancelEditing = () => {
-        p.onFinishedEditing(undefined, [0, 0])
-      }
-
-      return (
-        <DatePickerEditor
-          format={format}
-          date={date}
-          onFinishedEditing={handleFinishedEditing}
-          onCancelEditing={handleCancelEditing}
-        />
-      )
-    }
+    return eidosFileGridPopupEditor(EidosFileDatePickerCellEditor)
   },
   onPaste: (v, d) => {
     const format = d.format ?? "date"

@@ -10,14 +10,15 @@ import {
   measureTextCached,
   type CustomCell,
   type CustomRenderer,
-  type ProvideEditorCallback,
+  type ProvideEditorComponent,
   type Rectangle,
 } from "@glideapps/glide-data-grid"
-import { XIcon } from "lucide-react"
+import { Tags, XIcon } from "lucide-react"
 
 import { useEidosFileUI } from "../context"
 import { cn } from "../lib/cn"
 import {
+  Button,
   Command,
   CommandEmpty,
   CommandGroup,
@@ -25,9 +26,17 @@ import {
   CommandItem,
   CommandList,
 } from "../ui/primitives"
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/primitives"
+import { Popover, PopoverTrigger } from "../ui/primitives"
 import { SelectOptionItem } from "../ui/select-option-item"
 
+import {
+  EIDOS_FILE_GRID_EDITOR_CONTROL_CLASS_NAME,
+  EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME,
+  EidosFileGridEditorHeader,
+  EidosFileGridEditorPopoverContent,
+  EidosFileGridEditorSurface,
+  eidosFileGridPopupEditor,
+} from "./grid-editor-surface"
 import { roundedRect } from "./grid-cell-helper"
 
 interface MultiSelectCellProps {
@@ -44,9 +53,7 @@ export type MultiSelectCell = CustomCell<MultiSelectCellProps>
 const tagHeight = 20
 const innerPad = 6
 
-export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
-  p
-) => {
+export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
   const { translate: t } = useEidosFileUI()
   const { value: cell, onChange, theme, onFinishedEditing } = p
   const { allowedValues, allowCreate = true, values = [] } = cell.data
@@ -156,100 +163,118 @@ export const Editor: ReturnType<ProvideEditorCallback<MultiSelectCell>> = (
       <PopoverTrigger>
         <div />
       </PopoverTrigger>
-      <PopoverContent
-        // z-index 10000 > gdg editor portal z index
-        className="click-outside-ignore z-[10000] w-[300px] p-0"
-        align="start"
-        sideOffset={-6}
-        alignOffset={-9}
-        asChild={true}
-        onPointerDownOutside={handleSave}
-      >
-        <Command value={currentSelect} onValueChange={setCurrentSelect}>
-          <div className="flex w-full rounded-md bg-transparent py-3 text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50">
-            <div className="flex flex-wrap gap-2 px-2">
-              {currentOptions.map((option) => (
-                <div
-                  key={option.id}
-                  className="flex h-6 items-center gap-2  truncate rounded-xs px-2 text-sm"
-                  style={{
-                    background: eidosFileOptionColor(
-                      option.color,
-                      themeName === "dark" ? "dark" : "light"
-                    ),
-                  }}
-                >
-                  {option.name}
-                  <XIcon
-                    onClick={clickRemoveOption}
-                    className="h-3 w-3 cursor-pointer opacity-60"
-                    data-id={option.id}
-                  />
-                </div>
-              ))}
-              <div className="[&_[cmdk-input-wrapper]_svg]:hidden [&_[cmdk-input-wrapper]]:border-none">
-                <CommandInput
-                  ref={inputRef}
-                  onKeyDown={handleBackspace}
-                  value={inputValue}
-                  onValueChange={setInputValue}
-                  className="border-none p-0 focus:ring-0 focus-visible:ring-0 h-6"
-                  autoFocus
-                />
-              </div>
-            </div>
-          </div>
-          <CommandList
-            className={cn("max-h-[400px]", {
-              "overflow-y-scroll": allowedValues.length * 32 > 400,
-            })}
+      <EidosFileGridEditorPopoverContent onPointerDownOutside={handleSave}>
+        <EidosFileGridEditorSurface className="max-h-[390px]">
+          <EidosFileGridEditorHeader
+            icon={<Tags />}
+            title={t("Select options")}
+          />
+          <Command
+            value={currentSelect}
+            onValueChange={setCurrentSelect}
+            className="min-h-0 flex-1 rounded-none bg-transparent"
           >
-            <CommandEmpty>
-              {allowCreate ? t("Create option") : t("No options")}
-            </CommandEmpty>
-            <CommandGroup className="h-full border-t">
-              {allowedValues.map((option) => (
-                <CommandItem
-                  key={option.id}
-                  value={option.name}
-                  onSelect={(currentValue) => {
-                    handleSelect(option.id)
-                  }}
-                >
-                  <SelectOptionItem theme={themeName} option={option} />
-                </CommandItem>
-              ))}
-              {allowCreate &&
-                Boolean(inputValue.length) &&
-                allowedValues.findIndex((item) => item.name == inputValue) ==
-                  -1 && (
-                  <CommandItem
-                    key={inputValue}
-                    value={inputValue}
-                    className="flex items-center gap-2"
-                    autoFocus
-                    onSelect={(currentValue) => {
-                      handleSelect(currentValue)
+            <div
+              className={`${EIDOS_FILE_GRID_EDITOR_CONTROL_CLASS_NAME} flex min-h-12 w-full bg-transparent text-sm outline-hidden placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              <div className="flex min-h-8 flex-wrap items-center gap-1.5">
+                {currentOptions.map((option) => (
+                  <div
+                    key={option.id}
+                    className="flex h-6 items-center gap-2 truncate rounded-xs px-2 text-sm"
+                    style={{
+                      background: eidosFileOptionColor(
+                        option.color,
+                        themeName === "dark" ? "dark" : "light"
+                      ),
                     }}
                   >
-                    <span>{t("Create")}</span>
-                    <SelectOptionItem
-                      theme={themeName}
-                      option={{
-                        id: inputValue,
-                        name: inputValue,
-                        color: nextEidosFileOptionColor([
-                          ...allowedValues,
-                          ...newOptions,
-                        ]),
-                      }}
+                    {option.name}
+                    <XIcon
+                      onClick={clickRemoveOption}
+                      className="h-3 w-3 cursor-pointer opacity-60"
+                      data-id={option.id}
                     />
+                  </div>
+                ))}
+                <div className="[&_[cmdk-input-wrapper]_svg]:hidden [&_[cmdk-input-wrapper]]:border-none">
+                  <CommandInput
+                    ref={inputRef}
+                    onKeyDown={handleBackspace}
+                    value={inputValue}
+                    onValueChange={setInputValue}
+                    className="h-6 border-none p-0 text-xs focus:ring-0 focus-visible:ring-0"
+                    autoFocus
+                  />
+                </div>
+              </div>
+            </div>
+            <CommandList
+              className={cn("max-h-[220px]", {
+                "overflow-y-scroll": allowedValues.length * 32 > 220,
+              })}
+            >
+              <CommandEmpty>
+                {allowCreate ? t("Create option") : t("No options")}
+              </CommandEmpty>
+              <CommandGroup className="h-full">
+                {allowedValues.map((option) => (
+                  <CommandItem
+                    key={option.id}
+                    value={option.name}
+                    onSelect={(currentValue) => {
+                      handleSelect(option.id)
+                    }}
+                  >
+                    <SelectOptionItem theme={themeName} option={option} />
                   </CommandItem>
-                )}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
+                ))}
+                {allowCreate &&
+                  Boolean(inputValue.length) &&
+                  allowedValues.findIndex((item) => item.name == inputValue) ==
+                    -1 && (
+                    <CommandItem
+                      key={inputValue}
+                      value={inputValue}
+                      className="flex items-center gap-2"
+                      autoFocus
+                      onSelect={(currentValue) => {
+                        handleSelect(currentValue)
+                      }}
+                    >
+                      <span>{t("Create")}</span>
+                      <SelectOptionItem
+                        theme={themeName}
+                        option={{
+                          id: inputValue,
+                          name: inputValue,
+                          color: nextEidosFileOptionColor([
+                            ...allowedValues,
+                            ...newOptions,
+                          ]),
+                        }}
+                      />
+                    </CommandItem>
+                  )}
+              </CommandGroup>
+            </CommandList>
+            <div
+              className={`${EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME} justify-between`}
+            >
+              <span>{t("Arrow keys navigate · Enter selects")}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px]"
+                onClick={handleSave}
+              >
+                {t("Done")}
+              </Button>
+            </div>
+          </Command>
+        </EidosFileGridEditorSurface>
+      </EidosFileGridEditorPopoverContent>
     </Popover>
   )
 }
@@ -321,9 +346,7 @@ const renderer: CustomRenderer<MultiSelectCell> = {
 
     return true
   },
-  provideEditor: () => (p) => {
-    return <Editor {...p} />
-  },
+  provideEditor: () => eidosFileGridPopupEditor(Editor),
   onPaste: (v, d) => {
     // trim " and '
     v = v.replace(/^["'](.*)["']$/, "$1")

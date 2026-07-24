@@ -1200,6 +1200,75 @@ describe("EidosFileGrid", () => {
     })
   })
 
+  it("lets the latest visible Grid region replace queued page loads", async () => {
+    const largeTable = { ...table, rowCount: 2_500 }
+    let resolvePage200: ((page: EidosFileRowPage) => void) | undefined
+    const page = (offset: number, limit: number): EidosFileRowPage => ({
+      tableId: largeTable.table.id,
+      offset,
+      limit,
+      total: largeTable.rowCount,
+      rows: Array.from({ length: limit }, (_, index) => rowAt(offset + index)),
+    })
+    const loadPage = vi.fn((offset: number, limit: number) => {
+      if (offset === 0) return Promise.resolve(page(offset, limit))
+      return new Promise<EidosFileRowPage>((resolve) => {
+        if (offset === 200) resolvePage200 = resolve
+      })
+    })
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={largeTable}
+          loadPage={loadPage}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit(largeTable)}
+        />
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      mocks.props?.onVisibleRegionChanged?.(
+        { x: 0, y: 200, width: 2, height: 20 },
+        0,
+        0,
+        {}
+      )
+      await Promise.resolve()
+    })
+    expect(loadPage).toHaveBeenLastCalledWith(200, 100)
+
+    await act(async () => {
+      mocks.props?.onVisibleRegionChanged?.(
+        { x: 0, y: 1_000, width: 2, height: 20 },
+        0,
+        0,
+        {}
+      )
+      await Promise.resolve()
+    })
+    expect(loadPage).not.toHaveBeenCalledWith(1_000, 100)
+    expect(mocks.props?.getCellContent([0, 1_000])).toMatchObject({
+      kind: GridCellKind.Loading,
+      skeletonWidth: 96,
+      skeletonWidthVariability: 32,
+      skeletonHeight: 10,
+    })
+
+    await act(async () => {
+      resolvePage200?.(page(200, 100))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(loadPage).toHaveBeenCalledWith(1_000, 100)
+    expect(loadPage.mock.calls.map(([offset]) => offset)).toEqual([
+      0, 200, 1_000,
+    ])
+  })
+
   it("bounds a million-row Grid cache and reloads an evicted page", async () => {
     const largeTable = { ...table, rowCount: 1_000_000 }
     const loadPage = createLoadPage(largeTable)

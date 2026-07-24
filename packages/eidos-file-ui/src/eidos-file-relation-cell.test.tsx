@@ -6,6 +6,7 @@ import { GridCellKind, type Theme } from "@glideapps/glide-data-grid"
 
 import {
   EidosFileRelationCellEditor,
+  EidosFileRelationCellRenderer,
   type EidosFileRelationCell,
 } from "./eidos-file-relation-cell"
 
@@ -29,6 +30,25 @@ describe("Eidos File relation cell", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+  })
+
+  it("uses only its own overlay chrome", () => {
+    const cell: EidosFileRelationCell = {
+      kind: GridCellKind.Custom,
+      allowOverlay: true,
+      copyData: "",
+      data: {
+        kind: "eidos-file-relation-cell",
+        values: [],
+        multiple: true,
+      },
+    }
+
+    expect(EidosFileRelationCellRenderer.provideEditor?.(cell)).toMatchObject({
+      editor: EidosFileRelationCellEditor,
+      disablePadding: true,
+      disableStyling: true,
+    })
   })
 
   it("searches and selects records inside the Grid overlay", async () => {

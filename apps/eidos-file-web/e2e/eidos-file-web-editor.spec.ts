@@ -1348,7 +1348,9 @@ test("keeps the landing-page live demo bounded in a narrow window", async ({
   expect(demoGeometry.pageOverflow).toBe(0)
   expect(demoGeometry.demo?.height).toBeLessThanOrEqual(512)
   expect(demoGeometry.demo?.height).toBeGreaterThanOrEqual(384)
-  expect(demoGeometry.grid?.height).toBeLessThan(450)
+  expect(demoGeometry.grid?.height).toBeLessThanOrEqual(
+    (demoGeometry.demo?.height ?? 0) - 36
+  )
   expect(demoGeometry.workbench?.height).toBeLessThan(1_500)
   expect(demoGeometry.documentHeight).toBeLessThan(10_000)
   expect(demoGeometry.scroller?.clientHeight).toBeLessThan(500)
@@ -1439,8 +1441,14 @@ test("keeps the desktop landing workbench bounded after rows load", async ({
     )
     return {
       copy: rect(".launch-copy"),
+      documentBarCount: document.querySelectorAll(".live-demo-document-bar")
+        .length,
+      footerCount: document.querySelectorAll(
+        ".live-demo-embedded .live-demo-note"
+      ).length,
       grid: rect(".live-demo-grid"),
       panel: rect(".launch-panel"),
+      toolbar: rect(".live-demo-embedded .live-demo-toolbar"),
       workbench: rect(".launch-workbench"),
       documentHeight: document.documentElement.scrollHeight,
       viewportHeight: window.innerHeight,
@@ -1465,6 +1473,10 @@ test("keeps the desktop landing workbench bounded after rows load", async ({
   expect(geometry.copy?.top).toBeGreaterThanOrEqual(
     geometry.workbench?.top ?? 0
   )
+  expect(geometry.documentBarCount).toBe(0)
+  expect(geometry.footerCount).toBe(0)
+  expect(geometry.toolbar?.height).toBe(36)
+  expect(geometry.grid?.top).toBe(geometry.toolbar?.bottom)
   expect(geometry.grid?.height).toBeLessThan(geometry.viewportHeight)
   expect(geometry.documentHeight).toBeLessThanOrEqual(
     geometry.viewportHeight + 1
@@ -2553,7 +2565,7 @@ test("switches the live Eidos File experience between English and Chinese", asyn
     page.locator(".live-demo-grid [data-testid='glide-cell-1-0']")
   ).toContainText("项目 2442")
 
-  await page.getByRole("button", { name: "打开完整编辑器" }).click()
+  await page.getByRole("button", { name: "打开编辑器" }).click()
   await expect(
     page.getByRole("tab", { name: "项目", exact: true })
   ).toHaveAttribute("aria-selected", "true")

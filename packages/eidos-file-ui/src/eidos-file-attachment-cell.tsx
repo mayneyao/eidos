@@ -11,7 +11,7 @@ import {
   type CustomRenderer,
   type ProvideEditorComponent,
 } from "@glideapps/glide-data-grid"
-import { GripVertical, Plus, Trash2 } from "lucide-react"
+import { GripVertical, Paperclip, Plus, Trash2 } from "lucide-react"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 
@@ -20,6 +20,13 @@ import { EidosFileEntrySurface } from "./eidos-file-entry-surface"
 import { cn } from "./lib/cn"
 import { Button } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
+import {
+  EIDOS_FILE_GRID_EDITOR_BODY_CLASS_NAME,
+  EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME,
+  EidosFileGridEditorHeader,
+  EidosFileGridEditorSurface,
+  eidosFileGridPopupEditor,
+} from "./cells/grid-editor-surface"
 
 export interface EidosFileAttachmentCellData {
   readonly kind: "eidos-file-file-cell"
@@ -177,42 +184,48 @@ export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
   )
 
   return (
-    <div className="min-w-72 max-w-96 p-1.5">
-      {cell.data.entries.length > 0 ? (
-        <SortableContainer
-          items={cell.data.entries}
-          onReorder={updateEntries}
-          className="space-y-0.5"
-          renderItem={(entry, index) => (
-            <EidosFileAttachmentCard
-              entry={entry}
-              index={index}
-              onRemove={(removeIndex) =>
-                updateEntries(
-                  cell.data.entries.filter(
-                    (_candidate, candidateIndex) =>
-                      candidateIndex !== removeIndex
+    <EidosFileGridEditorSurface className="max-h-[390px]">
+      <EidosFileGridEditorHeader
+        icon={<Paperclip />}
+        title={t("Manage files")}
+      />
+      <div className={EIDOS_FILE_GRID_EDITOR_BODY_CLASS_NAME}>
+        {cell.data.entries.length > 0 ? (
+          <SortableContainer
+            items={cell.data.entries}
+            onReorder={updateEntries}
+            className="space-y-0.5"
+            renderItem={(entry, index) => (
+              <EidosFileAttachmentCard
+                entry={entry}
+                index={index}
+                onRemove={(removeIndex) =>
+                  updateEntries(
+                    cell.data.entries.filter(
+                      (_candidate, candidateIndex) =>
+                        candidateIndex !== removeIndex
+                    )
                   )
-                )
-              }
-            />
-          )}
-        />
-      ) : (
-        <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-          {t("No files attached")}
-        </p>
-      )}
+                }
+              />
+            )}
+          />
+        ) : (
+          <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+            {t("No files attached")}
+          </p>
+        )}
+        {error ? (
+          <p className="px-2 py-1 text-xs text-destructive">{error}</p>
+        ) : null}
+      </div>
       {!cell.readonly && cell.data.onImport ? (
-        <>
-          {cell.data.entries.length > 0 ? (
-            <div className="my-1 h-px bg-border" />
-          ) : null}
+        <div className={EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME}>
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-8 w-full gap-1.5 text-xs"
+            className="h-7 w-full gap-1.5 text-xs"
             disabled={busy}
             onClick={() => {
               setBusy(true)
@@ -237,12 +250,9 @@ export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
             <Plus className="h-3.5 w-3.5" />
             {busy ? t("Importing…") : t("Add files")}
           </Button>
-        </>
+        </div>
       ) : null}
-      {error ? (
-        <p className="px-2 py-1 text-xs text-destructive">{error}</p>
-      ) : null}
-    </div>
+    </EidosFileGridEditorSurface>
   )
 }
 
@@ -272,7 +282,8 @@ export const EidosFileAttachmentCellRenderer: CustomRenderer<EidosFileAttachment
       copyData: "",
       data: { ...cell.data, entries: [] },
     }),
-    provideEditor: () => EidosFileAttachmentCellEditor,
+    provideEditor: () =>
+      eidosFileGridPopupEditor(EidosFileAttachmentCellEditor),
     onPaste: (value, data) => {
       const entries = decodeEidosFileValues(value)
       if (entries.length === 0) return undefined

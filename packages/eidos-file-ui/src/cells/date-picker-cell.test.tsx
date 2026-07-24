@@ -1,7 +1,18 @@
-import { GridCellKind } from "@glideapps/glide-data-grid"
-import { describe, expect, it } from "vitest"
+// @vitest-environment jsdom
 
-import renderer, { type DatePickerCell } from "./date-picker-cell"
+import React, { act, useState } from "react"
+import { createRoot, type Root } from "react-dom/client"
+import { GridCellKind } from "@glideapps/glide-data-grid"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import renderer, {
+  EidosFileDatePickerCellEditor,
+  type DatePickerCell,
+} from "./date-picker-cell"
+
+;(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true
 
 function dateCell(readonly: boolean): DatePickerCell {
   const date = new Date(2026, 6, 23, 10, 30)
@@ -20,15 +31,101 @@ function dateCell(readonly: boolean): DatePickerCell {
 }
 
 describe("date picker cell renderer", () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+    container = document.createElement("div")
+    document.body.append(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+    vi.unstubAllGlobals()
+  })
+
   it("does not provide an editor for readonly cells", () => {
     expect(renderer.provideEditor?.(dateCell(true))).toBeUndefined()
   })
 
   it("still provides an editor for writable cells", () => {
-    expect(renderer.provideEditor?.(dateCell(false))).toBeTypeOf("function")
+    expect(renderer.provideEditor?.(dateCell(false))).toMatchObject({
+      disablePadding: true,
+      disableStyling: true,
+    })
   })
 
   it("does not clear readonly cells through the renderer delete path", () => {
     expect(renderer.onDelete?.(dateCell(true))).toBeUndefined()
+  })
+
+  it("commits an empty value after clearing an existing date", async () => {
+    const onFinishedEditing = vi.fn()
+
+    function Harness() {
+      const [cell, setCell] = useState(dateCell(false))
+      return (
+        <EidosFileDatePickerCellEditor
+          value={cell}
+          onChange={setCell}
+          onFinishedEditing={onFinishedEditing}
+          isHighlighted={false}
+          target={{ x: 0, y: 0, width: 240, height: 36 }}
+          forceEditMode={false}
+          theme={{ name: "light" } as never}
+        />
+      )
+    }
+
+    await act(async () => {
+      root.render(<Harness />)
+      await Promise.resolve()
+    })
+
+    const input = document.body.querySelector<HTMLInputElement>(
+      'input[type="datetime-local"]'
+    )
+    expect(input).toBeTruthy()
+
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set
+      valueSetter?.call(input, "")
+      input?.dispatchEvent(new Event("input", { bubbles: true }))
+      await Promise.resolve()
+    })
+
+    const done = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.includes("Done")
+    )
+    expect(done).toBeTruthy()
+
+    await act(async () => {
+      done?.click()
+      await Promise.resolve()
+    })
+
+    expect(onFinishedEditing).toHaveBeenCalledWith(
+      expect.objectContaining({
+        copyData: "2026-07-23 10:30:00",
+        data: expect.objectContaining({
+          date: undefined,
+          displayDate: "",
+        }),
+      }),
+      [0, 1]
+    )
   })
 })

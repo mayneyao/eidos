@@ -10,10 +10,10 @@ import {
   measureTextCached,
   type CustomCell,
   type CustomRenderer,
-  type ProvideEditorCallback,
+  type ProvideEditorComponent,
   type Rectangle,
 } from "@glideapps/glide-data-grid"
-import { Check } from "lucide-react"
+import { Check, Tag } from "lucide-react"
 
 import { useEidosFileUI } from "../context"
 import { cn } from "../lib/cn"
@@ -24,10 +24,19 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  Button,
 } from "../ui/primitives"
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/primitives"
+import { Popover, PopoverTrigger } from "../ui/primitives"
 import { SelectOptionItem } from "../ui/select-option-item"
 
+import {
+  EIDOS_FILE_GRID_EDITOR_CONTROL_CLASS_NAME,
+  EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME,
+  EidosFileGridEditorHeader,
+  EidosFileGridEditorPopoverContent,
+  EidosFileGridEditorSurface,
+  eidosFileGridPopupEditor,
+} from "./grid-editor-surface"
 import { roundedRect } from "./grid-cell-helper"
 
 interface SelectCellProps {
@@ -66,7 +75,6 @@ function SelectEditor(props: SelectEditorProps) {
     valueIn
   )
 
-  const oldOptionName = allowedValues.find((item) => item.id == valueIn)?.name
   const nextColorName = nextEidosFileOptionColor([...allowedValues])
 
   const handleSave = React.useCallback(() => {
@@ -106,26 +114,27 @@ function SelectEditor(props: SelectEditorProps) {
       <PopoverTrigger>
         <div />
       </PopoverTrigger>
-      <PopoverContent
-        className="click-outside-ignore z-[10000] w-[240px] p-0 border-0 shadow-none bg-transparent"
-        align="start"
-        sideOffset={-6}
-        alignOffset={-9}
+      <EidosFileGridEditorPopoverContent
         onPointerDownOutside={() => {
           handleSave()
         }}
       >
-        <div
-          className="bg-popover rounded-lg border shadow-lg overflow-hidden flex flex-col click-outside-ignore"
-          onKeyDown={handleKeyDown}
-        >
-          <Command className="[&_[cmdk-input-wrapper]]:px-2.5 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input]]:h-7">
-            <CommandInput
-              placeholder={t("Search...")}
-              value={searchValue}
-              onValueChange={setSearchValue}
-              className="border-0 focus:ring-0 text-sm"
-            />
+        <EidosFileGridEditorSurface onKeyDown={handleKeyDown}>
+          <EidosFileGridEditorHeader
+            icon={<Tag />}
+            title={t("Select option")}
+          />
+          <Command className="min-h-0 flex-1 rounded-none bg-transparent">
+            <div
+              className={`${EIDOS_FILE_GRID_EDITOR_CONTROL_CLASS_NAME} [&_[cmdk-input-wrapper]]:h-8 [&_[cmdk-input-wrapper]]:rounded-md [&_[cmdk-input-wrapper]]:border [&_[cmdk-input-wrapper]]:px-2 [&_[cmdk-input]]:h-7`}
+            >
+              <CommandInput
+                placeholder={t("Search...")}
+                value={searchValue}
+                onValueChange={setSearchValue}
+                className="border-0 text-xs focus:ring-0"
+              />
+            </div>
             <CommandList className="max-h-[220px] overflow-y-auto">
               <CommandEmpty className="py-4 text-xs text-muted-foreground text-center">
                 {t("No options")}
@@ -137,10 +146,8 @@ function SelectEditor(props: SelectEditorProps) {
                     <CommandItem
                       key={option.id}
                       value={option.name}
-                      onSelect={(currentValue) => {
-                        handleSelect(
-                          currentValue === oldOptionName ? "" : option.id
-                        )
+                      onSelect={() => {
+                        handleSelect(option.id)
                       }}
                       className={cn(
                         "flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer",
@@ -197,24 +204,57 @@ function SelectEditor(props: SelectEditorProps) {
             </CommandList>
           </Command>
 
-          {/* Footer */}
-          <div className="flex items-center justify-between px-2.5 py-1.5 border-t bg-muted/30 text-[10px] text-muted-foreground shrink-0">
-            <span>{allowedValues.length}</span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1 rounded bg-muted border text-[9px] font-sans">
-                ↵
-              </kbd>
-              <span>{t("save")}</span>
-              <span className="mx-0.5">·</span>
-              <kbd className="px-1 rounded bg-muted border text-[9px] font-sans">
-                Esc
-              </kbd>
-              <span>{t("cancel")}</span>
-            </span>
+          <div
+            className={`${EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME} justify-between`}
+          >
+            <span>{t("Arrow keys navigate · Enter selects")}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              onClick={handleSave}
+            >
+              {t("Done")}
+            </Button>
           </div>
-        </div>
-      </PopoverContent>
+        </EidosFileGridEditorSurface>
+      </EidosFileGridEditorPopoverContent>
     </Popover>
+  )
+}
+
+export const EidosFileSelectCellEditor: ProvideEditorComponent<SelectCell> = (
+  p
+) => {
+  const { value: cell, onFinishedEditing, theme } = p
+  const { allowedValues, allowCreate = true, value: valueIn } = cell.data
+  const themeName = (theme as { name?: string }).name ?? "light"
+
+  const handleFinishedEditing = (finalValue: string | null) => {
+    const newCell = {
+      ...cell,
+      data: {
+        ...cell.data,
+        value: finalValue,
+      },
+    }
+    onFinishedEditing(newCell, [0, 1])
+  }
+
+  const handleCancelEditing = () => {
+    onFinishedEditing(undefined, [0, 0])
+  }
+
+  return (
+    <SelectEditor
+      value={valueIn}
+      allowedValues={allowedValues}
+      allowCreate={allowCreate}
+      themeName={themeName}
+      onFinishedEditing={handleFinishedEditing}
+      onCancelEditing={handleCancelEditing}
+    />
   )
 }
 
@@ -268,37 +308,7 @@ const renderer: CustomRenderer<SelectCell> = {
 
     return true
   },
-  provideEditor: () => (p) => {
-    const { value: cell, onFinishedEditing, theme } = p
-    const { allowedValues, allowCreate = true, value: valueIn } = cell.data
-    const themeName = (theme as any).name
-
-    const handleFinishedEditing = (finalValue: string | null) => {
-      const newCell = {
-        ...cell,
-        data: {
-          ...cell.data,
-          value: finalValue,
-        },
-      }
-      onFinishedEditing(newCell, [0, 1])
-    }
-
-    const handleCancelEditing = () => {
-      onFinishedEditing(undefined, [0, 0])
-    }
-
-    return (
-      <SelectEditor
-        value={valueIn}
-        allowedValues={allowedValues}
-        allowCreate={allowCreate}
-        themeName={themeName}
-        onFinishedEditing={handleFinishedEditing}
-        onCancelEditing={handleCancelEditing}
-      />
-    )
-  },
+  provideEditor: () => eidosFileGridPopupEditor(EidosFileSelectCellEditor),
 
   onPaste: (v, d) => {
     return {

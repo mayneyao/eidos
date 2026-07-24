@@ -7,7 +7,7 @@ import {
   type CustomRenderer,
   type ProvideEditorComponent,
 } from "@glideapps/glide-data-grid"
-import { Link2, Search, Unlink } from "lucide-react"
+import { Link2, Search } from "lucide-react"
 
 import { drawDrilldownCell } from "./cells/grid-cell-helper"
 import { useEidosFileUI } from "./context"
@@ -15,6 +15,14 @@ import { Button, Input } from "./ui/primitives"
 
 import { useEidosFileRelationListbox } from "./eidos-file-relation-listbox"
 import { EidosFileRelationOptionList } from "./eidos-file-relation-option-list"
+import {
+  EIDOS_FILE_GRID_EDITOR_BODY_CLASS_NAME,
+  EIDOS_FILE_GRID_EDITOR_CONTROL_CLASS_NAME,
+  EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME,
+  EidosFileGridEditorHeader,
+  EidosFileGridEditorSurface,
+  eidosFileGridPopupEditor,
+} from "./cells/grid-editor-surface"
 
 interface EidosFileRelationCellData {
   readonly kind: "eidos-file-relation-cell"
@@ -116,8 +124,8 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
     })
 
   return (
-    <div
-      className="flex max-h-[390px] min-h-48 w-[340px] flex-col overflow-hidden border bg-popover shadow-lg"
+    <EidosFileGridEditorSurface
+      className="max-h-[390px] min-h-48"
       onKeyDown={(event) => {
         if (
           event.key === "Enter" &&
@@ -132,23 +140,8 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
         }
       }}
     >
-      <div className="flex h-10 shrink-0 items-center gap-2 border-b px-2.5">
-        <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium">{t("Link records")}</span>
-        {values.length > 0 ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="ml-auto h-7 gap-1 px-2 text-[11px] text-muted-foreground"
-            onClick={() => update([])}
-          >
-            <Unlink className="h-3 w-3" />
-            {t("Clear")}
-          </Button>
-        ) : null}
-      </div>
-      <div className="relative border-b p-2">
+      <EidosFileGridEditorHeader icon={<Link2 />} title={t("Link records")} />
+      <div className={`relative ${EIDOS_FILE_GRID_EDITOR_CONTROL_CLASS_NAME}`}>
         <Search className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={query}
@@ -188,7 +181,7 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
           }}
         />
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+      <div className={EIDOS_FILE_GRID_EDITOR_BODY_CLASS_NAME}>
         <EidosFileRelationOptionList
           accessibleName={t("Relation records")}
           activeOptionId={activeOptionId}
@@ -222,7 +215,9 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
           </p>
         ) : null}
       </div>
-      <div className="flex h-8 shrink-0 items-center justify-between border-t px-2.5 text-[10px] text-muted-foreground">
+      <div
+        className={`${EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME} justify-between`}
+      >
         <span>{t("Arrow keys navigate · Enter selects")}</span>
         <Button
           type="button"
@@ -234,7 +229,7 @@ export const EidosFileRelationCellEditor: ProvideEditorComponent<
           {t("Done")}
         </Button>
       </div>
-    </div>
+    </EidosFileGridEditorSurface>
   )
 }
 
@@ -254,7 +249,7 @@ export const EidosFileRelationCellRenderer: CustomRenderer<EidosFileRelationCell
         )
       ),
     draw: (args) => drawDrilldownCell(args, args.cell.data.values),
-    provideEditor: () => EidosFileRelationCellEditor,
+    provideEditor: () => eidosFileGridPopupEditor(EidosFileRelationCellEditor),
     onPaste: () => undefined,
     onDelete: (cell) => ({
       ...cell,
