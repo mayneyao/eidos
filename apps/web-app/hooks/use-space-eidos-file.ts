@@ -35,6 +35,32 @@ import { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui"
 
 import { desktopEidosFileHost } from "@/apps/web-app/lib/eidos-file/desktop-host-services"
 
+const closingDesktopEidosFileSources = new Map<string, Promise<void>>()
+
+function desktopEidosFileSourceKey(
+  spaceId: string,
+  relativePath: string
+): string {
+  return JSON.stringify([spaceId, relativePath])
+}
+
+function queueDesktopEidosFileSourceClose(
+  key: string,
+  close: () => Promise<void>
+): Promise<void> {
+  const previous = closingDesktopEidosFileSources.get(key)
+  let closing: Promise<void>
+  closing = (previous ? previous.catch(() => undefined) : Promise.resolve())
+    .then(close)
+    .finally(() => {
+      if (closingDesktopEidosFileSources.get(key) === closing) {
+        closingDesktopEidosFileSources.delete(key)
+      }
+    })
+  closingDesktopEidosFileSources.set(key, closing)
+  return closing
+}
+
 function requireEidosFileApi() {
   if (typeof window === "undefined" || !window.eidos?.spaceMgmt) {
     throw new Error("Eidos Files are available in the desktop app")
@@ -59,28 +85,43 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
     return spaceId
   }, [spaceId])
 
-  const closeSource = useCallback(async (relativePath: string) => {
-    const pending = sessionsRef.current.get(relativePath)
-    sessionsRef.current.delete(relativePath)
-    if (!pending) return
-    try {
-      const opened = await pending
-      await desktopEidosFileHost.close(
-        { sessionId: opened.sessionId },
-        runtimeContext("close")
+  const closeSource = useCallback(
+    async (relativePath: string) => {
+      const pending = sessionsRef.current.get(relativePath)
+      sessionsRef.current.delete(relativePath)
+      const activeSpaceId = spaceId
+      const close = async () => {
+        if (!pending) return
+        try {
+          const opened = await pending
+          await desktopEidosFileHost.close(
+            { sessionId: opened.sessionId },
+            runtimeContext("close")
+          )
+        } catch {
+          // Failed opens and already-closed sessions have no remaining resource.
+        }
+      }
+      if (!activeSpaceId) return close()
+      return queueDesktopEidosFileSourceClose(
+        desktopEidosFileSourceKey(activeSpaceId, relativePath),
+        close
       )
-    } catch {
-      // Failed opens and already-closed sessions have no remaining resource.
-    }
-  }, [])
+    },
+    [spaceId]
+  )
 
   const openSource = useCallback(
     (relativePath: string) => {
       const existing = sessionsRef.current.get(relativePath)
       if (existing) return existing
       const opening = (async () => {
+        const activeSpaceId = requireSpaceId()
+        await closingDesktopEidosFileSources.get(
+          desktopEidosFileSourceKey(activeSpaceId, relativePath)
+        )
         const { sourceToken } = await desktopEidosFileHost.registerSource(
-          requireSpaceId(),
+          activeSpaceId,
           relativePath
         )
         let sessionId: string | undefined
@@ -183,17 +224,11 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
 
   useEffect(
     () => () => {
-      const pending = [...sessionsRef.current.values()]
-      sessionsRef.current.clear()
-      for (const opening of pending) {
-        void opening.then(({ sessionId }) =>
-          desktopEidosFileHost
-            .close({ sessionId }, runtimeContext("unmount-close"))
-            .catch(() => undefined)
-        )
+      for (const relativePath of sessionsRef.current.keys()) {
+        void closeSource(relativePath)
       }
     },
-    []
+    [closeSource]
   )
 
   const create = useCallback(
@@ -251,6 +286,14 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
 
   const getSnapshot = useCallback(
     async (relativePath: string): Promise<EidosFileSnapshot> => {
+      const opened = await openSource(relativePath)
+      return opened.source.getSnapshot()
+    },
+    [openSource]
+  )
+
+  const reloadSnapshot = useCallback(
+    async (relativePath: string): Promise<EidosFileSnapshot> => {
       const opened = await reopenSource(relativePath)
       return opened.source.getSnapshot()
     },
@@ -288,15 +331,19 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
       snapshot: EidosFileSnapshot
     }> => {
       await closeSource(relativePath)
-      return requireEidosFileApi().importEidosFileCsv(
+      const imported = await requireEidosFileApi().importEidosFileCsv(
         requireSpaceId(),
         relativePath,
         token,
         options,
         operationId
       )
+      return {
+        result: imported.result,
+        snapshot: await getSnapshot(relativePath),
+      }
     },
-    [closeSource, requireSpaceId]
+    [closeSource, getSnapshot, requireSpaceId]
   )
 
   const getCsvOperation = useCallback(
@@ -611,6 +658,7 @@ export function useSpaceEidosFile(spaceId: string | undefined) {
     cancelCsvOperation,
     exportCsv,
     getSnapshot,
+    reloadSnapshot,
     getTablePage,
     getTableRow,
     getTableGroupCounts,
