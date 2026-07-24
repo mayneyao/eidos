@@ -115,7 +115,7 @@ describe("EidosFileViewMenu", () => {
     expect(title?.disabled).toBe(true)
     const createdTime = Array.from(
       container.querySelectorAll<HTMLButtonElement>('[role="menuitemcheckbox"]')
-    ).find((item) => item.textContent?.trim() === "Created time")
+    ).find((item) => item.textContent?.trim() === "Created at")
     expect(createdTime?.getAttribute("aria-checked")).toBe("false")
     act(() => createdTime?.click())
     expect(onVisibilityChange).toHaveBeenCalledWith({

@@ -14,15 +14,13 @@ import type {
   EidosFileRowsDeleteResult,
   EidosFileSnapshot,
   EidosFileSqlPrimitive,
+  EidosFileTableInfo,
+  EidosFileViewInfo,
   FileEntry,
   UpdateEidosFileFieldInput,
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
-import {
-  EidosFileEditorContent,
-  EidosFileEditorRoot,
-  EidosFileEditorWorkbar,
-} from "@eidos.space/eidos-file-ui/eidos-file-editor-chrome"
+import { EidosFileEditorShell } from "@eidos.space/eidos-file-ui/eidos-file-editor-shell"
 import { EidosFileFieldCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-field-create-popover"
 import { EidosFileViewFieldsPopover } from "@eidos.space/eidos-file-ui/eidos-file-view-fields-popover"
 import {
@@ -41,7 +39,6 @@ import {
   FolderOpen,
   LoaderCircle,
   Plus,
-  RefreshCw,
   Trash2,
   X,
 } from "lucide-react"
@@ -83,7 +80,6 @@ import { EidosFileGrid } from "./eidos-file-grid"
 import { EidosFileGalleryView } from "./eidos-file-gallery-view"
 import { EidosFileKanbanView } from "./eidos-file-kanban-view"
 import { EidosFileCsvImportPopover } from "./eidos-file-csv-import-popover"
-import { EidosFileCsvExportPopover } from "./eidos-file-csv-export-popover"
 import {
   eidosFileDefaultTableForTemplate,
   type EidosFileTemplateId,
@@ -100,10 +96,8 @@ import {
   EidosFileRecordUnavailable,
 } from "./eidos-file-record-page"
 import { eidosFileRecordTitle } from "./eidos-file-record-format"
-import { EidosFileRenameDialog } from "./eidos-file-rename-dialog"
 import { EidosFileSheetCreatePopover } from "./eidos-file-sheet-create-popover"
 import { EidosFileSheetTabs } from "./eidos-file-sheet-tabs"
-import { EidosFileStructureMenu } from "./eidos-file-structure-menu"
 import {
   eidosFileExtensionContributionId,
   isEidosFileBuiltInViewType,
@@ -118,17 +112,13 @@ interface SpaceEidosFileEditorProps {
   recordTarget?: SpaceEidosFileRecordTarget
 }
 
-type RenameTarget = { kind: "table"; tableId: string; name: string }
-
-type DeleteTarget =
-  | RenameTarget
-  | {
-      kind: "field"
-      tableId: string
-      fieldId: string
-      columnName: string
-      name: string
-    }
+interface DeleteFieldTarget {
+  kind: "field"
+  tableId: string
+  fieldId: string
+  columnName: string
+  name: string
+}
 
 function isSupportedEidosFileViewType(type: string): boolean {
   return (
@@ -367,6 +357,13 @@ function csvFileNameSegment(value: string): string {
   )
 }
 
+function newCsvOperationId(): string {
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `csv-export-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  )
+}
+
 export function SpaceEidosFileEditor({
   filePath,
   recordTarget,
@@ -405,6 +402,7 @@ export function SpaceEidosFileEditor({
   } = useSpaceFiles(currentSpace?.id)
   const {
     getSnapshot,
+    reloadSnapshot,
     selectCsv,
     previewCsvImport,
     importCsv,
@@ -472,8 +470,9 @@ export function SpaceEidosFileEditor({
     EidosFileRowRange[]
   >([])
   const [deleteRowsDialogOpen, setDeleteRowsDialogOpen] = useState(false)
-  const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DeleteFieldTarget | null>(
+    null
+  )
   const [fieldPropertyColumn, setFieldPropertyColumn] = useState<string | null>(
     null
   )
@@ -582,10 +581,13 @@ export function SpaceEidosFileEditor({
   }, [snapshotWithPendingViewMutations])
 
   const load = useCallback(
-    async (options: { preserveError?: boolean } = {}) => {
+    async (
+      options: { preserveError?: boolean; reopenSource?: boolean } = {}
+    ) => {
       setLoading(true)
       try {
-        applySnapshot(await getSnapshot(filePath))
+        const readSnapshot = options.reopenSource ? reloadSnapshot : getSnapshot
+        applySnapshot(await readSnapshot(filePath))
         setGridReloadToken((current) => current + 1)
         setRecordReloadToken((current) => current + 1)
         if (!options.preserveError) setError(null)
@@ -599,18 +601,12 @@ export function SpaceEidosFileEditor({
         setLoading(false)
       }
     },
-    [applySnapshot, filePath, getSnapshot]
+    [applySnapshot, filePath, getSnapshot, reloadSnapshot]
   )
 
   const refreshFromFileChange = useCallback(async () => {
     try {
-      const next = await getSnapshot(filePath)
-      if (
-        String(next.metadata.revision) === knownEidosFileRevisionRef.current
-      ) {
-        setError(null)
-        return
-      }
+      const next = await reloadSnapshot(filePath)
       applySnapshot(next)
       setGridReloadToken((current) => current + 1)
       setRecordReloadToken((current) => current + 1)
@@ -622,7 +618,7 @@ export function SpaceEidosFileEditor({
           : "Unable to refresh Eidos File"
       )
     }
-  }, [applySnapshot, filePath, getSnapshot])
+  }, [applySnapshot, filePath, reloadSnapshot])
 
   useEffect(() => {
     void load()
@@ -929,7 +925,10 @@ export function SpaceEidosFileEditor({
               )
             }
             if (reloadOnError) {
-              await load({ preserveError: errorMode === "global" })
+              await load({
+                preserveError: errorMode === "global",
+                reopenSource: true,
+              })
             }
             throw mutationError
           }
@@ -1655,36 +1654,75 @@ export function SpaceEidosFileEditor({
     [applySnapshot, enqueueMutation, filePath, importCsv]
   )
 
-  const exportActiveView = useCallback(
-    (operationId: string) => {
-      if (!activeTable || !activeView) {
-        return Promise.reject(new Error("No active Eidos File view"))
+  const exportViewCsv = useCallback(
+    (view: EidosFileViewInfo) => {
+      if (!activeTable) {
+        return Promise.reject(new Error("No active Eidos File table"))
       }
       const eidosFileName = filePath
         .split("/")
         .at(-1)
         ?.replace(/\.eidos$/i, "")
-      const columns = orderedEidosFileFields(
-        activeTable.fields,
-        activeView
-      ).map((field) => ({
-        columnName: field.tableColumnName,
-        name: eidosFileFieldDisplayName(field),
-      }))
+      const columns = orderedEidosFileFields(activeTable.fields, view).map(
+        (field) => ({
+          columnName: field.tableColumnName,
+          name: eidosFileFieldDisplayName(field),
+        })
+      )
       const suggestedFileName = [
         csvFileNameSegment(eidosFileName || "base"),
         csvFileNameSegment(activeTable.table.name),
-        csvFileNameSegment(activeView.name),
+        csvFileNameSegment(view.name),
       ].join(" - ")
       return exportCsv(
         filePath,
         activeTable.table.id,
-        { query: activeQuery, columns },
+        {
+          query: {
+            ...(view.id === activeView?.id && search ? { search } : {}),
+            filter: view.filter ?? null,
+            sorts: view.sorts ?? [],
+          },
+          columns,
+        },
         `${suggestedFileName}.csv`,
-        operationId
-      )
+        newCsvOperationId()
+      ).then(() => undefined)
     },
-    [activeQuery, activeTable, activeView, exportCsv, filePath]
+    [activeTable, activeView?.id, exportCsv, filePath, search]
+  )
+
+  const exportTableCsv = useCallback(
+    (table: EidosFileTableInfo) => {
+      const tableSnapshot = snapshot?.tables.find(
+        (candidate) => candidate.table.id === table.id
+      )
+      if (!tableSnapshot) {
+        return Promise.reject(new Error("Eidos File table not found"))
+      }
+      const eidosFileName = filePath
+        .split("/")
+        .at(-1)
+        ?.replace(/\.eidos$/i, "")
+      const columns = orderedEidosFileFields(tableSnapshot.fields).map(
+        (field) => ({
+          columnName: field.tableColumnName,
+          name: eidosFileFieldDisplayName(field),
+        })
+      )
+      const suggestedFileName = [
+        csvFileNameSegment(eidosFileName || "base"),
+        csvFileNameSegment(tableSnapshot.table.name),
+      ].join(" - ")
+      return exportCsv(
+        filePath,
+        tableSnapshot.table.id,
+        { query: {}, columns },
+        `${suggestedFileName}.csv`,
+        newCsvOperationId()
+      ).then(() => undefined)
+    },
+    [exportCsv, filePath, snapshot?.tables]
   )
 
   const createFieldInEidosFile = useCallback(
@@ -1759,21 +1797,8 @@ export function SpaceEidosFileEditor({
     [applySnapshot, enqueueMutation, filePath, reorderTables]
   )
 
-  const renameStructure = useCallback(
-    (name: string): Promise<void> => {
-      if (!renameTarget) return Promise.resolve()
-      return renameTableInEidosFile(renameTarget.tableId, name)
-    },
-    [renameTableInEidosFile, renameTarget]
-  )
-
-  const deleteStructure = useCallback((): Promise<void> => {
+  const deleteFieldTarget = useCallback((): Promise<void> => {
     if (!deleteTarget) return Promise.resolve()
-    if (deleteTarget.kind === "table") {
-      return deleteTableInEidosFile(deleteTarget.tableId).then(() => {
-        setDeleteTarget(null)
-      })
-    }
     const operation = () =>
       deleteField(filePath, deleteTarget.tableId, deleteTarget.fieldId)
     return enqueueMutation(operation, applySnapshot, {
@@ -1788,14 +1813,7 @@ export function SpaceEidosFileEditor({
       )
       setDeleteTarget(null)
     })
-  }, [
-    applySnapshot,
-    deleteField,
-    deleteTableInEidosFile,
-    deleteTarget,
-    enqueueMutation,
-    filePath,
-  ])
+  }, [applySnapshot, deleteField, deleteTarget, enqueueMutation, filePath])
 
   const updateFieldInEidosFile = useCallback(
     (
@@ -2132,7 +2150,11 @@ export function SpaceEidosFileEditor({
             <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
             Show in file manager
           </Button>
-          <Button variant="outline" size="sm" onClick={() => void load()}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void load({ reopenSource: true })}
+          >
             Try again
           </Button>
         </div>
@@ -2187,15 +2209,150 @@ export function SpaceEidosFileEditor({
     )
   }
 
+  const editorSheetTabs = (
+    <EidosFileSheetTabs
+      tables={snapshot.tables.map((candidate) => candidate.table)}
+      activeTableId={activeTableId}
+      disabled={loading || blockingMutations > 0}
+      createAction={
+        <EidosFileSheetCreatePopover
+          disabled={loading || blockingMutations > 0}
+          csvImportProps={{
+            disabled: loading || pendingMutations > 0,
+            onSelect: selectCsv,
+            onPreview: previewCsvImport,
+            onImport: importCsvIntoEidosFile,
+            onProgress: getCsvOperation,
+            onCancel: cancelCsvOperation,
+          }}
+          onCreate={createTableInEidosFile}
+        />
+      }
+      onSelect={setActiveTableId}
+      onReorder={reorderTablesInEidosFile}
+      onRename={(table, name) => renameTableInEidosFile(table.id, name)}
+      onDelete={(table) => deleteTableInEidosFile(table.id)}
+      onExportCsv={exportTableCsv}
+      onExportError={(exportError) =>
+        setError(
+          eidosFileErrorMessage(
+            exportError,
+            "Unable to export Eidos File table"
+          )
+        )
+      }
+      status={
+        savingStatusVisible ? (
+          <span className="flex items-center gap-1">
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+            Saving…
+          </span>
+        ) : failedMutationKeys.size === 0 && lastSavedAt ? (
+          <span className="flex items-center gap-1">
+            <Check className="h-3.5 w-3.5" />
+            Saved
+          </span>
+        ) : undefined
+      }
+    />
+  )
+
+  const editorOverlays = (
+    <>
+      <EidosFileFormulaEditorPopover
+        field={formulaTarget}
+        fields={activeTable?.fields ?? []}
+        open={formulaTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setFormulaTarget(null)
+        }}
+        onPreview={previewActiveFormula}
+        onSave={saveFormula}
+      />
+
+      <EidosFileLookupEditorPopover
+        field={lookupTarget}
+        fields={activeTable?.fields ?? []}
+        tables={snapshot.tables}
+        open={lookupTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setLookupTarget(null)
+        }}
+        onSave={saveLookup}
+      />
+
+      <AlertDialog
+        open={deleteRowsDialogOpen}
+        onOpenChange={setDeleteRowsDialogOpen}
+      >
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {selectedRowCount}{" "}
+              {selectedRowCount === 1 ? "row" : "rows"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This updates the Eidos File immediately. You can recover the rows
+              from Version history until the change is committed or discarded.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setDeleteRowsDialogOpen(false)
+                void deleteSelectedRows().catch(() => undefined)
+              }}
+            >
+              Delete rows
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+      >
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete field “{deleteTarget?.name}”?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              All values stored in this field will be removed from the Eidos
+              File. You can recover this change from Version history.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                void deleteFieldTarget().catch(() => undefined)
+              }}
+            >
+              Delete field
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+
   return (
     <EidosFileUIProvider
       themeName={resolvedTheme === "dark" ? "dark" : "light"}
       assetSession={assetSession ?? undefined}
       assetPresenter={desktopEidosFileAssetPresenter}
     >
-      <EidosFileEditorRoot ref={editorRef}>
-        <EidosFileEditorWorkbar>
-          {activeTable ? (
+      <EidosFileEditorShell
+        ref={editorRef}
+        viewTabs={
+          activeTable ? (
             <EidosFileViewTabs
               views={activeTable.views}
               extensionViews={extensionEidosFileViews}
@@ -2209,152 +2366,90 @@ export function SpaceEidosFileEditor({
               onDelete={deleteViewInEidosFile}
               onReorder={reorderViewsInEidosFile}
               onUpdate={updateViewInEidosFile}
+              onExportCsv={exportViewCsv}
+              onExportError={(exportError) =>
+                setError(
+                  eidosFileErrorMessage(
+                    exportError,
+                    "Unable to export Eidos File view"
+                  )
+                )
+              }
             />
-          ) : (
-            <div className="min-w-0 flex-1" />
-          )}
-          <div className="eidos-file-workbar-actions flex h-9 min-w-0 shrink-0 items-center gap-1 pl-2">
-            {selectedRowCount > 0 ? (
+          ) : undefined
+        }
+        queryToolbar={
+          activeTable ? (
+            <EidosFileQueryToolbar
+              fields={activeTable.fields}
+              filter={activeView?.filter ?? null}
+              sorts={activeView?.sorts ?? []}
+              search={search}
+              disabled={blockingMutations > 0}
+              focusSearchToken={focusSearchToken}
+              searchResultCount={searchResultCount}
+              searchResultIndex={activeSearchResultIndex}
+              onSearchChange={handleSearchChange}
+              onNavigateSearch={navigateSearchResults}
+              onFilterChange={(filter) => updateActiveView({ filter }, "local")}
+              onSortsChange={(sorts) => updateActiveView({ sorts }, "local")}
+            />
+          ) : undefined
+        }
+        fields={
+          activeTable && activeView ? (
+            <EidosFileViewFieldsPopover
+              fields={activeTable.fields}
+              view={activeView}
+              disabled={blockingMutations > 0}
+              onUpdate={(changes) => updateActiveView(changes, "local")}
+              onFieldOpen={openFieldProperty}
+              onFieldAdd={() => openFieldCreator()}
+            />
+          ) : undefined
+        }
+        fieldCreator={
+          activeTable ? (
+            <EidosFileFieldCreatePopover
+              open={structureDialog === "field"}
+              onOpenChange={(open) => {
+                if (!open) {
+                  setStructureDialog(null)
+                  setFieldInsertIndex(null)
+                }
+              }}
+              table={activeTable}
+              tables={snapshot.tables}
+              disabled={blockingMutations > 0}
+              onCreate={createFieldInEidosFile}
+              onPreviewFormula={previewActiveFormula}
+            />
+          ) : undefined
+        }
+        banner={
+          error ? (
+            <div
+              className="flex shrink-0 items-start gap-2 border-b border-destructive/20 bg-destructive/5 px-3 py-1.5 text-xs text-destructive"
+              role="alert"
+            >
+              <span className="min-w-0 flex-1 break-words py-0.5">{error}</span>
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
-                className="eidos-file-workbar-action h-7 gap-1 px-2 text-xs text-destructive hover:text-destructive"
-                aria-label={`Delete ${selectedRowCount} selected rows`}
-                title={`Delete ${selectedRowCount} selected rows`}
-                onClick={() => setDeleteRowsDialogOpen(true)}
+                size="icon"
+                className="h-5 w-5 shrink-0 text-destructive hover:text-destructive"
+                aria-label="Dismiss Eidos File error"
+                title="Dismiss"
+                onClick={() => setError(null)}
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span className="eidos-file-workbar-action-label">
-                  Delete {selectedRowCount}
-                </span>
+                <X className="h-3.5 w-3.5" />
               </Button>
-            ) : null}
-            {activeTable ? (
-              <>
-                <EidosFileQueryToolbar
-                  fields={activeTable.fields}
-                  filter={activeView?.filter ?? null}
-                  sorts={activeView?.sorts ?? []}
-                  search={search}
-                  disabled={blockingMutations > 0}
-                  focusSearchToken={focusSearchToken}
-                  searchResultCount={searchResultCount}
-                  searchResultIndex={activeSearchResultIndex}
-                  onSearchChange={handleSearchChange}
-                  onNavigateSearch={navigateSearchResults}
-                  onFilterChange={(filter) =>
-                    updateActiveView({ filter }, "local")
-                  }
-                  onSortsChange={(sorts) =>
-                    updateActiveView({ sorts }, "local")
-                  }
-                />
-                {activeView ? (
-                  <EidosFileViewFieldsPopover
-                    fields={activeTable.fields}
-                    view={activeView}
-                    disabled={blockingMutations > 0}
-                    onUpdate={(changes) => updateActiveView(changes, "local")}
-                    onFieldOpen={openFieldProperty}
-                  />
-                ) : null}
-                {activeView ? (
-                  <EidosFileCsvExportPopover
-                    triggerVariant="workbar"
-                    disabled={loading || pendingMutations > 0}
-                    viewName={`${activeTable.table.name} · ${activeView.name}`}
-                    onExport={exportActiveView}
-                    onProgress={getCsvOperation}
-                    onCancel={cancelCsvOperation}
-                  />
-                ) : null}
-                <EidosFileStructureMenu
-                  table={activeTable.table}
-                  fields={activeTable.fields}
-                  disabled={blockingMutations > 0}
-                  onNewField={() => openFieldCreator()}
-                  onRevealEidosFile={() =>
-                    void reveal(filePath).catch((revealError) =>
-                      setError(
-                        revealError instanceof Error
-                          ? revealError.message
-                          : "Unable to show Eidos File in file manager"
-                      )
-                    )
-                  }
-                  onRenameTable={() =>
-                    setRenameTarget({
-                      kind: "table",
-                      tableId: activeTable.table.id,
-                      name: activeTable.table.name,
-                    })
-                  }
-                  onDeleteTable={() =>
-                    setDeleteTarget({
-                      kind: "table",
-                      tableId: activeTable.table.id,
-                      name: activeTable.table.name,
-                    })
-                  }
-                  onEditField={openFieldProperty}
-                  onDeleteField={requestFieldDelete}
-                />
-              </>
-            ) : null}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="eidos-file-workbar-action h-7 gap-1 px-2 text-xs"
-              aria-label="Create Eidos File row"
-              title="New row"
-              disabled={!activeTable}
-              onClick={() => void createRow().catch(() => undefined)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span className="eidos-file-workbar-action-label">New row</span>
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              aria-label="Refresh Eidos File"
-              title="Refresh Eidos File"
-              disabled={loading || pendingMutations > 0}
-              onClick={() => void load()}
-            >
-              <RefreshCw
-                className={cn(
-                  "h-3.5 w-3.5 motion-reduce:animate-none",
-                  loading && "animate-spin"
-                )}
-              />
-            </Button>
-          </div>
-        </EidosFileEditorWorkbar>
-
-        {error ? (
-          <div
-            className="flex shrink-0 items-start gap-2 border-b border-destructive/20 bg-destructive/5 px-3 py-1.5 text-xs text-destructive"
-            role="alert"
-          >
-            <span className="min-w-0 flex-1 break-words py-0.5">{error}</span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 shrink-0 text-destructive hover:text-destructive"
-              aria-label="Dismiss Eidos File error"
-              title="Dismiss"
-              onClick={() => setError(null)}
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        ) : null}
-
+            </div>
+          ) : undefined
+        }
+        sheetTabs={editorSheetTabs}
+        overlays={editorOverlays}
+      >
         {!activeTable ? (
           <EidosFileEmptyState
             disabled={loading || pendingMutations > 0}
@@ -2374,7 +2469,7 @@ export function SpaceEidosFileEditor({
             }
           />
         ) : (
-          <EidosFileEditorContent>
+          <>
             {activeView &&
             activeExtensionContributionId &&
             activeExtensionView &&
@@ -2574,158 +2669,9 @@ export function SpaceEidosFileEditor({
                 </div>
               </div>
             ) : null}
-          </EidosFileEditorContent>
+          </>
         )}
-
-        <EidosFileSheetTabs
-          tables={snapshot.tables.map((candidate) => candidate.table)}
-          activeTableId={activeTableId}
-          disabled={loading || blockingMutations > 0}
-          createAction={
-            <EidosFileSheetCreatePopover
-              disabled={loading || blockingMutations > 0}
-              csvImportProps={{
-                disabled: loading || pendingMutations > 0,
-                onSelect: selectCsv,
-                onPreview: previewCsvImport,
-                onImport: importCsvIntoEidosFile,
-                onProgress: getCsvOperation,
-                onCancel: cancelCsvOperation,
-              }}
-              onCreate={createTableInEidosFile}
-            />
-          }
-          onSelect={setActiveTableId}
-          onReorder={reorderTablesInEidosFile}
-          onRename={(table, name) => renameTableInEidosFile(table.id, name)}
-          onDelete={(table) => deleteTableInEidosFile(table.id)}
-          status={
-            savingStatusVisible ? (
-              <span className="flex items-center gap-1">
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
-                Saving…
-              </span>
-            ) : failedMutationKeys.size === 0 && lastSavedAt ? (
-              <span className="flex items-center gap-1">
-                <Check className="h-3.5 w-3.5" />
-                Saved
-              </span>
-            ) : undefined
-          }
-        />
-
-        {activeTable ? (
-          <EidosFileFieldCreatePopover
-            open={structureDialog === "field"}
-            onOpenChange={(open) => {
-              if (!open) {
-                setStructureDialog(null)
-                setFieldInsertIndex(null)
-              }
-            }}
-            table={activeTable}
-            tables={snapshot.tables}
-            disabled={blockingMutations > 0}
-            onCreate={createFieldInEidosFile}
-            onPreviewFormula={previewActiveFormula}
-          />
-        ) : null}
-
-        <EidosFileRenameDialog
-          kind={renameTarget?.kind ?? "table"}
-          name={renameTarget?.name ?? ""}
-          open={renameTarget !== null}
-          onOpenChange={(open) => {
-            if (!open) setRenameTarget(null)
-          }}
-          onRename={renameStructure}
-        />
-
-        <EidosFileFormulaEditorPopover
-          field={formulaTarget}
-          fields={activeTable?.fields ?? []}
-          open={formulaTarget !== null}
-          onOpenChange={(open) => {
-            if (!open) setFormulaTarget(null)
-          }}
-          onPreview={previewActiveFormula}
-          onSave={saveFormula}
-        />
-
-        <EidosFileLookupEditorPopover
-          field={lookupTarget}
-          fields={activeTable?.fields ?? []}
-          tables={snapshot.tables}
-          open={lookupTarget !== null}
-          onOpenChange={(open) => {
-            if (!open) setLookupTarget(null)
-          }}
-          onSave={saveLookup}
-        />
-
-        <AlertDialog
-          open={deleteRowsDialogOpen}
-          onOpenChange={setDeleteRowsDialogOpen}
-        >
-          <AlertDialogContent className="max-w-sm">
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                Delete {selectedRowCount}{" "}
-                {selectedRowCount === 1 ? "row" : "rows"}?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                This updates the Eidos File immediately. You can recover the
-                rows from Version history until the change is committed or
-                discarded.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => {
-                  setDeleteRowsDialogOpen(false)
-                  void deleteSelectedRows().catch(() => undefined)
-                }}
-              >
-                Delete rows
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        <AlertDialog
-          open={deleteTarget !== null}
-          onOpenChange={(open) => {
-            if (!open) setDeleteTarget(null)
-          }}
-        >
-          <AlertDialogContent className="max-w-sm">
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                Delete {deleteTarget?.kind} “{deleteTarget?.name}”?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {deleteTarget?.kind === "table"
-                  ? "All rows, fields, and views in this table will be removed from the Eidos File."
-                  : "All values stored in this field will be removed from the Eidos File."}{" "}
-                You can recover this change from Version history.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => {
-                  void deleteStructure().catch(() => undefined)
-                }}
-              >
-                Delete {deleteTarget?.kind}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </EidosFileEditorRoot>
+      </EidosFileEditorShell>
     </EidosFileUIProvider>
   )
 }

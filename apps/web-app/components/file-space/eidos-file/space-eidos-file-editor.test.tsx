@@ -22,6 +22,7 @@ import { SpaceEidosFileEditor } from "./space-eidos-file-editor"
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const getSnapshotMock = vi.hoisted(() => vi.fn())
+const reloadSnapshotMock = vi.hoisted(() => vi.fn())
 const getTablePageMock = vi.hoisted(() => vi.fn())
 const getTableRowMock = vi.hoisted(() => vi.fn())
 const createTableMock = vi.hoisted(() => vi.fn())
@@ -50,6 +51,9 @@ const updateRowsMock = vi.hoisted(() => vi.fn())
 const deleteRowsMock = vi.hoisted(() => vi.fn())
 const deleteRowRangesMock = vi.hoisted(() => vi.fn())
 const exportCsvMock = vi.hoisted(() => vi.fn())
+const selectCsvMock = vi.hoisted(() => vi.fn())
+const previewCsvImportMock = vi.hoisted(() => vi.fn())
+const importCsvMock = vi.hoisted(() => vi.fn())
 const getCsvOperationMock = vi.hoisted(() => vi.fn())
 const cancelCsvOperationMock = vi.hoisted(() => vi.fn())
 const getAssetSessionMock = vi.hoisted(() => vi.fn())
@@ -134,6 +138,7 @@ vi.mock("../../file-extensions/extension-eidos-file-view-surface", () => ({
 vi.mock("@/apps/web-app/hooks/use-space-eidos-file", () => ({
   useSpaceEidosFile: () => ({
     getSnapshot: getSnapshotMock,
+    reloadSnapshot: reloadSnapshotMock,
     getTablePage: getTablePageMock,
     getTableRow: getTableRowMock,
     createTable: createTableMock,
@@ -154,6 +159,9 @@ vi.mock("@/apps/web-app/hooks/use-space-eidos-file", () => ({
     updateRows: updateRowsMock,
     deleteRows: deleteRowsMock,
     deleteRowRanges: deleteRowRangesMock,
+    selectCsv: selectCsvMock,
+    previewCsvImport: previewCsvImportMock,
+    importCsv: importCsvMock,
     exportCsv: exportCsvMock,
     getCsvOperation: getCsvOperationMock,
     cancelCsvOperation: cancelCsvOperationMock,
@@ -169,7 +177,14 @@ vi.mock("./eidos-file-sheet-create-popover", () => ({
     onCreate,
   }: {
     disabled?: boolean
-    csvImportProps: { onSelect: () => Promise<unknown> }
+    csvImportProps: {
+      onSelect: () => Promise<unknown>
+      onImport: (
+        token: string,
+        options: Record<string, unknown>,
+        operationId: string
+      ) => Promise<void>
+    }
     onCreate: (value: { name: string }) => Promise<void> | void
   }) => {
     const [open, setOpen] = React.useState(false)
@@ -198,6 +213,14 @@ vi.mock("./eidos-file-sheet-create-popover", () => ({
             >
               Import CSV
             </button>
+            <button
+              type="button"
+              onClick={() =>
+                void csvImportProps.onImport("csv-token", {}, "csv-operation")
+              }
+            >
+              Complete CSV import
+            </button>
           </>
         ) : null}
       </div>
@@ -220,6 +243,7 @@ vi.mock("@eidos.space/eidos-file-ui/eidos-file-field-create-popover", () => ({
     open ? (
       <button
         type="button"
+        data-testid="eidos-file-field-creator"
         onClick={() =>
           onCreate({
             name: "Owner",
@@ -239,6 +263,7 @@ vi.mock("@eidos.space/eidos-file-ui/eidos-file-view-fields-popover", () => ({
     view,
     onUpdate,
     onFieldOpen,
+    onFieldAdd,
   }: {
     fields: (typeof snapshot)["tables"][number]["fields"]
     view: (typeof snapshot)["tables"][number]["views"][number]
@@ -249,12 +274,14 @@ vi.mock("@eidos.space/eidos-file-ui/eidos-file-view-fields-popover", () => ({
     onFieldOpen?: (
       field: (typeof snapshot)["tables"][number]["fields"][number]
     ) => void
+    onFieldAdd?: () => void
   }) => {
     const field = fields.find(
       (candidate) => candidate.tableColumnName === "status"
     )
     return (
       <>
+        <span>Fields</span>
         <button
           type="button"
           onClick={() =>
@@ -291,66 +318,11 @@ vi.mock("@eidos.space/eidos-file-ui/eidos-file-view-fields-popover", () => ({
         >
           Browse Status field
         </button>
-      </>
-    )
-  },
-}))
-
-vi.mock("./eidos-file-structure-menu", () => ({
-  EidosFileStructureMenu: ({
-    fields,
-    onNewField,
-    onRenameTable,
-    onDeleteTable,
-    onRevealEidosFile,
-    onEditField,
-    onDeleteField,
-  }: {
-    fields: (typeof snapshot)["tables"][number]["fields"]
-    onNewField: () => void
-    onRenameTable: () => void
-    onDeleteTable: () => void
-    onRevealEidosFile: () => void
-    onEditField: (
-      field: (typeof snapshot)["tables"][number]["fields"][number]
-    ) => void
-    onDeleteField: (
-      field: (typeof snapshot)["tables"][number]["fields"][number]
-    ) => void
-  }) => {
-    const field = fields.find(
-      (candidate) => candidate.tableColumnName === "status"
-    )
-    return (
-      <>
-        <button type="button" onClick={onNewField}>
-          New field
-        </button>
-        <button type="button" onClick={onRenameTable}>
-          Rename table
-        </button>
-        <button type="button" onClick={onDeleteTable}>
-          Delete table
-        </button>
-        <button type="button" onClick={onRevealEidosFile}>
-          Show Eidos File in file manager
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (field) onDeleteField(field)
-          }}
-        >
-          Delete field
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (field) onEditField(field)
-          }}
-        >
-          Edit property
-        </button>
+        {onFieldAdd ? (
+          <button type="button" onClick={onFieldAdd}>
+            New field
+          </button>
+        ) : null}
       </>
     )
   },
@@ -427,31 +399,6 @@ vi.mock("@eidos.space/eidos-file-ui/eidos-file-derived-field-editor", () => ({
     ) : null,
 }))
 
-vi.mock("./eidos-file-rename-dialog", () => ({
-  EidosFileRenameDialog: ({
-    name,
-    open,
-    onRename,
-    onOpenChange,
-  }: {
-    name: string
-    open: boolean
-    onRename: (name: string) => void
-    onOpenChange: (open: boolean) => void
-  }) =>
-    open ? (
-      <button
-        type="button"
-        onClick={() => {
-          onRename(name + " renamed")
-          onOpenChange(false)
-        }}
-      >
-        Confirm rename
-      </button>
-    ) : null,
-}))
-
 vi.mock("@/apps/web-app/hooks/use-space-files", () => ({
   useSpaceFileChanges: (
     _spaceId: string | undefined,
@@ -487,6 +434,7 @@ vi.mock("./eidos-file-grid", async () => {
       onCellEdit,
       onInspectorCellEdit,
       onRowsEdit,
+      onAddRow,
       onSelectedRowsChange,
       onImportFiles,
       onImportDroppedFiles,
@@ -525,6 +473,7 @@ vi.mock("./eidos-file-grid", async () => {
           changes: Record<string, string>
         }>
       ) => void
+      onAddRow?: () => Promise<unknown>
       onSelectedRowsChange: (
         ranges: Array<{ startIndex: number; endIndex: number }>
       ) => void
@@ -637,6 +586,9 @@ vi.mock("./eidos-file-grid", async () => {
           >
             Paste row
           </button>
+          <button type="button" onClick={() => void onAddRow?.()}>
+            New row
+          </button>
           <button
             type="button"
             onClick={() =>
@@ -644,6 +596,14 @@ vi.mock("./eidos-file-grid", async () => {
             }
           >
             Select row
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              onRequestDeleteRows?.([{ startIndex: 0, endIndex: 1 }])
+            }
+          >
+            Delete selected rows
           </button>
           <button type="button" onClick={() => onAddField?.(1)}>
             Insert field at 1
@@ -672,6 +632,12 @@ vi.mock("./eidos-file-grid", async () => {
                 }
               >
                 Convert field
+              </button>
+              <button
+                type="button"
+                onClick={() => onDeleteField?.(propertyField)}
+              >
+                Delete field
               </button>
             </>
           ) : null}
@@ -781,6 +747,7 @@ vi.mock("./eidos-file-view-tabs", () => ({
     onDelete,
     onReorder,
     onUpdate,
+    onExportCsv,
   }: {
     activeView?: (typeof snapshot)["tables"][number]["views"][number]
     onCreate: (name: string, type: "grid" | "gallery" | "kanban") => void
@@ -789,6 +756,9 @@ vi.mock("./eidos-file-view-tabs", () => ({
     onDelete: (viewId: string) => void
     onReorder: (viewIds: string[]) => void
     onUpdate: (viewId: string, changes: { name: string }) => Promise<void>
+    onExportCsv?: (
+      view: (typeof snapshot)["tables"][number]["views"][number]
+    ) => Promise<unknown>
   }) => (
     <div data-testid="eidos-file-view-tabs">
       <div role="tablist" aria-label="Eidos File views">
@@ -826,6 +796,15 @@ vi.mock("./eidos-file-view-tabs", () => ({
       <button type="button" onClick={() => onReorder(["view_tasks"])}>
         Reorder views
       </button>
+      {activeView && onExportCsv ? (
+        <button
+          type="button"
+          onClick={() => void onExportCsv(activeView)}
+          aria-label="Export current view as CSV"
+        >
+          Export current view as CSV
+        </button>
+      ) : null}
       <button
         type="button"
         onClick={() => {
@@ -1106,6 +1085,7 @@ describe("SpaceEidosFileEditor", () => {
 
   beforeEach(() => {
     getSnapshotMock.mockReset()
+    reloadSnapshotMock.mockReset()
     getTablePageMock.mockReset()
     getTableRowMock.mockReset()
     createTableMock.mockReset()
@@ -1133,6 +1113,9 @@ describe("SpaceEidosFileEditor", () => {
     updateRowsMock.mockReset()
     deleteRowsMock.mockReset()
     deleteRowRangesMock.mockReset()
+    selectCsvMock.mockReset()
+    previewCsvImportMock.mockReset()
+    importCsvMock.mockReset()
     exportCsvMock.mockReset()
     getCsvOperationMock.mockReset()
     cancelCsvOperationMock.mockReset()
@@ -1147,6 +1130,9 @@ describe("SpaceEidosFileEditor", () => {
     useQuickOpenStore.setState({ sectionsByTab: {} })
     spaceFileChanges.handler = undefined
     getSnapshotMock.mockResolvedValue(snapshot)
+    reloadSnapshotMock.mockImplementation((relativePath: string) =>
+      getSnapshotMock(relativePath)
+    )
     getTablePageMock.mockResolvedValue({
       tableId: "tasks",
       offset: 0,
@@ -1610,7 +1596,7 @@ describe("SpaceEidosFileEditor", () => {
     })
   })
 
-  it("keeps table import in the sheet menu and exports from the workbar", async () => {
+  it("keeps table import and CSV export in the matching tab menus", async () => {
     await renderEditor()
 
     const workbar = container.querySelector("[data-eidos-file-workbar]")
@@ -1623,7 +1609,7 @@ describe("SpaceEidosFileEditor", () => {
       workbar?.querySelector(
         '[aria-label="Export current Eidos File view as CSV"]'
       )
-    ).not.toBeNull()
+    ).toBeNull()
     expect(
       container.querySelector(
         '[data-eidos-file-sheet-tabs] [aria-label="Import CSV as new Eidos File table"]'
@@ -1648,12 +1634,11 @@ describe("SpaceEidosFileEditor", () => {
       )
     ).not.toBeNull()
 
-    const exportButton = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Export current Eidos File view as CSV"]'
+    const exportViewButton = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Export current view as CSV"]'
     )
-    expect(exportButton?.textContent).toContain("Export CSV")
     await act(async () => {
-      exportButton?.click()
+      exportViewButton?.click()
       await Promise.resolve()
       await Promise.resolve()
     })
@@ -1669,6 +1654,44 @@ describe("SpaceEidosFileEditor", () => {
         ],
       },
       "tasks - Tasks - Grid.csv",
+      expect.any(String)
+    )
+
+    const tableTab = container.querySelector<HTMLElement>(
+      '[data-eidos-file-table-id="tasks"]'
+    )
+    await act(async () => {
+      tableTab?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          button: 2,
+          clientX: 40,
+          clientY: 40,
+        })
+      )
+      await Promise.resolve()
+    })
+    const exportTableItem = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    ).find((item) => item.textContent?.includes("Export entire table as CSV"))
+    expect(exportTableItem).toBeTruthy()
+    await act(async () => {
+      exportTableItem?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(exportCsvMock).toHaveBeenLastCalledWith(
+      "projects/tasks.eidos",
+      "tasks",
+      {
+        query: {},
+        columns: [
+          { columnName: "title", name: "Title" },
+          { columnName: "status", name: "Status" },
+        ],
+      },
+      "tasks - Tasks.csv",
       expect.any(String)
     )
   })
@@ -2084,7 +2107,7 @@ describe("SpaceEidosFileEditor", () => {
     ).toContain("Tasks")
   })
 
-  it("keeps the Grid mounted when its own delayed file-change echo arrives", async () => {
+  it("keeps the Grid mounted and reloads its source when its own delayed file-change echo arrives", async () => {
     await renderEditor()
     const grid = () =>
       container.querySelector<HTMLElement>('[data-testid="eidos-file-grid"]')
@@ -2098,7 +2121,7 @@ describe("SpaceEidosFileEditor", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
     expect(getSnapshotMock).toHaveBeenCalledTimes(1)
-    getSnapshotMock.mockResolvedValue({
+    reloadSnapshotMock.mockResolvedValue({
       ...snapshot,
       metadata: {
         ...snapshot.metadata,
@@ -2116,10 +2139,11 @@ describe("SpaceEidosFileEditor", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(getSnapshotMock).toHaveBeenCalledTimes(2)
-    expect(grid()?.dataset.reloadToken).toBe("1")
+    expect(getSnapshotMock).toHaveBeenCalledTimes(1)
+    expect(reloadSnapshotMock).toHaveBeenCalledTimes(1)
+    expect(grid()?.dataset.reloadToken).toBe("2")
 
-    getSnapshotMock.mockResolvedValue({
+    reloadSnapshotMock.mockResolvedValue({
       ...snapshot,
       metadata: {
         ...snapshot.metadata,
@@ -2136,8 +2160,9 @@ describe("SpaceEidosFileEditor", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
 
-    expect(getSnapshotMock).toHaveBeenCalledTimes(3)
-    expect(grid()?.dataset.reloadToken).toBe("2")
+    expect(getSnapshotMock).toHaveBeenCalledTimes(1)
+    expect(reloadSnapshotMock).toHaveBeenCalledTimes(2)
+    expect(grid()?.dataset.reloadToken).toBe("3")
   })
 
   it("checks a watcher event received during save without mistaking self-echo for an external edit", async () => {
@@ -2168,7 +2193,7 @@ describe("SpaceEidosFileEditor", () => {
     })
     expect(getSnapshotMock).toHaveBeenCalledTimes(1)
 
-    getSnapshotMock.mockResolvedValue({
+    reloadSnapshotMock.mockResolvedValue({
       ...snapshot,
       metadata: {
         ...snapshot.metadata,
@@ -2191,10 +2216,11 @@ describe("SpaceEidosFileEditor", () => {
       await Promise.resolve()
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
-    expect(getSnapshotMock).toHaveBeenCalledTimes(2)
-    expect(grid()?.dataset.reloadToken).toBe("1")
+    expect(getSnapshotMock).toHaveBeenCalledTimes(1)
+    expect(reloadSnapshotMock).toHaveBeenCalledTimes(1)
+    expect(grid()?.dataset.reloadToken).toBe("2")
 
-    getSnapshotMock.mockResolvedValue({
+    reloadSnapshotMock.mockResolvedValue({
       ...snapshot,
       metadata: {
         ...snapshot.metadata,
@@ -2210,8 +2236,118 @@ describe("SpaceEidosFileEditor", () => {
       await Promise.resolve()
       await Promise.resolve()
     })
-    expect(getSnapshotMock).toHaveBeenCalledTimes(3)
-    expect(grid()?.dataset.reloadToken).toBe("2")
+    expect(getSnapshotMock).toHaveBeenCalledTimes(1)
+    expect(reloadSnapshotMock).toHaveBeenCalledTimes(2)
+    expect(grid()?.dataset.reloadToken).toBe("3")
+  })
+
+  it("reloads the imported table after its file-change echo reopens the Desktop source", async () => {
+    const importedTable = {
+      ...snapshot.tables[0],
+      table: {
+        ...snapshot.tables[0].table,
+        id: "imported",
+        name: "Imported",
+      },
+      fields: snapshot.tables[0].fields.map((field) => ({
+        ...field,
+        tableId: "imported",
+      })),
+      views: snapshot.tables[0].views.map((view) => ({
+        ...view,
+        id: "view_imported",
+        tableId: "imported",
+      })),
+      rowCount: 2_500,
+    }
+    const importedIpcSnapshot = {
+      ...snapshot,
+      metadata: {
+        ...snapshot.metadata,
+        revision: 6,
+        updatedAt: "2026-07-13T06:00:00.000Z",
+      },
+      tables: [...snapshot.tables, importedTable],
+    }
+    const importedRuntimeSnapshot = {
+      ...importedIpcSnapshot,
+      tables: importedIpcSnapshot.tables.map((table) =>
+        table.table.id === importedTable.table.id
+          ? {
+              ...table,
+              fields: table.fields.map((field) => ({
+                ...field,
+                tableColumnName: field.id,
+                sourceTableColumnName: field.isDerived ? null : field.id,
+              })),
+            }
+          : table
+      ),
+    }
+    let resolveImport:
+      | ((result: {
+          snapshot: typeof importedIpcSnapshot
+          result: {
+            table: typeof importedTable.table
+            importedRowCount: number
+            skippedRowCount: number
+          }
+        }) => void)
+      | undefined
+    importCsvMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveImport = resolve
+        })
+    )
+    reloadSnapshotMock.mockResolvedValue(importedRuntimeSnapshot)
+    await renderEditor()
+
+    act(() => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Add table")
+        ?.click()
+    })
+    await act(async () => {
+      Array.from(container.querySelectorAll("button"))
+        .find((button) => button.textContent === "Complete CSV import")
+        ?.click()
+      await Promise.resolve()
+    })
+    act(() => {
+      spaceFileChanges.handler?.({
+        eventType: "change",
+        path: "projects/tasks.eidos",
+      })
+    })
+
+    await act(async () => {
+      resolveImport?.({
+        snapshot: importedIpcSnapshot,
+        result: {
+          table: importedTable.table,
+          importedRowCount: 2_500,
+          skippedRowCount: 0,
+        },
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const lastGrid =
+      eidosFileViewHostProps.grid[eidosFileViewHostProps.grid.length - 1]
+    expect(reloadSnapshotMock).toHaveBeenCalledTimes(1)
+    expect(
+      (lastGrid.table as (typeof importedRuntimeSnapshot.tables)[number]).table
+        .id
+    ).toBe("imported")
+    const importedGridTable =
+      lastGrid.table as (typeof importedRuntimeSnapshot.tables)[number]
+    expect(importedGridTable.fields[0]?.tableColumnName).toBe(
+      importedGridTable.fields[0]?.id
+    )
+    expect(lastGrid.reloadToken).toBe(3)
   })
 
   it("keeps Kanban mounted when adding a row without an active query", async () => {
@@ -2661,7 +2797,7 @@ describe("SpaceEidosFileEditor", () => {
 
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Edit property")
+        .find((button) => button.textContent === "Browse Status field")
         ?.click()
     })
     await act(async () => {
@@ -2750,6 +2886,14 @@ describe("SpaceEidosFileEditor", () => {
         .find((button) => button.textContent?.includes("New field"))
         ?.click()
     })
+    const fieldCreator = container.querySelector(
+      '[data-testid="eidos-file-field-creator"]'
+    )
+    expect(
+      fieldCreator?.closest(
+        "[data-eidos-file-workbar-actions] .add-property-wrap"
+      )
+    ).not.toBeNull()
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
         .find((button) => button.textContent === "Confirm field")
@@ -2896,37 +3040,26 @@ describe("SpaceEidosFileEditor", () => {
     ])
   })
 
-  it("reveals the current Eidos File from its overflow actions", async () => {
+  it("uses the same focused workbar actions as the Web editor", async () => {
     await renderEditor()
 
-    await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find(
-          (button) => button.textContent === "Show Eidos File in file manager"
-        )
-        ?.click()
-      await Promise.resolve()
-    })
-
-    expect(revealFileMock).toHaveBeenCalledWith("projects/tasks.eidos")
-  })
-
-  it("keeps a failed Eidos File reveal recoverable in the editor", async () => {
-    revealFileMock.mockRejectedValueOnce(new Error("File manager unavailable"))
-    await renderEditor()
-
-    await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find(
-          (button) => button.textContent === "Show Eidos File in file manager"
-        )
-        ?.click()
-      await Promise.resolve()
-    })
-
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      "File manager unavailable"
-    )
+    expect(
+      container.querySelector("[data-eidos-file-editor-shell]")
+    ).not.toBeNull()
+    const workbar = container.querySelector("[data-eidos-file-workbar-actions]")
+    expect(workbar?.textContent).toContain("Search")
+    expect(workbar?.textContent).toContain("Filter")
+    expect(workbar?.textContent).toContain("Sort")
+    expect(workbar?.textContent).toContain("Fields")
+    expect(
+      workbar?.querySelector('[aria-label="Create Eidos File row"]')
+    ).toBeNull()
+    expect(
+      workbar?.querySelector('[aria-label="Show Eidos File in file manager"]')
+    ).toBeNull()
+    expect(
+      workbar?.querySelector('[aria-label="Refresh Eidos File"]')
+    ).toBeNull()
   })
 
   it("persists system field visibility in the active view", async () => {
@@ -3335,17 +3468,44 @@ describe("SpaceEidosFileEditor", () => {
     )
   })
 
-  it("renames tables and edits or deletes fields through the structure menu", async () => {
+  it("renames tables from their tab and edits or deletes fields from Fields", async () => {
     await renderEditor()
 
+    const tableTab = container.querySelector<HTMLElement>(
+      '[data-eidos-file-table-id="tasks"]'
+    )
     await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Rename table")
-        ?.click()
+      tableTab?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          button: 2,
+          clientX: 40,
+          clientY: 40,
+        })
+      )
+      await Promise.resolve()
     })
     await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Confirm rename")
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      )
+        .find((item) => item.textContent?.includes("Rename table"))
+        ?.click()
+      await Promise.resolve()
+    })
+    const tableNameInput = Array.from(
+      document.body.querySelectorAll<HTMLInputElement>("input")
+    ).find((input) => input.value === "Tasks")
+    await act(async () => {
+      if (tableNameInput) {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )?.set?.call(tableNameInput, "Tasks renamed")
+        tableNameInput.dispatchEvent(new Event("input", { bubbles: true }))
+      }
+      Array.from(document.body.querySelectorAll("button"))
+        .find((button) => button.textContent?.trim() === "Rename")
         ?.click()
       await Promise.resolve()
     })
@@ -3357,7 +3517,7 @@ describe("SpaceEidosFileEditor", () => {
 
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Edit property")
+        .find((button) => button.textContent === "Browse Status field")
         ?.click()
     })
     expect(container.textContent).toContain("Properties for Status")
@@ -3409,24 +3569,6 @@ describe("SpaceEidosFileEditor", () => {
       "tasks",
       "field-status"
     )
-
-    await act(async () => {
-      Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent === "Delete table")
-        ?.click()
-    })
-    expect(document.body.textContent).toContain("Delete table “Tasks”?")
-    await act(async () => {
-      Array.from(document.body.querySelectorAll("button"))
-        .filter((button) => button.textContent === "Delete table")
-        .at(-1)
-        ?.click()
-      await Promise.resolve()
-    })
-    expect(deleteTableMock).toHaveBeenCalledWith(
-      "projects/tasks.eidos",
-      "tasks"
-    )
   })
 
   it("deletes the rows selected by the Grid in one operation", async () => {
@@ -3439,7 +3581,7 @@ describe("SpaceEidosFileEditor", () => {
     })
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent?.includes("Delete 1"))
+        .find((button) => button.textContent === "Delete selected rows")
         ?.click()
     })
     expect(document.body.textContent).toContain("Delete 1 row?")

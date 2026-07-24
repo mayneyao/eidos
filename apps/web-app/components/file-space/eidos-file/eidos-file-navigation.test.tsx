@@ -101,6 +101,8 @@ describe("Eidos File navigation hierarchy", () => {
     const onDeleteTable = vi.fn()
     const onRenameView = vi.fn()
     const onDeleteView = vi.fn()
+    const onExportView = vi.fn().mockResolvedValue(undefined)
+    const onExportTable = vi.fn().mockResolvedValue(undefined)
     await act(async () => {
       root.render(
         <div>
@@ -115,6 +117,7 @@ describe("Eidos File navigation hierarchy", () => {
             onDelete={onDeleteView}
             onReorder={vi.fn()}
             onUpdate={vi.fn()}
+            onExportCsv={onExportView}
           />
           <EidosFileSheetTabs
             tables={tables}
@@ -131,6 +134,7 @@ describe("Eidos File navigation hierarchy", () => {
             }
             onRename={onRenameTable}
             onDelete={onDeleteTable}
+            onExportCsv={onExportTable}
           />
         </div>
       )
@@ -210,7 +214,12 @@ describe("Eidos File navigation hierarchy", () => {
       Array.from(document.body.querySelectorAll('[role="menuitem"]')).map(
         (item) => item.textContent?.trim()
       )
-    ).toEqual(["Rename view", "Configure view", "Delete view"])
+    ).toEqual([
+      "Rename view",
+      "Configure view",
+      "Export current view as CSV",
+      "Delete view",
+    ])
 
     await act(async () => {
       Array.from(
@@ -287,6 +296,11 @@ describe("Eidos File navigation hierarchy", () => {
       )
       await Promise.resolve()
     })
+    expect(
+      Array.from(document.body.querySelectorAll('[role="menuitem"]')).map(
+        (item) => item.textContent?.trim()
+      )
+    ).toEqual(["Rename table", "Export entire table as CSV", "Delete table"])
     await act(async () => {
       Array.from(
         document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
