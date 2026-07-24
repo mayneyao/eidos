@@ -5,9 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "pnpm run build:client && pnpm run build:docs",
+    "build": "pnpm run build:client",
     "build:client": "vite build",
-    "build:docs": "vite build --config vite.prerender.config.ts && node scripts/prerender-docs.mjs",
     "deploy": "pnpm run build && wrangler deploy",
     "fixture": "pnpm --filter @eidos.space/eidos-file build && node scripts/create-fixture.mjs && node scripts/create-template-fixtures.mjs",
     "fixture:field-capabilities": "pnpm --filter @eidos.space/eidos-file build && node scripts/create-template-fixtures.mjs field-capability-matrix && node scripts/create-template-fixtures.mjs field-capability-matrix.zh",
@@ -25,14 +24,12 @@
     "@sqlite.org/sqlite-wasm": "3.45.3-build2",
     "lucide-react": "^0.471.2",
     "marked": "^4.3.0",
-    "prismjs": "^1.30.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.0",
     "@tailwindcss/vite": "^4.2.2",
-    "@types/prismjs": "^1.26.5",
     "@types/react": "^18.2.14",
     "@types/react-dom": "^18.2.6",
     "@types/wicg-file-system-access": "^2023.10.5",

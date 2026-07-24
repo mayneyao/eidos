@@ -68,7 +68,6 @@ import {
 import { useRegisterSW } from "virtual:pwa-register/react"
 
 import { LiveEidosFileDemo } from "./components/live-eidos-file-demo"
-import { EidosFileDocs } from "./components/eidos-file-docs"
 import { EidosFileLanguageSelect } from "./components/eidos-file-language-select"
 import { EidosFileTemplatePicker } from "./components/eidos-file-template-picker"
 import { PwaUpdatePrompt } from "./components/pwa-update-prompt"
@@ -98,11 +97,6 @@ import {
 } from "./files/browser-file-adapter"
 import { registerPwaEidosFileHandler } from "./files/pwa-file-handler"
 import { useI18n, type Translator } from "./i18n"
-import {
-  eidosFileDocsPath,
-  eidosFileDocsRouteFromPathname,
-  legacyEidosFileDocsSlugFromHash,
-} from "./docs/routes"
 import { EidosFileWorkerClient } from "./runtime/worker-client"
 import {
   getEidosFileTemplateSource,
@@ -270,7 +264,6 @@ export function App() {
   const [openingTemplateId, setOpeningTemplateId] =
     useState<EidosFileTemplateId | null>(null)
   const [theme, setTheme] = useState<Theme>(initialTheme)
-  const docsRoute = eidosFileDocsRouteFromPathname(window.location.pathname)
   const [pwaRegistration, setPwaRegistration] =
     useState<ServiceWorkerRegistration | null>(null)
   const [updatingApp, setUpdatingApp] = useState(false)
@@ -390,12 +383,6 @@ export function App() {
     document.documentElement.dataset.theme = theme
     window.localStorage.setItem("eidos-file-theme", theme)
   }, [theme])
-
-  useEffect(() => {
-    const legacySlug = legacyEidosFileDocsSlugFromHash(location.hash)
-    if (!legacySlug) return
-    window.location.replace(eidosFileDocsPath(legacySlug, locale))
-  }, [locale])
 
   useEffect(() => {
     if (!pwaRegistration) return
@@ -1350,19 +1337,6 @@ export function App() {
     />
   )
 
-  if (docsRoute) {
-    return (
-      <>
-        <EidosFileDocs
-          slug={docsRoute.slug}
-          theme={theme}
-          onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
-        />
-        {pwaUpdatePrompt}
-      </>
-    )
-  }
-
   if (!snapshot || !session || !activeTable) {
     return (
       <main className="launch-shell launch-shell-compact" id="main-content">
@@ -1380,7 +1354,13 @@ export function App() {
             <a className="is-active" href="/">
               {t("navEditor")}
             </a>
-            <a href={eidosFileDocsPath("overview", locale)}>
+            <a
+              href={
+                locale === "zh"
+                  ? "https://eidos.space/zh/docs/"
+                  : "https://eidos.space/docs/"
+              }
+            >
               <BookOpen size={13} aria-hidden="true" />
               {t("navDocs")}
             </a>

@@ -1167,95 +1167,6 @@ test("exports the current Eidos File view as readable CSV", async ({
   expect(tableCsv).toContain("Feature experiment 180")
 })
 
-test("embeds the template-backed field matrix as a read-only documentation table", async ({
-  page,
-  browserName,
-}) => {
-  test.skip(
-    browserName !== "chromium",
-    "Chromium covers the documentation SQLite WASM worker"
-  )
-  await installFallbackMode(page)
-  await page.goto("/docs/format/")
-
-  const embed = page.locator('[data-eidos-file-doc-embed="field-capabilities"]')
-  await expect(embed).toHaveAttribute("data-eidos-file-readonly", "true")
-  await expect(embed).toContainText(
-    "Read-only · same file as the editor template"
-  )
-  await embed.locator("[data-testid='glide-cell-1-0']").waitFor({
-    state: "attached",
-  })
-  await expect(embed.locator("[data-testid='glide-cell-1-0']")).toContainText(
-    "Row ID"
-  )
-  await embed
-    .getByRole("textbox", { name: "Search fields and capabilities" })
-    .fill("FileEntry JSON array")
-  await expect(embed.locator("[data-testid='glide-cell-1-0']")).toContainText(
-    "File"
-  )
-
-  await embed.getByRole("button", { name: "Maximize table in page" }).click()
-  await expect(embed).toHaveAttribute("data-maximized", "true")
-  const maximizedBounds = await embed.evaluate((element) => {
-    const bounds = element.getBoundingClientRect()
-    return {
-      width: bounds.width,
-      height: bounds.height,
-      viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight,
-    }
-  })
-  expect(maximizedBounds.width).toBeGreaterThan(
-    maximizedBounds.viewportWidth - 40
-  )
-  expect(maximizedBounds.height).toBeGreaterThan(
-    maximizedBounds.viewportHeight - 40
-  )
-  expect(maximizedBounds.width).toBeLessThan(maximizedBounds.viewportWidth)
-  expect(maximizedBounds.height).toBeLessThan(maximizedBounds.viewportHeight)
-  await expect
-    .poll(() =>
-      page.evaluate(() => ({
-        fullscreen: document.fullscreenElement !== null,
-        overflow: document.body.style.overflow,
-      }))
-    )
-    .toEqual({ fullscreen: false, overflow: "hidden" })
-
-  await page.keyboard.press("Escape")
-  await expect(embed).toHaveAttribute("data-maximized", "false")
-  await expect(
-    embed.getByRole("button", { name: "Maximize table in page" })
-  ).toBeFocused()
-})
-
-test("keeps the documentation header visible when the TOC scrolls the article", async ({
-  page,
-  browserName,
-}) => {
-  test.skip(
-    browserName !== "chromium",
-    "Chromium covers the desktop documentation scroll-container contract"
-  )
-  await page.goto("/docs/format/")
-
-  await page.locator(".docs-toc button").first().click()
-  await expect
-    .poll(() =>
-      page.locator(".docs-article").evaluate((article) => article.scrollTop)
-    )
-    .toBeGreaterThan(0)
-
-  const scrollState = await page.evaluate(() => ({
-    headerTop:
-      document.querySelector(".docs-header")?.getBoundingClientRect().top ?? -1,
-    windowScrollY: window.scrollY,
-  }))
-  expect(scrollState).toEqual({ headerTop: 0, windowScrollY: 0 })
-})
-
 test("uses the filtered row count for the Grid virtual height", async ({
   page,
   browserName,
@@ -1615,7 +1526,7 @@ test("keeps navigation and editor controls usable on a phone", async ({
     )
   ).toEqual([
     "/",
-    "/docs/",
+    "https://eidos.space/docs/",
     "https://sqlite.eidos.space/",
     "https://graft.eidos.space/",
   ])
@@ -2595,14 +2506,13 @@ test("switches the live Eidos File experience between English and Chinese", asyn
   )
 })
 
-test("keeps the editor first and publishes server-rendered Eidos File documentation", async ({
+test("keeps the editor first and links out to the Eidos File documentation", async ({
   page,
   browserName,
-  request,
 }) => {
   test.skip(
     browserName !== "chromium",
-    "One browser covers the shared landing and documentation UI"
+    "One browser covers the shared landing and documentation links"
   )
   const browserErrors: string[] = []
   page.on("console", (message) => {
@@ -2611,27 +2521,6 @@ test("keeps the editor first and publishes server-rendered Eidos File documentat
   page.on("pageerror", (error) => browserErrors.push(error.message))
   await installFallbackMode(page)
   await page.setViewportSize({ width: 1440, height: 900 })
-
-  const staticResponse = await request.get("/docs/")
-  expect(staticResponse.status()).toBe(200)
-  const staticHtml = await staticResponse.text()
-  expect(staticHtml).toContain(
-    "<h1>Eidos File: an open, local-first table format</h1>"
-  )
-  expect(staticHtml).toContain(
-    '<link rel="canonical" href="https://editor.eidos.space/docs/" />'
-  )
-  expect(staticHtml).toContain(
-    '<link rel="alternate" hreflang="zh-CN" href="https://editor.eidos.space/zh/docs/" />'
-  )
-  expect(staticHtml).toContain('<script type="application/ld+json">')
-  expect(staticHtml).not.toContain("#/docs/")
-
-  const chineseStaticResponse = await request.get("/zh/docs/build/")
-  expect(chineseStaticResponse.status()).toBe(200)
-  const chineseStaticHtml = await chineseStaticResponse.text()
-  expect(chineseStaticHtml).toContain('<html lang="zh-CN">')
-  expect(chineseStaticHtml).toContain("<h1>基于 Eidos File 1.0 构建</h1>")
 
   await page.goto("/")
 
@@ -2649,47 +2538,15 @@ test("keeps the editor first and publishes server-rendered Eidos File documentat
   await expect(
     page.locator('.site-nav a[href="https://sqlite.eidos.space/"]')
   ).toContainText("SQLite Inspector")
-  await expect(page.locator('.site-nav a[href="/docs/"]')).toHaveText(
-    "Open Format"
-  )
-
-  await page.locator('.site-nav a[href="/docs/"]').click()
-  await expect(page).toHaveURL(/\/docs\/$/)
   await expect(
-    page.getByRole("heading", {
-      level: 1,
-      name: "Eidos File: an open, local-first table format",
-    })
-  ).toBeVisible()
-  await expect(page.getByText("Start here")).toBeVisible()
-  await expect(
-    page.locator('.markdown-body img[src="/eidos-file-model.png"]')
-  ).toBeVisible()
-
-  await page.locator('.docs-list a[href="/docs/build/"]').click()
-  await expect(page).toHaveURL(/\/docs\/build\/$/)
-  await expect(
-    page.getByRole("heading", {
-      level: 1,
-      name: "Build with Eidos File",
-    })
-  ).toBeVisible()
-  await expect(
-    page.locator("code").filter({ hasText: "EidosFileUIProvider" }).first()
-  ).toBeVisible()
-  await expect(
-    page.locator('.markdown-body pre[data-highlighted="true"]').first()
-  ).toBeVisible()
-  await expect(
-    page.locator(".markdown-body .token.keyword").first()
-  ).toBeVisible()
+    page.locator('.site-nav a[href="https://eidos.space/docs/"]')
+  ).toHaveText("Open Format")
 
   await page.getByRole("combobox", { name: "Language" }).selectOption("zh")
-  await expect(page).toHaveURL(/\/zh\/docs\/build\/$/)
   await expect(page.locator('.site-nav a[href="/"]')).toHaveText("编辑工具")
-  await expect(page.locator('.site-nav a[href="/zh/docs/"]')).toHaveText(
-    "开放格式"
-  )
+  await expect(
+    page.locator('.site-nav a[href="https://eidos.space/zh/docs/"]')
+  ).toHaveText("开放格式")
   await expect(
     page
       .locator('.site-nav a[href="https://graft.eidos.space/"]')
@@ -2698,11 +2555,5 @@ test("keeps the editor first and publishes server-rendered Eidos File documentat
   await expect(
     page.locator('.site-nav a[href="https://sqlite.eidos.space/"]')
   ).toContainText("SQLite 检查器")
-  await expect(
-    page.getByRole("heading", {
-      level: 1,
-      name: "基于 Eidos File 1.0 构建",
-    })
-  ).toBeVisible()
   expect(browserErrors).toEqual([])
 })
