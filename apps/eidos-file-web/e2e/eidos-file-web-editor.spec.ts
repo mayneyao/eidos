@@ -826,6 +826,7 @@ test("loads Feature Lab with readable Relations and editable dependencies", asyn
   )
   await expect.poll(viewOrder).not.toEqual(viewOrderBefore)
 
+  await expect(page.locator("[data-eidos-file-editor-shell]")).toBeVisible()
   const workbarActions = page.locator("[data-eidos-file-workbar-actions]")
   const actionOrder = await workbarActions
     .locator("button")

@@ -266,17 +266,32 @@ test("keeps system fields read-only in the unified field manager", async ({
   await expect(systemFields).toHaveCount(3)
   await expect(systemFields).toContainText([
     "Record ID",
-    "_created_at",
-    "_updated_at",
+    "Created at",
+    "Updated at",
+  ])
+  const systemFieldPositions = await page
+    .locator("[data-eidos-file-sortable-field]")
+    .evaluateAll((rows) =>
+      rows.flatMap((row, index) =>
+        row.querySelector("[data-eidos-file-system-field]") ? [index] : []
+      )
+    )
+  const fieldCount = await page
+    .locator("[data-eidos-file-sortable-field]")
+    .count()
+  expect(systemFieldPositions).toEqual([
+    fieldCount - 3,
+    fieldCount - 2,
+    fieldCount - 1,
   ])
   await expect(
     page.getByRole("button", { name: /Edit Record ID properties/ })
   ).toHaveCount(0)
   await expect(
-    page.getByRole("button", { name: /Edit _created_at properties/ })
+    page.getByRole("button", { name: /Edit Created at properties/ })
   ).toHaveCount(0)
   await expect(
-    page.getByRole("button", { name: /Edit _updated_at properties/ })
+    page.getByRole("button", { name: /Edit Updated at properties/ })
   ).toHaveCount(0)
 
   const recordIdVisibility = page.getByRole("checkbox", {

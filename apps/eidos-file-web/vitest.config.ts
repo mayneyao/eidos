@@ -16,6 +16,10 @@ export default defineConfig({
         directory,
         "../../packages/eidos-file-ui/src/eidos-file-sheet-tabs.tsx"
       ),
+      "@eidos.space/eidos-file-ui/eidos-file-editor-shell": path.resolve(
+        directory,
+        "../../packages/eidos-file-ui/src/eidos-file-editor-shell.tsx"
+      ),
       "@eidos.space/eidos-file-ui/eidos-file-view-fields-popover": path.resolve(
         directory,
         "../../packages/eidos-file-ui/src/eidos-file-view-fields-popover.tsx"

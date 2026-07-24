@@ -152,6 +152,10 @@ export default defineConfig({
         directory,
         "../../packages/eidos-file-ui/src/eidos-file-editor-chrome.tsx"
       ),
+      "@eidos.space/eidos-file-ui/eidos-file-editor-shell": path.resolve(
+        directory,
+        "../../packages/eidos-file-ui/src/eidos-file-editor-shell.tsx"
+      ),
       "@eidos.space/eidos-file-ui/eidos-file-sheet-create-popover":
         path.resolve(
           directory,
