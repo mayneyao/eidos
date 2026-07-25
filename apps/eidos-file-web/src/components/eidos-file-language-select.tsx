@@ -24,7 +24,7 @@ export function EidosFileLanguageSelect({
       <span aria-hidden="true">{current.shortLabel}</span>
       <ChevronDown
         className="language-select-chevron"
-        size={12}
+        size={13}
         aria-hidden="true"
       />
       <select

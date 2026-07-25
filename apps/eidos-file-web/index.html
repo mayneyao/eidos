@@ -11,6 +11,26 @@
       content="Open and edit Eidos .eidos files locally in your browser."
     />
     <meta name="theme-color" content="#f7f8fa" />
+    <script>
+      // Match the PWA window frame to the saved/preferred theme before the
+      // app boots; src/app.tsx re-syncs it with the exact color on mount.
+      ;(function () {
+        var theme
+        try {
+          theme = window.localStorage.getItem("eidos-file-theme")
+        } catch (error) {}
+        if (theme !== "light" && theme !== "dark") {
+          theme = window.matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light"
+        }
+        if (theme === "dark") {
+          document
+            .querySelector('meta[name="theme-color"]')
+            .setAttribute("content", "oklch(0.2036 0.009 250)")
+        }
+      })()
+    </script>
     <title>Eidos File</title>
   </head>
   <body>

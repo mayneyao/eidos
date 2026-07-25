@@ -46,30 +46,19 @@ import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban
 import { EidosFileQueryToolbar } from "@eidos.space/eidos-file-ui/eidos-file-query-toolbar"
 import {
   AlertTriangle,
-  ArrowUpRight,
-  BookOpen,
   Check,
   ChevronRight,
   CloudOff,
-  Database,
-  Download,
-  FileKey,
   FilePlus2,
-  FileSpreadsheet,
   FolderOpen,
   LoaderCircle,
-  Moon,
   RotateCcw,
-  Save,
   ShieldCheck,
-  Sun,
   X,
 } from "lucide-react"
 import { useRegisterSW } from "virtual:pwa-register/react"
 
-import { LiveEidosFileDemo } from "./components/live-eidos-file-demo"
-import { EidosFileLanguageSelect } from "./components/eidos-file-language-select"
-import { EidosFileTemplatePicker } from "./components/eidos-file-template-picker"
+import { AppTitlebar } from "./components/app-titlebar"
 import { PwaUpdatePrompt } from "./components/pwa-update-prompt"
 import { SharedEidosFileEditorView } from "./components/shared-eidos-file-editor-view"
 import {
@@ -378,10 +367,28 @@ export function App() {
     )
   }, [activeTable, activeViews])
 
+  const bootstrappedRef = useRef(false)
+  const openGenerationRef = useRef(0)
+  const explicitOpenStartedRef = useRef(false)
+  useEffect(() => {
+    if (bootstrappedRef.current || session || saveState.phase === "opening") {
+      return
+    }
+    bootstrappedRef.current = true
+    void openSample()
+    // The app boots straight into the sample file; there is no landing step.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, saveState.phase])
+
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark")
     document.documentElement.dataset.theme = theme
     window.localStorage.setItem("eidos-file-theme", theme)
+    // Keep the PWA window frame (window-controls-overlay caption areas) in
+    // sync with the app theme; the static manifest theme_color is light.
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", getComputedStyle(document.body).backgroundColor)
   }, [theme])
 
   useEffect(() => {
@@ -520,7 +527,18 @@ export function App() {
   )
 
   const openPreparedFile = useCallback(
-    async (opened: OpenedBrowserFile, preferredTableName?: string) => {
+    async (
+      opened: OpenedBrowserFile,
+      preferredTableName?: string,
+      options?: { boot?: boolean }
+    ) => {
+      // An explicit open (file picker, import, template, launch, recovery)
+      // always outranks the boot sample — even one that started earlier.
+      if (options?.boot && explicitOpenStartedRef.current) return
+      if (!options?.boot) explicitOpenStartedRef.current = true
+      // Every open supersedes the previous one; a slower open that finishes
+      // later must never clobber a newer session (boot sample vs. user open).
+      const generation = ++openGenerationRef.current
       dispatch({ type: "OPEN_START" })
       const client = new EidosFileWorkerClient()
       const id = crypto.randomUUID()
@@ -530,6 +548,10 @@ export function App() {
           id,
           opened.bytes
         )
+        if (generation !== openGenerationRef.current) {
+          client.terminate()
+          return
+        }
         await installOpenResult(
           client,
           {
@@ -561,6 +583,8 @@ export function App() {
       registerPwaEidosFileHandler({
         onOpen: async (opened) => {
           if (!confirmSwitch()) return
+          // A delivered file always supersedes the boot sample.
+          bootstrappedRef.current = true
           setNotice(null)
           await openPreparedFile(opened)
         },
@@ -654,7 +678,8 @@ export function App() {
       const file = await loadSampleEidosFile(locale)
       await openPreparedFile(
         await openImportedEidosFile(file),
-        source.startTable
+        source.startTable,
+        { boot: true }
       )
     } catch (error) {
       const message = errorMessage(error)
@@ -686,33 +711,9 @@ export function App() {
     [confirmSwitch, locale, openPreparedFile]
   )
 
-  const returnHome = useCallback(() => {
-    if (hasUnsavedChanges(saveState)) {
-      const message =
-        session?.storage === "opfs-sahpool"
-          ? t("returnHomeRecoverable")
-          : t("returnHomeDiscard")
-      if (!window.confirm(message)) return
-    }
-
-    clientRef.current?.terminate()
-    clientRef.current = null
-    setSession(null)
-    setSnapshot(null)
-    setActiveTableId(null)
-    setActiveViews({})
-    setSearch("")
-    setPropertyField(null)
-    setFormulaTarget(null)
-    setLookupTarget(null)
-    setAddPropertyOpen(false)
-    setNotice(null)
-    dispatch({ type: "RESET" })
-    window.history.replaceState(null, "", "/")
-  }, [saveState, session, t])
-
   const restoreRecovery = useCallback(async () => {
     if (!recovery || !confirmSwitch()) return
+    const generation = ++openGenerationRef.current
     dispatch({ type: "OPEN_START" })
     const client = new EidosFileWorkerClient()
     try {
@@ -723,6 +724,10 @@ export function App() {
         recovery.fileName,
         recovery.id
       )
+      if (generation !== openGenerationRef.current) {
+        client.terminate()
+        return
+      }
       await installOpenResult(
         client,
         {
@@ -1339,147 +1344,25 @@ export function App() {
 
   if (!snapshot || !session || !activeTable) {
     return (
-      <main className="launch-shell launch-shell-compact" id="main-content">
-        <a className="skip-link" href="#open-eidos-file">
-          Skip to open file
-        </a>
-        <header className="launch-header">
-          <div className="brand-lockup">
-            <span className="brand-mark" aria-hidden="true">
-              E
-            </span>
-            <span>Eidos File</span>
-          </div>
-          <nav className="site-nav" aria-label="Eidos File">
-            <a className="is-active" href="/">
-              {t("navEditor")}
-            </a>
-            <a
-              href={
-                locale === "zh"
-                  ? "https://eidos.space/zh/docs/"
-                  : "https://eidos.space/docs/"
-              }
-            >
-              <BookOpen size={13} aria-hidden="true" />
-              {t("navDocs")}
-            </a>
-            <a
-              aria-label={t("openSQLiteInspector")}
-              href="https://sqlite.eidos.space/"
-              rel="noreferrer"
-              target="_blank"
-              title={t("openSQLiteInspector")}
-            >
-              <Database size={13} aria-hidden="true" />
-              <span>
-                {t("navInspector")}{" "}
-                <span className="site-nav-long-label">
-                  {t("navInspectorQualifier")}
-                </span>
-              </span>
-              <ArrowUpRight size={12} aria-hidden="true" />
-            </a>
-            <a aria-label={t("navGraft")} href="https://graft.eidos.space/">
-              <span className="site-nav-full-label">{t("navGraft")}</span>
-              <span className="site-nav-compact-label" aria-hidden="true">
-                {t("navGraftCompact")}
-              </span>
-              <ArrowUpRight size={12} aria-hidden="true" />
-            </a>
-          </nav>
-          <div className="launch-header-actions">
-            <EidosFileLanguageSelect />
-            <button
-              className="icon-button"
-              type="button"
-              aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            >
-              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-            </button>
-          </div>
-        </header>
+      <main className="editor-shell" id="main-content">
+        <AppTitlebar
+          fileOpen={false}
+          opening={saveState.phase === "opening"}
+          theme={theme}
+          onNew={() => void createBlankFile()}
+          onOpen={() => void chooseFile()}
+          onOpenSample={() => void openSample()}
+          onOpenTemplate={(templateId) => void openTemplate(templateId)}
+          onSave={() => void saveOriginal()}
+          onDownload={() => void saveAs()}
+          onReauthorize={() => void reauthorize()}
+          onThemeChange={setTheme}
+        />
 
-        <section className="launch-workbench" aria-labelledby="launch-title">
-          <div className="launch-panel">
-            <div className="launch-copy">
-              <h1 id="launch-title">
-                {t("heroTitleOne")}
-                <br />
-                {t("heroTitleTwo")}
-              </h1>
-              <div className="launch-actions">
-                <button
-                  className="secondary-button new-file-button"
-                  type="button"
-                  disabled={saveState.phase === "opening"}
-                  onClick={() => void createBlankFile()}
-                >
-                  {saveState.phase === "opening" ? (
-                    <LoaderCircle
-                      className="spin"
-                      size={17}
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <FilePlus2 size={17} aria-hidden="true" />
-                  )}
-                  {saveState.phase === "opening"
-                    ? t("creatingEidosFile")
-                    : t("createEidosFile")}
-                </button>
-                <button
-                  id="open-eidos-file"
-                  className="primary-button open-button"
-                  type="button"
-                  disabled={saveState.phase === "opening"}
-                  onClick={() => void chooseFile()}
-                >
-                  {saveState.phase === "opening" ? (
-                    <LoaderCircle
-                      className="spin"
-                      size={17}
-                      aria-hidden="true"
-                    />
-                  ) : (
-                    <FolderOpen size={17} aria-hidden="true" />
-                  )}
-                  {saveState.phase === "opening"
-                    ? t("openingEidosFile")
-                    : t("openEidosFile")}
-                  <span className="button-shortcut">⌘ O</span>
-                </button>
-                <button
-                  className="secondary-button sample-button"
-                  type="button"
-                  disabled={saveState.phase === "opening"}
-                  onClick={() => void openSample()}
-                >
-                  <FileSpreadsheet size={16} aria-hidden="true" />
-                  {t("openSample")}
-                </button>
-                <EidosFileTemplatePicker
-                  locale={locale}
-                  disabled={saveState.phase === "opening"}
-                  openingTemplateId={openingTemplateId}
-                  onSelect={(templateId) => void openTemplate(templateId)}
-                />
-              </div>
-              <div className="privacy-line">
-                <ShieldCheck size={15} aria-hidden="true" />
-                <span>
-                  {directSupported ? t("privacyDirect") : t("privacyCopy")}
-                </span>
-              </div>
-            </div>
-          </div>
-          <LiveEidosFileDemo
-            embedded
-            theme={theme}
-            onOpenFullEditor={() => void openSample()}
-          />
-        </section>
+        <div className="boot-loading" role="status">
+          <LoaderCircle className="spin" size={18} aria-hidden="true" />
+          <span>{t("openingEidosFile")}</span>
+        </div>
 
         {recovery ? (
           <section
@@ -1543,105 +1426,32 @@ export function App() {
       <a className="skip-link" href="#eidos-file-grid">
         Skip to Eidos File grid
       </a>
-      <header className="editor-titlebar">
-        <a
-          className="brand-lockup compact"
-          href="/"
-          aria-label={t("returnHome")}
-          onClick={(event) => {
-            event.preventDefault()
-            returnHome()
-          }}
-        >
-          <span className="brand-mark" aria-hidden="true">
-            E
-          </span>
-          <span>Eidos File</span>
-        </a>
-        <div className="file-identity" title={session.fileName}>
-          <FileSpreadsheet size={15} aria-hidden="true" />
-          <strong>{session.fileName}</strong>
-          <ChevronRight size={13} aria-hidden="true" />
-          <span>{activeTable.table.name}</span>
-        </div>
-        <div className="title-actions">
-          <div
-            className={`save-status ${status.tone}`}
-            role="status"
-            aria-live="polite"
-          >
-            <StatusIcon
-              className={
-                saveState.phase === "saving" || saveState.phase === "opening"
-                  ? "spin"
-                  : ""
-              }
-              size={14}
-              aria-hidden="true"
-            />
-            <span>{status.label}</span>
-          </div>
-          {session.mode === "direct" && session.permission !== "granted" ? (
-            <button
-              className="permission-button"
-              type="button"
-              onClick={() => void reauthorize()}
-            >
-              <FileKey size={14} aria-hidden="true" />
-              {t("grantWrite")}
-            </button>
-          ) : null}
-          <button
-            className="toolbar-button"
-            type="button"
-            disabled={
-              saveState.phase === "opening" || saveState.phase === "saving"
-            }
-            onClick={() => void createBlankFile()}
-          >
-            <FilePlus2 size={15} aria-hidden="true" />
-            <span>{t("newEidosFile")}</span>
-          </button>
-          <button
-            className="toolbar-button"
-            type="button"
-            onClick={() => void chooseFile()}
-          >
-            <FolderOpen size={15} aria-hidden="true" />
-            <span>{t("open")}</span>
-          </button>
-          <button
-            className="toolbar-button"
-            type="button"
-            disabled={
-              !hasUnsavedChanges(saveState) || saveState.phase === "saving"
-            }
-            onClick={() => void saveOriginal()}
-          >
-            <Save size={15} aria-hidden="true" />
-            <span>
-              {canSaveToOriginal(saveState) ? t("save") : t("saveAs")}
-            </span>
-          </button>
-          <button
-            className="icon-button"
-            type="button"
-            aria-label={t("saveAs")}
-            onClick={() => void saveAs()}
-          >
-            <Download size={15} />
-          </button>
-          <EidosFileLanguageSelect />
-          <button
-            className="icon-button"
-            type="button"
-            aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
-            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
-        </div>
-      </header>
+      <AppTitlebar
+        fileOpen
+        fileName={session.fileName}
+        tableName={activeTable.table.name}
+        opening={saveState.phase === "opening"}
+        statusLabel={status.label}
+        statusTone={status.tone}
+        StatusIcon={StatusIcon}
+        statusSpinning={
+          saveState.phase === "saving" || saveState.phase === "opening"
+        }
+        needsPermission={
+          session.mode === "direct" && session.permission !== "granted"
+        }
+        canSave={hasUnsavedChanges(saveState) && saveState.phase !== "saving"}
+        saveLabel={canSaveToOriginal(saveState) ? t("save") : t("saveAs")}
+        theme={theme}
+        onNew={() => void createBlankFile()}
+        onOpen={() => void chooseFile()}
+        onOpenSample={() => void openSample()}
+        onOpenTemplate={(templateId) => void openTemplate(templateId)}
+        onSave={() => void saveOriginal()}
+        onDownload={() => void saveAs()}
+        onReauthorize={() => void reauthorize()}
+        onThemeChange={setTheme}
+      />
 
       <div className="alert-slot">
         {saveState.phase === "conflict" ? (
@@ -1919,7 +1729,9 @@ export function App() {
         onChange={(event) => {
           const file = event.target.files?.[0]
           event.currentTarget.value = ""
-          if (file) void openImportedEidosFile(file).then(openPreparedFile)
+          if (file) {
+            void openImportedEidosFile(file).then(openPreparedFile)
+          }
         }}
       />
     </main>

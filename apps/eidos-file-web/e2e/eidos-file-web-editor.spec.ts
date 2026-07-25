@@ -189,13 +189,38 @@ async function emulateClassicScrollbarWidth(
 
 async function openDirectEidosFile(page: Page): Promise<void> {
   await page.goto("/")
-  await page.getByRole("button", { name: "Open .eidos file" }).click()
+  await waitForSampleEditor(page)
+  await clickFileMenuItem(page, "Open .eidos file")
   await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
     "Ship Eidos File Web Editor"
   )
   await expect(
     page.getByRole("tab", { name: "Projects", exact: true })
   ).toBeVisible()
+}
+
+async function waitForSampleEditor(page: Page): Promise<void> {
+  await page.locator("[data-testid='glide-cell-1-0']").waitFor({
+    state: "attached",
+  })
+}
+
+async function clickFileMenuItem(page: Page, name: string): Promise<void> {
+  const trigger = page.locator(".title-file-menu .app-menu-trigger").first()
+  const item = page.getByRole("menuitem", { name, exact: true })
+  // While the boot sample is still opening, items are disabled and the menu
+  // remounts when the file arrives — reopen and retry until it settles.
+  await expect(async () => {
+    if (!(await item.isVisible().catch(() => false))) await trigger.click()
+    await item.click({ timeout: 5_000 })
+  }).toPass({ timeout: 30_000 })
+  // Every File-menu action opens or saves a file; give OPEN_START a tick
+  // to surface, then wait for the open to finish before proceeding.
+  await page.waitForTimeout(250)
+  await expect(page.locator(".save-status")).not.toContainText(
+    "Opening local file",
+    { timeout: 30_000 }
+  )
 }
 
 async function toggleFirstComplete(
@@ -211,6 +236,13 @@ async function toggleFirstComplete(
   const bounds = await canvas.boundingBox()
   if (!bounds)
     throw new Error("The shared Eidos File Grid canvas is not visible")
+  // File opens can still be settling (boot sample vs. user-initiated open);
+  // a click issued mid-remount is lost.
+  await page.waitForTimeout(250)
+  await expect(page.locator(".save-status")).not.toContainText(
+    "Opening local file",
+    { timeout: 30_000 }
+  )
 
   // Desktop's canonical Grid uses a 44px row marker, a 280px title, then
   // 180px property columns. Click the first row's Complete checkbox.
@@ -290,10 +322,7 @@ test.describe("Chromium original-file editing", () => {
     )
 
     await toggleFirstComplete(page)
-    await page
-      .locator(".title-actions .toolbar-button")
-      .filter({ hasText: "Save" })
-      .click()
+    await clickFileMenuItem(page, "Save")
     await expect(page.locator(".save-status")).toContainText(
       "Saved to original"
     )
@@ -306,7 +335,8 @@ test.describe("Chromium original-file editing", () => {
     )
 
     await page.reload()
-    await page.getByRole("button", { name: "Open .eidos file" }).click()
+    await waitForSampleEditor(page)
+    await clickFileMenuItem(page, "Open .eidos file")
     await expect(page.locator("[data-testid='glide-cell-5-0']")).toHaveText(
       "true"
     )
@@ -339,10 +369,7 @@ test.describe("Chromium original-file editing", () => {
     await toggleFirstComplete(page)
     await page.evaluate(async () => window.__eidosFileE2E?.appendExternalByte())
 
-    await page
-      .locator(".title-actions .toolbar-button")
-      .filter({ hasText: "Save" })
-      .click()
+    await clickFileMenuItem(page, "Save")
     await expect(page.getByRole("alert")).toContainText(
       "changed outside this tab"
     )
@@ -364,10 +391,7 @@ test.describe("Chromium original-file editing", () => {
     await toggleFirstComplete(page)
     await page.evaluate(() => window.__eidosFileE2E?.failWrites(true))
 
-    await page
-      .locator(".title-actions .toolbar-button")
-      .filter({ hasText: "Save" })
-      .click()
+    await clickFileMenuItem(page, "Save")
     await expect(page.getByRole("alert")).toContainText("Simulated disk full")
     await expect(page.locator("[data-testid='glide-cell-5-0']")).toHaveText(
       "true"
@@ -395,11 +419,11 @@ test.describe("Chromium original-file editing", () => {
     await expect(page.getByRole("alert")).toContainText(
       "Write access was not granted"
     )
+    await page.locator(".title-file-menu .app-menu-trigger").first().click()
     await expect(
-      page
-        .locator(".title-actions .toolbar-button")
-        .filter({ hasText: "Save As" })
+      page.getByRole("menuitem", { name: "Save As", exact: true })
     ).toBeVisible()
+    await page.keyboard.press("Escape")
   })
 })
 
@@ -452,7 +476,6 @@ test("fallback imports a copy, downloads it, and reopens the edit", async ({
 }, testInfo) => {
   await installFallbackMode(page)
   await page.goto("/")
-  await expect(page.getByText(/imports a private working copy/)).toBeVisible()
   await page.locator("input[type=file]").setInputFiles(fixturePath)
   await expect(
     page.locator("header").getByText("Imported copy", { exact: true })
@@ -460,10 +483,7 @@ test("fallback imports a copy, downloads it, and reopens the edit", async ({
   await toggleFirstComplete(page)
 
   const downloadPromise = page.waitForEvent("download")
-  await page
-    .locator(".title-actions .toolbar-button")
-    .filter({ hasText: "Save As" })
-    .click()
+  await clickFileMenuItem(page, "Save As")
   const download = await downloadPromise
   const savedPath = testInfo.outputPath("portable-fallback.eidos")
   await download.saveAs(savedPath)
@@ -471,6 +491,9 @@ test("fallback imports a copy, downloads it, and reopens the edit", async ({
 
   await page.reload()
   await page.locator("input[type=file]").setInputFiles(savedPath)
+  await expect(page.locator(".file-identity strong")).toHaveText(
+    "portable-fallback.eidos"
+  )
   await expect(page.locator("[data-testid='glide-cell-5-0']")).toHaveText(
     "true"
   )
@@ -483,7 +506,7 @@ test("creates a new blank Eidos File and saves an editable copy", async ({
   await installFallbackMode(page)
   await page.goto("/")
 
-  await page.getByRole("button", { name: "New blank Eidos File" }).click()
+  await clickFileMenuItem(page, "New blank Eidos File")
   await expect(page.locator(".file-identity strong")).toHaveText(
     "untitled.eidos"
   )
@@ -497,7 +520,7 @@ test("creates a new blank Eidos File and saves an editable copy", async ({
     "Changes stay in browser"
   )
   await expect(
-    page.locator(".title-actions").getByRole("button", { name: "New" })
+    page.locator(".title-file-menu").getByRole("button", { name: "File" })
   ).toBeVisible()
   await expect(
     page.locator(".eidos-file-content").getByText("Name", { exact: true })
@@ -512,10 +535,7 @@ test("creates a new blank Eidos File and saves an editable copy", async ({
   ).toHaveAttribute("aria-selected", "true")
 
   const downloadPromise = page.waitForEvent("download")
-  await page
-    .locator(".title-actions .toolbar-button")
-    .filter({ hasText: "Save As" })
-    .click()
+  await clickFileMenuItem(page, "Save As")
   const download = await downloadPromise
   expect(download.suggestedFilename()).toBe("untitled.eidos")
   const savedPath = testInfo.outputPath("new-blank.eidos")
@@ -533,11 +553,10 @@ test("creates a new blank Eidos File and saves an editable copy", async ({
 
 test("opens the bundled sample without a picker", async ({ page }) => {
   await installFallbackMode(page)
-  await page.goto("/")
   const sampleResponse = page.waitForResponse((response) =>
     response.url().includes("project-tracker")
   )
-  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await page.goto("/")
   await expect((await sampleResponse).status()).toBeLessThan(400)
   await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
     "Ship Eidos File Web Editor"
@@ -566,10 +585,10 @@ test("opens the bundled sample without a picker", async ({ page }) => {
     "1px"
   )
 
-  await page.getByRole("link", { name: "Return to Eidos File home" }).click()
-  await expect(
-    page.getByRole("button", { name: "Open .eidos file" })
-  ).toBeVisible()
+  await clickFileMenuItem(page, "Open sample Eidos File")
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
+    "Ship Eidos File Web Editor"
+  )
 })
 
 test("opens an advanced starter file from the template picker", async ({
@@ -582,22 +601,18 @@ test("opens an advanced starter file from the template picker", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
+  await waitForSampleEditor(page)
 
-  await page.getByRole("button", { name: "Choose a template" }).click()
-  const picker = page.locator("#eidos-file-template-list")
-  await expect(picker).toBeVisible()
-  await expect(
-    picker.getByRole("heading", { name: "Start from a template" })
-  ).toBeVisible()
-  await expect(picker.getByRole("listitem")).toHaveCount(8)
-  await expect(picker).toContainText("Relations · Lookups · Formula · Timeline")
+  await page.locator(".title-file-menu .app-menu-trigger").first().click()
+  const menu = page.getByRole("menu", { name: "File" })
+  await expect(menu).toBeVisible()
+  await expect(menu.getByText("Templates", { exact: true })).toBeVisible()
+  await expect(menu.getByRole("menuitem")).toHaveCount(13)
 
   const templateResponse = page.waitForResponse((response) =>
     response.url().includes("personal-crm")
   )
-  await picker
-    .getByRole("button", { name: "Open Personal CRM template" })
-    .click()
+  await menu.getByRole("menuitem", { name: "Personal CRM" }).click()
   await expect((await templateResponse).status()).toBeLessThan(400)
 
   await expect(
@@ -629,37 +644,37 @@ test("opens every additional template on its primary table", async ({
 
   const templates = [
     {
-      button: "Open Household finance template",
+      button: "Household finance",
       asset: "household-finance",
       table: "Transactions",
       firstRecord: "Monthly salary",
     },
     {
-      button: "Open Reading library template",
+      button: "Reading library",
       asset: "reading-library",
       table: "Books",
       firstRecord: "The Dispossessed",
     },
     {
-      button: "Open Habit journal template",
+      button: "Habit journal",
       asset: "habit-journal",
       table: "Daily logs",
       firstRecord: "Morning walk",
     },
     {
-      button: "Open Content calendar template",
+      button: "Content calendar",
       asset: "content-calendar",
       table: "Content",
       firstRecord: "Why files still matter",
     },
     {
-      button: "Open Eidos 1.0 Feature Lab template",
+      button: "Eidos 1.0 Feature Lab",
       asset: "feature-lab",
       table: "Experiments",
       firstRecord: "Feature Lab launch",
     },
     {
-      button: "Open Field capability matrix template",
+      button: "Field capability matrix",
       asset: "field-capability-matrix",
       table: "Field capabilities",
       firstRecord: "Row ID",
@@ -668,11 +683,11 @@ test("opens every additional template on its primary table", async ({
 
   for (const template of templates) {
     await page.goto("/")
-    await page.getByRole("button", { name: "Choose a template" }).click()
+    await waitForSampleEditor(page)
     const templateResponse = page.waitForResponse((response) =>
       response.url().includes(template.asset)
     )
-    await page.getByRole("button", { name: template.button }).click()
+    await clickFileMenuItem(page, template.button)
     await expect((await templateResponse).status()).toBeLessThan(400)
     await expect(
       page.getByRole("tab", { name: template.table, exact: true })
@@ -698,43 +713,43 @@ test("opens every template with Chinese schema and sample data", async ({
 
   const templates = [
     {
-      button: "打开 个人关系管理模板",
+      button: "个人关系管理",
       asset: "personal-crm.zh",
       table: "联系人",
       firstRecord: "Avery Stone",
     },
     {
-      button: "打开 家庭财务模板",
+      button: "家庭财务",
       asset: "household-finance.zh",
       table: "流水",
       firstRecord: "月度工资",
     },
     {
-      button: "打开 阅读资料库模板",
+      button: "阅读资料库",
       asset: "reading-library.zh",
       table: "书籍",
       firstRecord: "The Dispossessed",
     },
     {
-      button: "打开 习惯日志模板",
+      button: "习惯日志",
       asset: "habit-journal.zh",
       table: "每日日志",
       firstRecord: "晨间散步",
     },
     {
-      button: "打开 内容日历模板",
+      button: "内容日历",
       asset: "content-calendar.zh",
       table: "内容",
       firstRecord: "为什么文件依然重要",
     },
     {
-      button: "打开 Eidos 1.0 全功能实验室模板",
+      button: "Eidos 1.0 全功能实验室",
       asset: "feature-lab.zh",
       table: "实验",
       firstRecord: "全功能实验室启动",
     },
     {
-      button: "打开 字段能力矩阵模板",
+      button: "字段能力矩阵",
       asset: "field-capability-matrix.zh",
       table: "字段能力",
       firstRecord: "行 ID",
@@ -743,11 +758,11 @@ test("opens every template with Chinese schema and sample data", async ({
 
   for (const template of templates) {
     await page.goto("/")
-    await page.getByRole("button", { name: "选择体验模板" }).click()
+    await waitForSampleEditor(page)
     const templateResponse = page.waitForResponse((response) =>
       response.url().includes(template.asset)
     )
-    await page.getByRole("button", { name: template.button }).click()
+    await clickFileMenuItem(page, template.button)
     await expect((await templateResponse).status()).toBeLessThan(400)
     await expect(
       page.getByRole("tab", { name: template.table, exact: true })
@@ -769,13 +784,10 @@ test("loads Feature Lab with readable Relations and editable dependencies", asyn
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await page.getByRole("button", { name: "Choose a template" }).click()
   const response = page.waitForResponse((candidate) =>
     candidate.url().includes("feature-lab")
   )
-  await page
-    .getByRole("button", { name: "Open Eidos 1.0 Feature Lab template" })
-    .click()
+  await clickFileMenuItem(page, "Eidos 1.0 Feature Lab")
   await expect((await response).status()).toBeLessThan(400)
 
   await expect(
@@ -1008,10 +1020,7 @@ test("persists a Grid multi-select edit when its popover closes", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await page.getByRole("button", { name: "Choose a template" }).click()
-  await page
-    .getByRole("button", { name: "Open Eidos 1.0 Feature Lab template" })
-    .click()
+  await clickFileMenuItem(page, "Eidos 1.0 Feature Lab")
   await expect(
     page.getByRole("tab", { name: "Experiments", exact: true })
   ).toHaveAttribute("aria-selected", "true")
@@ -1097,10 +1106,7 @@ test("exports the current Eidos File view as readable CSV", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await page.getByRole("button", { name: "Choose a template" }).click()
-  await page
-    .getByRole("button", { name: "Open Eidos 1.0 Feature Lab template" })
-    .click()
+  await clickFileMenuItem(page, "Eidos 1.0 Feature Lab")
   await expect(
     page.getByRole("tab", { name: "Experiments", exact: true })
   ).toHaveAttribute("aria-selected", "true")
@@ -1177,7 +1183,7 @@ test("uses the filtered row count for the Grid virtual height", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await clickFileMenuItem(page, "Open sample Eidos File")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
@@ -1207,241 +1213,6 @@ test("uses the filtered row count for the Grid virtual height", async ({
   )
 })
 
-test("keeps the landing-page live demo bounded in a narrow window", async ({
-  page,
-  browserName,
-}) => {
-  test.skip(
-    browserName !== "chromium",
-    "Chromium covers the shared responsive landing-page grid"
-  )
-  await page.setViewportSize({ width: 600, height: 900 })
-  await installFallbackMode(page)
-  await page.goto("/")
-
-  await page
-    .locator(".live-demo-grid [data-testid='glide-cell-1-0']")
-    .waitFor({ state: "attached" })
-
-  const demoGeometry = await page.evaluate(() => {
-    const workbench = document
-      .querySelector(".launch-workbench")
-      ?.getBoundingClientRect()
-    const demo = document
-      .querySelector(".live-demo-embedded")
-      ?.getBoundingClientRect()
-    const grid = document
-      .querySelector(".live-demo-grid")
-      ?.getBoundingClientRect()
-    const scroller = document.querySelector<HTMLElement>(
-      ".live-demo-grid .dvn-scroller"
-    )
-    const panel = document
-      .querySelector(".launch-panel")
-      ?.getBoundingClientRect()
-    return {
-      demo: demo?.toJSON(),
-      documentHeight: document.documentElement.scrollHeight,
-      grid: grid?.toJSON(),
-      pageOverflow:
-        document.documentElement.scrollWidth -
-        document.documentElement.clientWidth,
-      panel: panel?.toJSON(),
-      scroller: scroller
-        ? {
-            clientHeight: scroller.clientHeight,
-            scrollHeight: scroller.scrollHeight,
-          }
-        : null,
-      workbench: workbench?.toJSON(),
-    }
-  })
-
-  expect(demoGeometry.pageOverflow).toBe(0)
-  expect(demoGeometry.demo?.height).toBeLessThanOrEqual(512)
-  expect(demoGeometry.demo?.height).toBeGreaterThanOrEqual(384)
-  expect(demoGeometry.grid?.height).toBeLessThanOrEqual(
-    (demoGeometry.demo?.height ?? 0) - 36
-  )
-  expect(demoGeometry.workbench?.height).toBeLessThan(1_500)
-  expect(demoGeometry.documentHeight).toBeLessThan(10_000)
-  expect(demoGeometry.scroller?.clientHeight).toBeLessThan(500)
-  expect(demoGeometry.scroller?.scrollHeight).toBeGreaterThan(
-    demoGeometry.scroller?.clientHeight ?? 0
-  )
-})
-
-test("keeps landing content visible while only the demo canvas loads", async ({
-  page,
-  browserName,
-}) => {
-  test.skip(
-    browserName !== "chromium",
-    "Chromium covers the landing-page loading boundary"
-  )
-  let releaseSample: (() => void) | undefined
-  const sampleGate = new Promise<void>((resolve) => {
-    releaseSample = resolve
-  })
-  await page.route("**/project-tracker.eidos", async (route) => {
-    await sampleGate
-    await route.continue()
-  })
-  await page.setViewportSize({ width: 1_600, height: 1_000 })
-  await installFallbackMode(page)
-  await page.goto("/")
-
-  const launchTitle = page.getByRole("heading", {
-    name: /Open an Eidos File/i,
-  })
-  const demoGrid = page.locator(".live-demo-grid")
-  const demoLoading = demoGrid.locator(".live-demo-loading")
-  await expect(launchTitle).toBeVisible()
-  await expect(
-    page.getByRole("button", { name: "Open .eidos file" })
-  ).toBeVisible()
-  await expect(demoGrid).toHaveAttribute("aria-busy", "true")
-  await expect(demoLoading).toBeVisible()
-
-  const loadingBoundary = await page.evaluate(() => {
-    const grid = document
-      .querySelector(".live-demo-grid")
-      ?.getBoundingClientRect()
-    const loading = document
-      .querySelector(".live-demo-loading")
-      ?.getBoundingClientRect()
-    return {
-      contained:
-        Boolean(grid && loading) &&
-        loading!.top >= grid!.top &&
-        loading!.right <= grid!.right &&
-        loading!.bottom <= grid!.bottom &&
-        loading!.left >= grid!.left,
-      documentHeight: document.documentElement.scrollHeight,
-    }
-  })
-  expect(loadingBoundary.contained).toBe(true)
-  expect(loadingBoundary.documentHeight).toBeLessThan(10_000)
-
-  releaseSample?.()
-  await page
-    .locator(".live-demo-grid [data-testid='glide-cell-1-0']")
-    .waitFor({ state: "attached" })
-  await expect(demoGrid).toHaveAttribute("aria-busy", "false")
-})
-
-test("keeps the desktop landing workbench bounded after rows load", async ({
-  page,
-  browserName,
-}) => {
-  test.skip(
-    browserName !== "chromium",
-    "Chromium covers the desktop virtualized Grid layout"
-  )
-  await page.setViewportSize({ width: 1_920, height: 1_280 })
-  await installFallbackMode(page)
-  await page.goto("/")
-  await page
-    .locator(".live-demo-grid [data-testid='glide-cell-1-0']")
-    .waitFor({ state: "attached" })
-
-  const geometry = await page.evaluate(() => {
-    const rect = (selector: string) =>
-      document.querySelector(selector)?.getBoundingClientRect().toJSON()
-    const scroller = document.querySelector<HTMLElement>(
-      ".live-demo-grid .dvn-scroller"
-    )
-    return {
-      copy: rect(".launch-copy"),
-      documentBarCount: document.querySelectorAll(".live-demo-document-bar")
-        .length,
-      footerCount: document.querySelectorAll(
-        ".live-demo-embedded .live-demo-note"
-      ).length,
-      grid: rect(".live-demo-grid"),
-      panel: rect(".launch-panel"),
-      toolbar: rect(".live-demo-embedded .live-demo-toolbar"),
-      workbench: rect(".launch-workbench"),
-      documentHeight: document.documentElement.scrollHeight,
-      viewportHeight: window.innerHeight,
-      scroller: scroller
-        ? {
-            clientHeight: scroller.clientHeight,
-            scrollHeight: scroller.scrollHeight,
-          }
-        : null,
-    }
-  })
-
-  expect(geometry.workbench?.height).toBeLessThanOrEqual(
-    geometry.viewportHeight
-  )
-  expect(geometry.workbench?.bottom).toBeLessThanOrEqual(
-    geometry.viewportHeight + 1
-  )
-  expect(geometry.panel?.bottom).toBeLessThanOrEqual(
-    (geometry.workbench?.bottom ?? 0) + 1
-  )
-  expect(geometry.copy?.top).toBeGreaterThanOrEqual(
-    geometry.workbench?.top ?? 0
-  )
-  expect(geometry.documentBarCount).toBe(0)
-  expect(geometry.footerCount).toBe(0)
-  expect(geometry.toolbar?.height).toBe(36)
-  expect(geometry.grid?.top).toBe(geometry.toolbar?.bottom)
-  expect(geometry.grid?.height).toBeLessThan(geometry.viewportHeight)
-  expect(geometry.documentHeight).toBeLessThanOrEqual(
-    geometry.viewportHeight + 1
-  )
-  expect(geometry.scroller?.clientHeight).toBeLessThan(geometry.viewportHeight)
-  expect(geometry.scroller?.scrollHeight).toBeGreaterThan(
-    geometry.scroller?.clientHeight ?? 0
-  )
-  await expect(
-    page.getByRole("heading", { name: /Open an Eidos File/i })
-  ).toBeInViewport()
-  await expect(
-    page.getByRole("button", { name: "Open .eidos file" })
-  ).toBeInViewport()
-  await expect(page.locator(".landing-section")).toHaveCount(0)
-})
-
-test("anchors landing-page field menus to their grid headers", async ({
-  page,
-  browserName,
-}) => {
-  test.skip(
-    browserName !== "chromium",
-    "Chromium covers the shared Grid field menu positioning"
-  )
-  await page.setViewportSize({ width: 1_600, height: 1_000 })
-  await installFallbackMode(page)
-  await page.goto("/")
-
-  await page
-    .locator(".live-demo-grid [data-testid='glide-cell-1-0']")
-    .waitFor({ state: "attached" })
-  const canvas = page.locator(
-    ".live-demo-grid canvas[data-testid='data-grid-canvas']"
-  )
-  const canvasBounds = await canvas.boundingBox()
-  if (!canvasBounds) throw new Error("The landing-page Grid is not visible")
-
-  await page.mouse.click(canvasBounds.x + 100, canvasBounds.y + 18, {
-    button: "right",
-  })
-  const menu = page.getByRole("menu", { name: "Actions for title" })
-  await expect(menu).toBeVisible()
-  const menuBounds = await menu.boundingBox()
-  if (!menuBounds) throw new Error("The field menu is not visible")
-
-  expect(menuBounds.x).toBeGreaterThanOrEqual(canvasBounds.x)
-  expect(menuBounds.x).toBeLessThan(canvasBounds.x + 100)
-  expect(menuBounds.y).toBeGreaterThan(canvasBounds.y + 30)
-  expect(menuBounds.y).toBeLessThan(canvasBounds.y + 50)
-  await expect(page.locator(".launch-workbench")).toHaveCSS("transform", "none")
-})
-
 test("keeps Grid field menus open after a touch header tap", async ({
   baseURL,
   browser,
@@ -1461,7 +1232,7 @@ test("keeps Grid field menus open after a touch header tap", async ({
   const page = await context.newPage()
   await installFallbackMode(page)
   await page.goto("/")
-  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await clickFileMenuItem(page, "Open sample Eidos File")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
@@ -1492,58 +1263,20 @@ test("keeps navigation and editor controls usable on a phone", async ({
   await installFallbackMode(page)
   await page.goto("/")
 
-  const primaryNavigation = page.locator(".site-nav a")
-  await expect(primaryNavigation).toHaveCount(4)
-  const primaryNavigationRegion = page.locator(".site-nav")
+  await page.locator(".title-actions .app-menu-trigger").first().click()
+  const moreMenu = page.getByRole("menu", { name: "More" })
+  await expect(moreMenu).toBeVisible()
+  await expect(moreMenu.getByRole("menuitem")).toHaveCount(3)
   await expect(
-    primaryNavigationRegion.getByRole("link", { name: "Editor" })
+    moreMenu.getByRole("menuitem", { name: "Open Format" })
   ).toBeVisible()
   await expect(
-    primaryNavigationRegion.getByRole("link", { name: "Open Format" })
+    moreMenu.getByRole("menuitem", { name: "SQLite Inspector" })
   ).toBeVisible()
-  const versionControlLink = primaryNavigationRegion.getByRole("link", {
-    name: /Version Control/,
-  })
-  await expect(versionControlLink).toBeVisible()
   await expect(
-    versionControlLink.locator(".site-nav-compact-label")
-  ).toHaveText("Version")
-  const sqliteInspectorLink = primaryNavigationRegion.getByRole("link", {
-    name: "Open the read-only SQLite Inspector in a new tab",
-  })
-  await expect(sqliteInspectorLink).toBeVisible()
-  await expect(sqliteInspectorLink).toHaveAttribute(
-    "href",
-    "https://sqlite.eidos.space/"
-  )
-  await expect(sqliteInspectorLink).toHaveAttribute("target", "_blank")
-  await expect(
-    sqliteInspectorLink.locator("svg.lucide-arrow-up-right")
+    moreMenu.getByRole("menuitem", { name: "Version Control" })
   ).toBeVisible()
-  expect(
-    await primaryNavigation.evaluateAll((links) =>
-      links.map((link) => link.getAttribute("href"))
-    )
-  ).toEqual([
-    "/",
-    "https://eidos.space/docs/",
-    "https://sqlite.eidos.space/",
-    "https://graft.eidos.space/",
-  ])
-  expect(
-    await primaryNavigation.evaluateAll((links) =>
-      links.every((link) => link.getBoundingClientRect().height >= 44)
-    )
-  ).toBe(true)
-  expect(
-    await primaryNavigation.evaluateAll((links) => {
-      const rects = links.map((link) => link.getBoundingClientRect())
-      return (
-        new Set(rects.map((rect) => Math.round(rect.top))).size === 1 &&
-        rects.every((rect) => rect.left >= 0 && rect.right <= window.innerWidth)
-      )
-    })
-  ).toBe(true)
+  await page.keyboard.press("Escape")
   expect(
     await page.evaluate(
       () =>
@@ -1552,7 +1285,7 @@ test("keeps navigation and editor controls usable on a phone", async ({
     )
   ).toBe(true)
 
-  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await clickFileMenuItem(page, "Open sample Eidos File")
   await page.locator(".editor-titlebar").waitFor()
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
@@ -1648,7 +1381,7 @@ test("imports CSV through the explicitly composed editor plugin", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await clickFileMenuItem(page, "Open sample Eidos File")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
@@ -1694,10 +1427,7 @@ test("imports CSV through the explicitly composed editor plugin", async ({
   await expect(page.locator(".save-status")).toContainText(/Unsaved|browser/)
 
   const downloadPromise = page.waitForEvent("download")
-  await page
-    .locator(".title-actions .toolbar-button")
-    .filter({ hasText: "Save As" })
-    .click()
+  await clickFileMenuItem(page, "Save As")
   const savedPath = testInfo.outputPath("csv-plugin-import.eidos")
   await (await downloadPromise).saveAs(savedPath)
 
@@ -1730,7 +1460,7 @@ test("matches Desktop table, view, Grid edit, field placement, and row delete wo
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await clickFileMenuItem(page, "Open sample Eidos File")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
@@ -1882,7 +1612,7 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
     })
   })
   await page.goto("/")
-  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await clickFileMenuItem(page, "Open sample Eidos File")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
@@ -2040,7 +1770,7 @@ test("shows Relation metadata as readable names instead of identifiers", async (
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await clickFileMenuItem(page, "Open sample Eidos File")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
@@ -2096,7 +1826,7 @@ test("clears an existing Relation while background reads settle", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await clickFileMenuItem(page, "Open sample Eidos File")
   const rawRelation = page.locator("[data-testid='glide-cell-6-0']")
   await expect(rawRelation).toContainText(/\["[0-9a-f-]+"\]/i)
 
@@ -2158,7 +1888,7 @@ test("keeps the Formula editor focused and reachable in a dark touch viewport", 
     await installFallbackMode(page)
     await page.goto("/")
     await page.getByRole("button", { name: "Use dark theme" }).click()
-    await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+    await clickFileMenuItem(page, "Open sample Eidos File")
     await page.locator("[data-testid='glide-cell-1-0']").waitFor({
       state: "attached",
     })
@@ -2245,7 +1975,7 @@ test("calculates Grid column summaries through the browser runtime", async ({
     })
   })
   await page.goto("/")
-  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await clickFileMenuItem(page, "Open sample Eidos File")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
@@ -2323,7 +2053,7 @@ test("uses the shared Gallery and Kanban renderers for the sample", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await clickFileMenuItem(page, "Open sample Eidos File")
   await expect(
     page.getByRole("tab", { name: "Teams", exact: true })
   ).toBeVisible()
@@ -2405,7 +2135,7 @@ test("does not reserve a blank scrollbar row when columns fit", async ({
   await emulateClassicScrollbarWidth(page)
   await installFallbackMode(page)
   await page.goto("/")
-  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await clickFileMenuItem(page, "Open sample Eidos File")
 
   const scroller = page.locator(".eidos-file-content .dvn-scroller")
   await expect(scroller).toBeVisible()
@@ -2451,59 +2181,25 @@ test("switches the live Eidos File experience between English and Chinese", asyn
   )
   await installFallbackMode(page)
   await page.goto("/")
+  await waitForSampleEditor(page)
+
+  await page.getByRole("combobox", { name: "Language" }).selectOption("zh")
+  await expect(
+    page.locator(".title-file-menu .app-menu-trigger").first()
+  ).toContainText("文件")
+
+  // The localized sample ships per locale; user data is never rewritten.
   const chineseSample = page.waitForResponse((response) =>
     response.url().includes("project-tracker.zh")
   )
-  await page.getByRole("combobox", { name: "Language" }).selectOption("zh")
+  await clickFileMenuItem(page, "打开示例 Eidos File")
   await expect((await chineseSample).status()).toBeLessThan(400)
-
-  await expect(
-    page.getByRole("heading", { name: /打开 Eidos File。/ })
-  ).toBeVisible()
-  await expect(
-    page.getByRole("button", { name: "打开 .eidos 文件" })
-  ).toBeVisible()
-  await expect(
-    page.getByRole("button", { name: "新建空白 Eidos File" })
-  ).toBeVisible()
-  await expect(page.getByRole("button", { name: "选择体验模板" })).toBeVisible()
-  await expect(page.locator(".landing-section")).toHaveCount(0)
-
-  await expect(
-    page.locator(".live-demo-grid [data-testid='glide-cell-1-0']")
-  ).toContainText("发布 Eidos File Web 编辑器")
-  await page.getByPlaceholder("搜索示例").fill("项目 2442")
-  await expect(
-    page.locator(".live-demo-grid [data-testid='glide-cell-1-0']")
-  ).toContainText("项目 2442")
-
-  await page.getByRole("button", { name: "打开编辑器" }).click()
-  await expect(
-    page.getByRole("tab", { name: "项目", exact: true })
-  ).toHaveAttribute("aria-selected", "true")
   await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
     "发布 Eidos File Web 编辑器"
   )
   await expect(
-    page.getByRole("button", { name: "搜索 Eidos File 记录" })
-  ).toBeVisible()
-  const filterButton = page.getByRole("button", {
-    name: "筛选 Eidos File 记录",
-  })
-  await expect(filterButton).toBeVisible()
-  await expect(
-    page.getByRole("button", { name: "排序 Eidos File 记录" })
-  ).toBeVisible()
-  await filterButton.click()
-  await expect(page.getByRole("button", { name: "添加筛选" })).toBeVisible()
-  await page.keyboard.press("Escape")
-  await expect(page.locator("[data-eidos-file-sheet-tabs]")).toContainText(
-    "导入的副本"
-  )
-  await page.getByRole("combobox", { name: "语言" }).selectOption("en")
-  await expect(page.locator("[data-eidos-file-sheet-tabs]")).toContainText(
-    "Imported copy"
-  )
+    page.getByRole("tab", { name: "项目", exact: true })
+  ).toHaveAttribute("aria-selected", "true")
 })
 
 test("keeps the editor first and links out to the Eidos File documentation", async ({
@@ -2523,37 +2219,41 @@ test("keeps the editor first and links out to the Eidos File documentation", asy
   await page.setViewportSize({ width: 1440, height: 900 })
 
   await page.goto("/")
+  await waitForSampleEditor(page)
+  await expect(
+    page.locator(".title-file-menu .app-menu-trigger").first()
+  ).toContainText("File")
 
+  await page.locator(".title-actions .app-menu-trigger").first().click()
+  const moreMenu = page.getByRole("menu", { name: "More" })
+  await expect(moreMenu).toBeVisible()
   await expect(
-    page.getByRole("button", { name: "Open .eidos file" })
+    moreMenu.getByRole("menuitem", { name: "Open Format" })
   ).toBeVisible()
   await expect(
-    page.locator(".live-demo-grid canvas[data-testid='data-grid-canvas']")
+    moreMenu.getByRole("menuitem", { name: "SQLite Inspector" })
   ).toBeVisible()
   await expect(
-    page
-      .locator('.site-nav a[href="https://graft.eidos.space/"]')
-      .locator(".site-nav-full-label")
-  ).toHaveText("Version Control")
-  await expect(
-    page.locator('.site-nav a[href="https://sqlite.eidos.space/"]')
-  ).toContainText("SQLite Inspector")
-  await expect(
-    page.locator('.site-nav a[href="https://eidos.space/docs/"]')
-  ).toHaveText("Open Format")
+    moreMenu.getByRole("menuitem", { name: "Version Control" })
+  ).toBeVisible()
+  await page.keyboard.press("Escape")
 
   await page.getByRole("combobox", { name: "Language" }).selectOption("zh")
-  await expect(page.locator('.site-nav a[href="/"]')).toHaveText("编辑工具")
   await expect(
-    page.locator('.site-nav a[href="https://eidos.space/zh/docs/"]')
-  ).toHaveText("开放格式")
+    page.locator(".title-file-menu .app-menu-trigger").first()
+  ).toContainText("文件")
+  await page.locator(".title-actions .app-menu-trigger").first().click()
+  const zhMoreMenu = page.getByRole("menu", { name: "更多" })
+  await expect(zhMoreMenu).toBeVisible()
   await expect(
-    page
-      .locator('.site-nav a[href="https://graft.eidos.space/"]')
-      .locator(".site-nav-full-label")
-  ).toHaveText("版本管理")
+    zhMoreMenu.getByRole("menuitem", { name: "开放格式" })
+  ).toBeVisible()
   await expect(
-    page.locator('.site-nav a[href="https://sqlite.eidos.space/"]')
-  ).toContainText("SQLite 检查器")
+    zhMoreMenu.getByRole("menuitem", { name: "SQLite 检查器" })
+  ).toBeVisible()
+  await expect(
+    zhMoreMenu.getByRole("menuitem", { name: "版本管理" })
+  ).toBeVisible()
+  await page.keyboard.press("Escape")
   expect(browserErrors).toEqual([])
 })

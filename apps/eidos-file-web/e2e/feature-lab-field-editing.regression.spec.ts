@@ -9,6 +9,22 @@ async function installFallbackMode(page: Page): Promise<void> {
   })
 }
 
+async function clickFileMenuItem(page: Page, name: string): Promise<void> {
+  const trigger = page.locator(".title-file-menu .app-menu-trigger").first()
+  const item = page.getByRole("menuitem", { name, exact: true })
+  await expect(async () => {
+    if (!(await item.isVisible().catch(() => false))) await trigger.click()
+    await item.click({ timeout: 5_000 })
+  }).toPass({ timeout: 30_000 })
+  // Every File-menu action opens or saves a file; give OPEN_START a tick
+  // to surface, then wait for the open to finish before proceeding.
+  await page.waitForTimeout(250)
+  await expect(page.locator(".save-status")).not.toContainText(
+    "Opening local file",
+    { timeout: 30_000 }
+  )
+}
+
 async function fieldRow(inspector: Locator, name: string): Promise<Locator> {
   const label = inspector.getByText(name, { exact: true })
   await expect(label).toBeVisible()
@@ -20,14 +36,21 @@ async function toggleMultiSelectOption(
   trigger: Locator,
   optionName: string
 ): Promise<void> {
-  const option = page
-    .getByRole("button", { name: optionName, exact: true })
-    .last()
+  // A click that lands while the popover remounts after the previous edit is
+  // silently lost, so verify the value actually changed and retry the whole
+  // open + click cycle.
   await expect(async () => {
+    const before = await trigger.textContent()
+    const option = page
+      .locator("[data-radix-popper-content-wrapper]")
+      .last()
+      .getByRole("button", { name: optionName, exact: true })
     if (!(await option.isVisible())) await trigger.click()
     await expect(option).toBeVisible({ timeout: 2_000 })
+    await option.click()
+    await page.keyboard.press("Escape")
+    await expect(trigger).not.toHaveText(before ?? "", { timeout: 2_000 })
   }).toPass({ timeout: 15_000 })
-  await option.click()
 }
 
 async function selectRelationOption(
@@ -58,10 +81,7 @@ test("edits every writable Feature Lab field through the Chromium editor", async
   page.on("pageerror", (error) => pageErrors.push(error.message))
 
   await page.goto("/")
-  await page.getByRole("button", { name: "Choose a template" }).click()
-  await page
-    .getByRole("button", { name: "Open Eidos 1.0 Feature Lab template" })
-    .click()
+  await clickFileMenuItem(page, "Eidos 1.0 Feature Lab")
 
   await page.getByRole("tab", { name: "Quality signals", exact: true }).click()
   await expect(
@@ -252,10 +272,7 @@ test("keeps system fields read-only in the unified field manager", async ({
   await installFallbackMode(page)
 
   await page.goto("/")
-  await page.getByRole("button", { name: "Choose a template" }).click()
-  await page
-    .getByRole("button", { name: "Open Eidos 1.0 Feature Lab template" })
-    .click()
+  await clickFileMenuItem(page, "Eidos 1.0 Feature Lab")
   await page.getByRole("tab", { name: "Grid", exact: true }).click()
   await page
     .locator("[data-eidos-file-workbar-actions]")
@@ -325,7 +342,7 @@ test("replaces a Formula expression after inserting a function", async ({
   )
   await installFallbackMode(page)
   await page.goto("/")
-  await page.getByRole("button", { name: "Open sample Eidos File" }).click()
+  await clickFileMenuItem(page, "Open sample Eidos File")
   await page.locator("[data-testid='glide-cell-1-0']").waitFor({
     state: "attached",
   })
