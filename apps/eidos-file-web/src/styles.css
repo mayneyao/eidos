@@ -274,45 +274,6 @@
   }
 }
 
-.language-select {
-  position: relative;
-  display: inline-flex;
-  min-height: 1.75rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.625rem;
-  border: 1px solid transparent;
-  border-radius: 0.25rem;
-  background: transparent;
-  color: var(--foreground);
-  font-size: 0.75rem;
-  font-weight: 560;
-  white-space: nowrap;
-  transition:
-    background-color 120ms var(--ease-out-expo),
-    color 120ms var(--ease-out-expo);
-}
-
-.language-select:hover {
-  background: var(--accent);
-}
-
-.language-select > svg,
-.language-select > span {
-  flex: 0 0 auto;
-  pointer-events: none;
-}
-
-.language-select select {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  cursor: pointer;
-  opacity: 0;
-}
-
 .recovery-strip {
   position: relative;
   z-index: 2;
@@ -377,16 +338,10 @@
   height: 2.375rem;
   min-width: 0;
   flex: 0 0 auto;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: stretch;
   border-bottom: 1px solid var(--border);
   background: var(--shell);
-}
-
-.brand-logo {
-  width: 1.125rem;
-  height: 1.125rem;
-  flex: 0 0 auto;
 }
 
 .title-file-menu {
@@ -424,7 +379,8 @@
 }
 
 .file-identity strong,
-.file-identity span {
+.file-table-name,
+.save-status span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -433,6 +389,11 @@
 .file-identity strong {
   color: var(--foreground);
   font-weight: 600;
+}
+
+.file-identity-separator,
+.save-status {
+  flex: 0 0 auto;
 }
 
 .title-actions {
@@ -445,7 +406,8 @@
   min-width: 0;
   align-items: center;
   gap: 0.375rem;
-  padding: 0 0.5rem;
+  margin-left: 0.125rem;
+  padding: 0 0.25rem;
   color: var(--muted-foreground);
   font-size: 0.6875rem;
   white-space: nowrap;
@@ -769,8 +731,7 @@
 /* Responsive ----------------------------------------------------------- */
 
 @media (max-width: 58rem) {
-  .brand-lockup.compact > span:last-child,
-  .permission-button {
+  .brand-lockup.compact > span:last-child {
     display: none;
   }
 
@@ -783,10 +744,19 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+  .permission-button {
+    width: 2rem;
+    min-width: 2rem;
+    padding: 0;
+  }
+
+  .permission-button span {
+    display: none;
+  }
 }
 
 @media (max-width: 42rem) {
-
   .recovery-strip {
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -798,7 +768,7 @@
   }
 
   .editor-titlebar {
-    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
   .file-identity:empty {
@@ -806,11 +776,13 @@
   }
 
   .save-status {
-    display: none;
+    margin-left: 0;
+    padding: 0;
   }
 
-  .file-identity span,
-  .file-identity > svg:nth-last-of-type(1) {
+  .save-status span,
+  .file-table-name,
+  .file-identity-separator {
     display: none;
   }
 
@@ -836,7 +808,7 @@
 
 @media (pointer: coarse) {
   .icon-button,
-  .language-select,
+  .permission-button,
   .toolbar-button,
   .pwa-update-actions button {
     min-height: 2.75rem;
@@ -887,6 +859,8 @@
   }
 
   .editor-titlebar {
+    --app-menu-icon-size: 2.5rem;
+
     height: 3rem;
   }
 
@@ -901,7 +875,7 @@
 
   .title-actions .toolbar-button,
   .title-actions .icon-button,
-  .title-actions .language-select {
+  .title-actions .permission-button {
     width: 2.5rem;
     min-width: 2.5rem;
     height: 2.5rem;
@@ -909,11 +883,6 @@
     padding: 0;
     border-color: transparent;
     background: transparent;
-  }
-
-  .title-actions .language-select > span,
-  .title-actions .language-select-chevron {
-    display: none;
   }
 
   .eidos-file-workbar-action {
@@ -966,8 +935,7 @@
     min-height: 0;
     padding-left: calc(env(titlebar-area-x, 0px) + 0px);
     padding-right: calc(
-      100vw - env(titlebar-area-x, 100vw) - env(titlebar-area-width, 0px) +
-        0px
+      100vw - env(titlebar-area-x, 100vw) - env(titlebar-area-width, 0px) + 0px
     );
     -webkit-app-region: drag;
   }
@@ -1019,6 +987,13 @@
 .app-menu-panel.align-end {
   right: 0;
   left: auto;
+}
+
+.app-menu-menubar .app-menu-panel {
+  top: calc(100% + 0.125rem);
+  border-radius: 0.375rem;
+  box-shadow: 0 0.5rem 1.5rem
+    color-mix(in oklch, var(--foreground) 11%, transparent);
 }
 
 .app-menu-heading {
@@ -1080,10 +1055,26 @@
   font-size: 0.6875rem;
 }
 
+.app-menu-submenu-chevron {
+  margin-left: 1rem;
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+}
+
+.app-menu-back {
+  font-weight: 600;
+}
+
 /* Borderless menu entries in the titlebar */
 .app-menu .app-menu-trigger {
   border-color: transparent;
   background: transparent;
+}
+
+.app-menu .app-menu-trigger-icon-only {
+  width: var(--app-menu-icon-size, 2rem);
+  min-width: var(--app-menu-icon-size, 2rem);
+  padding: 0;
 }
 
 /* The panel stays anchored to the wrapper while pressed, so the generic

@@ -5,11 +5,13 @@ import {
   ChevronRight,
   ContactRound,
   Download,
+  Ellipsis,
   FileKey,
   FilePlus2,
   FileSpreadsheet,
   FolderOpen,
   HeartPulse,
+  LayoutTemplate,
   Microscope,
   Moon,
   Save,
@@ -19,14 +21,12 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { useI18n } from "../i18n"
+import { EIDOS_FILE_LOCALES, useI18n } from "../i18n"
 import {
   EIDOS_FILE_TEMPLATES,
   type EidosFileTemplateId,
 } from "../sample-eidos-file"
 import { AppMenu, type AppMenuSection } from "./app-menu"
-import { EidosFileLanguageSelect } from "./eidos-file-language-select"
-import { EidosLogo } from "./eidos-logo"
 
 const templateIcons: Record<EidosFileTemplateId, LucideIcon> = {
   "project-portfolio": BriefcaseBusiness,
@@ -63,8 +63,8 @@ interface AppTitlebarProps {
 }
 
 /**
- * The single chrome of the app: logo, the File menu, then theme, language
- * and a More menu of outbound links. Identical before and after a file is
+ * The single chrome of the app: file operations, the active file identity and
+ * state, then urgent and global actions. Identical before and after a file is
  * opened, so opening a file only swaps the content below it.
  */
 export function AppTitlebar({
@@ -89,32 +89,23 @@ export function AppTitlebar({
   onReauthorize,
   onThemeChange,
 }: AppTitlebarProps) {
-  const { locale, t } = useI18n()
+  const { locale, setLocale, t } = useI18n()
 
-  const fileSections: AppMenuSection[] = []
+  const templateSections: AppMenuSection[] = [
+    {
+      id: "templates",
+      label: t("templatesHeading"),
+      items: EIDOS_FILE_TEMPLATES.map((template) => ({
+        id: template.id,
+        label: template.copy[locale].title,
+        icon: templateIcons[template.id],
+        disabled: opening,
+        onSelect: () => onOpenTemplate(template.id),
+      })),
+    },
+  ]
 
-  if (fileOpen) {
-    fileSections.push({
-      id: "current",
-      items: [
-        {
-          id: "save",
-          label: saveLabel ?? t("save"),
-          icon: Save,
-          disabled: !canSave || opening,
-          onSelect: onSave,
-        },
-        {
-          id: "download",
-          label: t("downloadCopy"),
-          icon: Download,
-          onSelect: onDownload,
-        },
-      ],
-    })
-  }
-
-  fileSections.push(
+  const fileSections: AppMenuSection[] = [
     {
       id: "file",
       items: [
@@ -140,24 +131,52 @@ export function AppTitlebar({
           disabled: opening,
           onSelect: onOpenSample,
         },
+        {
+          id: "new-from-template",
+          label: t("newFromTemplate"),
+          icon: LayoutTemplate,
+          disabled: opening,
+          submenu: templateSections,
+        },
       ],
     },
     {
-      id: "templates",
-      label: t("templatesHeading"),
-      items: EIDOS_FILE_TEMPLATES.map((template) => ({
-        id: template.id,
-        label: template.copy[locale].title,
-        icon: templateIcons[template.id],
-        disabled: opening,
-        onSelect: () => onOpenTemplate(template.id),
-      })),
-    }
-  )
+      id: "save",
+      items: [
+        {
+          id: "save",
+          label: saveLabel ?? t("save"),
+          icon: Save,
+          hint: "⌘S",
+          disabled: !fileOpen || !canSave || opening,
+          onSelect: onSave,
+        },
+        {
+          id: "download",
+          label: t("downloadCopy"),
+          icon: Download,
+          hint: "⇧⌘S",
+          disabled: !fileOpen || opening,
+          onSelect: onDownload,
+        },
+      ],
+    },
+  ]
 
   const moreSections: AppMenuSection[] = [
     {
-      id: "links",
+      id: "language",
+      label: t("languageSelector"),
+      items: EIDOS_FILE_LOCALES.map((option) => ({
+        id: `language-${option.value}`,
+        label: option.label,
+        checked: locale === option.value,
+        onSelect: () => setLocale(option.value),
+      })),
+    },
+    {
+      id: "resources",
+      label: t("menuResources"),
       items: [
         {
           id: "docs",
@@ -176,6 +195,12 @@ export function AppTitlebar({
             window.open("https://sqlite.eidos.space/", "_blank", "noreferrer")
           },
         },
+      ],
+    },
+    {
+      id: "ecosystem",
+      label: t("menuEcosystem"),
+      items: [
         {
           id: "graft",
           label: t("navGraft"),
@@ -189,57 +214,71 @@ export function AppTitlebar({
 
   return (
     <header className="editor-titlebar">
-      <span className="brand-lockup compact">
-        <EidosLogo className="brand-logo" />
-      </span>
       <div className="title-file-menu">
-        <AppMenu label={t("menuFile")} sections={fileSections} />
+        <AppMenu
+          label={t("menuFile")}
+          sections={fileSections}
+          variant="menubar"
+          submenuBackLabel={t("backToFile")}
+        />
       </div>
       {fileOpen ? (
         <div className="file-identity" title={fileName}>
           <FileSpreadsheet size={15} aria-hidden="true" />
           <strong>{fileName}</strong>
-          <ChevronRight size={13} aria-hidden="true" />
-          <span>{tableName}</span>
+          <ChevronRight
+            className="file-identity-separator"
+            size={13}
+            aria-hidden="true"
+          />
+          <span className="file-table-name">{tableName}</span>
+          {StatusIcon ? (
+            <div
+              className={`save-status ${statusTone ?? ""}`}
+              role="status"
+              aria-live="polite"
+              title={statusLabel}
+            >
+              <StatusIcon
+                className={statusSpinning ? "spin" : ""}
+                size={14}
+                aria-hidden="true"
+              />
+              <span>{statusLabel}</span>
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="file-identity" aria-hidden="true" />
       )}
       <div className="title-actions">
-        {fileOpen && StatusIcon ? (
-          <div
-            className={`save-status ${statusTone ?? ""}`}
-            role="status"
-            aria-live="polite"
-          >
-            <StatusIcon
-              className={statusSpinning ? "spin" : ""}
-              size={14}
-              aria-hidden="true"
-            />
-            <span>{statusLabel}</span>
-          </div>
-        ) : null}
         {fileOpen && needsPermission ? (
           <button
             className="permission-button"
             type="button"
+            aria-label={t("grantWrite")}
+            title={t("grantWrite")}
             onClick={onReauthorize}
           >
             <FileKey size={14} aria-hidden="true" />
-            {t("grantWrite")}
+            <span>{t("grantWrite")}</span>
           </button>
         ) : null}
         <button
           className="icon-button"
           type="button"
-          aria-label={`Use ${theme === "dark" ? "light" : "dark"} theme`}
+          aria-label={theme === "dark" ? t("useLightTheme") : t("useDarkTheme")}
           onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")}
         >
           {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
         </button>
-        <EidosFileLanguageSelect />
-        <AppMenu label={t("menuMore")} sections={moreSections} align="end" />
+        <AppMenu
+          label={t("menuMore")}
+          sections={moreSections}
+          triggerIcon={Ellipsis}
+          iconOnly
+          align="end"
+        />
       </div>
     </header>
   )

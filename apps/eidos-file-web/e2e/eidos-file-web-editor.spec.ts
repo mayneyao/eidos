@@ -223,6 +223,17 @@ async function clickFileMenuItem(page: Page, name: string): Promise<void> {
   )
 }
 
+async function selectTitlebarLanguage(
+  page: Page,
+  language: string
+): Promise<void> {
+  await page.locator(".title-actions .app-menu-trigger").first().click()
+  await page
+    .getByRole("menu")
+    .getByRole("menuitemradio", { name: language, exact: true })
+    .click()
+}
+
 async function toggleFirstComplete(
   page: Page,
   scope = page.locator(".eidos-file-content"),
@@ -606,8 +617,13 @@ test("opens an advanced starter file from the template picker", async ({
   await page.locator(".title-file-menu .app-menu-trigger").first().click()
   const menu = page.getByRole("menu", { name: "File" })
   await expect(menu).toBeVisible()
+  await expect(menu.getByText("Templates", { exact: true })).toBeHidden()
+  await expect(menu.getByRole("menuitem")).toHaveCount(6)
+  await menu
+    .getByRole("menuitem", { name: "New from template…", exact: true })
+    .click()
   await expect(menu.getByText("Templates", { exact: true })).toBeVisible()
-  await expect(menu.getByRole("menuitem")).toHaveCount(13)
+  await expect(menu.getByRole("menuitem")).toHaveCount(9)
 
   const templateResponse = page.waitForResponse((response) =>
     response.url().includes("personal-crm")
@@ -1440,7 +1456,7 @@ test("imports CSV through the explicitly composed editor plugin", async ({
   await expect(page.locator("[data-testid='glide-cell-1-0']")).toHaveText(
     "Alpha"
   )
-  await page.getByRole("combobox", { name: "Language" }).selectOption("zh")
+  await selectTitlebarLanguage(page, "简体中文")
   await page.getByRole("button", { name: "添加 Eidos File 数据表" }).click()
   await expect(
     page.getByRole("button", {
@@ -2183,7 +2199,7 @@ test("switches the live Eidos File experience between English and Chinese", asyn
   await page.goto("/")
   await waitForSampleEditor(page)
 
-  await page.getByRole("combobox", { name: "Language" }).selectOption("zh")
+  await selectTitlebarLanguage(page, "简体中文")
   await expect(
     page.locator(".title-file-menu .app-menu-trigger").first()
   ).toContainText("文件")
@@ -2238,7 +2254,7 @@ test("keeps the editor first and links out to the Eidos File documentation", asy
   ).toBeVisible()
   await page.keyboard.press("Escape")
 
-  await page.getByRole("combobox", { name: "Language" }).selectOption("zh")
+  await selectTitlebarLanguage(page, "简体中文")
   await expect(
     page.locator(".title-file-menu .app-menu-trigger").first()
   ).toContainText("文件")
