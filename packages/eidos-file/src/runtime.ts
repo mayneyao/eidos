@@ -2274,6 +2274,45 @@ export class EidosFileRuntime {
     )
   }
 
+  private removeFieldFromViewLayouts(tableId: string, fieldId: string): void {
+    const views = this.connection.query<{
+      id: string
+      layout_json: string
+    }>(
+      `SELECT id, layout_json FROM ${EIDOS_FILE_VIEWS_TABLE} WHERE table_id = ?`,
+      [tableId]
+    )
+    for (const view of views) {
+      const layout = jsonObject(view.layout_json)
+      for (const key of ["cardFields", "fieldOrder", "hiddenFields"] as const) {
+        if (Array.isArray(layout[key])) {
+          layout[key] = layout[key].filter((value) => value !== fieldId)
+        }
+      }
+      for (const key of ["coverField", "groupField"] as const) {
+        if (layout[key] === fieldId) layout[key] = null
+      }
+      if (
+        layout.fieldWidths &&
+        typeof layout.fieldWidths === "object" &&
+        !Array.isArray(layout.fieldWidths)
+      ) {
+        const fieldWidths = {
+          ...(layout.fieldWidths as Record<string, unknown>),
+        }
+        delete fieldWidths[fieldId]
+        layout.fieldWidths = fieldWidths
+      }
+      const next = canonicalizeEidosFileJson(layout)
+      if (next === view.layout_json) continue
+      this.connection.run(
+        `UPDATE ${EIDOS_FILE_VIEWS_TABLE}
+            SET layout_json = ?, updated_at = ? WHERE id = ?`,
+        [next, this.operationInstant(), view.id]
+      )
+    }
+  }
+
   deleteField(
     tableId: string,
     fieldKey: string,
@@ -2341,6 +2380,7 @@ export class EidosFileRuntime {
           )
         }
       }
+      this.removeFieldFromViewLayouts(tableId, field.id!)
       if (field.type === "relation") this.dropRelationTriggers(field.id!)
       if (field.physicalName) {
         this.connection.exec(
@@ -3866,7 +3906,6 @@ export class EidosFileRuntime {
 
   deleteRows(tableId: string, rowIds: string[]): string[] {
     if (rowIds.length === 0) return []
-    const table = this.getTable(tableId)
     const ids = Array.from(
       new Set(rowIds.map((id) => assertEidosFileUuid(id, "Row ID")))
     )
@@ -3876,24 +3915,7 @@ export class EidosFileRuntime {
         "deleteRows accepts at most 500 Row IDs"
       )
     }
-    return this.mutate(() => {
-      const existing = this.connection
-        .query<{ id: string }>(
-          `SELECT "_id" AS id
-             FROM ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
-            WHERE "_id" IN (${ids.map(() => "?").join(", ")})`,
-          ids
-        )
-        .map((row) => uuid(row.id))
-      if (existing.length > 0) {
-        this.connection.run(
-          `DELETE FROM ${quoteIdentifier(table.physicalName ?? table.rawTableName)}
-            WHERE "_id" IN (${existing.map(() => "?").join(", ")})`,
-          existing
-        )
-      }
-      return existing
-    })
+    return this.mutateRows({ tableId, delete: ids }).deleted
   }
 
   deleteRowRanges(

@@ -10,6 +10,7 @@ import {
   type CreateEidosFileFieldInput,
   type CreateEidosFileTableInput,
   type CreateEidosFileViewInput,
+  type ConversionPolicy,
   type EidosFileColumnStatConfig,
   type EidosFileColumnStatResult,
   type EidosFileCsvImportOptions,
@@ -64,15 +65,40 @@ import {
 import type { EidosFileEditorDataSource } from "./data-source"
 
 const DEFAULT_PAGE_SIZE = 250
-const CONVERSION_POLICIES = [
-  "round-binary64",
-  "round-ties-even",
-  "zero-false-nonzero-true",
-  "utc-date",
-  "first",
-  "json-null-to-sql-null",
-  "null-to-empty-list",
-] as const
+
+function conversionPolicies(from: string, to: string): ConversionPolicy[] {
+  const policies: ConversionPolicy[] = []
+  if (from === "json" && to !== "json" && to !== "text") {
+    policies.push("json-null-to-sql-null")
+  }
+  if (from === "integer" && (to === "number" || to === "json")) {
+    policies.push("round-binary64")
+  }
+  if ((from === "integer" || from === "number") && to === "checkbox") {
+    policies.push("zero-false-nonzero-true")
+  }
+  if (from === "datetime" && to === "date") policies.push("utc-date")
+  if (from === "multi-select" && to === "select") policies.push("first")
+  if (
+    !["multi-select", "file", "relation"].includes(from) &&
+    ["multi-select", "file", "relation"].includes(to)
+  ) {
+    policies.push("null-to-empty-list")
+  }
+  return policies
+}
+
+function conversionTargetNullable(
+  from: string,
+  to: string,
+  sourceNullable: boolean
+): boolean {
+  return (
+    sourceNullable ||
+    (from === "multi-select" && to === "select") ||
+    (from === "json" && to !== "json" && to !== "text")
+  )
+}
 
 /**
  * Presents the established rich editor contract over the normative Runtime
@@ -470,24 +496,26 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     tableId: string,
     rowIds: string[]
   ): Promise<EidosFileRowsDeleteResult> {
-    let deletedCount = 0
-    for (let offset = 0; offset < rowIds.length; offset += 500) {
-      const batch = rowIds.slice(offset, offset + 500)
-      if (batch.length === 0) continue
+    const ids = [...new Set(rowIds)]
+    if (ids.length > 500) {
+      throw new Error(
+        "deleteRows accepts at most 500 Row IDs per atomic operation"
+      )
+    }
+    if (ids.length > 0) {
       const result = await this.runtime.mutateRows(
         {
           tableId,
           expectedRevision: this.revision(),
-          changes: batch.map((rowId) => ({ kind: "delete" as const, rowId })),
+          changes: ids.map((rowId) => ({ kind: "delete" as const, rowId })),
         },
         this.context("delete-rows")
       )
       this.acceptRevision(result.revision)
-      deletedCount += result.affectedRows.length
     }
     return {
       tableId,
-      deletedCount,
+      deletedCount: ids.length,
       rowCount: await this.countRows(tableId, {}),
       revision: this.editorRevision(),
     }
@@ -601,7 +629,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
                   cardinality: "many",
                   onDelete: "restrict",
                 },
-          policies: [...CONVERSION_POLICIES],
+          policies: conversionPolicies(field.kind, target),
         })
       } else if (
         [
@@ -633,8 +661,12 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
             | "select"
             | "multi-select"
             | "file",
-          toNullable: field.nullable,
-          policies: [...CONVERSION_POLICIES],
+          toNullable: conversionTargetNullable(
+            field.kind,
+            target,
+            field.nullable
+          ),
+          policies: conversionPolicies(field.kind, target),
         })
       } else {
         throw new Error(`Field type cannot be converted: ${target}`)
@@ -691,8 +723,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     }
     if (leaves.length > 0) {
       await this.commitSchema(
-        leaves.length === 1 ? leaves[0]! : { kind: "batch", changes: leaves },
-        true
+        leaves.length === 1 ? leaves[0]! : { kind: "batch", changes: leaves }
       )
     }
     return this.getSnapshot()
@@ -1067,6 +1098,15 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
           .map((warning) => warning.message)
           .filter(Boolean)
           .join("; ") || "Schema change is forbidden"
+      )
+    }
+    if (plan.classification === "explicit-lossy" && !confirmLossy) {
+      throw new Error(
+        plan.warnings
+          .map((warning) => warning.message)
+          .filter(Boolean)
+          .join("; ") ||
+          "Schema change would discard data and requires explicit confirmation"
       )
     }
     const result = await this.runtime.mutateSchema(

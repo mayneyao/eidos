@@ -2586,6 +2586,31 @@ export class EidosRuntimeService implements RuntimeClient {
             object: "field",
             id: leaf.fieldId,
           })
+          for (const view of this.core.listViews(field.tableId)) {
+            const queryReferencesField =
+              view.sorts.some((sort) => sort.field === leaf.fieldId) ||
+              compatibilityFilterReferencesField(view.filter, leaf.fieldId)
+            const layoutReferencesField = knownViewLayoutReferencesField(
+              view.properties,
+              leaf.fieldId
+            )
+            if (!queryReferencesField && !layoutReferencesField) continue
+            dependencies.set("view:" + view.id, {
+              object: "view",
+              id: view.id,
+            })
+            if (queryReferencesField) {
+              forbid(
+                "dependency-blocked",
+                "Saved View query still references the Field",
+                {
+                  tableId: field.tableId,
+                  fieldId: leaf.fieldId,
+                  viewId: view.id,
+                }
+              )
+            }
+          }
           break
         }
         case "rename-field":
@@ -3477,6 +3502,43 @@ function runtimeQueryFieldIds(query: RowQuery | undefined): string[] {
   }
   if (query.filter) visit(query.filter)
   return [...ids]
+}
+
+function compatibilityFilterReferencesField(
+  filter: EidosFileFilterGroup | null,
+  fieldId: string
+): boolean {
+  if (!filter) return false
+  return filter.children.some((child) =>
+    child.type === "group"
+      ? compatibilityFilterReferencesField(child, fieldId)
+      : child.field === fieldId
+  )
+}
+
+function knownViewLayoutReferencesField(
+  layout: Record<string, unknown> | null,
+  fieldId: string
+): boolean {
+  if (!layout) return false
+  if (
+    ["cardFields", "fieldOrder", "hiddenFields"].some(
+      (key) => Array.isArray(layout[key]) && layout[key].includes(fieldId)
+    )
+  ) {
+    return true
+  }
+  if (
+    layout.coverField === fieldId ||
+    layout.groupField === fieldId ||
+    (layout.fieldWidths !== null &&
+      typeof layout.fieldWidths === "object" &&
+      !Array.isArray(layout.fieldWidths) &&
+      Object.prototype.hasOwnProperty.call(layout.fieldWidths, fieldId))
+  ) {
+    return true
+  }
+  return false
 }
 
 function reverseRuntimeQuery(

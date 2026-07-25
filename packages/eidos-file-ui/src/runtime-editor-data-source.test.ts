@@ -20,6 +20,151 @@ const TEAM_ROW = "018f0000-0000-7000-8000-000000000008"
 const MISSING_TEAM_ROW = "018f0000-0000-7000-8000-000000000009"
 const SIGNALS = "018f0000-0000-7000-8000-000000000010"
 
+function conversionRuntime(
+  classification: "lossless-rewrite" | "explicit-lossy"
+) {
+  let revision = "1"
+  let kind: "multi-select" | "select" = "multi-select"
+  let plannedChange: unknown
+  const preflightSchema = vi.fn(async (request: { change: unknown }) => {
+    plannedChange = request.change
+    return {
+      fileId: FILE,
+      baseRevision: revision,
+      classification,
+      planToken: "conversion-plan",
+      actionsHash: "conversion-actions",
+      affectedRows: "1",
+      dependencyCount: "0",
+      dependencies: [],
+      warnings:
+        classification === "explicit-lossy"
+          ? [
+              {
+                code: "list-tail-loss" as const,
+                severity: "warning" as const,
+                fieldId: SIGNALS,
+                message: "Converting this field would discard list values",
+              },
+            ]
+          : [],
+      warningsTruncated: false,
+      valueChanges: [],
+      valueChangesTruncated: false,
+      expiresInMilliseconds: 60_000,
+      expiresAt: "2026-07-26T00:01:00.000Z",
+    }
+  })
+  const mutateSchema = vi.fn(async () => {
+    kind = "select"
+    revision = "2"
+    return {
+      fileId: FILE,
+      revision,
+      changed: true,
+      createdObjects: [],
+      affectedTableIds: [PROJECTS],
+      affectedFieldIds: [SIGNALS],
+    }
+  })
+  const mutateRows = vi.fn(
+    async (request: RowMutation): Promise<MutationResult> => ({
+      fileId: FILE,
+      revision: "2",
+      changed: true,
+      created: [],
+      affectedRows: [
+        ...request.changes.flatMap((change) =>
+          change.kind === "delete"
+            ? [{ tableId: PROJECTS, rowId: change.rowId }]
+            : []
+        ),
+        { tableId: TEAMS, rowId: TEAM_ROW },
+      ],
+    })
+  )
+  const runtime = {
+    async negotiate() {
+      return { version: "1.0" as const, capabilities: {}, limits: {} }
+    },
+    async getSnapshot() {
+      return {
+        fileId: FILE,
+        format: { major: 1 as const, minor: 0 as const },
+        revision,
+        title: "Fixture",
+        defaultTableId: PROJECTS,
+        schemaCounts: {
+          tables: "1",
+          fields: "2",
+          views: "0",
+          features: "0",
+        },
+      }
+    },
+    async getSchemaPage() {
+      return {
+        fileId: FILE,
+        revision,
+        objects: [
+          {
+            object: "table" as const,
+            id: PROJECTS,
+            name: "Projects",
+            labelFieldId: TITLE,
+            position: "0",
+            settings: {},
+          },
+          {
+            object: "field" as const,
+            id: TITLE,
+            tableId: PROJECTS,
+            name: "Title",
+            kind: "text" as const,
+            valueType: "text" as const,
+            systemRole: null,
+            nullable: false,
+            position: "0",
+            settings: {},
+            writable: true,
+          },
+          {
+            object: "field" as const,
+            id: SIGNALS,
+            tableId: PROJECTS,
+            name: "Signals",
+            kind,
+            valueType: kind,
+            systemRole: null,
+            nullable: kind === "select",
+            position: "1",
+            settings: {},
+            writable: true,
+          },
+        ],
+        nextCursor: null,
+      }
+    },
+    async aggregate() {
+      return {
+        fileId: FILE,
+        revision,
+        results: [{ key: "count", op: "count-all" as const, value: "1" }],
+      }
+    },
+    preflightSchema,
+    mutateSchema,
+    mutateRows,
+  } as unknown as RuntimeClient
+  return {
+    runtime,
+    preflightSchema,
+    mutateSchema,
+    mutateRows,
+    plannedChange: () => plannedChange,
+  }
+}
+
 describe("EidosRuntimeEditorDataSource", () => {
   it("persists a complete Table drag order with stable IDs", async () => {
     let revision = "1"
@@ -470,5 +615,63 @@ describe("EidosRuntimeEditorDataSource", () => {
       }),
       expect.any(Object)
     )
+  })
+
+  it("plans Multi-select to Select with a nullable target and no implicit lossy confirmation", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+
+    await source.updateField(PROJECTS, SIGNALS, { type: "select" })
+
+    expect(fixture.plannedChange()).toEqual({
+      kind: "convert-field",
+      fieldId: SIGNALS,
+      to: "select",
+      toNullable: true,
+      policies: ["first"],
+    })
+    expect(fixture.mutateSchema).toHaveBeenCalledWith(
+      expect.not.objectContaining({ confirmLossy: true }),
+      expect.any(Object)
+    )
+  })
+
+  it("stops an explicit-lossy conversion after preflight instead of silently applying it", async () => {
+    const fixture = conversionRuntime("explicit-lossy")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+
+    await expect(
+      source.updateField(PROJECTS, SIGNALS, { type: "select" })
+    ).rejects.toThrow(/discard list values/)
+    expect(fixture.mutateSchema).not.toHaveBeenCalled()
+  })
+
+  it("keeps editor deletes in one Runtime transaction and counts only deleted rows", async () => {
+    const fixture = conversionRuntime("lossless-rewrite")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+
+    await expect(
+      source.deleteRows(PROJECTS, [PROJECT_ROW])
+    ).resolves.toMatchObject({ deletedCount: 1 })
+    expect(fixture.mutateRows).toHaveBeenCalledTimes(1)
+    await expect(
+      source.deleteRows(
+        PROJECTS,
+        Array.from({ length: 501 }, (_, index) => `row-${index}`)
+      )
+    ).rejects.toThrow(/at most 500/i)
+    expect(fixture.mutateRows).toHaveBeenCalledTimes(1)
   })
 })
