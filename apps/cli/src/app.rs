@@ -10,16 +10,20 @@ use eidos_file_core::model::{
 use eidos_file_core::query::{
     FilterNode, ReadRowsOptions, RowQuery, SearchSpec, SortTerm, read_rows,
 };
-use eidos_file_core::rows::{RowChange, RowMutation, mutate_rows};
+use eidos_file_core::rows::{
+    RowChange, RowMutation, ensure_revision, mutate_rows, mutate_rows_in_transaction,
+};
 use eidos_file_core::schema_ops::{SchemaLeafChange, apply_schema_change, preview_schema_change};
 use eidos_file_core::validate::{ValidationLevel, validate};
 use eidos_file_core::{EidosError, Result as CoreResult};
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{Connection, OpenFlags, TransactionBehavior};
+use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 use crate::cli::{
-    Command, CreateArgs, FileArgs, QueryArgs, RowAddArgs, RowCommand, RowDeleteArgs, RowUpdateArgs,
-    RowsArgs, SchemaApplyArgs, SchemaArgs, ValidateArgs, ValidationLevelArg,
+    ApplyArgs, Command, ContextArgs, CreateArgs, FileArgs, QueryArgs, RowAddArgs, RowCommand,
+    RowDeleteArgs, RowUpdateArgs, RowsArgs, SchemaApplyArgs, SchemaArgs, ValidateArgs,
+    ValidationLevelArg,
 };
 use crate::error::{AppError, Result};
 
@@ -43,7 +47,9 @@ pub fn run(command: Command) -> Result<CommandOutput> {
         Command::Inspect(args) => inspect(args),
         Command::Tables(args) => tables(args),
         Command::Schema(args) => schema(args),
+        Command::Context(args) => context(args),
         Command::Query(args) => query(args),
+        Command::Apply(args) => apply(args),
         Command::Rows(args) => rows(args),
         Command::Validate(args) => validate_file(args),
         Command::SchemaApply(args) => schema_apply(args),
@@ -308,12 +314,226 @@ fn schema(SchemaArgs { file, table }: SchemaArgs) -> Result<CommandOutput> {
     })))
 }
 
-fn query(args: QueryArgs) -> Result<CommandOutput> {
-    if args.search.is_some() && args.search_fields.is_empty() {
+fn context(args: ContextArgs) -> Result<CommandOutput> {
+    let conn = open_file(&args.file, false)?;
+    let meta = load_file_meta(&conn)?;
+    let tables = load_tables(&conn)?;
+    let all_fields = load_fields(&conn)?;
+
+    let selected = match args.table.as_deref() {
+        Some(reference) => Some(resolve_table(&tables, reference)?),
+        None => match meta.default_table_id.as_deref() {
+            Some(default_id) => Some(resolve_table(&tables, default_id)?),
+            None => match tables.as_slice() {
+                [only] => Some(only),
+                _ => None,
+            },
+        },
+    };
+
+    let Some(table) = selected else {
+        let summaries: Vec<Value> = tables
+            .iter()
+            .map(|table| {
+                let label = all_fields
+                    .iter()
+                    .find(|field| field.id == table.label_field_id)
+                    .map(|field| field.name.as_str());
+                json!({
+                    "id": table.id,
+                    "name": table.name,
+                    "labelField": label,
+                })
+            })
+            .collect();
+        return Ok(CommandOutput::success(json!({
+            "revision": meta.revision.to_string(),
+            "title": meta.title,
+            "requiresTable": tables.len() > 1,
+            "tables": summaries,
+        })));
+    };
+
+    let fields: Vec<FieldMeta> = all_fields
+        .into_iter()
+        .filter(|field| field.table_id == table.id)
+        .collect();
+    let relations = load_relation_fields(&conn)?;
+    let query = parse_row_query(
+        args.where_json.as_deref(),
+        args.sort.as_deref(),
+        args.search,
+        args.search_fields,
+    )?;
+    let projection = if args.fields.is_empty() {
+        (!args.full).then(|| {
+            fields
+                .iter()
+                .filter(|field| field.system_role.is_none())
+                .map(|field| field.name.clone())
+                .collect()
+        })
+    } else {
+        Some(args.fields)
+    };
+    let page = read_rows(
+        &conn,
+        table,
+        &fields,
+        &query,
+        &ReadRowsOptions {
+            projection,
+            include_virtual: false,
+            limit: Some(args.limit),
+            offset: Some(args.offset),
+        },
+    )?;
+    let label = fields
+        .iter()
+        .find(|field| field.id == table.label_field_id)
+        .map(|field| field.name.as_str());
+
+    let value = if args.full {
+        let relation_values: Vec<Value> = relations
+            .iter()
+            .filter(|relation| fields.iter().any(|field| field.id == relation.field_id))
+            .map(|relation| {
+                json!({
+                    "fieldId": relation.field_id,
+                    "direction": relation.direction,
+                    "targetTableId": relation.target_table_id,
+                    "cardinality": relation.cardinality,
+                    "inverseOfFieldId": relation.inverse_of_field_id,
+                    "onDelete": relation.on_delete,
+                })
+            })
+            .collect();
+        let views: Vec<Value> = load_views(&conn)?
+            .into_iter()
+            .filter(|view| view.table_id == table.id)
+            .map(|view| {
+                json!({
+                    "id": view.id,
+                    "name": view.name,
+                    "type": view.view_type,
+                    "query": parse_stored_json(&view.query_json),
+                    "layout": parse_stored_json(&view.layout_json),
+                    "position": view.position.to_string(),
+                })
+            })
+            .collect();
+        json!({
+            "compact": false,
+            "revision": meta.revision.to_string(),
+            "file": file_meta_json(&args.file, &meta),
+            "table": table_json(table),
+            "labelField": label,
+            "fields": fields.iter().map(field_json).collect::<Vec<_>>(),
+            "relations": relation_values,
+            "views": views,
+            "rows": page.rows,
+            "totalEstimate": page.total_estimate,
+            "limit": args.limit,
+            "offset": args.offset,
+        })
+    } else {
+        let compact_fields: Vec<Value> = fields
+            .iter()
+            .filter(|field| field.system_role.is_none())
+            .map(|field| {
+                let settings = parse_stored_json(&field.settings_json);
+                let options = settings
+                    .get("options")
+                    .and_then(Value::as_array)
+                    .map(|options| {
+                        options
+                            .iter()
+                            .filter_map(|option| option.get("name").and_then(Value::as_str))
+                            .collect::<Vec<_>>()
+                    });
+                let relation = relations
+                    .iter()
+                    .find(|relation| relation.field_id == field.id)
+                    .map(|relation| {
+                        let target = tables
+                            .iter()
+                            .find(|target| target.id == relation.target_table_id)
+                            .map(|target| target.name.as_str());
+                        json!({
+                            "direction": relation.direction,
+                            "targetTable": target,
+                            "cardinality": relation.cardinality,
+                            "onDelete": relation.on_delete,
+                        })
+                    });
+                let mut value = json!({
+                    "name": field.name,
+                    "type": field.field_type,
+                    "nullable": field.nullable,
+                });
+                if let Some(options) = options {
+                    value["options"] = json!(options);
+                }
+                if let Some(relation) = relation {
+                    value["relation"] = relation;
+                }
+                value
+            })
+            .collect();
+        json!({
+            "compact": true,
+            "revision": meta.revision.to_string(),
+            "title": meta.title,
+            "table": { "name": table.name, "labelField": label },
+            "fields": compact_fields,
+            "rows": page.rows,
+            "totalEstimate": page.total_estimate,
+            "limit": args.limit,
+            "offset": args.offset,
+            "capabilities": {
+                "apply": true,
+                "formulaEvaluation": false,
+                "lookupEvaluation": false,
+            },
+        })
+    };
+    Ok(CommandOutput::success(value))
+}
+
+fn parse_row_query(
+    where_json: Option<&str>,
+    sort_json: Option<&str>,
+    search: Option<String>,
+    search_fields: Vec<String>,
+) -> Result<RowQuery> {
+    if search.is_some() && search_fields.is_empty() {
         return Err(AppError::invalid_request(
             "--search requires at least one --search-fields value",
         ));
     }
+    let filter = where_json
+        .map(read_json_source)
+        .transpose()?
+        .map(normalize_field_members)
+        .map(serde_json::from_value::<FilterNode>)
+        .transpose()?;
+    let sort = sort_json
+        .map(read_json_source)
+        .transpose()?
+        .map(normalize_field_members)
+        .map(serde_json::from_value::<Vec<SortTerm>>)
+        .transpose()?;
+    Ok(RowQuery {
+        filter,
+        search: search.map(|text| SearchSpec {
+            text,
+            fields: search_fields,
+        }),
+        sort,
+    })
+}
+
+fn query(args: QueryArgs) -> Result<CommandOutput> {
     let conn = open_file(&args.file, false)?;
     let meta = load_file_meta(&conn)?;
     let tables = load_tables(&conn)?;
@@ -322,30 +542,12 @@ fn query(args: QueryArgs) -> Result<CommandOutput> {
         .into_iter()
         .filter(|field| field.table_id == table.id)
         .collect();
-    let filter = args
-        .where_json
-        .as_deref()
-        .map(read_json_source)
-        .transpose()?
-        .map(normalize_field_members)
-        .map(serde_json::from_value::<FilterNode>)
-        .transpose()?;
-    let sort = args
-        .sort
-        .as_deref()
-        .map(read_json_source)
-        .transpose()?
-        .map(normalize_field_members)
-        .map(serde_json::from_value::<Vec<SortTerm>>)
-        .transpose()?;
-    let query = RowQuery {
-        filter,
-        search: args.search.map(|text| SearchSpec {
-            text,
-            fields: args.search_fields,
-        }),
-        sort,
-    };
+    let query = parse_row_query(
+        args.where_json.as_deref(),
+        args.sort.as_deref(),
+        args.search,
+        args.search_fields,
+    )?;
     let page = read_rows(
         &conn,
         table,
@@ -387,6 +589,198 @@ fn normalize_field_members(value: Value) -> Value {
         }
         other => other,
     }
+}
+
+fn default_apply_expect() -> usize {
+    1
+}
+
+fn default_apply_validation() -> ValidationLevel {
+    ValidationLevel::Full
+}
+
+fn default_diagnostics_limit() -> usize {
+    100
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ApplyRequest {
+    revision: String,
+    table: String,
+    #[serde(rename = "match")]
+    match_values: Map<String, Value>,
+    #[serde(default = "default_apply_expect")]
+    expect: usize,
+    set: Map<String, Value>,
+    #[serde(default = "default_apply_validation")]
+    validate: ValidationLevel,
+    #[serde(default = "default_diagnostics_limit")]
+    diagnostics_limit: usize,
+    #[serde(default)]
+    returning: Vec<String>,
+}
+
+fn apply(args: ApplyArgs) -> Result<CommandOutput> {
+    let request: ApplyRequest = serde_json::from_value(read_json_source(&args.request)?)?;
+    if request.match_values.is_empty() {
+        return Err(AppError::invalid_request("apply match must not be empty"));
+    }
+    if request.set.is_empty() {
+        return Err(AppError::invalid_request("apply set must not be empty"));
+    }
+    if !(1..=10_000).contains(&request.expect) {
+        return Err(AppError::invalid_request(
+            "apply expect must be between 1 and 10000",
+        ));
+    }
+    if request.diagnostics_limit == 0 {
+        return Err(AppError::invalid_request(
+            "apply diagnosticsLimit must be positive",
+        ));
+    }
+
+    let mut conn = open_file(&args.file, true)?;
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(EidosError::from)?;
+    ensure_revision(&tx, &request.revision)?;
+    let tables = load_tables(&tx)?;
+    let table = resolve_table(&tables, &request.table)?.clone();
+    let fields: Vec<FieldMeta> = load_fields(&tx)?
+        .into_iter()
+        .filter(|field| field.table_id == table.id)
+        .collect();
+    let match_filter = if request.match_values.len() == 1 {
+        let (field_id, value) = request
+            .match_values
+            .iter()
+            .next()
+            .expect("non-empty match checked above");
+        FilterNode::Eq {
+            field_id: field_id.clone(),
+            value: value.clone(),
+        }
+    } else {
+        FilterNode::And {
+            args: request
+                .match_values
+                .iter()
+                .map(|(field_id, value)| FilterNode::Eq {
+                    field_id: field_id.clone(),
+                    value: value.clone(),
+                })
+                .collect(),
+        }
+    };
+    let match_page = read_rows(
+        &tx,
+        &table,
+        &fields,
+        &RowQuery {
+            filter: Some(match_filter),
+            search: None,
+            sort: None,
+        },
+        &ReadRowsOptions {
+            projection: Some(Vec::new()),
+            include_virtual: false,
+            limit: Some(u32::try_from(request.expect + 1).expect("expect is bounded")),
+            offset: Some(0),
+        },
+    )?;
+    let matched = match_page
+        .total_estimate
+        .unwrap_or(match_page.rows.len() as u64);
+    if matched != request.expect as u64 {
+        return Err(AppError::invalid_request(format!(
+            "apply expected {} matching row(s), found {matched}",
+            request.expect
+        )));
+    }
+    let row_ids: Vec<String> = match_page
+        .rows
+        .iter()
+        .map(|row| {
+            row.get("_id")
+                .and_then(Value::as_str)
+                .map(ToOwned::to_owned)
+                .ok_or_else(|| AppError::internal("matched row has no _id"))
+        })
+        .collect::<Result<_>>()?;
+    let returning = if request.returning.is_empty() {
+        request.set.keys().cloned().collect()
+    } else {
+        request.returning.clone()
+    };
+    let mutation = RowMutation {
+        table_id: table.id.clone(),
+        expected_revision: Some(request.revision.clone()),
+        changes: row_ids
+            .iter()
+            .map(|row_id| RowChange::Update {
+                row_id: row_id.clone(),
+                values: request.set.clone(),
+            })
+            .collect(),
+    };
+    let result = mutate_rows_in_transaction(&tx, &mutation)?;
+    let report = validate(&tx, request.validate, request.diagnostics_limit)?;
+    let validation = json!({
+        "level": request.validate,
+        "valid": report.valid,
+        "diagnostics": report.diagnostics,
+        "truncated": report.truncated,
+    });
+    if !report.valid {
+        tx.rollback().map_err(EidosError::from)?;
+        return Ok(CommandOutput {
+            value: json!({
+                "applied": false,
+                "rolledBack": true,
+                "baseRevision": request.revision,
+                "matched": matched,
+                "validation": validation,
+            }),
+            success: false,
+        });
+    }
+    let returned = read_rows(
+        &tx,
+        &table,
+        &fields,
+        &RowQuery {
+            filter: Some(FilterNode::In {
+                field_id: "_id".into(),
+                values: row_ids.iter().cloned().map(Value::String).collect(),
+            }),
+            search: None,
+            sort: None,
+        },
+        &ReadRowsOptions {
+            projection: Some(returning),
+            include_virtual: false,
+            limit: Some(u32::try_from(request.expect).expect("expect is bounded")),
+            offset: Some(0),
+        },
+    )?
+    .rows;
+    if result.changed {
+        tx.commit().map_err(EidosError::from)?;
+    } else {
+        tx.rollback().map_err(EidosError::from)?;
+    }
+    Ok(CommandOutput::success(json!({
+        "applied": true,
+        "fileId": result.file_id,
+        "baseRevision": request.revision,
+        "revision": result.revision,
+        "changed": result.changed,
+        "matched": matched,
+        "affectedRows": result.affected_rows,
+        "rows": returned,
+        "validation": validation,
+    })))
 }
 
 fn rows(RowsArgs { file, command }: RowsArgs) -> Result<CommandOutput> {

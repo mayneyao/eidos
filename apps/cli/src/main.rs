@@ -89,6 +89,24 @@ mod tests {
             rows.command,
             Command::Rows(ref args) if matches!(args.command, RowCommand::Add(_))
         ));
+
+        let context = parse_ok(&[
+            "eidos",
+            "tasks.eidos",
+            "context",
+            "Tasks",
+            "--fields",
+            "Title,Status",
+        ]);
+        assert!(matches!(context.command, Command::Context(_)));
+
+        let apply = parse_ok(&[
+            "eidos",
+            "tasks.eidos",
+            "apply",
+            r#"{"revision":"0","table":"Tasks","match":{"_id":"01900000-0000-7000-8000-000000000000"},"set":{"Status":"done"}}"#,
+        ]);
+        assert!(matches!(apply.command, Command::Apply(_)));
     }
 
     #[test]

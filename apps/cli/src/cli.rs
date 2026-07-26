@@ -29,8 +29,12 @@ pub enum Command {
     Tables(FileArgs),
     /// Read the complete logical schema or one table.
     Schema(SchemaArgs),
+    /// Read compact schema and rows for one agent working context.
+    Context(ContextArgs),
     /// Query logical rows from one table.
     Query(QueryArgs),
+    /// Match and update rows with revision checking and pre-commit validation.
+    Apply(ApplyArgs),
     /// Add, update, or delete rows atomically.
     Rows(RowsArgs),
     /// Validate file identity, structure, and content.
@@ -67,6 +71,35 @@ pub struct SchemaArgs {
 }
 
 #[derive(Debug, Args)]
+pub struct ContextArgs {
+    pub file: PathBuf,
+    /// Table name or stable ID. Defaults to the File default or its only table.
+    pub table: Option<String>,
+    /// FilterNode JSON. Field references may be names or stable IDs.
+    #[arg(long = "where")]
+    pub where_json: Option<String>,
+    /// SortTerm JSON array. Each item accepts field or fieldId.
+    #[arg(long)]
+    pub sort: Option<String>,
+    /// ASCII-folded search text.
+    #[arg(long)]
+    pub search: Option<String>,
+    /// Comma-separated fields searched by --search.
+    #[arg(long, value_delimiter = ',')]
+    pub search_fields: Vec<String>,
+    /// Comma-separated projected fields. _id is always returned.
+    #[arg(long, value_delimiter = ',')]
+    pub fields: Vec<String>,
+    #[arg(long, default_value_t = 20)]
+    pub limit: u32,
+    #[arg(long, default_value_t = 0)]
+    pub offset: u32,
+    /// Include stable IDs, system fields, settings, relations, and views.
+    #[arg(long)]
+    pub full: bool,
+}
+
+#[derive(Debug, Args)]
 pub struct QueryArgs {
     pub file: PathBuf,
     pub table: String,
@@ -89,6 +122,13 @@ pub struct QueryArgs {
     pub limit: u32,
     #[arg(long, default_value_t = 0)]
     pub offset: u32,
+}
+
+#[derive(Debug, Args)]
+pub struct ApplyArgs {
+    pub file: PathBuf,
+    /// Apply request JSON. Accepts inline JSON, @path, or - for stdin.
+    pub request: String,
 }
 
 #[derive(Debug, Args)]
@@ -174,7 +214,9 @@ const COMMANDS: &[&str] = &[
     "inspect",
     "tables",
     "schema",
+    "context",
     "query",
+    "apply",
     "rows",
     "validate",
     "schema-apply",

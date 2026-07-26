@@ -4,7 +4,9 @@
 
 - [Invocation](#invocation)
 - [Inspection and creation](#inspection-and-creation)
+- [Compact agent context](#compact-agent-context)
 - [Query](#query)
+- [Atomic matched update](#atomic-matched-update)
 - [Row mutations](#row-mutations)
 - [Schema mutations](#schema-mutations)
 - [Validation](#validation)
@@ -62,6 +64,23 @@ eidos create tracker.eidos \
 
 Creation refuses to overwrite an existing path.
 
+## Compact agent context
+
+Combine the File revision, compact field definitions, and a bounded row query:
+
+```bash
+eidos file.eidos context Tasks \
+  --fields Title,Status,Estimate \
+  --where '{"op":"in","field":"Status","values":["todo","doing"]}' \
+  --limit 50
+```
+
+Omit the table when the File has a default table or exactly one table. When
+several tables exist without a default, the response lists table summaries
+with `requiresTable: true`. Add `--full` to include stable schema IDs, system
+fields, complete settings, relations, and views. Query options use the same
+grammar as `query`.
+
 ## Query
 
 ```bash
@@ -104,6 +123,35 @@ Filter nodes accept `field` or `fieldId`:
 ```
 
 Rows are keyed by display names and always include `_id`. Integer values are returned as canonical decimal strings.
+
+## Atomic matched update
+
+Use `apply` for the common read-check-update-validate loop:
+
+```bash
+eidos file.eidos apply - <<'JSON'
+{
+  "revision": "4",
+  "table": "Tasks",
+  "match": {"_id": "019..."},
+  "expect": 1,
+  "set": {"Status": "done"},
+  "validate": "full",
+  "returning": ["Title", "Status"]
+}
+JSON
+```
+
+`match` is a non-empty object of equality predicates joined with AND. `expect`
+defaults to `1` and must equal the total matched row count. `set` is a non-empty
+sparse values object. `validate` defaults to `full`; supported values are
+`identity`, `structural`, `content`, `semantic`, and `full`. When `returning` is
+omitted, the response includes `_id` plus the fields named by `set`.
+
+The command opens one immediate transaction, evaluates the match, checks the
+revision, updates all matched rows, validates the proposed state, and commits
+only when validation succeeds. A stale revision or match-count mismatch makes
+no change. This initial version updates existing rows only.
 
 ## Row mutations
 

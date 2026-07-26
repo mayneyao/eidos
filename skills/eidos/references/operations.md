@@ -13,18 +13,14 @@
 
 ## Read-only analysis
 
-1. Inspect file identity and capabilities.
-2. Read the logical schema.
-3. Query a narrow projection with a bounded limit.
-4. Report the file revision with findings so the user knows the snapshot.
+Use one compact context call for ordinary analysis and report its revision:
 
 ```bash
-eidos research.eidos inspect
-eidos research.eidos schema Papers
-eidos research.eidos query Papers --fields Title,Status,Published --limit 100
+eidos research.eidos context Papers --fields Title,Status,Published --limit 100
 ```
 
-Never derive Eidos field semantics from physical SQLite table or column names.
+Use `context --full` or `schema` only when detailed metadata is relevant. Never
+derive Eidos field semantics from physical SQLite table or column names.
 
 ## Create a tracker
 
@@ -49,26 +45,23 @@ If creation fails, the CLI removes the incomplete new file. It never overwrites 
 
 ## Safe row update
 
-Inspect and select exact rows first:
+Load a narrow context, then use its revision and an exact match:
 
 ```bash
-eidos tracker.eidos inspect
-eidos tracker.eidos query Tasks \
+eidos tracker.eidos context Tasks \
   --where '{"op":"eq","field":"Status","value":"doing"}' \
   --fields Title,Status
 ```
 
-Use `_id` from the result. Re-inspect immediately before mutation and use that exact revision:
-
 ```bash
-eidos tracker.eidos rows update Tasks 019... \
-  --expected-revision 12 \
-  --values '{"Status":"done"}'
-
-eidos tracker.eidos validate --level full
+eidos tracker.eidos apply \
+  '{"revision":"12","table":"Tasks","match":{"_id":"019..."},"expect":1,"set":{"Status":"done"},"returning":["Title","Status"]}'
 ```
 
-For batch creation, one `rows add` with a JSON array is atomic and preferable to separate calls.
+`apply` checks revision and match count, validates inside its transaction, and
+returns the committed row. A separate final validation call is unnecessary.
+For batch creation, one `rows add` with a JSON array is atomic and preferable
+to separate calls; validate after lower-level mutations.
 
 ## Safe schema change
 

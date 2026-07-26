@@ -23,7 +23,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use rusqlite::types::Value as SqlValue;
-use rusqlite::{Connection, TransactionBehavior};
+use rusqlite::{Connection, Transaction, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
@@ -192,6 +192,13 @@ fn check_revision(conn: &Connection, expected_revision: Option<&str>) -> Result<
     Ok((meta.file_id, meta.revision))
 }
 
+/// Enforces one expected revision without starting a transaction. Call this
+/// inside an existing write transaction before evaluating mutation
+/// preconditions so stale requests fail before any request-dependent lookup.
+pub fn ensure_revision(conn: &Connection, expected_revision: &str) -> Result<()> {
+    check_revision(conn, Some(expected_revision)).map(|_| ())
+}
+
 /// Per-mutation view of one table's schema.
 struct TableContext {
     table: TableMeta,
@@ -338,7 +345,7 @@ pub fn mutate_rows(conn: &mut Connection, mutation: &RowMutation) -> Result<RowM
         ));
     }
     let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-    let result = mutate_rows_inner(&tx, mutation)?;
+    let result = mutate_rows_in_transaction(&tx, mutation)?;
     if result.changed {
         tx.commit()?;
     } else {
@@ -347,7 +354,20 @@ pub fn mutate_rows(conn: &mut Connection, mutation: &RowMutation) -> Result<RowM
     Ok(result)
 }
 
-fn mutate_rows_inner(conn: &Connection, mutation: &RowMutation) -> Result<RowMutationResult> {
+/// Applies `mutation` through an existing write transaction without deciding
+/// whether to commit it. Agent-facing orchestration can use this to evaluate
+/// query preconditions and run validation against the proposed final state
+/// before committing. The caller must commit changed results or roll back
+/// no-op results.
+pub fn mutate_rows_in_transaction(
+    conn: &Transaction<'_>,
+    mutation: &RowMutation,
+) -> Result<RowMutationResult> {
+    if mutation.changes.is_empty() {
+        return Err(EidosError::InvalidRequest(
+            "RowMutation.changes must be non-empty".into(),
+        ));
+    }
     let (file_id, current_revision) = check_revision(conn, mutation.expected_revision.as_deref())?;
     let instant = now_instant();
 
