@@ -11,6 +11,11 @@ describe("translateEidosFileUI", () => {
     expect(
       translateEidosFileUI("zh", "Delete {count} records?", { count: 3 })
     ).toBe("删除 3 条记录？")
+    expect(
+      translateEidosFileUI("zh", "Delete field “{name}”?", {
+        name: "负责人",
+      })
+    ).toBe("删除字段“负责人”？")
     expect(translateEidosFileUI("zh", "Formula")).toBe("公式")
     expect(translateEidosFileUI("zh", "Unavailable record")).toBe("记录不可用")
   })

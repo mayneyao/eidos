@@ -220,6 +220,9 @@ const zh: EidosFileUIMessageOverrides = {
   "Field type": "字段类型",
   "Edit field": "编辑字段",
   "Delete field": "删除字段",
+  "Delete field “{name}”?": "删除字段“{name}”？",
+  "All values stored in this field will be permanently removed from the Eidos File. This cannot be undone from the current view.":
+    "此字段中保存的所有值都会从 Eidos File 中永久删除，且无法在当前视图中撤销。",
   Text: "文本",
   Number: "数字",
   Integer: "整数",

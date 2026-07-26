@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { useCallback, useState } from "react"
 import type {
   EidosFileFieldInfo,
   EidosFileSnapshot,
@@ -7,6 +7,7 @@ import type {
 } from "@eidos.space/eidos-file"
 
 import type { EidosFileEditorDataSource } from "./data-source"
+import { EidosFileFieldDeleteDialog } from "./eidos-file-field-delete-dialog"
 import { EidosFileFieldPropertyPanel } from "./eidos-file-field-property-panel"
 import { eidosFileFieldKey } from "./eidos-file-field-visibility"
 
@@ -34,6 +35,8 @@ export function EidosFileRendererFieldPropertyPanel({
   onEditLookup?: (field: EidosFileFieldInfo) => void
   onError?: (error: unknown) => void
 }) {
+  const [deleteFieldTarget, setDeleteFieldTarget] =
+    useState<EidosFileFieldInfo | null>(null)
   const updateField = useCallback(
     async (target: EidosFileFieldInfo, changes: UpdateEidosFileFieldInput) => {
       const snapshot = await source.updateField(
@@ -47,28 +50,38 @@ export function EidosFileRendererFieldPropertyPanel({
   )
 
   const deleteField = useCallback(
-    (target: EidosFileFieldInfo) => {
-      void source
-        .deleteField(table.table.id, eidosFileFieldKey(target))
-        .then((snapshot) => {
-          onSnapshot?.(snapshot)
-          onClose?.()
-        })
-        .catch((error) => onError?.(error))
+    async (target: EidosFileFieldInfo) => {
+      const snapshot = await source.deleteField(
+        table.table.id,
+        eidosFileFieldKey(target)
+      )
+      onSnapshot?.(snapshot)
+      onClose?.()
     },
-    [onClose, onError, onSnapshot, source, table.table.id]
+    [onClose, onSnapshot, source, table.table.id]
   )
 
   return (
-    <EidosFileFieldPropertyPanel
-      field={field}
-      tables={tables}
-      disabled={disabled}
-      onClose={() => onClose?.()}
-      onUpdate={updateField}
-      onDelete={deleteField}
-      onEditFormula={onEditFormula}
-      onEditLookup={onEditLookup}
-    />
+    <>
+      <EidosFileFieldPropertyPanel
+        field={field}
+        tables={tables}
+        disabled={disabled}
+        onClose={() => onClose?.()}
+        onUpdate={updateField}
+        onDelete={setDeleteFieldTarget}
+        onEditFormula={onEditFormula}
+        onEditLookup={onEditLookup}
+      />
+      <EidosFileFieldDeleteDialog
+        field={deleteFieldTarget}
+        disabled={disabled}
+        onOpenChange={(open) => {
+          if (!open) setDeleteFieldTarget(null)
+        }}
+        onDelete={deleteField}
+        onError={onError}
+      />
+    </>
   )
 }

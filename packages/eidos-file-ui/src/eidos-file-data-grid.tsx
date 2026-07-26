@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react"
+import { useCallback, useMemo, useState } from "react"
 import type {
   EidosFileColumnStatConfig,
   EidosFileFieldInfo,
@@ -16,6 +16,7 @@ import type {
 
 import { EidosFileGrid } from "./eidos-file-grid"
 import type { EidosFileEditorDataSource } from "./data-source"
+import { EidosFileFieldDeleteDialog } from "./eidos-file-field-delete-dialog"
 import { eidosFileFieldKey } from "./eidos-file-field-visibility"
 import { searchEidosFileRelationRecords } from "./eidos-file-relation-search"
 
@@ -66,6 +67,8 @@ export function EidosFileDataGrid({
   onEditLookup,
   onError,
 }: EidosFileDataGridProps) {
+  const [deleteFieldTarget, setDeleteFieldTarget] =
+    useState<EidosFileFieldInfo | null>(null)
   const query = useMemo<EidosFileRowQuery>(
     () => ({
       ...(search.trim() ? { search: search.trim() } : {}),
@@ -127,16 +130,15 @@ export function EidosFileDataGrid({
   )
 
   const deleteField = useCallback(
-    (field: EidosFileFieldInfo) => {
-      void source
-        .deleteField(table.table.id, eidosFileFieldKey(field))
-        .then((snapshot) => {
-          onSnapshot?.(snapshot)
-          onFieldClose?.()
-        })
-        .catch((error) => onError?.(error))
+    async (field: EidosFileFieldInfo) => {
+      const snapshot = await source.deleteField(
+        table.table.id,
+        eidosFileFieldKey(field)
+      )
+      onSnapshot?.(snapshot)
+      onFieldClose?.()
     },
-    [onError, onFieldClose, onSnapshot, source, table.table.id]
+    [onFieldClose, onSnapshot, source, table.table.id]
   )
 
   const updateView = useCallback(
@@ -155,30 +157,43 @@ export function EidosFileDataGrid({
   )
 
   return (
-    <EidosFileGrid
-      table={table}
-      tables={tables}
-      view={view}
-      disabled={disabled}
-      reloadToken={reloadToken}
-      loadPage={loadPage}
-      loadColumnStats={loadColumnStats}
-      onAddRow={addRow}
-      onCellEdit={editCell}
-      propertyField={propertyField}
-      onPropertyFieldOpen={onFieldOpen}
-      onPropertyFieldClose={onFieldClose}
-      onFieldUpdate={updateField}
-      onAddField={onFieldAdd}
-      onEditFormula={onEditFormula}
-      onEditLookup={onEditLookup}
-      onDeleteField={deleteField}
-      onSearchRelation={searchRelation}
-      onRequestDeleteRows={
-        onDeleteRows ? (ranges) => void onDeleteRows(ranges, query) : undefined
-      }
-      onViewUpdate={view ? updateView : undefined}
-      onError={onError}
-    />
+    <>
+      <EidosFileGrid
+        table={table}
+        tables={tables}
+        view={view}
+        disabled={disabled}
+        reloadToken={reloadToken}
+        loadPage={loadPage}
+        loadColumnStats={loadColumnStats}
+        onAddRow={addRow}
+        onCellEdit={editCell}
+        propertyField={propertyField}
+        onPropertyFieldOpen={onFieldOpen}
+        onPropertyFieldClose={onFieldClose}
+        onFieldUpdate={updateField}
+        onAddField={onFieldAdd}
+        onEditFormula={onEditFormula}
+        onEditLookup={onEditLookup}
+        onDeleteField={setDeleteFieldTarget}
+        onSearchRelation={searchRelation}
+        onRequestDeleteRows={
+          onDeleteRows
+            ? (ranges) => void onDeleteRows(ranges, query)
+            : undefined
+        }
+        onViewUpdate={view ? updateView : undefined}
+        onError={onError}
+      />
+      <EidosFileFieldDeleteDialog
+        field={deleteFieldTarget}
+        disabled={disabled}
+        onOpenChange={(open) => {
+          if (!open) setDeleteFieldTarget(null)
+        }}
+        onDelete={deleteField}
+        onError={onError}
+      />
+    </>
   )
 }

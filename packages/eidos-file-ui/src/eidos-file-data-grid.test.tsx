@@ -228,4 +228,59 @@ describe("EidosFileDataGrid", () => {
     )
     expect(result).toEqual([{ id: "person_1", title: "Ada Lovelace" }])
   })
+
+  it("requires explicit confirmation before deleting a field", async () => {
+    const deleteField = vi.fn().mockResolvedValue({ tables: [table] })
+    const onSnapshot = vi.fn()
+    const source = {
+      getPage: vi.fn(),
+      calculateColumnStats: vi.fn(),
+      insertRow: vi.fn(),
+      updateRow: vi.fn(),
+      deleteRowRanges: vi.fn(),
+      deleteRows: vi.fn(),
+      updateField: vi.fn(),
+      addField: vi.fn(),
+      deleteField,
+      createTable: vi.fn(),
+      updateTable: vi.fn(),
+      deleteTable: vi.fn(),
+      createView: vi.fn(),
+      duplicateView: vi.fn(),
+      deleteView: vi.fn(),
+      reorderViews: vi.fn(),
+      updateView: vi.fn(),
+      getSnapshot: vi.fn(),
+    } as unknown as EidosFileDataSource
+
+    await act(async () => {
+      root.render(
+        <EidosFileDataGrid
+          source={source}
+          table={table}
+          onSnapshot={onSnapshot}
+        />
+      )
+    })
+
+    await act(async () => {
+      ;(mocks.props?.onDeleteField as (field: EidosFileFieldInfo) => void)(
+        relationField
+      )
+    })
+
+    expect(deleteField).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain("Delete field “Owner”?")
+
+    await act(async () => {
+      Array.from(document.body.querySelectorAll("button"))
+        .find((button) => button.textContent === "Delete field")
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(deleteField).toHaveBeenCalledWith("tasks", relationField.id)
+    expect(onSnapshot).toHaveBeenCalledWith({ tables: [table] })
+  })
 })
