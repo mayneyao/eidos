@@ -94,6 +94,7 @@ import {
   type EidosFileTemplateId,
 } from "./sample-eidos-file"
 import {
+  canAutoReloadExternalChange,
   canSaveToOriginal,
   hasUnsavedChanges,
   initialSaveState,
@@ -125,6 +126,17 @@ function errorMessage(error: unknown): string {
     return error.message
   }
   return "The operation did not complete. Your recoverable working copy is unchanged."
+}
+
+async function discardPersistentWorkingCopy(recoveryId: string): Promise<void> {
+  const cleanupClient = new EidosFileWorkerClient()
+  try {
+    await cleanupClient.discardRecovery(recoveryId)
+  } catch (error) {
+    console.warn("Unable to remove replaced Eidos File recovery", error)
+  } finally {
+    cleanupClient.terminate()
+  }
 }
 
 function initialTheme(): Theme {
@@ -230,7 +242,7 @@ function updateSnapshotRowCount(
 
 export function App() {
   const { locale, t } = useI18n()
-  const [saveState, dispatch] = useReducer(saveReducer, initialSaveState)
+  const [saveState, reactDispatch] = useReducer(saveReducer, initialSaveState)
   const [snapshot, setSnapshot] = useState<EidosFileSnapshot | null>(null)
   const [session, setSession] = useState<OpenSession | null>(null)
   const [editorSource, setEditorSource] =
@@ -278,6 +290,12 @@ export function App() {
     },
   })
   const clientRef = useRef<EidosFileWorkerClient | null>(null)
+  const saveStateRef = useRef(saveState)
+  const sessionRef = useRef(session)
+  const dispatch = useCallback((event: Parameters<typeof saveReducer>[1]) => {
+    saveStateRef.current = saveReducer(saveStateRef.current, event)
+    reactDispatch(event)
+  }, [])
   const retiringClientsRef = useRef<EidosFileWorkerClient[]>([])
   const structureMutationQueueRef = useRef<Promise<void>>(Promise.resolve())
   const inputRef = useRef<HTMLInputElement>(null)
@@ -378,6 +396,14 @@ export function App() {
   useLayoutEffect(() => {
     clientRef.current = editorSource
   }, [editorSource])
+
+  useLayoutEffect(() => {
+    saveStateRef.current = saveState
+  }, [saveState])
+
+  useLayoutEffect(() => {
+    sessionRef.current = session
+  }, [session])
 
   useEffect(() => {
     const retiring = retiringClientsRef.current.splice(0)
@@ -932,6 +958,144 @@ export function App() {
     }
   }, [openPreparedFile, session])
 
+  const reloadCleanExternalFile = useCallback(
+    async (
+      currentSession: OpenSession,
+      disk: Awaited<ReturnType<typeof readHandleVersion>>
+    ): Promise<boolean> => {
+      const previousClient = clientRef.current
+      const handle = currentSession.handle
+      const isCurrentAndClean = () => {
+        const latestSession = sessionRef.current
+        return (
+          Boolean(handle) &&
+          previousClient !== null &&
+          clientRef.current === previousClient &&
+          latestSession?.id === currentSession.id &&
+          sameFileVersion(
+            latestSession.sourceVersion,
+            currentSession.sourceVersion
+          ) &&
+          canAutoReloadExternalChange(saveStateRef.current) &&
+          !previousClient.hasInFlightMutations()
+        )
+      }
+
+      if (!handle || !previousClient || !isCurrentAndClean()) return false
+
+      const nextClient = new EidosFileWorkerClient()
+      const nextId = crypto.randomUUID()
+      const discardPreparedClient = () => {
+        nextClient.terminate()
+        void discardPersistentWorkingCopy(nextId)
+      }
+      try {
+        const result = await nextClient.openEditorSource(
+          handle.name,
+          nextId,
+          disk.bytes
+        )
+        if (!isCurrentAndClean()) {
+          discardPreparedClient()
+          return false
+        }
+
+        // The original can change again while its replacement Runtime opens.
+        // Re-read it before swapping clients so the visible snapshot always
+        // corresponds to the latest version we accepted.
+        const latestDisk = await readHandleVersion(handle)
+        if (
+          !sameFileVersion(latestDisk.version, disk.version) ||
+          !isCurrentAndClean()
+        ) {
+          discardPreparedClient()
+          return false
+        }
+
+        const permission = await queryWritePermission(handle)
+        if (!isCurrentAndClean()) {
+          discardPreparedClient()
+          return false
+        }
+
+        const dirty = result.migrated || result.recovered
+        const nextSession: OpenSession = {
+          id: nextId,
+          fileName: handle.name,
+          mode: "direct",
+          permission,
+          sourceVersion: latestDisk.version,
+          handle,
+          storage: result.storage,
+        }
+
+        // Commit the prepared Runtime in one synchronous turn. A local
+        // mutation cannot begin between the final guard and this swap.
+        clientRef.current = nextClient
+        setEditorSource(nextClient)
+        setSession(nextSession)
+        setSnapshot(result.snapshot)
+        setActiveTableId((current) =>
+          current &&
+          result.snapshot.tables.some((table) => table.table.id === current)
+            ? current
+            : (result.snapshot.metadata.defaultTableId ??
+              result.snapshot.tables[0]?.table.id ??
+              null)
+        )
+        setActiveViews((current) => {
+          const next: Record<string, string> = {}
+          for (const table of result.snapshot.tables) {
+            const viewId = current[table.table.id]
+            if (viewId && table.views.some((view) => view.id === viewId)) {
+              next[table.table.id] = viewId
+            }
+          }
+          return next
+        })
+        setPropertyField(null)
+        setAddPropertyOpen(false)
+        setFormulaTarget(null)
+        setLookupTarget(null)
+        setFieldInsertIndex(null)
+        setViewReloadToken((current) => current + 1)
+        dispatch({
+          type: "OPEN_SUCCESS",
+          mode: nextSession.mode,
+          permission: nextSession.permission,
+          dirty,
+        })
+
+        if (nextSession.storage === "opfs-sahpool") {
+          await rememberSession(nextSession, dirty)
+        }
+
+        previousClient.terminate()
+        void (async () => {
+          try {
+            if (currentSession.storage === "opfs-sahpool") {
+              await discardPersistentWorkingCopy(currentSession.id)
+            }
+          } finally {
+            try {
+              await deleteRecoverySession(currentSession.id)
+            } catch (error) {
+              console.warn(
+                "Unable to remove replaced Eidos File recovery metadata",
+                error
+              )
+            }
+          }
+        })()
+        return true
+      } catch (error) {
+        discardPreparedClient()
+        throw error
+      }
+    },
+    [rememberSession]
+  )
+
   const reauthorize = useCallback(async () => {
     if (!session?.handle) return
     const permission = await requestWritePermission(session.handle)
@@ -973,7 +1137,10 @@ export function App() {
   useEffect(() => {
     if (!session?.handle || saveState.phase === "saving") return
     let active = true
+    let checking = false
     const check = async () => {
+      if (checking) return
+      checking = true
       try {
         const file = await session.handle?.getFile()
         if (!active || !file) return
@@ -984,12 +1151,57 @@ export function App() {
           return
         }
         const disk = await readHandleVersion(session.handle!)
-        if (active && !sameFileVersion(disk.version, session.sourceVersion)) {
-          dispatch({
-            type: "CONFLICT",
-            message:
-              "The original Eidos File changed outside this tab. Saving is paused until you choose how to resolve it.",
-          })
+        if (!active) return
+
+        if (sameFileVersion(disk.version, session.sourceVersion)) {
+          const latestSession = sessionRef.current
+          if (latestSession?.id !== session.id) return
+          const nextSession = {
+            ...latestSession,
+            sourceVersion: disk.version,
+          }
+          sessionRef.current = nextSession
+          setSession(nextSession)
+          if (nextSession.storage === "opfs-sahpool") {
+            await rememberSession(
+              nextSession,
+              hasUnsavedChanges(saveStateRef.current)
+            )
+          }
+          return
+        }
+
+        const currentClient = clientRef.current
+        if (
+          canAutoReloadExternalChange(saveStateRef.current) &&
+          currentClient &&
+          !currentClient.hasInFlightMutations()
+        ) {
+          const reloaded = await reloadCleanExternalFile(session, disk)
+          if (
+            reloaded ||
+            !active ||
+            canAutoReloadExternalChange(saveStateRef.current)
+          ) {
+            return
+          }
+        } else if (canAutoReloadExternalChange(saveStateRef.current)) {
+          // A mutation is still being committed. Its completion will mark the
+          // working copy dirty; the next check can then surface a conflict.
+          return
+        }
+
+        dispatch({
+          type: "CONFLICT",
+          message:
+            "The original Eidos File changed outside this tab. Saving is paused until you choose how to resolve it.",
+        })
+        const latestSession = sessionRef.current
+        if (
+          latestSession?.id === session.id &&
+          latestSession.storage === "opfs-sahpool"
+        ) {
+          void rememberRecovery(latestSession)
         }
       } catch (error) {
         if (active) {
@@ -998,18 +1210,29 @@ export function App() {
             message: `The original file is no longer readable: ${errorMessage(error)}`,
           })
         }
+      } finally {
+        checking = false
       }
     }
     const timer = setInterval(() => void check(), 10_000)
     const visibility = () =>
       document.visibilityState === "visible" && void check()
+    void check()
+    window.addEventListener("focus", check)
     document.addEventListener("visibilitychange", visibility)
     return () => {
       active = false
       clearInterval(timer)
+      window.removeEventListener("focus", check)
       document.removeEventListener("visibilitychange", visibility)
     }
-  }, [saveState.phase, session])
+  }, [
+    reloadCleanExternalFile,
+    rememberRecovery,
+    rememberSession,
+    saveState.phase,
+    session,
+  ])
 
   const onRowMutation = useCallback(
     (result: EidosFileRowMutationResult) => {

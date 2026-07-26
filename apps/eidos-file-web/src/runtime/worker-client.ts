@@ -47,6 +47,7 @@ export class EidosFileWorkerClient {
   private nextId = 1
   private terminated = false
   private editor: EidosRuntimeEditorDataSource | null = null
+  private inFlightMutations = 0
 
   constructor() {
     this.worker.addEventListener(
@@ -244,73 +245,75 @@ export class EidosFileWorkerClient {
   }
 
   insertRow(...args: Parameters<EidosFileEditorDataSource["insertRow"]>) {
-    return this.requireEditor().insertRow(...args)
+    return this.trackMutation(() => this.requireEditor().insertRow(...args))
   }
 
   updateRow(...args: Parameters<EidosFileEditorDataSource["updateRow"]>) {
-    return this.requireEditor().updateRow(...args)
+    return this.trackMutation(() => this.requireEditor().updateRow(...args))
   }
 
   deleteRowRanges(
     ...args: Parameters<EidosFileEditorDataSource["deleteRowRanges"]>
   ) {
-    return this.requireEditor().deleteRowRanges(...args)
+    return this.trackMutation(() =>
+      this.requireEditor().deleteRowRanges(...args)
+    )
   }
 
   deleteRows(...args: Parameters<EidosFileEditorDataSource["deleteRows"]>) {
-    return this.requireEditor().deleteRows(...args)
+    return this.trackMutation(() => this.requireEditor().deleteRows(...args))
   }
 
   updateField(...args: Parameters<EidosFileEditorDataSource["updateField"]>) {
-    return this.requireEditor().updateField(...args)
+    return this.trackMutation(() => this.requireEditor().updateField(...args))
   }
 
   addField(...args: Parameters<EidosFileEditorDataSource["addField"]>) {
-    return this.requireEditor().addField(...args)
+    return this.trackMutation(() => this.requireEditor().addField(...args))
   }
 
   deleteField(...args: Parameters<EidosFileEditorDataSource["deleteField"]>) {
-    return this.requireEditor().deleteField(...args)
+    return this.trackMutation(() => this.requireEditor().deleteField(...args))
   }
 
   createTable(...args: Parameters<EidosFileEditorDataSource["createTable"]>) {
-    return this.requireEditor().createTable(...args)
+    return this.trackMutation(() => this.requireEditor().createTable(...args))
   }
 
   updateTable(...args: Parameters<EidosFileEditorDataSource["updateTable"]>) {
-    return this.requireEditor().updateTable(...args)
+    return this.trackMutation(() => this.requireEditor().updateTable(...args))
   }
 
   deleteTable(...args: Parameters<EidosFileEditorDataSource["deleteTable"]>) {
-    return this.requireEditor().deleteTable(...args)
+    return this.trackMutation(() => this.requireEditor().deleteTable(...args))
   }
 
   reorderTables(
     ...args: Parameters<NonNullable<EidosFileEditorDataSource["reorderTables"]>>
   ) {
-    return this.requireEditor().reorderTables(...args)
+    return this.trackMutation(() => this.requireEditor().reorderTables(...args))
   }
 
   createView(...args: Parameters<EidosFileEditorDataSource["createView"]>) {
-    return this.requireEditor().createView(...args)
+    return this.trackMutation(() => this.requireEditor().createView(...args))
   }
 
   duplicateView(
     ...args: Parameters<EidosFileEditorDataSource["duplicateView"]>
   ) {
-    return this.requireEditor().duplicateView(...args)
+    return this.trackMutation(() => this.requireEditor().duplicateView(...args))
   }
 
   deleteView(...args: Parameters<EidosFileEditorDataSource["deleteView"]>) {
-    return this.requireEditor().deleteView(...args)
+    return this.trackMutation(() => this.requireEditor().deleteView(...args))
   }
 
   reorderViews(...args: Parameters<EidosFileEditorDataSource["reorderViews"]>) {
-    return this.requireEditor().reorderViews(...args)
+    return this.trackMutation(() => this.requireEditor().reorderViews(...args))
   }
 
   updateView(...args: Parameters<EidosFileEditorDataSource["updateView"]>) {
-    return this.requireEditor().updateView(...args)
+    return this.trackMutation(() => this.requireEditor().updateView(...args))
   }
 
   previewCsv(
@@ -329,7 +332,13 @@ export class EidosFileWorkerClient {
     snapshot: EidosFileSnapshot
     result: EidosFileCsvImportResult
   }> {
-    return this.requireEditor().importCsv(fileName, bytes, options)
+    return this.trackMutation(() =>
+      this.requireEditor().importCsv(fileName, bytes, options)
+    )
+  }
+
+  hasInFlightMutations(): boolean {
+    return this.inFlightMutations > 0
   }
 
   discardRecovery(recoveryId: string): Promise<{ discarded: true }> {
@@ -380,6 +389,22 @@ export class EidosFileWorkerClient {
       throw new Error("The Eidos File editor Runtime is not connected")
     }
     return this.editor
+  }
+
+  private trackMutation<T>(operation: () => Promise<T>): Promise<T> {
+    this.inFlightMutations += 1
+    try {
+      return operation().finally(() => {
+        // Keep the guard active until consumers have received the mutation
+        // result and marked their working copy dirty.
+        setTimeout(() => {
+          this.inFlightMutations = Math.max(0, this.inFlightMutations - 1)
+        }, 0)
+      })
+    } catch (error) {
+      this.inFlightMutations -= 1
+      throw error
+    }
   }
 
   private call<T extends EidosFileWorkerResult>(

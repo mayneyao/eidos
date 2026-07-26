@@ -374,6 +374,43 @@ test.describe("Chromium original-file editing", () => {
     await expect(page.locator("header")).toContainText("pwa-launch.eidos")
   })
 
+  test("reloads a clean working copy when the original changes externally", async ({
+    page,
+  }) => {
+    const peer = await page.context().newPage()
+    try {
+      await installDirectPicker(page, { fileName: "live-reload.eidos" })
+      await installDirectPicker(peer, { fileName: "live-reload.eidos" })
+      await openDirectEidosFile(page)
+      await openDirectEidosFile(peer)
+      await expect(page.locator("[data-testid='glide-cell-5-0']")).toHaveText(
+        "false"
+      )
+
+      await toggleFirstComplete(peer)
+      await clickFileMenuItem(peer, "Save")
+      await expect(peer.locator(".save-status")).toContainText(
+        "Saved to original"
+      )
+
+      await page.bringToFront()
+      await page.evaluate(() =>
+        document.dispatchEvent(new Event("visibilitychange"))
+      )
+
+      await expect(page.locator("[data-testid='glide-cell-5-0']")).toHaveText(
+        "true"
+      )
+      await expect(
+        page.getByRole("tab", { name: "Projects", exact: true })
+      ).toBeVisible()
+      await expect(page.locator(".conflict-bar")).toHaveCount(0)
+      await expect(page.locator(".save-status")).toContainText("Saved")
+    } finally {
+      await peer.close()
+    }
+  })
+
   test("protects the working copy when the original changes", async ({
     page,
   }) => {
@@ -381,8 +418,10 @@ test.describe("Chromium original-file editing", () => {
     await openDirectEidosFile(page)
     await toggleFirstComplete(page)
     await page.evaluate(async () => window.__eidosFileE2E?.appendExternalByte())
+    await page.evaluate(() =>
+      document.dispatchEvent(new Event("visibilitychange"))
+    )
 
-    await clickFileMenuItem(page, "Save")
     await expect(page.getByRole("alert")).toContainText(
       "changed outside this tab"
     )

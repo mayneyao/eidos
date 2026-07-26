@@ -1,4 +1,5 @@
 import {
+  canAutoReloadExternalChange,
   canSaveToOriginal,
   hasUnsavedChanges,
   initialSaveState,
@@ -69,5 +70,28 @@ describe("saveReducer", () => {
       dirty: true,
     })
     expect(state.phase).toBe("dirty")
+  })
+
+  it("only allows external changes to auto-reload a clean working copy", () => {
+    const clean = saveReducer(initialSaveState, {
+      type: "OPEN_SUCCESS",
+      mode: "direct",
+      permission: "granted",
+    })
+    const dirty = saveReducer(clean, { type: "MUTATION_COMMITTED" })
+    const saved = saveReducer(dirty, {
+      type: "SAVE_SUCCESS",
+      at: 42,
+    })
+    const conflict = saveReducer(dirty, {
+      type: "CONFLICT",
+      message: "File changed outside Eidos",
+    })
+
+    expect(canAutoReloadExternalChange(clean)).toBe(true)
+    expect(canAutoReloadExternalChange(saved)).toBe(true)
+    expect(canAutoReloadExternalChange(dirty)).toBe(false)
+    expect(canAutoReloadExternalChange(conflict)).toBe(false)
+    expect(canAutoReloadExternalChange(initialSaveState)).toBe(false)
   })
 })

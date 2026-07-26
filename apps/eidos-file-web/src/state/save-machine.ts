@@ -51,6 +51,10 @@ export function hasUnsavedChanges(state: SaveState): boolean {
   return ["dirty", "saving", "error", "conflict"].includes(state.phase)
 }
 
+export function canAutoReloadExternalChange(state: SaveState): boolean {
+  return state.phase === "clean" || state.phase === "saved"
+}
+
 export function canSaveToOriginal(state: SaveState): boolean {
   return state.mode === "direct" && state.permission === "granted"
 }
