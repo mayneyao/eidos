@@ -63,4 +63,25 @@ describe("Eidos File recovery metadata", () => {
       id: "newer-copy",
     })
   })
+
+  it("retains a clean direct session so its file handle can be reopened", async () => {
+    const handle = { kind: "file", name: "recent.eidos" }
+    const session: RecoverySession = {
+      id: "recent-direct",
+      fileName: "recent.eidos",
+      mode: "direct",
+      dirty: false,
+      updatedAt: 30,
+      sourceVersion: {
+        size: 2048,
+        lastModified: 29,
+        digest: "recent-digest",
+      },
+      handle: handle as FileSystemFileHandle,
+    }
+
+    await storeRecoverySession(session)
+
+    await expect(getLatestRecoverySession()).resolves.toEqual(session)
+  })
 })

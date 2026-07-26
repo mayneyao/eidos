@@ -346,8 +346,7 @@ test.describe("Chromium original-file editing", () => {
     )
 
     await page.reload()
-    await waitForSampleEditor(page)
-    await clickFileMenuItem(page, "Open .eidos file")
+    await expect(page.locator("header")).toContainText("direct-save.eidos")
     await expect(page.locator("[data-testid='glide-cell-5-0']")).toHaveText(
       "true"
     )
@@ -1426,7 +1425,20 @@ test("imports CSV through the explicitly composed editor plugin", async ({
   await expect(dialog).toContainText("2 ready")
   const tableName = page.getByLabel("Table name")
   await tableName.fill("CSV projects")
+  await page.evaluate(() => {
+    const original = File.prototype.arrayBuffer
+    File.prototype.arrayBuffer = async function () {
+      if (this.name === "plugin-import.csv") {
+        await new Promise((resolve) => window.setTimeout(resolve, 500))
+      }
+      return original.call(this)
+    }
+  })
   await page.getByRole("button", { name: "Import 2 rows" }).click()
+
+  await expect(dialog.getByRole("status")).toContainText("Importing…")
+  await expect(dialog.getByRole("progressbar")).toHaveCount(0)
+  await expect(dialog).not.toContainText("0%")
 
   await expect(
     page.getByRole("tab", { name: "CSV projects", exact: true })

@@ -8,7 +8,7 @@ export interface RecoverySession {
   fileName: string
   sourceVersion: EidosFileVersion
   mode: FileAccessMode
-  dirty: true
+  dirty: boolean
   updatedAt: number
   handle?: FileSystemFileHandle
 }

@@ -238,6 +238,7 @@ export function App() {
   const [search, setSearch] = useState("")
   const [notice, setNotice] = useState<string | null>(null)
   const [recovery, setRecovery] = useState<RecoverySession | null>(null)
+  const [recoveryReady, setRecoveryReady] = useState(false)
   const [propertyField, setPropertyField] = useState<EidosFileFieldInfo | null>(
     null
   )
@@ -371,16 +372,6 @@ export function App() {
   const openGenerationRef = useRef(0)
   const explicitOpenStartedRef = useRef(false)
   useEffect(() => {
-    if (bootstrappedRef.current || session || saveState.phase === "opening") {
-      return
-    }
-    bootstrappedRef.current = true
-    void openSample()
-    // The app boots straight into the sample file; there is no landing step.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, saveState.phase])
-
-  useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark")
     document.documentElement.dataset.theme = theme
     window.localStorage.setItem("eidos-file-theme", theme)
@@ -426,6 +417,7 @@ export function App() {
       .catch((error) =>
         console.warn("Unable to read Eidos File recovery metadata", error)
       )
+      .finally(() => setRecoveryReady(true))
   }, [])
 
   useEffect(() => {
@@ -444,23 +436,31 @@ export function App() {
     return () => clearTimeout(timer)
   }, [saveState.phase])
 
-  const rememberRecovery = useCallback(async (current: OpenSession) => {
-    const record: RecoverySession = {
-      id: current.id,
-      fileName: current.fileName,
-      sourceVersion: current.sourceVersion,
-      mode: current.mode,
-      dirty: true,
-      updatedAt: Date.now(),
-      ...(current.handle ? { handle: current.handle } : {}),
-    }
-    try {
-      await storeRecoverySession(record)
-      setRecovery(record)
-    } catch (error) {
-      console.warn("Unable to persist Eidos File recovery metadata", error)
-    }
-  }, [])
+  const rememberSession = useCallback(
+    async (current: OpenSession, dirty: boolean) => {
+      const record: RecoverySession = {
+        id: current.id,
+        fileName: current.fileName,
+        sourceVersion: current.sourceVersion,
+        mode: current.mode,
+        dirty,
+        updatedAt: Date.now(),
+        ...(current.handle ? { handle: current.handle } : {}),
+      }
+      try {
+        await storeRecoverySession(record)
+        setRecovery(record)
+      } catch (error) {
+        console.warn("Unable to persist Eidos File recovery metadata", error)
+      }
+    },
+    []
+  )
+
+  const rememberRecovery = useCallback(
+    (current: OpenSession) => rememberSession(current, true),
+    [rememberSession]
+  )
 
   const markCommitted = useCallback(
     (currentSession = session) => {
@@ -485,7 +485,8 @@ export function App() {
       opened: Omit<OpenSession, "storage">,
       result: Awaited<ReturnType<EidosFileWorkerClient["openEditorSource"]>>,
       preferredTableName?: string,
-      initiallyDirty = false
+      initiallyDirty = false,
+      recoveredDirty?: boolean
     ) => {
       const previous = clientRef.current
       clientRef.current = client
@@ -510,20 +511,23 @@ export function App() {
       setFormulaTarget(null)
       setLookupTarget(null)
       setNotice(null)
+      const dirty =
+        recoveredDirty ??
+        (initiallyDirty || result.migrated || result.recovered)
       dispatch({
         type: "OPEN_SUCCESS",
         mode: nextSession.mode,
         permission: nextSession.permission,
-        dirty: initiallyDirty || result.migrated || result.recovered,
+        dirty,
       })
       if (
         nextSession.storage === "opfs-sahpool" &&
-        (initiallyDirty || result.migrated || result.recovered)
+        (Boolean(nextSession.handle) || dirty)
       ) {
-        await rememberRecovery(nextSession)
+        await rememberSession(nextSession, dirty)
       }
     },
-    [rememberRecovery]
+    [rememberSession]
   )
 
   const openPreparedFile = useCallback(
@@ -711,8 +715,8 @@ export function App() {
     [confirmSwitch, locale, openPreparedFile]
   )
 
-  const restoreRecovery = useCallback(async () => {
-    if (!recovery || !confirmSwitch()) return
+  const restoreRecovery = useCallback(async (): Promise<boolean> => {
+    if (!recovery || !confirmSwitch()) return false
     const generation = ++openGenerationRef.current
     dispatch({ type: "OPEN_START" })
     const client = new EidosFileWorkerClient()
@@ -726,7 +730,7 @@ export function App() {
       )
       if (generation !== openGenerationRef.current) {
         client.terminate()
-        return
+        return true
       }
       await installOpenResult(
         client,
@@ -738,7 +742,10 @@ export function App() {
           sourceVersion: recovery.sourceVersion,
           ...(recovery.handle ? { handle: recovery.handle } : {}),
         },
-        result
+        result,
+        undefined,
+        false,
+        recovery.dirty
       )
       if (recovery.handle) {
         const disk = await readHandleVersion(recovery.handle)
@@ -750,13 +757,38 @@ export function App() {
           })
         }
       }
+      return true
     } catch (error) {
       client.terminate()
       const message = errorMessage(error)
       setNotice(message)
       dispatch({ type: "OPEN_FAILURE", message })
+      return false
     }
   }, [confirmSwitch, installOpenResult, recovery])
+
+  useEffect(() => {
+    if (
+      !recoveryReady ||
+      bootstrappedRef.current ||
+      session ||
+      saveState.phase === "opening"
+    ) {
+      return
+    }
+    bootstrappedRef.current = true
+    void (async () => {
+      if (recovery && (await restoreRecovery())) return
+      await openSample()
+    })()
+  }, [
+    openSample,
+    recovery,
+    recoveryReady,
+    restoreRecovery,
+    saveState.phase,
+    session,
+  ])
 
   const discardRecovery = useCallback(async () => {
     if (!recovery) return
@@ -809,16 +841,17 @@ export function App() {
         )
         dispatch({ type: "PERMISSION", permission })
         dispatch({ type: "SAVE_SUCCESS", at: Date.now(), mode: "direct" })
+        await rememberSession(next, false)
       } else {
         downloadEidosFileCopy(exported.bytes, session.fileName)
         dispatch({ type: "SAVE_SUCCESS", at: Date.now(), mode: "copy" })
+        await clearRecoveryAfterSave(session.id)
       }
-      await clearRecoveryAfterSave(session.id)
     } catch (error) {
       dispatch({ type: "SAVE_FAILURE", message: errorMessage(error) })
       await rememberRecovery(session)
     }
-  }, [clearRecoveryAfterSave, rememberRecovery, session])
+  }, [clearRecoveryAfterSave, rememberRecovery, rememberSession, session])
 
   const saveOriginal = useCallback(
     async (overwrite = false) => {
@@ -847,15 +880,16 @@ export function App() {
           session.handle,
           exported.bytes
         )
-        setSession({ ...session, sourceVersion: version })
+        const next = { ...session, sourceVersion: version }
+        setSession(next)
         dispatch({ type: "SAVE_SUCCESS", at: Date.now(), mode: "direct" })
-        await clearRecoveryAfterSave(session.id)
+        await rememberSession(next, false)
       } catch (error) {
         dispatch({ type: "SAVE_FAILURE", message: errorMessage(error) })
         await rememberRecovery(session)
       }
     },
-    [clearRecoveryAfterSave, rememberRecovery, saveAs, session]
+    [rememberRecovery, rememberSession, saveAs, session]
   )
 
   const reloadOriginal = useCallback(async () => {

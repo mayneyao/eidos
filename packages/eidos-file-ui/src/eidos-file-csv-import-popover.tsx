@@ -391,8 +391,12 @@ export function EidosFileCsvImportPopover({
     : progress?.phase === "finalizing"
       ? t("Finalizing table…")
       : progress?.phase === "importing" || importing
-        ? t("Importing rows… {percent}%", { percent })
-        : t("Analyzing CSV… {percent}%", { percent })
+        ? progress
+          ? t("Importing rows… {percent}%", { percent })
+          : t("Importing…")
+        : progress
+          ? t("Analyzing CSV… {percent}%", { percent })
+          : t("Analyzing CSV…")
   const operationDetail = progress
     ? progress.totalRows !== null
       ? t("{processed} of {total} rows", {
@@ -688,12 +692,22 @@ export function EidosFileCsvImportPopover({
             <div className="flex min-h-14 items-center justify-between gap-4 border-t px-4 py-2.5">
               <div className="min-w-0 flex-1">
                 {validating || importing ? (
-                  <EidosFileCsvOperationProgressBar
-                    label={operationLabel}
-                    detail={operationDetail}
-                    percent={percent}
-                    size="compact"
-                  />
+                  progress ? (
+                    <EidosFileCsvOperationProgressBar
+                      label={operationLabel}
+                      detail={operationDetail}
+                      percent={percent}
+                      size="compact"
+                    />
+                  ) : (
+                    <div
+                      className="flex items-center gap-2 text-[11px] text-muted-foreground"
+                      role="status"
+                    >
+                      <LoaderCircle className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+                      <span>{operationLabel}</span>
+                    </div>
+                  )
                 ) : notice ? (
                   <p className="text-[11px] text-muted-foreground">{notice}</p>
                 ) : null}
@@ -743,7 +757,9 @@ export function EidosFileCsvImportPopover({
                       <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
                     ) : null}
                     {importing
-                      ? t("Importing {percent}%", { percent })
+                      ? progress
+                        ? t("Importing {percent}%", { percent })
+                        : t("Importing…")
                       : t("Import {count} rows", {
                           count: plan.rowCount.toLocaleString(),
                         })}
@@ -765,11 +781,21 @@ export function EidosFileCsvImportPopover({
             </div>
             <div className="space-y-3 px-4 py-4">
               {validating ? (
-                <EidosFileCsvOperationProgressBar
-                  label={operationLabel}
-                  detail={operationDetail}
-                  percent={percent}
-                />
+                progress ? (
+                  <EidosFileCsvOperationProgressBar
+                    label={operationLabel}
+                    detail={operationDetail}
+                    percent={percent}
+                  />
+                ) : (
+                  <div
+                    className="flex items-center gap-2 text-xs text-muted-foreground"
+                    role="status"
+                  >
+                    <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+                    <span>{operationLabel}</span>
+                  </div>
+                )
               ) : (
                 <p
                   className={cn(
