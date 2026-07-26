@@ -236,6 +236,7 @@ export function App() {
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const [activeViews, setActiveViews] = useState<Record<string, string>>({})
   const [search, setSearch] = useState("")
+  const [focusSearchToken, setFocusSearchToken] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
   const [recovery, setRecovery] = useState<RecoverySession | null>(null)
   const [recoveryReady, setRecoveryReady] = useState(false)
@@ -931,6 +932,7 @@ export function App() {
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
       const modifier = event.metaKey || event.ctrlKey
       if (!modifier) return
       if (event.key.toLowerCase() === "s") {
@@ -940,11 +942,19 @@ export function App() {
       } else if (event.key.toLowerCase() === "o") {
         event.preventDefault()
         void chooseFile()
+      } else if (
+        event.key.toLowerCase() === "f" &&
+        !event.altKey &&
+        !event.shiftKey &&
+        session
+      ) {
+        event.preventDefault()
+        setFocusSearchToken((current) => current + 1)
       }
     }
     window.addEventListener("keydown", keydown)
     return () => window.removeEventListener("keydown", keydown)
-  }, [chooseFile, saveAs, saveOriginal])
+  }, [chooseFile, saveAs, saveOriginal, session])
 
   useEffect(() => {
     if (!session?.handle || saveState.phase === "saving") return
@@ -1571,6 +1581,7 @@ export function App() {
             filter={activeView?.filter ?? null}
             sorts={activeView?.sorts ?? []}
             search={search}
+            focusSearchToken={focusSearchToken}
             disabled={saveState.phase === "saving"}
             onSearchChange={setSearch}
             onFilterChange={(filter) => updateActiveView({ filter })}

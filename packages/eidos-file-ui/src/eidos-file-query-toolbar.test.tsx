@@ -136,6 +136,49 @@ describe("shared EidosFileQueryToolbar", () => {
     expect(onSearchChange).toHaveBeenCalledWith("roadmap")
   })
 
+  it("opens and refocuses search when the host advances its focus token", () => {
+    act(() => {
+      root.render(
+        <EidosFileQueryToolbar
+          fields={fields}
+          filter={null}
+          sorts={[]}
+          search=""
+          focusSearchToken={1}
+          onSearchChange={onSearchChange}
+          onFilterChange={onFilterChange}
+          onSortsChange={onSortsChange}
+        />
+      )
+    })
+    const input = document.body.querySelector<HTMLInputElement>(
+      'input[placeholder="Search rows"]'
+    )
+    expect(document.activeElement).toBe(input)
+
+    const outside = document.createElement("button")
+    document.body.appendChild(outside)
+    outside.focus()
+    expect(document.activeElement).toBe(outside)
+
+    act(() => {
+      root.render(
+        <EidosFileQueryToolbar
+          fields={fields}
+          filter={null}
+          sorts={[]}
+          search=""
+          focusSearchToken={2}
+          onSearchChange={onSearchChange}
+          onFilterChange={onFilterChange}
+          onSortsChange={onSortsChange}
+        />
+      )
+    })
+    expect(document.activeElement).toBe(input)
+    outside.remove()
+  })
+
   it("navigates filtered row results without leaving the search input", () => {
     act(() => {
       root.render(

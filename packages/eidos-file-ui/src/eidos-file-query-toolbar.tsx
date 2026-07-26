@@ -952,7 +952,9 @@ export function EidosFileQueryToolbar({
     if (showSearch) inputRef.current?.focus()
   }, [showSearch])
   useEffect(() => {
-    if (focusSearchToken > 0) setShowSearch(true)
+    if (focusSearchToken <= 0) return
+    setShowSearch(true)
+    inputRef.current?.focus()
   }, [focusSearchToken])
   useEffect(() => {
     if (search) setShowSearch(true)

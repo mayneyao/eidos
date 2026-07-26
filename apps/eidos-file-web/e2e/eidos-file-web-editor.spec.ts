@@ -578,6 +578,18 @@ test("opens the bundled sample without a picker", async ({ page }) => {
     "Imported copy"
   )
 
+  await page.keyboard.press("Control+f")
+  const rowSearch = page.locator('input[placeholder="Search rows"]')
+  await expect(rowSearch).toBeFocused()
+  await rowSearch.fill("Ship Eidos File Web Editor")
+  await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
+    "Ship Eidos File Web Editor"
+  )
+
+  await page.getByRole("button", { name: "Filter Eidos File rows" }).focus()
+  await page.keyboard.press("Meta+f")
+  await expect(rowSearch).toBeFocused()
+
   await page.getByRole("button", { name: "Filter Eidos File rows" }).click()
   const filterPopover = page.locator("[data-eidos-file-filter-popover]")
   await expect(filterPopover).toBeVisible()
