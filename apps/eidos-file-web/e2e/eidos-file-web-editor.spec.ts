@@ -6,6 +6,9 @@ import { expect, test, type Locator, type Page } from "@playwright/test"
 const fixturePath = fileURLToPath(
   new URL("../fixtures/project-tracker.eidos", import.meta.url)
 )
+const featureLabFixturePath = fileURLToPath(
+  new URL("../fixtures/feature-lab.eidos", import.meta.url)
+)
 const fixtureRowCount = 2_500
 const gridHeaderHeight = 36
 const gridRowHeight = 36
@@ -1999,6 +2002,8 @@ test("calculates Grid column summaries through the browser runtime", async ({
     browserName !== "chromium",
     "Chromium covers the shared Grid and SQLite WASM worker path"
   )
+  const pageErrors: string[] = []
+  page.on("pageerror", (error) => pageErrors.push(error.message))
   await installFallbackMode(page)
   await page.addInitScript(() => {
     const messages: unknown[] = []
@@ -2081,6 +2086,12 @@ test("calculates Grid column summaries through the browser runtime", async ({
   await expect(
     page.getByRole("menuitem", { name: "Calculate · Sum" })
   ).toBeVisible()
+
+  await page.locator("input[type=file]").setInputFiles(featureLabFixturePath)
+  await expect(page.locator(".file-identity strong")).toHaveText(
+    "feature-lab.eidos"
+  )
+  await expect(pageErrors).toEqual([])
 })
 
 test("uses the shared Gallery and Kanban renderers for the sample", async ({

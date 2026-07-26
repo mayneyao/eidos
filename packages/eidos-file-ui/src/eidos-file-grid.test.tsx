@@ -988,6 +988,45 @@ describe("EidosFileGrid", () => {
     expect(loadColumnStats).toHaveBeenCalledTimes(2)
   })
 
+  it("routes synchronous column stat loader failures through the Grid error boundary", async () => {
+    const runtimeError = new Error(
+      "The Eidos File editor Runtime is not connected"
+    )
+    const loadColumnStats = vi.fn(() => {
+      throw runtimeError
+    })
+    const onError = vi.fn()
+    const view = {
+      ...table.views[0],
+      properties: {
+        columnStats: {
+          "0198c72d-82b5-7000-8000-000000000002": {
+            type: "percent-checked" as const,
+          },
+        },
+      },
+    }
+
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={table}
+          view={view}
+          loadPage={createLoadPage()}
+          loadColumnStats={loadColumnStats}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+          onError={onError}
+        />
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(loadColumnStats).toHaveBeenCalledOnce()
+    expect(onError).toHaveBeenCalledWith(runtimeError)
+  })
+
   it("formats Checkbox percentage stats with a percent suffix", async () => {
     const view = {
       ...table.views[0],

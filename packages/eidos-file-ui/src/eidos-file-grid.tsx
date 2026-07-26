@@ -664,7 +664,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       setColumnStatResults({})
       return
     }
-    void loadColumnStats(columnStatConfigs)
+    void Promise.resolve()
+      .then(() => loadColumnStats(columnStatConfigs))
       .then((results) => {
         if (generation !== columnStatGenerationRef.current) return
         setColumnStatResults(
@@ -674,6 +675,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       .catch((error) => {
         if (generation === columnStatGenerationRef.current) onError?.(error)
       })
+    return () => {
+      if (generation === columnStatGenerationRef.current) {
+        columnStatGenerationRef.current += 1
+      }
+    }
   }, [
     columnStatConfigKey,
     columnStatRevision,

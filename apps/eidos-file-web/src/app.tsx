@@ -233,6 +233,8 @@ export function App() {
   const [saveState, dispatch] = useReducer(saveReducer, initialSaveState)
   const [snapshot, setSnapshot] = useState<EidosFileSnapshot | null>(null)
   const [session, setSession] = useState<OpenSession | null>(null)
+  const [editorSource, setEditorSource] =
+    useState<EidosFileWorkerClient | null>(null)
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const [activeViews, setActiveViews] = useState<Record<string, string>>({})
   const [search, setSearch] = useState("")
@@ -276,6 +278,7 @@ export function App() {
     },
   })
   const clientRef = useRef<EidosFileWorkerClient | null>(null)
+  const retiringClientsRef = useRef<EidosFileWorkerClient[]>([])
   const structureMutationQueueRef = useRef<Promise<void>>(Promise.resolve())
   const inputRef = useRef<HTMLInputElement>(null)
   const csvFilesRef = useRef(new Map<string, File>())
@@ -372,6 +375,15 @@ export function App() {
   const bootstrappedRef = useRef(false)
   const openGenerationRef = useRef(0)
   const explicitOpenStartedRef = useRef(false)
+  useLayoutEffect(() => {
+    clientRef.current = editorSource
+  }, [editorSource])
+
+  useEffect(() => {
+    const retiring = retiringClientsRef.current.splice(0)
+    for (const client of retiring) client.terminate()
+  }, [editorSource])
+
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark")
     document.documentElement.dataset.theme = theme
@@ -490,8 +502,10 @@ export function App() {
       recoveredDirty?: boolean
     ) => {
       const previous = clientRef.current
-      clientRef.current = client
-      previous?.terminate()
+      if (previous && previous !== client) {
+        retiringClientsRef.current.push(previous)
+      }
+      setEditorSource(client)
       const nextSession: OpenSession = { ...opened, storage: result.storage }
       setSession(nextSession)
       setSnapshot(result.snapshot)
@@ -1336,10 +1350,9 @@ export function App() {
   )
 
   const pluginContext = useMemo<EidosFilePluginContext | null>(() => {
-    const source = clientRef.current
-    if (!source || !snapshot) return null
+    if (!editorSource || !snapshot) return null
     return {
-      source,
+      source: editorSource,
       snapshot,
       activeTable,
       activeView,
@@ -1353,7 +1366,14 @@ export function App() {
       },
       onError: (error) => setNotice(errorMessage(error)),
     }
-  }, [activeTable, activeView, onStructureSnapshot, saveState.phase, snapshot])
+  }, [
+    activeTable,
+    activeView,
+    editorSource,
+    onStructureSnapshot,
+    saveState.phase,
+    snapshot,
+  ])
 
   const applyPwaUpdate = useCallback(async () => {
     setUpdatingApp(true)
@@ -1386,7 +1406,7 @@ export function App() {
     />
   )
 
-  if (!snapshot || !session || !activeTable) {
+  if (!snapshot || !session || !editorSource || !activeTable) {
     return (
       <main className="editor-shell" id="main-content">
         <AppTitlebar
@@ -1726,7 +1746,7 @@ export function App() {
           key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
           theme={theme}
           plugins={editorPlugins}
-          source={clientRef.current!}
+          source={editorSource}
           table={activeTable}
           tables={snapshot.tables}
           view={activeView}
