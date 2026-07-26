@@ -1,6 +1,6 @@
 ---
 name: eidos-release
-description: Release Eidos Desktop, editor.eidos.space, and the bundled Graft runtime. Use when the user asks to deploy eidos-file-web, bump the Eidos app version, update the pinned Graft release, create or recover stable/prerelease tags such as beta.N, run a release pipeline, or verify its remote deployment and artifacts.
+description: Release Eidos Desktop, the standalone Eidos CLI, editor.eidos.space, and the bundled Graft runtime. Use when the user asks to deploy eidos-file-web, release or install the Rust CLI, bump an Eidos version, update the pinned Graft release, create or recover stable/prerelease tags, run a release pipeline, or verify remote deployment and artifacts.
 ---
 
 # Eidos Release
@@ -14,6 +14,7 @@ Classify the request before writing:
 - **Version bump plus prerelease:** bump the app version, then tag `v<version>-beta.N`, `-alpha.N`, or `-rc.N`.
 - **Prerelease tag only:** read the current root app version and tag the current validated `HEAD`.
 - **Stable release:** use `v<version>`.
+- **Standalone CLI release:** use `cli-v<version>` from the independent version in `apps/cli/Cargo.toml`.
 - **Bundled Graft update:** integrate the latest official Graft release before the app version/tag work.
 - **Web editor deployment:** validate and deploy `eidos-file-web` to `editor.eidos.space` through Wrangler.
 - **Tag recovery:** repair and recreate a tag only under the empty failed-attempt rules below.
@@ -22,7 +23,9 @@ For a Desktop release or Graft update, read [references/desktop-release.md](refe
 
 For an `eidos-file-web` deployment, read [references/web-editor-release.md](references/web-editor-release.md) completely before building or deploying.
 
-Do not conflate release surfaces. The Desktop tag workflow does not deploy `editor.eidos.space` or publish `@eidos.space/eidos-file` / `@eidos.space/eidos-file-ui`; Web deployment and npm publishing are separate audited workflows.
+For a standalone CLI release, read [references/cli-release.md](references/cli-release.md) completely before changing versions, tags, installers, or release assets.
+
+Do not conflate release surfaces. Desktop uses `v*`; standalone CLI uses `cli-v*`; neither deploys `editor.eidos.space` nor publishes `@eidos.space/eidos-file` / `@eidos.space/eidos-file-ui`. Each is a separate audited workflow.
 
 Completion criterion: know the requested app version, dependency version, exact tag, target commit, and release channel before any tag or push.
 
@@ -77,20 +80,12 @@ Choose the increment whose `semver.inc(currentVersion, increment)` equals the re
 - `apps/desktop/package.json`
 - `apps/web-app/package.json`
 - `packages/lib/env.ts`
-- `apps/cli/Cargo.toml`
 
 Do not manually bypass the script. If one supported increment cannot produce the requested version, stop and report the limitation.
 
-After the script:
+After the script, inspect the release commit with `git show --name-only --oneline --stat HEAD`.
 
-```bash
-git show --name-only --oneline --stat HEAD
-cd apps/cli && cargo check
-```
-
-Inspect `apps/cli/Cargo.lock`. If Cargo refreshes it, verify that only the expected package version changed and commit it separately as `chore(cli): refresh lockfile for <version>`.
-
-Completion criterion: all five version sources and the CLI lockfile agree on the base version, and each release-preparation commit has a coherent scope.
+Completion criterion: all four app version sources agree on the base version and each release-preparation commit has a coherent scope. Do not change the independent CLI version during an app bump.
 
 ## Validate before tagging
 
@@ -115,7 +110,7 @@ git tag <tag>
 git push origin <branch> <tag>
 ```
 
-The `v*` tag triggers `.github/workflows/build-and-release-desktop-app.yml`; do not manually create a duplicate GitHub Release. Monitor the exact run:
+The `v*` tag triggers `.github/workflows/build-and-release-desktop-app.yml`; do not manually create a duplicate GitHub Release. A `cli-v*` tag instead triggers `.github/workflows/build-and-release-cli.yml` and must follow the CLI reference. Monitor the exact run:
 
 ```bash
 gh run list --workflow build-and-release-desktop-app.yml --limit 10
@@ -171,5 +166,7 @@ For Desktop releases, the final response must include:
 - Validation performed and any allowed degradation.
 - Any CI-only follow-up commit after the tag.
 - Cleanliness and branch/upstream state.
+
+For CLI releases, report the exact `cli-v*` tag and commit, workflow and Release URLs, seven expected assets, checksum/install smoke evidence, `LATEST` value, and branch/upstream state.
 
 For Web deployments, report the deployed commit, Cloudflare deployment/version IDs, public URL, production bundle evidence, PWA update behavior, validation, and remaining unrelated worktree changes.

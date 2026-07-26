@@ -51,9 +51,6 @@ jobs:
             let e = fs.readFileSync('packages/lib/env.ts', 'utf8');
             e = e.replace(/EIDOS_VERSION = \".*\"/, 'EIDOS_VERSION = \"' + v + '\"');
             fs.writeFileSync('packages/lib/env.ts', e);
-            let c = fs.readFileSync('apps/cli/Cargo.toml', 'utf8');
-            c = c.replace(/version = \".*\"/, 'version = \"' + v + '\"');
-            fs.writeFileSync('apps/cli/Cargo.toml', c);
             console.log('Synced version to', v);
           "
 
@@ -152,9 +149,6 @@ jobs:
             let e = fs.readFileSync('packages/lib/env.ts', 'utf8');
             e = e.replace(/EIDOS_VERSION = \".*\"/, 'EIDOS_VERSION = \"' + v + '\"');
             fs.writeFileSync('packages/lib/env.ts', e);
-            let c = fs.readFileSync('apps/cli/Cargo.toml', 'utf8');
-            c = c.replace(/version = \".*\"/, 'version = \"' + v + '\"');
-            fs.writeFileSync('apps/cli/Cargo.toml', c);
             console.log('Synced version to', v);
           "
 

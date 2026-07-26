@@ -1,3 +1,5 @@
+import { getCliSource, isStableDesktopRelease } from "./release-routing.mjs"
+
 /**
  * Welcome to Cloudflare Workers! This is your first worker.
  *
@@ -25,6 +27,46 @@ export interface Env {
   GITHUB_TOKEN: SecretsStoreSecret
 }
 
+interface GitHubAsset {
+  name: string
+  browser_download_url: string
+}
+
+interface GitHubRelease {
+  assets: GitHubAsset[]
+  draft: boolean
+  prerelease: boolean
+  tag_name: string
+}
+
+async function serveCliFile(sourceUrl: string, pathname: string) {
+  try {
+    const upstream = await fetch(sourceUrl, {
+      headers: { "User-Agent": "Eidos CLI installer proxy" },
+    })
+    if (!upstream.ok) {
+      return new Response("CLI installer is temporarily unavailable", {
+        status: 502,
+      })
+    }
+
+    return new Response(upstream.body, {
+      headers: {
+        "Cache-Control":
+          pathname === "/cli/latest"
+            ? "public, max-age=60"
+            : "public, max-age=300",
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Content-Type-Options": "nosniff",
+      },
+    })
+  } catch {
+    return new Response("CLI installer is temporarily unavailable", {
+      status: 502,
+    })
+  }
+}
+
 export default {
   async fetch(
     request: Request,
@@ -32,6 +74,11 @@ export default {
     ctx: ExecutionContext
   ): Promise<Response> {
     const url = new URL(request.url)
+    const cliSource = getCliSource(url.pathname)
+    if (cliSource) {
+      return serveCliFile(cliSource, url.pathname)
+    }
+
     const platform = url.pathname.split("/").pop()?.toLowerCase()
     const arch = url.searchParams.get("arch")?.toLowerCase()
 
@@ -90,15 +137,10 @@ export default {
         )
       }
 
-      const releases = (await response.json()) as Array<{
-        assets: Array<any>
-        prerelease: boolean
-      }>
-      // Filter out pre-release versions
-      const stableReleases = releases.filter((release) => !release.prerelease)
-      const latestRelease = stableReleases[0]
+      const releases = (await response.json()) as GitHubRelease[]
+      const latestRelease = releases.find(isStableDesktopRelease)
       if (!latestRelease) {
-        return new Response("No stable release found", { status: 404 })
+        return new Response("No stable Desktop release found", { status: 404 })
       }
       const extMap = {
         mac: ".dmg",
@@ -106,7 +148,7 @@ export default {
         linux: ".AppImage".toLowerCase(),
       }
 
-      const asset = latestRelease.assets.find((asset: any) => {
+      const asset = latestRelease.assets.find((asset) => {
         const name = asset.name.toLowerCase()
         const ext = extMap[platform as keyof typeof extMap]
         if (arch) {

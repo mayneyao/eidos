@@ -1,4 +1,4 @@
 interface:
   display_name: "Eidos Release"
-  short_description: "Release Eidos Desktop, Web editor, and Graft"
-  default_prompt: "Use $eidos-release to validate and publish an Eidos Desktop or editor.eidos.space release with remote proof."
+  short_description: "Release Eidos Desktop, CLI, Web editor, and Graft"
+  default_prompt: "Use $eidos-release to validate and publish an Eidos Desktop, CLI, or editor.eidos.space release with remote proof."

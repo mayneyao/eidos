@@ -1,0 +1,110 @@
+# Standalone Eidos CLI release
+
+Use this runbook for the Rust CLI in `apps/cli`. A CLI release is independent
+from the Desktop `v*` release surface.
+
+## Establish the release contract
+
+- `apps/cli/Cargo.toml` is the CLI version source of truth.
+- `apps/cli/Cargo.lock` must contain the same `eidos` package version.
+- Stable releases update `apps/cli/LATEST`; prereleases do not move it.
+- Tags use `cli-v<semver>` and trigger
+  `.github/workflows/build-and-release-cli.yml` only.
+- Desktop app version bumps never rewrite the CLI version. Desktop packages
+  bundle the CLI version present at their source commit.
+- CLI Releases set `make_latest: false` so they do not replace the repository's
+  Desktop Latest Release pointer.
+- `https://download.eidos.space/cli/install.sh`, `/cli/install.ps1`, and
+  `/cli/latest` are served by `apps/download`. Its Desktop lookup must keep
+  filtering for stable `v*` tags so a stable `cli-v*` Release cannot shadow
+  Desktop downloads.
+
+Expected release assets are:
+
+- `eidos-cli-v<version>-aarch64-apple-darwin.tar.gz`
+- `eidos-cli-v<version>-x86_64-apple-darwin.tar.gz`
+- `eidos-cli-v<version>-x86_64-unknown-linux-gnu.tar.gz`
+- `eidos-cli-v<version>-x86_64-pc-windows-msvc.zip`
+- `eidos-installer.sh`
+- `eidos-installer.ps1`
+- `SHA256SUMS`
+
+## Prepare the version
+
+Require a clean worktree before release preparation. Update the package version
+in `apps/cli/Cargo.toml`, then refresh and inspect the lockfile:
+
+```bash
+cd apps/cli
+cargo check --workspace
+git diff -- Cargo.toml Cargo.lock
+```
+
+For a stable version, write the exact version without a `v` prefix to
+`apps/cli/LATEST`. Leave `LATEST` on the previous stable version for beta,
+alpha, or rc tags.
+
+Commit the version preparation coherently. Before tagging, require the branch
+commit to exist on the intended remote and verify that neither the local nor
+remote tag exists.
+
+## Validate before tagging
+
+Run:
+
+```bash
+cd apps/cli
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+cd ../..
+node --test apps/cli/install.test.mjs apps/cli/release.test.mjs apps/download/src/release-routing.test.mjs
+pnpm --filter download typecheck
+pnpm --filter download exec wrangler deploy --dry-run
+git diff --check
+```
+
+Also inspect `install.sh`, `install.ps1`, the workflow matrix, archive names,
+checksum verification, and the branded download routes whenever the release
+surface changes. Before the first CLI Release—or after changing those public
+routes—deploy `apps/download` separately and verify all three branded URLs.
+
+## Tag and monitor
+
+Create one lightweight tag on the validated commit:
+
+```bash
+git tag cli-v<version>
+git push origin <branch> cli-v<version>
+gh run list --workflow build-and-release-cli.yml --limit 10
+gh run watch <run-id> --exit-status
+```
+
+Do not create a GitHub Release manually. The workflow verifies the tag against
+Cargo metadata, requires `LATEST` for stable tags, builds every matrix target,
+checks each binary version, creates the checksum manifest, and publishes the
+Release.
+
+Use the main skill's empty failed-tag recovery rules. Never move a CLI tag that
+has a Release, uploaded asset, or plausible consumer.
+
+## Prove publication
+
+Verify the remote tag, exact workflow SHA, GitHub Release, all seven assets,
+and checksums:
+
+```bash
+git ls-remote origin refs/tags/cli-v<version>
+gh run view <run-id> --json status,conclusion,headSha,url
+gh release view cli-v<version> --json url,isDraft,isPrerelease,publishedAt,assets
+```
+
+Download `SHA256SUMS` and at least the current-platform archive into a temporary
+directory. Verify the archive checksum independently, extract it, and require
+`eidos --version` to report the released version. For a stable release, run the
+public installer command into a temporary `EIDOS_INSTALL_DIR` and verify the
+installed binary.
+
+Report the tag and commit, workflow and Release URLs, seven-asset platform
+coverage, checksum/install smoke results, current `LATEST`, and branch/upstream
+state.
