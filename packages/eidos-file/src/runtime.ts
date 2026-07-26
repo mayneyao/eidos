@@ -3547,6 +3547,8 @@ export class EidosFileRuntime {
         "count-all": "count(*)",
         "count-non-null": list ? "count(*)" : `count(${column})`,
         "count-empty": `sum(CASE WHEN ${column} IS NULL${list ? ` OR json_array_length(${column}) = 0` : ""} THEN 1 ELSE 0 END)`,
+        "percent-checked": `CASE WHEN count(*) = 0 THEN 0 ELSE round(100.0 * sum(CASE WHEN ${column} = 1 THEN 1 ELSE 0 END) / count(*), 2) END`,
+        "percent-unchecked": `CASE WHEN count(*) = 0 THEN 0 ELSE round(100.0 * sum(CASE WHEN ${column} = 1 THEN 0 ELSE 1 END) / count(*), 2) END`,
         "count-distinct": list
           ? `(SELECT count(DISTINCT value_type || ':' || json_quote(value)) FROM ${flattened})`
           : `count(DISTINCT ${column})`,

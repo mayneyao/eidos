@@ -1040,10 +1040,17 @@ hover、open editor 或 collapsed transient group；它们是 query result 或 U
 | `showEmptyGroups`     | boolean                          | `true`                                 | Kanban         | Kanban 展示/功能   | 展示从 grouping Field canonical option catalog 派生的 zero-row group |
 
 `columnStats[*].type` 只能是 `count-all`、`count-non-null`、
-`count-distinct`、`count-empty`、`sum`、`average`、`min`、`max`、
+`count-distinct`、`count-empty`、`percent-checked`、`percent-unchecked`、
+`sum`、`average`、`min`、`max`、
 `relation-value-count`、`relation-row-count` 或
 `relation-distinct-target-count`。UI 只启用与 Field 兼容的 Runtime choice，发送对应
 `AggregateRequest`，并且只显示 revision 匹配的结果。Aggregate result 绝不持久化。
+
+`percent-checked` 与 `percent-unchecked` 仅适用于 Checkbox Field，分母是 active
+Runtime query 命中的全部记录。`percent-checked` 统计 canonical true；
+`percent-unchecked` 统计 false 与 SQL NULL，这与标准未勾选交互一致，而
+`count-empty` 仍可单独区分 NULL。空结果为 `0`；其他结果是 `0..100` 的数值，展示时
+最多保留两位小数。
 
 普通 Field 的可见性由 `hiddenFields` 控制；optional system Field 的可见性只由
 `visibleSystemFields` 控制，同一个 system Field 即使也在 `hiddenFields` 中也没有额外
@@ -1184,6 +1191,8 @@ envelope 本身不存储。
             "count-non-null",
             "count-distinct",
             "count-empty",
+            "percent-checked",
+            "percent-unchecked",
             "sum",
             "average",
             "min",
@@ -1330,6 +1339,12 @@ resolve 时只替换 generated presentation。
 Option catalog 只是 decoration/input assistance。Catalog 中不存在的 value 显示为
 unconfigured raw value，不能 replace/drop。Option rename 调用 Runtime 的 option-rename
 schema/data migration；UI 不得把它实现成 label-only edit。
+
+Select 或 Multi-select editor 中显式的“新建选项”操作必须先提交完整、更新后的 Field
+option catalog。只有 metadata mutation 成功后，UI 才能使用其返回的 revision 提交 cell
+value。Catalog mutation 被拒绝或 stale 时不得发出 cell mutation；之后的 cell mutation
+若失败，catalog entry 作为合法的零使用选项保留。此用户操作不同于 CSV import 中被禁止的
+implicit option inference。
 
 Date input 原样发送 calendar value。Datetime display 使用 user/Host 选择的 IANA
 timezone identifier，并在 editor 附近清楚暴露。DST overlap/gap input 必须先得到

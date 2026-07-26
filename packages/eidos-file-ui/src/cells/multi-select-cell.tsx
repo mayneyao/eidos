@@ -46,6 +46,7 @@ interface MultiSelectCellProps {
   readonly readonly?: boolean
   readonly allowedValues: readonly SelectOption[]
   readonly allowCreate?: boolean
+  readonly onCreateOption?: (options: readonly SelectOption[]) => Promise<void>
 }
 
 export type MultiSelectCell = CustomCell<MultiSelectCellProps>
@@ -56,49 +57,57 @@ const innerPad = 6
 export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
   const { translate: t } = useEidosFileUI()
   const { value: cell, onChange, theme, onFinishedEditing } = p
-  const { allowedValues, allowCreate = true, values = [] } = cell.data
+  const {
+    allowedValues,
+    allowCreate = true,
+    onCreateOption,
+    values = [],
+  } = cell.data
+  const selectedValues = values ?? []
 
   const themeName = (theme as any).name
   const inputRef = React.useRef<HTMLInputElement>(null)
 
-  const [newOptions, setNewOptions] = React.useState<SelectOption[]>([])
-
   const allowedValuesMap = React.useMemo(
     () =>
-      [...allowedValues, ...newOptions].reduce(
+      allowedValues.reduce(
         (res, option) => {
           res[option.id] = option
           return res
         },
         {} as Record<string, SelectOption>
       ),
-    [allowedValues, newOptions]
+    [allowedValues]
   )
-  const currentOptions = values!
+  const currentOptions = selectedValues
     .map((optionId) => allowedValuesMap[optionId])
     .filter(Boolean)
 
   const [currentSelect, setCurrentSelect] = React.useState("")
-  const setNewValues = (newValues: string[]) => {
+  const setNewValues = (
+    newValues: string[],
+    nextAllowedValues: readonly SelectOption[] = allowedValues
+  ) => {
     onChange({
       ...cell,
       data: {
         ...cell.data,
         values: newValues,
+        allowedValues: nextAllowedValues,
       },
     })
   }
 
   const clickRemoveOption = (e: any) => {
     const optionId = e.target.dataset.id
-    const set = new Set<string>(values)
+    const set = new Set<string>(selectedValues)
     set.delete(optionId)
     setNewValues(Array.from(set))
   }
   const handleSelect = (value?: string) => {
     if (!value) return
     setInputValue("")
-    const set = new Set<string>(values)
+    const set = new Set<string>(selectedValues)
     if (set.has(value)) {
       set.delete(value)
     } else {
@@ -108,6 +117,40 @@ export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
     inputRef.current?.focus()
   }
   const [inputValue, setInputValue] = React.useState("")
+  const [creating, setCreating] = React.useState(false)
+  const [createError, setCreateError] = React.useState(false)
+  const canCreate = allowCreate && Boolean(onCreateOption)
+
+  const handleCreate = async (rawName: string) => {
+    const name = rawName.trim()
+    if (
+      !name ||
+      creating ||
+      !onCreateOption ||
+      allowedValues.some((option) => option.name === name)
+    ) {
+      return
+    }
+    const option = {
+      id: name,
+      name,
+      color: nextEidosFileOptionColor(allowedValues),
+    }
+    const nextAllowedValues = [...allowedValues, option]
+    setCreating(true)
+    setCreateError(false)
+    try {
+      await onCreateOption(nextAllowedValues)
+      const nextValues = Array.from(new Set([...selectedValues, name]))
+      setNewValues(nextValues, nextAllowedValues)
+      setInputValue("")
+      inputRef.current?.focus()
+    } catch {
+      setCreateError(true)
+    } finally {
+      setCreating(false)
+    }
+  }
 
   const [open, setOpen] = React.useState(true)
 
@@ -123,7 +166,7 @@ export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
 
   const handleBackspace: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
     if (e.key === "Backspace" && !inputValue?.length) {
-      const _values: string[] = Array.from(values!)
+      const _values: string[] = Array.from(selectedValues)
       _values.pop()
       setNewValues(_values)
     }
@@ -142,18 +185,8 @@ export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
         handleSelect(currentOptionId)
         setInputValue("")
       } else {
-        if (!allowCreate || !inputValue?.length) return
-        // is creating new option
-        handleSelect(inputValue)
-        setInputValue("")
-        setNewOptions([
-          ...newOptions,
-          {
-            id: inputValue,
-            name: inputValue,
-            color: nextEidosFileOptionColor([...allowedValues, ...newOptions]),
-          },
-        ])
+        if (!canCreate || !inputValue.trim().length) return
+        void handleCreate(inputValue)
       }
     }
   }
@@ -215,7 +248,7 @@ export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
               })}
             >
               <CommandEmpty>
-                {allowCreate ? t("Create option") : t("No options")}
+                {canCreate ? t("Create option") : t("No options")}
               </CommandEmpty>
               <CommandGroup className="h-full">
                 {allowedValues.map((option) => (
@@ -229,17 +262,19 @@ export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
                     <SelectOptionItem theme={themeName} option={option} />
                   </CommandItem>
                 ))}
-                {allowCreate &&
-                  Boolean(inputValue.length) &&
-                  allowedValues.findIndex((item) => item.name == inputValue) ==
-                    -1 && (
+                {canCreate &&
+                  Boolean(inputValue.trim().length) &&
+                  allowedValues.findIndex(
+                    (item) => item.name === inputValue.trim()
+                  ) === -1 && (
                     <CommandItem
                       key={inputValue}
                       value={inputValue}
                       className="flex items-center gap-2"
                       autoFocus
-                      onSelect={(currentValue) => {
-                        handleSelect(currentValue)
+                      disabled={creating}
+                      onSelect={() => {
+                        void handleCreate(inputValue)
                       }}
                     >
                       <span>{t("Create")}</span>
@@ -248,10 +283,7 @@ export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
                         option={{
                           id: inputValue,
                           name: inputValue,
-                          color: nextEidosFileOptionColor([
-                            ...allowedValues,
-                            ...newOptions,
-                          ]),
+                          color: nextEidosFileOptionColor([...allowedValues]),
                         }}
                       />
                     </CommandItem>
@@ -261,7 +293,11 @@ export const Editor: ProvideEditorComponent<MultiSelectCell> = (p) => {
             <div
               className={`${EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME} justify-between`}
             >
-              <span>{t("Arrow keys navigate · Enter selects")}</span>
+              <span>
+                {createError
+                  ? t("Unable to create option")
+                  : t("Arrow keys navigate · Enter selects")}
+              </span>
               <Button
                 type="button"
                 variant="ghost"

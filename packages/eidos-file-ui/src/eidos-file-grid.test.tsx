@@ -988,6 +988,129 @@ describe("EidosFileGrid", () => {
     expect(loadColumnStats).toHaveBeenCalledTimes(2)
   })
 
+  it("formats Checkbox percentage stats with a percent suffix", async () => {
+    const view = {
+      ...table.views[0],
+      properties: {
+        columnStats: {
+          "0198c72d-82b5-7000-8000-000000000002": {
+            type: "percent-checked",
+          },
+        },
+      },
+    }
+    const loadColumnStats = vi.fn().mockResolvedValue([
+      {
+        fieldId: "0198c72d-82b5-7000-8000-000000000002",
+        type: "percent-checked",
+        value: 62.5,
+      },
+    ])
+
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={table}
+          view={view}
+          loadPage={createLoadPage()}
+          loadColumnStats={loadColumnStats}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit()}
+        />
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(loadColumnStats).toHaveBeenCalledWith([
+      {
+        fieldId: "0198c72d-82b5-7000-8000-000000000002",
+        type: "percent-checked",
+      },
+    ])
+    expect(mocks.props?.columns[1].trailingRowOptions?.hint).toBe(
+      "Percent checked: 62.5%"
+    )
+  })
+
+  it("persists a complete option catalog before a Grid editor can use a new option", async () => {
+    const optionTable: EidosFileTableSnapshot = {
+      ...table,
+      fields: [
+        ...table.fields,
+        {
+          id: "0198c72d-82b5-7000-8000-000000000003",
+          tableId: "0198c72d-82b5-7000-8000-000000000010",
+          name: "Status",
+          type: "select",
+          tableName: "tb_tasks",
+          tableColumnName: "status",
+          property: {
+            options: [{ name: "Todo", color: "blue", icon: "circle" }],
+          },
+          storageCodec: "scalar",
+          valueKind: "source",
+          isHidden: false,
+          isDerived: false,
+          sourceTableColumnName: null,
+          dependsOn: null,
+        },
+      ],
+      rowCount: 1,
+    }
+    const loadPage = vi.fn(async () => ({
+      tableId: optionTable.table.id,
+      offset: 0,
+      limit: 100,
+      total: 1,
+      rows: [{ _id: ADA_ID, title: "Write RFC", done: 0, status: null }],
+    }))
+    const onFieldUpdate = vi.fn(async () => undefined)
+
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={optionTable}
+          view={optionTable.views[0]}
+          loadPage={loadPage}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit(optionTable)}
+          onFieldUpdate={onFieldUpdate}
+        />
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const cell = mocks.props?.getCellContent?.([2, 0])
+    expect(cell?.kind).toBe(GridCellKind.Custom)
+    if (cell?.kind !== GridCellKind.Custom) {
+      throw new Error("Expected Select custom cell")
+    }
+    const data = cell.data as {
+      allowCreate?: boolean
+      onCreateOption?: (
+        options: Array<{ id: string; name: string; color: string }>
+      ) => Promise<void>
+    }
+    expect(data.allowCreate).toBe(true)
+    await act(async () => {
+      await data.onCreateOption?.([
+        { id: "Todo", name: "Todo", color: "blue" },
+        { id: "Blocked", name: "Blocked", color: "gray" },
+      ])
+    })
+
+    expect(onFieldUpdate).toHaveBeenCalledWith(optionTable.fields[2], {
+      property: {
+        options: [
+          { name: "Todo", color: "blue", icon: "circle" },
+          { name: "Blocked", color: "gray" },
+        ],
+      },
+    })
+  })
+
   it("reports a column stat failure once and retries on an explicit reload", async () => {
     const view = {
       ...table.views[0],

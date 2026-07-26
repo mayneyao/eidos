@@ -1071,7 +1071,7 @@ export interface EidosFileColumnStatResult extends EidosFileColumnStatConfig {
 }
 
 // @public (undocumented)
-export type EidosFileColumnStatType = "count-all" | "count-non-null" | "count-distinct" | "count-empty" | "sum" | "average" | "min" | "max" | "relation-value-count" | "relation-row-count" | "relation-distinct-target-count";
+export type EidosFileColumnStatType = "count-all" | "count-non-null" | "count-distinct" | "count-empty" | "percent-checked" | "percent-unchecked" | "sum" | "average" | "min" | "max" | "relation-value-count" | "relation-row-count" | "relation-distinct-target-count";
 
 // @public (undocumented)
 export function eidosFileColumnStatTypesForField(field: EidosFileFieldInfo): readonly EidosFileColumnStatType[];

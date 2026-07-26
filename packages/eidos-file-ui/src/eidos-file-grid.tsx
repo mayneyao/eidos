@@ -58,6 +58,7 @@ import {
   eidosFileGridColumn,
   eidosFileValueToGridCell,
   gridCellToEidosFileValue,
+  type EidosFileGridSelectOption,
 } from "./eidos-file-grid-adapter"
 import {
   EidosFileAttachmentCellRenderer,
@@ -200,6 +201,36 @@ function gridMutationErrorMessage(error: unknown): string {
   return /[.!?]$/.test(message) ? message : `${message}.`
 }
 
+function selectOptionsProperty(
+  field: EidosFileFieldInfo,
+  options: readonly EidosFileGridSelectOption[]
+): Record<string, unknown> {
+  const existing = Array.isArray(field.property?.options)
+    ? field.property.options
+    : []
+  const existingByName = new Map(
+    existing.flatMap((entry) => {
+      if (
+        typeof entry !== "object" ||
+        entry === null ||
+        Array.isArray(entry) ||
+        typeof (entry as { name?: unknown }).name !== "string"
+      ) {
+        return []
+      }
+      return [[(entry as { name: string }).name, entry] as const]
+    })
+  )
+  return {
+    ...(field.property ?? {}),
+    options: options.map((option) => ({
+      ...(existingByName.get(option.name) ?? {}),
+      name: option.name,
+      color: option.color,
+    })),
+  }
+}
+
 function sameFields(
   left: EidosFileFieldInfo[],
   right: EidosFileFieldInfo[]
@@ -286,7 +317,9 @@ function columnStatHint(
   const label = eidosFileColumnStatLabel(result.type)
   if (result.value === null) return `${label}: —`
   if (typeof result.value === "string") return `${label}: ${result.value}`
-  const maximumFractionDigits = result.type === "average" ? 2 : 12
+  const percentage =
+    result.type === "percent-checked" || result.type === "percent-unchecked"
+  const maximumFractionDigits = result.type === "average" || percentage ? 2 : 12
   const value = new Intl.NumberFormat(undefined, {
     maximumFractionDigits,
   }).format(result.value)
@@ -296,7 +329,7 @@ function columnStatHint(
   ) {
     return `${label}: ${value}`
   }
-  return `${label}: ${value}`
+  return `${label}: ${value}${percentage ? "%" : ""}`
 }
 
 export const EidosFileGrid = memo(function EidosFileGrid({
@@ -776,6 +809,32 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           },
         } as EidosFileRelationCell
       }
+      if (
+        cell.kind === GridCellKind.Custom &&
+        ((cell.data as { kind?: unknown }).kind === "select-cell" ||
+          (cell.data as { kind?: unknown }).kind === "multi-select-cell")
+      ) {
+        const allowCreate = !gridWriteLocked && Boolean(onFieldUpdate)
+        return {
+          ...cell,
+          data: {
+            ...cell.data,
+            allowCreate,
+            onCreateOption: allowCreate
+              ? async (options: readonly EidosFileGridSelectOption[]) => {
+                  try {
+                    await onFieldUpdate?.(field, {
+                      property: selectOptionsProperty(field, options),
+                    })
+                  } catch (error) {
+                    onError?.(error)
+                    throw error
+                  }
+                }
+              : undefined,
+          },
+        }
+      }
       return cell
     },
     [
@@ -784,6 +843,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       fields,
       gridWriteLocked,
       onImportFiles,
+      onFieldUpdate,
+      onError,
       onSearchRelation,
       t,
     ]

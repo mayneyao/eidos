@@ -403,7 +403,13 @@ export function EidosFileColumnStatMenu({
                   onClick={() => choose(type)}
                 >
                   <span className="w-3.5 text-center text-[11px] text-muted-foreground">
-                    {type === "sum" ? "Σ" : type === "average" ? "μ" : "#"}
+                    {type === "sum"
+                      ? "Σ"
+                      : type === "average"
+                        ? "μ"
+                        : type.startsWith("percent-")
+                          ? "%"
+                          : "#"}
                   </span>
                   {t(eidosFileColumnStatLabel(type))}
                   {value === type ? (

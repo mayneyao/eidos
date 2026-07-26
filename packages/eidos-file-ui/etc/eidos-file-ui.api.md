@@ -636,6 +636,7 @@ interface MultiSelectCellProps {
   readonly readonly?: boolean;
   readonly allowedValues: readonly EidosFileGridSelectOption[];
   readonly allowCreate?: boolean;
+  readonly onCreateOption?: (options: readonly EidosFileGridSelectOption[]) => Promise<void>;
 }
 type MultiSelectCell = CustomCell<MultiSelectCellProps>;
 declare const renderer$1: CustomRenderer<MultiSelectCell>;
@@ -682,6 +683,7 @@ interface SelectCellProps {
   readonly value: string | null;
   readonly allowedValues: readonly EidosFileGridSelectOption[];
   readonly allowCreate?: boolean;
+  readonly onCreateOption?: (options: readonly EidosFileGridSelectOption[]) => Promise<void>;
   readonly readonly?: boolean;
 }
 type SelectCell = CustomCell<SelectCellProps>;

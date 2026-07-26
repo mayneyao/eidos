@@ -581,6 +581,8 @@ export type EidosFileColumnStatType =
   | "count-non-null"
   | "count-distinct"
   | "count-empty"
+  | "percent-checked"
+  | "percent-unchecked"
   | "sum"
   | "average"
   | "min"

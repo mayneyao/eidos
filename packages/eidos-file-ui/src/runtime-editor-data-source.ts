@@ -1839,6 +1839,12 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     config: EidosFileColumnStatConfig
   ): boolean {
     if (config.type.startsWith("relation-")) return true
+    if (
+      config.type === "percent-checked" ||
+      config.type === "percent-unchecked"
+    ) {
+      return true
+    }
     if (config.type !== "count-empty") return false
     const valueType = this.fields.get(config.fieldId)?.valueType
     return (
@@ -1855,7 +1861,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     query: EidosFileRowQuery
   ): Promise<EidosFileColumnStatResult[]> {
     const values = new Map(
-      configs.map((config) => [config.fieldId, [] as unknown[][]])
+      configs.map((config) => [config.fieldId, [] as unknown[]])
     )
     let cursor: string | undefined
     do {
@@ -1873,15 +1879,21 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       page.rows.forEach((row) => {
         row.values.forEach((value, index) => {
           const bucket = values.get(selected[index]!)!
-          bucket.push(Array.isArray(value) ? value : [])
+          bucket.push(value)
         })
       })
       cursor = page.nextCursor ?? undefined
     } while (cursor)
     return configs.map((config) => {
       const rows = values.get(config.fieldId) ?? []
-      const targets = rows.flat().map(String)
-      const nonEmptyRows = rows.filter((value) => value.length > 0).length
+      const lists = rows.map((value) => (Array.isArray(value) ? value : []))
+      const targets = lists.flat().map(String)
+      const nonEmptyRows = lists.filter((value) => value.length > 0).length
+      const checkedRows = rows.filter(
+        (value) => value === true || value === 1 || value === "1"
+      ).length
+      const percentage = (count: number) =>
+        rows.length === 0 ? 0 : Math.round((count / rows.length) * 10_000) / 100
       const value =
         config.type === "relation-value-count"
           ? targets.length
@@ -1889,9 +1901,13 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
             ? nonEmptyRows
             : config.type === "relation-distinct-target-count"
               ? new Set(targets).size
-              : config.type === "count-empty"
-                ? rows.length - nonEmptyRows
-                : null
+              : config.type === "percent-checked"
+                ? percentage(checkedRows)
+                : config.type === "percent-unchecked"
+                  ? percentage(rows.length - checkedRows)
+                  : config.type === "count-empty"
+                    ? rows.length - nonEmptyRows
+                    : null
       return { ...config, value }
     })
   }

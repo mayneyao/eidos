@@ -27,7 +27,11 @@ const DATE_STATS: readonly EidosFileColumnStatType[] = [
   "max",
 ]
 
-const CHECKBOX_STATS = COMMON_STATS
+const CHECKBOX_STATS: readonly EidosFileColumnStatType[] = [
+  ...COMMON_STATS,
+  "percent-checked",
+  "percent-unchecked",
+]
 
 const MULTI_VALUE_STATS: readonly EidosFileColumnStatType[] = [...COMMON_STATS]
 
@@ -43,6 +47,8 @@ const LABELS: Record<EidosFileColumnStatType, string> = {
   "count-non-null": "Count non-null",
   "count-distinct": "Count distinct",
   "count-empty": "Count empty",
+  "percent-checked": "Percent checked",
+  "percent-unchecked": "Percent unchecked",
   sum: "Sum",
   average: "Average",
   min: "Minimum",
@@ -161,6 +167,10 @@ export function compileEidosFileColumnStatExpression(
       return `COUNT(DISTINCT CASE WHEN ${present} THEN ${column} END)`
     case "count-empty":
       return `COUNT(CASE WHEN ${empty} THEN 1 END)`
+    case "percent-checked":
+      return `CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND(100.0 * COUNT(CASE WHEN ${column} = 1 THEN 1 END) / COUNT(*), 2) END`
+    case "percent-unchecked":
+      return `CASE WHEN COUNT(*) = 0 THEN 0 ELSE ROUND(100.0 * COUNT(CASE WHEN ${column} = 1 THEN NULL ELSE 1 END) / COUNT(*), 2) END`
     case "sum":
       return `SUM(CASE WHEN ${present} THEN CAST(${column} AS REAL) END)`
     case "average":

@@ -1119,11 +1119,19 @@ request effect.
 | `showEmptyGroups`     | boolean                          | `true`                                 | Kanban         | Kanban presentation/function | show zero-row groups derived from the grouping Field's canonical option catalog |
 
 `columnStats[*].type` is exactly one of `count-all`, `count-non-null`,
-`count-distinct`, `count-empty`, `sum`, `average`, `min`, `max`,
+`count-distinct`, `count-empty`, `percent-checked`, `percent-unchecked`, `sum`,
+`average`, `min`, `max`,
 `relation-value-count`, `relation-row-count`, or
 `relation-distinct-target-count`. UI enables only Runtime-compatible choices
 for the Field, sends the corresponding `AggregateRequest`, and displays only a
 matching revision-bearing result. The aggregate result is never persisted.
+
+`percent-checked` and `percent-unchecked` apply only to Checkbox Fields. Their
+denominator is every row in the active Runtime query. `percent-checked` counts
+canonical true values; `percent-unchecked` counts false and SQL NULL values,
+matching the standard unchecked Checkbox interaction while `count-empty`
+remains available to distinguish NULL. An empty result is `0`; other results
+are numbers in `0..100`, rounded to at most two decimal places for display.
 
 An ordinary Field's visibility is controlled by `hiddenFields`. An optional
 system Field's visibility is controlled only by `visibleSystemFields`; placing
@@ -1275,6 +1283,8 @@ parsed layout object. The envelope itself is not stored.
             "count-non-null",
             "count-distinct",
             "count-empty",
+            "percent-checked",
+            "percent-unchecked",
             "sum",
             "average",
             "min",
@@ -1444,6 +1454,14 @@ An option catalog is decoration and input assistance. A value missing from the
 catalog is shown as an unconfigured raw value, not replaced or dropped.
 Renaming an option invokes Runtime's option-rename schema/data migration; a UI
 MUST NOT implement it as a label-only edit.
+
+An explicit Create option action in a Select or Multi-select editor first
+commits the complete updated Field option catalog. Only after that metadata
+mutation succeeds may UI submit the cell value against the returned revision.
+If the catalog mutation is rejected or stale, UI does not issue the cell
+mutation. If the later cell mutation fails, the catalog entry remains a valid
+zero-use option. This user action is distinct from forbidden implicit option
+inference during CSV import.
 
 Date input sends the calendar value unchanged. Datetime display uses a
 user- or Host-selected IANA time-zone identifier and clearly exposes it near

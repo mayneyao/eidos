@@ -99,7 +99,7 @@ async function createTable(
   fields: Array<{
     clientKey: string
     name: string
-    kind: "text" | "multi-select"
+    kind: "text" | "select" | "multi-select"
   }>
 ) {
   const applied = await applySchema(runtime, {
@@ -276,6 +276,84 @@ describe("Eidos Runtime P0 data safety regressions", () => {
     }
   })
 
+  it("persists new Select catalogs before accepting their row values", async () => {
+    const { runtime, connection } = await createRuntime()
+    try {
+      const table = await createTable(runtime, "items", "Items", [
+        { clientKey: "title", name: "Title", kind: "text" },
+        { clientKey: "status", name: "Status", kind: "select" },
+        { clientKey: "tags", name: "Tags", kind: "multi-select" },
+      ])
+      const statusId = table.fieldIds.status!
+      const tagsId = table.fieldIds.tags!
+      const catalog = await applySchema(runtime, {
+        kind: "batch",
+        changes: [
+          {
+            kind: "set-field-settings",
+            fieldId: statusId,
+            settings: {
+              options: [{ name: "Blocked", color: "gray" }],
+            },
+          },
+          {
+            kind: "set-field-settings",
+            fieldId: tagsId,
+            settings: {
+              options: [{ name: "Fresh", color: "green" }],
+            },
+          },
+        ],
+      })
+      expect(catalog.plan.classification).toBe("metadata-only")
+
+      const rows = await runtime.mutateRows(
+        {
+          tableId: table.tableId,
+          expectedRevision: catalog.result.revision,
+          changes: [
+            {
+              kind: "create",
+              clientKey: "created",
+              values: { [statusId]: "Blocked", [tagsId]: ["Fresh"] },
+            },
+          ],
+        },
+        context("write-new-option-values")
+      )
+      const schema = await runtime.getSchemaPage(
+        { revision: rows.revision, limit: 100 },
+        context("option-schema")
+      )
+      expect(
+        schema.objects.find(
+          (object) => object.object === "field" && object.id === statusId
+        )
+      ).toMatchObject({
+        settings: { options: [{ name: "Blocked", color: "gray" }] },
+      })
+      expect(
+        schema.objects.find(
+          (object) => object.object === "field" && object.id === tagsId
+        )
+      ).toMatchObject({
+        settings: { options: [{ name: "Fresh", color: "green" }] },
+      })
+      const stored = await runtime.getRowsById(
+        {
+          tableId: table.tableId,
+          rowIds: [rows.created[0]!.rowId],
+          projection: { fields: [statusId, tagsId], resolveRelations: [] },
+        },
+        context("option-values")
+      )
+      expect(stored.rows[0]!.values).toEqual(["Blocked", ["Fresh"]])
+    } finally {
+      await runtime.close(context("close"))
+      connection.close()
+    }
+  })
+
   it("converts empty and singleton Multi-select values to nullable Select losslessly", async () => {
     const { runtime, connection } = await createRuntime()
     try {
@@ -349,6 +427,68 @@ describe("Eidos Runtime P0 data safety regressions", () => {
         ["Empty", null],
         ["One", "A"],
       ])
+    } finally {
+      await runtime.close(context("close"))
+      connection.close()
+    }
+  })
+
+  it("rejects an empty Multi-select for non-nullable Select without changing data or revision", async () => {
+    const { runtime, connection } = await createRuntime()
+    try {
+      const table = await createTable(runtime, "items", "Items", [
+        { clientKey: "title", name: "Title", kind: "text" },
+        { clientKey: "tags", name: "Tags", kind: "multi-select" },
+      ])
+      const tagsId = table.fieldIds.tags!
+      const rows = await runtime.mutateRows(
+        {
+          tableId: table.tableId,
+          expectedRevision: table.revision,
+          changes: [
+            {
+              kind: "create",
+              clientKey: "empty",
+              values: { [tagsId]: [] },
+            },
+          ],
+        },
+        context("create-empty-row")
+      )
+      const plan = await runtime.preflightSchema(
+        {
+          expectedRevision: rows.revision,
+          change: {
+            kind: "convert-field",
+            fieldId: tagsId,
+            to: "select",
+            toNullable: false,
+            policies: ["first"],
+          },
+        },
+        context("non-nullable-convert-preflight")
+      )
+
+      expect(plan.classification).toBe("forbidden")
+      expect(plan.warnings).toContainEqual(
+        expect.objectContaining({
+          code: "conversion-domain-invalid",
+          severity: "error",
+          fieldId: tagsId,
+        })
+      )
+      expect((await runtime.getSnapshot({}, context("after"))).revision).toBe(
+        rows.revision
+      )
+      const unchanged = await runtime.getRowsById(
+        {
+          tableId: table.tableId,
+          rowIds: [rows.created[0]!.rowId],
+          projection: { fields: [tagsId], resolveRelations: [] },
+        },
+        context("unchanged-empty-row")
+      )
+      expect(unchanged.rows[0]!.values).toEqual([[]])
     } finally {
       await runtime.close(context("close"))
       connection.close()

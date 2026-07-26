@@ -293,6 +293,7 @@ describe("Eidos File 1.0 native Runtime", () => {
         fields: [
           { name: "Name", type: "text", isRecordLabel: true },
           { name: "Score", type: "number" },
+          { name: "Done", type: "checkbox" },
           { name: "Tags", type: "multi-select" },
           {
             name: "Team",
@@ -310,19 +311,28 @@ describe("Eidos File 1.0 native Runtime", () => {
         {
           Name: "One",
           Score: 10,
+          Done: 1,
           Tags: '["a","b"]',
           Team: JSON.stringify([teamId]),
         },
         {
           Name: "Two",
           Score: 20,
+          Done: 0,
           Tags: '["b"]',
           Team: JSON.stringify([teamId]),
         },
-        { Name: "Three", Score: null, Tags: "[]", Team: "[]" },
+        {
+          Name: "Three",
+          Score: null,
+          Done: null,
+          Tags: "[]",
+          Team: "[]",
+        },
       ])
       const fields = runtime.listFields(projects.id)
       const score = fields.find((field) => field.name === "Score")!
+      const done = fields.find((field) => field.name === "Done")!
       const tags = fields.find((field) => field.name === "Tags")!
       const team = fields.find((field) => field.name === "Team")!
       const results = runtime.aggregate(projects.id, [
@@ -334,6 +344,8 @@ describe("Eidos File 1.0 native Runtime", () => {
         { fieldId: score.id!, type: "average" },
         { fieldId: score.id!, type: "min" },
         { fieldId: score.id!, type: "max" },
+        { fieldId: done.id!, type: "percent-checked" },
+        { fieldId: done.id!, type: "percent-unchecked" },
         { fieldId: tags.id!, type: "count-distinct" },
         { fieldId: team.id!, type: "relation-value-count" },
         { fieldId: team.id!, type: "relation-row-count" },
@@ -355,6 +367,8 @@ describe("Eidos File 1.0 native Runtime", () => {
         [`${score.id}:average`]: 15,
         [`${score.id}:min`]: 10,
         [`${score.id}:max`]: 20,
+        [`${done.id}:percent-checked`]: 33.33,
+        [`${done.id}:percent-unchecked`]: 66.67,
         [`${tags.id}:count-distinct`]: 2,
         [`${team.id}:relation-value-count`]: 2,
         [`${team.id}:relation-row-count`]: 2,

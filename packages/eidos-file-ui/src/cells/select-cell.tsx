@@ -44,6 +44,7 @@ interface SelectCellProps {
   readonly value: string | null
   readonly allowedValues: readonly SelectOption[]
   readonly allowCreate?: boolean
+  readonly onCreateOption?: (options: readonly SelectOption[]) => Promise<void>
   readonly readonly?: boolean
 }
 
@@ -53,8 +54,12 @@ interface SelectEditorProps {
   value: string | null
   allowedValues: readonly SelectOption[]
   allowCreate: boolean
+  onCreateOption?: (options: readonly SelectOption[]) => Promise<void>
   themeName: string
-  onFinishedEditing: (value: string | null) => void
+  onFinishedEditing: (
+    value: string | null,
+    options?: readonly SelectOption[]
+  ) => void
   onCancelEditing: () => void
 }
 
@@ -64,6 +69,7 @@ function SelectEditor(props: SelectEditorProps) {
     value: valueIn,
     allowedValues,
     allowCreate,
+    onCreateOption,
     themeName,
     onFinishedEditing,
     onCancelEditing,
@@ -74,6 +80,9 @@ function SelectEditor(props: SelectEditorProps) {
   const [selectedValue, setSelectedValue] = React.useState<string | null>(
     valueIn
   )
+  const [creating, setCreating] = React.useState(false)
+  const [createError, setCreateError] = React.useState(false)
+  const canCreate = allowCreate && Boolean(onCreateOption)
 
   const nextColorName = nextEidosFileOptionColor([...allowedValues])
 
@@ -107,6 +116,32 @@ function SelectEditor(props: SelectEditorProps) {
     // 选择后立即保存（单选的常规交互）
     setOpen(false)
     onFinishedEditing(optionId)
+  }
+
+  const handleCreate = async (rawName: string) => {
+    const name = rawName.trim()
+    if (
+      !name ||
+      creating ||
+      !onCreateOption ||
+      allowedValues.some((option) => option.name === name)
+    ) {
+      return
+    }
+    const option = { id: name, name, color: nextColorName }
+    const options = [...allowedValues, option]
+    setCreating(true)
+    setCreateError(false)
+    try {
+      await onCreateOption(options)
+      setSelectedValue(name)
+      setOpen(false)
+      onFinishedEditing(name, options)
+    } catch {
+      setCreateError(true)
+    } finally {
+      setCreating(false)
+    }
   }
 
   return (
@@ -173,16 +208,18 @@ function SelectEditor(props: SelectEditorProps) {
                   )
                 })}
 
-                {allowCreate &&
-                  Boolean(searchValue.length) &&
-                  allowedValues.findIndex((item) => item.name == searchValue) ==
-                    -1 && (
+                {canCreate &&
+                  Boolean(searchValue.trim().length) &&
+                  allowedValues.findIndex(
+                    (item) => item.name === searchValue.trim()
+                  ) === -1 && (
                     <CommandItem
                       key={searchValue}
                       value={searchValue}
                       autoFocus
-                      onSelect={(currentValue) => {
-                        handleSelect(currentValue)
+                      disabled={creating}
+                      onSelect={() => {
+                        void handleCreate(searchValue)
                       }}
                       className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer mt-1 border-t border-dashed border-border/30 pt-1.5"
                     >
@@ -207,7 +244,11 @@ function SelectEditor(props: SelectEditorProps) {
           <div
             className={`${EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME} justify-between`}
           >
-            <span>{t("Arrow keys navigate · Enter selects")}</span>
+            <span>
+              {createError
+                ? t("Unable to create option")
+                : t("Arrow keys navigate · Enter selects")}
+            </span>
             <Button
               type="button"
               variant="ghost"
@@ -228,15 +269,24 @@ export const EidosFileSelectCellEditor: ProvideEditorComponent<SelectCell> = (
   p
 ) => {
   const { value: cell, onFinishedEditing, theme } = p
-  const { allowedValues, allowCreate = true, value: valueIn } = cell.data
+  const {
+    allowedValues,
+    allowCreate = true,
+    onCreateOption,
+    value: valueIn,
+  } = cell.data
   const themeName = (theme as { name?: string }).name ?? "light"
 
-  const handleFinishedEditing = (finalValue: string | null) => {
+  const handleFinishedEditing = (
+    finalValue: string | null,
+    finalOptions: readonly SelectOption[] = allowedValues
+  ) => {
     const newCell = {
       ...cell,
       data: {
         ...cell.data,
         value: finalValue,
+        allowedValues: finalOptions,
       },
     }
     onFinishedEditing(newCell, [0, 1])
@@ -251,6 +301,7 @@ export const EidosFileSelectCellEditor: ProvideEditorComponent<SelectCell> = (
       value={valueIn}
       allowedValues={allowedValues}
       allowCreate={allowCreate}
+      onCreateOption={onCreateOption}
       themeName={themeName}
       onFinishedEditing={handleFinishedEditing}
       onCancelEditing={handleCancelEditing}

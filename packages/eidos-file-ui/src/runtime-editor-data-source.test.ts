@@ -19,6 +19,7 @@ const PROJECT_ROW = "018f0000-0000-7000-8000-000000000007"
 const TEAM_ROW = "018f0000-0000-7000-8000-000000000008"
 const MISSING_TEAM_ROW = "018f0000-0000-7000-8000-000000000009"
 const SIGNALS = "018f0000-0000-7000-8000-000000000010"
+const DONE = "018f0000-0000-7000-8000-000000000011"
 
 function conversionRuntime(
   classification: "lossless-rewrite" | "explicit-lossy"
@@ -317,48 +318,65 @@ describe("EidosRuntimeEditorDataSource", () => {
       columns: request.projection.fields.map((fieldId) => ({
         fieldId,
         name:
-          fieldId === TITLE ? "Title" : fieldId === TEAM ? "Team" : "Signals",
+          fieldId === TITLE
+            ? "Title"
+            : fieldId === TEAM
+              ? "Team"
+              : fieldId === DONE
+                ? "Done"
+                : "Signals",
         valueType:
           fieldId === TITLE
             ? ("text" as const)
             : fieldId === TEAM
               ? ("relation" as const)
-              : ("multi-select" as const),
+              : fieldId === DONE
+                ? ("checkbox" as const)
+                : ("multi-select" as const),
         source: "stored" as const,
         writable: true,
       })),
-      rows: [
-        {
-          id: PROJECT_ROW,
-          values: request.projection.fields.map((fieldId) =>
-            fieldId === TITLE
-              ? "Demo"
-              : fieldId === TEAM
-                ? [TEAM_ROW, MISSING_TEAM_ROW]
-                : []
-          ),
-          resolvedRelations: request.projection.resolveRelations.includes(TEAM)
-            ? [
-                {
-                  column: request.projection.fields.indexOf(TEAM),
-                  items: [
+      rows: request.projection.fields.includes(DONE)
+        ? [true, false, null].map((done, index) => ({
+            id: `${PROJECT_ROW.slice(0, -1)}${index + 7}`,
+            values: request.projection.fields.map((fieldId) =>
+              fieldId === DONE ? done : null
+            ),
+          }))
+        : [
+            {
+              id: PROJECT_ROW,
+              values: request.projection.fields.map((fieldId) =>
+                fieldId === TITLE
+                  ? "Demo"
+                  : fieldId === TEAM
+                    ? [TEAM_ROW, MISSING_TEAM_ROW]
+                    : []
+              ),
+              resolvedRelations: request.projection.resolveRelations.includes(
+                TEAM
+              )
+                ? [
                     {
-                      id: TEAM_ROW,
-                      state: "resolved" as const,
-                      labelFieldId: TEAM_NAME,
-                      labelType: "text" as const,
-                      label: "Runtime Core",
+                      column: request.projection.fields.indexOf(TEAM),
+                      items: [
+                        {
+                          id: TEAM_ROW,
+                          state: "resolved" as const,
+                          labelFieldId: TEAM_NAME,
+                          labelType: "text" as const,
+                          label: "Runtime Core",
+                        },
+                        {
+                          id: MISSING_TEAM_ROW,
+                          state: "unresolved" as const,
+                        },
+                      ],
                     },
-                    {
-                      id: MISSING_TEAM_ROW,
-                      state: "unresolved" as const,
-                    },
-                  ],
-                },
-              ]
-            : undefined,
-        },
-      ],
+                  ]
+                : undefined,
+            },
+          ],
       nextCursor: null,
       previousCursor: null,
     }))
@@ -428,7 +446,7 @@ describe("EidosRuntimeEditorDataSource", () => {
           defaultTableId: PROJECTS,
           schemaCounts: {
             tables: "2",
-            fields: "4",
+            fields: "5",
             views: "0",
             features: "0",
           },
@@ -513,6 +531,19 @@ describe("EidosRuntimeEditorDataSource", () => {
               settings: {},
               writable: true,
             },
+            {
+              object: "field" as const,
+              id: DONE,
+              tableId: PROJECTS,
+              name: "Done",
+              kind: "checkbox" as const,
+              valueType: "checkbox" as const,
+              systemRole: null,
+              nullable: true,
+              position: "3",
+              settings: {},
+              writable: true,
+            },
           ],
           nextCursor: null,
         }
@@ -583,6 +614,20 @@ describe("EidosRuntimeEditorDataSource", () => {
         {}
       )
     ).resolves.toEqual([{ fieldId: SIGNALS, type: "count-empty", value: 1 }])
+
+    await expect(
+      source.calculateColumnStats(
+        PROJECTS,
+        [
+          { fieldId: DONE, type: "percent-checked" },
+          { fieldId: DONE, type: "percent-unchecked" },
+        ],
+        {}
+      )
+    ).resolves.toEqual([
+      { fieldId: DONE, type: "percent-checked", value: 33.33 },
+      { fieldId: DONE, type: "percent-unchecked", value: 66.67 },
+    ])
 
     await source.updateRow(PROJECTS, PROJECT_ROW, { [TEAM]: "[]" })
 
