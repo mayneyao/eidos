@@ -1,216 +1,73 @@
-# Eidos CLI (Rust)
+# Eidos CLI
 
-AI Agent friendly command-line interface for Eidos.
+`eidos` is the agent-first Rust interface to the open Eidos File format. It reads and modifies `.eidos` files directly, emits JSON only, and does not connect to Eidos Desktop.
 
-## Overview
+## Responsibilities
 
-This CLI is designed for AI Agents (like Claude Code) and developers to interact with Eidos Desktop through a simple command-line interface. It **requires Eidos Desktop to be running** as the backend.
+- Create and inspect Eidos Files.
+- Read logical tables, fields, relations, views, and file metadata.
+- Query rows through the Eidos query model rather than raw SQL.
+- Apply atomic row and schema mutations with optimistic revision checks.
+- Validate file identity, structure, content, and supported semantics.
 
-## Features
+The CLI does not manage legacy Spaces, documents, Desktop RPC, version history, or sync. Use ordinary file tools for Markdown and attachments, and Graft for history/sync.
 
-- **Auto Space Detection**: Automatically detects space from current directory
-- **Filesystem-style Commands**: Manage nodes using familiar Unix commands
-- **Table Operations**: Query, create, update, delete table rows
-- **Document Management**: Create, edit, search documents
-- **AI-Optimized Output**: Structured output with tables and JSON support
-
-## Installation
-
-The CLI binary is bundled with Eidos Desktop. No separate download needed.
-
-### Install via Command Palette
-
-1. Open Eidos Desktop
-2. Press `Cmd/Ctrl + K` to open Command Palette
-3. Type "install eidos" and select "Install 'eidos' command in PATH"
-4. The CLI will be added to your system PATH
-
-### Shell Completion
+## Quick start
 
 ```bash
-# Generate completion scripts
-eidos completions bash > /usr/local/share/bash-completion/completions/eidos
-eidos completions zsh > /usr/share/zsh/site-functions/_eidos
-eidos completions fish > ~/.config/fish/completions/eidos.fish
+cargo build
+
+target/debug/eidos create tracker.eidos \
+  --title "Project Tracker" \
+  --table Tasks \
+  --label-field Title \
+  --fields '[{"name":"Title","type":"text","nullable":false},{"name":"Status","type":"select"}]'
+
+target/debug/eidos tracker.eidos inspect
+target/debug/eidos tracker.eidos query Tasks --limit 50
 ```
 
-## Usage
-
-### Prerequisites
-
-Eidos Desktop must be running. Check status with:
+Mutation commands require the current revision:
 
 ```bash
-eidos status
+target/debug/eidos tracker.eidos rows add Tasks \
+  --expected-revision 1 \
+  --values '{"Title":"Ship CLI","Status":"doing"}'
+
+target/debug/eidos tracker.eidos validate --level full
 ```
 
-### Quick Start
+Both `eidos tracker.eidos inspect` and `eidos inspect tracker.eidos` are supported. Successful commands write one JSON document to stdout. Failed commands write one JSON error document to stderr and return a nonzero exit code.
 
-```bash
-# When inside a space directory, CLI automatically uses that space
-eidos ls                      # List all nodes
-eidos cat readme              # View document content
-eidos mkdir projects          # Create folder
-eidos touch notes/ideas       # Create document
+Run `eidos --help` and the repository Skill at [`../../skills/eidos/SKILL.md`](../../skills/eidos/SKILL.md) for the complete command and safe-agent workflow.
 
-# Otherwise, specify space with -s flag
-eidos -s my-space ls
-eidos -s my-space cat readme
+## Safety model
 
-# Query tables with SQL
-eidos sql "SELECT * FROM eidos__tree WHERE type = 'doc'"
-```
+- The CLI owns physical SQLite mapping; callers use logical table and field names or stable IDs.
+- Every mutation is atomic.
+- `--expected-revision` prevents writes based on stale reads.
+- `schema-apply --dry-run` executes and rolls back the exact schema transaction.
+- `validate --level full` should follow a completed write workflow.
+- Raw SQLite writes are unsupported.
 
-### Space Selection
-
-The CLI automatically detects the space based on your current directory:
-
-```bash
-# Inside a space directory - auto-detected
-cd /path/to/my-space
-eidos ls
-
-# Outside a space directory - use -s flag
-eidos -s my-space ls
-```
-
-## Commands
-
-### Table
-
-```bash
-# List tables
-eidos table list
-
-# Query with filter
-eidos table query posts --filter '{"published":true}' --limit 20
-
-# Get single row
-eidos table get users <row-id>
-
-# Create row
-eidos table create users '{"name":"John","email":"john@example.com"}'
-
-# Update row
-eidos table update users <row-id> '{"name":"Jane"}'
-
-# Delete row
-eidos table delete users <row-id>
-
-# Show schema
-eidos table schema users
-```
-
-### Filesystem-style Commands
-
-Eidos CLI provides Unix-like commands to navigate and manage nodes:
-
-```bash
-# List nodes (like ls)
-eidos ls                    # List root
-eidos ls <path>             # List specific folder
-eidos ls -l                 # Long format with IDs
-
-# View document content (like cat)
-eidos cat <doc-path>        # Output document markdown content
-
-# Create folder (like mkdir)
-eidos mkdir <path>
-
-# Create document (like touch)
-eidos touch <path> [--content "text"]
-
-# Move/rename node (like mv)
-eidos mv <src> <dst>
-
-# Append to document
-eidos append <path> [--content "text"]
-
-# Delete node (like rm)
-eidos rm <path>
-eidos rm -r <folder>        # Remove folder recursively
-eidos rm -f <path>          # Permanent delete
-
-# Execute SQL query
-eidos sql "SELECT * FROM mytable"
-```
-
-### Document (Legacy)
-
-```bash
-# List documents
-eidos doc list
-eidos doc list --parent <folder-id>
-
-# Get document
-eidos doc get <doc-id>
-
-# Create document
-eidos doc create "My Title" --content "Hello World"
-
-# Update document
-eidos doc update <doc-id> --title "New Title" --content "Updated content"
-
-# Delete document
-eidos doc delete <doc-id>
-
-# Search documents
-eidos doc search "keyword"
-```
-
-## For AI Agents
-
-This CLI is optimized for AI agent usage:
-
-1. **Structured Output**: Tables are formatted for easy parsing
-2. **JSON Mode**: Use `--format json` for programmatic output
-3. **Error Handling**: Clear error messages with suggestions
-4. **Exit Codes**: Non-zero exit codes on failure for script integration
-
-Example agent workflow:
-
-```bash
-# Check if Eidos is available and auto-detect space
-if eidos status; then
-    # List nodes in current space
-    eidos ls
-
-    # Query data
-    eidos sql "SELECT * FROM mytable WHERE status = 'todo'"
-
-    # Create document
-    eidos touch notes/meeting-notes --content "# Meeting Notes"
-fi
-```
+The alpha supports stored scalar/list fields and forward Relations. It preserves and reports existing Formula, Lookup, inverse Relation, and view metadata but does not create or evaluate virtual fields yet.
 
 ## Development
 
 ```bash
-# Run in development
-cargo run -- status
-cargo run -- space list
-cargo run -- table list
-
-# Run tests
-cargo test
-
-# Build release
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
 cargo build --release
 ```
 
-## Architecture
+The workspace contains:
 
-```
-src/
-├── main.rs          # CLI entry point
-├── config.rs        # Configuration management
-├── client.rs        # HTTP RPC client
-└── commands/
-    ├── mod.rs       # Command dispatcher
-    ├── space.rs     # Space commands
-    ├── table.rs     # Table operations
-    ├── doc.rs       # Document operations
-    └── status.rs    # Status check
+```text
+apps/cli/
+├── core/       # Eidos File format, query, mutation, and validation library
+├── src/        # JSON CLI and agent-facing normalization
+└── tests/      # End-to-end external-agent contract tests
 ```
 
 ## License

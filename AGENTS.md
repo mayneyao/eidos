@@ -34,10 +34,12 @@ The project is licensed under AGPL v3, with specific packages (`@eidos.space/cor
 ```
 eidos/
 ├── apps/
-│   ├── web-app/          # Main React web application with PWA support
+│   ├── web-app/          # Main React web application with PWA support; its
+│   │                       # components are also embedded by the desktop app
+│   ├── eidos-file-web/   # Standalone Eidos File web editor (editor.eidos.space)
 │   ├── desktop/          # Electron wrapper for desktop (package name: "eidos")
 │   ├── docs/             # Documentation site (Astro + Starlight)
-│   ├── cli/              # CLI tool for space management (@eidos.space/cli)
+│   ├── cli/              # Agent-first Rust CLI for direct Eidos File operations
 │   ├── download/         # Cloudflare worker for download page
 │   └── capture/          # Screen capture utility
 ├── packages/
@@ -139,8 +141,9 @@ switch in `pretest` to exit with code 137.
 
 ```bash
 cd apps/cli
-bun run dev           # Run CLI in development
-bun run build         # Build CLI binary
+cargo run -- <file.eidos> inspect # Run the agent-first Eidos File CLI
+cargo test --workspace            # Run core and end-to-end contract tests
+cargo build --release             # Build the distributable binary
 ```
 
 ### Documentation

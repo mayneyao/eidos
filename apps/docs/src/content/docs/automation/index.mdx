@@ -8,12 +8,15 @@ sidebar:
 Automation is a separate platform module from extensions. Use it when a
 workflow runs outside an Eidos UI surface or must be driven by another process.
 
-| Surface | Use it for | Status |
-| --- | --- | --- |
-| CLI | Space inspection, repeatable maintenance, and local scripts | Evolving |
-| Desktop API | Controlled integration with a running Desktop app | Evolving |
-| Agent tools | Permission-aware operations initiated by an AI agent | Design preview |
-| Extension SDK | Commands and UI that run inside Eidos | Design preview |
+| Surface            | Use it for                                                                            | Status         |
+| ------------------ | ------------------------------------------------------------------------------------- | -------------- |
+| Eidos File CLI     | Typed `.eidos` queries and revision-checked mutations from scripts or external agents | Alpha          |
+| Agent Skill        | Safe inspect, plan, apply, validate, and Graft-review workflow around the CLI         | Alpha          |
+| Desktop API        | Controlled integration with a running Desktop app                                     | Evolving       |
+| Native Agent tools | Permission-aware operations initiated inside Eidos                                    | Paused         |
+| Extension SDK      | Commands and UI that run inside Eidos                                                 | Design preview |
 
-The new automation reference will be added as the file-based APIs stabilize.
-For database-backed APIs, use the [Legacy Docs](https://legacy.docs.eidos.space).
+The Rust `eidos` CLI works directly on open Eidos Files and does not require
+Desktop to run. It is the supported automation boundary for `.eidos` data;
+raw SQLite writes are not supported. For the previous database-backed Space
+APIs, use the [Legacy Docs](https://legacy.docs.eidos.space).

@@ -1,157 +1,98 @@
-mod client;
-mod commands;
-mod config;
-mod utils;
+mod app;
+mod cli;
+mod error;
 
-use anyhow::Result;
+use std::ffi::OsString;
+use std::io::{self, Write};
+use std::process::ExitCode;
+
 use clap::Parser;
-use colored::Colorize;
-use tracing::debug;
 
-use crate::client::EidosClient;
-use crate::commands::Commands;
-use crate::config::{Config, SpaceRegistry};
+use crate::app::CommandOutput;
+use crate::cli::{Cli, normalize_args};
+use crate::error::AppError;
 
-/// Eidos CLI - Command-line interface for Eidos Desktop
-#[derive(Parser)]
-#[command(name = "eidos")]
-#[command(about = "Command-line interface for Eidos")]
-#[command(version = env!("CARGO_PKG_VERSION"))]
-struct Cli {
-    /// Available commands
-    #[command(subcommand)]
-    command: Option<Commands>,
-
-    /// File to open in Eidos editor (shorthand for 'open' command)
-    #[arg(global = false)]
-    file: Option<String>,
-
-    /// Eidos Desktop endpoint
-    #[arg(short, long, global = true, env = "EIDOS_ENDPOINT")]
-    endpoint: Option<String>,
-
-    /// Space ID (overrides current space)
-    #[arg(short, long, global = true, env = "EIDOS_SPACE")]
-    space: Option<String>,
-
-    /// API key for authentication
-    #[arg(long, global = true, env = "EIDOS_API_KEY")]
-    api_key: Option<String>,
-
-    /// Output format
-    #[arg(short = 'f', long, global = true, value_enum, default_value = "table")]
-    format: crate::utils::OutputFormat,
-
-    /// Quiet mode (no interactive output)
-    #[arg(short, long, global = true)]
-    quiet: bool,
-
-    /// Verbose output
-    #[arg(short, long, global = true, action = clap::ArgAction::Count)]
-    verbose: u8,
+fn write_json(mut writer: impl Write, value: &serde_json::Value) -> io::Result<()> {
+    serde_json::to_writer(&mut writer, value)?;
+    writer.write_all(b"\n")
 }
 
-#[tokio::main]
-async fn main() {
-    if let Err(e) = run().await {
-        eprintln!("{} {}", "Error:".red().bold(), e);
-        std::process::exit(1);
-    }
-}
-
-async fn run() -> Result<()> {
-    let cli = Cli::parse();
-
-    // Initialize logging
-    init_logging(cli.verbose);
-
-    // Load configuration
-    let mut config = Config::load()?;
-    debug!("Loaded config: {:?}", config);
-
-    // Apply CLI overrides (highest priority)
-    if let Some(endpoint) = cli.endpoint {
-        config.endpoint = endpoint;
-    }
-    // Space resolution priority:
-    // 1. CLI override (`-s/--space`)
-    // 2. Auto-detection from current directory
-    // 3. Saved space from config file (fallback)
-    if let Some(space) = cli.space {
-        config.space_id = Some(space);
-    } else if let Some(detected_space) = SpaceRegistry::current_dir_space() {
-        debug!("Auto-detected space '{}' from current directory", detected_space);
-        config.space_id = Some(detected_space);
-    }
-
-    if let Some(api_key) = cli.api_key {
-        config.api_key = Some(api_key);
-    }
-
-    // Create HTTP client
-    let client = EidosClient::new(config.clone())?;
-
-    // Execute command
-    match (cli.command, cli.file) {
-        // Explicit subcommand
-        (Some(cmd), _) => cmd.execute(client, &mut config, cli.format).await?,
-        // Shorthand: eidos file.md
-        (None, Some(file)) => {
-            commands::open::execute(&file).await?
+fn parse(args: Vec<OsString>) -> Result<Cli, ExitCode> {
+    match Cli::try_parse_from(normalize_args(args)) {
+        Ok(cli) => Ok(cli),
+        Err(error) if error.use_stderr() => {
+            let app_error = AppError::invalid_request(error.to_string());
+            let _ = write_json(io::stderr().lock(), &app_error.to_json());
+            Err(ExitCode::from(2))
         }
-        // No command, no file
-        (None, None) => {
-            // Show help
-            use clap::CommandFactory;
-            Cli::command().print_help()?;
-            println!();
+        Err(error) => {
+            let _ = error.print();
+            Err(ExitCode::SUCCESS)
         }
     }
-
-    Ok(())
 }
 
-fn init_logging(verbose: u8) {
-    let level = match verbose {
-        0 => "warn",
-        1 => "info",
-        2 => "debug",
-        _ => "trace",
+fn main() -> ExitCode {
+    let args = std::env::args_os().collect();
+    let cli = match parse(args) {
+        Ok(cli) => cli,
+        Err(code) => return code,
     };
 
-    tracing_subscriber::fmt()
-        .with_env_filter(format!("eidos={}", level))
-        .with_target(false)
-        .without_time()
-        .init();
+    match app::run(cli.command) {
+        Ok(CommandOutput { value, success }) => {
+            if write_json(io::stdout().lock(), &value).is_err() {
+                return ExitCode::FAILURE;
+            }
+            if success {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
+        Err(error) => {
+            let _ = write_json(io::stderr().lock(), &error.to_json());
+            ExitCode::FAILURE
+        }
+    }
 }
 
-// Re-export for tests
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::{Command, RowCommand};
+    use clap::CommandFactory;
 
-    #[test]
-    fn test_cli_parse() {
-        let cli = Cli::try_parse_from(["eidos", "status"]).unwrap();
-        assert!(matches!(cli.command, Commands::Status));
+    fn parse_ok(args: &[&str]) -> Cli {
+        Cli::try_parse_from(normalize_args(args.iter().map(OsString::from).collect())).unwrap()
     }
 
     #[test]
-    fn test_cli_list() {
-        let cli = Cli::try_parse_from(["eidos", "ls", "/folder"]).unwrap();
-        assert!(matches!(cli.command, Commands::List { .. }));
+    fn accepts_command_first_and_file_first_forms() {
+        let command_first = parse_ok(&["eidos", "inspect", "tasks.eidos"]);
+        let file_first = parse_ok(&["eidos", "tasks.eidos", "--json", "inspect"]);
+        assert!(matches!(command_first.command, Command::Inspect(_)));
+        assert!(matches!(file_first.command, Command::Inspect(_)));
+
+        let rows = parse_ok(&[
+            "eidos",
+            "tasks.eidos",
+            "rows",
+            "add",
+            "Tasks",
+            "--expected-revision",
+            "0",
+            "--values",
+            "{}",
+        ]);
+        assert!(matches!(
+            rows.command,
+            Command::Rows(ref args) if matches!(args.command, RowCommand::Add(_))
+        ));
     }
 
     #[test]
-    fn test_cli_mount() {
-        let cli = Cli::try_parse_from(["eidos", "mount", "ls"]).unwrap();
-        assert!(matches!(cli.command, Commands::Mount(_)));
-    }
-
-    #[test]
-    fn test_cli_table() {
-        let cli = Cli::try_parse_from(["eidos", "table", "tb_xxxx"]).unwrap();
-        assert!(matches!(cli.command, Commands::Table { table: Some(_), cmd: None }));
+    fn clap_definition_is_sound() {
+        Cli::command().debug_assert();
     }
 }

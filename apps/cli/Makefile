@@ -1,4 +1,4 @@
-.PHONY: build release install test clean dev fmt lint completions
+.PHONY: build release install test clean dev fmt lint check watch ci
 
 # Default target
 all: build
@@ -17,36 +17,28 @@ install:
 
 # Run tests
 test:
-	cargo test
+	cargo test --workspace
 
 # Format code
 fmt:
-	cargo fmt
+	cargo fmt --all
 
 # Run clippy linting
 lint:
-	cargo clippy -- -D warnings
+	cargo clippy --workspace --all-targets -- -D warnings
 
 # Check for errors without building
 check:
-	cargo check
+	cargo check --workspace
 
 # Clean build artifacts
 clean:
 	cargo clean
 
 # Run in development mode with args
-# Usage: make dev ARGS="status"
+# Usage: make dev ARGS="tracker.eidos inspect"
 dev:
 	cargo run -- $(ARGS)
-
-# Generate shell completions
-completions:
-	mkdir -p completions
-	cargo run -- completions bash > completions/eidos.bash
-	cargo run -- completions zsh > completions/_eidos
-	cargo run -- completions fish > completions/eidos.fish
-	cargo run -- completions powershell > completions/_eidos.ps1
 
 # Watch for changes and rebuild
 watch:

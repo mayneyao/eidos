@@ -1,0 +1,18 @@
+[package]
+name = "eidos-file-core"
+version = "0.1.0"
+edition = "2024"
+description = "Core library for the Eidos File 1.0 format (SQLite-based *.eidos)"
+authors = ["mayneyao"]
+license = "AGPL-3.0"
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+uuid = { version = "1", features = ["v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tempfile = "3.19"

@@ -1,0 +1,219 @@
+# Eidos CLI reference
+
+## Contents
+
+- [Invocation](#invocation)
+- [Inspection and creation](#inspection-and-creation)
+- [Query](#query)
+- [Row mutations](#row-mutations)
+- [Schema mutations](#schema-mutations)
+- [Validation](#validation)
+- [Logical values](#logical-values)
+- [Errors](#errors)
+
+## Invocation
+
+Both forms are equivalent:
+
+```bash
+eidos file.eidos inspect
+eidos inspect file.eidos
+```
+
+The explicit file path is always required. stdout contains one JSON document on success. stderr contains one JSON error document on failure. `--json` is a compatibility no-op because there is no human-table output mode.
+
+Arguments containing JSON accept:
+
+- inline JSON: `'{"Title":"Ship"}'`
+- file input: `@/absolute/path/operation.json`
+- stdin: `-`
+
+## Inspection and creation
+
+```bash
+eidos file.eidos inspect
+eidos file.eidos tables
+eidos file.eidos schema
+eidos file.eidos schema Tasks
+```
+
+`inspect` returns file identity, title, revision, counts, and capability flags. `schema` returns logical tables, fields, relations, formulas, lookups, and views. Revisions are canonical decimal strings.
+
+Create an empty file:
+
+```bash
+eidos create tracker.eidos --title "Project Tracker"
+```
+
+Create a file with an initial table:
+
+```bash
+eidos create tracker.eidos \
+  --title "Project Tracker" \
+  --table Tasks \
+  --label-field Title \
+  --fields '[
+    {"name":"Title","type":"text","nullable":false},
+    {"name":"Status","type":"select"},
+    {"name":"Estimate","type":"integer"},
+    {"name":"Tags","type":"multi-select"}
+  ]'
+```
+
+Creation refuses to overwrite an existing path.
+
+## Query
+
+```bash
+eidos file.eidos query Tasks \
+  --where '{"op":"eq","field":"Status","value":"doing"}' \
+  --sort '[{"field":"Estimate","direction":"desc","nulls":"last"}]' \
+  --fields Title,Status,Estimate \
+  --limit 50 \
+  --offset 0
+```
+
+Search requires explicit fields:
+
+```bash
+eidos file.eidos query Tasks --search ship --search-fields Title,Notes
+```
+
+Filter nodes accept `field` or `fieldId`:
+
+```json
+{"op":"and","args":[...]}
+{"op":"or","args":[...]}
+{"op":"not","arg":{...}}
+{"op":"is-null","field":"Due"}
+{"op":"is-not-null","field":"Owner"}
+{"op":"eq","field":"Status","value":"done"}
+{"op":"ne","field":"Status","value":"done"}
+{"op":"lt","field":"Estimate","value":"5"}
+{"op":"lte","field":"Estimate","value":"5"}
+{"op":"gt","field":"Estimate","value":"1"}
+{"op":"gte","field":"Estimate","value":"1"}
+{"op":"between","field":"Estimate","lower":"2","upper":"8"}
+{"op":"in","field":"Status","values":["todo","doing"]}
+{"op":"contains","field":"Title","value":"CLI"}
+{"op":"starts-with","field":"Title","value":"Ship"}
+{"op":"ends-with","field":"Title","value":"today"}
+{"op":"has-any","field":"Tags","values":["rust","agent"]}
+{"op":"has-all","field":"Tags","values":["rust","agent"]}
+{"op":"relation-has","field":"Owner","rowId":"019..."}
+```
+
+Rows are keyed by display names and always include `_id`. Integer values are returned as canonical decimal strings.
+
+## Row mutations
+
+Add one or multiple rows atomically:
+
+```bash
+eidos file.eidos rows add Tasks \
+  --expected-revision 4 \
+  --values '{"Title":"Ship CLI","Estimate":"3"}'
+
+eidos file.eidos rows add Tasks \
+  --expected-revision 5 \
+  --values '[{"Title":"A"},{"Title":"B"}]'
+```
+
+Update one row using a sparse values object:
+
+```bash
+eidos file.eidos rows update Tasks 019... \
+  --expected-revision 6 \
+  --values '{"Status":"done"}'
+```
+
+Delete rows atomically:
+
+```bash
+eidos file.eidos rows delete Tasks 019... 019... --expected-revision 7
+```
+
+Successful mutations return the new `revision`. Creation also returns stable row IDs under `created[].rowId`.
+
+## Schema mutations
+
+Every schema operation takes one JSON object and one expected revision. Add `--dry-run` to execute the same transaction and roll it back.
+
+IDs returned in a dry-run `createdObjects` array are ephemeral planning IDs. They will differ from IDs allocated by the real apply and must never be stored or used in later commands. Read actual IDs from the apply result.
+
+```bash
+eidos file.eidos schema-apply \
+  --expected-revision 8 \
+  --dry-run \
+  --op '{"kind":"create-field","table":"Tasks","name":"Owner","type":"text"}'
+```
+
+Supported operations:
+
+```json
+{"kind":"create-table","name":"People","fields":[{"name":"Name","type":"text","nullable":false}],"labelField":"Name"}
+{"kind":"create-field","table":"Tasks","name":"Due","type":"date"}
+{"kind":"create-field","table":"Tasks","field":{"name":"Due","type":"date"}}
+{"kind":"rename-table","table":"Tasks","name":"Work"}
+{"kind":"rename-field","table":"Tasks","field":"Due","name":"Deadline"}
+{"kind":"delete-field","table":"Tasks","field":"Deadline"}
+{"kind":"delete-table","table":"Archive"}
+{"kind":"set-file-title","title":"Work Tracker"}
+{"kind":"set-default-table","table":"Tasks"}
+{"kind":"set-default-table","table":null}
+```
+
+Forward Relation field:
+
+```json
+{
+  "kind": "create-field",
+  "table": "Tasks",
+  "name": "Owners",
+  "type": "relation",
+  "definition": {
+    "direction": "forward",
+    "targetTable": "People",
+    "cardinality": "many",
+    "onDelete": "detach"
+  }
+}
+```
+
+Formula, Lookup, and inverse Relation creation is intentionally rejected in the alpha.
+
+## Validation
+
+```bash
+eidos file.eidos validate --level identity
+eidos file.eidos validate --level structural
+eidos file.eidos validate --level content
+eidos file.eidos validate --level full --diagnostics-limit 100
+```
+
+The process exits nonzero when `valid` is false.
+
+## Logical values
+
+- `text`, `url`, `select`: JSON string or `null` when nullable.
+- `integer`: canonical decimal string is preferred; integral JSON numbers are accepted within the safe range.
+- `number`: finite JSON number.
+- `checkbox`: JSON boolean.
+- `date`: `YYYY-MM-DD`.
+- `datetime`: UTC instant such as `2026-07-25T12:00:00.000Z`.
+- `multi-select`: unique JSON string array.
+- `relation`: unique row-ID array. A one-cardinality Relation uses `[]` when unassigned and a one-item array when assigned; `nullable:false` means the stored array itself is never SQL `NULL`.
+- `json`: JSON value encoded according to the format runtime.
+- `file`: array of Eidos File entry objects.
+
+Do not send values for `_id`, `_created_at`, or `_updated_at` when creating rows. Read `_id` from results.
+
+## Errors
+
+Errors use this shape:
+
+```json
+{ "error": { "code": "stale-revision", "message": "..." } }
+```
+
+Important codes include `invalid-request`, `invalid-value`, `invalid-query`, `not-found`, `conflict`, `stale-revision`, and `validation-failed`. Treat all as terminal for the attempted mutation. Re-inspect and re-plan after `stale-revision`; do not replay the old write automatically.
