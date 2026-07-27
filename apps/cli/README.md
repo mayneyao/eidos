@@ -41,6 +41,31 @@ EIDOS_VERSION=0.34.0 EIDOS_INSTALL_DIR=/usr/local/bin sh install.sh
 
 Standalone assets currently cover macOS arm64/x64, Linux x64, and Windows x64.
 
+## Install the Eidos Skill for Codex
+
+The CLI is the typed transaction boundary. The matching Eidos Skill teaches
+Codex the safe `context` → `apply` → `validate` workflow and when to use Graft
+for review or recovery. Install the Skill from the same public tag as the
+stable CLI:
+
+```bash
+npx skills add \
+  https://github.com/mayneyao/eidos/tree/cli-v0.34.0/skills/eidos \
+  --skill eidos -g -a codex -y
+```
+
+This uses the open [`skills`](https://github.com/vercel-labs/skills) installer
+and requires Node.js 18 or newer. Start a new Codex task after installation,
+then try:
+
+```text
+Use the Eidos skill to inspect ./tracker.eidos.
+Show context first and do not mutate yet.
+```
+
+The versioned GitHub path keeps the Agent workflow aligned with the installed
+CLI rather than following the repository's moving development branch.
+
 ## Quick start
 
 ```bash

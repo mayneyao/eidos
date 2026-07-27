@@ -8,6 +8,10 @@ const files = {
   desktopWorkflow: ".github/workflows/build-and-release-desktop-app.yml",
   latest: "apps/cli/LATEST",
   releaseWorkflow: ".github/workflows/build-and-release-cli.yml",
+  skill: "skills/eidos/SKILL.md",
+  skillCliReference: "skills/eidos/references/cli.md",
+  skillOperationsReference: "skills/eidos/references/operations.md",
+  cliReadme: "apps/cli/README.md",
   versionScript: "scripts/version.cjs",
 }
 
@@ -63,6 +67,36 @@ test("CLI workflow publishes the complete independent release contract", async (
   assert.match(workflow, /make_latest: false/u)
   assert.match(workflow, /softprops\/action-gh-release@v2/u)
   assert.match(workflow, /https:\/\/download\.eidos\.space\/cli\/install\.sh/u)
+  assert.match(workflow, /npx -y skills add/u)
+  assert.match(workflow, /tree\/\$\{TAG\}\/skills\/eidos/u)
+  assert.match(workflow, /\.agents\/skills\/eidos\/SKILL\.md/u)
+})
+
+test("public Eidos Skill stays complete and pinned to the stable CLI tag", async () => {
+  const [cargo, latest, readme, skill, cliReference, operationsReference] =
+    await Promise.all([
+      read(files.cargo),
+      read(files.latest),
+      read(files.cliReadme),
+      read(files.skill),
+      read(files.skillCliReference),
+      read(files.skillOperationsReference),
+    ])
+  const version = cargo.match(/^version = "([^"]+)"$/mu)?.[1]
+
+  assert.equal(latest.trim(), version)
+  assert.match(skill, /^---\nname: eidos\ndescription: .+\n---/u)
+  assert.match(skill, /eidos --version/u)
+  assert.match(skill, /references\/cli\.md/u)
+  assert.match(skill, /references\/operations\.md/u)
+  assert.ok(cliReference.trim().length > 0)
+  assert.ok(operationsReference.trim().length > 0)
+  assert.match(
+    readme,
+    new RegExp(`tree/cli-v${version}/skills/eidos`, "u"),
+    "CLI README must install the Skill from the matching stable CLI tag"
+  )
+  assert.match(readme, /--skill eidos -g -a codex -y/u)
 })
 
 test("Desktop releases and app version bumps do not rewrite the CLI version", async () => {

@@ -68,6 +68,24 @@ jobs:
       - name: Test release contract and Unix installer
         run: node --test apps/cli/install.test.mjs apps/cli/release.test.mjs apps/download/src/release-routing.test.mjs
 
+      - name: Smoke-test public Eidos Skill install
+        shell: bash
+        env:
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          qa_dir="$(mktemp -d)"
+          cd "$qa_dir"
+          npx -y skills add \
+            "https://github.com/${REPOSITORY}/tree/${TAG}/skills/eidos" \
+            --skill eidos -a codex -y
+          test -f .agents/skills/eidos/SKILL.md
+          test -f .agents/skills/eidos/agents/openai.yaml
+          test -f .agents/skills/eidos/references/cli.md
+          test -f .agents/skills/eidos/references/operations.md
+          grep -F "name: eidos" .agents/skills/eidos/SKILL.md
+
   build:
     needs: verify
     strategy:
@@ -208,6 +226,12 @@ jobs:
 
             ```powershell
             irm https://download.eidos.space/cli/install.ps1 | iex
+            ```
+
+            Install the matching Eidos Skill for Codex:
+
+            ```sh
+            npx skills add https://github.com/${{ github.repository }}/tree/${{ github.ref_name }}/skills/eidos --skill eidos -g -a codex -y
             ```
           files: |
             release-assets/eidos-cli-*

@@ -7,6 +7,8 @@ description: Safely inspect, query, validate, and modify open `.eidos` structure
 
 Use `eidos` as the typed transaction boundary for `.eidos` files. Use ordinary filesystem tools for Markdown and attachments, and Graft for history or sync when an enclosing directory has `.graft`.
 
+Before the first operation, run `eidos --version`. If the command is unavailable, stop and direct the user to `https://eidos.space/download#agent-setup`; do not install software without the user's request.
+
 ## Start with one compact context
 
 Locate the exact file, then load only the table and fields needed:
