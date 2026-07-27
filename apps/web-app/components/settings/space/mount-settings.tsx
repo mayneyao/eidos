@@ -5,7 +5,6 @@ import {
   MoreHorizontal,
   Trash2,
   AlertTriangle,
-  HardDrive,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -40,6 +39,8 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { useMounts, type MountConfig } from "@/apps/web-app/hooks/use-mounts"
+
+import { SettingsRows, SettingsSection } from "../settings-surface"
 
 export function MountSettings() {
   const { t } = useTranslation()
@@ -106,91 +107,85 @@ export function MountSettings() {
   }
 
   return (
-    <div className="space-y-0">
-      {/* File Mounts Section */}
-      <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <HardDrive className="h-5 w-5 text-muted-foreground" />
-          <h3 className="text-lg font-medium">
-            {t("space.settings.mounts.title")}
-          </h3>
-        </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="shrink-0">
-              <FolderPlus className="h-4 w-4 mr-2" />
-              {t("space.settings.mounts.addMount")}
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{t("space.settings.mounts.addMount")}</DialogTitle>
-              <DialogDescription>
-                {t("space.settings.mounts.addMountDescription")}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="mount-name">
-                  {t("space.settings.mounts.mountName")}
-                </Label>
-                <Input
-                  id="mount-name"
-                  value={newMountName}
-                  onChange={(e) => setNewMountName(e.target.value)}
-                  placeholder={t("space.settings.mounts.mountNamePlaceholder")}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mount-path">
-                  {t("space.settings.mounts.mountPath")}
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="mount-path"
-                    value={newMountPath}
-                    onChange={(e) => setNewMountPath(e.target.value)}
-                    placeholder={t(
-                      "space.settings.mounts.mountPathPlaceholder"
-                    )}
-                    className="flex-1"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={handleSelectDirectory}
-                  >
-                    <FolderOpen className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                {t("common.cancel")}
-              </Button>
-              <Button onClick={handleAddMount}>
+    <div className="space-y-8">
+      <SettingsSection
+        title={t("space.settings.mounts.title")}
+        description={t("space.settings.mounts.description")}
+        actions={
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="shrink-0">
+                <FolderPlus className="h-4 w-4 mr-2" />
                 {t("space.settings.mounts.addMount")}
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <hr className="border-border" />
-
-      <div className="py-6">
-        <p className="text-sm text-muted-foreground mb-6">
-          {t("space.settings.mounts.description")}
-        </p>
-
-        <div className="max-w-4xl">
-          {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">
-              {t("space.settings.mounts.loading")}
-            </div>
-          ) : mounts.length === 0 ? (
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{t("space.settings.mounts.addMount")}</DialogTitle>
+                <DialogDescription>
+                  {t("space.settings.mounts.addMountDescription")}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="mount-name">
+                    {t("space.settings.mounts.mountName")}
+                  </Label>
+                  <Input
+                    id="mount-name"
+                    value={newMountName}
+                    onChange={(e) => setNewMountName(e.target.value)}
+                    placeholder={t(
+                      "space.settings.mounts.mountNamePlaceholder"
+                    )}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="mount-path">
+                    {t("space.settings.mounts.mountPath")}
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="mount-path"
+                      value={newMountPath}
+                      onChange={(e) => setNewMountPath(e.target.value)}
+                      placeholder={t(
+                        "space.settings.mounts.mountPathPlaceholder"
+                      )}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleSelectDirectory}
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDialogOpen(false)}
+                >
+                  {t("common.cancel")}
+                </Button>
+                <Button onClick={handleAddMount}>
+                  {t("space.settings.mounts.addMount")}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        }
+      >
+        {isLoading ? (
+          <div className="py-8 text-center text-muted-foreground">
+            {t("space.settings.mounts.loading")}
+          </div>
+        ) : mounts.length === 0 ? (
+          <div className="py-4">
             <div className="p-8 text-center border border-dashed rounded-lg">
               <FolderOpen className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
               <p className="text-muted-foreground mb-1">
@@ -200,87 +195,87 @@ export function MountSettings() {
                 {t("space.settings.mounts.noMountsDescription")}
               </p>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {mounts.map((mount) => (
-                <div
-                  key={mount.name}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-border rounded-lg gap-4"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-muted rounded-md">
-                        <FolderOpen className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium truncate">{mount.name}</p>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {mount.path}
-                        </p>
-                      </div>
+          </div>
+        ) : (
+          <SettingsRows>
+            {mounts.map((mount) => (
+              <div
+                key={mount.name}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 py-4"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-muted rounded-md">
+                      <FolderOpen className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium truncate">{mount.name}</p>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {mount.path}
+                      </p>
                     </div>
                   </div>
-
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => handleOpenFolder(mount.path)}
-                      >
-                        <FolderOpen className="h-4 w-4 mr-2" />
-                        {t("common.open")}
-                      </DropdownMenuItem>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onSelect={(e) => e.preventDefault()}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            {t("space.settings.mounts.removeMount")}
-                          </DropdownMenuItem>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle className="flex items-center gap-2">
-                              <AlertTriangle className="h-5 w-5 text-destructive" />
-                              {t("space.settings.mounts.confirmRemove")}
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              {t(
-                                "space.settings.mounts.confirmRemoveDescription",
-                                {
-                                  name: mount.name,
-                                  path: mount.path,
-                                }
-                              )}
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>
-                              {t("common.cancel")}
-                            </AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleRemoveMount(mount.name)}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              {t("common.delete")}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => handleOpenFolder(mount.path)}
+                    >
+                      <FolderOpen className="h-4 w-4 mr-2" />
+                      {t("common.open")}
+                    </DropdownMenuItem>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={(e) => e.preventDefault()}
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          {t("space.settings.mounts.removeMount")}
+                        </DropdownMenuItem>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5 text-destructive" />
+                            {t("space.settings.mounts.confirmRemove")}
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {t(
+                              "space.settings.mounts.confirmRemoveDescription",
+                              {
+                                name: mount.name,
+                                path: mount.path,
+                              }
+                            )}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>
+                            {t("common.cancel")}
+                          </AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleRemoveMount(mount.name)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            {t("common.delete")}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ))}
+          </SettingsRows>
+        )}
+      </SettingsSection>
     </div>
   )
 }

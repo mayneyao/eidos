@@ -3,14 +3,11 @@ import {
   AlertTriangle,
   CheckCircle2,
   Copy,
-  Database,
   FolderOpen,
   GitBranch,
   HardDrive,
   History,
   Save,
-  Settings2,
-  Trash2,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
@@ -40,6 +37,8 @@ import { useSqlite } from "@/apps/web-app/hooks/use-sqlite"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+
+import { SettingsRow, SettingsRows, SettingsSection } from "../settings-surface"
 
 function getExportDatabaseFileName(spaceName: string) {
   const safeName =
@@ -459,517 +458,450 @@ export function GeneralSettings() {
   }
 
   return (
-    <div className="space-y-0">
-      <div className="py-4 flex items-center gap-2">
-        <Settings2 className="h-5 w-5 text-muted-foreground" />
-        <h3 className="text-lg font-medium">{t("space.settings.spaceInfo")}</h3>
-      </div>
-
-      <hr className="border-border" />
-
-      <div className="py-6">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-sm text-muted-foreground mb-4">
-              {t("space.settings.spaceDescription")}
-            </p>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="spaceId">{t("space.settings.spaceId")}</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="spaceId"
-                    value={spaceInfo?.id || space || ""}
-                    readOnly
-                    className="flex-1 bg-muted/50 cursor-default border-dashed"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-foreground border border-input"
-                    onClick={() => {
-                      const id = spaceInfo?.id || space || ""
-                      navigator.clipboard.writeText(id)
-                      toast({
-                        title: t("common.copied"),
-                      })
-                    }}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {t("space.settings.spaceIdDescription")}
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="spaceName">
-                  {t("space.settings.spaceName")}
-                </Label>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Input
-                    id="spaceName"
-                    value={spaceName}
-                    onChange={(e) => setSpaceName(e.target.value)}
-                    disabled={isRenaming || !spaceInfo}
-                    placeholder={t("space.settings.spaceNamePlaceholder")}
-                    className="flex-1"
-                  />
-                  <Button
-                    onClick={handleRename}
-                    disabled={
-                      isRenaming ||
-                      !spaceInfo ||
-                      spaceName.trim() === spaceInfo?.name ||
-                      !spaceName.trim()
-                    }
-                    size="xs"
-                    className="shrink-0"
-                  >
-                    <Save className="h-3.5 w-3.5 mr-1.5" />
-                    {isRenaming
-                      ? t("space.settings.saving")
-                      : t("space.settings.save")}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {t("space.settings.spaceNameDescription")}
-                </p>
-              </div>
+    <div className="space-y-8">
+      <SettingsSection
+        title={t("space.settings.spaceInfo")}
+        description={t("space.settings.spaceDescription")}
+      >
+        <div className="py-5 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="spaceId">{t("space.settings.spaceId")}</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="spaceId"
+                value={spaceInfo?.id || space || ""}
+                readOnly
+                className="flex-1 bg-muted/50 cursor-default border-dashed"
+              />
+              <Button
+                variant="ghost"
+                size="xs"
+                className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-foreground border border-input"
+                onClick={() => {
+                  const id = spaceInfo?.id || space || ""
+                  navigator.clipboard.writeText(id)
+                  toast({
+                    title: t("common.copied"),
+                  })
+                }}
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              {t("space.settings.spaceIdDescription")}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="spaceName">{t("space.settings.spaceName")}</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                id="spaceName"
+                value={spaceName}
+                onChange={(e) => setSpaceName(e.target.value)}
+                disabled={isRenaming || !spaceInfo}
+                placeholder={t("space.settings.spaceNamePlaceholder")}
+                className="flex-1"
+              />
+              <Button
+                onClick={handleRename}
+                disabled={
+                  isRenaming ||
+                  !spaceInfo ||
+                  spaceName.trim() === spaceInfo?.name ||
+                  !spaceName.trim()
+                }
+                size="xs"
+                className="shrink-0"
+              >
+                <Save className="h-3.5 w-3.5 mr-1.5" />
+                {isRenaming
+                  ? t("space.settings.saving")
+                  : t("space.settings.save")}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("space.settings.spaceNameDescription")}
+            </p>
           </div>
         </div>
-      </div>
+      </SettingsSection>
 
-      <div className="py-4 flex items-center gap-2">
-        <Database className="h-5 w-5 text-muted-foreground" />
-        <h3 className="text-lg font-medium">
-          {t("space.settings.dataManagement")}
-        </h3>
-      </div>
+      <SettingsSection
+        title={t("space.settings.dataManagement")}
+        description={
+          isFileSpace
+            ? "Files remain the source of truth. Open the Space folder to inspect or edit them with other tools."
+            : t("space.settings.dataDescription")
+        }
+      >
+        <SettingsRows>
+          {!isFileSpace && (
+            <SettingsRow
+              title={t("space.settings.rebuildSearchIndex")}
+              description={t("space.settings.rebuildSearchIndexDescription")}
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRebuildIndex}
+                disabled={isRebuilding}
+                className="shrink-0"
+              >
+                {isRebuilding
+                  ? t("space.settings.rebuilding")
+                  : t("common.rebuild", "Rebuild")}
+              </Button>
+            </SettingsRow>
+          )}
 
-      <hr className="border-border" />
+          {isDesktopMode && (
+            <SettingsRow
+              title={t("space.settings.openDataFolder")}
+              description={t("space.settings.openDataFolderDescription")}
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleOpenFolder}
+                className="shrink-0"
+              >
+                <FolderOpen className="h-4 w-4 mr-2" />
+                {t("space.settings.openFolder", "Open Folder")}
+              </Button>
+            </SettingsRow>
+          )}
 
-      <div className="py-6">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-sm text-muted-foreground mb-4">
-              {isFileSpace
-                ? "Files remain the source of truth. Open the Space folder to inspect or edit them with other tools."
-                : t("space.settings.dataDescription")}
-            </p>
-            <div className="space-y-6">
-              {!isFileSpace && (
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-0.5 flex-[5] min-w-[240px]">
-                    <Label>{t("space.settings.rebuildSearchIndex")}</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {t("space.settings.rebuildSearchIndexDescription")}
-                    </p>
-                  </div>
+          {isDesktopMode && !isFileSpace && isVersioningEnabled && (
+            <SettingsRow
+              title={t("space.settings.exportSqliteSnapshot")}
+              description={t("space.settings.exportSqliteSnapshotDescription")}
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportDatabase}
+                disabled={isExportingDatabase}
+                className="shrink-0"
+              >
+                <HardDrive className="h-4 w-4 mr-2" />
+                {isExportingDatabase
+                  ? t("space.settings.exportingDatabase")
+                  : t("common.export")}
+              </Button>
+            </SettingsRow>
+          )}
+
+          {isDesktopMode && !isFileSpace && isRemoteSyncEnabled && (
+            <SettingsRow
+              title={
+                <span className="flex flex-wrap items-center gap-2">
+                  {t("space.settings.remoteSync", "Remote Sync")}
+                  <Badge variant="outline">
+                    {spaceInfo?.sync?.provider || "sync"}
+                  </Badge>
+                </span>
+              }
+              description={t(
+                "space.settings.disableRemoteSyncDescription",
+                "Stop pulling and pushing remote changes while keeping local version history."
+              )}
+            >
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handleRebuildIndex}
-                    disabled={isRebuilding}
+                    disabled={isDisablingRemoteSync}
                     className="shrink-0"
                   >
-                    {isRebuilding
-                      ? t("space.settings.rebuilding")
-                      : t("common.rebuild", "Rebuild")}
+                    <GitBranch className="h-4 w-4 mr-2" />
+                    {isDisablingRemoteSync
+                      ? t("common.disabling", "Disabling...")
+                      : t("space.settings.disableRemoteSync", "Disable Sync")}
                   </Button>
-                </div>
-              )}
-
-              {isDesktopMode && (
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-0.5 flex-[5] min-w-[240px]">
-                    <Label>{t("space.settings.openDataFolder")}</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {t("space.settings.openDataFolderDescription")}
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenFolder}
-                    className="shrink-0"
-                  >
-                    <FolderOpen className="h-4 w-4 mr-2" />
-                    {t("space.settings.openFolder", "Open Folder")}
-                  </Button>
-                </div>
-              )}
-
-              {isDesktopMode && !isFileSpace && isVersioningEnabled && (
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-0.5 flex-[5] min-w-[240px]">
-                    <Label>{t("space.settings.exportSqliteSnapshot")}</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {t("space.settings.exportSqliteSnapshotDescription")}
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExportDatabase}
-                    disabled={isExportingDatabase}
-                    className="shrink-0"
-                  >
-                    <HardDrive className="h-4 w-4 mr-2" />
-                    {isExportingDatabase
-                      ? t("space.settings.exportingDatabase")
-                      : t("common.export")}
-                  </Button>
-                </div>
-              )}
-
-              {isDesktopMode && !isFileSpace && isRemoteSyncEnabled && (
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-0.5 flex-[5] min-w-[240px]">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Label>
-                        {t("space.settings.remoteSync", "Remote Sync")}
-                      </Label>
-                      <Badge variant="outline">
-                        {spaceInfo?.sync?.provider || "sync"}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
                       {t(
-                        "space.settings.disableRemoteSyncDescription",
-                        "Stop pulling and pushing remote changes while keeping local version history."
+                        "space.settings.disableRemoteSync",
+                        "Disable Remote Sync"
                       )}
-                    </p>
-                  </div>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={isDisablingRemoteSync}
-                        className="shrink-0"
-                      >
-                        <GitBranch className="h-4 w-4 mr-2" />
-                        {isDisablingRemoteSync
-                          ? t("common.disabling", "Disabling...")
-                          : t(
-                              "space.settings.disableRemoteSync",
-                              "Disable Sync"
-                            )}
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          {t(
-                            "space.settings.disableRemoteSync",
-                            "Disable Remote Sync"
-                          )}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          {t(
-                            "space.settings.disableRemoteSyncConfirm",
-                            "This space will stop syncing with the remote provider. Local version history stays enabled, so commits and local diffs remain available."
-                          )}
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>
-                          {t("common.cancel")}
-                        </AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDisableRemoteSync}>
-                          {t("common.continue")}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              )}
-
-              {/* Node Name Uniqueness Setting */}
-              {!isFileSpace ? (
-                <div className="py-6 border-t border-border">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="space-y-1 flex-[5] min-w-[240px]">
-                      <Label>{t("node.settings.nameUniqueness")}</Label>
-                      <p className="text-sm text-muted-foreground">
-                        {t("node.settings.nameUniquenessDescription")}
-                      </p>
-
-                      {!isLoadingUniqueness &&
-                        !nameUniquenessEnabled &&
-                        duplicateCount > 0 && (
-                          <div className="mt-3">
-                            <Alert className="bg-amber-50/50 dark:bg-amber-950/10 border-amber-200/50 dark:border-amber-900/30 py-3">
-                              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500" />
-                              <AlertTitle className="text-sm font-medium text-amber-800 dark:text-amber-400">
-                                {t("node.settings.duplicateNodesFound", {
-                                  count: duplicateCount,
-                                })}
-                              </AlertTitle>
-                              <AlertDescription className="text-xs text-amber-700/80 dark:text-amber-500/70">
-                                {t("node.settings.duplicateNodesWillBeRenamed")}
-                              </AlertDescription>
-                            </Alert>
-                          </div>
-                        )}
-                    </div>
-
-                    <div className="shrink-0">
-                      {isLoadingUniqueness ? (
-                        <div className="h-8 w-20 bg-muted animate-pulse rounded-md" />
-                      ) : nameUniquenessEnabled ? (
-                        <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                          <CheckCircle2 className="h-4 w-4" />
-                          <span className="text-sm font-medium">
-                            {t("node.settings.nameUniquenessEnabled")}
-                          </span>
-                        </div>
-                      ) : (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={isTogglingUniqueness}
-                              className="shrink-0"
-                            >
-                              {t("common.enable", "Enable")}
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                {t("node.settings.nameUniqueness")}
-                              </AlertDialogTitle>
-                              <AlertDialogDescription className="space-y-2">
-                                <p>
-                                  {t(
-                                    "node.settings.nameUniquenessEnableConfirm"
-                                  )}
-                                </p>
-                                {duplicateCount > 0 && (
-                                  <p className="text-amber-600 dark:text-amber-400">
-                                    {t("node.settings.duplicateNodesFound", {
-                                      count: duplicateCount,
-                                    })}{" "}
-                                    -
-                                    {t(
-                                      "node.settings.duplicateNodesWillBeRenamed"
-                                    )}
-                                  </p>
-                                )}
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>
-                                {t("common.cancel")}
-                              </AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={handleToggleNameUniqueness}
-                              >
-                                {t("common.continue")}
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {t(
+                        "space.settings.disableRemoteSyncConfirm",
+                        "This space will stop syncing with the remote provider. Local version history stays enabled, so commits and local diffs remain available."
                       )}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDisableRemoteSync}>
+                      {t("common.continue")}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </SettingsRow>
+          )}
+        </SettingsRows>
+      </SettingsSection>
+
+      {/* Node Name Uniqueness Setting */}
+      {!isFileSpace && (
+        <SettingsSection
+          title={t("node.settings.nameUniqueness")}
+          description={t("node.settings.nameUniquenessDescription")}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-4 py-5">
+            <div className="min-w-0 flex-1">
+              {!isLoadingUniqueness &&
+                !nameUniquenessEnabled &&
+                duplicateCount > 0 && (
+                  <Alert className="bg-amber-50/50 dark:bg-amber-950/10 border-amber-200/50 dark:border-amber-900/30 py-3">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+                    <AlertTitle className="text-sm font-medium text-amber-800 dark:text-amber-400">
+                      {t("node.settings.duplicateNodesFound", {
+                        count: duplicateCount,
+                      })}
+                    </AlertTitle>
+                    <AlertDescription className="text-xs text-amber-700/80 dark:text-amber-500/70">
+                      {t("node.settings.duplicateNodesWillBeRenamed")}
+                    </AlertDescription>
+                  </Alert>
+                )}
             </div>
-          </div>
-        </div>
-      </div>
 
-      <div className="py-4 flex items-center gap-2">
-        <Trash2 className="h-5 w-5 text-destructive" />
-        <h3 className="text-lg font-medium text-destructive">
-          {t("space.settings.dangerZone")}
-        </h3>
-      </div>
-
-      <hr className="border-border" />
-
-      <div className="py-6">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-sm text-muted-foreground mb-4">
-              {t("space.settings.dangerDescription")}
-            </p>
-            <div className="space-y-4">
-              {isDesktopMode && !isFileSpace && isVersioningEnabled && (
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-0.5 flex-[5] min-w-[240px]">
-                    <Label className="text-destructive">
-                      {t(
-                        "space.settings.turnOffLocalHistory",
-                        "Turn Off Local History"
-                      )}
-                    </Label>
-                    <p className="text-sm text-muted-foreground">
-                      {isRemoteSyncEnabled
-                        ? t(
-                            "space.settings.turnOffLocalHistoryRequiresSyncOff",
-                            "Disable remote sync before turning off local version history."
-                          )
-                        : t(
-                            "space.settings.turnOffLocalHistoryDescription",
-                            "Convert this space back to a regular SQLite database. Current data is kept, but local commits and branches are removed from this folder."
-                          )}
-                    </p>
-                  </div>
-                  <AlertDialog
-                    onOpenChange={(open) => {
-                      if (!open) {
-                        setTurnOffHistoryConfirmText("")
-                      }
-                    }}
-                  >
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="destructive"
-                        disabled={isRemoteSyncEnabled || isTurningOffHistory}
-                        className="w-fit shrink-0"
-                      >
-                        <History className="h-4 w-4 mr-2" />
-                        {isTurningOffHistory
-                          ? t("common.disabling", "Disabling...")
-                          : t(
-                              "space.settings.turnOffLocalHistory",
-                              "Turn Off History"
-                            )}
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle className="flex items-center gap-2">
-                          <AlertTriangle className="h-5 w-5 text-destructive" />
-                          {t(
-                            "space.settings.turnOffLocalHistory",
-                            "Turn Off Local History"
-                          )}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="space-y-2">
-                          <p>
-                            {t(
-                              "space.settings.turnOffLocalHistoryWarning",
-                              "Eidos will export the current worktree to .eidos/db.sqlite3 and remove the local Graft repository from this folder."
-                            )}
-                          </p>
-                          <p>
-                            {t(
-                              "space.settings.turnOffLocalHistoryBackupHint",
-                              "Use Export SQLite Snapshot first if you want a separate backup file."
-                            )}
-                          </p>
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <div className="space-y-2">
-                        <Label htmlFor="turnOffHistoryConfirm">
-                          {t(
-                            "space.settings.typeSpaceIdToConfirm",
-                            "Type the space ID to confirm"
-                          )}
-                        </Label>
-                        <Input
-                          id="turnOffHistoryConfirm"
-                          value={turnOffHistoryConfirmText}
-                          onChange={(e) =>
-                            setTurnOffHistoryConfirmText(e.target.value)
-                          }
-                          placeholder={turnOffHistoryConfirmTarget}
-                          disabled={isTurningOffHistory}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          {t("space.settings.confirmPhraseHint", "Enter")}{" "}
-                          <span className="font-medium text-foreground">
-                            {turnOffHistoryConfirmTarget}
-                          </span>{" "}
-                          {t(
-                            "space.settings.confirmPhraseHintSuffix",
-                            "to confirm."
-                          )}
-                        </p>
-                      </div>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>
-                          {t("common.cancel")}
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={handleTurnOffLocalHistory}
-                          disabled={
-                            isTurningOffHistory ||
-                            turnOffHistoryConfirmText !==
-                              turnOffHistoryConfirmTarget
-                          }
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          {t("common.continue")}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+            <div className="shrink-0">
+              {isLoadingUniqueness ? (
+                <div className="h-8 w-20 bg-muted animate-pulse rounded-md" />
+              ) : nameUniquenessEnabled ? (
+                <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span className="text-sm font-medium">
+                    {t("node.settings.nameUniquenessEnabled")}
+                  </span>
                 </div>
-              )}
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="text-destructive">
-                    {t("space.settings.unregisterSpace")}
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t("space.settings.unregisterSpaceDescription")}
-                  </p>
-                </div>
+              ) : (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" className="w-fit">
-                      <AlertTriangle className="h-4 w-4 mr-2" />
-                      {t("space.settings.unregisterSpace")}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={isTogglingUniqueness}
+                      className="shrink-0"
+                    >
+                      {t("common.enable", "Enable")}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle className="flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-destructive" />
-                        {t("common.areYouAbsolutelySure")}
+                      <AlertDialogTitle>
+                        {t("node.settings.nameUniqueness")}
                       </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        {t("space.settings.unregisterSpaceWarning", {
-                          spaceId: space,
-                        })}
+                      <AlertDialogDescription className="space-y-2">
+                        <p>{t("node.settings.nameUniquenessEnableConfirm")}</p>
+                        {duplicateCount > 0 && (
+                          <p className="text-amber-600 dark:text-amber-400">
+                            {t("node.settings.duplicateNodesFound", {
+                              count: duplicateCount,
+                            })}{" "}
+                            -{t("node.settings.duplicateNodesWillBeRenamed")}
+                          </p>
+                        )}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <Input
-                      id="confirmName"
-                      type="text"
-                      placeholder={space || ""}
-                      value={confirmName}
-                      onChange={(e) => setConfirmName(e.target.value)}
-                    />
                     <AlertDialogFooter>
                       <AlertDialogCancel>
                         {t("common.cancel")}
                       </AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={handleUnregister}
-                        disabled={confirmName !== space}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        {t("common.delete")}
+                      <AlertDialogAction onClick={handleToggleNameUniqueness}>
+                        {t("common.continue")}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
-              </div>
+              )}
             </div>
           </div>
-        </div>
-      </div>
+        </SettingsSection>
+      )}
+
+      <SettingsSection
+        title={
+          <span className="text-destructive">
+            {t("space.settings.dangerZone")}
+          </span>
+        }
+        description={t("space.settings.dangerDescription")}
+      >
+        <SettingsRows>
+          {isDesktopMode && !isFileSpace && isVersioningEnabled && (
+            <SettingsRow
+              title={
+                <span className="text-destructive">
+                  {t(
+                    "space.settings.turnOffLocalHistory",
+                    "Turn Off Local History"
+                  )}
+                </span>
+              }
+              description={
+                isRemoteSyncEnabled
+                  ? t(
+                      "space.settings.turnOffLocalHistoryRequiresSyncOff",
+                      "Disable remote sync before turning off local version history."
+                    )
+                  : t(
+                      "space.settings.turnOffLocalHistoryDescription",
+                      "Convert this space back to a regular SQLite database. Current data is kept, but local commits and branches are removed from this folder."
+                    )
+              }
+            >
+              <AlertDialog
+                onOpenChange={(open) => {
+                  if (!open) {
+                    setTurnOffHistoryConfirmText("")
+                  }
+                }}
+              >
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    disabled={isRemoteSyncEnabled || isTurningOffHistory}
+                    className="w-fit shrink-0"
+                  >
+                    <History className="h-4 w-4 mr-2" />
+                    {isTurningOffHistory
+                      ? t("common.disabling", "Disabling...")
+                      : t(
+                          "space.settings.turnOffLocalHistory",
+                          "Turn Off History"
+                        )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-destructive" />
+                      {t(
+                        "space.settings.turnOffLocalHistory",
+                        "Turn Off Local History"
+                      )}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="space-y-2">
+                      <p>
+                        {t(
+                          "space.settings.turnOffLocalHistoryWarning",
+                          "Eidos will export the current worktree to .eidos/db.sqlite3 and remove the local Graft repository from this folder."
+                        )}
+                      </p>
+                      <p>
+                        {t(
+                          "space.settings.turnOffLocalHistoryBackupHint",
+                          "Use Export SQLite Snapshot first if you want a separate backup file."
+                        )}
+                      </p>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="space-y-2">
+                    <Label htmlFor="turnOffHistoryConfirm">
+                      {t(
+                        "space.settings.typeSpaceIdToConfirm",
+                        "Type the space ID to confirm"
+                      )}
+                    </Label>
+                    <Input
+                      id="turnOffHistoryConfirm"
+                      value={turnOffHistoryConfirmText}
+                      onChange={(e) =>
+                        setTurnOffHistoryConfirmText(e.target.value)
+                      }
+                      placeholder={turnOffHistoryConfirmTarget}
+                      disabled={isTurningOffHistory}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t("space.settings.confirmPhraseHint", "Enter")}{" "}
+                      <span className="font-medium text-foreground">
+                        {turnOffHistoryConfirmTarget}
+                      </span>{" "}
+                      {t(
+                        "space.settings.confirmPhraseHintSuffix",
+                        "to confirm."
+                      )}
+                    </p>
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleTurnOffLocalHistory}
+                      disabled={
+                        isTurningOffHistory ||
+                        turnOffHistoryConfirmText !==
+                          turnOffHistoryConfirmTarget
+                      }
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {t("common.continue")}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </SettingsRow>
+          )}
+
+          <SettingsRow
+            title={
+              <span className="text-destructive">
+                {t("space.settings.unregisterSpace")}
+              </span>
+            }
+            description={t("space.settings.unregisterSpaceDescription")}
+          >
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="w-fit">
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  {t("space.settings.unregisterSpace")}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                    {t("common.areYouAbsolutelySure")}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {t("space.settings.unregisterSpaceWarning", {
+                      spaceId: space,
+                    })}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <Input
+                  id="confirmName"
+                  type="text"
+                  placeholder={space || ""}
+                  value={confirmName}
+                  onChange={(e) => setConfirmName(e.target.value)}
+                />
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleUnregister}
+                    disabled={confirmName !== space}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {t("common.delete")}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </SettingsRow>
+        </SettingsRows>
+      </SettingsSection>
     </div>
   )
 }

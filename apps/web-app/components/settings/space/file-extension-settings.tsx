@@ -52,6 +52,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 
+import { SettingsRow, SettingsRows, SettingsSection } from "../settings-surface"
+
 type FileExtensionDiscovery = Awaited<
   ReturnType<typeof window.eidos.fileExtensions.discover>
 >
@@ -1556,12 +1558,13 @@ export function FileExtensionSettings() {
   }
 
   return (
-    <div className="space-y-8" data-settings-row-groups="true">
-      <section>
-        <div className="flex flex-col items-stretch gap-3 pb-2 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-          <h3>
-            {t("space.settings.fileExtensions.packages", "Extension packages")}
-          </h3>
+    <div className="space-y-8">
+      <SettingsSection
+        title={t(
+          "space.settings.fileExtensions.packages",
+          "Extension packages"
+        )}
+        actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
               type="button"
@@ -1613,9 +1616,9 @@ export function FileExtensionSettings() {
               {t("space.settings.fileExtensions.refresh", "Refresh")}
             </Button>
           </div>
-        </div>
-        <hr />
-        <div className="divide-y divide-border/70">
+        }
+      >
+        <SettingsRows>
           {showInstaller && (
             <div id="github-extension-installer" className="py-4">
               <div className="space-y-4 rounded-md bg-muted/30 p-4">
@@ -2162,58 +2165,45 @@ export function FileExtensionSettings() {
               )}
             </div>
           )}
-          <div className="flex min-h-[76px] flex-col items-stretch gap-3 py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
-            <div className="flex min-w-0 flex-1 items-start gap-3">
-              <FolderCog className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0 space-y-0.5">
-                <ExtensionSettingTitle>
-                  {t(
-                    "space.settings.fileExtensions.location",
-                    "Package location"
-                  )}
-                </ExtensionSettingTitle>
-                <p className="text-sm leading-5 text-muted-foreground">
-                  {t(
-                    "space.settings.fileExtensions.locationDescription",
-                    "Each direct child is one publisher.name package. Extension source is visible and editable in Files; other .eidos state stays private."
-                  )}
-                </p>
-              </div>
-            </div>
-            <code className="max-w-full break-all rounded-md bg-muted px-2 py-1 text-xs lg:shrink-0">
+          <SettingsRow
+            icon={<FolderCog />}
+            title={t(
+              "space.settings.fileExtensions.location",
+              "Package location"
+            )}
+            description={t(
+              "space.settings.fileExtensions.locationDescription",
+              "Each direct child is one publisher.name package. Extension source is visible and editable in Files; other .eidos state stays private."
+            )}
+            controlClassName="max-w-full lg:shrink-0"
+          >
+            <code className="max-w-full break-all rounded-md bg-muted px-2 py-1 text-xs">
               {discovery?.root ?? ".eidos/extensions"}
             </code>
-          </div>
-          <div className="flex min-h-[76px] flex-col items-stretch gap-3 py-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6">
-            <div className="flex min-w-0 flex-1 items-start gap-3">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0 space-y-0.5">
-                <ExtensionSettingTitle>
-                  {t(
-                    "space.settings.fileExtensions.runtime",
-                    "Runtime boundary"
-                  )}
-                </ExtensionSettingTitle>
-                <p className="text-sm leading-5 text-muted-foreground">
-                  {t(
-                    "space.settings.fileExtensions.runtimeDescription",
-                    "Enabled packages run from exact trusted source bytes. Logic executes in an isolated Worker, while panels and file editors render in sandboxed frames. Data access remains limited to host capabilities you explicitly grant."
-                  )}
-                </p>
-              </div>
-            </div>
+          </SettingsRow>
+          <SettingsRow
+            icon={<ShieldCheck />}
+            title={t(
+              "space.settings.fileExtensions.runtime",
+              "Runtime boundary"
+            )}
+            description={t(
+              "space.settings.fileExtensions.runtimeDescription",
+              "Enabled packages run from exact trusted source bytes. Logic executes in an isolated Worker, while panels and file editors render in sandboxed frames. Data access remains limited to host capabilities you explicitly grant."
+            )}
+          >
             <Badge variant="outline" className="shrink-0 font-normal">
               {t(
                 "space.settings.fileExtensions.localStateOnly",
                 "Developer preview"
               )}
             </Badge>
-          </div>
-        </div>
+          </SettingsRow>
+        </SettingsRows>
         {createdExtension && (
           <div
             role="status"
-            className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm"
+            className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 py-4 text-sm"
           >
             <div className="flex min-w-0 items-start gap-2 text-muted-foreground">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
@@ -2276,7 +2266,7 @@ export function FileExtensionSettings() {
         {installedMessage && (
           <div
             role="status"
-            className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-emerald-700 dark:text-emerald-400"
+            className="flex flex-wrap items-center justify-between gap-3 border-t border-border/70 py-4 text-sm text-emerald-700 dark:text-emerald-400"
           >
             <p>{installedMessage}</p>
             {installedPackageId && (
@@ -2295,37 +2285,30 @@ export function FileExtensionSettings() {
             )}
           </div>
         )}
-      </section>
+      </SettingsSection>
 
-      <section>
-        <div className="flex items-end justify-between gap-4 pb-2">
-          <div>
-            <h3>
-              {t("space.settings.fileExtensions.detected", "Detected packages")}
-            </h3>
-            {discovery && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t(
-                  "space.settings.fileExtensions.hostVersion",
-                  "Host {{version}} · {{development}} developing · {{enabled}} enabled · {{disabled}} disabled · {{untrusted}} untrusted · {{incompatible}} incompatible · {{invalid}} invalid",
-                  {
-                    version: discovery.hostVersion,
-                    development: counts.development,
-                    enabled: counts.enabled,
-                    disabled: counts.disabled,
-                    untrusted: counts.untrusted,
-                    incompatible: counts.incompatible,
-                    invalid: counts.invalid,
-                  }
-                )}
-              </p>
-            )}
-          </div>
-        </div>
-        <hr />
-
+      <SettingsSection
+        title={t("space.settings.fileExtensions.detected", "Detected packages")}
+        description={
+          discovery
+            ? t(
+                "space.settings.fileExtensions.hostVersion",
+                "Host {{version}} · {{development}} developing · {{enabled}} enabled · {{disabled}} disabled · {{untrusted}} untrusted · {{incompatible}} incompatible · {{invalid}} invalid",
+                {
+                  version: discovery.hostVersion,
+                  development: counts.development,
+                  enabled: counts.enabled,
+                  disabled: counts.disabled,
+                  untrusted: counts.untrusted,
+                  incompatible: counts.incompatible,
+                  invalid: counts.invalid,
+                }
+              )
+            : undefined
+        }
+      >
         {error && (
-          <div className="mt-4 flex items-start gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <div className="my-4 flex items-start gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -2340,7 +2323,7 @@ export function FileExtensionSettings() {
         {!error && !loading && discovery?.packages.length === 0 && (
           <div
             data-testid="file-extension-empty"
-            className="flex min-h-48 flex-col items-center justify-center gap-2 text-center"
+            className="flex min-h-48 flex-col items-center justify-center gap-2 py-8 text-center"
           >
             <Package className="h-7 w-7 text-muted-foreground" />
             <p className="text-sm font-medium">
@@ -2393,7 +2376,7 @@ export function FileExtensionSettings() {
         )}
 
         {discovery && discovery.packages.length > 0 && (
-          <div className="divide-y divide-border/70">
+          <SettingsRows>
             {discovery.packages.map((extension) => {
               const displayName =
                 extension.manifest?.displayName ?? extension.directoryName
@@ -4513,11 +4496,11 @@ export function FileExtensionSettings() {
                 </div>
               )
             })}
-          </div>
+          </SettingsRows>
         )}
 
         {discovery && discovery.diagnostics.length > 0 && (
-          <div className="mt-4 space-y-1 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-xs text-destructive">
+          <div className="my-4 space-y-1 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-xs text-destructive">
             {discovery.diagnostics.map((diagnostic, index) => (
               <p key={`${diagnostic.code}-${index}`}>
                 <code>{diagnostic.code}</code>: {diagnostic.message}
@@ -4525,7 +4508,7 @@ export function FileExtensionSettings() {
             ))}
           </div>
         )}
-      </section>
+      </SettingsSection>
     </div>
   )
 }

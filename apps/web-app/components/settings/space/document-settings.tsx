@@ -8,7 +8,6 @@ import {
 import { useTranslation } from "react-i18next"
 
 import { useSpaceSettings } from "@/hooks/use-space-settings"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -19,6 +18,8 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useDocPropertyTypes } from "@/apps/web-app/components/doc-property-global/property-type-hook"
+
+import { SettingsRow, SettingsRows, SettingsSection } from "../settings-surface"
 
 export function DocumentSettings() {
   const { t } = useTranslation()
@@ -40,71 +41,47 @@ export function DocumentSettings() {
   }
 
   return (
-    <div className="space-y-0">
-      {/* Document Properties Section */}
-      <div className="py-4 flex items-center gap-2">
-        <FileText className="h-5 w-5 text-muted-foreground" />
-        <h3 className="text-lg font-medium">
-          {t("space.settings.documentProperties")}
-        </h3>
-      </div>
-
-      <hr className="border-border" />
-
-      <div className="py-6">
-        <div className="space-y-6">
-          <p className="text-sm text-muted-foreground">
-            {t("space.settings.documentPropertiesDescription")}
-          </p>
-
-          {/* Marker Property */}
-          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-            <div className="space-y-0.5 flex-1 min-w-0">
-              <Label htmlFor="markerProperty">
-                {t("space.settings.markerProperty")}
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                {t("space.settings.markerPropertyDescription")}
-              </p>
-            </div>
-            <div className="w-full lg:w-64 shrink-0">
-              <Select
-                value={settings.data.markerProperty || "none"}
-                onValueChange={(value) =>
-                  updateSetting("markerProperty", value === "none" ? "" : value)
-                }
-              >
-                <SelectTrigger id="markerProperty">
-                  <SelectValue
-                    placeholder={t("space.settings.selectProperty")}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">
-                    <span className="text-muted-foreground">
-                      {t("common.none")}
-                    </span>
+    <div className="space-y-8">
+      <SettingsSection
+        title={t("space.settings.documentProperties")}
+        description={t("space.settings.documentPropertiesDescription")}
+      >
+        <SettingsRows>
+          <SettingsRow
+            icon={<FileText />}
+            htmlFor="markerProperty"
+            title={t("space.settings.markerProperty")}
+            description={t("space.settings.markerPropertyDescription")}
+            controlClassName="w-64 max-w-full"
+          >
+            <Select
+              value={settings.data.markerProperty || "none"}
+              onValueChange={(value) =>
+                updateSetting("markerProperty", value === "none" ? "" : value)
+              }
+            >
+              <SelectTrigger id="markerProperty">
+                <SelectValue placeholder={t("space.settings.selectProperty")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <span className="text-muted-foreground">
+                    {t("common.none")}
+                  </span>
+                </SelectItem>
+                {customPropertyTypes.map((property) => (
+                  <SelectItem key={property.name} value={property.name}>
+                    {property.name}
                   </SelectItem>
-                  {customPropertyTypes.map((property) => (
-                    <SelectItem key={property.name} value={property.name}>
-                      {property.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Show Reference Node Icon */}
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="space-y-0.5 flex-1 min-w-0">
-              <Label htmlFor="showReferenceNodeIcon">
-                {t("space.settings.showReferenceNodeIcon")}
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                {t("space.settings.showReferenceNodeIconDescription")}
-              </p>
-            </div>
+                ))}
+              </SelectContent>
+            </Select>
+          </SettingsRow>
+          <SettingsRow
+            htmlFor="showReferenceNodeIcon"
+            title={t("space.settings.showReferenceNodeIcon")}
+            description={t("space.settings.showReferenceNodeIconDescription")}
+          >
             <Switch
               id="showReferenceNodeIcon"
               checked={settings.data.showReferenceNodeIcon}
@@ -112,66 +89,59 @@ export function DocumentSettings() {
                 updateSetting("showReferenceNodeIcon", checked)
               }
             />
-          </div>
-        </div>
-      </div>
+          </SettingsRow>
+        </SettingsRows>
+      </SettingsSection>
 
-      {/* Image Settings Section */}
-      <div className="py-4 flex items-center gap-2">
-        <Type className="h-5 w-5 text-muted-foreground" />
-        <h3 className="text-lg font-medium">
-          {t("space.settings.imageSettings", "Image Settings")}
-        </h3>
-      </div>
-
-      <hr className="border-border" />
-
-      <div className="py-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-0.5 flex-1 min-w-0">
-            <Label htmlFor="imageAlign">{t("space.settings.imageAlign")}</Label>
-            <p className="text-sm text-muted-foreground">
-              {t("space.settings.imageAlignDescription")}
-            </p>
-          </div>
-          <ToggleGroup
-            type="single"
-            value={settings.data.imageAlign || "center"}
-            onValueChange={(value) => {
-              if (value) {
-                updateSetting(
-                  "imageAlign",
-                  value as "left" | "center" | "right"
-                )
-              }
-            }}
-            className="border rounded-md gap-0 shrink-0"
-            size="sm"
+      <SettingsSection
+        title={t("space.settings.imageSettings", "Image Settings")}
+      >
+        <SettingsRows>
+          <SettingsRow
+            icon={<Type />}
+            htmlFor="imageAlign"
+            title={t("space.settings.imageAlign")}
+            description={t("space.settings.imageAlignDescription")}
           >
-            <ToggleGroupItem
-              value="left"
-              aria-label={t("space.settings.imageAlignLeft")}
-              className="px-3"
+            <ToggleGroup
+              type="single"
+              value={settings.data.imageAlign || "center"}
+              onValueChange={(value) => {
+                if (value) {
+                  updateSetting(
+                    "imageAlign",
+                    value as "left" | "center" | "right"
+                  )
+                }
+              }}
+              className="border rounded-md gap-0"
+              size="sm"
             >
-              <AlignLeft className="h-4 w-4" />
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="center"
-              aria-label={t("space.settings.imageAlignCenter")}
-              className="px-3"
-            >
-              <AlignCenter className="h-4 w-4" />
-            </ToggleGroupItem>
-            <ToggleGroupItem
-              value="right"
-              aria-label={t("space.settings.imageAlignRight")}
-              className="px-3"
-            >
-              <AlignRight className="h-4 w-4" />
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </div>
-      </div>
+              <ToggleGroupItem
+                value="left"
+                aria-label={t("space.settings.imageAlignLeft")}
+                className="px-3"
+              >
+                <AlignLeft className="h-4 w-4" />
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="center"
+                aria-label={t("space.settings.imageAlignCenter")}
+                className="px-3"
+              >
+                <AlignCenter className="h-4 w-4" />
+              </ToggleGroupItem>
+              <ToggleGroupItem
+                value="right"
+                aria-label={t("space.settings.imageAlignRight")}
+                className="px-3"
+              >
+                <AlignRight className="h-4 w-4" />
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </SettingsRow>
+        </SettingsRows>
+      </SettingsSection>
     </div>
   )
 }

@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
 import { useSecrets } from "@/hooks/use-secrets"
 
+import { SettingsSection } from "../settings-surface"
+
 export function GlobalSecretsSettings() {
   const { t } = useTranslation()
   const { secrets, setSecret, deleteSecret, loading } = useSecrets()
@@ -144,49 +146,36 @@ export function GlobalSecretsSettings() {
   const secretList = Object.entries(secrets)
 
   return (
-    <div className="space-y-0">
-      {/* Header Section */}
-      <div className="py-4 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <Key className="h-5 w-5 text-muted-foreground" />
-          <h3 className="text-lg font-semibold tracking-tight text-foreground">
-            {t("settings.secrets.title", "Secrets Store")}
-          </h3>
-        </div>
-        {!isAdding && !editingKey && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs shrink-0 font-medium transition-all"
-            onClick={() => {
-              setIsAdding(true)
-              setEditingKey(null)
-              setNewKey("")
-              setNewValue("")
-            }}
-          >
-            <Plus className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
-            {t("settings.secrets.addSecret", "Add Secret Key")}
-          </Button>
+    <div className="space-y-8">
+      <SettingsSection
+        title={t("settings.secrets.title", "Secrets Store")}
+        description={t(
+          "settings.secrets.description",
+          "Configure sensitive variables or API keys (like custom auth tokens, external service credentials, etc.) that will be securely encrypted on this machine and automatically injected into the AI Agent's execution environment."
         )}
-      </div>
-
-      <hr className="border-border" />
-
-      {/* Description Section */}
-      <div className="py-5">
-        <p className="text-sm text-muted-foreground leading-relaxed max-w-3xl">
-          {t(
-            "settings.secrets.description",
-            "Configure sensitive variables or API keys (like custom auth tokens, external service credentials, etc.) that will be securely encrypted on this machine and automatically injected into the AI Agent's execution environment."
-          )}
-        </p>
-      </div>
-
-      {/* Add / Edit Form Card */}
-      {(isAdding || editingKey) && (
-        <div className="py-4 mb-6">
-          <div className="p-5 rounded-xl border border-border bg-muted/30 space-y-4 max-w-2xl transition-all">
+        actions={
+          !isAdding && !editingKey ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="shrink-0"
+              onClick={() => {
+                setIsAdding(true)
+                setEditingKey(null)
+                setNewKey("")
+                setNewValue("")
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              {t("settings.secrets.addSecret", "Add Secret Key")}
+            </Button>
+          ) : undefined
+        }
+        contentClassName="px-0"
+      >
+        {/* Add / Edit Form */}
+        {(isAdding || editingKey) && (
+          <div className="space-y-4 py-5 px-5">
             <div className="flex items-center gap-2">
               <div className="h-6 w-6 rounded-md bg-muted flex items-center justify-center border border-border">
                 <Key className="h-3.5 w-3.5 text-muted-foreground" />
@@ -203,10 +192,7 @@ export function GlobalSecretsSettings() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label
-                  htmlFor="secret-key"
-                  className="text-xs font-medium text-muted-foreground"
-                >
+                <Label htmlFor="secret-key">
                   {t("settings.secrets.keyLabelShort", "Key")}
                 </Label>
                 <Input
@@ -228,10 +214,7 @@ export function GlobalSecretsSettings() {
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label
-                  htmlFor="secret-value"
-                  className="text-xs font-medium text-muted-foreground"
-                >
+                <Label htmlFor="secret-value">
                   {t("settings.secrets.valueLabelShort", "Value")}
                 </Label>
                 <Input
@@ -271,13 +254,11 @@ export function GlobalSecretsSettings() {
               </Button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Secrets List / Table */}
-      <div className="py-2">
+        {/* Secrets List / Table */}
         {secretList.length === 0 ? (
-          <div className="p-10 text-center border border-dashed rounded-xl bg-muted/10 border-border transition-all">
+          <div className="m-4 p-10 text-center border border-dashed rounded-xl border-border">
             <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
               <Lock className="h-5 w-5 text-muted-foreground" />
             </div>
@@ -297,119 +278,117 @@ export function GlobalSecretsSettings() {
             )}
           </div>
         ) : (
-          <div className="overflow-hidden border border-border rounded-xl bg-card">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse table-fixed min-w-[600px]">
-                <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    <th className="p-3.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-[240px] select-none">
-                      {t("settings.secrets.keyLabelShort", "Key")}
-                    </th>
-                    <th className="p-3.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider select-none">
-                      {t("settings.secrets.valueLabelShort", "Value")}
-                    </th>
-                    <th className="p-3.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-[120px] select-none">
-                      {t("settings.secrets.scopeLabel", "Scope")}
-                    </th>
-                    <th className="p-3.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider text-right w-[110px] select-none">
-                      {t("settings.secrets.actionsLabel", "Actions")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {secretList.map(([key, val]) => {
-                    const isBeingEdited = editingKey === key
-                    return (
-                      <tr
-                        key={key}
-                        className={`transition-colors duration-150 h-[52px] ${
-                          isBeingEdited ? "bg-muted/30" : "hover:bg-muted/10"
-                        }`}
-                      >
-                        {/* Key Column */}
-                        <td className="p-3.5 align-middle truncate">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse table-fixed min-w-[600px]">
+              <thead>
+                <tr className="border-b border-border/70 bg-muted/20">
+                  <th className="p-3.5 pl-5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-[240px] select-none">
+                    {t("settings.secrets.keyLabelShort", "Key")}
+                  </th>
+                  <th className="p-3.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider select-none">
+                    {t("settings.secrets.valueLabelShort", "Value")}
+                  </th>
+                  <th className="p-3.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider w-[120px] select-none">
+                    {t("settings.secrets.scopeLabel", "Scope")}
+                  </th>
+                  <th className="p-3.5 pr-5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider text-right w-[110px] select-none">
+                    {t("settings.secrets.actionsLabel", "Actions")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/70">
+                {secretList.map(([key, val]) => {
+                  const isBeingEdited = editingKey === key
+                  return (
+                    <tr
+                      key={key}
+                      className={`transition-colors duration-150 h-[52px] ${
+                        isBeingEdited ? "bg-muted/30" : "hover:bg-muted/10"
+                      }`}
+                    >
+                      {/* Key Column */}
+                      <td className="p-3.5 pl-5 align-middle truncate">
+                        <span
+                          className="font-mono text-sm font-semibold select-all text-foreground block truncate"
+                          title={key}
+                        >
+                          {key}
+                        </span>
+                      </td>
+
+                      {/* Value Column */}
+                      <td className="p-3.5 align-middle">
+                        <div className="flex items-center gap-2 group min-w-0 max-w-[400px]">
                           <span
-                            className="font-mono text-sm font-semibold select-all text-foreground block truncate"
-                            title={key}
+                            className={`font-mono text-xs truncate block select-none ${
+                              revealedKeys[key]
+                                ? "text-foreground select-all"
+                                : "text-muted-foreground/60 font-semibold"
+                            }`}
                           >
-                            {key}
+                            {revealedKeys[key] ? val : "••••••••••••••••"}
                           </span>
-                        </td>
-
-                        {/* Value Column */}
-                        <td className="p-3.5 align-middle">
-                          <div className="flex items-center gap-2 group min-w-0 max-w-[400px]">
-                            <span
-                              className={`font-mono text-xs truncate block select-none ${
-                                revealedKeys[key]
-                                  ? "text-foreground select-all"
-                                  : "text-muted-foreground/60 font-semibold"
-                              }`}
-                            >
-                              {revealedKeys[key] ? val : "••••••••••••••••"}
-                            </span>
-                            <button
-                              onClick={() => toggleReveal(key)}
-                              className="text-muted-foreground hover:text-foreground transition-colors p-1 shrink-0 rounded hover:bg-muted"
-                              title={
-                                revealedKeys[key]
-                                  ? t("common.hide", "Hide")
-                                  : t("common.show", "Show")
-                              }
-                            >
-                              {revealedKeys[key] ? (
-                                <EyeOff className="h-3.5 w-3.5" />
-                              ) : (
-                                <Eye className="h-3.5 w-3.5" />
-                              )}
-                            </button>
-                          </div>
-                        </td>
-
-                        {/* Scope Column */}
-                        <td className="p-3.5 align-middle">
-                          <Badge
-                            variant="outline"
-                            className="text-[9px] tracking-wide py-0.5 px-1.5 bg-muted text-muted-foreground border-border select-none shrink-0 inline-block font-mono"
+                          <button
+                            onClick={() => toggleReveal(key)}
+                            className="text-muted-foreground hover:text-foreground transition-colors p-1 shrink-0 rounded hover:bg-muted"
+                            title={
+                              revealedKeys[key]
+                                ? t("common.hide", "Hide")
+                                : t("common.show", "Show")
+                            }
                           >
-                            ENV_VAR
-                          </Badge>
-                        </td>
+                            {revealedKeys[key] ? (
+                              <EyeOff className="h-3.5 w-3.5" />
+                            ) : (
+                              <Eye className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
 
-                        {/* Actions Column */}
-                        <td className="p-3.5 align-middle text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className={`h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 rounded-md transition-colors ${
-                                isBeingEdited ? "bg-muted text-foreground" : ""
-                              }`}
-                              onClick={() => startEdit(key, val)}
-                              title={t("common.edit", "Edit")}
-                            >
-                              <Edit className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 dark:hover:bg-destructive/20 shrink-0 rounded-md transition-colors"
-                              onClick={() => handleDelete(key)}
-                              title={t("common.delete", "Delete")}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                      {/* Scope Column */}
+                      <td className="p-3.5 align-middle">
+                        <Badge
+                          variant="outline"
+                          className="text-[9px] tracking-wide py-0.5 px-1.5 bg-muted text-muted-foreground border-border select-none shrink-0 inline-block font-mono"
+                        >
+                          ENV_VAR
+                        </Badge>
+                      </td>
+
+                      {/* Actions Column */}
+                      <td className="p-3.5 pr-5 align-middle text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`h-8 w-8 text-muted-foreground hover:text-foreground shrink-0 rounded-md transition-colors ${
+                              isBeingEdited ? "bg-muted text-foreground" : ""
+                            }`}
+                            onClick={() => startEdit(key, val)}
+                            title={t("common.edit", "Edit")}
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 dark:hover:bg-destructive/20 shrink-0 rounded-md transition-colors"
+                            onClick={() => handleDelete(key)}
+                            title={t("common.delete", "Delete")}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-      </div>
+      </SettingsSection>
     </div>
   )
 }

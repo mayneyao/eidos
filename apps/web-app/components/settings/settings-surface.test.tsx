@@ -3,21 +3,14 @@
 import { renderToStaticMarkup } from "react-dom/server"
 
 import {
-  SETTINGS_CONTENT_BODY_CLASS_NAME,
+  SettingsRow,
+  SettingsRows,
   SettingsRowSurface,
+  SettingsSection,
 } from "./settings-surface"
 
-describe("Settings surface ownership", () => {
-  it("only applies the shared card treatment to explicit row groups", () => {
-    expect(SETTINGS_CONTENT_BODY_CLASS_NAME).not.toContain(
-      "[&>div>hr+div]:border"
-    )
-    expect(SETTINGS_CONTENT_BODY_CLASS_NAME).toContain(
-      "[&>div[data-settings-row-groups]>hr+div]:border"
-    )
-  })
-
-  it("provides one reusable border surface for mixed settings pages", () => {
+describe("Settings surface", () => {
+  it("provides one reusable border surface for settings content", () => {
     const markup = renderToStaticMarkup(
       <SettingsRowSurface>
         <div>Setting row</div>
@@ -26,5 +19,44 @@ describe("Settings surface ownership", () => {
 
     expect(markup).toContain('data-settings-row-surface="true"')
     expect(markup.match(/border-border\/80/g)).toHaveLength(1)
+  })
+
+  it("renders a section with title, description, and framed content", () => {
+    const markup = renderToStaticMarkup(
+      <SettingsSection title="General" description="Basic preferences">
+        <SettingsRows>
+          <SettingsRow title="Name" description="Display name">
+            <input />
+          </SettingsRow>
+        </SettingsRows>
+      </SettingsSection>
+    )
+
+    expect(markup).toContain("General")
+    expect(markup).toContain("Basic preferences")
+    expect(markup).toContain('data-settings-row-surface="true"')
+    expect(markup).toContain("divide-y")
+    expect(markup).toContain("Display name")
+  })
+
+  it("supports unframed sections", () => {
+    const markup = renderToStaticMarkup(
+      <SettingsSection title="Theme" framed={false}>
+        <div>custom content</div>
+      </SettingsSection>
+    )
+
+    expect(markup).toContain("custom content")
+    expect(markup).not.toContain('data-settings-row-surface="true"')
+  })
+
+  it("links row labels to controls via htmlFor", () => {
+    const markup = renderToStaticMarkup(
+      <SettingsRow htmlFor="toggle" title="Enabled">
+        <input id="toggle" type="checkbox" />
+      </SettingsRow>
+    )
+
+    expect(markup).toContain('for="toggle"')
   })
 })

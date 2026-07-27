@@ -6,11 +6,9 @@ import {
   Lock,
   Loader2,
   Plus,
-  RefreshCw,
   Save,
   Server,
   Trash2,
-  Globe,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -33,6 +31,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
 import { useAuthOptional } from "@/components/auth-provider"
+
+import { SettingsRows, SettingsSection } from "../settings-surface"
 
 interface ProviderConfig {
   id: string
@@ -458,109 +458,97 @@ export function GlobalSyncSettings() {
   const customProviders = Object.values(syncConfig.providers)
 
   return (
-    <div className="space-y-0">
+    <div className="space-y-8">
       {/* Providers Section */}
-      <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Globe className="h-5 w-5 text-muted-foreground" />
-          <h3 className="text-lg font-medium">
-            {t("settings.sync.provider", "Provider")}
-          </h3>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowAddForm(true)}
-          disabled={showAddForm || !hasValidLicense}
-          title={
-            !hasValidLicense
-              ? t("settings.sync.licenseRequiredForCustom")
-              : undefined
-          }
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          {t("common.button.add")}
-        </Button>
-      </div>
-
-      <hr className="border-border" />
-
-      <div className="py-6">
-        <div className="space-y-4">
-          {/* License Required Banner */}
-          {!hasValidLicense && !isLicenseLoading && isDesktopMode && (
-            <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
-              <div className="flex items-start gap-3">
-                <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-medium text-amber-800 dark:text-amber-200">
-                    {t("settings.sync.licenseRequired")}
-                  </p>
-                  <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
-                    {t("settings.sync.licenseRequiredDescription")}
-                  </p>
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="h-auto p-0 text-amber-700 dark:text-amber-300 mt-2"
-                    onClick={() =>
-                      navigate("/settings/account", { replace: true })
-                    }
-                  >
-                    {t("settings.account.title")} →
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <p className="text-sm text-muted-foreground">
-            {t("settings.sync.providerDescription")}
-          </p>
-
-          {/* Built-in: eidos.space */}
-          <div className="p-4 rounded-lg border border-muted bg-muted/30 opacity-60">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="flex items-center gap-3 flex-[5] min-w-[240px]">
-                <div className="p-2 rounded-md bg-muted shrink-0">
-                  <Cloud className="h-5 w-5 text-blue-500" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium">eidos.space</span>
-                    <Badge variant="secondary">
-                      {t("settings.sync.builtIn", "Built-in")}
-                    </Badge>
-                    {eidosSpaceCredentials ? (
-                      <Badge
-                        variant="secondary"
-                        className="text-green-600 bg-green-50 dark:bg-green-950/30"
-                      >
-                        <Check className="h-3 w-3 mr-1" />
-                        {t("settings.sync.ready")}
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-orange-600">
-                        {t("settings.sync.notConnected")}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {t("settings.sync.managedCloudStorageBy")}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <Button size="sm" disabled className="whitespace-nowrap">
-                  {eidosSpaceCredentials
-                    ? t("settings.sync.connected")
-                    : t("settings.sync.connect")}
+      <SettingsSection
+        title={t("settings.sync.provider", "Provider")}
+        description={t("settings.sync.providerDescription")}
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAddForm(true)}
+            disabled={showAddForm || !hasValidLicense}
+            title={
+              !hasValidLicense
+                ? t("settings.sync.licenseRequiredForCustom")
+                : undefined
+            }
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            {t("common.button.add")}
+          </Button>
+        }
+      >
+        {/* License Required Banner */}
+        {!hasValidLicense && !isLicenseLoading && isDesktopMode && (
+          <div className="my-4 p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30">
+            <div className="flex items-start gap-3">
+              <Lock className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-medium text-amber-800 dark:text-amber-200">
+                  {t("settings.sync.licenseRequired")}
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                  {t("settings.sync.licenseRequiredDescription")}
+                </p>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-amber-700 dark:text-amber-300 mt-2"
+                  onClick={() =>
+                    navigate("/settings/account", { replace: true })
+                  }
+                >
+                  {t("settings.account.title")} →
                 </Button>
               </div>
             </div>
           </div>
+        )}
 
-          {/* Custom Provider Cards */}
+        <SettingsRows>
+          {/* Built-in: eidos.space */}
+          <div className="flex items-center justify-between gap-6 py-4 opacity-60">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="p-2 rounded-md bg-muted shrink-0">
+                <Cloud className="h-5 w-5 text-blue-500" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium">eidos.space</span>
+                  <Badge variant="secondary">
+                    {t("settings.sync.builtIn", "Built-in")}
+                  </Badge>
+                  {eidosSpaceCredentials ? (
+                    <Badge
+                      variant="secondary"
+                      className="text-green-600 bg-green-50 dark:bg-green-950/30"
+                    >
+                      <Check className="h-3 w-3 mr-1" />
+                      {t("settings.sync.ready")}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-orange-600">
+                      {t("settings.sync.notConnected")}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {t("settings.sync.managedCloudStorageBy")}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <Button size="sm" disabled className="whitespace-nowrap">
+                {eidosSpaceCredentials
+                  ? t("settings.sync.connected")
+                  : t("settings.sync.connect")}
+              </Button>
+            </div>
+          </div>
+
+          {/* Custom Provider Rows */}
           {customProviders.map((provider) => {
             const testStatus = providerTestStatus[provider.id] || "untested"
             const hasCredentials = customProviderCredentials[provider.id]
@@ -570,237 +558,220 @@ export function GlobalSyncSettings() {
             return (
               <div
                 key={provider.id}
-                className="p-4 rounded-lg border hover:border-primary/50 transition-colors"
+                className="flex items-center justify-between gap-6 py-4"
               >
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="flex items-center gap-3 flex-[5] min-w-[240px]">
-                    <div className="p-2 rounded-md bg-muted shrink-0">
-                      <Server className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium">{provider.name}</span>
-                        {isTestSuccess ? (
-                          <Badge
-                            variant="secondary"
-                            className="text-green-600 bg-green-50 dark:bg-green-950/30 shrink-0"
-                          >
-                            <Check className="h-3 w-3 mr-1" />
-                            {t("common.ready")}
-                          </Badge>
-                        ) : hasCredentials ? (
-                          <Badge
-                            variant="outline"
-                            className="text-blue-600 shrink-0"
-                          >
-                            {t("settings.sync.credentialsSet")}
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="outline"
-                            className="text-orange-600 shrink-0"
-                          >
-                            {t("settings.sync.noCredentials")}
-                          </Badge>
-                        )}
-                      </div>
-                      <p
-                        className="text-sm text-muted-foreground truncate"
-                        title={provider.endpoint}
-                      >
-                        {provider.endpoint}
-                      </p>
-                    </div>
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="p-2 rounded-md bg-muted shrink-0">
+                    <Server className="h-5 w-5 text-muted-foreground" />
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleTestConnection(provider.id)}
-                      disabled={isTesting}
-                      className="h-8 px-3"
-                    >
-                      {isTesting ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium">{provider.name}</span>
+                      {isTestSuccess ? (
+                        <Badge
+                          variant="secondary"
+                          className="text-green-600 bg-green-50 dark:bg-green-950/30 shrink-0"
+                        >
+                          <Check className="h-3 w-3 mr-1" />
+                          {t("common.ready")}
+                        </Badge>
+                      ) : hasCredentials ? (
+                        <Badge
+                          variant="outline"
+                          className="text-blue-600 shrink-0"
+                        >
+                          {t("settings.sync.credentialsSet")}
+                        </Badge>
                       ) : (
-                        t("settings.sync.test")
+                        <Badge
+                          variant="outline"
+                          className="text-orange-600 shrink-0"
+                        >
+                          {t("settings.sync.noCredentials")}
+                        </Badge>
                       )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() =>
-                        openDeleteDialog(provider.id, provider.name)
-                      }
-                      className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    </div>
+                    <p
+                      className="text-sm text-muted-foreground truncate"
+                      title={provider.endpoint}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                      {provider.endpoint}
+                    </p>
                   </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleTestConnection(provider.id)}
+                    disabled={isTesting}
+                    className="h-8 px-3"
+                  >
+                    {isTesting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      t("settings.sync.test")
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => openDeleteDialog(provider.id, provider.name)}
+                    className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             )
           })}
+        </SettingsRows>
 
-          {customProviders.length === 0 && !showAddForm && (
-            <div className="p-8 text-center border border-dashed rounded-lg">
-              <Server className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
-              <p className="text-muted-foreground mb-1">
-                {t("settings.sync.noProviders")}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {t("settings.sync.addProviderHint")}
+        {customProviders.length === 0 && !showAddForm && (
+          <div className="p-8 text-center border border-dashed rounded-lg my-4">
+            <Server className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
+            <p className="text-muted-foreground mb-1">
+              {t("settings.sync.noProviders")}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {t("settings.sync.addProviderHint")}
+            </p>
+          </div>
+        )}
+
+        {/* Add Provider Form */}
+        {showAddForm && (
+          <div className="space-y-4 py-5">
+            <div className="space-y-2">
+              <Label htmlFor="provider-id">
+                {t("settings.sync.providerId")}{" "}
+                <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="provider-id"
+                placeholder="my-s3, minio, r2, etc."
+                value={newProviderForm.id}
+                onChange={(e) =>
+                  setNewProviderForm((prev) => ({
+                    ...prev,
+                    id: e.target.value.toLowerCase().replace(/\s+/g, "-"),
+                  }))
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("settings.sync.providerIdDescription")}
               </p>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Add Provider Form */}
-      {showAddForm && (
-        <>
-          <div className="py-4 flex items-center gap-2">
-            <Plus className="h-5 w-5 text-muted-foreground" />
-            <h3 className="text-lg font-medium">
-              {t("settings.sync.addProvider")}
-            </h3>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="provider-endpoint">
+                {t("settings.sync.endpointUrl")}{" "}
+                <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="provider-endpoint"
+                placeholder="https://s3.amazonaws.com or https://minio.example.com"
+                value={newProviderForm.endpoint}
+                onChange={(e) =>
+                  setNewProviderForm((prev) => ({
+                    ...prev,
+                    endpoint: e.target.value,
+                  }))
+                }
+              />
+            </div>
 
-          <hr className="border-border" />
+            <div className="space-y-2">
+              <Label htmlFor="provider-bucket">
+                {t("settings.sync.bucketName")}{" "}
+                <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="provider-bucket"
+                placeholder="my-eidos-bucket"
+                value={newProviderForm.bucketName}
+                onChange={(e) =>
+                  setNewProviderForm((prev) => ({
+                    ...prev,
+                    bucketName: e.target.value,
+                  }))
+                }
+              />
+            </div>
 
-          <div className="py-6">
-            <div className="p-4 rounded-lg border space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="provider-id">
-                  {t("settings.sync.providerId")}{" "}
-                  <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="provider-id"
-                  placeholder="my-s3, minio, r2, etc."
-                  value={newProviderForm.id}
-                  onChange={(e) =>
-                    setNewProviderForm((prev) => ({
-                      ...prev,
-                      id: e.target.value.toLowerCase().replace(/\s+/g, "-"),
-                    }))
-                  }
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t("settings.sync.providerIdDescription")}
-                </p>
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="provider-region">
+                {t("settings.sync.region")}
+              </Label>
+              <Input
+                id="provider-region"
+                placeholder="us-east-1"
+                value={newProviderForm.region}
+                onChange={(e) =>
+                  setNewProviderForm((prev) => ({
+                    ...prev,
+                    region: e.target.value,
+                  }))
+                }
+              />
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="provider-endpoint">
-                  {t("settings.sync.endpointUrl")}{" "}
-                  <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="provider-endpoint"
-                  placeholder="https://s3.amazonaws.com or https://minio.example.com"
-                  value={newProviderForm.endpoint}
-                  onChange={(e) =>
-                    setNewProviderForm((prev) => ({
-                      ...prev,
-                      endpoint: e.target.value,
-                    }))
-                  }
-                />
-              </div>
+            <hr className="border-border" />
 
-              <div className="space-y-2">
-                <Label htmlFor="provider-bucket">
-                  {t("settings.sync.bucketName")}{" "}
-                  <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="provider-bucket"
-                  placeholder="my-eidos-bucket"
-                  value={newProviderForm.bucketName}
-                  onChange={(e) =>
-                    setNewProviderForm((prev) => ({
-                      ...prev,
-                      bucketName: e.target.value,
-                    }))
-                  }
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="provider-access-key">
+                {t("settings.sync.accessKeyId")}{" "}
+                <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="provider-access-key"
+                type="password"
+                placeholder="AKIA..."
+                value={newProviderForm.accessKeyId}
+                onChange={(e) =>
+                  setNewProviderForm((prev) => ({
+                    ...prev,
+                    accessKeyId: e.target.value,
+                  }))
+                }
+              />
+            </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="provider-region">
-                  {t("settings.sync.region")}
-                </Label>
-                <Input
-                  id="provider-region"
-                  placeholder="us-east-1"
-                  value={newProviderForm.region}
-                  onChange={(e) =>
-                    setNewProviderForm((prev) => ({
-                      ...prev,
-                      region: e.target.value,
-                    }))
-                  }
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="provider-secret-key">
+                {t("settings.sync.secretAccessKey")}{" "}
+                <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="provider-secret-key"
+                type="password"
+                placeholder="..."
+                value={newProviderForm.secretAccessKey}
+                onChange={(e) =>
+                  setNewProviderForm((prev) => ({
+                    ...prev,
+                    secretAccessKey: e.target.value,
+                  }))
+                }
+              />
+            </div>
 
-              <hr className="border-border" />
+            <p className="text-sm text-muted-foreground">
+              {t("settings.sync.credentialsSecurityNote")}
+            </p>
 
-              <div className="space-y-2">
-                <Label htmlFor="provider-access-key">
-                  {t("settings.sync.accessKeyId")}{" "}
-                  <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="provider-access-key"
-                  type="password"
-                  placeholder="AKIA..."
-                  value={newProviderForm.accessKeyId}
-                  onChange={(e) =>
-                    setNewProviderForm((prev) => ({
-                      ...prev,
-                      accessKeyId: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="provider-secret-key">
-                  {t("settings.sync.secretAccessKey")}{" "}
-                  <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="provider-secret-key"
-                  type="password"
-                  placeholder="..."
-                  value={newProviderForm.secretAccessKey}
-                  onChange={(e) =>
-                    setNewProviderForm((prev) => ({
-                      ...prev,
-                      secretAccessKey: e.target.value,
-                    }))
-                  }
-                />
-              </div>
-
-              <p className="text-sm text-muted-foreground">
-                {t("settings.sync.credentialsSecurityNote")}
-              </p>
-
-              <div className="flex gap-2 pt-2">
-                <Button variant="outline" onClick={() => setShowAddForm(false)}>
-                  {t("common.cancel")}
-                </Button>
-                <Button onClick={handleAddProvider}>
-                  <Save className="h-4 w-4 mr-2" />
-                  {t("common.button.add")}
-                </Button>
-              </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowAddForm(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button onClick={handleAddProvider}>
+                <Save className="h-4 w-4 mr-2" />
+                {t("common.button.add")}
+              </Button>
             </div>
           </div>
-        </>
-      )}
+        )}
+      </SettingsSection>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog

@@ -22,6 +22,7 @@ import { useEjectExtension } from "@/apps/web-app/hooks/use-eject-extension"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { builtInExtensions } from "@/extensions/builtin"
 
+import { SettingsRows, SettingsSection } from "../settings-surface"
 import { ExtensionPreview } from "./extension-preview"
 import { FileExtensionSettings } from "./file-extension-settings"
 
@@ -100,112 +101,117 @@ function LegacyExtensionSettings() {
   }
 
   return (
-    <div className="space-y-0">
-      {/* Header Section */}
-      <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Puzzle className="h-5 w-5 text-muted-foreground" />
-          <h3 className="text-lg font-medium">
-            {t("settings.extensions.title")}
-          </h3>
-        </div>
+    <div className="space-y-8">
+      <SettingsSection
+        title={t("settings.extensions.title")}
+        description={t(
+          "space.settings.extensions.description",
+          "Manage built-in extensions for this space."
+        )}
+        actions={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="w-[180px] justify-between">
+                <span className="flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  {getFilterLabel()}
+                </span>
+                <ChevronDown className="h-4 w-4 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[180px]">
+              <DropdownMenuItem onClick={() => setFilterType("all")}>
+                {t("space.settings.extensions.allTypes", "All Types")}
+              </DropdownMenuItem>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="w-[180px] justify-between">
-              <span className="flex items-center gap-2">
-                <Filter className="h-4 w-4" />
-                {getFilterLabel()}
-              </span>
-              <ChevronDown className="h-4 w-4 opacity-50" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[180px]">
-            <DropdownMenuItem onClick={() => setFilterType("all")}>
-              {t("space.settings.extensions.allTypes", "All Types")}
-            </DropdownMenuItem>
-
-            <HoverCard openDelay={0} closeDelay={0}>
-              <HoverCardTrigger asChild>
-                <DropdownMenuItem onClick={() => setFilterType("sidebar")}>
-                  {t(
-                    "space.settings.extensions.sidebarBlocks",
-                    "Sidebar Blocks"
-                  )}
-                </DropdownMenuItem>
-              </HoverCardTrigger>
-              <HoverCardContent
-                side="left"
-                align="start"
-                className="w-[320px] p-0 border-none bg-transparent shadow-none"
-                avoidCollisions
-              >
-                <div className="bg-background border border-border rounded-lg shadow-lg">
-                  <ExtensionPreview type="sidebar" />
-                </div>
-              </HoverCardContent>
-            </HoverCard>
-
-            <HoverCard openDelay={0} closeDelay={0}>
-              <HoverCardTrigger asChild>
-                <DropdownMenuItem onClick={() => setFilterType("file-handler")}>
-                  {t("space.settings.extensions.fileHandlers", "File Handlers")}
-                </DropdownMenuItem>
-              </HoverCardTrigger>
-              <HoverCardContent
-                side="left"
-                align="start"
-                className="w-[320px] p-0 border-none bg-transparent shadow-none"
-                avoidCollisions
-              >
-                <div className="bg-background border border-border rounded-lg shadow-lg">
-                  <ExtensionPreview type="file-handler" />
-                </div>
-              </HoverCardContent>
-            </HoverCard>
-
-            <HoverCard openDelay={0} closeDelay={0}>
-              <HoverCardTrigger asChild>
-                <DropdownMenuItem
-                  onClick={() => setFilterType("folder-handler")}
+              <HoverCard openDelay={0} closeDelay={0}>
+                <HoverCardTrigger asChild>
+                  <DropdownMenuItem onClick={() => setFilterType("sidebar")}>
+                    {t(
+                      "space.settings.extensions.sidebarBlocks",
+                      "Sidebar Blocks"
+                    )}
+                  </DropdownMenuItem>
+                </HoverCardTrigger>
+                <HoverCardContent
+                  side="left"
+                  align="start"
+                  className="w-[320px] p-0 border-none bg-transparent shadow-none"
+                  avoidCollisions
                 >
-                  {t(
-                    "space.settings.extensions.folderHandlers",
-                    "Folder Handlers"
-                  )}
-                </DropdownMenuItem>
-              </HoverCardTrigger>
-              <HoverCardContent
-                side="left"
-                align="start"
-                className="w-[320px] p-0 border-none bg-transparent shadow-none"
-                avoidCollisions
-              >
-                <div className="bg-background border border-border rounded-lg shadow-lg">
-                  <ExtensionPreview type="folder-handler" />
-                </div>
-              </HoverCardContent>
-            </HoverCard>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+                  <div className="bg-background border border-border rounded-lg shadow-lg">
+                    <ExtensionPreview type="sidebar" />
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
 
-      <hr className="border-border" />
+              <HoverCard openDelay={0} closeDelay={0}>
+                <HoverCardTrigger asChild>
+                  <DropdownMenuItem
+                    onClick={() => setFilterType("file-handler")}
+                  >
+                    {t(
+                      "space.settings.extensions.fileHandlers",
+                      "File Handlers"
+                    )}
+                  </DropdownMenuItem>
+                </HoverCardTrigger>
+                <HoverCardContent
+                  side="left"
+                  align="start"
+                  className="w-[320px] p-0 border-none bg-transparent shadow-none"
+                  avoidCollisions
+                >
+                  <div className="bg-background border border-border rounded-lg shadow-lg">
+                    <ExtensionPreview type="file-handler" />
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
 
-      <div className="py-6">
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            {t(
-              "space.settings.extensions.description",
-              "Manage built-in extensions for this space."
-            )}
-          </p>
-
-          <div className="space-y-3">
+              <HoverCard openDelay={0} closeDelay={0}>
+                <HoverCardTrigger asChild>
+                  <DropdownMenuItem
+                    onClick={() => setFilterType("folder-handler")}
+                  >
+                    {t(
+                      "space.settings.extensions.folderHandlers",
+                      "Folder Handlers"
+                    )}
+                  </DropdownMenuItem>
+                </HoverCardTrigger>
+                <HoverCardContent
+                  side="left"
+                  align="start"
+                  className="w-[320px] p-0 border-none bg-transparent shadow-none"
+                  avoidCollisions
+                >
+                  <div className="bg-background border border-border rounded-lg shadow-lg">
+                    <ExtensionPreview type="folder-handler" />
+                  </div>
+                </HoverCardContent>
+              </HoverCard>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      >
+        {filteredExtensions.length === 0 ? (
+          <div className="py-4">
+            <div className="p-8 text-center border border-dashed rounded-lg">
+              <Puzzle className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
+              <p className="text-muted-foreground">
+                {t(
+                  "space.settings.extensions.noExtensions",
+                  "No extensions found for this filter."
+                )}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <SettingsRows>
             {filteredExtensions.map((ext) => (
               <div
                 key={ext.id}
-                className="flex items-center justify-between p-4 rounded-lg border border-border hover:border-primary/50 transition-colors"
+                className="flex items-center justify-between gap-6 py-4"
               >
                 <div className="space-y-1 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -233,7 +239,7 @@ function LegacyExtensionSettings() {
                     {ext.description}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0 ml-4">
+                <div className="flex items-center gap-2 shrink-0">
                   {canEject(ext.slug) && (
                     <Button
                       variant="outline"
@@ -253,21 +259,9 @@ function LegacyExtensionSettings() {
                 </div>
               </div>
             ))}
-
-            {filteredExtensions.length === 0 && (
-              <div className="p-8 text-center border border-dashed rounded-lg">
-                <Puzzle className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
-                <p className="text-muted-foreground">
-                  {t(
-                    "space.settings.extensions.noExtensions",
-                    "No extensions found for this filter."
-                  )}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+          </SettingsRows>
+        )}
+      </SettingsSection>
     </div>
   )
 }

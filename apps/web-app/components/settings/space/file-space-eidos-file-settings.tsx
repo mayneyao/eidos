@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next"
 
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useFileSpaceSettings } from "@/apps/web-app/store/file-space-settings"
-import { Label } from "@/components/ui/label"
+
+import { SettingsRow, SettingsRows, SettingsSection } from "../settings-surface"
 
 export function FileSpaceBaseSettings() {
   const { t } = useTranslation()
@@ -20,31 +21,23 @@ export function FileSpaceBaseSettings() {
   const eidosFileAssetFolder = settings?.eidosFileAssetFolder ?? "space-assets"
 
   return (
-    <div className="space-y-0" data-settings-row-groups="true">
-      <div className="pb-2">
-        <h3>{t("space.settings.fileSpace.eidosFile.group", "Defaults")}</h3>
-      </div>
-      <hr />
-      <div>
-        <div className="divide-y divide-border/70">
-          <div className="flex min-h-[76px] flex-wrap items-center justify-between gap-4 py-4">
-            <div className="flex min-w-[240px] flex-1 items-start gap-3">
-              <LayoutTemplate className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <Label htmlFor="file-space-eidos-file-template">
-                  {t(
-                    "space.settings.fileSpace.eidosFile.defaultTemplate",
-                    "Default template"
-                  )}
-                </Label>
-                <p className="text-sm leading-5 text-muted-foreground">
-                  {t(
-                    "space.settings.fileSpace.eidosFile.defaultTemplateDescription",
-                    "Preselect a starting point when creating an Eidos File. You can still choose another template before creation."
-                  )}
-                </p>
-              </div>
-            </div>
+    <div className="space-y-8">
+      <SettingsSection
+        title={t("space.settings.fileSpace.eidosFile.group", "Defaults")}
+      >
+        <SettingsRows>
+          <SettingsRow
+            icon={<LayoutTemplate />}
+            htmlFor="file-space-eidos-file-template"
+            title={t(
+              "space.settings.fileSpace.eidosFile.defaultTemplate",
+              "Default template"
+            )}
+            description={t(
+              "space.settings.fileSpace.eidosFile.defaultTemplateDescription",
+              "Preselect a starting point when creating an Eidos File. You can still choose another template before creation."
+            )}
+          >
             <select
               id="file-space-eidos-file-template"
               aria-label={t(
@@ -73,26 +66,19 @@ export function FileSpaceBaseSettings() {
                 )}
               </option>
             </select>
-          </div>
-
-          <div className="flex min-h-[76px] flex-wrap items-center justify-between gap-4 py-4">
-            <div className="flex min-w-[240px] flex-1 items-start gap-3">
-              <FolderOpen className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <Label htmlFor="file-space-eidos-file-assets">
-                  {t(
-                    "space.settings.fileSpace.eidosFile.assetFolder",
-                    "Imported files"
-                  )}
-                </Label>
-                <p className="text-sm leading-5 text-muted-foreground">
-                  {t(
-                    "space.settings.fileSpace.eidosFile.assetFolderDescription",
-                    "Choose where files added to Eidos File records are copied inside this Space. Stored values remain relative file paths."
-                  )}
-                </p>
-              </div>
-            </div>
+          </SettingsRow>
+          <SettingsRow
+            icon={<FolderOpen />}
+            htmlFor="file-space-eidos-file-assets"
+            title={t(
+              "space.settings.fileSpace.eidosFile.assetFolder",
+              "Imported files"
+            )}
+            description={t(
+              "space.settings.fileSpace.eidosFile.assetFolderDescription",
+              "Choose where files added to Eidos File records are copied inside this Space. Stored values remain relative file paths."
+            )}
+          >
             <select
               id="file-space-eidos-file-assets"
               aria-label={t(
@@ -123,9 +109,9 @@ export function FileSpaceBaseSettings() {
                 )}
               </option>
             </select>
-          </div>
-        </div>
-      </div>
+          </SettingsRow>
+        </SettingsRows>
+      </SettingsSection>
     </div>
   )
 }

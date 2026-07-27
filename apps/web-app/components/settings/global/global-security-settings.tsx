@@ -14,9 +14,10 @@ import {
   FormControl,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from "@/components/react-hook-form/form"
+
+import { SettingsSection } from "../settings-surface"
 
 const securityFormSchema = z.object({
   webSecurity: z.boolean(),
@@ -90,22 +91,20 @@ export function GlobalSecuritySettings() {
   }
 
   return (
-    <div className="space-y-0">
+    <div className="space-y-8">
       {/* Security Section */}
-      <div className="py-4 flex flex-wrap items-center justify-between gap-4">
-        <h3 className="text-lg font-medium">{t("settings.security.title")}</h3>
-        {hasChanges && (
-          <Button type="button" onClick={() => form.handleSubmit(onSubmit)()}>
-            {t("common.save")}
-          </Button>
-        )}
-      </div>
-
-      <hr className="border-border" />
-
-      <div className="py-6">
+      <SettingsSection
+        title={t("settings.security.title")}
+        actions={
+          hasChanges ? (
+            <Button type="button" onClick={() => form.handleSubmit(onSubmit)()}>
+              {t("common.save")}
+            </Button>
+          ) : null
+        }
+      >
         <Form {...form}>
-          <form className="space-y-6">
+          <form className="py-5 space-y-6">
             {/* Web Security */}
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="space-y-0.5 flex-1 min-w-0">
@@ -189,7 +188,7 @@ export function GlobalSecuritySettings() {
             </div>
           </form>
         </Form>
-      </div>
+      </SettingsSection>
     </div>
   )
 }

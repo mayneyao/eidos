@@ -29,6 +29,8 @@ import type { ThemeWithStatus } from "@/apps/web-app/hooks/use-theme-market"
 import { useThemeMarket } from "@/apps/web-app/hooks/use-theme-market"
 import { cn } from "@/lib/utils"
 
+import { SettingsSection } from "../settings-surface"
+
 // Compact Theme Thumbnail
 interface ThemeThumbnailProps {
   name: string
@@ -256,8 +258,8 @@ export function ThemeSettings() {
   // Detail View
   if (selectedTheme) {
     return (
-      <div className="space-y-0 animate-in fade-in slide-in-from-right-2 duration-200">
-        <div className="py-4 flex items-center gap-3">
+      <div className="space-y-8 animate-in fade-in slide-in-from-right-2 duration-200">
+        <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
@@ -267,14 +269,13 @@ export function ThemeSettings() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-medium truncate">
+            <h3 className="text-[15px] font-medium leading-6 truncate">
               {selectedTheme.name}
             </h3>
           </div>
         </div>
-        <hr className="border-border" />
 
-        <div className="py-6 space-y-8">
+        <div className="space-y-8">
           {/* Main Preview Container */}
           <div className="space-y-6">
             <div className="aspect-video rounded-xl border border-border overflow-hidden bg-muted/30 relative flex items-center justify-center">
@@ -444,50 +445,42 @@ export function ThemeSettings() {
 
   // List View
   return (
-    <div className="space-y-0 animate-in fade-in duration-200">
-      <div className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Palette className="h-5 w-5 text-muted-foreground" />
-          <h3 className="text-lg font-medium">{t("theme.title", "Themes")}</h3>
-        </div>
+    <div className="space-y-8 animate-in fade-in duration-200">
+      <SettingsSection
+        title={t("theme.title", "Themes")}
+        description={t(
+          "theme.description",
+          "Customize your workspace appearance with curated themes."
+        )}
+        framed={false}
+        actions={
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="installed-only"
+                checked={showInstalledOnly}
+                onCheckedChange={setShowInstalledOnly}
+              />
+              <Label
+                htmlFor="installed-only"
+                className="cursor-pointer text-sm font-medium whitespace-nowrap"
+              >
+                {t("theme.showInstalledOnly", "Installed")}
+              </Label>
+            </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Switch
-              id="installed-only"
-              checked={showInstalledOnly}
-              onCheckedChange={setShowInstalledOnly}
-            />
-            <Label
-              htmlFor="installed-only"
-              className="cursor-pointer text-sm font-medium whitespace-nowrap"
-            >
-              {t("theme.showInstalledOnly", "Installed")}
-            </Label>
+            <div className="relative w-full sm:w-[200px]">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder={t("theme.searchPlaceholder", "Search...")}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 pl-8 text-xs bg-muted/20 border-border/50"
+              />
+            </div>
           </div>
-
-          <div className="relative w-full sm:w-[200px]">
-            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder={t("theme.searchPlaceholder", "Search...")}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 pl-8 text-xs bg-muted/20 border-border/50"
-            />
-          </div>
-        </div>
-      </div>
-
-      <hr className="border-border" />
-
-      <div className="py-6 space-y-4">
-        <p className="text-sm text-muted-foreground">
-          {t(
-            "theme.description",
-            "Customize your workspace appearance with curated themes."
-          )}
-        </p>
-
+        }
+      >
         <div className="grid gap-3 sm:grid-cols-2">
           {/* Default Theme Card */}
           {(showInstalledOnly || !searchQuery) && (
@@ -634,7 +627,7 @@ export function ThemeSettings() {
             </div>
           )}
         </div>
-      </div>
+      </SettingsSection>
     </div>
   )
 }

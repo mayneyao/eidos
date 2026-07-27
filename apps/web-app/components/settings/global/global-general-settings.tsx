@@ -35,6 +35,8 @@ import { useUpdateStatus } from "@/apps/web-app/hooks/use-update-status"
 import { useSpaceTheme } from "@/apps/web-app/hooks/use-space-theme"
 import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 
+import { SettingsRow, SettingsRows, SettingsSection } from "../settings-surface"
+
 const appearanceFormSchema = z.object({
   theme: z.enum(["light", "dark"], {
     required_error: "Please select a theme.",
@@ -178,21 +180,15 @@ export function GlobalGeneralSettings() {
   }
 
   return (
-    <div className="space-y-0" data-settings-row-groups="true">
+    <div className="space-y-8">
       {/* App Section */}
-      <div className="pb-2">
-        <h3 className="text-[15px] font-medium">{t("settings.general.app")}</h3>
-      </div>
-
-      <hr className="border-border" />
-
-      <div className="py-0">
-        <div className="divide-y divide-border/70 [&>*]:py-4">
+      <SettingsSection title={t("settings.general.app")}>
+        <SettingsRows>
           {/* Current Version */}
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="space-y-0.5 flex-[5] min-w-[240px]">
-              <Label>{t("settings.general.currentVersion")}</Label>
-              <p className="text-sm text-muted-foreground">
+          <SettingsRow
+            title={t("settings.general.currentVersion")}
+            description={
+              <>
                 {EIDOS_VERSION}{" "}
                 {isDesktopMode
                   ? t("nav.dropdown.menu.desktop")
@@ -208,20 +204,21 @@ export function GlobalGeneralSettings() {
                 >
                   {t("settings.general.whatsNew")}
                 </a>
-              </p>
-            </div>
+              </>
+            }
+          >
             <div className="text-sm font-mono text-muted-foreground">
               v{EIDOS_VERSION}
               {EIDOS_COMMIT && ` (${EIDOS_COMMIT})`}
             </div>
-          </div>
+          </SettingsRow>
 
           {/* Check for Updates */}
           {isDesktopMode && (
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="space-y-0.5 flex-[5] min-w-[240px]">
-                <Label>{t("settings.general.checkForUpdates")}</Label>
-                <p className="text-sm text-muted-foreground">
+            <SettingsRow
+              title={t("settings.general.checkForUpdates")}
+              description={
+                <>
                   {updateStatus === "available" && updateInfo?.version && (
                     <span className="text-green-600">
                       {t("settings.general.updateAvailable")} v
@@ -266,9 +263,10 @@ export function GlobalGeneralSettings() {
                       Click to check for updates
                     </span>
                   )}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                </>
+              }
+            >
+              <div className="flex items-center gap-2">
                 {updateStatus === "available" && (
                   <Button
                     onClick={quitAndInstall}
@@ -318,81 +316,67 @@ export function GlobalGeneralSettings() {
                   </Button>
                 )}
               </div>
-            </div>
+            </SettingsRow>
           )}
 
           {/* Auto Update */}
           {isDesktop && (
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="space-y-0.5 flex-[5] min-w-[240px]">
-                <Label>{t("settings.general.enableAutoUpdate")}</Label>
-                <p className="text-sm text-muted-foreground">
-                  {t("settings.general.enableAutoUpdateDescription")}
-                </p>
-              </div>
+            <SettingsRow
+              htmlFor="auto-update"
+              title={t("settings.general.enableAutoUpdate")}
+              description={t("settings.general.enableAutoUpdateDescription")}
+            >
               <Switch
+                id="auto-update"
                 checked={autoUpdateEnabled}
                 onCheckedChange={handleToggleAutoUpdate}
                 disabled={isLoadingConfig}
-                className="shrink-0"
               />
-            </div>
+            </SettingsRow>
           )}
 
           {/* Update Channel */}
           {isDesktop && (
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="space-y-0.5 flex-[5] min-w-[240px]">
-                <Label>{t("settings.general.updateChannel")}</Label>
-                <p className="text-sm text-muted-foreground">
-                  {t("settings.general.updateChannelDescription")}
-                </p>
+            <SettingsRow
+              htmlFor="update-channel"
+              title={t("settings.general.updateChannel")}
+              description={t("settings.general.updateChannelDescription")}
+              controlClassName="w-64 max-w-full"
+            >
+              <div className="relative">
+                <select
+                  id="update-channel"
+                  className={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "w-full appearance-none bg-transparent font-normal"
+                  )}
+                  value={updateChannel}
+                  onChange={(e) =>
+                    handleChangeChannel(e.target.value as "stable" | "beta")
+                  }
+                  disabled={isLoadingConfig}
+                >
+                  <option value="stable">{t("settings.general.stable")}</option>
+                  <option value="beta">{t("settings.general.beta")}</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-3 h-4 w-4 opacity-50 pointer-events-none" />
               </div>
-              <div className="w-full sm:w-64 shrink-0">
-                <div className="relative">
-                  <select
-                    className={cn(
-                      buttonVariants({ variant: "outline" }),
-                      "w-full appearance-none bg-transparent font-normal"
-                    )}
-                    value={updateChannel}
-                    onChange={(e) =>
-                      handleChangeChannel(e.target.value as "stable" | "beta")
-                    }
-                    disabled={isLoadingConfig}
-                  >
-                    <option value="stable">
-                      {t("settings.general.stable")}
-                    </option>
-                    <option value="beta">{t("settings.general.beta")}</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-3 h-4 w-4 opacity-50 pointer-events-none" />
-                </div>
-              </div>
-            </div>
+            </SettingsRow>
           )}
-        </div>
-      </div>
+        </SettingsRows>
+      </SettingsSection>
+
       {/* Appearance Section */}
-      <div className="pb-2 pt-5">
-        <h3 className="text-[15px] font-medium">
-          {t("settings.appearance.title")}
-        </h3>
-      </div>
-
-      <hr className="border-border" />
-
-      <div className="py-0">
+      <SettingsSection title={t("settings.appearance.title")}>
         <Form {...appearanceForm}>
-          <form className="divide-y divide-border/70 [&>*]:py-4">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="space-y-0.5 flex-[5] min-w-[240px]">
-                <Label>{t("settings.appearance.language")}</Label>
-                <p className="text-sm text-muted-foreground">
-                  {t("settings.appearance.languageDescription")}
-                </p>
-              </div>
-              <div className="w-full sm:w-64 shrink-0">
+          <form>
+            <SettingsRows>
+              <SettingsRow
+                htmlFor="language"
+                title={t("settings.appearance.language")}
+                description={t("settings.appearance.languageDescription")}
+                controlClassName="w-64 max-w-full"
+              >
                 <FormField
                   control={appearanceForm.control}
                   name="language"
@@ -401,6 +385,7 @@ export function GlobalGeneralSettings() {
                       <div className="relative">
                         <FormControl>
                           <select
+                            id="language"
                             className={cn(
                               buttonVariants({ variant: "outline" }),
                               "w-full appearance-none bg-transparent font-normal"
@@ -417,17 +402,13 @@ export function GlobalGeneralSettings() {
                     </FormItem>
                   )}
                 />
-              </div>
-            </div>
+              </SettingsRow>
 
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="space-y-0.5 flex-[5] min-w-[240px]">
-                <Label>{t("settings.appearance.mode")}</Label>
-                <p className="text-sm text-muted-foreground">
-                  {t("settings.appearance.themeDescription")}
-                </p>
-              </div>
-              <div className="w-full sm:w-64 shrink-0">
+              <SettingsRow
+                title={t("settings.appearance.mode")}
+                description={t("settings.appearance.themeDescription")}
+                controlClassName="w-64 max-w-full"
+              >
                 <FormField
                   control={appearanceForm.control}
                   name="theme"
@@ -457,28 +438,30 @@ export function GlobalGeneralSettings() {
                     </FormItem>
                   )}
                 />
-              </div>
-            </div>
+              </SettingsRow>
 
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="space-y-0.5 flex-[5] min-w-[240px]">
-                <Label>{t("settings.appearance.themeStyle")}</Label>
-                <p className="text-sm text-muted-foreground">
-                  {t("settings.appearance.themeStyleDescription")}{" "}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      navigate("/settings/space-theme", { replace: true })
-                    }
-                    className="text-primary hover:underline font-medium inline-flex items-center gap-0.5 cursor-pointer"
-                  >
-                    {t("settings.appearance.manageThemes")}
-                  </button>
-                </p>
-              </div>
-              <div className="w-full sm:w-64 shrink-0">
+              <SettingsRow
+                htmlFor="theme-style"
+                title={t("settings.appearance.themeStyle")}
+                description={
+                  <>
+                    {t("settings.appearance.themeStyleDescription")}{" "}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate("/settings/space-theme", { replace: true })
+                      }
+                      className="text-primary hover:underline font-medium inline-flex items-center gap-0.5 cursor-pointer"
+                    >
+                      {t("settings.appearance.manageThemes")}
+                    </button>
+                  </>
+                }
+                controlClassName="w-64 max-w-full"
+              >
                 <div className="relative">
                   <select
+                    id="theme-style"
                     className={cn(
                       buttonVariants({ variant: "outline" }),
                       "w-full appearance-none bg-transparent font-normal"
@@ -498,24 +481,15 @@ export function GlobalGeneralSettings() {
                   </select>
                   <ChevronDown className="absolute right-3 top-3 h-4 w-4 opacity-50 pointer-events-none" />
                 </div>
-              </div>
-            </div>
+              </SettingsRow>
+            </SettingsRows>
           </form>
         </Form>
-      </div>
+      </SettingsSection>
 
       {/* About Section */}
-      <div className="pb-2 pt-5">
-        <h3 className="text-[15px] font-medium">
-          {t("settings.about", "About")}
-        </h3>
-      </div>
-
-      <hr className="border-border" />
-
-      <div className="py-0">
-        <div className="divide-y divide-border/70 py-1">
-          {/* Links */}
+      <SettingsSection title={t("settings.about", "About")}>
+        <SettingsRows>
           {[
             {
               label: "GitHub",
@@ -544,20 +518,20 @@ export function GlobalGeneralSettings() {
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-3 rounded-md px-2 py-3 transition-colors hover:bg-muted"
+              className="flex items-center gap-3 py-3 transition-colors hover:bg-muted/50"
             >
               <div className="text-muted-foreground">{link.icon}</div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium">{link.label}</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-sm text-muted-foreground">
                   {link.description}
                 </div>
               </div>
               <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
             </a>
           ))}
-        </div>
-      </div>
+        </SettingsRows>
+      </SettingsSection>
     </div>
   )
 }

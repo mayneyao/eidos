@@ -2,6 +2,7 @@ import {
   AlertCircle,
   FolderOpen,
   FolderOutput,
+  FolderSync,
   LoaderCircle,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -9,8 +10,9 @@ import { useTranslation } from "react-i18next"
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useSpaceMigration } from "@/apps/web-app/hooks/use-space-migration"
 import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
+
+import { SettingsRow, SettingsRows, SettingsSection } from "../settings-surface"
 
 export function LegacySpaceMigrationSettings() {
   const { t } = useTranslation()
@@ -89,60 +91,67 @@ export function LegacySpaceMigrationSettings() {
   }
 
   return (
-    <div className="space-y-0" data-settings-row-groups="true">
-      <div className="pb-2">
-        <h3>{t("space.settings.migration.group", "File-based Space")}</h3>
-      </div>
-      <hr />
-
-      <div className="flex min-h-[92px] items-center justify-between gap-6 py-4">
-        <div className="min-w-0 space-y-0.5">
-          <Label>
-            {t(
+    <div className="space-y-8">
+      <SettingsSection
+        title={t("space.settings.migration.group", "File-based Space")}
+      >
+        <SettingsRows>
+          <SettingsRow
+            icon={<FolderSync />}
+            className="min-h-[92px]"
+            title={t(
               "space.settings.migration.actionTitle",
               "Migrate to a file-based Space"
             )}
-          </Label>
-          <p className="max-w-2xl text-sm leading-5 text-muted-foreground">
-            {available
-              ? t(
-                  "space.settings.migration.description",
-                  "Choose an empty folder. Eidos creates a new Space and leaves this Space unchanged."
-                )
-              : t(
-                  "space.settings.migration.desktopOnly",
-                  "Open this Space in the desktop app to migrate it."
-                )}
-          </p>
-          {error ? (
-            <div className="flex items-start gap-2 pt-2 text-sm text-destructive">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{error.message}</span>
-            </div>
-          ) : null}
-        </div>
-        <Button
-          size="sm"
-          className="shrink-0"
-          disabled={!available || busy}
-          onClick={() => void runPrimaryAction()}
-        >
-          {busy ? (
-            <LoaderCircle className="h-4 w-4 animate-spin" />
-          ) : result ? (
-            <FolderOpen className="h-4 w-4" />
-          ) : (
-            <FolderOutput className="h-4 w-4" />
-          )}
-          {operation === "planning"
-            ? t("space.settings.migration.preparing", "Preparing…")
-            : operation === "exporting"
-              ? t("space.settings.migration.migrating", "Migrating…")
-              : result
-                ? t("space.settings.migration.openSpace", "Open migrated Space")
-                : t("space.settings.migration.migrate", "Migrate Space")}
-        </Button>
-      </div>
+            description={
+              <>
+                <span className="block max-w-2xl">
+                  {available
+                    ? t(
+                        "space.settings.migration.description",
+                        "Choose an empty folder. Eidos creates a new Space and leaves this Space unchanged."
+                      )
+                    : t(
+                        "space.settings.migration.desktopOnly",
+                        "Open this Space in the desktop app to migrate it."
+                      )}
+                </span>
+                {error ? (
+                  <span className="flex items-start gap-2 pt-2 text-sm text-destructive">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{error.message}</span>
+                  </span>
+                ) : null}
+              </>
+            }
+          >
+            <Button
+              size="sm"
+              className="shrink-0"
+              disabled={!available || busy}
+              onClick={() => void runPrimaryAction()}
+            >
+              {busy ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : result ? (
+                <FolderOpen className="h-4 w-4" />
+              ) : (
+                <FolderOutput className="h-4 w-4" />
+              )}
+              {operation === "planning"
+                ? t("space.settings.migration.preparing", "Preparing…")
+                : operation === "exporting"
+                  ? t("space.settings.migration.migrating", "Migrating…")
+                  : result
+                    ? t(
+                        "space.settings.migration.openSpace",
+                        "Open migrated Space"
+                      )
+                    : t("space.settings.migration.migrate", "Migrate Space")}
+            </Button>
+          </SettingsRow>
+        </SettingsRows>
+      </SettingsSection>
     </div>
   )
 }

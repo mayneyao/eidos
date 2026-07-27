@@ -17,8 +17,9 @@ import { useSpaceVersioning } from "@/apps/web-app/hooks/use-space-versioning"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+
+import { SettingsRow, SettingsRows, SettingsSection } from "../settings-surface"
 
 export function FileSpaceVersioningSettings() {
   const { t } = useTranslation()
@@ -157,46 +158,37 @@ export function FileSpaceVersioningSettings() {
   }
 
   return (
-    <div className="space-y-0" data-settings-row-groups="true">
-      <div className="pb-2">
-        <h3>
-          {t("space.settings.fileSpace.versioning.group", "Local history")}
-        </h3>
-      </div>
-      <hr />
-      <div>
-        <div className="divide-y divide-border/70">
-          <div className="flex min-h-[76px] items-center justify-between gap-6 py-4">
-            <div className="flex min-w-0 items-start gap-3">
-              <GitBranch className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <Label>
-                    {t(
-                      "space.settings.fileSpace.versioning.enable",
-                      "Version this Space"
-                    )}
-                  </Label>
-                  <Badge variant={enabled ? "secondary" : "outline"}>
-                    {enabled
-                      ? t(
-                          "space.settings.fileSpace.versioning.enabled",
-                          "Enabled"
-                        )
-                      : t(
-                          "space.settings.fileSpace.versioning.notEnabled",
-                          "Not enabled"
-                        )}
-                  </Badge>
-                </div>
-                <p className="text-sm leading-5 text-muted-foreground">
-                  {t(
-                    "space.settings.fileSpace.versioning.description",
-                    "Graft records versions at the Space root while files remain directly editable outside Eidos."
-                  )}
-                </p>
-              </div>
-            </div>
+    <div className="space-y-8">
+      <SettingsSection
+        title={t("space.settings.fileSpace.versioning.group", "Local history")}
+      >
+        <SettingsRows>
+          <SettingsRow
+            icon={<GitBranch />}
+            title={
+              <span className="flex items-center gap-2">
+                {t(
+                  "space.settings.fileSpace.versioning.enable",
+                  "Version this Space"
+                )}
+                <Badge variant={enabled ? "secondary" : "outline"}>
+                  {enabled
+                    ? t(
+                        "space.settings.fileSpace.versioning.enabled",
+                        "Enabled"
+                      )
+                    : t(
+                        "space.settings.fileSpace.versioning.notEnabled",
+                        "Not enabled"
+                      )}
+                </Badge>
+              </span>
+            }
+            description={t(
+              "space.settings.fileSpace.versioning.description",
+              "Graft records versions at the Space root while files remain directly editable outside Eidos."
+            )}
+          >
             {enabled ? (
               <Button
                 variant="outline"
@@ -235,25 +227,18 @@ export function FileSpaceVersioningSettings() {
                     )}
               </Button>
             )}
-          </div>
-          <div className="flex min-h-[76px] items-center justify-between gap-6 py-4">
-            <div className="flex min-w-0 items-start gap-3">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <Label>
-                  {t(
-                    "space.settings.fileSpace.versioning.policy",
-                    "Tracking policy"
-                  )}
-                </Label>
-                <p className="text-sm leading-5 text-muted-foreground">
-                  {t(
-                    "space.settings.fileSpace.versioning.policyDescription",
-                    "User files are tracked broadly. Private runtime data under .eidos stays excluded; Agent conversations are controlled separately below."
-                  )}
-                </p>
-              </div>
-            </div>
+          </SettingsRow>
+          <SettingsRow
+            icon={<ShieldCheck />}
+            title={t(
+              "space.settings.fileSpace.versioning.policy",
+              "Tracking policy"
+            )}
+            description={t(
+              "space.settings.fileSpace.versioning.policyDescription",
+              "User files are tracked broadly. Private runtime data under .eidos stays excluded; Agent conversations are controlled separately below."
+            )}
+          >
             <Button
               variant="ghost"
               size="sm"
@@ -264,57 +249,60 @@ export function FileSpaceVersioningSettings() {
               <RefreshCw className="h-4 w-4" />
               {t("space.settings.fileSpace.versioning.refresh", "Refresh")}
             </Button>
-          </div>
-          <div className="flex min-h-[92px] items-center justify-between gap-6 py-4">
-            <div className="flex min-w-0 items-start gap-3">
-              <MessageSquareText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="version-agent-conversations">
-                    {t(
-                      "space.settings.fileSpace.versioning.agentConversations",
-                      "Version Agent conversations"
-                    )}
-                  </Label>
-                  <Badge
-                    variant={
-                      agentConversationsVersioned ? "secondary" : "outline"
-                    }
-                  >
-                    {agentConversationsVersioned
-                      ? t(
-                          "space.settings.fileSpace.versioning.agentConversationsIncluded",
-                          "Included"
-                        )
-                      : t(
-                          "space.settings.fileSpace.versioning.agentConversationsPrivate",
-                          "Private"
-                        )}
-                  </Badge>
-                  {agentPolicySaving ? (
-                    <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                  ) : null}
-                </div>
-                <p className="max-w-3xl text-sm leading-5 text-muted-foreground">
+          </SettingsRow>
+          <SettingsRow
+            icon={<MessageSquareText />}
+            htmlFor="version-agent-conversations"
+            className="min-h-[92px]"
+            title={
+              <span className="flex items-center gap-2">
+                {t(
+                  "space.settings.fileSpace.versioning.agentConversations",
+                  "Version Agent conversations"
+                )}
+                <Badge
+                  variant={
+                    agentConversationsVersioned ? "secondary" : "outline"
+                  }
+                >
+                  {agentConversationsVersioned
+                    ? t(
+                        "space.settings.fileSpace.versioning.agentConversationsIncluded",
+                        "Included"
+                      )
+                    : t(
+                        "space.settings.fileSpace.versioning.agentConversationsPrivate",
+                        "Private"
+                      )}
+                </Badge>
+                {agentPolicySaving ? (
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                ) : null}
+              </span>
+            }
+            description={
+              <>
+                <span className="block max-w-3xl">
                   {t(
                     "space.settings.fileSpace.versioning.agentConversationsDescription",
                     "Off by default. When enabled, transcripts, attached context, tool results, approvals, and attachments become regular Space changes and may be pushed to remotes. Turning this off removes them from the current staged selection but does not erase versions already committed."
                   )}
-                </p>
+                </span>
                 {!enabled ? (
-                  <p className="text-xs text-muted-foreground">
+                  <span className="block text-xs text-muted-foreground">
                     {t(
                       "space.settings.fileSpace.versioning.agentConversationsRequiresVersioning",
                       "Enable versioning for this Space before including conversations."
                     )}
-                  </p>
+                  </span>
                 ) : agentPolicyError ? (
-                  <p className="text-xs text-destructive" role="alert">
+                  <span className="block text-xs text-destructive" role="alert">
                     {agentPolicyError}
-                  </p>
+                  </span>
                 ) : null}
-              </div>
-            </div>
+              </>
+            }
+          >
             <Switch
               id="version-agent-conversations"
               checked={agentConversationsVersioned}
@@ -334,8 +322,8 @@ export function FileSpaceVersioningSettings() {
                 void updateAgentConversationVersioning(checked)
               }
             />
-          </div>
-        </div>
+          </SettingsRow>
+        </SettingsRows>
         {!available ? (
           <p className="border-t border-border/70 py-3 text-sm text-muted-foreground">
             {t(
@@ -348,36 +336,33 @@ export function FileSpaceVersioningSettings() {
             {error.message}
           </p>
         ) : null}
-      </div>
-      <div className="pt-10">
-        <div className="pb-2">
-          <h3>Remote sync</h3>
-        </div>
-        <hr />
-        <div className="divide-y divide-border/70">
-          <div className="flex min-h-[92px] items-start justify-between gap-6 py-4">
-            <div className="flex min-w-0 flex-1 items-start gap-3">
-              <CloudCog className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0 flex-1 space-y-2">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="file-space-graft-remote">
-                      Graft remote
-                    </Label>
-                    <Badge variant={remoteConfigured ? "secondary" : "outline"}>
-                      {remoteConfigured ? "Connected" : "Local only"}
-                    </Badge>
-                  </div>
-                  <p className="text-sm leading-5 text-muted-foreground">
-                    Push and pull committed Space versions through a Graft
-                    remote. Local file changes are never uploaded until they are
-                    committed.
-                  </p>
-                </div>
+      </SettingsSection>
+
+      <SettingsSection title="Remote sync">
+        <SettingsRows>
+          <SettingsRow
+            icon={<CloudCog />}
+            htmlFor="file-space-graft-remote"
+            className="min-h-[92px] items-start"
+            title={
+              <span className="flex items-center gap-2">
+                Graft remote
+                <Badge variant={remoteConfigured ? "secondary" : "outline"}>
+                  {remoteConfigured ? "Connected" : "Local only"}
+                </Badge>
+              </span>
+            }
+            description={
+              <>
+                <span className="block">
+                  Push and pull committed Space versions through a Graft remote.
+                  Local file changes are never uploaded until they are
+                  committed.
+                </span>
                 <Input
                   id="file-space-graft-remote"
                   value={remoteUrl}
-                  className="max-w-xl font-mono text-xs"
+                  className="mt-2 max-w-xl font-mono text-xs"
                   placeholder="fs:///path/to/remote or graft+https://…"
                   disabled={!enabled || busy}
                   onChange={(event) => setRemoteUrl(event.target.value)}
@@ -389,51 +374,54 @@ export function FileSpaceVersioningSettings() {
                   }}
                 />
                 {!status?.head && enabled ? (
-                  <p className="text-xs text-muted-foreground">
+                  <span className="block pt-2 text-xs text-muted-foreground">
                     Create the first version before connecting a remote.
-                  </p>
+                  </span>
                 ) : null}
                 {remoteError ? (
-                  <p className="text-xs text-destructive" role="alert">
+                  <span
+                    className="block pt-2 text-xs text-destructive"
+                    role="alert"
+                  >
                     {remoteError}
-                  </p>
+                  </span>
                 ) : null}
-              </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              {remoteConfigured ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => void disconnectRemote()}
-                >
-                  <Link2Off className="h-4 w-4" />
-                  Disconnect
-                </Button>
-              ) : null}
+              </>
+            }
+            controlClassName="flex items-center gap-2"
+          >
+            {remoteConfigured ? (
               <Button
+                variant="ghost"
                 size="sm"
-                disabled={
-                  !enabled ||
-                  !status?.head ||
-                  !remoteUrl.trim() ||
-                  remoteUrl.trim() === savedRemoteUrl ||
-                  busy
-                }
-                onClick={() => void saveRemote()}
+                disabled={busy}
+                onClick={() => void disconnectRemote()}
               >
-                {operation === "configuring-remote" ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CloudCog className="h-4 w-4" />
-                )}
-                {remoteConfigured ? "Update" : "Connect"}
+                <Link2Off className="h-4 w-4" />
+                Disconnect
               </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+            ) : null}
+            <Button
+              size="sm"
+              disabled={
+                !enabled ||
+                !status?.head ||
+                !remoteUrl.trim() ||
+                remoteUrl.trim() === savedRemoteUrl ||
+                busy
+              }
+              onClick={() => void saveRemote()}
+            >
+              {operation === "configuring-remote" ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <CloudCog className="h-4 w-4" />
+              )}
+              {remoteConfigured ? "Update" : "Connect"}
+            </Button>
+          </SettingsRow>
+        </SettingsRows>
+      </SettingsSection>
     </div>
   )
 }
