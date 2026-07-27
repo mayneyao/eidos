@@ -5,7 +5,7 @@ sidebar:
   order: 19
 ---
 
-`@eidos.space/eidos-file-ui` 是冻结版 Eidos UI 1.0 contract 的 React
+`@eidos.space/eidos-file-ui@1.0.0` 是已发布的 Eidos UI 1.0 React
 presentation layer。可互操作依赖方向固定为：
 
 ```text
@@ -67,6 +67,29 @@ export function ProjectView({ host, sourceToken, assetPresenter }) {
 `EidosStandardView` 只使用有界 Runtime 结果渲染标准 Grid、Gallery 与
 Kanban。未知 namespaced view type 会继续无损保存；在宿主提供隔离 renderer
 之前显示 unsupported 状态。
+
+## 共享编辑器组合
+
+`EidosStandardView` 是只读 viewer 组合。Browser 与 Desktop 使用
+`EidosFileEditorShell` 作为共享编辑器的 layout owner，统一 View tabs、查询控件、
+Fields、数据画布、Table tabs 与编辑器 overlay。
+
+```tsx
+import { EidosFileEditorShell } from "@eidos.space/eidos-file-ui/eidos-file-editor-shell"
+
+<EidosFileEditorShell
+  viewTabs={<EidosFileViewTabs {...viewTabs} />}
+  queryToolbar={<EidosFileQueryToolbar {...query} />}
+  fields={<EidosFileViewFieldsPopover {...fields} />}
+  fieldCreator={<EidosFileFieldCreatePopover {...fieldCreator} />}
+  sheetTabs={<EidosFileSheetTabs {...sheets} />}
+>
+  <EidosFileEditorView source={source} table={table} view={view} />
+</EidosFileEditorShell>
+```
+
+以上具名控件由 Host 组合提供。浏览器文件选择器、Desktop 文件系统集成、保存与
+冲突处理、版本历史和 extension process 仍然属于 Host 职责。
 
 ## File 字段与资产
 

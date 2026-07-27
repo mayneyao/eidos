@@ -5,8 +5,8 @@ sidebar:
   order: 19
 ---
 
-`@eidos.space/eidos-file-ui` is the React presentation layer for the frozen
-Eidos UI 1.0 contract. The interoperable dependency path is:
+`@eidos.space/eidos-file-ui@1.0.0` is the published React presentation layer
+for the frozen Eidos UI 1.0 contract. The interoperable dependency path is:
 
 ```text
 Eidos File → Runtime → Adapter / HostServices → UI
@@ -69,6 +69,30 @@ export function ProjectView({ host, sourceToken, assetPresenter }) {
 bounded Runtime results. Unknown namespaced view types remain preserved and
 render as unsupported until the embedding application supplies an isolated
 renderer.
+
+## Shared editor composition
+
+`EidosStandardView` is the read-only viewer composition. Browser and Desktop
+use `EidosFileEditorShell` as the shared editor layout owner for View tabs,
+query controls, Fields, the data canvas, Table tabs, and editor overlays.
+
+```tsx
+import { EidosFileEditorShell } from "@eidos.space/eidos-file-ui/eidos-file-editor-shell"
+
+<EidosFileEditorShell
+  viewTabs={<EidosFileViewTabs {...viewTabs} />}
+  queryToolbar={<EidosFileQueryToolbar {...query} />}
+  fields={<EidosFileViewFieldsPopover {...fields} />}
+  fieldCreator={<EidosFileFieldCreatePopover {...fieldCreator} />}
+  sheetTabs={<EidosFileSheetTabs {...sheets} />}
+>
+  <EidosFileEditorView source={source} table={table} view={view} />
+</EidosFileEditorShell>
+```
+
+The named controls above are composition supplied by the host. Browser file
+pickers, Desktop filesystem integration, save/conflict handling, version
+history, and extension processes remain Host responsibilities.
 
 ## File fields and assets
 
