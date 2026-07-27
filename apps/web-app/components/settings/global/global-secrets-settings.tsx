@@ -186,7 +186,7 @@ export function GlobalSecretsSettings() {
       {/* Add / Edit Form Card */}
       {(isAdding || editingKey) && (
         <div className="py-4 mb-6">
-          <div className="max-w-2xl space-y-4 rounded-lg border border-border bg-muted/30 p-4 transition-colors">
+          <div className="p-5 rounded-xl border border-border bg-muted/30 space-y-4 max-w-2xl transition-all">
             <div className="flex items-center gap-2">
               <div className="h-6 w-6 rounded-md bg-muted flex items-center justify-center border border-border">
                 <Key className="h-3.5 w-3.5 text-muted-foreground" />
@@ -277,7 +277,7 @@ export function GlobalSecretsSettings() {
       {/* Secrets List / Table */}
       <div className="py-2">
         {secretList.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border bg-muted/10 p-10 text-center transition-colors">
+          <div className="p-10 text-center border border-dashed rounded-xl bg-muted/10 border-border transition-all">
             <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
               <Lock className="h-5 w-5 text-muted-foreground" />
             </div>
@@ -297,7 +297,7 @@ export function GlobalSecretsSettings() {
             )}
           </div>
         ) : (
-          <div className="overflow-hidden rounded-lg border border-border bg-card">
+          <div className="overflow-hidden border border-border rounded-xl bg-card">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse table-fixed min-w-[600px]">
                 <thead>

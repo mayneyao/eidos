@@ -278,7 +278,7 @@ export function GlobalBrowserSettings() {
               return (
                 <div
                   key={engine.id}
-                  className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border px-3 py-2 sm:grid-cols-[minmax(0,1fr)_100px_90px] sm:gap-3 ${
+                  className={`grid grid-cols-[1fr_100px_90px] gap-3 px-3 py-2 items-center rounded-md border ${
                     isBuiltIn
                       ? "border-muted bg-muted/30"
                       : "hover:border-primary/50 transition-colors"
@@ -298,7 +298,7 @@ export function GlobalBrowserSettings() {
                         {config.defaultSearchEngine === engine.id && (
                           <Badge
                             variant="secondary"
-                            className="shrink-0 px-1.5 py-0 text-xs text-foreground"
+                            className="text-green-600 bg-green-50 dark:bg-green-950/30 shrink-0 text-xs px-1.5 py-0"
                           >
                             {t("settings.browser.default", "Default")}
                           </Badge>
@@ -306,10 +306,10 @@ export function GlobalBrowserSettings() {
                       </div>
                     </div>
                   </div>
-                  <div className="col-start-1 row-start-2 truncate text-xs text-muted-foreground sm:col-start-auto sm:row-start-auto">
+                  <div className="text-xs text-muted-foreground truncate">
                     {engine.shortcut || engine.id}
                   </div>
-                  <div className="col-start-2 row-span-2 row-start-1 flex items-center justify-end gap-0.5 sm:col-start-auto sm:row-span-1 sm:row-start-auto">
+                  <div className="flex items-center justify-end gap-0.5">
                     {config.defaultSearchEngine !== engine.id && (
                       <Button
                         variant="ghost"
@@ -427,7 +427,7 @@ export function GlobalBrowserSettings() {
       <hr className="border-border" />
 
       <div className="py-4">
-        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-6">
+        <div className="flex items-center justify-between gap-4">
           <div className="space-y-0.5">
             <Label className="text-sm">
               {t(
@@ -454,13 +454,13 @@ export function GlobalBrowserSettings() {
       <hr className="border-border" />
 
       <div className="py-4">
-        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-6">
+        <div className="flex items-center justify-between gap-4">
           <div className="space-y-0.5">
             <Label className="text-sm flex items-center gap-1.5">
               {t("settings.browser.enableRawData", "Enable Raw Data")}
-              <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+              <span className="px-1.5 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700">
                 {t("common.badge.alpha")}
-              </Badge>
+              </span>
             </Label>
             <p className="text-xs text-muted-foreground">
               {t(

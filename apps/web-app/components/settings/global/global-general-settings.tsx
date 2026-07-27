@@ -204,7 +204,7 @@ export function GlobalGeneralSettings() {
                   )}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-primary underline underline-offset-2 hover:text-primary/80"
+                  className="text-xs text-blue-600 hover:text-blue-800 underline"
                 >
                   {t("settings.general.whatsNew")}
                 </a>
@@ -233,7 +233,7 @@ export function GlobalGeneralSettings() {
                         )}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-primary underline underline-offset-2 hover:text-primary/80"
+                        className="text-xs text-blue-600 hover:text-blue-800 underline"
                       >
                         {t("settings.general.whatsNew")}
                       </a>
@@ -291,9 +291,9 @@ export function GlobalGeneralSettings() {
                 )}
                 {updateStatus === "progress" && (
                   <div className="flex items-center gap-2">
-                    <div className="h-2 w-32 rounded-full bg-muted">
+                    <div className="w-32 bg-gray-200 rounded-full h-2">
                       <div
-                        className="h-2 rounded-full bg-primary transition-all duration-300"
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                         style={{
                           width: `${Math.round(updateProgress?.percent || 0)}%`,
                         }}

@@ -140,7 +140,7 @@ describe("SettingsSidebar", () => {
     expect(container.textContent).toContain("AI")
     expect(container.textContent).toContain("Space general")
     expect(container.textContent).toContain("Files & Obsidian")
-    expect(container.textContent).toContain("Eidos File")
+    expect(container.textContent).toContain("Base")
     expect(container.textContent).toContain("Versioning")
     expect(container.textContent).toContain("Indexes")
     expect(container.textContent).toContain("Translated extensions")

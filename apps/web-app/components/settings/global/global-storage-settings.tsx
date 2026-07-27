@@ -9,12 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
 import {
-  SettingsRowContent,
-  SettingsRowSurface,
-  SettingsSection,
-  SettingsSectionHeader,
-} from "@/components/settings/settings-surface"
-import {
   Form,
   FormControl,
   FormField,
@@ -96,66 +90,68 @@ export function GlobalStorageSettings() {
   }
 
   return (
-    <SettingsSection>
-      <SettingsSectionHeader title={t("settings.storage.dataFolder")} />
-      <SettingsRowSurface className="py-4">
+    <div className="space-y-0">
+      {/* Data Folder Section */}
+      <div className="py-4">
+        <h3 className="text-lg font-medium">
+          {t("settings.storage.dataFolder")}
+        </h3>
+      </div>
+
+      <hr className="border-border" />
+
+      <div className="py-6">
         <Form {...form}>
-          <form className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-              <SettingsRowContent>
-                <Label>{t("settings.storage.dataFolder")}</Label>
-                <p className="text-sm text-muted-foreground">
-                  {t("settings.storage.dataFolderDescription")}
-                </p>
-              </SettingsRowContent>
-              {hasChanges && (
-                <Button type="button" onClick={() => onSubmit()}>
-                  {t("common.update")}
-                </Button>
-              )}
-            </div>
-            <div className="max-w-2xl">
-              <FormField
-                control={form.control}
-                name="dataFolder"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex gap-2">
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder={t(
-                            "settings.storage.selectDataFolderPlaceholder"
-                          )}
-                          readOnly
-                          className="flex-1"
-                        />
-                      </FormControl>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleSelectDataFolder}
-                      >
-                        {t("common.select")}
-                      </Button>
-                      {dataFolder && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={handleOpenDataFolder}
-                        >
-                          {t("common.open")}
-                        </Button>
-                      )}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
+          <form className="space-y-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>{t("settings.storage.dataFolder")}</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {t("settings.storage.dataFolderDescription")}
+                  </p>
+                </div>
+                {hasChanges && (
+                  <Button type="button" onClick={() => onSubmit()}>
+                    {t("common.update")}
+                  </Button>
                 )}
-              />
+              </div>
+              <div className="max-w-2xl">
+                <FormField
+                  control={form.control}
+                  name="dataFolder"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder={t(
+                              "settings.storage.selectDataFolderPlaceholder"
+                            )}
+                            readOnly
+                            className="flex-1"
+                          />
+                        </FormControl>
+                        <Button type="button" onClick={handleSelectDataFolder}>
+                          {t("common.select")}
+                        </Button>
+                        {dataFolder && (
+                          <Button type="button" onClick={handleOpenDataFolder}>
+                            {t("common.open")}
+                          </Button>
+                        )}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
           </form>
         </Form>
-      </SettingsRowSurface>
-    </SettingsSection>
+      </div>
+    </div>
   )
 }

@@ -8,21 +8,21 @@ import {
   Folder,
   FolderOutput,
   GitBranch,
-  Globe,
-  Info,
-  Key,
-  LayoutTemplate,
   Network,
+  Info,
   Package,
   Paintbrush,
-  Search,
   Settings as SettingsIcon,
+  LayoutTemplate,
   Table2,
   User,
+  Globe,
+  Key,
+  Search,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { type ComponentType, type CSSProperties, useState } from "react"
+import { useState, type ComponentType, type CSSProperties } from "react"
 
 import { isDesktopMode } from "@/lib/env"
 import { cn } from "@/lib/utils"
@@ -268,7 +268,7 @@ export function SettingsSidebar({
         disabled={section.disabled}
         aria-current={isActive ? "page" : undefined}
         className={cn(
-          "group flex h-10 w-auto max-w-52 shrink-0 items-center gap-2.5 rounded-md px-2.5 text-left text-[13px] outline-hidden transition-colors focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-sidebar-ring lg:h-8 lg:w-full lg:max-w-none",
+          "group flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13px] outline-hidden transition-colors",
           isActive
             ? "bg-sidebar-accent text-sidebar-accent-foreground"
             : "text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
@@ -289,7 +289,7 @@ export function SettingsSidebar({
   return (
     <div
       data-settings-sidebar="true"
-      className="flex h-auto min-h-0 flex-col bg-sidebar lg:h-full"
+      className="flex h-full min-h-0 flex-col bg-sidebar"
     >
       <header
         className={cn(
@@ -329,38 +329,32 @@ export function SettingsSidebar({
 
       <nav
         aria-label={t("settings.title")}
-        className="shrink-0 select-none overflow-x-auto px-3 pb-3 lg:min-h-0 lg:flex-1 lg:overflow-x-hidden lg:overflow-y-auto lg:pb-4"
+        className="min-h-0 flex-1 select-none overflow-y-auto px-3 pb-4"
       >
-        <div className="flex w-max gap-5 lg:block lg:w-auto lg:space-y-4">
+        <div className="space-y-4">
           {globalSections.length > 0 ? (
-            <section
-              aria-labelledby="global-settings-heading"
-              className="min-w-max lg:min-w-0"
-            >
+            <section aria-labelledby="global-settings-heading">
               <h2
                 id="global-settings-heading"
                 className="px-2.5 pb-1.5 text-[12px] font-medium text-sidebar-foreground/45"
               >
                 {t("settings.app", "App")}
               </h2>
-              <div className="flex gap-1 lg:block lg:space-y-px">
+              <div className="space-y-px">
                 {globalSections.map(renderSectionItem)}
               </div>
             </section>
           ) : null}
 
           {showSpaceSettings && spaceSections.length > 0 ? (
-            <section
-              aria-labelledby="space-settings-heading"
-              className="min-w-max lg:min-w-0"
-            >
+            <section aria-labelledby="space-settings-heading">
               <h2
                 id="space-settings-heading"
                 className="px-2.5 pb-1.5 text-[12px] font-medium text-sidebar-foreground/45"
               >
                 {t("space.settings.title")}
               </h2>
-              <div className="flex gap-1 lg:block lg:space-y-px">
+              <div className="space-y-px">
                 {spaceSections.map(renderSectionItem)}
               </div>
             </section>

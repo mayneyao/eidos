@@ -95,7 +95,7 @@ export function LegacySpaceMigrationSettings() {
       </div>
       <hr />
 
-      <div className="flex min-h-[72px] flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+      <div className="flex min-h-[92px] items-center justify-between gap-6 py-4">
         <div className="min-w-0 space-y-0.5">
           <Label>
             {t(
@@ -123,7 +123,7 @@ export function LegacySpaceMigrationSettings() {
         </div>
         <Button
           size="sm"
-          className="w-full shrink-0 sm:w-auto"
+          className="shrink-0"
           disabled={!available || busy}
           onClick={() => void runPrimaryAction()}
         >

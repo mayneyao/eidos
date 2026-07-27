@@ -10,15 +10,6 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "@/components/ui/use-toast"
 import {
-  SettingsRow,
-  SettingsRowContent,
-  SettingsRowControl,
-  SettingsRows,
-  SettingsRowSurface,
-  SettingsSection,
-  SettingsSectionHeader,
-} from "@/components/settings/settings-surface"
-import {
   Form,
   FormControl,
   FormField,
@@ -99,107 +90,106 @@ export function GlobalSecuritySettings() {
   }
 
   return (
-    <SettingsSection>
-      <SettingsSectionHeader
-        title={t("settings.security.title")}
-        action={
-          hasChanges ? (
-            <Button type="button" onClick={() => form.handleSubmit(onSubmit)()}>
-              {t("common.save")}
-            </Button>
-          ) : null
-        }
-      />
-      <SettingsRowSurface>
-        <Form {...form}>
-          <form>
-            <SettingsRows>
-              <SettingsRow>
-                <SettingsRowContent>
-                  <Label>{t("settings.security.webSecurity")}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t("settings.security.webSecurityDescription")}
-                  </p>
-                </SettingsRowContent>
-                <SettingsRowControl>
-                  <FormField
-                    control={form.control}
-                    name="webSecurity"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </SettingsRowControl>
-              </SettingsRow>
+    <div className="space-y-0">
+      {/* Security Section */}
+      <div className="py-4 flex flex-wrap items-center justify-between gap-4">
+        <h3 className="text-lg font-medium">{t("settings.security.title")}</h3>
+        {hasChanges && (
+          <Button type="button" onClick={() => form.handleSubmit(onSubmit)()}>
+            {t("common.save")}
+          </Button>
+        )}
+      </div>
 
-              <div className="space-y-4 py-4">
-                <SettingsRowContent>
-                  <Label>{t("settings.security.crossOriginDomains")}</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t("settings.security.crossOriginDomainsDescription")}
-                  </p>
-                </SettingsRowContent>
-                <FormField
-                  control={form.control}
-                  name="crossOriginDomains"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="space-y-2">
-                        {field.value.map((domain, index) => (
-                          <div key={index} className="flex items-center gap-2">
-                            <Input
-                              type="text"
-                              value={domain}
-                              onChange={(e) => {
-                                const newDomains = [...field.value]
-                                newDomains[index] = e.target.value
-                                field.onChange(newDomains)
-                              }}
-                              placeholder="example.com"
-                              className="flex-1"
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              onClick={() => {
-                                const newDomains = field.value.filter(
-                                  (_, i) => i !== index
-                                )
-                                field.onChange(newDomains)
-                              }}
-                            >
-                              {t("common.delete")}
-                            </Button>
-                          </div>
-                        ))}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            field.onChange([...field.value, ""])
-                          }}
-                        >
-                          {t("settings.security.addDomain")}
-                        </Button>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+      <hr className="border-border" />
+
+      <div className="py-6">
+        <Form {...form}>
+          <form className="space-y-6">
+            {/* Web Security */}
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="space-y-0.5 flex-1 min-w-0">
+                <Label>{t("settings.security.webSecurity")}</Label>
+                <p className="text-sm text-muted-foreground">
+                  {t("settings.security.webSecurityDescription")}
+                </p>
               </div>
-            </SettingsRows>
+              <FormField
+                control={form.control}
+                name="webSecurity"
+                render={({ field }) => (
+                  <FormItem className="shrink-0">
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Cross Origin Domains */}
+            <div className="space-y-4">
+              <div className="space-y-0.5">
+                <Label>{t("settings.security.crossOriginDomains")}</Label>
+                <p className="text-sm text-muted-foreground">
+                  {t("settings.security.crossOriginDomainsDescription")}
+                </p>
+              </div>
+              <FormField
+                control={form.control}
+                name="crossOriginDomains"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="space-y-2">
+                      {field.value.map((domain, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <Input
+                            type="text"
+                            value={domain}
+                            onChange={(e) => {
+                              const newDomains = [...field.value]
+                              newDomains[index] = e.target.value
+                              field.onChange(newDomains)
+                            }}
+                            placeholder="example.com"
+                            className="flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={() => {
+                              const newDomains = field.value.filter(
+                                (_, i) => i !== index
+                              )
+                              field.onChange(newDomains)
+                            }}
+                          >
+                            {t("common.delete")}
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          field.onChange([...field.value, ""])
+                        }}
+                      >
+                        {t("settings.security.addDomain")}
+                      </Button>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
           </form>
         </Form>
-      </SettingsRowSurface>
-    </SettingsSection>
+      </div>
+    </div>
   )
 }

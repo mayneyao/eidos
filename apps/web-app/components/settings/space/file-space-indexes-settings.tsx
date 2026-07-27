@@ -8,15 +8,6 @@ import {
   useSpaceFileChanges,
   useSpaceFiles,
 } from "@/apps/web-app/hooks/use-space-files"
-import {
-  SettingsRow,
-  SettingsRowContent,
-  SettingsRowControl,
-  SettingsRows,
-  SettingsRowSurface,
-  SettingsSection,
-  SettingsSectionHeader,
-} from "@/components/settings/settings-surface"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 
@@ -82,16 +73,17 @@ export function FileSpaceIndexesSettings() {
   }
 
   return (
-    <SettingsSection>
-      <SettingsSectionHeader
-        title={t("space.settings.fileSpace.indexes.group", "Derived index")}
-      />
-      <SettingsRowSurface>
-        <SettingsRows>
-          <SettingsRow>
+    <div className="space-y-0" data-settings-row-groups="true">
+      <div className="pb-2">
+        <h3>{t("space.settings.fileSpace.indexes.group", "Derived index")}</h3>
+      </div>
+      <hr />
+      <div>
+        <div className="divide-y divide-border/70">
+          <div className="flex min-h-[76px] items-center justify-between gap-6 py-4">
             <div className="flex min-w-0 items-start gap-3">
               <Search className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <SettingsRowContent>
+              <div className="space-y-0.5">
                 <Label>
                   {t(
                     "space.settings.fileSpace.indexes.coverage",
@@ -104,9 +96,9 @@ export function FileSpaceIndexesSettings() {
                     "Files remain the source of truth. Search, tags, links, headings, and backlinks are derived and rebuildable."
                   )}
                 </p>
-              </SettingsRowContent>
+              </div>
             </div>
-            <SettingsRowControl className="text-left text-sm tabular-nums sm:text-right">
+            <div className="shrink-0 text-right text-sm tabular-nums">
               {loading && !status ? (
                 <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
               ) : (
@@ -133,12 +125,12 @@ export function FileSpaceIndexesSettings() {
                   </div>
                 </>
               )}
-            </SettingsRowControl>
-          </SettingsRow>
-          <SettingsRow>
+            </div>
+          </div>
+          <div className="flex min-h-[76px] items-center justify-between gap-6 py-4">
             <div className="flex min-w-0 items-start gap-3">
               <DatabaseZap className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <SettingsRowContent>
+              <div className="space-y-0.5">
                 <Label>
                   {t(
                     "space.settings.fileSpace.indexes.rebuild",
@@ -166,39 +158,38 @@ export function FileSpaceIndexesSettings() {
                       )
                     : ""}
                 </p>
-              </SettingsRowContent>
+              </div>
             </div>
-            <SettingsRowControl>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={rebuilding}
-                onClick={() => void rebuild()}
-              >
-                {rebuilding ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                {rebuilding
-                  ? t(
-                      "space.settings.fileSpace.indexes.rebuilding",
-                      "Rebuilding…"
-                    )
-                  : t(
-                      "space.settings.fileSpace.indexes.rebuildAction",
-                      "Rebuild"
-                    )}
-              </Button>
-            </SettingsRowControl>
-          </SettingsRow>
-        </SettingsRows>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              disabled={rebuilding}
+              onClick={() => void rebuild()}
+            >
+              {rebuilding ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {rebuilding
+                ? t(
+                    "space.settings.fileSpace.indexes.rebuilding",
+                    "Rebuilding…"
+                  )
+                : t(
+                    "space.settings.fileSpace.indexes.rebuildAction",
+                    "Rebuild"
+                  )}
+            </Button>
+          </div>
+        </div>
         {error ? (
           <p className="border-t border-destructive/20 py-3 text-sm text-destructive">
             {error}
           </p>
         ) : null}
-      </SettingsRowSurface>
-    </SettingsSection>
+      </div>
+    </div>
   )
 }

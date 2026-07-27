@@ -50,36 +50,6 @@ export function SettingsContent() {
       : requestedSection
   const { t, i18n } = useTranslation()
 
-  const docsBySection: Partial<
-    Record<SettingsSection, { path: string; title: string }>
-  > = {
-    "space-relay": {
-      path: "/services/relay/",
-      title: t("space.settings.relay.docsLink"),
-    },
-    sync: {
-      path: "/services/sync/",
-      title: t("settings.sync.docsLink"),
-    },
-    "space-extensions": {
-      path: "/extensions/eject/",
-      title: t("space.settings.extensions.docsLink"),
-    },
-    "space-tabs": {
-      path: "/how-to/customize-new-tab/",
-      title: t("space.settings.tabs.newtab.docsLink"),
-    },
-    "space-mounts": {
-      path: "/concepts/file/",
-      title: t("space.settings.mounts.docsLink"),
-    },
-    "space-theme": {
-      path: "/how-to/customize-theme/",
-      title: t("space.settings.theme.docsLink", "Theme documentation"),
-    },
-  }
-  const sectionDocs = docsBySection[activeSection]
-
   const getDocsUrl = (path: string) => {
     const baseUrl = "https://docs.eidos.space"
     const isChinese = i18n.language.startsWith("zh")
@@ -186,25 +156,80 @@ export function SettingsContent() {
 
   return (
     <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-        <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-7 sm:px-7 sm:pt-9 lg:px-10 lg:pb-20 lg:pt-12">
-          <header className="mb-8 flex min-h-12 items-start border-b border-border/70 pb-5 sm:items-center">
-            <h1 className="flex min-w-0 items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
-              <span className="truncate">{getSectionTitle(activeSection)}</span>
-              {sectionDocs ? (
-                <a
-                  href={getDocsUrl(sectionDocs.path)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={sectionDocs.title}
-                  aria-label={sectionDocs.title}
-                  className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-hidden transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  <BookOpenText className="size-4" />
-                </a>
-              ) : null}
-            </h1>
-          </header>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-5xl px-6 pb-20 pt-10 sm:px-8 lg:px-12 lg:pt-14">
+          <h1 className="mb-10 flex items-center gap-2 text-[28px] font-semibold tracking-[-0.025em] text-foreground">
+            {getSectionTitle(activeSection)}
+            {activeSection === "space-relay" && (
+              <a
+                href={getDocsUrl("/services/relay/")}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("space.settings.relay.docsLink")}
+                className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <BookOpenText className="h-4 w-4" />
+              </a>
+            )}
+            {activeSection === "sync" && (
+              <a
+                href={getDocsUrl("/services/sync/")}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("settings.sync.docsLink")}
+                className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <BookOpenText className="h-4 w-4" />
+              </a>
+            )}
+            {activeSection === "space-extensions" && (
+              <a
+                href={getDocsUrl("/extensions/eject/")}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("space.settings.extensions.docsLink")}
+                className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <BookOpenText className="h-4 w-4" />
+              </a>
+            )}
+            {activeSection === "space-tabs" && (
+              <a
+                href={getDocsUrl("/how-to/customize-new-tab/")}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("space.settings.tabs.newtab.docsLink")}
+                className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <BookOpenText className="h-4 w-4" />
+              </a>
+            )}
+            {activeSection === "space-mounts" && (
+              <a
+                href={getDocsUrl("/concepts/file/")}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t("space.settings.mounts.docsLink")}
+                className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <BookOpenText className="h-4 w-4" />
+              </a>
+            )}
+            {activeSection === "space-theme" && (
+              <a
+                href={getDocsUrl("/how-to/customize-theme/")}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={t(
+                  "space.settings.theme.docsLink",
+                  "Theme documentation"
+                )}
+                className="inline-flex items-center text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <BookOpenText className="h-4 w-4" />
+              </a>
+            )}
+          </h1>
           <div
             data-settings-content-body="true"
             className={SETTINGS_CONTENT_BODY_CLASS_NAME}
