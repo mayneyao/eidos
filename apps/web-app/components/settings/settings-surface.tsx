@@ -110,7 +110,7 @@ export function SettingsRow({
           {htmlFor ? (
             <Label htmlFor={htmlFor}>{title}</Label>
           ) : (
-            <p className="text-sm font-medium leading-none">{title}</p>
+            <div className="text-sm font-medium leading-none">{title}</div>
           )}
           {description ? (
             <p className="text-sm leading-5 text-muted-foreground">
