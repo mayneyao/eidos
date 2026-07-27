@@ -116,7 +116,7 @@ function isConflictResolved(artifact: GraftConflictArtifact) {
 }
 
 function artifactRowKey(artifact: GraftConflictArtifact) {
-  return `${artifact.table ?? ""}:${artifact.rowid ?? ""}`
+  return `${artifact.table ?? ""}:${artifact.rowid ?? (artifact.key ? JSON.stringify(artifact.key) : "")}`
 }
 
 function conflictArtifactColumns(artifact: GraftConflictArtifact) {
@@ -159,6 +159,7 @@ function rowConflictToDiffGridRow(
     id: artifactRowKey(artifact),
     table: artifact.table,
     rowid: artifact.rowid,
+    key: artifact.key,
     op: "update",
     columns: conflictArtifactColumns(artifact),
     before: artifact.oursRow ?? [],
@@ -266,10 +267,9 @@ export default function GraftConflictsPage() {
     path: string,
     target?: GraftConflictResolveTarget
   ) => {
-    const targetKey =
-      target?.table && target.rowid != null
-        ? `${target.table}:${target.rowid}`
-        : "file"
+    const targetKey = target?.table
+      ? `${target.table}:${target.rowid ?? (target.key ? JSON.stringify(target.key) : "")}`
+      : "file"
     setResolving(
       targetKey === "file"
         ? `${resolution}:${path}:file`
@@ -298,7 +298,7 @@ export default function GraftConflictsPage() {
         artifact.kind === "row" &&
         !isConflictResolved(artifact) &&
         artifact.table &&
-        artifact.rowid != null
+        (artifact.rowid != null || artifact.key != null)
     )
     if (targets.length === 0) return
 
@@ -306,10 +306,13 @@ export default function GraftConflictsPage() {
     setResolving(`${resolution}:${path}:${table}:rows`)
     try {
       for (const artifact of targets) {
-        await eidos.currentSpace.graft.resolveConflict(resolution, path, {
-          table: artifact.table,
-          rowid: Number(artifact.rowid),
-        })
+        await eidos.currentSpace.graft.resolveConflict(
+          resolution,
+          path,
+          artifact.rowid != null
+            ? { table: artifact.table, rowid: Number(artifact.rowid) }
+            : { table: artifact.table, key: artifact.key }
+        )
       }
       await load()
     } catch (e) {
@@ -877,11 +880,14 @@ function ConflictTableGrid({
         resolvingRowKey={resolving}
         disableActions={resolving != null}
         onResolveRow={(row, resolution) => {
-          if (!row.table || row.rowid == null) return
-          onResolve(resolution, path, {
-            table: row.table,
-            rowid: Number(row.rowid),
-          })
+          if (!row.table || (row.rowid == null && row.key == null)) return
+          onResolve(
+            resolution,
+            path,
+            row.rowid != null
+              ? { table: row.table, rowid: Number(row.rowid) }
+              : { table: row.table, key: row.key }
+          )
         }}
       />
     </div>
@@ -955,7 +961,7 @@ function formatConflictArtifactTitle(
   nodeMap: Record<string, any>
 ) {
   if (artifact.kind === "row") {
-    return `${resolveTableName(artifact.table, nodeMap)} rowid=${artifact.rowid ?? "?"}`
+    return `${resolveTableName(artifact.table, nodeMap)} row=${artifact.rowid ?? (artifact.key ? JSON.stringify(artifact.key) : "?")}`
   }
   if (artifact.kind === "schema") {
     return `${artifact.entryType ?? "schema"}:${artifact.name ?? ""}`

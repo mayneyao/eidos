@@ -632,9 +632,7 @@ export function GeneralSettings() {
                       <Label>
                         {t("space.settings.remoteSync", "Remote Sync")}
                       </Label>
-                      <Badge variant="outline">
-                        {spaceInfo?.sync?.provider || "sync"}
-                      </Badge>
+                      <Badge variant="outline">Eidos Sync</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {t(
@@ -671,7 +669,7 @@ export function GeneralSettings() {
                         <AlertDialogDescription>
                           {t(
                             "space.settings.disableRemoteSyncConfirm",
-                            "This space will stop syncing with the remote provider. Local version history stays enabled, so commits and local diffs remain available."
+                            "This space will stop syncing with Eidos Sync. Local version history stays enabled, so commits and local diffs remain available."
                           )}
                         </AlertDialogDescription>
                       </AlertDialogHeader>

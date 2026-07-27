@@ -91,8 +91,6 @@ const desktopConfig: UserConfig = mergeConfig(sharedConfig, {
         entry: [
           "electron/main.ts",
           "electron/modules/data-space/worker/worker.ts",
-          "electron/modules/data-space/worker/sync-worker.ts",
-          "electron/modules/space-versioning/graft-worker.ts",
           "electron/modules/space-management/eidos-file-csv-worker.ts",
           "electron/modules/space-management/eidos-file-query-worker.ts",
           "electron/modules/space-management/eidos-file-runtime-worker.ts",

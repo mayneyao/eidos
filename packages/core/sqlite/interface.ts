@@ -45,9 +45,12 @@ export interface ISqlite<T, D> {
 type CommonVersionControlResult = Promise<Record<string, any>>
 export type GraftResetMode = "soft" | "mixed" | "hard"
 export type GraftConflictResolution = "ours" | "theirs" | "manual"
+export type GraftPrimaryKeyValue = string | number | null | { $blob: string }
+export type GraftRowKey = Record<string, GraftPrimaryKeyValue>
 export interface GraftConflictResolveTarget {
   table?: string
   rowid?: number
+  key?: GraftRowKey
 }
 
 export abstract class BaseServerDatabase {
@@ -156,23 +159,26 @@ export abstract class BaseServerDatabase {
     return Promise.resolve({})
   }
 
-  fetch(): CommonVersionControlResult {
+  fetch(_remoteToken?: string): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
-  pull(): CommonVersionControlResult {
+  pull(_remoteToken?: string): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
-  push(): CommonVersionControlResult {
+  push(_remoteToken?: string): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
-  clone(remoteUri?: string): CommonVersionControlResult {
+  clone(remoteUri?: string, _remoteToken?: string): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
-  convertToGraft(remote: string): CommonVersionControlResult {
+  convertToGraft(
+    remote: string,
+    _remoteToken?: string
+  ): CommonVersionControlResult {
     return Promise.resolve({})
   }
 
@@ -181,8 +187,8 @@ export abstract class BaseServerDatabase {
   }
 
   reconfigureRemote(
-    _credentials: any,
-    _remote: string
+    _remote: string,
+    _remoteToken?: string
   ): CommonVersionControlResult {
     return Promise.resolve({})
   }

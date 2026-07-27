@@ -24,7 +24,9 @@ import type {
   SpaceVersionSqliteFileDiff,
   SpaceVersionSqliteLimitation,
   SpaceVersionSqliteOpaqueChange,
+  SpaceVersionSqlitePrimaryKeyValue,
   SpaceVersionSqliteRowChange,
+  SpaceVersionSqliteRowKey,
   SpaceVersionSqliteTableDiff,
   SpaceVersionSqliteValue,
   SpaceVersionSchemaColumnChange,
@@ -133,10 +135,51 @@ function sqliteValues(value: unknown): SpaceVersionSqliteValue[] {
   return value.map(sqliteValue)
 }
 
+function sqlitePrimaryKeyValue(
+  value: unknown
+): SpaceVersionSqlitePrimaryKeyValue {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return value
+  }
+  if (
+    isObject(value) &&
+    Object.keys(value).length === 1 &&
+    typeof value.$blob === "string" &&
+    value.$blob.length % 2 === 0 &&
+    /^[0-9a-f]*$/.test(value.$blob)
+  ) {
+    return { $blob: value.$blob }
+  }
+  throw new Error("Graft SQLite row key contains an invalid value")
+}
+
+function sqliteRowKey(value: unknown): SpaceVersionSqliteRowKey {
+  if (!isObject(value) || Object.keys(value).length === 0) {
+    throw new Error("Graft SQLite row key is invalid")
+  }
+  return Object.fromEntries(
+    Object.entries(value).map(([column, entry]) => {
+      if (!column || column.includes("\0")) {
+        throw new Error("Graft SQLite row key column is invalid")
+      }
+      return [column, sqlitePrimaryKeyValue(entry)]
+    })
+  )
+}
+
+function optionalSqliteRowKey(value: unknown): SpaceVersionSqliteRowKey | null {
+  return value === undefined || value === null ? null : sqliteRowKey(value)
+}
+
 function sqliteRowChange(value: JsonObject): SpaceVersionSqliteRowChange {
   const rowId = safeInteger(value.rowid)
-  if (rowId === null) {
-    throw new Error("Graft SQLite diff row id is invalid")
+  const key = optionalSqliteRowKey(value.key)
+  if ((rowId === null) === (key === null)) {
+    throw new Error("Graft SQLite diff row identity is invalid")
   }
   if (value.op !== "insert" && value.op !== "update" && value.op !== "delete") {
     throw new Error("Graft SQLite diff row operation is invalid")
@@ -151,6 +194,7 @@ function sqliteRowChange(value: JsonObject): SpaceVersionSqliteRowChange {
   return {
     operation: value.op,
     rowId,
+    ...(key ? { key } : {}),
     values: sqliteValues(value.values),
     beforeValues,
   }
@@ -164,6 +208,9 @@ function sqliteTableDiff(value: JsonObject): SpaceVersionSqliteTableDiff {
   return {
     name,
     columns: stringArray(value.columns),
+    primaryKeyColumns: stringArray(
+      value.primary_key_columns ?? value.primaryKeyColumns
+    ),
     changes: objectArray(value.changes).map(sqliteRowChange),
   }
 }
@@ -682,6 +729,9 @@ function conflictArtifact(value: unknown): SpaceVersionConflictArtifact {
   if (!id || !path || (status !== "unresolved" && status !== "resolved")) {
     throw new Error("Graft conflict artifact metadata is invalid")
   }
+  const key = optionalSqliteRowKey(value.key)
+  const oursKey = optionalSqliteRowKey(value.ours_key ?? value.oursKey)
+  const theirsKey = optionalSqliteRowKey(value.theirs_key ?? value.theirsKey)
   return {
     id,
     path,
@@ -696,6 +746,9 @@ function conflictArtifact(value: unknown): SpaceVersionConflictArtifact {
     rowId: safeInteger(value.rowid),
     oursRowId: safeInteger(value.ours_rowid ?? value.oursRowId),
     theirsRowId: safeInteger(value.theirs_rowid ?? value.theirsRowId),
+    ...(key ? { key } : {}),
+    ...(oursKey ? { oursKey } : {}),
+    ...(theirsKey ? { theirsKey } : {}),
     semanticKey: stringArray(value.semantic_key ?? value.semanticKey),
     name: stringValue(value.name),
     entryType: stringValue(value.entry_type ?? value.entryType),

@@ -75,9 +75,19 @@ export interface GraftStatus {
 }
 
 export type GraftConflictResolution = "ours" | "theirs" | "manual"
+export interface GraftBlobPrimaryKeyValue {
+  $blob: string
+}
+export type GraftPrimaryKeyValue =
+  | string
+  | number
+  | null
+  | GraftBlobPrimaryKeyValue
+export type GraftRowKey = Record<string, GraftPrimaryKeyValue>
 export interface GraftConflictResolveTarget {
   table?: string
   rowid?: number
+  key?: GraftRowKey
 }
 
 export function deriveGraftWorkflow(input: GraftWorkflowInput): GraftWorkflow {
@@ -244,9 +254,12 @@ export interface GraftConflictAnalysis {
     reason: string
     table: string
     columns: string[]
-    rowid: number
+    rowid?: number
+    key?: GraftRowKey
     oursRowid?: number
     theirsRowid?: number
+    oursKey?: GraftRowKey
+    theirsKey?: GraftRowKey
     semanticKey?: string[]
     ours: string
     theirs: string
@@ -428,9 +441,9 @@ function tomlString(value: string) {
   return JSON.stringify(value)
 }
 
-/** Parse `pragma graft_json_status` output into structured data. */
+/** Parse `graft status --json` output into structured data. */
 export function parseGraftStatus(data: any): GraftStatus {
-  const json = parseJsonPragma<Record<string, any>>(data)
+  const json = parseGraftJson<Record<string, any>>(data)
   if (json && (json.head || json.head_target !== undefined)) {
     const head = json.head
     const branch =
@@ -610,22 +623,31 @@ function parseGraftRowConflicts(
       columns: Array.isArray(conflict.columns)
         ? conflict.columns.map(String)
         : [],
-      rowid: Number(conflict.rowid ?? 0),
       ours: String(conflict.ours ?? ""),
       theirs: String(conflict.theirs ?? ""),
       baseRow: conflict.base_row ?? conflict.baseRow ?? null,
       oursRow: conflict.ours_row ?? conflict.oursRow ?? null,
       theirsRow: conflict.theirs_row ?? conflict.theirsRow ?? null,
     }
-    const oursRowid = optionalNumber(conflict.ours_rowid ?? conflict.oursRowid)
-    const theirsRowid = optionalNumber(
+    const rowid = optionalRowId(conflict.rowid)
+    const key = parseGraftRowKey(conflict.key)
+    const oursRowid = optionalRowId(conflict.ours_rowid ?? conflict.oursRowid)
+    const theirsRowid = optionalRowId(
       conflict.theirs_rowid ?? conflict.theirsRowid
     )
     const semanticKey = parseStringArray(
       conflict.semantic_key ?? conflict.semanticKey
     )
+    if (rowid !== undefined) parsed.rowid = rowid
+    if (key) parsed.key = key
     if (oursRowid !== undefined) parsed.oursRowid = oursRowid
     if (theirsRowid !== undefined) parsed.theirsRowid = theirsRowid
+    const oursKey = parseGraftRowKey(conflict.ours_key ?? conflict.oursKey)
+    const theirsKey = parseGraftRowKey(
+      conflict.theirs_key ?? conflict.theirsKey
+    )
+    if (oursKey) parsed.oursKey = oursKey
+    if (theirsKey) parsed.theirsKey = theirsKey
     if (semanticKey.length > 0) parsed.semanticKey = semanticKey
     return parsed
   })
@@ -735,8 +757,11 @@ export interface GraftConflictArtifact {
   table?: string
   columns?: string[]
   rowid?: number
+  key?: GraftRowKey
   oursRowid?: number
   theirsRowid?: number
+  oursKey?: GraftRowKey
+  theirsKey?: GraftRowKey
   semanticKey?: string[]
   name?: string
   entryType?: string
@@ -766,9 +791,9 @@ export interface GraftResolveConflictResult {
   rawMessage?: string
 }
 
-/** Parse `pragma graft_json_conflicts` output. */
+/** Parse `graft conflicts --json` output. */
 export function parseGraftConflicts(data: any): GraftConflictListResult {
-  const json = parseJsonPragma<Record<string, any>>(data)
+  const json = parseGraftJson<Record<string, any>>(data)
   const conflicts = Array.isArray(json?.conflicts)
     ? json.conflicts.map(parseGraftConflictArtifact)
     : []
@@ -782,7 +807,7 @@ export function parseGraftConflicts(data: any): GraftConflictListResult {
           : undefined,
     conflicts,
     isEmpty: conflicts.length === 0,
-    rawMessage: extractPragmaRaw(data),
+    rawMessage: extractGraftJsonRaw(data),
   }
 }
 
@@ -827,23 +852,29 @@ function parseGraftConflictArtifact(data: any): GraftConflictArtifact {
     theirsRow: data?.theirs_row ?? data?.theirsRow ?? null,
     message: data?.message != null ? String(data.message) : undefined,
   }
-  const rowid = optionalNumber(data?.rowid)
-  const oursRowid = optionalNumber(data?.ours_rowid ?? data?.oursRowid)
-  const theirsRowid = optionalNumber(data?.theirs_rowid ?? data?.theirsRowid)
+  const rowid = optionalRowId(data?.rowid)
+  const key = parseGraftRowKey(data?.key)
+  const oursRowid = optionalRowId(data?.ours_rowid ?? data?.oursRowid)
+  const theirsRowid = optionalRowId(data?.theirs_rowid ?? data?.theirsRowid)
   const semanticKey = parseStringArray(data?.semantic_key ?? data?.semanticKey)
   if (rowid !== undefined) artifact.rowid = rowid
+  if (key) artifact.key = key
   if (oursRowid !== undefined) artifact.oursRowid = oursRowid
   if (theirsRowid !== undefined) artifact.theirsRowid = theirsRowid
+  const oursKey = parseGraftRowKey(data?.ours_key ?? data?.oursKey)
+  const theirsKey = parseGraftRowKey(data?.theirs_key ?? data?.theirsKey)
+  if (oursKey) artifact.oursKey = oursKey
+  if (theirsKey) artifact.theirsKey = theirsKey
   if (semanticKey.length > 0) artifact.semanticKey = semanticKey
   return artifact
 }
 
-/** Parse `pragma graft_json_resolve_conflict` output. */
+/** Parse `graft resolve --json` output. */
 export function parseGraftResolveConflict(
   data: any
 ): GraftResolveConflictResult {
-  const json = parseJsonPragma<Record<string, any>>(data)
-  if (!json) return { rawMessage: extractPragmaRaw(data) }
+  const json = parseGraftJson<Record<string, any>>(data)
+  if (!json) return { rawMessage: extractGraftJsonRaw(data) }
 
   return {
     operation: json.operation != null ? String(json.operation) : undefined,
@@ -855,7 +886,7 @@ export function parseGraftResolveConflict(
         : json.remainingConflicts != null
           ? Number(json.remainingConflicts)
           : undefined,
-    rawMessage: extractPragmaRaw(data),
+    rawMessage: extractGraftJsonRaw(data),
   }
 }
 
@@ -875,9 +906,9 @@ export interface GraftTag {
   annotated: boolean
 }
 
-/** Parse `pragma graft_json_branch` output into structured data. */
+/** Parse `graft branch --json` output into structured data. */
 export function parseGraftBranches(data: any): GraftBranch[] {
-  const json = parseJsonPragma<any>(data)
+  const json = parseGraftJson<any>(data)
   if (json) {
     const local = Array.isArray(json.branches)
       ? json.branches.map(
@@ -914,11 +945,16 @@ export function parseGraftBranches(data: any): GraftBranch[] {
   return []
 }
 
-/** Parse `pragma graft_json_tags` output into structured data. */
+/** Parse `graft tag --json` output into structured data. */
 export function parseGraftTags(data: any): GraftTag[] {
-  const json = parseJsonPragma<any[]>(data)
-  if (Array.isArray(json)) {
-    return json
+  const json = parseGraftJson<any>(data)
+  const tags = Array.isArray(json)
+    ? json
+    : Array.isArray(json?.tags)
+      ? json.tags
+      : []
+  if (tags.length > 0) {
+    return tags
       .map(
         (tag: any): GraftTag => ({
           name: String(tag.name ?? ""),
@@ -927,7 +963,7 @@ export function parseGraftTags(data: any): GraftTag[] {
           annotated: Boolean(tag.annotated),
         })
       )
-      .filter((tag) => tag.name.length > 0)
+      .filter((tag: GraftTag) => tag.name.length > 0)
   }
 
   return []
@@ -941,9 +977,9 @@ export interface GraftVolume {
   isCurrent: boolean
 }
 
-/** Parse `pragma graft_debug_volume_json_list` output into structured data. */
+/** Parse the optional VFS data-plane volume diagnostic. */
 export function parseGraftVolumes(data: any): GraftVolume[] {
-  const json = parseJsonPragma<any[]>(data)
+  const json = parseGraftJson<any[]>(data)
   if (Array.isArray(json)) {
     return json
       .map(
@@ -970,22 +1006,23 @@ export interface GraftAudit {
   rawMessage?: string
 }
 
-/** Extract the raw string from a better-sqlite3 pragma result. */
-function extractPragmaRaw(data: any): string {
+/** Normalize CLI JSON or an optional extension diagnostic result. */
+function extractGraftJsonRaw(data: any): string {
   if (typeof data === "string") return data
-  if (Array.isArray(data) && data.length > 0) {
+  if (Array.isArray(data) && data.length === 1) {
     const first = data[0]
     if (first && typeof first === "object") {
-      return String(Object.values(first)[0])
+      const values = Object.values(first)
+      if (values.length === 1 && typeof values[0] === "string") {
+        return values[0]
+      }
     }
-    return String(first)
   }
-  return ""
+  return data == null ? "" : JSON.stringify(data)
 }
 
-/** Parse a JSON pragma output from a better-sqlite3 result. */
-function parseJsonPragma<T = unknown>(data: any): T | null {
-  const raw = extractPragmaRaw(data).trim()
+function parseGraftJson<T = unknown>(data: any): T | null {
+  const raw = extractGraftJsonRaw(data).trim()
   if (!raw) return null
   try {
     return JSON.parse(raw) as T
@@ -995,9 +1032,9 @@ function parseJsonPragma<T = unknown>(data: any): T | null {
 }
 
 export function parseGraftJsonResult<T = unknown>(data: any): T {
-  const parsed = parseJsonPragma<T>(data)
+  const parsed = parseGraftJson<T>(data)
   if (parsed == null) {
-    throw new Error(`Invalid Graft JSON result: ${extractPragmaRaw(data)}`)
+    throw new Error(`Invalid Graft JSON result: ${extractGraftJsonRaw(data)}`)
   }
   return parsed
 }
@@ -1028,6 +1065,51 @@ function snapshotRangeCount(state: any): number {
 function optionalNumber(value: unknown): number | undefined {
   const num = Number(value)
   return Number.isFinite(num) && num > 0 ? num : undefined
+}
+
+function optionalRowId(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isSafeInteger(value)
+    ? value
+    : undefined
+}
+
+function parseGraftRowKey(value: unknown): GraftRowKey | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+  if (entries.length === 0) return undefined
+
+  const key: GraftRowKey = {}
+  for (const [column, raw] of entries) {
+    if (!column || column.includes("\0")) return undefined
+    if (
+      raw === null ||
+      typeof raw === "string" ||
+      (typeof raw === "number" && Number.isFinite(raw))
+    ) {
+      key[column] = raw
+      continue
+    }
+    if (
+      raw &&
+      typeof raw === "object" &&
+      !Array.isArray(raw) &&
+      Object.keys(raw).length === 1
+    ) {
+      const blob = (raw as Record<string, unknown>).$blob
+      if (
+        typeof blob === "string" &&
+        blob.length % 2 === 0 &&
+        /^[0-9a-f]*$/.test(blob)
+      ) {
+        key[column] = { $blob: blob }
+        continue
+      }
+    }
+    return undefined
+  }
+  return key
 }
 
 function nonNegativeNumber(value: unknown): number {
@@ -1103,7 +1185,7 @@ export function graftFileStateHeadLsn(
 }
 
 // =============================================================================
-// graft_json_log
+// graft log --json
 // =============================================================================
 
 export interface GraftLogEntry {
@@ -1173,12 +1255,12 @@ function rowChangeCount(tables: GraftLogTableSummary[]): number {
 }
 
 /**
- * Parse `pragma graft_json_log` output.
+ * Parse `graft log --json` output.
  *
  * Returns repository commit JSON array.
  */
 export function parseGraftLog(data: any): GraftLogResult {
-  const arr = parseJsonPragma<Array<Record<string, unknown>>>(data)
+  const arr = parseGraftJson<Array<Record<string, unknown>>>(data)
   if (!arr || arr.length === 0) {
     return { entries: [], isEmpty: true }
   }
@@ -1220,7 +1302,7 @@ export function parseGraftLog(data: any): GraftLogResult {
 }
 
 // =============================================================================
-// graft_json_show
+// graft show --json
 // =============================================================================
 
 export interface GraftShowSchema {
@@ -1252,7 +1334,7 @@ export interface GraftShowResult {
 }
 
 /**
- * Parse `pragma graft_json_show = "rev"` output.
+ * Parse `graft show --json <rev>` output.
  *
  * Returns JSON:
  *   {"lsn":3,"page_count":2,"is_checkpoint":false,
@@ -1260,7 +1342,7 @@ export interface GraftShowResult {
  *    "tables":[{"type":"table","name":"users","root_page":2,"rows":2}]}
  */
 export function parseGraftShow(data: any): GraftShowResult | null {
-  const obj = parseJsonPragma<Record<string, unknown>>(data)
+  const obj = parseGraftJson<Record<string, unknown>>(data)
   if (!obj) return null
 
   const schemas: GraftShowSchema[] = []
@@ -1339,7 +1421,7 @@ export function parseGraftShow(data: any): GraftShowResult | null {
 }
 
 // =============================================================================
-// graft_json_diff
+// graft diff --json
 // =============================================================================
 
 export interface GraftDiffTableChange {
@@ -1353,11 +1435,13 @@ export interface GraftDiffRowChange {
   table: string
   op: "insert" | "delete" | "update"
   rowid?: number | string
+  key?: GraftRowKey
   values?: unknown[]
   before?: unknown[]
   after?: unknown[]
   old_values?: unknown[]
   columns?: string[]
+  primaryKeyColumns?: string[]
 }
 
 export interface GraftDiffFileChange {
@@ -1418,6 +1502,9 @@ function appendGraftTableDiffs(
     const cols = Array.isArray((t as any).columns)
       ? (t as any).columns.map(String)
       : undefined
+    const primaryKeyColumns = parseStringArray(
+      (t as any).primary_key_columns ?? (t as any).primaryKeyColumns
+    )
 
     if (Array.isArray(changes)) {
       for (const c of changes) {
@@ -1434,7 +1521,10 @@ function appendGraftTableDiffs(
           op,
           rowid: (c as any).rowid ?? (c as any).row_id ?? undefined,
           columns: cols,
+          primaryKeyColumns,
         }
+        const key = parseGraftRowKey((c as any).key)
+        if (key) change.key = key
         if ((c as any).values !== undefined) change.values = (c as any).values
         if ((c as any).values !== undefined && op === "update") {
           change.after = (c as any).values
@@ -1539,7 +1629,7 @@ function uniqueStrings(values: string[]): string[] {
 }
 
 /**
- * Parse `pragma graft_json_diff = "from,to[,rows]"` output.
+ * Parse `graft diff --json [--rows] <from> [to]` output.
  *
  * Summary:
  *   {"from_lsn":1,"to_lsn":3,"tables":[{"name":"users","inserts":2,"deletes":0,"updates":0}]}
@@ -1553,7 +1643,7 @@ export function parseGraftDiff(
   data: any,
   opts?: { from: string; to: string; mode: "summary" | "rows" }
 ): GraftDiffResult {
-  const obj = parseJsonPragma<Record<string, unknown>>(data)
+  const obj = parseGraftJson<Record<string, unknown>>(data)
   const from = opts?.from ?? String(obj?.from ?? obj?.from_lsn ?? "")
   const to = opts?.to ?? String(obj?.to ?? obj?.to_lsn ?? "")
   const mode = opts?.mode ?? "summary"
@@ -1689,11 +1779,11 @@ export function parseGraftDiff(
   }
 }
 // =============================================================================
-// graft_checkout / graft_reset
+// graft checkout / graft reset
 // =============================================================================
 
 // =============================================================================
-// graft_json_log filtered for a table timeline
+// graft log --json filtered for a table timeline
 // =============================================================================
 
 export interface GraftTableLogEntry {
@@ -1713,13 +1803,13 @@ export interface GraftTableLogResult {
 }
 
 /**
- * Parse `pragma graft_json_log` output for the table version panel.
+ * Parse `graft log --json` output for the table version panel.
  */
 export function parseGraftTableLog(
   data: any,
   table: string
 ): GraftTableLogResult {
-  const arr = parseJsonPragma<Array<Record<string, unknown>>>(data)
+  const arr = parseGraftJson<Array<Record<string, unknown>>>(data)
   if (!arr || arr.length === 0) {
     return { table, entries: [], isEmpty: true }
   }
@@ -1758,19 +1848,19 @@ export interface GraftCheckoutResult {
   localLogId?: string
 }
 
-/** Parse `pragma graft_json_checkout` / `graft_json_reset` output. */
+/** Parse `graft checkout --json` / `graft reset --json` output. */
 export function parseGraftCheckout(data: any): GraftCheckoutResult {
-  const json = parseJsonPragma<Record<string, unknown>>(data)
+  const json = parseGraftJson<Record<string, unknown>>(data)
   if (json) {
     const target = json.target != null ? String(json.target) : undefined
     return {
-      rawMessage: extractPragmaRaw(data),
+      rawMessage: extractGraftJsonRaw(data),
       lsn: target,
       revision: target,
     }
   }
 
-  return { rawMessage: extractPragmaRaw(data).trim() }
+  return { rawMessage: extractGraftJsonRaw(data).trim() }
 }
 
 export interface GraftInfo {
@@ -1784,9 +1874,9 @@ export interface GraftInfo {
   rawMessage?: string
 }
 
-/** Parse `pragma graft_debug_volume_json_info` output into structured data. */
+/** Parse the optional VFS data-plane info diagnostic. */
 export function parseGraftInfo(data: any): GraftInfo | null {
-  const json = parseJsonPragma<Record<string, unknown>>(data)
+  const json = parseGraftJson<Record<string, unknown>>(data)
   if (json) {
     const snapshotSizeBytes = Number(json.snapshot_size_bytes)
     return {
@@ -1798,16 +1888,16 @@ export function parseGraftInfo(data: any): GraftInfo | null {
       snapshotSize: Number.isFinite(snapshotSizeBytes)
         ? String(snapshotSizeBytes)
         : undefined,
-      rawMessage: extractPragmaRaw(data),
+      rawMessage: extractGraftJsonRaw(data),
     }
   }
 
   return null
 }
 
-/** Parse `pragma graft_debug_volume_json_audit` output into structured data. */
+/** Parse the optional VFS data-plane audit diagnostic. */
 export function parseGraftAudit(data: any): GraftAudit | null {
-  const json = parseJsonPragma<Record<string, unknown>>(data)
+  const json = parseGraftJson<Record<string, unknown>>(data)
   if (json) {
     return {
       localPages: Number(json.local_pages ?? 0),
@@ -1815,7 +1905,7 @@ export function parseGraftAudit(data: any): GraftAudit | null {
       percentage: Number(json.percentage ?? 0),
       checksum: json.checksum != null ? String(json.checksum) : undefined,
       needsHydrate: Boolean(json.needs_hydrate),
-      rawMessage: extractPragmaRaw(data),
+      rawMessage: extractGraftJsonRaw(data),
     }
   }
 

@@ -1,4 +1,3 @@
-import type { SyncCredentials } from "@eidos.space/sync"
 import type { SpaceInfo } from "@eidos.space/space-manager"
 import { NodeBaseServerDatabase } from "./base"
 import type { SqliteDatabase, SqliteOptions } from "./better-sqlite3"
@@ -21,13 +20,14 @@ interface NodeServerDatabaseOptions {
   // for sync
   graft?: {
     libPath: string
+    cliPath: string
     enabled?: boolean
     syncEnabled?: boolean
     remote?: string
-    provider?: string
-    credentials?: SyncCredentials
+    remoteToken?: string
     isVFSInitialized?: boolean
     requireRemoteClone?: boolean
+    useVfs?: boolean
   }
   // vec extension
   vec?: {
@@ -48,9 +48,11 @@ export class NodeServerDatabase extends NodeBaseServerDatabase {
     isSyncEnabled: boolean = false,
     logger?: any,
     spaceInfo?: SpaceInfo,
-    graftOptions?: NodeServerDatabaseOptions["graft"]
+    graftOptions?: NodeServerDatabaseOptions["graft"],
+    usesGraftVfs = false,
+    reopenDatabase?: () => SqliteDatabase
   ) {
-    super(db, spaceInfo, graftOptions)
+    super(db, spaceInfo, graftOptions, usesGraftVfs, reopenDatabase)
     this.setSyncEnabled(isSyncEnabled)
     this.logger = logger || console
   }
@@ -60,14 +62,17 @@ export class NodeServerDatabase extends NodeBaseServerDatabase {
     options: NodeServerDatabaseOptions
   ): Promise<NodeServerDatabase> {
     const initializer = new NodeDatabaseInitializer(options)
-    const { db, isSyncEnabled } = await initializer.initializeDatabase(config)
+    const { db, isSyncEnabled, usesGraftVfs } =
+      await initializer.initializeDatabase(config)
 
     return new NodeServerDatabase(
       db,
       isSyncEnabled,
       options.logger,
       config.spaceInfo,
-      options.graft
+      options.graft,
+      usesGraftVfs,
+      () => initializer.reopenDatabase(config, usesGraftVfs)
     )
   }
 }

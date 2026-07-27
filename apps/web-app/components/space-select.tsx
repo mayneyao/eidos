@@ -4,7 +4,6 @@ import * as React from "react"
 import {
   Check,
   ChevronsUpDown,
-  Cloud,
   FolderRoot,
   FolderOpen,
   HardDrive,
@@ -12,7 +11,6 @@ import {
   Loader2,
   PlusCircle,
   RefreshCw,
-  Server,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -59,28 +57,18 @@ interface ISpaceSelectProps {
 }
 
 const getRemotePathname = (remotePath?: string) => {
-  // Remote path format: <providerid>/<bucketname>/<spaceid>
-  // Return the full path for display
+  // Display the authoritative Remote v1 URL stored for this Space.
   return remotePath || ""
 }
 
 type WizardStep =
   | "choose-action"
   | "create-local-path"
-  | "clone-choose-provider"
   | "clone-select-space"
   | "clone-local-path"
 
 type SpaceAction = "create" | "clone" | null
-
-interface SyncProvider {
-  id: string
-  name: string
-  endpoint?: string
-  bucketName?: string
-  hasCredentials: boolean
-  isBuiltIn: boolean
-}
+type CloneSpaceMode = "file" | "legacy"
 
 type SpacePathConflictType = "same" | "inside" | "contains"
 
@@ -104,14 +92,12 @@ export function SpaceSelect({
   const [currentStep, setCurrentStep] =
     React.useState<WizardStep>("choose-action")
   const [selectedAction, setSelectedAction] = React.useState<SpaceAction>(null)
-  const [providers, setProviders] = React.useState<SyncProvider[]>([])
-  const [selectedProvider, setSelectedProvider] = React.useState<string | null>(
-    null
-  )
   const [remoteSpaces, setRemoteSpaces] = React.useState<string[]>([])
   const [selectedRemoteSpace, setSelectedRemoteSpace] = React.useState<
     string | null
   >(null)
+  const [cloneSpaceMode, setCloneSpaceMode] =
+    React.useState<CloneSpaceMode>("file")
   const [registeredSpaceForPath, setRegisteredSpaceForPath] =
     React.useState<SpaceInfo | null>(null)
   const [spacePathConflictType, setSpacePathConflictType] =
@@ -119,7 +105,6 @@ export function SpaceSelect({
   const [localPath, setLocalPath] = React.useState("")
   const [spaceName, setSpaceName] = React.useState("")
   const [loading, setLoading] = React.useState(false)
-  const [loadingProviders, setLoadingProviders] = React.useState(false)
   const [loadingRemoteSpaces, setLoadingRemoteSpaces] = React.useState(false)
 
   // Clone progress dialog state
@@ -134,9 +119,9 @@ export function SpaceSelect({
   const resetWizard = () => {
     setCurrentStep("choose-action")
     setSelectedAction(null)
-    setSelectedProvider(null)
     setRemoteSpaces([])
     setSelectedRemoteSpace(null)
+    setCloneSpaceMode("file")
     setRegisteredSpaceForPath(null)
     setSpacePathConflictType(null)
     setLocalPath("")
@@ -151,32 +136,15 @@ export function SpaceSelect({
     setCloneComplete(false)
   }
 
-  // Load providers when needed
-  const loadProviders = async () => {
-    if (!isDesktopMode || typeof window === "undefined" || !window.eidos) return
-
-    setLoadingProviders(true)
-    try {
-      const result = await window.eidos.credentials.getSyncProviders()
-      if (result.success) {
-        setProviders(result.providers || [])
-      }
-    } catch (error) {
-      console.error("Failed to load providers:", error)
-    } finally {
-      setLoadingProviders(false)
-    }
-  }
-
-  // Load remote spaces for selected provider
-  const loadRemoteSpaces = async (providerId: string) => {
+  // Repository discovery and listing stay in Electron main to avoid renderer CORS.
+  const loadRemoteSpaces = async () => {
     if (!isDesktopMode || typeof window === "undefined" || !window.eidos) return
 
     setLoadingRemoteSpaces(true)
     try {
-      const result = await window.eidos.credentials.listRemoteSpaces(providerId)
-      if (result.success && result.spaces) {
-        setRemoteSpaces(result.spaces)
+      const result = await window.eidos.credentials.listRemoteSpaces()
+      if (result.success && result.repositories) {
+        setRemoteSpaces(result.repositories.map((entry) => entry.name))
       } else {
         setRemoteSpaces([])
       }
@@ -318,7 +286,7 @@ export function SpaceSelect({
   }
 
   const handleCloneSpace = async () => {
-    if (!localPath || !selectedProvider || !selectedRemoteSpace) return
+    if (!localPath || !selectedRemoteSpace) return
 
     setLoading(true)
     if (registeredSpaceForPath && canOpenRegisteredSpaceForPath) {
@@ -337,16 +305,6 @@ export function SpaceSelect({
 
     try {
       if (isDesktopMode && typeof window !== "undefined" && window.eidos) {
-        // Build remote URL
-        const provider = providers.find((p) => p.id === selectedProvider)
-
-        // Remote format: <provider-id>/<bucket-name>/<space-name>
-        const bucketName = provider?.bucketName || provider?.id || "default"
-        const remoteSpaceName =
-          selectedRemoteSpace.replace(/\/$/, "").split("/").pop() ||
-          selectedRemoteSpace
-        const remoteUrl = `${provider?.id}/${bucketName}/${remoteSpaceName}`
-
         setCloneProgress(15)
         setCloneStep(
           t("space.clone.step.register", "Registering local space...")
@@ -355,15 +313,17 @@ export function SpaceSelect({
         // Use clone-space IPC to properly clone with sync
         const result = await window.eidos.credentials.cloneSpace({
           localPath,
-          remoteUrl,
-          providerId: selectedProvider,
+          repository: selectedRemoteSpace,
           spaceName: spaceName || undefined,
+          mode: cloneSpaceMode,
         })
 
         if (result.success && result.space) {
           setCloneProgress(60)
           setCloneStep(
-            t("space.clone.step.initDatabase", "Initializing database...")
+            cloneSpaceMode === "file"
+              ? "Preparing cloned files..."
+              : t("space.clone.step.initDatabase", "Initializing database...")
           )
 
           // Simulate the internal steps for better UX
@@ -378,7 +338,9 @@ export function SpaceSelect({
 
           setCloneProgress(85)
           setCloneStep(
-            t("space.clone.step.pullData", "Pulling data from remote...")
+            cloneSpaceMode === "file"
+              ? "Verifying cloned files..."
+              : t("space.clone.step.pullData", "Pulling data from remote...")
           )
 
           await new Promise((resolve) => setTimeout(resolve, 300))
@@ -398,7 +360,9 @@ export function SpaceSelect({
           result.pathConflictType !== "contains"
         ) {
           await updateSpaceList()
-          const opened = await handleSelect(result.existingSpace.id as string)
+          const opened = await handleSelect(
+            (result.existingSpace as SpaceInfo).id as string
+          )
           if (opened) resetWizard()
         } else {
           throw new Error(result.error || "Failed to clone space")
@@ -433,15 +397,9 @@ export function SpaceSelect({
     if (action === "create") {
       setCurrentStep("create-local-path")
     } else if (action === "clone") {
-      setCurrentStep("clone-choose-provider")
-      loadProviders()
+      setCurrentStep("clone-select-space")
+      void loadRemoteSpaces()
     }
-  }
-
-  const handleProviderSelectForClone = (providerId: string) => {
-    setSelectedProvider(providerId)
-    setCurrentStep("clone-select-space")
-    loadRemoteSpaces(providerId)
   }
 
   const handleRemoteSpaceSelect = (spacePath: string) => {
@@ -457,13 +415,9 @@ export function SpaceSelect({
         setCurrentStep("choose-action")
         setSelectedAction(null)
         break
-      case "clone-choose-provider":
+      case "clone-select-space":
         setCurrentStep("choose-action")
         setSelectedAction(null)
-        break
-      case "clone-select-space":
-        setCurrentStep("clone-choose-provider")
-        setSelectedProvider(null)
         setSelectedRemoteSpace(null)
         break
       case "clone-local-path":
@@ -480,7 +434,7 @@ export function SpaceSelect({
         return (
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Open a local folder or clone an existing legacy Space.
+              Open a local folder or clone an Eidos Sync repository.
             </p>
             <div className="grid grid-cols-1 gap-3">
               <button
@@ -507,7 +461,7 @@ export function SpaceSelect({
                 <div>
                   <h3 className="font-medium">Clone Space</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Clone an existing space from a remote provider.
+                    Clone an existing repository from Eidos Sync.
                   </p>
                 </div>
               </button>
@@ -564,86 +518,11 @@ export function SpaceSelect({
           </div>
         )
 
-      case "clone-choose-provider":
-        const cloneBuiltInProviders = providers.filter((p) => p.isBuiltIn)
-        const cloneCustomProviders = providers.filter((p) => !p.isBuiltIn)
-
-        return (
-          <div className="space-y-4 py-4">
-            <p className="text-sm text-muted-foreground">
-              {t(
-                "space.clone.selectProviderDescription",
-                "Select the provider where your remote space is stored."
-              )}
-            </p>
-            {loadingProviders ? (
-              <div className="text-sm text-muted-foreground">
-                {t("space.clone.loadingProviders", "Loading providers...")}
-              </div>
-            ) : providers.filter((p) => p.hasCredentials).length === 0 ? (
-              <div className="text-sm text-muted-foreground text-center py-4">
-                {t(
-                  "space.clone.noProvidersConfigured",
-                  "No sync providers with credentials configured."
-                )}
-                <br />
-                {t(
-                  "space.clone.goToSettings",
-                  "Go to Settings -> Sync to add providers."
-                )}
-              </div>
-            ) : (
-              <RadioGroup
-                value={selectedProvider || ""}
-                onValueChange={handleProviderSelectForClone}
-                className="space-y-2"
-              >
-                {/* All providers - mixed with built-in tag */}
-                {providers
-                  .filter((p) => p.hasCredentials)
-                  .map((provider) => (
-                    <div key={provider.id}>
-                      <div
-                        className={cn(
-                          "flex items-center space-x-2 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
-                        )}
-                      >
-                        <RadioGroupItem value={provider.id} id={provider.id} />
-                        <label
-                          htmlFor={provider.id}
-                          className="flex-1 cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2">
-                            {provider.isBuiltIn ? (
-                              <Cloud className="h-4 w-4 text-primary" />
-                            ) : (
-                              <Server className="h-4 w-4 text-muted-foreground" />
-                            )}
-                            <span className="font-medium">{provider.name}</span>
-                            {provider.isBuiltIn && (
-                              <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                                {t("settings.sync.builtIn", "Built-in")}
-                              </span>
-                            )}
-                          </div>
-                        </label>
-                      </div>
-                    </div>
-                  ))}
-              </RadioGroup>
-            )}
-            <Button variant="outline" onClick={handleBack} className="w-full">
-              {t("common.back", "Back")}
-            </Button>
-          </div>
-        )
-
       case "clone-select-space":
         return (
           <div className="space-y-4 py-4">
             <p className="text-sm text-muted-foreground">
-              Select a space to clone from{" "}
-              {providers.find((p) => p.id === selectedProvider)?.name}.
+              Select a repository from Eidos Sync.
             </p>
             {loadingRemoteSpaces ? (
               <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
@@ -654,7 +533,7 @@ export function SpaceSelect({
               <div className="text-sm text-muted-foreground text-center py-8">
                 No remote spaces found.
                 <br />
-                Make sure you have spaces synced to this provider.
+                Sign in and sync a Space before cloning it here.
               </div>
             ) : (
               <RadioGroup
@@ -702,6 +581,54 @@ export function SpaceSelect({
               into.
             </p>
             <div className="space-y-2">
+              <Label>Space Type</Label>
+              <RadioGroup
+                value={cloneSpaceMode}
+                onValueChange={(value) =>
+                  setCloneSpaceMode(value as CloneSpaceMode)
+                }
+                className="grid gap-2"
+              >
+                <label
+                  htmlFor="clone-mode-file"
+                  className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 hover:bg-muted/50"
+                >
+                  <RadioGroupItem
+                    id="clone-mode-file"
+                    value="file"
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">
+                      File Space (recommended)
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      Clone repository files directly into the selected folder.
+                    </span>
+                  </span>
+                </label>
+                <label
+                  htmlFor="clone-mode-legacy"
+                  className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 hover:bg-muted/50"
+                >
+                  <RadioGroupItem
+                    id="clone-mode-legacy"
+                    value="legacy"
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium">
+                      Legacy database Space
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      Use only for repositories created by the legacy SQLite
+                      Space workflow.
+                    </span>
+                  </span>
+                </label>
+              </RadioGroup>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="clone-folder-path">Local Folder</Label>
               <div className="flex gap-2">
                 <Input
@@ -719,6 +646,11 @@ export function SpaceSelect({
                   Browse
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                {cloneSpaceMode === "file"
+                  ? "Choose an empty folder. Repository files will be placed directly inside it."
+                  : "Legacy runtime data will be restored inside this folder's .eidos directory."}
+              </p>
             </div>
             {renderPathConflictNotice()}
             <div className="flex gap-2">
@@ -751,8 +683,6 @@ export function SpaceSelect({
         return "Add Space"
       case "create-local-path":
         return "Open Folder as Space"
-      case "clone-choose-provider":
-        return "Clone Space - Select Provider"
       case "clone-select-space":
         return "Clone Space - Select Remote"
       case "clone-local-path":
@@ -886,7 +816,7 @@ export function SpaceSelect({
           <DialogTitle>{getDialogTitle()}</DialogTitle>
           <DialogDescription>
             {isDesktopMode
-              ? "Open a folder as a Space or connect an existing legacy Space."
+              ? "Open a folder as a Space or clone from Eidos Sync."
               : "Space management is only available in the desktop app."}
           </DialogDescription>
         </DialogHeader>

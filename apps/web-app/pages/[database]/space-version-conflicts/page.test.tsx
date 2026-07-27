@@ -62,7 +62,7 @@ vi.mock("@/apps/web-app/hooks/use-space-versioning", () => ({
       ],
       conflicts: [
         {
-          id: "tasks.eidos:row:tb_tasks:7",
+          id: "tasks.eidos:row:tb_tasks:key",
           path: "tasks.eidos",
           pathKind: "sqlite_database",
           storage: "sqlite_snapshot",
@@ -72,7 +72,8 @@ vi.mock("@/apps/web-app/hooks/use-space-versioning", () => ({
           resolution: null,
           table: "tb_tasks",
           columns: ["_id", "title", "status"],
-          rowId: 7,
+          rowId: null,
+          key: { _id: "task-7", partition: { $blob: "00ff" } },
           oursRowId: null,
           theirsRowId: null,
           semanticKey: ["task-7"],
@@ -148,7 +149,10 @@ describe("SpaceVersionConflictsPage", () => {
       path: "tasks.eidos",
       resolution: "ours",
       expectedHead: "head-2",
-      target: { table: "tb_tasks", rowId: 7 },
+      target: {
+        table: "tb_tasks",
+        key: { _id: "task-7", partition: { $blob: "00ff" } },
+      },
     })
   })
 

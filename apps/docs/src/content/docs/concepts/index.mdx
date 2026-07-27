@@ -32,7 +32,20 @@ the data.
 
 Graft records changes and staged snapshots. Eidos presents these operations as
 Changes, Stage, Commit, Diff, and Discard while keeping Graft storage details
-outside extension APIs.
+outside extension APIs. SQLite-backed Spaces remain ordinary physical SQLite
+files; Desktop uses the Graft CLI as the version-control control plane.
+Remote sync is provisioned by Electron main through the official Eidos Sync
+service and then delegated to Graft HTTP Remote v1. OAuth tokens are passed to
+the CLI ephemerally and are never stored in remote URLs or repository config.
+Graft v0.8 also preserves declared primary-key identities in row diffs and
+merges for STRICT and WITHOUT ROWID databases. Physical worktrees may use any
+valid SQLite page size; only the optional Graft VFS write path remains limited
+to 4096-byte pages.
+
+When cloning from Eidos Sync, File Space is the default: repository files and
+the root `.graft` directory are placed directly in the selected empty folder.
+Legacy Space is only for older database Spaces and restores its runtime under
+`.eidos`.
 
 ## Extensions
 

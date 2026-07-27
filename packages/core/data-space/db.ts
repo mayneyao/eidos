@@ -15,16 +15,16 @@ export class DataSpaceWithDatabase extends BaseDataSpace {
   public status() {
     return this.db.status()
   }
-  public pull() {
-    return this.db.pull()
+  public pull(remoteToken?: string) {
+    return this.db.pull(remoteToken)
   }
 
-  public push() {
-    return this.db.push()
+  public push(remoteToken?: string) {
+    return this.db.push(remoteToken)
   }
 
-  public fetch() {
-    return this.db.fetch()
+  public fetch(remoteToken?: string) {
+    return this.db.fetch(remoteToken)
   }
 
   public hydrate() {
@@ -69,20 +69,20 @@ export class DataSpaceWithDatabase extends BaseDataSpace {
     return this.db.volumes()
   }
 
-  public clone(remoteUri?: string) {
-    return this.db.clone(remoteUri)
+  public clone(remoteUri?: string, remoteToken?: string) {
+    return this.db.clone(remoteUri, remoteToken)
   }
 
-  public convertToGraft(remote: string) {
-    return this.db.convertToGraft(remote)
+  public convertToGraft(remote: string, remoteToken?: string) {
+    return this.db.convertToGraft(remote, remoteToken)
   }
 
   public enableLocalVersioning() {
     return this.db.enableLocalVersioning()
   }
 
-  public reconfigureRemote(credentials: any, remote: string) {
-    return this.db.reconfigureRemote(credentials, remote)
+  public reconfigureRemote(remote: string, remoteToken?: string) {
+    return this.db.reconfigureRemote(remote, remoteToken)
   }
 
   public exportToSqlite(outputPath?: string) {

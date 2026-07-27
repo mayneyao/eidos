@@ -16,7 +16,6 @@ import { useRouterAdapter } from "@/apps/web-app/hooks/use-router-adapter"
 import { useSpaceVersioning } from "@/apps/web-app/hooks/use-space-versioning"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 
@@ -40,7 +39,6 @@ export function FileSpaceVersioningSettings() {
     refresh,
   } = useSpaceVersioning(spaceId)
   const [remoteUrl, setRemoteUrl] = useState("")
-  const [savedRemoteUrl, setSavedRemoteUrl] = useState("")
   const [remoteError, setRemoteError] = useState<string | null>(null)
   const [agentConversationsVersioned, setAgentConversationsVersioned] =
     useState(false)
@@ -57,7 +55,6 @@ export function FileSpaceVersioningSettings() {
         const origin = remotes.find((remote) => remote.name === "origin")
         const url = origin?.url ?? remotes[0]?.url ?? ""
         setRemoteUrl(url)
-        setSavedRemoteUrl(url)
         setRemoteError(null)
       })
       .catch((remoteRequestError) => {
@@ -114,8 +111,7 @@ export function FileSpaceVersioningSettings() {
   const saveRemote = async () => {
     setRemoteError(null)
     try {
-      await configureRemote({ url: remoteUrl })
-      setSavedRemoteUrl(remoteUrl.trim())
+      await configureRemote({})
     } catch (remoteRequestError) {
       setRemoteError(
         remoteRequestError instanceof Error
@@ -129,7 +125,6 @@ export function FileSpaceVersioningSettings() {
     try {
       await removeRemote("origin")
       setRemoteUrl("")
-      setSavedRemoteUrl("")
     } catch (remoteRequestError) {
       setRemoteError(
         remoteRequestError instanceof Error
@@ -361,33 +356,22 @@ export function FileSpaceVersioningSettings() {
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2">
-                    <Label htmlFor="file-space-graft-remote">
-                      Graft remote
-                    </Label>
+                    <Label>Eidos Sync</Label>
                     <Badge variant={remoteConfigured ? "secondary" : "outline"}>
                       {remoteConfigured ? "Connected" : "Local only"}
                     </Badge>
                   </div>
                   <p className="text-sm leading-5 text-muted-foreground">
-                    Push and pull committed Space versions through a Graft
-                    remote. Local file changes are never uploaded until they are
-                    committed.
+                    Push and pull committed Space versions through the official
+                    Eidos Sync service. The Desktop provisions and configures
+                    the Remote v1 URL automatically.
                   </p>
                 </div>
-                <Input
-                  id="file-space-graft-remote"
-                  value={remoteUrl}
-                  className="max-w-xl font-mono text-xs"
-                  placeholder="fs:///path/to/remote or graft+https://…"
-                  disabled={!enabled || busy}
-                  onChange={(event) => setRemoteUrl(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault()
-                      void saveRemote()
-                    }
-                  }}
-                />
+                {remoteUrl ? (
+                  <code className="block max-w-xl truncate rounded bg-muted px-2 py-1 text-xs">
+                    {remoteUrl}
+                  </code>
+                ) : null}
                 {!status?.head && enabled ? (
                   <p className="text-xs text-muted-foreground">
                     Create the first version before connecting a remote.
@@ -414,13 +398,7 @@ export function FileSpaceVersioningSettings() {
               ) : null}
               <Button
                 size="sm"
-                disabled={
-                  !enabled ||
-                  !status?.head ||
-                  !remoteUrl.trim() ||
-                  remoteUrl.trim() === savedRemoteUrl ||
-                  busy
-                }
+                disabled={!enabled || !status?.head || remoteConfigured || busy}
                 onClick={() => void saveRemote()}
               >
                 {operation === "configuring-remote" ? (
@@ -428,7 +406,7 @@ export function FileSpaceVersioningSettings() {
                 ) : (
                   <CloudCog className="h-4 w-4" />
                 )}
-                {remoteConfigured ? "Update" : "Connect"}
+                Connect Eidos Sync
               </Button>
             </div>
           </div>

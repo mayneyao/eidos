@@ -11,9 +11,9 @@ export class DataSpace extends DataSpaceWithTable {
    */
   get graft() {
     return {
-      pull: () => this.db.pull(),
-      push: () => this.db.push(),
-      fetch: () => this.db.fetch(),
+      pull: (remoteToken?: string) => this.db.pull(remoteToken),
+      push: (remoteToken?: string) => this.db.push(remoteToken),
+      fetch: (remoteToken?: string) => this.db.fetch(remoteToken),
       commit: (message?: string) => this.db.commit(message),
       completeMerge: (message?: string) => this.db.completeMerge(message),
       abortMerge: () => this.db.abortMerge(),
@@ -24,7 +24,8 @@ export class DataSpace extends DataSpaceWithTable {
         target?: GraftConflictResolveTarget
       ) => this.db.resolveConflict(resolution, path, target),
       snapshot: () => this.db.snapshot(),
-      clone: (remoteUri?: string) => this.db.clone(remoteUri),
+      clone: (remoteUri?: string, remoteToken?: string) =>
+        this.db.clone(remoteUri, remoteToken),
       enableLocalVersioning: () => this.db.enableLocalVersioning(),
       status: () => this.db.status(),
       branches: () => this.db.branches(),

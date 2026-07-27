@@ -48,7 +48,8 @@ function statusPayload(
 function createCoordinator(
   root: string,
   runJson: ReturnType<typeof vi.fn>,
-  registryOverrides: Record<string, unknown> = {}
+  registryOverrides: Record<string, unknown> = {},
+  runRemoteJson: ReturnType<typeof vi.fn> = runJson
 ) {
   const registry = {
     getSpace: (spaceId: string) =>
@@ -60,7 +61,7 @@ function createCoordinator(
   }
   return new SpaceVersioningCoordinator(
     registry as unknown as SpaceRegistry,
-    { runJson } as unknown as GraftRunner
+    { runJson, runRemoteJson } as unknown as GraftRunner
   )
 }
 
@@ -286,10 +287,13 @@ describe("SpaceVersioningCoordinator remotes", () => {
         configured = true
         return {
           operation: "remote_add",
-          remote: { name: "origin", url: "fs:///tmp/Eidos Remote" },
+          remote: {
+            name: "origin",
+            url: "https://graft.example.test/acme/notes?token_env=GRAFT_TOKEN",
+          },
         }
       }
-      if (args[0] === "branch-upstream") {
+      if (args[0] === "branch" && args.includes("--set-upstream-to")) {
         return { operation: "branch_upstream" }
       }
       throw new Error(`Unexpected command: ${args.join(" ")}`)
@@ -297,12 +301,12 @@ describe("SpaceVersioningCoordinator remotes", () => {
     const coordinator = createCoordinator(root, runJson, { setSpaceSync })
 
     const result = await coordinator.configureRemote("space-a", {
-      url: "fs:///tmp/Eidos Remote",
+      url: "https://graft.example.test/acme/notes?token_env=GRAFT_TOKEN",
     })
 
     expect(result.remote).toEqual({
       name: "origin",
-      url: "fs:///tmp/Eidos Remote",
+      url: "https://graft.example.test/acme/notes?token_env=GRAFT_TOKEN",
     })
     expect(result.status.upstream).toMatchObject({
       remote: "origin",
@@ -310,16 +314,24 @@ describe("SpaceVersioningCoordinator remotes", () => {
       state: "ahead",
     })
     expect(runJson).toHaveBeenCalledWith(await fs.realpath(root), [
-      "branch-upstream",
+      "branch",
       "--json",
-      "main",
+      "--set-upstream-to",
       "origin/main",
+      "main",
     ])
     expect(setSpaceSync).toHaveBeenCalledWith("space-a", {
       enabled: true,
-      remote: "fs:///tmp/Eidos Remote",
-      provider: "graft",
+      remote: "https://graft.example.test/acme/notes?token_env=GRAFT_TOKEN",
+      provider: "eidos.space",
     })
+    expect(runJson).toHaveBeenCalledWith(await fs.realpath(root), [
+      "remote",
+      "add",
+      "--json",
+      "origin",
+      "https://graft.example.test/acme/notes?token_env=GRAFT_TOKEN",
+    ])
   })
 
   it("restores an existing remote URL when upstream configuration fails", async () => {
@@ -339,7 +351,7 @@ describe("SpaceVersioningCoordinator remotes", () => {
           remote: { name: "origin", url: args[4] },
         }
       }
-      if (args[0] === "branch-upstream") {
+      if (args[0] === "branch" && args.includes("--set-upstream-to")) {
         throw new Error("invalid upstream")
       }
       throw new Error(`Unexpected command: ${args.join(" ")}`)
@@ -389,7 +401,21 @@ describe("SpaceVersioningCoordinator remotes", () => {
       }
       throw new Error(`Unexpected command: ${args.join(" ")}`)
     })
-    const coordinator = createCoordinator(root, runJson)
+    const runRemoteJson = vi.fn(async (_root: string, args: string[]) => {
+      if (args[0] === "push") {
+        return {
+          operation: "push",
+          current_head: "head-2",
+          current_branch: "main",
+          remote: "origin",
+          branches: [{ remote_branch: "main" }],
+          commits: 2,
+          forced: false,
+        }
+      }
+      throw new Error(`Unexpected remote command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson, {}, runRemoteJson)
 
     const result = await coordinator.pushRemote("space-a", {
       expectedHead: "head-2",
@@ -403,7 +429,12 @@ describe("SpaceVersioningCoordinator remotes", () => {
       forced: false,
       status: { currentHead: "head-2" },
     })
-    expect(runJson).toHaveBeenCalledWith(
+    expect(runRemoteJson).toHaveBeenCalledWith(
+      await fs.realpath(root),
+      ["push", "--json", "origin"],
+      { timeoutMs: 120_000 }
+    )
+    expect(runJson).not.toHaveBeenCalledWith(
       await fs.realpath(root),
       ["push", "--json", "origin"],
       { timeoutMs: 120_000 }
@@ -597,6 +628,65 @@ describe("SpaceVersioningCoordinator conflicts", () => {
     expect(runJson).toHaveBeenCalledWith(
       await fs.realpath(root),
       ["resolve", "--json", "--ours", "--row", "tb_tasks", "7", "tasks.eidos"],
+      { timeoutMs: 120_000 }
+    )
+  })
+
+  it("resolves one v0.8 composite primary-key row", async () => {
+    const root = await createSpace()
+    const runJson = vi.fn(async (_root: string, args: string[]) => {
+      if (args[0] === "status") {
+        return statusPayload(
+          [
+            {
+              path: "typed.sqlite3",
+              kind: "sqlite_database",
+              storage: "sqlite_snapshot",
+              index_status: "unmerged",
+              worktree_status: "unmerged",
+              conflicted: true,
+            },
+          ],
+          {
+            merge_head: "remote-2",
+            has_conflicts: true,
+            counts: { unstaged: 0, staged: 0, conflicted: 1 },
+          }
+        )
+      }
+      if (args[0] === "resolve") {
+        return {
+          operation: "resolve_conflict",
+          path: "typed.sqlite3",
+          resolution: "theirs",
+          remaining_conflicts: 0,
+        }
+      }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
+    const coordinator = createCoordinator(root, runJson)
+
+    await coordinator.resolveConflict("space-a", {
+      path: "typed.sqlite3",
+      resolution: "theirs",
+      expectedHead: "head-2",
+      target: {
+        table: "docs",
+        key: { namespace: "personal", id: { $blob: "00ff" } },
+      },
+    })
+
+    expect(runJson).toHaveBeenCalledWith(
+      await fs.realpath(root),
+      [
+        "resolve",
+        "--json",
+        "--theirs",
+        "--row",
+        "docs",
+        '{"id":{"$blob":"00ff"},"namespace":"personal"}',
+        "typed.sqlite3",
+      ],
       { timeoutMs: 120_000 }
     )
   })
@@ -873,10 +963,45 @@ describe("SpaceVersioningCoordinator.getDiff", () => {
     expect(result.sqliteFiles).toHaveLength(1)
     expect(runJson).toHaveBeenCalledWith(
       await fs.realpath(root),
-      ["diff", "--json", "--rows", "head-1", "head-2", "--", "tasks.eidos"],
+      ["--db", "tasks.eidos", "diff", "--json", "--rows", "head-1", "head-2"],
       { maxBufferBytes: 16 * 1024 * 1024 }
     )
   })
+
+  it.each([
+    [
+      "the working file",
+      { from: "head-1", path: "tasks.eidos", includeRows: true },
+      ["--db", "tasks.eidos", "diff", "--json", "--rows", "head-1"],
+    ],
+    [
+      "a root revision",
+      { root: "head-1", path: "tasks.eidos", includeRows: true },
+      ["--db", "tasks.eidos", "diff", "--json", "--rows", "--root", "head-1"],
+    ],
+  ] as const)(
+    "uses Graft's SQLite database selector for %s",
+    async (_label, options, expectedArgs) => {
+      const root = await createSpace()
+      const runJson = vi.fn(async () => ({
+        current_head: "head-2",
+        current_branch: "main",
+        from: "head-1",
+        to: "worktree",
+        paths: [],
+        files: [],
+      }))
+      const coordinator = createCoordinator(root, runJson)
+
+      await coordinator.getDiff("space-a", options)
+
+      expect(runJson).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        expectedArgs,
+        { maxBufferBytes: 16 * 1024 * 1024 }
+      )
+    }
+  )
 
   it("rejects SQLite row mode without one path", async () => {
     const root = await createSpace()
@@ -896,21 +1021,21 @@ describe("SpaceVersioningCoordinator.getDiff", () => {
 describe("SpaceVersioningCoordinator change actions", () => {
   it("stages one changed path and returns the reconciled status", async () => {
     const root = await createSpace()
+    let statusReads = 0
     const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
-      if (args[0] === "add") {
-        return {
-          operation: "add",
-          status: statusPayload([
-            {
-              path: "notes/today.md",
-              kind: "text_file",
-              storage: "inline",
-              index_status: "modified",
-              worktree_status: "none",
-            },
-          ]),
-        }
+      if (args[0] === "status") {
+        statusReads += 1
+        return statusPayload([
+          {
+            path: "notes/today.md",
+            kind: "text_file",
+            storage: "inline",
+            index_status: statusReads === 1 ? "none" : "modified",
+            worktree_status: statusReads === 1 ? "modified" : "none",
+          },
+        ])
       }
+      if (args[0] === "add") return { operation: "add" }
       throw new Error(`Unexpected command: ${args.join(" ")}`)
     })
     const coordinator = createCoordinator(root, runJson)
@@ -923,38 +1048,31 @@ describe("SpaceVersioningCoordinator change actions", () => {
     expect(result.path).toBe("notes/today.md")
     expect(result.status.paths[0]).toMatchObject({ staged: true })
     expect(runJson).toHaveBeenNthCalledWith(
-      1,
+      2,
       await fs.realpath(root),
-      [
-        "add",
-        "--json",
-        "--with-status",
-        "--expected-head",
-        "head-2",
-        "--",
-        "notes/today.md",
-      ],
+      ["add", "--json", "--", "notes/today.md"],
       { timeoutMs: 120_000 }
     )
+    expect(runJson).toHaveBeenCalledTimes(3)
   })
 
   it("allows a managed ignore migration to be included in the next version", async () => {
     const root = await createSpace()
+    let statusReads = 0
     const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
-      if (args[0] === "add") {
-        return {
-          operation: "add",
-          status: statusPayload([
-            {
-              path: ".graftignore",
-              kind: "text_file",
-              storage: "inline",
-              index_status: "modified",
-              worktree_status: "none",
-            },
-          ]),
-        }
+      if (args[0] === "status") {
+        statusReads += 1
+        return statusPayload([
+          {
+            path: ".graftignore",
+            kind: "text_file",
+            storage: "inline",
+            index_status: statusReads === 1 ? "none" : "modified",
+            worktree_status: statusReads === 1 ? "modified" : "none",
+          },
+        ])
       }
+      if (args[0] === "add") return { operation: "add" }
       throw new Error(`Unexpected command: ${args.join(" ")}`)
     })
     const coordinator = createCoordinator(root, runJson)
@@ -966,45 +1084,31 @@ describe("SpaceVersioningCoordinator change actions", () => {
 
     expect(result.status.paths[0]).toMatchObject({ staged: true })
     expect(runJson).toHaveBeenNthCalledWith(
-      1,
+      2,
       await fs.realpath(root),
-      [
-        "add",
-        "--json",
-        "--with-status",
-        "--expected-head",
-        "head-2",
-        "--",
-        ".graftignore",
-      ],
+      ["add", "--json", "--", ".graftignore"],
       { timeoutMs: 120_000 }
     )
+    expect(runJson).toHaveBeenCalledTimes(3)
   })
 
   it("stages every changed descendant with one directory pathspec", async () => {
     const root = await createSpace()
+    let statusReads = 0
     const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
-      if (args[0] === "add") {
-        return {
-          operation: "add",
-          status: statusPayload([
-            {
-              path: "notes/one.md",
-              kind: "text_file",
-              storage: "inline",
-              index_status: "modified",
-              worktree_status: "none",
-            },
-            {
-              path: "notes/nested/two.md",
-              kind: "text_file",
-              storage: "inline",
-              index_status: "modified",
-              worktree_status: "none",
-            },
-          ]),
-        }
+      if (args[0] === "status") {
+        statusReads += 1
+        return statusPayload(
+          ["notes/one.md", "notes/nested/two.md"].map((changedPath) => ({
+            path: changedPath,
+            kind: "text_file",
+            storage: "inline",
+            index_status: statusReads === 1 ? "none" : "modified",
+            worktree_status: statusReads === 1 ? "modified" : "none",
+          }))
+        )
       }
+      if (args[0] === "add") return { operation: "add" }
       throw new Error(`Unexpected command: ${args.join(" ")}`)
     })
     const coordinator = createCoordinator(root, runJson)
@@ -1016,38 +1120,36 @@ describe("SpaceVersioningCoordinator change actions", () => {
 
     expect(result.status.paths.every((entry) => entry.staged)).toBe(true)
     expect(runJson).toHaveBeenNthCalledWith(
-      1,
+      2,
       await fs.realpath(root),
-      [
-        "add",
-        "--json",
-        "--with-status",
-        "--expected-head",
-        "head-2",
-        "--",
-        "notes",
-      ],
+      ["add", "--json", "--", "notes"],
       { timeoutMs: 120_000 }
     )
+    expect(runJson).toHaveBeenCalledTimes(3)
   })
 
-  it("guards an unborn repository without a separate status request", async () => {
+  it("stages in an unborn repository through the v0.8 add contract", async () => {
     const root = await createSpace()
-    const runJson = vi.fn(async () => ({
-      operation: "add",
-      status: statusPayload(
-        [
-          {
-            path: "first.md",
-            kind: "text_file",
-            storage: "inline",
-            index_status: "added",
-            worktree_status: "none",
-          },
-        ],
-        { current_head: null }
-      ),
-    }))
+    let statusReads = 0
+    const runJson = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] === "status") {
+        statusReads += 1
+        return statusPayload(
+          [
+            {
+              path: "first.md",
+              kind: "text_file",
+              storage: "inline",
+              index_status: statusReads === 1 ? "none" : "added",
+              worktree_status: statusReads === 1 ? "untracked" : "none",
+            },
+          ],
+          { current_head: null }
+        )
+      }
+      if (args[0] === "add") return { operation: "add" }
+      throw new Error(`Unexpected command: ${args.join(" ")}`)
+    })
     const coordinator = createCoordinator(root, runJson)
 
     const result = await coordinator.stagePath("space-a", {
@@ -1056,48 +1158,65 @@ describe("SpaceVersioningCoordinator change actions", () => {
     })
 
     expect(result.status.currentHead).toBeNull()
-    expect(runJson).toHaveBeenCalledWith(
+    expect(runJson).toHaveBeenNthCalledWith(
+      2,
       await fs.realpath(root),
-      [
-        "add",
-        "--json",
-        "--with-status",
-        "--expected-head",
-        "unborn",
-        "--",
-        "first.md",
-      ],
+      ["add", "--json", "--", "first.md"],
       { timeoutMs: 120_000 }
     )
+    expect(runJson).toHaveBeenCalledTimes(3)
   })
 
   it.each([
-    [
-      "[graft:add:expected-head-mismatch]",
-      "The Space history changed. Refresh Changes before including this file.",
-    ],
-    [
-      "[graft:add:path-no-changes]",
-      "This path no longer has changes to include",
-    ],
-    [
-      "[graft:add:path-conflicted]",
-      "Resolve conflicts in this path before including it",
-    ],
-  ])("maps guarded add error %s", async (marker, expectedMessage) => {
-    const root = await createSpace()
-    const runJson = vi.fn(async () => {
-      throw new Error(marker)
-    })
-    const coordinator = createCoordinator(root, runJson)
+    {
+      status: statusPayload(
+        [
+          {
+            path: "notes/today.md",
+            kind: "text_file",
+            storage: "inline",
+            index_status: "none",
+            worktree_status: "modified",
+          },
+        ],
+        { current_head: "head-3" }
+      ),
+      expectedMessage:
+        "The Space history changed. Refresh Changes before including this file.",
+    },
+    {
+      status: statusPayload([]),
+      expectedMessage: "This path no longer has changes to include",
+    },
+    {
+      status: statusPayload([
+        {
+          path: "notes/today.md",
+          kind: "text_file",
+          storage: "inline",
+          index_status: "conflicted",
+          worktree_status: "none",
+          conflicted: true,
+        },
+      ]),
+      expectedMessage: "Resolve conflicts in this path before including it",
+    },
+  ])(
+    "validates v0.8 add preconditions",
+    async ({ status, expectedMessage }) => {
+      const root = await createSpace()
+      const runJson = vi.fn(async () => status)
+      const coordinator = createCoordinator(root, runJson)
 
-    await expect(
-      coordinator.stagePath("space-a", {
-        path: "notes/today.md",
-        expectedHead: "head-2",
-      })
-    ).rejects.toThrow(expectedMessage)
-  })
+      await expect(
+        coordinator.stagePath("space-a", {
+          path: "notes/today.md",
+          expectedHead: "head-2",
+        })
+      ).rejects.toThrow(expectedMessage)
+      expect(runJson).toHaveBeenCalledTimes(1)
+    }
+  )
 
   it("unstages one included path while preserving its working change", async () => {
     const root = await createSpace()
@@ -2302,7 +2421,7 @@ describe("SpaceVersioningCoordinator.commit", () => {
           { merge_head: "remote-2" }
         )
       }
-      if (args[0] === "merge-continue") {
+      if (args[0] === "merge" && args.includes("--continue")) {
         return {
           current_head: "merge-3",
           current_branch: "main",
@@ -2332,7 +2451,7 @@ describe("SpaceVersioningCoordinator.commit", () => {
     expect(result.commit.parents).toEqual(["head-2", "remote-2"])
     expect(runJson).toHaveBeenCalledWith(
       await fs.realpath(root),
-      ["merge-continue", "--json", "Merge remote versions"],
+      ["merge", "--continue", "--json", "--message", "Merge remote versions"],
       { timeoutMs: 120_000 }
     )
   })

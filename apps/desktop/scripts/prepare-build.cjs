@@ -21,7 +21,6 @@ const workspacePackages = [
   "@eidos.space/electron-ipc",
   "@eidos.space/rawdata",
   "@eidos.space/client",
-  "@eidos.space/graft-client",
 ]
 
 const workspaceBuildArgs = [

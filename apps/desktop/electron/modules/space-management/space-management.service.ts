@@ -64,7 +64,6 @@ import { IpcInjectable, Inject, container } from "../../common/di"
 import { SpaceRegistry } from "./space-registry"
 import { MainWindowProvider } from "./main-window.provider"
 import { DataSpaceManager, DataSpaceProcessPool } from "../data-space"
-import { getCredentialsManager } from "../sync/sync.module"
 import { getConfigManager } from "../config/config-manager"
 import { PORT } from "../../main"
 import { BrowserService } from "../browser/browser.service"
@@ -80,6 +79,7 @@ import {
 } from "./eidos-file-csv-worker-runner"
 import type { EidosFileCsvFileFingerprint } from "./eidos-file-csv-worker-protocol"
 import { EidosFileQueryWorkerRunner } from "./eidos-file-query-worker-runner"
+import { OfficialGraftRemoteService } from "../sync/official-graft-remote"
 
 export type EidosFileCsvOperationStatus =
   | "running"
@@ -1596,9 +1596,7 @@ export class SpaceManagementService extends IpcServiceBase {
    */
   async toggleSpaceSync(
     spaceId: string,
-    enabled: boolean,
-    remote?: string,
-    provider?: string
+    enabled: boolean
   ): Promise<{ success: boolean; error?: string; reloadRequired?: boolean }> {
     const space = this.registry.getSpace(spaceId)
     if (!space) {
@@ -1616,45 +1614,25 @@ export class SpaceManagementService extends IpcServiceBase {
       return { success: false, error: "Data space not initialized" }
     }
 
-    const configManager = getConfigManager()
-    const effectiveProvider =
-      provider ||
-      space.sync?.provider ||
-      configManager.getDefaultSyncProvider() ||
-      "eidos.space"
-
     if (enabled) {
-      if (!remote) {
-        return {
-          success: false,
-          error: "Remote URL is required to enable sync",
-        }
-      }
-
-      const credentialsManager = getCredentialsManager()
-      const credentials =
-        await credentialsManager.getSyncCredentials(effectiveProvider)
-      if (!credentials) {
-        return {
-          success: false,
-          error: `No sync credentials found for ${effectiveProvider}. Please configure sync settings first.`,
-        }
-      }
+      const provisioned = await container
+        .get(OfficialGraftRemoteService)
+        .provisionRepository(spaceId)
 
       const isLocalOnlyVersioned =
         space.versioning?.enabled && !space.sync?.enabled
       if (isLocalOnlyVersioned) {
         // Already in Graft mode (local-only). Reconfigure remote only.
-        await dataSpace.reconfigureRemote(credentials, remote)
+        await dataSpace.reconfigureRemote(provisioned.remoteUrl)
       } else {
         // Fresh space, convert from regular SQLite to Graft with sync.
-        await dataSpace.convertToGraft(remote)
+        await dataSpace.convertToGraft(provisioned.remoteUrl)
       }
 
       this.registry.setSpaceSync(spaceId, {
         enabled: true,
-        remote: remote,
-        provider: effectiveProvider,
+        remote: provisioned.remoteUrl,
+        provider: "eidos.space",
       })
       this.registry.setSpaceVersioning(spaceId, { enabled: true })
 

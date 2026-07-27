@@ -3,8 +3,7 @@ import { execFileSync } from "node:child_process"
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { fileURLToPath, pathToFileURL } from "node:url"
-import Database from "better-sqlite3"
+import { fileURLToPath } from "node:url"
 
 import {
   createEidosFile,
@@ -19,16 +18,21 @@ const graft = path.join(
   "dist-cli",
   process.platform === "win32" ? "graft.exe" : "graft"
 )
-const libraryExtension = { darwin: "dylib", linux: "so", win32: "dll" }[
-  process.platform
-]
-const graftLibrary = libraryExtension
-  ? path.join(
-      desktopDirectory,
-      "dist-sqlite-ext",
-      `libgraft.${libraryExtension}`
-    )
-  : null
+
+function findEidosCli() {
+  if (process.env.EIDOS_CLI_PATH) return process.env.EIDOS_CLI_PATH
+  const name =
+    process.platform === "darwin"
+      ? process.arch === "arm64"
+        ? "eidos-macos-arm"
+        : "eidos-macos-intel"
+      : process.platform === "win32"
+        ? "eidos-windows-x64.exe"
+        : "eidos-linux-x64"
+  return path.join(desktopDirectory, "dist-cli", name)
+}
+
+const eidosCli = findEidosCli()
 
 function runGraft(root, args) {
   const output = execFileSync(graft, args, {
@@ -39,37 +43,22 @@ function runGraft(root, args) {
   return output ? JSON.parse(output) : null
 }
 
-function runPathScopedPragmaDiff(root) {
-  assert.ok(
-    graftLibrary && existsSync(graftLibrary),
-    "Graft extension is missing"
-  )
-  const registration = new Database(":memory:")
-  try {
-    registration.loadExtension(graftLibrary)
-  } finally {
-    registration.close()
-  }
-
-  const workspaceSessionPath = path.join(root, ".graft")
-  const uri = pathToFileURL(workspaceSessionPath)
-  uri.searchParams.set("vfs", "graft")
-  const control = new Database(uri.href)
-  try {
-    const raw = control.pragma(
-      `graft_json_diff = '--rows "HEAD" -- "tasks.eidos"'`,
-      { simple: true }
-    )
-    assert.equal(typeof raw, "string")
-    return JSON.parse(raw)
-  } finally {
-    control.close()
-  }
+function runEidos(args) {
+  const output = execFileSync(eidosCli, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim()
+  return output ? JSON.parse(output) : null
 }
 
 if (!existsSync(graft)) {
   throw new Error(
     `Graft CLI is missing at ${graft}. Run pnpm --filter eidos build:cli first.`
+  )
+}
+if (!existsSync(eidosCli)) {
+  throw new Error(
+    `Eidos CLI is missing at ${eidosCli}. Run pnpm --filter eidos build:cli first.`
   )
 }
 
@@ -357,6 +346,20 @@ try {
   )
   persisted.close()
 
+  const cliInspection = runEidos([eidosFilePath, "inspect"])
+  assert.equal(
+    typeof cliInspection?.fileId,
+    "string",
+    JSON.stringify(cliInspection)
+  )
+  assert.equal(
+    typeof cliInspection?.revision,
+    "string",
+    JSON.stringify(cliInspection)
+  )
+  const cliValidation = runEidos([eidosFilePath, "validate", "--level", "full"])
+  assert.equal(cliValidation?.valid, true, JSON.stringify(cliValidation))
+
   writeFileSync(path.join(root, ".graftignore"), ".graft/\n.graftignore\n")
   runGraft(root, ["init", "--json"])
   runGraft(root, ["add", relativeEidosFilePath, "--json"])
@@ -391,16 +394,16 @@ try {
   })
   updated.close()
 
-  const rawDiff = runGraft(root, ["diff", "--rows", "--json"])
-  const anonymousSessionEntries = rawDiff.paths.filter(
-    (entry) => entry.path === ".graft"
-  )
-  if (anonymousSessionEntries.length > 0) {
-    console.warn(
-      "Graft v0.6.1 exposes its anonymous .graft workspace session in an " +
-        "unscoped CLI row diff; Eidos path-scoped row diffs exclude it"
-    )
-  }
+  const rawDiff = runGraft(root, [
+    "--db",
+    relativeEidosFilePath,
+    "diff",
+    "--rows",
+    "--json",
+    "HEAD",
+  ])
+  // The explicit --db route can expose Graft's anonymous control session as a
+  // diagnostic `.graft` path. It is repository metadata, never Space content.
   const diff = {
     ...rawDiff,
     paths: rawDiff.paths.filter((entry) => entry.path !== ".graft"),
@@ -420,25 +423,30 @@ try {
   assert.equal(file.row_diff_available, true)
   assert.equal(
     file.logical_status,
-    "unsupported_logical_surface",
+    "logical_changes",
     JSON.stringify(file, null, 2)
   )
   assert.ok(
-    file.limitations.some(
-      (limitation) =>
-        limitation.kind === "without_rowid_table" &&
-        limitation.subject === tasksPhysicalName
-    ),
-    "Graft should report the 0.6.1 WITHOUT ROWID logical diff limitation"
+    file.capabilities.includes("primary_key_table_rows"),
+    "Graft should advertise declared primary-key row diffs"
   )
-  assert.ok(
-    file.opaque_changes.some(
-      (change) =>
-        change.name === tasksPhysicalName &&
-        change.change === "modified" &&
-        change.reason === "without_rowid_table"
+  assert.equal(
+    file.limitations.some(
+      (limitation) => limitation.kind === "without_rowid_table"
     ),
-    "Graft should preserve the changed Eidos table as an opaque snapshot"
+    false
+  )
+  const tasksDiff = file.tables.find(
+    (table) => table.name === tasksPhysicalName
+  )
+  assert.ok(tasksDiff, "Graft should return the changed Eidos record table")
+  assert.deepEqual(tasksDiff.primary_key_columns, ["_id"])
+  assert.ok(
+    tasksDiff.changes.some(
+      (change) =>
+        change.op === "update" && change.key?._id === String(first._id)
+    ),
+    "Graft should identify an updated Eidos row by its declared primary key"
   )
 
   const restore = runGraft(root, [
@@ -480,9 +488,7 @@ try {
   assert.equal(cleanStatus.has_staged_changes, false)
   assert.equal(cleanStatus.has_unstaged_changes, false)
 
-  // Run the in-process pragma check last. Loading the extension into the
-  // Electron helper process intentionally keeps its VFS registered for the
-  // process lifetime, so no separate Graft CLI process should follow it.
+  // Repository inspection remains on the same v0.8 CLI control plane.
   const scopedUpdated = openEidosFile(eidosFilePath)
   scopedUpdated.updateRow(tasksTableId, String(first._id), {
     Done: true,
@@ -494,14 +500,23 @@ try {
     Done: false,
   })
   scopedUpdated.close()
-  const scopedDiff = runPathScopedPragmaDiff(root)
+  const rawScopedDiff = runGraft(root, [
+    "--db",
+    relativeEidosFilePath,
+    "diff",
+    "--rows",
+    "--json",
+    "HEAD",
+  ])
+  const scopedDiff = {
+    ...rawScopedDiff,
+    paths: rawScopedDiff.paths.filter((entry) => entry.path !== ".graft"),
+    files: rawScopedDiff.files.filter((entry) => entry.path !== ".graft"),
+  }
   assert.deepEqual(scopedDiff.paths, diff.paths)
   assert.equal(scopedDiff.files[0]?.path, relativeEidosFilePath)
   assert.equal(scopedDiff.files[0]?.row_diff_available, true)
-  assert.equal(
-    scopedDiff.files[0]?.logical_status,
-    "unsupported_logical_surface"
-  )
+  assert.equal(scopedDiff.files[0]?.logical_status, "logical_changes")
 
   console.log(
     JSON.stringify(
@@ -509,7 +524,8 @@ try {
         path: file.path,
         logicalStatus: file.logical_status,
         restoredRevision: initialRevision,
-        opaqueChanges: file.opaque_changes,
+        primaryKeyColumns: tasksDiff.primary_key_columns,
+        eidosCli: "inspect+validate",
       },
       null,
       2

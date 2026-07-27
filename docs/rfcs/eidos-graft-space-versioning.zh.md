@@ -10,28 +10,45 @@
 - `eidos-space-markdown-runtime.zh.md`
 - `eidos-file-based-extensions.zh.md`
 
-## 实施状态（2026-07-14）
+## 实施状态（2026-07-27）
 
-Graft v0.5.5 已纳入 Desktop 依赖基线。该版本将 Fjall/lsm-tree 升级到包含 relocation
-metadata 修复的版本，并在 4 KiB page 解码边界加入只读兼容路径：旧仓库中被错误标记为
-未压缩、实际仍是 LZ4 数据的 page 会按严格 4 KiB 目标恢复；无法恢复成合法 page 的值仍然
-报错，不会静默接受损坏数据，也不会原地改写历史 store。真实 Space
-`new-base-v2` 的 status、log 与 diff 已在原仓库上通过兼容读取。
+Eidos Desktop 现固定使用 Graft v0.8.1，发布 tag commit 为
+`89b90628a55bccd9f159462fe94046ddb7de6169`。CLI 与 SQLite extension 仍随应用分发，
+但职责已经分离：
 
-同一 Electron 进程可能为多个 SQLite connection 重复加载 Graft extension。v0.5.5 将
-extension tracing 初始化改为幂等：首次加载保留全局 subscriber，后续加载不再因重复设置
-global default 而 panic。完整 Desktop smoke 已覆盖连续打开多个 repository、提交、diff、
-回退、冲突和远端同步。
+- 普通物理 SQLite 文件是默认 worktree；
+- Graft CLI 及其 typed repository service 是 control plane；
+- SQLite extension 只作为可选 VFS/data plane；
+- Eidos 不再通过任何 Graft PRAGMA 发送 repository operation。
 
-本地链路已经实现。普通操作通过 repository-scoped SQLite/Graft PRAGMA executor
-执行，只有 repository initialization 仍是一次性 CLI。由于 Graft 注册的 VFS 和
-Fjall lock 都是 process-scoped，每个活跃 repository 现在运行在隔离的短时常驻子进程中：
-连续请求会复用连接，同时执行真实 timeout 与 response-size 限制；空闲、关闭 Space 或退出
-应用时会退出子进程并释放 repository lock。这样既避免重复 status/diff 的 CLI 启动成本，
-也不会把 Graft lock 留在 Electron main process。UI 已提供 Changes 与 Staged Changes、
-path/directory stage/unstage/discard、文本 Diff tabs、commit history、path restore
-和 whole-Space restore，并隐藏私有 `.eidos` runtime paths。
-Changes 与历史 inspector 也已通过 path-scoped Graft row details，将 `.eidos` path
+对 legacy DataSpace，`.eidos/db.sqlite3` 始终是标准 SQLite 工具可以直接打开的物理文件，
+并继续使用 Eidos 的标准 WAL 配置。v0.8 首次打开时，Desktop 只有在 `.eidos/.graft` 存在，
+且数据库路径缺失、为空或没有 SQLite header 时，才判定它是旧 VFS worktree。此时先让 CLI
+导出到临时物理数据库，校验 SQLite header，之后才替换空的旧 placeholder；任何非空、
+非 SQLite 路径都不会被自动覆盖。
+
+稳定提交顺序为：先完成 SQLite transaction；在连接仍打开时运行 `graft add`，让 Graft
+online backup 纳入已经提交的 WAL frames；关闭连接；运行 `graft commit`；最后完整重开
+Eidos connection（包括 extension 与 attached databases）。Pull、checkout、hard reset、
+merge continue/abort 和 conflict resolution 等可能物化其它 worktree 状态的操作也只在
+SQLite handle 关闭时运行。同一流程同时覆盖 WAL 与 rollback journal，不再把 checkpoint
+当作 commit boundary。
+
+Desktop 产品同步统一使用 `https://sync.eidos.space` 官方服务。Electron main 负责刷新
+eidos.space OAuth access token、执行 discovery 与仓库管理请求、provision 仓库，并保存服务端
+返回的权威 `remote_url`。该 URL 原样交给 v0.8 CLI，`https://` 和 `graft+https://` 使用
+Graft HTTP Remote v1；access token 只通过 `GRAFT_REMOTE_TOKEN` 注入，不进入 URL 或 Graft
+持久化配置。Desktop 不复制或翻译 remote protocol。filesystem remote 仅保留给本地 smoke，
+S3 与 S3-compatible provider 不再是 Desktop 产品选项。
+
+Graft v0.8 可以 stage page size 为 512 到 65536 字节的合法物理 SQLite worktree，底层
+Graft storage 仍按 4096 字节分块；row diff/merge 会保留 STRICT、WITHOUT ROWID 表的声明主键
+身份，包括复合主键和 BLOB key。可选的 `vfs=graft` 写入路径仍要求 SQLite page size 为 4096，
+Desktop 不会把这项 VFS 限制施加到普通物理 worktree。
+
+UI 继续提供 Changes、Staged Changes、path/directory stage/unstage/discard、文本 Diff
+tabs、commit history、path restore 和 whole-Space restore，并隐藏私有 `.eidos` runtime
+paths。Changes 与历史 inspector 会通过 path-scoped Graft row details，把 `.eidos` path
 展开成紧凑的 table/column/row operations。
 
 原生 Electron acceptance 现已覆盖：点击 Changes 打开独立文本 Diff tab、path 与
@@ -40,11 +57,11 @@ restore 和目录 discard。Graft v0.5.3 使用向后兼容的 Base64 `file-blob
 替代 inline file blob 的二次复杂度 Base58 编码；验收机器上 165 KB Markdown 的
 stage 从约 98 秒降至约 27 ms。
 
-remote 垂直切片现已通过同一条持久 Graft connection 实现。File Space Settings
-负责配置 remote；Version 顶部的紧凑菜单提供 fetch、pull、push、upstream、ahead
+remote 垂直切片现已通过同一条 CLI control plane 实现。File Space Settings
+负责 provision Eidos Sync；Version 顶部的紧凑菜单提供 fetch、pull、push、upstream、ahead
 和 behind 状态。Pull 会阻止 dirty worktree。分叉 pull 产生的冲突在 Changes 中按
 path 展示，点击打开 HEAD 到 merge-head 的 Diff tab，并可选择 ours、theirs 或把
-当前文件作为解决结果。全部解决后，Create version 会使用 `merge-continue`，保留
+当前文件作为解决结果。全部解决后，Create version 会使用 `merge --continue`，保留
 两个 parent。
 
 隔离的双 Space `fs://` 验收现已覆盖 initial push、clone、remote push、diverged

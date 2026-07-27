@@ -370,6 +370,31 @@ describe("Graft v0.5 JSON parsers", () => {
     })
   })
 
+  it("parses v0.8 primary-key row conflict identities", () => {
+    const result = parseGraftConflicts({
+      conflicts: [
+        {
+          id: "typed.sqlite3:row:docs:key",
+          path: "typed.sqlite3",
+          kind: "row",
+          reason: "row_conflict",
+          status: "unresolved",
+          table: "docs",
+          key: { namespace: "personal", id: { $blob: "00ff" } },
+          ours_key: { namespace: "personal", id: { $blob: "00fe" } },
+          theirs_key: { namespace: "personal", id: { $blob: "00fd" } },
+        },
+      ],
+    })
+
+    expect(result.conflicts[0]).toMatchObject({
+      rowId: null,
+      key: { namespace: "personal", id: { $blob: "00ff" } },
+      oursKey: { namespace: "personal", id: { $blob: "00fe" } },
+      theirsKey: { namespace: "personal", id: { $blob: "00fd" } },
+    })
+  })
+
   it("normalizes log commits and their parent graph", () => {
     const history = parseGraftLog({
       current_head: "commit-2",
@@ -582,6 +607,7 @@ describe("Graft v0.5 JSON parsers", () => {
               {
                 name: "tb_tasks",
                 columns: ["_id", "title", "done"],
+                primary_key_columns: [],
                 changes: [
                   {
                     op: "update",
@@ -628,6 +654,7 @@ describe("Graft v0.5 JSON parsers", () => {
           {
             name: "tb_tasks",
             columns: ["_id", "title", "done"],
+            primaryKeyColumns: [],
             changes: [
               {
                 operation: "update",
@@ -654,6 +681,59 @@ describe("Graft v0.5 JSON parsers", () => {
         ],
       },
     ])
+  })
+
+  it("preserves v0.8 declared primary-key identities including BLOB keys", () => {
+    const diff = parseGraftDiff(
+      {
+        from: "commit-1",
+        to: "commit-2",
+        files: [
+          {
+            path: "typed.sqlite3",
+            change: "modified",
+            kind: "sqlite_database",
+            storage: "sqlite_snapshot",
+            row_diff_available: true,
+            logical_status: "logical_changes",
+            capabilities: ["primary_key_table_rows"],
+            limitations: [],
+            tables: [
+              {
+                name: "docs",
+                columns: ["namespace", "id", "body"],
+                primary_key_columns: ["namespace", "id"],
+                changes: [
+                  {
+                    op: "update",
+                    key: { namespace: "personal", id: { $blob: "00ff" } },
+                    values: ["personal", "00ff", "after"],
+                    old_values: ["personal", "00ff", "before"],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      "fallback-from",
+      "fallback-to"
+    )
+
+    expect(diff.sqliteFiles[0]?.tables[0]).toEqual({
+      name: "docs",
+      columns: ["namespace", "id", "body"],
+      primaryKeyColumns: ["namespace", "id"],
+      changes: [
+        {
+          operation: "update",
+          rowId: null,
+          key: { namespace: "personal", id: { $blob: "00ff" } },
+          values: ["personal", "00ff", "after"],
+          beforeValues: ["personal", "00ff", "before"],
+        },
+      ],
+    })
   })
 
   it("resolves a changed file against the selected revision tree", () => {

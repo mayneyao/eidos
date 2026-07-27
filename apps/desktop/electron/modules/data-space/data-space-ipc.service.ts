@@ -1,6 +1,7 @@
 import type { IpcMainInvokeEvent } from "electron"
 import electronLog from "electron-log"
 import { MsgType } from "@/lib/const"
+import type { GraftConflictResolveTarget } from "@/packages/core/sqlite/interface"
 import {
   IpcMethod,
   IpcService,
@@ -292,7 +293,7 @@ export class DataSpaceIpcService extends IpcServiceBase {
     args: SpaceOperationArgs & {
       resolution: "ours" | "theirs" | "manual"
       path?: string
-      target?: { table?: string; rowid?: number }
+      target?: GraftConflictResolveTarget
     }
   ): Promise<any> {
     const { spaceName, resolution, path, target } = args

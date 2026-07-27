@@ -1,2054 +1,306 @@
+const assert = require("node:assert/strict")
 const { execFileSync } = require("node:child_process")
 const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
 
-// better-sqlite3 reads SQLITE_USE_URI when its native addon is loaded.
-// Keep this before require("better-sqlite3") so Windows treats file: URLs as
-// SQLite URI filenames instead of ordinary paths.
-process.env.SQLITE_USE_URI = "1"
-
 const Database = require("better-sqlite3")
-const { graftSmokeCommand } = require("./graft-versioning-smoke-command.cjs")
-
-const repositoryConnections = new Map()
-let graftExtensionRegistered = false
-
-const FILE_SPACE_IGNORE = [
-  ".graft/",
-  ".graftignore",
-  ".eidos/db.sqlite3",
-  ".eidos/inbox.sqlite3",
-  ".eidos/raw.sqlite3",
-  ".eidos/cache/",
-  ".eidos/indexes/",
-  ".eidos/sessions/",
-  ".eidos/state/",
-  ".eidos/secrets/",
-  ".eidos/secrets.*",
-  ".DS_Store",
-  "*.tmp",
-  "",
-].join("\n")
-
-function findGraftLibrary() {
-  const extByPlatform = {
-    darwin: "dylib",
-    linux: "so",
-    win32: "dll",
-  }
-  const ext = extByPlatform[process.platform]
-  if (!ext) {
-    throw new Error(`Unsupported platform: ${process.platform}`)
-  }
-
-  const libPath = path.join(
-    __dirname,
-    "..",
-    "dist-sqlite-ext",
-    `libgraft.${ext}`
-  )
-  if (!fs.existsSync(libPath)) {
-    throw new Error(`Graft SQLite extension not found: ${libPath}`)
-  }
-  return libPath
-}
 
 function findGraftCli() {
-  if (process.env.GRAFT_CLI_PATH) {
-    return process.env.GRAFT_CLI_PATH
-  }
+  if (process.env.GRAFT_CLI_PATH) return process.env.GRAFT_CLI_PATH
   const fileName = process.platform === "win32" ? "graft.exe" : "graft"
   const cliPath = path.join(__dirname, "..", "dist-cli", fileName)
-  if (!fs.existsSync(cliPath)) {
+  if (!fs.existsSync(cliPath))
     throw new Error(`Graft CLI not found: ${cliPath}`)
-  }
   return cliPath
 }
 
-function graftDbUri(dbPath) {
-  if (process.platform === "win32") {
-    return `file:${dbPath}?vfs=graft`
-  }
-  const { pathToFileURL } = require("node:url")
-  const url = pathToFileURL(dbPath)
-  url.searchParams.set("vfs", "graft")
-  return url.href
+const graft = findGraftCli()
+
+function runGraft(cwd, args) {
+  const stdout = execFileSync(graft, args, {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, NO_COLOR: "1" },
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim()
+  assert.notEqual(stdout, "", `Graft returned no JSON for ${args.join(" ")}`)
+  return JSON.parse(stdout)
 }
 
-function quotePragma(value) {
-  return `'${String(value).replace(/'/g, "''")}'`
+function commitId(result) {
+  const id = result?.commit?.id ?? result?.id ?? result?.head
+  assert.equal(typeof id, "string", JSON.stringify(result))
+  return id
 }
 
-function removeTempRoot(root) {
-  for (const [repositoryPath, db] of repositoryConnections) {
-    if (
-      repositoryPath === root ||
-      repositoryPath.startsWith(`${root}${path.sep}`)
-    ) {
-      closeDatabase(db)
-      repositoryConnections.delete(repositoryPath)
-    }
-  }
-  try {
-    fs.rmSync(root, { recursive: true, force: true })
-  } catch (error) {
-    console.warn("Could not remove smoke temp directory:", error)
-  }
+function fsRemoteUri(remotePath) {
+  const normalized = path.resolve(remotePath).replaceAll("\\", "/")
+  return normalized.startsWith("/")
+    ? `fs://${normalized}`
+    : `fs:///${normalized}`
 }
 
-function closeDatabase(db) {
-  if (!db) return
-  try {
-    db.close()
-  } catch (error) {
-    console.warn("Could not close smoke database:", error)
-  }
-}
-
-function exitSmoke(code) {
-  // Electron's Windows process can keep the Graft VFS worker alive after the
-  // smoke has closed every database. This script has no asynchronous cleanup
-  // left at this point, so bypass Electron's patched graceful-exit path.
-  if (typeof process.reallyExit === "function") {
-    process.reallyExit(code)
-  }
-  process.exit(code)
-}
-
-function registerGraftExtension() {
-  if (graftExtensionRegistered) return
-  const registrationDb = new Database(":memory:")
-  try {
-    registrationDb.loadExtension(findGraftLibrary())
-    graftExtensionRegistered = true
-  } finally {
-    registrationDb.close()
-  }
-}
-
-function repositoryConnection(repositoryPath) {
-  const existing = repositoryConnections.get(repositoryPath)
-  if (existing?.open) return existing
-
-  registerGraftExtension()
-  const db = new Database(graftDbUri(path.join(repositoryPath, ".graft")))
-  repositoryConnections.set(repositoryPath, db)
-  return db
-}
-
-function runSqliteExtensionSmoke() {
-  const libPath = findGraftLibrary()
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "eidos-graft-extension-smoke-")
+function assertPhysicalSqlite(dbPath, expectedPageSize = 8192) {
+  assert.equal(
+    fs.readFileSync(dbPath).subarray(0, 16).toString("binary"),
+    "SQLite format 3\0"
   )
-  const eidosDir = path.join(root, ".eidos")
-  const dbPath = path.join(eidosDir, "db.sqlite3")
-  fs.mkdirSync(eidosDir, { recursive: true })
+  const db = new Database(dbPath, { readonly: true })
+  assert.equal(db.pragma("page_size", { simple: true }), expectedPageSize)
+  db.close()
+}
 
-  console.log("SQLite extension smoke root:", root)
-  console.log("Graft extension:", libPath)
-  console.log("SQLite URI support:", process.env.SQLITE_USE_URI)
+function runPhysicalWorktreeSmoke() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "eidos-graft-v08-"))
+  const cloneRoot = path.join(root, "clone")
+  const remoteRoot = path.join(root, "remote")
+  const remoteWorktree = path.join(root, "remote-worktree")
+  const worktree = path.join(root, "worktree")
+  fs.mkdirSync(worktree)
+  fs.mkdirSync(cloneRoot)
+  fs.mkdirSync(remoteRoot)
+  fs.mkdirSync(remoteWorktree)
+  const dbPath = path.join(worktree, "db.sqlite3")
 
-  let db
   try {
-    db = new Database(dbPath)
-    db.pragma("journal_mode = WAL")
-    db.exec(`
-      CREATE TABLE eidos__kv (key TEXT PRIMARY KEY, value TEXT);
-      INSERT INTO eidos__kv VALUES ('eidos:space:settings:doc', '{"ok":true}');
-      CREATE TABLE smoke_rows (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
-      INSERT INTO smoke_rows (name) VALUES ('before-versioning');
-    `)
-    db.exec("PRAGMA wal_checkpoint(TRUNCATE)")
-    db.pragma("journal_mode = DELETE")
-    db.pragma("page_size = 4096")
+    runGraft(worktree, ["init", "--json"])
+
+    // WAL: `add` must capture committed frames while Eidos still has the
+    // physical database open; `commit` runs after the handle is closed.
+    let db = new Database(dbPath)
+    db.pragma("page_size = 8192")
     db.exec("VACUUM")
-    closeDatabase(db)
-    db = undefined
-
-    registerGraftExtension()
-
-    const uri = graftDbUri(dbPath)
-    console.log("Opening graft URI:", uri)
-
-    db = new Database(uri)
-    db.pragma("page_size = 4096")
-    db.pragma("journal_mode = MEMORY")
-    db.pragma("graft_init")
-    db.pragma("graft_add")
-    db.pragma(`graft_commit = ${quotePragma("Initial version")}`)
-
-    const row = db.prepare("SELECT name FROM smoke_rows WHERE id = 1").get()
-    if (row?.name !== "before-versioning") {
-      throw new Error(`Unexpected smoke row: ${JSON.stringify(row)}`)
-    }
-
-    const status = db.pragma("graft_json_status")
-    console.log("Graft extension status:", JSON.stringify(status))
-  } finally {
-    closeDatabase(db)
-    removeTempRoot(root)
-  }
-}
-
-function formatCommand(args) {
-  return args
-    .map((arg) => (/^[A-Za-z0-9_./:-]+$/.test(arg) ? arg : JSON.stringify(arg)))
-    .join(" ")
-}
-
-function runGraft(cliPath, cwd, args) {
-  console.log(`graft ${formatCommand(args)}`)
-  try {
-    const output = execFileSync(cliPath, args, {
-      cwd,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim()
-    if (output) console.log(output)
-    return output
-  } catch (error) {
-    const stdout = String(error.stdout || "").trim()
-    const stderr = String(error.stderr || "").trim()
-    const detail = [stdout, stderr].filter(Boolean).join("\n")
-    throw new Error(
-      `graft ${formatCommand(args)} failed${detail ? `:\n${detail}` : ""}`,
-      { cause: error }
-    )
-  }
-}
-
-function runGraftCliJson(cliPath, cwd, args) {
-  const output = runGraft(cliPath, cwd, args)
-  if (!output) {
-    throw new Error(`graft ${formatCommand(args)} returned no JSON output`)
-  }
-  try {
-    return JSON.parse(output)
-  } catch (error) {
-    throw new Error(
-      `graft ${formatCommand(args)} returned invalid JSON: ${output}`,
-      { cause: error }
-    )
-  }
-}
-
-function runGraftJson(cliPath, cwd, args) {
-  const command = graftSmokeCommand(args)
-  if (command.transport === "repository") {
-    return runGraftPragmaJson(
-      repositoryConnection(cwd),
-      command.pragma,
-      command.argument
-    )
-  }
-  const output = runGraft(cliPath, cwd, command.args)
-  if (!output) {
-    throw new Error(`graft ${formatCommand(args)} returned no JSON output`)
-  }
-  try {
-    return JSON.parse(output)
-  } catch (error) {
-    throw new Error(
-      `graft ${formatCommand(args)} returned invalid JSON: ${output}`,
-      { cause: error }
-    )
-  }
-}
-
-function runGraftPragmaJson(db, name, argument) {
-  const statement =
-    argument === undefined ? name : `${name} = ${quotePragma(argument)}`
-  const raw = db.pragma(statement, { simple: true })
-  if (typeof raw !== "string" || !raw.trim()) {
-    throw new Error(`${name} returned an empty JSON response`)
-  }
-  return JSON.parse(raw)
-}
-
-function runPersistentFileSpacePragmaSmoke() {
-  const cliPath = findGraftCli()
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "eidos-graft-persistent-smoke-")
-  )
-  const notePath = "notes/today.md"
-  let db
-
-  console.log("Persistent Graft smoke root:", root)
-  try {
-    fs.mkdirSync(path.join(root, "notes"), { recursive: true })
-    fs.writeFileSync(path.join(root, notePath), "first\n")
-    runGraftJson(cliPath, root, ["init", "--json"])
-
-    db = new Database(graftDbUri(path.join(root, ".graft")))
-    runGraftPragmaJson(db, "graft_json_add", '-- "notes"')
-    const first = runGraftPragmaJson(
-      db,
-      "graft_json_commit",
-      "First persistent version"
-    )
-
-    fs.writeFileSync(path.join(root, notePath), "second\n")
-    const dirty = runGraftPragmaJson(db, "graft_json_status")
-    if (!dirty.has_unstaged_changes) {
-      throw new Error(
-        `Persistent status missed the edit: ${JSON.stringify(dirty)}`
-      )
-    }
-    runGraftPragmaJson(db, "graft_json_add", '-- "notes"')
-    const second = runGraftPragmaJson(
-      db,
-      "graft_json_commit",
-      "Second persistent version"
-    )
-
-    const firstPage = runGraftPragmaJson(
-      db,
-      "graft_json_log",
-      "--with-status --limit 1"
-    )
-    if (
-      firstPage.commits?.[0]?.id !== second.current_head ||
-      firstPage.has_more !== true ||
-      !firstPage.next_cursor
-    ) {
-      throw new Error(
-        `Invalid first history page: ${JSON.stringify(firstPage)}`
-      )
-    }
-    const secondPage = runGraftPragmaJson(
-      db,
-      "graft_json_log",
-      `--with-status --limit 1 --after ${firstPage.next_cursor}`
-    )
-    if (
-      secondPage.commits?.[0]?.id !== first.current_head ||
-      secondPage.has_more !== false
-    ) {
-      throw new Error(
-        `Invalid second history page: ${JSON.stringify(secondPage)}`
-      )
-    }
-
-    const startedAt = performance.now()
-    for (let index = 0; index < 25; index += 1) {
-      runGraftPragmaJson(db, "graft_json_status")
-    }
-    const averageMs = (performance.now() - startedAt) / 25
-    console.log(`Persistent Graft status average: ${averageMs.toFixed(2)}ms`)
-  } finally {
-    closeDatabase(db)
-    removeTempRoot(root)
-  }
-}
-
-function runGraftExpectFailure(cliPath, cwd, args) {
-  console.log(`graft ${formatCommand(args)} (expect failure)`)
-  try {
-    runGraftJson(cliPath, cwd, args)
-  } catch (error) {
-    const detail = String(error.message || error).trim()
-    if (detail) console.log(detail)
-    return detail
-  }
-  throw new Error(`graft ${formatCommand(args)} unexpectedly succeeded`)
-}
-
-function payloadPaths(payload) {
-  if (!Array.isArray(payload?.paths)) {
-    throw new Error(`Expected a paths array: ${JSON.stringify(payload)}`)
-  }
-  return payload.paths.map((entry) =>
-    typeof entry === "string" ? entry : entry?.path
-  )
-}
-
-function assertPaths(payload, expectedPaths, excludedPaths) {
-  const paths = new Set(payloadPaths(payload))
-  for (const expectedPath of expectedPaths) {
-    if (!paths.has(expectedPath)) {
-      throw new Error(
-        `Expected ${expectedPath} in Graft paths: ${JSON.stringify([...paths])}`
-      )
-    }
-  }
-  for (const excludedPath of excludedPaths) {
-    if (paths.has(excludedPath)) {
-      throw new Error(
-        `Ignored path ${excludedPath} appeared in Graft paths: ${JSON.stringify([...paths])}`
-      )
-    }
-  }
-}
-
-function assertPayloadOmitsPath(payload, excludedPath) {
-  if (JSON.stringify(payload).includes(excludedPath)) {
-    throw new Error(
-      `Ignored path ${excludedPath} appeared in Graft output: ${JSON.stringify(payload)}`
-    )
-  }
-}
-
-function commitAll(cliPath, root, message) {
-  runGraftJson(cliPath, root, ["add", "--all", "--json"])
-  const result = runGraftJson(cliPath, root, [
-    "commit",
-    "--json",
-    "-m",
-    message,
-  ])
-  if (!result.commit?.id) {
-    throw new Error(
-      `Graft commit returned no commit id: ${JSON.stringify(result)}`
-    )
-  }
-  return result.commit.id
-}
-
-function captureRepoSnapshot(cliPath, root) {
-  const history = runGraftJson(cliPath, root, ["log", "--json"])
-  const index = runGraftJson(cliPath, root, ["ls-files", "--json", "--stage"])
-  if (!Array.isArray(history.commits) || !Array.isArray(index.paths)) {
-    throw new Error(
-      `Could not capture Graft repository state: ${JSON.stringify({ history, index })}`
-    )
-  }
-  return {
-    head: history.current_head,
-    commitIds: history.commits.map((commit) => commit.id),
-    indexPaths: index.paths,
-  }
-}
-
-function assertRepoSnapshotUnchanged(cliPath, root, before, operation) {
-  const after = captureRepoSnapshot(cliPath, root)
-  if (
-    after.head !== before.head ||
-    JSON.stringify(after.commitIds) !== JSON.stringify(before.commitIds) ||
-    JSON.stringify(after.indexPaths) !== JSON.stringify(before.indexPaths)
-  ) {
-    throw new Error(
-      `${operation} changed HEAD, history, or the index: ${JSON.stringify({ before, after })}`
-    )
-  }
-}
-
-function runFileSpaceRepositorySmoke() {
-  const cliPath = findGraftCli()
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "eidos-graft-file-space-smoke-")
-  )
-  const notePath = "note.md"
-  const assetPath = "assets/image.png"
-  const gonePath = "archive/gone.md"
-  const laterPath = "later.md"
-  const quotedPath = "notes/John's  note.md"
-  const sessionPath = ".eidos/sessions/session.jsonl"
-  const initialNote = "# Smoke note\n\nHello Graft.\n"
-  const updatedNote = `${initialNote}\nA second version.\n`
-  const initialAsset = Buffer.from([
-    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-  ])
-  const initialGone = "Restore me from the first version.\n"
-  const initialQuoted = "A path with quotes and repeated spaces.\n"
-  const updatedQuoted = "Updated quoted path.\n"
-
-  console.log("File Space smoke root:", root)
-  console.log("Graft CLI (initialization only):", cliPath)
-
-  try {
-    fs.mkdirSync(path.join(root, "assets"), { recursive: true })
-    fs.mkdirSync(path.join(root, "archive"), { recursive: true })
-    fs.mkdirSync(path.join(root, "notes"), { recursive: true })
-    fs.mkdirSync(path.join(root, ".eidos", "sessions"), { recursive: true })
-    fs.writeFileSync(path.join(root, notePath), initialNote)
-    fs.writeFileSync(path.join(root, assetPath), initialAsset)
-    fs.writeFileSync(path.join(root, gonePath), initialGone)
-    fs.writeFileSync(path.join(root, quotedPath), initialQuoted)
-    fs.writeFileSync(
-      path.join(root, sessionPath),
-      '{"kind":"private-runtime-state"}\n'
-    )
-    fs.writeFileSync(path.join(root, ".graftignore"), FILE_SPACE_IGNORE)
-    // Eidos creates the directory first so it can hold the cross-process lock.
-    // Graft init must repair this valid partial-initialization state.
-    fs.mkdirSync(path.join(root, ".graft"))
-
-    const init = runGraftJson(cliPath, root, ["init", "--json"])
-    if (
-      init.operation !== "init" ||
-      !fs.existsSync(path.join(root, ".graft"))
-    ) {
-      throw new Error(
-        `Graft repository was not initialized: ${JSON.stringify(init)}`
-      )
-    }
-
-    const initialStatus = runGraftJson(cliPath, root, ["status", "--json"])
-    assertPaths(
-      initialStatus,
-      [notePath, assetPath, gonePath, quotedPath],
-      [sessionPath]
-    )
-
-    const add = runGraftJson(cliPath, root, ["add", "--all", "--json"])
-    assertPaths(add, [notePath, assetPath, gonePath, quotedPath], [sessionPath])
-
-    const stagedStatus = runGraftJson(cliPath, root, ["status", "--json"])
-    assertPaths(
-      stagedStatus,
-      [notePath, assetPath, gonePath, quotedPath],
-      [sessionPath]
-    )
-
-    const commit = runGraftJson(cliPath, root, [
-      "commit",
-      "--json",
-      "-m",
-      "Initial file Space version",
-    ])
-    if (!commit.commit?.id) {
-      throw new Error(
-        `Graft commit returned no commit id: ${JSON.stringify(commit)}`
-      )
-    }
-    assertPaths(
-      commit,
-      [notePath, assetPath, gonePath, quotedPath],
-      [sessionPath]
-    )
-
-    const cleanStatus = runGraftJson(cliPath, root, ["status", "--json"])
-    if (cleanStatus.dirty || payloadPaths(cleanStatus).length !== 0) {
-      throw new Error(
-        `Expected a clean Graft worktree after commit: ${JSON.stringify(cleanStatus)}`
-      )
-    }
-    assertPayloadOmitsPath(cleanStatus, sessionPath)
-
-    const history = runGraftJson(cliPath, root, ["log", "--json"])
-    if (!Array.isArray(history.commits) || history.commits.length === 0) {
-      throw new Error(
-        `Graft log returned no commits: ${JSON.stringify(history)}`
-      )
-    }
-    if (!history.commits.some((entry) => entry.id === commit.commit.id)) {
-      throw new Error(
-        `Graft log did not include commit ${commit.commit.id}: ${JSON.stringify(history)}`
-      )
-    }
-    assertPayloadOmitsPath(history, sessionPath)
-
-    const rootDiff = runGraftJson(cliPath, root, [
-      "diff",
-      "--json",
-      "--root",
-      commit.commit.id,
-    ])
-    if (rootDiff.from !== "root" || rootDiff.to !== commit.commit.id) {
-      throw new Error(
-        `Graft root diff returned the wrong revisions: ${JSON.stringify(rootDiff)}`
-      )
-    }
-    assertPaths(
-      rootDiff,
-      [notePath, assetPath, gonePath, quotedPath],
-      [sessionPath]
-    )
-
-    const rootContentDiff = runGraftJson(cliPath, root, [
-      "diff",
-      "--json",
-      "--content",
-      "--max-content-bytes",
-      "1048576",
-      "--root",
-      commit.commit.id,
-      "--",
-      quotedPath,
-    ])
-    if (
-      rootContentDiff.content?.before?.state !== "absent" ||
-      rootContentDiff.content?.after?.state !== "utf8" ||
-      rootContentDiff.content.after.content !== initialQuoted
-    ) {
-      throw new Error(
-        `Graft root content diff returned the wrong file: ${JSON.stringify(rootContentDiff)}`
-      )
-    }
-
-    fs.writeFileSync(path.join(root, notePath), updatedNote)
-    fs.writeFileSync(path.join(root, assetPath), Buffer.from([1, 2, 3, 4]))
-    fs.rmSync(path.join(root, "archive"), { recursive: true })
-    fs.writeFileSync(
-      path.join(root, laterPath),
-      "Only in the second version.\n"
-    )
-    fs.writeFileSync(path.join(root, quotedPath), updatedQuoted)
-
-    const worktreeContentDiff = runGraftJson(cliPath, root, [
-      "diff",
-      "--json",
-      "--content",
-      "--max-content-bytes",
-      "1048576",
-      "HEAD",
-      "--",
-      quotedPath,
-    ])
-    if (
-      worktreeContentDiff.to !== "worktree" ||
-      worktreeContentDiff.content?.before?.state !== "utf8" ||
-      worktreeContentDiff.content.before.content !== initialQuoted ||
-      worktreeContentDiff.content?.after?.state !== "utf8" ||
-      worktreeContentDiff.content.after.content !== updatedQuoted
-    ) {
-      throw new Error(
-        `Graft worktree content diff returned the wrong file: ${JSON.stringify(worktreeContentDiff)}`
-      )
-    }
-
-    const includedQuoted = runGraftJson(cliPath, root, [
-      "add",
-      "--json",
-      "--",
-      quotedPath,
-    ])
-    if (
-      JSON.stringify(payloadPaths(includedQuoted)) !==
-      JSON.stringify([quotedPath])
-    ) {
-      throw new Error(
-        `Graft single-path add included the wrong paths: ${JSON.stringify(includedQuoted)}`
-      )
-    }
-    const includedStatus = runGraftJson(cliPath, root, ["status", "--json"])
-    const includedEntry = includedStatus.paths.find(
-      (entry) => entry.path === quotedPath
-    )
-    if (
-      includedEntry?.index_status !== "modified" ||
-      includedEntry?.worktree_status !== "none"
-    ) {
-      throw new Error(
-        `Graft did not stage only the selected path: ${JSON.stringify(includedStatus)}`
-      )
-    }
-    runGraftJson(cliPath, root, [
-      "restore",
-      "--json",
-      "--staged",
-      "--expected-head",
-      commit.commit.id,
-      "--",
-      quotedPath,
-    ])
-    const excludedStatus = runGraftJson(cliPath, root, ["status", "--json"])
-    const excludedEntry = excludedStatus.paths.find(
-      (entry) => entry.path === quotedPath
-    )
-    if (
-      excludedEntry?.index_status !== "none" ||
-      excludedEntry?.worktree_status !== "modified"
-    ) {
-      throw new Error(
-        `Graft did not unstage the selected path: ${JSON.stringify(excludedStatus)}`
-      )
-    }
-
-    const secondAdd = runGraftJson(cliPath, root, ["add", "--all", "--json"])
-    assertPaths(
-      secondAdd,
-      [notePath, assetPath, gonePath, laterPath, quotedPath],
-      [sessionPath]
-    )
-
-    const secondCommit = runGraftJson(cliPath, root, [
-      "commit",
-      "--json",
-      "-m",
-      "Update smoke note",
-    ])
-    if (!secondCommit.commit?.id) {
-      throw new Error(
-        `Second Graft commit returned no commit id: ${JSON.stringify(secondCommit)}`
-      )
-    }
-
-    const detail = runGraftJson(cliPath, root, [
-      "show",
-      "--json",
-      "--",
-      secondCommit.commit.id,
-    ])
-    if (detail.id !== secondCommit.commit.id) {
-      throw new Error(
-        `Graft show returned the wrong commit: ${JSON.stringify(detail)}`
-      )
-    }
-    assertPayloadOmitsPath(detail, sessionPath)
-
-    const diff = runGraftJson(cliPath, root, [
-      "diff",
-      "--json",
-      commit.commit.id,
-      secondCommit.commit.id,
-    ])
-    assertPaths(
-      diff,
-      [notePath, assetPath, gonePath, laterPath, quotedPath],
-      [sessionPath]
-    )
-
-    const textContentDiff = runGraftJson(cliPath, root, [
-      "diff",
-      "--json",
-      "--content",
-      "--max-content-bytes",
-      "1048576",
-      commit.commit.id,
-      secondCommit.commit.id,
-      "--",
-      notePath,
-    ])
-    if (
-      textContentDiff.content?.before?.state !== "utf8" ||
-      textContentDiff.content.before.content !== initialNote ||
-      textContentDiff.content?.after?.state !== "utf8" ||
-      textContentDiff.content.after.content !== updatedNote
-    ) {
-      throw new Error(
-        `Graft text content diff returned the wrong revisions: ${JSON.stringify(textContentDiff)}`
-      )
-    }
-
-    const updatedHistory = runGraftJson(cliPath, root, ["log", "--json"])
-    if (
-      !Array.isArray(updatedHistory.commits) ||
-      updatedHistory.commits.length < 2
-    ) {
-      throw new Error(
-        `Graft log did not include both versions: ${JSON.stringify(updatedHistory)}`
-      )
-    }
-    assertPayloadOmitsPath(updatedHistory, sessionPath)
-
-    const headBeforeRestore = updatedHistory.current_head
-    const historyLengthBeforeRestore = updatedHistory.commits.length
-    const staleHeadError = runGraftExpectFailure(cliPath, root, [
-      "restore",
-      "--json",
-      "--expected-head",
-      commit.commit.id,
-      "--source",
-      commit.commit.id,
-      "--",
-      notePath,
-    ])
-    if (!/HEAD changed/i.test(staleHeadError)) {
-      throw new Error(
-        `Graft returned the wrong stale-HEAD error: ${staleHeadError}`
-      )
-    }
-    if (fs.readFileSync(path.join(root, notePath), "utf8") !== updatedNote) {
-      throw new Error("A stale expected HEAD changed the worktree")
-    }
-
-    const localDraft = "Local draft must survive require-clean.\n"
-    fs.writeFileSync(path.join(root, notePath), localDraft)
-    const dirtyError = runGraftExpectFailure(cliPath, root, [
-      "restore",
-      "--json",
-      "--expected-head",
-      headBeforeRestore,
-      "--require-clean",
-      "--source",
-      commit.commit.id,
-      "--",
-      notePath,
-    ])
-    if (!/tracked worktree changes/i.test(dirtyError)) {
-      throw new Error(
-        `Graft returned the wrong require-clean error: ${dirtyError}`
-      )
-    }
-    if (fs.readFileSync(path.join(root, notePath), "utf8") !== localDraft) {
-      throw new Error("A rejected require-clean restore changed the worktree")
-    }
-    fs.writeFileSync(path.join(root, notePath), updatedNote)
-
-    runGraftJson(cliPath, root, [
-      "restore",
-      "--json",
-      "--expected-head",
-      headBeforeRestore,
-      "--source",
-      commit.commit.id,
-      "--",
-      notePath,
-    ])
-    runGraftJson(cliPath, root, [
-      "restore",
-      "--json",
-      "--expected-head",
-      headBeforeRestore,
-      "--source",
-      commit.commit.id,
-      "--",
-      assetPath,
-    ])
-    runGraftJson(cliPath, root, [
-      "restore",
-      "--json",
-      "--expected-head",
-      headBeforeRestore,
-      "--source",
-      commit.commit.id,
-      "--",
-      gonePath,
-    ])
-    runGraftJson(cliPath, root, [
-      "restore",
-      "--json",
-      "--expected-head",
-      headBeforeRestore,
-      "--source",
-      commit.commit.id,
-      "--",
-      laterPath,
-    ])
-    runGraftJson(cliPath, root, [
-      "restore",
-      "--json",
-      "--expected-head",
-      headBeforeRestore,
-      "--source",
-      commit.commit.id,
-      "--",
-      quotedPath,
-    ])
-
-    if (fs.readFileSync(path.join(root, notePath), "utf8") !== initialNote) {
-      throw new Error("Text restore did not recover the first version")
-    }
-    if (!fs.readFileSync(path.join(root, assetPath)).equals(initialAsset)) {
-      throw new Error("Binary restore did not recover the first version")
-    }
-    if (fs.readFileSync(path.join(root, gonePath), "utf8") !== initialGone) {
-      throw new Error(
-        "Restore did not recreate a deleted file and its missing parent"
-      )
-    }
-    if (fs.existsSync(path.join(root, laterPath))) {
-      throw new Error("Restore did not recover the selected version's deletion")
-    }
-    if (
-      fs.readFileSync(path.join(root, quotedPath), "utf8") !== initialQuoted
-    ) {
-      throw new Error("Restore changed a quoted or repeated-space path")
-    }
-
-    const restoredStatus = runGraftJson(cliPath, root, ["status", "--json"])
-    assertPaths(
-      restoredStatus,
-      [notePath, assetPath, gonePath, laterPath, quotedPath],
-      [sessionPath]
-    )
-    if (restoredStatus.has_staged_changes) {
-      throw new Error(
-        `Restore unexpectedly changed the index: ${JSON.stringify(restoredStatus)}`
-      )
-    }
-
-    const historyAfterRestore = runGraftJson(cliPath, root, ["log", "--json"])
-    if (
-      historyAfterRestore.current_head !== headBeforeRestore ||
-      historyAfterRestore.commits.length !== historyLengthBeforeRestore
-    ) {
-      throw new Error(
-        `Restore changed version history: ${JSON.stringify(historyAfterRestore)}`
-      )
-    }
-  } finally {
-    removeTempRoot(root)
-  }
-}
-
-function runRestoreConflictSmoke() {
-  const cliPath = findGraftCli()
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "eidos-graft-restore-conflict-smoke-")
-  )
-  const notePath = "note.md"
-
-  console.log("Restore conflict smoke root:", root)
-
-  try {
-    fs.writeFileSync(path.join(root, notePath), "base\n")
-    runGraftJson(cliPath, root, ["init", "--json"])
-    runGraftJson(cliPath, root, ["add", "--all", "--json"])
-    runGraftJson(cliPath, root, [
-      "commit",
-      "--json",
-      "-m",
-      "Eidos File conflict note",
-    ])
-    runGraftJson(cliPath, root, ["branch", "--json", "feature/restore"])
-    runGraftJson(cliPath, root, ["switch", "--json", "feature/restore"])
-    fs.writeFileSync(path.join(root, notePath), "feature\n")
-    runGraftJson(cliPath, root, ["add", "--all", "--json"])
-    runGraftJson(cliPath, root, [
-      "commit",
-      "--json",
-      "-m",
-      "Feature conflict note",
-    ])
-    runGraftJson(cliPath, root, ["switch", "--json", "main"])
-    fs.writeFileSync(path.join(root, notePath), "main\n")
-    runGraftJson(cliPath, root, ["add", "--all", "--json"])
-    runGraftJson(cliPath, root, [
-      "commit",
-      "--json",
-      "-m",
-      "Main conflict note",
-    ])
-    const merge = runGraftJson(cliPath, root, [
-      "merge",
-      "--json",
-      "feature/restore",
-    ])
-    if (
-      !Array.isArray(merge.conflicted) ||
-      !merge.conflicted.includes(notePath)
-    ) {
-      throw new Error(`Expected a note conflict: ${JSON.stringify(merge)}`)
-    }
-
-    const beforeRestore = fs.readFileSync(path.join(root, notePath))
-    const restoreError = runGraftExpectFailure(cliPath, root, [
-      "restore",
-      "--json",
-      "--source",
-      "HEAD~1",
-      "--",
-      notePath,
-    ])
-    if (!restoreError.includes("unresolved index conflicts")) {
-      throw new Error(`Restore returned the wrong conflict: ${restoreError}`)
-    }
-    if (!fs.readFileSync(path.join(root, notePath)).equals(beforeRestore)) {
-      throw new Error("A rejected restore changed a conflicted worktree file")
-    }
-
-    const status = runGraftJson(cliPath, root, ["status", "--json"])
-    if (!status.has_conflicts || status.dirty || status.has_unstaged_changes) {
-      throw new Error(
-        `Rejected restore changed repository status: ${JSON.stringify(status)}`
-      )
-    }
-  } finally {
-    removeTempRoot(root)
-  }
-}
-
-function runWholeSpaceRestoreSmoke() {
-  const cliPath = findGraftCli()
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "eidos-graft-whole-space-restore-smoke-")
-  )
-  const modifiedTextPath = "modified.md"
-  const modifiedBinaryPath = "assets/modified.bin"
-  const deletedTextPath = "missing/parent/deleted.md"
-  const deletedBinaryPath = "missing/parent/deleted.bin"
-  const addedTextPath = "added/new.md"
-  const addedBinaryPath = "added/new.bin"
-  const untrackedPath = "local-only.keep"
-  const oldText = "Text from the target version.\n"
-  const currentText = "Text from the current version.\n"
-  const oldBinary = Buffer.from([0x00, 0x11, 0x7f, 0x80, 0xfe, 0xff])
-  const currentBinary = Buffer.from([0xff, 0xee, 0x90, 0x02, 0x01, 0x00])
-  const deletedText = "Recreate this text file and its parents.\n"
-  const deletedBinary = Buffer.from([0xde, 0xad, 0x00, 0xbe, 0xef])
-  const addedText = "This text only exists in the current version.\n"
-  const addedBinary = Buffer.from([0xca, 0xfe, 0xba, 0xbe, 0x00])
-  const untrackedContent = "Keep this unrelated untracked file.\n"
-
-  console.log("Whole Space restore smoke root:", root)
-
-  try {
-    fs.mkdirSync(path.join(root, "assets"), { recursive: true })
-    fs.mkdirSync(path.join(root, "missing", "parent"), { recursive: true })
-    fs.writeFileSync(path.join(root, modifiedTextPath), oldText)
-    fs.writeFileSync(path.join(root, modifiedBinaryPath), oldBinary)
-    fs.writeFileSync(path.join(root, deletedTextPath), deletedText)
-    fs.writeFileSync(path.join(root, deletedBinaryPath), deletedBinary)
-    runGraftJson(cliPath, root, ["init", "--json"])
-    const targetRevision = commitAll(
-      cliPath,
-      root,
-      "Whole Space restore target"
-    )
-
-    fs.writeFileSync(path.join(root, modifiedTextPath), currentText)
-    fs.writeFileSync(path.join(root, modifiedBinaryPath), currentBinary)
-    fs.rmSync(path.join(root, "missing"), { recursive: true })
-    fs.mkdirSync(path.join(root, "added"), { recursive: true })
-    fs.writeFileSync(path.join(root, addedTextPath), addedText)
-    fs.writeFileSync(path.join(root, addedBinaryPath), addedBinary)
-    const currentRevision = commitAll(
-      cliPath,
-      root,
-      "Current Whole Space version"
-    )
-    fs.writeFileSync(path.join(root, untrackedPath), untrackedContent)
-
-    const before = captureRepoSnapshot(cliPath, root)
-    if (before.head !== currentRevision) {
-      throw new Error(
-        `Whole Space smoke started from the wrong HEAD: ${JSON.stringify(before)}`
-      )
-    }
-
-    const restore = runGraftJson(cliPath, root, [
-      "restore",
-      "--json",
-      "--expected-head",
-      currentRevision,
-      "--source",
-      targetRevision,
-      "--",
-      ".",
-    ])
-    assertPaths(
-      restore,
-      [
-        modifiedTextPath,
-        modifiedBinaryPath,
-        deletedTextPath,
-        deletedBinaryPath,
-        addedTextPath,
-        addedBinaryPath,
-      ],
-      [untrackedPath]
-    )
-
-    if (
-      fs.readFileSync(path.join(root, modifiedTextPath), "utf8") !== oldText
-    ) {
-      throw new Error("Whole Space restore did not recover modified text")
-    }
-    if (
-      !fs.readFileSync(path.join(root, modifiedBinaryPath)).equals(oldBinary)
-    ) {
-      throw new Error(
-        "Whole Space restore did not recover modified binary data"
-      )
-    }
-    if (
-      fs.readFileSync(path.join(root, deletedTextPath), "utf8") !== deletedText
-    ) {
-      throw new Error(
-        "Whole Space restore did not recreate deleted text or missing parents"
-      )
-    }
-    if (
-      !fs.readFileSync(path.join(root, deletedBinaryPath)).equals(deletedBinary)
-    ) {
-      throw new Error(
-        "Whole Space restore did not recreate deleted binary data"
-      )
-    }
-    if (
-      fs.existsSync(path.join(root, addedTextPath)) ||
-      fs.existsSync(path.join(root, addedBinaryPath))
-    ) {
-      throw new Error(
-        "Whole Space restore kept files added after the target version"
-      )
-    }
-    if (
-      fs.readFileSync(path.join(root, untrackedPath), "utf8") !==
-      untrackedContent
-    ) {
-      throw new Error("Whole Space restore changed an unrelated untracked file")
-    }
-
-    assertRepoSnapshotUnchanged(cliPath, root, before, "Whole Space restore")
-    const status = runGraftJson(cliPath, root, ["status", "--json"])
-    assertPaths(
-      status,
-      [
-        modifiedTextPath,
-        modifiedBinaryPath,
-        deletedTextPath,
-        deletedBinaryPath,
-        addedTextPath,
-        addedBinaryPath,
-        untrackedPath,
-      ],
-      []
-    )
-    if (
-      !status.dirty ||
-      !status.has_unstaged_changes ||
-      status.has_staged_changes ||
-      status.has_conflicts ||
-      status.staged.length !== 0 ||
-      status.conflicted.length !== 0
-    ) {
-      throw new Error(
-        `Whole Space restore did not leave only unstaged Changes: ${JSON.stringify(status)}`
-      )
-    }
-  } finally {
-    removeTempRoot(root)
-  }
-}
-
-function runWholeSpaceTopologyRestoreSmoke() {
-  const cliPath = findGraftCli()
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "eidos-graft-root-restore-topology-smoke-")
-  )
-  const shapePath = "shape"
-  const childPath = "shape/child.md"
-  const fileContent = "This version stores shape as a file.\n"
-  const childContent = "This version stores shape as a directory.\n"
-
-  console.log("Whole Space topology restore smoke root:", root)
-
-  try {
-    fs.writeFileSync(path.join(root, shapePath), fileContent)
-    runGraftJson(cliPath, root, ["init", "--json"])
-    const fileRevision = commitAll(cliPath, root, "Track shape as a file")
-
-    fs.rmSync(path.join(root, shapePath))
-    fs.mkdirSync(path.join(root, shapePath))
-    fs.writeFileSync(path.join(root, childPath), childContent)
-    const directoryRevision = commitAll(
-      cliPath,
-      root,
-      "Track shape as a directory"
-    )
-
-    const beforeFileRestore = captureRepoSnapshot(cliPath, root)
-    const fileRestore = runGraftJson(cliPath, root, [
-      "restore",
-      "--json",
-      "--expected-head",
-      directoryRevision,
-      "--source",
-      fileRevision,
-      "--",
-      ".",
-    ])
-    assertPaths(fileRestore, [shapePath, childPath], [])
-    if (
-      !fs.statSync(path.join(root, shapePath)).isFile() ||
-      fs.readFileSync(path.join(root, shapePath), "utf8") !== fileContent
-    ) {
-      throw new Error(
-        "Whole Space restore did not replace a directory with its historical file"
-      )
-    }
-    assertRepoSnapshotUnchanged(
-      cliPath,
-      root,
-      beforeFileRestore,
-      "Directory-to-file Whole Space restore"
-    )
-
-    const restoredFileRevision = commitAll(
-      cliPath,
-      root,
-      "Commit restored file topology"
-    )
-    const beforeDirectoryRestore = captureRepoSnapshot(cliPath, root)
-    const directoryRestore = runGraftJson(cliPath, root, [
-      "restore",
-      "--json",
-      "--expected-head",
-      restoredFileRevision,
-      "--source",
-      directoryRevision,
-      "--",
-      ".",
-    ])
-    assertPaths(directoryRestore, [shapePath, childPath], [])
-    if (
-      !fs.statSync(path.join(root, shapePath)).isDirectory() ||
-      fs.readFileSync(path.join(root, childPath), "utf8") !== childContent
-    ) {
-      throw new Error(
-        "Whole Space restore did not replace a file with its historical directory"
-      )
-    }
-    assertRepoSnapshotUnchanged(
-      cliPath,
-      root,
-      beforeDirectoryRestore,
-      "File-to-directory Whole Space restore"
-    )
-  } finally {
-    removeTempRoot(root)
-  }
-}
-
-function runWholeSpaceRestoreUntrackedCollisionSmoke() {
-  const cliPath = findGraftCli()
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "eidos-graft-root-restore-collision-smoke-")
-  )
-  const earlyPath = "a-early.md"
-  const collisionPath = "collision/restored.bin"
-  const oldEarly = "target early file\n"
-  const currentEarly = "current early file\n"
-  const historicalCollision = Buffer.from([0x10, 0x20, 0x30, 0x40])
-  const localCollision = Buffer.from([0xaa, 0xbb, 0xcc, 0xdd])
-
-  console.log("Whole Space untracked collision smoke root:", root)
-
-  try {
-    fs.mkdirSync(path.join(root, "collision"), { recursive: true })
-    fs.writeFileSync(path.join(root, earlyPath), oldEarly)
-    fs.writeFileSync(path.join(root, collisionPath), historicalCollision)
-    runGraftJson(cliPath, root, ["init", "--json"])
-    const targetRevision = commitAll(
-      cliPath,
-      root,
-      "Track future collision path"
-    )
-
-    fs.writeFileSync(path.join(root, earlyPath), currentEarly)
-    fs.rmSync(path.join(root, "collision"), { recursive: true })
-    commitAll(cliPath, root, "Delete future collision path")
-    fs.mkdirSync(path.join(root, "collision"), { recursive: true })
-    fs.writeFileSync(path.join(root, collisionPath), localCollision)
-
-    const before = captureRepoSnapshot(cliPath, root)
-    const restoreError = runGraftExpectFailure(cliPath, root, [
-      "restore",
-      "--json",
-      "--source",
-      targetRevision,
-      "--",
-      ".",
-    ])
-    if (!restoreError.includes("untracked paths would be overwritten")) {
-      throw new Error(
-        `Whole Space restore returned the wrong collision error: ${restoreError}`
-      )
-    }
-    if (
-      fs.readFileSync(path.join(root, earlyPath), "utf8") !== currentEarly ||
-      !fs.readFileSync(path.join(root, collisionPath)).equals(localCollision)
-    ) {
-      throw new Error(
-        "Rejected Whole Space restore changed a file before detecting an untracked collision"
-      )
-    }
-    assertRepoSnapshotUnchanged(
-      cliPath,
-      root,
-      before,
-      "Rejected Whole Space collision restore"
-    )
-  } finally {
-    removeTempRoot(root)
-  }
-}
-
-function runWholeSpaceRestoreSymlinkSafetySmoke() {
-  if (process.platform === "win32") return
-
-  const cliPath = findGraftCli()
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "eidos-graft-root-restore-symlink-smoke-")
-  )
-  const externalRoot = fs.mkdtempSync(
-    path.join(os.tmpdir(), "eidos-graft-root-restore-external-")
-  )
-  const earlyPath = "a-early.md"
-  const linkedPath = "linked/escape.md"
-  const oldEarly = "target early file\n"
-  const currentEarly = "current early file\n"
-  const historicalLinked = "historical linked file\n"
-  const externalSentinel = "external file must not change\n"
-
-  console.log("Whole Space symlink safety smoke root:", root)
-
-  try {
-    fs.mkdirSync(path.join(root, "linked"), { recursive: true })
-    fs.writeFileSync(path.join(root, earlyPath), oldEarly)
-    fs.writeFileSync(path.join(root, linkedPath), historicalLinked)
-    runGraftJson(cliPath, root, ["init", "--json"])
-    const targetRevision = commitAll(
-      cliPath,
-      root,
-      "Track path later replaced by symlink"
-    )
-
-    fs.writeFileSync(path.join(root, earlyPath), currentEarly)
-    fs.rmSync(path.join(root, "linked"), { recursive: true })
-    commitAll(cliPath, root, "Delete linked path")
-    fs.writeFileSync(path.join(externalRoot, "escape.md"), externalSentinel)
-    fs.symlinkSync(externalRoot, path.join(root, "linked"), "dir")
-
-    const before = captureRepoSnapshot(cliPath, root)
-    const restoreError = runGraftExpectFailure(cliPath, root, [
-      "restore",
-      "--json",
-      "--source",
-      targetRevision,
-      "--",
-      ".",
-    ])
-    if (!restoreError.includes("not a directory")) {
-      throw new Error(
-        `Whole Space restore returned the wrong symlink error: ${restoreError}`
-      )
-    }
-    if (
-      fs.readFileSync(path.join(root, earlyPath), "utf8") !== currentEarly ||
-      fs.readFileSync(path.join(externalRoot, "escape.md"), "utf8") !==
-        externalSentinel ||
-      !fs.lstatSync(path.join(root, "linked")).isSymbolicLink()
-    ) {
-      throw new Error(
-        "Rejected Whole Space restore changed the worktree symlink or an external file"
-      )
-    }
-    assertRepoSnapshotUnchanged(
-      cliPath,
-      root,
-      before,
-      "Rejected Whole Space symlink restore"
-    )
-  } finally {
-    removeTempRoot(root)
-    removeTempRoot(externalRoot)
-  }
-}
-
-function runWholeSpaceRestoreAncestorSafetySmoke() {
-  const cliPath = findGraftCli()
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "eidos-graft-root-restore-ancestor-smoke-")
-  )
-  const earlyPath = "a-early.md"
-  const latePath = "z-late/child.md"
-  const ancestorPath = "z-late"
-  const oldEarly = "target early file\n"
-  const currentEarly = "current early file\n"
-  const ancestorContent = "ordinary file blocking a later restore path\n"
-
-  console.log("Whole Space ancestor safety smoke root:", root)
-
-  try {
-    fs.mkdirSync(path.join(root, "z-late"), { recursive: true })
-    fs.writeFileSync(path.join(root, earlyPath), oldEarly)
-    fs.writeFileSync(path.join(root, latePath), "restore this late file\n")
-    runGraftJson(cliPath, root, ["init", "--json"])
-    const targetRevision = commitAll(
-      cliPath,
-      root,
-      "Track path with a later ancestor"
-    )
-
-    fs.writeFileSync(path.join(root, earlyPath), currentEarly)
-    fs.rmSync(path.join(root, "z-late"), { recursive: true })
-    commitAll(cliPath, root, "Delete later nested path")
-    fs.writeFileSync(path.join(root, ancestorPath), ancestorContent)
-
-    const before = captureRepoSnapshot(cliPath, root)
-    const restoreError = runGraftExpectFailure(cliPath, root, [
-      "restore",
-      "--json",
-      "--source",
-      targetRevision,
-      "--",
-      ".",
-    ])
-    if (!restoreError.includes("not a directory")) {
-      throw new Error(
-        `Whole Space restore returned the wrong ancestor error: ${restoreError}`
-      )
-    }
-    if (
-      fs.readFileSync(path.join(root, earlyPath), "utf8") !== currentEarly ||
-      fs.readFileSync(path.join(root, ancestorPath), "utf8") !== ancestorContent
-    ) {
-      throw new Error(
-        "Rejected Whole Space restore changed an earlier file before ancestor preflight failed"
-      )
-    }
-    assertRepoSnapshotUnchanged(
-      cliPath,
-      root,
-      before,
-      "Rejected Whole Space ancestor restore"
-    )
-  } finally {
-    removeTempRoot(root)
-  }
-}
-
-function runAmbiguousPathSafetySmoke() {
-  const cliPath = findGraftCli()
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "eidos-graft-path-safety-smoke-")
-  )
-  const plainPath = "note.md"
-  const slashPath = "folder/note.md"
-  const spacedPath = " note.md "
-  const backslashPath = "folder\\note.md"
-
-  console.log("Path identity smoke root:", root)
-
-  try {
-    fs.mkdirSync(path.join(root, "folder"))
-    fs.writeFileSync(path.join(root, plainPath), "committed plain\n")
-    fs.writeFileSync(path.join(root, slashPath), "committed slash\n")
-    runGraftJson(cliPath, root, ["init", "--json"])
-    runGraftJson(cliPath, root, ["add", "--all", "--json"])
-    runGraftJson(cliPath, root, [
-      "commit",
-      "--json",
-      "-m",
-      "Track unambiguous paths",
-    ])
-
-    fs.writeFileSync(path.join(root, plainPath), "local plain draft\n")
-    fs.writeFileSync(path.join(root, slashPath), "local slash draft\n")
-    fs.writeFileSync(path.join(root, spacedPath), "ambiguous spaced path\n")
-    const addError = runGraftExpectFailure(cliPath, root, [
-      "add",
-      "--all",
-      "--json",
-    ])
-    if (!addError.includes("unsupported repository identity")) {
-      throw new Error(`Graft returned the wrong path safety error: ${addError}`)
-    }
-    if (
-      fs.readFileSync(path.join(root, plainPath), "utf8") !==
-        "local plain draft\n" ||
-      fs.readFileSync(path.join(root, spacedPath), "utf8") !==
-        "ambiguous spaced path\n"
-    ) {
-      throw new Error("Rejected add changed an ambiguous worktree path")
-    }
-    fs.rmSync(path.join(root, spacedPath))
-
-    if (process.platform !== "win32") {
-      fs.writeFileSync(
-        path.join(root, backslashPath),
-        "ambiguous backslash path\n"
-      )
-      const restoreError = runGraftExpectFailure(cliPath, root, [
-        "restore",
-        "--json",
-        "--source",
-        "HEAD",
-        "--",
-        backslashPath,
-      ])
-      if (!restoreError.includes("backslashes are not supported")) {
-        throw new Error(
-          `Graft returned the wrong backslash safety error: ${restoreError}`
-        )
-      }
-      if (
-        fs.readFileSync(path.join(root, slashPath), "utf8") !==
-          "local slash draft\n" ||
-        fs.readFileSync(path.join(root, backslashPath), "utf8") !==
-          "ambiguous backslash path\n"
-      ) {
-        throw new Error("Rejected restore changed an aliased path")
-      }
-      fs.rmSync(path.join(root, backslashPath))
-    }
-
-    const status = runGraftJson(cliPath, root, ["status", "--json"])
-    if (status.has_staged_changes) {
-      throw new Error(
-        `Rejected ambiguous paths left staged changes: ${JSON.stringify(status)}`
-      )
-    }
-  } finally {
-    removeTempRoot(root)
-  }
-}
-
-function queryText(db, sql) {
-  const row = db.prepare(sql).get()
-  return row ? String(Object.values(row)[0]) : ""
-}
-
-function assertWorkspaceClean(db, branch) {
-  const status = runGraftPragmaJson(db, "graft_json_status")
-  if (
-    status.current_branch !== branch ||
-    status.dirty ||
-    status.counts?.unstaged !== 0 ||
-    status.counts?.staged !== 0 ||
-    status.counts?.conflicted !== 0
-  ) {
-    throw new Error(
-      `Expected a clean ${branch} workspace: ${JSON.stringify(status)}`
-    )
-  }
-}
-
-function assertCliWorkspaceClean(cliPath, root, branch) {
-  const status = runGraftCliJson(cliPath, root, ["status", "--json"])
-  if (
-    status.current_branch !== branch ||
-    status.dirty ||
-    status.counts?.unstaged !== 0 ||
-    status.counts?.staged !== 0 ||
-    status.counts?.conflicted !== 0
-  ) {
-    throw new Error(
-      `Expected a clean ${branch} CLI workspace: ${JSON.stringify(status)}`
-    )
-  }
-}
-
-function withPhysicalDatabase(filePath, operation) {
-  const db = new Database(filePath)
-  try {
-    return operation(db)
-  } finally {
+    assert.equal(db.pragma("page_size", { simple: true }), 8192)
+    assert.equal(db.pragma("journal_mode = WAL", { simple: true }), "wal")
+    db.pragma("wal_autocheckpoint = 0")
+    db.exec(`
+      CREATE TABLE notes(id INTEGER PRIMARY KEY, body TEXT NOT NULL) STRICT;
+      CREATE TABLE typed_docs(
+        namespace TEXT NOT NULL,
+        id BLOB NOT NULL,
+        body TEXT NOT NULL,
+        PRIMARY KEY(namespace, id)
+      ) STRICT, WITHOUT ROWID;
+      INSERT INTO typed_docs VALUES ('personal', X'00ff', 'base-one');
+    `)
+    db.prepare("INSERT INTO notes(body) VALUES (?)").run("committed in WAL")
+    assert.ok(fs.existsSync(`${dbPath}-wal`), "WAL should exist before add")
+    runGraft(worktree, ["add", "--json", "db.sqlite3"])
+    assert.equal(db.prepare("SELECT count(*) FROM notes").pluck().get(), 1)
     db.close()
-  }
-}
-
-function runBareMultiSqliteWorkspaceCliSmoke() {
-  const cliPath = findGraftCli()
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "eidos-graft-bare-workspace-cli-smoke-")
-  )
-  const primaryPath = path.join(root, "primary.base")
-  const secondaryPath = path.join(root, "secondary.sqlite")
-  const mainOnlyPath = path.join(root, "main-only.base")
-  const featureOnlyPath = path.join(root, "feature-only.base")
-
-  console.log("Bare multi-SQLite CLI workspace smoke root:", root)
-  try {
-    runGraftCliJson(cliPath, root, ["init", "--json"])
-    withPhysicalDatabase(primaryPath, (db) =>
-      db.exec(
-        "CREATE TABLE notes(body TEXT); INSERT INTO notes VALUES ('main primary')"
-      )
-    )
-    withPhysicalDatabase(secondaryPath, (db) =>
-      db.exec(
-        "CREATE TABLE settings(value TEXT); INSERT INTO settings VALUES ('main secondary')"
-      )
-    )
-    withPhysicalDatabase(mainOnlyPath, (db) =>
-      db.exec(
-        "CREATE TABLE marker(value TEXT); INSERT INTO marker VALUES ('main only')"
-      )
-    )
-    fs.writeFileSync(path.join(root, "note.md"), "main markdown\n")
-    fs.writeFileSync(path.join(root, "blob.bin"), Buffer.from([0, 1, 2, 255]))
-    runGraftCliJson(cliPath, root, ["add", "--all", "--json"])
-    runGraftCliJson(cliPath, root, [
+    const walCommit = runGraft(worktree, [
       "commit",
       "--json",
-      "-m",
-      "main bare workspace",
+      "--message",
+      "Capture committed WAL frames",
     ])
-    assertCliWorkspaceClean(cliPath, root, "main")
+    const walRevision = commitId(walCommit)
+    assertPhysicalSqlite(dbPath)
 
-    runGraftCliJson(cliPath, root, ["switch", "--create", "--json", "feature"])
-    withPhysicalDatabase(primaryPath, (db) =>
-      db.exec("UPDATE notes SET body = 'feature primary'")
+    // Rollback journal: a completed transaction is stageable while the
+    // connection remains live, and commit leaves an ordinary SQLite file.
+    db = new Database(dbPath)
+    assert.equal(db.pragma("journal_mode = DELETE", { simple: true }), "delete")
+    db.exec("BEGIN IMMEDIATE")
+    db.prepare("INSERT INTO notes(body) VALUES (?)").run("rollback journal")
+    db.prepare("INSERT INTO typed_docs VALUES (?, ?, ?)").run(
+      "personal",
+      Buffer.from("01fe", "hex"),
+      "base-two"
     )
-    withPhysicalDatabase(secondaryPath, (db) =>
-      db.exec("UPDATE settings SET value = 'feature secondary'")
-    )
-    fs.rmSync(mainOnlyPath)
-    withPhysicalDatabase(featureOnlyPath, (db) =>
-      db.exec(
-        "CREATE TABLE marker(value TEXT); INSERT INTO marker VALUES ('feature only')"
-      )
-    )
-    fs.renameSync(path.join(root, "note.md"), path.join(root, "renamed.md"))
-    fs.writeFileSync(path.join(root, "renamed.md"), "feature markdown\n")
-    fs.writeFileSync(path.join(root, "blob.bin"), Buffer.from([9, 8, 7, 0]))
-    runGraftCliJson(cliPath, root, ["add", "--all", "--json"])
-    runGraftCliJson(cliPath, root, [
+    db.exec("COMMIT")
+    runGraft(worktree, ["add", "--json", "db.sqlite3"])
+    db.close()
+    const rollbackCommit = runGraft(worktree, [
       "commit",
       "--json",
-      "-m",
-      "feature bare workspace",
+      "--message",
+      "Capture rollback-journal transaction",
     ])
-    assertCliWorkspaceClean(cliPath, root, "feature")
+    const rollbackRevision = commitId(rollbackCommit)
+    assertPhysicalSqlite(dbPath)
 
-    runGraftCliJson(cliPath, root, ["switch", "--json", "main"])
-    const mainPrimary = withPhysicalDatabase(primaryPath, (db) =>
-      queryText(db, "SELECT body FROM notes")
+    db = new Database(dbPath)
+    assert.deepEqual(
+      db.prepare("SELECT body FROM notes ORDER BY id").pluck().all(),
+      ["committed in WAL", "rollback journal"]
     )
-    const mainSecondary = withPhysicalDatabase(secondaryPath, (db) =>
-      queryText(db, "SELECT value FROM settings")
-    )
-    if (
-      mainPrimary !== "main primary" ||
-      mainSecondary !== "main secondary" ||
-      !fs.existsSync(mainOnlyPath) ||
-      fs.existsSync(featureOnlyPath) ||
-      !fs.existsSync(path.join(root, "note.md")) ||
-      fs.existsSync(path.join(root, "renamed.md")) ||
-      !fs
-        .readFileSync(path.join(root, "blob.bin"))
-        .equals(Buffer.from([0, 1, 2, 255]))
-    ) {
-      throw new Error("Bare CLI switch did not materialize the main workspace")
-    }
-    assertCliWorkspaceClean(cliPath, root, "main")
+    db.close()
 
-    fs.writeFileSync(path.join(root, "main-note.md"), "main branch only\n")
-    runGraftCliJson(cliPath, root, ["add", "--all", "--json"])
-    runGraftCliJson(cliPath, root, [
-      "commit",
+    // v0.8 exposes declared primary keys for STRICT/WITHOUT ROWID tables and
+    // can merge changes to different composite/BLOB keys.
+    runGraft(worktree, ["branch", "--json", "feature", rollbackRevision])
+    runGraft(worktree, ["--db", "db.sqlite3", "switch", "--json", "feature"])
+    db = new Database(dbPath)
+    db.prepare(
+      "UPDATE typed_docs SET body = ? WHERE namespace = ? AND id = ?"
+    ).run("feature-one", "personal", Buffer.from("00ff", "hex"))
+    runGraft(worktree, ["add", "--json", "db.sqlite3"])
+    db.close()
+    const featureRevision = commitId(
+      runGraft(worktree, [
+        "commit",
+        "--json",
+        "--message",
+        "Update first typed row",
+      ])
+    )
+
+    runGraft(worktree, ["--db", "db.sqlite3", "switch", "--json", "main"])
+    db = new Database(dbPath)
+    db.prepare(
+      "UPDATE typed_docs SET body = ? WHERE namespace = ? AND id = ?"
+    ).run("main-two", "personal", Buffer.from("01fe", "hex"))
+    runGraft(worktree, ["add", "--json", "db.sqlite3"])
+    db.close()
+    commitId(
+      runGraft(worktree, [
+        "commit",
+        "--json",
+        "--message",
+        "Update second typed row",
+      ])
+    )
+
+    const typedDiff = runGraft(worktree, [
+      "--db",
+      "db.sqlite3",
+      "diff",
+      "--rows",
       "--json",
-      "-m",
-      "main bare workspace artifact",
+      rollbackRevision,
+      featureRevision,
     ])
-    runGraftCliJson(cliPath, root, ["merge", "--json", "feature"])
-    runGraftCliJson(cliPath, root, [
+    const typedTable = typedDiff.files
+      ?.find((entry) => entry.path === "db.sqlite3")
+      ?.tables?.find((entry) => entry.name === "typed_docs")
+    assert.deepEqual(typedTable?.primary_key_columns, ["namespace", "id"])
+    assert.deepEqual(typedTable?.changes?.[0]?.key, {
+      namespace: "personal",
+      id: { $blob: "00ff" },
+    })
+
+    runGraft(worktree, ["--db", "db.sqlite3", "merge", "--json", "feature"])
+    const mergeCommit = runGraft(worktree, [
+      "--db",
+      "db.sqlite3",
       "merge",
       "--continue",
       "--json",
-      "-m",
-      "merge feature bare workspace",
+      "--message",
+      "Merge typed rows",
     ])
-    if (
-      withPhysicalDatabase(primaryPath, (db) =>
-        queryText(db, "SELECT body FROM notes")
-      ) !== "feature primary" ||
-      withPhysicalDatabase(secondaryPath, (db) =>
-        queryText(db, "SELECT value FROM settings")
-      ) !== "feature secondary" ||
-      fs.existsSync(mainOnlyPath) ||
-      !fs.existsSync(featureOnlyPath) ||
-      !fs.existsSync(path.join(root, "renamed.md"))
-    ) {
-      throw new Error("Bare CLI merge did not materialize the merged workspace")
-    }
-    assertCliWorkspaceClean(cliPath, root, "main")
-
-    withPhysicalDatabase(primaryPath, (db) =>
-      db.exec("UPDATE notes SET body = 'dirty primary'")
+    const mergeRevision = commitId(mergeCommit)
+    db = new Database(dbPath, { readonly: true })
+    assert.deepEqual(
+      db
+        .prepare("SELECT hex(id), body FROM typed_docs ORDER BY id")
+        .all()
+        .map((row) => Object.values(row)),
+      [
+        ["00FF", "feature-one"],
+        ["01FE", "main-two"],
+      ]
     )
-    withPhysicalDatabase(secondaryPath, (db) =>
-      db.exec("UPDATE settings SET value = 'dirty secondary'")
-    )
-    runGraftCliJson(cliPath, root, ["reset", "--hard", "--json", "HEAD"])
-    if (
-      withPhysicalDatabase(primaryPath, (db) =>
-        queryText(db, "SELECT body FROM notes")
-      ) !== "feature primary" ||
-      withPhysicalDatabase(secondaryPath, (db) =>
-        queryText(db, "SELECT value FROM settings")
-      ) !== "feature secondary"
-    ) {
-      throw new Error("Bare CLI reset did not restore both SQLite paths")
-    }
-    assertCliWorkspaceClean(cliPath, root, "main")
+    db.close()
+    assertPhysicalSqlite(dbPath)
 
-    console.log(
-      "Bare multi-SQLite CLI workspace smoke passed without --db:",
-      JSON.stringify({
-        commands: ["status", "add", "switch", "merge", "reset"],
-        sqlitePaths: ["primary.base", "secondary.sqlite"],
-        otherPaths: ["renamed.md", "blob.bin"],
-      })
-    )
-  } finally {
-    removeTempRoot(root)
-  }
-}
-
-function runMultiSqliteWorkspaceSmoke() {
-  const cliPath = findGraftCli()
-  registerGraftExtension()
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "eidos-graft-multi-sqlite-smoke-")
-  )
-  const primaryPath = path.join(root, "primary.base")
-  const secondaryPath = path.join(root, "secondary.sqlite")
-  const mainOnlyPath = path.join(root, "main-only.base")
-  const featureOnlyPath = path.join(root, "feature-only.base")
-  let workspace
-  let primary
-  let secondary
-  let mainOnly
-  let featureOnly
-
-  console.log("Multi-SQLite workspace smoke root:", root)
-  try {
-    runGraftJson(cliPath, root, ["init", "--json"])
-
-    // Reproduce both halves of the v0.5 workspace proxy: a persistent VFS tag
-    // and physical control database sidecars. Opening the v0.6 anonymous
-    // workspace session must remove only these legacy implementation files.
-    const legacyControlPath = path.join(root, ".graft", "control.sqlite")
-    const legacyControl = new Database(graftDbUri(legacyControlPath))
-    legacyControl.exec("CREATE TABLE legacy_proxy(value TEXT)")
-    legacyControl.close()
-    for (const suffix of ["", "-journal", "-wal", "-shm"]) {
-      fs.writeFileSync(`${legacyControlPath}${suffix}`, `legacy${suffix}`)
-    }
-
-    workspace = new Database(graftDbUri(path.join(root, ".graft")))
-    for (const suffix of ["", "-journal", "-wal", "-shm"]) {
-      if (fs.existsSync(`${legacyControlPath}${suffix}`)) {
-        throw new Error(`Legacy control.sqlite${suffix} was not removed`)
-      }
-    }
-    if (fs.existsSync(path.join(root, ".graft-clone.sqlite"))) {
-      throw new Error("Legacy clone proxy was recreated")
-    }
-
-    primary = new Database(graftDbUri(primaryPath))
-    secondary = new Database(graftDbUri(secondaryPath))
-    mainOnly = new Database(graftDbUri(mainOnlyPath))
-    primary.exec(
-      "CREATE TABLE notes(body TEXT); INSERT INTO notes VALUES ('main primary')"
-    )
-    secondary.exec(
-      "CREATE TABLE settings(value TEXT); INSERT INTO settings VALUES ('main secondary')"
-    )
-    mainOnly.exec(
-      "CREATE TABLE marker(value TEXT); INSERT INTO marker VALUES ('main only')"
-    )
-    fs.writeFileSync(path.join(root, "note.md"), "main markdown\n")
-    fs.writeFileSync(path.join(root, "blob.bin"), Buffer.from([0, 1, 2, 255]))
-    runGraftPragmaJson(workspace, "graft_json_add", "--all")
-    runGraftPragmaJson(workspace, "graft_json_commit", "main workspace")
-    assertWorkspaceClean(workspace, "main")
-
-    runGraftPragmaJson(workspace, "graft_json_switch_create", "feature")
-    primary.exec("UPDATE notes SET body = 'feature primary'")
-    secondary.exec("UPDATE settings SET value = 'feature secondary'")
-    runGraftPragmaJson(workspace, "graft_json_rm", "main-only.base")
-    featureOnly = new Database(graftDbUri(featureOnlyPath))
-    featureOnly.exec(
-      "CREATE TABLE marker(value TEXT); INSERT INTO marker VALUES ('feature only')"
-    )
-    fs.renameSync(path.join(root, "note.md"), path.join(root, "renamed.md"))
-    fs.writeFileSync(path.join(root, "renamed.md"), "feature markdown\n")
-    fs.writeFileSync(path.join(root, "blob.bin"), Buffer.from([9, 8, 7, 0]))
-    runGraftPragmaJson(workspace, "graft_json_add", "--all")
-    runGraftPragmaJson(workspace, "graft_json_commit", "feature workspace")
-    assertWorkspaceClean(workspace, "feature")
-
-    runGraftPragmaJson(workspace, "graft_json_switch_branch", "main")
-    if (
-      queryText(primary, "SELECT body FROM notes") !== "main primary" ||
-      queryText(secondary, "SELECT value FROM settings") !== "main secondary" ||
-      queryText(mainOnly, "SELECT value FROM marker") !== "main only" ||
-      queryText(
-        featureOnly,
-        "SELECT count(*) FROM sqlite_schema WHERE name = 'marker'"
-      ) !== "0"
-    ) {
-      throw new Error("Naked workspace switch did not rebind every SQLite path")
-    }
-    if (
-      !fs.existsSync(path.join(root, "note.md")) ||
-      fs.existsSync(path.join(root, "renamed.md")) ||
-      !fs
-        .readFileSync(path.join(root, "blob.bin"))
-        .equals(Buffer.from([0, 1, 2, 255]))
-    ) {
-      throw new Error("Workspace switch did not restore text/binary topology")
-    }
-    assertWorkspaceClean(workspace, "main")
-
-    secondary.exec("BEGIN")
-    if (
-      queryText(secondary, "SELECT value FROM settings") !== "main secondary"
-    ) {
-      throw new Error("Read transaction did not start on the main snapshot")
-    }
-    runGraftPragmaJson(workspace, "graft_json_switch_branch", "feature")
-    if (
-      queryText(secondary, "SELECT value FROM settings") !== "main secondary"
-    ) {
-      throw new Error("Read transaction lost its stable SQLite snapshot")
-    }
-    secondary.exec("COMMIT")
-    if (
-      queryText(primary, "SELECT body FROM notes") !== "feature primary" ||
-      queryText(secondary, "SELECT value FROM settings") !==
-        "feature secondary" ||
-      queryText(featureOnly, "SELECT value FROM marker") !== "feature only"
-    ) {
-      throw new Error("Idle connections did not refresh workspace bindings")
-    }
-    assertWorkspaceClean(workspace, "feature")
-
-    secondary.exec("BEGIN IMMEDIATE")
-    let writeTransactionError = ""
-    try {
-      runGraftPragmaJson(workspace, "graft_json_switch_branch", "main")
-    } catch (error) {
-      writeTransactionError = String(error.message || error)
-    }
-    if (!writeTransactionError.includes("another SQLite write transaction")) {
-      throw new Error(
-        `Workspace switch returned the wrong write transaction error: ${writeTransactionError}`
-      )
-    }
-    assertWorkspaceClean(workspace, "feature")
-    secondary.exec("ROLLBACK")
-    const afterRollback = runGraftPragmaJson(workspace, "graft_json_status")
-    if (afterRollback.dirty) {
-      console.warn(
-        "Graft v0.6.1 marks an empty rolled-back write transaction dirty; " +
-          "resetting the affected binding before continuing the smoke"
-      )
-      runGraftPragmaJson(workspace, "graft_json_reset", "--hard HEAD")
-    }
-    assertWorkspaceClean(workspace, "feature")
-
-    runGraftPragmaJson(workspace, "graft_json_switch_branch", "main")
-    fs.writeFileSync(path.join(root, "main-note.md"), "main branch only\n")
-    runGraftPragmaJson(workspace, "graft_json_add", '-- "main-note.md"')
-    runGraftPragmaJson(workspace, "graft_json_commit", "main branch artifact")
-    const merge = runGraftPragmaJson(workspace, "graft_json_merge", "feature")
-    if (merge.operation !== "merge") {
-      throw new Error(`Workspace merge failed: ${JSON.stringify(merge)}`)
-    }
-    runGraftPragmaJson(
-      workspace,
-      "graft_json_merge_continue",
-      "merge feature workspace"
-    )
-    if (
-      queryText(primary, "SELECT body FROM notes") !== "feature primary" ||
-      queryText(secondary, "SELECT value FROM settings") !== "feature secondary"
-    ) {
-      throw new Error("Workspace merge did not activate both SQLite snapshots")
-    }
-    assertWorkspaceClean(workspace, "main")
-
-    primary.exec("UPDATE notes SET body = 'dirty primary'")
-    secondary.exec("UPDATE settings SET value = 'dirty secondary'")
-    runGraftPragmaJson(workspace, "graft_json_reset", "--hard HEAD")
-    if (
-      queryText(primary, "SELECT body FROM notes") !== "feature primary" ||
-      queryText(secondary, "SELECT value FROM settings") !== "feature secondary"
-    ) {
-      throw new Error("Hard reset did not restore both SQLite snapshots")
-    }
-    assertWorkspaceClean(workspace, "main")
-
-    console.log(
-      "Multi-SQLite workspace smoke passed:",
-      JSON.stringify({
-        legacyProxyCleanup: "ok",
-        paths: ["primary.base", "secondary.sqlite", "renamed.md", "blob.bin"],
-        readSnapshot: "stable then refreshed",
-        reset: "two SQLite bindings restored",
-        writeTransaction: "rejected without branch movement",
-      })
-    )
-  } finally {
-    closeDatabase(featureOnly)
-    closeDatabase(mainOnly)
-    closeDatabase(secondary)
-    closeDatabase(primary)
-    closeDatabase(workspace)
-    removeTempRoot(root)
-  }
-}
-
-function runPersistentRemoteConflictSmoke() {
-  const cliPath = findGraftCli()
-  registerGraftExtension()
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "eidos-graft-remote-conflict-smoke-")
-  )
-  const remoteRoot = path.join(root, "remote")
-  const firstRoot = path.join(root, "first")
-  const secondRoot = path.join(root, "second")
-  const notePath = "note.md"
-  const remoteUri = `fs://${remoteRoot}`
-  let firstDb
-  let secondDb
-
-  console.log("Persistent remote conflict smoke root:", root)
-
-  try {
-    fs.mkdirSync(firstRoot, { recursive: true })
-    fs.mkdirSync(secondRoot, { recursive: true })
-    fs.writeFileSync(path.join(firstRoot, notePath), "initial\n")
-    fs.writeFileSync(path.join(firstRoot, ".graftignore"), ".graft/\n")
-    runGraftJson(cliPath, firstRoot, ["init", "--json"])
-
-    firstDb = new Database(graftDbUri(path.join(firstRoot, ".graft")))
-    runGraftPragmaJson(firstDb, "graft_json_remote_add", `origin ${remoteUri}`)
-    runGraftPragmaJson(
-      firstDb,
-      "graft_json_config_set",
-      "files.inline_text_threshold -- 4 B"
-    )
-    runGraftPragmaJson(firstDb, "graft_json_add", "--all")
-    runGraftPragmaJson(firstDb, "graft_json_commit", "Initial remote version")
-    runGraftPragmaJson(
-      firstDb,
-      "graft_json_branch_upstream",
-      "main origin/main"
-    )
-    const initialPush = runGraftPragmaJson(
-      firstDb,
-      "graft_json_push",
-      "origin main"
-    )
-    if (initialPush.operation !== "push") {
-      throw new Error(`Initial push failed: ${JSON.stringify(initialPush)}`)
-    }
-    closeDatabase(firstDb)
-    firstDb = undefined
-
-    const cloned = runGraftJson(cliPath, secondRoot, [
-      "clone",
-      remoteUri,
-      "main",
+    // Exercise a clean real remote round-trip in a default-page-size worktree.
+    // HTTP v1 URIs use the same untouched CLI argument path; the unit suite
+    // covers that pass-through contract.
+    runGraft(remoteWorktree, ["init", "--json"])
+    const remoteDbPath = path.join(remoteWorktree, "db.sqlite3")
+    db = new Database(remoteDbPath)
+    db.exec("CREATE TABLE notes(id INTEGER PRIMARY KEY, body TEXT NOT NULL)")
+    db.prepare("INSERT INTO notes(body) VALUES (?)").run("initial remote")
+    runGraft(remoteWorktree, ["add", "--json", "db.sqlite3"])
+    db.close()
+    runGraft(remoteWorktree, [
+      "commit",
       "--json",
+      "--message",
+      "Initial remote",
     ])
-    if (!cloned.current_head) {
-      throw new Error(
-        `Clone did not check out a version: ${JSON.stringify(cloned)}`
-      )
-    }
+    const remoteUri = fsRemoteUri(remoteRoot)
+    runGraft(remoteWorktree, ["remote", "add", "--json", "origin", remoteUri])
+    runGraft(remoteWorktree, [
+      "branch",
+      "--json",
+      "--set-upstream-to",
+      "origin/main",
+      "main",
+    ])
+    runGraft(remoteWorktree, ["push", "--json"])
+    runGraft(cloneRoot, ["clone", "--json", remoteUri])
+    assertPhysicalSqlite(path.join(cloneRoot, "db.sqlite3"), 4096)
 
-    firstDb = new Database(graftDbUri(path.join(firstRoot, ".graft")))
-    secondDb = new Database(graftDbUri(path.join(secondRoot, ".graft")))
-    runGraftPragmaJson(
-      secondDb,
-      "graft_json_config_set",
-      "files.inline_text_threshold -- 4 B"
+    db = new Database(remoteDbPath)
+    db.prepare("INSERT INTO notes(body) VALUES (?)").run("pull round trip")
+    runGraft(remoteWorktree, ["add", "--json", "db.sqlite3"])
+    db.close()
+    runGraft(remoteWorktree, [
+      "commit",
+      "--json",
+      "--message",
+      "Publish pull round trip",
+    ])
+    runGraft(remoteWorktree, ["push", "--json"])
+    const cloneStatus = runGraft(cloneRoot, ["status", "--json"])
+    assert.equal(cloneStatus.dirty, false, JSON.stringify(cloneStatus, null, 2))
+    runGraft(cloneRoot, ["pull", "--json"])
+    db = new Database(path.join(cloneRoot, "db.sqlite3"), { readonly: true })
+    assert.equal(
+      db
+        .prepare("SELECT count(*) FROM notes WHERE body = ?")
+        .pluck()
+        .get("pull round trip"),
+      1
     )
+    db.close()
 
-    fs.writeFileSync(path.join(firstRoot, notePath), "remote edit\n")
-    runGraftPragmaJson(firstDb, "graft_json_add", `-- ${notePath}`)
-    runGraftPragmaJson(firstDb, "graft_json_commit", "Remote edit")
-    runGraftPragmaJson(firstDb, "graft_json_push", "origin main")
+    // A worktree-replacing command only runs while SQLite is closed.
+    db = new Database(dbPath)
+    db.prepare("UPDATE notes SET body = ? WHERE id = 2").run("later edit")
+    runGraft(worktree, ["add", "--json", "db.sqlite3"])
+    db.close()
+    runGraft(worktree, ["commit", "--json", "--message", "Later edit"])
+    runGraft(worktree, [
+      "--db",
+      "db.sqlite3",
+      "checkout",
+      "--json",
+      "--force",
+      rollbackRevision,
+    ])
+    db = new Database(dbPath, { readonly: true })
+    assert.equal(
+      db.prepare("SELECT body FROM notes WHERE id = 2").pluck().get(),
+      "rollback journal"
+    )
+    db.close()
 
-    fs.writeFileSync(path.join(secondRoot, notePath), "local edit\n")
-    runGraftPragmaJson(secondDb, "graft_json_add", `-- ${notePath}`)
-    runGraftPragmaJson(secondDb, "graft_json_commit", "Local edit")
-    const pull = runGraftPragmaJson(secondDb, "graft_json_pull", "origin main")
-    const conflicted = runGraftPragmaJson(secondDb, "graft_json_status")
-    if (
-      pull.operation !== "pull" ||
-      !conflicted.has_conflicts ||
-      !conflicted.merge_head
-    ) {
-      throw new Error(
-        `Diverged pull did not create a conflict: ${JSON.stringify({ pull, conflicted })}`
-      )
-    }
-
-    const conflicts = runGraftPragmaJson(secondDb, "graft_json_conflicts")
-    if (
-      conflicts.paths?.length !== 1 ||
-      conflicts.paths[0]?.path !== notePath ||
-      conflicts.paths[0]?.status !== "unresolved"
-    ) {
-      throw new Error(`Invalid conflict list: ${JSON.stringify(conflicts)}`)
-    }
-    const diff = runGraftPragmaJson(
-      secondDb,
-      "graft_json_diff",
-      `--content --max-content-bytes 1048576 ${conflicted.current_head} ${conflicted.merge_head} -- ${notePath}`
-    )
-    if (
-      diff.content?.before?.content !== "local edit\n" ||
-      diff.content?.after?.content !== "remote edit\n"
-    ) {
-      throw new Error(
-        `Conflict diff returned wrong sides: ${JSON.stringify(diff)}`
-      )
-    }
-
-    const resolved = runGraftPragmaJson(
-      secondDb,
-      "graft_json_resolve_conflict",
-      `--theirs --path ${notePath}`
-    )
-    if (
-      resolved.remaining_conflicts !== 0 ||
-      fs.readFileSync(path.join(secondRoot, notePath), "utf8") !==
-        "remote edit\n"
-    ) {
-      throw new Error(`Conflict resolution failed: ${JSON.stringify(resolved)}`)
-    }
-    const merged = runGraftPragmaJson(
-      secondDb,
-      "graft_json_merge_continue",
-      "Merge remote versions"
-    )
-    if (merged.commit?.parents?.length !== 2) {
-      throw new Error(
-        `Merge commit lost its parents: ${JSON.stringify(merged)}`
-      )
-    }
-    const finalPush = runGraftPragmaJson(
-      secondDb,
-      "graft_json_push",
-      "origin main"
-    )
-    if (finalPush.operation !== "push") {
-      throw new Error(`Merged push failed: ${JSON.stringify(finalPush)}`)
-    }
     console.log(
-      "Persistent remote conflict smoke passed:",
       JSON.stringify({
-        pulledCommits: pull.commits,
-        conflictPath: conflicts.paths[0].path,
-        resolution: resolved.resolution,
-        mergeParents: merged.commit.parents.length,
-        pushedCommits: finalPush.commits,
+        graftVersion: "0.8.1",
+        worktree: "physical-sqlite",
+        walRevision,
+        rollbackRevision,
+        featureRevision,
+        mergeRevision,
+        remote: "fs-round-trip",
       })
     )
   } finally {
-    closeDatabase(secondDb)
-    closeDatabase(firstDb)
-    removeTempRoot(root)
+    fs.rmSync(root, { recursive: true, force: true })
   }
 }
 
 try {
-  if (process.argv[2] === "remote-conflict") {
-    runPersistentRemoteConflictSmoke()
-  } else if (process.argv[2] === "multi-sqlite") {
-    runBareMultiSqliteWorkspaceCliSmoke()
-    runMultiSqliteWorkspaceSmoke()
-  } else {
-    runSqliteExtensionSmoke()
-    runPersistentFileSpacePragmaSmoke()
-    runFileSpaceRepositorySmoke()
-    runRestoreConflictSmoke()
-    runWholeSpaceRestoreSmoke()
-    runWholeSpaceTopologyRestoreSmoke()
-    runWholeSpaceRestoreUntrackedCollisionSmoke()
-    runWholeSpaceRestoreSymlinkSafetySmoke()
-    runWholeSpaceRestoreAncestorSafetySmoke()
-    runAmbiguousPathSafetySmoke()
-    runBareMultiSqliteWorkspaceCliSmoke()
-    runMultiSqliteWorkspaceSmoke()
-    runPersistentRemoteConflictSmoke()
-  }
-  exitSmoke(0)
+  runPhysicalWorktreeSmoke()
+  if (typeof process.reallyExit === "function") process.reallyExit(0)
 } catch (error) {
   console.error(error)
-  exitSmoke(1)
+  if (typeof process.reallyExit === "function") process.reallyExit(1)
+  process.exitCode = 1
 }

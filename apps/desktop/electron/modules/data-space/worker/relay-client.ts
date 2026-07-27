@@ -189,7 +189,6 @@ export class RelayClient {
     const wsUrl = `${RELAY_WS_BASE}/subscribe?channels=${channels.join(",")}`
 
     console.log(`[RelayClient] Channels to subscribe:`, channels)
-    console.log(`[RelayClient] Using token: ${token.substring(0, 20)}...`)
     console.log(`[RelayClient] Connecting WebSocket: ${wsUrl}`)
 
     try {

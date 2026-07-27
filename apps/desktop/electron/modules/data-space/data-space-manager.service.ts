@@ -1,51 +1,47 @@
-import fs from "fs"
-import path from "path"
-import { Worker } from "worker_threads"
 import type { DataSpace } from "@/packages/core/data-space"
 import log from "electron-log"
 
-import { Injectable, Inject, container } from "../../common/di"
-import { ConfigManager } from "../config/config-manager"
-import { CredentialsManager } from "../sync/credentials"
-import { SpaceRegistry } from "../space-management/space-registry"
-import { getSpacePath } from "../../utils/paths"
+import { Inject, Injectable, container } from "../../common/di"
 import { getResourcePath } from "../../utils/resources"
+import { SpaceRegistry } from "../space-management/space-registry"
+import {
+  actionableGraftRemoteError,
+  graftRemoteHttpStatus,
+  isOfficialGraftRemoteUrl,
+  OfficialGraftRemoteService,
+} from "../sync/official-graft-remote"
 import { DataSpaceProcessPool } from "./data-space-process-pool.service"
 import { RpcClient } from "./worker/rpc/rpc-client"
 import type { WorkerInitData } from "./worker/rpc/rpc-types"
 
-/**
- * DataSpace Manager - Manages DataSpace instance lifecycle
- *
- * Responsibilities:
- * - Initialize and manage DataSpace instances
- * - Handle space switching
- * - Manage sync workers
- */
+const REMOTE_METHODS = new Set([
+  "clone",
+  "convertToGraft",
+  "fetch",
+  "pull",
+  "push",
+  "reconfigureRemote",
+])
+const REMOTE_RPC_METHODS = new Set(
+  [...REMOTE_METHODS].flatMap((method) => [method, `graft.${method}`])
+)
+
 @Injectable()
 export class DataSpaceManager {
   private dataSpaceProxy: DataSpace | null = null
   private currentSpaceId: string | null = null
   private initializationPromise: Promise<DataSpace> | null = null
-  private syncWorkers: Map<string, Worker> = new Map()
 
   constructor(
-    @Inject(ConfigManager) private configManager: ConfigManager,
     @Inject(DataSpaceProcessPool) private processPool: DataSpaceProcessPool
   ) {}
 
-  /**
-   * Get CredentialsManager from DI container
-   */
-  private get credentialsManager(): CredentialsManager {
-    return container.get(CredentialsManager)
-  }
-
-  /**
-   * Get SpaceRegistry from DI container
-   */
   private get spaceRegistry(): SpaceRegistry {
     return container.get(SpaceRegistry)
+  }
+
+  private get officialRemote(): OfficialGraftRemoteService {
+    return container.get(OfficialGraftRemoteService)
   }
 
   public getCurrentSpaceId(): string | null {
@@ -57,32 +53,18 @@ export class DataSpaceManager {
   }
 
   public async reload(): Promise<DataSpace | null> {
-    console.log("====== reload data space ======")
     const spaceId = this.currentSpaceId
-    if (!spaceId) {
-      return null
-    }
+    if (!spaceId) return null
 
-    this.stopSyncWorker(spaceId)
     await this.processPool.kill(spaceId)
     this.dataSpaceProxy = null
     this.initializationPromise = null
-
-    // Reinitialize with the same space.
     return this.getOrSetDataSpace(spaceId)
   }
 
   public async close(): Promise<boolean> {
-    if (!this.currentSpaceId) {
-      return false
-    }
-
-    // Terminate the process via pool
+    if (!this.currentSpaceId) return false
     this.processPool.killAll()
-
-    // Stop sync worker
-    this.stopSyncWorker(this.currentSpaceId)
-
     this.dataSpaceProxy = null
     this.currentSpaceId = null
     return true
@@ -93,22 +75,18 @@ export class DataSpaceManager {
     syncOptions?: {
       enabled: boolean
       remote?: string
-      provider?: string
       requireRemoteClone?: boolean
     }
   ): Promise<DataSpace> {
     if (this.currentSpaceId === spaceId && this.dataSpaceProxy) {
       return this.dataSpaceProxy
     }
-
     if (this.initializationPromise && this.currentSpaceId === spaceId) {
       return this.initializationPromise
     }
 
     const spaceInfo = this.spaceRegistry.getSpace(spaceId)
-    if (!spaceInfo) {
-      throw new Error(`Space not found: ${spaceId}`)
-    }
+    if (!spaceInfo) throw new Error(`Space not found: ${spaceId}`)
     if (spaceInfo.mode === "file") {
       throw new Error(
         `File Space ${spaceId} does not have a legacy DataSpace database`
@@ -119,81 +97,77 @@ export class DataSpaceManager {
       log.info(`Initializing data space manager for space: ${spaceId}`)
       this.currentSpaceId = spaceId
 
-      // Prepare Init configuration for the worker
-      const libPath = getResourcePath(`dist-sqlite-ext/libsimple`)
-      const dictPath = getResourcePath("dist-sqlite-ext/dict")
-      const graftLibPath = getResourcePath("dist-sqlite-ext/libgraft")
-      const vecLibPath = getResourcePath("dist-sqlite-ext/libvec")
-
-      // Get current sync provider from config
-      // Use space's provider if set, otherwise use default
-      const providerId =
-        syncOptions?.provider ||
-        spaceInfo.sync?.provider ||
-        this.configManager.getDefaultSyncProvider() ||
-        "eidos.space"
-
-      const credentials =
-        await this.credentialsManager.getSyncCredentials(providerId)
       const remoteSyncEnabled =
         syncOptions?.enabled ?? spaceInfo.sync?.enabled ?? false
+      const remote = syncOptions?.remote ?? spaceInfo.sync?.remote ?? ""
+      if (remoteSyncEnabled && !isOfficialGraftRemoteUrl(remote)) {
+        throw new Error(
+          "This Space uses a legacy or invalid remote. Reconnect it to Eidos Sync."
+        )
+      }
+      const remoteToken = remoteSyncEnabled
+        ? await this.officialRemote.getAccessToken()
+        : undefined
       const graftEnabled =
         remoteSyncEnabled || spaceInfo.versioning?.enabled || false
 
       const initData: WorkerInitData = {
         spaceInfo,
         paths: {
-          spacePath: getSpacePath(spaceId),
-          simplePathConfig: { libPath, dictPath },
-          vecPathConfig: { libPath: vecLibPath },
+          spacePath: spaceInfo.path,
+          simplePathConfig: {
+            libPath: getResourcePath("dist-sqlite-ext/libsimple"),
+            dictPath: getResourcePath("dist-sqlite-ext/dict"),
+          },
+          vecPathConfig: {
+            libPath: getResourcePath("dist-sqlite-ext/libvec"),
+          },
           graftPathConfig: {
-            libPath: graftLibPath,
+            libPath: getResourcePath("dist-sqlite-ext/libgraft"),
+            cliPath: getResourcePath(
+              process.platform === "win32"
+                ? "dist-cli/graft.exe"
+                : "dist-cli/graft"
+            ),
             enabled: graftEnabled,
             syncEnabled: remoteSyncEnabled,
-            remote: syncOptions?.remote ?? spaceInfo.sync?.remote ?? "",
-            credentials,
-            provider: providerId,
+            remote,
+            remoteToken,
             requireRemoteClone: syncOptions?.requireRemoteClone,
           },
         },
       }
 
-      const childProcess = await this.processPool.getProcess(spaceId, initData)
-
-      // Create RPC Client and Proxy
-      const client = new RpcClient(childProcess as any)
-
-      // Listen for log messages from worker
-      childProcess.on("message", (payload: any) => {
-        if (payload.type === "log") {
-          const { level, message, args, timestamp } = payload
-          const logMessage = `[${spaceId}] ${message}${args.length > 0 ? " " + args.join(" ") : ""}`
-
-          switch (level) {
-            case "info":
-              log.info(logMessage)
-              break
-            case "warn":
-              log.warn(logMessage)
-              break
-            case "error":
-              log.error(logMessage)
-              break
-            case "debug":
-              log.debug(logMessage)
-              break
-            default:
-              log.log(logMessage)
-          }
+      let childProcess: Electron.UtilityProcess
+      try {
+        childProcess = await this.processPool.getProcess(spaceId, initData)
+      } catch (error) {
+        if (!remoteSyncEnabled || graftRemoteHttpStatus(error) !== 401) {
+          throw actionableGraftRemoteError(error)
         }
+        await this.processPool.kill(spaceId)
+        initData.paths.graftPathConfig.remoteToken =
+          await this.officialRemote.refreshAccessToken()
+        try {
+          childProcess = await this.processPool.getProcess(spaceId, initData)
+        } catch (retryError) {
+          throw actionableGraftRemoteError(retryError)
+        }
+      }
+      const client = new RpcClient(childProcess as never)
+
+      childProcess.on("message", (payload: any) => {
+        if (payload.type !== "log") return
+        const { level, message, args = [] } = payload
+        const logMessage = `[${spaceId}] ${message}${args.length ? ` ${args.join(" ")}` : ""}`
+        const method = level in log ? level : "log"
+        ;(log[method as keyof typeof log] as (...values: unknown[]) => void)(
+          logMessage
+        )
       })
 
-      const proxy = client.createProxy()
+      const proxy = this.withAuthenticatedRemoteCalls(client.createProxy())
       this.dataSpaceProxy = proxy
-
-      // Start Sync Worker (Managed by Main Process)
-      this.startSyncWorker(spaceId, spaceInfo, initData.paths.graftPathConfig)
-
       return proxy
     })().finally(() => {
       this.initializationPromise = null
@@ -202,89 +176,99 @@ export class DataSpaceManager {
     return this.initializationPromise
   }
 
-  private startSyncWorker(
-    spaceId: string,
-    spaceInfo: any,
-    graftPathConfig: any
-  ) {
-    // Stop existing for this space if any
-    this.stopSyncWorker(spaceId)
-
-    // Check if sync is enabled and credentials exist
-    const remote = graftPathConfig?.remote || spaceInfo.sync?.remote
-    if (
-      !graftPathConfig?.syncEnabled ||
-      !remote ||
-      !graftPathConfig?.credentials?.accessKeyId
-    ) {
-      log.info("Sync not enabled or missing credentials, skipping sync worker.")
-      return
-    }
-    const remoteSpaceId =
-      remote?.split("/").pop()?.split(".")[0] || spaceInfo.id
-    const localPath = path.join(getSpacePath(spaceId), ".eidos", "files")
-    if (!fs.existsSync(localPath)) {
-      log.warn(`Sync worker skipped: local path ${localPath} does not exist.`)
-      return
-    }
-
-    const syncConfig = {
-      localPath,
-      bucket: graftPathConfig.credentials.bucketName,
-      // user-id/space-id/
-      prefix: `${remoteSpaceId}/.eidos/files/`,
-      s3Config: {
-        region: graftPathConfig.credentials.region || "us-east-1",
-        endpoint: graftPathConfig.credentials.endpoint,
-        credentials: {
-          accessKeyId: graftPathConfig.credentials.accessKeyId,
-          secretAccessKey: graftPathConfig.credentials.secretAccessKey,
-        },
+  private withAuthenticatedRemoteCalls(proxy: DataSpace): DataSpace {
+    return new Proxy(proxy as object, {
+      get: (target, property, receiver) => {
+        const value = Reflect.get(target, property, receiver)
+        if (property === "_executePayload") {
+          return (
+            payload: { method?: string; params?: unknown[] },
+            ...rest: unknown[]
+          ) => {
+            if (!payload?.method || !REMOTE_RPC_METHODS.has(payload.method)) {
+              return value(payload, ...rest)
+            }
+            this.assertOfficialRemoteArgument(payload.method, payload.params)
+            return this.withOfficialToken((token) =>
+              value(
+                {
+                  ...payload,
+                  params: this.remoteRpcParams(
+                    payload.method!,
+                    payload.params,
+                    token
+                  ),
+                },
+                ...rest
+              )
+            )
+          }
+        }
+        if (typeof property !== "string" || !REMOTE_METHODS.has(property)) {
+          return value
+        }
+        return (...args: unknown[]) => {
+          this.assertOfficialRemoteArgument(property, args)
+          return this.withOfficialToken((token) => {
+            if (
+              property === "pull" ||
+              property === "push" ||
+              property === "fetch"
+            ) {
+              return value(token)
+            }
+            return value(args[0], token)
+          })
+        }
       },
-      ignore: [".graft/**"],
-    }
+    }) as DataSpace
+  }
 
+  private async withOfficialToken<T>(
+    operation: (token: string) => T | Promise<T>
+  ): Promise<T> {
+    const token = await this.officialRemote.getAccessToken()
     try {
-      log.info(`Starting sync worker for space ${spaceId}...`)
-      const workerPath = path.join(__dirname, "sync-worker.js")
-
-      // Verify if sync-worker.js exists, or try .ts if in dev
-      let actualWorkerPath = workerPath
-
-      const syncWorker = new Worker(actualWorkerPath, {
-        workerData: { config: syncConfig },
-      })
-
-      this.syncWorkers.set(spaceId, syncWorker)
-
-      syncWorker.on("message", (msg: any) => {
-        if (msg.type === "log") {
-          const { level, message } = msg
-          log.log(`[SyncWorker:${spaceId}] ${message}`)
-        }
-      })
-
-      syncWorker.on("error", (err: Error) => {
-        log.error(`[SyncWorker:${spaceId}] Error:`, err)
-      })
-
-      syncWorker.on("exit", (code: number) => {
-        if (code !== 0) {
-          log.error(`[SyncWorker:${spaceId}] Stopped with exit code ${code}`)
-        }
-        this.syncWorkers.delete(spaceId)
-      })
-    } catch (e) {
-      log.error(`Failed to spawn sync worker for ${spaceId}`, e)
+      return await operation(token)
+    } catch (error) {
+      if (graftRemoteHttpStatus(error) !== 401) {
+        throw actionableGraftRemoteError(error)
+      }
+      const refreshedToken = await this.officialRemote.refreshAccessToken()
+      try {
+        return await operation(refreshedToken)
+      } catch (retryError) {
+        throw actionableGraftRemoteError(retryError)
+      }
     }
   }
 
-  private stopSyncWorker(spaceId: string) {
-    const worker = this.syncWorkers.get(spaceId)
-    if (worker) {
-      log.info(`Stopping sync worker for ${spaceId}`)
-      worker.terminate()
-      this.syncWorkers.delete(spaceId)
+  private remoteRpcParams(
+    method: string,
+    params: unknown[] | undefined,
+    token: string
+  ): unknown[] {
+    const operation = method.split(".").at(-1)
+    if (operation === "pull" || operation === "push" || operation === "fetch") {
+      return [token]
+    }
+    return [params?.[0], token]
+  }
+
+  private assertOfficialRemoteArgument(
+    method: string,
+    params: unknown[] | undefined
+  ): void {
+    const operation = method.split(".").at(-1)
+    if (
+      (operation === "clone" ||
+        operation === "convertToGraft" ||
+        operation === "reconfigureRemote") &&
+      !isOfficialGraftRemoteUrl(params?.[0])
+    ) {
+      throw new Error(
+        "Desktop remote operations require a provisioned Eidos Sync URL."
+      )
     }
   }
 }

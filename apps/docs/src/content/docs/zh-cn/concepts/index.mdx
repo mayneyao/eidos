@@ -25,7 +25,15 @@ Eidos File 组合了结构化记录、字段、sheet 和 view。Grid、gallery �
 ## 版本历史
 
 Graft 保存变化和 staged snapshot。Eidos 对外提供 Changes、Stage、Commit、Diff 和 Discard，
-但不会把 Graft 的存储细节暴露给扩展。
+但不会把 Graft 的存储细节暴露给扩展。SQLite-backed Space 始终保留普通物理 SQLite 文件，
+Desktop 使用 Graft CLI 作为版本管理 control plane。
+远端同步由 Electron main 通过 Eidos 官方同步服务完成仓库 provision，随后交给 Graft HTTP
+Remote v1。OAuth token 只临时传给 CLI，不会写入 remote URL 或仓库配置。
+Graft v0.8 的 row diff/merge 也会保留 STRICT、WITHOUT ROWID 数据库的声明主键身份。
+物理 worktree 可以使用任意合法 SQLite page size；只有可选 Graft VFS 写入路径仍限制为 4096 字节。
+
+从 Eidos Sync 克隆时默认使用 File Space：仓库文件和根级 `.graft` 会直接放入所选空目录。
+Legacy Space 只用于旧数据库 Space，其运行时会恢复到 `.eidos` 下。
 
 ## 扩展
 

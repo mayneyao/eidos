@@ -38,12 +38,14 @@ export interface PathConfig {
   }
   graftPathConfig: {
     libPath: string
+    cliPath: string
     enabled: boolean
     syncEnabled?: boolean
     remote: string
-    credentials?: any
-    provider?: string
+    /** Ephemeral only; never persisted or logged. */
+    remoteToken?: string
     requireRemoteClone?: boolean
+    useVfs?: boolean
   }
 }
 
