@@ -34,6 +34,7 @@
     "install:sqlite-ext": "cd apps/desktop && node scripts/postinstall-sqlite-ext.cjs && node scripts/download-libsimple.cjs",
     "build:cli": "cd apps/cli && cargo build --release",
     "build:cli:dev": "cd apps/cli && cargo build",
+    "smoke:cli-graft": "node apps/cli/graft-versioning-smoke.mjs",
     "test:cli-release": "node --test apps/cli/install.test.mjs apps/cli/release.test.mjs apps/download/src/release-routing.test.mjs",
     "build:desktop:local": "pnpm run --filter eidos build:cli && pnpm run --filter eidos build && pnpm run --filter eidos package:dev",
     "extension:cli": "pnpm --filter @eidos.space/extension-cli build && node packages/extension-cli/dist/cli.mjs",
