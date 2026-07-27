@@ -3,6 +3,15 @@ import { useTranslation } from "react-i18next"
 
 import { useCurrentSpace } from "@/apps/web-app/hooks/use-current-space"
 import { useFileSpaceSettings } from "@/apps/web-app/store/file-space-settings"
+import {
+  SettingsRow,
+  SettingsRowContent,
+  SettingsRowControl,
+  SettingsRows,
+  SettingsRowSurface,
+  SettingsSection,
+  SettingsSectionHeader,
+} from "@/components/settings/settings-surface"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 
@@ -21,17 +30,16 @@ export function FileSpaceFilesSettings() {
   const showObsidianFolder = settings?.showObsidianFolder ?? false
 
   return (
-    <div className="space-y-0" data-settings-row-groups="true">
-      <div className="pb-2">
-        <h3>{t("space.settings.fileSpace.files.group", "Explorer")}</h3>
-      </div>
-      <hr />
-      <div>
-        <div className="divide-y divide-border/70">
-          <div className="flex min-h-[76px] items-center justify-between gap-6 py-4">
+    <SettingsSection>
+      <SettingsSectionHeader
+        title={t("space.settings.fileSpace.files.group", "Explorer")}
+      />
+      <SettingsRowSurface>
+        <SettingsRows>
+          <SettingsRow>
             <div className="flex min-w-0 items-start gap-3">
               <FolderCog className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div className="space-y-0.5">
+              <SettingsRowContent>
                 <Label htmlFor="show-obsidian-folder">
                   {t(
                     "space.settings.fileSpace.files.showObsidian",
@@ -44,24 +52,26 @@ export function FileSpaceFilesSettings() {
                     "Include .obsidian in the Files tree. Eidos never changes it unless you edit those files directly."
                   )}
                 </p>
-              </div>
+              </SettingsRowContent>
             </div>
-            <Switch
-              id="show-obsidian-folder"
-              checked={showObsidianFolder}
-              onCheckedChange={(checked) =>
-                updateSettings(spaceId, { showObsidianFolder: checked })
-              }
-            />
-          </div>
-          <div className="flex min-h-[76px] items-center justify-between gap-6 py-4">
+            <SettingsRowControl>
+              <Switch
+                id="show-obsidian-folder"
+                checked={showObsidianFolder}
+                onCheckedChange={(checked) =>
+                  updateSettings(spaceId, { showObsidianFolder: checked })
+                }
+              />
+            </SettingsRowControl>
+          </SettingsRow>
+          <SettingsRow>
             <div className="flex min-w-0 items-start gap-3">
               {showHiddenFiles ? (
                 <Eye className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               ) : (
                 <EyeOff className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               )}
-              <div className="space-y-0.5">
+              <SettingsRowContent>
                 <Label htmlFor="show-hidden-files">
                   {t(
                     "space.settings.fileSpace.files.showHidden",
@@ -74,18 +84,20 @@ export function FileSpaceFilesSettings() {
                     "Show dotfiles in this Space. Private runtime state stays hidden; managed Agent sessions and Extension source remain visible."
                   )}
                 </p>
-              </div>
+              </SettingsRowContent>
             </div>
-            <Switch
-              id="show-hidden-files"
-              checked={showHiddenFiles}
-              onCheckedChange={(checked) =>
-                updateSettings(spaceId, { showHiddenFiles: checked })
-              }
-            />
-          </div>
-        </div>
-      </div>
-    </div>
+            <SettingsRowControl>
+              <Switch
+                id="show-hidden-files"
+                checked={showHiddenFiles}
+                onCheckedChange={(checked) =>
+                  updateSettings(spaceId, { showHiddenFiles: checked })
+                }
+              />
+            </SettingsRowControl>
+          </SettingsRow>
+        </SettingsRows>
+      </SettingsRowSurface>
+    </SettingsSection>
   )
 }

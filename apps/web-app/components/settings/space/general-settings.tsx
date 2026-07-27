@@ -459,7 +459,7 @@ export function GeneralSettings() {
   }
 
   return (
-    <div className="space-y-0">
+    <div className="space-y-0" data-settings-row-groups="true">
       <div className="py-4 flex items-center gap-2">
         <Settings2 className="h-5 w-5 text-muted-foreground" />
         <h3 className="text-lg font-medium">{t("space.settings.spaceInfo")}</h3>

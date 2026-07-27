@@ -4,7 +4,13 @@ import { renderToStaticMarkup } from "react-dom/server"
 
 import {
   SETTINGS_CONTENT_BODY_CLASS_NAME,
+  SettingsRow,
+  SettingsRowContent,
+  SettingsRowControl,
+  SettingsRows,
   SettingsRowSurface,
+  SettingsSection,
+  SettingsSectionHeader,
 } from "./settings-surface"
 
 describe("Settings surface ownership", () => {
@@ -26,5 +32,28 @@ describe("Settings surface ownership", () => {
 
     expect(markup).toContain('data-settings-row-surface="true"')
     expect(markup.match(/border-border\/80/g)).toHaveLength(1)
+  })
+
+  it("keeps standard settings rows semantic and responsive", () => {
+    const markup = renderToStaticMarkup(
+      <SettingsSection>
+        <SettingsSectionHeader title="Appearance" />
+        <SettingsRowSurface>
+          <SettingsRows>
+            <SettingsRow>
+              <SettingsRowContent>Theme</SettingsRowContent>
+              <SettingsRowControl>System</SettingsRowControl>
+            </SettingsRow>
+          </SettingsRows>
+        </SettingsRowSurface>
+      </SettingsSection>
+    )
+
+    expect(markup).toContain('data-settings-section="true"')
+    expect(markup).toContain('data-settings-section-header="true"')
+    expect(markup).toContain("<h2")
+    expect(markup).toContain('data-settings-row="true"')
+    expect(markup).toContain("sm:flex-row")
+    expect(markup).toContain('data-settings-row-control="true"')
   })
 })

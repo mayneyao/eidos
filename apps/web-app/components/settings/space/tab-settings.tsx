@@ -95,7 +95,7 @@ export function TabsSettings() {
       <hr className="border-border" />
 
       <div className="py-6">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-6">
           <div className="space-y-0.5">
             <Label className="text-sm">
               {t(
@@ -116,7 +116,7 @@ export function TabsSettings() {
           />
         </div>
 
-        <div className="mt-6 flex items-center justify-between gap-4">
+        <div className="mt-6 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:gap-6">
           <div className="space-y-0.5">
             <Label className="text-sm">
               {t("space.settings.tabs.reuseExistingTab", "Reuse Existing Tab")}
