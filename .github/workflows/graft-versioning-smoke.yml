@@ -31,7 +31,7 @@ on:
       - "apps/desktop/package.json"
 
 env:
-  GRAFT_RELEASE_VERSION: v0.6.1
+  GRAFT_RELEASE_VERSION: v0.8.1
 
 jobs:
   windows-versioning-smoke:

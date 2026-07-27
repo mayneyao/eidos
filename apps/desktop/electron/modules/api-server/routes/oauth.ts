@@ -110,12 +110,13 @@ export function setupOAuthRoutes(app: Hono, ctx: ServerContext) {
       })
 
       if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text()
-        return c.text(`Token exchange failed: ${errorText}`, 500)
+        return c.text(
+          `Token exchange failed with HTTP ${tokenResponse.status}`,
+          500
+        )
       }
 
       const tokens = await tokenResponse.json()
-      ctx.logger.info("tokens", tokens)
       await ctx.credentialsManager.setTokens(tokens)
 
       const userInfoUrl = `${OAUTH_CONFIG.AUTH_SERVER_BASE_URL}${OAUTH_CONFIG.ENDPOINTS.USERINFO}`

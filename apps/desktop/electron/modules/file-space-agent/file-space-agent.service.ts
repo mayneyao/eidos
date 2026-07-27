@@ -15,6 +15,7 @@ import { SpaceResourceLifecycle } from "../space-management/space-resource-lifec
 import { SpaceRegistry } from "../space-management/space-registry"
 import { FileSpaceAgentLocalStateStore } from "./file-space-agent-local-state"
 import { SpaceVersioningService } from "../space-versioning/space-versioning.service"
+import type { SpaceVersionRowConflictTarget } from "../space-versioning/types"
 import { buildFileSpaceAgentMessages } from "./file-space-agent-messages"
 import { prepareFileSpaceAgentRuntime } from "./file-space-agent-runtime"
 import { FileSpaceAgentRuntimeStateStore } from "./file-space-agent-runtime-state"
@@ -2194,17 +2195,31 @@ export class FileSpaceAgentService extends IpcServiceBase {
           resolution: z.enum(["ours", "theirs", "manual"]),
           expectedHead: z.string().max(512).nullable(),
           target: z
-            .object({
-              table: z.string().min(1).max(255),
-              rowId: z.number().int(),
-            })
+            .union([
+              z.object({
+                table: z.string().min(1).max(255),
+                rowId: z.number().int(),
+              }),
+              z.object({
+                table: z.string().min(1).max(255),
+                key: z.record(
+                  z.string(),
+                  z.union([
+                    z.string(),
+                    z.number().finite(),
+                    z.null(),
+                    z.object({ $blob: z.string().regex(/^[0-9a-f]*$/) }),
+                  ])
+                ),
+              }),
+            ])
             .optional(),
         }),
         execute: async (input: {
           path: string
           resolution: "ours" | "theirs" | "manual"
           expectedHead: string | null
-          target?: { table: string; rowId: number }
+          target?: SpaceVersionRowConflictTarget
         }) =>
           this.runControlledTool(
             active,
@@ -2221,7 +2236,15 @@ export class FileSpaceAgentService extends IpcServiceBase {
                 active,
                 input.path
               )
-              return versioning.resolveConflict(active.spaceId, input)
+              const target = input.target
+                ? input.target.rowId !== undefined
+                  ? { table: input.target.table, rowId: input.target.rowId }
+                  : { table: input.target.table, key: input.target.key }
+                : undefined
+              return versioning.resolveConflict(active.spaceId, {
+                ...input,
+                target,
+              })
             }
           ),
       },

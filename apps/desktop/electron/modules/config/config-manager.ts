@@ -19,23 +19,6 @@ export interface AccountConfig {
   user?: any // eidos.space user info
 }
 
-// Sync provider configuration (all providers are S3-compatible, including eidos.space)
-export interface SyncProviderConfig {
-  id: string // Unique identifier (e.g., 'eidos.space', 'my-minio')
-  name: string // Display name
-  endpoint: string // S3 endpoint URL
-  bucketName: string // Bucket name
-  region?: string // Optional region
-}
-
-// Sync configuration - supports multiple providers like git remotes
-export interface SyncConfig {
-  // Multiple providers, keyed by provider ID
-  providers: Record<string, SyncProviderConfig>
-  // Default provider to use when not specified
-  defaultProvider?: string
-}
-
 // Search engine configuration
 export interface SearchEngineConfig {
   id: string
@@ -64,8 +47,6 @@ export interface AppConfig {
     webSecurity: boolean
     crossOriginDomains: string[]
   }
-  // Sync configuration (independent from account)
-  sync: SyncConfig
   // Auto-update configuration
   autoUpdate: {
     enabled: boolean
@@ -108,10 +89,6 @@ const emptyConfig: AppConfig = {
   security: {
     webSecurity: true,
     crossOriginDomains: [],
-  },
-  sync: {
-    providers: {},
-    defaultProvider: undefined,
   },
   autoUpdate: {
     enabled: true,
@@ -167,10 +144,6 @@ export class ConfigManager extends EventEmitter {
         loadedConfig = {
           ...loadedConfig,
           ...parsedData,
-          sync: {
-            ...(loadedConfig.sync || {}),
-            ...(parsedData.sync || {}),
-          },
           account: {
             ...(loadedConfig.account || {}),
             ...(parsedData.account || {}),
@@ -204,41 +177,8 @@ export class ConfigManager extends EventEmitter {
       needsSave = true
     }
 
-    if (this.config.sync) {
-      const oldSync = this.config.sync as any
-      if (
-        oldSync.provider &&
-        typeof oldSync.provider === "string" &&
-        !oldSync.providers
-      ) {
-        const providers: Record<string, SyncProviderConfig> = {}
-        let defaultProvider: string | undefined
-
-        if (oldSync.provider === "eidos.space") {
-          defaultProvider = "eidos.space"
-        } else if (oldSync.provider === "custom" && oldSync.customConfig) {
-          providers["custom"] = {
-            id: "custom",
-            name: "Custom S3",
-            endpoint: oldSync.customConfig.endpoint,
-            bucketName: oldSync.customConfig.bucketName,
-            region: oldSync.customConfig.region,
-          }
-          defaultProvider = "custom"
-        }
-
-        this.config.sync = { providers, defaultProvider }
-        needsSave = true
-      }
-    }
-
-    if (!this.config.sync) {
-      this.config.sync = JSON.parse(JSON.stringify(emptyConfig.sync))
-      needsSave = true
-    }
-
-    if (!this.config.sync.providers) {
-      this.config.sync.providers = {}
+    if ("sync" in this.config) {
+      delete (this.config as AppConfig & { sync?: unknown }).sync
       needsSave = true
     }
 
@@ -378,94 +318,6 @@ export class ConfigManager extends EventEmitter {
       this.config.account = config
       this.saveConfig()
       this.emit("configChanged", { key: "account", oldValue, newValue: config })
-    }
-  }
-
-  public getSyncProviders(): Record<string, SyncProviderConfig> {
-    return this.config.sync?.providers ?? {}
-  }
-
-  public getSyncProvider(id: string): SyncProviderConfig | undefined {
-    return this.config.sync?.providers?.[id]
-  }
-
-  public setSyncProvider(config: SyncProviderConfig): void {
-    if (!this.config.sync) {
-      this.config.sync = JSON.parse(JSON.stringify(emptyConfig.sync))
-    }
-    if (!this.config.sync.providers) {
-      this.config.sync.providers = {}
-    }
-
-    const oldValue = this.config.sync.providers[config.id]
-    this.config.sync.providers[config.id] = config
-
-    if (!this.config.sync.defaultProvider) {
-      this.config.sync.defaultProvider = config.id
-    }
-
-    this.saveConfig()
-    this.emit("configChanged", {
-      key: `sync.providers.${config.id}`,
-      oldValue,
-      newValue: config,
-    })
-  }
-
-  public removeSyncProvider(id: string): boolean {
-    if (!this.config.sync?.providers?.[id]) {
-      return false
-    }
-
-    const oldValue = this.config.sync.providers[id]
-    delete this.config.sync.providers[id]
-
-    if (this.config.sync.defaultProvider === id) {
-      const remainingProviders = Object.keys(this.config.sync.providers)
-      this.config.sync.defaultProvider = remainingProviders[0]
-    }
-
-    this.saveConfig()
-    this.emit("configChanged", {
-      key: `sync.providers.${id}`,
-      oldValue,
-      newValue: undefined,
-    })
-    return true
-  }
-
-  public getDefaultSyncProvider(): string | undefined {
-    return this.config.sync?.defaultProvider
-  }
-
-  public setDefaultSyncProvider(id: string): void {
-    if (!this.config.sync) {
-      this.config.sync = JSON.parse(JSON.stringify(emptyConfig.sync))
-    }
-    if (!this.config.sync.providers?.[id]) {
-      throw new Error(`Provider ${id} does not exist`)
-    }
-
-    const oldValue = this.config.sync.defaultProvider
-    this.config.sync.defaultProvider = id
-    this.saveConfig()
-    this.emit("configChanged", {
-      key: "sync.defaultProvider",
-      oldValue,
-      newValue: id,
-    })
-  }
-
-  public getSyncConfig(): SyncConfig {
-    return this.config.sync ?? JSON.parse(JSON.stringify(emptyConfig.sync))
-  }
-
-  public setSyncConfig(config: SyncConfig): void {
-    const oldValue = this.config.sync
-    if (JSON.stringify(oldValue) !== JSON.stringify(config)) {
-      this.config.sync = config
-      this.saveConfig()
-      this.emit("configChanged", { key: "sync", oldValue, newValue: config })
     }
   }
 }

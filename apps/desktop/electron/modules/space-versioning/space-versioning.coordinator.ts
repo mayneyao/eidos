@@ -55,6 +55,8 @@ import type {
   SpaceVersionStatus,
   SpaceVersionSyncOptions,
   SpaceVersionSyncResult,
+  SpaceVersionSqlitePrimaryKeyValue,
+  SpaceVersionSqliteRowKey,
   SpaceVersionUnstagePathResult,
   SpaceVersionAgentConversationPolicy,
   SpaceVersionAgentConversationPolicyOptions,
@@ -120,22 +122,6 @@ function discardReconciliationError(error: unknown): Error {
   return new Error(
     `File changes may have been discarded, but Eidos could not verify the final version state: ${errorMessage(error)}. Refresh Changes before continuing.`
   )
-}
-
-function stagePathMutationError(error: unknown): Error {
-  const message = errorMessage(error)
-  if (message.includes("[graft:add:expected-head-mismatch]")) {
-    return new Error(
-      "The Space history changed. Refresh Changes before including this file."
-    )
-  }
-  if (message.includes("[graft:add:path-no-changes]")) {
-    return new Error("This path no longer has changes to include")
-  }
-  if (message.includes("[graft:add:path-conflicted]")) {
-    return new Error("Resolve conflicts in this path before including it")
-  }
-  return error instanceof Error ? error : new Error(message)
 }
 
 function repositoryLockOwner(value: unknown): RepositoryLockOwner | null {
@@ -263,16 +249,12 @@ function normalizeRemoteUrl(value: unknown): string {
   }
   if (
     url !== "memory" &&
-    ![
-      "fs://",
-      "s3://",
-      "s3_compatible://",
-      "graft+https://",
-      "graft+http://",
-    ].some((prefix) => url.startsWith(prefix))
+    !["fs://", "https://", "graft+https://", "graft+http://"].some((prefix) =>
+      url.startsWith(prefix)
+    )
   ) {
     throw new Error(
-      "Remote URL must use memory, fs://, s3://, s3_compatible://, graft+https://, or graft+http://"
+      "Remote URL must use memory, fs://, https://, graft+https://, or graft+http://"
     )
   }
   return url
@@ -336,6 +318,42 @@ function normalizeAgentConversationPolicyOptions(
   return { enabled: value.enabled }
 }
 
+function normalizeRowConflictKey(
+  value: unknown
+): SpaceVersionSqliteRowKey | undefined {
+  if (!isObject(value)) return undefined
+  const columns = Object.keys(value).sort()
+  if (columns.length === 0) return undefined
+
+  const key: SpaceVersionSqliteRowKey = {}
+  for (const column of columns) {
+    if (!column || column.includes("\0")) {
+      throw new Error("Row conflict key column is invalid")
+    }
+    const entry = value[column]
+    let normalized: SpaceVersionSqlitePrimaryKeyValue
+    if (
+      entry === null ||
+      typeof entry === "string" ||
+      (typeof entry === "number" && Number.isFinite(entry))
+    ) {
+      normalized = entry
+    } else if (
+      isObject(entry) &&
+      Object.keys(entry).length === 1 &&
+      typeof entry.$blob === "string" &&
+      entry.$blob.length % 2 === 0 &&
+      /^[0-9a-f]*$/.test(entry.$blob)
+    ) {
+      normalized = { $blob: entry.$blob }
+    } else {
+      throw new Error("Row conflict key value is invalid")
+    }
+    key[column] = normalized
+  }
+  return key
+}
+
 function normalizeResolveConflictOptions(
   value: unknown
 ): SpaceVersionResolveConflictOptions {
@@ -360,6 +378,7 @@ function normalizeResolveConflictOptions(
     }
     const table = value.target.table
     const rowId = value.target.rowId
+    const key = value.target.key
     if (
       typeof table !== "string" ||
       !table.trim() ||
@@ -369,13 +388,17 @@ function normalizeResolveConflictOptions(
     ) {
       throw new Error("Row conflict table is invalid")
     }
-    if (typeof rowId !== "number" || !Number.isSafeInteger(rowId)) {
-      throw new Error("Row conflict row ID is invalid")
+    const hasRowId = typeof rowId === "number" && Number.isSafeInteger(rowId)
+    const normalizedKey = normalizeRowConflictKey(key)
+    if (hasRowId === (normalizedKey !== undefined)) {
+      throw new Error("Row conflict target must contain one row ID or key")
     }
     if (value.resolution === "manual") {
       throw new Error("Row conflicts must keep ours or accept theirs")
     }
-    target = { table, rowId }
+    target = hasRowId
+      ? { table, rowId: rowId as number }
+      : { table, key: normalizedKey! }
   }
   return {
     path: repositoryPath,
@@ -820,7 +843,7 @@ export class SpaceVersioningCoordinator {
       return this.withRepositoryOperationLock(spacePath, async () => {
         const ignoreUpdate = await ensureEidosGraftIgnore(spacePath)
         try {
-          // Graft v0.5 init is idempotent and also repairs an interrupted init
+          // Graft init is idempotent and also repairs an interrupted init
           // that left only part of the .graft directory behind. Keep a partial
           // directory on failure so another waiting Eidos process cannot lose
           // its lock; the next enable attempt will repair it.
@@ -892,10 +915,11 @@ export class SpaceVersioningCoordinator {
 
         try {
           await this.runner.runJson(spacePath, [
-            "branch-upstream",
+            "branch",
             "--json",
-            localBranch,
+            "--set-upstream-to",
             `${options.name}/${remoteBranch}`,
+            localBranch,
           ])
         } catch (error) {
           try {
@@ -916,7 +940,7 @@ export class SpaceVersioningCoordinator {
         this.registry.setSpaceSync(spaceId, {
           enabled: true,
           remote: remote.url,
-          provider: "graft",
+          provider: "eidos.space",
         })
         return {
           remote,
@@ -948,7 +972,7 @@ export class SpaceVersioningCoordinator {
         this.registry.setSpaceSync(spaceId, {
           enabled: remotes.length > 0,
           remote: remotes[0]?.url ?? "",
-          provider: "graft",
+          provider: remotes.length > 0 ? "eidos.space" : undefined,
         })
         return {
           name: options.name,
@@ -1031,7 +1055,13 @@ export class SpaceVersioningCoordinator {
               "--json",
               `--${options.resolution}`,
               ...(options.target
-                ? ["--row", options.target.table, String(options.target.rowId)]
+                ? [
+                    "--row",
+                    options.target.table,
+                    "rowId" in options.target
+                      ? String(options.target.rowId)
+                      : JSON.stringify(options.target.key),
+                  ]
                 : []),
               options.path,
             ],
@@ -1069,10 +1099,10 @@ export class SpaceVersioningCoordinator {
           throw new Error("Stage changes before creating a version")
         }
 
-        const raw = await this.runner.runJson(
+        const raw = await this.runner.runRemoteJson(
           spacePath,
           before.mergeHead
-            ? ["merge-continue", "--json", options.message]
+            ? ["merge", "--continue", "--json", "--message", options.message]
             : ["commit", "--json", "-m", options.message],
           { timeoutMs: MUTATION_TIMEOUT_MS }
         )
@@ -1149,7 +1179,9 @@ export class SpaceVersioningCoordinator {
       const spacePath = await this.resolveFileSpace(spaceId)
       await this.requireRepository(spacePath)
       return this.withRepositoryOperationLock(spacePath, async () => {
-        const args = ["diff", "--json"]
+        const args = options.includeRows
+          ? ["--db", options.path!, "diff", "--json"]
+          : ["diff", "--json"]
         if (options.includeContent) {
           args.push(
             "--content",
@@ -1162,7 +1194,7 @@ export class SpaceVersioningCoordinator {
         }
         if (options.root) {
           args.push("--root", options.root)
-          if ((options.includeContent || options.includeRows) && options.path) {
+          if (options.includeContent && options.path) {
             args.push("--", options.path)
           }
         } else {
@@ -1170,7 +1202,7 @@ export class SpaceVersioningCoordinator {
           if (options.to) {
             args.push(options.to)
           }
-          if ((options.includeContent || options.includeRows) && options.path) {
+          if (options.includeContent && options.path) {
             args.push("--", options.path)
           }
         }
@@ -1212,34 +1244,38 @@ export class SpaceVersioningCoordinator {
             "Enable Agent conversation versioning before including this path"
           )
         }
-        let raw: unknown
-        try {
-          raw = await this.runner.runJson(
-            spacePath,
-            [
-              "add",
-              "--json",
-              "--with-status",
-              "--expected-head",
-              options.expectedHead ?? "unborn",
-              "--",
-              options.path,
-            ],
-            { timeoutMs: MUTATION_TIMEOUT_MS }
-          )
-        } catch (error) {
-          throw stagePathMutationError(error)
-        }
-        if (!isObject(raw) || !("status" in raw)) {
+        const before = await this.readStatus(spaceId, spacePath)
+        if (before.currentHead !== options.expectedHead) {
           throw new Error(
-            "Graft add did not return the final repository status"
+            "The Space history changed. Refresh Changes before including this file."
           )
         }
-        const status = visibleVersionStatus(
-          parseGraftStatus(raw.status, spaceId),
-          versionAgentConversations
+        const changes = before.paths.filter(
+          (entry) =>
+            entry.path === options.path ||
+            entry.path.startsWith(`${options.path}/`)
         )
-        if (status.currentHead !== options.expectedHead) {
+        if (changes.length === 0) {
+          throw new Error("This path no longer has changes to include")
+        }
+        if (changes.some((change) => change.conflicted)) {
+          throw new Error("Resolve conflicts in this path before including it")
+        }
+        if (changes.every((change) => change.worktreeState === "none")) {
+          throw new Error("This path no longer has changes to include")
+        }
+
+        const raw = await this.runner.runJson(
+          spacePath,
+          ["add", "--json", "--", options.path],
+          { timeoutMs: MUTATION_TIMEOUT_MS }
+        )
+        if (!isObject(raw) || raw.operation !== "add") {
+          throw new Error("Graft returned an invalid add result")
+        }
+
+        const status = await this.readStatus(spaceId, spacePath)
+        if (status.currentHead !== before.currentHead) {
           throw new Error(
             "The current version changed while the file was being included"
           )
@@ -1752,7 +1788,7 @@ export class SpaceVersioningCoordinator {
           throw new Error("Create the first version before pushing")
         }
 
-        const raw = await this.runner.runJson(
+        const raw = await this.runner.runRemoteJson(
           spacePath,
           [
             operation,

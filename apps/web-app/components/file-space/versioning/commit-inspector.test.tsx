@@ -561,6 +561,7 @@ describe("CommitInspector", () => {
                     {
                       name: "tb_tasks",
                       columns: ["_id", "title"],
+                      primaryKeyColumns: [],
                       changes: [
                         {
                           operation: "insert",

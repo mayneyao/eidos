@@ -5,6 +5,8 @@ import "reflect-metadata"
 import { describe, expect, it, vi } from "vitest"
 
 import type { MainWindowProvider } from "../space-management/main-window.provider"
+import type { SpaceRegistry } from "../space-management/space-registry"
+import type { OfficialGraftRemoteService } from "../sync/official-graft-remote"
 import type { SpaceVersioningCoordinator } from "./space-versioning.coordinator"
 import { SpaceVersioningService } from "./space-versioning.service"
 
@@ -39,7 +41,21 @@ describe("SpaceVersioningService file notifications", () => {
     const windowProvider = {
       getWindow: () => ({ webContents: { send } }),
     } as unknown as MainWindowProvider
-    const service = new SpaceVersioningService(coordinator, windowProvider)
+    const registry = {
+      getSpace: () => ({
+        sync: {
+          enabled: true,
+          remote: "https://sync.eidos.space/u-space/space-a",
+        },
+      }),
+    } as unknown as SpaceRegistry
+    const officialRemote = {} as OfficialGraftRemoteService
+    const service = new SpaceVersioningService(
+      coordinator,
+      windowProvider,
+      registry,
+      officialRemote
+    )
 
     await service.pullRemote("space-a")
     await service.resolveConflict("space-a", {
@@ -96,5 +112,133 @@ describe("SpaceVersioningService file notifications", () => {
         { spaceId: "space-a", eventType: "rescan", path: "" },
       ],
     ])
+  })
+
+  it("provisions, stores, and initializes a newly created official remote", async () => {
+    const coordinator = {
+      configureRemote: vi.fn().mockResolvedValue({
+        remote: {
+          name: "origin",
+          url: "graft+https://sync.eidos.space/u-space/space-a",
+        },
+        status: { enabled: true, currentHead: "head-1" },
+      }),
+      pushRemote: vi.fn().mockResolvedValue({
+        status: { enabled: true, currentHead: "head-1", ahead: 0 },
+      }),
+      fetchRemote: vi.fn(),
+    } as unknown as SpaceVersioningCoordinator
+    const officialRemote = {
+      provisionRepository: vi.fn().mockResolvedValue({
+        created: true,
+        remoteUrl: "graft+https://sync.eidos.space/u-space/space-a",
+      }),
+    } as unknown as OfficialGraftRemoteService
+    const service = new SpaceVersioningService(
+      coordinator,
+      { getWindow: vi.fn() } as unknown as MainWindowProvider,
+      { getSpace: vi.fn() } as unknown as SpaceRegistry,
+      officialRemote
+    )
+
+    const result = await service.configureRemote("space-a", {
+      url: "https://attacker.invalid/token",
+      branch: "main",
+    })
+
+    expect(officialRemote.provisionRepository).toHaveBeenCalledWith("space-a")
+    expect(coordinator.configureRemote).toHaveBeenCalledWith("space-a", {
+      name: "origin",
+      branch: "main",
+      url: "graft+https://sync.eidos.space/u-space/space-a",
+    })
+    expect(coordinator.pushRemote).toHaveBeenCalledWith("space-a", {
+      remote: "origin",
+      branch: "main",
+      expectedHead: "head-1",
+    })
+    expect(coordinator.fetchRemote).not.toHaveBeenCalled()
+    expect(result.status).toMatchObject({ currentHead: "head-1", ahead: 0 })
+  })
+
+  it("fetches instead of blindly pushing when reconnecting an existing official remote", async () => {
+    const coordinator = {
+      configureRemote: vi.fn().mockResolvedValue({
+        remote: {
+          name: "origin",
+          url: "https://sync.eidos.space/u-space/space-a",
+        },
+        status: { enabled: true, currentHead: "head-1" },
+      }),
+      fetchRemote: vi.fn().mockResolvedValue({
+        status: { enabled: true, currentHead: "head-1", behind: 1 },
+      }),
+      pushRemote: vi.fn(),
+    } as unknown as SpaceVersioningCoordinator
+    const officialRemote = {
+      provisionRepository: vi.fn().mockResolvedValue({
+        created: false,
+        remoteUrl: "https://sync.eidos.space/u-space/space-a",
+      }),
+    } as unknown as OfficialGraftRemoteService
+    const service = new SpaceVersioningService(
+      coordinator,
+      { getWindow: vi.fn() } as unknown as MainWindowProvider,
+      { getSpace: vi.fn() } as unknown as SpaceRegistry,
+      officialRemote
+    )
+
+    const result = await service.configureRemote("space-a", { branch: "main" })
+
+    expect(coordinator.fetchRemote).toHaveBeenCalledWith("space-a", {
+      remote: "origin",
+      branch: "main",
+      expectedHead: "head-1",
+    })
+    expect(coordinator.pushRemote).not.toHaveBeenCalled()
+    expect(result.status).toMatchObject({ behind: 1 })
+  })
+
+  it("initializes an already provisioned remote when its branch is still empty", async () => {
+    const coordinator = {
+      configureRemote: vi.fn().mockResolvedValue({
+        remote: {
+          name: "origin",
+          url: "https://sync.eidos.space/u-space/space-a",
+        },
+        status: { enabled: true, currentHead: "head-1" },
+      }),
+      fetchRemote: vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            "Eidos Sync has no versions yet. Push versions to initialize the remote branch."
+          )
+        ),
+      pushRemote: vi.fn().mockResolvedValue({
+        status: { enabled: true, currentHead: "head-1", ahead: 0 },
+      }),
+    } as unknown as SpaceVersioningCoordinator
+    const officialRemote = {
+      provisionRepository: vi.fn().mockResolvedValue({
+        created: false,
+        remoteUrl: "https://sync.eidos.space/u-space/space-a",
+      }),
+    } as unknown as OfficialGraftRemoteService
+    const service = new SpaceVersioningService(
+      coordinator,
+      { getWindow: vi.fn() } as unknown as MainWindowProvider,
+      { getSpace: vi.fn() } as unknown as SpaceRegistry,
+      officialRemote
+    )
+
+    const result = await service.configureRemote("space-a", { branch: "main" })
+
+    expect(coordinator.pushRemote).toHaveBeenCalledWith("space-a", {
+      remote: "origin",
+      branch: "main",
+      expectedHead: "head-1",
+    })
+    expect(result.status).toMatchObject({ ahead: 0 })
   })
 })

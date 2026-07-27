@@ -56,6 +56,12 @@ function valuesEqual(left: unknown, right: unknown) {
   }
 }
 
+function rowIdentityText(artifact: SpaceVersionConflictArtifact): string {
+  if (artifact.rowId !== null) return String(artifact.rowId)
+  if (artifact.key) return valueText(artifact.key)
+  return "?"
+}
+
 function artifactColumns(artifact: SpaceVersionConflictArtifact): string[] {
   if (artifact.columns.length > 0) return artifact.columns
   const length = Math.max(
@@ -193,13 +199,13 @@ function RowConflict({
   return (
     <section
       className="border-b last:border-b-0"
-      aria-label={`Row ${artifact.rowId ?? "unknown"}`}
+      aria-label={`Row ${rowIdentityText(artifact)}`}
     >
       <div className="flex min-h-10 flex-wrap items-center gap-2 bg-muted/[0.18] px-4 py-2">
         <Rows3 className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-xs font-medium">{artifact.table ?? "Table"}</span>
         <span className="text-[11px] text-muted-foreground">
-          row {artifact.rowId ?? "?"}
+          row {rowIdentityText(artifact)}
         </span>
         {artifact.semanticKey.length > 0 ? (
           <span className="min-w-0 truncate text-[10px] text-muted-foreground/80">
@@ -407,8 +413,12 @@ export function SpaceVersionConflictsPage() {
   ) => {
     if (!selectedGroup || operation) return
     const target =
-      artifact?.kind === "row" && artifact.table && artifact.rowId !== null
-        ? { table: artifact.table, rowId: artifact.rowId }
+      artifact?.kind === "row" && artifact.table
+        ? artifact.rowId !== null
+          ? { table: artifact.table, rowId: artifact.rowId }
+          : artifact.key
+            ? { table: artifact.table, key: artifact.key }
+            : undefined
         : undefined
     setLocalError(null)
     setNotice(null)

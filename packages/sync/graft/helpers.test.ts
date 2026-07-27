@@ -507,6 +507,30 @@ describe("parseGraftBranches", () => {
 })
 
 describe("parseGraftTags", () => {
+  it("parses the v0.7 CLI tag-list envelope directly", () => {
+    expect(
+      parseGraftTags({
+        current_head: "64ad2e52939b",
+        current_branch: "main",
+        tags: [
+          {
+            name: "v0.7",
+            target: "64ad2e52939b",
+            object: "64ad2e52939b",
+            annotated: false,
+          },
+        ],
+      })
+    ).toEqual([
+      {
+        name: "v0.7",
+        target: "64ad2e52939b",
+        object: "64ad2e52939b",
+        annotated: false,
+      },
+    ])
+  })
+
   it("parses JSON tag output", () => {
     const result = parseGraftTags(
       JSON.stringify([
@@ -645,10 +669,10 @@ describe("parseGraftLog (JSON)", () => {
     })
   })
 
-  it("handles input wrapped in single-column rows from better-sqlite3", () => {
+  it("handles an optional extension diagnostic wrapped in one column", () => {
     const raw = [
       {
-        graft_json_log: JSON.stringify([
+        result: JSON.stringify([
           {
             lsn: 2,
             page_count: 2,
@@ -718,6 +742,33 @@ describe("parseGraftConflicts (JSON)", () => {
         },
       ],
     })
+  })
+
+  it("parses v0.8 composite and BLOB primary-key conflict identities", () => {
+    const result = parseGraftConflicts(
+      JSON.stringify({
+        conflicts: [
+          {
+            id: "db.sqlite3:row:docs:key",
+            path: "db.sqlite3",
+            kind: "row",
+            reason: "row_conflict",
+            status: "unresolved",
+            table: "docs",
+            key: { namespace: "personal", id: { $blob: "00ff" } },
+            ours_key: { namespace: "personal", id: { $blob: "00fe" } },
+            theirs_key: { namespace: "personal", id: { $blob: "00fd" } },
+          },
+        ],
+      })
+    )
+
+    expect(result.conflicts[0]).toMatchObject({
+      key: { namespace: "personal", id: { $blob: "00ff" } },
+      oursKey: { namespace: "personal", id: { $blob: "00fe" } },
+      theirsKey: { namespace: "personal", id: { $blob: "00fd" } },
+    })
+    expect(result.conflicts[0]?.rowid).toBeUndefined()
   })
 
   it("parses opaque conflict artifact details", () => {
@@ -1262,6 +1313,41 @@ describe("parseGraftDiff (JSON)", () => {
     })
     expect(result.rows[0].values).toEqual([null, "Alice", "alice@example.com"])
     expect(result.rows[0].columns).toEqual(["id", "name", "email"])
+  })
+
+  it("parses v0.8 row diff identities for WITHOUT ROWID tables", () => {
+    const raw = JSON.stringify({
+      from: "base",
+      to: "head",
+      tables: [
+        {
+          name: "docs",
+          columns: ["namespace", "id", "body"],
+          primary_key_columns: ["namespace", "id"],
+          changes: [
+            {
+              op: "update",
+              key: { namespace: "personal", id: { $blob: "00ff" } },
+              values: ["personal", "00ff", "after"],
+              old_values: ["personal", "00ff", "before"],
+            },
+          ],
+        },
+      ],
+    })
+
+    const result = parseGraftDiff(raw, {
+      from: "base",
+      to: "head",
+      mode: "rows",
+    })
+    expect(result.rows[0]).toMatchObject({
+      table: "docs",
+      op: "update",
+      key: { namespace: "personal", id: { $blob: "00ff" } },
+      primaryKeyColumns: ["namespace", "id"],
+    })
+    expect(result.rows[0]?.rowid).toBeUndefined()
   })
 
   it("captures UPDATE with old_values", () => {

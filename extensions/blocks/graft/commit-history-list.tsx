@@ -1,7 +1,6 @@
 /**
  * Commit history list for the graft sidebar.
- * Renders entries from `pragma graft_json_log` with quick actions
- * (show, reset).
+ * Renders normalized Graft CLI log entries with quick actions (show, reset).
  * Navigates to route pages for detail/diff views.
  */
 import { HistoryIcon, LoaderIcon, MoreHorizontal } from "lucide-react"

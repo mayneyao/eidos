@@ -4,7 +4,7 @@ const ENABLE_SYNC_PROGRESS_STEPS = [
   {
     delay: 0,
     progress: 12,
-    message: "Checking selected sync provider...",
+    message: "Connecting to Eidos Sync...",
   },
   {
     delay: 400,

@@ -236,25 +236,12 @@ describe("file Space settings", () => {
     })
   })
 
-  it("configures a Graft remote from versioning settings", async () => {
+  it("provisions the official Graft remote from versioning settings", async () => {
     await act(async () => {
       root.render(<FileSpaceVersioningSettings />)
       await Promise.resolve()
     })
 
-    const input = container.querySelector<HTMLInputElement>(
-      "#file-space-graft-remote"
-    )
-    await act(async () => {
-      if (input) {
-        const setter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          "value"
-        )?.set
-        setter?.call(input, "fs:///tmp/eidos-remote")
-        input.dispatchEvent(new Event("input", { bubbles: true }))
-      }
-    })
     await act(async () => {
       Array.from(container.querySelectorAll("button"))
         .find((button) => button.textContent?.includes("Connect"))
@@ -262,9 +249,7 @@ describe("file Space settings", () => {
       await Promise.resolve()
     })
 
-    expect(configureRemoteMock).toHaveBeenCalledWith({
-      url: "fs:///tmp/eidos-remote",
-    })
+    expect(configureRemoteMock).toHaveBeenCalledWith({})
   })
 
   it("only versions Agent conversations after explicit opt-in", async () => {

@@ -17,7 +17,6 @@ import { setupExplorerRoutes } from "./routes/explorer"
 
 // Import middleware
 import { createCorsMiddleware } from "./middleware/cors"
-import { createBucketBrowser } from "./middleware/bucket-browser"
 import { createProxy } from "./middleware/proxy"
 import { createExtension } from "./middleware/extension"
 import { createStaticFiles, createSpaFallback } from "./middleware/static"
@@ -89,8 +88,6 @@ export interface ServerContext {
   configManager: {
     get(key: string): any
     set(key: string, value: any): void
-    getDefaultSyncProvider(): string | undefined
-    getSyncProvider(id: string): { region?: string } | undefined
     on(event: string, callback: Function): void
   }
   spaceRegistry: {
@@ -100,7 +97,6 @@ export interface ServerContext {
   }
   portChecker: PortChecker
   credentialsManager: {
-    getSyncCredentials(providerId: string): Promise<any | null>
     getTokens(): Promise<OAuthTokens | null>
     setTokens(tokens: OAuthTokens): Promise<void>
     getUserInfo(): Promise<UserInfo | null>
@@ -131,9 +127,6 @@ function createApp(dist: string, port: number, ctx: ServerContext): Hono {
 
   // CORS middleware with security headers
   app.use("*", createCorsMiddleware())
-
-  // Bucket browser middleware
-  app.use("*", createBucketBrowser(ctx))
 
   // Proxy middleware
   app.use("*", createProxy())

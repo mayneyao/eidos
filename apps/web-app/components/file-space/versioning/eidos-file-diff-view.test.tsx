@@ -26,6 +26,7 @@ const file: SpaceVersionSqliteFileDiff = {
     {
       name: "tb_tasks",
       columns: ["_id", "title", "done", "_last_edited_time"],
+      primaryKeyColumns: [],
       changes: [
         {
           operation: "update",
@@ -44,6 +45,7 @@ const file: SpaceVersionSqliteFileDiff = {
     {
       name: "eidos__meta",
       columns: ["key", "value"],
+      primaryKeyColumns: [],
       changes: [
         {
           operation: "update",

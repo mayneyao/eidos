@@ -11,15 +11,6 @@ import log from "electron-log"
 import { Injectable, container } from "../../common/di"
 import { OAUTH_CONFIG } from "@/lib/const"
 
-interface SyncCredentials {
-  endpoint: string
-  bucketName: string
-  accessKeyId: string
-  secretAccessKey: string
-  tokenId: string
-  region?: string
-}
-
 export interface OAuthTokens {
   access_token: string
   refresh_token?: string
@@ -45,7 +36,6 @@ export interface PKCEParams {
 
 const TOKENS_DIR = "auth"
 const TOKENS_FILE_NAME = "oauth_tokens.bin"
-const SYNC_CREDENTIALS_FILE_NAME = "sync_credentials.bin"
 let warnedAboutPlaintextStorage = false
 
 // PKCE utilities
@@ -73,18 +63,6 @@ async function ensureAppReady() {
 async function getTokensFilePath(): Promise<string> {
   await ensureAppReady()
   return path.join(app.getPath("userData"), TOKENS_DIR, TOKENS_FILE_NAME)
-}
-
-async function getSyncCredentialsFilePath(
-  providerId: string = "eidos.space"
-): Promise<string> {
-  await ensureAppReady()
-  return path.join(
-    app.getPath("userData"),
-    TOKENS_DIR,
-    providerId,
-    SYNC_CREDENTIALS_FILE_NAME
-  )
 }
 
 async function writeSecureTokens(tokensJson: string): Promise<void> {
@@ -133,63 +111,6 @@ async function clearSecureTokens(): Promise<void> {
   } catch (error: any) {
     if (error?.code !== "ENOENT") {
       log.warn("Failed to clear tokens from storage:", error)
-    }
-  }
-}
-
-async function writeSecureSyncCredentials(
-  credentialsJson: string,
-  providerId: string = "eidos.space"
-): Promise<void> {
-  const filePath = await getSyncCredentialsFilePath(providerId)
-  await fs.mkdir(path.dirname(filePath), { recursive: true })
-
-  const encryptionAvailable = safeStorage.isEncryptionAvailable()
-  if (!encryptionAvailable && !warnedAboutPlaintextStorage) {
-    log.warn(
-      "Electron safeStorage encryption unavailable; storing sync credentials unencrypted on disk."
-    )
-    warnedAboutPlaintextStorage = true
-  }
-
-  const payload = encryptionAvailable
-    ? safeStorage.encryptString(credentialsJson)
-    : Buffer.from(credentialsJson, "utf-8")
-
-  await fs.writeFile(filePath, payload)
-}
-
-async function readSecureSyncCredentials(
-  providerId: string = "eidos.space"
-): Promise<string | null> {
-  try {
-    const filePath = await getSyncCredentialsFilePath(providerId)
-    const raw = await fs.readFile(filePath)
-    if (!raw?.length) {
-      return null
-    }
-
-    return safeStorage.isEncryptionAvailable()
-      ? safeStorage.decryptString(raw)
-      : raw.toString("utf-8")
-  } catch (error: any) {
-    if (error?.code === "ENOENT") {
-      return null
-    }
-    log.error("Failed to read stored sync credentials:", error)
-    return null
-  }
-}
-
-async function clearSecureSyncCredentials(
-  providerId: string = "eidos.space"
-): Promise<void> {
-  try {
-    const filePath = await getSyncCredentialsFilePath(providerId)
-    await fs.unlink(filePath)
-  } catch (error: any) {
-    if (error?.code !== "ENOENT") {
-      log.warn("Failed to clear sync credentials from storage:", error)
     }
   }
 }
@@ -398,8 +319,7 @@ export class CredentialsManager {
       })
 
       if (!tokenResponse.ok) {
-        const error = await tokenResponse.text()
-        log.error("Token refresh failed:", error)
+        log.error(`Token refresh failed with HTTP ${tokenResponse.status}`)
         await this.clearAll()
         return null
       }
@@ -466,64 +386,6 @@ export class CredentialsManager {
     }
 
     return tokens.access_token
-  }
-
-  /**
-   * Store sync credentials securely
-   */
-  async setSyncCredentials(
-    credentials: SyncCredentials,
-    providerId: string = "eidos.space"
-  ): Promise<void> {
-    try {
-      const credentialsJson = JSON.stringify(credentials)
-      await writeSecureSyncCredentials(credentialsJson, providerId)
-    } catch (error) {
-      log.error("Failed to store sync credentials:", error)
-      throw new Error("Failed to securely store sync credentials")
-    }
-  }
-
-  /**
-   * Retrieve sync credentials from disk
-   */
-  async getSyncCredentials(
-    providerId: string = "eidos.space"
-  ): Promise<SyncCredentials | null> {
-    try {
-      const credentialsJson = await readSecureSyncCredentials(providerId)
-      if (!credentialsJson) {
-        return null
-      }
-
-      return JSON.parse(credentialsJson) as SyncCredentials
-    } catch (error) {
-      log.error("Failed to retrieve sync credentials:", error)
-      return null
-    }
-  }
-
-  /**
-   * Clear sync credentials
-   */
-  async clearSyncCredentials(
-    providerId: string = "eidos.space"
-  ): Promise<void> {
-    try {
-      await clearSecureSyncCredentials(providerId)
-    } catch (error) {
-      log.warn("Failed to clear sync credentials from storage:", error)
-    }
-  }
-
-  /**
-   * Check if sync credentials are available
-   */
-  async hasSyncCredentials(
-    providerId: string = "eidos.space"
-  ): Promise<boolean> {
-    const credentials = await this.getSyncCredentials(providerId)
-    return !!credentials
   }
 
   /**

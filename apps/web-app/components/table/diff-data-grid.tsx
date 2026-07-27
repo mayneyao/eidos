@@ -14,11 +14,13 @@ import { useDynamicTheme } from "@/components/table/views/grid/theme"
 import "@glideapps/glide-data-grid/dist/index.css"
 
 export type DiffGridOp = "insert" | "delete" | "update"
+type DiffGridRowKey = Record<string, string | number | null | { $blob: string }>
 
 export interface DiffGridRow {
   id?: string
   op: DiffGridOp
   rowid?: number | string
+  key?: DiffGridRowKey
   columns?: string[]
   values?: unknown[]
   before?: unknown[]
@@ -315,7 +317,12 @@ export function DiffDataGrid({
       }
 
       if (col === 1) {
-        const rowid = row.rowid == null ? "" : String(row.rowid)
+        const rowid =
+          row.rowid == null
+            ? row.key
+              ? JSON.stringify(row.key)
+              : ""
+            : String(row.rowid)
         return {
           kind: GridCellKind.Text,
           data: rowid,
@@ -340,7 +347,9 @@ export function DiffDataGrid({
 
         if (col === 3 || col === 4) {
           const resolution = col === 3 ? "ours" : "theirs"
-          const rowKey = row.id ?? `${row.table ?? ""}:${row.rowid ?? rowIndex}`
+          const rowKey =
+            row.id ??
+            `${row.table ?? ""}:${row.rowid ?? (row.key ? JSON.stringify(row.key) : rowIndex)}`
           const isActive = resolvingRowKey === `${resolution}:${rowKey}`
           const displayData = isActive
             ? "..."

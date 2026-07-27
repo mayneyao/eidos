@@ -17,11 +17,5 @@
     "@types/node": "^20.4.1",
     "typescript": "^5.3.3",
     "vitest": "^3.2.4"
-  },
-  "dependencies": {
-    "@aws-sdk/client-s3": "^3.1005.0",
-    "@aws-sdk/lib-storage": "^3.1005.0",
-    "@types/chokidar": "^2.1.7",
-    "chokidar": "^5.0.0"
   }
 }

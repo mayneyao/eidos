@@ -43,8 +43,6 @@
       "@eidos.space/legacy-space-migration/*": [
         "./packages/legacy-space-migration/src/*"
       ],
-      "@eidos.space/graft-client": ["./packages/graft-client/src/index.ts"],
-      "@eidos.space/graft-client/*": ["./packages/graft-client/src/*"],
       "@eidos.space/markdown-editor": [
         "./packages/markdown-editor/src/index.ts"
       ],

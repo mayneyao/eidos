@@ -1778,12 +1778,6 @@ function countRowOps(rows: any[]) {
   }
 }
 
-interface ProviderInfo {
-  id: string
-  name: string
-  hasCredentials: boolean
-}
-
 function EnableSyncPanel({
   spaceId,
   isDesktop,
@@ -1791,70 +1785,16 @@ function EnableSyncPanel({
   spaceId: string
   isDesktop: boolean
 }) {
-  const [providers, setProviders] = useState<ProviderInfo[]>([])
-  const [selected, setSelected] = useState<string>("")
   const [isEnablingSync, setIsEnablingSync] = useState(false)
   const [error, setError] = useState("")
   const { setBlockUIMsg, setBlockUIData } = useAppRuntimeStore()
 
-  useEffect(() => {
-    if (!isDesktop) return
-    ;(async () => {
-      try {
-        const config = await window.eidos.config.get("sync")
-        const list: ProviderInfo[] = []
-
-        // eidos.space (built-in)
-        const eidosCreds =
-          await window.eidos.credentials.hasSyncCredentials("eidos.space")
-        list.push({
-          id: "eidos.space",
-          name: "eidos.space",
-          hasCredentials: eidosCreds,
-        })
-
-        // Custom providers
-        if (config?.providers) {
-          for (const [id, p] of Object.entries(config.providers) as any) {
-            const hasCreds =
-              await window.eidos.credentials.hasSyncCredentials(id)
-            list.push({ id, name: p.name || id, hasCredentials: hasCreds })
-          }
-        }
-
-        setProviders(list)
-        const defaultId = config?.defaultProvider || "eidos.space"
-        setSelected(
-          list.some((p) => p.id === defaultId) ? defaultId : list[0]?.id || ""
-        )
-      } catch (e) {
-        console.error("Failed to load providers:", e)
-        setError("Failed to load sync providers.")
-      }
-    })()
-  }, [isDesktop])
-
   const handleEnableSync = async () => {
-    if (!selected) return
     setIsEnablingSync(true)
     setError("")
     let keepProgressOverlay = false
     let stopProgress: (() => void) | undefined
     try {
-      const provider = providers.find((p) => p.id === selected)
-      if (!provider || !provider.hasCredentials) {
-        setError(
-          "Please configure credentials for the selected provider first."
-        )
-        setIsEnablingSync(false)
-        return
-      }
-
-      const remote =
-        selected === "eidos.space"
-          ? `https://eidos.space/${spaceId}`
-          : `s3://custom/${spaceId}`
-
       stopProgress = startEnableSyncProgress((message, progress) => {
         setBlockUIData({
           title: "Enabling Remote Sync",
@@ -1865,12 +1805,7 @@ function EnableSyncPanel({
         setBlockUIMsg(message)
       })
 
-      const result = await window.eidos.spaceMgmt.toggleSpaceSync(
-        spaceId,
-        true,
-        remote,
-        selected
-      )
+      const result = await window.eidos.spaceMgmt.toggleSpaceSync(spaceId, true)
 
       stopProgress()
       if (result.success) {
@@ -1912,8 +1847,8 @@ function EnableSyncPanel({
       <div className="space-y-3">
         <h3 className="text-sm font-medium">Enable Remote Sync</h3>
         <p className="text-xs text-muted-foreground">
-          Choose a provider to push your local history to and enable
-          bi-directional sync.
+          Connect this Space to the official Eidos Sync service. Desktop will
+          provision its repository and configure Graft Remote v1 automatically.
         </p>
       </div>
 
@@ -1923,51 +1858,11 @@ function EnableSyncPanel({
         </div>
       ) : null}
 
-      {/* Provider List */}
-      <div className="space-y-2">
-        {providers.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => setSelected(p.id)}
-            disabled={!p.hasCredentials}
-            className={`flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
-              selected === p.id
-                ? "border-primary bg-primary/5"
-                : "border-border hover:border-border/80"
-            } ${!p.hasCredentials ? "cursor-not-allowed opacity-50" : ""}`}
-          >
-            <div className="mt-0.5">
-              <div
-                className={`flex h-4 w-4 items-center justify-center rounded-full border-2 ${
-                  selected === p.id
-                    ? "border-primary"
-                    : "border-muted-foreground"
-                }`}
-              >
-                {selected === p.id ? (
-                  <div className="h-2 w-2 rounded-full bg-primary" />
-                ) : null}
-              </div>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium">{p.name}</div>
-              <div className="mt-0.5 text-xs text-muted-foreground">
-                {p.hasCredentials ? "Credentials configured" : "No credentials"}
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
-
       <Button
         size="sm"
         className="w-full"
         onClick={handleEnableSync}
-        disabled={
-          isEnablingSync ||
-          !selected ||
-          !providers.find((p) => p.id === selected)?.hasCredentials
-        }
+        disabled={isEnablingSync}
       >
         {isEnablingSync ? (
           <LoaderIcon className="mr-2 h-3 w-3 animate-spin" />

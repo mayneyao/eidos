@@ -70,7 +70,8 @@ export interface SpaceVersionRemote {
 
 export interface SpaceVersionConfigureRemoteRequest {
   name?: string
-  url: string
+  /** Desktop provisions the authoritative Eidos Sync URL. */
+  url?: string
   branch?: string
 }
 
@@ -135,6 +136,9 @@ export interface SpaceVersionConflictArtifact {
   rowId: number | null
   oursRowId: number | null
   theirsRowId: number | null
+  key?: SpaceVersionSqliteRowKey
+  oursKey?: SpaceVersionSqliteRowKey
+  theirsKey?: SpaceVersionSqliteRowKey
   semanticKey: string[]
   name: string | null
   entryType: string | null
@@ -158,10 +162,9 @@ export interface SpaceVersionResolveConflictRequest {
   target?: SpaceVersionRowConflictTarget
 }
 
-export interface SpaceVersionRowConflictTarget {
-  table: string
-  rowId: number
-}
+export type SpaceVersionRowConflictTarget =
+  | { table: string; rowId: number; key?: never }
+  | { table: string; rowId?: never; key: SpaceVersionSqliteRowKey }
 
 export interface SpaceVersionResolveConflictResult {
   path: string
@@ -227,11 +230,27 @@ export interface SpaceVersionTextContentDiff {
 
 export type SpaceVersionSqliteValue = string | number | boolean | null
 
+export interface SpaceVersionSqliteBlobKeyValue {
+  $blob: string
+}
+
+export type SpaceVersionSqlitePrimaryKeyValue =
+  | string
+  | number
+  | null
+  | SpaceVersionSqliteBlobKeyValue
+
+export type SpaceVersionSqliteRowKey = Record<
+  string,
+  SpaceVersionSqlitePrimaryKeyValue
+>
+
 export type SpaceVersionSqliteRowOperation = "insert" | "update" | "delete"
 
 export interface SpaceVersionSqliteRowChange {
   operation: SpaceVersionSqliteRowOperation
-  rowId: number
+  rowId: number | null
+  key?: SpaceVersionSqliteRowKey
   values: SpaceVersionSqliteValue[]
   beforeValues: SpaceVersionSqliteValue[] | null
 }
@@ -239,6 +258,7 @@ export interface SpaceVersionSqliteRowChange {
 export interface SpaceVersionSqliteTableDiff {
   name: string
   columns: string[]
+  primaryKeyColumns: string[]
   changes: SpaceVersionSqliteRowChange[]
 }
 
@@ -1047,6 +1067,36 @@ function isSqliteValue(value: unknown): value is SpaceVersionSqliteValue {
   )
 }
 
+function normalizeSqliteRowKey(
+  value: unknown
+): SpaceVersionSqliteRowKey | null {
+  if (!isRecord(value) || Object.keys(value).length === 0) return null
+  const key: SpaceVersionSqliteRowKey = {}
+  for (const [column, entry] of Object.entries(value)) {
+    if (!column || column.includes("\0")) return null
+    if (
+      entry === null ||
+      typeof entry === "string" ||
+      (typeof entry === "number" && Number.isFinite(entry))
+    ) {
+      key[column] = entry
+      continue
+    }
+    if (
+      isRecord(entry) &&
+      Object.keys(entry).length === 1 &&
+      typeof entry.$blob === "string" &&
+      entry.$blob.length % 2 === 0 &&
+      /^[0-9a-f]*$/.test(entry.$blob)
+    ) {
+      key[column] = { $blob: entry.$blob }
+      continue
+    }
+    return null
+  }
+  return key
+}
+
 function normalizeSqliteRowChange(
   value: unknown
 ): SpaceVersionSqliteRowChange | null {
@@ -1058,9 +1108,12 @@ function normalizeSqliteRowChange(
   ) {
     return null
   }
-  if (typeof value.rowId !== "number" || !Number.isSafeInteger(value.rowId)) {
-    return null
-  }
+  const rowId =
+    typeof value.rowId === "number" && Number.isSafeInteger(value.rowId)
+      ? value.rowId
+      : null
+  const key = normalizeSqliteRowKey(value.key)
+  if ((rowId === null) === (key === null)) return null
   if (!Array.isArray(value.values) || !value.values.every(isSqliteValue)) {
     return null
   }
@@ -1075,7 +1128,8 @@ function normalizeSqliteRowChange(
   if (value.operation === "update" && beforeValues === null) return null
   return {
     operation: value.operation,
-    rowId: value.rowId,
+    rowId,
+    ...(key ? { key } : {}),
     values: value.values,
     beforeValues,
   }
@@ -1092,6 +1146,11 @@ function normalizeSqliteTableDiff(
         (column): column is string => typeof column === "string"
       )
     : []
+  const primaryKeyColumns = Array.isArray(value.primaryKeyColumns)
+    ? value.primaryKeyColumns.filter(
+        (column): column is string => typeof column === "string"
+      )
+    : []
   const changes = Array.isArray(value.changes)
     ? value.changes
         .map(normalizeSqliteRowChange)
@@ -1099,7 +1158,7 @@ function normalizeSqliteTableDiff(
           (change): change is SpaceVersionSqliteRowChange => change !== null
         )
     : []
-  return { name, columns, changes }
+  return { name, columns, primaryKeyColumns, changes }
 }
 
 function normalizeSqliteFileDiff(

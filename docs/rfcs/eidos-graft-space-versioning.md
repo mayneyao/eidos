@@ -10,35 +10,57 @@ Related:
 - `eidos-space-markdown-runtime.md`
 - `eidos-file-based-extensions.md`
 
-## Implementation Status (2026-07-14)
+## Implementation Status (2026-07-27)
 
-Graft v0.5.5 is now the Desktop dependency baseline. It upgrades Fjall/lsm-tree
-to a release containing the relocation metadata fix and adds a read-only
-compatibility boundary for 4 KiB pages. A legacy page that was recorded as
-uncompressed but still contains LZ4 data is recovered only when it expands to
-exactly 4 KiB. Values that cannot become a valid page still fail, and historical
-store files are not rewritten in place. Status, log, and diff now read the real
-`new-base-v2` Space repository successfully.
+Eidos Desktop is pinned to Graft v0.8.1, release tag commit
+`89b90628a55bccd9f159462fe94046ddb7de6169`. Both the CLI and SQLite extension
+remain bundled, but they have separate responsibilities:
 
-An Electron process can load the Graft extension repeatedly for multiple SQLite
-connections. Graft v0.5.5 makes extension tracing initialization idempotent: the
-first global subscriber remains installed and later loads no longer panic while
-setting the global default. The full Desktop smoke now covers multiple
-repositories in one process together with commit, diff, restore, conflicts, and
-remote synchronization.
+- ordinary physical SQLite files are the default worktree,
+- the Graft CLI and its typed repository service are the control plane,
+- the SQLite extension is an optional VFS/data-plane component only, and
+- Eidos sends no repository operation through a Graft PRAGMA.
 
-The local workflow is implemented with a repository-scoped SQLite/Graft PRAGMA
-executor for normal operations; only repository initialization remains a
-one-shot CLI operation. Each active repository is isolated in a short-lived
-child process because Graft's registered VFS and Fjall lock are process-scoped.
-Requests reuse that process while active, enforce real timeout and response-size
-limits, then close it after an idle window or when the Space/app closes. This
-keeps repeated status/diff operations fast without retaining repository locks
-in Electron's main process. The UI provides Changes and Staged Changes, path and
-directory stage/unstage/discard, text Diff tabs, commit history, path restore,
-and whole-Space restore. Private `.eidos` runtime paths are hidden.
-Working Changes and historical inspectors also expand `.eidos` paths into
-compact table/column/row operations through path-scoped Graft row details.
+For a legacy DataSpace, `.eidos/db.sqlite3` remains directly openable by normal
+SQLite tools and uses Eidos's standard WAL configuration. On first v0.8 open,
+Desktop detects a legacy VFS worktree only when `.eidos/.graft` exists and the
+database path is missing, empty, or lacks a SQLite header. It asks the CLI to
+export to a temporary physical database, validates the SQLite header, and only
+then replaces the empty legacy placeholder. A non-empty, non-SQLite path is
+never overwritten automatically.
+
+The stable commit sequence is: finish the SQLite transaction, run `graft add`
+while the database connection is still open so Graft's online backup includes
+committed WAL frames, close the connection, run `graft commit`, and reopen the
+complete Eidos connection (extensions and attached databases included).
+Commands that may materialize another worktree state—pull, checkout, hard
+reset, merge continuation/abort, and conflict resolution—also run only while
+the SQLite handle is closed. The same flow supports WAL and rollback-journal
+databases without using a checkpoint as a commit boundary.
+
+Desktop product sync uses the official service at `https://sync.eidos.space`.
+The Electron main process refreshes the eidos.space OAuth access token, calls
+discovery and the repository management API, provisions a repository, and
+stores the authoritative `remote_url` returned by the service. The URL is
+passed unchanged to the v0.8 CLI, where `https://` and `graft+https://` select
+Graft HTTP Remote v1. The access token is supplied only through
+`GRAFT_REMOTE_TOKEN`; it is never embedded in the URL or persisted in Graft
+configuration. Desktop does not implement or translate the remote protocol.
+Filesystem remotes remain available to local smoke tests, but S3 and
+S3-compatible providers are not Desktop product options.
+
+Graft v0.8 stages physical SQLite worktrees with valid page sizes from 512 to
+65536 bytes, while its storage remains chunked at 4096 bytes. Row diff and
+merge preserve declared primary-key identities for STRICT and WITHOUT ROWID
+tables, including composite and BLOB keys. The optional `vfs=graft` write path
+still requires a 4096-byte SQLite page size; Desktop does not apply that VFS
+restriction to ordinary physical worktrees.
+
+The UI continues to provide Changes and Staged Changes, path and directory
+stage/unstage/discard, text Diff tabs, commit history, path restore, and
+whole-Space restore. Private `.eidos` runtime paths are hidden. Working Changes
+and historical inspectors expand `.eidos` paths into compact table/column/row
+operations through path-scoped Graft row details.
 
 Native Electron acceptance now covers a Changes click opening a dedicated text
 Diff tab, path and directory staging, commit, cursor-paged history, single-path
@@ -47,12 +69,12 @@ quadratic Base58 encoding of inline file blobs with backward-compatible Base64
 `file-blob-v2` objects. Staging the 165 KB acceptance Markdown file dropped from
 about 98 seconds to about 27 ms on the acceptance machine.
 
-The remote vertical slice is now implemented over the same persistent Graft
-connection. File Space Settings configures the remote; the compact Version
+The remote vertical slice is now implemented through the same CLI control
+plane. File Space Settings provisions Eidos Sync; the compact Version
 toolbar exposes fetch, pull, push, upstream, ahead, and behind state. Pull
 blocks dirty worktrees. Diverged pulls surface path-first conflicts in Changes,
 open HEAD-to-merge-head Diff tabs, and offer ours, theirs, or current-file
-resolution. Creating the next version after resolution uses `merge-continue`
+resolution. Creating the next version after resolution uses `merge --continue`
 and preserves both parents.
 
 An isolated two-Space `fs://` acceptance covers initial push, clone, remote

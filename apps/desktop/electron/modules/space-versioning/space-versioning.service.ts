@@ -2,6 +2,12 @@ import { IpcServiceBase } from "@eidos.space/electron-ipc"
 
 import { IpcInjectable, Inject } from "../../common/di"
 import { MainWindowProvider } from "../space-management/main-window.provider"
+import { SpaceRegistry } from "../space-management/space-registry"
+import {
+  isOfficialGraftRemoteUrl,
+  isEmptyGraftRemoteError,
+  OfficialGraftRemoteService,
+} from "../sync/official-graft-remote"
 import { SpaceVersioningCoordinator } from "./space-versioning.coordinator"
 import type {
   SpaceVersionCommit,
@@ -54,7 +60,10 @@ export class SpaceVersioningService extends IpcServiceBase {
     @Inject(SpaceVersioningCoordinator)
     private readonly coordinator: SpaceVersioningCoordinator,
     @Inject(MainWindowProvider)
-    private readonly windowProvider: MainWindowProvider
+    private readonly windowProvider: MainWindowProvider,
+    @Inject(SpaceRegistry) private readonly registry: SpaceRegistry,
+    @Inject(OfficialGraftRemoteService)
+    private readonly officialRemote: OfficialGraftRemoteService
   ) {
     super()
   }
@@ -84,11 +93,36 @@ export class SpaceVersioningService extends IpcServiceBase {
     return this.coordinator.getRemotes(spaceId)
   }
 
-  configureRemote(
+  async configureRemote(
     spaceId: string,
     options: SpaceVersionConfigureRemoteOptions
   ): Promise<SpaceVersionConfigureRemoteResult> {
-    return this.coordinator.configureRemote(spaceId, options)
+    const provisioned = await this.officialRemote.provisionRepository(spaceId)
+    const configured = await this.coordinator.configureRemote(spaceId, {
+      name: "origin",
+      branch: options?.branch,
+      url: provisioned.remoteUrl,
+    })
+
+    if (!provisioned.created) {
+      try {
+        const fetched = await this.coordinator.fetchRemote(spaceId, {
+          remote: "origin",
+          branch: options?.branch,
+          expectedHead: configured.status.currentHead,
+        })
+        return { ...configured, status: fetched.status }
+      } catch (error) {
+        if (!isEmptyGraftRemoteError(error)) throw error
+      }
+    }
+
+    const pushed = await this.coordinator.pushRemote(spaceId, {
+      remote: "origin",
+      branch: options?.branch,
+      expectedHead: configured.status.currentHead,
+    })
+    return { ...configured, status: pushed.status }
   }
 
   removeRemote(
@@ -102,6 +136,7 @@ export class SpaceVersioningService extends IpcServiceBase {
     spaceId: string,
     options: SpaceVersionSyncOptions = {}
   ): Promise<SpaceVersionSyncResult> {
+    this.requireOfficialRemote(spaceId)
     return this.coordinator.fetchRemote(spaceId, options)
   }
 
@@ -109,6 +144,7 @@ export class SpaceVersioningService extends IpcServiceBase {
     spaceId: string,
     options: SpaceVersionSyncOptions = {}
   ): Promise<SpaceVersionSyncResult> {
+    this.requireOfficialRemote(spaceId)
     const result = await this.coordinator.pullRemote(spaceId, options)
     notifySpaceFilesChanged(this.windowProvider, spaceId)
     return result
@@ -118,6 +154,7 @@ export class SpaceVersioningService extends IpcServiceBase {
     spaceId: string,
     options: SpaceVersionSyncOptions = {}
   ): Promise<SpaceVersionSyncResult> {
+    this.requireOfficialRemote(spaceId)
     return this.coordinator.pushRemote(spaceId, options)
   }
 
@@ -198,5 +235,14 @@ export class SpaceVersioningService extends IpcServiceBase {
     const result = await this.coordinator.restoreVersion(spaceId, options)
     notifySpaceFilesChanged(this.windowProvider, spaceId)
     return result
+  }
+
+  private requireOfficialRemote(spaceId: string): void {
+    const remote = this.registry.getSpace(spaceId)?.sync?.remote
+    if (!isOfficialGraftRemoteUrl(remote)) {
+      throw new Error(
+        "This Space is not connected to Eidos Sync. Reconnect it in Space settings."
+      )
+    }
   }
 }

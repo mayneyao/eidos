@@ -81,8 +81,6 @@ export abstract class BaseDataSpace {
   // for trigger
   eventHandler: DataChangeEventHandler
   externalFS?: IExternalFileSystem
-  syncClient?: any
-
   // for auto migration
   hasMigrated = false
   tableFullTextSearch: TableFullTextSearch
@@ -136,7 +134,6 @@ export abstract class BaseDataSpace {
     cacheSize?: number
     isUDFWithCtx?: boolean
     enableFTS?: boolean
-    syncClient?: any
   }) {
     const {
       db,
@@ -153,13 +150,10 @@ export abstract class BaseDataSpace {
       cacheSize,
       isUDFWithCtx,
       enableFTS = false,
-      syncClient,
     } = config
     this.db = db
     this.rawdataDb = rawdataDb
     this.context = context
-    this.syncClient = syncClient
-
     this.isUDFWithCtx = Boolean(isUDFWithCtx)
     if (cacheSize) {
       this.setCacheSize(cacheSize)

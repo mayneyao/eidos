@@ -21,6 +21,21 @@ const graft =
     process.platform === "win32" ? "graft.exe" : "graft"
   )
 
+function findEidosCli() {
+  if (process.env.EIDOS_CLI_PATH) return process.env.EIDOS_CLI_PATH
+  const name =
+    process.platform === "darwin"
+      ? process.arch === "arm64"
+        ? "eidos-macos-arm"
+        : "eidos-macos-intel"
+      : process.platform === "win32"
+        ? "eidos-windows-x64.exe"
+        : "eidos-linux-x64"
+  return path.join(desktopDirectory, "dist-cli", name)
+}
+
+const eidosCli = findEidosCli()
+
 function runGraft(root, args) {
   const output = execFileSync(graft, args, {
     cwd: root,
@@ -30,9 +45,22 @@ function runGraft(root, args) {
   return output ? JSON.parse(output) : null
 }
 
+function runEidos(args) {
+  const output = execFileSync(eidosCli, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim()
+  return output ? JSON.parse(output) : null
+}
+
 if (!existsSync(graft)) {
   throw new Error(
     `Graft CLI is missing at ${graft}. Run pnpm --filter eidos build:cli first.`
+  )
+}
+if (!existsSync(eidosCli)) {
+  throw new Error(
+    `Eidos CLI is missing at ${eidosCli}. Run pnpm --filter eidos build:cli first.`
   )
 }
 
@@ -320,6 +348,20 @@ try {
   )
   persisted.close()
 
+  const cliInspection = runEidos([eidosFilePath, "inspect"])
+  assert.equal(
+    typeof cliInspection?.fileId,
+    "string",
+    JSON.stringify(cliInspection)
+  )
+  assert.equal(
+    typeof cliInspection?.revision,
+    "string",
+    JSON.stringify(cliInspection)
+  )
+  const cliValidation = runEidos([eidosFilePath, "validate", "--level", "full"])
+  assert.equal(cliValidation?.valid, true, JSON.stringify(cliValidation))
+
   writeFileSync(path.join(root, ".graftignore"), ".graft/\n.graftignore\n")
   runGraft(root, ["init", "--json"])
   runGraft(root, ["add", relativeEidosFilePath, "--json"])
@@ -371,6 +413,10 @@ try {
     file.logical_status,
     "logical_changes",
     JSON.stringify(file, null, 2)
+  )
+  assert.ok(
+    file.capabilities.includes("primary_key_table_rows"),
+    "Graft should advertise declared primary-key row diffs"
   )
   assert.ok(
     !(file.limitations ?? []).some(
@@ -459,6 +505,36 @@ try {
   assert.equal(cleanStatus.has_staged_changes, false)
   assert.equal(cleanStatus.has_unstaged_changes, false)
 
+  // Repository inspection remains on the same v0.8 CLI control plane.
+  const scopedUpdated = openEidosFile(eidosFilePath)
+  scopedUpdated.updateRow(tasksTableId, String(first._id), {
+    Done: true,
+    Priority: 4,
+    Owners: JSON.stringify([ada._id, grace._id]),
+  })
+  scopedUpdated.insertRow(tasksTableId, {
+    title: "Render row changes",
+    Done: false,
+  })
+  scopedUpdated.close()
+  const rawScopedDiff = runGraft(root, [
+    "--db",
+    relativeEidosFilePath,
+    "diff",
+    "--rows",
+    "--json",
+    "HEAD",
+  ])
+  const scopedDiff = {
+    ...rawScopedDiff,
+    paths: rawScopedDiff.paths.filter((entry) => entry.path !== ".graft"),
+    files: rawScopedDiff.files.filter((entry) => entry.path !== ".graft"),
+  }
+  assert.deepEqual(scopedDiff.paths, diff.paths)
+  assert.equal(scopedDiff.files[0]?.path, relativeEidosFilePath)
+  assert.equal(scopedDiff.files[0]?.row_diff_available, true)
+  assert.equal(scopedDiff.files[0]?.logical_status, "logical_changes")
+
   console.log(
     JSON.stringify(
       {
@@ -466,6 +542,8 @@ try {
         logicalStatus: file.logical_status,
         restoredRevision: initialRevision,
         changedTables: file.tables.map((table) => table.name),
+        primaryKeyColumns: tasksDiff.primary_key_columns,
+        eidosCli: "inspect+validate",
       },
       null,
       2

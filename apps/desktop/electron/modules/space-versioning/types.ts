@@ -93,7 +93,8 @@ export interface SpaceVersionRemoteListResult {
 
 export interface SpaceVersionConfigureRemoteOptions {
   name?: string
-  url: string
+  /** Product IPC provisions and supplies the authoritative Eidos Sync URL. */
+  url?: string
   branch?: string
 }
 
@@ -172,6 +173,9 @@ export interface SpaceVersionConflictArtifact {
   rowId: number | null
   oursRowId: number | null
   theirsRowId: number | null
+  key?: SpaceVersionSqliteRowKey
+  oursKey?: SpaceVersionSqliteRowKey
+  theirsKey?: SpaceVersionSqliteRowKey
   semanticKey: string[]
   name: string | null
   entryType: string | null
@@ -195,10 +199,9 @@ export interface SpaceVersionResolveConflictOptions {
   target?: SpaceVersionRowConflictTarget
 }
 
-export interface SpaceVersionRowConflictTarget {
-  table: string
-  rowId: number
-}
+export type SpaceVersionRowConflictTarget =
+  | { table: string; rowId: number; key?: never }
+  | { table: string; rowId?: never; key: SpaceVersionSqliteRowKey }
 
 export interface SpaceVersionResolveConflictResult {
   path: string
@@ -289,11 +292,27 @@ export interface SpaceVersionTextContentDiff {
 
 export type SpaceVersionSqliteValue = string | number | boolean | null
 
+export interface SpaceVersionSqliteBlobKeyValue {
+  $blob: string
+}
+
+export type SpaceVersionSqlitePrimaryKeyValue =
+  | string
+  | number
+  | null
+  | SpaceVersionSqliteBlobKeyValue
+
+export type SpaceVersionSqliteRowKey = Record<
+  string,
+  SpaceVersionSqlitePrimaryKeyValue
+>
+
 export type SpaceVersionSqliteRowOperation = "insert" | "update" | "delete"
 
 export interface SpaceVersionSqliteRowChange {
   operation: SpaceVersionSqliteRowOperation
-  rowId: number
+  rowId: number | null
+  key?: SpaceVersionSqliteRowKey
   values: SpaceVersionSqliteValue[]
   beforeValues: SpaceVersionSqliteValue[] | null
 }
@@ -301,6 +320,7 @@ export interface SpaceVersionSqliteRowChange {
 export interface SpaceVersionSqliteTableDiff {
   name: string
   columns: string[]
+  primaryKeyColumns: string[]
   changes: SpaceVersionSqliteRowChange[]
 }
 

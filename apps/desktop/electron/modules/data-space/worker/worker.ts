@@ -1,5 +1,4 @@
 import { DataSpace } from "@/packages/core/data-space"
-import { BucketClient } from "@/packages/sync/bucket"
 import {
   blockCodeCompile,
   extractConstant,
@@ -133,10 +132,6 @@ class DataSpaceManager {
     this._spaceInfo = spaceInfo // Store the global spaceInfo locally
     const isInit = isInitializationOperation(this._spaceInfo)
     logger.debug("isInitializationOperation", isInit)
-    const syncClient = graftPathConfig?.credentials
-      ? new BucketClient(graftPathConfig.credentials)
-      : undefined
-
     // Create database with sync support
     const serverDb = await NodeServerDatabase.create(
       {
@@ -363,7 +358,6 @@ class DataSpaceManager {
       dataEventChannel: dataEventChannel,
       externalFS: externalFS,
       enableFTS: true,
-      syncClient: syncClient,
       draftDb: draftDb,
     })
 
@@ -713,8 +707,15 @@ if (communicationPort) {
       vecPathConfig = initMsg.paths.vecPathConfig
       graftPathConfig = initMsg.paths.graftPathConfig
       spaceInfo = initMsg.spaceInfo
-      await getOrSetDataSpace(initMsg.spaceId)
-      communicationPort.postMessage({ type: "worker-ready" })
+      try {
+        await getOrSetDataSpace(initMsg.spaceId)
+        communicationPort.postMessage({ type: "worker-ready" })
+      } catch (error) {
+        communicationPort.postMessage({
+          type: "worker-init-error",
+          message: error instanceof Error ? error.message : String(error),
+        })
+      }
       return
     }
 

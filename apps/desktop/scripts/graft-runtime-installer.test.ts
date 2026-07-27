@@ -35,8 +35,8 @@ function sha256(contents: string | Buffer): string {
 function fixture() {
   const cliArchive = Buffer.from("fixture CLI archive")
   const extensionArchive = Buffer.from("fixture extension archive")
-  const cliBinary = Buffer.from("fixture graft 0.6.1 CLI")
-  const extensionBinary = Buffer.from("fixture Graft 0.6.1 extension")
+  const cliBinary = Buffer.from("fixture graft 0.8.1 CLI")
+  const extensionBinary = Buffer.from("fixture Graft 0.8.1 extension")
   const value = structuredClone(manifest)
   const selected = value.platforms["darwin-arm64"]
   selected.cli.archiveSha256 = sha256(cliArchive)
@@ -83,7 +83,7 @@ afterEach(() => {
 })
 
 describe("Graft runtime release metadata", () => {
-  it("pins v0.6.1 and all twelve platform archives", () => {
+  it("pins v0.8.1 and all twelve platform archives", () => {
     const value = validateManifest()
     const assets = Object.values(value.platforms).flatMap((platform) => [
       platform.cli.asset,
@@ -92,9 +92,9 @@ describe("Graft runtime release metadata", () => {
 
     expect(value).toMatchObject({
       repository: "eidos-space/graft",
-      tag: "v0.6.1",
-      version: "0.6.1",
-      releaseCommit: "09b601c2db8e64114779f2b3e11258b404790990",
+      tag: "v0.8.1",
+      version: "0.8.1",
+      releaseCommit: "89b90628a55bccd9f159462fe94046ddb7de6169",
     })
     expect(new Set(assets).size).toBe(12)
     expect(platformConfig("darwin", "arm64").config.target).toBe(
@@ -135,7 +135,7 @@ describe("Graft runtime installation", () => {
       installGraftRuntime(options),
       installGraftRuntime(options),
     ])
-    expect(first).toMatchObject({ cacheHit: false, version: "0.6.1" })
+    expect(first).toMatchObject({ cacheHit: false, version: "0.8.1" })
     expect(concurrent).toEqual(first)
     expect(data.download).toHaveBeenCalledTimes(2)
     expect(isRuntimeCacheValid(root, data.config)).toBe(true)

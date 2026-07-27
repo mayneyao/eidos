@@ -138,6 +138,14 @@ export class DataSpaceProcessPool extends EventEmitter {
         return
       }
 
+      if (payload.type === "worker-init-error") {
+        rejectReady!(
+          new Error(payload.message || "DataSpace initialization failed")
+        )
+        child.kill()
+        return
+      }
+
       if (payload.type === "forward-to-renderer") {
         // Forward message to renderer process
         const window = this.windowProvider.getWindow()

@@ -168,6 +168,16 @@ function ValueCell({
   )
 }
 
+function rowIdentityText(change: SpaceVersionSqliteRowChange): string {
+  if (change.rowId !== null) return String(change.rowId)
+  if (!change.key) return "?"
+  try {
+    return JSON.stringify(change.key)
+  } catch {
+    return "primary key"
+  }
+}
+
 function TableDiff({
   table,
   defaultOpen,
@@ -235,7 +245,7 @@ function TableDiff({
               <tbody>
                 {visibleChanges.map((change, index) => (
                   <tr
-                    key={`${change.operation}:${change.rowId}:${index}`}
+                    key={`${change.operation}:${rowIdentityText(change)}:${index}`}
                     className="border-t align-top first:border-t-0 hover:bg-muted/20"
                   >
                     <td className="h-9 border-r px-3 py-2">
@@ -251,7 +261,7 @@ function TableDiff({
                     ))}
                     {visibleColumns.length === 0 ? (
                       <td className="h-9 px-3 py-2 font-mono text-muted-foreground">
-                        {change.rowId}
+                        {rowIdentityText(change)}
                       </td>
                     ) : null}
                   </tr>

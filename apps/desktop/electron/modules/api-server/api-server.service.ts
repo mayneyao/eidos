@@ -139,9 +139,6 @@ export class ApiServerService {
         get: (key: string) => this.configManager.get(key as any),
         set: (key: string, value: any) =>
           this.configManager.set(key as any, value),
-        getDefaultSyncProvider: () =>
-          this.configManager.getDefaultSyncProvider(),
-        getSyncProvider: (id: string) => this.configManager.getSyncProvider(id),
         on: (event: string, callback: Function) =>
           this.configManager.on(event as any, callback as any),
       },
@@ -155,8 +152,6 @@ export class ApiServerService {
         getProcessByPort: (port: number) => getProcessByPort(port),
       },
       credentialsManager: {
-        getSyncCredentials: (providerId: string) =>
-          this.credentialsManager.getSyncCredentials(providerId),
         getTokens: () => this.credentialsManager.getTokens(),
         setTokens: (tokens: OAuthTokens) =>
           this.credentialsManager.setTokens(tokens),
