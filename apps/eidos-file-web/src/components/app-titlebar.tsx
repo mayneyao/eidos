@@ -11,12 +11,14 @@ import {
   FileSpreadsheet,
   FolderOpen,
   HeartPulse,
+  History,
   LayoutTemplate,
   Microscope,
   Moon,
   Save,
   Sun,
   TableProperties,
+  Trash2,
   WalletCards,
   type LucideIcon,
 } from "lucide-react"
@@ -49,17 +51,27 @@ interface AppTitlebarProps {
   StatusIcon?: LucideIcon
   statusSpinning?: boolean
   needsPermission?: boolean
+  permissionActionLabel?: string
   canSave?: boolean
   saveLabel?: string
+  recentFiles?: RecentFileMenuEntry[]
   theme: "light" | "dark"
   onNew: () => void
   onOpen: () => void
   onOpenSample: () => void
   onOpenTemplate: (id: EidosFileTemplateId) => void
+  onOpenRecent?: (id: string) => void
+  onClearRecentFiles?: () => void
   onSave: () => void
   onDownload: () => void
   onReauthorize: () => void
   onThemeChange: (theme: "light" | "dark") => void
+}
+
+export interface RecentFileMenuEntry {
+  id: string
+  fileName: string
+  hasUnsavedRecovery: boolean
 }
 
 /**
@@ -77,19 +89,24 @@ export function AppTitlebar({
   StatusIcon,
   statusSpinning,
   needsPermission,
+  permissionActionLabel,
   canSave,
   saveLabel,
+  recentFiles = [],
   theme,
   onNew,
   onOpen,
   onOpenSample,
   onOpenTemplate,
+  onOpenRecent,
+  onClearRecentFiles,
   onSave,
   onDownload,
   onReauthorize,
   onThemeChange,
 }: AppTitlebarProps) {
   const { locale, setLocale, t } = useI18n()
+  const resolvedPermissionActionLabel = permissionActionLabel ?? t("grantWrite")
 
   const templateSections: AppMenuSection[] = [
     {
@@ -105,9 +122,35 @@ export function AppTitlebar({
     },
   ]
 
+  const recentFileSections: AppMenuSection[] = [
+    {
+      id: "recent-files",
+      label: t("recentFiles"),
+      items: recentFiles.map((file) => ({
+        id: `recent-${file.id}`,
+        label: file.fileName,
+        icon: FileSpreadsheet,
+        hint: file.hasUnsavedRecovery ? t("unsavedRecovery") : undefined,
+        disabled: opening,
+        onSelect: () => onOpenRecent?.(file.id),
+      })),
+    },
+    {
+      id: "recent-files-actions",
+      items: [
+        {
+          id: "clear-recent-files",
+          label: t("clearRecentFiles"),
+          icon: Trash2,
+          onSelect: onClearRecentFiles,
+        },
+      ],
+    },
+  ]
+
   const fileSections: AppMenuSection[] = [
     {
-      id: "file",
+      id: "create",
       items: [
         {
           id: "new",
@@ -117,6 +160,18 @@ export function AppTitlebar({
           onSelect: onNew,
         },
         {
+          id: "new-from-template",
+          label: t("newFromTemplate"),
+          icon: LayoutTemplate,
+          disabled: opening,
+          submenu: templateSections,
+        },
+      ],
+    },
+    {
+      id: "open",
+      items: [
+        {
           id: "open",
           label: t("openEidosFile"),
           icon: FolderOpen,
@@ -124,19 +179,23 @@ export function AppTitlebar({
           disabled: opening,
           onSelect: onOpen,
         },
+        ...(recentFiles.length > 0
+          ? [
+              {
+                id: "recent-files",
+                label: t("recentFiles"),
+                icon: History,
+                disabled: opening,
+                submenu: recentFileSections,
+              },
+            ]
+          : []),
         {
           id: "sample",
           label: t("openSample"),
           icon: FileSpreadsheet,
           disabled: opening,
           onSelect: onOpenSample,
-        },
-        {
-          id: "new-from-template",
-          label: t("newFromTemplate"),
-          icon: LayoutTemplate,
-          disabled: opening,
-          submenu: templateSections,
         },
       ],
     },
@@ -164,16 +223,6 @@ export function AppTitlebar({
   ]
 
   const moreSections: AppMenuSection[] = [
-    {
-      id: "language",
-      label: t("languageSelector"),
-      items: EIDOS_FILE_LOCALES.map((option) => ({
-        id: `language-${option.value}`,
-        label: option.label,
-        checked: locale === option.value,
-        onSelect: () => setLocale(option.value),
-      })),
-    },
     {
       id: "resources",
       label: t("menuResources"),
@@ -209,6 +258,16 @@ export function AppTitlebar({
           },
         },
       ],
+    },
+    {
+      id: "language",
+      label: t("languageSelector"),
+      items: EIDOS_FILE_LOCALES.map((option) => ({
+        id: `language-${option.value}`,
+        label: option.label,
+        checked: locale === option.value,
+        onSelect: () => setLocale(option.value),
+      })),
     },
   ]
 
@@ -256,12 +315,12 @@ export function AppTitlebar({
           <button
             className="permission-button"
             type="button"
-            aria-label={t("grantWrite")}
-            title={t("grantWrite")}
+            aria-label={resolvedPermissionActionLabel}
+            title={resolvedPermissionActionLabel}
             onClick={onReauthorize}
           >
             <FileKey size={14} aria-hidden="true" />
-            <span>{t("grantWrite")}</span>
+            <span>{resolvedPermissionActionLabel}</span>
           </button>
         ) : null}
         <button

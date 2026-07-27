@@ -58,17 +58,30 @@ import {
 } from "lucide-react"
 import { useRegisterSW } from "virtual:pwa-register/react"
 
-import { AppTitlebar } from "./components/app-titlebar"
+import {
+  AppTitlebar,
+  type RecentFileMenuEntry,
+} from "./components/app-titlebar"
 import { PwaUpdatePrompt } from "./components/pwa-update-prompt"
 import { SharedEidosFileEditorView } from "./components/shared-eidos-file-editor-view"
 import {
   deleteRecoverySession,
   getLatestRecoverySession,
+  getRecoverySessions,
   storeRecoverySession,
   type RecoverySession,
 } from "./files/recovery-store"
 import {
+  clearRecentFiles,
+  getRecentFiles,
+  rememberRecentFile,
+  sameFileHandle,
+  type RecentFileEntry,
+} from "./files/recent-files-store"
+import {
   downloadEidosFileCopy,
+  isFilePermissionError,
+  openEidosFileHandle,
   openImportedEidosFile,
   pickDirectEidosFile,
   pickSaveHandle,
@@ -110,6 +123,8 @@ interface OpenSession {
   handle?: FileSystemFileHandle
   storage: "opfs-sahpool" | "memory"
 }
+
+interface RecentFileState extends RecentFileEntry, RecentFileMenuEntry {}
 
 type Theme = "light" | "dark"
 
@@ -254,6 +269,8 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null)
   const [recovery, setRecovery] = useState<RecoverySession | null>(null)
   const [recoveryReady, setRecoveryReady] = useState(false)
+  const [recentFiles, setRecentFiles] = useState<RecentFileState[]>([])
+  const [needsOriginalRelink, setNeedsOriginalRelink] = useState(false)
   const [propertyField, setPropertyField] = useState<EidosFileFieldInfo | null>(
     null
   )
@@ -292,6 +309,7 @@ export function App() {
   const clientRef = useRef<EidosFileWorkerClient | null>(null)
   const saveStateRef = useRef(saveState)
   const sessionRef = useRef(session)
+  const recoveryRef = useRef(recovery)
   const dispatch = useCallback((event: Parameters<typeof saveReducer>[1]) => {
     saveStateRef.current = saveReducer(saveStateRef.current, event)
     reactDispatch(event)
@@ -405,6 +423,10 @@ export function App() {
     sessionRef.current = session
   }, [session])
 
+  useLayoutEffect(() => {
+    recoveryRef.current = recovery
+  }, [recovery])
+
   useEffect(() => {
     const retiring = retiringClientsRef.current.splice(0)
     for (const client of retiring) client.terminate()
@@ -450,6 +472,29 @@ export function App() {
     }
   }, [pwaRegistration])
 
+  const refreshRecentFiles = useCallback(async () => {
+    const [files, recoveries] = await Promise.all([
+      getRecentFiles(),
+      getRecoverySessions(),
+    ])
+    const next: RecentFileState[] = []
+    for (const file of files) {
+      let hasUnsavedRecovery = false
+      for (const candidate of recoveries) {
+        if (
+          candidate.dirty &&
+          candidate.handle &&
+          (await sameFileHandle(file.handle, candidate.handle))
+        ) {
+          hasUnsavedRecovery = true
+          break
+        }
+      }
+      next.push({ ...file, hasUnsavedRecovery })
+    }
+    setRecentFiles(next)
+  }, [])
+
   useEffect(() => {
     void getLatestRecoverySession()
       .then(setRecovery)
@@ -458,6 +503,12 @@ export function App() {
       )
       .finally(() => setRecoveryReady(true))
   }, [])
+
+  useEffect(() => {
+    void refreshRecentFiles().catch((error) =>
+      console.warn("Unable to read recent Eidos Files", error)
+    )
+  }, [refreshRecentFiles])
 
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -488,12 +539,33 @@ export function App() {
       }
       try {
         await storeRecoverySession(record)
+        const recoveryStateChanged =
+          recoveryRef.current?.id !== record.id ||
+          recoveryRef.current.dirty !== record.dirty
+        recoveryRef.current = record
         setRecovery(record)
+        if (recoveryStateChanged) await refreshRecentFiles()
       } catch (error) {
         console.warn("Unable to persist Eidos File recovery metadata", error)
       }
     },
-    []
+    [refreshRecentFiles]
+  )
+
+  const rememberOpenedFile = useCallback(
+    async (current: Pick<OpenSession, "fileName" | "handle">) => {
+      if (!current.handle) return
+      try {
+        await rememberRecentFile({
+          fileName: current.fileName,
+          handle: current.handle,
+        })
+        await refreshRecentFiles()
+      } catch (error) {
+        console.warn("Unable to update recent Eidos Files", error)
+      }
+    },
+    [refreshRecentFiles]
   )
 
   const rememberRecovery = useCallback(
@@ -533,6 +605,7 @@ export function App() {
       }
       setEditorSource(client)
       const nextSession: OpenSession = { ...opened, storage: result.storage }
+      sessionRef.current = nextSession
       setSession(nextSession)
       setSnapshot(result.snapshot)
       const preferredTable = preferredTableName
@@ -552,6 +625,7 @@ export function App() {
       setFormulaTarget(null)
       setLookupTarget(null)
       setNotice(null)
+      setNeedsOriginalRelink(false)
       const dirty =
         recoveredDirty ??
         (initiallyDirty || result.migrated || result.recovered)
@@ -567,8 +641,9 @@ export function App() {
       ) {
         await rememberSession(nextSession, dirty)
       }
+      await rememberOpenedFile(nextSession)
     },
-    [rememberSession]
+    [rememberOpenedFile, rememberSession]
   )
 
   const openPreparedFile = useCallback(
@@ -756,57 +831,138 @@ export function App() {
     [confirmSwitch, locale, openPreparedFile]
   )
 
-  const restoreRecovery = useCallback(async (): Promise<boolean> => {
-    if (!recovery || !confirmSwitch()) return false
-    const generation = ++openGenerationRef.current
-    dispatch({ type: "OPEN_START" })
-    const client = new EidosFileWorkerClient()
-    try {
-      const permission = recovery.handle
-        ? await queryWritePermission(recovery.handle)
-        : "denied"
-      const result = await client.openEditorRecovery(
-        recovery.fileName,
-        recovery.id
-      )
-      if (generation !== openGenerationRef.current) {
-        client.terminate()
-        return true
-      }
-      await installOpenResult(
-        client,
-        {
-          id: recovery.id,
-          fileName: recovery.fileName,
-          mode: recovery.mode,
-          permission,
-          sourceVersion: recovery.sourceVersion,
-          ...(recovery.handle ? { handle: recovery.handle } : {}),
-        },
-        result,
-        undefined,
-        false,
-        recovery.dirty
-      )
-      if (recovery.handle) {
-        const disk = await readHandleVersion(recovery.handle)
-        if (!sameFileVersion(disk.version, recovery.sourceVersion)) {
-          dispatch({
-            type: "CONFLICT",
-            message:
-              "The original file changed after this recovery copy was created. Save As, reload the original, or explicitly overwrite it.",
-          })
+  const restoreRecoverySession = useCallback(
+    async (
+      target: RecoverySession,
+      switchConfirmed = false
+    ): Promise<boolean> => {
+      if (!switchConfirmed && !confirmSwitch()) return false
+      const generation = ++openGenerationRef.current
+      dispatch({ type: "OPEN_START" })
+      const client = new EidosFileWorkerClient()
+      try {
+        const permission = target.handle
+          ? await queryWritePermission(target.handle)
+          : "denied"
+        const result = await client.openEditorRecovery(
+          target.fileName,
+          target.id
+        )
+        if (generation !== openGenerationRef.current) {
+          client.terminate()
+          return true
         }
+        await installOpenResult(
+          client,
+          {
+            id: target.id,
+            fileName: target.fileName,
+            mode: target.mode,
+            permission,
+            sourceVersion: target.sourceVersion,
+            ...(target.handle ? { handle: target.handle } : {}),
+          },
+          result,
+          undefined,
+          false,
+          target.dirty
+        )
+        if (target.handle) {
+          try {
+            const disk = await readHandleVersion(target.handle)
+            if (!sameFileVersion(disk.version, target.sourceVersion)) {
+              dispatch({
+                type: "CONFLICT",
+                message:
+                  "The original file changed after this recovery copy was created. Save As, reload the original, or explicitly overwrite it.",
+              })
+            }
+          } catch {
+            const currentSession = sessionRef.current
+            if (currentSession?.id === target.id) {
+              const nextSession = {
+                ...currentSession,
+                permission: "prompt" as const,
+              }
+              sessionRef.current = nextSession
+              setSession(nextSession)
+              dispatch({ type: "PERMISSION", permission: "prompt" })
+            }
+            setNeedsOriginalRelink(true)
+            setNotice(t("recoveryOriginalUnavailable"))
+          }
+        }
+        return true
+      } catch (error) {
+        client.terminate()
+        const message = errorMessage(error)
+        setNotice(message)
+        dispatch({ type: "OPEN_FAILURE", message })
+        return false
       }
-      return true
+    },
+    [confirmSwitch, installOpenResult, t]
+  )
+
+  const restoreRecovery = useCallback(
+    async (): Promise<boolean> =>
+      recovery ? restoreRecoverySession(recovery) : false,
+    [recovery, restoreRecoverySession]
+  )
+
+  const openRecentFile = useCallback(
+    async (id: string) => {
+      const recent = recentFiles.find((entry) => entry.id === id)
+      if (!recent) return
+      if (
+        session?.handle &&
+        (await sameFileHandle(session.handle, recent.handle))
+      ) {
+        return
+      }
+      if (!confirmSwitch()) return
+      setNotice(null)
+      try {
+        const recoveries = await getRecoverySessions()
+        for (const candidate of recoveries) {
+          if (
+            candidate.dirty &&
+            candidate.handle &&
+            (await sameFileHandle(recent.handle, candidate.handle))
+          ) {
+            await restoreRecoverySession(candidate, true)
+            return
+          }
+        }
+
+        let permission = await queryWritePermission(recent.handle)
+        if (permission !== "granted") {
+          permission = await requestWritePermission(recent.handle)
+        }
+        const opened = await openEidosFileHandle(recent.handle)
+        await openPreparedFile({ ...opened, permission })
+      } catch (error) {
+        setNotice(`${t("recentFileUnavailable")} ${errorMessage(error)}`)
+      }
+    },
+    [
+      confirmSwitch,
+      openPreparedFile,
+      recentFiles,
+      restoreRecoverySession,
+      session,
+      t,
+    ]
+  )
+
+  const clearRecentFileHistory = useCallback(async () => {
+    try {
+      await clearRecentFiles()
+      setRecentFiles([])
     } catch (error) {
-      client.terminate()
-      const message = errorMessage(error)
-      setNotice(message)
-      dispatch({ type: "OPEN_FAILURE", message })
-      return false
+      setNotice(errorMessage(error))
     }
-  }, [confirmSwitch, installOpenResult, recovery])
+  }, [])
 
   useEffect(() => {
     if (
@@ -838,21 +994,26 @@ export function App() {
       await client.discardRecovery(recovery.id)
       await deleteRecoverySession(recovery.id)
       setRecovery(null)
+      await refreshRecentFiles()
     } catch (error) {
       setNotice(errorMessage(error))
     } finally {
       client.terminate()
     }
-  }, [recovery])
+  }, [recovery, refreshRecentFiles])
 
-  const clearRecoveryAfterSave = useCallback(async (id: string) => {
-    try {
-      await deleteRecoverySession(id)
-      setRecovery((current) => (current?.id === id ? null : current))
-    } catch (error) {
-      console.warn("Unable to clear Eidos File recovery metadata", error)
-    }
-  }, [])
+  const clearRecoveryAfterSave = useCallback(
+    async (id: string) => {
+      try {
+        await deleteRecoverySession(id)
+        setRecovery((current) => (current?.id === id ? null : current))
+        await refreshRecentFiles()
+      } catch (error) {
+        console.warn("Unable to clear Eidos File recovery metadata", error)
+      }
+    },
+    [refreshRecentFiles]
+  )
 
   const saveAs = useCallback(async () => {
     const client = clientRef.current
@@ -876,13 +1037,16 @@ export function App() {
           sourceVersion: version,
           handle,
         }
+        sessionRef.current = next
         setSession(next)
+        setNeedsOriginalRelink(false)
         setSnapshot((current) =>
           current ? { ...current, path: handle?.name ?? current.path } : current
         )
         dispatch({ type: "PERMISSION", permission })
         dispatch({ type: "SAVE_SUCCESS", at: Date.now(), mode: "direct" })
         await rememberSession(next, false)
+        await rememberOpenedFile(next)
       } else {
         downloadEidosFileCopy(exported.bytes, session.fileName)
         dispatch({ type: "SAVE_SUCCESS", at: Date.now(), mode: "copy" })
@@ -892,7 +1056,13 @@ export function App() {
       dispatch({ type: "SAVE_FAILURE", message: errorMessage(error) })
       await rememberRecovery(session)
     }
-  }, [clearRecoveryAfterSave, rememberRecovery, rememberSession, session])
+  }, [
+    clearRecoveryAfterSave,
+    rememberOpenedFile,
+    rememberRecovery,
+    rememberSession,
+    session,
+  ])
 
   const saveOriginal = useCallback(
     async (overwrite = false) => {
@@ -1079,6 +1249,7 @@ export function App() {
           } finally {
             try {
               await deleteRecoverySession(currentSession.id)
+              await refreshRecentFiles()
             } catch (error) {
               console.warn(
                 "Unable to remove replaced Eidos File recovery metadata",
@@ -1093,20 +1264,87 @@ export function App() {
         throw error
       }
     },
-    [rememberSession]
+    [refreshRecentFiles, rememberSession]
   )
 
   const reauthorize = useCallback(async () => {
     if (!session?.handle) return
-    const permission = await requestWritePermission(session.handle)
-    setSession({ ...session, permission })
-    dispatch({ type: "PERMISSION", permission })
-    if (permission !== "granted") {
-      setNotice(
-        "Write access was not granted. You can keep editing this recoverable copy and use Save As."
-      )
+    let permission = await requestWritePermission(session.handle)
+    if (permission === "granted") {
+      try {
+        await session.handle.getFile()
+      } catch (error) {
+        if (isFilePermissionError(error)) {
+          permission = "prompt"
+        } else {
+          setNotice(errorMessage(error))
+          return
+        }
+      }
     }
-  }, [session])
+    const nextSession = { ...session, permission }
+    sessionRef.current = nextSession
+    setSession(nextSession)
+    dispatch({ type: "PERMISSION", permission })
+    setNeedsOriginalRelink(permission !== "granted")
+    setNotice(permission === "granted" ? null : t("reconnectOriginalPrompt"))
+  }, [session, t])
+
+  const reconnectOriginal = useCallback(async () => {
+    if (!session?.handle) return
+    try {
+      const opened = await pickDirectEidosFile()
+      if (!opened?.handle) return
+
+      const matchesHandle = await sameFileHandle(session.handle, opened.handle)
+      const matchesVersion = sameFileVersion(
+        session.sourceVersion,
+        opened.version
+      )
+      if (!matchesHandle && !matchesVersion) {
+        setNotice(t("reconnectOriginalMismatch"))
+        return
+      }
+
+      let permission = opened.permission
+      if (permission !== "granted") {
+        permission = await requestWritePermission(opened.handle)
+      }
+      const changedOnDisk = !matchesVersion
+      const nextSession: OpenSession = {
+        ...session,
+        fileName: opened.fileName,
+        permission,
+        sourceVersion: changedOnDisk ? session.sourceVersion : opened.version,
+        handle: opened.handle,
+      }
+      sessionRef.current = nextSession
+      setSession(nextSession)
+      setSnapshot((current) =>
+        current ? { ...current, path: opened.fileName } : current
+      )
+      setNeedsOriginalRelink(false)
+      dispatch({ type: "PERMISSION", permission })
+      setNotice(permission === "granted" ? null : t("writeAccessDenied"))
+      if (nextSession.storage === "opfs-sahpool") {
+        await rememberSession(
+          nextSession,
+          hasUnsavedChanges(saveStateRef.current)
+        )
+      }
+      await rememberOpenedFile(nextSession)
+
+      if (changedOnDisk) {
+        dispatch({
+          type: "CONFLICT",
+          message:
+            "The original Eidos File changed after this recovery copy was created. Save As, reload the original, or explicitly overwrite it.",
+        })
+      }
+    } catch (error) {
+      setNotice(errorMessage(error))
+    }
+  }, [rememberOpenedFile, rememberSession, session, t])
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -1135,7 +1373,13 @@ export function App() {
   }, [chooseFile, saveAs, saveOriginal, session])
 
   useEffect(() => {
-    if (!session?.handle || saveState.phase === "saving") return
+    if (
+      !session?.handle ||
+      session.permission !== "granted" ||
+      saveState.phase === "saving"
+    ) {
+      return
+    }
     let active = true
     let checking = false
     const check = async () => {
@@ -1204,7 +1448,19 @@ export function App() {
           void rememberRecovery(latestSession)
         }
       } catch (error) {
-        if (active) {
+        if (active && isFilePermissionError(error)) {
+          const latestSession = sessionRef.current
+          if (latestSession?.id === session.id) {
+            const nextSession = {
+              ...latestSession,
+              permission: "prompt" as const,
+            }
+            sessionRef.current = nextSession
+            setSession(nextSession)
+            dispatch({ type: "PERMISSION", permission: "prompt" })
+            setNotice(t("fileAccessPaused"))
+          }
+        } else if (active) {
           dispatch({
             type: "CONFLICT",
             message: `The original file is no longer readable: ${errorMessage(error)}`,
@@ -1232,6 +1488,7 @@ export function App() {
     rememberSession,
     saveState.phase,
     session,
+    t,
   ])
 
   const onRowMutation = useCallback(
@@ -1635,11 +1892,14 @@ export function App() {
         <AppTitlebar
           fileOpen={false}
           opening={saveState.phase === "opening"}
+          recentFiles={recentFiles}
           theme={theme}
           onNew={() => void createBlankFile()}
           onOpen={() => void chooseFile()}
           onOpenSample={() => void openSample()}
           onOpenTemplate={(templateId) => void openTemplate(templateId)}
+          onOpenRecent={(id) => void openRecentFile(id)}
+          onClearRecentFiles={() => void clearRecentFileHistory()}
           onSave={() => void saveOriginal()}
           onDownload={() => void saveAs()}
           onReauthorize={() => void reauthorize()}
@@ -1725,18 +1985,27 @@ export function App() {
           saveState.phase === "saving" || saveState.phase === "opening"
         }
         needsPermission={
-          session.mode === "direct" && session.permission !== "granted"
+          session.mode === "direct" &&
+          (session.permission !== "granted" || needsOriginalRelink)
+        }
+        permissionActionLabel={
+          needsOriginalRelink ? t("locateOriginalFile") : t("grantWrite")
         }
         canSave={hasUnsavedChanges(saveState) && saveState.phase !== "saving"}
         saveLabel={canSaveToOriginal(saveState) ? t("save") : t("saveAs")}
+        recentFiles={recentFiles}
         theme={theme}
         onNew={() => void createBlankFile()}
         onOpen={() => void chooseFile()}
         onOpenSample={() => void openSample()}
         onOpenTemplate={(templateId) => void openTemplate(templateId)}
+        onOpenRecent={(id) => void openRecentFile(id)}
+        onClearRecentFiles={() => void clearRecentFileHistory()}
         onSave={() => void saveOriginal()}
         onDownload={() => void saveAs()}
-        onReauthorize={() => void reauthorize()}
+        onReauthorize={() =>
+          void (needsOriginalRelink ? reconnectOriginal() : reauthorize())
+        }
         onThemeChange={setTheme}
       />
 

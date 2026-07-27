@@ -56,6 +56,13 @@ function isAbort(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError"
 }
 
+export function isFilePermissionError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("name" in error)) {
+    return false
+  }
+  return error.name === "NotAllowedError" || error.name === "SecurityError"
+}
+
 export function supportsDirectFileAccess(
   target: Pick<Window, "showOpenFilePicker"> = window
 ): boolean {

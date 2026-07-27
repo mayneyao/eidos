@@ -30,6 +30,22 @@ const en = {
   newEidosFile: "New",
   openEidosFile: "Open .eidos file",
   openSample: "Open sample Eidos File",
+  recentFiles: "Recent files",
+  clearRecentFiles: "Clear recent files",
+  unsavedRecovery: "Unsaved",
+  recentFileUnavailable:
+    "This recent file could not be reopened. Use Open to locate it again, or clear it from the recent files list.",
+  recoveryOriginalUnavailable:
+    "Your recovered edits are open, but the saved file handle no longer works here. Locate the original file again or use Save As.",
+  locateOriginalFile: "Locate original file",
+  reconnectOriginalPrompt:
+    "Access could not be restored from the saved file handle. Choose the original .eidos file again; your recovered edits will stay open.",
+  reconnectOriginalMismatch:
+    "That file does not match the original Eidos File. Your recovered edits are unchanged; choose the original file or use Save As.",
+  fileAccessPaused:
+    "Original-file monitoring is paused. Grant access again to resume checking and saving.",
+  writeAccessDenied:
+    "Write access was not granted. You can keep editing this recoverable copy and use Save As.",
   launchFormatLabel: "Format",
   launchViewsLabel: "Views",
   launchRuntimeLabel: "Runtime",
@@ -219,6 +235,21 @@ const zh: Record<MessageKey, string> = {
   newEidosFile: "新建",
   openEidosFile: "打开 .eidos 文件",
   openSample: "打开示例 Eidos File",
+  recentFiles: "最近打开",
+  clearRecentFiles: "清除最近打开记录",
+  unsavedRecovery: "未保存",
+  recentFileUnavailable:
+    "无法重新打开这个最近文件。请通过“打开”重新定位，或清除最近打开记录。",
+  recoveryOriginalUnavailable:
+    "恢复的修改已打开，但保存的文件句柄在当前环境中已不可用。请重新定位原文件或使用“另存为”。",
+  locateOriginalFile: "重新定位原文件",
+  reconnectOriginalPrompt:
+    "无法通过已保存的文件句柄恢复访问。请重新选择原始 .eidos 文件；当前恢复的修改会保持打开。",
+  reconnectOriginalMismatch:
+    "所选文件与原始 Eidos File 不匹配。当前恢复的修改没有变化；请选择原文件或使用“另存为”。",
+  fileAccessPaused: "原文件监视已暂停。请重新授予权限以继续检查和保存。",
+  writeAccessDenied:
+    "未获得写入权限。你可以继续编辑此可恢复副本，并使用“另存为”。",
   launchFormatLabel: "格式",
   launchViewsLabel: "视图",
   launchRuntimeLabel: "运行时",

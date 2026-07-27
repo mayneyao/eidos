@@ -1,7 +1,9 @@
 import type { EidosFileVersion, FileAccessMode } from "./browser-file-adapter"
-
-const DATABASE_NAME = "eidos-file-web"
-const STORE_NAME = "recovery-sessions"
+import {
+  openBrowserStorage,
+  RECOVERY_STORE_NAME,
+  requestResult,
+} from "./browser-storage"
 
 export interface RecoverySession {
   id: string
@@ -13,61 +15,58 @@ export interface RecoverySession {
   handle?: FileSystemFileHandle
 }
 
-function openRecoveryDatabase(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DATABASE_NAME, 1)
-    request.onupgradeneeded = () => {
-      const database = request.result
-      if (!database.objectStoreNames.contains(STORE_NAME)) {
-        const store = database.createObjectStore(STORE_NAME, { keyPath: "id" })
-        store.createIndex("updatedAt", "updatedAt")
-      }
-    }
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error)
-  })
-}
-
-function requestResult<T>(request: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error)
-  })
-}
-
 export async function storeRecoverySession(
   session: RecoverySession
 ): Promise<void> {
-  const database = await openRecoveryDatabase()
+  const database = await openBrowserStorage()
   try {
-    const transaction = database.transaction(STORE_NAME, "readwrite")
-    await requestResult(transaction.objectStore(STORE_NAME).put(session))
+    const transaction = database.transaction(RECOVERY_STORE_NAME, "readwrite")
+    await requestResult(
+      transaction.objectStore(RECOVERY_STORE_NAME).put(session)
+    )
   } finally {
     database.close()
   }
 }
 
 export async function deleteRecoverySession(id: string): Promise<void> {
-  const database = await openRecoveryDatabase()
+  const database = await openBrowserStorage()
   try {
-    const transaction = database.transaction(STORE_NAME, "readwrite")
-    await requestResult(transaction.objectStore(STORE_NAME).delete(id))
+    const transaction = database.transaction(RECOVERY_STORE_NAME, "readwrite")
+    await requestResult(transaction.objectStore(RECOVERY_STORE_NAME).delete(id))
+  } finally {
+    database.close()
+  }
+}
+
+export async function getRecoverySessions(
+  limit = 50
+): Promise<RecoverySession[]> {
+  const database = await openBrowserStorage()
+  try {
+    const transaction = database.transaction(RECOVERY_STORE_NAME, "readonly")
+    const request = transaction
+      .objectStore(RECOVERY_STORE_NAME)
+      .index("updatedAt")
+      .openCursor(null, "prev")
+    const sessions: RecoverySession[] = []
+    return await new Promise((resolve, reject) => {
+      request.onsuccess = () => {
+        const cursor = request.result
+        if (!cursor || sessions.length >= limit) {
+          resolve(sessions)
+          return
+        }
+        sessions.push(cursor.value as RecoverySession)
+        cursor.continue()
+      }
+      request.onerror = () => reject(request.error)
+    })
   } finally {
     database.close()
   }
 }
 
 export async function getLatestRecoverySession(): Promise<RecoverySession | null> {
-  const database = await openRecoveryDatabase()
-  try {
-    const transaction = database.transaction(STORE_NAME, "readonly")
-    const request = transaction
-      .objectStore(STORE_NAME)
-      .index("updatedAt")
-      .openCursor(null, "prev")
-    const cursor = await requestResult(request)
-    return (cursor?.value as RecoverySession | undefined) ?? null
-  } finally {
-    database.close()
-  }
+  return (await getRecoverySessions(1))[0] ?? null
 }

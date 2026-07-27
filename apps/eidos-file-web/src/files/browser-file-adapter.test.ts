@@ -1,4 +1,5 @@
 import {
+  isFilePermissionError,
   openEidosFileHandle,
   openImportedEidosFile,
   queryWritePermission,
@@ -18,6 +19,19 @@ function fileFrom(bytes: Uint8Array, lastModified = 1): File {
 }
 
 describe("browser Eidos File adapter", () => {
+  it("distinguishes permission failures from missing files", () => {
+    expect(
+      isFilePermissionError(new DOMException("not allowed", "NotAllowedError"))
+    ).toBe(true)
+    expect(
+      isFilePermissionError(new DOMException("blocked", "SecurityError"))
+    ).toBe(true)
+    expect(
+      isFilePermissionError(new DOMException("missing", "NotFoundError"))
+    ).toBe(false)
+    expect(isFilePermissionError(new Error("disk failure"))).toBe(false)
+  })
+
   it("reports denied permission when permission APIs fail", async () => {
     const handle = {
       queryPermission: vi.fn().mockRejectedValue(new DOMException("no")),

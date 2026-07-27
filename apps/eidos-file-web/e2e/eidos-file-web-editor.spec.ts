@@ -16,7 +16,9 @@ const gridRowHeight = 36
 interface EidosFileE2EHarness {
   appendExternalByte(): Promise<void>
   bytes(): Promise<number[]>
+  denyReads(value: boolean): void
   failWrites(value: boolean): void
+  setPermission(value: "granted" | "prompt" | "denied"): void
   launchFile(): Promise<void>
 }
 
@@ -30,7 +32,7 @@ declare global {
 async function installDirectPicker(
   page: Page,
   options: {
-    permission?: "granted" | "denied"
+    permission?: "granted" | "prompt" | "denied"
     fileName?: string
     launchOnRegister?: boolean
   } = {}
@@ -39,7 +41,9 @@ async function installDirectPicker(
   const encoded = bytes.toString("base64")
   await page.addInitScript(
     async ({ base64, fileName, launchOnRegister, permission }) => {
+      let denyReads = false
       let failWrites = false
+      let currentPermission = permission
       const launchBytes = Uint8Array.from(atob(base64), (value) =>
         value.charCodeAt(0)
       )
@@ -51,7 +55,7 @@ async function installDirectPicker(
             lastModified: 7,
             type: "application/vnd.eidos+sqlite3",
           }),
-        queryPermission: async () => permission,
+        queryPermission: async () => currentPermission,
       } as unknown as FileSystemFileHandle
       let launchConsumer:
         | ((params: { files: FileSystemFileHandle[] }) => void | Promise<void>)
@@ -84,14 +88,27 @@ async function installDirectPicker(
         }
 
         const nativeCreateWritable = handle.createWritable.bind(handle)
+        const nativeGetFile = handle.getFile.bind(handle)
         Object.defineProperties(handle, {
+          getFile: {
+            configurable: true,
+            value: async () => {
+              if (denyReads) {
+                throw new DOMException(
+                  "The request is not allowed by the user agent or the platform in the current context.",
+                  "NotAllowedError"
+                )
+              }
+              return nativeGetFile()
+            },
+          },
           queryPermission: {
             configurable: true,
-            value: async () => permission,
+            value: async () => currentPermission,
           },
           requestPermission: {
             configurable: true,
-            value: async () => permission,
+            value: async () => currentPermission,
           },
           createWritable: {
             configurable: true,
@@ -114,11 +131,17 @@ async function installDirectPicker(
           },
           async bytes() {
             return Array.from(
-              new Uint8Array(await (await handle.getFile()).arrayBuffer())
+              new Uint8Array(await (await nativeGetFile()).arrayBuffer())
             )
+          },
+          denyReads(value) {
+            denyReads = value
           },
           failWrites(value) {
             failWrites = value
+          },
+          setPermission(value) {
+            currentPermission = value
           },
           async launchFile() {
             if (!launchConsumer) {
@@ -214,7 +237,18 @@ async function clickFileMenuItem(page: Page, name: string): Promise<void> {
   // While the boot sample is still opening, items are disabled and the menu
   // remounts when the file arrives — reopen and retry until it settles.
   await expect(async () => {
-    if (!(await item.isVisible().catch(() => false))) await trigger.click()
+    if (!(await item.isVisible().catch(() => false))) {
+      const fileMenu = page.getByRole("menu", { name: /^(File|文件)$/ })
+      if (!(await fileMenu.isVisible().catch(() => false)))
+        await trigger.click()
+      const submenuTriggers = fileMenu.locator(
+        '[role="menuitem"][aria-haspopup="menu"]'
+      )
+      for (let index = 0; index < (await submenuTriggers.count()); index += 1) {
+        await submenuTriggers.nth(index).hover()
+        if (await item.isVisible().catch(() => false)) break
+      }
+    }
     await item.click({ timeout: 5_000 })
   }).toPass({ timeout: 30_000 })
   // Every File-menu action opens or saves a file; give OPEN_START a tick
@@ -356,6 +390,39 @@ test.describe("Chromium original-file editing", () => {
     await expect(page.getByText("SQLite 1", { exact: true })).toBeVisible()
   })
 
+  test("persists and clears the recent local-file list", async ({ page }) => {
+    await installDirectPicker(page, { fileName: "recent-local.eidos" })
+    await openDirectEidosFile(page)
+
+    await page.reload()
+    await expect(page.locator("header")).toContainText("recent-local.eidos")
+    await toggleFirstComplete(page)
+
+    const fileTrigger = page
+      .locator(".title-file-menu .app-menu-trigger")
+      .first()
+    await fileTrigger.click()
+    await page
+      .getByRole("menuitem", { name: "Recent files", exact: true })
+      .click()
+    const recentFile = page.getByRole("menuitem", {
+      name: "recent-local.eidos",
+      exact: true,
+    })
+    await expect(recentFile).toBeVisible()
+    await expect(recentFile).toContainText("Unsaved")
+
+    await page
+      .getByRole("menuitem", { name: "Clear recent files", exact: true })
+      .click()
+    await fileTrigger.click()
+    await expect(
+      page.getByRole("menuitem", { name: "Recent files", exact: true })
+    ).toHaveCount(0)
+    await expect(page.locator("header")).toContainText("recent-local.eidos")
+    await expect(page.locator(".save-status")).toContainText("Unsaved")
+  })
+
   test("opens a .eidos file delivered by the installed PWA launch queue", async ({
     page,
   }) => {
@@ -469,13 +536,77 @@ test.describe("Chromium original-file editing", () => {
     ).toBeVisible()
     await page.getByRole("button", { name: "Grant write access" }).click()
     await expect(page.getByRole("alert")).toContainText(
-      "Write access was not granted"
+      "Choose the original .eidos file again"
     )
+    await expect(
+      page.getByRole("button", { name: "Locate original file" })
+    ).toBeVisible()
     await page.locator(".title-file-menu .app-menu-trigger").first().click()
     await expect(
       page.getByRole("menuitem", { name: "Save As", exact: true })
     ).toBeVisible()
     await page.keyboard.press("Escape")
+  })
+
+  test("reconnects a recovered working copy through a fresh file picker", async ({
+    page,
+  }) => {
+    await installDirectPicker(page, {
+      fileName: "reconnect-original.eidos",
+      permission: "denied",
+    })
+    await openDirectEidosFile(page)
+    await toggleFirstComplete(page)
+
+    await page.getByRole("button", { name: "Grant write access" }).click()
+    await expect(
+      page.getByRole("button", { name: "Locate original file" })
+    ).toBeVisible()
+    await expect(page.locator("[data-testid='glide-cell-5-0']")).toHaveText(
+      "true"
+    )
+
+    await page.evaluate(() => window.__eidosFileE2E?.setPermission("granted"))
+    await page.getByRole("button", { name: "Locate original file" }).click()
+
+    await expect(
+      page.getByRole("button", { name: "Locate original file" })
+    ).toHaveCount(0)
+    await expect(page.getByRole("alert")).toHaveCount(0)
+    await expect(page.locator("[data-testid='glide-cell-5-0']")).toHaveText(
+      "true"
+    )
+    await expect(page.locator(".save-status")).toContainText("Unsaved")
+  })
+
+  test("pauses monitoring instead of reporting a conflict when file access expires", async ({
+    page,
+  }) => {
+    await installDirectPicker(page, { fileName: "permission-expired.eidos" })
+    await openDirectEidosFile(page)
+
+    await page.evaluate(() => window.__eidosFileE2E?.denyReads(true))
+    await page.evaluate(() =>
+      document.dispatchEvent(new Event("visibilitychange"))
+    )
+
+    await expect(page.locator(".conflict-bar")).toHaveCount(0)
+    await expect(page.getByRole("alert")).toContainText(
+      "Original-file monitoring is paused"
+    )
+    await expect(
+      page.getByRole("button", { name: "Grant write access" })
+    ).toBeVisible()
+    await expect(page.locator("[data-testid='glide-cell-1-0']")).toContainText(
+      "Ship Eidos File Web Editor"
+    )
+
+    await page.evaluate(() => window.__eidosFileE2E?.denyReads(false))
+    await page.getByRole("button", { name: "Grant write access" }).click()
+    await expect(
+      page.getByRole("button", { name: "Grant write access" })
+    ).toHaveCount(0)
+    await expect(page.getByRole("alert")).toHaveCount(0)
   })
 })
 
@@ -675,13 +806,32 @@ test("opens an advanced starter file from the template picker", async ({
   await menu
     .getByRole("menuitem", { name: "New from template…", exact: true })
     .click()
-  await expect(menu.getByText("Templates", { exact: true })).toBeVisible()
-  await expect(menu.getByRole("menuitem")).toHaveCount(9)
+  await expect(menu.getByRole("menuitem")).toHaveCount(6)
+  await expect(
+    menu.getByRole("menuitem", { name: "Open .eidos file", exact: true })
+  ).toBeVisible()
+  const templateMenu = page.getByRole("menu", { name: "New from template…" })
+  await expect(
+    templateMenu.getByText("Templates", { exact: true })
+  ).toBeVisible()
+  await expect(templateMenu.getByRole("menuitem")).toHaveCount(8)
+  const [rootMenuBounds, templateMenuBounds] = await Promise.all([
+    menu.boundingBox(),
+    templateMenu.boundingBox(),
+  ])
+  expect(rootMenuBounds).not.toBeNull()
+  expect(templateMenuBounds).not.toBeNull()
+  expect(templateMenuBounds!.x).toBeGreaterThanOrEqual(
+    rootMenuBounds!.x + rootMenuBounds!.width
+  )
+  expect(templateMenuBounds!.x + templateMenuBounds!.width).toBeLessThanOrEqual(
+    page.viewportSize()!.width
+  )
 
   const templateResponse = page.waitForResponse((response) =>
     response.url().includes("personal-crm")
   )
-  await menu.getByRole("menuitem", { name: "Personal CRM" }).click()
+  await templateMenu.getByRole("menuitem", { name: "Personal CRM" }).click()
   await expect((await templateResponse).status()).toBeLessThan(400)
 
   await expect(
@@ -1353,6 +1503,24 @@ test("keeps navigation and editor controls usable on a phone", async ({
         document.documentElement.clientWidth
     )
   ).toBe(true)
+
+  await waitForSampleEditor(page)
+  const fileTrigger = page.locator(".title-file-menu .app-menu-trigger").first()
+  await fileTrigger.click()
+  const mobileFileMenu = page.getByRole("menu", { name: "File" })
+  await mobileFileMenu
+    .getByRole("menuitem", { name: "New from template…", exact: true })
+    .click()
+  await expect(
+    page.getByRole("menu", { name: "New from template…" })
+  ).toHaveCount(0)
+  await expect(
+    mobileFileMenu.getByRole("menuitem", { name: "Back to File" })
+  ).toBeVisible()
+  await expect(
+    mobileFileMenu.getByRole("menuitem", { name: "Personal CRM" })
+  ).toBeVisible()
+  await mobileFileMenu.getByRole("menuitem", { name: "Back to File" }).click()
 
   await clickFileMenuItem(page, "Open sample Eidos File")
   await page.locator(".editor-titlebar").waitFor()

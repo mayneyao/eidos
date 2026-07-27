@@ -989,6 +989,16 @@
   left: auto;
 }
 
+.app-menu-submenu-panel {
+  top: 0;
+  left: 0;
+  z-index: 13;
+}
+
+.app-menu-submenu-panel[data-positioned="false"] {
+  visibility: hidden;
+}
+
 .app-menu-menubar .app-menu-panel {
   top: calc(100% + 0.125rem);
   border-radius: 0.375rem;

@@ -13,7 +13,18 @@ async function clickFileMenuItem(page: Page, name: string): Promise<void> {
   const trigger = page.locator(".title-file-menu .app-menu-trigger").first()
   const item = page.getByRole("menuitem", { name, exact: true })
   await expect(async () => {
-    if (!(await item.isVisible().catch(() => false))) await trigger.click()
+    if (!(await item.isVisible().catch(() => false))) {
+      const fileMenu = page.getByRole("menu", { name: /^(File|文件)$/ })
+      if (!(await fileMenu.isVisible().catch(() => false)))
+        await trigger.click()
+      const submenuTriggers = fileMenu.locator(
+        '[role="menuitem"][aria-haspopup="menu"]'
+      )
+      for (let index = 0; index < (await submenuTriggers.count()); index += 1) {
+        await submenuTriggers.nth(index).hover()
+        if (await item.isVisible().catch(() => false)) break
+      }
+    }
     await item.click({ timeout: 5_000 })
   }).toPass({ timeout: 30_000 })
   // Every File-menu action opens or saves a file; give OPEN_START a tick
