@@ -767,13 +767,24 @@ export function SyncPanel({
           {syncResult?.state === "conflict" ? (
             <section className="sync-recovery" data-sync-recovery>
               <header>
-                <strong>Preserve both histories</strong>
+                <strong>Create independent recovery copies</strong>
                 <p>
-                  Both choices create a new ordinary folder. This Space and its
-                  checkpoints remain unchanged.
+                  Recovery does not merge or overwrite this Space. Each action
+                  creates a new ordinary folder; the current conflicted Space
+                  and both checkpoint histories remain unchanged.
                 </p>
               </header>
-              <div>
+              <dl className="sync-divergence-summary">
+                <div>
+                  <dt>Only in Local</dt>
+                  <dd data-sync-local-ahead>{syncResult.ahead}</dd>
+                </div>
+                <div>
+                  <dt>Only in Hosted</dt>
+                  <dd data-sync-hosted-ahead>{syncResult.behind}</dd>
+                </div>
+              </dl>
+              <div className="sync-recovery-actions">
                 <button
                   type="button"
                   className="secondary-action"
@@ -788,7 +799,7 @@ export function SyncPanel({
                   )}
                   {busy === "recover-local"
                     ? "Copying Local Space…"
-                    : "Keep Local as Recovery Space"}
+                    : "Copy Local history"}
                 </button>
                 <button
                   type="button"
@@ -804,7 +815,7 @@ export function SyncPanel({
                   )}
                   {busy === "recover-hosted"
                     ? "Cloning Hosted Space…"
-                    : "Clone Hosted to New Folder"}
+                    : "Clone Hosted history"}
                 </button>
               </div>
             </section>

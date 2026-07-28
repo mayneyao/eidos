@@ -392,15 +392,17 @@ Manual Retry resets the attempt budget and cancels an existing wait. Queue
 state crosses typed IPC for status only, and the titlebar/panel surface
 `pending`, `running`, `retry-wait`, or `paused` without hiding Local editing.
 
-An ahead+behind result exposes exactly two non-destructive recovery actions:
+An ahead+behind result shows the exact Local-only and Hosted-only checkpoint
+counts and states that recovery neither merges nor overwrites the current
+Space. It exposes exactly two non-destructive recovery actions:
 
-1. **Keep Local as Recovery Space** rechecks the fresh Remote relation and
+1. **Copy Local history** rechecks the fresh Remote relation and
    requires a clean local checkpoint. `SpaceOperationGate` drains mutations and
    closes SQLite handles while the clone coordinator copies ordinary user
    files into a journaled hidden sibling. Root `.graft` metadata is excluded,
    non-portable inputs are rejected, every `.eidos` is validated, and the copy
    is atomically published as a disconnected Space in a new window.
-2. **Clone Hosted to New Folder** rechecks account ownership and divergence,
+2. **Clone Hosted history** rechecks account ownership and divergence,
    then uses the existing memory-credential cold-clone path. It validates and
    atomically publishes a separately connected Space in a new window.
 

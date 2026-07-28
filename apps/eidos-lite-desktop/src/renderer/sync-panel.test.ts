@@ -8,6 +8,7 @@ import type {
   EidosSyncPreflight,
   EidosSyncRunResponse,
   EidosSyncStatus,
+  SpaceSnapshot,
 } from "../shared/contracts"
 import { SyncPanel } from "./sync-panel"
 
@@ -59,6 +60,26 @@ const failureResponse: EidosSyncRunResponse = {
     ],
   },
 }
+
+const conflictResponse = {
+  ok: true,
+  result: {
+    state: "conflict",
+    message: "Local and Hosted history have diverged.",
+    pulled: false,
+    pushed: false,
+    ahead: 2,
+    behind: 3,
+    snapshot: {} as SpaceSnapshot,
+    runId: "conflict-run",
+    telemetry: {
+      startedAtMs: 100,
+      completedAtMs: 140,
+      durationMs: 40,
+      phases: [],
+    },
+  },
+} satisfies EidosSyncRunResponse
 
 const preflight: EidosSyncPreflight = {
   manifestId: "a".repeat(64),
@@ -185,6 +206,73 @@ describe("SyncPanel failure states", () => {
     expect(queue?.textContent).toContain("Attempt 3 of 5")
     expect(host.textContent).toContain("Local files remain available")
     expect(host.querySelector("[data-sync-failure='offline']")).not.toBeNull()
+  })
+
+  it("shows both sides of a divergence and creates independent recoveries", async () => {
+    const copyLocalRecoverySpace = vi.fn().mockResolvedValue({
+      kind: "local-copy",
+      name: "Project Local Recovery",
+      displayPath: "/tmp/Project Local Recovery",
+      connected: false,
+    })
+    const cloneHostedRecoverySpace = vi.fn().mockResolvedValue({
+      kind: "hosted-clone",
+      name: "Project Hosted Recovery",
+      displayPath: "/tmp/Project Hosted Recovery",
+      connected: true,
+    })
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(status),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      runSync: vi.fn().mockResolvedValue(conflictResponse),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+      copyLocalRecoverySpace,
+      cloneHostedRecoverySpace,
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          onClose: () => undefined,
+        })
+      )
+    })
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>("[data-sync-run]")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+
+    const recovery = host.querySelector<HTMLElement>("[data-sync-recovery]")
+    expect(recovery?.textContent).toContain("does not merge or overwrite")
+    expect(
+      recovery?.querySelector("[data-sync-local-ahead]")?.textContent
+    ).toBe("2")
+    expect(
+      recovery?.querySelector("[data-sync-hosted-ahead]")?.textContent
+    ).toBe("3")
+
+    await act(async () => {
+      recovery
+        ?.querySelector<HTMLButtonElement>("[data-sync-recover-local]")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    expect(copyLocalRecoverySpace).toHaveBeenCalledOnce()
+    expect(host.textContent).toContain("Local Recovery Space created")
+
+    await act(async () => {
+      recovery
+        ?.querySelector<HTMLButtonElement>("[data-sync-recover-hosted]")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    expect(cloneHostedRecoverySpace).toHaveBeenCalledOnce()
+    expect(host.textContent).toContain("Hosted Recovery Space cloned")
   })
 
   it("requires explicit review of the whole-Space manifest before first push", async () => {

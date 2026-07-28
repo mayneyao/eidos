@@ -1244,7 +1244,37 @@ button:focus-visible {
   line-height: 1.45;
 }
 
-.sync-recovery > div {
+.sync-divergence-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.sync-divergence-summary > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+  background: var(--surface);
+  font-size: 0.65rem;
+}
+
+.sync-divergence-summary dt {
+  color: var(--ink-muted);
+}
+
+.sync-divergence-summary dd {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.sync-recovery-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.45rem;
@@ -1301,7 +1331,8 @@ button:focus-visible {
 }
 
 @media (max-width: 720px) {
-  .sync-recovery > div {
+  .sync-divergence-summary,
+  .sync-recovery-actions {
     grid-template-columns: 1fr;
   }
 }
