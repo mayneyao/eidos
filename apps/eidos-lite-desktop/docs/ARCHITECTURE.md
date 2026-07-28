@@ -125,6 +125,15 @@ Ready, and surfaces the original command error without claiming Sync success.
 Failed validation or reopen leaves the journal intact and local mutations
 paused for next-launch or user-directed recovery.
 
+Window binding canonicalizes a requested folder before constructing either the
+Graft session or any SQLite runtime. The controller reserves that canonical
+identity while the first session opens, so a concurrent path or symlink alias
+focuses the existing window without creating a second repository session.
+Closing a window registers its asynchronous `SpaceSession.close()` with a
+controller-owned tracker. Application shutdown waits for both visible sessions
+and already-closed windows that are still draining mutations or repository
+work. Repeated close calls share the same in-flight promise.
+
 Clone starts before a window owns a Space, so it uses a separate owner-only
 `userData/clone-operations` journal. Main clones into an exact hidden sibling
 of the requested destination, rejects an existing destination, and validates

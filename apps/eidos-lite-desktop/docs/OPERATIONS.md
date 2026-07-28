@@ -189,6 +189,14 @@ absent from that worktree, and its open Eidos File editor stayed usable.
 
 ## Failure and recovery runbook
 
+- **The same Space is opened through another path or symlink:** canonicalize
+  and focus the reserved/existing window before opening Graft or SQLite. Never
+  create a second repository session for the alias.
+- **A window closes during mutation or Sync:** remove it from navigation
+  immediately, but retain its close promise in the controller. Application
+  shutdown must wait for that promise to drain mutation and repository work,
+  close runtime handles, and close the resident Graft session.
+
 - **Expected Sync failure reaches renderer:** do not throw a raw account,
   Remote, or Graft message over IPC. Return the main-classified failure plus
   failed-phase telemetry. Raw diagnostics remain in main and must already be

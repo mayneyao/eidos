@@ -76,4 +76,23 @@ describe("Space paths", () => {
       ])
     }
   })
+
+  it("uses one canonical identity for a Space and its symlink alias", async () => {
+    const parent = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-space-id-"))
+    const root = path.join(parent, "Space")
+    const alias = path.join(parent, "Space Alias")
+    await fs.mkdir(root)
+    try {
+      await fs.symlink(root, alias)
+      const [canonical, canonicalAlias] = await Promise.all([
+        canonicalizeSpaceRoot(root),
+        canonicalizeSpaceRoot(alias),
+      ])
+      expect(canonicalAlias.id).toBe(canonical.id)
+      expect(canonicalAlias.identity).toBe(canonical.identity)
+      expect(canonicalAlias.root).toBe(canonical.root)
+    } finally {
+      await fs.rm(parent, { recursive: true, force: true })
+    }
+  })
 })

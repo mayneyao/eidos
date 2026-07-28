@@ -19,6 +19,7 @@ import {
 } from "./space/space-paths"
 import { SpaceSession } from "./space/space-session"
 import { RecentSpacesStore } from "./space/recent-spaces"
+import { SessionCloseTracker } from "./space/session-close-tracker"
 import {
   SpaceCloneCoordinator,
   type CloneRecoveryResult,
@@ -27,8 +28,11 @@ import {
 export class WindowController {
   private readonly sessionByWebContents = new Map<number, SpaceSession>()
   private readonly windowBySpaceId = new Map<string, BrowserWindow>()
+  private readonly sessionCloses = new SessionCloseTracker<SpaceSession>()
+  private readonly openingSessions = new Set<Promise<SpaceSession>>()
   private recentSpacesStore: RecentSpacesStore | null = null
   private cloneCoordinatorInstance: SpaceCloneCoordinator | null = null
+  private closing = false
 
   constructor(private readonly services: EidosLiteServiceEnvironment) {}
 
@@ -265,26 +269,29 @@ export class WindowController {
   }
 
   async closeAll(): Promise<void> {
-    await Promise.all(
-      [...new Set(this.sessionByWebContents.values())].map((session) =>
-        session.close()
-      )
-    )
+    this.closing = true
+    const opening = await Promise.allSettled([...this.openingSessions])
+    for (const result of opening) {
+      if (result.status === "fulfilled") {
+        this.sessionCloses.close(result.value)
+      }
+    }
+    for (const session of new Set(this.sessionByWebContents.values())) {
+      this.sessionCloses.close(session)
+    }
     this.sessionByWebContents.clear()
     this.windowBySpaceId.clear()
+    await this.sessionCloses.waitForAll()
   }
 
   private async bindSpace(
     webContents: WebContents,
     root: string
   ): Promise<SpaceSnapshot | null> {
-    const session = await SpaceSession.create(root, app.getPath("userData"), {
-      graft: this.createGraftClient(),
-      workerPath: this.runtimeWorkerPath(),
-    })
-    const existing = this.windowBySpaceId.get(session.canonical.id)
+    if (this.closing) throw new Error("Eidos Lite is closing")
+    const canonical = await canonicalizeSpaceRoot(root)
+    const existing = this.windowBySpaceId.get(canonical.id)
     if (existing && !existing.isDestroyed()) {
-      await session.close()
       if (existing.isMinimized()) existing.restore()
       existing.show()
       existing.focus()
@@ -292,11 +299,37 @@ export class WindowController {
     }
     const window = BrowserWindow.fromWebContents(webContents)
     if (!window) {
-      await session.close()
+      throw new Error("The requesting window no longer exists")
+    }
+    this.windowBySpaceId.set(canonical.id, window)
+    let session: SpaceSession
+    const opening = SpaceSession.createCanonical(
+      canonical,
+      app.getPath("userData"),
+      {
+        graft: this.createGraftClient(),
+        workerPath: this.runtimeWorkerPath(),
+      }
+    )
+    this.openingSessions.add(opening)
+    try {
+      session = await opening
+    } catch (error) {
+      if (this.windowBySpaceId.get(canonical.id) === window) {
+        this.windowBySpaceId.delete(canonical.id)
+      }
+      throw error
+    } finally {
+      this.openingSessions.delete(opening)
+    }
+    if (this.closing || window.isDestroyed() || webContents.isDestroyed()) {
+      if (this.windowBySpaceId.get(canonical.id) === window) {
+        this.windowBySpaceId.delete(canonical.id)
+      }
+      await this.sessionCloses.close(session)
       throw new Error("The requesting window no longer exists")
     }
     this.sessionByWebContents.set(webContents.id, session)
-    this.windowBySpaceId.set(session.canonical.id, window)
     session.onChanged((snapshot) => {
       if (!webContents.isDestroyed()) {
         webContents.send(IPC_CHANNELS.spaceChanged, snapshot)
@@ -305,8 +338,12 @@ export class WindowController {
     window.setTitle(`${session.canonical.name} — Eidos Lite`)
     window.once("closed", () => {
       this.sessionByWebContents.delete(webContents.id)
-      this.windowBySpaceId.delete(session.canonical.id)
-      void session.close()
+      if (this.windowBySpaceId.get(session.canonical.id) === window) {
+        this.windowBySpaceId.delete(session.canonical.id)
+      }
+      void this.sessionCloses.close(session).catch((error: unknown) => {
+        console.error("Failed to close Space session", error)
+      })
     })
     await this.recentSpaces()
       .record(session.canonical)

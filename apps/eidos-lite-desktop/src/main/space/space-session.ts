@@ -45,6 +45,7 @@ export class SpaceSession {
     (snapshot: SpaceSnapshot) => void
   >()
   private refreshInFlight: Promise<SpaceSnapshot> | null = null
+  private closeInFlight: Promise<void> | null = null
   private closed = false
 
   private constructor(
@@ -87,6 +88,14 @@ export class SpaceSession {
     options: { graft?: GraftClient; workerPath?: string } = {}
   ): Promise<SpaceSession> {
     const canonical = await canonicalizeSpaceRoot(root)
+    return this.createCanonical(canonical, userDataDirectory, options)
+  }
+
+  static async createCanonical(
+    canonical: CanonicalSpace,
+    userDataDirectory: string,
+    options: { graft?: GraftClient; workerPath?: string } = {}
+  ): Promise<SpaceSession> {
     const session = new SpaceSession(
       canonical,
       options.graft ?? new GraftClient(),
@@ -834,8 +843,12 @@ export class SpaceSession {
     )
   }
 
-  async close(): Promise<void> {
-    if (this.closed) return
+  close(): Promise<void> {
+    this.closeInFlight ??= this.closeInternal()
+    return this.closeInFlight
+  }
+
+  private async closeInternal(): Promise<void> {
     this.closed = true
     this.watcher.close()
     await this.refreshInFlight?.catch(() => undefined)
