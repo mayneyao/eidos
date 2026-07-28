@@ -92,7 +92,10 @@ memory-only Remote credentials, and defeat both residency and serialization.
 
 Normal file reads can overlap. Repository operations are serialized per Space
 by both `SpaceOperationGate` and the SDK session. SDK `status`, `diff`,
-`history`, and `fetch` do not close application SQLite handles. A declared
+`history`, `fetch`, and `push` do not close application SQLite handles or pause
+ordinary Eidos File mutations. Sync revalidates repository state before any
+push or worktree materialization, so an edit made during network I/O stays
+local and causes the stale Sync attempt to stop safely. A declared
 worktree-materializing operation (`restore` or `pull`)
 follows this state machine:
 
@@ -104,7 +107,7 @@ stateDiagram-v2
   Materializing --> Validating: Graft changes the worktree
   Validating --> Reopening: open every .eidos as a probe
   Reopening --> Ready: reopen prior resident LRU; clear journal
-  Materializing --> Failed: command or filesystem error
+  Materializing --> Reopening: command error; resulting worktree validates
   Validating --> Failed: invalid materialization
   Reopening --> Failed: runtime reopen error
   Failed --> Validating: next-launch journal recovery
@@ -116,9 +119,11 @@ and records enough phase information to validate all materialized `.eidos`
 files before the Space becomes available at the next launch. The LRU is
 process-local and is intentionally not restored across application launches;
 during a live operation, only the pre-operation resident set is reopened.
-Failed validation leaves the journal intact and
-reports a recoverable or non-recoverable gate state instead of claiming Sync
-success.
+If the materializing command fails but the resulting worktree validates and
+all prior runtime handles reopen, the gate clears the journal, returns to
+Ready, and surfaces the original command error without claiming Sync success.
+Failed validation or reopen leaves the journal intact and local mutations
+paused for next-launch or user-directed recovery.
 
 Clone starts before a window owns a Space, so it uses a separate owner-only
 `userData/clone-operations` journal. Main clones into an exact hidden sibling

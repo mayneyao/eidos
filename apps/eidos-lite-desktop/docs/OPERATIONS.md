@@ -243,14 +243,16 @@ absent from that worktree, and its open Eidos File editor stayed usable.
   the UI to refresh History. This is the optimistic concurrency boundary for
   local restore.
 - **Restore fails after some paths materialize:** validate the resulting
-  worktree, reopen handles when valid, retain the operation journal, and report
-  a recoverable failure. The worktree remains visibly dirty and can be retried
-  or checkpointed; never fabricate an all-or-nothing Graft result.
+  worktree and reopen handles. When both succeed, clear the operation journal,
+  return the gate to Ready, and report the original command failure. The
+  worktree remains visibly dirty and can be retried or checkpointed; never
+  fabricate an all-or-nothing Graft result.
 - **Restore validation fails:** do not stage or create the restore checkpoint.
   Keep the journal and failed gate state for explicit recovery.
 - **Restore commit fails after validation:** reopen the validated worktree and
-  leave it dirty with the journal retained. No history entry is claimed until
-  the official Graft commit succeeds.
+  leave it dirty, clear the completed recovery journal, and return local editing
+  to Ready. No history entry is claimed until the official Graft commit
+  succeeds.
 - **Push fails:** keep local work and Graft metadata; never report synced. The
   next push is serialized behind the current Space operation. Retryable
   failures remain one coalesced pending whole-Space item; non-retryable
@@ -304,8 +306,10 @@ absent from that worktree, and its open Eidos File editor stayed usable.
   Sync marker is completed. If both paths exist or the journal is malformed,
   remove nothing and log an operator warning.
 - **Pull/restore materialization fails:** keep the Space operation journal,
-  validate the resulting worktree, reopen handles when safe, and surface the
-  failure. Never delete ordinary user files as automatic recovery.
+  validate the resulting worktree, reopen handles when safe, clear the journal,
+  return to Ready, and surface the original failure. Keep the journal and failed
+  gate only when validation or reopen fails. Never delete ordinary user files
+  as automatic recovery.
 - **Materialized `.eidos` is invalid:** leave the gate failed and journaled.
   Do not reopen editable handles. Offer retry or user-directed recovery in a
   later UI slice.

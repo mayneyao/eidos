@@ -84,7 +84,7 @@ describe("SpaceOperationGate", () => {
     expect(await journal.read()).toBeNull()
   })
 
-  it("reopens the current worktree after materialization failure", async () => {
+  it("returns to editable ready state after a recoverable materialization failure", async () => {
     const { gate, calls, journal } = await gateWithHooks()
     await expect(
       gate.withMaterialization({
@@ -98,10 +98,42 @@ describe("SpaceOperationGate", () => {
 
     expect(calls).toEqual(["close", "materialize", "validate", "reopen"])
     expect(gate.current()).toMatchObject({
-      phase: "failed",
+      phase: "ready",
       recoverable: true,
     })
+    expect(await journal.read()).toBeNull()
+    await expect(gate.withMutation(async () => "editable")).resolves.toBe(
+      "editable"
+    )
+  })
+
+  it("keeps mutations paused when a failed materialization cannot be recovered", async () => {
+    const { gate, calls, journal } = await gateWithHooks({
+      validateWorktree: async () => {
+        calls.push("validate")
+        throw new Error("Materialized Eidos File is invalid")
+      },
+    })
+
+    await expect(
+      gate.withMaterialization({
+        kind: "pull",
+        materialize: async () => {
+          calls.push("materialize")
+          throw new Error("Remote connection closed")
+        },
+      })
+    ).rejects.toThrow("Materialized Eidos File is invalid")
+
+    expect(calls).toEqual(["close", "materialize", "validate"])
+    expect(gate.current()).toMatchObject({
+      phase: "failed",
+      recoverable: false,
+    })
     expect((await journal.read())?.phase).toBe("materializing")
+    await expect(gate.withMutation(async () => undefined)).rejects.toThrow(
+      "paused"
+    )
   })
 
   it("returns to ready when a drained preflight stops materialization", async () => {
@@ -157,6 +189,30 @@ describe("SpaceOperationGate", () => {
       })
     ).resolves.toBe("clean")
     expect(calls).toEqual(["status"])
+    expect(gate.current().phase).toBe("ready")
+  })
+
+  it("keeps local mutations available during non-materializing repository work", async () => {
+    const { gate, calls } = await gateWithHooks()
+    const operation = deferred()
+    const running = gate.withRepositoryOperation("Fetching", async () => {
+      calls.push("fetch-start")
+      await operation.promise
+      calls.push("fetch-end")
+    })
+    await Promise.resolve()
+
+    expect(gate.current().phase).toBe("syncing")
+    await expect(
+      gate.withMutation(async () => {
+        calls.push("mutation")
+        return "edited"
+      })
+    ).resolves.toBe("edited")
+
+    operation.resolve()
+    await running
+    expect(calls).toEqual(["fetch-start", "mutation", "fetch-end"])
     expect(gate.current().phase).toBe("ready")
   })
 

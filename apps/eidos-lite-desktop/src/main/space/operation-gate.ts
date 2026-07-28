@@ -86,7 +86,11 @@ export class SpaceOperationGate {
   }
 
   async withMutation<T>(operation: () => Promise<T>): Promise<T> {
-    if (!this.acceptingMutations || this.state.phase !== "ready") {
+    if (
+      !this.acceptingMutations ||
+      this.closing ||
+      this.state.phase === "closed"
+    ) {
       throw new Error(
         `Space is ${this.state.phase}; local mutations are paused`
       )
@@ -182,17 +186,22 @@ export class SpaceOperationGate {
           this.transition("ready")
           return result
         } catch (error) {
-          if (runtimesClosed) {
-            try {
-              await this.hooks.validateWorktree()
-              await this.hooks.reopenRuntimes()
-            } catch (recoveryError) {
-              this.transition("failed", this.errorMessage(recoveryError), false)
-              throw recoveryError
-            }
+          if (!runtimesClosed) {
+            this.acceptingMutations = false
+            this.transition("failed", this.errorMessage(error), false)
+            throw error
+          }
+          try {
+            await this.hooks.validateWorktree()
+            await this.hooks.reopenRuntimes()
+            await this.journal.clear()
+          } catch (recoveryError) {
+            this.acceptingMutations = false
+            this.transition("failed", this.errorMessage(recoveryError), false)
+            throw recoveryError
           }
           this.acceptingMutations = true
-          this.transition("failed", this.errorMessage(error), true)
+          this.transition("ready")
           throw error
         }
       }
