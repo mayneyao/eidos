@@ -180,6 +180,14 @@ materialization state machine, including mutation drain, handle close, native
 validation of every `.eidos`, and handle reopen. Neither action provisions a
 Remote, authenticates an account, or claims cloud Sync.
 
+After versioning is enabled, the Space watcher also feeds a stable-change
+checkpoint scheduler. It coalesces edits for 30 seconds and bounds continuous
+editing at five minutes. Automatic checkpoints use the same mutation drain,
+SQLite handle close, whole-Space commit, validation, and LRU reopen contract as
+manual checkpoints. Window close performs a best-effort flush. When Eidos Sync
+is connected, the existing background queue coalesces the resulting checkpoint
+into one serialized whole-Space Sync run; Local-only Spaces remain account-free.
+
 The user-facing version vocabulary is **Changes**, **History**, **checkpoint**,
 and **Restore**. The renderer receives a typed, sanitized projection of
 official SDK `diff({ rows: true })` and `history()` output. It can show

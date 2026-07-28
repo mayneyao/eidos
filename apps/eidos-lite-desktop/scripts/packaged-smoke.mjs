@@ -196,7 +196,8 @@ try {
     report.versioning?.changePaths < 1 ||
     report.versioning?.rowChanges < 1 ||
     report.versioning?.historyCount < 3 ||
-    report.versioning?.restoreCreatedCheckpoint !== true
+    report.versioning?.restoreCreatedCheckpoint !== true ||
+    report.versioning?.automaticCheckpoint !== true
   ) {
     throw new Error(`Invalid packaged smoke report: ${JSON.stringify(report)}`)
   }

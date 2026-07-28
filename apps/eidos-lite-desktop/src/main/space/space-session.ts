@@ -37,21 +37,29 @@ import {
   type CanonicalSpace,
 } from "./space-paths"
 import { SpaceWatcher } from "./space-watcher"
+import { StableCheckpointScheduler } from "./stable-checkpoint-scheduler"
 import { SpaceSyncStateStore } from "./sync-state"
 
 const mutationMethods = new Set<RuntimeMethod>(RUNTIME_MUTATION_METHODS)
 type SyncProgressReporter = (phase: EidosSyncPhase, detail: string) => void
 
+class AutomaticCheckpointSkipped extends Error {}
+
 export class SpaceSession {
   readonly runtimePool: RuntimePool
   readonly gate: SpaceOperationGate
   private readonly watcher: SpaceWatcher
+  private readonly checkpointScheduler: StableCheckpointScheduler
   private readonly syncState: SpaceSyncStateStore
   private readonly changeListeners = new Set<
     (snapshot: SpaceSnapshot) => void
   >()
+  private readonly automaticCheckpointListeners = new Set<
+    (snapshot: SpaceSnapshot) => void
+  >()
   private refreshInFlight: Promise<SpaceSnapshot> | null = null
   private closeInFlight: Promise<void> | null = null
+  private automaticCheckpointEnabled = false
   private closed = false
 
   private constructor(
@@ -80,7 +88,16 @@ export class SpaceSession {
         reopenRuntimes: () => this.runtimePool.reopenHandles(),
       }
     )
+    this.checkpointScheduler = new StableCheckpointScheduler({
+      run: () => this.createAutomaticCheckpoint(),
+      onError: (error) =>
+        console.warn("Could not create an automatic Space checkpoint", error),
+      ...(process.env.EIDOS_LITE_SMOKE_RESULT ? { quietMs: 5_000 } : {}),
+    })
     this.watcher = new SpaceWatcher(canonical.root, () => {
+      if (this.automaticCheckpointEnabled) {
+        this.checkpointScheduler.notifyStableChange()
+      }
       void this.refreshAndEmit()
     })
     this.gate.subscribe(() => {
@@ -111,6 +128,9 @@ export class SpaceSession {
     try {
       await session.graft.open(canonical.root)
       await session.gate.recoverInterruptedOperation()
+      session.automaticCheckpointEnabled = (
+        await session.graft.inspectSpace(canonical.root)
+      ).initialized
       session.watcher.start()
       return session
     } catch (error) {
@@ -122,6 +142,13 @@ export class SpaceSession {
   onChanged(listener: (snapshot: SpaceSnapshot) => void): () => void {
     this.changeListeners.add(listener)
     return () => this.changeListeners.delete(listener)
+  }
+
+  onAutomaticCheckpoint(
+    listener: (snapshot: SpaceSnapshot) => void
+  ): () => void {
+    this.automaticCheckpointListeners.add(listener)
+    return () => this.automaticCheckpointListeners.delete(listener)
   }
 
   snapshot(): Promise<SpaceSnapshot> {
@@ -159,6 +186,7 @@ export class SpaceSession {
         )
       },
     })
+    this.noteLocalChange()
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath,
@@ -179,6 +207,7 @@ export class SpaceSession {
       detail: `Creating ${relativePath}`,
       materialize: () => fs.mkdir(this.resolveUserPath(relativePath)),
     })
+    this.noteLocalChange()
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath,
@@ -226,6 +255,7 @@ export class SpaceSession {
         )
       },
     })
+    this.noteLocalChange()
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath: target,
@@ -268,6 +298,7 @@ export class SpaceSession {
         )
       },
     })
+    this.noteLocalChange()
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath: target,
@@ -320,6 +351,7 @@ export class SpaceSession {
           },
         }),
     })
+    this.noteLocalChange()
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath: target,
@@ -343,6 +375,7 @@ export class SpaceSession {
         await trash(this.resolveUserPath(source))
       },
     })
+    this.noteLocalChange()
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       invalidatedSessionIds,
@@ -414,6 +447,7 @@ export class SpaceSession {
         }
       },
     })
+    this.noteLocalChange()
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath: sources[0]?.relativePath,
@@ -433,6 +467,7 @@ export class SpaceSession {
     const result = await this.gate.withMutation(() =>
       this.runtimePool.call(sessionId, method, args)
     )
+    this.noteLocalChange()
     void this.refreshAndEmit()
     return result
   }
@@ -444,7 +479,10 @@ export class SpaceSession {
         status.error ?? "The bundled Graft runtime is unavailable"
       )
     }
-    if (status.initialized) return this.freshSnapshotAndEmit()
+    if (status.initialized) {
+      this.automaticCheckpointEnabled = true
+      return this.freshSnapshotAndEmit()
+    }
     await this.gate.withMaterialization({
       kind: "enable-versioning",
       detail: "Enabling local Space versioning",
@@ -457,6 +495,7 @@ export class SpaceSession {
         )
       },
     })
+    this.automaticCheckpointEnabled = true
     return this.freshSnapshotAndEmit()
   }
 
@@ -465,27 +504,8 @@ export class SpaceSession {
     if (normalizedMessage.length > 200) {
       throw new Error("Checkpoint message must be 200 characters or fewer")
     }
-    const status = await this.graft.inspectSpace(this.canonical.root)
-    if (!status.available) {
-      throw new Error(
-        status.error ?? "The bundled Graft runtime is unavailable"
-      )
-    }
-    if (!status.initialized) {
-      throw new Error(
-        "Enable local Space versioning before creating a checkpoint"
-      )
-    }
-    if (status.clean)
-      throw new Error("There are no local changes to checkpoint")
-    await this.gate.withMaterialization({
-      kind: "create-checkpoint",
-      detail: "Creating a local Space checkpoint",
-      materialize: async () => {
-        await this.graft.stageAll(this.canonical.root)
-        await this.graft.commit(this.canonical.root, normalizedMessage)
-      },
-    })
+    await this.commitCheckpoint(normalizedMessage, false)
+    this.automaticCheckpointEnabled = true
     return this.freshSnapshotAndEmit()
   }
 
@@ -869,13 +889,65 @@ export class SpaceSession {
   }
 
   private async closeInternal(): Promise<void> {
-    this.closed = true
     this.watcher.close()
+    await this.checkpointScheduler.close(true).catch((error) => {
+      console.warn("Could not flush the automatic Space checkpoint", error)
+    })
+    this.closed = true
     await this.refreshInFlight?.catch(() => undefined)
     await this.gate.close()
     await this.runtimePool.destroy()
     await this.graft.close()
     this.changeListeners.clear()
+    this.automaticCheckpointListeners.clear()
+  }
+
+  private async createAutomaticCheckpoint(): Promise<void> {
+    if (!(await this.commitCheckpoint("Eidos Lite automatic checkpoint", true)))
+      return
+    const snapshot = await this.freshSnapshotAndEmit()
+    for (const listener of this.automaticCheckpointListeners) listener(snapshot)
+  }
+
+  private async commitCheckpoint(
+    message: string,
+    automatic: boolean
+  ): Promise<boolean> {
+    try {
+      await this.gate.withMaterialization({
+        kind: automatic ? "automatic-checkpoint" : "create-checkpoint",
+        detail: automatic
+          ? "Creating an automatic Space checkpoint"
+          : "Creating a local Space checkpoint",
+        beforeClose: async () => {
+          const status = await this.graft.inspectSpace(this.canonical.root)
+          if (!status.available) {
+            if (automatic) throw new AutomaticCheckpointSkipped()
+            throw new Error(
+              status.error ?? "The bundled Graft runtime is unavailable"
+            )
+          }
+          if (!status.initialized) {
+            if (automatic) throw new AutomaticCheckpointSkipped()
+            throw new Error(
+              "Enable local Space versioning before creating a checkpoint"
+            )
+          }
+          if (status.clean) {
+            if (automatic) throw new AutomaticCheckpointSkipped()
+            throw new Error("There are no local changes to checkpoint")
+          }
+        },
+        materialize: async () => {
+          await this.graft.stageAll(this.canonical.root)
+          await this.graft.commit(this.canonical.root, message)
+        },
+      })
+      return true
+    } catch (error) {
+      if (error instanceof AutomaticCheckpointSkipped) return false
+      throw error
+    }
   }
 
   private async readSnapshot(): Promise<SpaceSnapshot> {
@@ -960,6 +1032,12 @@ export class SpaceSession {
     const snapshot = await this.readSnapshot()
     for (const listener of this.changeListeners) listener(snapshot)
     return snapshot
+  }
+
+  private noteLocalChange(): void {
+    if (this.automaticCheckpointEnabled) {
+      this.checkpointScheduler.notifyStableChange()
+    }
   }
 
   private assertRuntimeAvailable(): void {

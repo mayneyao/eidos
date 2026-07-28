@@ -69,6 +69,7 @@ export function registerIpc(
     store: new SyncQueueStore(path.join(app.getPath("userData"))),
   })
   const attachedSenders = new Set<number>()
+  const automaticCheckpointUnsubscribers = new Map<number, () => void>()
   const attachSyncQueue = async (event: Electron.IpcMainInvokeEvent) => {
     const session = controller.requireSession(event.sender)
     const emitStatus = (status: EidosSyncQueueStatus) => {
@@ -88,8 +89,30 @@ export function registerIpc(
     })
     if (!attachedSenders.has(event.sender.id)) {
       attachedSenders.add(event.sender.id)
+      automaticCheckpointUnsubscribers.set(
+        event.sender.id,
+        session.onAutomaticCheckpoint(() => {
+          void (async () => {
+            try {
+              if (await session.officialSyncRemoteUrl()) {
+                await syncQueue.enqueue(
+                  session.canonical.id,
+                  "local-checkpoint"
+                )
+              }
+            } catch (error) {
+              console.warn(
+                "Could not queue the automatic checkpoint for Eidos Sync",
+                error
+              )
+            }
+          })()
+        })
+      )
       event.sender.once("destroyed", () => {
         attachedSenders.delete(event.sender.id)
+        automaticCheckpointUnsubscribers.get(event.sender.id)?.()
+        automaticCheckpointUnsubscribers.delete(event.sender.id)
         void syncQueue.detach(session.canonical.id)
       })
     }
