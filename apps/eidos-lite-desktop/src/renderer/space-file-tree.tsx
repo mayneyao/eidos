@@ -1,0 +1,186 @@
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  type CSSProperties,
+  type SyntheticEvent,
+} from "react"
+import { FileTree, useFileTree } from "@pierre/trees/react"
+
+import type { SpaceTreeEntry } from "../shared/contracts"
+
+interface SpaceFileTreeProps {
+  entries: SpaceTreeEntry[]
+  activePath: string | null
+  disabled?: boolean
+  onSelect(entry: SpaceTreeEntry): void
+  onOpen(entry: SpaceTreeEntry): void
+  onContextMenu(entry: SpaceTreeEntry, x: number, y: number): void
+}
+
+export interface SpaceFileTreeModel {
+  paths: string[]
+  initialExpandedPaths: string[]
+  entryByTreePath: Map<string, SpaceTreeEntry>
+}
+
+function toTreePath(entry: SpaceTreeEntry): string {
+  return entry.kind === "directory"
+    ? `${entry.relativePath.replace(/\/$/, "")}/`
+    : entry.relativePath
+}
+
+function eventTreePath(event: SyntheticEvent<HTMLElement>): string | null {
+  for (const target of event.nativeEvent.composedPath()) {
+    if (!(target instanceof HTMLElement)) continue
+    const path = target.dataset.itemPath
+    if (path) return path
+  }
+  return null
+}
+
+export function buildSpaceFileTreeModel(
+  entries: SpaceTreeEntry[]
+): SpaceFileTreeModel {
+  const paths: string[] = []
+  const initialExpandedPaths: string[] = []
+  const entryByTreePath = new Map<string, SpaceTreeEntry>()
+
+  const visit = (entry: SpaceTreeEntry, depth: number) => {
+    const treePath = toTreePath(entry)
+    paths.push(treePath)
+    entryByTreePath.set(treePath, entry)
+    if (entry.kind === "directory" && depth === 0) {
+      initialExpandedPaths.push(treePath)
+    }
+    entry.children?.forEach((child) => visit(child, depth + 1))
+  }
+
+  entries.forEach((entry) => visit(entry, 0))
+  return { paths, initialExpandedPaths, entryByTreePath }
+}
+
+const TREE_CSS = `
+  :host {
+    display: block;
+    min-height: 0;
+  }
+
+  [data-file-tree-virtualized-scroll="true"] {
+    padding-block: 3px 8px;
+  }
+
+  button[data-type="item"] {
+    border-radius: 3px;
+  }
+
+  button[data-type="item"]:focus-visible {
+    outline-offset: -1px;
+  }
+`
+
+export function SpaceFileTree({
+  entries,
+  activePath,
+  disabled,
+  onSelect,
+  onOpen,
+  onContextMenu,
+}: SpaceFileTreeProps) {
+  const onOpenRef = useRef(onOpen)
+  onOpenRef.current = onOpen
+  const onSelectRef = useRef(onSelect)
+  onSelectRef.current = onSelect
+  const onContextMenuRef = useRef(onContextMenu)
+  onContextMenuRef.current = onContextMenu
+  const tree = useMemo(() => buildSpaceFileTreeModel(entries), [entries])
+  const treeSignature = tree.paths.join("\u0000")
+  const treeRef = useRef(tree)
+  treeRef.current = tree
+
+  const { model } = useFileTree({
+    paths: [],
+    density: 1,
+    itemHeight: 28,
+    initialExpansion: "closed",
+    flattenEmptyDirectories: false,
+    icons: { set: "standard", colored: false },
+    stickyFolders: false,
+    unsafeCSS: TREE_CSS,
+  })
+
+  useEffect(() => {
+    model.resetPaths(tree.paths, {
+      initialExpandedPaths: tree.initialExpandedPaths,
+    })
+  }, [model, treeSignature])
+
+  useEffect(() => {
+    if (!activePath) return
+    const item = model.getItem(activePath)
+    if (!item) return
+    for (const selectedPath of model.getSelectedPaths()) {
+      if (selectedPath !== activePath) model.getItem(selectedPath)?.deselect()
+    }
+    if (!item.isSelected()) item.select()
+    model.scrollToPath(activePath, { offset: "nearest", focus: false })
+  }, [activePath, model, treeSignature])
+
+  const openTreePath = (treePath: string | null) => {
+    if (!treePath || disabled) return
+    const entry = treeRef.current.entryByTreePath.get(treePath)
+    if (!entry) return
+    onSelectRef.current(entry)
+    if (entry.kind !== "directory") onOpenRef.current(entry)
+  }
+
+  const styles = {
+    height: "100%",
+    minHeight: 0,
+    width: "100%",
+    "--trees-bg-override": "transparent",
+    "--trees-bg-muted-override": "var(--surface-hover)",
+    "--trees-border-color-override": "var(--line)",
+    "--trees-fg-override": "var(--ink)",
+    "--trees-fg-muted-override": "var(--ink-muted)",
+    "--trees-font-family-override": "inherit",
+    "--trees-font-size-override": "12px",
+    "--trees-focus-ring-color-override": "var(--focus)",
+    "--trees-focus-ring-offset-override": "-1px",
+    "--trees-focus-ring-width-override": "1px",
+    "--trees-action-lane-width-override": "22px",
+    "--trees-icon-width-override": "15px",
+    "--trees-item-margin-x-override": "4px",
+    "--trees-item-row-gap-override": "5px",
+    "--trees-item-padding-x-override": "5px",
+    "--trees-level-gap-override": "11px",
+    "--trees-padding-inline-override": "5px",
+    "--trees-selected-bg-override": "var(--surface-selected)",
+    "--trees-selected-fg-override": "var(--ink)",
+  } as CSSProperties
+
+  return (
+    <FileTree
+      model={model}
+      aria-label="Space files"
+      aria-disabled={disabled === true}
+      className="space-file-tree"
+      data-space-file-tree="true"
+      style={styles}
+      onClick={(event) => openTreePath(eventTreePath(event))}
+      onContextMenu={(event) => {
+        const treePath = eventTreePath(event)
+        if (!treePath || disabled) return
+        const entry = treeRef.current.entryByTreePath.get(treePath)
+        if (!entry) return
+        event.preventDefault()
+        onSelectRef.current(entry)
+        onContextMenuRef.current(entry, event.clientX, event.clientY)
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return
+        openTreePath(eventTreePath(event) ?? model.getFocusedPath())
+      }}
+    />
+  )
+}

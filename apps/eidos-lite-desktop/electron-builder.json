@@ -1,0 +1,47 @@
+{
+  "appId": "space.eidos.lite",
+  "productName": "Eidos Lite",
+  "directories": {
+    "output": "dist-app"
+  },
+  "npmRebuild": true,
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "package.json",
+    "!**/node_modules/**/*",
+    "**/node_modules/@eidos.space/graft/**/*",
+    "**/node_modules/@eidos.space/graft-*/**/*",
+    "**/node_modules/better-sqlite3/**/*",
+    "**/node_modules/bindings/**/*",
+    "**/node_modules/file-uri-to-path/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "dist-graft",
+      "to": "graft",
+      "filter": ["**/*"]
+    }
+  ],
+  "asarUnpack": [
+    "**/node_modules/@eidos.space/graft-*/**/*",
+    "**/node_modules/better-sqlite3/**/*"
+  ],
+  "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+  "mac": {
+    "target": ["dmg", "zip"],
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "notarize": false
+  },
+  "win": {
+    "target": ["nsis"]
+  },
+  "linux": {
+    "target": ["AppImage"]
+  },
+  "protocols": {
+    "name": "eidos-lite",
+    "schemes": ["eidos-lite"]
+  }
+}

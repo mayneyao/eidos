@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "repository": "eidos-space/graft",
+  "tag": "v0.8.1",
+  "version": "0.8.1",
+  "releaseCommit": "89b90628a55bccd9f159462fe94046ddb7de6169",
+  "platforms": {
+    "darwin-arm64": {
+      "asset": "graft-cli-0.8.1-aarch64-apple-darwin.tar.gz",
+      "archiveSha256": "40385a7fe4b73f89717c64d449e2933e37da818509e2beff2931ca420fcfb3d6",
+      "sourceFile": "graft",
+      "installedFile": "graft",
+      "binarySha256": "b94be75c34a25292364996e940c94033a72de84a327914654e0c8db8bdda5c72"
+    },
+    "darwin-x64": {
+      "asset": "graft-cli-0.8.1-x86_64-apple-darwin.tar.gz",
+      "archiveSha256": "6bb9d15a00843e62dadd8eb1dd35f27feb8f2152446393e5c1a8c2e2bc409f6c",
+      "sourceFile": "graft",
+      "installedFile": "graft",
+      "binarySha256": "f54719ca231a08fc5df636602e5dab2dd2ba3e88c5fb0ef6bbb4fb3170f84fa2"
+    },
+    "linux-arm64": {
+      "asset": "graft-cli-0.8.1-aarch64-unknown-linux-gnu.tar.gz",
+      "archiveSha256": "5ee3ba92d8dc8f698d52c6ce3714031185b6e25cb7d2c8401e1f72a1a08121ac",
+      "sourceFile": "graft",
+      "installedFile": "graft",
+      "binarySha256": "3f703d3c2cdc5a4f7d4a31321fd76d3b02c528fc0e277fd20738cd52e87a8d4c"
+    },
+    "linux-x64": {
+      "asset": "graft-cli-0.8.1-x86_64-unknown-linux-gnu.tar.gz",
+      "archiveSha256": "d01ddea0494fbbbadeb22c37e3345d24798fe879296b0c1923511efdaae3ac73",
+      "sourceFile": "graft",
+      "installedFile": "graft",
+      "binarySha256": "851824ac17e3d7c1c19369e74a8939428d385a55a6d5462ef352999b743328c1"
+    },
+    "win32-arm64": {
+      "asset": "graft-cli-0.8.1-aarch64-pc-windows-msvc.zip",
+      "archiveSha256": "65e961cc98b879869ac579be7bd3c4ba751b292e2683cc7e6fff246fd2ea10a5",
+      "sourceFile": "graft.exe",
+      "installedFile": "graft.exe",
+      "binarySha256": "49ae2433b559450e2e704bd2fd75a388e3ed7dcb1d4efe0e68640cb3f29b4a16"
+    },
+    "win32-x64": {
+      "asset": "graft-cli-0.8.1-x86_64-pc-windows-msvc.zip",
+      "archiveSha256": "8584ef69eadbbce089d608729041acc0bc49b6f930a0e1f824e0497619b8d45f",
+      "sourceFile": "graft.exe",
+      "installedFile": "graft.exe",
+      "binarySha256": "b75aa123662044b93dbbd24e093528e3092b1c63e26e303be3cce6d3ea8d466b"
+    }
+  }
+}
