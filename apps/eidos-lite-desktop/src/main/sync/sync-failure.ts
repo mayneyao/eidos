@@ -309,6 +309,13 @@ export function classifySyncFailure(
     return failure("remote-not-found", status)
   }
   if (
+    phase === "fetch" &&
+    code === "GRAFT_SDK_REPOSITORY_COMMAND" &&
+    normalized.includes("remote `origin` has no branch `main`")
+  ) {
+    return failure("remote-not-found", status)
+  }
+  if (
     normalized.includes("repository") &&
     (normalized.includes("invalid") ||
       normalized.includes("corrupt") ||

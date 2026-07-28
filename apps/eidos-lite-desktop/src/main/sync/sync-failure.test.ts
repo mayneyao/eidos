@@ -70,6 +70,25 @@ describe("classifySyncFailure", () => {
     expect(JSON.stringify(classified)).not.toContain("do-not-expose")
   })
 
+  it("maps the SDK missing-main normalization to a missing Remote", () => {
+    const classified = classifySyncFailure(
+      Object.assign(
+        new Error(
+          "Graft repository error: remote `origin` has no branch `main`"
+        ),
+        { code: "GRAFT_SDK_REPOSITORY_COMMAND" }
+      ),
+      "fetch"
+    )
+
+    expect(classified).toMatchObject({
+      code: "remote-not-found",
+      action: "clone-hosted",
+      localSafe: true,
+    })
+    expect(classified).not.toHaveProperty("status")
+  })
+
   it("keeps local checkpoint and divergence failures distinct", () => {
     expect(
       classifySyncFailure(

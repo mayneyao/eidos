@@ -248,6 +248,14 @@ application recovery tests, not claims that the public staging service emitted
 each response. Real staging 429/5xx acceptance remains an explicit external
 fixture gate.
 
+The owner-only OAuth staging smoke additionally uses a valid device-bound token
+to request the protocol descriptor of a random, unprovisioned sibling
+repository. The real Hosted Remote must return a `repository_not_found` HTTP 404. Graft SDK 0.1 normalizes the same failed fetch to `remote origin has no
+branch main` without preserving the status, so Lite maps that exact SDK error to
+the missing-Remote recovery path and verifies that no worktree file changed.
+This is real staging evidence for 404 only; 409, 413, 429, and 5xx remain behind
+explicit external staging gates.
+
 - **HTTP 500 / Remote persistence failure:** do not claim that a ref was
   published. Preserve Local checkpoints and retry only as a new serialized
   repository operation.

@@ -130,13 +130,38 @@ async function bearerJson(url, token, init = {}) {
   return response
 }
 
-async function runGraftGate(remoteUrl, accessToken) {
+async function requireMissingRepository(remoteUrl, accessToken) {
+  const response = await bearerJson(remoteUrl, accessToken, {
+    headers: { "graft-protocol": "1" },
+  })
+  let problem
+  try {
+    problem = await response.json()
+  } catch {
+    throw new Error(
+      `Missing Hosted Remote returned malformed JSON (${response.status})`
+    )
+  }
+  if (
+    response.status !== 404 ||
+    problem?.status !== 404 ||
+    problem?.title !== "repository_not_found"
+  ) {
+    throw new Error(
+      `Missing Hosted Remote returned ${response.status}/${problem?.title ?? "unknown"}`
+    )
+  }
+  return response.status
+}
+
+async function runGraftGate(remoteUrl, missingRemoteUrl, accessToken) {
   await new Promise((resolve, reject) => {
     const child = spawn("pnpm", ["run", "test:staging"], {
       cwd: appRoot,
       env: {
         ...process.env,
         EIDOS_LITE_STAGING_REMOTE_URL: remoteUrl,
+        EIDOS_LITE_STAGING_MISSING_REMOTE_URL: missingRemoteUrl,
         EIDOS_LITE_STAGING_REMOTE_TOKEN: accessToken,
       },
       stdio: "inherit",
@@ -329,10 +354,21 @@ if (
 ) {
   throw new Error("Hosted Remote provisioning returned an invalid repository")
 }
+const missingRepository = `missing-${randomUUID()}`
+const missingRemoteUrl = new URL(provision.remote_url)
+missingRemoteUrl.pathname = `${missingRemoteUrl.pathname.replace(/\/[^/]+$/, "")}/${missingRepository}`
+const missingRepositoryStatus = await requireMissingRepository(
+  missingRemoteUrl,
+  refreshedTokens.access_token
+)
 
 let revoked = false
 try {
-  await runGraftGate(provision.remote_url, refreshedTokens.access_token)
+  await runGraftGate(
+    provision.remote_url,
+    missingRemoteUrl.toString(),
+    refreshedTokens.access_token
+  )
 } finally {
   const revoke = await request(`${ACCOUNT_ORIGIN}/api/account/sync-devices`, {
     method: "POST",
@@ -372,6 +408,7 @@ process.stdout.write(
         repository,
         remoteUrl: provision.remote_url,
         wholeSpacePushClone: true,
+        missingRepositoryStatus,
       },
       revocationInvalidatedToken: true,
     },
