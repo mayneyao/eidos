@@ -286,13 +286,23 @@ not alter Local mode. The current activation flow is deliberately split:
    billing-owned `sync_access` grant. Missing, malformed, or `blocked` grants
    cannot access a Hosted Remote. `read_only` may list, clone, and pull an
    existing repository but cannot provision or push.
-7. With `read_write`, main provisions one deterministic repository for the
+7. Before Remote provisioning, main builds a whole-Space manifest from local
+   filesystem metadata. The renderer receives file count, `.eidos` count, total
+   bytes, actual exclusions, and risk paths, but no file contents. `.graft`, OS
+   noise, and SQLite sidecars are excluded. Hidden and secret-like paths plus
+   files at least 100 MiB require an unchecked explicit confirmation. Symlinks,
+   unsupported filesystem entries, and files over 1 GiB block activation.
+8. The approval carries a SHA-256 manifest identity. Main recomputes and checks
+   it before provisioning, then checks it again before configuring Graft or
+   pushing. A concurrent local change invalidates the approval and returns the
+   user to scope review instead of silently widening the upload.
+9. With `read_write`, main provisions one deterministic repository for the
    Space through the Hosted Remote control plane. It then closes `.eidos`
    handles, configures the exact official Remote with Graft, pushes the whole
    clean Space, validates every materialized database, and reopens the handles.
-8. Only after that first push and validation does main atomically persist an
-   owner-only Sync marker under `userData/spaces/<space-id>`. The marker and
-   configured Graft origin must agree before the renderer sees `connected`.
+10. Only after that first push and validation does main atomically persist an
+    owner-only Sync marker under `userData/spaces/<space-id>`. The marker and
+    configured Graft origin must agree before the renderer sees `connected`.
 
 **Clone Synced Space** lists only repositories returned for the current
 device-bound account. Selecting one keeps the bearer token in main, asks for a

@@ -189,6 +189,18 @@ absent from that worktree, and its open Eidos File editor stayed usable.
 
 ## Failure and recovery runbook
 
+- **First Sync scope contains hidden or secret-like paths:** display the local
+  paths and keep confirmation unchecked. Do not provision a Remote until the
+  user explicitly accepts the complete manifest. Classification uses names and
+  filesystem metadata only; it never reads or logs file contents.
+- **First Sync scope contains a file of at least 100 MiB:** show its size and
+  require the same explicit risk confirmation. Files over 1 GiB, symlinks, and
+  unsupported filesystem entries block Sync rather than relying on a later
+  HTTP 413 or following a link outside the Space.
+- **The Space changes after scope review:** recompute the SHA-256 manifest and
+  reject the stale approval. If Remote provisioning raced with the second
+  check, leave the deterministic empty Remote unconnected and retry the same
+  repository after a fresh review; never configure or push the widened scope.
 - **The same Space is opened through another path or symlink:** canonicalize
   and focus the reserved/existing window before opening Graft or SQLite. Never
   create a second repository session for the alias.

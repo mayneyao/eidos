@@ -34,6 +34,7 @@ export const IPC_CHANNELS = {
   syncStatus: "eidos-lite:sync-status",
   syncSignIn: "eidos-lite:sync-sign-in",
   syncSignOut: "eidos-lite:sync-sign-out",
+  syncPreflight: "eidos-lite:sync-preflight",
   syncEnable: "eidos-lite:sync-enable",
   syncRepositories: "eidos-lite:sync-repositories",
   syncClone: "eidos-lite:sync-clone",
@@ -223,6 +224,41 @@ export interface EidosSyncStatus {
       | "access-blocked"
     message: string
   } | null
+}
+
+export type EidosSyncPreflightConcern =
+  | "hidden"
+  | "suspected-secret"
+  | "large-file"
+  | "file-too-large"
+  | "symlink"
+  | "unsupported-entry"
+
+export interface EidosSyncPreflightEntry {
+  relativePath: string
+  size: number
+  concerns: EidosSyncPreflightConcern[]
+}
+
+export interface EidosSyncPreflightExclusion {
+  relativePath: string
+  reason: "graft-metadata" | "os-noise" | "temporary-file"
+}
+
+export interface EidosSyncPreflight {
+  manifestId: string
+  generatedAtMs: number
+  fileCount: number
+  eidosFileCount: number
+  totalBytes: number
+  excluded: EidosSyncPreflightExclusion[]
+  warnings: EidosSyncPreflightEntry[]
+  blockers: EidosSyncPreflightEntry[]
+}
+
+export interface EidosSyncPreflightApproval {
+  manifestId: string
+  confirmWarnings: boolean
 }
 
 export interface EidosSyncRepository {
@@ -518,7 +554,8 @@ export interface EidosLiteApi {
   getSyncStatus(): Promise<EidosSyncStatus>
   beginSyncSignIn(): Promise<EidosSyncStatus>
   signOutSync(): Promise<EidosSyncStatus>
-  enableSync(): Promise<EidosSyncStatus>
+  getSyncPreflight(): Promise<EidosSyncPreflight>
+  enableSync(approval: EidosSyncPreflightApproval): Promise<EidosSyncStatus>
   listSyncRepositories(): Promise<EidosSyncRepositoryList>
   cloneSyncRepository(remoteUrl: string): Promise<SpaceSnapshot | null>
   runSync(): Promise<EidosSyncRunResponse>

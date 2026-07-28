@@ -4,6 +4,7 @@ import {
   CloudDownload,
   CloudUpload,
   Copy,
+  Files,
   HardDrive,
   LoaderCircle,
   LogIn,
@@ -21,6 +22,7 @@ import type {
   EidosSyncQueueStatus,
   EidosSyncRecoveryResult,
   EidosSyncRunResult,
+  EidosSyncPreflight,
   EidosSyncStatus,
   EidosSyncTelemetry,
   SpaceSnapshot,
@@ -48,6 +50,8 @@ export function SyncPanel({
   const [status, setStatus] = useState<EidosSyncStatus | null>(null)
   const [repositories, setRepositories] =
     useState<EidosSyncRepositoryList | null>(null)
+  const [preflight, setPreflight] = useState<EidosSyncPreflight | null>(null)
+  const [confirmWarnings, setConfirmWarnings] = useState(false)
   const [syncResult, setSyncResult] = useState<EidosSyncRunResult | null>(null)
   const [syncFailure, setSyncFailure] = useState<EidosSyncFailure | null>(null)
   const [syncFailureTelemetry, setSyncFailureTelemetry] =
@@ -85,6 +89,12 @@ export function SyncPanel({
         const value = await window.eidosLite.getSyncStatus()
         if (!active) return
         setStatus(value)
+        if (mode === "enable" && value.remote.state === "not-connected") {
+          const scope = await window.eidosLite.getSyncPreflight()
+          if (!active) return
+          setPreflight(scope)
+          setConfirmWarnings(false)
+        }
         if (mode === "clone" && value.canClone) {
           setBusy("repositories")
           const listed = await window.eidosLite.listSyncRepositories()
@@ -187,12 +197,24 @@ export function SyncPanel({
   }
 
   const enableSync = async () => {
+    if (!preflight) return
     setBusy("enable")
     setError(null)
     try {
-      setStatus(await window.eidosLite.enableSync())
+      setStatus(
+        await window.eidosLite.enableSync({
+          manifestId: preflight.manifestId,
+          confirmWarnings,
+        })
+      )
     } catch (cause) {
       setError(errorMessage(cause))
+      try {
+        setPreflight(await window.eidosLite.getSyncPreflight())
+        setConfirmWarnings(false)
+      } catch {
+        // Keep the original enable error as the actionable message.
+      }
     } finally {
       setBusy(null)
     }
@@ -434,6 +456,110 @@ export function SyncPanel({
                 </div>
               </dl>
 
+              {mode === "enable" && status.remote.state === "not-connected" ? (
+                <section
+                  className="sync-preflight"
+                  data-sync-preflight
+                  data-sync-preflight-blocked={
+                    preflight?.blockers.length ? "true" : "false"
+                  }
+                >
+                  <header>
+                    <Files />
+                    <div>
+                      <strong>Whole-Space upload scope</strong>
+                      <p>
+                        Eidos Sync uploads the complete Graft repository, not
+                        only the open .eidos file.
+                      </p>
+                    </div>
+                  </header>
+                  {preflight ? (
+                    <>
+                      <dl>
+                        <div>
+                          <dt>Files included</dt>
+                          <dd>{preflight.fileCount}</dd>
+                        </div>
+                        <div>
+                          <dt>Eidos Files</dt>
+                          <dd>{preflight.eidosFileCount}</dd>
+                        </div>
+                        <div>
+                          <dt>Total size</dt>
+                          <dd>{formatBytes(preflight.totalBytes)}</dd>
+                        </div>
+                        <div>
+                          <dt>Excluded</dt>
+                          <dd>{preflight.excluded.length}</dd>
+                        </div>
+                      </dl>
+
+                      {preflight.excluded.length > 0 ? (
+                        <details className="sync-preflight-paths">
+                          <summary>
+                            Excluded implementation and OS files
+                          </summary>
+                          <ul>
+                            {preflight.excluded.map((entry) => (
+                              <li key={entry.relativePath}>
+                                <span>{entry.relativePath}</span>
+                                <small>{entry.reason.replace(/-/g, " ")}</small>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      ) : null}
+
+                      {preflight.blockers.length > 0 ? (
+                        <div className="sync-preflight-blockers" role="alert">
+                          <ShieldAlert />
+                          <div>
+                            <strong>Resolve blocked entries before Sync</strong>
+                            <PreflightEntries entries={preflight.blockers} />
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {preflight.warnings.length > 0 ? (
+                        <div className="sync-preflight-warnings">
+                          <ShieldAlert />
+                          <div>
+                            <strong>
+                              Review files that may need protection
+                            </strong>
+                            <PreflightEntries entries={preflight.warnings} />
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {preflight.warnings.length > 0 &&
+                      preflight.blockers.length === 0 ? (
+                        <label className="sync-preflight-confirm">
+                          <input
+                            type="checkbox"
+                            data-sync-preflight-confirm
+                            checked={confirmWarnings}
+                            onChange={(event) =>
+                              setConfirmWarnings(event.target.checked)
+                            }
+                          />
+                          <span>
+                            I reviewed these paths and understand they will be
+                            uploaded to the Hosted Remote.
+                          </span>
+                        </label>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p className="sync-loading" role="status">
+                      <LoaderCircle className="spin" /> Reading local upload
+                      scope…
+                    </p>
+                  )}
+                </section>
+              ) : null}
+
               {status.blocker ? (
                 <section className="sync-gate-message">
                   <ShieldAlert />
@@ -476,7 +602,12 @@ export function SyncPanel({
                       type="button"
                       className="primary-action sync-enable"
                       data-sync-enable
-                      disabled={busy !== null}
+                      disabled={
+                        busy !== null ||
+                        !preflight ||
+                        preflight.blockers.length > 0 ||
+                        (preflight.warnings.length > 0 && !confirmWarnings)
+                      }
                       onClick={() => void enableSync()}
                     >
                       {busy === "enable" ? (
@@ -764,6 +895,35 @@ export function SyncPanel({
   )
 }
 
+function PreflightEntries({
+  entries,
+}: {
+  entries: EidosSyncPreflight["warnings"]
+}) {
+  return (
+    <>
+      <ul>
+        {entries.slice(0, 12).map((entry) => (
+          <li key={entry.relativePath}>
+            <span title={entry.relativePath}>{entry.relativePath}</span>
+            <small>
+              {entry.concerns
+                .map((concern) => concern.replace(/-/g, " "))
+                .join(" · ")}
+              {entry.size > 0 ? ` · ${formatBytes(entry.size)}` : ""}
+            </small>
+          </li>
+        ))}
+      </ul>
+      {entries.length > 12 ? (
+        <p className="sync-preflight-more">
+          +{entries.length - 12} more paths in this review
+        </p>
+      ) : null}
+    </>
+  )
+}
+
 function syncPhaseLabel(phase: EidosSyncProgress["phase"]): string {
   return {
     authorization: "Authorize",
@@ -784,6 +944,13 @@ function formatDuration(value: number): string {
 
 function formatBytes(value: number): string {
   if (value === 0) return "0 bytes"
-  const gibibytes = value / (1024 * 1024 * 1024)
-  return `${gibibytes.toLocaleString(undefined, { maximumFractionDigits: 1 })} GiB`
+  const units = ["bytes", "KiB", "MiB", "GiB", "TiB"]
+  const unit = Math.min(
+    units.length - 1,
+    Math.floor(Math.log(value) / Math.log(1024))
+  )
+  const scaled = value / 1024 ** unit
+  return `${scaled.toLocaleString(undefined, {
+    maximumFractionDigits: unit === 0 ? 0 : 1,
+  })} ${units[unit]}`
 }

@@ -62,7 +62,9 @@ const api: EidosLiteApi = {
   getSyncStatus: () => ipcRenderer.invoke(IPC_CHANNELS.syncStatus),
   beginSyncSignIn: () => ipcRenderer.invoke(IPC_CHANNELS.syncSignIn),
   signOutSync: () => ipcRenderer.invoke(IPC_CHANNELS.syncSignOut),
-  enableSync: () => ipcRenderer.invoke(IPC_CHANNELS.syncEnable),
+  getSyncPreflight: () => ipcRenderer.invoke(IPC_CHANNELS.syncPreflight),
+  enableSync: (approval) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncEnable, approval),
   listSyncRepositories: () => ipcRenderer.invoke(IPC_CHANNELS.syncRepositories),
   cloneSyncRepository: (remoteUrl) =>
     ipcRenderer.invoke(IPC_CHANNELS.syncClone, remoteUrl),

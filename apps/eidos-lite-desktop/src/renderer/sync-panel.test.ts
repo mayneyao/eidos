@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client"
 
 import type {
   EidosLiteApi,
+  EidosSyncPreflight,
   EidosSyncRunResponse,
   EidosSyncStatus,
 } from "../shared/contracts"
@@ -57,6 +58,23 @@ const failureResponse: EidosSyncRunResponse = {
       },
     ],
   },
+}
+
+const preflight: EidosSyncPreflight = {
+  manifestId: "a".repeat(64),
+  generatedAtMs: 100,
+  fileCount: 4,
+  eidosFileCount: 2,
+  totalBytes: 125_829_120,
+  excluded: [{ relativePath: ".graft", reason: "graft-metadata" }],
+  warnings: [
+    {
+      relativePath: ".env.local",
+      size: 42,
+      concerns: ["hidden", "suspected-secret"],
+    },
+  ],
+  blockers: [],
 }
 
 describe("SyncPanel failure states", () => {
@@ -167,5 +185,58 @@ describe("SyncPanel failure states", () => {
     expect(queue?.textContent).toContain("Attempt 3 of 5")
     expect(host.textContent).toContain("Local files remain available")
     expect(host.querySelector("[data-sync-failure='offline']")).not.toBeNull()
+  })
+
+  it("requires explicit review of the whole-Space manifest before first push", async () => {
+    const enableStatus: EidosSyncStatus = {
+      ...status,
+      remote: { state: "not-connected" },
+      canEnable: true,
+    }
+    const enableSync = vi.fn().mockResolvedValue(status)
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(enableStatus),
+      getSyncPreflight: vi.fn().mockResolvedValue(preflight),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+      enableSync,
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    const scope = host.querySelector<HTMLElement>("[data-sync-preflight]")
+    const enable = host.querySelector<HTMLButtonElement>("[data-sync-enable]")
+    expect(scope?.textContent).toContain("4")
+    expect(scope?.textContent).toContain("120 MiB")
+    expect(scope?.textContent).toContain(".env.local")
+    expect(enable?.disabled).toBe(true)
+
+    const confirm = host.querySelector<HTMLInputElement>(
+      "[data-sync-preflight-confirm]"
+    )
+    await act(async () => {
+      confirm?.click()
+    })
+    expect(enable?.disabled).toBe(false)
+
+    await act(async () => {
+      enable?.click()
+    })
+    expect(enableSync).toHaveBeenCalledWith({
+      manifestId: preflight.manifestId,
+      confirmWarnings: true,
+    })
   })
 })

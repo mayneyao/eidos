@@ -873,6 +873,136 @@ button:focus-visible {
   line-height: 1.45;
 }
 
+.sync-preflight {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.375rem;
+  background: var(--canvas);
+  font-size: 0.7rem;
+}
+
+.sync-preflight > header,
+.sync-preflight-blockers,
+.sync-preflight-warnings {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.55rem;
+}
+
+.sync-preflight > header svg,
+.sync-preflight-blockers > svg,
+.sync-preflight-warnings > svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--lite-accent);
+}
+
+.sync-preflight > header p {
+  margin: 0.18rem 0 0;
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+
+.sync-preflight > dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.25rem;
+  background: var(--line);
+}
+
+.sync-preflight > dl > div {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.5rem;
+  background: var(--surface);
+}
+
+.sync-preflight dt {
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+}
+
+.sync-preflight dd {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.sync-preflight-paths summary {
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-size: 0.65rem;
+}
+
+.sync-preflight ul {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.45rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sync-preflight li {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: 0.55rem;
+}
+
+.sync-preflight li span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-preflight li small {
+  flex: none;
+  color: var(--ink-muted);
+  font-size: 0.6rem;
+  text-transform: capitalize;
+}
+
+.sync-preflight-more {
+  margin: 0.4rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.6rem;
+}
+
+.sync-preflight-blockers,
+.sync-preflight-warnings {
+  padding: 0.6rem;
+  border: 1px solid oklch(0.72 0.1 60 / 60%);
+  border-radius: 0.25rem;
+  background: oklch(0.97 0.025 70);
+}
+
+.sync-preflight-blockers > svg,
+.sync-preflight-warnings > svg {
+  color: oklch(0.55 0.16 50);
+}
+
+.sync-preflight-confirm {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.5rem;
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+
+.sync-preflight-confirm input {
+  margin: 0.12rem 0 0;
+  accent-color: var(--lite-accent);
+}
+
 .sync-sign-in,
 .sync-sign-out,
 .sync-enable,
@@ -1156,6 +1286,12 @@ button:focus-visible {
   .sync-result-conflict {
     border-color: oklch(0.5 0.1 28 / 65%);
     background: oklch(0.25 0.035 28);
+  }
+
+  .sync-preflight-blockers,
+  .sync-preflight-warnings {
+    border-color: oklch(0.5 0.09 55 / 65%);
+    background: oklch(0.25 0.035 55);
   }
 
   .sync-failure {

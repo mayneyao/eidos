@@ -7,6 +7,7 @@ import {
   type EidosSyncHelpDestination,
   type EidosSyncQueueStatus,
   type EidosSyncRunResponse,
+  type EidosSyncPreflightApproval,
   type RuntimeCalls,
   type RuntimeMethod,
 } from "../shared/contracts"
@@ -32,6 +33,24 @@ function optionalRelativePath(value: unknown): string | null {
 function requiredString(value: unknown, label: string): string {
   if (typeof value !== "string") throw new Error(`Invalid ${label}`)
   return value
+}
+
+function syncPreflightApproval(value: unknown): EidosSyncPreflightApproval {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid Sync scope approval")
+  }
+  const candidate = value as Record<string, unknown>
+  if (
+    typeof candidate.manifestId !== "string" ||
+    candidate.manifestId.length !== 64 ||
+    typeof candidate.confirmWarnings !== "boolean"
+  ) {
+    throw new Error("Invalid Sync scope approval")
+  }
+  return {
+    manifestId: candidate.manifestId,
+    confirmWarnings: candidate.confirmWarnings,
+  }
 }
 
 export function registerIpc(
@@ -295,17 +314,23 @@ export function registerIpc(
     }
     return status
   })
-  ipcMain.handle(IPC_CHANNELS.syncEnable, async (event) => {
+  ipcMain.handle(IPC_CHANNELS.syncPreflight, (event) =>
+    controller.requireSession(event.sender).syncPreflight()
+  )
+  ipcMain.handle(IPC_CHANNELS.syncEnable, async (event, value: unknown) => {
     const session = controller.requireSession(event.sender)
     const existing = await session.officialSyncRemoteUrl()
     if (existing) return syncControl.status(existing)
+    const approval = syncPreflightApproval(value)
+    await session.assertSyncPreflight(approval)
     await session.assertHostedSyncReady()
     const provisioned = await syncControl.provisionRepository(
       session.canonical.id
     )
     await session.enableHostedSync(
       provisioned.remoteUrl,
-      provisioned.accessToken
+      provisioned.accessToken,
+      approval
     )
     return syncControl.status(provisioned.remoteUrl)
   })

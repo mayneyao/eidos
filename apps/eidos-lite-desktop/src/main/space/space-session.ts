@@ -6,6 +6,8 @@ import path from "node:path"
 import type {
   EidosSyncOutcome,
   EidosSyncPhase,
+  EidosSyncPreflight,
+  EidosSyncPreflightApproval,
   OpenEidosFileResult,
   RuntimeCalls,
   RuntimeMethod,
@@ -17,6 +19,10 @@ import type {
 import { RUNTIME_MUTATION_METHODS } from "../../shared/contracts"
 import { GraftClient } from "../graft/graft-client"
 import { RuntimePool } from "../runtime/runtime-pool"
+import {
+  assertSyncPreflightApproval,
+  createSyncPreflight,
+} from "../sync/sync-preflight"
 import { SpaceOperationGate } from "./operation-gate"
 import { SpaceOperationJournal } from "./operation-journal"
 import {
@@ -495,9 +501,22 @@ export class SpaceSession {
     return state.remoteUrl
   }
 
+  syncPreflight(): Promise<EidosSyncPreflight> {
+    return createSyncPreflight(this.canonical.root)
+  }
+
+  async assertSyncPreflight(
+    approval: EidosSyncPreflightApproval
+  ): Promise<EidosSyncPreflight> {
+    const preflight = await this.syncPreflight()
+    assertSyncPreflightApproval(preflight, approval)
+    return preflight
+  }
+
   async enableHostedSync(
     remoteUrl: string,
-    accessToken: string
+    accessToken: string,
+    approval: EidosSyncPreflightApproval
   ): Promise<SpaceSnapshot> {
     const existing = await this.syncState.read()
     if (existing) {
@@ -513,6 +532,7 @@ export class SpaceSession {
     if (status.clean !== true) {
       throw new Error("Create a checkpoint for local changes before Eidos Sync")
     }
+    await this.assertSyncPreflight(approval)
     await this.gate.withMaterialization({
       kind: "enable-hosted-sync",
       detail: "Connecting the whole Space to Eidos Sync",
