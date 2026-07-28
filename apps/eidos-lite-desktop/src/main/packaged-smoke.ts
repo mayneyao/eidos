@@ -83,7 +83,10 @@ interface RendererSmokeResult {
     allActionable: boolean
     failedTelemetry: boolean
     localRuntimeAvailable: boolean
+    gateStayedReady: boolean
+    ordinaryFilesUnchanged: boolean
     queueStates: string[]
+    statuses: Array<number | null>
     failuresScheduledSafely: boolean
     automaticRetryAttempted: boolean
   }
@@ -547,20 +550,42 @@ const rendererProbe = `
     throw new Error("Restore rewrote history instead of creating a new checkpoint")
   }
   window.__eidosLiteSmokeStep = "Sync failure safety"
-  const expectedSyncFailureCodes = [
-    "offline",
-    "authentication-required",
-    "device-revoked",
-    "entitlement-inactive",
-    "quota-exceeded",
-    "protocol-version-mismatch",
-    "remote-persistence-failed",
-    "sync-process-crashed",
+  const expectedSyncFailures = [
+    { code: "offline" },
+    { code: "authentication-required" },
+    { code: "device-revoked" },
+    { code: "entitlement-inactive" },
+    { code: "remote-not-found", status: 404 },
+    { code: "remote-conflict", status: 409 },
+    { code: "quota-exceeded", status: 413 },
+    { code: "protocol-version-mismatch", status: 426 },
+    { code: "rate-limited", status: 429 },
+    { code: "remote-persistence-failed", status: 500 },
+    { code: "service-unavailable", status: 502 },
+    { code: "service-unavailable", status: 503 },
+    { code: "service-unavailable", status: 504 },
+    { code: "sync-process-crashed" },
   ]
+  const ordinarySignature = (snapshot) => {
+    const flatten = (entries) =>
+      entries.flatMap((entry) => [
+        entry,
+        ...(entry.children ? flatten(entry.children) : []),
+      ])
+    return JSON.stringify(
+      flatten(snapshot.entries)
+        .filter((entry) => entry.kind === "file" || entry.kind === "symlink")
+        .map((entry) => [entry.relativePath, entry.size, entry.modifiedAtMs])
+    )
+  }
+  const ordinaryFilesBeforeFailures = ordinarySignature(
+    await window.eidosLite.getSpace()
+  )
   const syncFailures = []
   const syncQueueStates = []
   let localRuntimeAvailable = true
-  for (const expectedCode of expectedSyncFailureCodes) {
+  let gateStayedReady = true
+  for (const expected of expectedSyncFailures) {
     const response = await window.eidosLite.runSync()
     if (response.ok) {
       throw new Error("Packaged Sync fault unexpectedly succeeded")
@@ -568,14 +593,21 @@ const rendererProbe = `
     syncFailures.push(response)
     const queueStatus = await window.eidosLite.getSyncQueueStatus()
     syncQueueStates.push(queueStatus?.state ?? "missing")
-    if (response.failure.code !== expectedCode) {
+    if (
+      response.failure.code !== expected.code ||
+      (expected.status !== undefined &&
+        response.failure.status !== expected.status)
+    ) {
       throw new Error(
         "Packaged Sync fault mismatch: expected " +
-          expectedCode +
+          JSON.stringify(expected) +
           ", received " +
-          response.failure.code
+          JSON.stringify(response.failure)
       )
     }
+    gateStayedReady =
+      gateStayedReady &&
+      (await window.eidosLite.getSpace()).operation.phase === "ready"
     const localSnapshot = await window.eidosLite.callRuntime(
       opened.sessionId,
       "getSnapshot",
@@ -587,6 +619,9 @@ const rendererProbe = `
         (candidate) => candidate.table.id === table.table.id
       )
   }
+  const ordinaryFilesUnchanged =
+    ordinarySignature(await window.eidosLite.getSpace()) ===
+    ordinaryFilesBeforeFailures
   const automaticRetryDeadline = Date.now() + 5000
   let automaticRetryStatus = await window.eidosLite.getSyncQueueStatus()
   while (
@@ -618,7 +653,10 @@ const rendererProbe = `
         response.telemetry.phases.length >= 1
     ),
     localRuntimeAvailable,
+    gateStayedReady,
+    ordinaryFilesUnchanged,
     queueStates: syncQueueStates,
+    statuses: syncFailures.map((response) => response.failure.status ?? null),
     failuresScheduledSafely: syncQueueStates.every(
       (state) => state === "retry-wait" || state === "paused"
     ),
@@ -633,6 +671,8 @@ const rendererProbe = `
     !syncReliability.allActionable ||
     !syncReliability.failedTelemetry ||
     !syncReliability.localRuntimeAvailable ||
+    !syncReliability.gateStayedReady ||
+    !syncReliability.ordinaryFilesUnchanged ||
     !syncReliability.failuresScheduledSafely ||
     !syncReliability.automaticRetryAttempted
   ) {

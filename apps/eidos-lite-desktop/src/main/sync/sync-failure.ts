@@ -353,6 +353,8 @@ export function classifySyncFailure(
 export interface PackagedSyncFault {
   code: EidosSyncFailureCode
   phase: EidosSyncPhase
+  status?: number
+  retryAfterMs?: number
 }
 
 export const PACKAGED_SYNC_FAILURE_SEQUENCE: readonly PackagedSyncFault[] = [
@@ -360,12 +362,31 @@ export const PACKAGED_SYNC_FAILURE_SEQUENCE: readonly PackagedSyncFault[] = [
   { code: "authentication-required", phase: "authorization" },
   { code: "device-revoked", phase: "authorization" },
   { code: "entitlement-inactive", phase: "authorization" },
-  { code: "quota-exceeded", phase: "push" },
-  { code: "protocol-version-mismatch", phase: "fetch" },
-  { code: "remote-persistence-failed", phase: "push" },
+  { code: "remote-not-found", phase: "fetch", status: 404 },
+  { code: "remote-conflict", phase: "push", status: 409 },
+  { code: "quota-exceeded", phase: "push", status: 413 },
+  { code: "protocol-version-mismatch", phase: "fetch", status: 426 },
+  {
+    code: "rate-limited",
+    phase: "push",
+    status: 429,
+    retryAfterMs: 250,
+  },
+  { code: "remote-persistence-failed", phase: "push", status: 500 },
+  { code: "service-unavailable", phase: "fetch", status: 502 },
+  { code: "service-unavailable", phase: "fetch", status: 503 },
+  { code: "service-unavailable", phase: "fetch", status: 504 },
   { code: "sync-process-crashed", phase: "fetch" },
 ] as const
 
-export function createPackagedSyncFault({ code }: PackagedSyncFault): Error {
-  return Object.assign(new Error(`Packaged Sync fault: ${code}`), { code })
+export function createPackagedSyncFault({
+  code,
+  status,
+  retryAfterMs,
+}: PackagedSyncFault): Error {
+  return Object.assign(new Error(`Packaged Sync fault: ${code}`), {
+    code,
+    ...(status === undefined ? {} : { status }),
+    ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+  })
 }

@@ -239,6 +239,15 @@ absent from that worktree, and its open Eidos File editor stayed usable.
   contract carries a bounded retry hint. Queue a new serialized attempt with
   exponential delay; treat a valid `Retry-After` as a floor, never spin a tight
   loop, and pause after the fifth failed attempt.
+
+The packaged smoke deterministically injects 404, 409, 413, 426, 429, 500,
+502, 503, and 504 envelopes before the Space session is invoked. It asserts
+typed classification, retry-versus-pause scheduling, Ready gate state, live
+Eidos File runtime access, and unchanged ordinary-file metadata. These are
+application recovery tests, not claims that the public staging service emitted
+each response. Real staging 429/5xx acceptance remains an explicit external
+fixture gate.
+
 - **HTTP 500 / Remote persistence failure:** do not claim that a ref was
   published. Preserve Local checkpoints and retry only as a new serialized
   repository operation.

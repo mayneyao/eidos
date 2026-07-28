@@ -117,6 +117,38 @@ try {
   ])
   await run(await executablePath(), space, result)
   const report = JSON.parse(await fs.readFile(result, "utf8"))
+  const expectedSyncFailureCodes = [
+    "offline",
+    "authentication-required",
+    "device-revoked",
+    "entitlement-inactive",
+    "remote-not-found",
+    "remote-conflict",
+    "quota-exceeded",
+    "protocol-version-mismatch",
+    "rate-limited",
+    "remote-persistence-failed",
+    "service-unavailable",
+    "service-unavailable",
+    "service-unavailable",
+    "sync-process-crashed",
+  ]
+  const expectedSyncFailureStatuses = [
+    null,
+    null,
+    null,
+    null,
+    404,
+    409,
+    413,
+    426,
+    429,
+    500,
+    502,
+    503,
+    504,
+    null,
+  ]
   if (
     !report.ok ||
     report.environment?.name !== "staging" ||
@@ -146,12 +178,17 @@ try {
       (value) => value !== true
     ) ||
     Object.values(report.syncControl ?? {}).some((value) => value !== true) ||
-    report.syncReliability?.codes?.length !== 8 ||
+    JSON.stringify(report.syncReliability?.codes) !==
+      JSON.stringify(expectedSyncFailureCodes) ||
+    JSON.stringify(report.syncReliability?.statuses) !==
+      JSON.stringify(expectedSyncFailureStatuses) ||
     report.syncReliability?.allClassified !== true ||
     report.syncReliability?.allLocalSafe !== true ||
     report.syncReliability?.allActionable !== true ||
     report.syncReliability?.failedTelemetry !== true ||
     report.syncReliability?.localRuntimeAvailable !== true ||
+    report.syncReliability?.gateStayedReady !== true ||
+    report.syncReliability?.ordinaryFilesUnchanged !== true ||
     report.syncReliability?.failuresScheduledSafely !== true ||
     report.syncReliability?.automaticRetryAttempted !== true ||
     report.versioning?.initialized !== true ||
