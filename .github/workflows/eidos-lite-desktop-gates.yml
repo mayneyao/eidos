@@ -49,6 +49,9 @@ jobs:
       - name: Test source and real Graft SDK
         run: pnpm test:eidos-lite
 
+      - name: Run explicit performance load gate
+        run: pnpm --filter @eidos.space/eidos-lite-desktop test:performance
+
   packaged-macos:
     name: Packaged smoke (${{ matrix.architecture }})
     runs-on: ${{ matrix.runner }}

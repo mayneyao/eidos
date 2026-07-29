@@ -93,6 +93,7 @@ From the repository root:
 ```bash
 pnpm install
 pnpm test:eidos-lite
+pnpm --filter @eidos.space/eidos-lite-desktop test:performance
 pnpm smoke:eidos-lite-graft
 pnpm smoke:eidos-lite-services
 EIDOS_LITE_STAGING_ACCOUNT_STATE=/owner-only/path/to/smoke-account.json \

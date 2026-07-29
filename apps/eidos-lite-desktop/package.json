@@ -12,6 +12,7 @@
     "build": "vite build && node scripts/verify-build-environment.mjs staging",
     "build:production": "vite build --mode eidos-production && node scripts/verify-build-environment.mjs production",
     "test": "vitest run --config vitest.config.ts",
+    "test:performance": "node scripts/performance-smoke.mjs",
     "test:graft": "vitest run --config vitest.config.ts src/main/graft/graft-client.integration.test.ts",
     "test:graft:cli": "EIDOS_LITE_GRAFT_BACKEND=cli vitest run --config vitest.config.ts src/main/graft/graft-client.integration.test.ts",
     "test:service-discovery": "EIDOS_LITE_RUN_SERVICE_DISCOVERY=1 vitest run --config vitest.config.ts src/main/services/service-environment.discovery.test.ts",

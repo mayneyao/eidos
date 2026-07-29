@@ -62,6 +62,7 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain("runner: macos-15-intel\n")
     expect(workflow).toContain("run: pnpm build:eidos-lite:dev")
     expect(workflow).toContain("run: pnpm smoke:eidos-lite-packaged")
+    expect(workflow).toContain("test:performance")
     expect(workflow).not.toContain("softprops/action-gh-release")
   })
 })

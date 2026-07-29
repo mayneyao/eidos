@@ -15,6 +15,9 @@ Run native-runtime operations sequentially. The repository shares one linked
 pnpm --filter @eidos.space/eidos-lite-desktop native:node
 pnpm test:eidos-lite
 
+# Explicit PRD load gate (creates temporary 1k/10k Spaces and 10/100 MiB files)
+pnpm --filter @eidos.space/eidos-lite-desktop test:performance
+
 # Repeatable local whole-Space Remote gate using the resident SDK
 pnpm smoke:eidos-lite-graft
 
@@ -39,6 +42,13 @@ same packaged smoke independently on `macos-15` (Apple Silicon) and
 `macos-15-intel`. The workflow has read-only repository permissions and no
 signing, artifact upload, release, or production-service step. A local ARM pass
 does not count as Intel evidence; Public v1 requires both remote jobs to pass.
+
+The performance load gate measures the real Space tree walker, recursive
+watcher, and native Eidos File validation/open path. The 10/100 MiB fixtures are
+valid SQLite files with padded extents, so they prove file-size handling and
+open overhead but not representative high-density user data. Keep separate
+dense-row/Grid benchmarks before claiming the complete Eidos File performance
+SLO.
 
 ## Environment selection
 
