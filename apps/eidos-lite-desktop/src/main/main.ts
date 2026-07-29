@@ -8,7 +8,6 @@ import {
 } from "../shared/service-environment"
 import { registerIpc } from "./ipc"
 import { eidosFilePathsFromArguments } from "./launch-intent"
-import { runPackagedSmoke } from "./packaged-smoke"
 import { createSyncControlPlane } from "./sync/create-sync-control-plane"
 import { PACKAGED_SYNC_FAILURE_SEQUENCE } from "./sync/sync-failure"
 import { WindowController } from "./window-controller"
@@ -139,12 +138,14 @@ void app.whenReady().then(async () => {
       if (!Number.isFinite(smokeLaunchedAtMs) || smokeLaunchedAtMs <= 0) {
         throw new Error("Packaged smoke requires its process launch timestamp")
       }
-      await runPackagedSmoke(
+      const { runPackagedStartupSmoke } =
+        await import("./packaged-startup-smoke")
+      const startup = await runPackagedStartupSmoke(
         controller,
-        smokeSpace,
-        smokeResult,
         smokeLaunchedAtMs
       )
+      const { runPackagedSmoke } = await import("./packaged-smoke")
+      await runPackagedSmoke(controller, smokeSpace, smokeResult, startup)
       app.exit(0)
     } catch (error) {
       console.error(error)

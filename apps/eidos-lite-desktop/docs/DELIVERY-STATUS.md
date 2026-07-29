@@ -32,7 +32,7 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 
 The final local audit passed:
 
-- Lite source and real-Graft suite: 132 passed, 8 explicitly skipped. The
+- Lite source and real-Graft suite: 133 passed, 8 explicitly skipped. The
   skipped cases are the opt-in performance and external staging/discovery
   gates, not hidden successes.
 - Real Graft SDK integration: 6 passed, covering whole-Space push/clone,
@@ -52,13 +52,16 @@ The final local audit passed:
   `https://eidos.space` and `https://sync.eidos.space`. No production request
   or mutation was performed.
 - The latest unsigned staging package passed the complete packaged smoke with
-  zero console errors. Across the latest two rebuild sequences, the first cold
-  samples were correctly rejected at 2,213 ms and 2,163 ms against the 2,000 ms
-  ceiling; clean same-build reruns passed at 737 ms and 404 ms. The latest
-  dense 100,000-row fixture was created in 843.3 ms and produced a 2,050 x
-  1,480 Grid first frame in 855.6 ms. Four Explorer-to-editor opens stayed
-  below the 1,500 ms ceiling. These samples expose cold-start variance and do
-  not establish a repeated-measurement P95.
+  zero console errors. The normal main-process entry no longer imports the
+  packaged-smoke fixture builder or native SQLite chunk; it dynamically loads
+  the 1.78 KiB startup probe only in smoke mode and the 38.25 KiB continuation
+  only after the Welcome window is usable. The main entry fell from 191 KiB to
+  156 KiB. Two newly rebuilt first-launch samples passed at 1,972 ms and 1,986
+  ms against the 2,000 ms ceiling; same-build reruns passed at 405 ms and 463
+  ms. Explorer-to-editor P95 stayed between 848.4 ms and 884.2 ms, including
+  the rendered 100,000-row Grid, and all runs reported zero console errors.
+  This closes the test-only static-load defect, but the narrow first-launch
+  margin still does not establish a repeated clean-machine P95.
 - Packaged recovery force-terminated both a resident Eidos File utility and
   the Graft SDK utility. The same opaque Eidos File session reopened with its
   committed file id, revision, table identities and row counts unchanged.
@@ -117,8 +120,9 @@ The following must stay visibly open before Public v1:
 
 1. Replace the single-launch cold-start check with a repeated clean-machine
    series and either keep its P95 within 2,000 ms or close the measured startup
-   variance. The latest first launches exceeded the ceiling even though their
-   same-build reruns passed.
+   variance. The smoke-only static native load is removed and the latest
+   rebuilt first launches passed, but 1,972-1,986 ms has insufficient release
+   margin compared with 405-463 ms same-build reruns.
 2. Run the configured read-only GitHub gates on remote macOS Apple Silicon and
    Intel workers. They have not run because this branch has not been pushed and
    no PR was authorized.

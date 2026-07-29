@@ -18,6 +18,23 @@ async function readJson(
 }
 
 describe("Eidos Lite package identity", () => {
+  it("keeps heavy packaged verification outside the first-window startup path", async () => {
+    const [mainSource, startupSmokeSource] = await Promise.all([
+      fs.readFile(path.resolve(appRoot, "src/main/main.ts"), "utf8"),
+      fs.readFile(
+        path.resolve(appRoot, "src/main/packaged-startup-smoke.ts"),
+        "utf8"
+      ),
+    ])
+
+    expect(mainSource).not.toMatch(/^import .*packaged-.*smoke/m)
+    expect(mainSource).toContain('"./packaged-startup-smoke"')
+    expect(mainSource).toContain('await import("./packaged-smoke")')
+    expect(startupSmokeSource).not.toContain(
+      "@eidos.space/eidos-file/better-sqlite3"
+    )
+  })
+
   it("keeps an independent application identity and release metadata", async () => {
     const packageJson = await readJson("package.json")
     const builder = await readJson("electron-builder.json")

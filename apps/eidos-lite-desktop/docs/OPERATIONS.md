@@ -117,6 +117,12 @@ The packaged smoke launches the actual unpacked executable and loads its real
 sandboxed preload and renderer in hidden `BrowserWindow` instances. It first
 gates process launch through a usable Welcome window at 2,000 ms, including
 Electron startup, main initialization, preload IPC, and renderer readiness. It
+does not statically add the full smoke or native SQLite fixture builder to the
+normal main-process entry. Smoke mode dynamically loads a small startup probe,
+measures the same process-launch-to-usable-window boundary, and only then loads
+the full fixture/acceptance continuation. This keeps full fixture setup outside
+both normal application startup and the measured first-window critical path
+without moving or weakening the launch timestamp. It
 then binds a real empty Space, creates `Getting Started.eidos` through the
 visible onboarding action, and requires the canonical editor to open the new
 ordinary file. It then binds a temporary Space containing four real fixtures
