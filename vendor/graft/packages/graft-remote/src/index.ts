@@ -6,6 +6,11 @@ export {
   MAX_METADATA_BYTES,
   PROTOCOL_HEADER,
   PROTOCOL_VERSION,
+  RECEIVE_PACK_HEADER_INDEX_BYTES,
+  RECEIVE_PACK_HEADER_PACK_BYTES,
+  RECEIVE_PACK_HEADER_PACK_ID,
+  RECEIVE_PACK_HEADER_REPLACEMENT_HEX,
+  RECEIVE_PACK_ID_BYTES,
   GraftProtocolError,
   bytesEqual,
   bytewiseCompare,
@@ -29,5 +34,6 @@ export type {
   GraftRequestContext,
   GraftRouteParameters,
   GraftWriteBody,
+  GraftWriteOptions,
   MaybePromise,
 } from "./types.js";

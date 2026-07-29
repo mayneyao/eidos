@@ -28,8 +28,7 @@ class MemoryRepository implements GraftRepositoryBackend {
     if (value === undefined) {
       return null;
     }
-    const body =
-      range === undefined ? value.slice() : value.slice(range.start, range.end + 1);
+    const body = range === undefined ? value.slice() : value.slice(range.start, range.end + 1);
     return { body, size: value.byteLength };
   }
 
@@ -141,13 +140,17 @@ describe("createGraftRemoteHandler", () => {
       protocol: "graft-remote",
       version: 1,
       repository: "acme/archive",
-      capabilities: expect.arrayContaining(["range", "list", "cas"]),
+      capabilities: expect.arrayContaining(["range", "list", "receive-pack", "cas"]),
     });
   });
 
   it("separates authentication, authorization, repository mapping, and storage", async () => {
     const backend = new MemoryRepository();
-    const authorized: Array<{ action: string; principal: string; repository: string }> = [];
+    const authorized: Array<{
+      action: string;
+      principal: string;
+      repository: string;
+    }> = [];
     let backendOpens = 0;
     const app = createGraftRemoteHandler<undefined, string>({
       authenticate: () => "user-1",
@@ -170,7 +173,9 @@ describe("createGraftRemoteHandler", () => {
 
     const descriptor = await handlerFetch(app, "/acme/archive", { headers });
     expect(descriptor.status).toBe(200);
-    expect(await descriptor.json()).toMatchObject({ repository: "tenant-7:acme/archive" });
+    expect(await descriptor.json()).toMatchObject({
+      repository: "tenant-7:acme/archive",
+    });
 
     const denied = await handlerFetch(app, "/acme/archive/raw/HEAD", {
       method: "PUT",
@@ -180,8 +185,16 @@ describe("createGraftRemoteHandler", () => {
     expect(denied.status).toBe(403);
     expect(backendOpens).toBe(1);
     expect(authorized).toEqual([
-      { action: "discover", principal: "user-1", repository: "tenant-7:acme/archive" },
-      { action: "write", principal: "user-1", repository: "tenant-7:acme/archive" },
+      {
+        action: "discover",
+        principal: "user-1",
+        repository: "tenant-7:acme/archive",
+      },
+      {
+        action: "write",
+        principal: "user-1",
+        repository: "tenant-7:acme/archive",
+      },
     ]);
   });
 
@@ -213,7 +226,10 @@ describe("createGraftRemoteHandler", () => {
     const ref = "/cas/repo/cas/refs/heads/main";
     const created = await remoteFetch(app, ref, {
       method: "POST",
-      headers: { "x-graft-expected-present": "false", "x-graft-expected-hex": "" },
+      headers: {
+        "x-graft-expected-present": "false",
+        "x-graft-expected-hex": "",
+      },
       body: "a\n",
     });
     expect(created.status).toBe(204);
@@ -222,7 +238,10 @@ describe("createGraftRemoteHandler", () => {
       ["b\n", "c\n"].map((body) =>
         remoteFetch(app, ref, {
           method: "POST",
-          headers: { "x-graft-expected-present": "true", "x-graft-expected-hex": "610a" },
+          headers: {
+            "x-graft-expected-present": "true",
+            "x-graft-expected-hex": "610a",
+          },
           body,
         }),
       ),
@@ -245,6 +264,53 @@ describe("createGraftRemoteHandler", () => {
     ).toBe(204);
   });
 
+  it("publishes a pack, index, and ref with one receive-pack request", async () => {
+    const app = createTestApp();
+    const packId = "a".repeat(64);
+    const path = "/receive/repo/receive-pack/refs/heads/main";
+    const first = await remoteFetch(app, path, {
+      method: "POST",
+      headers: receivePackHeaders(packId, undefined, "new\n", 4, 3),
+      body: "packidx",
+    });
+    expect(first.status, await first.clone().text()).toBe(204);
+
+    expect(
+      await (await remoteFetch(app, `/receive/repo/raw/objects/pack/${packId}.pack`)).text(),
+    ).toBe("pack");
+    expect(
+      await (await remoteFetch(app, `/receive/repo/raw/objects/pack/${packId}.idx`)).text(),
+    ).toBe("idx");
+    expect(await (await remoteFetch(app, "/receive/repo/raw/refs/heads/main")).text()).toBe(
+      "new\n",
+    );
+
+    const retry = await remoteFetch(app, path, {
+      method: "POST",
+      headers: receivePackHeaders(packId, "new\n", "next\n", 4, 3),
+      body: "ignored",
+    });
+    expect(retry.status, await retry.clone().text()).toBe(204);
+    expect(await (await remoteFetch(app, "/receive/repo/raw/refs/heads/main")).text()).toBe(
+      "next\n",
+    );
+    expect(
+      await (await remoteFetch(app, `/receive/repo/raw/objects/pack/${packId}.pack`)).text(),
+    ).toBe("pack");
+  });
+
+  it("does not publish a ref when a receive-pack body is truncated", async () => {
+    const app = createTestApp();
+    const packId = "b".repeat(64);
+    const response = await remoteFetch(app, "/partial/repo/receive-pack/refs/heads/main", {
+      method: "POST",
+      headers: receivePackHeaders(packId, undefined, "new\n", 4, 3, 6),
+      body: "packid",
+    });
+    expect(response.status).toBe(400);
+    expect((await remoteFetch(app, "/partial/repo/raw/refs/heads/main")).status).toBe(404);
+  });
+
   it("owns cursor pagination while the backend only lists ordered paths", async () => {
     const app = createTestApp();
     for (const path of ["objects/aa/one", "objects/bb/two", "objects/cc/three"]) {
@@ -265,7 +331,10 @@ describe("createGraftRemoteHandler", () => {
       if (cursor === undefined) query.set("prefix", "objects/");
       else query.set("cursor", cursor);
       const response = await remoteFetch(app, `/list/repo/list?${query}`);
-      const page = (await response.json()) as { paths: string[]; next_cursor?: string };
+      const page = (await response.json()) as {
+        paths: string[];
+        next_cursor?: string;
+      };
       paths.push(...page.paths);
       cursor = page.next_cursor;
     } while (cursor !== undefined);
@@ -291,11 +360,10 @@ describe("createGraftRemoteHandler", () => {
     });
     expect(reserved.status).toBe(400);
 
-    const encodedSlash = await remoteFetch(
-      app,
-      "/safety/repo/raw-if-not-exists/objects%2Fhidden",
-      { method: "PUT", body: "value" },
-    );
+    const encodedSlash = await remoteFetch(app, "/safety/repo/raw-if-not-exists/objects%2Fhidden", {
+      method: "PUT",
+      body: "value",
+    });
     expect(encodedSlash.status).toBe(400);
   });
 });
@@ -345,4 +413,29 @@ function expectedMatches(
     return current === expected;
   }
   return bytesEqual(current, expected);
+}
+
+function receivePackHeaders(
+  packId: string,
+  expected: string | undefined,
+  replacement: string,
+  packBytes: number,
+  indexBytes: number,
+  contentLength = packBytes + indexBytes,
+): Headers {
+  return new Headers({
+    "content-length": contentLength.toString(),
+    "x-graft-expected-present": (expected !== undefined).toString(),
+    "x-graft-expected-hex": expected === undefined ? "" : textHex(expected),
+    "x-graft-index-bytes": indexBytes.toString(),
+    "x-graft-pack-bytes": packBytes.toString(),
+    "x-graft-pack-id": packId,
+    "x-graft-ref-replacement-hex": textHex(replacement),
+  });
+}
+
+function textHex(value: string): string {
+  return [...new TextEncoder().encode(value)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 }

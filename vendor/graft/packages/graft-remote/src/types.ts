@@ -17,16 +17,17 @@ export interface GraftObjectMetadata {
   contentType?: string;
 }
 
-export type GraftObjectBody =
-  | ArrayBuffer
-  | Uint8Array<ArrayBuffer>
-  | ReadableStream<Uint8Array>;
+export type GraftObjectBody = ArrayBuffer | Uint8Array<ArrayBuffer> | ReadableStream<Uint8Array>;
 
 export interface GraftObject extends GraftObjectMetadata {
   body: GraftObjectBody;
 }
 
 export type GraftWriteBody = Uint8Array<ArrayBuffer> | ReadableStream<Uint8Array>;
+
+export interface GraftWriteOptions {
+  contentLength?: number;
+}
 
 export interface GraftListQuery {
   prefix: string;
@@ -48,6 +49,7 @@ export interface GraftRepositoryBackend {
     path: string,
     value: GraftWriteBody,
     kind: "transactional" | "immutable",
+    options?: GraftWriteOptions,
   ): MaybePromise<boolean>;
   compareAndSwap(
     path: string,
@@ -67,6 +69,7 @@ export type GraftRemoteOperation =
   | "descriptor"
   | "raw"
   | "raw-if-not-exists"
+  | "receive-pack"
   | "cas"
   | "cad"
   | "list";
@@ -104,10 +107,7 @@ export interface GraftRemoteOptions<AdapterContext = undefined, Principal = unde
     repository: Omit<GraftRepository, "id">,
     request: GraftHandlerRequest<AdapterContext>,
   ): MaybePromise<string>;
-  onError?(
-    error: unknown,
-    request: GraftHandlerRequest<AdapterContext>,
-  ): MaybePromise<void>;
+  onError?(error: unknown, request: GraftHandlerRequest<AdapterContext>): MaybePromise<void>;
 }
 
 export type GraftRemoteHandler<AdapterContext> = (
