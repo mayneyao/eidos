@@ -1,5 +1,6 @@
-import { fileURLToPath } from "node:url"
+import fs from "node:fs/promises"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig, type Plugin } from "vite"
@@ -11,6 +12,24 @@ import {
 } from "./src/shared/service-environment"
 
 const appRoot = path.dirname(fileURLToPath(import.meta.url))
+
+function cleanElectronOutput(): Plugin {
+  let cleaned = false
+
+  return {
+    name: "eidos-lite-clean-electron-output",
+    async buildStart() {
+      if (cleaned) {
+        return
+      }
+      cleaned = true
+      await fs.rm(path.join(appRoot, "dist-electron"), {
+        recursive: true,
+        force: true,
+      })
+    },
+  }
+}
 
 function buildEnvironmentManifest(
   environment: EidosLiteEnvironmentName
@@ -97,7 +116,10 @@ export default defineConfig(({ mode }) => {
           ],
           vite: {
             define: environmentDefine,
-            plugins: [buildEnvironmentManifest(defaultEnvironment)],
+            plugins: [
+              cleanElectronOutput(),
+              buildEnvironmentManifest(defaultEnvironment),
+            ],
             resolve: { alias: aliases },
             build: {
               target: "node24",

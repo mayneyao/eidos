@@ -36,6 +36,12 @@ pnpm build:eidos-lite:dev
 pnpm smoke:eidos-lite-packaged
 ```
 
+Every Lite build removes the previous `dist-electron` directory before the
+main-process bundle is emitted. The build and package gates then require the
+fixed entry files plus exactly one current application, contracts, SQLite,
+packaged-smoke, and startup-smoke chunk. Duplicate or unexpected output fails
+the command, keeping obsolete hashes and test code out of `app.asar`.
+
 `.github/workflows/eidos-lite-desktop-gates.yml` repeats the source and real
 Graft SDK suite on Linux, then builds the unsigned staging package and runs the
 same packaged smoke independently on `macos-15` (Apple Silicon) and

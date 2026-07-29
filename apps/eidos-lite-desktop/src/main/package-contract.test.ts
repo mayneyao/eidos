@@ -44,6 +44,7 @@ describe("Eidos Lite package identity", () => {
   it("keeps an independent application identity and release metadata", async () => {
     const packageJson = await readJson("package.json")
     const builder = await readJson("electron-builder.json")
+    const scripts = packageJson.scripts as Record<string, string>
 
     expect(packageJson.name).toBe("@eidos.space/eidos-lite-desktop")
     expect(packageJson.author).toBe("mayneyao")
@@ -59,6 +60,14 @@ describe("Eidos Lite package identity", () => {
         role: "Editor",
       },
     ])
+    for (const scriptName of [
+      "build",
+      "build:production",
+      "package:dir",
+      "package:production:dir",
+    ]) {
+      expect(scripts[scriptName]).toContain("verify-electron-output.mjs")
+    }
   })
 
   it("uses the checked-in official Eidos icons on every target", async () => {

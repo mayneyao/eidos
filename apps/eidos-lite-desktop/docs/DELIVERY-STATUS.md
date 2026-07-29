@@ -38,10 +38,10 @@ The final local audit passed:
 - Real Graft SDK integration: 6 passed, covering whole-Space push/clone,
   diff/restore, retained session lifecycle, memory-only HTTP credentials and
   divergence analysis.
-- Explicit performance load: 4 passed. Explorer with 1,000 entries was 21.6
-  ms; a stable change in a 10,000-entry watcher was 39.5 ms; 10 MiB and 100 MiB
-  native opens were 257.8 ms and 128.3 ms; the canonical 100,000-row first page
-  was 1.60 ms and cell-commit P95 was 1.76 ms.
+- Explicit performance load: 4 passed. Explorer with 1,000 entries was 19.9
+  ms; a stable change in a 10,000-entry watcher was 37.6 ms; 10 MiB and 100 MiB
+  native opens were 127.9 ms and 115.3 ms; the canonical 100,000-row first page
+  was 1.66 ms and cell-commit P95 was 1.89 ms.
 - The exact 1,425,218-byte Elden Ring CSV fixture imported 10,111 data rows and
   9 columns in 202.9-268.9 ms after the bulk-write fix, versus a 10,355.0 ms
   baseline. The complete row-aware Graft diff contained 10,126 row changes and
@@ -87,6 +87,17 @@ The final local audit passed:
   instead of raw `ENOENT`. An isolated shared-`userData` collision verified the
   exact exit, message and absence of a result, while a normal complete run of
   the same package passed at 366 ms with zero console errors.
+- The delivery audit found that repeated Vite builds had accumulated 28 files
+  and 1.5 MiB in `dist-electron`, including three application chunks, four
+  SQLite chunks, five copies of each smoke chunk and obsolete `preload.mjs`.
+  The new output verifier rejected that exact state. The main build now removes
+  the generated directory first and requires five fixed entries plus exactly
+  one current copy of each dynamic boundary. The clean output contains 10 files
+  and 480 KiB; the rebuilt `app.asar` fell from about 3.4 MiB to 2.4 MiB and its
+  manifest contains only those 10 Electron files. The package-only command
+  independently re-runs the same gate. The rebuilt complete packaged smoke
+  passed at 409 ms, rendered the 100,000-row Grid in 849.3 ms and reported zero
+  console errors.
 - Packaged recovery force-terminated both a resident Eidos File utility and
   the Graft SDK utility. The same opaque Eidos File session reopened with its
   committed file id, revision, table identities and row counts unchanged.

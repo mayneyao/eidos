@@ -9,8 +9,8 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/verify-build-environment.mjs staging",
-    "build:production": "vite build --mode eidos-production && node scripts/verify-build-environment.mjs production",
+    "build": "vite build && node scripts/verify-build-environment.mjs staging && node scripts/verify-electron-output.mjs",
+    "build:production": "vite build --mode eidos-production && node scripts/verify-build-environment.mjs production && node scripts/verify-electron-output.mjs",
     "test": "vitest run --config vitest.config.ts",
     "test:performance": "node scripts/performance-smoke.mjs",
     "test:graft": "vitest run --config vitest.config.ts src/main/graft/graft-client.integration.test.ts",
@@ -23,8 +23,8 @@
     "graft:install": "node scripts/install-graft-runtime.mjs",
     "native:electron": "node ../../scripts/use-better-sqlite3-runtime.cjs electron",
     "native:node": "node ../../scripts/use-better-sqlite3-runtime.cjs node",
-    "package:dir": "node scripts/verify-build-environment.mjs staging && pnpm run graft:install && pnpm run native:electron && electron-builder --dir --publish never --config electron-builder.dev.json --config.npmRebuild=false",
-    "package:production:dir": "pnpm run build:production && node scripts/verify-build-environment.mjs production && pnpm run graft:install && pnpm run native:electron && electron-builder --dir --publish never --config electron-builder.json --config.npmRebuild=false",
+    "package:dir": "node scripts/verify-build-environment.mjs staging && node scripts/verify-electron-output.mjs && pnpm run graft:install && pnpm run native:electron && electron-builder --dir --publish never --config electron-builder.dev.json --config.npmRebuild=false",
+    "package:production:dir": "pnpm run build:production && node scripts/verify-build-environment.mjs production && node scripts/verify-electron-output.mjs && pnpm run graft:install && pnpm run native:electron && electron-builder --dir --publish never --config electron-builder.json --config.npmRebuild=false",
     "smoke:packaged": "node scripts/packaged-smoke.mjs"
   },
   "dependencies": {
