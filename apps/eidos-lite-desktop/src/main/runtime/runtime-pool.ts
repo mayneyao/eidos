@@ -316,6 +316,34 @@ export class RuntimePool {
       .map((entry) => entry.relativePath)
   }
 
+  async verifyCrashRecoveryForTesting(sessionId: string): Promise<boolean> {
+    if (!process.env.EIDOS_LITE_SMOKE_RESULT) {
+      throw new Error("Runtime crash recovery probe is available only to smoke")
+    }
+    const before = await this.call(sessionId, "getSnapshot", [])
+    const entry = this.requireEntry(sessionId)
+    const child = entry.child
+    if (!child) throw new Error("Eidos File runtime is not resident")
+    const exited = new Promise<void>((resolve) => {
+      child.once("exit", () => resolve())
+    })
+    child.kill()
+    await exited
+    const after = await this.call(sessionId, "getSnapshot", [])
+    return (
+      before.metadata.fileId === after.metadata.fileId &&
+      before.metadata.revision === after.metadata.revision &&
+      before.tables.length === after.tables.length &&
+      before.tables.every((table, index) => {
+        const reopened = after.tables[index]
+        return (
+          reopened?.table.id === table.table.id &&
+          reopened.rowCount === table.rowCount
+        )
+      })
+    )
+  }
+
   async closeSessionsForPath(relativePath: string): Promise<string[]> {
     const normalized = relativePath.replace(/\/$/, "")
     const entries = [...this.entriesBySession.values()].filter(

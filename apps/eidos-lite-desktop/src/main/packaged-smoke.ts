@@ -73,6 +73,7 @@ interface RendererSmokeResult {
     externalRenameInvalidated: boolean
     externalRenameIssue: boolean
     externalRetryOpened: boolean
+    runtimeWorkerReopened: boolean
     graftWorkerReopened: boolean
   }
   canonicalEditor: {
@@ -1248,6 +1249,9 @@ export async function runPackagedSmoke(
     const externalRetry = await session.openEidosFile(
       externalProbe.relativePath
     )
+    const crashTarget = await session.openEidosFile(
+      "projects/content-calendar.eidos"
+    )
     report.lifecycleRecovery = {
       recentRecorded: recents.some(
         (recent) => recent.id === session.canonical.id && recent.available
@@ -1256,6 +1260,9 @@ export async function runPackagedSmoke(
       externalRenameIssue,
       externalRetryOpened:
         externalRetry.relativePath === externalProbe.relativePath,
+      runtimeWorkerReopened: await session.verifyRuntimeCrashRecoveryForTesting(
+        crashTarget.sessionId
+      ),
       graftWorkerReopened: await session.verifyGraftCrashRecoveryForTesting(),
     }
     if (Object.values(report.lifecycleRecovery).some((value) => !value)) {

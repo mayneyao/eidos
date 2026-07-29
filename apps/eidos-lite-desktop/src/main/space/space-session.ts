@@ -917,6 +917,10 @@ export class SpaceSession {
     )
   }
 
+  verifyRuntimeCrashRecoveryForTesting(sessionId: string): Promise<boolean> {
+    return this.runtimePool.verifyCrashRecoveryForTesting(sessionId)
+  }
+
   close(): Promise<void> {
     this.closeInFlight ??= this.closeInternal()
     return this.closeInFlight

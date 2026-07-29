@@ -163,6 +163,11 @@ pausing safely. It opens the Eidos Sync panel from the real
 packaged renderer and verifies the staging environment, signed-out state, login
 action, no-provisioning gate, and the typed Clone/Sync preload surface without
 opening a browser or mutating an external service.
+Before exit, the main-owned smoke probe force-terminates a resident Eidos File
+utility process, reuses the same opaque session, and requires the reopened
+runtime to preserve the committed file identity, revision, table identities,
+and row counts. It separately repeats the crash/reopen gate for the resident
+Graft SDK utility process.
 
 See [Architecture](./docs/ARCHITECTURE.md),
 [Operations](./docs/OPERATIONS.md), and the

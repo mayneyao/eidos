@@ -448,7 +448,9 @@ explicit external staging gates.
   later UI slice.
 - **Utility runtime crashes:** reject only that file's pending calls. Closing
   and reopening the path creates a fresh process; the other cached files remain
-  isolated.
+  isolated. Packaged acceptance force-terminates a resident file utility and
+  requires the same opaque session to reopen with its committed file identity,
+  revision, table identities, and row counts unchanged.
 - **Application crashes mid-operation:** the next session reads the journal and
   validates every `.eidos` before clearing it and making the Space available.
   The process-local LRU is not restored; no stale native handle survives the
