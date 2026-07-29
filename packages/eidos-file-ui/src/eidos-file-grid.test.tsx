@@ -186,6 +186,9 @@ describe("EidosFileGrid", () => {
     expect(container.firstElementChild?.classList).toContain(
       "eidos-file-detail-layout"
     )
+    expect(
+      document.getElementById("portal")?.dataset.eidosFileUiGlidePortal
+    ).toBe("true")
     expect(loadPage).toHaveBeenCalledWith(0, 100)
     expect(mocks.props?.rows).toBe(250)
     expect(mocks.props?.columns.map((column) => column.title)).toEqual([
