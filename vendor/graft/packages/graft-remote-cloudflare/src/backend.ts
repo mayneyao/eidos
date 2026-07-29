@@ -8,6 +8,7 @@ import {
   type GraftObjectMetadata,
   type GraftRepositoryBackend,
   type GraftWriteBody,
+  type GraftWriteOptions,
 } from "@eidos.space/graft-remote";
 
 import type { RepositoryDurableObject } from "./repository";
@@ -46,7 +47,9 @@ export class CloudflareRepositoryBackend implements GraftRepositoryBackend {
       this.r2Key(path),
       range === undefined
         ? undefined
-        : { range: { offset: range.start, length: range.end - range.start + 1 } },
+        : {
+            range: { offset: range.start, length: range.end - range.start + 1 },
+          },
     );
     if (object === null) {
       return null;
@@ -73,6 +76,7 @@ export class CloudflareRepositoryBackend implements GraftRepositoryBackend {
     path: string,
     value: GraftWriteBody,
     kind: "transactional" | "immutable",
+    options?: GraftWriteOptions,
   ): Promise<boolean> {
     if (kind === "transactional") {
       if (!(value instanceof Uint8Array)) {
@@ -80,11 +84,7 @@ export class CloudflareRepositoryBackend implements GraftRepositoryBackend {
       }
       return await this.#metadata.putMetadataIfAbsent(path, new Uint8Array(value));
     }
-    const result = await this.#objects.put(this.r2Key(path), value, {
-      onlyIf: new Headers({ "If-None-Match": "*" }),
-      httpMetadata: { contentType: "application/octet-stream" },
-    });
-    return result !== null;
+    return await this.putImmutable(path, value, options);
   }
 
   async compareAndSwap(
@@ -120,17 +120,76 @@ export class CloudflareRepositoryBackend implements GraftRepositoryBackend {
     const candidates = [...new Set([...metadata.paths, ...immutable])].sort(bytewiseCompare);
     return {
       paths: candidates.slice(0, query.limit),
-      hasMore:
-        candidates.length > query.limit || metadata.hasMore || immutablePage.truncated,
+      hasMore: candidates.length > query.limit || metadata.hasMore || immutablePage.truncated,
     };
   }
 
   private r2Key(path: string): string {
     return `repositories/${this.#repositoryId}/objects/${path}`;
   }
+
+  private async putImmutable(
+    path: string,
+    value: GraftWriteBody,
+    options: GraftWriteOptions | undefined,
+  ): Promise<boolean> {
+    const fixed = fixedR2Body(value, options?.contentLength);
+    try {
+      const result = await this.#objects.put(this.r2Key(path), fixed.body, {
+        onlyIf: new Headers({ "If-None-Match": "*" }),
+        httpMetadata: { contentType: "application/octet-stream" },
+      });
+      if (result === null) await fixed.cancel();
+      await fixed.finish(result !== null);
+      return result !== null;
+    } catch (error) {
+      await fixed.cancel();
+      await fixed.finish(false);
+      throw error;
+    }
+  }
 }
 
 export interface CloudflareRepositoryStorage {
   objects: R2Bucket;
   repositories: DurableObjectNamespace<RepositoryDurableObject>;
+}
+
+interface FixedR2Body {
+  body: GraftWriteBody;
+  cancel(): Promise<void>;
+  finish(consumed: boolean): Promise<void>;
+}
+
+function fixedR2Body(value: GraftWriteBody, contentLength: number | undefined): FixedR2Body {
+  if (value instanceof Uint8Array || contentLength === undefined) {
+    return {
+      body: value,
+      cancel: async () => undefined,
+      finish: async () => undefined,
+    };
+  }
+  const fixed = new FixedLengthStream(contentLength);
+  const body = fixed.readable as ReadableStream<Uint8Array>;
+  const completed = value.pipeTo(fixed.writable);
+  void completed.catch(() => undefined);
+  return {
+    body,
+    async cancel() {
+      if (!body.locked) {
+        try {
+          await body.cancel("immutable target already exists or upload failed");
+        } catch {
+          // The R2 operation may already have canceled the fixed-length stream.
+        }
+      }
+    },
+    async finish(consumed) {
+      try {
+        await completed;
+      } catch (error) {
+        if (consumed) throw error;
+      }
+    },
+  };
 }

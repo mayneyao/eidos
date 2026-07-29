@@ -87,6 +87,7 @@ interface GraftRepositoryBackend {
     path: string,
     value: Uint8Array<ArrayBuffer> | ReadableStream<Uint8Array>,
     kind: "transactional" | "immutable",
+    options?: { contentLength?: number },
   ): MaybePromise<boolean>;
   compareAndSwap(
     path: string,
@@ -108,6 +109,8 @@ Backend guarantees:
 - `list` returns at most `query.limit` paths, sorted by UTF-8 byte order, after
   `query.after`, and restricted to `query.prefix`.
 - Immutable request bodies remain streams when the adapter storage supports it.
+- `options.contentLength` is the exact length of a framed immutable body, such
+  as each object in a `receive-pack` request.
 - Repository instances are isolated by `repository.id`.
 
 ## Authentication and authorization
