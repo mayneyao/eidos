@@ -150,7 +150,16 @@ export class SpaceOperationGate {
 
         this.acceptingMutations = false
         this.transition("quiescing", options.detail ?? options.kind)
-        await journal("quiescing", options.detail)
+        try {
+          await journal("quiescing", options.detail)
+        } catch (error) {
+          // No runtime has been closed and no worktree operation has started.
+          // Without a durable journal it is unsafe to proceed, but ordinary
+          // local editing can remain available.
+          this.acceptingMutations = true
+          this.transition("ready")
+          throw error
+        }
         await this.waitForMutationDrain()
         if (options.beforeClose) {
           try {

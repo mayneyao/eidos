@@ -32,7 +32,7 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 
 The final local audit passed:
 
-- Lite source and real-Graft suite: 125 passed, 8 explicitly skipped. The
+- Lite source and real-Graft suite: 126 passed, 8 explicitly skipped. The
   skipped cases are the opt-in performance and external staging/discovery
   gates, not hidden successes.
 - Real Graft SDK integration: 6 passed, covering whole-Space push/clone,
@@ -52,14 +52,20 @@ The final local audit passed:
   `https://eidos.space` and `https://sync.eidos.space`. No production request
   or mutation was performed.
 - The latest unsigned staging package passed the complete packaged smoke with
-  zero console errors. One preceding cold-start sample was correctly rejected
-  at 2,213 ms against the 2,000 ms ceiling; the immediate same-build rerun
-  passed at 737 ms. Its dense 100,000-row fixture was created in 714.2 ms and
-  produced a 2,080 x 1,480 Grid first frame in 899.8 ms. Four
-  Explorer-to-editor opens stayed below the 1,500 ms ceiling.
+  zero console errors. Across the latest two rebuild sequences, the first cold
+  samples were correctly rejected at 2,213 ms and 2,163 ms against the 2,000 ms
+  ceiling; clean same-build reruns passed at 737 ms and 404 ms. The latest
+  dense 100,000-row fixture was created in 843.3 ms and produced a 2,050 x
+  1,480 Grid first frame in 855.6 ms. Four Explorer-to-editor opens stayed
+  below the 1,500 ms ceiling. These samples expose cold-start variance and do
+  not establish a repeated-measurement P95.
 - Packaged recovery force-terminated both a resident Eidos File utility and
   the Graft SDK utility. The same opaque Eidos File session reopened with its
   committed file id, revision, table identities and row counts unchanged.
+- The operation gate rejects an initial owner-state journal `ENOSPC` before
+  closing SQLite handles or entering Graft, then returns to Ready with Local
+  mutations enabled. Data-volume `SQLITE_FULL` remains an open destructive
+  gate and is not claimed by this state-volume test.
 - TypeScript, oxlint over the Lite directory, oxfmt over all tracked Lite files
   and `git diff --check` passed.
 
@@ -82,28 +88,32 @@ functional evidence.
 
 The following must stay visibly open before Public v1:
 
-1. Run the configured read-only GitHub gates on remote macOS Apple Silicon and
+1. Replace the single-launch cold-start check with a repeated clean-machine
+   series and either keep its P95 within 2,000 ms or close the measured startup
+   variance. The latest first launches exceeded the ceiling even though their
+   same-build reruns passed.
+2. Run the configured read-only GitHub gates on remote macOS Apple Silicon and
    Intel workers. They have not run because this branch has not been pushed and
    no PR was authorized.
-2. Build and exercise real Windows x64 and Linux arm64/x64 installers, including
+3. Build and exercise real Windows x64 and Linux arm64/x64 installers, including
    `.eidos` association, native Graft package loading and credential storage.
-3. Configure signing, macOS notarization and a signed update feed; verify clean
+4. Configure signing, macOS notarization and a signed update feed; verify clean
    install, in-place upgrade, update-source validation and rollback for every
    supported target.
-4. Complete at least two weeks of two-device dogfood using real Spaces and the
+5. Complete at least two weeks of two-device dogfood using real Spaces and the
    official staging subscription/Credits path.
-5. Re-run the owner-only staging OAuth acceptance for the release candidate,
+6. Re-run the owner-only staging OAuth acceptance for the release candidate,
    including subscription/Credits refresh, whole-Space enable, second-device
    clone, offline edits, divergence and both recovery copies.
-6. Add destructive automation for disk-full mutation, application termination
+7. Add destructive automation for disk-full mutation, application termination
    during pull/publish, clone network interruption, object-written/ref-publish
    failure, binary-file conflict/Keep-both, quota crossing, entitlement expiry
    during Sync, delayed/duplicate/out-of-order Credits webhooks and subscription
    restoration with pending checkpoints.
-7. Provide the Sync service status page, alerting, quota dashboard and service
+8. Provide the Sync service status page, alerting, quota dashboard and service
    runbook, and reconcile Privacy/Pricing/application copy for upload scope and
    encryption claims.
-8. Obtain explicit authorization before any production contact, signed build,
+9. Obtain explicit authorization before any production contact, signed build,
    deployment, push, PR, merge or release.
 
 ## Next delivery sequence

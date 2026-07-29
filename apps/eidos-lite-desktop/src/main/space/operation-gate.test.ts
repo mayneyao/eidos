@@ -42,6 +42,16 @@ async function gateWithHooks(
   return { gate, calls, journal: new SpaceOperationJournal(state) }
 }
 
+class DiskFullOperationJournal extends SpaceOperationJournal {
+  override async write(): Promise<void> {
+    const error = new Error(
+      "ENOSPC: no space left on device, write operation.json"
+    ) as NodeJS.ErrnoException
+    error.code = "ENOSPC"
+    throw error
+  }
+}
+
 describe("SpaceOperationGate", () => {
   it("drains mutations, closes handles, validates, and reopens in order", async () => {
     const { gate, calls, journal } = await gateWithHooks()
@@ -157,6 +167,42 @@ describe("SpaceOperationGate", () => {
       recoverable: true,
     })
     expect(await journal.read()).toBeNull()
+    await expect(gate.withMutation(async () => "editable")).resolves.toBe(
+      "editable"
+    )
+  })
+
+  it("keeps editing available when disk-full prevents the initial journal write", async () => {
+    const state = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-gate-disk-full-")
+    )
+    const calls: string[] = []
+    const gate = new SpaceOperationGate(new DiskFullOperationJournal(state), {
+      closeRuntimes: async () => {
+        calls.push("close")
+      },
+      validateWorktree: async () => {
+        calls.push("validate")
+      },
+      reopenRuntimes: async () => {
+        calls.push("reopen")
+      },
+    })
+
+    await expect(
+      gate.withMaterialization({
+        kind: "pull",
+        materialize: async () => {
+          calls.push("materialize")
+        },
+      })
+    ).rejects.toMatchObject({ code: "ENOSPC" })
+
+    expect(calls).toEqual([])
+    expect(gate.current()).toMatchObject({
+      phase: "ready",
+      recoverable: true,
+    })
     await expect(gate.withMutation(async () => "editable")).resolves.toBe(
       "editable"
     )

@@ -304,6 +304,12 @@ absent from that worktree, and its open Eidos File editor stayed usable.
   immediately, but retain its close promise in the controller. Application
   shutdown must wait for that promise to drain mutation and repository work,
   close runtime handles, and close the resident Graft session.
+- **The operation journal cannot start because the state volume is full or
+  unwritable:** abort before closing any SQLite handle or invoking Graft, return
+  the Space gate to Ready, and keep Local editing available. A materializing
+  operation must never start without its first durable owner-only journal
+  entry. This does not cover a SQLite data-volume `SQLITE_FULL`, which remains
+  a separate destructive-test gate.
 
 - **Expected Sync failure reaches renderer:** do not throw a raw account,
   Remote, or Graft message over IPC. Return the main-classified failure plus
