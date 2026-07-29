@@ -171,4 +171,6 @@ Graft SDK utility process.
 
 See [Architecture](./docs/ARCHITECTURE.md),
 [Operations](./docs/OPERATIONS.md), and the
-[install/upgrade/rollback runbook](./docs/RELEASE-RUNBOOK.md).
+[install/upgrade/rollback runbook](./docs/RELEASE-RUNBOOK.md). The current
+internal-candidate verdict, evidence, and explicit Public v1 gates live in
+[Delivery status](./docs/DELIVERY-STATUS.md).

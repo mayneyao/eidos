@@ -1,0 +1,108 @@
+# Eidos Lite Desktop delivery status
+
+Last audited: 2026-07-29
+
+## Verdict
+
+The current branch is an **internal macOS Apple Silicon staging candidate**.
+It is suitable for controlled dogfood with ordinary user-owned Space folders
+and the official staging account/Hosted Remote. It is not a signed installer,
+an Integrated Beta, or a Public v1 release.
+
+This verdict preserves the product boundary: one window owns one ordinary
+folder Space, one Space owns one Graft repository and one Hosted Remote, and
+the UI displays one active Eidos File while retaining at most three runtimes
+in an in-memory LRU. The product deliberately does not expose multi-file tabs.
+
+## Delivered capability
+
+| Area                    | Internal-candidate status | Evidence boundary                                                                                                                                                                |
+| ----------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Independent application | Ready                     | Independent Electron main, sandboxed preload, utility processes, renderer, bundle id, package config and tests; no Classic Desktop Space/legacy runtime imports                  |
+| Local Space             | Ready                     | New/Open/Recent ordinary folders, canonical one-window ownership, Pierre Explorer, watcher, ordinary-file system open and recoverable file operations                            |
+| Eidos File editing      | Ready                     | Canonical `eidos-file-ui` Grid/View/Query/Fields/Sheet UI, real SQLite transactions, one active editor and a three-runtime LRU                                                   |
+| Local versioning        | Ready                     | Whole-Space status, Changes, row-aware diff, History, checkpoint, forward-only restore and stable-change automatic checkpoints through the resident Graft SDK                    |
+| Sync control plane      | Staging-ready             | Independent PKCE/device/grant flow, preflight upload scope, official Hosted Remote provisioning, background queue, typed failures and Local-safe recovery                        |
+| Whole-Space Sync        | Staging-ready             | Real staging push/clone/pull and divergence acceptance is recorded in [Operations](./OPERATIONS.md); credentials remain in main/SDK memory                                       |
+| Recovery                | Internal-ready            | Clone journals, operation journals, close/validate/reopen materialization, two-copy divergence recovery, external-path invalidation, file-utility and Graft-utility crash reopen |
+| Diagnostics             | Internal-ready            | Main-owned allowlisted Copy diagnostics excludes credentials, URLs, paths, Space/repository identity and user content                                                            |
+| Distribution operations | Runbook-ready             | Clean install, upgrade, binary rollback, association, support and uninstall procedure in [Release runbook](./RELEASE-RUNBOOK.md)                                                 |
+
+## Current verification record
+
+The final local audit passed:
+
+- Lite source and real-Graft suite: 123 passed, 8 explicitly skipped. The
+  skipped cases are the opt-in performance and external staging/discovery
+  gates, not hidden successes.
+- Real Graft SDK integration: 6 passed, covering whole-Space push/clone,
+  diff/restore, retained session lifecycle, memory-only HTTP credentials and
+  divergence analysis.
+- Explicit performance load: 4 passed. Explorer with 1,000 entries was 21.6
+  ms; a stable change in a 10,000-entry watcher was 39.5 ms; 10 MiB and 100 MiB
+  native opens were 257.8 ms and 128.3 ms; the canonical 100,000-row first page
+  was 1.60 ms and cell-commit P95 was 1.76 ms.
+- Production-mode compile and environment-manifest verification passed for
+  `https://eidos.space` and `https://sync.eidos.space`. No production request
+  or mutation was performed.
+- The unsigned staging package passed the complete packaged smoke twice in
+  succession with zero console errors. The first launch after rebuilding was
+  1,843 ms and the second OS-warm launch was 372 ms. Four
+  Explorer-to-editor opens had maxima of 887.4 ms and 902.5 ms; the real
+  100,000-row Grid produced a 2,050 x 1,480 canvas first frame in the same
+  887.4 ms and 902.5 ms after separately measured fixture creation.
+- Packaged recovery force-terminated both a resident Eidos File utility and
+  the Graft SDK utility. The same opaque Eidos File session reopened with its
+  committed file id, revision, table identities and row counts unchanged.
+- TypeScript, oxlint over the Lite directory, oxfmt over all tracked Lite files
+  and `git diff --check` passed.
+
+The local unpacked candidate is:
+
+```text
+apps/eidos-lite-desktop/dist-app/mac-arm64/Eidos Lite.app
+```
+
+The Welcome entry is 168 KiB after the Space Explorer, Sync panel, History
+panel and 1.37 MiB canonical editor were moved behind their first-use
+boundaries. Vite still emits a large-chunk warning for that editor chunk and
+leaves the three utility/preload URLs for Electron runtime resolution. The
+package resolves those entries successfully and the measured startup,
+Explorer-to-editor and Grid budgets include loading their required chunks.
+Further editor-internal splitting remains optimization debt, not ignored
+functional evidence.
+
+## Gates that are not complete
+
+The following must stay visibly open before Public v1:
+
+1. Run the configured read-only GitHub gates on remote macOS Apple Silicon and
+   Intel workers. They have not run because this branch has not been pushed and
+   no PR was authorized.
+2. Build and exercise real Windows x64 and Linux arm64/x64 installers, including
+   `.eidos` association, native Graft package loading and credential storage.
+3. Configure signing, macOS notarization and a signed update feed; verify clean
+   install, in-place upgrade, update-source validation and rollback for every
+   supported target.
+4. Complete at least two weeks of two-device dogfood using real Spaces and the
+   official staging subscription/Credits path.
+5. Re-run the owner-only staging OAuth acceptance for the release candidate,
+   including subscription/Credits refresh, whole-Space enable, second-device
+   clone, offline edits, divergence and both recovery copies.
+6. Add destructive automation for disk-full mutation, application termination
+   during pull/publish, clone network interruption, object-written/ref-publish
+   failure, binary-file conflict/Keep-both, quota crossing, entitlement expiry
+   during Sync, delayed/duplicate/out-of-order Credits webhooks and subscription
+   restoration with pending checkpoints.
+7. Provide the Sync service status page, alerting, quota dashboard and service
+   runbook, and reconcile Privacy/Pricing/application copy for upload scope and
+   encryption claims.
+8. Obtain explicit authorization before any production contact, signed build,
+   deployment, push, PR, merge or release.
+
+## Next delivery sequence
+
+Run remote macOS gates first, then execute the owner-only staging candidate
+acceptance and start two-device dogfood. In parallel, close the destructive
+test matrix and service-operations gates. Only after those results are recorded
+should signing/update work and production release approval begin.
