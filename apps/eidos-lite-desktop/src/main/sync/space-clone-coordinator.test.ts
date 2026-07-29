@@ -25,7 +25,13 @@ describe("SpaceCloneCoordinator", () => {
     await fs.rm(root, { recursive: true, force: true })
   })
 
-  function coordinator(options: { validationError?: Error } = {}) {
+  function coordinator(
+    options: {
+      validationError?: Error
+      cloneError?: Error
+      onClientClose?: () => void
+    } = {}
+  ) {
     return new SpaceCloneCoordinator({
       stateDirectory: state,
       remoteOrigin: origin,
@@ -42,8 +48,9 @@ describe("SpaceCloneCoordinator", () => {
           )
           expect(journal).not.toContain("memory-only-token")
           await fs.writeFile(path.join(target, "project.eidos"), "valid")
+          if (options.cloneError) throw options.cloneError
         },
-        close: async () => undefined,
+        close: async () => options.onClientClose?.(),
       }),
       validateWorktree: async (target) => {
         if (options.validationError) throw options.validationError
@@ -91,6 +98,36 @@ describe("SpaceCloneCoordinator", () => {
     ).rejects.toThrow("invalid Eidos File")
     await expect(fs.lstat(target)).rejects.toMatchObject({ code: "ENOENT" })
     expect(await fs.readdir(destinations)).toEqual([])
+    await expect(
+      fs.readdir(path.join(state, "clone-operations"))
+    ).resolves.toEqual([])
+  })
+
+  it("cleans a partial clone after a network interruption", async () => {
+    const target = path.join(destinations, "Interrupted Space")
+    const unrelated = path.join(destinations, "keep.txt")
+    await fs.writeFile(unrelated, "user-owned sibling\n")
+    const interruption = Object.assign(
+      new Error("socket disconnected during clone"),
+      { code: "ECONNRESET" }
+    )
+    let clientClosed = false
+
+    await expect(
+      coordinator({
+        cloneError: interruption,
+        onClientClose: () => {
+          clientClosed = true
+        },
+      }).clone(target, remoteUrl, "memory-only-token")
+    ).rejects.toMatchObject({ code: "ECONNRESET" })
+
+    expect(clientClosed).toBe(true)
+    await expect(fs.lstat(target)).rejects.toMatchObject({ code: "ENOENT" })
+    await expect(fs.readFile(unrelated, "utf8")).resolves.toBe(
+      "user-owned sibling\n"
+    )
+    expect(await fs.readdir(destinations)).toEqual(["keep.txt"])
     await expect(
       fs.readdir(path.join(state, "clone-operations"))
     ).resolves.toEqual([])

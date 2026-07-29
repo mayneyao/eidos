@@ -445,6 +445,12 @@ explicit external staging gates.
 - **Clone fails before publish:** remove only the exact hidden sibling created
   by the clone coordinator and clear its journal. Never create, overwrite, or
   delete the user-selected final destination.
+- **Clone transport resets after writing partial staging content:** treat the
+  SDK `ECONNRESET` as a pre-publish failure, close the Graft client, remove only
+  the coordinator-owned hidden sibling, and clear its journal. Preserve every
+  unrelated user-owned sibling in the destination parent. The deterministic
+  gate injects the reset at the SDK boundary; it does not claim that staging
+  emitted the failure.
 - **Clone crashes around publish:** next launch reads the independent
   `userData/clone-operations` journal. An unpublished hidden sibling is
   removed; a folder already atomically published is validated and its external
