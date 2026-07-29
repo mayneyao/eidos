@@ -46,6 +46,8 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.deletePath, relativePath),
   importFiles: (targetDirectory) =>
     ipcRenderer.invoke(IPC_CHANNELS.importFiles, targetDirectory),
+  saveCsvFile: (suggestedName, bytes) =>
+    ipcRenderer.invoke(IPC_CHANNELS.saveCsv, suggestedName, bytes),
   callRuntime: <M extends RuntimeMethod>(
     sessionId: string,
     method: M,

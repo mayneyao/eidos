@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import type {
   CreateEidosFileFieldInput,
   CreateEidosFileTableInput,
@@ -8,6 +8,8 @@ import type {
   EidosFileRowQuery,
   EidosFileRowRange,
   EidosFileSnapshot,
+  EidosFileTableSnapshot,
+  EidosFileViewInfo,
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import {
@@ -17,29 +19,54 @@ import {
   EidosFileFieldCreatePopover,
   EidosFileFormulaEditorPopover,
   EidosFileLookupEditorPopover,
+  EidosFilePluginSlot,
   EidosFileQueryToolbar,
   EidosFileSheetCreatePopover,
   EidosFileSheetTabs,
   EidosFileUIProvider,
   EidosFileViewFieldsPopover,
   EidosFileViewTabs,
-  type EidosFileEditorDataSource,
+  exportEidosFileViewCsv,
+  type EidosFilePluginContext,
   type EidosFilePlugin,
 } from "@eidos.space/eidos-file-ui"
+import {
+  createEidosFileCsvImportPlugin,
+  type EidosFileCsvImportSource,
+} from "@eidos.space/eidos-file-ui/plugins/csv-import"
 import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/gallery"
 import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
 import { Check } from "lucide-react"
 
-const EDITOR_PLUGINS: EidosFilePlugin[] = [
+import { EIDOS_LITE_CSV_IMPORT_BYTES_MAX } from "../shared/contracts"
+import { eidosLiteCsvFileName } from "./csv-workflow"
+import type { IpcEidosFileDataSource } from "./ipc-data-source"
+
+const VIEW_PLUGINS: EidosFilePlugin[] = [
   eidosFileGalleryPlugin,
   eidosFileKanbanPlugin,
 ]
-const PLUGIN_REGISTRY = createEidosFilePluginRegistry(EDITOR_PLUGINS)
+const PLUGIN_REGISTRY = createEidosFilePluginRegistry(VIEW_PLUGINS)
+
+function pickBrowserCsvFile(): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = ".csv,text/csv,text/plain"
+    input.addEventListener(
+      "change",
+      () => resolve(input.files?.item(0) ?? null),
+      { once: true }
+    )
+    input.addEventListener("cancel", () => resolve(null), { once: true })
+    input.click()
+  })
+}
 
 export interface EidosFileWorkbenchProps {
   relativePath: string
   snapshot: EidosFileSnapshot
-  source: EidosFileEditorDataSource
+  source: IpcEidosFileDataSource
   activeTableId: string
   disabled: boolean
   theme: "light" | "dark"
@@ -74,6 +101,50 @@ export function EidosFileWorkbench({
     null
   )
   const [reloadToken, setReloadToken] = useState(0)
+  const csvFilesRef = useRef(new Map<string, File>())
+
+  const editorPlugins = useMemo<EidosFilePlugin[]>(
+    () => [
+      ...VIEW_PLUGINS,
+      createEidosFileCsvImportPlugin({
+        async pickFile() {
+          const file = await pickBrowserCsvFile()
+          if (!file) return null
+          if (file.size > EIDOS_LITE_CSV_IMPORT_BYTES_MAX) {
+            throw new Error("CSV files are limited to 16 MiB")
+          }
+          const selected: EidosFileCsvImportSource = {
+            id: crypto.randomUUID(),
+            fileName: file.name,
+          }
+          csvFilesRef.current.set(selected.id, file)
+          return selected
+        },
+        async preview(selected, options) {
+          const file = csvFilesRef.current.get(selected.id)
+          if (!file) throw new Error("The selected CSV is no longer available")
+          return source.previewCsv(
+            selected.fileName,
+            await file.arrayBuffer(),
+            options
+          )
+        },
+        async import(selected, options) {
+          const file = csvFilesRef.current.get(selected.id)
+          if (!file) throw new Error("The selected CSV is no longer available")
+          return source.importCsv(
+            selected.fileName,
+            await file.arrayBuffer(),
+            options
+          )
+        },
+        release(selected) {
+          csvFilesRef.current.delete(selected.id)
+        },
+      }),
+    ],
+    [source]
+  )
 
   const activeTable = useMemo(
     () =>
@@ -91,6 +162,29 @@ export function EidosFileWorkbench({
       activeTable.views[0]
     )
   }, [activeTable, activeViews])
+
+  const pluginContext = useMemo<EidosFilePluginContext | null>(() => {
+    if (!activeTable) return null
+    return {
+      source,
+      snapshot,
+      activeTable,
+      activeView,
+      disabled,
+      onSnapshot,
+      onTableSelect,
+      onError,
+    }
+  }, [
+    activeTable,
+    activeView,
+    disabled,
+    onError,
+    onSnapshot,
+    onTableSelect,
+    snapshot,
+    source,
+  ])
 
   if (!activeTable) return null
 
@@ -198,6 +292,27 @@ export function EidosFileWorkbench({
     setReloadToken((current) => current + 1)
   }
 
+  const exportTableCsv = async (
+    table: EidosFileTableSnapshot,
+    view?: EidosFileViewInfo,
+    scopedSearch = ""
+  ) => {
+    const result = await exportEidosFileViewCsv({
+      source,
+      table,
+      view,
+      search: scopedSearch,
+    })
+    const fileBase = relativePath
+      .split("/")
+      .at(-1)
+      ?.replace(/\.eidos$/i, "")
+    await window.eidosLite.saveCsvFile(
+      eidosLiteCsvFileName(fileBase, table.table.name, view?.name),
+      result.bytes
+    )
+  }
+
   return (
     <EidosFileUIProvider locale="en" themeName={theme}>
       <EidosFileEditorShell
@@ -228,6 +343,14 @@ export function EidosFileWorkbench({
             onUpdate={async (viewId, changes) => {
               await source.updateView(viewId, changes)
             }}
+            onExportCsv={(view) =>
+              exportTableCsv(
+                activeTable,
+                view,
+                view.id === activeView?.id ? search : ""
+              )
+            }
+            onExportError={onError}
           />
         }
         queryToolbar={
@@ -285,6 +408,15 @@ export function EidosFileWorkbench({
               <EidosFileSheetCreatePopover
                 disabled={disabled}
                 onCreate={createTable}
+                importAction={
+                  pluginContext ? (
+                    <EidosFilePluginSlot
+                      context={pluginContext}
+                      plugins={editorPlugins}
+                      slot="sheet-create"
+                    />
+                  ) : undefined
+                }
               />
             }
             onSelect={(tableId) => {
@@ -312,6 +444,16 @@ export function EidosFileWorkbench({
                 return nextViews
               })
             }}
+            onExportCsv={(table) => {
+              const tableSnapshot = snapshot.tables.find(
+                (candidate) => candidate.table.id === table.id
+              )
+              if (!tableSnapshot) {
+                return Promise.reject(new Error("Eidos File table not found"))
+              }
+              return exportTableCsv(tableSnapshot)
+            }}
+            onExportError={onError}
             status={
               <span
                 className="lite-sheet-status"
@@ -352,7 +494,7 @@ export function EidosFileWorkbench({
       >
         <EidosFileEditorView
           key={`${activeTable.table.id}:${activeView?.id ?? "default"}`}
-          plugins={EDITOR_PLUGINS}
+          plugins={editorPlugins}
           source={source}
           table={activeTable}
           tables={snapshot.tables}

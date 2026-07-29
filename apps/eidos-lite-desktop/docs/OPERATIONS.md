@@ -66,7 +66,11 @@ Eidos Sync panel, and requires the staging, signed-out, `canEnable: false`, and
 system-browser login-action projection. It never clicks sign-in or calls an
 external mutation endpoint.
 It asserts the canonical shared Editor Shell, View Tabs, Query Toolbar, Fields
-action, and Sheet Tabs are present. It creates a folder and Eidos File, renames,
+action, Sheet Tabs, CSV import action, and View export action are present. It
+previews and imports a real two-row CSV through typed preload/main/utility IPC,
+requires numeric inference and the resulting SQLite table row count, and
+asserts the native CSV save API is exposed without opening an interactive save
+dialog. It creates a folder and Eidos File, renames,
 moves, copies, and sends the copy to OS Trash; checks Recent Space persistence;
 and verifies that an external rename invalidates the stale session. It then
 requires that rename to surface as a typed **missing**, Local-safe issue and
@@ -203,6 +207,13 @@ absent from that worktree, and its open Eidos File editor stayed usable.
   original bytes and show the classified recovery notice. Busy and permission
   failures may retry after the external condition is removed. Corrupt files do
   not offer automatic repair; use reveal, a copied file, or whole-Space History.
+- **CSV exceeds 16 MiB or is not valid UTF-8/CSV:** reject it before mutation
+  with the canonical import dialog left recoverable. Parsing and field
+  inference happen in the selected Eidos File utility runtime. A failed import
+  must not publish a partial table; choose another file or correct the source.
+- **CSV export is canceled:** write nothing. The renderer receives no absolute
+  output path. A confirmed export writes only the generated CSV bytes to the
+  location selected by the native save dialog; it never changes the Space.
 
 - **First Sync scope contains hidden or secret-like paths:** display the local
   paths and keep confirmation unchecked. Do not provision a Remote until the

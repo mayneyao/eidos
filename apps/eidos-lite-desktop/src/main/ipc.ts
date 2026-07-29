@@ -2,6 +2,7 @@ import path from "node:path"
 import { app, ipcMain, shell } from "electron"
 
 import {
+  EIDOS_LITE_CSV_EXPORT_BYTES_MAX,
   IPC_CHANNELS,
   RUNTIME_METHODS,
   type EidosSyncHelpDestination,
@@ -33,6 +34,14 @@ function optionalRelativePath(value: unknown): string | null {
 function requiredString(value: unknown, label: string): string {
   if (typeof value !== "string") throw new Error(`Invalid ${label}`)
   return value
+}
+
+function requiredBytes(value: unknown, label: string): Uint8Array {
+  if (!(value instanceof Uint8Array)) throw new Error(`Invalid ${label}`)
+  if (value.byteLength > EIDOS_LITE_CSV_EXPORT_BYTES_MAX) {
+    throw new Error(`${label} exceeds the 256 MiB export limit`)
+  }
+  return new Uint8Array(value)
 }
 
 function syncPreflightApproval(value: unknown): EidosSyncPreflightApproval {
@@ -224,6 +233,15 @@ export function registerIpc(
       event.sender,
       optionalRelativePath(targetDirectory)
     )
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.saveCsv,
+    (event, suggestedName: unknown, bytes: unknown) =>
+      controller.saveCsvFile(
+        event.sender,
+        requiredString(suggestedName, "CSV file name"),
+        requiredBytes(bytes, "CSV content")
+      )
   )
   ipcMain.handle(
     IPC_CHANNELS.runtimeCall,

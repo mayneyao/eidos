@@ -9,6 +9,13 @@ const appRoot = path.dirname(fileURLToPath(import.meta.url))
 
 const aliases = [
   {
+    find: "@eidos.space/eidos-file-ui/plugins/csv-import",
+    replacement: path.resolve(
+      appRoot,
+      "../../packages/eidos-file-ui/src/plugins/csv-import.tsx"
+    ),
+  },
+  {
     find: "@eidos.space/eidos-file-ui/plugins/gallery",
     replacement: path.resolve(
       appRoot,

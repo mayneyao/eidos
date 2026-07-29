@@ -1,4 +1,7 @@
 import type {
+  EidosFileCsvImportOptions,
+  EidosFileCsvImportPlan,
+  EidosFileCsvImportResult,
   EidosFileDataSource,
   EidosFileSnapshot,
 } from "@eidos.space/eidos-file"
@@ -63,6 +66,29 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
     ...args: Parameters<NonNullable<EidosFileDataSource["previewFormula"]>>
   ) {
     return window.eidosLite.callRuntime(this.sessionId, "previewFormula", args)
+  }
+
+  previewCsv(
+    fileName: string,
+    bytes: ArrayBuffer,
+    options: EidosFileCsvImportOptions = {}
+  ): Promise<EidosFileCsvImportPlan> {
+    return window.eidosLite.callRuntime(this.sessionId, "previewCsv", [
+      fileName,
+      bytes,
+      options,
+    ])
+  }
+
+  importCsv(
+    fileName: string,
+    bytes: ArrayBuffer,
+    options: EidosFileCsvImportOptions = {}
+  ): Promise<{
+    snapshot: EidosFileSnapshot
+    result: EidosFileCsvImportResult
+  }> {
+    return this.mutate("importCsv", [fileName, bytes, options])
   }
 
   insertRow(...args: Parameters<EidosFileDataSource["insertRow"]>) {

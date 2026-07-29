@@ -32,6 +32,15 @@ surface composes the same public
 - `EidosFileViewFieldsPopover` and `EidosFileFieldCreatePopover`;
 - `EidosFileSheetTabs` and `EidosFileSheetCreatePopover`.
 
+CSV stays inside that canonical composition. The shared CSV import plugin owns
+the Sheet-create preview, type inference, field overrides, and import dialog.
+The selected browser `File` remains renderer-local; at most 16 MiB of owned
+bytes crosses the opaque session call into that file's utility runtime, where
+UTF-8 decoding, planning, and the atomic table mutation occur. View and Sheet
+exports use the shared paged data-source helper, then send only the resulting
+CSV bytes and a sanitized suggested name to main. Main owns the native save
+dialog and never returns the chosen absolute path to the renderer.
+
 Lite does not maintain a second table switcher or parallel field/view toolbar.
 Host callbacks cross the existing opaque-session IPC boundary, and the utility
 runtime remains the only process with a writable SQLite handle. Each open file

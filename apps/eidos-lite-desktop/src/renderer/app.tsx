@@ -8,7 +8,6 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react"
 import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
-import { type EidosFileEditorDataSource } from "@eidos.space/eidos-file-ui"
 import {
   CircleAlert,
   Cloud,
@@ -53,7 +52,7 @@ interface CachedFile {
   sessionId: string
   relativePath: string
   snapshot: EidosFileSnapshot
-  source: EidosFileEditorDataSource
+  source: IpcEidosFileDataSource
   tableId: string
 }
 

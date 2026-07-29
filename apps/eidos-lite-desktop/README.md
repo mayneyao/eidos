@@ -9,6 +9,9 @@ The current architecture slice supports local editing through an explicit
 runtime mutation whitelist. The right-hand editor composes the same
 `eidos-file-ui` View, Query, Fields, and Sheet controls as `eidos-file-web`,
 while the left-hand Space Explorer uses the path-first `@pierre/trees` model.
+The shared Sheet-create surface also imports CSV into a new table with local
+preview and field inference, while View and Sheet context menus export CSV
+through the same paged UI helper and a native Desktop save dialog.
 The Explorer is collapsible, pointer/keyboard resizable, and remembers its
 width; active file identity lives in one compact titlebar. Lite intentionally
 has no multi-tab file UI: it displays one rich Eidos File and retains only the
@@ -122,8 +125,9 @@ editor controls and the staging service projection, opens four canonical paths
 through the Pierre Shadow DOM and verifies the three-entry LRU, exercises the
 Explorer file lifecycle, resizes, collapses, and reopens the Explorer,
 initializes Local versioning, reads row-aware Changes and History, creates and
-restores whole-Space checkpoints, and verifies that file runtimes reopen with
-both checkpointed and restored data. It then injects eight expected Sync
+restores whole-Space checkpoints, verifies the canonical CSV actions plus a
+real preview/import in the isolated file runtime, and verifies that file
+runtimes reopen with both checkpointed and restored data. It then injects 14 expected Sync
 failure classes behind the packaged IPC boundary and requires every result to
 be classified, actionable, Local-safe, and timed while the same open SQLite
 runtime remains usable. It also requires typed queue status for every failure

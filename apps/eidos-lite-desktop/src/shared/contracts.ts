@@ -1,9 +1,15 @@
 import type {
+  EidosFileCsvImportOptions,
+  EidosFileCsvImportPlan,
+  EidosFileCsvImportResult,
   EidosFileDataSource,
   EidosFileSnapshot,
 } from "@eidos.space/eidos-file"
 
 import type { EidosLiteServiceEnvironment } from "./service-environment"
+
+export const EIDOS_LITE_CSV_IMPORT_BYTES_MAX = 16 * 1024 * 1024
+export const EIDOS_LITE_CSV_EXPORT_BYTES_MAX = 256 * 1024 * 1024
 
 export const IPC_CHANNELS = {
   appInfo: "eidos-lite:app-info",
@@ -25,6 +31,7 @@ export const IPC_CHANNELS = {
   copyPath: "eidos-lite:path-copy",
   deletePath: "eidos-lite:path-delete",
   importFiles: "eidos-lite:path-import",
+  saveCsv: "eidos-lite:csv-save",
   runtimeCall: "eidos-lite:runtime-call",
   enableVersioning: "eidos-lite:versioning-enable",
   createCheckpoint: "eidos-lite:checkpoint-create",
@@ -435,6 +442,28 @@ export interface EidosSyncRecoveryResult {
 
 export type EidosSyncHelpDestination = "account" | "download"
 
+interface RuntimeCustomCalls {
+  previewCsv: {
+    args: [
+      fileName: string,
+      bytes: ArrayBuffer,
+      options?: EidosFileCsvImportOptions,
+    ]
+    result: EidosFileCsvImportPlan
+  }
+  importCsv: {
+    args: [
+      fileName: string,
+      bytes: ArrayBuffer,
+      options?: EidosFileCsvImportOptions,
+    ]
+    result: {
+      snapshot: EidosFileSnapshot
+      result: EidosFileCsvImportResult
+    }
+  }
+}
+
 export const RUNTIME_READ_METHODS = [
   "getSnapshot",
   "getPage",
@@ -442,7 +471,11 @@ export const RUNTIME_READ_METHODS = [
   "getGroupCounts",
   "calculateColumnStats",
   "previewFormula",
-] as const satisfies readonly (keyof EidosFileDataSource)[]
+  "previewCsv",
+] as const satisfies readonly (
+  | keyof EidosFileDataSource
+  | keyof RuntimeCustomCalls
+)[]
 
 export const RUNTIME_MUTATION_METHODS = [
   "insertRow",
@@ -460,7 +493,11 @@ export const RUNTIME_MUTATION_METHODS = [
   "deleteView",
   "reorderViews",
   "updateView",
-] as const satisfies readonly (keyof EidosFileDataSource)[]
+  "importCsv",
+] as const satisfies readonly (
+  | keyof EidosFileDataSource
+  | keyof RuntimeCustomCalls
+)[]
 
 export const RUNTIME_METHODS = [
   ...RUNTIME_READ_METHODS,
@@ -471,11 +508,14 @@ export type RuntimeReadMethod = (typeof RUNTIME_READ_METHODS)[number]
 export type RuntimeMutationMethod = (typeof RUNTIME_MUTATION_METHODS)[number]
 export type RuntimeMethod = (typeof RUNTIME_METHODS)[number]
 
-type RuntimeCall<M extends RuntimeMethod> =
-  NonNullable<EidosFileDataSource[M]> extends (
-    ...args: infer Args
-  ) => Promise<infer Result>
-    ? { args: Args; result: Result }
+type RuntimeCall<M extends RuntimeMethod> = M extends keyof RuntimeCustomCalls
+  ? RuntimeCustomCalls[M]
+  : M extends keyof EidosFileDataSource
+    ? NonNullable<EidosFileDataSource[M]> extends (
+        ...args: infer Args
+      ) => Promise<infer Result>
+      ? { args: Args; result: Result }
+      : never
     : never
 
 export type RuntimeCalls = {
@@ -559,6 +599,7 @@ export interface EidosLiteApi {
   importFiles(
     targetDirectory: string | null
   ): Promise<SpacePathMutationResult | null>
+  saveCsvFile(suggestedName: string, bytes: Uint8Array): Promise<boolean>
   callRuntime<M extends RuntimeMethod>(
     sessionId: string,
     method: M,

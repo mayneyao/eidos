@@ -1,11 +1,16 @@
 import path from "node:path"
 import type {
+  EidosFileCsvImportOptions,
   EidosFileColumnStatConfig,
   EidosFileRowPageProjection,
   EidosFileRowQuery,
   EidosFileRuntime,
 } from "@eidos.space/eidos-file"
-import { EidosFileRuntimeDataSource } from "@eidos.space/eidos-file"
+import {
+  EidosFileRuntimeDataSource,
+  importEidosFileCsv,
+  planEidosFileCsvImport,
+} from "@eidos.space/eidos-file"
 import {
   createEidosFile,
   openEidosFile,
@@ -17,6 +22,7 @@ import type {
   RuntimeWorkerRequest,
   RuntimeWorkerResponse,
 } from "../shared/contracts"
+import { EIDOS_LITE_CSV_IMPORT_BYTES_MAX } from "../shared/contracts"
 
 interface UtilityParentPort {
   on(event: "message", listener: (event: { data: unknown }) => void): void
@@ -51,6 +57,36 @@ function serializeError(error: unknown): RuntimeWorkerError {
 function requireSource(): EidosFileRuntimeDataSource {
   if (!source) throw new Error("Eidos File runtime is not open")
   return source
+}
+
+function requireRuntime(): EidosFileRuntime {
+  if (!runtime) throw new Error("Eidos File runtime is not open")
+  return runtime
+}
+
+function csvFile(
+  fileNameValue: unknown,
+  bytesValue: unknown
+): { name: string; content: string } {
+  const name = requireString(fileNameValue, "CSV file name")
+  if (name.length > 255 || /[\\/\0]/.test(name)) {
+    throw new Error("CSV file name is invalid")
+  }
+  if (!(bytesValue instanceof ArrayBuffer)) {
+    throw new Error("CSV content must be an ArrayBuffer")
+  }
+  if (bytesValue.byteLength > EIDOS_LITE_CSV_IMPORT_BYTES_MAX) {
+    throw new Error("CSV files are limited to 16 MiB")
+  }
+  return {
+    name,
+    content: new TextDecoder("utf-8", { fatal: true }).decode(bytesValue),
+  }
+}
+
+function csvOptions(value: unknown): EidosFileCsvImportOptions {
+  if (value === undefined) return {}
+  return objectValue(value, "CSV options") as EidosFileCsvImportOptions
 }
 
 function requireString(value: unknown, label: string): string {
@@ -136,6 +172,11 @@ async function runtimeCall(
     }
     case "previewFormula":
       return dataSource.previewFormula(...methodArgs<"previewFormula">(args))
+    case "previewCsv":
+      return planEidosFileCsvImport(
+        csvFile(args[0], args[1]),
+        csvOptions(args[2])
+      )
     case "insertRow":
       return dataSource.insertRow(...methodArgs<"insertRow">(args))
     case "updateRow":
@@ -166,6 +207,14 @@ async function runtimeCall(
       return dataSource.reorderViews(...methodArgs<"reorderViews">(args))
     case "updateView":
       return dataSource.updateView(...methodArgs<"updateView">(args))
+    case "importCsv": {
+      const result = importEidosFileCsv(
+        requireRuntime(),
+        csvFile(args[0], args[1]),
+        csvOptions(args[2])
+      )
+      return { snapshot: await dataSource.getSnapshot(), result }
+    }
   }
 }
 

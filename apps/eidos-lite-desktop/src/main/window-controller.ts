@@ -268,6 +268,40 @@ export class WindowController {
     )
   }
 
+  async saveCsvFile(
+    webContents: WebContents,
+    suggestedName: string,
+    bytes: Uint8Array
+  ): Promise<boolean> {
+    this.requireSession(webContents)
+    const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
+    const candidate = path
+      .basename(suggestedName.replace(/\\/g, "/"))
+      .replace(/[\0\r\n]/g, "")
+      .trim()
+      .slice(0, 200)
+    const segment =
+      candidate && candidate !== "." && candidate !== ".."
+        ? candidate
+        : "Eidos File export"
+    const fileName = segment.toLowerCase().endsWith(".csv")
+      ? segment
+      : `${segment}.csv`
+    const options: Electron.SaveDialogOptions = {
+      title: "Export Eidos File CSV",
+      buttonLabel: "Export CSV",
+      defaultPath: path.join(app.getPath("downloads"), fileName),
+      filters: [{ name: "CSV", extensions: ["csv"] }],
+      properties: ["showOverwriteConfirmation"],
+    }
+    const result = parent
+      ? await dialog.showSaveDialog(parent, options)
+      : await dialog.showSaveDialog(options)
+    if (result.canceled || !result.filePath) return false
+    await fs.writeFile(result.filePath, bytes)
+    return true
+  }
+
   async closeAll(): Promise<void> {
     this.closing = true
     const opening = await Promise.allSettled([...this.openingSessions])

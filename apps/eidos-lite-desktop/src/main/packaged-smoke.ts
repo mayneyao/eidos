@@ -47,6 +47,14 @@ interface RendererSmokeResult {
     fields: boolean
     sheetTabs: boolean
   }
+  csvWorkflow: {
+    importAction: boolean
+    exportAction: boolean
+    saveApi: boolean
+    previewRows: number
+    importedRows: number
+    inferredNumber: boolean
+  }
   workbenchLayout: {
     pierreTree: boolean
     activePathSelected: boolean
@@ -341,6 +349,42 @@ const rendererProbe = `
   if (Object.values(canonicalEditor).some((value) => !value)) {
     throw new Error("Canonical Eidos File Web controls are incomplete")
   }
+  window.__eidosLiteSmokeStep = "CSV editor actions"
+  const addTableAction = document.querySelector(
+    '[aria-label="Add Eidos File table"]'
+  )
+  if (!addTableAction) throw new Error("Add Eidos File table action is missing")
+  addTableAction.click()
+  const csvImportAction = await waitFor(
+    () =>
+      document.querySelector(
+        '[aria-label="Import CSV as a new Eidos File table"]'
+      ),
+    "canonical CSV import action"
+  )
+  document.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+  )
+  const activeViewTab = document.querySelector("[data-eidos-file-view-id]")
+  if (!activeViewTab) throw new Error("CSV export requires an Eidos File view")
+  const viewRect = activeViewTab.getBoundingClientRect()
+  activeViewTab.dispatchEvent(
+    new MouseEvent("contextmenu", {
+      bubbles: true,
+      button: 2,
+      clientX: viewRect.left + 4,
+      clientY: viewRect.top + 4,
+    })
+  )
+  const csvExportAction = await waitFor(
+    () => [...document.querySelectorAll('[role="menuitem"]')].find(
+      (item) => item.textContent?.includes("Export current view as CSV")
+    ),
+    "canonical CSV export action"
+  )
+  document.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+  )
   window.__eidosLiteSmokeStep = "file lifecycle"
   const folderCreated = await window.eidosLite.createFolder(null, "Lifecycle")
   const fileCreated = await window.eidosLite.createEidosFile(
@@ -432,6 +476,43 @@ const rendererProbe = `
     (field) => field.type === "text" && !field.isDerived && !field.systemRole
   )
   if (!writableField) throw new Error("Mutation smoke requires a writable text field")
+  window.__eidosLiteSmokeStep = "CSV runtime workflow"
+  const csvBytes = new TextEncoder().encode(
+    "Name,Score,Active\\nAda,42,true\\nLin,7,false\\n"
+  ).buffer
+  const csvPlan = await window.eidosLite.callRuntime(
+    opened.sessionId,
+    "previewCsv",
+    ["Packaged tasks.csv", csvBytes, {}]
+  )
+  const csvImported = await window.eidosLite.callRuntime(
+    opened.sessionId,
+    "importCsv",
+    ["Packaged tasks.csv", csvBytes, {}]
+  )
+  const importedTable = csvImported.snapshot.tables.find(
+    (candidate) => candidate.table.id === csvImported.result.table.id
+  )
+  const csvWorkflow = {
+    importAction: Boolean(csvImportAction),
+    exportAction: Boolean(csvExportAction),
+    saveApi: typeof window.eidosLite.saveCsvFile === "function",
+    previewRows: csvPlan.rowCount,
+    importedRows: importedTable?.rowCount ?? -1,
+    inferredNumber: csvPlan.columns[1]?.type === "number",
+  }
+  if (
+    !csvWorkflow.importAction ||
+    !csvWorkflow.exportAction ||
+    !csvWorkflow.saveApi ||
+    csvWorkflow.previewRows !== 2 ||
+    csvWorkflow.importedRows !== 2 ||
+    !csvWorkflow.inferredNumber
+  ) {
+    throw new Error(
+      "Packaged CSV workflow is incomplete: " + JSON.stringify(csvWorkflow)
+    )
+  }
   const beforeCount = table.rowCount
   window.__eidosLiteSmokeStep = "temporary row insert"
   const inserted = await window.eidosLite.callRuntime(
@@ -741,6 +822,7 @@ const rendererProbe = `
     runtimeCache: { residentPaths: [], trackedPaths: [] },
     fileLifecycle,
     canonicalEditor,
+    csvWorkflow,
     workbenchLayout,
     styleContract,
     syncControl,
