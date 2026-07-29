@@ -339,8 +339,10 @@ absent from that worktree, and its open Eidos File editor stayed usable.
   service reports restored write access, explicit **Retry now** reconciles the
   current repository and clears the durable item only after success.
 - **HTTP 413 / quota exhausted:** show **Paused: storage full**. Never retry a
-  write loop automatically; fetch/export/recovery and Local editing remain
-  available.
+  write loop automatically; keep the durable whole-Space item and Local
+  checkpoint, while fetch/export/recovery and Local editing remain available.
+  After capacity is restored, explicit **Retry now** starts one fresh serialized
+  reconciliation and clears the item only after success.
 - **HTTP 426 / protocol mismatch:** stop Remote operations, show the official
   update action, and do not attempt compatibility guessing in Lite.
 - **HTTP 404 / missing Hosted Space:** stop publishing and offer the

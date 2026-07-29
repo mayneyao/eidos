@@ -435,6 +435,9 @@ An entitlement loss reported after authorization still pauses this same item;
 restoring the subscription does not fabricate completion or create a second
 job. Explicit Retry obtains fresh memory-only authorization and removes the
 stored item only after the whole current repository reconciles successfully.
+Quota exhaustion follows the same non-automatic pause boundary: elapsed time
+alone cannot trigger another write. Capacity restoration requires explicit
+Retry and preserves the same current-repository reconciliation semantics.
 
 An ahead+behind result shows the exact Local-only and Hosted-only checkpoint
 counts and states that recovery neither merges nor overwrites the current

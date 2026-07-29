@@ -32,7 +32,7 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 
 The final local audit passed:
 
-- Lite source and real-Graft suite: 130 passed, 8 explicitly skipped. The
+- Lite source and real-Graft suite: 131 passed, 8 explicitly skipped. The
   skipped cases are the opt-in performance and external staging/discovery
   gates, not hidden successes.
 - Real Graft SDK integration: 6 passed, covering whole-Space push/clone,
@@ -86,6 +86,9 @@ The final local audit passed:
   whole-Space item without auto-retry or persisted credentials. After access is
   restored, explicit Retry reconciles the current repository and clears the
   item only on success.
+- Quota crossing durably pauses the whole-Space item as Local-safe. Advancing
+  the retry clock performs no additional Remote write; after capacity returns,
+  explicit Retry succeeds and alone clears the item.
 - TypeScript, oxlint over the Lite directory, oxfmt over all tracked Lite files
   and `git diff --check` passed.
 
@@ -126,7 +129,7 @@ The following must stay visibly open before Public v1:
    including subscription/Credits refresh, whole-Space enable, second-device
    clone, offline edits, divergence and both recovery copies.
 7. Add destructive automation for application termination during pull/publish,
-   Remote-level object-written/ref-publish failure, quota crossing, and
+   Remote-level object-written/ref-publish failure, and
    delayed/duplicate/out-of-order Credits webhooks.
 8. Provide the Sync service status page, alerting, quota dashboard and service
    runbook, and reconcile Privacy/Pricing/application copy for upload scope and

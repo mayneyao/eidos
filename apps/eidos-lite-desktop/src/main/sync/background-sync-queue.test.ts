@@ -47,7 +47,7 @@ class TestScheduler {
 function failed(
   code: EidosSyncFailureCode = "offline",
   retryAfterMs?: number
-): EidosSyncRunResponse {
+): Extract<EidosSyncRunResponse, { ok: false }> {
   return {
     ok: false,
     runId: "failed-run",
@@ -89,6 +89,17 @@ function succeeded(): EidosSyncRunResponse {
         durationMs: 1,
         phases: [],
       },
+    },
+  }
+}
+
+function quotaExceeded(): EidosSyncRunResponse {
+  const response = failed("quota-exceeded")
+  return {
+    ...response,
+    failure: {
+      ...response.failure,
+      retryable: false,
     },
   }
 }
@@ -213,6 +224,49 @@ describe("BackgroundSyncQueue", () => {
       maxAttempts: 3,
       lastFailure: { localSafe: true },
     })
+    await syncQueue.close()
+  })
+
+  it("pauses a quota crossing until capacity is restored explicitly", async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce(quotaExceeded())
+      .mockResolvedValueOnce(succeeded())
+    const syncQueue = queue()
+    await syncQueue.attach({
+      spaceId,
+      execute,
+      emit: (status) => statuses.push(status),
+    })
+
+    const exceeded = await syncQueue.runNow(spaceId)
+
+    expect(exceeded).toMatchObject({
+      ok: false,
+      failure: {
+        code: "quota-exceeded",
+        retryable: false,
+        localSafe: true,
+      },
+    })
+    expect(syncQueue.status(spaceId)).toMatchObject({
+      state: "paused",
+      attempt: 1,
+      lastFailure: { code: "quota-exceeded" },
+    })
+    expect(await store.read(spaceId)).toMatchObject({
+      state: "paused",
+      lastFailure: { code: "quota-exceeded" },
+    })
+    await scheduler.advanceBy(60_000)
+    expect(execute).toHaveBeenCalledTimes(1)
+
+    const restored = await syncQueue.runNow(spaceId)
+
+    expect(restored.ok).toBe(true)
+    expect(execute).toHaveBeenCalledTimes(2)
+    expect(syncQueue.status(spaceId).state).toBe("idle")
+    await expect(store.read(spaceId)).resolves.toBeNull()
     await syncQueue.close()
   })
 
