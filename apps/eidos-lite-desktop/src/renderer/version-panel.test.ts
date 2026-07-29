@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import type {
+  SpaceSnapshot,
   SpaceVersionDiff,
   SpaceVersionTableDiff,
 } from "../shared/contracts"
@@ -13,6 +14,7 @@ import {
 import {
   TableDiff,
   VersionDiffPreview,
+  VersionPanel,
   versionRowDiffPage,
 } from "./version-panel"
 
@@ -60,7 +62,41 @@ const versionDiff: SpaceVersionDiff = {
   ],
 }
 
+const unversionedSpace: SpaceSnapshot = {
+  id: "space-1",
+  name: "Project",
+  displayPath: "/Project",
+  entries: [],
+  eidosFileCount: 0,
+  operation: { phase: "ready", recoverable: false },
+  graft: {
+    available: true,
+    backend: "sdk",
+    expectedVersion: "0.1.0",
+    initialized: false,
+  },
+  invalidatedSessionIds: [],
+}
+
 describe("VersionPanel row diff paging", () => {
+  it("keeps version setup inside the panel instead of the titlebar", () => {
+    const markup = renderToStaticMarkup(
+      createElement(VersionPanel, {
+        space: unversionedSpace,
+        refreshKey: 0,
+        onClose: () => undefined,
+        onSpaceChange: () => undefined,
+        onRefresh: () => undefined,
+        onInspectionChange: () => undefined,
+      })
+    )
+
+    expect(markup).toContain('data-version-initialized="false"')
+    expect(markup).toContain("Start local version history")
+    expect(markup).toContain("data-enable-versioning")
+    expect(markup).not.toContain('role="tab"')
+  })
+
   it("keeps a 10k-row diff bounded while retaining every page", () => {
     const changes = Array.from({ length: 10_126 }, (_, index) => index)
 

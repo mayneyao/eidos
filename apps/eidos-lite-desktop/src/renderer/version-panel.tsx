@@ -8,6 +8,7 @@ import {
   Database,
   FileClock,
   FileText,
+  GitBranch,
   GitCommitHorizontal,
   LoaderCircle,
   RotateCcw,
@@ -505,7 +506,9 @@ export function VersionPanel({
     string | null
   >(null)
   const [loading, setLoading] = useState(false)
-  const [busy, setBusy] = useState<"checkpoint" | "restore" | null>(null)
+  const [busy, setBusy] = useState<"enable" | "checkpoint" | "restore" | null>(
+    null
+  )
   const [checkpointMessage, setCheckpointMessage] = useState("")
   const [confirmRestore, setConfirmRestore] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -548,8 +551,15 @@ export function VersionPanel({
   }, [mode])
 
   useEffect(() => {
+    if (!space.graft.initialized) return
     void loadMode()
-  }, [loadMode, refreshKey, space.graft.clean, space.graft.currentHead])
+  }, [
+    loadMode,
+    refreshKey,
+    space.graft.clean,
+    space.graft.currentHead,
+    space.graft.initialized,
+  ])
 
   useEffect(() => {
     clearInspection()
@@ -597,6 +607,21 @@ export function VersionPanel({
     }
   }
 
+  const enableVersioning = async () => {
+    setBusy("enable")
+    setError(null)
+    try {
+      const snapshot = await window.eidosLite.enableVersioning()
+      setMode("history")
+      onSpaceChange(snapshot)
+      onRefresh()
+    } catch (cause) {
+      setError(errorMessage(cause))
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const restore = async () => {
     if (!selectedCommit || !historyHead) return
     setBusy("restore")
@@ -635,8 +660,67 @@ export function VersionPanel({
     clearInspection()
   }
 
+  if (!space.graft.initialized) {
+    return (
+      <aside
+        className="version-panel version-panel-setup"
+        aria-label="Space version management"
+        data-version-initialized="false"
+      >
+        <header>
+          <div>
+            <FileClock aria-hidden="true" />
+            <strong>Version history</strong>
+          </div>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onClose}
+            aria-label="Close version history"
+          >
+            <X />
+          </button>
+        </header>
+
+        {error ? (
+          <div className="version-error" role="alert">
+            <CircleAlert />
+            <span>{error}</span>
+          </div>
+        ) : null}
+
+        <section className="version-setup-copy">
+          <GitBranch aria-hidden="true" />
+          <strong>Start local version history</strong>
+          <p>
+            Create the first checkpoint for this Space. This stays local and
+            does not require an account.
+          </p>
+          <button
+            type="button"
+            className="panel-primary-action"
+            data-enable-versioning
+            disabled={busy !== null || space.operation.phase !== "ready"}
+            onClick={() => void enableVersioning()}
+          >
+            {busy === "enable" ? (
+              <LoaderCircle className="spin" />
+            ) : (
+              <GitBranch />
+            )}
+            {busy === "enable" ? "Enabling…" : "Enable versioning"}
+          </button>
+        </section>
+      </aside>
+    )
+  }
+
   return (
-    <aside className="version-panel" aria-label="Space version management">
+    <aside
+      className="version-panel"
+      aria-label="Space version management"
+      data-version-initialized="true"
+    >
       <header>
         <div>
           <FileClock aria-hidden="true" />

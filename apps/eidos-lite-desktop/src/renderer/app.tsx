@@ -20,8 +20,6 @@ import {
   FolderInput,
   FolderOpen,
   FolderPlus,
-  GitBranch,
-  GitCommitHorizontal,
   HardDrive,
   History,
   LoaderCircle,
@@ -401,9 +399,6 @@ export function App() {
   const [openingSpace, setOpeningSpace] = useState(false)
   const [recentSpaces, setRecentSpaces] = useState<RecentSpaceEntry[]>([])
   const [busyFile, setBusyFile] = useState<string | null>(null)
-  const [versionBusy, setVersionBusy] = useState<
-    "enable" | "checkpoint" | null
-  >(null)
   const [versionPanelOpen, setVersionPanelOpen] = useState(false)
   const [versionInspection, setVersionInspection] =
     useState<VersionInspection | null>(null)
@@ -877,26 +872,6 @@ export function App() {
       setPathMutationBusy(false)
     }
   }, [applyPathMutation, selectedEntry])
-  const runVersionAction = useCallback(
-    async (action: "enable" | "checkpoint") => {
-      setVersionBusy(action)
-      setError(null)
-      try {
-        const snapshot =
-          action === "enable"
-            ? await window.eidosLite.enableVersioning()
-            : await window.eidosLite.createCheckpoint()
-        setSpace(snapshot)
-        setVersionRefreshKey((current) => current + 1)
-      } catch (cause) {
-        setError(errorMessage(cause))
-      } finally {
-        setVersionBusy(null)
-      }
-    },
-    []
-  )
-
   if (!space) {
     return (
       <>
@@ -1120,83 +1095,52 @@ export function App() {
           <div
             className="file-titlebar-actions"
             role="toolbar"
-            aria-label="Space status and actions"
+            aria-label="Space actions"
           >
-            {space.graft.available && !space.graft.initialized ? (
-              <button
-                type="button"
-                className="version-action"
-                disabled={
-                  versionBusy !== null || space.operation.phase !== "ready"
-                }
-                onClick={() => void runVersionAction("enable")}
-                title="Create a local Graft repository and checkpoint the whole Space. No account required."
-              >
-                {versionBusy === "enable" ? (
-                  <LoaderCircle className="spin" />
-                ) : (
-                  <GitBranch />
-                )}
-                {versionBusy === "enable" ? "Enabling…" : "Enable Versioning"}
-              </button>
-            ) : null}
-            {space.graft.available &&
-            space.graft.initialized &&
-            space.graft.clean === false ? (
-              <button
-                type="button"
-                className="version-action"
-                disabled={
-                  versionBusy !== null || space.operation.phase !== "ready"
-                }
-                onClick={() => void runVersionAction("checkpoint")}
-                title="Checkpoint all local changes in this Space. No sync or account is involved."
-              >
-                {versionBusy === "checkpoint" ? (
-                  <LoaderCircle className="spin" />
-                ) : (
-                  <GitCommitHorizontal />
-                )}
-                {versionBusy === "checkpoint"
-                  ? "Creating…"
-                  : "Create Checkpoint"}
-              </button>
-            ) : null}
-            {space.graft.initialized ? (
-              <button
-                type="button"
-                className="version-action"
-                data-version-change-count={versionChangeCount}
-                aria-pressed={versionPanelOpen}
-                aria-label={
-                  versionChangeCount > 0
-                    ? `Version History, ${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
-                    : "Version History"
-                }
-                onClick={() => {
-                  if (versionPanelOpen) setVersionInspection(null)
-                  setVersionPanelOpen(!versionPanelOpen)
-                }}
-                title={
-                  versionChangeCount > 0
-                    ? `${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
-                    : "View whole-Space changes and checkpoint history"
-                }
-              >
-                <History />
-                {versionPanelOpen ? "Close History" : "Version History"}
-                {versionChangeCount > 0 ? (
-                  <span className="version-change-badge" aria-hidden="true">
-                    {versionChangeLabel}
-                  </span>
-                ) : null}
-              </button>
-            ) : null}
             <button
               type="button"
-              className="version-action"
+              className="icon-button titlebar-tool-button"
+              data-titlebar-action="version"
+              data-version-change-count={versionChangeCount}
+              disabled={!space.graft.available}
+              aria-pressed={versionPanelOpen}
+              aria-label={
+                !space.graft.available
+                  ? "Version history unavailable"
+                  : versionChangeCount > 0
+                    ? `Version history, ${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
+                    : space.graft.initialized
+                      ? "Version history"
+                      : "Set up version history"
+              }
+              onClick={() => {
+                if (versionPanelOpen) setVersionInspection(null)
+                setVersionPanelOpen(!versionPanelOpen)
+              }}
+              title={
+                !space.graft.available
+                  ? (space.graft.error ?? "Version history unavailable")
+                  : versionChangeCount > 0
+                    ? `${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
+                    : space.graft.initialized
+                      ? "Version history"
+                      : "Set up version history"
+              }
+            >
+              <History />
+              {versionChangeCount > 0 ? (
+                <span className="version-change-badge" aria-hidden="true">
+                  {versionChangeLabel}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              className="icon-button titlebar-tool-button"
+              data-titlebar-action="sync"
               data-sync-queue-state={syncQueueStatus?.state ?? "idle"}
               aria-pressed={syncPanelMode === "enable"}
+              aria-label={syncQueueLabel(syncQueueStatus)}
               onClick={() => {
                 setVersionPanelOpen(false)
                 setVersionInspection(null)
@@ -1204,14 +1148,13 @@ export function App() {
                   current === "enable" ? null : "enable"
                 )
               }}
-              title="Connect the whole Space to the official Eidos Hosted Remote"
+              title={syncQueueLabel(syncQueueStatus)}
             >
               {syncQueueStatus?.state === "running" ? (
                 <LoaderCircle className="spin" />
               ) : (
                 <Cloud />
               )}
-              {syncQueueLabel(syncQueueStatus)}
             </button>
           </div>
         </header>
@@ -1360,7 +1303,7 @@ export function App() {
               </section>
             )}
           </div>
-          {versionPanelOpen && space.graft.initialized ? (
+          {versionPanelOpen && space.graft.available ? (
             <Suspense fallback={null}>
               <VersionPanel
                 space={space}

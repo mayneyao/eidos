@@ -116,6 +116,7 @@ interface RendererSmokeResult {
   }
   syncControl: {
     action: boolean
+    iconAction: boolean
     panel: boolean
     environment: boolean
     signedOut: boolean
@@ -152,6 +153,7 @@ interface RendererSmokeResult {
   versioning: {
     initialized: boolean
     clean: boolean
+    iconAction: boolean
     changeBadge: boolean
     changePaths: number
     rowChanges: number
@@ -399,8 +401,8 @@ const rendererProbe = `
   if (!workbench || !sidebar || !sidebarResizer || !collapseSidebar) {
     throw new Error("Resizable workbench shell is incomplete")
   }
-  const syncAction = [...document.querySelectorAll("button.version-action")].find(
-    (button) => button.textContent?.includes("Eidos Sync")
+  const syncAction = document.querySelector(
+    'button[data-titlebar-action="sync"]'
   )
   if (!syncAction) throw new Error("Eidos Sync action is missing")
   syncAction.click()
@@ -419,6 +421,7 @@ const rendererProbe = `
   )
   const syncControl = {
     action: Boolean(syncAction),
+    iconAction: syncAction.textContent?.trim() === "",
     panel: syncPanel.getAttribute("role") === "dialog",
     environment: syncPanel.dataset.syncEnvironment === "staging",
     environmentBadge: Boolean(stagingBadge),
@@ -733,10 +736,31 @@ const rendererProbe = `
     throw new Error("Packaged mutation delete did not restore the row count")
   }
   window.__eidosLiteSmokeStep = "enable versioning"
-  const versioned = await window.eidosLite.enableVersioning()
+  const versionAction = document.querySelector(
+    'button[data-titlebar-action="version"]'
+  )
+  if (!versionAction) throw new Error("Version action is missing")
+  versionAction.click()
+  const versionSetup = await waitFor(
+    () => document.querySelector('.version-panel[data-version-initialized="false"]'),
+    "Version setup panel"
+  )
+  const enableVersioning = versionSetup.querySelector("[data-enable-versioning]")
+  if (!enableVersioning) throw new Error("Enable versioning panel action is missing")
+  enableVersioning.click()
+  await waitFor(
+    () => document.querySelector('.version-panel[data-version-initialized="true"]'),
+    "initialized Version panel"
+  )
+  const versioned = await window.eidosLite.refreshSpace()
   if (!versioned.graft.initialized || versioned.graft.clean !== true) {
     throw new Error("Enable Versioning did not create a clean local repository")
   }
+  versionAction.click()
+  await waitFor(
+    () => !document.querySelector(".version-panel") && true,
+    "closed Version panel"
+  )
   window.__eidosLiteSmokeStep = "checkpoint row insert"
   await window.eidosLite.callRuntime(opened.sessionId, "insertRow", [
     table.table.id,
@@ -760,7 +784,7 @@ const rendererProbe = `
   const dirtyVersionButton = await waitFor(
     () => {
       const candidate = document.querySelector(
-        'button.version-action[data-version-change-count]'
+        'button[data-titlebar-action="version"][data-version-change-count]'
       )
       return Number(candidate?.dataset.versionChangeCount) >= 1
         ? candidate
@@ -1003,8 +1027,8 @@ const rendererProbe = `
         JSON.stringify(syncReliability)
     )
   }
-  const historyButton = [...document.querySelectorAll("button.version-action")].find(
-    (button) => button.textContent?.includes("Version History")
+  const historyButton = document.querySelector(
+    'button[data-titlebar-action="version"]'
   )
   if (!historyButton) throw new Error("Version History UI action is missing")
   historyButton.click()
@@ -1071,6 +1095,7 @@ const rendererProbe = `
     versioning: {
       initialized: automaticSnapshot.graft.initialized,
       clean: automaticSnapshot.graft.clean,
+      iconAction: historyButton.textContent?.trim() === "",
       changeBadge,
       changePaths: changes.paths.length,
       rowChanges,
