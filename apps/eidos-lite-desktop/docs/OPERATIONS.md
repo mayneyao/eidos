@@ -122,7 +122,12 @@ normal main-process entry. Smoke mode dynamically loads a small startup probe,
 measures the same process-launch-to-usable-window boundary, and only then loads
 the full fixture/acceptance continuation. This keeps full fixture setup outside
 both normal application startup and the measured first-window critical path
-without moving or weakening the launch timestamp. It
+without moving or weakening the launch timestamp. The Electron entry itself is
+a minimal bootstrap: it records the first application timestamp, buffers any
+macOS `open-file` event that arrives before the application module graph is
+ready, transfers those paths to the normal launch queue, and dynamically loads
+the application. Startup telemetry therefore separates executable-to-bootstrap
+time from application-module loading without weakening file association. It
 then binds a real empty Space, creates `Getting Started.eidos` through the
 visible onboarding action, and requires the canonical editor to open the new
 ordinary file. It then binds a temporary Space containing four real fixtures

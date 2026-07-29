@@ -1003,7 +1003,8 @@ const rendererProbe = `
     performance: {
       coldStartMs: 0,
       startup: {
-        launcherToMainMs: 0,
+        launcherToBootstrapMs: 0,
+        bootstrapToMainMs: 0,
         mainToReadyMs: 0,
         readyToIpcMs: 0,
         ipcToProbeMs: 0,

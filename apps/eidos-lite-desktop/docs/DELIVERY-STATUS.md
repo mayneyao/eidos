@@ -55,13 +55,13 @@ The final local audit passed:
   zero console errors. The normal main-process entry no longer imports the
   packaged-smoke fixture builder or native SQLite chunk; it dynamically loads
   the 1.78 KiB startup probe only in smoke mode and the 38.25 KiB continuation
-  only after the Welcome window is usable. The main entry fell from 191 KiB to
-  156 KiB. Two newly rebuilt first-launch samples passed at 1,972 ms and 1,986
-  ms against the 2,000 ms ceiling; same-build reruns passed at 405 ms and 463
-  ms. Explorer-to-editor P95 stayed between 848.4 ms and 884.2 ms, including
-  the rendered 100,000-row Grid, and all runs reported zero console errors.
-  This closes the test-only static-load defect, but the narrow first-launch
-  margin still does not establish a repeated clean-machine P95.
+  only after the Welcome window is usable. The application bundle fell from
+  191 KiB to 156 KiB. Two rebuilt first-launch samples passed at 1,972 ms and
+  1,986 ms against the 2,000 ms ceiling; same-build reruns passed at 405 ms and
+  463 ms. Explorer-to-editor P95 stayed between 848.4 ms and 884.2 ms,
+  including the rendered 100,000-row Grid, and all runs reported zero console
+  errors. This closes the test-only static-load defect, but the narrow
+  first-launch margin still does not establish a repeated clean-machine P95.
 - Phase-level startup telemetry now preserves six contiguous durations whose
   sum must equal the unchanged parent-process launch budget. A newly rebuilt
   unsigned package failed at 2,257 ms: 2,010 ms (89%) elapsed before the first
@@ -71,6 +71,15 @@ The final local audit passed:
   177 ms for the Welcome renderer. This locates the remaining rebuild variance
   before application initialization; it does not waive signed clean-machine
   acceptance or relabel a warm run as P95.
+- A 0.41 KiB Electron bootstrap now timestamps before dynamically loading the
+  156.74 KiB application module graph while buffering early macOS `open-file`
+  events until the application listener takes ownership. The final rebuilt
+  unsigned package passed at 1,820 ms: 1,573 ms (86%) before the bootstrap,
+  only 21 ms loading the application graph, 47 ms for ready/IPC and 178 ms for
+  the usable Welcome renderer. Its complete packaged acceptance also passed
+  the 100,000-row Grid at 898.6 ms and reported zero console errors. This shows
+  further application-module splitting cannot remove the dominant unsigned
+  first-launch cost; signed clean-machine measurement remains the valid gate.
 - Packaged recovery force-terminated both a resident Eidos File utility and
   the Graft SDK utility. The same opaque Eidos File session reopened with its
   committed file id, revision, table identities and row counts unchanged.

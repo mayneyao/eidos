@@ -4,13 +4,15 @@ import type { WindowController } from "./window-controller"
 
 export interface PackagedStartupMilestones {
   launchedAtMs: number
+  bootstrapStartedAtMs: number
   mainModuleStartedAtMs: number
   appReadyAtMs: number
   ipcReadyAtMs: number
 }
 
 export interface PackagedStartupTimings {
-  launcherToMainMs: number
+  launcherToBootstrapMs: number
+  bootstrapToMainMs: number
   mainToReadyMs: number
   readyToIpcMs: number
   ipcToProbeMs: number
@@ -76,6 +78,7 @@ function measureStartupTimings(
 ): PackagedStartupTimings {
   const ordered = [
     milestones.launchedAtMs,
+    milestones.bootstrapStartedAtMs,
     milestones.mainModuleStartedAtMs,
     milestones.appReadyAtMs,
     milestones.ipcReadyAtMs,
@@ -90,8 +93,10 @@ function measureStartupTimings(
     throw new Error("Packaged startup milestones are invalid or out of order")
   }
   return {
-    launcherToMainMs:
-      milestones.mainModuleStartedAtMs - milestones.launchedAtMs,
+    launcherToBootstrapMs:
+      milestones.bootstrapStartedAtMs - milestones.launchedAtMs,
+    bootstrapToMainMs:
+      milestones.mainModuleStartedAtMs - milestones.bootstrapStartedAtMs,
     mainToReadyMs: milestones.appReadyAtMs - milestones.mainModuleStartedAtMs,
     readyToIpcMs: milestones.ipcReadyAtMs - milestones.appReadyAtMs,
     ipcToProbeMs: probeStartedAtMs - milestones.ipcReadyAtMs,

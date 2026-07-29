@@ -154,7 +154,8 @@ try {
   const startup = report.performance?.startup
   const startupPhases = startup
     ? [
-        startup.launcherToMainMs,
+        startup.launcherToBootstrapMs,
+        startup.bootstrapToMainMs,
         startup.mainToReadyMs,
         startup.readyToIpcMs,
         startup.ipcToProbeMs,
@@ -172,7 +173,7 @@ try {
     report.environment?.stagingBadge !== true ||
     report.performance?.coldStartMs <= 0 ||
     report.performance?.coldStartMs > 2_000 ||
-    startupPhases.length !== 6 ||
+    startupPhases.length !== 7 ||
     startupPhases.some(
       (duration) => !Number.isFinite(duration) || duration < 0
     ) ||

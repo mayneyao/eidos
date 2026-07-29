@@ -19,17 +19,22 @@ async function readJson(
 
 describe("Eidos Lite package identity", () => {
   it("keeps heavy packaged verification outside the first-window startup path", async () => {
-    const [mainSource, startupSmokeSource] = await Promise.all([
-      fs.readFile(path.resolve(appRoot, "src/main/main.ts"), "utf8"),
-      fs.readFile(
-        path.resolve(appRoot, "src/main/packaged-startup-smoke.ts"),
-        "utf8"
-      ),
-    ])
+    const [bootstrapSource, applicationSource, startupSmokeSource] =
+      await Promise.all([
+        fs.readFile(path.resolve(appRoot, "src/main/main.ts"), "utf8"),
+        fs.readFile(path.resolve(appRoot, "src/main/application.ts"), "utf8"),
+        fs.readFile(
+          path.resolve(appRoot, "src/main/packaged-startup-smoke.ts"),
+          "utf8"
+        ),
+      ])
 
-    expect(mainSource).not.toMatch(/^import .*packaged-.*smoke/m)
-    expect(mainSource).toContain('"./packaged-startup-smoke"')
-    expect(mainSource).toContain('await import("./packaged-smoke")')
+    expect(bootstrapSource).toMatch(/^import \{ app \} from "electron"/m)
+    expect(bootstrapSource).not.toContain("WindowController")
+    expect(bootstrapSource).toContain('import("./application")')
+    expect(applicationSource).not.toMatch(/^import .*packaged-.*smoke/m)
+    expect(applicationSource).toContain('"./packaged-startup-smoke"')
+    expect(applicationSource).toContain('await import("./packaged-smoke")')
     expect(startupSmokeSource).not.toContain(
       "@eidos.space/eidos-file/better-sqlite3"
     )
