@@ -1,0 +1,135 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "eidos-graft-remote",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-27",
+  "compatibility_flags": ["nodejs_compat"],
+  "routes": [
+    {
+      "pattern": "sync.eidos.space",
+      "custom_domain": true,
+    },
+  ],
+  "vars": {
+    "AUTH_USERINFO_URL": "https://eidos.space/api/sync/userinfo",
+    "PUBLIC_REMOTE_ORIGIN": "https://sync.eidos.space",
+    // Identity must project an active Sync grant before repository access.
+    "SYNC_ACCESS_ENFORCEMENT": "enforce",
+    // Track exact immutable bytes before enforcing the commercial 10 GB cap.
+    "SYNC_QUOTA_ENFORCEMENT": "shadow",
+  },
+  "r2_buckets": [
+    {
+      "binding": "GRAFT_OBJECTS",
+      "bucket_name": "eidos-graft-remote-objects",
+      "preview_bucket_name": "eidos-graft-remote-objects-preview",
+    },
+  ],
+  "services": [
+    {
+      "binding": "EIDOS_ACCOUNT",
+      "service": "eidos-space",
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "GRAFT_REPOSITORIES",
+        "class_name": "RepositoryDurableObject",
+      },
+      {
+        "name": "GRAFT_DIRECTORY",
+        "class_name": "RepositoryDirectoryDurableObject",
+      },
+      {
+        "name": "GRAFT_USAGE",
+        "class_name": "SyncUsageDurableObject",
+      },
+    ],
+  },
+  "exports": {
+    "RepositoryDurableObject": {
+      "type": "durable-object",
+      "storage": "sqlite",
+    },
+    "RepositoryDirectoryDurableObject": {
+      "type": "durable-object",
+      "storage": "sqlite",
+    },
+    "SyncUsageDurableObject": {
+      "type": "durable-object",
+      "storage": "sqlite",
+    },
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01,
+    },
+  },
+  "env": {
+    "staging": {
+      "name": "eidos-graft-remote-staging",
+      "compatibility_date": "2026-07-27",
+      "compatibility_flags": ["nodejs_compat"],
+      "routes": [
+        {
+          "pattern": "sync-staging.eidos.space",
+          "custom_domain": true,
+        },
+      ],
+      "vars": {
+        "AUTH_USERINFO_URL": "https://staging.eidos.space/api/sync/userinfo",
+        "PUBLIC_REMOTE_ORIGIN": "https://sync-staging.eidos.space",
+        "SYNC_ACCESS_ENFORCEMENT": "enforce",
+        "SYNC_QUOTA_ENFORCEMENT": "enforce",
+      },
+      "r2_buckets": [
+        {
+          "binding": "GRAFT_OBJECTS",
+          "bucket_name": "eidos-graft-remote-staging-objects",
+        },
+      ],
+      "services": [
+        {
+          "binding": "EIDOS_ACCOUNT",
+          "service": "eidos-space-staging",
+        },
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "GRAFT_REPOSITORIES",
+            "class_name": "RepositoryDurableObject",
+          },
+          {
+            "name": "GRAFT_DIRECTORY",
+            "class_name": "RepositoryDirectoryDurableObject",
+          },
+          {
+            "name": "GRAFT_USAGE",
+            "class_name": "SyncUsageDurableObject",
+          },
+        ],
+      },
+      "observability": {
+        "enabled": true,
+        "logs": {
+          "enabled": true,
+          "head_sampling_rate": 1,
+          "invocation_logs": true,
+        },
+        "traces": {
+          "enabled": true,
+          "head_sampling_rate": 0.01,
+        },
+      },
+    },
+  },
+}

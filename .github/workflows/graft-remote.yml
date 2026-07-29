@@ -1,0 +1,55 @@
+name: Graft Remote
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/graft-remote.yml"
+      - "apps/graft-remote/**"
+      - "vendor/graft/**"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+  push:
+    branches:
+      - dev
+    paths:
+      - ".github/workflows/graft-remote.yml"
+      - "apps/graft-remote/**"
+      - "vendor/graft/**"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+
+jobs:
+  verify:
+    name: Workers protocol and deployment checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting and lint
+        run: |
+          pnpm exec oxfmt --check apps/graft-remote .github/workflows/graft-remote.yml vendor/graft/UPSTREAM.md pnpm-workspace.yaml .prettierignore
+          pnpm exec oxlint apps/graft-remote/src apps/graft-remote/test
+
+      - name: Check generated bindings and TypeScript
+        run: pnpm --filter @eidos.space/graft-remote-service check
+
+      - name: Run Workers integration tests
+        run: pnpm --filter @eidos.space/graft-remote-service test
+
+      - name: Build a deployment bundle
+        run: >-
+          pnpm --filter @eidos.space/graft-remote-service exec wrangler deploy
+          --dry-run --outdir /tmp/eidos-graft-remote-worker
