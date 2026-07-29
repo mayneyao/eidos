@@ -1,0 +1,83 @@
+name: Eidos Lite Desktop Gates
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/eidos-lite-desktop-gates.yml"
+      - "apps/eidos-lite-desktop/**"
+      - "apps/eidos-file-web/fixtures/**"
+      - "packages/eidos-file/**"
+      - "packages/eidos-file-ui/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eidos-lite-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-and-real-graft:
+    name: Source and real Graft SDK
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Select Node native runtime
+        run: pnpm --filter @eidos.space/eidos-lite-desktop native:node
+
+      - name: Typecheck
+        run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
+
+      - name: Test source and real Graft SDK
+        run: pnpm test:eidos-lite
+
+  packaged-macos:
+    name: Packaged smoke (${{ matrix.architecture }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: apple-silicon
+            runner: macos-15
+          - architecture: intel
+            runner: macos-15-intel
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build unsigned staging package
+        run: pnpm build:eidos-lite:dev
+
+      - name: Run packaged smoke
+        run: pnpm smoke:eidos-lite-packaged

@@ -33,6 +33,13 @@ pnpm build:eidos-lite:dev
 pnpm smoke:eidos-lite-packaged
 ```
 
+`.github/workflows/eidos-lite-desktop-gates.yml` repeats the source and real
+Graft SDK suite on Linux, then builds the unsigned staging package and runs the
+same packaged smoke independently on `macos-15` (Apple Silicon) and
+`macos-15-intel`. The workflow has read-only repository permissions and no
+signing, artifact upload, release, or production-service step. A local ARM pass
+does not count as Intel evidence; Public v1 requires both remote jobs to pass.
+
 ## Environment selection
 
 Lite has exactly two service presets. It does not accept per-service URL

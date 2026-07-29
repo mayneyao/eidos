@@ -48,4 +48,20 @@ describe("Eidos Lite package identity", () => {
       expect(bytes.subarray(0, signature.length)).toEqual(signature)
     }
   })
+
+  it("keeps both macOS packaged smoke architectures in the Lite-only gate", async () => {
+    const workflow = await fs.readFile(
+      path.resolve(
+        appRoot,
+        "../../.github/workflows/eidos-lite-desktop-gates.yml"
+      ),
+      "utf8"
+    )
+
+    expect(workflow).toContain("runner: macos-15\n")
+    expect(workflow).toContain("runner: macos-15-intel\n")
+    expect(workflow).toContain("run: pnpm build:eidos-lite:dev")
+    expect(workflow).toContain("run: pnpm smoke:eidos-lite-packaged")
+    expect(workflow).not.toContain("softprops/action-gh-release")
+  })
 })
