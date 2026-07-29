@@ -140,7 +140,13 @@ describe("createGraftRemoteHandler", () => {
       protocol: "graft-remote",
       version: 1,
       repository: "acme/archive",
-      capabilities: expect.arrayContaining(["range", "list", "receive-pack", "cas"]),
+      capabilities: expect.arrayContaining([
+        "range",
+        "list",
+        "receive-pack",
+        "receive-bundle",
+        "cas",
+      ]),
     });
   });
 
@@ -311,6 +317,49 @@ describe("createGraftRemoteHandler", () => {
     expect((await remoteFetch(app, "/partial/repo/raw/refs/heads/main")).status).toBe(404);
   });
 
+  it("publishes bundled immutable objects, pack, index, and ref in one request", async () => {
+    const app = createTestApp();
+    const packId = "c".repeat(64);
+    const manifest = new TextEncoder().encode(
+      JSON.stringify({
+        version: 1,
+        objects: [
+          { path: "segments/example", bytes: 7, allow_existing: true },
+          {
+            path: "logs/example/commits/0000000000000001",
+            bytes: 6,
+            allow_existing: false,
+          },
+        ],
+      }),
+    );
+    const body = joinBytes([manifest, new TextEncoder().encode("segmentcommitpackidx")]);
+    const path = "/bundle/repo/receive-bundle/refs/heads/main";
+    const first = await remoteFetch(app, path, {
+      method: "POST",
+      headers: receiveBundleHeaders(packId, undefined, "new\n", manifest, 4, 3, body.byteLength),
+      body,
+    });
+    expect(first.status, await first.clone().text()).toBe(204);
+    expect(await (await remoteFetch(app, "/bundle/repo/raw/segments/example")).text()).toBe(
+      "segment",
+    );
+    expect(
+      await (
+        await remoteFetch(app, "/bundle/repo/raw/logs/example/commits/0000000000000001")
+      ).text(),
+    ).toBe("commit");
+    expect(await (await remoteFetch(app, "/bundle/repo/raw/refs/heads/main")).text()).toBe("new\n");
+
+    const retry = await remoteFetch(app, path, {
+      method: "POST",
+      headers: receiveBundleHeaders(packId, "new\n", "next\n", manifest, 4, 3, body.byteLength),
+      body,
+    });
+    expect(retry.status).toBe(412);
+    expect(await (await remoteFetch(app, "/bundle/repo/raw/refs/heads/main")).text()).toBe("new\n");
+  });
+
   it("owns cursor pagination while the backend only lists ordered paths", async () => {
     const app = createTestApp();
     for (const path of ["objects/aa/one", "objects/bb/two", "objects/cc/three"]) {
@@ -365,6 +414,36 @@ describe("createGraftRemoteHandler", () => {
       body: "value",
     });
     expect(encodedSlash.status).toBe(400);
+  });
+
+  it("does not log backend or error-reporter details", async () => {
+    const messages: string[] = [];
+    const originalError = console.error;
+    console.error = (...values: unknown[]) => messages.push(values.join(" "));
+    try {
+      const app = createGraftRemoteHandler({
+        backend() {
+          throw new Error("storage-secret repository/path");
+        },
+        onError() {
+          throw new Error("reporter-secret bearer-token");
+        },
+      });
+      const response = await handlerFetch(app, "/private/repository", {
+        headers: { "Graft-Protocol": "1" },
+      });
+      expect(response.status).toBe(500);
+    } finally {
+      console.error = originalError;
+    }
+
+    const logged = messages.join("\n");
+    expect(logged).toContain("graft remote error reporter failed");
+    expect(logged).toContain("unhandled graft remote error");
+    expect(logged).not.toContain("storage-secret");
+    expect(logged).not.toContain("repository/path");
+    expect(logged).not.toContain("reporter-secret");
+    expect(logged).not.toContain("bearer-token");
   });
 });
 
@@ -432,6 +511,39 @@ function receivePackHeaders(
     "x-graft-pack-id": packId,
     "x-graft-ref-replacement-hex": textHex(replacement),
   });
+}
+
+function receiveBundleHeaders(
+  packId: string,
+  expected: string | undefined,
+  replacement: string,
+  manifest: Uint8Array,
+  packBytes: number,
+  indexBytes: number,
+  contentLength: number,
+): Headers {
+  const headers = receivePackHeaders(
+    packId,
+    expected,
+    replacement,
+    packBytes,
+    indexBytes,
+    contentLength,
+  );
+  headers.set("x-graft-bundle-manifest-bytes", manifest.byteLength.toString());
+  return headers;
+}
+
+function joinBytes(parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(
+    new ArrayBuffer(parts.reduce((total, part) => total + part.length, 0)),
+  );
+  let offset = 0;
+  for (const part of parts) {
+    bytes.set(part, offset);
+    offset += part.length;
+  }
+  return bytes;
 }
 
 function textHex(value: string): string {
