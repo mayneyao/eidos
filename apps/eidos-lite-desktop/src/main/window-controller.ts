@@ -53,7 +53,7 @@ export class WindowController {
   createWelcomeWindow(
     beforeLoad?: (window: BrowserWindow) => void
   ): BrowserWindow {
-    const window = this.createWindow(beforeLoad === undefined)
+    const window = this.createWindow(beforeLoad === undefined, "welcome")
     beforeLoad?.(window)
     void this.loadRenderer(window)
     return window
@@ -64,7 +64,7 @@ export class WindowController {
     beforeLoad?: (window: BrowserWindow) => void,
     initialEidosFile?: string
   ): Promise<BrowserWindow> {
-    const window = this.createWindow(beforeLoad === undefined)
+    const window = this.createWindow(beforeLoad === undefined, "space")
     beforeLoad?.(window)
     const snapshot = await this.bindSpace(window.webContents, root)
     if (!snapshot) {
@@ -610,16 +610,27 @@ export class WindowController {
     return fileURLToPath(new URL("./runtime-worker.js", import.meta.url))
   }
 
-  private createWindow(showWhenReady = true): BrowserWindow {
+  private createWindow(
+    showWhenReady = true,
+    kind: "welcome" | "space" = "space"
+  ): BrowserWindow {
+    const welcome = kind === "welcome"
     const window = new BrowserWindow({
-      width: 1320,
-      height: 860,
-      minWidth: 900,
-      minHeight: 600,
+      width: welcome ? 920 : 1320,
+      height: welcome ? 620 : 860,
+      minWidth: welcome ? 760 : 900,
+      minHeight: welcome ? 520 : 600,
       show: false,
       title: "Eidos Lite",
       titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
-      backgroundColor: "#f7f7f5",
+      ...(process.platform === "darwin"
+        ? {
+            trafficLightPosition: { x: 16, y: 15 },
+            vibrancy: "under-window" as const,
+            visualEffectState: "active" as const,
+          }
+        : {}),
+      backgroundColor: process.platform === "darwin" ? "#00000000" : "#f7f7f5",
       webPreferences: {
         preload: fileURLToPath(new URL("./preload.js", import.meta.url)),
         contextIsolation: true,

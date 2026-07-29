@@ -7,7 +7,8 @@
 
 :root {
   font-family:
-    "Avenir Next", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
+    "Segoe UI Variable", "Segoe UI", sans-serif;
   color: oklch(0.25 0.018 255);
   background: oklch(0.965 0.008 255);
   font-synthesis: none;
@@ -26,6 +27,11 @@
   --danger: oklch(0.53 0.17 27);
   --success: oklch(0.46 0.105 153);
   --focus: oklch(0.62 0.13 248);
+  --hairline: oklch(0.78 0.012 255 / 58%);
+  --control-fill: oklch(0.99 0.004 255 / 72%);
+  --control-border: oklch(0.7 0.014 255 / 55%);
+  --control-shadow:
+    inset 0 1px oklch(1 0 0 / 58%), 0 1px 1px oklch(0.18 0.015 255 / 8%);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -46,6 +52,11 @@
     --danger: oklch(0.72 0.15 27);
     --success: oklch(0.72 0.105 153);
     --focus: oklch(0.72 0.13 248);
+    --hairline: oklch(0.46 0.015 255 / 68%);
+    --control-fill: oklch(0.32 0.014 255 / 72%);
+    --control-border: oklch(0.5 0.014 255 / 58%);
+    --control-shadow:
+      inset 0 1px oklch(1 0 0 / 9%), 0 1px 1px oklch(0.05 0.01 255 / 24%);
   }
 }
 
@@ -71,8 +82,8 @@ body,
 }
 
 body {
-  font-size: 0.875rem;
-  line-height: 1.5;
+  font-size: 0.8125rem;
+  line-height: 1.4;
   user-select: none;
 }
 
@@ -85,8 +96,8 @@ button:focus {
 }
 
 button:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: -2px;
+  outline: 3px solid color-mix(in oklab, var(--focus) 58%, transparent);
+  outline-offset: 1px;
 }
 
 .spin {
@@ -100,63 +111,106 @@ button:focus-visible {
 }
 
 .welcome-shell {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(26rem, 1.15fr) minmax(22rem, 0.85fr);
+  grid-template-columns: minmax(19rem, 0.8fr) minmax(24rem, 1.2fr);
   min-height: 100%;
-  padding-top: 2.5rem;
-  background:
-    linear-gradient(var(--line), var(--line)) 55% 0 / 1px 100% no-repeat,
-    var(--canvas);
+  padding-top: 3.25rem;
+  background: color-mix(in oklab, var(--surface) 96%, transparent);
+}
+
+.welcome-titlebar {
+  position: absolute;
+  z-index: 10;
+  inset: 0 0 auto;
+  display: flex;
+  height: 3.25rem;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--hairline);
+  background: color-mix(in oklab, var(--canvas) 80%, transparent);
+  -webkit-app-region: drag;
+  -webkit-user-select: none;
+}
+
+.welcome-titlebar strong {
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.welcome-titlebar .environment-badge {
+  position: absolute;
+  right: 0.875rem;
+  -webkit-app-region: no-drag;
 }
 
 .welcome-copy {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: center;
-  max-width: 42rem;
-  padding: 5rem clamp(3rem, 7vw, 8rem) 7rem;
+  justify-content: flex-start;
+  max-width: none;
+  padding: 4.25rem 2.5rem 2.5rem;
+  border-right: 1px solid var(--hairline);
 }
 
 .welcome-actions {
   display: flex;
-  flex-wrap: wrap;
+  width: min(100%, 17rem);
+  flex-direction: column;
   align-items: center;
-  gap: 0.625rem;
-  margin-top: 2rem;
+  gap: 0.5rem;
+  margin-top: 1.75rem;
 }
 
 .welcome-actions .primary-action,
 .welcome-actions .secondary-action {
+  width: 100%;
+  min-height: 2rem;
+  justify-content: flex-start;
   margin-top: 0;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  box-shadow: var(--control-shadow);
+}
+
+.welcome-actions .welcome-diagnostics {
+  margin-top: 0.5rem;
+  border-color: transparent;
+  color: var(--ink-muted);
+  background: transparent;
+  box-shadow: none;
 }
 
 .eyebrow {
-  margin: 0 0 1.5rem;
-  color: var(--accent-strong);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
+  margin: 0 0 0.75rem;
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .welcome-copy h1 {
-  max-width: 10ch;
+  max-width: none;
   margin: 0;
   color: var(--ink);
-  font-size: clamp(2.5rem, 5vw, 4.8rem);
-  font-weight: 600;
-  letter-spacing: -0.055em;
-  line-height: 0.98;
+  font-size: clamp(1.8rem, 4vw, 2.25rem);
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
   user-select: text;
 }
 
 .welcome-detail {
-  max-width: 40ch;
-  margin: 2rem 0 0;
+  max-width: 32ch;
+  margin: 0.85rem 0 0;
   color: var(--ink-muted);
-  font-size: 1rem;
-  line-height: 1.65;
+  font-size: 0.8125rem;
+  line-height: 1.55;
   user-select: text;
 }
 
@@ -168,7 +222,7 @@ button:focus-visible {
   margin-top: 2rem;
   padding: 0.625rem 1rem;
   border: 1px solid var(--accent-strong);
-  border-radius: 0.375rem;
+  border-radius: 0.4rem;
   color: oklch(0.97 0.008 248);
   background: var(--accent-strong);
   font-weight: 600;
@@ -205,10 +259,10 @@ button:focus-visible {
   gap: 0.5rem;
   margin-top: 0.625rem;
   padding: 0.4rem 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 0.375rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.4rem;
   color: var(--ink);
-  background: transparent;
+  background: var(--control-fill);
   font-size: 0.8125rem;
   font-weight: 600;
   cursor: pointer;
@@ -238,15 +292,15 @@ button:focus-visible {
 .welcome-principles {
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 2.5rem;
-  padding: 6rem clamp(3rem, 7vw, 7rem) 5rem;
-  background: var(--lite-sidebar);
+  justify-content: flex-start;
+  gap: 1rem;
+  padding: 2rem 2rem 1.5rem;
+  background: color-mix(in oklab, var(--lite-sidebar) 84%, transparent);
 }
 
 .welcome-principles > header {
   display: flex;
-  max-width: 30rem;
+  max-width: none;
   align-items: baseline;
   justify-content: space-between;
   padding-bottom: 0.75rem;
@@ -269,7 +323,7 @@ button:focus-visible {
 
 .recent-spaces {
   display: flex;
-  max-width: 30rem;
+  max-width: none;
   flex-direction: column;
   gap: 0.25rem;
 }
@@ -278,7 +332,8 @@ button:focus-visible {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 2rem;
   align-items: center;
-  border-radius: 0.375rem;
+  min-height: 2.9rem;
+  border-radius: 0.4rem;
 }
 
 .recent-space:hover {
@@ -297,7 +352,7 @@ button:focus-visible {
   min-width: 0;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.625rem 0.5rem;
+  padding: 0.5rem 0.55rem;
   text-align: left;
 }
 
@@ -359,7 +414,7 @@ button:focus-visible {
 }
 
 .recent-spaces-note {
-  max-width: 30rem;
+  max-width: none;
   margin: auto 0 0;
   line-height: 1.5;
 }
@@ -383,8 +438,8 @@ button:focus-visible {
     3rem;
   min-width: 0;
   min-height: 0;
-  border-right: 1px solid var(--line);
-  background: var(--lite-sidebar);
+  border-right: 1px solid var(--hairline);
+  background: color-mix(in oklab, var(--lite-sidebar) 88%, transparent);
 }
 
 .workbench[data-sidebar-collapsed="true"] .space-sidebar {
@@ -430,7 +485,7 @@ button:focus-visible {
   height: 1.75rem;
   place-items: center;
   border: 0;
-  border-radius: 0.25rem;
+  border-radius: 0.35rem;
   color: var(--ink-muted);
   background: transparent;
   cursor: pointer;
@@ -440,6 +495,11 @@ button:focus-visible {
 .icon-button:hover {
   color: var(--ink);
   background: var(--surface-hover);
+}
+
+.icon-button:active:not(:disabled) {
+  background: var(--surface-selected);
+  transform: translateY(0.5px);
 }
 
 .icon-button svg {
@@ -501,8 +561,8 @@ button:focus-visible {
   min-width: 0;
   gap: 0.6rem;
   padding: 0.4rem 0.75rem;
-  border-top: 1px solid var(--line);
-  background: var(--sidebar-strong);
+  border-top: 1px solid var(--hairline);
+  background: color-mix(in oklab, var(--sidebar-strong) 76%, transparent);
 }
 
 .space-switcher > svg {
@@ -588,9 +648,9 @@ button:focus-visible {
   justify-content: space-between;
   gap: 1rem;
   padding: 0 0.75rem 0 1rem;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--hairline);
   color: var(--ink-muted);
-  background: var(--canvas);
+  background: color-mix(in oklab, var(--canvas) 88%, transparent);
   -webkit-app-region: drag;
   -webkit-user-select: none;
 }

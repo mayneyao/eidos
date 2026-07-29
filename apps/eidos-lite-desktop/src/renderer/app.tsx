@@ -290,24 +290,28 @@ function Welcome({
   return (
     <main
       className="welcome-shell"
+      data-platform={
+        navigator.userAgent.includes("Macintosh") ? "darwin" : "other"
+      }
       data-welcome-ready={appInfo ? "true" : "false"}
     >
+      <header className="welcome-titlebar">
+        <strong>Eidos Lite</strong>
+        {appInfo?.services.name === "staging" ? (
+          <span
+            className="environment-badge"
+            data-service-environment="staging"
+          >
+            Staging
+          </span>
+        ) : null}
+      </header>
       <section className="welcome-copy" aria-labelledby="welcome-title">
-        <p className="eyebrow">
-          Eidos Lite
-          {appInfo?.services.name === "staging" ? (
-            <span
-              className="environment-badge"
-              data-service-environment="staging"
-            >
-              Staging
-            </span>
-          ) : null}
-        </p>
-        <h1 id="welcome-title">Your data, in a folder you own.</h1>
+        <p className="eyebrow">Local-first workspace</p>
+        <h1 id="welcome-title">Choose a Space</h1>
         <p className="welcome-detail">
-          Open a Space to work across its Eidos Files. Local work stays local;
-          versioning begins only when you choose it.
+          Open an ordinary folder and work across its Eidos Files. Local work
+          never requires an account.
         </p>
         <div className="welcome-actions">
           <button
@@ -332,7 +336,7 @@ function Welcome({
           </button>
           <button
             type="button"
-            className="secondary-action"
+            className="secondary-action welcome-diagnostics"
             data-copy-diagnostics
             onClick={onCopyDiagnostics}
           >
