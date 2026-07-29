@@ -4,7 +4,10 @@ import path from "node:path"
 import { performance } from "node:perf_hooks"
 import { fileURLToPath } from "node:url"
 
-import { openEidosFile } from "@eidos.space/eidos-file/better-sqlite3"
+import {
+  createEidosFile,
+  openEidosFile,
+} from "@eidos.space/eidos-file/better-sqlite3"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { flattenSpaceTree, listSpaceTree } from "./space/space-paths"
@@ -26,6 +29,8 @@ describe.runIf(performanceEnabled)("Eidos Lite PRD performance load", () => {
   let watcherRoot: string
   let tenMegabyteFile: string
   let hundredMegabyteFile: string
+  let denseFile: string
+  let densePreparationMs: number
 
   beforeAll(async () => {
     root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-performance-"))
@@ -33,6 +38,7 @@ describe.runIf(performanceEnabled)("Eidos Lite PRD performance load", () => {
     watcherRoot = path.join(root, "watcher-10000")
     tenMegabyteFile = path.join(root, "ten-megabytes.eidos")
     hundredMegabyteFile = path.join(root, "hundred-megabytes.eidos")
+    denseFile = path.join(root, "dense-100000.eidos")
     await Promise.all([
       fs.mkdir(explorerRoot),
       fs.mkdir(watcherRoot),
@@ -79,7 +85,27 @@ describe.runIf(performanceEnabled)("Eidos Lite PRD performance load", () => {
         )
       }),
     ])
-  }, 30_000)
+    const denseStartedAt = performance.now()
+    const denseRuntime = createEidosFile(denseFile, { title: "Dense Grid" })
+    try {
+      denseRuntime.importTable(
+        {
+          name: "Records",
+          fields: [
+            { name: "Name", type: "text", isRecordLabel: true },
+            { name: "Score", type: "number" },
+          ],
+        },
+        Array.from({ length: 100_000 }, (_, index) => ({
+          Name: `Record ${String(index + 1).padStart(6, "0")}`,
+          Score: index + 1,
+        }))
+      )
+    } finally {
+      denseRuntime.close()
+    }
+    densePreparationMs = performance.now() - denseStartedAt
+  }, 60_000)
 
   afterAll(async () => {
     await fs.rm(root, { recursive: true, force: true })
@@ -174,6 +200,55 @@ describe.runIf(performanceEnabled)("Eidos Lite PRD performance load", () => {
         })
       )
       expect(durationMs).toBeLessThanOrEqual(budgetMs)
+    }
+  })
+
+  it("loads the first 100,000-row Grid page and commits cells within budget", async () => {
+    const runtime = openEidosFile(denseFile)
+    try {
+      const table = runtime.listTables()[0]!
+      const name = runtime
+        .listFields(table.id)
+        .find((field) => field.name === "Name")!
+      const pageStartedAt = performance.now()
+      const page = runtime.getRowPage(table.id, 0, 100, {})
+      const firstPageMs = performance.now() - pageStartedAt
+      const commitDurationsMs: number[] = []
+      for (let index = 0; index < 5; index += 1) {
+        const rowId = page.rows[index]!._id
+        if (typeof rowId !== "string") {
+          throw new Error("Dense Grid row is missing its canonical _id")
+        }
+        const commitStartedAt = performance.now()
+        runtime.updateRow(table.id, rowId, {
+          [name.id]: `Updated ${index + 1}`,
+        })
+        commitDurationsMs.push(performance.now() - commitStartedAt)
+      }
+      const sortedCommits = [...commitDurationsMs].sort(
+        (left, right) => left - right
+      )
+      const commitP50Ms = sortedCommits[2]!
+      const commitP95Ms = sortedCommits[4]!
+
+      console.info(
+        JSON.stringify({
+          benchmark: "dense-grid-100000",
+          preparationMs: densePreparationMs,
+          fileBytes: (await fs.stat(denseFile)).size,
+          firstPageMs,
+          rows: page.total,
+          commitP50Ms,
+          commitP95Ms,
+        })
+      )
+      expect(page.total).toBe(100_000)
+      expect(page.rows).toHaveLength(100)
+      expect(firstPageMs).toBeLessThanOrEqual(2_000)
+      expect(commitP50Ms).toBeLessThanOrEqual(50)
+      expect(commitP95Ms).toBeLessThanOrEqual(150)
+    } finally {
+      runtime.close()
     }
   })
 })

@@ -44,11 +44,13 @@ signing, artifact upload, release, or production-service step. A local ARM pass
 does not count as Intel evidence; Public v1 requires both remote jobs to pass.
 
 The performance load gate measures the real Space tree walker, recursive
-watcher, and native Eidos File validation/open path. The 10/100 MiB fixtures are
-valid SQLite files with padded extents, so they prove file-size handling and
-open overhead but not representative high-density user data. Keep separate
-dense-row/Grid benchmarks before claiming the complete Eidos File performance
-SLO.
+watcher, native Eidos File validation/open path, and a generated canonical
+100,000-row table. The dense table reports preparation separately, then gates
+the first 100-row Grid query and five ordinary cell commits against the PRD P95
+budgets. The 10/100 MiB fixtures are valid SQLite files with padded extents, so
+they prove file-size handling and open overhead but not representative 100 MiB
+high-density user data. Packaged cold-start and utility-process timings remain
+separate evidence before claiming the complete application SLO.
 
 ## Environment selection
 
