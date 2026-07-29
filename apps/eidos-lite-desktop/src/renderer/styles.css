@@ -1909,6 +1909,53 @@ button:focus-visible {
   gap: 0.25rem;
 }
 
+.row-diff-pagination {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr) 1.6rem;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.row-diff-pagination button {
+  display: grid;
+  width: 1.6rem;
+  height: 1.45rem;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--control-border);
+  border-radius: 0.35rem;
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+  cursor: pointer;
+}
+
+.row-diff-pagination button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.row-diff-pagination button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.row-diff-pagination button svg {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.row-diff-pagination span {
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 0.6rem;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .row-diff del {
   color: var(--danger);
 }

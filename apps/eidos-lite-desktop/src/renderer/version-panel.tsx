@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   CircleAlert,
   Clock3,
@@ -18,9 +19,36 @@ import type {
   SpaceVersionDiff,
   SpaceVersionFileDiff,
   SpaceVersionRowChange,
+  SpaceVersionTableDiff,
 } from "../shared/contracts"
 
 type PanelMode = "changes" | "history"
+
+const VERSION_ROW_DIFF_PAGE_SIZE = 100
+
+export function versionRowDiffPage<T>(
+  changes: readonly T[],
+  requestedPage: number,
+  pageSize = VERSION_ROW_DIFF_PAGE_SIZE
+) {
+  const safePageSize = Number.isFinite(pageSize)
+    ? Math.max(1, Math.trunc(pageSize))
+    : VERSION_ROW_DIFF_PAGE_SIZE
+  const pageCount = Math.max(1, Math.ceil(changes.length / safePageSize))
+  const page = Number.isFinite(requestedPage)
+    ? Math.max(0, Math.min(Math.trunc(requestedPage), pageCount - 1))
+    : 0
+  const start = page * safePageSize
+  const end = Math.min(start + safePageSize, changes.length)
+  return {
+    items: changes.slice(start, end),
+    page,
+    pageCount,
+    start,
+    end,
+    total: changes.length,
+  }
+}
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -83,6 +111,51 @@ function RowDiff({
   )
 }
 
+export function TableDiff({ table }: { table: SpaceVersionTableDiff }) {
+  const [requestedPage, setRequestedPage] = useState(0)
+  const page = versionRowDiffPage(table.changes, requestedPage)
+
+  useEffect(() => setRequestedPage(0), [table])
+
+  return (
+    <section>
+      <h4>{table.name}</h4>
+      <ul>
+        {page.items.map((change, index) => (
+          <RowDiff
+            key={`${change.op}-${page.start + index}`}
+            columns={table.columns}
+            change={change}
+          />
+        ))}
+      </ul>
+      {page.pageCount > 1 ? (
+        <nav className="row-diff-pagination" aria-label={`${table.name} rows`}>
+          <button
+            type="button"
+            disabled={page.page === 0}
+            onClick={() => setRequestedPage(page.page - 1)}
+            aria-label="Previous row changes"
+          >
+            <ChevronLeft />
+          </button>
+          <span>
+            {page.start + 1}–{page.end} of {page.total.toLocaleString()}
+          </span>
+          <button
+            type="button"
+            disabled={page.page >= page.pageCount - 1}
+            onClick={() => setRequestedPage(page.page + 1)}
+            aria-label="Next row changes"
+          >
+            <ChevronRight />
+          </button>
+        </nav>
+      ) : null}
+    </section>
+  )
+}
+
 function FileDiff({ file }: { file: SpaceVersionFileDiff }) {
   const [expanded, setExpanded] = useState(false)
   const rowChanges = file.tables.reduce(
@@ -109,18 +182,7 @@ function FileDiff({ file }: { file: SpaceVersionFileDiff }) {
         <div className="version-file-detail">
           {file.tables.length ? (
             file.tables.map((table) => (
-              <section key={table.name}>
-                <h4>{table.name}</h4>
-                <ul>
-                  {table.changes.map((change, index) => (
-                    <RowDiff
-                      key={`${change.op}-${index}`}
-                      columns={table.columns}
-                      change={change}
-                    />
-                  ))}
-                </ul>
-              </section>
+              <TableDiff key={table.name} table={table} />
             ))
           ) : (
             <p>
