@@ -74,4 +74,18 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain("test:performance")
     expect(workflow).not.toContain("softprops/action-gh-release")
   })
+
+  it("documents install, upgrade, rollback, diagnostics, and external release gates", async () => {
+    const runbook = await fs.readFile(
+      path.resolve(appRoot, "docs/RELEASE-RUNBOOK.md"),
+      "utf8"
+    )
+
+    expect(runbook).toContain("## Install and upgrade")
+    expect(runbook).toContain("## Rollback")
+    expect(runbook).toContain("## Diagnostics and support handoff")
+    expect(runbook).toContain("## Uninstall")
+    expect(runbook).toContain("## Public-release blockers")
+    expect(runbook).toContain("must leave all ordinary Space folders untouched")
+  })
 })

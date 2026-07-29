@@ -12,6 +12,8 @@ import {
 
 const api: EidosLiteApi = {
   getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.appInfo),
+  getDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.diagnostics),
+  copyDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.copyDiagnostics),
   openSpace: () => ipcRenderer.invoke(IPC_CHANNELS.openSpace),
   newSpace: () => ipcRenderer.invoke(IPC_CHANNELS.newSpace),
   listRecentSpaces: () => ipcRenderer.invoke(IPC_CHANNELS.recentSpaces),

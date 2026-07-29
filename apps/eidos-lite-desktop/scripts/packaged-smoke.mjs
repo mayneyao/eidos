@@ -166,6 +166,12 @@ try {
     report.performance?.utilityOpenMs?.length !== 4 ||
     Object.values(report.launchRouting ?? {}).some((value) => value !== true) ||
     Object.keys(report.launchRouting ?? {}).length !== 3 ||
+    report.diagnostics?.action !== true ||
+    report.diagnostics?.copyApi !== true ||
+    report.diagnostics?.schemaVersion !== 1 ||
+    report.diagnostics?.environment !== "staging" ||
+    report.diagnostics?.openSpace !== true ||
+    report.diagnostics?.safe !== true ||
     Object.values(report.onboarding ?? {}).some((value) => value !== true) ||
     Object.keys(report.onboarding ?? {}).length !== 6 ||
     report.probes?.length !== 3 ||

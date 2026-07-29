@@ -100,6 +100,15 @@ a separate Space window and independent session. Reinstall/upgrade checks must
 confirm the OS still routes `.eidos` files to Eidos Lite; uninstall must leave
 the ordinary files untouched.
 
+The Welcome screen and Space titlebar expose **Copy diagnostics**. Main builds
+the JSON from an allowlist and owns the clipboard write; renderer never receives
+credentials, raw errors, Remote URLs, absolute paths, Space names, repository
+ids, file contents, or row data. The packaged smoke reads the same summary
+without mutating the clipboard and rejects path/URL/credential-shaped values.
+Use [the release runbook](./RELEASE-RUNBOOK.md) for clean install, in-place
+upgrade, binary rollback, association verification, support handoff, and the
+remaining signed-update gates.
+
 The packaged smoke launches the actual unpacked executable and loads its real
 sandboxed preload and renderer in hidden `BrowserWindow` instances. It first
 gates process launch through a usable Welcome window at 2,000 ms, including

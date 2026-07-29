@@ -257,6 +257,8 @@ function Welcome({
   onOpenRecent,
   onRemoveRecent,
   onClone,
+  onCopyDiagnostics,
+  diagnosticsCopied,
 }: {
   appInfo: EidosLiteAppInfo | null
   opening: boolean
@@ -267,6 +269,8 @@ function Welcome({
   onOpenRecent(id: string): void
   onRemoveRecent(id: string): void
   onClone(): void
+  onCopyDiagnostics(): void
+  diagnosticsCopied: boolean
 }) {
   return (
     <main
@@ -310,6 +314,15 @@ function Welcome({
           </button>
           <button type="button" className="secondary-action" onClick={onClone}>
             <CloudDownload /> Clone Synced Space
+          </button>
+          <button
+            type="button"
+            className="secondary-action"
+            data-copy-diagnostics
+            onClick={onCopyDiagnostics}
+          >
+            <Copy />{" "}
+            {diagnosticsCopied ? "Diagnostics copied" : "Copy diagnostics"}
           </button>
         </div>
         {error ? (
@@ -396,6 +409,7 @@ export function App() {
   } | null>(null)
   const [pathDialog, setPathDialog] = useState<PathDialogState | null>(null)
   const [pathMutationBusy, setPathMutationBusy] = useState(false)
+  const [diagnosticsCopied, setDiagnosticsCopied] = useState(false)
   const fileOpenInFlight = useRef(false)
 
   const invalidateCachedSessions = useCallback((sessionIds: string[]) => {
@@ -509,6 +523,16 @@ export function App() {
 
   const adjustSidebarWidth = useCallback((delta: number) => {
     setSidebarWidth((current) => clampSidebarWidth(current + delta))
+  }, [])
+
+  const copyDiagnostics = useCallback(async () => {
+    try {
+      await window.eidosLite.copyDiagnostics()
+      setDiagnosticsCopied(true)
+      window.setTimeout(() => setDiagnosticsCopied(false), 2_000)
+    } catch (cause) {
+      setError(`Could not copy diagnostics. ${errorMessage(cause)}`)
+    }
   }, [])
 
   const bindSpace = useCallback(
@@ -867,6 +891,8 @@ export function App() {
           onOpenRecent={(id) => void openRecentSpace(id)}
           onRemoveRecent={(id) => void removeRecentSpace(id)}
           onClone={() => setSyncPanelMode("clone")}
+          onCopyDiagnostics={() => void copyDiagnostics()}
+          diagnosticsCopied={diagnosticsCopied}
         />
         {syncPanelMode ? (
           <SyncPanel
@@ -1148,6 +1174,22 @@ export function App() {
                 <Cloud />
               )}
               {syncQueueLabel(syncQueueStatus)}
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              data-copy-diagnostics
+              onClick={() => void copyDiagnostics()}
+              aria-label={
+                diagnosticsCopied ? "Diagnostics copied" : "Copy diagnostics"
+              }
+              title={
+                diagnosticsCopied
+                  ? "Diagnostics copied"
+                  : "Copy privacy-safe diagnostics"
+              }
+            >
+              <Copy />
             </button>
           </div>
         </header>

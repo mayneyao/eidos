@@ -1,14 +1,26 @@
 import { fileURLToPath } from "node:url"
 import fs from "node:fs/promises"
 import path from "node:path"
-import { app, BrowserWindow, dialog, shell, type WebContents } from "electron"
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  shell,
+  type WebContents,
+} from "electron"
 
 import {
   IPC_CHANNELS,
+  type EidosLiteDiagnostics,
   type EidosSyncRecoveryResult,
   type SpaceSnapshot,
 } from "../shared/contracts"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
+import {
+  createEidosLiteDiagnostics,
+  serializeEidosLiteDiagnostics,
+} from "./diagnostics"
 import { defaultGraftBinaryPath, GraftClient } from "./graft/graft-client"
 import { GraftUtilityTransport } from "./graft/graft-utility-transport"
 import { resolveEidosFileLaunchIntent } from "./launch-intent"
@@ -280,6 +292,53 @@ export class WindowController {
     const session = this.sessionFor(webContents)
     if (!session) throw new Error("Open a Space first")
     return session
+  }
+
+  async diagnostics(webContents: WebContents): Promise<EidosLiteDiagnostics> {
+    const session = this.sessionFor(webContents)
+    const snapshot = session ? await session.snapshot() : null
+    return createEidosLiteDiagnostics({
+      app: {
+        name: app.getName(),
+        version: app.getVersion(),
+        packaged: app.isPackaged,
+      },
+      platform: process.platform,
+      arch: process.arch,
+      electronVersion: process.versions.electron ?? "unknown",
+      environment: this.services.name,
+      ...(session && snapshot
+        ? {
+            space: {
+              eidosFileCount: snapshot.eidosFileCount,
+              operation: {
+                phase: snapshot.operation.phase,
+                recoverable: snapshot.operation.recoverable,
+              },
+              graft: {
+                available: snapshot.graft.available,
+                backend: snapshot.graft.backend,
+                version: snapshot.graft.version,
+                expectedVersion: snapshot.graft.expectedVersion,
+                initialized: snapshot.graft.initialized,
+                clean: snapshot.graft.clean,
+              },
+              residentRuntimeCount:
+                session.runtimePool.residentRelativePaths().length,
+              trackedRuntimeCount:
+                session.runtimePool.openRelativePaths().length,
+            },
+          }
+        : {}),
+    })
+  }
+
+  async copyDiagnostics(
+    webContents: WebContents
+  ): Promise<EidosLiteDiagnostics> {
+    const diagnostics = await this.diagnostics(webContents)
+    clipboard.writeText(serializeEidosLiteDiagnostics(diagnostics))
+    return diagnostics
   }
 
   async reveal(webContents: WebContents, relativePath: string): Promise<void> {

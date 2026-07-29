@@ -15,6 +15,14 @@ interface RendererSmokeResult {
     selectedFile: boolean
     singleEditor: boolean
   }
+  diagnostics: {
+    action: boolean
+    copyApi: boolean
+    schemaVersion: number
+    environment: string
+    openSpace: boolean
+    safe: boolean
+  }
   onboarding: {
     emptyState: boolean
     createAction: boolean
@@ -964,11 +972,25 @@ const rendererProbe = `
   historyButton.click()
   await waitFor(() => document.querySelector(".version-panel"), "Version History panel")
   await new Promise((resolve) => setTimeout(resolve, 500))
+  const diagnosticSummary = await window.eidosLite.getDiagnostics()
+  const serializedDiagnostics = JSON.stringify(diagnosticSummary)
   return {
     performance: {
       coldStartMs: 0,
       utilityOpenMs,
       utilityOpenP95Ms,
+    },
+    diagnostics: {
+      action: Boolean(document.querySelector("[data-copy-diagnostics]")),
+      copyApi: typeof window.eidosLite.copyDiagnostics === "function",
+      schemaVersion: diagnosticSummary.schemaVersion,
+      environment: diagnosticSummary.environment,
+      openSpace: diagnosticSummary.space.open === true,
+      safe:
+        !serializedDiagnostics.includes("/Users/") &&
+        !serializedDiagnostics.includes("https://") &&
+        !serializedDiagnostics.includes("remoteUrl") &&
+        !serializedDiagnostics.includes("accessToken"),
     },
     environment: {
       ...appInfo.services,

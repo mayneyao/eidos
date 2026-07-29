@@ -133,6 +133,12 @@ export function registerIpc(
     platform: process.platform,
     services,
   }))
+  ipcMain.handle(IPC_CHANNELS.diagnostics, (event) =>
+    controller.diagnostics(event.sender)
+  )
+  ipcMain.handle(IPC_CHANNELS.copyDiagnostics, (event) =>
+    controller.copyDiagnostics(event.sender)
+  )
   ipcMain.handle(IPC_CHANNELS.openSpace, (event) =>
     controller.chooseAndBindSpace(event.sender)
   )

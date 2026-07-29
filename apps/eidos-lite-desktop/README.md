@@ -161,5 +161,6 @@ packaged renderer and verifies the staging environment, signed-out state, login
 action, no-provisioning gate, and the typed Clone/Sync preload surface without
 opening a browser or mutating an external service.
 
-See [Architecture](./docs/ARCHITECTURE.md) and
-[Operations](./docs/OPERATIONS.md).
+See [Architecture](./docs/ARCHITECTURE.md),
+[Operations](./docs/OPERATIONS.md), and the
+[install/upgrade/rollback runbook](./docs/RELEASE-RUNBOOK.md).

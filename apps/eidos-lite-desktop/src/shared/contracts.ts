@@ -13,6 +13,8 @@ export const EIDOS_LITE_CSV_EXPORT_BYTES_MAX = 256 * 1024 * 1024
 
 export const IPC_CHANNELS = {
   appInfo: "eidos-lite:app-info",
+  diagnostics: "eidos-lite:diagnostics-get",
+  copyDiagnostics: "eidos-lite:diagnostics-copy",
   openSpace: "eidos-lite:space-open",
   newSpace: "eidos-lite:space-new",
   recentSpaces: "eidos-lite:space-recents",
@@ -211,6 +213,38 @@ export interface EidosLiteAppInfo {
   version: string
   platform: string
   services: EidosLiteServiceEnvironment
+}
+
+export interface EidosLiteDiagnostics {
+  schemaVersion: 1
+  generatedAt: string
+  app: {
+    name: string
+    version: string
+    packaged: boolean
+    platform: string
+    arch: string
+    electronVersion: string
+  }
+  environment: "staging" | "production"
+  space:
+    | { open: false }
+    | {
+        open: true
+        eidosFileCount: number
+        operation: Pick<SpaceOperationState, "phase" | "recoverable">
+        graft: Pick<
+          GraftSpaceStatus,
+          | "available"
+          | "backend"
+          | "version"
+          | "expectedVersion"
+          | "initialized"
+          | "clean"
+        >
+        runtime: { residentCount: number; trackedCount: number }
+      }
+  privacy: { excludes: string[] }
 }
 
 export interface RecentSpaceEntry {
@@ -566,6 +600,8 @@ export type RuntimeWorkerResponse =
 
 export interface EidosLiteApi {
   getAppInfo(): Promise<EidosLiteAppInfo>
+  getDiagnostics(): Promise<EidosLiteDiagnostics>
+  copyDiagnostics(): Promise<EidosLiteDiagnostics>
   openSpace(): Promise<SpaceSnapshot | null>
   newSpace(): Promise<SpaceSnapshot | null>
   listRecentSpaces(): Promise<RecentSpaceEntry[]>
