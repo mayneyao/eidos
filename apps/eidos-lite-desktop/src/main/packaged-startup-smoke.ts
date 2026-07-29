@@ -2,9 +2,27 @@ import type { BrowserWindow } from "electron"
 
 import type { WindowController } from "./window-controller"
 
+export interface PackagedStartupMilestones {
+  launchedAtMs: number
+  mainModuleStartedAtMs: number
+  appReadyAtMs: number
+  ipcReadyAtMs: number
+}
+
+export interface PackagedStartupTimings {
+  launcherToMainMs: number
+  mainToReadyMs: number
+  readyToIpcMs: number
+  ipcToProbeMs: number
+  probeToRendererMs: number
+  rendererToUsableMs: number
+  totalMs: number
+}
+
 export interface PackagedSmokeStartup {
   coldStartMs: number
   failures: string[]
+  timings: PackagedStartupTimings
   welcomeWindow: BrowserWindow
 }
 
@@ -50,20 +68,58 @@ export function observePackagedSmokeWindow(
   })
 }
 
+function measureStartupTimings(
+  milestones: PackagedStartupMilestones,
+  probeStartedAtMs: number,
+  rendererLoadedAtMs: number,
+  usableAtMs: number
+): PackagedStartupTimings {
+  const ordered = [
+    milestones.launchedAtMs,
+    milestones.mainModuleStartedAtMs,
+    milestones.appReadyAtMs,
+    milestones.ipcReadyAtMs,
+    probeStartedAtMs,
+    rendererLoadedAtMs,
+    usableAtMs,
+  ]
+  if (
+    ordered.some((value) => !Number.isFinite(value) || value <= 0) ||
+    ordered.some((value, index) => index > 0 && value < ordered[index - 1])
+  ) {
+    throw new Error("Packaged startup milestones are invalid or out of order")
+  }
+  return {
+    launcherToMainMs:
+      milestones.mainModuleStartedAtMs - milestones.launchedAtMs,
+    mainToReadyMs: milestones.appReadyAtMs - milestones.mainModuleStartedAtMs,
+    readyToIpcMs: milestones.ipcReadyAtMs - milestones.appReadyAtMs,
+    ipcToProbeMs: probeStartedAtMs - milestones.ipcReadyAtMs,
+    probeToRendererMs: rendererLoadedAtMs - probeStartedAtMs,
+    rendererToUsableMs: usableAtMs - rendererLoadedAtMs,
+    totalMs: usableAtMs - milestones.launchedAtMs,
+  }
+}
+
 export async function runPackagedStartupSmoke(
   controller: WindowController,
-  launchedAtMs: number
+  milestones: PackagedStartupMilestones
 ): Promise<PackagedSmokeStartup> {
   const failures: string[] = []
   let welcomeWindow: BrowserWindow | null = null
+  const probeStartedAtMs = Date.now()
   try {
     let welcomeLoaded: (() => void) | undefined
+    let rendererLoadedAtMs = 0
     const welcomeDidLoad = new Promise<void>((resolve) => {
       welcomeLoaded = resolve
     })
     welcomeWindow = controller.createWelcomeWindow((candidate) => {
       observePackagedSmokeWindow(candidate, failures)
-      candidate.webContents.once("did-finish-load", () => welcomeLoaded?.())
+      candidate.webContents.once("did-finish-load", () => {
+        rendererLoadedAtMs = Date.now()
+        welcomeLoaded?.()
+      })
     })
     await welcomeDidLoad
     const welcomeReady = (await welcomeWindow.webContents.executeJavaScript(
@@ -72,13 +128,20 @@ export async function runPackagedStartupSmoke(
     )) as boolean
     if (!welcomeReady) throw new Error("Welcome window did not become usable")
 
-    const coldStartMs = Date.now() - launchedAtMs
+    const timings = measureStartupTimings(
+      milestones,
+      probeStartedAtMs,
+      rendererLoadedAtMs,
+      Date.now()
+    )
+    const coldStartMs = timings.totalMs
     if (coldStartMs <= 0 || coldStartMs > 2_000) {
       throw new Error(
-        `Packaged cold start exceeded the PRD P95 budget: ${coldStartMs}ms`
+        `Packaged cold start exceeded the PRD P95 budget: ${coldStartMs}ms ` +
+          JSON.stringify(timings)
       )
     }
-    return { coldStartMs, failures, welcomeWindow }
+    return { coldStartMs, failures, timings, welcomeWindow }
   } catch (error) {
     if (welcomeWindow && !welcomeWindow.isDestroyed()) welcomeWindow.destroy()
     throw error

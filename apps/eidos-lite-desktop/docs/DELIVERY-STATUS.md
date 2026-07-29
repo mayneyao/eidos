@@ -62,6 +62,15 @@ The final local audit passed:
   the rendered 100,000-row Grid, and all runs reported zero console errors.
   This closes the test-only static-load defect, but the narrow first-launch
   margin still does not establish a repeated clean-machine P95.
+- Phase-level startup telemetry now preserves six contiguous durations whose
+  sum must equal the unchanged parent-process launch budget. A newly rebuilt
+  unsigned package failed at 2,257 ms: 2,010 ms (89%) elapsed before the first
+  main-module statement, 55 ms covered main-to-ready plus IPC setup, and 191 ms
+  covered Welcome creation, renderer load and DOM usability. Its same-build
+  rerun passed at 386 ms, split into 169 ms before main, 40 ms for ready/IPC and
+  177 ms for the Welcome renderer. This locates the remaining rebuild variance
+  before application initialization; it does not waive signed clean-machine
+  acceptance or relabel a warm run as P95.
 - Packaged recovery force-terminated both a resident Eidos File utility and
   the Graft SDK utility. The same opaque Eidos File session reopened with its
   committed file id, revision, table identities and row counts unchanged.

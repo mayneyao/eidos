@@ -7,12 +7,14 @@ import { createEidosFile } from "@eidos.space/eidos-file/better-sqlite3"
 import {
   observePackagedSmokeWindow,
   type PackagedSmokeStartup,
+  type PackagedStartupTimings,
 } from "./packaged-startup-smoke"
 import type { WindowController } from "./window-controller"
 
 interface RendererSmokeResult {
   performance: {
     coldStartMs: number
+    startup: PackagedStartupTimings
     utilityOpenMs: number[]
     utilityOpenP95Ms: number
     denseGrid: {
@@ -1000,6 +1002,15 @@ const rendererProbe = `
   return {
     performance: {
       coldStartMs: 0,
+      startup: {
+        launcherToMainMs: 0,
+        mainToReadyMs: 0,
+        readyToIpcMs: 0,
+        ipcToProbeMs: 0,
+        probeToRendererMs: 0,
+        rendererToUsableMs: 0,
+        totalMs: 0,
+      },
       utilityOpenMs,
       utilityOpenP95Ms,
       denseGrid: {
@@ -1139,6 +1150,7 @@ export async function runPackagedSmoke(
     }
     report.onboarding = onboarding
     report.performance.coldStartMs = coldStartMs
+    report.performance.startup = startup.timings
     report.performance.denseGrid.preparationMs = densePreparationMs
     const routedWindow = await controller.openEidosFilePath(
       path.join(spaceRoot, "projects", "content-calendar.eidos")

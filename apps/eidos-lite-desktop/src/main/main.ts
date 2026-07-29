@@ -12,6 +12,8 @@ import { createSyncControlPlane } from "./sync/create-sync-control-plane"
 import { PACKAGED_SYNC_FAILURE_SEQUENCE } from "./sync/sync-failure"
 import { WindowController } from "./window-controller"
 
+const mainModuleStartedAtMs = Date.now()
+
 app.setName("Eidos Lite")
 
 const smokeSpace = process.env.EIDOS_LITE_SMOKE_SPACE
@@ -123,6 +125,7 @@ app.on("before-quit", (event) => {
 })
 
 void app.whenReady().then(async () => {
+  const appReadyAtMs = Date.now()
   const syncControl = createSyncControlPlane(services)
   if (smokeSpace || smokeResult) {
     if (!smokeSpace || !smokeResult) {
@@ -135,15 +138,18 @@ void app.whenReady().then(async () => {
       closeIpc = registerIpc(controller, services, syncControl, {
         syncFailuresForTesting: PACKAGED_SYNC_FAILURE_SEQUENCE,
       }).close
+      const ipcReadyAtMs = Date.now()
       if (!Number.isFinite(smokeLaunchedAtMs) || smokeLaunchedAtMs <= 0) {
         throw new Error("Packaged smoke requires its process launch timestamp")
       }
       const { runPackagedStartupSmoke } =
         await import("./packaged-startup-smoke")
-      const startup = await runPackagedStartupSmoke(
-        controller,
-        smokeLaunchedAtMs
-      )
+      const startup = await runPackagedStartupSmoke(controller, {
+        launchedAtMs: smokeLaunchedAtMs,
+        mainModuleStartedAtMs,
+        appReadyAtMs,
+        ipcReadyAtMs,
+      })
       const { runPackagedSmoke } = await import("./packaged-smoke")
       await runPackagedSmoke(controller, smokeSpace, smokeResult, startup)
       app.exit(0)

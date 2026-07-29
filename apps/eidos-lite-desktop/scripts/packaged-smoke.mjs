@@ -151,6 +151,17 @@ try {
     504,
     null,
   ]
+  const startup = report.performance?.startup
+  const startupPhases = startup
+    ? [
+        startup.launcherToMainMs,
+        startup.mainToReadyMs,
+        startup.readyToIpcMs,
+        startup.ipcToProbeMs,
+        startup.probeToRendererMs,
+        startup.rendererToUsableMs,
+      ]
+    : []
   if (
     !report.ok ||
     report.environment?.name !== "staging" ||
@@ -161,6 +172,13 @@ try {
     report.environment?.stagingBadge !== true ||
     report.performance?.coldStartMs <= 0 ||
     report.performance?.coldStartMs > 2_000 ||
+    startupPhases.length !== 6 ||
+    startupPhases.some(
+      (duration) => !Number.isFinite(duration) || duration < 0
+    ) ||
+    startup?.totalMs !== report.performance?.coldStartMs ||
+    startupPhases.reduce((total, duration) => total + duration, 0) !==
+      startup?.totalMs ||
     report.performance?.utilityOpenP95Ms <= 0 ||
     report.performance?.utilityOpenP95Ms > 1_500 ||
     report.performance?.utilityOpenMs?.length !== 4 ||
