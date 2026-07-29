@@ -32,7 +32,7 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 
 The final local audit passed:
 
-- Lite source and real-Graft suite: 123 passed, 8 explicitly skipped. The
+- Lite source and real-Graft suite: 125 passed, 8 explicitly skipped. The
   skipped cases are the opt-in performance and external staging/discovery
   gates, not hidden successes.
 - Real Graft SDK integration: 6 passed, covering whole-Space push/clone,
@@ -42,15 +42,21 @@ The final local audit passed:
   ms; a stable change in a 10,000-entry watcher was 39.5 ms; 10 MiB and 100 MiB
   native opens were 257.8 ms and 128.3 ms; the canonical 100,000-row first page
   was 1.60 ms and cell-commit P95 was 1.76 ms.
+- The exact 1,425,218-byte Elden Ring CSV fixture imported 10,111 data rows and
+  9 columns in 202.9-268.9 ms after the bulk-write fix, versus a 10,355.0 ms
+  baseline. The complete row-aware Graft diff contained 10,126 row changes and
+  completed in 98.4 ms. Version History retains all 102 pages while mounting at
+  most 100 row-diff records; its first page server-rendered in 58.4 ms. The
+  packaged import/diff flow was also directly accepted by the product owner.
 - Production-mode compile and environment-manifest verification passed for
   `https://eidos.space` and `https://sync.eidos.space`. No production request
   or mutation was performed.
-- The unsigned staging package passed the complete packaged smoke twice in
-  succession with zero console errors. The first launch after rebuilding was
-  1,843 ms and the second OS-warm launch was 372 ms. Four
-  Explorer-to-editor opens had maxima of 887.4 ms and 902.5 ms; the real
-  100,000-row Grid produced a 2,050 x 1,480 canvas first frame in the same
-  887.4 ms and 902.5 ms after separately measured fixture creation.
+- The latest unsigned staging package passed the complete packaged smoke with
+  zero console errors. One preceding cold-start sample was correctly rejected
+  at 2,213 ms against the 2,000 ms ceiling; the immediate same-build rerun
+  passed at 737 ms. Its dense 100,000-row fixture was created in 714.2 ms and
+  produced a 2,080 x 1,480 Grid first frame in 899.8 ms. Four
+  Explorer-to-editor opens stayed below the 1,500 ms ceiling.
 - Packaged recovery force-terminated both a resident Eidos File utility and
   the Graft SDK utility. The same opaque Eidos File session reopened with its
   committed file id, revision, table identities and row counts unchanged.
