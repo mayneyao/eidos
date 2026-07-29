@@ -154,6 +154,9 @@ export function registerIpc(
     IPC_CHANNELS.refreshSpace,
     (event) => controller.sessionFor(event.sender)?.snapshot() ?? null
   )
+  ipcMain.handle(IPC_CHANNELS.takeLaunchFile, (event) =>
+    controller.takeLaunchEidosFile(event.sender)
+  )
   ipcMain.handle(IPC_CHANNELS.openFile, (event, relativePath: unknown) => {
     if (typeof relativePath !== "string") throw new Error("Invalid file path")
     return controller.requireSession(event.sender).openEidosFile(relativePath)

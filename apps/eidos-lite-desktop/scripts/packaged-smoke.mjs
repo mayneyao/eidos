@@ -164,6 +164,8 @@ try {
     report.performance?.utilityOpenP95Ms <= 0 ||
     report.performance?.utilityOpenP95Ms > 1_500 ||
     report.performance?.utilityOpenMs?.length !== 4 ||
+    Object.values(report.launchRouting ?? {}).some((value) => value !== true) ||
+    Object.keys(report.launchRouting ?? {}).length !== 3 ||
     Object.values(report.onboarding ?? {}).some((value) => value !== true) ||
     Object.keys(report.onboarding ?? {}).length !== 6 ||
     report.probes?.length !== 3 ||

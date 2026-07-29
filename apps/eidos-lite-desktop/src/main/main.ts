@@ -1,12 +1,13 @@
 import fs from "node:fs"
 import path from "node:path"
-import { app, BrowserWindow } from "electron"
+import { app, BrowserWindow, dialog } from "electron"
 
 import {
   resolveEidosLiteServiceEnvironment,
   runtimeEnvironmentOverride,
 } from "../shared/service-environment"
 import { registerIpc } from "./ipc"
+import { eidosFilePathsFromArguments } from "./launch-intent"
 import { runPackagedSmoke } from "./packaged-smoke"
 import { createSyncControlPlane } from "./sync/create-sync-control-plane"
 import { PACKAGED_SYNC_FAILURE_SEQUENCE } from "./sync/sync-failure"
@@ -32,9 +33,62 @@ const services = resolveEidosLiteServiceEnvironment(
 const controller = new WindowController(services)
 let shutdownStarted = false
 let closeIpc = (): Promise<void> => Promise.resolve()
+const pendingLaunchFiles = eidosFilePathsFromArguments(
+  process.argv,
+  process.cwd()
+)
+let launchRoutingReady = false
+let launchRoutingInFlight: Promise<void> | null = null
 
-app.on("second-instance", () => {
-  controller.createWelcomeWindow().focus()
+function enqueueLaunchFiles(paths: readonly string[]): void {
+  if (shutdownStarted) return
+  for (const filePath of paths) {
+    if (!pendingLaunchFiles.includes(filePath))
+      pendingLaunchFiles.push(filePath)
+  }
+  if (launchRoutingReady) void drainLaunchFiles()
+}
+
+function drainLaunchFiles(): Promise<void> {
+  if (!launchRoutingReady) return Promise.resolve()
+  if (launchRoutingInFlight) return launchRoutingInFlight
+  const work = (async () => {
+    let filePath = pendingLaunchFiles.shift()
+    while (filePath) {
+      try {
+        await controller.openEidosFilePath(filePath)
+      } catch (error) {
+        console.error("Could not open launched Eidos File", error)
+        dialog.showErrorBox(
+          "Could not open Eidos File",
+          error instanceof Error ? error.message : String(error)
+        )
+        if (BrowserWindow.getAllWindows().length === 0) {
+          controller.createWelcomeWindow()
+        }
+      }
+      filePath = pendingLaunchFiles.shift()
+    }
+  })()
+  launchRoutingInFlight = work.finally(() => {
+    launchRoutingInFlight = null
+    if (pendingLaunchFiles.length > 0) void drainLaunchFiles()
+  })
+  return launchRoutingInFlight
+}
+
+app.on("second-instance", (_event, commandLine, workingDirectory) => {
+  const paths = eidosFilePathsFromArguments(commandLine, workingDirectory)
+  if (paths.length > 0) {
+    enqueueLaunchFiles(paths)
+  } else if (!controller.focusAnyWindow() && launchRoutingReady) {
+    controller.createWelcomeWindow()
+  }
+})
+
+app.on("open-file", (event, filePath) => {
+  event.preventDefault()
+  enqueueLaunchFiles([filePath])
 })
 
 app.on("window-all-closed", () => {
@@ -42,7 +96,11 @@ app.on("window-all-closed", () => {
 })
 
 app.on("activate", () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
+  if (
+    BrowserWindow.getAllWindows().length === 0 &&
+    pendingLaunchFiles.length === 0 &&
+    !launchRoutingInFlight
+  ) {
     controller.createWelcomeWindow()
   }
 })
@@ -51,7 +109,10 @@ app.on("before-quit", (event) => {
   if (shutdownStarted) return
   event.preventDefault()
   shutdownStarted = true
+  launchRoutingReady = false
+  pendingLaunchFiles.length = 0
   void closeIpc()
+    .then(() => launchRoutingInFlight)
     .then(() => controller.closeAll())
     .then(
       () => app.quit(),
@@ -93,5 +154,10 @@ void app.whenReady().then(async () => {
   }
   await controller.recoverCloneOperations()
   closeIpc = registerIpc(controller, services, syncControl).close
-  controller.createWelcomeWindow()
+  launchRoutingReady = true
+  if (pendingLaunchFiles.length > 0) {
+    await drainLaunchFiles()
+  } else {
+    controller.createWelcomeWindow()
+  }
 })

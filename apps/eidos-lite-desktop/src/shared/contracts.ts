@@ -21,6 +21,8 @@ export const IPC_CHANNELS = {
   getSpace: "eidos-lite:space-get",
   refreshSpace: "eidos-lite:space-refresh",
   spaceChanged: "eidos-lite:space-changed",
+  launchFileAvailable: "eidos-lite:launch-file-available",
+  takeLaunchFile: "eidos-lite:launch-file-take",
   openFile: "eidos-lite:file-open",
   inspectFileIssue: "eidos-lite:file-issue-inspect",
   closeFile: "eidos-lite:file-close",
@@ -572,6 +574,8 @@ export interface EidosLiteApi {
   getSpace(): Promise<SpaceSnapshot | null>
   refreshSpace(): Promise<SpaceSnapshot | null>
   onSpaceChanged(listener: (snapshot: SpaceSnapshot) => void): () => void
+  takeLaunchEidosFile(): Promise<string | null>
+  onLaunchEidosFileAvailable(listener: () => void): () => void
   openEidosFile(relativePath: string): Promise<OpenEidosFileResult>
   inspectEidosFileIssue(relativePath: string): Promise<EidosFileIssue | null>
   closeEidosFile(sessionId: string): Promise<void>

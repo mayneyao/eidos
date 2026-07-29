@@ -26,6 +26,13 @@ const api: EidosLiteApi = {
     ipcRenderer.on(IPC_CHANNELS.spaceChanged, handler)
     return () => ipcRenderer.removeListener(IPC_CHANNELS.spaceChanged, handler)
   },
+  takeLaunchEidosFile: () => ipcRenderer.invoke(IPC_CHANNELS.takeLaunchFile),
+  onLaunchEidosFileAvailable: (listener) => {
+    const handler = () => listener()
+    ipcRenderer.on(IPC_CHANNELS.launchFileAvailable, handler)
+    return () =>
+      ipcRenderer.removeListener(IPC_CHANNELS.launchFileAvailable, handler)
+  },
   openEidosFile: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.openFile, relativePath),
   inspectEidosFileIssue: (relativePath) =>

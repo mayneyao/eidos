@@ -5,7 +5,11 @@ import {
   type CSSProperties,
   type SyntheticEvent,
 } from "react"
-import { FileTree, useFileTree } from "@pierre/trees/react"
+import {
+  FileTree,
+  useFileTree,
+  useFileTreeSelection,
+} from "@pierre/trees/react"
 
 import type { SpaceTreeEntry } from "../shared/contracts"
 
@@ -22,6 +26,13 @@ export interface SpaceFileTreeModel {
   paths: string[]
   initialExpandedPaths: string[]
   entryByTreePath: Map<string, SpaceTreeEntry>
+}
+
+export function parentTreePaths(relativePath: string): string[] {
+  const segments = relativePath.split("/")
+  return segments
+    .slice(0, -1)
+    .map((_, index) => `${segments.slice(0, index + 1).join("/")}/`)
 }
 
 function toTreePath(entry: SpaceTreeEntry): string {
@@ -108,6 +119,7 @@ export function SpaceFileTree({
     stickyFolders: false,
     unsafeCSS: TREE_CSS,
   })
+  const selectedPaths = useFileTreeSelection(model)
 
   useEffect(() => {
     model.resetPaths(tree.paths, {
@@ -117,6 +129,10 @@ export function SpaceFileTree({
 
   useEffect(() => {
     if (!activePath) return
+    for (const parentPath of parentTreePaths(activePath)) {
+      const parent = model.getItem(parentPath)
+      if (parent && "expand" in parent && !parent.isExpanded()) parent.expand()
+    }
     const item = model.getItem(activePath)
     if (!item) return
     for (const selectedPath of model.getSelectedPaths()) {
@@ -166,6 +182,10 @@ export function SpaceFileTree({
       aria-disabled={disabled === true}
       className="space-file-tree"
       data-space-file-tree="true"
+      data-active-path={activePath ?? undefined}
+      data-active-selected={
+        activePath && selectedPaths.includes(activePath) ? "true" : "false"
+      }
       style={styles}
       onClick={(event) => openTreePath(eventTreePath(event))}
       onContextMenu={(event) => {

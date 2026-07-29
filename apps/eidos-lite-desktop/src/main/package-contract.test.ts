@@ -27,6 +27,15 @@ describe("Eidos Lite package identity", () => {
     expect(packageJson.homepage).toBe("https://eidos.space")
     expect(builder.appId).toBe("space.eidos.lite")
     expect(builder.productName).toBe("Eidos Lite")
+    expect(builder.protocols).toBeUndefined()
+    expect(builder.fileAssociations).toEqual([
+      {
+        ext: "eidos",
+        name: "Eidos File",
+        description: "Eidos local database file",
+        role: "Editor",
+      },
+    ])
   })
 
   it("uses the checked-in official Eidos icons on every target", async () => {

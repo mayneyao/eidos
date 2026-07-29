@@ -10,6 +10,11 @@ interface RendererSmokeResult {
     utilityOpenMs: number[]
     utilityOpenP95Ms: number
   }
+  launchRouting: {
+    reusedSpaceWindow: boolean
+    selectedFile: boolean
+    singleEditor: boolean
+  }
   onboarding: {
     emptyState: boolean
     createAction: boolean
@@ -222,6 +227,31 @@ const welcomeProbe = `
     await new Promise((resolve) => setTimeout(resolve, 25))
   }
   throw new Error("Timed out waiting for the usable Welcome window")
+})()
+`
+
+const launchRouteProbe = `
+(async () => {
+  const relativePath = "projects/content-calendar.eidos"
+  const deadline = Date.now() + 15000
+  while (Date.now() < deadline) {
+    const editor = document.querySelector(
+      '.file-editor[aria-label="' + CSS.escape(relativePath) + '"] ' +
+      '[data-eidos-file-editor-shell]'
+    )
+    const treeHost = document.querySelector("[data-space-file-tree]")
+    const selected =
+      treeHost?.dataset.activePath === relativePath &&
+      treeHost?.dataset.activeSelected === "true"
+    if (editor && selected) {
+      return {
+        selectedFile: true,
+        singleEditor: document.querySelectorAll(".file-editor").length === 1,
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  throw new Error("Timed out waiting for the file-association launch route")
 })()
 `
 
@@ -1066,6 +1096,20 @@ export async function runPackagedSmoke(
     }
     report.onboarding = onboarding
     report.performance.coldStartMs = coldStartMs
+    const routedWindow = await controller.openEidosFilePath(
+      path.join(spaceRoot, "projects", "content-calendar.eidos")
+    )
+    const launchRouting = (await window.webContents.executeJavaScript(
+      launchRouteProbe,
+      true
+    )) as Pick<
+      RendererSmokeResult["launchRouting"],
+      "selectedFile" | "singleEditor"
+    >
+    report.launchRouting = {
+      reusedSpaceWindow: routedWindow === window,
+      ...launchRouting,
+    }
     const session = controller.requireSession(window.webContents)
     report.runtimeCache = {
       residentPaths: session.runtimePool.residentRelativePaths(),

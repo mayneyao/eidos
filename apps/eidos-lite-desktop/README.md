@@ -49,6 +49,15 @@ fetch remains handle-safe, divergence is reported before materialization,
 pull runs behind full handle close/validate/reopen, and push is allowed only
 for `read_write`.
 
+The installer associates `.eidos` with Eidos Lite. A shell-opened file is
+validated as an ordinary non-symlink file. Lite first reuses the deepest open
+or recent canonical Space that contains it; an otherwise unknown file uses its
+parent folder as the Space. The file is then selected. A second launch for the
+same canonical Space focuses the existing window and reuses its three-entry
+runtime LRU. Lite does not register an unimplemented URL protocol, create a
+repository for one file inside an already known Space, or add a multi-tab
+surface.
+
 Packaged staging acceptance has exercised this exact UI path with the resident
 SDK: whole-Space push, cold clone into a second ordinary folder, and pull while
 an Eidos File editor handle was open all completed with full validation and
@@ -137,6 +146,7 @@ rendered canonical editor.
 It then performs real row mutations, asserts the canonical shared editor
 controls and the staging service projection, opens four canonical paths
 through the Pierre Shadow DOM and verifies the three-entry LRU, exercises the
+same-window file-association route,
 Explorer file lifecycle, resizes, collapses, and reopens the Explorer,
 initializes Local versioning, reads row-aware Changes and History, creates and
 restores whole-Space checkpoints, verifies the canonical CSV actions plus a

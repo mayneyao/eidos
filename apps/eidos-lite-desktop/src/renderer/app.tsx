@@ -654,6 +654,62 @@ export function App() {
     [cachedFiles]
   )
 
+  const launchSpace = useRef(space)
+  const launchOpenEntry = useRef(openEntry)
+  useEffect(() => {
+    launchSpace.current = space
+    launchOpenEntry.current = openEntry
+  }, [openEntry, space])
+
+  useEffect(() => {
+    if (!space) return
+    let active = true
+    let draining = false
+    let drainRequested = true
+    const drain = async () => {
+      drainRequested = true
+      if (draining || !active) return
+      draining = true
+      try {
+        while (active && drainRequested) {
+          drainRequested = false
+          let relativePath = await window.eidosLite.takeLaunchEidosFile()
+          while (relativePath && active) {
+            const entry = findSpaceEntry(
+              launchSpace.current?.entries ?? [],
+              relativePath
+            )
+            if (!entry || entry.kind !== "eidos") {
+              setError(
+                `Could not open ${relativePath}. It is not an Eidos File in this Space.`
+              )
+            } else {
+              while (active && fileOpenInFlight.current) {
+                await new Promise((resolve) => window.setTimeout(resolve, 25))
+              }
+              if (!active) break
+              setSelectedEntry(entry)
+              await launchOpenEntry.current(entry)
+            }
+            relativePath = await window.eidosLite.takeLaunchEidosFile()
+          }
+        }
+      } catch (cause) {
+        if (active) setError(errorMessage(cause))
+      } finally {
+        draining = false
+      }
+    }
+    const unsubscribe = window.eidosLite.onLaunchEidosFileAvailable(() => {
+      void drain()
+    })
+    void drain()
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [space?.id])
+
   const retryFileIssue = useCallback(async () => {
     if (!fileIssue || !space) return
     const entry = findSpaceEntry(space.entries, fileIssue.relativePath)

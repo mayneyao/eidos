@@ -11,6 +11,7 @@ import {
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
 import { defaultGraftBinaryPath, GraftClient } from "./graft/graft-client"
 import { GraftUtilityTransport } from "./graft/graft-utility-transport"
+import { resolveEidosFileLaunchIntent } from "./launch-intent"
 import { RuntimePool } from "./runtime/runtime-pool"
 import {
   canonicalizeSpaceRoot,
@@ -28,6 +29,7 @@ import {
 export class WindowController {
   private readonly sessionByWebContents = new Map<number, SpaceSession>()
   private readonly windowBySpaceId = new Map<string, BrowserWindow>()
+  private readonly pendingLaunchFilesByWebContents = new Map<number, string[]>()
   private readonly sessionCloses = new SessionCloseTracker<SpaceSession>()
   private readonly openingSessions = new Set<Promise<SpaceSession>>()
   private recentSpacesStore: RecentSpacesStore | null = null
@@ -47,17 +49,68 @@ export class WindowController {
 
   async createSpaceWindow(
     root: string,
-    beforeLoad?: (window: BrowserWindow) => void
+    beforeLoad?: (window: BrowserWindow) => void,
+    initialEidosFile?: string
   ): Promise<BrowserWindow> {
     const window = this.createWindow(beforeLoad === undefined)
     beforeLoad?.(window)
     const snapshot = await this.bindSpace(window.webContents, root)
     if (!snapshot) {
       window.destroy()
-      throw new Error("The Space is already open in another window")
+      const existing = await this.windowForSpaceRoot(root)
+      if (!existing) {
+        throw new Error("The Space is already opening in another window")
+      }
+      if (initialEidosFile) {
+        this.queueLaunchFile(existing.webContents, initialEidosFile)
+      }
+      return existing
+    }
+    if (initialEidosFile) {
+      this.queueLaunchFile(window.webContents, initialEidosFile)
     }
     await this.loadRenderer(window)
     return window
+  }
+
+  async openEidosFilePath(filePath: string): Promise<BrowserWindow> {
+    const openSpaceRoots = [...new Set(this.sessionByWebContents.values())].map(
+      (session) => session.canonical.root
+    )
+    const recentSpaceRoots = (await this.recentSpaces().list())
+      .filter((recent) => recent.available)
+      .map((recent) => recent.path)
+    const intent = await resolveEidosFileLaunchIntent(filePath, [
+      ...openSpaceRoots,
+      ...recentSpaceRoots,
+    ])
+    const existing = this.windowBySpaceId.get(intent.spaceId)
+    if (existing && !existing.isDestroyed()) {
+      this.focusWindow(existing)
+      this.queueLaunchFile(existing.webContents, intent.relativePath)
+      return existing
+    }
+    return this.createSpaceWindow(
+      intent.spaceRoot,
+      undefined,
+      intent.relativePath
+    )
+  }
+
+  takeLaunchEidosFile(webContents: WebContents): string | null {
+    const pending = this.pendingLaunchFilesByWebContents.get(webContents.id)
+    const relativePath = pending?.shift() ?? null
+    if (!pending?.length) {
+      this.pendingLaunchFilesByWebContents.delete(webContents.id)
+    }
+    return relativePath
+  }
+
+  focusAnyWindow(): BrowserWindow | null {
+    const window =
+      BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows().at(-1)
+    if (window) this.focusWindow(window)
+    return window ?? null
   }
 
   async chooseAndBindSpace(
@@ -318,6 +371,7 @@ export class WindowController {
     }
     this.sessionByWebContents.clear()
     this.windowBySpaceId.clear()
+    this.pendingLaunchFilesByWebContents.clear()
     await this.sessionCloses.waitForAll()
   }
 
@@ -375,6 +429,7 @@ export class WindowController {
     window.setTitle(`${session.canonical.name} — Eidos Lite`)
     window.once("closed", () => {
       this.sessionByWebContents.delete(webContents.id)
+      this.pendingLaunchFilesByWebContents.delete(webContents.id)
       if (this.windowBySpaceId.get(session.canonical.id) === window) {
         this.windowBySpaceId.delete(session.canonical.id)
       }
@@ -395,6 +450,34 @@ export class WindowController {
       path.join(app.getPath("userData"), "recent-spaces.json")
     )
     return this.recentSpacesStore
+  }
+
+  private async windowForSpaceRoot(
+    root: string
+  ): Promise<BrowserWindow | null> {
+    const canonical = await canonicalizeSpaceRoot(root)
+    const existing = this.windowBySpaceId.get(canonical.id)
+    if (!existing || existing.isDestroyed()) return null
+    this.focusWindow(existing)
+    return existing
+  }
+
+  private focusWindow(window: BrowserWindow): void {
+    if (window.isMinimized()) window.restore()
+    window.show()
+    window.focus()
+  }
+
+  private queueLaunchFile(
+    webContents: WebContents,
+    relativePath: string
+  ): void {
+    if (webContents.isDestroyed()) return
+    const pending =
+      this.pendingLaunchFilesByWebContents.get(webContents.id) ?? []
+    if (pending.at(-1) !== relativePath) pending.push(relativePath)
+    this.pendingLaunchFilesByWebContents.set(webContents.id, pending)
+    webContents.send(IPC_CHANNELS.launchFileAvailable)
   }
 
   private async chooseRecoveryTarget(

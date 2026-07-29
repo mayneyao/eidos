@@ -81,21 +81,42 @@ typed IPC. It shows a **Staging** badge for development safety. Local Space open
 and editing do not perform discovery, login, entitlement, Billing, or Remote
 requests.
 
+## File association and launch routing
+
+The package registers only the `.eidos` extension; it deliberately has no
+custom URL scheme. macOS `open-file` events and Windows/Linux second-instance
+arguments enter the same main-process route. The route rejects missing,
+non-file, non-`.eidos`, and final-component symlink inputs. It prefers the
+deepest open or available recent canonical Space containing the real path and
+falls back to the parent folder only for an unknown file. It queues only a
+Space-relative path across preload. The renderer drains that one-shot queue
+after the Space snapshot is available and opens the file in the existing
+single-editor/LRU model.
+
+Opening another file in the same canonical Space restores and focuses its
+existing window. It must not create another Graft repository or another
+`RepositorySession`. Opening a file whose parent is a different folder creates
+a separate Space window and independent session. Reinstall/upgrade checks must
+confirm the OS still routes `.eidos` files to Eidos Lite; uninstall must leave
+the ordinary files untouched.
+
 The packaged smoke launches the actual unpacked executable and loads its real
 sandboxed preload and renderer in hidden `BrowserWindow` instances. It first
 gates process launch through a usable Welcome window at 2,000 ms, including
 Electron startup, main initialization, preload IPC, and renderer readiness. It
-then binds a real empty Space, creates `Getting Started.eidos` through the visible
-onboarding action, and requires the canonical editor to open the new ordinary
-file. It then binds a temporary Space containing four real fixtures in separate
-directories, clicks all four
-through the `@pierre/trees` Shadow DOM, and requires one visible editor plus a
-three-entry renderer/runtime LRU. It verifies canonical-path selection,
-records every tree-click-to-canonical-editor latency, and requires their maximum
-to remain within 1,500 ms. This includes renderer, main IPC, utility-process
-spawn/open/validation, snapshot transfer, and editor render.
-keyboard resize, collapse, and reopen before exercising the editor. This keeps
-package integration and layout errors
+then binds a real empty Space, creates `Getting Started.eidos` through the
+visible onboarding action, and requires the canonical editor to open the new
+ordinary file. It then binds a temporary Space containing four real fixtures
+in separate directories, clicks all four through the `@pierre/trees` Shadow
+DOM, and requires one visible editor plus a three-entry renderer/runtime LRU.
+It verifies canonical-path selection, records every
+tree-click-to-canonical-editor latency, and requires their maximum to remain
+within 1,500 ms. This includes renderer, main IPC, utility-process
+spawn/open/validation, snapshot transfer, and editor render. It then routes a
+real absolute `.eidos` path through the main-process launch handler, requires
+the same Space window and one editor, and verifies Explorer selection. Keyboard
+resize, collapse, and reopen stay inside the smoke. This keeps package
+integration and layout errors
 inside the regression boundary instead of testing only main-process services.
 The smoke uses an isolated temporary Electron `userData` directory, opens the
 Eidos Sync panel, and requires the staging, signed-out, `canEnable: false`, and

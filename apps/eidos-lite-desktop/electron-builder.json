@@ -28,6 +28,14 @@
     "**/node_modules/better-sqlite3/**/*"
   ],
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+  "fileAssociations": [
+    {
+      "ext": "eidos",
+      "name": "Eidos File",
+      "description": "Eidos local database file",
+      "role": "Editor"
+    }
+  ],
   "mac": {
     "target": ["dmg", "zip"],
     "icon": "../web-app/public/logo.icns",
@@ -42,9 +50,5 @@
   "linux": {
     "target": ["AppImage"],
     "icon": "../web-app/public/logo.png"
-  },
-  "protocols": {
-    "name": "eidos-lite",
-    "schemes": ["eidos-lite"]
   }
 }
