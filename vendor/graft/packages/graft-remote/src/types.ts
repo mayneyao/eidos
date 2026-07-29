@@ -70,6 +70,7 @@ export type GraftRemoteOperation =
   | "raw"
   | "raw-if-not-exists"
   | "receive-pack"
+  | "receive-bundle"
   | "cas"
   | "cad"
   | "list";

@@ -11,6 +11,7 @@ export const GRAFT_REMOTE_CAPABILITIES = [
   "list-cursor",
   "put-if-absent",
   "receive-pack",
+  "receive-bundle",
   "cas",
   "cad",
 ] as const;
@@ -21,6 +22,8 @@ export const RECEIVE_PACK_HEADER_PACK_ID = "x-graft-pack-id";
 export const RECEIVE_PACK_HEADER_PACK_BYTES = "x-graft-pack-bytes";
 export const RECEIVE_PACK_HEADER_INDEX_BYTES = "x-graft-index-bytes";
 export const RECEIVE_PACK_HEADER_REPLACEMENT_HEX = "x-graft-ref-replacement-hex";
+export const RECEIVE_BUNDLE_HEADER_MANIFEST_BYTES = "x-graft-bundle-manifest-bytes";
+export const MAX_RECEIVE_BUNDLE_OBJECTS = 256;
 const REPOSITORY_SEGMENT = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$/;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -241,6 +244,88 @@ export function parseReceivePackHeaders(headers: Headers): {
   }
   const replacement = decodeLowerHex(replacementHex, RECEIVE_PACK_HEADER_REPLACEMENT_HEX);
   return { packId, packBytes, indexBytes, replacement };
+}
+
+export interface ReceiveBundleObject {
+  path: string;
+  bytes: number;
+  allowExisting: boolean;
+}
+
+export function parseReceiveBundleManifest(value: Uint8Array): ReceiveBundleObject[] {
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(decoder.decode(value));
+  } catch {
+    throw new GraftProtocolError(
+      400,
+      "invalid_receive_bundle",
+      "Receive-bundle manifest must be valid UTF-8 JSON",
+    );
+  }
+  if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) {
+    throw invalidReceiveBundleManifest();
+  }
+  const record = decoded as Record<string, unknown>;
+  if (
+    record.version !== 1 ||
+    !Array.isArray(record.objects) ||
+    record.objects.length === 0 ||
+    record.objects.length > MAX_RECEIVE_BUNDLE_OBJECTS ||
+    Object.keys(record).some((key) => key !== "version" && key !== "objects")
+  ) {
+    throw invalidReceiveBundleManifest();
+  }
+
+  const paths = new Set<string>();
+  return record.objects.map((entry) => {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      throw invalidReceiveBundleManifest();
+    }
+    const object = entry as Record<string, unknown>;
+    if (
+      typeof object.path !== "string" ||
+      typeof object.bytes !== "number" ||
+      !Number.isSafeInteger(object.bytes) ||
+      object.bytes < 0 ||
+      typeof object.allow_existing !== "boolean" ||
+      Object.keys(object).some(
+        (key) => key !== "path" && key !== "bytes" && key !== "allow_existing",
+      )
+    ) {
+      throw invalidReceiveBundleManifest();
+    }
+    const path = validateObjectPath(object.path);
+    if (!isImmutablePath(path) || paths.has(path)) {
+      throw invalidReceiveBundleManifest();
+    }
+    paths.add(path);
+    return {
+      path,
+      bytes: object.bytes,
+      allowExisting: object.allow_existing,
+    };
+  });
+}
+
+export function parseReceiveBundleManifestLength(headers: Headers): number {
+  const length = parseLengthHeader(headers, RECEIVE_BUNDLE_HEADER_MANIFEST_BYTES);
+  if (length === 0 || length > MAX_METADATA_BYTES) {
+    throw new GraftProtocolError(
+      400,
+      "invalid_receive_bundle",
+      `${RECEIVE_BUNDLE_HEADER_MANIFEST_BYTES} must be between 1 and ${MAX_METADATA_BYTES}`,
+    );
+  }
+  return length;
+}
+
+function invalidReceiveBundleManifest(): GraftProtocolError {
+  return new GraftProtocolError(
+    400,
+    "invalid_receive_bundle",
+    "Receive-bundle manifest is invalid",
+  );
 }
 
 function parseLengthHeader(headers: Headers, name: string): number {

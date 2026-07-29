@@ -345,6 +345,98 @@ describe("eidos.space Graft Remote", () => {
     })
   })
 
+  it("streams a receive bundle through quota tracking and publishes the ref last", async () => {
+    const { payload } = await createRepository("alice-token", "receive-bundle")
+    const usageBefore = await serviceFetch("/api/graft/usage", {
+      headers: { Authorization: "Bearer alice-token" },
+    })
+    const usedBytesBefore = ((await usageBefore.json()) as SyncUsagePayload)
+      .usedBytes
+    const packId = "d".repeat(64)
+    const manifest = new TextEncoder().encode(
+      JSON.stringify({
+        version: 1,
+        objects: [
+          { path: "segments/example", bytes: 7, allow_existing: true },
+          {
+            path: "logs/example/commits/0000000000000001",
+            bytes: 6,
+            allow_existing: false,
+          },
+        ],
+      })
+    )
+    const body = joinBytes([
+      manifest,
+      new TextEncoder().encode("segmentcommitpackidx"),
+    ])
+    const suffix = "/receive-bundle/refs/heads/main"
+    const first = await protocolFetch(payload.remote_url, suffix, {
+      init: {
+        method: "POST",
+        headers: receiveBundleHeaders(
+          packId,
+          undefined,
+          "new\n",
+          manifest,
+          4,
+          3,
+          body.byteLength
+        ),
+        body,
+      },
+    })
+    expect(first.status, await first.clone().text()).toBe(204)
+    expect(
+      await binaryText(
+        await protocolFetch(payload.remote_url, "/raw/segments/example")
+      )
+    ).toBe("segment")
+    expect(
+      await binaryText(
+        await protocolFetch(
+          payload.remote_url,
+          "/raw/logs/example/commits/0000000000000001"
+        )
+      )
+    ).toBe("commit")
+    expect(
+      await binaryText(
+        await protocolFetch(payload.remote_url, "/raw/refs/heads/main")
+      )
+    ).toBe("new\n")
+
+    const retry = await protocolFetch(payload.remote_url, suffix, {
+      init: {
+        method: "POST",
+        headers: receiveBundleHeaders(
+          packId,
+          "new\n",
+          "next\n",
+          manifest,
+          4,
+          3,
+          body.byteLength
+        ),
+        body,
+      },
+    })
+    expect(retry.status).toBe(412)
+    expect(
+      await binaryText(
+        await protocolFetch(payload.remote_url, "/raw/refs/heads/main")
+      )
+    ).toBe("new\n")
+
+    const usage = await serviceFetch("/api/graft/usage", {
+      headers: { Authorization: "Bearer alice-token" },
+    })
+    expect(await usage.json()).toMatchObject({
+      usedBytes: usedBytesBefore + 20,
+      reservedBytes: 0,
+    })
+  })
+
   it("serializes account-wide byte reservations and rejects quota overflow", async () => {
     const usage = env.GRAFT_USAGE.getByName("quota-" + crypto.randomUUID())
     const backend = memoryBackend()
@@ -769,6 +861,39 @@ function receivePackHeaders(
     "x-graft-pack-id": packId,
     "x-graft-ref-replacement-hex": textHex(replacement),
   })
+}
+
+function receiveBundleHeaders(
+  packId: string,
+  expected: string | undefined,
+  replacement: string,
+  manifest: Uint8Array,
+  packBytes: number,
+  indexBytes: number,
+  contentLength: number
+): Headers {
+  const headers = receivePackHeaders(
+    packId,
+    expected,
+    replacement,
+    packBytes,
+    indexBytes
+  )
+  headers.set("content-length", contentLength.toString())
+  headers.set("x-graft-bundle-manifest-bytes", manifest.byteLength.toString())
+  return headers
+}
+
+function joinBytes(parts: Uint8Array[]): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(
+    new ArrayBuffer(parts.reduce((total, part) => total + part.byteLength, 0))
+  )
+  let offset = 0
+  for (const part of parts) {
+    bytes.set(part, offset)
+    offset += part.byteLength
+  }
+  return bytes
 }
 
 function textHex(value: string): string {

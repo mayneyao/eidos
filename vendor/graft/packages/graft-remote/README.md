@@ -44,8 +44,15 @@ const handleRemote = createGraftRemoteHandler<RuntimeContext, User>({
   },
 
   async authorize({ action, principal, repository }) {
-    if (principal === undefined || !(await canAccess(principal, action, repository))) {
-      throw new GraftProtocolError(403, "forbidden", "Repository access denied");
+    if (
+      principal === undefined ||
+      !(await canAccess(principal, action, repository))
+    ) {
+      throw new GraftProtocolError(
+        403,
+        "forbidden",
+        "Repository access denied",
+      );
     }
   },
 
@@ -110,7 +117,7 @@ Backend guarantees:
   `query.after`, and restricted to `query.prefix`.
 - Immutable request bodies remain streams when the adapter storage supports it.
 - `options.contentLength` is the exact length of a framed immutable body, such
-  as each object in a `receive-pack` request.
+  as each object in a `receive-pack` or `receive-bundle` request.
 - Repository instances are isolated by `repository.id`.
 
 ## Authentication and authorization

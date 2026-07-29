@@ -12,6 +12,8 @@ import {
   isTransactionalPath,
   jsonResponse,
   parseExpectedHeaders,
+  parseReceiveBundleManifest,
+  parseReceiveBundleManifestLength,
   parseReceivePackHeaders,
   parseRangeHeader,
   protocolHeaders,
@@ -40,6 +42,7 @@ const OPERATIONS = new Set<GraftRemoteOperation>([
   "raw",
   "raw-if-not-exists",
   "receive-pack",
+  "receive-bundle",
   "cas",
   "cad",
   "list",
@@ -143,6 +146,8 @@ async function handleRequest<AdapterContext, Principal>(
       return putIfAbsent(input.request, backend, path);
     case "receive-pack":
       return receivePack(input.request, backend, path);
+    case "receive-bundle":
+      return receiveBundle(input.request, backend, path);
     case "cas":
       return compareAndSwap(input.request, backend, path);
     case "cad":
@@ -203,6 +208,7 @@ function validateMethodAndAction(
       requireMethod(method, "PUT");
       return "write";
     case "receive-pack":
+    case "receive-bundle":
       requireMethod(method, "POST");
       return "write";
     case "cas":
@@ -313,7 +319,7 @@ async function receivePack(
   const expected = parseExpectedHeaders(request.headers);
   const { packId, packBytes, indexBytes, replacement } = parseReceivePackHeaders(request.headers);
   const bodyBytes = checkedReceivePackBodyBytes(packBytes, indexBytes);
-  requireReceivePackContentLength(request.headers, bodyBytes);
+  requireReceiveContentLength(request.headers, bodyBytes);
   if (request.body === null) {
     throw new GraftProtocolError(400, "invalid_receive_pack_body", "Receive-pack body is missing");
   }
@@ -336,38 +342,106 @@ async function receivePack(
   return emptyResponse();
 }
 
+async function receiveBundle(
+  request: Request,
+  backend: GraftRepositoryBackend,
+  refPath: string,
+): Promise<Response> {
+  requireTransactionalPath(refPath);
+  const expected = parseExpectedHeaders(request.headers);
+  const { packId, packBytes, indexBytes, replacement } = parseReceivePackHeaders(request.headers);
+  const manifestBytes = parseReceiveBundleManifestLength(request.headers);
+  if (request.body === null) {
+    throw new GraftProtocolError(
+      400,
+      "invalid_receive_bundle_body",
+      "Receive-bundle body is missing",
+    );
+  }
+
+  const source = new ReceivePackBodySource(request.body.getReader());
+  let consumed = false;
+  try {
+    const manifest = parseReceiveBundleManifest(await source.readExact(manifestBytes));
+    const bodyBytes = checkedReceiveBodyBytes([
+      manifestBytes,
+      ...manifest.map((object) => object.bytes),
+      packBytes,
+      indexBytes,
+    ]);
+    requireReceiveContentLength(request.headers, bodyBytes);
+    for (const object of manifest) {
+      await receivePackObject(backend, source, object.path, object.bytes, object.allowExisting);
+    }
+    await receivePackObject(backend, source, `objects/pack/${packId}.pack`, packBytes);
+    await receivePackObject(backend, source, `objects/pack/${packId}.idx`, indexBytes);
+    await source.requireEnd();
+    consumed = true;
+  } finally {
+    if (consumed) source.release();
+    else await source.abort();
+  }
+
+  if (!(await backend.compareAndSwap(refPath, expected, replacement))) {
+    throw new GraftProtocolError(409, "compare_failed", "Object changed during compare-and-swap");
+  }
+  return emptyResponse();
+}
+
 async function receivePackObject(
   backend: GraftRepositoryBackend,
   source: ReceivePackBodySource,
   path: string,
   contentLength: number,
+  allowExisting = true,
 ): Promise<void> {
   const part = source.part(contentLength);
   const created = await backend.putIfAbsent(path, part.stream, "immutable", {
     contentLength,
   });
   await part.finish(created);
+  if (!created && !allowExisting) {
+    throw new GraftProtocolError(
+      412,
+      "precondition_failed",
+      "Bundled object already exists and requires client verification",
+    );
+  }
 }
 
 function checkedReceivePackBodyBytes(packBytes: number, indexBytes: number): number {
-  const total = packBytes + indexBytes;
+  return checkedReceiveBodyBytes([packBytes, indexBytes]);
+}
+
+function checkedReceiveBodyBytes(lengths: number[]): number {
+  let total = 0;
+  for (const length of lengths) {
+    total += length;
+    if (!Number.isSafeInteger(total)) {
+      throw new GraftProtocolError(
+        413,
+        "receive_pack_too_large",
+        "Receive body exceeds the safe limit",
+      );
+    }
+  }
   if (!Number.isSafeInteger(total)) {
     throw new GraftProtocolError(
       413,
       "receive_pack_too_large",
-      "Receive-pack body exceeds the safe limit",
+      "Receive body exceeds the safe limit",
     );
   }
   return total;
 }
 
-function requireReceivePackContentLength(headers: Headers, expected: number): void {
+function requireReceiveContentLength(headers: Headers, expected: number): void {
   const value = headers.get("content-length");
   if (value === null || !/^(?:0|[1-9]\d*)$/.test(value) || Number(value) !== expected) {
     throw new GraftProtocolError(
       400,
       "invalid_receive_pack_body",
-      "Content-Length must equal the declared pack and index lengths",
+      "Content-Length must equal the declared receive body lengths",
     );
   }
 }
@@ -397,6 +471,27 @@ class ReceivePackBodySource {
     }
     const result = await this.#reader.read();
     return result.done ? null : this.split(result.value, maxBytes);
+  }
+
+  async readExact(length: number): Promise<Uint8Array<ArrayBuffer>> {
+    if (this.#active) {
+      throw backendContractError("Receive-pack body part was not released");
+    }
+    const bytes = new Uint8Array(new ArrayBuffer(length));
+    let offset = 0;
+    while (offset < length) {
+      const chunk = await this.read(length - offset);
+      if (chunk === null) {
+        throw new GraftProtocolError(
+          400,
+          "invalid_receive_bundle_body",
+          "Receive-bundle body is truncated",
+        );
+      }
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return bytes;
   }
 
   finishPart(): void {
