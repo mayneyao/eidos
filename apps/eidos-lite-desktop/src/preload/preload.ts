@@ -28,6 +28,8 @@ const api: EidosLiteApi = {
   },
   openEidosFile: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.openFile, relativePath),
+  inspectEidosFileIssue: (relativePath) =>
+    ipcRenderer.invoke(IPC_CHANNELS.inspectFileIssue, relativePath),
   closeEidosFile: (sessionId) =>
     ipcRenderer.invoke(IPC_CHANNELS.closeFile, sessionId),
   createEidosFile: (parentRelativePath, name) =>

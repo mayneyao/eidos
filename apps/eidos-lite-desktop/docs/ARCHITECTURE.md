@@ -172,6 +172,15 @@ phase refreshes identities for every cached path after validation. Therefore a
 legitimate Graft restore preserves sessions whose paths still exist, while an
 uncontrolled external replacement cannot inherit an old runtime capability.
 
+The invalidation crosses IPC as a typed, Local-safe file issue rather than a
+native SQLite or filesystem error. Missing, replaced, symlink, unsupported,
+unreadable, locked, corrupt, and unknown-open failures have separate recovery
+copy and capabilities. Lite never recreates, repairs, follows, or overwrites the
+path automatically. The editor offers only actions valid for that state:
+explicit retry, reveal in the operating system, or review whole-Space History.
+An explicit successful reopen refreshes filesystem identity, clears the issue,
+and creates a fresh opaque runtime session.
+
 Local versioning is explicit and account-free. **Enable Versioning** initializes
 one repository for the ordinary folder, stages the whole Space, and creates an
 initial checkpoint. **Create Checkpoint** appears only when that repository is

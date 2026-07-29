@@ -69,7 +69,9 @@ It asserts the canonical shared Editor Shell, View Tabs, Query Toolbar, Fields
 action, and Sheet Tabs are present. It creates a folder and Eidos File, renames,
 moves, copies, and sends the copy to OS Trash; checks Recent Space persistence;
 and verifies that an external rename invalidates the stale session. It then
-inserts and deletes a real row,
+requires that rename to surface as a typed **missing**, Local-safe issue and
+restores the ordinary file before explicitly reopening it with a fresh runtime.
+It then inserts and deletes a real row,
 initializes the whole folder as a Local Graft repository, writes another row,
 verifies row-aware whole-Space Changes, creates a checkpoint, reads its History
 and diff, restores the initial checkpoint, verifies the same opaque runtime
@@ -188,6 +190,19 @@ replaced.” The local-only file remained present, the remote-only file remained
 absent from that worktree, and its open Eidos File editor stayed usable.
 
 ## Failure and recovery runbook
+
+- **An open `.eidos` path disappears or changes identity:** close the stale
+  runtime immediately and surface the typed issue. Do not recreate the file or
+  let a replacement inherit the previous session capability. After the user or
+  external tool restores the path, **Retry open** validates it and creates a
+  fresh session.
+- **A `.eidos` path becomes a symlink, directory, or special entry:** do not
+  follow or mutate it. Offer reveal and History where available; require the
+  path to become an ordinary in-Space file before reopening.
+- **SQLite reports busy, unreadable, corrupt, or not-a-database:** preserve the
+  original bytes and show the classified recovery notice. Busy and permission
+  failures may retry after the external condition is removed. Corrupt files do
+  not offer automatic repair; use reveal, a copied file, or whole-Space History.
 
 - **First Sync scope contains hidden or secret-like paths:** display the local
   paths and keep confirmation unchecked. Do not provision a Remote until the

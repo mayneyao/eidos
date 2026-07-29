@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url"
 import { utilityProcess, type UtilityProcess } from "electron"
 
 import type {
+  EidosFileIssue,
   OpenEidosFileResult,
   RuntimeCalls,
   RuntimeMethod,
@@ -12,6 +13,11 @@ import type {
   RuntimeWorkerResponse,
 } from "../../shared/contracts"
 import { resolveSpacePath } from "../space/space-paths"
+import {
+  classifyEidosFileIssue,
+  createEidosFileIssue,
+  EidosFileRuntimeError,
+} from "./eidos-file-issue"
 
 interface PendingRequest {
   resolve(value: unknown): void
@@ -72,7 +78,7 @@ export class RuntimePool {
   private readonly entriesBySession = new Map<string, RuntimeEntry>()
   private readonly sessionByCanonicalPath = new Map<string, string>()
   private readonly suspendedSessionIds = new Set<string>()
-  private readonly pendingInvalidatedSessionIds = new Set<string>()
+  private readonly pendingInvalidations: EidosFileIssue[] = []
   private accessSequence = 0
   private residencyTail: Promise<void> = Promise.resolve()
 
@@ -89,7 +95,10 @@ export class RuntimePool {
   }
 
   async open(relativePath: string): Promise<OpenEidosFileResult> {
-    await this.reconcilePaths()
+    const invalidations = await this.reconcilePaths()
+    this.pendingInvalidations.push(
+      ...invalidations.filter((issue) => issue.relativePath !== relativePath)
+    )
     const filePath = resolveSpacePath(this.spaceRoot, relativePath)
     if (path.extname(filePath).toLowerCase() !== ".eidos") {
       throw new Error("Only .eidos files use the Eidos File runtime")
@@ -209,9 +218,10 @@ export class RuntimePool {
     args: RuntimeCalls[M]["args"]
   ): Promise<RuntimeCalls[M]["result"]> {
     const entry = this.requireEntry(sessionId)
-    if (!(await this.entryStillMatchesFile(entry))) {
+    const issue = await this.entryIssue(entry)
+    if (issue) {
       await this.closeSession(sessionId)
-      throw new Error("The Eidos File changed outside Eidos Lite. Reopen it.")
+      throw new EidosFileRuntimeError(issue)
     }
     this.touch(entry)
     await this.ensureResident(entry)
@@ -246,7 +256,10 @@ export class RuntimePool {
     this.suspendedSessionIds.clear()
     for (const entry of [...this.entriesBySession.values()]) {
       if (await this.refreshEntryIdentity(entry)) continue
-      this.pendingInvalidatedSessionIds.add(entry.sessionId)
+      this.pendingInvalidations.push(
+        (await this.entryIssue(entry)) ??
+          createEidosFileIssue(entry.relativePath, "replaced", entry.sessionId)
+      )
       await this.closeSession(entry.sessionId)
     }
     const entries = [...suspended]
@@ -287,7 +300,7 @@ export class RuntimePool {
     this.entriesBySession.clear()
     this.sessionByCanonicalPath.clear()
     this.suspendedSessionIds.clear()
-    this.pendingInvalidatedSessionIds.clear()
+    this.pendingInvalidations.length = 0
   }
 
   openRelativePaths(): string[] {
@@ -316,32 +329,99 @@ export class RuntimePool {
 
   async reconcilePaths(
     canInvalidate: () => boolean = () => true
-  ): Promise<string[]> {
+  ): Promise<EidosFileIssue[]> {
     if (!canInvalidate()) return []
-    const invalidated = [...this.pendingInvalidatedSessionIds]
-    this.pendingInvalidatedSessionIds.clear()
+    const invalidated = this.pendingInvalidations.splice(0)
     for (const entry of [...this.entriesBySession.values()]) {
-      if (await this.entryStillMatchesFile(entry)) continue
+      const issue = await this.entryIssue(entry)
+      if (!issue) continue
       if (!canInvalidate()) return invalidated
-      invalidated.push(entry.sessionId)
+      invalidated.push(issue)
       await this.closeSession(entry.sessionId)
     }
     return invalidated
   }
 
-  private async entryStillMatchesFile(entry: RuntimeEntry): Promise<boolean> {
-    if (!entry.fileIdentity) return false
+  async inspectPath(relativePath: string): Promise<EidosFileIssue | null> {
+    const filePath = resolveSpacePath(this.spaceRoot, relativePath)
     try {
-      const canonicalPath = await fs.realpath(entry.filePath)
-      if (canonicalPath !== entry.canonicalPath) return false
-      const stats = await fs.stat(canonicalPath)
-      return (
-        stats.isFile() &&
-        stats.dev === entry.fileIdentity.device &&
-        stats.ino === entry.fileIdentity.inode
+      const linkStats = await fs.lstat(filePath)
+      if (linkStats.isSymbolicLink()) {
+        return createEidosFileIssue(relativePath, "unsafe-link")
+      }
+      if (!linkStats.isFile()) {
+        return createEidosFileIssue(relativePath, "unsupported")
+      }
+      const canonicalPath = await fs.realpath(filePath)
+      const relativeToSpace = path.relative(this.spaceRoot, canonicalPath)
+      if (
+        relativeToSpace === ".." ||
+        relativeToSpace.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relativeToSpace)
+      ) {
+        return createEidosFileIssue(relativePath, "unsafe-link")
+      }
+      await this.validatePaths([relativePath])
+      return null
+    } catch (error) {
+      return classifyEidosFileIssue(relativePath, error)
+    }
+  }
+
+  private async entryIssue(
+    entry: RuntimeEntry
+  ): Promise<EidosFileIssue | null> {
+    if (!entry.fileIdentity) {
+      return createEidosFileIssue(
+        entry.relativePath,
+        "replaced",
+        entry.sessionId
       )
-    } catch {
-      return false
+    }
+    try {
+      const linkStats = await fs.lstat(entry.filePath)
+      if (linkStats.isSymbolicLink()) {
+        return createEidosFileIssue(
+          entry.relativePath,
+          "unsafe-link",
+          entry.sessionId
+        )
+      }
+      if (!linkStats.isFile()) {
+        return createEidosFileIssue(
+          entry.relativePath,
+          "unsupported",
+          entry.sessionId
+        )
+      }
+      const canonicalPath = await fs.realpath(entry.filePath)
+      const relativeToSpace = path.relative(this.spaceRoot, canonicalPath)
+      if (
+        relativeToSpace === ".." ||
+        relativeToSpace.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relativeToSpace)
+      ) {
+        return createEidosFileIssue(
+          entry.relativePath,
+          "unsafe-link",
+          entry.sessionId
+        )
+      }
+      const stats = await fs.stat(canonicalPath)
+      if (
+        canonicalPath !== entry.canonicalPath ||
+        stats.dev !== entry.fileIdentity.device ||
+        stats.ino !== entry.fileIdentity.inode
+      ) {
+        return createEidosFileIssue(
+          entry.relativePath,
+          "replaced",
+          entry.sessionId
+        )
+      }
+      return null
+    } catch (error) {
+      return classifyEidosFileIssue(entry.relativePath, error, entry.sessionId)
     }
   }
 

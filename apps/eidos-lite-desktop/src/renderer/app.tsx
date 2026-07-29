@@ -34,6 +34,7 @@ import {
 } from "lucide-react"
 
 import type {
+  EidosFileIssue,
   EidosLiteAppInfo,
   EidosSyncQueueStatus,
   RecentSpaceEntry,
@@ -42,6 +43,7 @@ import type {
   SpaceTreeEntry,
 } from "../shared/contracts"
 import { EidosFileWorkbench } from "./eidos-file-workbench"
+import { FileRecoveryNotice } from "./file-recovery-notice"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
 import { SpaceFileTree } from "./space-file-tree"
 import { SyncPanel } from "./sync-panel"
@@ -379,6 +381,7 @@ export function App() {
     useState<EidosSyncQueueStatus | null>(null)
   const [versionRefreshKey, setVersionRefreshKey] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [fileIssue, setFileIssue] = useState<EidosFileIssue | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [selectedEntry, setSelectedEntry] = useState<SpaceTreeEntry | null>(
@@ -407,9 +410,13 @@ export function App() {
   const acceptSpaceSnapshot = useCallback(
     (snapshot: SpaceSnapshot) => {
       setSpace(snapshot)
+      const activeIssue = snapshot.fileIssues?.find(
+        (issue) => issue.sessionId === activeSession
+      )
+      if (activeIssue) setFileIssue(activeIssue)
       invalidateCachedSessions(snapshot.invalidatedSessionIds)
     },
-    [invalidateCachedSessions]
+    [activeSession, invalidateCachedSessions]
   )
 
   useEffect(() => {
@@ -552,6 +559,7 @@ export function App() {
       fileOpenInFlight.current = true
       setBusyFile(entry.relativePath)
       setError(null)
+      setFileIssue(null)
       try {
         let availableCachedFiles = cachedFiles
         const alreadyCached = cachedFiles.some(
@@ -631,7 +639,11 @@ export function App() {
         )
         setActiveSession(opened.sessionId)
       } catch (cause) {
-        setError(`Could not open ${entry.name}. ${errorMessage(cause)}`)
+        const issue = await window.eidosLite
+          .inspectEidosFileIssue(entry.relativePath)
+          .catch(() => null)
+        if (issue) setFileIssue(issue)
+        else setError(`Could not open ${entry.name}. ${errorMessage(cause)}`)
       } finally {
         fileOpenInFlight.current = false
         setBusyFile(null)
@@ -639,6 +651,16 @@ export function App() {
     },
     [cachedFiles]
   )
+
+  const retryFileIssue = useCallback(async () => {
+    if (!fileIssue || !space) return
+    const entry = findSpaceEntry(space.entries, fileIssue.relativePath)
+    if (!entry || entry.kind !== "eidos") {
+      setError("The Eidos File is not currently available at this path.")
+      return
+    }
+    await openEntry(entry)
+  }, [fileIssue, openEntry, space])
 
   const closeFile = useCallback(
     async (sessionId: string) => {
@@ -1093,6 +1115,25 @@ export function App() {
               <X />
             </button>
           </div>
+        ) : null}
+
+        {fileIssue ? (
+          <FileRecoveryNotice
+            issue={fileIssue}
+            canRetry={Boolean(
+              findSpaceEntry(space.entries, fileIssue.relativePath)?.kind ===
+              "eidos"
+            )}
+            canReviewHistory={space.graft.initialized}
+            onRetry={() => void retryFileIssue()}
+            onReveal={() => {
+              void window.eidosLite
+                .revealPath(fileIssue.relativePath)
+                .catch((cause) => setError(errorMessage(cause)))
+            }}
+            onReviewHistory={() => setVersionPanelOpen(true)}
+            onDismiss={() => setFileIssue(null)}
+          />
         ) : null}
 
         <div

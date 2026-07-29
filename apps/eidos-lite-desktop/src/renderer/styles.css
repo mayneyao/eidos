@@ -1397,6 +1397,91 @@ button:focus-visible {
   background: transparent;
 }
 
+.file-recovery-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid oklch(0.76 0.075 75);
+  color: oklch(0.32 0.05 75);
+  background: oklch(0.95 0.035 80);
+  font-size: 0.72rem;
+  user-select: text;
+}
+
+.file-recovery-notice > svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-top: 0.1rem;
+  color: oklch(0.52 0.13 65);
+}
+
+.file-recovery-notice header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.file-recovery-notice header > div {
+  display: grid;
+  gap: 0.14rem;
+}
+
+.file-recovery-notice code {
+  color: var(--ink-muted);
+  font: inherit;
+}
+
+.file-recovery-notice p {
+  margin: 0.35rem 0 0;
+  line-height: 1.45;
+}
+
+.file-recovery-notice small {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--ink-muted);
+}
+
+.file-recovery-notice .icon-button {
+  flex: 0 0 auto;
+  width: 1.45rem;
+  height: 1.45rem;
+  color: inherit;
+}
+
+.file-recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.file-recovery-actions button {
+  display: inline-flex;
+  height: 1.65rem;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.5rem;
+  border: 1px solid oklch(0.7 0.06 75);
+  border-radius: 0.3rem;
+  color: inherit;
+  background: color-mix(in oklch, var(--surface) 80%, transparent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.file-recovery-actions button:hover {
+  background: var(--surface-hover);
+}
+
+.file-recovery-actions svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
 .file-editor {
   display: flex;
   flex-direction: column;
@@ -1415,6 +1500,15 @@ button:focus-visible {
 
 .editor-region:has(> .inline-error) .editor-work-area {
   grid-row: 3;
+}
+
+.editor-region:has(> .file-recovery-notice) .editor-work-area {
+  grid-row: 3;
+}
+
+.editor-region:has(> .inline-error):has(> .file-recovery-notice)
+  .editor-work-area {
+  grid-row: 4;
 }
 
 .editor-work-area.with-version-panel {

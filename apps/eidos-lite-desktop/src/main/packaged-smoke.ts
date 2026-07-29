@@ -36,6 +36,8 @@ interface RendererSmokeResult {
   lifecycleRecovery: {
     recentRecorded: boolean
     externalRenameInvalidated: boolean
+    externalRenameIssue: boolean
+    externalRetryOpened: boolean
     graftWorkerReopened: boolean
   }
   canonicalEditor: {
@@ -824,20 +826,32 @@ export async function runPackagedSmoke(
     const externalMoved = `${externalSource}.moved`
     await fs.rename(externalSource, externalMoved)
     let externalRenameInvalidated = false
+    let externalRenameIssue = false
     try {
       await session.callRuntime(externalRuntime.sessionId, "getSnapshot", [])
     } catch {
       externalRenameInvalidated = !session.runtimePool
         .openRelativePaths()
         .includes(externalProbe.relativePath)
+      const issue = await session.inspectEidosFileIssue(
+        externalProbe.relativePath
+      )
+      externalRenameIssue =
+        issue?.reason === "missing" && issue.localSafe === true
     } finally {
       await fs.rename(externalMoved, externalSource)
     }
+    const externalRetry = await session.openEidosFile(
+      externalProbe.relativePath
+    )
     report.lifecycleRecovery = {
       recentRecorded: recents.some(
         (recent) => recent.id === session.canonical.id && recent.available
       ),
       externalRenameInvalidated,
+      externalRenameIssue,
+      externalRetryOpened:
+        externalRetry.relativePath === externalProbe.relativePath,
       graftWorkerReopened: await session.verifyGraftCrashRecoveryForTesting(),
     }
     if (Object.values(report.lifecycleRecovery).some((value) => !value)) {

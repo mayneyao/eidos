@@ -16,6 +16,7 @@ export const IPC_CHANNELS = {
   refreshSpace: "eidos-lite:space-refresh",
   spaceChanged: "eidos-lite:space-changed",
   openFile: "eidos-lite:file-open",
+  inspectFileIssue: "eidos-lite:file-issue-inspect",
   closeFile: "eidos-lite:file-close",
   createEidosFile: "eidos-lite:path-create-eidos",
   createFolder: "eidos-lite:path-create-folder",
@@ -158,6 +159,29 @@ export interface SpaceSnapshot {
   operation: SpaceOperationState
   graft: GraftSpaceStatus
   invalidatedSessionIds: string[]
+  fileIssues?: EidosFileIssue[]
+}
+
+export type EidosFileIssueReason =
+  | "missing"
+  | "replaced"
+  | "unsafe-link"
+  | "unsupported"
+  | "unreadable"
+  | "locked"
+  | "corrupt"
+  | "open-failed"
+
+export interface EidosFileIssue {
+  relativePath: string
+  sessionId?: string
+  reason: EidosFileIssueReason
+  title: string
+  message: string
+  retryable: boolean
+  canReveal: boolean
+  canReviewHistory: boolean
+  localSafe: true
 }
 
 export interface OpenEidosFileResult {
@@ -509,6 +533,7 @@ export interface EidosLiteApi {
   refreshSpace(): Promise<SpaceSnapshot | null>
   onSpaceChanged(listener: (snapshot: SpaceSnapshot) => void): () => void
   openEidosFile(relativePath: string): Promise<OpenEidosFileResult>
+  inspectEidosFileIssue(relativePath: string): Promise<EidosFileIssue | null>
   closeEidosFile(sessionId: string): Promise<void>
   createEidosFile(
     parentRelativePath: string | null,

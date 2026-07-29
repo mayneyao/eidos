@@ -4,6 +4,7 @@ import fs from "node:fs/promises"
 import path from "node:path"
 
 import type {
+  EidosFileIssue,
   EidosSyncOutcome,
   EidosSyncPhase,
   EidosSyncPreflight,
@@ -18,6 +19,10 @@ import type {
 } from "../../shared/contracts"
 import { RUNTIME_MUTATION_METHODS } from "../../shared/contracts"
 import { GraftClient } from "../graft/graft-client"
+import {
+  classifyEidosFileIssue,
+  EidosFileRuntimeError,
+} from "../runtime/eidos-file-issue"
 import { RuntimePool } from "../runtime/runtime-pool"
 import {
   assertSyncPreflightApproval,
@@ -57,6 +62,7 @@ export class SpaceSession {
   private readonly automaticCheckpointListeners = new Set<
     (snapshot: SpaceSnapshot) => void
   >()
+  private readonly fileIssuesByPath = new Map<string, EidosFileIssue>()
   private refreshInFlight: Promise<SpaceSnapshot> | null = null
   private closeInFlight: Promise<void> | null = null
   private automaticCheckpointEnabled = false
@@ -162,7 +168,26 @@ export class SpaceSession {
 
   async openEidosFile(relativePath: string): Promise<OpenEidosFileResult> {
     this.assertRuntimeAvailable()
-    return this.runtimePool.open(relativePath)
+    try {
+      const opened = await this.runtimePool.open(relativePath)
+      this.fileIssuesByPath.delete(relativePath)
+      return opened
+    } catch (error) {
+      const issue =
+        error instanceof EidosFileRuntimeError
+          ? error.issue
+          : classifyEidosFileIssue(relativePath, error)
+      this.fileIssuesByPath.set(relativePath, issue)
+      throw new EidosFileRuntimeError(issue)
+    }
+  }
+
+  async inspectEidosFileIssue(
+    relativePath: string
+  ): Promise<EidosFileIssue | null> {
+    const remembered = this.fileIssuesByPath.get(relativePath)
+    if (remembered) return remembered
+    return this.runtimePool.inspectPath(relativePath)
   }
 
   async createEidosFile(
@@ -461,14 +486,23 @@ export class SpaceSession {
     args: RuntimeCalls[M]["args"]
   ): Promise<RuntimeCalls[M]["result"]> {
     this.assertRuntimeAvailable()
-    if (!mutationMethods.has(method)) {
-      return this.runtimePool.call(sessionId, method, args)
+    let result: RuntimeCalls[M]["result"]
+    try {
+      result = mutationMethods.has(method)
+        ? await this.gate.withMutation(() =>
+            this.runtimePool.call(sessionId, method, args)
+          )
+        : await this.runtimePool.call(sessionId, method, args)
+    } catch (error) {
+      if (error instanceof EidosFileRuntimeError) {
+        this.fileIssuesByPath.set(error.issue.relativePath, error.issue)
+      }
+      throw error
     }
-    const result = await this.gate.withMutation(() =>
-      this.runtimePool.call(sessionId, method, args)
-    )
-    this.noteLocalChange()
-    void this.refreshAndEmit()
+    if (mutationMethods.has(method)) {
+      this.noteLocalChange()
+      void this.refreshAndEmit()
+    }
     return result
   }
 
@@ -900,6 +934,7 @@ export class SpaceSession {
     await this.graft.close()
     this.changeListeners.clear()
     this.automaticCheckpointListeners.clear()
+    this.fileIssuesByPath.clear()
   }
 
   private async createAutomaticCheckpoint(): Promise<void> {
@@ -951,9 +986,13 @@ export class SpaceSession {
   }
 
   private async readSnapshot(): Promise<SpaceSnapshot> {
-    const invalidatedSessionIds = await this.runtimePool.reconcilePaths(() =>
+    const reconciledFileIssues = await this.runtimePool.reconcilePaths(() =>
       ["ready", "syncing"].includes(this.gate.current().phase)
     )
+    for (const issue of reconciledFileIssues) {
+      this.fileIssuesByPath.set(issue.relativePath, issue)
+    }
+    const fileIssues = [...this.fileIssuesByPath.values()]
     const [entries, graft] = await Promise.all([
       listSpaceTree(this.canonical.root),
       this.graft.inspectSpace(this.canonical.root),
@@ -968,7 +1007,10 @@ export class SpaceSession {
       ).length,
       operation: this.gate.current(),
       graft,
-      invalidatedSessionIds,
+      invalidatedSessionIds: fileIssues.flatMap((issue) =>
+        issue.sessionId ? [issue.sessionId] : []
+      ),
+      fileIssues,
     }
   }
 
