@@ -9,6 +9,7 @@ import type {
 import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 interface PendingRequest {
+  child: UtilityProcess
   resolve(value: unknown): void
   reject(error: Error): void
 }
@@ -28,7 +29,7 @@ export class GraftUtilityTransport implements GraftSdkTransport {
   private child: UtilityProcess | null = null
   private pending = new Map<number, PendingRequest>()
   private nextRequestId = 1
-  private expectedExit = false
+  private readonly expectedExits = new WeakSet<UtilityProcess>()
   private openInFlight: Promise<void> | null = null
   target: string | null = null
 
@@ -60,7 +61,7 @@ export class GraftUtilityTransport implements GraftSdkTransport {
     const child = this.child
     this.target = null
     if (!child) return
-    this.expectedExit = true
+    this.expectedExits.add(child)
     try {
       await this.request({
         requestId: this.nextRequestId++,
@@ -121,10 +122,9 @@ export class GraftUtilityTransport implements GraftSdkTransport {
     })
     this.child = child
     this.target = target
-    this.expectedExit = false
-    child.on("message", (message) => this.receive(message))
+    child.on("message", (message) => this.receive(child, message))
     child.on("exit", (code) => {
-      const expected = this.expectedExit
+      const expected = this.expectedExits.has(child)
       if (this.child === child) this.child = null
       const error = Object.assign(
         new Error(
@@ -138,9 +138,11 @@ export class GraftUtilityTransport implements GraftSdkTransport {
             : "EIDOS_LITE_GRAFT_WORKER_CRASHED",
         }
       )
-      for (const pending of this.pending.values()) pending.reject(error)
-      this.pending.clear()
-      this.expectedExit = false
+      for (const [requestId, pending] of this.pending) {
+        if (pending.child !== child) continue
+        pending.reject(error)
+        this.pending.delete(requestId)
+      }
     })
     try {
       await this.request({
@@ -161,15 +163,15 @@ export class GraftUtilityTransport implements GraftSdkTransport {
       return Promise.reject(new Error("Graft SDK utility process is closed"))
     }
     return new Promise((resolve, reject) => {
-      this.pending.set(request.requestId, { resolve, reject })
+      this.pending.set(request.requestId, { child, resolve, reject })
       child.postMessage(request)
     })
   }
 
-  private receive(message: unknown): void {
+  private receive(child: UtilityProcess, message: unknown): void {
     if (!isWorkerResponse(message)) return
     const pending = this.pending.get(message.requestId)
-    if (!pending) return
+    if (!pending || pending.child !== child) return
     this.pending.delete(message.requestId)
     if (message.ok) {
       pending.resolve(message.result)
