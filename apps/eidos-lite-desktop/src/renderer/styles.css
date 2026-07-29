@@ -1606,6 +1606,8 @@ button:focus-visible {
 }
 
 .editor-work-area.with-version-panel {
+  --version-header-height: 2.35rem;
+
   grid-template-columns: minmax(0, 1fr) clamp(19rem, 30vw, 22rem);
 }
 
@@ -1638,7 +1640,7 @@ button:focus-visible {
 
 .version-panel {
   display: grid;
-  grid-template-rows: 2.35rem 2.15rem minmax(0, 1fr);
+  grid-template-rows: var(--version-header-height) 2.15rem minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   border-left: 1px solid var(--line);
@@ -1647,7 +1649,7 @@ button:focus-visible {
 }
 
 .version-panel:has(.version-error) {
-  grid-template-rows: 2.35rem 2.15rem auto minmax(0, 1fr);
+  grid-template-rows: var(--version-header-height) 2.15rem auto minmax(0, 1fr);
 }
 
 .version-panel > header {
@@ -2299,7 +2301,7 @@ button:focus-visible {
 
 .version-inspector {
   display: grid;
-  grid-template-rows: 2.15rem minmax(0, 1fr);
+  grid-template-rows: var(--version-header-height) minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   color: var(--ink);
