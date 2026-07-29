@@ -446,17 +446,38 @@ function reportUnexpectedError(
   request: Request
 ): void {
   if (error instanceof GraftProtocolError && error.status < 500) return
+  const protocolCode =
+    error instanceof GraftProtocolError && /^[a-z0-9_]{1,64}$/.test(error.code)
+      ? error.code
+      : undefined
   console.error(
     JSON.stringify({
       message,
-      error: error instanceof Error ? error.message : String(error),
       method: request.method,
-      path: new URL(request.url).pathname,
+      operation: requestOperation(request),
       ...(error instanceof GraftProtocolError
-        ? { code: error.code, status: error.status }
+        ? {
+            ...(protocolCode === undefined ? {} : { code: protocolCode }),
+            status: error.status,
+          }
         : {}),
     })
   )
+}
+
+function requestOperation(request: Request): string {
+  const parts = new URL(request.url).pathname.split("/").filter(Boolean)
+  if (parts[0] === "api" && parts[1] === "graft") {
+    return parts[2] === "usage" ? "usage_management" : "repository_management"
+  }
+  const operation = parts[2]
+  return operation === "raw" ||
+    operation === "raw-if-not-exists" ||
+    operation === "cas" ||
+    operation === "cad" ||
+    operation === "list"
+    ? "remote_" + operation.replaceAll("-", "_")
+    : "unknown"
 }
 
 export default createGraftRemoteWorker()

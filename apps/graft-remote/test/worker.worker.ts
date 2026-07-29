@@ -500,7 +500,9 @@ describe("eidos.space Graft Remote", () => {
 
   it("returns stable service errors for identity and persistence failures", async () => {
     vi.restoreAllMocks()
-    vi.spyOn(console, "error").mockImplementation(() => undefined)
+    const errorLog = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined)
     const unavailableWorker = createGraftRemoteWorker({
       authenticate(request, workerEnv) {
         return authenticateEidosUser(request, workerEnv, async () => {
@@ -570,6 +572,14 @@ describe("eidos.space Graft Remote", () => {
       "application/problem+json"
     )
     expect(await directoryFailure.text()).not.toContain("simulated")
+
+    const logged = errorLog.mock.calls.flat().join("\n")
+    expect(logged).toContain('"operation":"remote_raw"')
+    expect(logged).toContain('"operation":"repository_management"')
+    expect(logged).not.toContain("simulated")
+    expect(logged).not.toContain("u-test")
+    expect(logged).not.toContain("repository/raw/HEAD")
+    expect(logged).not.toContain("test-token")
   })
 })
 
