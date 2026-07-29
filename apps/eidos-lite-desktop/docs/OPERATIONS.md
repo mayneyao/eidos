@@ -333,6 +333,11 @@ absent from that worktree, and its open Eidos File editor stayed usable.
 - **Missing/blocked entitlement:** show **Paused: subscription** and open the
   selected official account origin on explicit user action. Pending Local
   checkpoints remain in the same repository.
+- **Entitlement expires during a running Sync:** classify the active phase,
+  pause the single whole-Space queue item without automatic retry, keep Local
+  editing/checkpoints available, and persist no access token. After the account
+  service reports restored write access, explicit **Retry now** reconciles the
+  current repository and clears the durable item only after success.
 - **HTTP 413 / quota exhausted:** show **Paused: storage full**. Never retry a
   write loop automatically; fetch/export/recovery and Local editing remain
   available.

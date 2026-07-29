@@ -431,6 +431,10 @@ protocol, repository, local-change, and unknown states pause immediately.
 Manual Retry resets the attempt budget and cancels an existing wait. Queue
 state crosses typed IPC for status only, and the titlebar/panel surface
 `pending`, `running`, `retry-wait`, or `paused` without hiding Local editing.
+An entitlement loss reported after authorization still pauses this same item;
+restoring the subscription does not fabricate completion or create a second
+job. Explicit Retry obtains fresh memory-only authorization and removes the
+stored item only after the whole current repository reconciles successfully.
 
 An ahead+behind result shows the exact Local-only and Hosted-only checkpoint
 counts and states that recovery neither merges nor overwrites the current
