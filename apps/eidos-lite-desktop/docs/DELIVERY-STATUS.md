@@ -32,7 +32,7 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 
 The final local audit passed:
 
-- Lite source and real-Graft suite: 133 passed, 8 explicitly skipped. The
+- Lite source and real-Graft suite: 135 passed, 8 explicitly skipped. The
   skipped cases are the opt-in performance and external staging/discovery
   gates, not hidden successes.
 - Real Graft SDK integration: 6 passed, covering whole-Space push/clone,
@@ -106,6 +106,14 @@ The final local audit passed:
   no success is reported, credentials/Remote URL are not persisted, and one
   serialized retry is scheduled. Remote protocol fault injection remains a
   separate external gate owned with Graft/Hosted Remote.
+- A real child process now enters the production durable queue and
+  `SyncExecutor`, reaches the SDK-facing push-publication boundary, and is
+  force-terminated while the item is durably `running`. A fresh process turns
+  it into `crash-recovery/pending`, obtains a new memory-only credential and
+  re-fetches before acting. Both uncertain Hosted outcomes are covered: an
+  already-published ref causes zero repeat pushes; an unpublished ref causes
+  exactly one push. Both clear the queue only after success while preserving
+  ordinary and fully validated SQLite bytes and a Ready operation gate.
 - Binary conflict recovery preserves distinct Local and Hosted byte sequences
   in independent ordinary Recovery Spaces without touching the original. The
   Local copy excludes `.graft` and remains disconnected; the Hosted clone has
@@ -161,9 +169,9 @@ The following must stay visibly open before Public v1:
 6. Re-run the owner-only staging OAuth acceptance for the release candidate,
    including subscription/Credits refresh, whole-Space enable, second-device
    clone, offline edits, divergence and both recovery copies.
-7. Add destructive automation for application termination during Remote ref
-   publication, Remote-level object-written/ref-publish failure, and
-   delayed/duplicate/out-of-order Credits webhooks.
+7. Add destructive automation for Remote-level object-written/ref-publish
+   failure and delayed/duplicate/out-of-order Credits webhooks. Application
+   process termination at the SDK-facing publication boundary is covered.
 8. Provide the Sync service status page, alerting, quota dashboard and service
    runbook, and reconcile Privacy/Pricing/application copy for upload scope and
    encryption claims.

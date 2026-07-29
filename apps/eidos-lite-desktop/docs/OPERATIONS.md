@@ -436,7 +436,12 @@ explicit external staging gates.
 - **Application exits while Sync is pending/running:** store only safe queue
   metadata under `userData/spaces/<space-id>`. A running item is reopened as
   pending on the next bind. Obtain a new in-memory account/Remote credential
-  for the attempt; never serialize the prior token.
+  for the attempt; never serialize the prior token. If termination occurs while
+  `push()` may be publishing the Remote ref, the fresh process must fetch and
+  compare before writing: clear an already-published item without another push,
+  or perform exactly one push when the Local ref remains ahead. The destructive
+  process test covers both outcomes with unchanged ordinary/SQLite bytes and a
+  fully cleared queue only after reconciliation succeeds.
 - **User clicks Retry while a timer is waiting:** cancel the timer, reset the
   bounded attempt budget, and run the same queue item immediately. Do not start
   a parallel `RepositorySession` command.
