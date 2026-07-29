@@ -80,6 +80,13 @@ The final local audit passed:
   the 100,000-row Grid at 898.6 ms and reported zero console errors. This shows
   further application-module splitting cannot remove the dominant unsigned
   first-launch cost; signed clean-machine measurement remains the valid gate.
+- Single-instance ownership is now deterministic in packaged verification. A
+  smoke process that cannot own its isolated Electron instance exits with code
+  2 before controller/IPC/Sync/utility setup and prints an explicit lock error;
+  the harness translates a missing report into a startup-ownership diagnostic
+  instead of raw `ENOENT`. An isolated shared-`userData` collision verified the
+  exact exit, message and absence of a result, while a normal complete run of
+  the same package passed at 366 ms with zero console errors.
 - Packaged recovery force-terminated both a resident Eidos File utility and
   the Graft SDK utility. The same opaque Eidos File session reopened with its
   committed file id, revision, table identities and row counts unchanged.

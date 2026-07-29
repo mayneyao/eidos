@@ -35,6 +35,7 @@ describe("Eidos Lite package identity", () => {
     expect(applicationSource).not.toMatch(/^import .*packaged-.*smoke/m)
     expect(applicationSource).toContain('"./packaged-startup-smoke"')
     expect(applicationSource).toContain('await import("./packaged-smoke")')
+    expect(applicationSource).toContain("process.exit(isPackagedSmoke ? 2 : 0)")
     expect(startupSmokeSource).not.toContain(
       "@eidos.space/eidos-file/better-sqlite3"
     )

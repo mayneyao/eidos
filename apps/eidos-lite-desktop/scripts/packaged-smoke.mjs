@@ -118,7 +118,15 @@ try {
     fs.writeFile(path.join(space, "README.md"), "# Packaged smoke Space\n"),
   ])
   await run(await executablePath(), space, result)
-  const report = JSON.parse(await fs.readFile(result, "utf8"))
+  const reportText = await fs.readFile(result, "utf8").catch((error) => {
+    if (error?.code === "ENOENT") {
+      throw new Error(
+        "Packaged app exited without a smoke report; verify single-instance ownership and startup logs"
+      )
+    }
+    throw error
+  })
+  const report = JSON.parse(reportText)
   const expectedSyncFailureCodes = [
     "offline",
     "authentication-required",

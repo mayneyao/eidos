@@ -142,6 +142,11 @@ the same Space window and one editor, and verifies Explorer selection. Keyboard
 resize, collapse, and reopen stay inside the smoke. This keeps package
 integration and layout errors
 inside the regression boundary instead of testing only main-process services.
+The smoke process must own the application single-instance lock. A collision
+exits with code 2 before controller, IPC, Sync or utility setup and prints an
+explicit ownership error; a missing result is reported as a startup-ownership
+failure rather than a raw file-not-found exception. Do not treat an immediate
+collision retry as a performance sample.
 The smoke uses an isolated temporary Electron `userData` directory, opens the
 Eidos Sync panel, and requires the staging, signed-out, `canEnable: false`, and
 system-browser login-action projection. It never clicks sign-in or calls an

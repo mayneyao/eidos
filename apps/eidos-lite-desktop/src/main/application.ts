@@ -29,6 +29,7 @@ app.setName("Eidos Lite")
 
 const smokeSpace = process.env.EIDOS_LITE_SMOKE_SPACE
 const smokeResult = process.env.EIDOS_LITE_SMOKE_RESULT
+const isPackagedSmoke = Boolean(smokeSpace || smokeResult)
 const smokeLaunchedAtMs = Number(process.env.EIDOS_LITE_SMOKE_LAUNCHED_AT_MS)
 if (smokeResult) {
   const smokeUserData = path.join(path.dirname(smokeResult), "user-data")
@@ -37,7 +38,14 @@ if (smokeResult) {
 }
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
-if (!hasSingleInstanceLock) app.quit()
+if (!hasSingleInstanceLock) {
+  if (isPackagedSmoke) {
+    console.error(
+      "Packaged smoke could not acquire the Eidos Lite single-instance lock"
+    )
+  }
+  process.exit(isPackagedSmoke ? 2 : 0)
+}
 
 const services = resolveEidosLiteServiceEnvironment(
   runtimeEnvironmentOverride(app.isPackaged, process.env.EIDOS_LITE_ENVIRONMENT)
@@ -142,7 +150,7 @@ app.on("before-quit", (event) => {
 void app.whenReady().then(async () => {
   const appReadyAtMs = Date.now()
   const syncControl = createSyncControlPlane(services)
-  if (smokeSpace || smokeResult) {
+  if (isPackagedSmoke) {
     if (!smokeSpace || !smokeResult) {
       throw new Error(
         "Packaged smoke requires EIDOS_LITE_SMOKE_SPACE and EIDOS_LITE_SMOKE_RESULT"
