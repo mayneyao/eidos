@@ -141,6 +141,12 @@ Ready, and surfaces the original command error without claiming Sync success.
 Failed validation or reopen leaves the journal intact and local mutations
 paused for next-launch or user-directed recovery.
 
+The process-termination gate executes this production state machine in a child
+process, kills it only after the `materializing` journal and a worktree change
+exist, then constructs a fresh gate over the same owner state. Recovery must
+close any new-process handles, validate a real Eidos File, reopen, clear the
+journal, and enable a subsequent mutation without inferring a pull result.
+
 Remote object transfer and ref publication remain wholly owned by the official
 Graft SDK/HTTP Remote. Lite treats a rejected `push()` as unpublished even when
 the SDK reports that object upload preceded the failure: it does not close

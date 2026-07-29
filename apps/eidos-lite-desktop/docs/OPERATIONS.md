@@ -493,6 +493,12 @@ explicit external staging gates.
   validates every `.eidos` before clearing it and making the Space available.
   The process-local LRU is not restored; no stale native handle survives the
   process crash.
+- **Application is terminated during pull materialization:** the destructive
+  process gate force-terminates a real child after handles close, the durable
+  journal reaches `materializing`, and a worktree file changes. A fresh process
+  must validate a real `.eidos`, reopen handles, clear the journal, return Ready,
+  and accept a new Local mutation; it must not claim whether the interrupted
+  pull completed beyond the validated worktree state.
 - **External file delete, rename, symlink, or atomic replacement:** invalidate
   the old opaque session and return the editor to its empty state if it was
   active. The user can reopen the new path after Explorer refresh.
