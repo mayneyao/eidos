@@ -1,6 +1,8 @@
 import fs from "node:fs/promises"
 import path from "node:path"
+import { performance } from "node:perf_hooks"
 import type { BrowserWindow } from "electron"
+import { createEidosFile } from "@eidos.space/eidos-file/better-sqlite3"
 
 import type { WindowController } from "./window-controller"
 
@@ -9,6 +11,13 @@ interface RendererSmokeResult {
     coldStartMs: number
     utilityOpenMs: number[]
     utilityOpenP95Ms: number
+    denseGrid: {
+      rows: number
+      preparationMs: number
+      renderedFirstFrameMs: number
+      canvasWidth: number
+      canvasHeight: number
+    }
   }
   launchRouting: {
     reusedSpaceWindow: boolean
@@ -314,6 +323,7 @@ const rendererProbe = `
       (candidate) => candidate.dataset.itemPath === relativePath
     )
   const utilityOpenMs = []
+  let denseGrid = null
   for (let index = 0; index < 4; index += 1) {
     const relativePath = eidosPaths[index]
     const button = await waitFor(
@@ -328,14 +338,49 @@ const rendererProbe = `
       ),
       "cached Eidos File " + (index + 1)
     )
-    await waitFor(
+    const editorContainer = await waitFor(
+      () => document.querySelector(
+        '.file-editor[aria-label="' + CSS.escape(relativePath) + '"]'
+      ),
+      "active Eidos File " + (index + 1)
+    )
+    const editorShell = await waitFor(
       () => document.querySelector(
         '.file-editor[aria-label="' + CSS.escape(relativePath) + '"] ' +
         '[data-eidos-file-editor-shell]'
       ),
       "rendered Eidos File " + (index + 1)
     )
+    if (relativePath === "dense-100000.eidos") {
+      if (editorContainer.dataset.eidosFileRowCount !== "100000") {
+        throw new Error(
+          "Dense Grid row count is not canonical: " +
+            editorContainer.dataset.eidosFileRowCount
+        )
+      }
+      const canvas = await waitFor(
+        () => [...editorShell.querySelectorAll("canvas")].find(
+          (candidate) => candidate.width > 0 && candidate.height > 0
+        ),
+        "100,000-row Grid canvas"
+      )
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      )
+      denseGrid = {
+        rows: 100000,
+        renderedFirstFrameMs: performance.now() - openStartedAt,
+        canvasWidth: canvas.width,
+        canvasHeight: canvas.height,
+      }
+    }
     utilityOpenMs.push(performance.now() - openStartedAt)
+  }
+  if (!denseGrid || denseGrid.renderedFirstFrameMs > 2000) {
+    throw new Error(
+      "Packaged 100,000-row Grid missed its rendered first-frame gate: " +
+        JSON.stringify(denseGrid)
+    )
   }
   const utilityOpenP95Ms = Math.max(...utilityOpenMs)
   if (utilityOpenP95Ms > 1500) {
@@ -979,6 +1024,10 @@ const rendererProbe = `
       coldStartMs: 0,
       utilityOpenMs,
       utilityOpenP95Ms,
+      denseGrid: {
+        ...denseGrid,
+        preparationMs: 0,
+      },
     },
     diagnostics: {
       action: Boolean(document.querySelector("[data-copy-diagnostics]")),
@@ -1100,6 +1149,29 @@ export async function runPackagedSmoke(
         `Empty Space onboarding is incomplete: ${JSON.stringify(onboarding)}`
       )
     }
+    const densePreparationStartedAt = performance.now()
+    const denseRuntime = createEidosFile(
+      path.join(spaceRoot, "dense-100000.eidos"),
+      { title: "Dense Grid" }
+    )
+    try {
+      denseRuntime.importTable(
+        {
+          name: "Records",
+          fields: [
+            { name: "Name", type: "text", isRecordLabel: true },
+            { name: "Score", type: "number" },
+          ],
+        },
+        Array.from({ length: 100_000 }, (_, index) => ({
+          Name: `Record ${String(index + 1).padStart(6, "0")}`,
+          Score: index + 1,
+        }))
+      )
+    } finally {
+      denseRuntime.close()
+    }
+    const densePreparationMs = performance.now() - densePreparationStartedAt
     window = await controller.createSpaceWindow(spaceRoot, observeWindow)
     onboardingWindow.destroy()
     onboardingWindow = null
@@ -1118,6 +1190,7 @@ export async function runPackagedSmoke(
     }
     report.onboarding = onboarding
     report.performance.coldStartMs = coldStartMs
+    report.performance.denseGrid.preparationMs = densePreparationMs
     const routedWindow = await controller.openEidosFilePath(
       path.join(spaceRoot, "projects", "content-calendar.eidos")
     )

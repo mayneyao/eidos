@@ -49,8 +49,12 @@ watcher, native Eidos File validation/open path, and a generated canonical
 the first 100-row Grid query and five ordinary cell commits against the PRD P95
 budgets. The 10/100 MiB fixtures are valid SQLite files with padded extents, so
 they prove file-size handling and open overhead but not representative 100 MiB
-high-density user data. Packaged cold-start and utility-process timings remain
-separate evidence before claiming the complete application SLO.
+high-density user data. Packaged acceptance independently generates a canonical
+100,000-row table after the cold-start measurement, then gates Explorer click
+through renderer/main/utility open, row-count projection, a non-zero Glide
+canvas, and two animation frames at 2,000 ms. This is rendered-first-frame
+evidence; it is not a substitute for scroll/repaint P95 or a user-perceived
+long-session benchmark.
 
 ## Environment selection
 

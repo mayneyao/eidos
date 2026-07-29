@@ -143,6 +143,9 @@ file from the onboarding action, and requires the canonical editor to open it.
 Before that it measures process launch through a usable Welcome renderer; it
 also measures each tree click through main and the utility process to the
 rendered canonical editor.
+The smoke also generates a real 100,000-row Eidos File through the native
+runtime, records preparation separately, and gates Explorer-to-sized-Grid
+canvas first frame without treating that single frame as a scrolling P95.
 It then performs real row mutations, asserts the canonical shared editor
 controls and the staging service projection, opens four canonical paths
 through the Pierre Shadow DOM and verifies the three-entry LRU, exercises the

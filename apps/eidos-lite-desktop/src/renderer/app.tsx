@@ -1244,6 +1244,8 @@ export function App() {
               <section
                 className="file-editor"
                 aria-label={activeFile.relativePath}
+                data-eidos-file-relative-path={activeFile.relativePath}
+                data-eidos-file-row-count={activeTable.rowCount}
               >
                 <EidosFileWorkbench
                   key={activeFile.sessionId}

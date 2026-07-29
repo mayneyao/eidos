@@ -164,6 +164,12 @@ try {
     report.performance?.utilityOpenP95Ms <= 0 ||
     report.performance?.utilityOpenP95Ms > 1_500 ||
     report.performance?.utilityOpenMs?.length !== 4 ||
+    report.performance?.denseGrid?.rows !== 100_000 ||
+    report.performance?.denseGrid?.preparationMs <= 0 ||
+    report.performance?.denseGrid?.renderedFirstFrameMs <= 0 ||
+    report.performance?.denseGrid?.renderedFirstFrameMs > 2_000 ||
+    report.performance?.denseGrid?.canvasWidth <= 0 ||
+    report.performance?.denseGrid?.canvasHeight <= 0 ||
     Object.values(report.launchRouting ?? {}).some((value) => value !== true) ||
     Object.keys(report.launchRouting ?? {}).length !== 3 ||
     report.diagnostics?.action !== true ||
