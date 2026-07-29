@@ -37,6 +37,7 @@ import {
   SpaceCloneCoordinator,
   type CloneRecoveryResult,
 } from "./sync/space-clone-coordinator"
+import { macosTrafficLightPosition, type LiteWindowKind } from "./window-chrome"
 
 export class WindowController {
   private readonly sessionByWebContents = new Map<number, SpaceSession>()
@@ -612,7 +613,7 @@ export class WindowController {
 
   private createWindow(
     showWhenReady = true,
-    kind: "welcome" | "space" = "space"
+    kind: LiteWindowKind = "space"
   ): BrowserWindow {
     const welcome = kind === "welcome"
     const window = new BrowserWindow({
@@ -625,7 +626,7 @@ export class WindowController {
       titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
       ...(process.platform === "darwin"
         ? {
-            trafficLightPosition: { x: 16, y: 15 },
+            trafficLightPosition: macosTrafficLightPosition(kind),
             vibrancy: "under-window" as const,
             visualEffectState: "active" as const,
           }
