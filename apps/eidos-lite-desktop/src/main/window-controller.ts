@@ -36,8 +36,11 @@ export class WindowController {
 
   constructor(private readonly services: EidosLiteServiceEnvironment) {}
 
-  createWelcomeWindow(): BrowserWindow {
-    const window = this.createWindow()
+  createWelcomeWindow(
+    beforeLoad?: (window: BrowserWindow) => void
+  ): BrowserWindow {
+    const window = this.createWindow(beforeLoad === undefined)
+    beforeLoad?.(window)
     void this.loadRenderer(window)
     return window
   }

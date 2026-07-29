@@ -51,11 +51,13 @@ async function executablePath() {
 
 async function run(executable, space, result) {
   await new Promise((resolve, reject) => {
+    const launchedAtMs = Date.now()
     const child = spawn(executable, [], {
       env: {
         ...process.env,
         EIDOS_LITE_SMOKE_SPACE: space,
         EIDOS_LITE_SMOKE_RESULT: result,
+        EIDOS_LITE_SMOKE_LAUNCHED_AT_MS: String(launchedAtMs),
       },
       stdio: "inherit",
     })
@@ -157,6 +159,11 @@ try {
     report.environment?.syncRemoteOrigin !==
       "https://sync-staging.eidos.space" ||
     report.environment?.stagingBadge !== true ||
+    report.performance?.coldStartMs <= 0 ||
+    report.performance?.coldStartMs > 2_000 ||
+    report.performance?.utilityOpenP95Ms <= 0 ||
+    report.performance?.utilityOpenP95Ms > 1_500 ||
+    report.performance?.utilityOpenMs?.length !== 4 ||
     Object.values(report.onboarding ?? {}).some((value) => value !== true) ||
     Object.keys(report.onboarding ?? {}).length !== 6 ||
     report.probes?.length !== 3 ||

@@ -131,6 +131,9 @@ fallback described by `graft-runtime-manifest.json`; normal execution does not
 invoke it.
 The packaged smoke first opens a real empty Space, creates the first `.eidos`
 file from the onboarding action, and requires the canonical editor to open it.
+Before that it measures process launch through a usable Welcome renderer; it
+also measures each tree click through main and the utility process to the
+rendered canonical editor.
 It then performs real row mutations, asserts the canonical shared editor
 controls and the staging service projection, opens four canonical paths
 through the Pierre Shadow DOM and verifies the three-entry LRU, exercises the

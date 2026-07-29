@@ -269,7 +269,10 @@ function Welcome({
   onClone(): void
 }) {
   return (
-    <main className="welcome-shell">
+    <main
+      className="welcome-shell"
+      data-welcome-ready={appInfo ? "true" : "false"}
+    >
       <section className="welcome-copy" aria-labelledby="welcome-title">
         <p className="eyebrow">
           Eidos Lite

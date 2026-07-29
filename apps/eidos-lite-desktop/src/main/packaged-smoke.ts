@@ -5,6 +5,11 @@ import type { BrowserWindow } from "electron"
 import type { WindowController } from "./window-controller"
 
 interface RendererSmokeResult {
+  performance: {
+    coldStartMs: number
+    utilityOpenMs: number[]
+    utilityOpenP95Ms: number
+  }
   onboarding: {
     emptyState: boolean
     createAction: boolean
@@ -193,6 +198,33 @@ const emptySpaceOnboardingProbe = `
 })()
 `
 
+const welcomeProbe = `
+(async () => {
+  const deadline = Date.now() + 15000
+  while (Date.now() < deadline) {
+    const welcome = document.querySelector(
+      '[data-welcome-ready="true"]'
+    )
+    if (
+      welcome &&
+      [...welcome.querySelectorAll("button")].some((button) =>
+        button.textContent?.includes("New Space")
+      ) &&
+      [...welcome.querySelectorAll("button")].some((button) =>
+        button.textContent?.includes("Open Space")
+      ) &&
+      [...welcome.querySelectorAll("button")].some((button) =>
+        button.textContent?.includes("Clone Synced Space")
+      )
+    ) {
+      return true
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  throw new Error("Timed out waiting for the usable Welcome window")
+})()
+`
+
 const rendererProbe = `
 (async () => {
   const waitFor = async (read, label) => {
@@ -243,18 +275,35 @@ const rendererProbe = `
     [...treeHost.shadowRoot.querySelectorAll('[data-type="item"]')].find(
       (candidate) => candidate.dataset.itemPath === relativePath
     )
+  const utilityOpenMs = []
   for (let index = 0; index < 4; index += 1) {
     const relativePath = eidosPaths[index]
     const button = await waitFor(
       () => treeItem(relativePath),
       relativePath + " in Space Explorer"
     )
+    const openStartedAt = performance.now()
     button.click()
     await waitFor(
       () => document.querySelector(
         '[data-cached-file-path="' + CSS.escape(relativePath) + '"]'
       ),
       "cached Eidos File " + (index + 1)
+    )
+    await waitFor(
+      () => document.querySelector(
+        '.file-editor[aria-label="' + CSS.escape(relativePath) + '"] ' +
+        '[data-eidos-file-editor-shell]'
+      ),
+      "rendered Eidos File " + (index + 1)
+    )
+    utilityOpenMs.push(performance.now() - openStartedAt)
+  }
+  const utilityOpenP95Ms = Math.max(...utilityOpenMs)
+  if (utilityOpenP95Ms > 1500) {
+    throw new Error(
+      "Packaged utility open exceeded the PRD P95 budget: " +
+        JSON.stringify(utilityOpenMs)
     )
   }
   const cachedFiles = [...document.querySelectorAll("[data-cached-file-path]")]
@@ -886,6 +935,11 @@ const rendererProbe = `
   await waitFor(() => document.querySelector(".version-panel"), "Version History panel")
   await new Promise((resolve) => setTimeout(resolve, 500))
   return {
+    performance: {
+      coldStartMs: 0,
+      utilityOpenMs,
+      utilityOpenP95Ms,
+    },
     environment: {
       ...appInfo.services,
       stagingBadge: Boolean(stagingBadge),
@@ -925,9 +979,11 @@ const rendererProbe = `
 export async function runPackagedSmoke(
   controller: WindowController,
   spaceRoot: string,
-  resultPath: string
+  resultPath: string,
+  launchedAtMs: number
 ): Promise<void> {
   const failures: string[] = []
+  let welcomeWindow: BrowserWindow | null = null
   let onboardingWindow: BrowserWindow | null = null
   let window: BrowserWindow | null = null
   const observeWindow = (candidate: BrowserWindow) => {
@@ -942,6 +998,27 @@ export async function runPackagedSmoke(
     })
   }
   try {
+    let welcomeLoaded: (() => void) | undefined
+    const welcomeDidLoad = new Promise<void>((resolve) => {
+      welcomeLoaded = resolve
+    })
+    welcomeWindow = controller.createWelcomeWindow((candidate) => {
+      observeWindow(candidate)
+      candidate.webContents.once("did-finish-load", () => welcomeLoaded?.())
+    })
+    await welcomeDidLoad
+    const welcomeReady = (await welcomeWindow.webContents.executeJavaScript(
+      welcomeProbe,
+      true
+    )) as boolean
+    if (!welcomeReady) throw new Error("Welcome window did not become usable")
+    const coldStartMs = Date.now() - launchedAtMs
+    if (coldStartMs <= 0 || coldStartMs > 2_000) {
+      throw new Error(
+        `Packaged cold start exceeded the PRD P95 budget: ${coldStartMs}ms`
+      )
+    }
+
     const onboardingRoot = path.join(
       path.dirname(spaceRoot),
       "Empty Space Onboarding"
@@ -951,6 +1028,8 @@ export async function runPackagedSmoke(
       onboardingRoot,
       observeWindow
     )
+    welcomeWindow.destroy()
+    welcomeWindow = null
     let onboarding: EmptySpaceOnboardingResult
     try {
       onboarding = (await onboardingWindow.webContents.executeJavaScript(
@@ -969,10 +1048,9 @@ export async function runPackagedSmoke(
         `Empty Space onboarding is incomplete: ${JSON.stringify(onboarding)}`
       )
     }
+    window = await controller.createSpaceWindow(spaceRoot, observeWindow)
     onboardingWindow.destroy()
     onboardingWindow = null
-
-    window = await controller.createSpaceWindow(spaceRoot, observeWindow)
     let report: RendererSmokeResult
     try {
       report = (await window.webContents.executeJavaScript(
@@ -987,6 +1065,7 @@ export async function runPackagedSmoke(
       throw new Error(`Renderer smoke failed at ${step}: ${String(error)}`)
     }
     report.onboarding = onboarding
+    report.performance.coldStartMs = coldStartMs
     const session = controller.requireSession(window.webContents)
     report.runtimeCache = {
       residentPaths: session.runtimePool.residentRelativePaths(),
@@ -1058,6 +1137,9 @@ export async function runPackagedSmoke(
       })
     )
   } finally {
+    if (welcomeWindow && !welcomeWindow.isDestroyed()) {
+      welcomeWindow.destroy()
+    }
     if (onboardingWindow && !onboardingWindow.isDestroyed()) {
       onboardingWindow.destroy()
     }

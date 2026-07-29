@@ -16,6 +16,7 @@ app.setName("Eidos Lite")
 
 const smokeSpace = process.env.EIDOS_LITE_SMOKE_SPACE
 const smokeResult = process.env.EIDOS_LITE_SMOKE_RESULT
+const smokeLaunchedAtMs = Number(process.env.EIDOS_LITE_SMOKE_LAUNCHED_AT_MS)
 if (smokeResult) {
   const smokeUserData = path.join(path.dirname(smokeResult), "user-data")
   fs.mkdirSync(smokeUserData, { recursive: true })
@@ -74,7 +75,15 @@ void app.whenReady().then(async () => {
       closeIpc = registerIpc(controller, services, syncControl, {
         syncFailuresForTesting: PACKAGED_SYNC_FAILURE_SEQUENCE,
       }).close
-      await runPackagedSmoke(controller, smokeSpace, smokeResult)
+      if (!Number.isFinite(smokeLaunchedAtMs) || smokeLaunchedAtMs <= 0) {
+        throw new Error("Packaged smoke requires its process launch timestamp")
+      }
+      await runPackagedSmoke(
+        controller,
+        smokeSpace,
+        smokeResult,
+        smokeLaunchedAtMs
+      )
       app.exit(0)
     } catch (error) {
       console.error(error)

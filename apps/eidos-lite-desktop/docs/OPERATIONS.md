@@ -83,12 +83,17 @@ requests.
 
 The packaged smoke launches the actual unpacked executable and loads its real
 sandboxed preload and renderer in hidden `BrowserWindow` instances. It first
-binds a real empty Space, creates `Getting Started.eidos` through the visible
+gates process launch through a usable Welcome window at 2,000 ms, including
+Electron startup, main initialization, preload IPC, and renderer readiness. It
+then binds a real empty Space, creates `Getting Started.eidos` through the visible
 onboarding action, and requires the canonical editor to open the new ordinary
 file. It then binds a temporary Space containing four real fixtures in separate
 directories, clicks all four
 through the `@pierre/trees` Shadow DOM, and requires one visible editor plus a
 three-entry renderer/runtime LRU. It verifies canonical-path selection,
+records every tree-click-to-canonical-editor latency, and requires their maximum
+to remain within 1,500 ms. This includes renderer, main IPC, utility-process
+spawn/open/validation, snapshot transfer, and editor render.
 keyboard resize, collapse, and reopen before exercising the editor. This keeps
 package integration and layout errors
 inside the regression boundary instead of testing only main-process services.
