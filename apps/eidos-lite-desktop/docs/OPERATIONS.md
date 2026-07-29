@@ -2,6 +2,11 @@
 
 ## Verification ladder
 
+The builder reads the official icon sources from `apps/web-app/public` for all
+three target families. `src/main/package-contract.test.ts` verifies their file
+signatures together with the Lite app id, product name, author, and homepage;
+electron-builder must not report default-icon or missing-author warnings.
+
 Run native-runtime operations sequentially. The repository shares one linked
 `better-sqlite3` binary between Node and Electron.
 

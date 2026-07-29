@@ -30,15 +30,18 @@
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "mac": {
     "target": ["dmg", "zip"],
+    "icon": "../web-app/public/logo.icns",
     "hardenedRuntime": true,
     "gatekeeperAssess": false,
     "notarize": false
   },
   "win": {
-    "target": ["nsis"]
+    "target": ["nsis"],
+    "icon": "../web-app/public/logo.ico"
   },
   "linux": {
-    "target": ["AppImage"]
+    "target": ["AppImage"],
+    "icon": "../web-app/public/logo.png"
   },
   "protocols": {
     "name": "eidos-lite",

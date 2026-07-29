@@ -5,6 +5,11 @@ folder as a Space and working with multiple `.eidos` files in that folder.
 It does not import the legacy Desktop application or its Markdown, extension,
 AI, browser, or terminal architecture.
 
+The independent package uses the checked-in official Eidos ICNS, ICO, and
+1024px PNG as source assets for macOS, Windows, and Linux. A package contract
+test prevents builds from silently falling back to the Electron icon or losing
+the `space.eidos.lite` identity.
+
 The current architecture slice supports local editing through an explicit
 runtime mutation whitelist. The right-hand editor composes the same
 `eidos-file-ui` View, Query, Fields, and Sheet controls as `eidos-file-web`,
