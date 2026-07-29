@@ -157,6 +157,8 @@ try {
     report.environment?.syncRemoteOrigin !==
       "https://sync-staging.eidos.space" ||
     report.environment?.stagingBadge !== true ||
+    Object.values(report.onboarding ?? {}).some((value) => value !== true) ||
+    Object.keys(report.onboarding ?? {}).length !== 6 ||
     report.probes?.length !== 3 ||
     report.runtimeCache?.residentPaths?.length > 3 ||
     Object.values(report.fileLifecycle ?? {}).some((value) => value !== true) ||

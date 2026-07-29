@@ -54,8 +54,11 @@ and editing do not perform discovery, login, entitlement, Billing, or Remote
 requests.
 
 The packaged smoke launches the actual unpacked executable and loads its real
-sandboxed preload and renderer in a hidden `BrowserWindow`. It binds a temporary
-Space containing four real fixtures in separate directories, clicks all four
+sandboxed preload and renderer in hidden `BrowserWindow` instances. It first
+binds a real empty Space, creates `Getting Started.eidos` through the visible
+onboarding action, and requires the canonical editor to open the new ordinary
+file. It then binds a temporary Space containing four real fixtures in separate
+directories, clicks all four
 through the `@pierre/trees` Shadow DOM, and requires one visible editor plus a
 three-entry renderer/runtime LRU. It verifies canonical-path selection,
 keyboard resize, collapse, and reopen before exercising the editor. This keeps

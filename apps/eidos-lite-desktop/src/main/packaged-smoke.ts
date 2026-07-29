@@ -5,6 +5,14 @@ import type { BrowserWindow } from "electron"
 import type { WindowController } from "./window-controller"
 
 interface RendererSmokeResult {
+  onboarding: {
+    emptyState: boolean
+    createAction: boolean
+    dialog: boolean
+    extensionNormalized: boolean
+    fileCreated: boolean
+    editorOpened: boolean
+  }
   environment: {
     name: string
     accountOrigin: string
@@ -118,6 +126,72 @@ interface RendererSmokeResult {
   }
   inlineError?: string
 }
+
+type EmptySpaceOnboardingResult = RendererSmokeResult["onboarding"]
+
+const emptySpaceOnboardingProbe = `
+(async () => {
+  const waitFor = async (read, label) => {
+    const deadline = Date.now() + 15000
+    while (Date.now() < deadline) {
+      const value = read()
+      if (value) return value
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    throw new Error("Timed out waiting for " + label)
+  }
+  if (!window.eidosLite) throw new Error("window.eidosLite preload API is missing")
+  window.__eidosLiteSmokeStep = "empty Space onboarding"
+  const initialSpace = await window.eidosLite.getSpace()
+  if (!initialSpace || initialSpace.eidosFileCount !== 0) {
+    throw new Error("Onboarding smoke requires an empty bound Space")
+  }
+  const emptyState = await waitFor(
+    () => document.querySelector("[data-empty-space-onboarding]"),
+    "empty Space onboarding"
+  )
+  const createAction = emptyState.querySelector("[data-create-first-eidos]")
+  if (!createAction) throw new Error("Create-first-file action is missing")
+  createAction.click()
+  const dialog = await waitFor(
+    () => document.querySelector('form[aria-label="New Eidos File"]'),
+    "New Eidos File dialog"
+  )
+  const input = dialog.querySelector("input")
+  if (!input) throw new Error("New Eidos File name input is missing")
+  const setValue = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value"
+  )?.set
+  if (!setValue) throw new Error("Cannot set the Eidos File name")
+  setValue.call(input, "Getting Started")
+  input.dispatchEvent(new Event("input", { bubbles: true }))
+  dialog.requestSubmit()
+  const createdPath = "Getting Started.eidos"
+  await waitFor(
+    () => document.querySelector(
+      '[data-cached-file-path="' + CSS.escape(createdPath) + '"]'
+    ),
+    "created Eidos File runtime"
+  )
+  const editor = await waitFor(
+    () => document.querySelector('[data-eidos-file-editor-shell]'),
+    "created Eidos File editor"
+  )
+  const finalSpace = await window.eidosLite.getSpace()
+  const createdEntry = finalSpace?.entries.find(
+    (entry) => entry.relativePath === createdPath && entry.kind === "eidos"
+  )
+  return {
+    emptyState: Boolean(emptyState),
+    createAction: Boolean(createAction),
+    dialog: Boolean(dialog),
+    extensionNormalized: createdEntry?.name === createdPath,
+    fileCreated: finalSpace?.eidosFileCount === 1 && Boolean(createdEntry),
+    editorOpened: Boolean(editor),
+  }
+})()
+`
 
 const rendererProbe = `
 (async () => {
@@ -854,22 +928,51 @@ export async function runPackagedSmoke(
   resultPath: string
 ): Promise<void> {
   const failures: string[] = []
+  let onboardingWindow: BrowserWindow | null = null
   let window: BrowserWindow | null = null
-  try {
-    window = await controller.createSpaceWindow(spaceRoot, (candidate) => {
-      candidate.webContents.on(
-        "preload-error",
-        (_event, preloadPath, error) => {
-          failures.push(`Preload ${preloadPath}: ${error.message}`)
-        }
-      )
-      candidate.webContents.on("render-process-gone", (_event, details) => {
-        failures.push(`Renderer exited: ${details.reason}`)
-      })
-      candidate.webContents.on("console-message", (event) => {
-        if (event.level === "error") failures.push(`Console: ${event.message}`)
-      })
+  const observeWindow = (candidate: BrowserWindow) => {
+    candidate.webContents.on("preload-error", (_event, preloadPath, error) => {
+      failures.push(`Preload ${preloadPath}: ${error.message}`)
     })
+    candidate.webContents.on("render-process-gone", (_event, details) => {
+      failures.push(`Renderer exited: ${details.reason}`)
+    })
+    candidate.webContents.on("console-message", (event) => {
+      if (event.level === "error") failures.push(`Console: ${event.message}`)
+    })
+  }
+  try {
+    const onboardingRoot = path.join(
+      path.dirname(spaceRoot),
+      "Empty Space Onboarding"
+    )
+    await fs.mkdir(onboardingRoot)
+    onboardingWindow = await controller.createSpaceWindow(
+      onboardingRoot,
+      observeWindow
+    )
+    let onboarding: EmptySpaceOnboardingResult
+    try {
+      onboarding = (await onboardingWindow.webContents.executeJavaScript(
+        emptySpaceOnboardingProbe,
+        true
+      )) as EmptySpaceOnboardingResult
+    } catch (error) {
+      const step = await onboardingWindow.webContents.executeJavaScript(
+        "window.__eidosLiteSmokeStep || 'unknown'",
+        true
+      )
+      throw new Error(`Onboarding smoke failed at ${step}: ${String(error)}`)
+    }
+    if (Object.values(onboarding).some((value) => !value)) {
+      throw new Error(
+        `Empty Space onboarding is incomplete: ${JSON.stringify(onboarding)}`
+      )
+    }
+    onboardingWindow.destroy()
+    onboardingWindow = null
+
+    window = await controller.createSpaceWindow(spaceRoot, observeWindow)
     let report: RendererSmokeResult
     try {
       report = (await window.webContents.executeJavaScript(
@@ -883,6 +986,7 @@ export async function runPackagedSmoke(
       )
       throw new Error(`Renderer smoke failed at ${step}: ${String(error)}`)
     }
+    report.onboarding = onboarding
     const session = controller.requireSession(window.webContents)
     report.runtimeCache = {
       residentPaths: session.runtimePool.residentRelativePaths(),
@@ -954,6 +1058,9 @@ export async function runPackagedSmoke(
       })
     )
   } finally {
+    if (onboardingWindow && !onboardingWindow.isDestroyed()) {
+      onboardingWindow.destroy()
+    }
     if (window && !window.isDestroyed()) window.destroy()
     await controller.closeAll()
   }

@@ -120,8 +120,10 @@ Packaging includes the platform-specific published Node-API package outside
 ASAR for the utility process. It currently also bundles the verified CLI
 fallback described by `graft-runtime-manifest.json`; normal execution does not
 invoke it.
-The packaged smoke performs real row mutations, asserts the canonical shared
-editor controls and the staging service projection, opens four canonical paths
+The packaged smoke first opens a real empty Space, creates the first `.eidos`
+file from the onboarding action, and requires the canonical editor to open it.
+It then performs real row mutations, asserts the canonical shared editor
+controls and the staging service projection, opens four canonical paths
 through the Pierre Shadow DOM and verifies the three-entry LRU, exercises the
 Explorer file lifecycle, resizes, collapses, and reopens the Explorer,
 initializes Local versioning, reads row-aware Changes and History, creates and

@@ -2062,6 +2062,42 @@ button:focus-visible {
   font-size: 0.85em;
 }
 
+.editor-empty-action {
+  display: inline-flex;
+  min-height: 2.15rem;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 1rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--accent-strong);
+  border-radius: 0.35rem;
+  color: oklch(0.97 0.008 248);
+  background: var(--accent-strong);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.editor-empty-action:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.editor-empty-action:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.editor-empty-action:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.editor-empty-action svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
 .space-context-menu {
   position: fixed;
   z-index: 80;

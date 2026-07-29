@@ -155,8 +155,11 @@ the marker; it never deletes the final folder.
 
 ## Space and file lifecycle
 
-The welcome window exposes New Space, Open Space, and Recent Spaces. Creating
-a Space makes a normal user-owned folder; opening records its canonical
+The welcome window exposes New Space, Open Space, Clone Synced Space, and Recent
+Spaces. Creating a Space makes a normal user-owned folder. An empty Space
+offers one prominent action that creates its first canonical `.eidos` through
+the same guarded Explorer mutation path and opens it immediately; it does not
+hide the new user behind an empty tree context menu. Opening records its canonical
 filesystem identity in an owner-only `userData/recent-spaces.json`. The recent
 list is written by temporary-file rename, deduplicates canonical Spaces, marks
 missing folders unavailable, and removing an item never deletes the folder.

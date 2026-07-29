@@ -1173,6 +1173,31 @@ export function App() {
                   onError={(cause) => setError(errorMessage(cause))}
                 />
               </section>
+            ) : space.eidosFileCount === 0 ? (
+              <section
+                className="editor-empty editor-empty-onboarding"
+                data-empty-space-onboarding
+              >
+                <Database aria-hidden="true" />
+                <h2>Create your first Eidos File</h2>
+                <p>
+                  Start with a local <code>.eidos</code> file inside this Space.
+                  It remains an ordinary file you own and can move or back up.
+                </p>
+                <button
+                  type="button"
+                  className="editor-empty-action"
+                  data-create-first-eidos
+                  disabled={
+                    pathMutationBusy || space.operation.phase !== "ready"
+                  }
+                  onClick={() =>
+                    setPathDialog({ action: "create-eidos", entry: null })
+                  }
+                >
+                  <FilePlus2 /> New Eidos File
+                </button>
+              </section>
             ) : (
               <section className="editor-empty">
                 <Database aria-hidden="true" />
