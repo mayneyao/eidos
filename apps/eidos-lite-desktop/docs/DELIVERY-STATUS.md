@@ -64,8 +64,10 @@ The final local audit passed:
   committed file id, revision, table identities and row counts unchanged.
 - The operation gate rejects an initial owner-state journal `ENOSPC` before
   closing SQLite handles or entering Graft, then returns to Ready with Local
-  mutations enabled. Data-volume `SQLITE_FULL` remains an open destructive
-  gate and is not claimed by this state-volume test.
+  mutations enabled. A separate real SQLite `SQLITE_FULL` gate locks the data
+  file at its current page count, verifies complete CSV table/row/revision
+  rollback and full file validity, then raises the limit and successfully edits
+  through the same runtime.
 - TypeScript, oxlint over the Lite directory, oxfmt over all tracked Lite files
   and `git diff --check` passed.
 
@@ -105,11 +107,11 @@ The following must stay visibly open before Public v1:
 6. Re-run the owner-only staging OAuth acceptance for the release candidate,
    including subscription/Credits refresh, whole-Space enable, second-device
    clone, offline edits, divergence and both recovery copies.
-7. Add destructive automation for disk-full mutation, application termination
-   during pull/publish, clone network interruption, object-written/ref-publish
-   failure, binary-file conflict/Keep-both, quota crossing, entitlement expiry
-   during Sync, delayed/duplicate/out-of-order Credits webhooks and subscription
-   restoration with pending checkpoints.
+7. Add destructive automation for application termination during pull/publish,
+   clone network interruption, object-written/ref-publish failure, binary-file
+   conflict/Keep-both, quota crossing, entitlement expiry during Sync,
+   delayed/duplicate/out-of-order Credits webhooks and subscription restoration
+   with pending checkpoints.
 8. Provide the Sync service status page, alerting, quota dashboard and service
    runbook, and reconcile Privacy/Pricing/application copy for upload scope and
    encryption claims.

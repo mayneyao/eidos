@@ -281,6 +281,12 @@ absent from that worktree, and its open Eidos File editor stayed usable.
   with the canonical import dialog left recoverable. Parsing and field
   inference happen in the selected Eidos File utility runtime. A failed import
   must not publish a partial table; choose another file or correct the source.
+- **SQLite reports `SQLITE_FULL` during CSV import or another mutation:** the
+  native Runtime transaction must roll back the complete table/row/revision
+  change, keep the `.eidos` file valid, and surface the capacity error. Free
+  space, then retry through the same open runtime; do not create a recovery copy
+  or claim a partial import. The destructive gate uses a real SQLite
+  `max_page_count` limit rather than a mocked write error.
 - **CSV export is canceled:** write nothing. The renderer receives no absolute
   output path. A confirmed export writes only the generated CSV bytes to the
   location selected by the native save dialog; it never changes the Space.
@@ -308,8 +314,8 @@ absent from that worktree, and its open Eidos File editor stayed usable.
   unwritable:** abort before closing any SQLite handle or invoking Graft, return
   the Space gate to Ready, and keep Local editing available. A materializing
   operation must never start without its first durable owner-only journal
-  entry. This does not cover a SQLite data-volume `SQLITE_FULL`, which remains
-  a separate destructive-test gate.
+  entry. Data-volume `SQLITE_FULL` is covered independently by the native
+  Eidos File transaction gate above.
 
 - **Expected Sync failure reaches renderer:** do not throw a raw account,
   Remote, or Graft message over IPC. Return the main-classified failure plus

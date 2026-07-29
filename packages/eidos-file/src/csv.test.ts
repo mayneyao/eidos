@@ -188,6 +188,57 @@ describe("Eidos File CSV import", () => {
     eidosFile.close()
   })
 
+  it("rolls back a real SQLite disk-full import and remains editable", () => {
+    const eidosFile = createEidosFile(path.join(root, "disk-full.eidos"), {
+      title: "Disk-full target",
+    })
+    const connection = eidosFile.connection
+    const originalRevision = eidosFile.metadata().revision
+    const pageCount = connection.get<{ page_count: number }>(
+      "PRAGMA page_count"
+    )!.page_count
+    connection.exec(`PRAGMA max_page_count = ${pageCount}`)
+
+    try {
+      const largeCsv = [
+        "Name",
+        ...Array.from(
+          { length: 512 },
+          (_, index) => `${index}-${"x".repeat(8_192)}`
+        ),
+      ].join("\n")
+      let failure: unknown
+      try {
+        importEidosFileCsv(eidosFile, {
+          name: "disk-full.csv",
+          content: largeCsv,
+        })
+      } catch (error) {
+        failure = error
+      }
+
+      expect(failure).toMatchObject({ code: "SQLITE_FULL" })
+      expect(eidosFile.listTables()).toEqual([])
+      expect(eidosFile.metadata().revision).toBe(originalRevision)
+      expect(eidosFile.validate({ level: "full" })).toMatchObject({
+        valid: true,
+      })
+
+      connection.exec("PRAGMA max_page_count = 2147483646")
+      const imported = importEidosFileCsv(eidosFile, {
+        name: "recovered.csv",
+        content: "Name\nRecovered",
+      })
+      expect(imported.importedRowCount).toBe(1)
+      expect(eidosFile.listRows(imported.table.id)).toEqual([
+        expect.objectContaining({ Name: "Recovered" }),
+      ])
+    } finally {
+      connection.exec("PRAGMA max_page_count = 2147483646")
+      eidosFile.close()
+    }
+  })
+
   it("serializes visible field names and displayed values as RFC 4180 rows", () => {
     const fields = [
       {
