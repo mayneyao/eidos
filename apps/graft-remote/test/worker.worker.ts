@@ -31,6 +31,10 @@ interface RepositoryListResponse {
   }>
 }
 
+interface SyncUsagePayload {
+  usedBytes: number
+}
+
 beforeEach(() => {
   mockIdentityService()
 })
@@ -273,6 +277,72 @@ describe("eidos.space Graft Remote", () => {
     expect(
       await env.GRAFT_OBJECTS.list({ prefix: "__eidos_sync_staging/" })
     ).toMatchObject({ objects: [] })
+  })
+
+  it("publishes a pack, index, and ref through one quota-tracked request", async () => {
+    const { payload } = await createRepository("alice-token", "receive-pack")
+    const usageBefore = await serviceFetch("/api/graft/usage", {
+      headers: { Authorization: "Bearer alice-token" },
+    })
+    const usedBytesBefore = ((await usageBefore.json()) as SyncUsagePayload)
+      .usedBytes
+    const packId = "c".repeat(64)
+    const suffix = "/receive-pack/refs/heads/main"
+    const first = await protocolFetch(payload.remote_url, suffix, {
+      init: {
+        method: "POST",
+        headers: receivePackHeaders(packId, undefined, "new\n", 4, 3),
+        body: "packidx",
+      },
+    })
+    expect(first.status, await first.clone().text()).toBe(204)
+    expect(first.headers.get("server-timing")).toMatch(
+      /^auth;dur=\d+\.\d{3}, directory;dur=\d+\.\d{3}, total;dur=\d+\.\d{3}$/
+    )
+
+    expect(
+      await binaryText(
+        await protocolFetch(
+          payload.remote_url,
+          `/raw/objects/pack/${packId}.pack`
+        )
+      )
+    ).toBe("pack")
+    expect(
+      await binaryText(
+        await protocolFetch(
+          payload.remote_url,
+          `/raw/objects/pack/${packId}.idx`
+        )
+      )
+    ).toBe("idx")
+    expect(
+      await binaryText(
+        await protocolFetch(payload.remote_url, "/raw/refs/heads/main")
+      )
+    ).toBe("new\n")
+
+    const retry = await protocolFetch(payload.remote_url, suffix, {
+      init: {
+        method: "POST",
+        headers: receivePackHeaders(packId, "new\n", "next\n", 4, 3),
+        body: "ignored",
+      },
+    })
+    expect(retry.status, await retry.clone().text()).toBe(204)
+    expect(
+      await binaryText(
+        await protocolFetch(payload.remote_url, "/raw/refs/heads/main")
+      )
+    ).toBe("next\n")
+
+    const usage = await serviceFetch("/api/graft/usage", {
+      headers: { Authorization: "Bearer alice-token" },
+    })
+    expect(await usage.json()).toMatchObject({
+      usedBytes: usedBytesBefore + 7,
+      reservedBytes: 0,
+    })
   })
 
   it("serializes account-wide byte reservations and rejects quota overflow", async () => {
@@ -681,6 +751,30 @@ function activeAccessGrant(): SyncAccessGrant {
     quotaBytes: 10 * 1024 * 1024 * 1024,
     deviceLimit: 0,
   }
+}
+
+function receivePackHeaders(
+  packId: string,
+  expected: string | undefined,
+  replacement: string,
+  packBytes: number,
+  indexBytes: number
+): Headers {
+  return new Headers({
+    "content-length": (packBytes + indexBytes).toString(),
+    "x-graft-expected-present": (expected !== undefined).toString(),
+    "x-graft-expected-hex": expected === undefined ? "" : textHex(expected),
+    "x-graft-index-bytes": indexBytes.toString(),
+    "x-graft-pack-bytes": packBytes.toString(),
+    "x-graft-pack-id": packId,
+    "x-graft-ref-replacement-hex": textHex(replacement),
+  })
+}
+
+function textHex(value: string): string {
+  return [...new TextEncoder().encode(value)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")
 }
 
 function throwingBackend(): GraftRepositoryBackend {

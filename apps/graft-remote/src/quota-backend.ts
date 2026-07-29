@@ -7,6 +7,7 @@ import {
   type GraftObjectMetadata,
   type GraftRepositoryBackend,
   type GraftWriteBody,
+  type GraftWriteOptions,
 } from "@eidos.space/graft-remote"
 
 import type { SyncUsageDurableObject, SyncUsageSummary } from "./usage"
@@ -73,15 +74,18 @@ export class QuotaTrackedRepositoryBackend implements GraftRepositoryBackend {
   async putIfAbsent(
     path: string,
     value: GraftWriteBody,
-    kind: "transactional" | "immutable"
+    kind: "transactional" | "immutable",
+    options?: GraftWriteOptions
   ): Promise<boolean> {
     if (kind === "transactional") {
-      return await this.#delegate.putIfAbsent(path, value, kind)
+      return await this.#delegate.putIfAbsent(path, value, kind, options)
     }
 
+    const declaredContentLength =
+      options?.contentLength ?? this.#pathContentLength
     if (this.#mode === "off") {
-      if (value instanceof Uint8Array || this.#pathContentLength !== null) {
-        return await this.#delegate.putIfAbsent(path, value, kind)
+      if (value instanceof Uint8Array || declaredContentLength !== null) {
+        return await this.#delegate.putIfAbsent(path, value, kind, options)
       }
       const staged = await this.stageUnknownLength(value)
       let finished = false
@@ -101,14 +105,16 @@ export class QuotaTrackedRepositoryBackend implements GraftRepositoryBackend {
     }
 
     let knownBytes =
-      value instanceof Uint8Array ? value.byteLength : this.#pathContentLength
+      value instanceof Uint8Array ? value.byteLength : declaredContentLength
     let staged: StagedR2Body | null = null
     let stagedFinished = false
     let storageValue = value
+    let storageOptions = options
     if (!(value instanceof Uint8Array) && knownBytes === null) {
       staged = await this.stageUnknownLength(value)
       knownBytes = staged.size
       storageValue = staged.body
+      storageOptions = undefined
     }
     if (knownBytes === null) {
       throw new Error("Immutable upload length could not be determined")
@@ -158,7 +164,8 @@ export class QuotaTrackedRepositoryBackend implements GraftRepositoryBackend {
         const created = await this.#delegate.putIfAbsent(
           path,
           storageValue,
-          kind
+          kind,
+          storageOptions
         )
         persisted = true
         if (staged !== null) {
