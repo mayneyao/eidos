@@ -1606,7 +1606,8 @@ button:focus-visible {
 }
 
 .editor-work-area.with-version-panel {
-  --version-header-height: 2.35rem;
+  --eidos-shell-workbar-height: 40px;
+  --version-header-height: var(--eidos-shell-workbar-height);
 
   grid-template-columns: minmax(0, 1fr) clamp(19rem, 30vw, 22rem);
 }
