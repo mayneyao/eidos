@@ -32,7 +32,7 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 
 The final local audit passed:
 
-- Lite source and real-Graft suite: 127 passed, 8 explicitly skipped. The
+- Lite source and real-Graft suite: 128 passed, 8 explicitly skipped. The
   skipped cases are the opt-in performance and external staging/discovery
   gates, not hidden successes.
 - Real Graft SDK integration: 6 passed, covering whole-Space push/clone,
@@ -72,6 +72,12 @@ The final local audit passed:
   verifies that no final folder is published, only the coordinator-owned hidden
   sibling is removed, unrelated user files survive, the journal clears, and
   the Graft client closes.
+- The cross-layer push-publication gate injects an SDK rejection after reported
+  object upload and verifies `SpaceSession -> SyncExecutor -> BackgroundSyncQueue`:
+  ordinary files and SQLite handles remain untouched, the gate returns Ready,
+  no success is reported, credentials/Remote URL are not persisted, and one
+  serialized retry is scheduled. Remote protocol fault injection remains a
+  separate external gate owned with Graft/Hosted Remote.
 - TypeScript, oxlint over the Lite directory, oxfmt over all tracked Lite files
   and `git diff --check` passed.
 
@@ -112,9 +118,10 @@ The following must stay visibly open before Public v1:
    including subscription/Credits refresh, whole-Space enable, second-device
    clone, offline edits, divergence and both recovery copies.
 7. Add destructive automation for application termination during pull/publish,
-   object-written/ref-publish failure, binary-file conflict/Keep-both, quota
-   crossing, entitlement expiry during Sync, delayed/duplicate/out-of-order
-   Credits webhooks and subscription restoration with pending checkpoints.
+   Remote-level object-written/ref-publish failure, binary-file
+   conflict/Keep-both, quota crossing, entitlement expiry during Sync,
+   delayed/duplicate/out-of-order Credits webhooks and subscription restoration
+   with pending checkpoints.
 8. Provide the Sync service status page, alerting, quota dashboard and service
    runbook, and reconcile Privacy/Pricing/application copy for upload scope and
    encryption claims.

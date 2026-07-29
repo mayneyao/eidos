@@ -141,6 +141,14 @@ Ready, and surfaces the original command error without claiming Sync success.
 Failed validation or reopen leaves the journal intact and local mutations
 paused for next-launch or user-directed recovery.
 
+Remote object transfer and ref publication remain wholly owned by the official
+Graft SDK/HTTP Remote. Lite treats a rejected `push()` as unpublished even when
+the SDK reports that object upload preceded the failure: it does not close
+application SQLite handles, mutate the worktree, force a ref, or implement
+protocol cleanup. The Local checkpoint stays authoritative and the background
+queue may start only a new serialized push attempt with fresh memory-only
+credentials.
+
 Window binding canonicalizes a requested folder before constructing either the
 Graft session or any SQLite runtime. The controller reserves that canonical
 identity while the first session opens, so a concurrent path or symlink alias

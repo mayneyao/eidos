@@ -402,6 +402,14 @@ explicit external staging gates.
   next push is serialized behind the current Space operation. Retryable
   failures remain one coalesced pending whole-Space item; non-retryable
   failures pause.
+- **Objects upload but Remote ref publication fails:** Graft owns the HTTP
+  object/ref protocol; Lite must not reproduce or repair it. Treat the rejected
+  SDK `push()` as `remote-persistence-failed`, leave the Local checkpoint and
+  ordinary files untouched, keep SQLite handles open, return the Space gate to
+  Ready, persist no credential/Remote URL in queue state, and schedule one new
+  serialized retry. The deterministic application gate injects this result at
+  the SDK boundary; a Remote-level partial-publish fixture remains external
+  acceptance work.
 - **Application exits while Sync is pending/running:** store only safe queue
   metadata under `userData/spaces/<space-id>`. A running item is reopened as
   pending on the next bind. Obtain a new in-memory account/Remote credential
