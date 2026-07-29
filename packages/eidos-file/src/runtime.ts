@@ -3822,6 +3822,86 @@ export class EidosFileRuntime {
     return rowId
   }
 
+  private insertImportedRowsInTransaction(
+    tableId: string,
+    rows: readonly EidosFileRow[]
+  ): string[] {
+    if (rows.length === 0) return []
+    const table = this.getTable(tableId)
+    const fields = this.listFields(tableId)
+    const fieldByKey = new Map<string, EidosFileFieldInfo>()
+    for (const field of fields) {
+      for (const key of [
+        field.id,
+        field.tableColumnName,
+        field.physicalName,
+        field.name,
+      ]) {
+        if (key && !fieldByKey.has(key)) fieldByKey.set(key, field)
+      }
+    }
+    const tableName = table.physicalName ?? table.rawTableName
+    const plans = new Map<
+      string,
+      { keys: string[]; fields: EidosFileFieldInfo[]; sql: string }
+    >()
+    const now = this.operationInstant()
+    return rows.map((row) => {
+      const requestedId = row._id ?? row.id
+      const rowId =
+        typeof requestedId === "string"
+          ? assertEidosFileUuid(requestedId, "Row ID")
+          : this.allocateId()
+      const keys = Object.keys(row).filter(
+        (key) => key !== "_id" && key !== "id" && !key.endsWith("__display")
+      )
+      const signature = JSON.stringify(keys)
+      let plan = plans.get(signature)
+      if (!plan) {
+        const plannedFields = keys.map((key) => {
+          const field = fieldByKey.get(key)
+          if (!field) {
+            throw new EidosFileError(
+              "field-not-found",
+              `Eidos File Field not found: ${key}`
+            )
+          }
+          if (!field.physicalName || field.valueKind === "system") {
+            throw new EidosFileError(
+              "protected-field",
+              `Field ${field.name} is read-only`
+            )
+          }
+          return field
+        })
+        const columns = [
+          "_id",
+          "_created_at",
+          "_updated_at",
+          ...plannedFields.map((field) => field.physicalName!),
+        ]
+        plan = {
+          keys,
+          fields: plannedFields,
+          sql: `INSERT INTO ${quoteIdentifier(tableName)}
+            (${columns.map(quoteIdentifier).join(", ")})
+           VALUES (${columns.map(() => "?").join(", ")})`,
+        }
+        plans.set(signature, plan)
+      }
+      const values: EidosFileSqlPrimitive[] = [
+        rowId,
+        now,
+        now,
+        ...plan.keys.map((key, index) =>
+          this.normalizeStoredValue(plan.fields[index]!, row[key], true)
+        ),
+      ]
+      this.connection.run(plan.sql, values)
+      return rowId
+    })
+  }
+
   insertRow(tableId: string, row: EidosFileRow): EidosFileRow {
     const id = this.mutate(() =>
       this.insertRowInTransaction(tableId, row, true)
@@ -3838,14 +3918,14 @@ export class EidosFileRuntime {
 
   insertImportedRows(tableId: string, rows: EidosFileRow[]): EidosFileRow[] {
     const ids = this.mutate(() =>
-      rows.map((row) => this.insertRowInTransaction(tableId, row, true))
+      this.insertImportedRowsInTransaction(tableId, rows)
     )
     return ids.map((id) => this.getRow(tableId, id)!)
   }
 
   /** @internal Appends rows inside a caller-owned import transaction. */
   appendImportedRows(tableId: string, rows: EidosFileRow[]): void {
-    rows.forEach((row) => this.insertRowInTransaction(tableId, row, true))
+    this.insertImportedRowsInTransaction(tableId, rows)
   }
 
   /** @internal Used by the transactional CSV interchange layer. */
@@ -3855,7 +3935,7 @@ export class EidosFileRuntime {
   ): EidosFileTableInfo {
     return this.mutate(() => {
       const created = this.createTable(table)
-      rows.forEach((row) => this.insertRowInTransaction(created.id, row, true))
+      this.insertImportedRowsInTransaction(created.id, rows)
       return created
     })
   }
