@@ -1110,7 +1110,11 @@ export function App() {
               </button>
             ) : null}
           </div>
-          <div className="file-titlebar-actions">
+          <div
+            className="file-titlebar-actions"
+            role="toolbar"
+            aria-label="Space status and actions"
+          >
             {appInfo?.services.name === "staging" ? (
               <span
                 className="environment-badge"
