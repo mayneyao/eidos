@@ -1213,22 +1213,6 @@ export function App() {
               )}
               {syncQueueLabel(syncQueueStatus)}
             </button>
-            <button
-              type="button"
-              className="icon-button"
-              data-copy-diagnostics
-              onClick={() => void copyDiagnostics()}
-              aria-label={
-                diagnosticsCopied ? "Diagnostics copied" : "Copy diagnostics"
-              }
-              title={
-                diagnosticsCopied
-                  ? "Diagnostics copied"
-                  : "Copy privacy-safe diagnostics"
-              }
-            >
-              <Copy />
-            </button>
           </div>
         </header>
 

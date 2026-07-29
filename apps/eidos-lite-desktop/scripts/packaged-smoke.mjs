@@ -199,7 +199,7 @@ try {
     report.performance?.denseGrid?.canvasHeight <= 0 ||
     Object.values(report.launchRouting ?? {}).some((value) => value !== true) ||
     Object.keys(report.launchRouting ?? {}).length !== 3 ||
-    report.diagnostics?.action !== true ||
+    report.diagnostics?.workbenchActionAbsent !== true ||
     report.diagnostics?.copyApi !== true ||
     report.diagnostics?.schemaVersion !== 1 ||
     report.diagnostics?.environment !== "staging" ||

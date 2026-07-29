@@ -31,7 +31,7 @@ interface RendererSmokeResult {
     singleEditor: boolean
   }
   diagnostics: {
-    action: boolean
+    workbenchActionAbsent: boolean
     copyApi: boolean
     schemaVersion: number
     environment: string
@@ -1033,7 +1033,9 @@ const rendererProbe = `
       },
     },
     diagnostics: {
-      action: Boolean(document.querySelector("[data-copy-diagnostics]")),
+      workbenchActionAbsent: !document.querySelector(
+        ".file-titlebar [data-copy-diagnostics]"
+      ),
       copyApi: typeof window.eidosLite.copyDiagnostics === "function",
       schemaVersion: diagnosticSummary.schemaVersion,
       environment: diagnosticSummary.environment,
