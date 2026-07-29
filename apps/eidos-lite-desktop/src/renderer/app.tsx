@@ -45,6 +45,7 @@ import type {
 } from "../shared/contracts"
 import { FileRecoveryNotice } from "./file-recovery-notice"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
+import type { VersionInspection } from "./version-change-tree"
 
 const EidosFileWorkbench = lazy(async () => {
   const module = await import("./eidos-file-workbench")
@@ -61,6 +62,10 @@ const SyncPanel = lazy(async () => {
 const VersionPanel = lazy(async () => {
   const module = await import("./version-panel")
   return { default: module.VersionPanel }
+})
+const VersionDiffPreview = lazy(async () => {
+  const module = await import("./version-panel")
+  return { default: module.VersionDiffPreview }
 })
 
 interface CachedFile {
@@ -408,6 +413,8 @@ export function App() {
     "enable" | "checkpoint" | null
   >(null)
   const [versionPanelOpen, setVersionPanelOpen] = useState(false)
+  const [versionInspection, setVersionInspection] =
+    useState<VersionInspection | null>(null)
   const [syncPanelMode, setSyncPanelMode] = useState<"enable" | "clone" | null>(
     null
   )
@@ -596,6 +603,7 @@ export function App() {
 
   const openEntry = useCallback(
     async (entry: SpaceTreeEntry) => {
+      setVersionInspection(null)
       if (entry.kind !== "eidos") {
         await window.eidosLite.openPath(entry.relativePath)
         return
@@ -1183,7 +1191,10 @@ export function App() {
                 type="button"
                 className="version-action"
                 aria-pressed={versionPanelOpen}
-                onClick={() => setVersionPanelOpen((current) => !current)}
+                onClick={() => {
+                  if (versionPanelOpen) setVersionInspection(null)
+                  setVersionPanelOpen(!versionPanelOpen)
+                }}
                 title="View whole-Space changes and checkpoint history"
               >
                 <History />
@@ -1197,6 +1208,7 @@ export function App() {
               aria-pressed={syncPanelMode === "enable"}
               onClick={() => {
                 setVersionPanelOpen(false)
+                setVersionInspection(null)
                 setSyncPanelMode((current) =>
                   current === "enable" ? null : "enable"
                 )
@@ -1266,7 +1278,10 @@ export function App() {
                 .revealPath(fileIssue.relativePath)
                 .catch((cause) => setError(errorMessage(cause)))
             }}
-            onReviewHistory={() => setVersionPanelOpen(true)}
+            onReviewHistory={() => {
+              setVersionInspection(null)
+              setVersionPanelOpen(true)
+            }}
             onDismiss={() => setFileIssue(null)}
           />
         ) : null}
@@ -1275,7 +1290,21 @@ export function App() {
           className={`editor-work-area${versionPanelOpen ? " with-version-panel" : ""}`}
         >
           <div className="editor-work-content">
-            {activeFile && activeTable ? (
+            {versionPanelOpen && versionInspection ? (
+              <Suspense
+                fallback={
+                  <div className="editor-empty" role="status">
+                    <LoaderCircle className="spin" aria-hidden="true" />
+                    <p>Loading change details…</p>
+                  </div>
+                }
+              >
+                <VersionDiffPreview
+                  inspection={versionInspection}
+                  onClose={() => setVersionInspection(null)}
+                />
+              </Suspense>
+            ) : activeFile && activeTable ? (
               <section
                 className="file-editor"
                 aria-label={activeFile.relativePath}
@@ -1361,9 +1390,13 @@ export function App() {
               <VersionPanel
                 space={space}
                 refreshKey={versionRefreshKey}
-                onClose={() => setVersionPanelOpen(false)}
+                onClose={() => {
+                  setVersionPanelOpen(false)
+                  setVersionInspection(null)
+                }}
                 onSpaceChange={setSpace}
                 onRefresh={() => setVersionRefreshKey((current) => current + 1)}
+                onInspectionChange={setVersionInspection}
               />
             </Suspense>
           ) : null}
@@ -1378,6 +1411,7 @@ export function App() {
             onReviewLocal={() => {
               setSyncPanelMode(null)
               setVersionPanelOpen(true)
+              setVersionInspection(null)
             }}
             onSpaceChange={acceptSpaceSnapshot}
           />

@@ -2,8 +2,63 @@ import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
-import type { SpaceVersionTableDiff } from "../shared/contracts"
-import { TableDiff, versionRowDiffPage } from "./version-panel"
+import type {
+  SpaceVersionDiff,
+  SpaceVersionTableDiff,
+} from "../shared/contracts"
+import {
+  buildVersionChangeTreeModel,
+  type VersionInspection,
+} from "./version-change-tree"
+import {
+  TableDiff,
+  VersionDiffPreview,
+  versionRowDiffPage,
+} from "./version-panel"
+
+const customersTable: SpaceVersionTableDiff = {
+  name: "Customers",
+  columns: ["name", "status"],
+  primaryKeyColumns: ["name"],
+  changes: [
+    {
+      op: "insert",
+      key: { name: "Hao Chen" },
+      values: ["Hao Chen", "Lead"],
+    },
+    {
+      op: "update",
+      key: { name: "Mei Lin" },
+      oldValues: ["Mei Lin", "Lead"],
+      values: ["Mei Lin", "Customer"],
+    },
+  ],
+}
+
+const versionDiff: SpaceVersionDiff = {
+  currentHead: "head-2",
+  currentBranch: null,
+  from: "head-1",
+  to: "worktree",
+  paths: [
+    { path: "notes/readme.md", change: "added", kind: "text_file" },
+    {
+      path: "data/crm.eidos",
+      change: "modified",
+      kind: "sqlite_database",
+    },
+  ],
+  files: [
+    {
+      path: "data/crm.eidos",
+      change: "modified",
+      kind: "sqlite_database",
+      rowDiffAvailable: true,
+      limitations: [],
+      tables: [customersTable],
+    },
+  ],
+}
 
 describe("VersionPanel row diff paging", () => {
   it("keeps a 10k-row diff bounded while retaining every page", () => {
@@ -49,5 +104,54 @@ describe("VersionPanel row diff paging", () => {
     expect(markup.match(/class="row-diff"/g)).toHaveLength(100)
     expect(markup).toContain("1–100 of 10,126")
     expect(markup).toContain('aria-label="Next row changes"')
+  })
+
+  it("models Eidos Files as expandable tree nodes with changed tables", () => {
+    const model = buildVersionChangeTreeModel(versionDiff)
+
+    expect(model.paths).toEqual([
+      "notes/readme.md",
+      "data/crm.eidos/",
+      "data/crm.eidos/Customers",
+    ])
+    expect(model.initialExpandedPaths).toEqual(["notes/", "data/"])
+    expect(model.gitStatus).toEqual([
+      { path: "notes/readme.md", status: "added" },
+      { path: "data/crm.eidos/", status: "modified" },
+    ])
+    expect(model.decorationByPath.get("data/crm.eidos/")).toBe("1 table")
+    expect(model.decorationByPath.get("data/crm.eidos/Customers")).toBe("+1 ~1")
+    expect(
+      model.targetByTreePath.get("data/crm.eidos/Customers")?.table?.name
+    ).toBe("Customers")
+  })
+
+  it("renders a selected table diff in the main review surface", () => {
+    const file = versionDiff.files[0]!
+    const inspection: VersionInspection = {
+      type: "table",
+      key: "data/crm.eidos/Customers",
+      mode: "changes",
+      diff: versionDiff,
+      change: versionDiff.paths[1]!,
+      file,
+      table: customersTable,
+      commit: null,
+    }
+
+    const markup = renderToStaticMarkup(
+      createElement(VersionDiffPreview, {
+        inspection,
+        onClose: () => undefined,
+      })
+    )
+
+    expect(markup).toContain('data-version-inspector="table"')
+    expect(markup).toContain("Customers")
+    expect(markup).toContain("+1 rows")
+    expect(markup).toContain("~1 rows")
+    expect(markup.match(/class="row-diff"/g)).toHaveLength(2)
+    expect(markup).toContain("Hao Chen")
+    expect(markup).toContain("Customer")
   })
 })

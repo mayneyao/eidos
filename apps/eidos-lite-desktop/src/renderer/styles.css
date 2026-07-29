@@ -1606,7 +1606,7 @@ button:focus-visible {
 }
 
 .editor-work-area.with-version-panel {
-  grid-template-columns: minmax(0, 1fr) 22rem;
+  grid-template-columns: minmax(0, 1fr) clamp(19rem, 30vw, 22rem);
 }
 
 .editor-work-content {
@@ -1638,12 +1638,16 @@ button:focus-visible {
 
 .version-panel {
   display: grid;
-  grid-template-rows: 2.35rem 2.15rem auto minmax(0, 1fr);
+  grid-template-rows: 2.35rem 2.15rem minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   border-left: 1px solid var(--line);
   color: var(--ink);
   background: var(--canvas);
+}
+
+.version-panel:has(.version-error) {
+  grid-template-rows: 2.35rem 2.15rem auto minmax(0, 1fr);
 }
 
 .version-panel > header {
@@ -2071,6 +2075,484 @@ button:focus-visible {
 .selected-commit {
   border-top: 1px solid var(--line);
   background: var(--surface);
+}
+
+/* Version navigation stays Explorer-dense; selected details own the main area. */
+.version-panel-body.version-panel-changes {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+.version-panel-body.version-panel-history {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.version-change-tree-shell,
+.version-change-tree {
+  min-width: 0;
+  min-height: 0;
+}
+
+.version-change-tree {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.version-panel-changes .version-summary {
+  gap: 0.45rem;
+  padding: 0.6rem 0.65rem;
+}
+
+.version-panel-changes .checkpoint-form {
+  padding: 0.6rem 0.65rem 0.7rem;
+  background: var(--canvas);
+}
+
+.commit-list > li {
+  position: relative;
+  border-bottom: 1px solid var(--line);
+}
+
+.commit-list .commit-row {
+  display: grid;
+  grid-template-columns: 0.75rem 0.8rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+}
+
+.commit-list .commit-row:hover,
+.commit-list .commit-row[aria-expanded="true"] {
+  background: var(--surface-hover);
+}
+
+.commit-list .commit-row > svg {
+  width: 0.72rem;
+  height: 0.72rem;
+  margin-top: 0.12rem;
+  color: var(--ink-muted);
+}
+
+.commit-list .commit-row > svg:nth-child(2) {
+  color: var(--lite-accent);
+}
+
+.commit-list .commit-row > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.commit-list .commit-row strong {
+  overflow: hidden;
+  font-size: 0.6875rem;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commit-list .commit-row small {
+  color: var(--ink-muted);
+  font-size: 0.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.commit-expanded {
+  margin-left: 1.55rem;
+  border-left: 1px solid
+    color-mix(in oklab, var(--lite-accent) 55%, var(--line));
+  background: color-mix(in oklab, var(--surface) 48%, transparent);
+}
+
+.commit-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.65rem;
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+}
+
+.commit-loading svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+.history-change-list,
+.history-change-list ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-change-list > li + li {
+  border-top: 1px solid var(--hairline);
+}
+
+.history-change-list button {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 1.7rem;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.55rem;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  text-align: left;
+}
+
+.history-change-list button:hover,
+.history-change-list button.selected {
+  background: var(--surface-selected);
+}
+
+.history-change-list button > svg {
+  width: 0.72rem;
+  height: 0.72rem;
+  flex: 0 0 auto;
+  color: var(--ink-muted);
+}
+
+.history-change-list button > span {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.history-change-list button strong,
+.history-change-list button small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-change-list button strong {
+  font-size: 0.65rem;
+  font-weight: 560;
+}
+
+.history-change-list button small {
+  color: var(--ink-muted);
+  font-size: 0.58rem;
+}
+
+.history-change-list button > b {
+  width: 0.8rem;
+  flex: 0 0 auto;
+  font-size: 0.625rem;
+  text-align: center;
+}
+
+.history-change-list ul {
+  padding: 0.05rem 0 0.2rem 1.05rem;
+}
+
+.history-change-list ul button {
+  min-height: 1.5rem;
+  padding-block: 0.15rem;
+}
+
+[data-change="added"] {
+  color: var(--success) !important;
+}
+
+[data-change="deleted"] {
+  color: var(--danger) !important;
+}
+
+[data-change="modified"] {
+  color: var(--lite-accent) !important;
+}
+
+[data-change="renamed"] {
+  color: oklch(0.62 0.13 70) !important;
+}
+
+.commit-restore {
+  border-top: 1px solid var(--hairline);
+  padding: 0.05rem 0 0.1rem;
+}
+
+.commit-restore .restore-note {
+  margin: 0;
+  padding: 0.55rem 0.6rem;
+}
+
+.commit-restore .restore-action {
+  width: calc(100% - 1.2rem);
+  margin: 0.55rem 0.6rem;
+}
+
+.version-inspector {
+  display: grid;
+  grid-template-rows: 2.15rem minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.version-inspector-bar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0 0.55rem 0 0.75rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--canvas);
+}
+
+.version-inspector-bar > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+}
+
+.version-inspector-bar span,
+.version-inspector-bar strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.version-inspector-bar strong {
+  color: var(--ink);
+  font-weight: 620;
+}
+
+.version-inspector-bar svg {
+  width: 0.7rem;
+  height: 0.7rem;
+  flex: 0 0 auto;
+}
+
+.version-inspector-scroll {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.version-inspector-heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.version-inspector-heading > div {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.version-inspector-heading > div > svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+  color: var(--lite-accent);
+}
+
+.version-inspector-heading h2,
+.version-inspector-heading p {
+  margin: 0;
+}
+
+.version-inspector-heading h2 {
+  overflow: hidden;
+  font-size: 1.05rem;
+  font-weight: 630;
+  letter-spacing: -0.015em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.version-inspector-heading p {
+  margin-top: 0.15rem;
+  color: var(--ink-muted);
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.version-change-label {
+  flex: 0 0 auto;
+  padding: 0.16rem 0.38rem;
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 620;
+}
+
+.version-inspector-stats {
+  display: flex;
+  min-height: 2.4rem;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.45rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.version-inspector-stats span {
+  font-weight: 620;
+}
+
+.version-inspector-stats small {
+  margin-left: auto;
+  font-size: 0.625rem;
+}
+
+.version-inspector-table {
+  padding: 0.4rem 1.25rem 1.5rem;
+}
+
+.version-inspector-table .row-diff {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--hairline);
+  font-family: inherit;
+  font-size: 0.6875rem;
+}
+
+.version-inspector-table .row-diff > strong {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 620;
+  text-transform: capitalize;
+}
+
+.version-inspector-table .row-diff dl div {
+  grid-template-columns: minmax(6rem, 0.28fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.18rem 0;
+}
+
+.version-inspector-table .row-diff dt {
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+}
+
+.version-inspector-table .row-diff dd {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.64rem;
+}
+
+.version-inspector-file-summary {
+  padding: 0.85rem 1.25rem 1.5rem;
+}
+
+.version-inspector-file-summary > p {
+  margin: 0 0 0.65rem;
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+}
+
+.version-inspector-file-summary ul {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+.version-inspector-file-summary li {
+  display: grid;
+  grid-template-columns: 0.85rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.1rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.75rem;
+}
+
+.version-inspector-file-summary li svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  color: var(--ink-muted);
+}
+
+.version-inspector-file-summary li span {
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.version-inspector-empty {
+  display: flex;
+  max-width: 38rem;
+  align-items: flex-start;
+  gap: 0.8rem;
+  padding: 1.4rem 1.25rem;
+}
+
+.version-inspector-empty > svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  color: var(--ink-muted);
+}
+
+.version-inspector-empty strong {
+  font-size: 0.8125rem;
+}
+
+.version-inspector-empty p {
+  max-width: 48ch;
+  margin: 0.35rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+  line-height: 1.55;
+  user-select: text;
+}
+
+.version-inspector-empty dl {
+  margin: 0.85rem 0 0;
+  border-top: 1px solid var(--line);
+  font-size: 0.6875rem;
+}
+
+.version-inspector-empty dl div {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.version-inspector-empty dt {
+  color: var(--ink-muted);
+}
+
+.version-inspector-empty dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  user-select: text;
 }
 
 .selected-commit > header {

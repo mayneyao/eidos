@@ -5,11 +5,13 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleAlert,
-  Clock3,
+  Database,
   FileClock,
+  FileText,
   GitCommitHorizontal,
   LoaderCircle,
   RotateCcw,
+  Table2,
   X,
 } from "lucide-react"
 
@@ -18,9 +20,14 @@ import type {
   SpaceVersionCommit,
   SpaceVersionDiff,
   SpaceVersionFileDiff,
+  SpaceVersionPathChange,
   SpaceVersionRowChange,
   SpaceVersionTableDiff,
 } from "../shared/contracts"
+import {
+  VersionChangeTree,
+  type VersionInspection,
+} from "./version-change-tree"
 
 type PanelMode = "changes" | "history"
 
@@ -84,7 +91,7 @@ function RowDiff({
     return displayValue(values[index]) !== displayValue(oldValues[index])
   })
   return (
-    <li className="row-diff">
+    <li className="row-diff" data-row-change={change.op}>
       <strong>{rowChangeTitle(change)}</strong>
       {changedColumns.length ? (
         <dl>
@@ -111,15 +118,21 @@ function RowDiff({
   )
 }
 
-export function TableDiff({ table }: { table: SpaceVersionTableDiff }) {
+export function TableDiff({
+  table,
+  showHeading = true,
+}: {
+  table: SpaceVersionTableDiff
+  showHeading?: boolean
+}) {
   const [requestedPage, setRequestedPage] = useState(0)
   const page = versionRowDiffPage(table.changes, requestedPage)
 
   useEffect(() => setRequestedPage(0), [table])
 
   return (
-    <section>
-      <h4>{table.name}</h4>
+    <section className="table-diff">
+      {showHeading ? <h4>{table.name}</h4> : null}
       <ul>
         {page.items.map((change, index) => (
           <RowDiff
@@ -156,77 +169,6 @@ export function TableDiff({ table }: { table: SpaceVersionTableDiff }) {
   )
 }
 
-function FileDiff({ file }: { file: SpaceVersionFileDiff }) {
-  const [expanded, setExpanded] = useState(false)
-  const rowChanges = file.tables.reduce(
-    (total, table) => total + table.changes.length,
-    0
-  )
-  return (
-    <li className="version-file">
-      <button
-        type="button"
-        onClick={() => setExpanded((current) => !current)}
-        aria-expanded={expanded}
-      >
-        {expanded ? <ChevronDown /> : <ChevronRight />}
-        <span>
-          <strong>{file.path}</strong>
-          <small>
-            {file.change}
-            {rowChanges ? ` · ${rowChanges} row changes` : ""}
-          </small>
-        </span>
-      </button>
-      {expanded ? (
-        <div className="version-file-detail">
-          {file.tables.length ? (
-            file.tables.map((table) => (
-              <TableDiff key={table.name} table={table} />
-            ))
-          ) : (
-            <p>
-              {file.rowDiffAvailable
-                ? "No logical row changes."
-                : "Binary or ordinary file change."}
-            </p>
-          )}
-          {file.limitations.map((limitation) => (
-            <p key={limitation} className="version-limitation">
-              {limitation}
-            </p>
-          ))}
-        </div>
-      ) : null}
-    </li>
-  )
-}
-
-function DiffSummary({ diff }: { diff: SpaceVersionDiff }) {
-  const detailedPaths = new Set(diff.files.map((file) => file.path))
-  return (
-    <div className="diff-summary">
-      {diff.paths.length === 0 ? (
-        <p className="version-empty-copy">No changes in this comparison.</p>
-      ) : (
-        <ul className="version-files">
-          {diff.files.map((file) => (
-            <FileDiff key={file.path} file={file} />
-          ))}
-          {diff.paths
-            .filter((change) => !detailedPaths.has(change.path))
-            .map((change) => (
-              <li key={change.path} className="ordinary-change">
-                <span>{change.path}</span>
-                <small>{change.change}</small>
-              </li>
-            ))}
-        </ul>
-      )}
-    </div>
-  )
-}
-
 function commitTime(timestampMs: number): string {
   if (!timestampMs) return "Unknown time"
   return new Intl.DateTimeFormat(undefined, {
@@ -235,18 +177,318 @@ function commitTime(timestampMs: number): string {
   }).format(new Date(timestampMs))
 }
 
+function fileName(path: string): string {
+  return path.split("/").at(-1) ?? path
+}
+
+function fileParent(path: string): string {
+  const segments = path.split("/")
+  return segments.length > 1 ? segments.slice(0, -1).join("/") : "Space root"
+}
+
+function changeLabel(change: string): string {
+  switch (change.toLocaleLowerCase()) {
+    case "added":
+    case "created":
+    case "new":
+      return "Added"
+    case "deleted":
+    case "removed":
+      return "Deleted"
+    case "renamed":
+    case "moved":
+      return "Renamed"
+    default:
+      return "Modified"
+  }
+}
+
+function changeCode(change: string): string {
+  const label = changeLabel(change)
+  return label === "Added"
+    ? "A"
+    : label === "Deleted"
+      ? "D"
+      : label === "Renamed"
+        ? "R"
+        : "M"
+}
+
+function isEidosPath(path: string): boolean {
+  return path.toLocaleLowerCase().endsWith(".eidos")
+}
+
+function tableStats(table: SpaceVersionTableDiff) {
+  let inserts = 0
+  let deletes = 0
+  let updates = 0
+  for (const change of table.changes) {
+    switch (change.op.toLocaleLowerCase()) {
+      case "insert":
+        inserts += 1
+        break
+      case "delete":
+        deletes += 1
+        break
+      default:
+        updates += 1
+        break
+    }
+  }
+  return { inserts, deletes, updates, total: inserts + deletes + updates }
+}
+
+function fileRowChanges(file: SpaceVersionFileDiff): number {
+  return file.tables.reduce((total, table) => total + table.changes.length, 0)
+}
+
+export function VersionDiffPreview({
+  inspection,
+  onClose,
+}: {
+  inspection: VersionInspection
+  onClose(): void
+}) {
+  const title =
+    inspection.type === "table"
+      ? inspection.table.name
+      : fileName(inspection.change.path)
+  const contextLabel =
+    inspection.mode === "changes"
+      ? "Latest checkpoint → Local changes"
+      : inspection.commit
+        ? `${inspection.commit.id.slice(0, 8)} · ${commitTime(inspection.commit.timestampMs)}`
+        : "Version changes"
+
+  return (
+    <section
+      className="version-inspector"
+      aria-label={`Change details for ${title}`}
+      data-version-inspector={inspection.type}
+    >
+      <header className="version-inspector-bar">
+        <div>
+          <span>{inspection.mode === "changes" ? "Changes" : "History"}</span>
+          <ChevronRight aria-hidden="true" />
+          <span>{fileName(inspection.change.path)}</span>
+          {inspection.type === "table" ? (
+            <>
+              <ChevronRight aria-hidden="true" />
+              <strong>{inspection.table.name}</strong>
+            </>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          className="icon-button"
+          onClick={onClose}
+          aria-label="Close change details"
+          title="Return to the Eidos File editor"
+        >
+          <X />
+        </button>
+      </header>
+
+      <div className="version-inspector-scroll">
+        <header className="version-inspector-heading">
+          <div>
+            {inspection.type === "table" ? <Table2 /> : <FileText />}
+            <span>
+              <h2>{title}</h2>
+              <p>{contextLabel}</p>
+            </span>
+          </div>
+          <span
+            className="version-change-label"
+            data-change={changeLabel(inspection.change.change).toLowerCase()}
+          >
+            {changeLabel(inspection.change.change)}
+          </span>
+        </header>
+
+        {inspection.type === "table" ? (
+          <>
+            <div className="version-inspector-stats">
+              {(() => {
+                const stats = tableStats(inspection.table)
+                return (
+                  <>
+                    <span data-change="added">+{stats.inserts} rows</span>
+                    <span data-change="deleted">−{stats.deletes} rows</span>
+                    <span data-change="modified">~{stats.updates} rows</span>
+                    <small>{stats.total} total changes</small>
+                  </>
+                )
+              })()}
+            </div>
+            <div className="version-inspector-table">
+              <TableDiff table={inspection.table} showHeading={false} />
+            </div>
+          </>
+        ) : inspection.file?.tables.length ? (
+          <div className="version-inspector-file-summary">
+            <p>
+              {inspection.file.tables.length} changed{" "}
+              {inspection.file.tables.length === 1 ? "table" : "tables"} ·{" "}
+              {fileRowChanges(inspection.file)} row changes
+            </p>
+            <ul>
+              {inspection.file.tables.map((table) => {
+                const stats = tableStats(table)
+                return (
+                  <li key={table.name}>
+                    <Table2 />
+                    <strong>{table.name}</strong>
+                    <span>
+                      {stats.inserts ? `+${stats.inserts}` : ""}
+                      {stats.deletes ? ` −${stats.deletes}` : ""}
+                      {stats.updates ? ` ~${stats.updates}` : ""}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+            {inspection.file.limitations.map((limitation) => (
+              <p key={limitation} className="version-limitation">
+                {limitation}
+              </p>
+            ))}
+          </div>
+        ) : (
+          <div className="version-inspector-empty">
+            <FileText />
+            <div>
+              <strong>File change recorded</strong>
+              <p>
+                This first version shows file metadata only. Content preview can
+                be added without changing the Space history model.
+              </p>
+              <dl>
+                <div>
+                  <dt>Path</dt>
+                  <dd>{inspection.change.path}</dd>
+                </div>
+                {inspection.change.kind ? (
+                  <div>
+                    <dt>Kind</dt>
+                    <dd>{inspection.change.kind.replace(/_/g, " ")}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function HistoryDiffList({
+  diff,
+  commit,
+  selectedKey,
+  onSelect,
+}: {
+  diff: SpaceVersionDiff
+  commit: SpaceVersionCommit
+  selectedKey: string | null
+  onSelect(inspection: VersionInspection): void
+}) {
+  const fileByPath = new Map(diff.files.map((file) => [file.path, file]))
+  return (
+    <ul className="history-change-list">
+      {diff.paths.map((change) => {
+        const file = fileByPath.get(change.path) ?? null
+        const fileKey = `history:${commit.id}:${change.path}`
+        return (
+          <li key={change.path}>
+            <button
+              type="button"
+              className={selectedKey === fileKey ? "selected" : ""}
+              title={change.path}
+              onClick={() =>
+                onSelect({
+                  type: "file",
+                  key: fileKey,
+                  mode: "history",
+                  diff,
+                  change,
+                  file,
+                  commit,
+                })
+              }
+            >
+              {isEidosPath(change.path) ? <Database /> : <FileText />}
+              <span>
+                <strong>{fileName(change.path)}</strong>
+                <small>{fileParent(change.path)}</small>
+              </span>
+              <b
+                data-change={changeLabel(change.change).toLowerCase()}
+                title={changeLabel(change.change)}
+              >
+                {changeCode(change.change)}
+              </b>
+            </button>
+            {file?.tables.length ? (
+              <ul>
+                {file.tables.map((table) => {
+                  const tableKey = `${fileKey}:${table.name}`
+                  const stats = tableStats(table)
+                  return (
+                    <li key={table.name}>
+                      <button
+                        type="button"
+                        className={selectedKey === tableKey ? "selected" : ""}
+                        onClick={() =>
+                          onSelect({
+                            type: "table",
+                            key: tableKey,
+                            mode: "history",
+                            diff,
+                            change,
+                            file,
+                            table,
+                            commit,
+                          })
+                        }
+                      >
+                        <Table2 />
+                        <span>
+                          <strong>{table.name}</strong>
+                          <small>
+                            {stats.inserts ? `+${stats.inserts}` : ""}
+                            {stats.deletes ? ` −${stats.deletes}` : ""}
+                            {stats.updates ? ` ~${stats.updates}` : ""}
+                          </small>
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : null}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 export function VersionPanel({
   space,
   refreshKey,
   onClose,
   onSpaceChange,
   onRefresh,
+  onInspectionChange,
 }: {
   space: SpaceSnapshot
   refreshKey: number
   onClose(): void
   onSpaceChange(snapshot: SpaceSnapshot): void
   onRefresh(): void
+  onInspectionChange(inspection: VersionInspection | null): void
 }) {
   const [mode, setMode] = useState<PanelMode>(
     space.graft.clean === false ? "changes" : "history"
@@ -259,11 +501,27 @@ export function VersionPanel({
   const [selectedDiff, setSelectedDiff] = useState<SpaceVersionDiff | null>(
     null
   )
+  const [selectedInspectionKey, setSelectedInspectionKey] = useState<
+    string | null
+  >(null)
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState<"checkpoint" | "restore" | null>(null)
   const [checkpointMessage, setCheckpointMessage] = useState("")
   const [confirmRestore, setConfirmRestore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const clearInspection = useCallback(() => {
+    setSelectedInspectionKey(null)
+    onInspectionChange(null)
+  }, [onInspectionChange])
+
+  const inspect = useCallback(
+    (inspection: VersionInspection) => {
+      setSelectedInspectionKey(inspection.key)
+      onInspectionChange(inspection)
+    },
+    [onInspectionChange]
+  )
 
   const loadMode = useCallback(async () => {
     setLoading(true)
@@ -293,10 +551,22 @@ export function VersionPanel({
     void loadMode()
   }, [loadMode, refreshKey, space.graft.clean, space.graft.currentHead])
 
+  useEffect(() => {
+    clearInspection()
+  }, [clearInspection, mode, refreshKey])
+
   const selectCommit = async (commit: SpaceVersionCommit) => {
+    if (selectedCommit?.id === commit.id) {
+      setSelectedCommit(null)
+      setSelectedDiff(null)
+      setConfirmRestore(false)
+      clearInspection()
+      return
+    }
     setSelectedCommit(commit)
     setSelectedDiff(null)
     setConfirmRestore(false)
+    clearInspection()
     setLoading(true)
     setError(null)
     try {
@@ -340,6 +610,7 @@ export function VersionPanel({
       setConfirmRestore(false)
       setSelectedCommit(null)
       setSelectedDiff(null)
+      clearInspection()
       onRefresh()
     } catch (cause) {
       setError(errorMessage(cause))
@@ -350,17 +621,19 @@ export function VersionPanel({
 
   const changedRowCount = useMemo(
     () =>
-      changes?.files.reduce(
-        (total, file) =>
-          total +
-          file.tables.reduce(
-            (tableTotal, table) => tableTotal + table.changes.length,
-            0
-          ),
-        0
-      ) ?? 0,
+      changes?.files.reduce((total, file) => total + fileRowChanges(file), 0) ??
+      0,
     [changes]
   )
+
+  const changeMode = (nextMode: PanelMode) => {
+    if (mode === nextMode) return
+    setMode(nextMode)
+    setSelectedCommit(null)
+    setSelectedDiff(null)
+    setConfirmRestore(false)
+    clearInspection()
+  }
 
   return (
     <aside className="version-panel" aria-label="Space version management">
@@ -384,7 +657,7 @@ export function VersionPanel({
           type="button"
           role="tab"
           aria-selected={mode === "changes"}
-          onClick={() => setMode("changes")}
+          onClick={() => changeMode("changes")}
         >
           Changes
           {space.graft.clean === false ? <span /> : null}
@@ -393,7 +666,7 @@ export function VersionPanel({
           type="button"
           role="tab"
           aria-selected={mode === "history"}
-          onClick={() => setMode("history")}
+          onClick={() => changeMode("history")}
         >
           History
         </button>
@@ -406,7 +679,7 @@ export function VersionPanel({
         </div>
       ) : null}
 
-      <div className="version-panel-body">
+      <div className={`version-panel-body version-panel-${mode}`}>
         {loading && !changes && commits.length === 0 ? (
           <div className="version-loading" role="status">
             <LoaderCircle className="spin" /> Loading version data…
@@ -414,28 +687,30 @@ export function VersionPanel({
         ) : mode === "changes" ? (
           <>
             <section className="version-summary">
-              {space.graft.clean ? (
-                <>
-                  <Check />
-                  <div>
-                    <strong>No local changes</strong>
-                    <p>The Space matches its latest checkpoint.</p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <GitCommitHorizontal />
-                  <div>
-                    <strong>
-                      {changes?.paths.length ?? 0} files · {changedRowCount} row
-                      changes
-                    </strong>
-                    <p>Changes include the whole Space, not only open files.</p>
-                  </div>
-                </>
-              )}
+              {space.graft.clean ? <Check /> : <GitCommitHorizontal />}
+              <div>
+                <strong>
+                  {space.graft.clean
+                    ? "No local changes"
+                    : `${changes?.paths.length ?? 0} files · ${changedRowCount} row changes`}
+                </strong>
+                <p>
+                  {space.graft.clean
+                    ? "The Space matches its latest checkpoint."
+                    : "Select a file or changed table to review it."}
+                </p>
+              </div>
             </section>
-            {changes ? <DiffSummary diff={changes} /> : null}
+            {changes && changes.paths.length ? (
+              <div className="version-change-tree-shell">
+                <VersionChangeTree
+                  diff={changes}
+                  selectedKey={selectedInspectionKey}
+                  mode="changes"
+                  onSelect={inspect}
+                />
+              </div>
+            ) : null}
             {space.graft.clean === false ? (
               <section className="checkpoint-form">
                 <label htmlFor="checkpoint-message">Checkpoint message</label>
@@ -463,99 +738,103 @@ export function VersionPanel({
               </section>
             ) : null}
           </>
-        ) : (
-          <>
-            {commits.length ? (
-              <ol className="commit-list">
-                {commits.map((commit) => (
-                  <li key={commit.id}>
-                    <button
-                      type="button"
-                      className={
-                        selectedCommit?.id === commit.id ? "selected" : ""
-                      }
-                      onClick={() => void selectCommit(commit)}
-                    >
-                      <GitCommitHorizontal />
-                      <span>
-                        <strong>{commit.message}</strong>
-                        <small>
-                          {commitTime(commit.timestampMs)} · {commit.files}{" "}
-                          files
-                        </small>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p className="version-empty-copy">No checkpoints yet.</p>
-            )}
-
-            {selectedCommit ? (
-              <section className="selected-commit">
-                <header>
-                  <div>
-                    <Clock3 />
-                    <span>
-                      <strong>{selectedCommit.message}</strong>
-                      <small>{selectedCommit.id.slice(0, 12)}</small>
-                    </span>
-                  </div>
-                </header>
-                {selectedDiff ? <DiffSummary diff={selectedDiff} /> : null}
-                {selectedCommit.id === historyHead ? (
-                  <p className="restore-note">
-                    This is the current checkpoint.
-                  </p>
-                ) : space.graft.clean === false ? (
-                  <p className="restore-note">
-                    Create a checkpoint for local changes before restoring.
-                  </p>
-                ) : confirmRestore ? (
-                  <div className="restore-confirm">
-                    <p>
-                      Restore the entire Space to this checkpoint? A new
-                      checkpoint will record the restore.
-                    </p>
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmRestore(false)}
-                        disabled={busy !== null}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        className="danger-action"
-                        onClick={() => void restore()}
-                        disabled={busy !== null}
-                      >
-                        {busy === "restore" ? (
-                          <LoaderCircle className="spin" />
-                        ) : (
-                          <RotateCcw />
-                        )}
-                        {busy === "restore" ? "Restoring…" : "Restore Space"}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
+        ) : commits.length ? (
+          <ol className="commit-list">
+            {commits.map((commit) => {
+              const expanded = selectedCommit?.id === commit.id
+              return (
+                <li key={commit.id} className={expanded ? "expanded" : ""}>
                   <button
                     type="button"
-                    className="restore-action"
-                    onClick={() => setConfirmRestore(true)}
-                    disabled={
-                      busy !== null || space.operation.phase !== "ready"
-                    }
+                    className="commit-row"
+                    aria-expanded={expanded}
+                    onClick={() => void selectCommit(commit)}
                   >
-                    <RotateCcw /> Restore this checkpoint
+                    {expanded ? <ChevronDown /> : <ChevronRight />}
+                    <GitCommitHorizontal />
+                    <span>
+                      <strong>{commit.message}</strong>
+                      <small>
+                        {commitTime(commit.timestampMs)} · {commit.files} files
+                      </small>
+                    </span>
                   </button>
-                )}
-              </section>
-            ) : null}
-          </>
+                  {expanded ? (
+                    <div className="commit-expanded">
+                      {loading && !selectedDiff ? (
+                        <p className="commit-loading">
+                          <LoaderCircle className="spin" /> Loading changes…
+                        </p>
+                      ) : selectedDiff ? (
+                        <HistoryDiffList
+                          diff={selectedDiff}
+                          commit={commit}
+                          selectedKey={selectedInspectionKey}
+                          onSelect={inspect}
+                        />
+                      ) : null}
+                      <div className="commit-restore">
+                        {commit.id === historyHead ? (
+                          <p className="restore-note">
+                            This is the current checkpoint.
+                          </p>
+                        ) : space.graft.clean === false ? (
+                          <p className="restore-note">
+                            Create a checkpoint for local changes before
+                            restoring.
+                          </p>
+                        ) : confirmRestore ? (
+                          <div className="restore-confirm">
+                            <p>
+                              Restore the entire Space to this checkpoint? A new
+                              checkpoint will record the restore.
+                            </p>
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmRestore(false)}
+                                disabled={busy !== null}
+                              >
+                                Keep current Space
+                              </button>
+                              <button
+                                type="button"
+                                className="danger-action"
+                                onClick={() => void restore()}
+                                disabled={busy !== null}
+                              >
+                                {busy === "restore" ? (
+                                  <LoaderCircle className="spin" />
+                                ) : (
+                                  <RotateCcw />
+                                )}
+                                {busy === "restore"
+                                  ? "Restoring…"
+                                  : "Restore Space"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="restore-action"
+                            onClick={() => setConfirmRestore(true)}
+                            disabled={
+                              busy !== null || space.operation.phase !== "ready"
+                            }
+                          >
+                            <RotateCcw /> Restore this checkpoint
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+                </li>
+              )
+            })}
+          </ol>
+        ) : (
+          <p className="version-empty-copy">No checkpoints yet.</p>
         )}
       </div>
     </aside>
