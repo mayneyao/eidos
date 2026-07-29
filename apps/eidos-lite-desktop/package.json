@@ -9,8 +9,8 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "build:production": "vite build --mode eidos-production",
+    "build": "vite build && node scripts/verify-build-environment.mjs staging",
+    "build:production": "vite build --mode eidos-production && node scripts/verify-build-environment.mjs production",
     "test": "vitest run --config vitest.config.ts",
     "test:graft": "vitest run --config vitest.config.ts src/main/graft/graft-client.integration.test.ts",
     "test:graft:cli": "EIDOS_LITE_GRAFT_BACKEND=cli vitest run --config vitest.config.ts src/main/graft/graft-client.integration.test.ts",
@@ -22,8 +22,8 @@
     "graft:install": "node scripts/install-graft-runtime.mjs",
     "native:electron": "node ../../scripts/use-better-sqlite3-runtime.cjs electron",
     "native:node": "node ../../scripts/use-better-sqlite3-runtime.cjs node",
-    "package:dir": "pnpm run graft:install && pnpm run native:electron && electron-builder --dir --publish never --config electron-builder.dev.json --config.npmRebuild=false",
-    "package:production:dir": "pnpm run build:production && pnpm run graft:install && pnpm run native:electron && electron-builder --dir --publish never --config electron-builder.json --config.npmRebuild=false",
+    "package:dir": "node scripts/verify-build-environment.mjs staging && pnpm run graft:install && pnpm run native:electron && electron-builder --dir --publish never --config electron-builder.dev.json --config.npmRebuild=false",
+    "package:production:dir": "pnpm run build:production && node scripts/verify-build-environment.mjs production && pnpm run graft:install && pnpm run native:electron && electron-builder --dir --publish never --config electron-builder.json --config.npmRebuild=false",
     "smoke:packaged": "node scripts/packaged-smoke.mjs"
   },
   "dependencies": {

@@ -30,6 +30,9 @@ whole-Space restore, and whole-Space Graft push/clone without importing Classic
 Desktop subsystems. Its service environment is one typed preset: development
 and unsigned packages use official staging, while an explicit production build
 selects the production account/Billing and Hosted Remote origins together. The
+compiled main bundle carries a verified environment manifest, and packaged
+applications ignore inherited environment overrides so a release cannot drift
+to staging after packaging. The
 Sync/Clone entry points now expose an independent Lite OAuth PKCE control plane,
 OS-encrypted environment-scoped credentials, and a strict signed-out gate;
 after login, main binds every issued or refreshed token to one stable local

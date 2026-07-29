@@ -2,7 +2,10 @@ import fs from "node:fs"
 import path from "node:path"
 import { app, BrowserWindow } from "electron"
 
-import { resolveEidosLiteServiceEnvironment } from "../shared/service-environment"
+import {
+  resolveEidosLiteServiceEnvironment,
+  runtimeEnvironmentOverride,
+} from "../shared/service-environment"
 import { registerIpc } from "./ipc"
 import { runPackagedSmoke } from "./packaged-smoke"
 import { createSyncControlPlane } from "./sync/create-sync-control-plane"
@@ -22,7 +25,9 @@ if (smokeResult) {
 const hasSingleInstanceLock = app.requestSingleInstanceLock()
 if (!hasSingleInstanceLock) app.quit()
 
-const services = resolveEidosLiteServiceEnvironment()
+const services = resolveEidosLiteServiceEnvironment(
+  runtimeEnvironmentOverride(app.isPackaged, process.env.EIDOS_LITE_ENVIRONMENT)
+)
 const controller = new WindowController(services)
 let shutdownStarted = false
 let closeIpc = (): Promise<void> => Promise.resolve()

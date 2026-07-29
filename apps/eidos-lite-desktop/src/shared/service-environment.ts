@@ -44,6 +44,13 @@ export function isEidosLiteEnvironmentName(
   )
 }
 
+export function runtimeEnvironmentOverride(
+  packaged: boolean,
+  override: string | undefined
+): string | undefined {
+  return packaged ? undefined : override
+}
+
 export function resolveEidosLiteServiceEnvironment(
   override: string | undefined = typeof process === "undefined"
     ? undefined

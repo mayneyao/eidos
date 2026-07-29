@@ -52,6 +52,10 @@ Staging resolves account and Billing responsibilities to
 `https://eidos.space` and `https://sync.eidos.space`. An invalid
 `EIDOS_LITE_ENVIRONMENT` aborts startup. Release packaging must start from
 `build:eidos-lite:production`; do not package stale development assets.
+Both build modes emit `dist-electron/eidos-lite-build-environment.json` from the
+same value used by the compiler define. Build and package scripts reject a
+missing or mismatched manifest. `EIDOS_LITE_ENVIRONMENT` remains a development
+override only; packaged applications always use their compiled preset.
 
 The renderer receives only the environment name and public origins through
 typed IPC. It shows a **Staging** badge for development safety. Local Space open

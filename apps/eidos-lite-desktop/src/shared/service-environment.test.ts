@@ -1,6 +1,7 @@
 import {
   EIDOS_LITE_SERVICE_ENVIRONMENTS,
   resolveEidosLiteServiceEnvironment,
+  runtimeEnvironmentOverride,
 } from "./service-environment"
 
 describe("Eidos Lite service environments", () => {
@@ -26,5 +27,11 @@ describe("Eidos Lite service environments", () => {
     expect(() =>
       resolveEidosLiteServiceEnvironment("http://localhost:8787")
     ).toThrow('must be "staging" or "production"')
+  })
+
+  it("keeps packaged applications on their compiled environment", () => {
+    expect(runtimeEnvironmentOverride(true, "staging")).toBeUndefined()
+    expect(runtimeEnvironmentOverride(true, "production")).toBeUndefined()
+    expect(runtimeEnvironmentOverride(false, "production")).toBe("production")
   })
 })

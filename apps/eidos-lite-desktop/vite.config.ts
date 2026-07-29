@@ -2,10 +2,34 @@ import { fileURLToPath } from "node:url"
 import path from "node:path"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
-import { defineConfig } from "vite"
+import { defineConfig, type Plugin } from "vite"
 import electron from "vite-plugin-electron/simple"
 
+import {
+  EIDOS_LITE_SERVICE_ENVIRONMENTS,
+  type EidosLiteEnvironmentName,
+} from "./src/shared/service-environment"
+
 const appRoot = path.dirname(fileURLToPath(import.meta.url))
+
+function buildEnvironmentManifest(
+  environment: EidosLiteEnvironmentName
+): Plugin {
+  return {
+    name: "eidos-lite-build-environment-manifest",
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "eidos-lite-build-environment.json",
+        source: `${JSON.stringify(
+          EIDOS_LITE_SERVICE_ENVIRONMENTS[environment],
+          null,
+          2
+        )}\n`,
+      })
+    },
+  }
+}
 
 const aliases = [
   {
@@ -53,7 +77,7 @@ const aliases = [
 ]
 
 export default defineConfig(({ mode }) => {
-  const defaultEnvironment =
+  const defaultEnvironment: EidosLiteEnvironmentName =
     mode === "eidos-production" ? "production" : "staging"
   const environmentDefine = {
     __EIDOS_LITE_DEFAULT_ENVIRONMENT__: JSON.stringify(defaultEnvironment),
@@ -73,6 +97,7 @@ export default defineConfig(({ mode }) => {
           ],
           vite: {
             define: environmentDefine,
+            plugins: [buildEnvironmentManifest(defaultEnvironment)],
             resolve: { alias: aliases },
             build: {
               target: "node24",

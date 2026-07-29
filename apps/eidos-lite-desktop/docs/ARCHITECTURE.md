@@ -276,8 +276,12 @@ The main process resolves one immutable `staging` or `production` preset. No
 renderer input, Space file, repository config, or arbitrary URL can change an
 origin. Development, normal builds, and unsigned packages compile with staging
 as the default; the explicit production build compiles with production as the
-default. `EIDOS_LITE_ENVIRONMENT` can select the other approved preset for an
-operational test, and any other value fails before a window opens.
+default. Development can select the other approved preset with
+`EIDOS_LITE_ENVIRONMENT`, and any other value fails before a window opens.
+Packaged applications ignore the inherited override and use only their compiled
+preset. The main build emits a service-environment manifest from the same typed
+value as the compiler define; both build and packaging commands reject a stale
+or mismatched manifest before electron-builder runs.
 
 | Environment | Account / OAuth               | Billing / entitlement / Credits | Hosted Remote                      |
 | ----------- | ----------------------------- | ------------------------------- | ---------------------------------- |
