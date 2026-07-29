@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -41,12 +43,25 @@ import type {
   SpaceSnapshot,
   SpaceTreeEntry,
 } from "../shared/contracts"
-import { EidosFileWorkbench } from "./eidos-file-workbench"
 import { FileRecoveryNotice } from "./file-recovery-notice"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
-import { SpaceFileTree } from "./space-file-tree"
-import { SyncPanel } from "./sync-panel"
-import { VersionPanel } from "./version-panel"
+
+const EidosFileWorkbench = lazy(async () => {
+  const module = await import("./eidos-file-workbench")
+  return { default: module.EidosFileWorkbench }
+})
+const SpaceFileTree = lazy(async () => {
+  const module = await import("./space-file-tree")
+  return { default: module.SpaceFileTree }
+})
+const SyncPanel = lazy(async () => {
+  const module = await import("./sync-panel")
+  return { default: module.SyncPanel }
+})
+const VersionPanel = lazy(async () => {
+  const module = await import("./version-panel")
+  return { default: module.VersionPanel }
+})
 
 interface CachedFile {
   sessionId: string
@@ -895,18 +910,22 @@ export function App() {
           diagnosticsCopied={diagnosticsCopied}
         />
         {syncPanelMode ? (
-          <SyncPanel
-            mode={syncPanelMode}
-            onClose={() => setSyncPanelMode(null)}
-            onRequestClone={() => setSyncPanelMode("clone")}
-            onClone={(snapshot) => {
-              acceptSpaceSnapshot(snapshot)
-              setSyncPanelMode(null)
-              void window.eidosLite
-                .listRecentSpaces()
-                .then(setRecentSpaces, (cause) => setError(errorMessage(cause)))
-            }}
-          />
+          <Suspense fallback={null}>
+            <SyncPanel
+              mode={syncPanelMode}
+              onClose={() => setSyncPanelMode(null)}
+              onRequestClone={() => setSyncPanelMode("clone")}
+              onClone={(snapshot) => {
+                acceptSpaceSnapshot(snapshot)
+                setSyncPanelMode(null)
+                void window.eidosLite
+                  .listRecentSpaces()
+                  .then(setRecentSpaces, (cause) =>
+                    setError(errorMessage(cause))
+                  )
+              }}
+            />
+          </Suspense>
         ) : null}
       </>
     )
@@ -994,20 +1013,28 @@ export function App() {
           <span>{space.eidosFileCount} Eidos Files</span>
         </div>
         <nav className="explorer" aria-label={`${space.name} files`}>
-          <SpaceFileTree
-            entries={space.entries}
-            activePath={activeFile?.relativePath ?? null}
-            disabled={space.operation.phase !== "ready" || busyFile !== null}
-            onSelect={setSelectedEntry}
-            onOpen={(entry) => void openEntry(entry)}
-            onContextMenu={(entry, x, y) =>
-              setContextMenu({
-                entry,
-                x: Math.max(8, Math.min(x, window.innerWidth - 200)),
-                y: Math.max(8, Math.min(y, window.innerHeight - 260)),
-              })
+          <Suspense
+            fallback={
+              <p className="explorer-busy" role="status">
+                <LoaderCircle className="spin" /> Loading Space Explorer…
+              </p>
             }
-          />
+          >
+            <SpaceFileTree
+              entries={space.entries}
+              activePath={activeFile?.relativePath ?? null}
+              disabled={space.operation.phase !== "ready" || busyFile !== null}
+              onSelect={setSelectedEntry}
+              onOpen={(entry) => void openEntry(entry)}
+              onContextMenu={(entry, x, y) =>
+                setContextMenu({
+                  entry,
+                  x: Math.max(8, Math.min(x, window.innerWidth - 200)),
+                  y: Math.max(8, Math.min(y, window.innerHeight - 260)),
+                })
+              }
+            />
+          </Suspense>
           {busyFile ? (
             <p className="explorer-busy">
               <LoaderCircle className="spin" /> Opening {busyFile}
@@ -1247,34 +1274,43 @@ export function App() {
                 data-eidos-file-relative-path={activeFile.relativePath}
                 data-eidos-file-row-count={activeTable.rowCount}
               >
-                <EidosFileWorkbench
-                  key={activeFile.sessionId}
-                  relativePath={activeFile.relativePath}
-                  snapshot={activeFile.snapshot}
-                  source={activeFile.source}
-                  activeTableId={activeFile.tableId}
-                  disabled={space.operation.phase !== "ready"}
-                  theme={theme}
-                  onTableSelect={(tableId) =>
-                    setCachedFiles((current) =>
-                      current.map((file) =>
-                        file.sessionId === activeFile.sessionId
-                          ? { ...file, tableId }
-                          : file
-                      )
-                    )
+                <Suspense
+                  fallback={
+                    <div className="editor-empty" role="status">
+                      <LoaderCircle className="spin" aria-hidden="true" />
+                      <p>Loading Eidos File editor…</p>
+                    </div>
                   }
-                  onSnapshot={(snapshot) =>
-                    setCachedFiles((current) =>
-                      current.map((file) =>
-                        file.sessionId === activeFile.sessionId
-                          ? { ...file, snapshot }
-                          : file
+                >
+                  <EidosFileWorkbench
+                    key={activeFile.sessionId}
+                    relativePath={activeFile.relativePath}
+                    snapshot={activeFile.snapshot}
+                    source={activeFile.source}
+                    activeTableId={activeFile.tableId}
+                    disabled={space.operation.phase !== "ready"}
+                    theme={theme}
+                    onTableSelect={(tableId) =>
+                      setCachedFiles((current) =>
+                        current.map((file) =>
+                          file.sessionId === activeFile.sessionId
+                            ? { ...file, tableId }
+                            : file
+                        )
                       )
-                    )
-                  }
-                  onError={(cause) => setError(errorMessage(cause))}
-                />
+                    }
+                    onSnapshot={(snapshot) =>
+                      setCachedFiles((current) =>
+                        current.map((file) =>
+                          file.sessionId === activeFile.sessionId
+                            ? { ...file, snapshot }
+                            : file
+                        )
+                      )
+                    }
+                    onError={(cause) => setError(errorMessage(cause))}
+                  />
+                </Suspense>
               </section>
             ) : space.eidosFileCount === 0 ? (
               <section
@@ -1313,27 +1349,31 @@ export function App() {
             )}
           </div>
           {versionPanelOpen && space.graft.initialized ? (
-            <VersionPanel
-              space={space}
-              refreshKey={versionRefreshKey}
-              onClose={() => setVersionPanelOpen(false)}
-              onSpaceChange={setSpace}
-              onRefresh={() => setVersionRefreshKey((current) => current + 1)}
-            />
+            <Suspense fallback={null}>
+              <VersionPanel
+                space={space}
+                refreshKey={versionRefreshKey}
+                onClose={() => setVersionPanelOpen(false)}
+                onSpaceChange={setSpace}
+                onRefresh={() => setVersionRefreshKey((current) => current + 1)}
+              />
+            </Suspense>
           ) : null}
         </div>
       </main>
       {syncPanelMode ? (
-        <SyncPanel
-          mode={syncPanelMode}
-          onClose={() => setSyncPanelMode(null)}
-          onRequestClone={() => setSyncPanelMode("clone")}
-          onReviewLocal={() => {
-            setSyncPanelMode(null)
-            setVersionPanelOpen(true)
-          }}
-          onSpaceChange={acceptSpaceSnapshot}
-        />
+        <Suspense fallback={null}>
+          <SyncPanel
+            mode={syncPanelMode}
+            onClose={() => setSyncPanelMode(null)}
+            onRequestClone={() => setSyncPanelMode("clone")}
+            onReviewLocal={() => {
+              setSyncPanelMode(null)
+              setVersionPanelOpen(true)
+            }}
+            onSpaceChange={acceptSpaceSnapshot}
+          />
+        </Suspense>
       ) : null}
       {contextMenu ? (
         <div

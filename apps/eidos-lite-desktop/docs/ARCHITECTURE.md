@@ -47,6 +47,13 @@ runtime remains the only process with a writable SQLite handle. Each open file
 has independent table/view state; changing the active file never transfers a
 runtime capability between sessions.
 
+The Welcome route does not eagerly parse Space-only UI. The Pierre Explorer,
+Sync panel, History panel, and canonical Eidos File workbench load at their
+first visible use. The packaged performance gate still starts its file-open
+clock before Explorer selection and waits for the shared Editor Shell and a
+sized Grid canvas, so this boundary reduces launch work without excluding the
+deferred editor cost from open/Grid evidence.
+
 ## Process and capability boundaries
 
 ```mermaid
