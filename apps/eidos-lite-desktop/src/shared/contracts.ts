@@ -95,6 +95,7 @@ export interface GraftSpaceStatus {
   expectedVersion: string
   initialized: boolean
   clean?: boolean
+  changedPaths?: number
   currentHead?: string
   error?: string
 }

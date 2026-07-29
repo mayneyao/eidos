@@ -359,10 +359,22 @@ export function SyncPanel({
         <header>
           <div>
             <Cloud />
-            <span>
-              <strong id="sync-dialog-title">
-                {mode === "enable" ? "Enable Eidos Sync" : "Clone Synced Space"}
-              </strong>
+            <span className="sync-dialog-copy">
+              <span className="sync-dialog-title-line">
+                <strong id="sync-dialog-title">
+                  {mode === "enable"
+                    ? "Enable Eidos Sync"
+                    : "Clone Synced Space"}
+                </strong>
+                {status?.environment === "staging" ? (
+                  <span
+                    className="environment-badge"
+                    data-service-environment="staging"
+                  >
+                    Staging
+                  </span>
+                ) : null}
+              </span>
               <small>Whole-Space Hosted Remote</small>
             </span>
           </div>
@@ -422,10 +434,6 @@ export function SyncPanel({
           {status ? (
             <>
               <dl className="sync-status-list">
-                <div>
-                  <dt>Environment</dt>
-                  <dd>{status.environment}</dd>
-                </div>
                 <div>
                   <dt>Account</dt>
                   <dd>

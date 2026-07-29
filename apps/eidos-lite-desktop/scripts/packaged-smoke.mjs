@@ -243,6 +243,7 @@ try {
     report.syncReliability?.automaticRetryAttempted !== true ||
     report.versioning?.initialized !== true ||
     report.versioning?.clean !== true ||
+    report.versioning?.changeBadge !== true ||
     report.versioning?.changePaths < 1 ||
     report.versioning?.rowChanges < 1 ||
     report.versioning?.historyCount < 3 ||

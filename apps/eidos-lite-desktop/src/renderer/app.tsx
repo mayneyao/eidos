@@ -302,14 +302,6 @@ function Welcome({
     >
       <header className="welcome-titlebar">
         <strong>Eidos Lite</strong>
-        {appInfo?.services.name === "staging" ? (
-          <span
-            className="environment-badge"
-            data-service-environment="staging"
-          >
-            Staging
-          </span>
-        ) : null}
       </header>
       <section className="welcome-copy" aria-labelledby="welcome-title">
         <p className="eyebrow">Local-first workspace</p>
@@ -943,6 +935,13 @@ export function App() {
     )
   }
 
+  const versionChangeCount =
+    space.graft.initialized && space.graft.clean === false
+      ? Math.max(1, space.graft.changedPaths ?? 1)
+      : 0
+  const versionChangeLabel =
+    versionChangeCount > 99 ? "99+" : String(versionChangeCount)
+
   return (
     <div
       className="workbench"
@@ -1123,29 +1122,6 @@ export function App() {
             role="toolbar"
             aria-label="Space status and actions"
           >
-            {appInfo?.services.name === "staging" ? (
-              <span
-                className="environment-badge"
-                data-service-environment="staging"
-              >
-                Staging
-              </span>
-            ) : null}
-            <span className="local-state">Local files safe</span>
-            <span className="status-separator">·</span>
-            <span>
-              {space.operation.phase === "ready"
-                ? "Ready"
-                : (space.operation.detail ?? space.operation.phase)}
-            </span>
-            <span className="status-separator">·</span>
-            <span>
-              {space.graft.initialized
-                ? space.graft.clean
-                  ? "Space version clean"
-                  : "Local changes"
-                : "Versioning off"}
-            </span>
             {space.graft.available && !space.graft.initialized ? (
               <button
                 type="button"
@@ -1190,15 +1166,30 @@ export function App() {
               <button
                 type="button"
                 className="version-action"
+                data-version-change-count={versionChangeCount}
                 aria-pressed={versionPanelOpen}
+                aria-label={
+                  versionChangeCount > 0
+                    ? `Version History, ${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
+                    : "Version History"
+                }
                 onClick={() => {
                   if (versionPanelOpen) setVersionInspection(null)
                   setVersionPanelOpen(!versionPanelOpen)
                 }}
-                title="View whole-Space changes and checkpoint history"
+                title={
+                  versionChangeCount > 0
+                    ? `${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
+                    : "View whole-Space changes and checkpoint history"
+                }
               >
                 <History />
                 {versionPanelOpen ? "Close History" : "Version History"}
+                {versionChangeCount > 0 ? (
+                  <span className="version-change-badge" aria-hidden="true">
+                    {versionChangeLabel}
+                  </span>
+                ) : null}
               </button>
             ) : null}
             <button

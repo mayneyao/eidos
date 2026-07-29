@@ -152,6 +152,7 @@ interface RendererSmokeResult {
   versioning: {
     initialized: boolean
     clean: boolean
+    changeBadge: boolean
     changePaths: number
     rowChanges: number
     historyCount: number
@@ -398,12 +399,6 @@ const rendererProbe = `
   if (!workbench || !sidebar || !sidebarResizer || !collapseSidebar) {
     throw new Error("Resizable workbench shell is incomplete")
   }
-  const stagingBadge = await waitFor(
-    () => document.querySelector(
-      '.environment-badge[data-service-environment="staging"]'
-    ),
-    "staging environment badge"
-  )
   const syncAction = [...document.querySelectorAll("button.version-action")].find(
     (button) => button.textContent?.includes("Eidos Sync")
   )
@@ -419,10 +414,14 @@ const rendererProbe = `
     "signed-out Eidos Sync control plane"
   )
   const syncSignIn = syncPanel.querySelector("[data-sync-sign-in]")
+  const stagingBadge = syncPanel.querySelector(
+    '.environment-badge[data-service-environment="staging"]'
+  )
   const syncControl = {
     action: Boolean(syncAction),
     panel: syncPanel.getAttribute("role") === "dialog",
     environment: syncPanel.dataset.syncEnvironment === "staging",
+    environmentBadge: Boolean(stagingBadge),
     signedOut: syncPanel.dataset.syncAccountState === "signed-out",
     gated: syncPanel.dataset.syncCanEnable === "false",
     signInAvailable: Boolean(syncSignIn),
@@ -758,6 +757,20 @@ const rendererProbe = `
   if (!changes.paths.some((change) => change.path === eidosPaths[0]) || rowChanges < 1) {
     throw new Error("Row-aware whole-Space Changes did not describe the mutation")
   }
+  const dirtyVersionButton = await waitFor(
+    () => {
+      const candidate = document.querySelector(
+        'button.version-action[data-version-change-count]'
+      )
+      return Number(candidate?.dataset.versionChangeCount) >= 1
+        ? candidate
+        : null
+    },
+    "Version History change badge"
+  )
+  const changeBadge = Boolean(
+    dirtyVersionButton.querySelector(".version-change-badge")
+  )
   window.__eidosLiteSmokeStep = "create checkpoint"
   const checkpoint = await window.eidosLite.createCheckpoint(
     "Packaged mutation checkpoint"
@@ -1056,6 +1069,7 @@ const rendererProbe = `
     versioning: {
       initialized: automaticSnapshot.graft.initialized,
       clean: automaticSnapshot.graft.clean,
+      changeBadge,
       changePaths: changes.paths.length,
       rowChanges,
       historyCount: automaticHistory.commits.length,

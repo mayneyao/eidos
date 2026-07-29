@@ -116,6 +116,13 @@ describe("whole-Space real Graft integration", () => {
         version: selectedBackend === "sdk" ? "0.1.0" : "0.8.1",
         initialized: true,
         clean: true,
+        changedPaths: 0,
+      })
+      await fs.writeFile(path.join(clone, "notes.txt"), "changed locally\n")
+      await expect(client.inspectSpace(clone)).resolves.toMatchObject({
+        initialized: true,
+        clean: false,
+        changedPaths: 1,
       })
     } finally {
       await client.close()

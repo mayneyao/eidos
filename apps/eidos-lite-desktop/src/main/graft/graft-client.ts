@@ -339,6 +339,11 @@ export class GraftClient {
     }
     try {
       const status = await this.status(root)
+      const changedPaths = status.dirty
+        ? await this.workingDiff(root, false)
+            .then((diff) => diff.paths.length)
+            .catch(() => undefined)
+        : 0
       return {
         available: true,
         backend: this.backend,
@@ -346,6 +351,7 @@ export class GraftClient {
         expectedVersion: this.expectedVersion(),
         initialized: true,
         clean: !status.dirty,
+        ...(changedPaths === undefined ? {} : { changedPaths }),
         ...(status.currentHead ? { currentHead: status.currentHead } : {}),
       }
     } catch (error) {
@@ -407,11 +413,14 @@ export class GraftClient {
     }
   }
 
-  async workingDiff(root: string): Promise<SpaceVersionDiff> {
+  async workingDiff(root: string, rows = true): Promise<SpaceVersionDiff> {
     return versionDiff(
       this.backend === "sdk"
-        ? await this.runSdk(root, "diff", [{ rows: true }])
-        : await this.runJson(root, ["diff", "--rows", "--json"])
+        ? await this.runSdk(root, "diff", [{ rows }])
+        : await this.runJson(
+            root,
+            rows ? ["diff", "--rows", "--json"] : ["diff", "--json"]
+          )
     )
   }
 

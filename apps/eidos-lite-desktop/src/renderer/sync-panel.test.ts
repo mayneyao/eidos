@@ -139,6 +139,16 @@ describe("SyncPanel failure states", () => {
     })
     const sync = host.querySelector<HTMLButtonElement>("[data-sync-run]")
     expect(sync).not.toBeNull()
+    expect(
+      host.querySelector(
+        '.sync-dialog-title-line .environment-badge[data-service-environment="staging"]'
+      )?.textContent
+    ).toBe("Staging")
+    expect(
+      [...host.querySelectorAll(".sync-status-list dt")].some(
+        (entry) => entry.textContent === "Environment"
+      )
+    ).toBe(false)
 
     await act(async () => {
       sync?.dispatchEvent(new MouseEvent("click", { bubbles: true }))

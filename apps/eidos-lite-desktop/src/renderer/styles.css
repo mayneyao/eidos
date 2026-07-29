@@ -140,12 +140,6 @@ button:focus-visible {
   letter-spacing: -0.01em;
 }
 
-.welcome-titlebar .environment-badge {
-  position: absolute;
-  right: 0.875rem;
-  -webkit-app-region: no-drag;
-}
-
 .welcome-copy {
   display: flex;
   flex-direction: column;
@@ -723,23 +717,6 @@ button:focus-visible {
   opacity: 1;
 }
 
-.local-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  color: var(--success);
-  font-weight: 650;
-}
-
-.local-state::before {
-  width: 0.32rem;
-  height: 0.32rem;
-  border-radius: 999px;
-  background: currentColor;
-  box-shadow: 0 0 0 1px color-mix(in oklab, currentColor 24%, transparent);
-  content: "";
-}
-
 .environment-badge {
   display: inline-flex;
   height: 1.1rem;
@@ -756,22 +733,12 @@ button:focus-visible {
   text-transform: uppercase;
 }
 
-.eyebrow .environment-badge {
-  margin-left: 0.5rem;
-  vertical-align: 0.08rem;
-}
-
 @media (prefers-color-scheme: dark) {
   .environment-badge {
     border-color: oklch(0.62 0.1 78 / 65%);
     color: oklch(0.82 0.1 82);
     background: oklch(0.3 0.045 72);
   }
-}
-
-.status-separator {
-  color: var(--line);
-  opacity: 0.7;
 }
 
 .sync-dialog-backdrop {
@@ -807,7 +774,8 @@ button:focus-visible {
 }
 
 .sync-dialog > header > div,
-.sync-dialog > header span {
+.sync-dialog-copy,
+.sync-dialog-title-line {
   display: flex;
   min-width: 0;
 }
@@ -823,8 +791,13 @@ button:focus-visible {
   color: var(--lite-accent);
 }
 
-.sync-dialog > header span {
+.sync-dialog-copy {
   flex-direction: column;
+}
+
+.sync-dialog-title-line {
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .sync-dialog > header strong {
@@ -1412,6 +1385,7 @@ button:focus-visible {
 }
 
 .version-action {
+  position: relative;
   display: inline-flex;
   height: 1.5rem;
   align-items: center;
@@ -1460,6 +1434,22 @@ button:focus-visible {
 .version-action svg {
   width: 0.72rem;
   height: 0.72rem;
+}
+
+.version-change-badge {
+  display: inline-flex;
+  min-width: 1rem;
+  height: 1rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  color: white;
+  background: var(--lite-accent);
+  font-size: 0.55rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 720;
+  line-height: 1;
 }
 
 .inline-error {
@@ -2945,9 +2935,7 @@ button:focus-visible {
     border-top: 1px solid var(--line);
   }
 
-  .space-heading span,
-  .file-titlebar-actions .status-separator,
-  .file-titlebar-actions > span:not(.local-state) {
+  .space-heading span {
     display: none;
   }
 }
