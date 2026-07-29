@@ -29,6 +29,7 @@ describe("SpaceCloneCoordinator", () => {
     options: {
       validationError?: Error
       cloneError?: Error
+      clonedBinary?: Uint8Array
       onClientClose?: () => void
     } = {}
   ) {
@@ -48,6 +49,12 @@ describe("SpaceCloneCoordinator", () => {
           )
           expect(journal).not.toContain("memory-only-token")
           await fs.writeFile(path.join(target, "project.eidos"), "valid")
+          if (options.clonedBinary) {
+            await fs.writeFile(
+              path.join(target, "asset.bin"),
+              options.clonedBinary
+            )
+          }
           if (options.cloneError) throw options.cloneError
         },
         close: async () => options.onClientClose?.(),
@@ -268,5 +275,51 @@ describe("SpaceCloneCoordinator", () => {
         origin
       ).read()
     ).resolves.toBeNull()
+  })
+
+  it("keeps both binary conflict versions in independent Recovery Spaces", async () => {
+    const source = path.join(root, "source")
+    const localTarget = path.join(destinations, "Project Local Recovery")
+    const hostedTarget = path.join(destinations, "Project Hosted Recovery")
+    const localBinary = Uint8Array.from([0, 255, 1, 2, 128, 64])
+    const hostedBinary = Uint8Array.from([0, 255, 9, 8, 127, 63])
+    await fs.mkdir(path.join(source, ".graft"), { recursive: true })
+    await Promise.all([
+      fs.writeFile(path.join(source, "project.eidos"), "valid"),
+      fs.writeFile(path.join(source, "asset.bin"), localBinary),
+      fs.writeFile(path.join(source, ".graft", "state"), "local metadata"),
+    ])
+
+    const recovery = coordinator({ clonedBinary: hostedBinary })
+    await recovery.copyLocalRecovery(source, localTarget)
+    await recovery.clone(hostedTarget, remoteUrl, "memory-only-token")
+
+    await expect(fs.readFile(path.join(source, "asset.bin"))).resolves.toEqual(
+      Buffer.from(localBinary)
+    )
+    await expect(
+      fs.readFile(path.join(localTarget, "asset.bin"))
+    ).resolves.toEqual(Buffer.from(localBinary))
+    await expect(
+      fs.readFile(path.join(hostedTarget, "asset.bin"))
+    ).resolves.toEqual(Buffer.from(hostedBinary))
+    await expect(
+      fs.lstat(path.join(localTarget, ".graft"))
+    ).rejects.toMatchObject({ code: "ENOENT" })
+
+    const localCanonical = await canonicalizeSpaceRoot(localTarget)
+    const hostedCanonical = await canonicalizeSpaceRoot(hostedTarget)
+    await expect(
+      new SpaceSyncStateStore(
+        path.join(state, "spaces", localCanonical.id),
+        origin
+      ).read()
+    ).resolves.toBeNull()
+    await expect(
+      new SpaceSyncStateStore(
+        path.join(state, "spaces", hostedCanonical.id),
+        origin
+      ).read()
+    ).resolves.toMatchObject({ remoteUrl, establishedBy: "clone" })
   })
 })

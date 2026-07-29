@@ -450,6 +450,11 @@ The original divergent Space is never materialized by either action. Both use
 owner-only operation journals and refuse an existing destination. A canceled
 save dialog changes nothing.
 
+Binary paths use the same explicit Keep-both model. Lite performs no file-level
+merge: the Local Recovery copy retains the Local bytes without `.graft` or a
+Sync marker, while the Hosted Recovery clone retains the Hosted bytes and its
+verified external marker. The original divergent binary remains untouched.
+
 Lite uses the independent OAuth client identity `lite.desktop.eidos.space` and
 does not import Classic Desktop session code. The account-service source owns a
 single registry for both the Better Auth trusted-client configuration and the

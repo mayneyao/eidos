@@ -427,6 +427,11 @@ explicit external staging gates.
   may copy Local ordinary files into a disconnected Recovery Space or cold
   clone Hosted into a separate connected folder. Both must re-fetch and
   re-authorize before opening a save dialog.
+- **A conflict includes binary files:** never attempt a binary merge. **Copy
+  Local Space** preserves the exact Local bytes in a disconnected Recovery
+  Space; **Clone Hosted Space** preserves the exact Hosted bytes in a separate
+  connected Recovery Space. Keep the original divergent Space unchanged, so
+  all versions remain independently user-owned ordinary files.
 - **Local Recovery copy:** require a clean checkpoint, drain mutations, close
   handles, exclude root `.graft`, reject symlinks, special files and nested
   `.graft`, validate all copied `.eidos` files, then atomically publish a new

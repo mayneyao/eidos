@@ -32,7 +32,7 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 
 The final local audit passed:
 
-- Lite source and real-Graft suite: 128 passed, 8 explicitly skipped. The
+- Lite source and real-Graft suite: 129 passed, 8 explicitly skipped. The
   skipped cases are the opt-in performance and external staging/discovery
   gates, not hidden successes.
 - Real Graft SDK integration: 6 passed, covering whole-Space push/clone,
@@ -78,6 +78,10 @@ The final local audit passed:
   no success is reported, credentials/Remote URL are not persisted, and one
   serialized retry is scheduled. Remote protocol fault injection remains a
   separate external gate owned with Graft/Hosted Remote.
+- Binary conflict recovery preserves distinct Local and Hosted byte sequences
+  in independent ordinary Recovery Spaces without touching the original. The
+  Local copy excludes `.graft` and remains disconnected; the Hosted clone has
+  only its verified external Sync marker. Lite never attempts a binary merge.
 - TypeScript, oxlint over the Lite directory, oxfmt over all tracked Lite files
   and `git diff --check` passed.
 
@@ -118,10 +122,9 @@ The following must stay visibly open before Public v1:
    including subscription/Credits refresh, whole-Space enable, second-device
    clone, offline edits, divergence and both recovery copies.
 7. Add destructive automation for application termination during pull/publish,
-   Remote-level object-written/ref-publish failure, binary-file
-   conflict/Keep-both, quota crossing, entitlement expiry during Sync,
-   delayed/duplicate/out-of-order Credits webhooks and subscription restoration
-   with pending checkpoints.
+   Remote-level object-written/ref-publish failure, quota crossing, entitlement
+   expiry during Sync, delayed/duplicate/out-of-order Credits webhooks and
+   subscription restoration with pending checkpoints.
 8. Provide the Sync service status page, alerting, quota dashboard and service
    runbook, and reconcile Privacy/Pricing/application copy for upload scope and
    encryption claims.
