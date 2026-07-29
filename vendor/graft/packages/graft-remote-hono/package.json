@@ -1,0 +1,51 @@
+{
+  "name": "@eidos.space/graft-remote-hono",
+  "version": "0.1.0",
+  "description": "Hono adapter for @eidos.space/graft-remote",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eidos-space/graft.git",
+    "directory": "packages/graft-remote-hono"
+  },
+  "homepage": "https://github.com/eidos-space/graft",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.build.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --pool=threads --maxWorkers=1",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "@eidos.space/graft-remote": "workspace:^"
+  },
+  "peerDependencies": {
+    "hono": "^4.12.31"
+  },
+  "devDependencies": {
+    "hono": "4.12.31",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

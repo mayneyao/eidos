@@ -10,3 +10,4 @@ node_modules
 .next
 build
 .contentlayer
+apps/graft-remote/worker-configuration.d.ts
