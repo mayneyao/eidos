@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { createEidosFile, openEidosFile } from "./better-sqlite3"
 import {
@@ -384,6 +384,8 @@ describe("Eidos File 1.0 native Runtime", () => {
     try {
       const revisionBefore = Number(runtime.info().revision)
       const getRow = vi.spyOn(runtime, "getRow")
+      const getTable = vi.spyOn(runtime, "getTable")
+      const listFields = vi.spyOn(runtime, "listFields")
       let tableId = ""
       runtime.connection.transaction(() => {
         const table = runtime.createTable({
@@ -404,6 +406,8 @@ describe("Eidos File 1.0 native Runtime", () => {
       })
 
       expect(getRow).not.toHaveBeenCalled()
+      expect(getTable).toHaveBeenCalledTimes(1)
+      expect(listFields).toHaveBeenCalledTimes(1)
       expect(runtime.listRows(tableId, { limit: 1_200 })).toHaveLength(1_200)
       expect(Number(runtime.info().revision)).toBe(revisionBefore + 1)
       expect(runtime.inspect()).toMatchObject({ valid: true, errors: [] })

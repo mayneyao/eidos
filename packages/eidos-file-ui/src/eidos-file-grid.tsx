@@ -53,6 +53,7 @@ import { type UndoRedoEdit, useUndoRedo } from "./use-undo-redo"
 import { useEidosFileUI } from "./context"
 import { useEidosFileGridTheme } from "./theme"
 import { Button } from "./ui/primitives"
+import { useGlideDataGridPortal } from "./use-glide-data-grid-portal"
 
 import {
   eidosFileGridColumn,
@@ -364,6 +365,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   onViewUpdate,
   onError,
 }: EidosFileGridProps) {
+  useGlideDataGridPortal()
   const {
     assetPresenter,
     assetSession,
