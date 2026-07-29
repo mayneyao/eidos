@@ -140,6 +140,19 @@ export class QuotaTrackedRepositoryBackend implements GraftRepositoryBackend {
         )
       }
 
+      if (reservation.alreadyTracked) {
+        const metadata = await this.#delegate.head(path)
+        if (metadata !== null) {
+          if (staged !== null) {
+            await this.finishStagedBody(staged, false)
+            stagedFinished = true
+          } else {
+            await cancelUnconsumedBody(storageValue)
+          }
+          return false
+        }
+      }
+
       let persisted = false
       try {
         const created = await this.#delegate.putIfAbsent(
@@ -151,18 +164,31 @@ export class QuotaTrackedRepositoryBackend implements GraftRepositoryBackend {
         if (staged !== null) {
           await this.finishStagedBody(staged, created)
           stagedFinished = true
+        } else if (!created) {
+          await cancelUnconsumedBody(storageValue)
         }
-        const metadata = await this.#delegate.head(path)
-        if (metadata === null) {
-          throw new Error("Immutable object is missing after storage operation")
-        }
-        if (created && reservation.reservationId !== null) {
-          await this.#usage.commit({
-            reservationId: reservation.reservationId,
-            actualBytes: metadata.size,
-            quotaBytes: this.#quotaBytes,
-          })
+        if (created) {
+          if (reservation.reservationId !== null) {
+            await this.#usage.commit({
+              reservationId: reservation.reservationId,
+              actualBytes: knownBytes,
+              quotaBytes: this.#quotaBytes,
+            })
+          } else {
+            await this.#usage.observeExisting({
+              repositoryId: this.#repositoryId,
+              path,
+              actualBytes: knownBytes,
+              quotaBytes: this.#quotaBytes,
+            })
+          }
         } else {
+          const metadata = await this.#delegate.head(path)
+          if (metadata === null) {
+            throw new Error(
+              "Immutable object is missing after storage operation"
+            )
+          }
           await this.#usage.observeExisting({
             repositoryId: this.#repositoryId,
             path,
@@ -355,6 +381,11 @@ export class QuotaTrackedRepositoryBackend implements GraftRepositoryBackend {
       )
     }
   }
+}
+
+async function cancelUnconsumedBody(value: GraftWriteBody): Promise<void> {
+  if (value instanceof Uint8Array || value.locked) return
+  await value.cancel("create-only target already exists")
 }
 
 export function parseContentLength(request: Request): number | null {

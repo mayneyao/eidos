@@ -320,6 +320,61 @@ describe("eidos.space Graft Remote", () => {
     })
   })
 
+  it("skips known immutable objects and cancels their unconsumed request body", async () => {
+    const usage = env.GRAFT_USAGE.getByName("known-" + crypto.randomUUID())
+    const memory = memoryBackend()
+    let headCalls = 0
+    let putCalls = 0
+    const backend: GraftRepositoryBackend = {
+      ...memory,
+      head(path) {
+        headCalls += 1
+        return memory.head(path)
+      },
+      putIfAbsent(path, value, kind) {
+        putCalls += 1
+        return memory.putIfAbsent(path, value, kind)
+      },
+    }
+    const tracked = new QuotaTrackedRepositoryBackend({
+      delegate: backend,
+      mode: "enforce",
+      objects: env.GRAFT_OBJECTS,
+      pathContentLength: 3,
+      quotaBytes: 10,
+      repositoryId: "repo-known",
+      usage,
+    })
+
+    await expect(
+      tracked.putIfAbsent(
+        "objects/known",
+        new TextEncoder().encode("123"),
+        "immutable"
+      )
+    ).resolves.toBe(true)
+
+    let cancelled = false
+    const duplicate = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelled = true
+      },
+    })
+    await expect(
+      tracked.putIfAbsent("objects/known", duplicate, "immutable")
+    ).resolves.toBe(false)
+
+    expect({ cancelled, headCalls, putCalls }).toEqual({
+      cancelled: true,
+      headCalls: 1,
+      putCalls: 1,
+    })
+    expect(await usage.summary(10)).toMatchObject({
+      usedBytes: 3,
+      reservedBytes: 0,
+    })
+  })
+
   it("stages unknown-length streams before enforcing their actual byte quota", async () => {
     const usage = env.GRAFT_USAGE.getByName("length-" + crypto.randomUUID())
     const backend = memoryBackend()
