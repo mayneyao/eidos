@@ -183,8 +183,14 @@ describe("eidos.space Graft Remote", () => {
       remote_url: first.payload.remote_url,
     })
 
-    const descriptor = await protocolFetch(first.payload.remote_url)
+    const descriptor = await protocolFetch(first.payload.remote_url, "", {
+      init: { headers: { "X-Graft-Request-Id": "test-request-42" } },
+    })
     expect(descriptor.status).toBe(200)
+    expect(descriptor.headers.get("x-graft-request-id")).toBe("test-request-42")
+    expect(descriptor.headers.get("server-timing")).toMatch(
+      /^auth;dur=\d+\.\d{3}, directory;dur=\d+\.\d{3}, total;dur=\d+\.\d{3}$/
+    )
     expect(await descriptor.json()).toMatchObject({
       protocol: "graft-remote",
       version: 1,

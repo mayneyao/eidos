@@ -8,7 +8,7 @@ import {
   RepositoryDurableObject,
 } from "@eidos.space/graft-remote-cloudflare"
 import { createGraftRemote } from "@eidos.space/graft-remote-hono"
-import { Hono } from "hono"
+import { Hono, type Context } from "hono"
 
 import {
   authenticateEidosUser,
@@ -34,7 +34,16 @@ export {
   SyncUsageDurableObject,
 }
 
-type AppEnv = { Bindings: Env }
+interface RequestTiming {
+  startedAt: number
+  authMs: number
+  directoryMs: number
+}
+
+type AppEnv = {
+  Bindings: Env
+  Variables: { requestTiming: RequestTiming }
+}
 
 const REPOSITORY_NAME = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$/
 const DEFAULT_SYNC_QUOTA_BYTES = 10 * 1024 * 1024 * 1024
@@ -125,6 +134,21 @@ export function createGraftRemoteWorker(
 ): Hono<AppEnv> {
   const dependencies = { ...defaultDependencies, ...overrides }
   const app = new Hono<AppEnv>()
+
+  app.use("*", async (context, next) => {
+    const timing: RequestTiming = {
+      startedAt: performance.now(),
+      authMs: 0,
+      directoryMs: 0,
+    }
+    context.set("requestTiming", timing)
+    await next()
+    context.header(
+      "X-Graft-Request-Id",
+      safeRequestId(context.req.header("X-Graft-Request-Id"))
+    )
+    context.header("Server-Timing", serverTimingHeader(timing))
+  })
 
   app.get("/healthz", () =>
     jsonResponse({
@@ -223,7 +247,9 @@ export function createGraftRemoteWorker(
 
   const remote = createGraftRemote<AppEnv, EidosPrincipal>({
     async authenticate({ request, adapterContext }) {
-      return await dependencies.authenticate(request, adapterContext.env)
+      return await measureRequestPhase(adapterContext, "authMs", () =>
+        dependencies.authenticate(request, adapterContext.env)
+      )
     },
     async authorize({ adapterContext, principal, repository, action }) {
       if (
@@ -240,10 +266,15 @@ export function createGraftRemoteWorker(
     },
     async backend({ adapterContext, principal, repository, request }) {
       if (principal === undefined) return null
-      const record = await dependencies.findRepository(
-        adapterContext.env,
-        principal,
-        repository.name
+      const record = await measureRequestPhase(
+        adapterContext,
+        "directoryMs",
+        () =>
+          dependencies.findRepository(
+            adapterContext.env,
+            principal,
+            repository.name
+          )
       )
       return record === null
         ? null
@@ -279,6 +310,33 @@ export function createGraftRemoteWorker(
   })
 
   return app
+}
+
+async function measureRequestPhase<T>(
+  context: Context<AppEnv>,
+  phase: "authMs" | "directoryMs",
+  operation: () => Promise<T>
+): Promise<T> {
+  const started = performance.now()
+  try {
+    return await operation()
+  } finally {
+    context.get("requestTiming")[phase] += performance.now() - started
+  }
+}
+
+function safeRequestId(value: string | undefined): string {
+  return value !== undefined && /^[A-Za-z0-9._-]{1,64}$/.test(value)
+    ? value
+    : crypto.randomUUID()
+}
+
+function serverTimingHeader(timing: RequestTiming): string {
+  return [
+    "auth;dur=" + timing.authMs.toFixed(3),
+    "directory;dur=" + timing.directoryMs.toFixed(3),
+    "total;dur=" + (performance.now() - timing.startedAt).toFixed(3),
+  ].join(", ")
 }
 
 function directory(
