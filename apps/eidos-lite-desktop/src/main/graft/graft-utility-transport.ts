@@ -6,6 +6,10 @@ import type {
   GraftSdkWorkerRequest,
   GraftSdkWorkerResponse,
 } from "../../shared/graft-sdk-contracts"
+import type {
+  SpaceVersionTextContentDiff,
+  SpaceVersionTextContentRequest,
+} from "../../shared/contracts"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 interface PendingRequest {
@@ -91,6 +95,19 @@ export class GraftUtilityTransport implements GraftSdkTransport {
       },
       options.signal
     )
+  }
+
+  revisionTextDiff(
+    request: SpaceVersionTextContentRequest
+  ): Promise<SpaceVersionTextContentDiff> {
+    if (!this.child) {
+      return Promise.reject(new Error("Graft SDK utility process is closed"))
+    }
+    return this.request({
+      requestId: this.nextRequestId++,
+      type: "revisionTextDiff",
+      ...request,
+    }) as Promise<SpaceVersionTextContentDiff>
   }
 
   async clone(

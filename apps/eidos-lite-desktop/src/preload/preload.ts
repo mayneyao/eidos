@@ -93,6 +93,13 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.trackedIgnoredPaths, limit, after),
   untrackIgnoredPaths: (expectedHead) =>
     ipcRenderer.invoke(IPC_CHANNELS.untrackIgnoredPaths, expectedHead),
+  getVersionTextDiff: (commitId, parentId, relativePath) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.versionTextDiff,
+      commitId,
+      parentId,
+      relativePath
+    ),
   restoreCheckpoint: (commitId, expectedHead) =>
     ipcRenderer.invoke(IPC_CHANNELS.restoreCheckpoint, commitId, expectedHead),
   getSyncStatus: () => ipcRenderer.invoke(IPC_CHANNELS.syncStatus),

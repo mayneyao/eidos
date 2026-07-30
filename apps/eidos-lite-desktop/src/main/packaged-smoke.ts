@@ -165,6 +165,12 @@ interface RendererSmokeResult {
 }
 
 type EmptySpaceOnboardingResult = RendererSmokeResult["onboarding"]
+type TextHistorySmokeResult = {
+  directRead: boolean
+  pierreRendered: boolean
+  splitLayout: boolean
+  unifiedLayout: boolean
+}
 
 const emptySpaceOnboardingProbe = `
 (async () => {
@@ -252,6 +258,83 @@ const launchRouteProbe = `
     await new Promise((resolve) => setTimeout(resolve, 25))
   }
   throw new Error("Timed out waiting for the file-association launch route")
+})()
+`
+
+const textHistoryProbe = `
+(async () => {
+  const waitFor = async (read, label) => {
+    const deadline = Date.now() + 15000
+    while (Date.now() < deadline) {
+      const value = read()
+      if (value) return value
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    throw new Error("Timed out waiting for " + label)
+  }
+  window.__eidosLiteSmokeStep = "historical text diff UI"
+  const versionAction = document.querySelector(
+    'button[data-titlebar-action="version"]'
+  )
+  if (!versionAction) throw new Error("Version History UI action is missing")
+  if (document.querySelector(".version-panel")) {
+    versionAction.click()
+    await waitFor(
+      () => !document.querySelector(".version-panel") && true,
+      "closed Version History panel"
+    )
+  }
+  versionAction.click()
+  const panel = await waitFor(
+    () => document.querySelector(".version-panel"),
+    "reopened Version History panel"
+  )
+  const historyTab = [...panel.querySelectorAll('[role="tab"]')].find(
+    (candidate) => candidate.textContent?.trim() === "History"
+  )
+  if (!historyTab) throw new Error("History tab is missing")
+  historyTab.click()
+  const commitRow = await waitFor(
+    () => [...document.querySelectorAll(".commit-row")].find(
+      (candidate) => candidate.textContent?.includes("Packaged text checkpoint")
+    ),
+    "text checkpoint"
+  )
+  commitRow.click()
+  const textFile = await waitFor(
+    () => [...document.querySelectorAll(".history-change-list > li > button")]
+      .find((candidate) => candidate.getAttribute("title") === "README.md"),
+    "README history change"
+  )
+  textFile.click()
+  const diff = await waitFor(
+    () => document.querySelector("[data-version-text-diff]"),
+    "historical text diff"
+  )
+  const split = diff.querySelector('button[aria-pressed="true"]')
+  const unified = [...diff.querySelectorAll("button")].find(
+    (candidate) => candidate.textContent?.trim() === "Unified"
+  )
+  if (!split || split.textContent?.trim() !== "Split" || !unified) {
+    throw new Error("Text diff layout controls are incomplete")
+  }
+  const pierreRendered = await waitFor(() => {
+    const surface = document.querySelector(".version-text-diff-virtualizer")
+    if (!surface) return false
+    return [...surface.querySelectorAll("*")].some(
+      (candidate) => candidate.shadowRoot?.querySelector("[data-line]")
+    )
+  }, "Pierre text diff lines")
+  unified.click()
+  const unifiedLayout = await waitFor(
+    () => unified.getAttribute("aria-pressed") === "true",
+    "unified text diff layout"
+  )
+  return {
+    pierreRendered: Boolean(pierreRendered),
+    splitLayout: true,
+    unifiedLayout: Boolean(unifiedLayout),
+  }
 })()
 `
 
@@ -1129,6 +1212,15 @@ export async function runPackagedSmoke(
   resultPath: string,
   startup: PackagedSmokeStartup
 ): Promise<void> {
+  if (process.env.EIDOS_LITE_SMOKE_SCOPE === "text-history") {
+    await runPackagedTextHistorySmoke(
+      controller,
+      spaceRoot,
+      resultPath,
+      startup
+    )
+    return
+  }
   const { coldStartMs, failures } = startup
   let welcomeWindow: BrowserWindow | null = startup.welcomeWindow
   let onboardingWindow: BrowserWindow | null = null
@@ -1306,6 +1398,69 @@ export async function runPackagedSmoke(
     if (onboardingWindow && !onboardingWindow.isDestroyed()) {
       onboardingWindow.destroy()
     }
+    if (window && !window.isDestroyed()) window.destroy()
+    await controller.closeAll()
+  }
+}
+
+async function runPackagedTextHistorySmoke(
+  controller: WindowController,
+  spaceRoot: string,
+  resultPath: string,
+  startup: PackagedSmokeStartup
+): Promise<void> {
+  const { failures } = startup
+  let welcomeWindow: BrowserWindow | null = startup.welcomeWindow
+  let window: BrowserWindow | null = null
+  try {
+    window = await controller.createSpaceWindow(spaceRoot, (candidate) => {
+      observePackagedSmokeWindow(candidate, failures)
+    })
+    welcomeWindow.destroy()
+    welcomeWindow = null
+    const session = controller.requireSession(window.webContents)
+    await session.enableVersioning()
+    const readmePath = path.join(spaceRoot, "README.md")
+    const before = await fs.readFile(readmePath, "utf8")
+    const after = `${before}\nText history checkpoint.\n`
+    await fs.writeFile(readmePath, after)
+    await session.createCheckpoint("Packaged text checkpoint")
+    const history = await session.getVersionHistory(10)
+    const commit = history.commits.find(
+      (candidate) => candidate.message === "Packaged text checkpoint"
+    )
+    if (!commit) throw new Error("Text checkpoint is missing from History")
+    const content = await session.getVersionTextDiff(
+      commit.id,
+      commit.parent,
+      "README.md"
+    )
+    const directRead =
+      content.before.state === "utf8" &&
+      content.before.content === before &&
+      content.after.state === "utf8" &&
+      content.after.content === after
+    if (!directRead) {
+      throw new Error(
+        `Historical README content does not match: ${JSON.stringify(content)}`
+      )
+    }
+    const ui = (await window.webContents.executeJavaScript(
+      textHistoryProbe,
+      true
+    )) as Omit<TextHistorySmokeResult, "directRead">
+    if (failures.length) throw new Error(failures.join("\n"))
+    await fs.mkdir(path.dirname(resultPath), { recursive: true })
+    await fs.writeFile(
+      resultPath,
+      JSON.stringify({
+        ok: true,
+        textHistory: { directRead, ...ui },
+        consoleErrors: failures,
+      })
+    )
+  } finally {
+    if (welcomeWindow && !welcomeWindow.isDestroyed()) welcomeWindow.destroy()
     if (window && !window.isDestroyed()) window.destroy()
     await controller.closeAll()
   }

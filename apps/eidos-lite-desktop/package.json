@@ -23,7 +23,8 @@
     "native:node": "node ../../scripts/use-better-sqlite3-runtime.cjs node",
     "package:dir": "node scripts/verify-build-environment.mjs staging && node scripts/verify-electron-output.mjs && pnpm run native:electron && electron-builder --dir --publish never --config electron-builder.dev.json --config.npmRebuild=false",
     "package:production:dir": "pnpm run build:production && node scripts/verify-build-environment.mjs production && node scripts/verify-electron-output.mjs && pnpm run native:electron && electron-builder --dir --publish never --config electron-builder.json --config.npmRebuild=false",
-    "smoke:packaged": "node scripts/packaged-smoke.mjs"
+    "smoke:packaged": "node scripts/packaged-smoke.mjs",
+    "smoke:text-history": "node scripts/packaged-text-history-smoke.mjs"
   },
   "dependencies": {
     "@eidos.space/eidos-file": "workspace:*",
@@ -31,6 +32,7 @@
     "@eidos.space/graft": "file:/private/tmp/graft-sdk-local-pack-04d6-rc7-final-2S45J7/eidos.space-graft-0.3.0-rc.0.tgz",
     "@eidos.space/graft-darwin-arm64": "file:/private/tmp/graft-sdk-local-pack-04d6-rc7-final-2S45J7/eidos.space-graft-darwin-arm64-0.3.0-rc.0.tgz",
     "@glideapps/glide-data-grid": "^6.0.0",
+    "@pierre/diffs": "1.2.7",
     "@pierre/trees": "1.0.0-beta.5",
     "better-sqlite3": "^12.0.0",
     "bindings": "^1.5.0",

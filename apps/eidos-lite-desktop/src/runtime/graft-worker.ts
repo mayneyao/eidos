@@ -23,6 +23,7 @@ import type {
   GraftSdkWorkerRequest,
   GraftSdkWorkerResponse,
 } from "../shared/graft-sdk-contracts"
+import { readTemporaryRevisionTextDiff } from "../main/graft/temporary-object-reader"
 
 interface UtilityParentPort {
   on(event: "message", listener: (event: { data: unknown }) => void): void
@@ -276,6 +277,11 @@ async function handle(request: GraftSdkWorkerRequest): Promise<unknown> {
       sessionRoot = null
       await repository?.close()
       return { closed: true }
+    }
+    case "revisionTextDiff": {
+      const repository = requireSession()
+      if (!sessionRoot) throw new Error("Graft repository session is not open")
+      return readTemporaryRevisionTextDiff(repository, sessionRoot, request)
     }
     case "command":
       return runCommand(

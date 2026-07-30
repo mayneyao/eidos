@@ -1,3 +1,5 @@
+import type { SpaceVersionTextContentRequest } from "./contracts"
+
 export type GraftSdkCommand =
   | "sdkVersion"
   | "operationMaterializesWorktree"
@@ -43,6 +45,10 @@ export type GraftSdkWorkerRequest =
       requestId: number
       type: "close"
     }
+  | ({
+      requestId: number
+      type: "revisionTextDiff"
+    } & SpaceVersionTextContentRequest)
   | {
       requestId: number
       type: "command"

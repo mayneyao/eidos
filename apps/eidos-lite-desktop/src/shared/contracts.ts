@@ -11,6 +11,7 @@ import type { EidosLiteServiceEnvironment } from "./service-environment"
 export const EIDOS_LITE_CSV_IMPORT_BYTES_MAX = 16 * 1024 * 1024
 export const EIDOS_LITE_CSV_EXPORT_BYTES_MAX = 256 * 1024 * 1024
 export const EIDOS_LITE_TEXT_PREVIEW_BYTES_MAX = 2 * 1024 * 1024
+export const EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX = 1024 * 1024
 
 export const IPC_CHANNELS = {
   appInfo: "eidos-lite:app-info",
@@ -49,6 +50,7 @@ export const IPC_CHANNELS = {
   versionCancel: "eidos-lite:version-cancel",
   trackedIgnoredPaths: "eidos-lite:tracked-ignored-paths",
   untrackIgnoredPaths: "eidos-lite:untrack-ignored-paths",
+  versionTextDiff: "eidos-lite:version-text-diff",
   restoreCheckpoint: "eidos-lite:checkpoint-restore",
   syncStatus: "eidos-lite:sync-status",
   syncSignIn: "eidos-lite:sync-sign-in",
@@ -204,6 +206,33 @@ export interface GraftTrackedIgnoredPaths {
   total: number
   hasMore: boolean
   nextCursor: string | null
+}
+
+export type SpaceVersionTextContentState =
+  | { state: "absent" }
+  | {
+      state: "utf8"
+      content: string
+      size: number
+      contentHash?: string
+    }
+  | {
+      state: "too_large" | "missing_payload" | "invalid_utf8"
+      size: number
+      contentHash?: string
+    }
+
+export interface SpaceVersionTextContentDiff {
+  path: string
+  before: SpaceVersionTextContentState
+  after: SpaceVersionTextContentState
+}
+
+export interface SpaceVersionTextContentRequest {
+  commitId: string
+  parentId: string | null
+  path: string
+  maxBytes: number
 }
 
 export interface SpaceSnapshot {
@@ -719,6 +748,11 @@ export interface EidosLiteApi {
     after?: string
   ): Promise<GraftTrackedIgnoredPaths>
   untrackIgnoredPaths(expectedHead: string): Promise<SpaceSnapshot>
+  getVersionTextDiff(
+    commitId: string,
+    parentId: string | null,
+    path: string
+  ): Promise<SpaceVersionTextContentDiff>
   restoreCheckpoint(
     commitId: string,
     expectedHead: string

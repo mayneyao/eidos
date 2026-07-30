@@ -19,7 +19,12 @@ import {
 } from "@eidos.space/graft"
 
 import type { GraftSdkCommand } from "../../shared/graft-sdk-contracts"
+import type {
+  SpaceVersionTextContentDiff,
+  SpaceVersionTextContentRequest,
+} from "../../shared/contracts"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
+import { readTemporaryRevisionTextDiff } from "./temporary-object-reader"
 
 export class GraftInProcessTransport implements GraftSdkTransport {
   private session: RepositorySession | null = null
@@ -199,6 +204,17 @@ export class GraftInProcessTransport implements GraftSdkTransport {
         session.clearHttpBearerToken(this.string(args[0], "Remote name"))
         return { cleared: true }
     }
+  }
+
+  async revisionTextDiff(
+    request: SpaceVersionTextContentRequest
+  ): Promise<SpaceVersionTextContentDiff> {
+    if (!this.target) throw new Error("Graft repository session is not open")
+    return readTemporaryRevisionTextDiff(
+      this.requireSession(),
+      this.target,
+      request
+    )
   }
 
   async clone(

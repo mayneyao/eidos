@@ -18,10 +18,14 @@ import type {
   SpacePathMutationResult,
   SpaceVersionDiff,
   SpaceVersionHistory,
+  SpaceVersionTextContentDiff,
   SpaceTreeEntry,
   TextFilePreviewResult,
 } from "../../shared/contracts"
-import { RUNTIME_MUTATION_METHODS } from "../../shared/contracts"
+import {
+  EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX,
+  RUNTIME_MUTATION_METHODS,
+} from "../../shared/contracts"
 import type { GraftClient, GraftIgnoreInspection } from "../graft/graft-client"
 import {
   classifyEidosFileIssue,
@@ -993,6 +997,26 @@ export class SpaceSession {
     )
     this.automaticCheckpointEnabled = true
     return this.freshSnapshotAndEmit(true)
+  }
+
+  async getVersionTextDiff(
+    commitId: string,
+    parentId: string | null,
+    relativePath: string
+  ): Promise<SpaceVersionTextContentDiff> {
+    await this.requireInitializedVersioning()
+    this.assertRevisionId(commitId)
+    if (parentId) this.assertRevisionId(parentId)
+    const safePath = normalizeMutableRelativePath(relativePath)
+    return this.gate.withRepositoryOperation("Reading checkpoint text", () =>
+      this.graft.revisionTextDiff(
+        this.canonical.root,
+        commitId,
+        parentId,
+        safePath,
+        EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX
+      )
+    )
   }
 
   async restoreCheckpoint(

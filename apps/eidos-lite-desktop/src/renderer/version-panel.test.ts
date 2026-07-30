@@ -190,4 +190,35 @@ describe("VersionPanel row diff paging", () => {
     expect(markup).toContain("Hao Chen")
     expect(markup).toContain("Customer")
   })
+
+  it("loads text content only after selecting a historical text file", () => {
+    const inspection: VersionInspection = {
+      type: "file",
+      key: "history:commit-2:notes/readme.md",
+      mode: "history",
+      diff: versionDiff,
+      change: versionDiff.paths[0]!,
+      file: null,
+      commit: {
+        id: "a".repeat(64),
+        parent: "b".repeat(64),
+        message: "Update notes",
+        timestampMs: 1_700_000_000_000,
+        files: 1,
+        changes: [versionDiff.paths[0]!],
+        tables: [],
+        changedTables: 0,
+      },
+    }
+
+    const markup = renderToStaticMarkup(
+      createElement(VersionDiffPreview, {
+        inspection,
+        onClose: () => undefined,
+      })
+    )
+
+    expect(markup).toContain("Reading checkpoint text…")
+    expect(markup).not.toContain("metadata only")
+  })
 })

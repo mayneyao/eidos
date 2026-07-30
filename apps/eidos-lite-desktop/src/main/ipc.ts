@@ -436,6 +436,21 @@ export function registerIpc(
     }
   )
   ipcMain.handle(
+    IPC_CHANNELS.versionTextDiff,
+    (event, commitId: unknown, parentId: unknown, relativePath: unknown) => {
+      if (typeof commitId !== "string") throw new Error("Invalid checkpoint")
+      if (parentId !== null && typeof parentId !== "string") {
+        throw new Error("Invalid checkpoint parent")
+      }
+      if (typeof relativePath !== "string") {
+        throw new Error("Invalid version text path")
+      }
+      return controller
+        .requireSession(event.sender)
+        .getVersionTextDiff(commitId, parentId, relativePath)
+    }
+  )
+  ipcMain.handle(
     IPC_CHANNELS.restoreCheckpoint,
     (event, commitId: unknown, expectedHead: unknown) => {
       if (typeof commitId !== "string" || typeof expectedHead !== "string") {

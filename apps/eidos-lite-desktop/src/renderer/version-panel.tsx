@@ -30,6 +30,7 @@ import {
   VersionChangeTree,
   type VersionInspection,
 } from "./version-change-tree"
+import { VersionTextDiff } from "./version-text-diff"
 
 type PanelMode = "changes" | "history"
 
@@ -285,6 +286,11 @@ export function VersionDiffPreview({
       : inspection.commit
         ? `${inspection.commit.id.slice(0, 8)} · ${commitTime(inspection.commit.timestampMs)}`
         : "Version changes"
+  const showsTextDiff =
+    inspection.type === "file" &&
+    inspection.mode === "history" &&
+    inspection.change.kind === "text_file" &&
+    inspection.commit !== null
 
   return (
     <section
@@ -315,7 +321,9 @@ export function VersionDiffPreview({
         </button>
       </header>
 
-      <div className="version-inspector-scroll">
+      <div
+        className={`version-inspector-scroll${showsTextDiff ? " version-inspector-text-layout" : ""}`}
+      >
         <header className="version-inspector-heading">
           <div>
             {inspection.type === "table" ? <Table2 /> : <FileText />}
@@ -351,6 +359,12 @@ export function VersionDiffPreview({
               <TableDiff table={inspection.table} showHeading={false} />
             </div>
           </>
+        ) : showsTextDiff && inspection.commit ? (
+          <VersionTextDiff
+            commitId={inspection.commit.id}
+            parentId={inspection.commit.parent}
+            path={inspection.change.path}
+          />
         ) : inspection.file?.tables.length ? (
           <div className="version-inspector-file-summary">
             <p>

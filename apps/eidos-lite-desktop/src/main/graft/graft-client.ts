@@ -11,6 +11,7 @@ import type {
   SpaceVersionRowChange,
   SpaceVersionTableDiff,
   SpaceVersionTableSummary,
+  SpaceVersionTextContentDiff,
 } from "../../shared/contracts"
 import { resolveEidosLiteServiceEnvironment } from "../../shared/service-environment"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
@@ -639,6 +640,25 @@ export class GraftClient {
         0,
         Math.trunc(numberValue(page.total_changed_paths))
       ),
+    })
+  }
+
+  async revisionTextDiff(
+    root: string,
+    commitId: string,
+    parentId: string | null,
+    relativePath: string,
+    maxBytes: number
+  ): Promise<SpaceVersionTextContentDiff> {
+    if (this.backend !== "sdk") {
+      throw new Error("Version text content requires the Graft SDK")
+    }
+    await this.open(root)
+    return this.requireSdkTransport().revisionTextDiff({
+      commitId,
+      parentId,
+      path: relativePath,
+      maxBytes,
     })
   }
 
