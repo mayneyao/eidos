@@ -13,6 +13,7 @@ describe("working text diff", () => {
     const space = path.join(root, "space")
     const userData = path.join(root, "user-data")
     await fs.mkdir(space)
+    await fs.mkdir(path.join(space, ".graft"))
     await fs.writeFile(path.join(space, "README.md"), "Working contents\n")
     const graft = {
       syncRemoteOrigin: "https://sync-staging.eidos.space",
@@ -78,6 +79,7 @@ describe("working text diff", () => {
     const space = path.join(root, "space")
     const userData = path.join(root, "user-data")
     await fs.mkdir(space)
+    await fs.mkdir(path.join(space, ".graft"))
     await fs.writeFile(path.join(space, "README.md"), "Working contents\n")
     const revisionTextDiff = vi.fn()
     const graft = {

@@ -6,6 +6,12 @@ import { EIDOS_LITE_SERVICE_ENVIRONMENTS } from "../../shared/service-environmen
 import { GraftClient, isOfficialRemoteUrl } from "./graft-client"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
 
+const unusedRevisionTextDiff: GraftSdkTransport["revisionTextDiff"] = vi.fn(
+  async () => {
+    throw new Error("Unexpected Graft SDK revision text diff")
+  }
+)
+
 function createUnusedTransport(): GraftSdkTransport {
   return {
     target: null,
@@ -15,6 +21,7 @@ function createUnusedTransport(): GraftSdkTransport {
     command: vi.fn(async () => {
       throw new Error("Unexpected Graft SDK command")
     }),
+    revisionTextDiff: unusedRevisionTextDiff,
     clone: vi.fn(async () => {
       throw new Error("Unexpected Graft SDK clone")
     }),
@@ -80,7 +87,7 @@ describe("GraftClient", () => {
       close: vi.fn(async () => undefined),
       command: vi.fn(async (command) => {
         commands.push(command)
-        if (command === "sdkVersion") return "0.3.0-rc.0"
+        if (command === "sdkVersion") return "0.3.0"
         if (command === "statusIncremental") {
           return {
             generation: 1,
@@ -103,6 +110,7 @@ describe("GraftClient", () => {
         }
         throw new Error(`Unexpected Graft command: ${command}`)
       }),
+      revisionTextDiff: unusedRevisionTextDiff,
       clone: vi.fn(async () => undefined),
     }
     const client = new GraftClient({ sdkTransport: transport })
@@ -162,6 +170,7 @@ describe("GraftClient", () => {
         }
         throw new Error(`Unexpected Graft command: ${command}`)
       }),
+      revisionTextDiff: unusedRevisionTextDiff,
       clone: vi.fn(async () => undefined),
     }
     const client = new GraftClient({ sdkTransport: transport })
@@ -220,6 +229,7 @@ describe("GraftClient", () => {
           },
         }
       }),
+      revisionTextDiff: unusedRevisionTextDiff,
       clone: vi.fn(async () => undefined),
     }
     const client = new GraftClient({ sdkTransport: transport })
@@ -289,6 +299,7 @@ describe("GraftClient", () => {
         }
         throw new Error(`Unexpected Graft command: ${command}`)
       }),
+      revisionTextDiff: unusedRevisionTextDiff,
       clone: vi.fn(async () => undefined),
     }
     const client = new GraftClient({ sdkTransport: transport })
@@ -362,6 +373,7 @@ describe("GraftClient", () => {
         }
         throw new Error(`Unexpected Graft command: ${command}`)
       }),
+      revisionTextDiff: unusedRevisionTextDiff,
       clone: vi.fn(async () => undefined),
     }
     const client = new GraftClient({ sdkTransport: transport })
@@ -406,6 +418,7 @@ describe("GraftClient", () => {
           })),
         }
       }),
+      revisionTextDiff: unusedRevisionTextDiff,
       clone: vi.fn(async () => undefined),
     }
     const client = new GraftClient({ sdkTransport: transport })
