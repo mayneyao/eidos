@@ -650,9 +650,6 @@ export class GraftClient {
     relativePath: string,
     maxBytes: number
   ): Promise<SpaceVersionTextContentDiff> {
-    if (this.backend !== "sdk") {
-      throw new Error("Version text content requires the Graft SDK")
-    }
     await this.open(root)
     return this.requireSdkTransport().revisionTextDiff({
       commitId,

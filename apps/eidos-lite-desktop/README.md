@@ -121,6 +121,8 @@ one-run local override. Release automation must use
 plus `sync.eidos.space`. Values other than `staging` and `production` fail at
 startup; Lite does not accept custom account, Billing, or Remote origins.
 
+The real-Graft test uses the same resident SDK as the packaged application.
+
 For an unsigned unpacked application and its process-boundary smoke:
 
 ```bash
@@ -129,8 +131,8 @@ pnpm smoke:eidos-lite-packaged
 ```
 
 Packaging includes the platform-specific published Node-API package outside
-ASAR for the utility process. No Graft CLI executable or runtime download step
-is included.
+ASAR for the utility process. Lite does not bundle, spawn, or search for the
+Graft CLI.
 The packaged smoke first opens a real empty Space, creates the first `.eidos`
 file from the onboarding action, and requires the canonical editor to open it.
 Before that it measures process launch through a usable Welcome renderer; it
