@@ -18,8 +18,8 @@ describe("Eidos Lite diagnostics", () => {
           graft: {
             available: true,
             backend: "sdk",
-            version: "0.3.0",
-            expectedVersion: "0.3.0",
+            version: "0.3.1",
+            expectedVersion: "0.3.1",
             initialized: true,
             clean: false,
           },

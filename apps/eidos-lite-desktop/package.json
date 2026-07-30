@@ -29,7 +29,7 @@
   "dependencies": {
     "@eidos.space/eidos-file": "workspace:*",
     "@eidos.space/eidos-file-ui": "workspace:*",
-    "@eidos.space/graft": "0.3.0",
+    "@eidos.space/graft": "0.3.1",
     "@glideapps/glide-data-grid": "^6.0.0",
     "@pierre/diffs": "1.2.7",
     "@pierre/trees": "1.0.0-beta.5",
