@@ -197,6 +197,94 @@ describe("SpaceSession Graft-backed snapshots", () => {
     }
   }, 15_000)
 
+  it("rechecks clean Graft status after opening an Eidos File adds a verification path", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-open-version-refresh-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-open-version-refresh-state-")
+    )
+    const relativePath = "records.eidos"
+    const inspectSpace = vi.fn(
+      async (
+        _root: string,
+        options: { verifyPaths?: readonly string[] } = {}
+      ): Promise<GraftSpaceStatus> => {
+        const dirty = options.verifyPaths?.includes(relativePath) === true
+        return {
+          available: true,
+          backend: "sdk",
+          version: "0.3.0",
+          expectedVersion: "0.3.0",
+          initialized: true,
+          clean: !dirty,
+          changedPaths: dirty ? 1 : 0,
+        }
+      }
+    )
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.0",
+      hasOpenSession: () => false,
+      close: async () => undefined,
+      inspectSpace,
+      inspectIgnores: async (_root: string, relativePaths: string[]) =>
+        relativePaths.map((item) => ({
+          path: item,
+          isIgnored: false,
+          isTracked: true,
+          isDirectory: false,
+          hasTrackedDescendants: false,
+        })),
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      await fs.mkdir(path.join(root, ".graft"))
+      session = await SpaceSession.create(root, userData, { graft })
+      const openRelativePaths = vi
+        .spyOn(session.runtimePool, "openRelativePaths")
+        .mockReturnValue([])
+      vi.spyOn(session.runtimePool, "open").mockImplementation(async () => {
+        openRelativePaths.mockReturnValue([relativePath])
+        return {} as never
+      })
+      await expect(session.refresh()).resolves.toMatchObject({
+        graft: { clean: true },
+      })
+
+      const settled = new Promise<SpaceSnapshot>((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("Open Eidos File status did not settle")),
+          2_000
+        )
+        const unsubscribe = session!.onChanged((snapshot) => {
+          if (snapshot.graft.clean === false) {
+            clearTimeout(timer)
+            unsubscribe()
+            resolve(snapshot)
+          }
+        })
+      })
+
+      await session.openEidosFile(relativePath)
+      await expect(settled).resolves.toMatchObject({
+        graft: { clean: false, changedPaths: 1 },
+      })
+      expect(inspectSpace).toHaveBeenCalledWith(
+        session.canonical.root,
+        expect.objectContaining({ verifyPaths: [relativePath] })
+      )
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  }, 15_000)
+
   it("reschedules external status after an open History read preempts it", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-history-status-preemption-")

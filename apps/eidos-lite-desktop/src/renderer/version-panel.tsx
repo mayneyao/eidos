@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Check,
   ChevronDown,
@@ -541,6 +541,7 @@ export function VersionPanel({
   const [mode, setMode] = useState<PanelMode>(
     space.graft.clean === false ? "changes" : "history"
   )
+  const manuallySelectedMode = useRef(false)
   const [changes, setChanges] = useState<SpaceVersionDiff | null>(null)
   const [commits, setCommits] = useState<SpaceVersionCommit[]>([])
   const [historyHead, setHistoryHead] = useState<string | null>(null)
@@ -652,6 +653,12 @@ export function VersionPanel({
   ])
 
   useEffect(() => {
+    if (space.graft.clean === false && !manuallySelectedMode.current) {
+      setMode("changes")
+    }
+  }, [space.graft.clean])
+
+  useEffect(() => {
     clearInspection()
   }, [clearInspection, mode, refreshKey])
 
@@ -749,8 +756,10 @@ export function VersionPanel({
     [changes]
   )
   const changedPathCount = changes?.totalPaths ?? changes?.paths.length ?? 0
+  const hasLocalChanges = space.graft.clean === false || changedPathCount > 0
 
   const changeMode = (nextMode: PanelMode) => {
+    manuallySelectedMode.current = true
     if (mode === nextMode) return
     setMode(nextMode)
     void window.eidosLite.cancelVersionReads().catch(() => undefined)
@@ -964,7 +973,7 @@ export function VersionPanel({
           onClick={() => changeMode("changes")}
         >
           Changes
-          {space.graft.clean === false ? <span /> : null}
+          {hasLocalChanges ? <span /> : null}
         </button>
         <button
           type="button"
@@ -991,17 +1000,17 @@ export function VersionPanel({
         ) : mode === "changes" ? (
           <>
             <section className="version-summary">
-              {space.graft.clean ? <Check /> : <GitCommitHorizontal />}
+              {hasLocalChanges ? <GitCommitHorizontal /> : <Check />}
               <div>
                 <strong>
-                  {space.graft.clean
-                    ? "No local changes"
-                    : `${changedPathCount} changed ${changedPathCount === 1 ? "file" : "files"}${changedRowCount ? ` · ${changedRowCount} loaded row changes` : ""}`}
+                  {hasLocalChanges
+                    ? `${changedPathCount} changed ${changedPathCount === 1 ? "file" : "files"}${changedRowCount ? ` · ${changedRowCount} loaded row changes` : ""}`
+                    : "No local changes"}
                 </strong>
                 <p>
-                  {space.graft.clean
-                    ? "The Space matches its latest checkpoint."
-                    : "Select a file or changed table to review it."}
+                  {hasLocalChanges
+                    ? "Select a file or changed table to review it."
+                    : "The Space matches its latest checkpoint."}
                 </p>
               </div>
             </section>
@@ -1043,7 +1052,7 @@ export function VersionPanel({
                         className="danger-action"
                         disabled={
                           busy !== null ||
-                          space.graft.clean === false ||
+                          hasLocalChanges ||
                           !(historyHead ?? space.graft.currentHead)
                         }
                         onClick={() => void untrackIgnored()}
@@ -1092,7 +1101,7 @@ export function VersionPanel({
                 ) : null}
               </div>
             ) : null}
-            {space.graft.clean === false ? (
+            {hasLocalChanges ? (
               <section className="checkpoint-form">
                 <label htmlFor="checkpoint-message">Checkpoint message</label>
                 <input
@@ -1174,7 +1183,7 @@ export function VersionPanel({
                           <p className="restore-note">
                             This is the current checkpoint.
                           </p>
-                        ) : space.graft.clean === false ? (
+                        ) : hasLocalChanges ? (
                           <p className="restore-note">
                             Create a checkpoint for local changes before
                             restoring.

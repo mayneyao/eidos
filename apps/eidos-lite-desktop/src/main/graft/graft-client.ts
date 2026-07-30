@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto"
 import fs from "node:fs/promises"
 import path from "node:path"
+import { parse as parseToml, stringify as stringifyToml } from "smol-toml"
 
 import type {
   GraftSpaceStatus,
@@ -41,6 +43,12 @@ export interface GraftRepositoryStatus {
   persistentSnapshotHit?: boolean
   persistentSnapshotSaved?: boolean
   stabilityRetries?: number
+  verifiedPaths?: string[]
+}
+
+interface GraftStatusOptions {
+  signal?: AbortSignal
+  verifyPaths?: readonly string[]
 }
 
 export interface GraftIgnoreInspection {
@@ -316,7 +324,7 @@ export class GraftClient {
 
   async inspectSpace(
     root: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftStatusOptions = {}
   ): Promise<GraftSpaceStatus> {
     let version: string
     try {
@@ -388,23 +396,27 @@ export class GraftClient {
 
   async stageAll(
     root: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftStatusOptions = {}
   ): Promise<unknown> {
     const status = await this.status(root, options)
     if (status.paths.length === 0) return { paths: [] }
+    if (status.verifiedPaths?.length) {
+      await this.clearStaleWorktreeMarkers(root, status.verifiedPaths)
+    }
     const results: unknown[] = []
     for (
       let index = 0;
       index < status.paths.length;
       index += SDK_PATH_BATCH_SIZE
     ) {
+      const paths = status.paths.slice(index, index + SDK_PATH_BATCH_SIZE)
       results.push(
         await this.runSdk(
           root,
           "stagePaths",
           [
             {
-              paths: status.paths.slice(index, index + SDK_PATH_BATCH_SIZE),
+              paths,
               ...(status.currentHead
                 ? { expectedHead: status.currentHead }
                 : {}),
@@ -423,9 +435,11 @@ export class GraftClient {
 
   async status(
     root: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftStatusOptions = {}
   ): Promise<GraftRepositoryStatus> {
-    const response = record(await this.statusIncremental(root, options))
+    const response = record(
+      await this.statusIncremental(root, { signal: options.signal })
+    )
     const value = record(response.status)
     const upstream = record(value.upstream_status ?? value.upstream)
     const head = record(value.head)
@@ -453,7 +467,7 @@ export class GraftClient {
       .filter((entry): entry is SpaceVersionPathChange => entry !== null)
     const changed = changes.map((entry) => entry.path)
     const telemetry = record(response.telemetry)
-    return {
+    const status: GraftRepositoryStatus = {
       dirty: value.dirty === true,
       currentHead:
         stringValue(value.current_head) ??
@@ -498,12 +512,48 @@ export class GraftClient {
           }
         : {}),
     }
+    if (status.dirty || !options.verifyPaths?.length) return status
+
+    // Graft 0.3.0 can retain a stale clean SQLite snapshot after a restore is
+    // staged and committed. A targeted diff remains authoritative, so verify
+    // the Eidos Files already known to the caller before reporting clean.
+    const markedPaths = await this.markedWorktreePaths(
+      root,
+      options.verifyPaths
+    )
+    if (markedPaths.length === 0) return status
+    const verification = await this.diffAllExplicitPaths(root, markedPaths, {
+      rows: false,
+      ...(status.currentHead ? { from: status.currentHead } : {}),
+      signal: options.signal,
+    })
+    const verifiedChanges = verification.paths.filter((change) => change.path)
+    if (verifiedChanges.length === 0) return status
+    const mergedChanges = [...status.changes, ...verifiedChanges].filter(
+      (change, index, entries) =>
+        entries.findIndex((candidate) => candidate.path === change.path) ===
+        index
+    )
+    const paths = mergedChanges.map((change) => change.path).sort()
+    return {
+      ...status,
+      dirty: true,
+      changedPaths: paths.length,
+      paths,
+      changes: mergedChanges,
+      verifiedPaths: verifiedChanges.map((change) => change.path),
+    }
   }
 
   async workingDiff(
     root: string,
     rows = true,
-    options: { limit?: number; after?: string; signal?: AbortSignal } = {}
+    options: {
+      limit?: number
+      after?: string
+      signal?: AbortSignal
+      verifyPaths?: readonly string[]
+    } = {}
   ): Promise<SpaceVersionDiff> {
     const status = await this.status(root, options)
     return this.diffExplicitPaths(root, status.paths, {
@@ -519,7 +569,12 @@ export class GraftClient {
 
   async workingChanges(
     root: string,
-    options: { limit?: number; after?: string; signal?: AbortSignal } = {}
+    options: {
+      limit?: number
+      after?: string
+      signal?: AbortSignal
+      verifyPaths?: readonly string[]
+    } = {}
   ): Promise<SpaceVersionDiff> {
     const status = await this.status(root, options)
     const sorted = [...status.changes].sort((left, right) =>
@@ -1015,6 +1070,65 @@ export class GraftClient {
   private async canonicalRepositoryRoot(root: string): Promise<string> {
     const resolved = path.resolve(root)
     return fs.realpath(resolved).catch(() => resolved)
+  }
+
+  private async clearStaleWorktreeMarkers(
+    root: string,
+    relativePaths: readonly string[]
+  ): Promise<void> {
+    const worktree = await this.readWorktreeState(root)
+    if (!worktree) return
+    const { state, statePath } = worktree
+    const targets = new Set(relativePaths)
+    const dirty = stringArray(state.dirty).filter((item) => !targets.has(item))
+    const deleted = stringArray(state.deleted).filter(
+      (item) => !targets.has(item)
+    )
+    if (
+      dirty.length === stringArray(state.dirty).length &&
+      deleted.length === stringArray(state.deleted).length
+    ) {
+      return
+    }
+
+    // Graft 0.3.0 leaves restored SQLite paths marked dirty so its stale
+    // in-memory volume wins over the materialized file. Removing only the
+    // explicitly verified markers makes stagePaths import the live database.
+    const temporaryPath = `${statePath}.${process.pid}.${randomUUID()}.tmp`
+    const next = stringifyToml({ ...state, dirty, deleted })
+    try {
+      await fs.writeFile(temporaryPath, next, { encoding: "utf8", flag: "wx" })
+      await fs.rename(temporaryPath, statePath)
+    } finally {
+      await fs.rm(temporaryPath, { force: true }).catch(() => undefined)
+    }
+  }
+
+  private async markedWorktreePaths(
+    root: string,
+    relativePaths: readonly string[]
+  ): Promise<string[]> {
+    const worktree = await this.readWorktreeState(root)
+    if (!worktree) return []
+    const dirty = new Set([
+      ...stringArray(worktree.state.dirty),
+      ...stringArray(worktree.state.deleted),
+    ])
+    return [...new Set(relativePaths)].filter((relativePath) =>
+      dirty.has(relativePath)
+    )
+  }
+
+  private async readWorktreeState(root: string): Promise<{
+    statePath: string
+    state: Record<string, unknown>
+  } | null> {
+    const statePath = path.join(root, ".graft", "index", "worktree.toml")
+    const raw = await fs.readFile(statePath, "utf8").catch((error) => {
+      if (hasErrorCode(error, "ENOENT")) return null
+      throw error
+    })
+    return raw === null ? null : { statePath, state: record(parseToml(raw)) }
   }
 
   private async diffExplicitPaths(

@@ -238,6 +238,7 @@ export class SpaceSession {
       await this.ensureAncestorDirectoriesLoaded(relativePath)
       const opened = await this.runtimePool.open(relativePath)
       this.fileIssuesByPath.delete(relativePath)
+      this.invalidateGraftStatusCache()
       this.scheduleGraftStatusRefresh()
       return opened
     } catch (error) {
@@ -579,7 +580,10 @@ export class SpaceSession {
   }
 
   async enableVersioning(): Promise<SpaceSnapshot> {
-    const status = await this.graft.inspectSpace(this.canonical.root)
+    const status = await this.graft.inspectSpace(
+      this.canonical.root,
+      this.graftStatusOptions()
+    )
     if (!status.available) {
       throw new Error(
         status.error ?? "The bundled Graft runtime is unavailable"
@@ -593,7 +597,10 @@ export class SpaceSession {
       "Enabling local Space versioning",
       async () => {
         await this.graft.initialize(this.canonical.root)
-        await this.graft.stageAll(this.canonical.root)
+        await this.graft.stageAll(
+          this.canonical.root,
+          this.graftStatusOptions()
+        )
         await this.graft.commit(
           this.canonical.root,
           "Enable Eidos Lite Space versioning"
@@ -652,7 +659,10 @@ export class SpaceSession {
       }
       return this.freshSnapshotAndEmit(true)
     }
-    const status = await this.graft.inspectSpace(this.canonical.root)
+    const status = await this.graft.inspectSpace(
+      this.canonical.root,
+      this.graftStatusOptions()
+    )
     if (!status.available || !status.initialized) {
       throw new Error("Enable Local versioning before Eidos Sync")
     }
@@ -663,7 +673,10 @@ export class SpaceSession {
       "Connecting the whole Space to Eidos Sync",
       async () => {
         await this.assertSyncPreflight(approval)
-        const current = await this.graft.status(this.canonical.root)
+        const current = await this.graft.status(
+          this.canonical.root,
+          this.graftStatusOptions()
+        )
         if (current.dirty) {
           throw new Error(
             "Space changed during Sync review; create a checkpoint and review again"
@@ -703,12 +716,15 @@ export class SpaceSession {
     let relation = await this.gate.withRepositoryOperation(
       "Fetching Eidos Sync",
       async () => {
-        const before = await this.graft.status(this.canonical.root)
+        const before = await this.graft.status(
+          this.canonical.root,
+          this.graftStatusOptions()
+        )
         if (before.dirty) {
           throw new Error("Create a checkpoint for local changes before Sync")
         }
         await this.graft.fetch(this.canonical.root)
-        return this.graft.status(this.canonical.root)
+        return this.graft.status(this.canonical.root, this.graftStatusOptions())
       }
     )
     reportProgress("analyze", "Comparing Local and Hosted checkpoints")
@@ -751,7 +767,10 @@ export class SpaceSession {
           kind: "pull-hosted-sync",
           detail: "Updating Space from Eidos Sync",
           beforeClose: async () => {
-            const current = await this.graft.status(this.canonical.root)
+            const current = await this.graft.status(
+              this.canonical.root,
+              this.graftStatusOptions()
+            )
             if (current.dirty) {
               throw new Error(
                 "Space changed after fetch. Create a checkpoint and Sync again."
@@ -776,7 +795,10 @@ export class SpaceSession {
       } finally {
         stopProgress()
       }
-      relation = await this.graft.status(this.canonical.root)
+      relation = await this.graft.status(
+        this.canonical.root,
+        this.graftStatusOptions()
+      )
     }
 
     let pushed = false
@@ -794,7 +816,10 @@ export class SpaceSession {
       await this.gate.withRepositoryOperation(
         "Pushing Space to Eidos Sync",
         async () => {
-          const current = await this.graft.status(this.canonical.root)
+          const current = await this.graft.status(
+            this.canonical.root,
+            this.graftStatusOptions()
+          )
           if (current.dirty) {
             throw new Error(
               "Space changed before push. Create a checkpoint and Sync again."
@@ -809,7 +834,10 @@ export class SpaceSession {
         }
       )
       pushed = true
-      relation = await this.graft.status(this.canonical.root)
+      relation = await this.graft.status(
+        this.canonical.root,
+        this.graftStatusOptions()
+      )
     }
 
     return this.syncResult(
@@ -837,14 +865,17 @@ export class SpaceSession {
           remoteUrl,
           accessToken
         )
-        const before = await this.graft.status(this.canonical.root)
+        const before = await this.graft.status(
+          this.canonical.root,
+          this.graftStatusOptions()
+        )
         if (before.dirty) {
           throw new Error(
             "Create a checkpoint for local changes before conflict recovery"
           )
         }
         await this.graft.fetch(this.canonical.root)
-        return this.graft.status(this.canonical.root)
+        return this.graft.status(this.canonical.root, this.graftStatusOptions())
       }
     )
     if (!relation.hasConflicts && (relation.ahead < 1 || relation.behind < 1)) {
@@ -858,7 +889,10 @@ export class SpaceSession {
   async createLocalRecovery(
     copy: (sourceRoot: string) => Promise<string>
   ): Promise<string> {
-    const status = await this.graft.status(this.canonical.root)
+    const status = await this.graft.status(
+      this.canonical.root,
+      this.graftStatusOptions()
+    )
     if (status.dirty) {
       throw new Error(
         "Create a checkpoint for local changes before copying a Recovery Space"
@@ -873,7 +907,10 @@ export class SpaceSession {
 
   async assertHostedSyncReady(): Promise<void> {
     if (await this.syncState.read()) return
-    const status = await this.graft.inspectSpace(this.canonical.root)
+    const status = await this.graft.inspectSpace(
+      this.canonical.root,
+      this.graftStatusOptions()
+    )
     if (!status.available || !status.initialized) {
       throw new Error("Enable Local versioning before Eidos Sync")
     }
@@ -892,6 +929,7 @@ export class SpaceSession {
         limit: this.safeVersionPageSize(limit),
         after,
         signal,
+        verifyPaths: this.runtimePool.openRelativePaths(),
       })
     )
   }
@@ -970,7 +1008,10 @@ export class SpaceSession {
     await this.gate.withRepositoryOperation(
       "Stopping tracking for ignored files",
       async () => {
-        const status = await this.graft.status(this.canonical.root)
+        const status = await this.graft.status(
+          this.canonical.root,
+          this.graftStatusOptions()
+        )
         if (status.dirty || status.currentHead !== expectedHead) {
           throw new Error(
             "Space changed before ignored files were updated; refresh and try again"
@@ -1030,7 +1071,10 @@ export class SpaceSession {
     return this.gate.withRepositoryOperation(
       "Reading local text changes",
       async () => {
-        const status = await this.graft.status(this.canonical.root)
+        const status = await this.graft.status(
+          this.canonical.root,
+          this.graftStatusOptions()
+        )
         if (status.currentHead !== expectedHead) {
           throw new Error(
             "Space history changed; refresh Changes and try again"
@@ -1064,7 +1108,10 @@ export class SpaceSession {
     await this.requireInitializedVersioning()
     this.assertRevisionId(commitId)
     this.assertRevisionId(expectedHead)
-    const initialStatus = await this.graft.status(this.canonical.root)
+    const initialStatus = await this.graft.status(
+      this.canonical.root,
+      this.graftStatusOptions()
+    )
     if (initialStatus.dirty) {
       throw new Error(
         "Create a checkpoint for local changes before restoring history"
@@ -1092,7 +1139,10 @@ export class SpaceSession {
       kind: "restore-checkpoint",
       detail: `Restoring Space checkpoint ${commitId.slice(0, 8)}`,
       materialize: async () => {
-        const status = await this.graft.status(this.canonical.root)
+        const status = await this.graft.status(
+          this.canonical.root,
+          this.graftStatusOptions()
+        )
         if (status.dirty || status.currentHead !== expectedHead) {
           throw new Error(
             "Space changed before restore started; refresh History and try again"
@@ -1107,7 +1157,10 @@ export class SpaceSession {
         return paths
       },
       afterValidate: async (restoredPaths) => {
-        await this.graft.stageAll(this.canonical.root)
+        await this.graft.stageAll(
+          this.canonical.root,
+          this.graftStatusOptions()
+        )
         await this.graft.commit(
           this.canonical.root,
           `Restore checkpoint ${commitId.slice(0, 8)} (${restoredPaths.length} paths)`
@@ -1187,7 +1240,10 @@ export class SpaceSession {
         ? "Creating an automatic Space checkpoint"
         : "Creating a local Space checkpoint"
       await this.gate.withQuiescedRepositoryOperation(detail, async () => {
-        const status = await this.graft.inspectSpace(this.canonical.root)
+        const status = await this.graft.inspectSpace(
+          this.canonical.root,
+          this.graftStatusOptions()
+        )
         if (!status.available) {
           if (automatic) throw new AutomaticCheckpointSkipped()
           throw new Error(
@@ -1204,7 +1260,10 @@ export class SpaceSession {
           if (automatic) throw new AutomaticCheckpointSkipped()
           throw new Error("There are no local changes to checkpoint")
         }
-        await this.graft.stageAll(this.canonical.root)
+        await this.graft.stageAll(
+          this.canonical.root,
+          this.graftStatusOptions()
+        )
         await this.graft.commit(this.canonical.root, message)
       })
       return true
@@ -1251,6 +1310,16 @@ export class SpaceSession {
     }
   }
 
+  private graftStatusOptions(signal?: AbortSignal): {
+    signal?: AbortSignal
+    verifyPaths: string[]
+  } {
+    return {
+      ...(signal ? { signal } : {}),
+      verifyPaths: this.runtimePool.openRelativePaths(),
+    }
+  }
+
   private async refreshGraftStatus(
     authoritative = false
   ): Promise<GraftSpaceStatus> {
@@ -1261,9 +1330,10 @@ export class SpaceSession {
     }
     const controller = new AbortController()
     this.graftStatusController = controller
-    const promise = this.graft.inspectSpace(this.canonical.root, {
-      signal: controller.signal,
-    })
+    const promise = this.graft.inspectSpace(
+      this.canonical.root,
+      this.graftStatusOptions(controller.signal)
+    )
     this.graftStatusRefresh = { epoch, authoritative, promise }
     try {
       const status = await promise

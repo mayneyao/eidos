@@ -329,6 +329,34 @@ describe("whole-Space real Graft integration", () => {
       expect(history.commits[0]?.message).toBe("Restore Base Space")
       expect(history.commits[0]?.parent).toBe(changedHead)
       expect(history.commits[0]?.files).toBe(5)
+
+      await insertBlankRow(projectPath)
+      await expect(
+        client.inspectSpace(sourceRoot, {
+          verifyPaths: ["project.eidos"],
+        })
+      ).resolves.toMatchObject({
+        initialized: true,
+        clean: false,
+        changedPaths: 1,
+      })
+      await expect(
+        client.workingChanges(sourceRoot, {
+          verifyPaths: ["project.eidos"],
+        })
+      ).resolves.toMatchObject({
+        paths: [{ path: "project.eidos", change: "modified" }],
+        totalPaths: 1,
+      })
+      await client.stageAll(sourceRoot, {
+        verifyPaths: ["project.eidos"],
+      })
+      await client.commit(sourceRoot, "Post-restore edit")
+      await expect(
+        client.status(sourceRoot, {
+          verifyPaths: ["project.eidos"],
+        })
+      ).resolves.toMatchObject({ dirty: false, changedPaths: 0 })
     } finally {
       await client.close()
       await fs.rm(root, { recursive: true, force: true })

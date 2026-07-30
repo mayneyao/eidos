@@ -1,8 +1,12 @@
-import { createElement } from "react"
+// @vitest-environment jsdom
+
+import { act, createElement } from "react"
+import { createRoot, type Root } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import type {
+  EidosLiteApi,
   SpaceSnapshot,
   SpaceVersionDiff,
   SpaceVersionTableDiff,
@@ -242,5 +246,171 @@ describe("VersionPanel row diff paging", () => {
 
     expect(markup).toContain("Reading local text…")
     expect(markup).not.toContain("metadata only")
+  })
+
+  it("shows Changes when a pending version check resolves dirty", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root: Root = createRoot(host)
+    const checkingSpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        checking: true,
+      },
+    }
+    const dirtySpace: SpaceSnapshot = {
+      ...checkingSpace,
+      graft: {
+        ...checkingSpace.graft,
+        checking: false,
+        clean: false,
+        changedPaths: 1,
+        currentHead: "a".repeat(64),
+      },
+    }
+    const cleanSpace: SpaceSnapshot = {
+      ...dirtySpace,
+      graft: {
+        ...dirtySpace.graft,
+        clean: true,
+        changedPaths: 0,
+      },
+    }
+    const getVersionChanges = vi.fn().mockResolvedValue(versionDiff)
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionHistory: vi.fn().mockResolvedValue({
+          currentHead: dirtySpace.graft.currentHead ?? null,
+          currentBranch: null,
+          commits: [],
+          hasMore: false,
+        }),
+        getVersionChanges,
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+    const panelProps = {
+      refreshKey: 0,
+      onClose: () => undefined,
+      onSpaceChange: () => undefined,
+      onRefresh: () => undefined,
+      onInspectionChange: () => undefined,
+    }
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          ...panelProps,
+          space: checkingSpace,
+        })
+      )
+    })
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          ...panelProps,
+          space: dirtySpace,
+        })
+      )
+    })
+
+    expect(
+      host
+        .querySelector<HTMLButtonElement>('[role="tab"]')
+        ?.getAttribute("aria-selected")
+    ).toBe("true")
+    expect(getVersionChanges).toHaveBeenCalled()
+
+    await act(async () => {
+      host
+        .querySelectorAll<HTMLButtonElement>('[role="tab"]')[1]
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          ...panelProps,
+          space: cleanSpace,
+        })
+      )
+    })
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          ...panelProps,
+          space: dirtySpace,
+        })
+      )
+    })
+
+    expect(
+      host
+        .querySelectorAll<HTMLButtonElement>('[role="tab"]')[1]
+        ?.getAttribute("aria-selected")
+    ).toBe("true")
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("uses loaded Changes when a cached Space summary is still clean", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root: Root = createRoot(host)
+    const staleCleanSpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        clean: true,
+        changedPaths: 0,
+        currentHead: "a".repeat(64),
+      },
+    }
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionHistory: vi.fn().mockResolvedValue({
+          currentHead: staleCleanSpace.graft.currentHead ?? null,
+          currentBranch: null,
+          commits: [],
+          hasMore: false,
+        }),
+        getVersionChanges: vi.fn().mockResolvedValue(versionDiff),
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: staleCleanSpace,
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange: () => undefined,
+          onRefresh: () => undefined,
+          onInspectionChange: () => undefined,
+        })
+      )
+    })
+    await act(async () => {
+      host
+        .querySelectorAll<HTMLButtonElement>('[role="tab"]')[0]
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+
+    expect(host.querySelector(".version-summary strong")?.textContent).toBe(
+      "2 changed files · 2 loaded row changes"
+    )
+    expect(host.textContent).not.toContain("No local changes")
+    expect(host.querySelector(".checkpoint-form")).not.toBeNull()
+
+    await act(async () => root.unmount())
+    host.remove()
   })
 })
