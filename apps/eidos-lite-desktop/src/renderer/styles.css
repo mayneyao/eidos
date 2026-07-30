@@ -2851,6 +2851,12 @@ button:focus-visible {
   background: var(--surface);
 }
 
+.version-text-diff-virtualizer {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .version-text-diff-loading,
 .version-text-diff-message {
   display: flex;

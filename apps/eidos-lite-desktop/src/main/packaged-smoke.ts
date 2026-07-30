@@ -168,6 +168,7 @@ type EmptySpaceOnboardingResult = RendererSmokeResult["onboarding"]
 type TextHistorySmokeResult = {
   directRead: boolean
   pierreRendered: boolean
+  scrollable: boolean
   splitLayout: boolean
   unifiedLayout: boolean
 }
@@ -325,6 +326,16 @@ const textHistoryProbe = `
       (candidate) => candidate.shadowRoot?.querySelector("[data-line]")
     )
   }, "Pierre text diff lines")
+  const scrollable = await waitFor(() => {
+    const surface = document.querySelector(".version-text-diff-virtualizer")
+    if (!(surface instanceof HTMLElement)) return false
+    const overflowY = getComputedStyle(surface).overflowY
+    const maximum = surface.scrollHeight - surface.clientHeight
+    if (!(["auto", "scroll"].includes(overflowY)) || maximum <= 0) return false
+    surface.scrollTop = Math.min(maximum, 600)
+    surface.dispatchEvent(new Event("scroll"))
+    return surface.scrollTop > 0
+  }, "scrollable Pierre text diff")
   unified.click()
   const unifiedLayout = await waitFor(
     () => unified.getAttribute("aria-pressed") === "true",
@@ -332,6 +343,7 @@ const textHistoryProbe = `
   )
   return {
     pierreRendered: Boolean(pierreRendered),
+    scrollable: Boolean(scrollable),
     splitLayout: true,
     unifiedLayout: Boolean(unifiedLayout),
   }
@@ -1422,7 +1434,7 @@ async function runPackagedTextHistorySmoke(
     await session.enableVersioning()
     const readmePath = path.join(spaceRoot, "README.md")
     const before = await fs.readFile(readmePath, "utf8")
-    const after = `${before}\nText history checkpoint.\n`
+    const after = before.split("Before line").join("After line")
     await fs.writeFile(readmePath, after)
     await session.createCheckpoint("Packaged text checkpoint")
     const history = await session.getVersionHistory(10)

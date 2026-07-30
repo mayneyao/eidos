@@ -22,7 +22,13 @@ try {
   const space = path.join(temporaryRoot, "Text History Space")
   const result = path.join(temporaryRoot, "result.json")
   await fs.mkdir(space)
-  await fs.writeFile(path.join(space, "README.md"), "# Before\n")
+  await fs.writeFile(
+    path.join(space, "README.md"),
+    Array.from(
+      { length: 2_000 },
+      (_, index) => `Before line ${String(index + 1).padStart(4, "0")}`
+    ).join("\n") + "\n"
+  )
   await new Promise((resolve, reject) => {
     const child = spawn(executable, [], {
       env: {
@@ -52,7 +58,7 @@ try {
   if (
     !report.ok ||
     Object.values(report.textHistory ?? {}).some((value) => value !== true) ||
-    Object.keys(report.textHistory ?? {}).length !== 4 ||
+    Object.keys(report.textHistory ?? {}).length !== 5 ||
     report.consoleErrors?.length !== 0
   ) {
     throw new Error(
