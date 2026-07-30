@@ -422,6 +422,7 @@ export function App() {
   const [syncQueueStatus, setSyncQueueStatus] =
     useState<EidosSyncQueueStatus | null>(null)
   const [versionRefreshKey, setVersionRefreshKey] = useState(0)
+  const [fileMaterializationKey, setFileMaterializationKey] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [fileIssue, setFileIssue] = useState<EidosFileIssue | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
@@ -460,6 +461,54 @@ export function App() {
       invalidateCachedSessions(snapshot.invalidatedSessionIds)
     },
     [activeSession, invalidateCachedSessions]
+  )
+
+  const refreshMaterializedFiles = useCallback(
+    async (snapshot: SpaceSnapshot) => {
+      const invalidated = new Set(snapshot.invalidatedSessionIds)
+      const results = await Promise.allSettled(
+        cachedFiles
+          .filter((file) => !invalidated.has(file.sessionId))
+          .map(async (file) => ({
+            sessionId: file.sessionId,
+            source: file.source,
+            snapshot: await file.source.getSnapshot(),
+          }))
+      )
+      const refreshed = new Map(
+        results.flatMap((result) =>
+          result.status === "fulfilled"
+            ? [[result.value.sessionId, result.value] as const]
+            : []
+        )
+      )
+      setCachedFiles((current) =>
+        current.flatMap((file) => {
+          if (invalidated.has(file.sessionId)) return []
+          const next = refreshed.get(file.sessionId)
+          if (!next || next.source !== file.source) return [file]
+          return [
+            {
+              ...file,
+              snapshot: next.snapshot,
+              tableId: next.snapshot.tables.some(
+                (table) => table.table.id === file.tableId
+              )
+                ? file.tableId
+                : (next.snapshot.tables[0]?.table.id ?? file.tableId),
+            },
+          ]
+        })
+      )
+      setFileMaterializationKey((current) => current + 1)
+      const failure = results.find((result) => result.status === "rejected")
+      if (failure?.status === "rejected") {
+        setError(
+          `Space restored, but an open Eidos File could not refresh. ${errorMessage(failure.reason)}`
+        )
+      }
+    },
+    [cachedFiles]
   )
 
   useEffect(() => {
@@ -1310,7 +1359,7 @@ export function App() {
                   }
                 >
                   <EidosFileWorkbench
-                    key={activeFile.sessionId}
+                    key={`${activeFile.sessionId}:${fileMaterializationKey}`}
                     relativePath={activeFile.relativePath}
                     snapshot={activeFile.snapshot}
                     source={activeFile.source}
@@ -1384,7 +1433,8 @@ export function App() {
                   setVersionPanelOpen(false)
                   setVersionInspection(null)
                 }}
-                onSpaceChange={setSpace}
+                onSpaceChange={acceptSpaceSnapshot}
+                onFilesMaterialized={refreshMaterializedFiles}
                 onRefresh={() => setVersionRefreshKey((current) => current + 1)}
                 onInspectionChange={setVersionInspection}
               />

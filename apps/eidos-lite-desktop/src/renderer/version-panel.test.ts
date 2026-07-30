@@ -90,6 +90,7 @@ describe("VersionPanel row diff paging", () => {
         refreshKey: 0,
         onClose: () => undefined,
         onSpaceChange: () => undefined,
+        onFilesMaterialized: () => undefined,
         onRefresh: () => undefined,
         onInspectionChange: () => undefined,
       })
@@ -248,6 +249,91 @@ describe("VersionPanel row diff paging", () => {
     expect(markup).not.toContain("metadata only")
   })
 
+  it("refreshes open Eidos Files after restoring a Space checkpoint", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root: Root = createRoot(host)
+    const selectedCommit = {
+      id: "a".repeat(64),
+      parent: "b".repeat(64),
+      message: "Initial checkpoint",
+      timestampMs: 1_700_000_000_000,
+      files: 1,
+      changes: versionDiff.paths,
+      tables: [],
+      changedTables: 1,
+    }
+    const currentHead = "c".repeat(64)
+    const restoredSpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        clean: true,
+        currentHead: "d".repeat(64),
+      },
+    }
+    const restoreCheckpoint = vi.fn().mockResolvedValue(restoredSpace)
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionHistory: vi.fn().mockResolvedValue({
+          currentHead,
+          currentBranch: null,
+          commits: [selectedCommit],
+          hasMore: false,
+        }),
+        getVersionDiff: vi.fn().mockResolvedValue(versionDiff),
+        restoreCheckpoint,
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+    const onSpaceChange = vi.fn()
+    const onFilesMaterialized = vi.fn().mockResolvedValue(undefined)
+    const onRefresh = vi.fn()
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: restoredSpace,
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange,
+          onFilesMaterialized,
+          onRefresh,
+          onInspectionChange: () => undefined,
+        })
+      )
+    })
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(".commit-row")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(".restore-action")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(".restore-confirm .danger-action")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+
+    expect(restoreCheckpoint).toHaveBeenCalledWith(
+      selectedCommit.id,
+      currentHead
+    )
+    expect(onSpaceChange).toHaveBeenCalledWith(restoredSpace)
+    expect(onFilesMaterialized).toHaveBeenCalledWith(restoredSpace)
+    expect(onRefresh).toHaveBeenCalledOnce()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
   it("shows Changes when a pending version check resolves dirty", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     const host = document.createElement("div")
@@ -297,6 +383,7 @@ describe("VersionPanel row diff paging", () => {
       refreshKey: 0,
       onClose: () => undefined,
       onSpaceChange: () => undefined,
+      onFilesMaterialized: () => undefined,
       onRefresh: () => undefined,
       onInspectionChange: () => undefined,
     }
@@ -393,6 +480,7 @@ describe("VersionPanel row diff paging", () => {
           refreshKey: 0,
           onClose: () => undefined,
           onSpaceChange: () => undefined,
+          onFilesMaterialized: () => undefined,
           onRefresh: () => undefined,
           onInspectionChange: () => undefined,
         })

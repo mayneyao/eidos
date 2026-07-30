@@ -528,6 +528,7 @@ export function VersionPanel({
   refreshKey,
   onClose,
   onSpaceChange,
+  onFilesMaterialized,
   onRefresh,
   onInspectionChange,
 }: {
@@ -535,6 +536,7 @@ export function VersionPanel({
   refreshKey: number
   onClose(): void
   onSpaceChange(snapshot: SpaceSnapshot): void
+  onFilesMaterialized(snapshot: SpaceSnapshot): void | Promise<void>
   onRefresh(): void
   onInspectionChange(inspection: VersionInspection | null): void
 }) {
@@ -737,6 +739,13 @@ export function VersionPanel({
         historyHead
       )
       onSpaceChange(snapshot)
+      try {
+        await onFilesMaterialized(snapshot)
+      } catch (cause) {
+        setError(
+          `Space restored, but open Eidos Files could not refresh. ${errorMessage(cause)}`
+        )
+      }
       setConfirmRestore(false)
       setSelectedCommit(null)
       setSelectedDiff(null)
