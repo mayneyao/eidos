@@ -22,8 +22,8 @@ describe("working text diff", () => {
       inspectSpace: vi.fn(async () => ({
         available: true,
         backend: "sdk" as const,
-        version: "0.3.0",
-        expectedVersion: "0.3.0",
+        version: "0.3.1",
+        expectedVersion: "0.3.1",
         initialized: true,
         clean: false,
         currentHead: head,
@@ -89,8 +89,8 @@ describe("working text diff", () => {
       inspectSpace: vi.fn(async () => ({
         available: true,
         backend: "sdk" as const,
-        version: "0.3.0",
-        expectedVersion: "0.3.0",
+        version: "0.3.1",
+        expectedVersion: "0.3.1",
         initialized: true,
         clean: false,
         currentHead: head,

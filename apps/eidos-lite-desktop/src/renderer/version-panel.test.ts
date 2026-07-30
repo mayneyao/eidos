@@ -76,7 +76,7 @@ const unversionedSpace: SpaceSnapshot = {
   graft: {
     available: true,
     backend: "sdk",
-    expectedVersion: "0.3.0",
+    expectedVersion: "0.3.1",
     initialized: false,
   },
   invalidatedSessionIds: [],

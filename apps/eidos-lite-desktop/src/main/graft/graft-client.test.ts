@@ -87,7 +87,7 @@ describe("GraftClient", () => {
       close: vi.fn(async () => undefined),
       command: vi.fn(async (command) => {
         commands.push(command)
-        if (command === "sdkVersion") return "0.3.0"
+        if (command === "sdkVersion") return "0.3.1"
         if (command === "statusIncremental") {
           return {
             generation: 1,

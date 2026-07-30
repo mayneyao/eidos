@@ -28,13 +28,13 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
-      expectedVersion: () => "0.3.0",
+      expectedVersion: () => "0.3.1",
       close: async () => undefined,
       inspectSpace: async () => ({
         available: true,
         backend: "sdk",
-        version: "0.3.0",
-        expectedVersion: "0.3.0",
+        version: "0.3.1",
+        expectedVersion: "0.3.1",
         initialized: true,
         clean: true,
       }),
@@ -86,8 +86,8 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const cleanStatus: GraftSpaceStatus = {
       available: true,
       backend: "sdk",
-      version: "0.3.0",
-      expectedVersion: "0.3.0",
+      version: "0.3.1",
+      expectedVersion: "0.3.1",
       initialized: true,
       clean: true,
     }
@@ -95,7 +95,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
-      expectedVersion: () => "0.3.0",
+      expectedVersion: () => "0.3.1",
       close: async () => undefined,
       inspectSpace: (_root: string, options: { signal?: AbortSignal } = {}) => {
         statusCalls += 1
@@ -295,8 +295,8 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const cleanStatus: GraftSpaceStatus = {
       available: true,
       backend: "sdk",
-      version: "0.3.0",
-      expectedVersion: "0.3.0",
+      version: "0.3.1",
+      expectedVersion: "0.3.1",
       initialized: true,
       clean: true,
       currentHead: "a".repeat(64),
@@ -312,7 +312,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
-      expectedVersion: () => "0.3.0",
+      expectedVersion: () => "0.3.1",
       close: async () => undefined,
       inspectSpace: (_root: string, options: { signal?: AbortSignal } = {}) => {
         statusCalls += 1
@@ -489,7 +489,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
-      expectedVersion: () => "0.3.0",
+      expectedVersion: () => "0.3.1",
       open: async () => undefined,
       close: async () => undefined,
       inspectSpace: () => status.promise,
@@ -532,8 +532,8 @@ describe("SpaceSession Graft-backed snapshots", () => {
       status.resolve({
         available: true,
         backend: "sdk",
-        version: "0.3.0",
-        expectedVersion: "0.3.0",
+        version: "0.3.1",
+        expectedVersion: "0.3.1",
         initialized: false,
       })
       const final = await updated
@@ -566,7 +566,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
-      expectedVersion: () => "0.3.0",
+      expectedVersion: () => "0.3.1",
       open: async () => undefined,
       close: async () => undefined,
       inspectSpace: () => status.promise,
@@ -600,8 +600,8 @@ describe("SpaceSession Graft-backed snapshots", () => {
       status.resolve({
         available: true,
         backend: "sdk",
-        version: "0.3.0",
-        expectedVersion: "0.3.0",
+        version: "0.3.1",
+        expectedVersion: "0.3.1",
         initialized: true,
         error: "Tracked path is now a directory",
       })
@@ -636,7 +636,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
-      expectedVersion: () => "0.3.0",
+      expectedVersion: () => "0.3.1",
       close: vi.fn(async () => undefined),
       inspectSpace: (_root: string, options: { signal?: AbortSignal }) => {
         statusStarted()
@@ -683,14 +683,14 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
-      expectedVersion: () => "0.3.0",
+      expectedVersion: () => "0.3.1",
       open: async () => undefined,
       close: async () => undefined,
       inspectSpace: async () => ({
         available: true,
         backend: "sdk",
-        version: "0.3.0",
-        expectedVersion: "0.3.0",
+        version: "0.3.1",
+        expectedVersion: "0.3.1",
         initialized: true,
         clean: false,
       }),
