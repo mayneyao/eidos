@@ -158,7 +158,14 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.refreshSpace,
-    (event) => controller.sessionFor(event.sender)?.snapshot() ?? null
+    (event) => controller.sessionFor(event.sender)?.refresh() ?? null
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.loadSpaceDirectory,
+    (event, relativePath: unknown) =>
+      controller
+        .requireSession(event.sender)
+        .loadDirectory(requiredString(relativePath, "Space directory"))
   )
   ipcMain.handle(IPC_CHANNELS.takeLaunchFile, (event) =>
     controller.takeLaunchEidosFile(event.sender)
@@ -301,18 +308,43 @@ export function registerIpc(
       return snapshot
     }
   )
-  ipcMain.handle(IPC_CHANNELS.versionChanges, (event) =>
-    controller.requireSession(event.sender).getVersionChanges()
-  )
-  ipcMain.handle(IPC_CHANNELS.versionHistory, (event, limit: unknown) => {
-    if (limit !== undefined && typeof limit !== "number") {
-      throw new Error("Invalid history limit")
+  ipcMain.handle(
+    IPC_CHANNELS.versionChanges,
+    (event, limit: unknown, after: unknown) => {
+      if (limit !== undefined && typeof limit !== "number") {
+        throw new Error("Invalid change limit")
+      }
+      if (after !== undefined && typeof after !== "string") {
+        throw new Error("Invalid change cursor")
+      }
+      return controller
+        .requireSession(event.sender)
+        .getVersionChanges(limit, after)
     }
-    return controller.requireSession(event.sender).getVersionHistory(limit)
-  })
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.versionHistory,
+    (event, limit: unknown, after: unknown) => {
+      if (limit !== undefined && typeof limit !== "number") {
+        throw new Error("Invalid history limit")
+      }
+      if (after !== undefined && typeof after !== "string") {
+        throw new Error("Invalid history cursor")
+      }
+      return controller
+        .requireSession(event.sender)
+        .getVersionHistory(limit, after)
+    }
+  )
   ipcMain.handle(
     IPC_CHANNELS.versionDiff,
-    (event, commitId: unknown, parentId: unknown) => {
+    (
+      event,
+      commitId: unknown,
+      parentId: unknown,
+      limit: unknown,
+      after: unknown
+    ) => {
       if (typeof commitId !== "string") throw new Error("Invalid checkpoint")
       if (
         parentId !== undefined &&
@@ -321,9 +353,77 @@ export function registerIpc(
       ) {
         throw new Error("Invalid checkpoint parent")
       }
+      if (limit !== undefined && typeof limit !== "number") {
+        throw new Error("Invalid diff limit")
+      }
+      if (after !== undefined && typeof after !== "string") {
+        throw new Error("Invalid diff cursor")
+      }
       return controller
         .requireSession(event.sender)
-        .getVersionDiff(commitId, parentId as string | null | undefined)
+        .getVersionDiff(
+          commitId,
+          parentId as string | null | undefined,
+          limit,
+          after
+        )
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.versionPathDiff,
+    (event, relativePath: unknown, commitId: unknown, parentId: unknown) => {
+      if (typeof relativePath !== "string") {
+        throw new Error("Invalid diff path")
+      }
+      if (
+        commitId !== undefined &&
+        commitId !== null &&
+        typeof commitId !== "string"
+      ) {
+        throw new Error("Invalid diff checkpoint")
+      }
+      if (
+        parentId !== undefined &&
+        parentId !== null &&
+        typeof parentId !== "string"
+      ) {
+        throw new Error("Invalid diff checkpoint parent")
+      }
+      return controller
+        .requireSession(event.sender)
+        .getVersionPathDiff(
+          relativePath,
+          commitId as string | null | undefined,
+          parentId as string | null | undefined
+        )
+    }
+  )
+  ipcMain.handle(IPC_CHANNELS.versionCancel, (event) => {
+    controller.requireSession(event.sender).cancelVersionReads()
+  })
+  ipcMain.handle(
+    IPC_CHANNELS.trackedIgnoredPaths,
+    (event, limit: unknown, after: unknown) => {
+      if (limit !== undefined && typeof limit !== "number") {
+        throw new Error("Invalid ignored-path limit")
+      }
+      if (after !== undefined && typeof after !== "string") {
+        throw new Error("Invalid ignored-path cursor")
+      }
+      return controller
+        .requireSession(event.sender)
+        .getTrackedIgnoredPaths(limit, after)
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.untrackIgnoredPaths,
+    (event, expectedHead: unknown) => {
+      if (typeof expectedHead !== "string") {
+        throw new Error("Invalid ignored-path migration request")
+      }
+      return controller
+        .requireSession(event.sender)
+        .untrackIgnoredPaths(expectedHead)
     }
   )
   ipcMain.handle(

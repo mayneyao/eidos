@@ -3,11 +3,24 @@ export type GraftSdkCommand =
   | "operationMaterializesWorktree"
   | "init"
   | "status"
+  | "statusIncremental"
+  | "repositoryMetadata"
+  | "listRemotes"
   | "addAll"
+  | "stagePaths"
   | "commit"
   | "diff"
+  | "diffPaths"
   | "history"
+  | "historySummaries"
+  | "commitDetails"
+  | "commitChangedPaths"
+  | "isIgnoredPath"
+  | "isIgnoredPaths"
+  | "inventory"
   | "restore"
+  | "restorePaths"
+  | "untrackPaths"
   | "configureRemote"
   | "push"
   | "fetch"
@@ -35,6 +48,10 @@ export type GraftSdkWorkerRequest =
       type: "command"
       command: GraftSdkCommand
       args: unknown[]
+    }
+  | {
+      requestId: number
+      type: "cancel"
     }
 
 export type GraftSdkWorkerResponse =

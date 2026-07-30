@@ -70,6 +70,27 @@ describe("Eidos Lite package identity", () => {
     }
   })
 
+  it("packages only the Graft SDK without a CLI fallback", async () => {
+    const packageJson = await readJson("package.json")
+    const builder = await readJson("electron-builder.json")
+    const scripts = packageJson.scripts as Record<string, string>
+
+    expect(packageJson.dependencies).toMatchObject({
+      "@eidos.space/graft": expect.any(String),
+    })
+    expect(builder.extraResources).toBeUndefined()
+    expect(scripts["test:graft:cli"]).toBeUndefined()
+    expect(scripts["graft:install"]).toBeUndefined()
+    expect(scripts["package:dir"]).not.toContain("graft:install")
+    expect(scripts["package:production:dir"]).not.toContain("graft:install")
+    await expect(
+      fs.access(path.join(appRoot, "graft-runtime-manifest.json"))
+    ).rejects.toThrow()
+    await expect(
+      fs.access(path.join(appRoot, "scripts/install-graft-runtime.mjs"))
+    ).rejects.toThrow()
+  })
+
   it("uses the checked-in official Eidos icons on every target", async () => {
     const builder = await readJson("electron-builder.json")
     const mac = builder.mac as Record<string, unknown>

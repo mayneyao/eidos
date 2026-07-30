@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 
 import type {
+  GraftTrackedIgnoredPaths,
   SpaceSnapshot,
   SpaceVersionCommit,
   SpaceVersionDiff,
@@ -60,6 +61,30 @@ export function versionRowDiffPage<T>(
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError"
+}
+
+function mergeVersionDiffPages(
+  current: SpaceVersionDiff,
+  next: SpaceVersionDiff,
+  preservePagination = false
+): SpaceVersionDiff {
+  const paths = new Map(current.paths.map((change) => [change.path, change]))
+  const files = new Map(current.files.map((file) => [file.path, file]))
+  for (const change of next.paths) paths.set(change.path, change)
+  for (const file of next.files) files.set(file.path, file)
+  return {
+    ...next,
+    paths: [...paths.values()],
+    files: [...files.values()],
+    totalPaths: next.totalPaths ?? current.totalPaths,
+    ...(preservePagination
+      ? { hasMore: current.hasMore, nextCursor: current.nextCursor }
+      : {}),
+  }
 }
 
 function displayValue(value: unknown): string {
@@ -497,6 +522,11 @@ export function VersionPanel({
   const [changes, setChanges] = useState<SpaceVersionDiff | null>(null)
   const [commits, setCommits] = useState<SpaceVersionCommit[]>([])
   const [historyHead, setHistoryHead] = useState<string | null>(null)
+  const [historyCursor, setHistoryCursor] = useState<string | null>(null)
+  const [historyHasMore, setHistoryHasMore] = useState(false)
+  const [trackedIgnored, setTrackedIgnored] = useState<
+    GraftTrackedIgnoredPaths | null | undefined
+  >(undefined)
   const [selectedCommit, setSelectedCommit] =
     useState<SpaceVersionCommit | null>(null)
   const [selectedDiff, setSelectedDiff] = useState<SpaceVersionDiff | null>(
@@ -506,11 +536,17 @@ export function VersionPanel({
     string | null
   >(null)
   const [loading, setLoading] = useState(false)
-  const [busy, setBusy] = useState<"enable" | "checkpoint" | "restore" | null>(
-    null
-  )
+  const [busy, setBusy] = useState<
+    | "enable"
+    | "checkpoint"
+    | "restore"
+    | "review-ignored"
+    | "untrack-ignored"
+    | null
+  >(null)
   const [checkpointMessage, setCheckpointMessage] = useState("")
   const [confirmRestore, setConfirmRestore] = useState(false)
+  const [confirmUntrackIgnored, setConfirmUntrackIgnored] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const clearInspection = useCallback(() => {
@@ -519,11 +555,40 @@ export function VersionPanel({
   }, [onInspectionChange])
 
   const inspect = useCallback(
-    (inspection: VersionInspection) => {
+    async (inspection: VersionInspection) => {
       setSelectedInspectionKey(inspection.key)
-      onInspectionChange(inspection)
+      if (inspection.file || inspection.type === "table") {
+        onInspectionChange(inspection)
+        return
+      }
+      setLoading(true)
+      setError(null)
+      try {
+        const detail = await window.eidosLite.getVersionPathDiff(
+          inspection.change.path,
+          mode === "history" ? (selectedCommit?.id ?? null) : null,
+          mode === "history" ? (selectedCommit?.parent ?? null) : null
+        )
+        const source = mode === "changes" ? changes : selectedDiff
+        const merged = source
+          ? mergeVersionDiffPages(source, detail, true)
+          : detail
+        if (mode === "changes") setChanges(merged)
+        else setSelectedDiff(merged)
+        onInspectionChange({
+          ...inspection,
+          diff: merged,
+          file:
+            detail.files.find((file) => file.path === inspection.change.path) ??
+            null,
+        })
+      } catch (cause) {
+        if (!isAbortError(cause)) setError(errorMessage(cause))
+      } finally {
+        setLoading(false)
+      }
     },
-    [onInspectionChange]
+    [changes, mode, onInspectionChange, selectedCommit, selectedDiff]
   )
 
   const loadMode = useCallback(async () => {
@@ -531,11 +596,14 @@ export function VersionPanel({
     setError(null)
     try {
       if (mode === "changes") {
-        setChanges(await window.eidosLite.getVersionChanges())
+        const nextChanges = await window.eidosLite.getVersionChanges(100)
+        setChanges(nextChanges)
       } else {
         const history = await window.eidosLite.getVersionHistory(50)
         setCommits(history.commits)
         setHistoryHead(history.currentHead)
+        setHistoryCursor(history.nextCursor ?? null)
+        setHistoryHasMore(history.hasMore)
         setSelectedCommit((current) =>
           current
             ? (history.commits.find((commit) => commit.id === current.id) ??
@@ -544,7 +612,7 @@ export function VersionPanel({
         )
       }
     } catch (cause) {
-      setError(errorMessage(cause))
+      if (!isAbortError(cause)) setError(errorMessage(cause))
     } finally {
       setLoading(false)
     }
@@ -565,6 +633,13 @@ export function VersionPanel({
     clearInspection()
   }, [clearInspection, mode, refreshKey])
 
+  useEffect(
+    () => () => {
+      void window.eidosLite.cancelVersionReads().catch(() => undefined)
+    },
+    []
+  )
+
   const selectCommit = async (commit: SpaceVersionCommit) => {
     if (selectedCommit?.id === commit.id) {
       setSelectedCommit(null)
@@ -576,15 +651,16 @@ export function VersionPanel({
     setSelectedCommit(commit)
     setSelectedDiff(null)
     setConfirmRestore(false)
+    setConfirmUntrackIgnored(false)
     clearInspection()
     setLoading(true)
     setError(null)
     try {
       setSelectedDiff(
-        await window.eidosLite.getVersionDiff(commit.id, commit.parent)
+        await window.eidosLite.getVersionDiff(commit.id, commit.parent, 100)
       )
     } catch (cause) {
-      setError(errorMessage(cause))
+      if (!isAbortError(cause)) setError(errorMessage(cause))
     } finally {
       setLoading(false)
     }
@@ -650,14 +726,136 @@ export function VersionPanel({
       0,
     [changes]
   )
+  const changedPathCount = changes?.totalPaths ?? changes?.paths.length ?? 0
 
   const changeMode = (nextMode: PanelMode) => {
     if (mode === nextMode) return
     setMode(nextMode)
+    void window.eidosLite.cancelVersionReads().catch(() => undefined)
     setSelectedCommit(null)
     setSelectedDiff(null)
     setConfirmRestore(false)
     clearInspection()
+  }
+
+  const loadMoreChanges = async () => {
+    if (!changes?.hasMore || !changes.nextCursor) return
+    setLoading(true)
+    setError(null)
+    try {
+      const next = await window.eidosLite.getVersionChanges(
+        100,
+        changes.nextCursor
+      )
+      setChanges((current) =>
+        current ? mergeVersionDiffPages(current, next) : next
+      )
+    } catch (cause) {
+      if (!isAbortError(cause)) setError(errorMessage(cause))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadMoreHistory = async () => {
+    if (!historyHasMore || !historyCursor) return
+    setLoading(true)
+    setError(null)
+    try {
+      const next = await window.eidosLite.getVersionHistory(50, historyCursor)
+      setCommits((current) => [
+        ...current,
+        ...next.commits.filter(
+          (commit) => !current.some((existing) => existing.id === commit.id)
+        ),
+      ])
+      setHistoryCursor(next.nextCursor ?? null)
+      setHistoryHasMore(next.hasMore)
+    } catch (cause) {
+      if (!isAbortError(cause)) setError(errorMessage(cause))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadMoreSelectedDiff = async () => {
+    if (!selectedCommit || !selectedDiff?.hasMore || !selectedDiff.nextCursor) {
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const next = await window.eidosLite.getVersionDiff(
+        selectedCommit.id,
+        selectedCommit.parent,
+        100,
+        selectedDiff.nextCursor
+      )
+      setSelectedDiff((current) =>
+        current ? mergeVersionDiffPages(current, next) : next
+      )
+    } catch (cause) {
+      if (!isAbortError(cause)) setError(errorMessage(cause))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const untrackIgnored = async () => {
+    const expectedHead = historyHead ?? space.graft.currentHead
+    if (!expectedHead) return
+    setBusy("untrack-ignored")
+    setError(null)
+    try {
+      const snapshot = await window.eidosLite.untrackIgnoredPaths(expectedHead)
+      setTrackedIgnored(null)
+      setConfirmUntrackIgnored(false)
+      onSpaceChange(snapshot)
+      onRefresh()
+    } catch (cause) {
+      setError(errorMessage(cause))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const reviewIgnored = async () => {
+    setBusy("review-ignored")
+    setError(null)
+    try {
+      setTrackedIgnored(await window.eidosLite.getTrackedIgnoredPaths(100))
+    } catch (cause) {
+      if (!isAbortError(cause)) setError(errorMessage(cause))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  if (space.graft.checking) {
+    return (
+      <aside
+        className="version-panel version-panel-setup"
+        aria-label="Space version management"
+      >
+        <header>
+          <div>
+            <FileClock aria-hidden="true" />
+            <strong>Version history</strong>
+          </div>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onClose}
+            aria-label="Close version history"
+          >
+            <X />
+          </button>
+        </header>
+        <div className="version-loading" role="status">
+          <LoaderCircle className="spin" /> Checking local history…
+        </div>
+      </aside>
+    )
   }
 
   if (!space.graft.initialized) {
@@ -776,7 +974,7 @@ export function VersionPanel({
                 <strong>
                   {space.graft.clean
                     ? "No local changes"
-                    : `${changes?.paths.length ?? 0} files · ${changedRowCount} row changes`}
+                    : `${changedPathCount} changed ${changedPathCount === 1 ? "file" : "files"}${changedRowCount ? ` · ${changedRowCount} loaded row changes` : ""}`}
                 </strong>
                 <p>
                   {space.graft.clean
@@ -785,14 +983,91 @@ export function VersionPanel({
                 </p>
               </div>
             </section>
+            {trackedIgnored === undefined ? (
+              <button
+                type="button"
+                className="version-ignore-review"
+                disabled={busy !== null || space.operation.phase !== "ready"}
+                onClick={() => void reviewIgnored()}
+              >
+                {busy === "review-ignored"
+                  ? "Reviewing ignore rules…"
+                  : "Review ignored files"}
+              </button>
+            ) : trackedIgnored && trackedIgnored.total > 0 ? (
+              <section className="tracked-ignore-notice">
+                <CircleAlert aria-hidden="true" />
+                <div>
+                  <strong>
+                    {trackedIgnored.total.toLocaleString()} ignored paths are
+                    still tracked
+                  </strong>
+                  <p>
+                    Ignore rules do not remove existing paths from history or
+                    Sync. Stop tracking keeps every local file on disk and
+                    records the change as a checkpoint.
+                  </p>
+                  {confirmUntrackIgnored ? (
+                    <div className="tracked-ignore-actions">
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() => setConfirmUntrackIgnored(false)}
+                      >
+                        Keep tracking
+                      </button>
+                      <button
+                        type="button"
+                        className="danger-action"
+                        disabled={
+                          busy !== null ||
+                          space.graft.clean === false ||
+                          !(historyHead ?? space.graft.currentHead)
+                        }
+                        onClick={() => void untrackIgnored()}
+                      >
+                        {busy === "untrack-ignored"
+                          ? "Updating…"
+                          : "Stop tracking ignored files"}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="version-load-more"
+                      disabled={
+                        busy !== null || space.operation.phase !== "ready"
+                      }
+                      onClick={() => setConfirmUntrackIgnored(true)}
+                    >
+                      Review tracking cleanup
+                    </button>
+                  )}
+                </div>
+              </section>
+            ) : trackedIgnored ? (
+              <p className="tracked-ignore-clean">
+                Ignored files are not present in the tracked Space history.
+              </p>
+            ) : null}
             {changes && changes.paths.length ? (
               <div className="version-change-tree-shell">
                 <VersionChangeTree
                   diff={changes}
                   selectedKey={selectedInspectionKey}
                   mode="changes"
-                  onSelect={inspect}
+                  onSelect={(inspection) => void inspect(inspection)}
                 />
+                {changes.hasMore && changes.nextCursor ? (
+                  <button
+                    type="button"
+                    className="version-load-more"
+                    disabled={loading}
+                    onClick={() => void loadMoreChanges()}
+                  >
+                    {loading ? "Loading…" : "Load more changed files"}
+                  </button>
+                ) : null}
               </div>
             ) : null}
             {space.graft.clean === false ? (
@@ -839,7 +1114,10 @@ export function VersionPanel({
                     <span>
                       <strong>{commit.message}</strong>
                       <small>
-                        {commitTime(commit.timestampMs)} · {commit.files} files
+                        {commitTime(commit.timestampMs)} ·{" "}
+                        {commit.fileCountKnown === false
+                          ? "files on demand"
+                          : `${commit.files} files`}
                       </small>
                     </span>
                   </button>
@@ -850,12 +1128,24 @@ export function VersionPanel({
                           <LoaderCircle className="spin" /> Loading changes…
                         </p>
                       ) : selectedDiff ? (
-                        <HistoryDiffList
-                          diff={selectedDiff}
-                          commit={commit}
-                          selectedKey={selectedInspectionKey}
-                          onSelect={inspect}
-                        />
+                        <>
+                          <HistoryDiffList
+                            diff={selectedDiff}
+                            commit={commit}
+                            selectedKey={selectedInspectionKey}
+                            onSelect={(inspection) => void inspect(inspection)}
+                          />
+                          {selectedDiff.hasMore && selectedDiff.nextCursor ? (
+                            <button
+                              type="button"
+                              className="version-load-more"
+                              disabled={loading}
+                              onClick={() => void loadMoreSelectedDiff()}
+                            >
+                              {loading ? "Loading…" : "Load more changed files"}
+                            </button>
+                          ) : null}
+                        </>
                       ) : null}
                       <div className="commit-restore">
                         {commit.id === historyHead ? (
@@ -916,6 +1206,18 @@ export function VersionPanel({
                 </li>
               )
             })}
+            {historyHasMore && historyCursor ? (
+              <li className="commit-load-more">
+                <button
+                  type="button"
+                  className="version-load-more"
+                  disabled={loading}
+                  onClick={() => void loadMoreHistory()}
+                >
+                  {loading ? "Loading…" : "Load older checkpoints"}
+                </button>
+              </li>
+            ) : null}
           </ol>
         ) : (
           <p className="version-empty-copy">No checkpoints yet.</p>

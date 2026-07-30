@@ -5,7 +5,11 @@ export interface GraftSdkTransport {
   open(root: string): Promise<void>
   reopen(): Promise<void>
   close(): Promise<void>
-  command(command: GraftSdkCommand, args?: unknown[]): Promise<unknown>
+  command(
+    command: GraftSdkCommand,
+    args?: unknown[],
+    options?: { signal?: AbortSignal }
+  ): Promise<unknown>
   clone(
     targetDirectory: string,
     remoteUrl: string,

@@ -22,6 +22,8 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.removeRecentSpace, id),
   getSpace: () => ipcRenderer.invoke(IPC_CHANNELS.getSpace),
   refreshSpace: () => ipcRenderer.invoke(IPC_CHANNELS.refreshSpace),
+  loadSpaceDirectory: (relativePath) =>
+    ipcRenderer.invoke(IPC_CHANNELS.loadSpaceDirectory, relativePath),
   onSpaceChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, value: SpaceSnapshot) =>
       listener(value)
@@ -65,11 +67,30 @@ const api: EidosLiteApi = {
   enableVersioning: () => ipcRenderer.invoke(IPC_CHANNELS.enableVersioning),
   createCheckpoint: (message) =>
     ipcRenderer.invoke(IPC_CHANNELS.createCheckpoint, message),
-  getVersionChanges: () => ipcRenderer.invoke(IPC_CHANNELS.versionChanges),
-  getVersionHistory: (limit) =>
-    ipcRenderer.invoke(IPC_CHANNELS.versionHistory, limit),
-  getVersionDiff: (commitId, parentId) =>
-    ipcRenderer.invoke(IPC_CHANNELS.versionDiff, commitId, parentId),
+  getVersionChanges: (limit, after) =>
+    ipcRenderer.invoke(IPC_CHANNELS.versionChanges, limit, after),
+  getVersionHistory: (limit, after) =>
+    ipcRenderer.invoke(IPC_CHANNELS.versionHistory, limit, after),
+  getVersionDiff: (commitId, parentId, limit, after) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.versionDiff,
+      commitId,
+      parentId,
+      limit,
+      after
+    ),
+  getVersionPathDiff: (relativePath, commitId, parentId) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.versionPathDiff,
+      relativePath,
+      commitId,
+      parentId
+    ),
+  cancelVersionReads: () => ipcRenderer.invoke(IPC_CHANNELS.versionCancel),
+  getTrackedIgnoredPaths: (limit, after) =>
+    ipcRenderer.invoke(IPC_CHANNELS.trackedIgnoredPaths, limit, after),
+  untrackIgnoredPaths: (expectedHead) =>
+    ipcRenderer.invoke(IPC_CHANNELS.untrackIgnoredPaths, expectedHead),
   restoreCheckpoint: (commitId, expectedHead) =>
     ipcRenderer.invoke(IPC_CHANNELS.restoreCheckpoint, commitId, expectedHead),
   getSyncStatus: () => ipcRenderer.invoke(IPC_CHANNELS.syncStatus),

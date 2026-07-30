@@ -19,6 +19,7 @@ interface SpaceFileTreeProps {
   disabled?: boolean
   onSelect(entry: SpaceTreeEntry): void
   onOpen(entry: SpaceTreeEntry): void
+  onLoadDirectory(relativePath: string): void
   onContextMenu(entry: SpaceTreeEntry, x: number, y: number): void
 }
 
@@ -61,7 +62,11 @@ export function buildSpaceFileTreeModel(
     const treePath = toTreePath(entry)
     paths.push(treePath)
     entryByTreePath.set(treePath, entry)
-    if (entry.kind === "directory" && depth === 0) {
+    if (
+      entry.kind === "directory" &&
+      depth === 0 &&
+      entry.childrenLoaded !== false
+    ) {
       initialExpandedPaths.push(treePath)
     }
     entry.children?.forEach((child) => visit(child, depth + 1))
@@ -96,12 +101,15 @@ export function SpaceFileTree({
   disabled,
   onSelect,
   onOpen,
+  onLoadDirectory,
   onContextMenu,
 }: SpaceFileTreeProps) {
   const onOpenRef = useRef(onOpen)
   onOpenRef.current = onOpen
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
+  const onLoadDirectoryRef = useRef(onLoadDirectory)
+  onLoadDirectoryRef.current = onLoadDirectory
   const onContextMenuRef = useRef(onContextMenu)
   onContextMenuRef.current = onContextMenu
   const tree = useMemo(() => buildSpaceFileTreeModel(entries), [entries])
@@ -147,7 +155,13 @@ export function SpaceFileTree({
     const entry = treeRef.current.entryByTreePath.get(treePath)
     if (!entry) return
     onSelectRef.current(entry)
-    if (entry.kind !== "directory") onOpenRef.current(entry)
+    if (entry.kind === "directory") {
+      if (!entry.childrenLoaded) {
+        onLoadDirectoryRef.current(entry.relativePath)
+      }
+    } else {
+      onOpenRef.current(entry)
+    }
   }
 
   const styles = {

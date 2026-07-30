@@ -157,6 +157,15 @@ function findSpaceEntry(
   return null
 }
 
+function hasUnloadedDirectories(entries: readonly SpaceTreeEntry[]): boolean {
+  return entries.some(
+    (entry) =>
+      entry.kind === "directory" &&
+      (entry.childrenLoaded === false ||
+        hasUnloadedDirectories(entry.children ?? []))
+  )
+}
+
 function PathActionDialog({
   state,
   busy,
@@ -507,6 +516,9 @@ export function App() {
 
   const activeFile =
     cachedFiles.find((file) => file.sessionId === activeSession) ?? null
+  const spaceTreeIncomplete = space
+    ? hasUnloadedDirectories(space.entries)
+    : false
 
   const startSidebarResize = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -996,7 +1008,10 @@ export function App() {
         </header>
         <div className="space-heading">
           <strong>{space.name}</strong>
-          <span>{space.eidosFileCount} Eidos Files</span>
+          <span>
+            {space.eidosFileCount} Eidos{" "}
+            {spaceTreeIncomplete ? "loaded" : "Files"}
+          </span>
         </div>
         <nav className="explorer" aria-label={`${space.name} files`}>
           <Suspense
@@ -1012,6 +1027,12 @@ export function App() {
               disabled={space.operation.phase !== "ready" || busyFile !== null}
               onSelect={setSelectedEntry}
               onOpen={(entry) => void openEntry(entry)}
+              onLoadDirectory={(relativePath) => {
+                void window.eidosLite
+                  .loadSpaceDirectory(relativePath)
+                  .then(acceptSpaceSnapshot)
+                  .catch((error) => setError(errorMessage(error)))
+              }}
               onContextMenu={(entry, x, y) =>
                 setContextMenu({
                   entry,
@@ -1105,26 +1126,30 @@ export function App() {
               disabled={!space.graft.available}
               aria-pressed={versionPanelOpen}
               aria-label={
-                !space.graft.available
-                  ? "Version history unavailable"
-                  : versionChangeCount > 0
-                    ? `Version history, ${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
-                    : space.graft.initialized
-                      ? "Version history"
-                      : "Set up version history"
+                space.graft.checking
+                  ? "Checking version history"
+                  : !space.graft.available
+                    ? "Version history unavailable"
+                    : versionChangeCount > 0
+                      ? `Version history, ${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
+                      : space.graft.initialized
+                        ? "Version history"
+                        : "Set up version history"
               }
               onClick={() => {
                 if (versionPanelOpen) setVersionInspection(null)
                 setVersionPanelOpen(!versionPanelOpen)
               }}
               title={
-                !space.graft.available
-                  ? (space.graft.error ?? "Version history unavailable")
-                  : versionChangeCount > 0
-                    ? `${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
-                    : space.graft.initialized
-                      ? "Version history"
-                      : "Set up version history"
+                space.graft.checking
+                  ? "Checking version history"
+                  : !space.graft.available
+                    ? (space.graft.error ?? "Version history unavailable")
+                    : versionChangeCount > 0
+                      ? `${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
+                      : space.graft.initialized
+                        ? "Version history"
+                        : "Set up version history"
               }
             >
               <History />
@@ -1267,7 +1292,7 @@ export function App() {
                   />
                 </Suspense>
               </section>
-            ) : space.eidosFileCount === 0 ? (
+            ) : space.eidosFileCount === 0 && !spaceTreeIncomplete ? (
               <section
                 className="editor-empty editor-empty-onboarding"
                 data-empty-space-onboarding

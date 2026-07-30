@@ -59,7 +59,7 @@ interface RendererSmokeResult {
   }
   graft: {
     available: boolean
-    backend: "cli" | "sdk"
+    backend: "sdk"
     version?: string
   }
   cachedFiles: string[]
@@ -280,7 +280,10 @@ const rendererProbe = `
       JSON.stringify(appInfo.services)
     )
   }
-  const space = await window.eidosLite.getSpace()
+  let space = await window.eidosLite.getSpace()
+  if (space?.entries.some((entry) => entry.relativePath === "projects")) {
+    space = await window.eidosLite.loadSpaceDirectory("projects")
+  }
   if (!space || space.eidosFileCount < 4) {
     throw new Error("UI smoke requires a bound Space with four Eidos Files")
   }
@@ -754,7 +757,10 @@ const rendererProbe = `
   )
   const versioned = await window.eidosLite.refreshSpace()
   if (!versioned.graft.initialized || versioned.graft.clean !== true) {
-    throw new Error("Enable Versioning did not create a clean local repository")
+    throw new Error(
+      "Enable Versioning did not create a clean local repository: " +
+        JSON.stringify(versioned.graft)
+    )
   }
   versionAction.click()
   await waitFor(
@@ -771,7 +777,8 @@ const rendererProbe = `
     throw new Error("A real Eidos File mutation did not dirty the Space repository")
   }
   const changes = await window.eidosLite.getVersionChanges()
-  const rowChanges = changes.files.reduce(
+  const selectedChanges = await window.eidosLite.getVersionPathDiff(eidosPaths[0])
+  const rowChanges = selectedChanges.files.reduce(
     (total, file) => total + file.tables.reduce(
       (tableTotal, tableDiff) => tableTotal + tableDiff.changes.length,
       0
@@ -800,7 +807,15 @@ const rendererProbe = `
     "Packaged mutation checkpoint"
   )
   if (checkpoint.graft.clean !== true) {
-    throw new Error("Whole-Space checkpoint did not leave a clean repository")
+    const residualChanges = await window.eidosLite.getVersionChanges()
+    const residualState = JSON.stringify({
+      graft: checkpoint.graft,
+      paths: residualChanges.paths,
+    })
+    throw new Error(
+      "Whole-Space checkpoint did not leave a clean repository: " +
+        residualState
+    )
   }
   const afterCheckpoint = await window.eidosLite.callRuntime(
     opened.sessionId,

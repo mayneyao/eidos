@@ -4,11 +4,18 @@ import {
   RepositorySession,
   sdkVersion,
   type CloneOptions,
+  type CommitChangedPathsOptions,
   type DiffOptions,
+  type DiffPathsOptions,
   type HistoryOptions,
+  type IgnoredPathsOptions,
+  type InventoryOptions,
   type RemoteConfigureOptions,
   type RemoteOperationOptions,
   type RestoreOptions,
+  type RestorePathsOptions,
+  type StagePathsOptions,
+  type UntrackPathsOptions,
 } from "@eidos.space/graft"
 
 import type {
@@ -30,6 +37,7 @@ if (!parentPort) throw new Error("Graft SDK requires a utility parent")
 
 let session: RepositorySession | null = null
 let sessionRoot: string | null = null
+const operationControllers = new Map<number, AbortController>()
 
 type WorkerError = Extract<GraftSdkWorkerResponse, { ok: false }>["error"]
 
@@ -68,7 +76,8 @@ function objectValue(value: unknown, label: string): Record<string, unknown> {
 
 async function runCommand(
   command: GraftSdkCommand,
-  args: unknown[]
+  args: unknown[],
+  signal: AbortSignal
 ): Promise<unknown> {
   if (command === "sdkVersion") return sdkVersion()
   if (command === "operationMaterializesWorktree") {
@@ -80,48 +89,148 @@ async function runCommand(
   const repository = requireSession()
   switch (command) {
     case "init":
-      return repository.init()
+      return repository.init({ signal })
     case "status":
-      return repository.status()
+      return repository.status({ signal })
+    case "statusIncremental":
+      return repository.statusIncremental({ signal })
+    case "repositoryMetadata":
+      return repository.repositoryMetadata({ signal })
+    case "listRemotes":
+      return repository.listRemotes({ signal })
     case "addAll":
-      return repository.addAll()
+      return repository.addAll({ signal })
+    case "stagePaths":
+      return repository.stagePaths({
+        ...(objectValue(
+          args[0],
+          "stage paths options"
+        ) as unknown as StagePathsOptions),
+        signal,
+      })
     case "commit":
-      return repository.commit(requireString(args[0], "commit message"))
+      return repository.commit(requireString(args[0], "commit message"), {
+        signal,
+      })
     case "diff":
-      return repository.diff(
-        objectValue(args[0] ?? {}, "diff options") as DiffOptions
-      )
+      return repository.diff({
+        ...(objectValue(args[0] ?? {}, "diff options") as DiffOptions),
+        signal,
+      })
+    case "diffPaths":
+      return repository.diffPaths({
+        ...(objectValue(
+          args[0],
+          "diff paths options"
+        ) as unknown as DiffPathsOptions),
+        signal,
+      })
     case "history":
-      return repository.history(
-        objectValue(args[0] ?? {}, "history options") as HistoryOptions
-      )
+      return repository.history({
+        ...(objectValue(args[0] ?? {}, "history options") as HistoryOptions),
+        signal,
+      })
+    case "historySummaries":
+      return repository.historySummaries({
+        ...(objectValue(
+          args[0] ?? {},
+          "history summary options"
+        ) as HistoryOptions),
+        signal,
+      })
+    case "commitDetails":
+      return repository.commitDetails(requireString(args[0], "revision"), {
+        signal,
+      })
+    case "commitChangedPaths":
+      return repository.commitChangedPaths({
+        ...(objectValue(
+          args[0],
+          "commit changed paths options"
+        ) as unknown as CommitChangedPathsOptions),
+        signal,
+      })
+    case "isIgnoredPath":
+      return repository.isIgnoredPath(requireString(args[0], "path"), {
+        signal,
+      })
+    case "isIgnoredPaths":
+      return repository.isIgnoredPaths({
+        ...(objectValue(
+          args[0],
+          "ignored paths options"
+        ) as unknown as IgnoredPathsOptions),
+        signal,
+      })
+    case "inventory":
+      return repository.inventory({
+        ...(objectValue(
+          args[0] ?? {},
+          "inventory options"
+        ) as InventoryOptions),
+        signal,
+      })
     case "restore":
-      return repository.restore(
-        objectValue(args[0], "restore options") as unknown as RestoreOptions
-      )
+      return repository.restore({
+        ...(objectValue(
+          args[0],
+          "restore options"
+        ) as unknown as RestoreOptions),
+        signal,
+      })
+    case "restorePaths":
+      return repository.restorePaths({
+        ...(objectValue(
+          args[0],
+          "restore paths options"
+        ) as unknown as RestorePathsOptions),
+        signal,
+      })
+    case "untrackPaths":
+      return repository.untrackPaths({
+        ...(objectValue(
+          args[0],
+          "untrack paths options"
+        ) as unknown as UntrackPathsOptions),
+        signal,
+      })
     case "configureRemote":
-      return repository.configureRemote(
-        objectValue(
+      return repository.configureRemote({
+        ...(objectValue(
           args[0],
           "Remote options"
-        ) as unknown as RemoteConfigureOptions
-      )
+        ) as unknown as RemoteConfigureOptions),
+        signal,
+      })
     case "push":
-      return repository.push(
-        objectValue(args[0] ?? {}, "push options") as RemoteOperationOptions
-      )
+      return repository.push({
+        ...(objectValue(
+          args[0] ?? {},
+          "push options"
+        ) as RemoteOperationOptions),
+        signal,
+      })
     case "fetch":
-      return repository.fetch(
-        objectValue(args[0] ?? {}, "fetch options") as RemoteOperationOptions
-      )
+      return repository.fetch({
+        ...(objectValue(
+          args[0] ?? {},
+          "fetch options"
+        ) as RemoteOperationOptions),
+        signal,
+      })
     case "pull":
-      return repository.pull(
-        objectValue(args[0] ?? {}, "pull options") as RemoteOperationOptions
-      )
+      return repository.pull({
+        ...(objectValue(
+          args[0] ?? {},
+          "pull options"
+        ) as RemoteOperationOptions),
+        signal,
+      })
     case "cloneRepository":
-      return repository.cloneRepository(
-        objectValue(args[0], "clone options") as unknown as CloneOptions
-      )
+      return repository.cloneRepository({
+        ...(objectValue(args[0], "clone options") as unknown as CloneOptions),
+        signal,
+      })
     case "setHttpBearerToken":
       repository.setHttpBearerToken(
         requireString(args[0], "Remote name"),
@@ -169,18 +278,35 @@ async function handle(request: GraftSdkWorkerRequest): Promise<unknown> {
       return { closed: true }
     }
     case "command":
-      return runCommand(request.command, request.args)
+      return runCommand(
+        request.command,
+        request.args,
+        operationControllers.get(request.requestId)?.signal ??
+          new AbortController().signal
+      )
+    case "cancel":
+      operationControllers.get(request.requestId)?.abort()
+      return { cancelled: true }
   }
 }
 
 parentPort.on("message", (event) => {
   const request = event.data as GraftSdkWorkerRequest
+  if (request.type === "cancel") {
+    operationControllers.get(request.requestId)?.abort()
+    return
+  }
+  if (request.type === "command") {
+    operationControllers.set(request.requestId, new AbortController())
+  }
   void handle(request).then(
     (result) => {
       parentPort.postMessage({ requestId: request.requestId, ok: true, result })
+      operationControllers.delete(request.requestId)
       if (request.type === "close") setTimeout(() => process.exit(0), 0)
     },
     (error) => {
+      operationControllers.delete(request.requestId)
       parentPort.postMessage({
         requestId: request.requestId,
         ok: false,

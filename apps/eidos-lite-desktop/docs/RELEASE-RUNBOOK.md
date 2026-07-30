@@ -75,7 +75,7 @@ targets require their CI runners and real installers.
 
 Use **Copy diagnostics** from Welcome or the Space titlebar. The generated JSON
 contains app/platform/Electron versions, the compiled environment name,
-operation phase, Graft backend/version flags, `.eidos` count, and runtime counts.
+operation phase, Graft SDK/version flags, `.eidos` count, and runtime counts.
 It deliberately excludes credentials, tokens, service/Remote URLs, absolute
 paths, Space names, repository identifiers, file contents, and row data.
 

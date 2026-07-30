@@ -1,9 +1,6 @@
-import { execFile } from "node:child_process"
 import fs from "node:fs/promises"
 import path from "node:path"
-import { promisify } from "node:util"
 
-import manifest from "../../../graft-runtime-manifest.json"
 import type {
   GraftSpaceStatus,
   SpaceVersionCommit,
@@ -18,57 +15,39 @@ import type {
 import { resolveEidosLiteServiceEnvironment } from "../../shared/service-environment"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
 
-const execFileAsync = promisify(execFile)
-const MAX_OUTPUT_BYTES = 16 * 1024 * 1024
-const ERROR_OUTPUT_LIMIT = 2_000
-export const GRAFT_SDK_VERSION = "0.1.0"
-
-export type GraftBackend = "cli" | "sdk"
+const SDK_DIFF_PAGE_SIZE = 100
+const SDK_PATH_BATCH_SIZE = 1_000
+export const GRAFT_SDK_VERSION = "0.3.0-rc.0"
 
 export interface GraftClientOptions {
-  backend?: GraftBackend
-  binaryPath?: string
-  sdkTransport?: GraftSdkTransport
+  sdkTransport: GraftSdkTransport
   syncRemoteOrigin?: string
 }
 
-export class GraftCliError extends Error {
-  constructor(
-    message: string,
-    readonly command: string,
-    readonly exitCode?: number
-  ) {
-    super(message)
-    this.name = "GraftCliError"
-  }
+export interface GraftRepositoryStatus {
+  dirty: boolean
+  currentHead: string | null
+  currentBranch: string | null
+  ahead: number
+  behind: number
+  hasConflicts: boolean
+  changedPaths: number
+  paths: string[]
+  changes: SpaceVersionPathChange[]
+  generation?: number
+  changeToken?: string
+  statusCacheHit?: boolean
+  persistentSnapshotHit?: boolean
+  persistentSnapshotSaved?: boolean
+  stabilityRetries?: number
 }
 
-function redacted(value: string, token?: string): string {
-  const safe = token ? value.split(token).join("[redacted]") : value
-  return safe.slice(0, ERROR_OUTPUT_LIMIT)
-}
-
-function parseVersion(value: string): string | null {
-  return value.match(/\bgraft-tool\s+(\d+\.\d+\.\d+)\b/)?.[1] ?? null
-}
-
-function platformBinaryName(): string {
-  return process.platform === "win32" ? "graft.exe" : "graft"
-}
-
-export function defaultGraftBinaryPath(
-  options: {
-    packaged?: boolean
-    resourcesPath?: string
-  } = {}
-): string {
-  const configured =
-    process.env.EIDOS_LITE_GRAFT_CLI_PATH ?? process.env.GRAFT_CLI_PATH
-  if (configured) return path.resolve(configured)
-  if (options.packaged && options.resourcesPath) {
-    return path.join(options.resourcesPath, "graft", platformBinaryName())
-  }
-  return platformBinaryName()
+export interface GraftIgnoreInspection {
+  path: string
+  isIgnored: boolean
+  isTracked: boolean
+  isDirectory: boolean
+  hasTrackedDescendants: boolean
 }
 
 export function isOfficialRemoteUrl(value: string, origin: string): boolean {
@@ -103,6 +82,19 @@ function record(value: unknown): Record<string, unknown> {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined
+}
+
+function isString(value: string | undefined): value is string {
+  return value !== undefined
+}
+
+function hasErrorCode(error: unknown, code: string): boolean {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    typeof error.code === "string" &&
+    error.code === code
+  )
 }
 
 function numberValue(value: unknown): number {
@@ -169,6 +161,11 @@ function versionDiff(value: unknown): SpaceVersionDiff {
     to: stringValue(item.to) ?? null,
     paths: Array.isArray(item.paths) ? item.paths.map(pathChange) : [],
     files: Array.isArray(item.files) ? item.files.map(fileDiff) : [],
+    ...(typeof item.total_paths === "number"
+      ? { totalPaths: Math.max(0, Math.trunc(item.total_paths)) }
+      : {}),
+    hasMore: item.has_more === true,
+    nextCursor: stringValue(item.next_cursor) ?? null,
   }
 }
 
@@ -184,15 +181,24 @@ function tableSummary(value: unknown): SpaceVersionTableSummary {
 
 function commit(value: unknown): SpaceVersionCommit {
   const item = record(value)
+  const parents = stringArray(item.parents)
   const changes = Array.isArray(item.changes)
     ? item.changes.map(pathChange)
     : []
+  const pathCounts = record(item.path_changes)
+  const fileCountKnown =
+    item.path_counts_complete === true || changes.length > 0
+  const summarizedFiles =
+    numberValue(pathCounts.added) +
+    numberValue(pathCounts.modified) +
+    numberValue(pathCounts.deleted)
   return {
     id: stringValue(item.id) ?? "",
-    parent: stringValue(item.parent) ?? null,
+    parent: stringValue(item.parent) ?? parents[0] ?? null,
     message: stringValue(item.message) ?? "Checkpoint",
     timestampMs: numberValue(item.timestamp_ms),
-    files: changes.length,
+    files: changes.length || summarizedFiles,
+    fileCountKnown,
     changes,
     tables: Array.isArray(item.tables) ? item.tables.map(tableSummary) : [],
     changedTables: numberValue(item.changed_tables),
@@ -206,51 +212,65 @@ function versionHistory(value: unknown): SpaceVersionHistory {
     currentBranch: stringValue(item.current_branch) ?? null,
     commits: Array.isArray(item.commits) ? item.commits.map(commit) : [],
     hasMore: item.has_more === true,
+    nextCursor: stringValue(item.next_cursor) ?? null,
+  }
+}
+
+function mergeVersionDiffs(
+  values: readonly unknown[],
+  metadata: Partial<SpaceVersionDiff> = {}
+): SpaceVersionDiff {
+  const diffs = values.map(versionDiff)
+  const paths = new Map<string, SpaceVersionPathChange>()
+  const files = new Map<string, SpaceVersionFileDiff>()
+  for (const diff of diffs) {
+    for (const change of diff.paths) paths.set(change.path, change)
+    for (const file of diff.files) files.set(file.path, file)
+  }
+  const first = diffs[0]
+  return {
+    currentHead: metadata.currentHead ?? first?.currentHead ?? null,
+    currentBranch: metadata.currentBranch ?? first?.currentBranch ?? null,
+    from: metadata.from ?? first?.from ?? null,
+    to: metadata.to ?? first?.to ?? null,
+    paths: [...paths.values()].sort((left, right) =>
+      left.path.localeCompare(right.path)
+    ),
+    files: [...files.values()].sort((left, right) =>
+      left.path.localeCompare(right.path)
+    ),
+    ...(metadata.totalPaths === undefined
+      ? {}
+      : { totalPaths: metadata.totalPaths }),
+    hasMore: metadata.hasMore ?? false,
+    nextCursor: metadata.nextCursor ?? null,
   }
 }
 
 export class GraftClient {
   private verifiedVersion: Promise<string> | null = null
   private openedRoot: string | null = null
-  readonly backend: GraftBackend
-  readonly binaryPath: string
+  readonly backend = "sdk" as const
   readonly syncRemoteOrigin: string
-  private readonly sdkTransport?: GraftSdkTransport
+  private readonly sdkTransport: GraftSdkTransport
 
-  constructor(
-    options: GraftClientOptions | string = {},
-    legacySyncRemoteOrigin?: string
-  ) {
-    const resolved =
-      typeof options === "string"
-        ? {
-            backend: "cli" as const,
-            binaryPath: options,
-            syncRemoteOrigin: legacySyncRemoteOrigin,
-          }
-        : options
-    this.sdkTransport = resolved.sdkTransport
-    this.backend =
-      resolved.backend ?? (this.sdkTransport ? "sdk" : ("cli" as const))
-    this.binaryPath = resolved.binaryPath ?? defaultGraftBinaryPath()
+  constructor(options: GraftClientOptions) {
+    this.sdkTransport = options.sdkTransport
     this.syncRemoteOrigin =
-      resolved.syncRemoteOrigin ??
+      options.syncRemoteOrigin ??
       resolveEidosLiteServiceEnvironment().syncRemoteOrigin
-    if (this.backend === "sdk" && !this.sdkTransport) {
-      throw new Error("The Graft SDK backend requires a session transport")
-    }
   }
 
   expectedVersion(): string {
-    return this.backend === "sdk" ? GRAFT_SDK_VERSION : manifest.version
+    return GRAFT_SDK_VERSION
+  }
+
+  hasOpenSession(): boolean {
+    return this.openedRoot !== null
   }
 
   async open(root: string): Promise<void> {
-    const canonicalRoot = path.resolve(root)
-    if (this.backend === "cli") {
-      this.openedRoot = canonicalRoot
-      return
-    }
+    const canonicalRoot = await this.canonicalRepositoryRoot(root)
     await this.requireSdkTransport().open(canonicalRoot)
     this.openedRoot = canonicalRoot
     await this.version()
@@ -259,41 +279,24 @@ export class GraftClient {
   async close(): Promise<void> {
     this.openedRoot = null
     this.verifiedVersion = null
-    if (this.backend === "sdk") await this.requireSdkTransport().close()
+    await this.requireSdkTransport().close()
   }
 
   async reopen(): Promise<void> {
-    if (this.backend === "cli") return
     if (!this.openedRoot) throw new Error("Graft repository session is closed")
     await this.requireSdkTransport().reopen()
   }
 
   async version(): Promise<string> {
     if (!this.verifiedVersion) {
-      this.verifiedVersion = (
-        this.backend === "sdk"
-          ? this.requireSdkTransport()
-              .command("sdkVersion")
-              .then((value) => {
-                if (typeof value !== "string") {
-                  throw new Error("Graft SDK returned an invalid version")
-                }
-                return value
-              })
-          : execFileAsync(this.binaryPath, ["--version"], {
-              encoding: "utf8",
-              env: { ...process.env, NO_COLOR: "1" },
-              maxBuffer: 64 * 1024,
-              timeout: 30_000,
-              windowsHide: true,
-            }).then(({ stdout }) => {
-              const version = parseVersion(stdout)
-              if (!version) {
-                throw new Error("Graft returned an invalid version")
-              }
-              return version
-            })
-      )
+      this.verifiedVersion = this.requireSdkTransport()
+        .command("sdkVersion")
+        .then((value) => {
+          if (typeof value !== "string") {
+            throw new Error("Graft SDK returned an invalid version")
+          }
+          return value
+        })
         .then((version) => {
           if (version !== this.expectedVersion()) {
             throw new Error(
@@ -310,7 +313,10 @@ export class GraftClient {
     return this.verifiedVersion
   }
 
-  async inspectSpace(root: string): Promise<GraftSpaceStatus> {
+  async inspectSpace(
+    root: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<GraftSpaceStatus> {
     let version: string
     try {
       await this.open(root)
@@ -338,12 +344,8 @@ export class GraftClient {
       }
     }
     try {
-      const status = await this.status(root)
-      const changedPaths = status.dirty
-        ? await this.workingDiff(root, false)
-            .then((diff) => diff.paths.length)
-            .catch(() => undefined)
-        : 0
+      const status = await this.status(root, options)
+      const changedPaths = status.dirty ? status.changedPaths : 0
       return {
         available: true,
         backend: this.backend,
@@ -353,6 +355,13 @@ export class GraftClient {
         clean: !status.dirty,
         ...(changedPaths === undefined ? {} : { changedPaths }),
         ...(status.currentHead ? { currentHead: status.currentHead } : {}),
+        ...(status.generation === undefined
+          ? {}
+          : { generation: status.generation }),
+        ...(status.changeToken ? { changeToken: status.changeToken } : {}),
+        ...(status.statusCacheHit === undefined
+          ? {}
+          : { statusCacheHit: status.statusCacheHit }),
       }
     } catch (error) {
       return {
@@ -372,76 +381,265 @@ export class GraftClient {
       .then((stats) => stats.isDirectory())
       .catch(() => false)
     if (!initialized) {
-      if (this.backend === "sdk") await this.runSdk(root, "init")
-      else await this.runJson(root, ["init", "--json"])
+      await this.runSdk(root, "init")
     }
   }
 
-  stageAll(root: string): Promise<unknown> {
-    return this.backend === "sdk"
-      ? this.runSdk(root, "addAll")
-      : this.runJson(root, ["add", "--json", "-A"])
+  async stageAll(
+    root: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<unknown> {
+    const status = await this.status(root, options)
+    if (status.paths.length === 0) return { paths: [] }
+    const results: unknown[] = []
+    for (
+      let index = 0;
+      index < status.paths.length;
+      index += SDK_PATH_BATCH_SIZE
+    ) {
+      results.push(
+        await this.runSdk(
+          root,
+          "stagePaths",
+          [
+            {
+              paths: status.paths.slice(index, index + SDK_PATH_BATCH_SIZE),
+              ...(status.currentHead
+                ? { expectedHead: status.currentHead }
+                : {}),
+            },
+          ],
+          options
+        )
+      )
+    }
+    return { batches: results }
   }
 
   commit(root: string, message: string): Promise<unknown> {
-    return this.backend === "sdk"
-      ? this.runSdk(root, "commit", [message])
-      : this.runJson(root, ["commit", "--json", "--message", message])
+    return this.runSdk(root, "commit", [message])
   }
 
-  async status(root: string): Promise<{
-    dirty: boolean
-    currentHead: string | null
-    currentBranch: string | null
-    ahead: number
-    behind: number
-    hasConflicts: boolean
-  }> {
-    const value = record(
-      this.backend === "sdk"
-        ? await this.runSdk(root, "status")
-        : await this.runJson(root, ["status", "--json"])
-    )
+  async status(
+    root: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<GraftRepositoryStatus> {
+    const response = record(await this.statusIncremental(root, options))
+    const value = record(response.status)
+    const upstream = record(value.upstream_status ?? value.upstream)
+    const head = record(value.head)
+    const changedEntries = Array.isArray(value.paths)
+      ? value.paths.map(record)
+      : []
+    const changes = changedEntries
+      .map((entry): SpaceVersionPathChange | null => {
+        const relativePath = stringValue(entry.path)
+        if (!relativePath) return null
+        return {
+          path: relativePath,
+          change:
+            stringValue(entry.change) ??
+            stringValue(entry.unstaged_change) ??
+            stringValue(entry.worktree_status) ??
+            stringValue(entry.index_status) ??
+            "modified",
+          ...(stringValue(entry.kind) ? { kind: stringValue(entry.kind) } : {}),
+          ...(stringValue(entry.storage)
+            ? { storage: stringValue(entry.storage) }
+            : {}),
+        }
+      })
+      .filter((entry): entry is SpaceVersionPathChange => entry !== null)
+    const changed = changes.map((entry) => entry.path)
+    const telemetry = record(response.telemetry)
     return {
       dirty: value.dirty === true,
-      currentHead: stringValue(value.current_head) ?? null,
-      currentBranch: stringValue(value.current_branch) ?? null,
-      ahead: Math.max(0, Math.trunc(numberValue(value.ahead))),
-      behind: Math.max(0, Math.trunc(numberValue(value.behind))),
+      currentHead:
+        stringValue(value.current_head) ??
+        stringValue(value.head_target) ??
+        null,
+      currentBranch:
+        stringValue(value.current_branch) ?? stringValue(head.name) ?? null,
+      ahead: Math.max(
+        0,
+        Math.trunc(numberValue(value.ahead ?? upstream.ahead))
+      ),
+      behind: Math.max(
+        0,
+        Math.trunc(numberValue(value.behind ?? upstream.behind))
+      ),
       hasConflicts:
         value.has_conflicts === true || numberValue(value.conflicted) > 0,
+      changedPaths: changed.length,
+      paths: changed,
+      changes,
+      ...(typeof response.generation === "number"
+        ? { generation: response.generation }
+        : {}),
+      ...(stringValue(response.change_token)
+        ? { changeToken: stringValue(response.change_token) }
+        : {}),
+      ...(typeof telemetry.status_cache_hit === "boolean"
+        ? { statusCacheHit: telemetry.status_cache_hit }
+        : {}),
+      ...(typeof telemetry.persistent_snapshot_hit === "boolean"
+        ? { persistentSnapshotHit: telemetry.persistent_snapshot_hit }
+        : {}),
+      ...(typeof telemetry.persistent_snapshot_saved === "boolean"
+        ? { persistentSnapshotSaved: telemetry.persistent_snapshot_saved }
+        : {}),
+      ...(typeof telemetry.stability_retries === "number"
+        ? {
+            stabilityRetries: Math.max(
+              0,
+              Math.trunc(telemetry.stability_retries)
+            ),
+          }
+        : {}),
     }
   }
 
-  async workingDiff(root: string, rows = true): Promise<SpaceVersionDiff> {
-    return versionDiff(
-      this.backend === "sdk"
-        ? await this.runSdk(root, "diff", [{ rows }])
-        : await this.runJson(
-            root,
-            rows ? ["diff", "--rows", "--json"] : ["diff", "--json"]
-          )
+  async workingDiff(
+    root: string,
+    rows = true,
+    options: { limit?: number; after?: string; signal?: AbortSignal } = {}
+  ): Promise<SpaceVersionDiff> {
+    const status = await this.status(root, options)
+    return this.diffExplicitPaths(root, status.paths, {
+      rows,
+      limit: options.limit,
+      after: options.after,
+      signal: options.signal,
+      currentHead: status.currentHead,
+      currentBranch: status.currentBranch,
+      totalPaths: status.changedPaths,
+    })
+  }
+
+  async workingChanges(
+    root: string,
+    options: { limit?: number; after?: string; signal?: AbortSignal } = {}
+  ): Promise<SpaceVersionDiff> {
+    const status = await this.status(root, options)
+    const sorted = [...status.changes].sort((left, right) =>
+      left.path.localeCompare(right.path)
     )
+    const remaining = options.after
+      ? sorted.filter((change) => change.path > options.after!)
+      : sorted
+    const limit = this.safePageSize(options.limit)
+    const paths = remaining.slice(0, limit)
+    return {
+      currentHead: status.currentHead,
+      currentBranch: status.currentBranch,
+      from: status.currentHead,
+      to: null,
+      paths,
+      files: [],
+      totalPaths: status.changedPaths,
+      hasMore: remaining.length > paths.length,
+      nextCursor:
+        remaining.length > paths.length ? (paths.at(-1)?.path ?? null) : null,
+    }
+  }
+
+  async revisionChanges(
+    root: string,
+    commitId: string,
+    parentId?: string | null,
+    options: { limit?: number; after?: string; signal?: AbortSignal } = {}
+  ): Promise<SpaceVersionDiff> {
+    const page = record(
+      await this.runSdk(
+        root,
+        "commitChangedPaths",
+        [
+          {
+            revision: commitId,
+            limit: this.safePageSize(options.limit),
+            ...(options.after ? { after: options.after } : {}),
+          },
+        ],
+        options
+      )
+    )
+    const resolvedParent = stringValue(page.parent) ?? parentId ?? null
+    return {
+      currentHead: commitId,
+      currentBranch: null,
+      from: resolvedParent,
+      to: commitId,
+      paths: Array.isArray(page.paths) ? page.paths.map(pathChange) : [],
+      files: [],
+      totalPaths: Math.max(
+        0,
+        Math.trunc(numberValue(page.total_changed_paths))
+      ),
+      hasMore: page.has_more === true,
+      nextCursor: stringValue(page.next_cursor) ?? null,
+    }
+  }
+
+  async pathDiff(
+    root: string,
+    relativePath: string,
+    options: {
+      rows?: boolean
+      from?: string | null
+      to?: string | null
+      root?: string | null
+      signal?: AbortSignal
+    } = {}
+  ): Promise<SpaceVersionDiff> {
+    return this.diffExplicitPaths(root, [relativePath], {
+      rows: options.rows ?? true,
+      signal: options.signal,
+      ...(options.from ? { from: options.from } : {}),
+      ...(options.to ? { to: options.to } : {}),
+      ...(options.root ? { root: options.root } : {}),
+    })
   }
 
   async revisionDiff(
     root: string,
     commitId: string,
-    parentId?: string | null
+    parentId?: string | null,
+    options: { limit?: number; after?: string; signal?: AbortSignal } = {}
   ): Promise<SpaceVersionDiff> {
-    if (this.backend === "sdk") {
-      return versionDiff(
-        await this.runSdk(root, "diff", [
-          parentId
-            ? { from: parentId, to: commitId, rows: true }
-            : { root: commitId, rows: true },
-        ])
+    const page = record(
+      await this.runSdk(
+        root,
+        "commitChangedPaths",
+        [
+          {
+            revision: commitId,
+            limit: this.safePageSize(options.limit),
+            ...(options.after ? { after: options.after } : {}),
+          },
+        ],
+        options
       )
-    }
-    const args = parentId
-      ? ["diff", parentId, commitId, "--rows", "--json"]
-      : ["diff", "--root", commitId, "--rows", "--json"]
-    return versionDiff(await this.runJson(root, args))
+    )
+    const resolvedParent = stringValue(page.parent) ?? parentId ?? null
+    const paths = Array.isArray(page.paths)
+      ? page.paths
+          .map(record)
+          .map((entry) => stringValue(entry.path))
+          .filter(isString)
+      : []
+    return this.diffExplicitPaths(root, paths, {
+      rows: true,
+      signal: options.signal,
+      ...(resolvedParent
+        ? { from: resolvedParent, to: commitId }
+        : { root: commitId }),
+      hasMore: page.has_more === true,
+      nextCursor: stringValue(page.next_cursor) ?? null,
+      totalPaths: Math.max(
+        0,
+        Math.trunc(numberValue(page.total_changed_paths))
+      ),
+    })
   }
 
   async compareRevisions(
@@ -449,19 +647,187 @@ export class GraftClient {
     from: string,
     to: string
   ): Promise<SpaceVersionDiff> {
-    return versionDiff(
-      this.backend === "sdk"
-        ? await this.runSdk(root, "diff", [{ from, to, rows: true }])
-        : await this.runJson(root, ["diff", from, to, "--rows", "--json"])
-    )
+    const paths = await this.changedPathsBetween(root, from, to)
+    return this.diffAllExplicitPaths(root, paths, {
+      rows: true,
+      from,
+      to,
+    })
   }
 
-  async history(root: string, limit = 50): Promise<SpaceVersionHistory> {
-    return versionHistory(
-      this.backend === "sdk"
-        ? await this.runSdk(root, "history", [{ limit }])
-        : await this.runJson(root, ["log", "--json", "--limit", String(limit)])
+  async history(
+    root: string,
+    limit = 50,
+    options: { after?: string; signal?: AbortSignal } = {}
+  ): Promise<SpaceVersionHistory> {
+    const metadata = record(
+      await this.runSdk(root, "repositoryMetadata", [], options)
     )
+    const page = record(
+      await this.runSdk(
+        root,
+        "historySummaries",
+        [
+          {
+            limit,
+            ...(options.after ? { after: options.after } : {}),
+          },
+        ],
+        options
+      )
+    )
+    return versionHistory({
+      current_head: stringValue(metadata.current_head) ?? null,
+      current_branch: stringValue(metadata.current_branch) ?? null,
+      ...page,
+    })
+  }
+
+  async inspectIgnore(
+    root: string,
+    relativePath: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<GraftIgnoreInspection> {
+    const value = record(
+      await this.runSdk(root, "isIgnoredPath", [relativePath], options)
+    )
+    return {
+      path: stringValue(value.path) ?? relativePath,
+      isIgnored: value.is_ignored === true,
+      isTracked: value.is_tracked === true,
+      isDirectory: value.is_directory === true,
+      hasTrackedDescendants: value.has_tracked_descendants === true,
+    }
+  }
+
+  async inspectIgnores(
+    root: string,
+    relativePaths: readonly string[],
+    options: { signal?: AbortSignal } = {}
+  ): Promise<GraftIgnoreInspection[]> {
+    const normalized = relativePaths.map((relativePath) =>
+      relativePath.split("\\").join("/")
+    )
+    const inspections: GraftIgnoreInspection[] = []
+    for (
+      let index = 0;
+      index < normalized.length;
+      index += SDK_PATH_BATCH_SIZE
+    ) {
+      const requested = normalized.slice(index, index + SDK_PATH_BATCH_SIZE)
+      const value = record(
+        await this.runSdk(
+          root,
+          "isIgnoredPaths",
+          [{ paths: requested }],
+          options
+        )
+      )
+      const returned = Array.isArray(value.paths) ? value.paths.map(record) : []
+      if (returned.length !== requested.length) {
+        throw new Error(
+          `Graft returned ${returned.length} ignore results for ${requested.length} requested paths`
+        )
+      }
+      for (const [resultIndex, item] of returned.entries()) {
+        const relativePath = stringValue(item.path)
+        if (relativePath !== requested[resultIndex]) {
+          throw new Error("Graft returned ignore results out of request order")
+        }
+        inspections.push({
+          path: relativePath,
+          isIgnored: item.is_ignored === true,
+          isTracked: item.is_tracked === true,
+          isDirectory: item.is_directory === true,
+          hasTrackedDescendants: item.has_tracked_descendants === true,
+        })
+      }
+    }
+    return inspections
+  }
+
+  async trackedIgnored(
+    root: string,
+    options: { limit?: number; after?: string; signal?: AbortSignal } = {}
+  ): Promise<{
+    paths: string[]
+    total: number
+    hasMore: boolean
+    nextCursor: string | null
+  }> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "inventory",
+        [
+          {
+            kind: "tracked_ignored",
+            limit: Math.max(1, Math.min(options.limit ?? 100, 1_000)),
+            ...(options.after ? { after: options.after } : {}),
+          },
+        ],
+        options
+      )
+    )
+    return {
+      paths: Array.isArray(value.items)
+        ? value.items
+            .map(record)
+            .map((item) => stringValue(item.path))
+            .filter((item): item is string => Boolean(item))
+        : [],
+      total: Math.max(0, Math.trunc(numberValue(value.total_matching))),
+      hasMore: value.has_more === true,
+      nextCursor: stringValue(value.next_cursor) ?? null,
+    }
+  }
+
+  async untrackPaths(
+    root: string,
+    paths: readonly string[],
+    expectedHead: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<void> {
+    for (let index = 0; index < paths.length; index += SDK_PATH_BATCH_SIZE) {
+      await this.runSdk(
+        root,
+        "untrackPaths",
+        [
+          {
+            paths: paths.slice(index, index + SDK_PATH_BATCH_SIZE),
+            expectedHead,
+          },
+        ],
+        options
+      )
+    }
+  }
+
+  async restorePaths(
+    root: string,
+    source: string,
+    expectedHead: string,
+    relativePaths: readonly string[],
+    options: { signal?: AbortSignal } = {}
+  ): Promise<void> {
+    for (
+      let index = 0;
+      index < relativePaths.length;
+      index += SDK_PATH_BATCH_SIZE
+    ) {
+      await this.runSdk(
+        root,
+        "restorePaths",
+        [
+          {
+            source,
+            expectedHead,
+            paths: relativePaths.slice(index, index + SDK_PATH_BATCH_SIZE),
+          },
+        ],
+        options
+      )
+    }
   }
 
   restorePath(
@@ -470,46 +836,21 @@ export class GraftClient {
     expectedHead: string,
     relativePath: string
   ): Promise<unknown> {
-    if (this.backend === "sdk") {
-      return this.runSdk(root, "restore", [
-        {
-          source,
-          expectedHead,
-          path: relativePath,
-        },
-      ])
-    }
-    return this.runJson(root, [
-      "restore",
-      "--json",
-      "--source",
-      source,
-      "--expected-head",
-      expectedHead,
-      "--",
-      relativePath,
-    ])
+    return this.restorePaths(root, source, expectedHead, [relativePath])
   }
 
   addRemote(root: string, name: string, url: string): Promise<unknown> {
-    if (this.backend === "sdk") {
-      return this.runSdk(root, "configureRemote", [
-        {
-          name,
-          url,
-          upstreamBranch: "main",
-        },
-      ])
-    }
-    return this.runJson(root, ["remote", "add", "--json", name, url])
+    return this.runSdk(root, "configureRemote", [
+      {
+        name,
+        url,
+        upstreamBranch: "main",
+      },
+    ])
   }
 
   async remoteUrl(root: string, name = "origin"): Promise<string | null> {
-    const value = record(
-      this.backend === "sdk"
-        ? await this.runSdk(root, "status")
-        : await this.runJson(root, ["remote", "list", "--json"])
-    )
+    const value = record(await this.runSdk(root, "listRemotes"))
     if (!Array.isArray(value.remotes)) {
       throw new Error("Graft returned an invalid remote list")
     }
@@ -517,53 +858,30 @@ export class GraftClient {
       .map(record)
       .find((entry) => entry.name === name)
     if (!remote) return null
-    const config = record(remote.config)
-    const url =
-      stringValue(remote.url) ??
-      stringValue(config.url) ??
-      (config.type === "fs" && stringValue(config.root)
-        ? `fs://${stringValue(config.root)}`
-        : undefined)
+    const url = stringValue(remote.url)
     if (!url) throw new Error("Graft returned an invalid Remote URL")
     return url
   }
 
   setMainUpstream(root: string, name = "origin"): Promise<unknown> {
-    if (this.backend === "sdk") {
-      return this.remoteUrl(root, name).then((remoteUrl) => {
-        if (!remoteUrl)
-          throw new Error(`Graft Remote ${name} is not configured`)
-        return { configured: true }
-      })
-    }
-    return this.runJson(root, [
-      "branch",
-      "--json",
-      "--set-upstream-to",
-      `${name}/main`,
-      "main",
-    ])
+    return this.remoteUrl(root, name).then((remoteUrl) => {
+      if (!remoteUrl) throw new Error(`Graft Remote ${name} is not configured`)
+      return { configured: true }
+    })
   }
 
   push(root: string, token?: string): Promise<unknown> {
-    if (this.backend === "sdk") {
-      return this.setHttpCredential(root, "origin", token).then(() =>
-        this.runSdk(root, "push", [{ remote: "origin", branch: "main" }])
-      )
-    }
-    return this.runJson(root, ["push", "--json"], { remoteToken: token })
+    return this.setHttpCredential(root, "origin", token).then(() =>
+      this.runSdk(root, "push", [{ remote: "origin", branch: "main" }])
+    )
   }
 
   fetch(root: string): Promise<unknown> {
-    return this.backend === "sdk"
-      ? this.runSdk(root, "fetch", [{ remote: "origin", branch: "main" }])
-      : this.runJson(root, ["fetch", "--json"])
+    return this.runSdk(root, "fetch", [{ remote: "origin", branch: "main" }])
   }
 
   pull(root: string): Promise<unknown> {
-    return this.backend === "sdk"
-      ? this.runSdk(root, "pull", [{ remote: "origin", branch: "main" }])
-      : this.runJson(root, ["pull", "--json"])
+    return this.runSdk(root, "pull", [{ remote: "origin", branch: "main" }])
   }
 
   clone(
@@ -571,16 +889,11 @@ export class GraftClient {
     remoteUrl: string,
     token?: string
   ): Promise<unknown> {
-    if (this.backend === "sdk") {
-      return this.requireSdkTransport().clone(
-        path.resolve(targetDirectory),
-        remoteUrl,
-        token
-      )
-    }
-    return this.runJson(targetDirectory, ["clone", "--json", remoteUrl], {
-      remoteToken: token,
-    })
+    return this.requireSdkTransport().clone(
+      path.resolve(targetDirectory),
+      remoteUrl,
+      token
+    )
   }
 
   async configureOfficialRemote(
@@ -594,37 +907,28 @@ export class GraftClient {
     if (!token) throw new Error("An Eidos Sync access token is required")
     const existing = await this.remoteUrl(root)
     if (existing === null) {
-      if (this.backend === "sdk") {
-        await this.runSdk(root, "configureRemote", [
-          {
-            name: "origin",
-            url: remoteUrl,
-            bearerToken: token,
-            upstreamBranch: "main",
-          },
-        ])
-      } else {
-        await this.addRemote(root, "origin", remoteUrl)
-      }
+      await this.runSdk(root, "configureRemote", [
+        {
+          name: "origin",
+          url: remoteUrl,
+          bearerToken: token,
+          upstreamBranch: "main",
+        },
+      ])
     } else if (canonicalRemoteUrl(existing) !== canonicalRemoteUrl(remoteUrl)) {
       throw new Error(
         "This Space already has a different origin Remote. Eidos Lite will not overwrite it."
       )
-    } else if (this.backend === "sdk") {
+    } else {
       await this.setHttpCredential(root, "origin", token)
     }
-    if (this.backend === "cli") await this.setMainUpstream(root)
   }
 
   async clearHttpCredentials(root: string, name = "origin"): Promise<void> {
-    if (this.backend !== "sdk") return
     await this.runSdk(root, "clearHttpBearerToken", [name])
   }
 
   async operationMaterializesWorktree(operation: string): Promise<boolean> {
-    if (this.backend === "cli") {
-      return ["restore", "pull", "cloneRepository"].includes(operation)
-    }
     const root = this.openedRoot
     if (!root) throw new Error("Graft repository session is closed")
     const result = await this.runSdk(root, "operationMaterializesWorktree", [
@@ -635,7 +939,7 @@ export class GraftClient {
 
   async verifyCrashRecoveryForTesting(root: string): Promise<boolean> {
     const terminate = this.requireSdkTransport().terminateForTesting
-    if (this.backend !== "sdk" || !terminate) {
+    if (!terminate) {
       throw new Error("Graft SDK crash probe requires a utility transport")
     }
     const before = await this.status(root)
@@ -648,57 +952,13 @@ export class GraftClient {
     )
   }
 
-  async runJson<T = unknown>(
-    root: string,
-    args: readonly string[],
-    options: { remoteToken?: string; timeoutMs?: number } = {}
-  ): Promise<T> {
-    if (this.backend !== "cli") {
-      throw new Error("CLI commands are disabled for the Graft SDK backend")
-    }
-    await this.version()
-    const command = args[0] ?? "unknown"
-    try {
-      const { stdout } = await execFileAsync(this.binaryPath, [...args], {
-        cwd: root,
-        encoding: "utf8",
-        env: {
-          ...process.env,
-          NO_COLOR: "1",
-          ...(options.remoteToken
-            ? { GRAFT_REMOTE_TOKEN: options.remoteToken }
-            : {}),
-        },
-        maxBuffer: MAX_OUTPUT_BYTES,
-        timeout: options.timeoutMs ?? 120_000,
-        windowsHide: true,
-      })
-      const output = stdout.trim()
-      if (!output) throw new Error("Graft returned an empty JSON response")
-      return JSON.parse(output) as T
-    } catch (error) {
-      const failure = error as NodeJS.ErrnoException & {
-        stderr?: string
-        code?: number | string
-      }
-      const message = redacted(
-        failure.stderr?.trim() || failure.message || "Graft command failed",
-        options.remoteToken
-      )
-      throw new GraftCliError(
-        message,
-        command,
-        typeof failure.code === "number" ? failure.code : undefined
-      )
-    }
-  }
-
   private async runSdk<T = unknown>(
     root: string,
     command: Parameters<GraftSdkTransport["command"]>[0],
-    args: unknown[] = []
+    args: unknown[] = [],
+    options: { signal?: AbortSignal } = {}
   ): Promise<T> {
-    const canonicalRoot = path.resolve(root)
+    const canonicalRoot = await this.canonicalRepositoryRoot(root)
     if (this.openedRoot && this.openedRoot !== canonicalRoot) {
       throw new Error(
         "One GraftClient cannot own more than one repository session"
@@ -706,7 +966,199 @@ export class GraftClient {
     }
     await this.requireSdkTransport().open(canonicalRoot)
     this.openedRoot = canonicalRoot
-    return this.requireSdkTransport().command(command, args) as Promise<T>
+    return this.requireSdkTransport().command(
+      command,
+      args,
+      options
+    ) as Promise<T>
+  }
+
+  private async statusIncremental(
+    root: string,
+    options: { signal?: AbortSignal }
+  ): Promise<unknown> {
+    try {
+      return await this.runSdk(root, "statusIncremental", [], options)
+    } catch (error) {
+      if (
+        options.signal?.aborted ||
+        !hasErrorCode(error, "GRAFT_SDK_REPOSITORY_STALE")
+      ) {
+        throw error
+      }
+      return this.runSdk(root, "statusIncremental", [], options)
+    }
+  }
+
+  private safePageSize(value?: number): number {
+    if (!Number.isFinite(value)) return SDK_DIFF_PAGE_SIZE
+    return Math.max(1, Math.min(Math.trunc(value ?? SDK_DIFF_PAGE_SIZE), 100))
+  }
+
+  private async canonicalRepositoryRoot(root: string): Promise<string> {
+    const resolved = path.resolve(root)
+    return fs.realpath(resolved).catch(() => resolved)
+  }
+
+  private async diffExplicitPaths(
+    root: string,
+    paths: readonly string[],
+    options: {
+      rows: boolean
+      limit?: number
+      after?: string
+      signal?: AbortSignal
+      from?: string
+      to?: string
+      root?: string
+      currentHead?: string | null
+      currentBranch?: string | null
+      totalPaths?: number
+      hasMore?: boolean
+      nextCursor?: string | null
+    }
+  ): Promise<SpaceVersionDiff> {
+    const sorted = [...new Set(paths)].sort()
+    const remaining = options.after
+      ? sorted.filter((relativePath) => relativePath > options.after!)
+      : sorted
+    if (remaining.length === 0) {
+      return mergeVersionDiffs([], {
+        currentHead: options.currentHead,
+        currentBranch: options.currentBranch,
+        totalPaths: options.totalPaths,
+        from: options.from ?? null,
+        to: options.to ?? null,
+        hasMore: options.hasMore ?? false,
+        nextCursor: options.nextCursor ?? null,
+      })
+    }
+    const pageSize = this.safePageSize(options.limit)
+    const requestPaths = remaining.slice(0, pageSize)
+    const value = record(
+      await this.runSdk(
+        root,
+        "diffPaths",
+        [
+          {
+            paths: requestPaths,
+            rows: options.rows,
+            limit: pageSize,
+            ...(options.from ? { from: options.from } : {}),
+            ...(options.to ? { to: options.to } : {}),
+            ...(options.root ? { root: options.root } : {}),
+          },
+        ],
+        options
+      )
+    )
+    const values = Array.isArray(value.paths)
+      ? value.paths.map(record).map((entry) => entry.diff)
+      : []
+    return mergeVersionDiffs(values, {
+      currentHead: options.currentHead,
+      currentBranch: options.currentBranch,
+      totalPaths: options.totalPaths,
+      from: options.from ?? null,
+      to: options.to ?? null,
+      hasMore:
+        options.hasMore === true ||
+        value.has_more === true ||
+        remaining.length > requestPaths.length,
+      nextCursor:
+        options.nextCursor ??
+        stringValue(value.next_cursor) ??
+        (remaining.length > requestPaths.length
+          ? (requestPaths.at(-1) ?? null)
+          : null),
+    })
+  }
+
+  private async diffAllExplicitPaths(
+    root: string,
+    paths: readonly string[],
+    options: {
+      rows: boolean
+      from?: string
+      to?: string
+      root?: string
+      signal?: AbortSignal
+    }
+  ): Promise<SpaceVersionDiff> {
+    const values: unknown[] = []
+    const sorted = [...new Set(paths)].sort()
+    for (let index = 0; index < sorted.length; index += SDK_DIFF_PAGE_SIZE) {
+      const page = record(
+        await this.runSdk(
+          root,
+          "diffPaths",
+          [
+            {
+              paths: sorted.slice(index, index + SDK_DIFF_PAGE_SIZE),
+              rows: options.rows,
+              limit: SDK_DIFF_PAGE_SIZE,
+              ...(options.from ? { from: options.from } : {}),
+              ...(options.to ? { to: options.to } : {}),
+              ...(options.root ? { root: options.root } : {}),
+            },
+          ],
+          options
+        )
+      )
+      if (Array.isArray(page.paths)) {
+        values.push(...page.paths.map(record).map((entry) => entry.diff))
+      }
+    }
+    return mergeVersionDiffs(values, {
+      from: options.from ?? null,
+      to: options.to ?? null,
+    })
+  }
+
+  private async changedPathsBetween(
+    root: string,
+    ancestor: string,
+    descendant: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<string[]> {
+    const paths = new Set<string>()
+    let current: string | null = descendant
+    for (let depth = 0; current && current !== ancestor; depth += 1) {
+      if (depth >= 10_000) {
+        throw new Error("Space history is too deep to compare safely")
+      }
+      let after: string | undefined
+      let parent: string | null = null
+      do {
+        const page = record(
+          await this.runSdk(
+            root,
+            "commitChangedPaths",
+            [
+              {
+                revision: current,
+                limit: SDK_DIFF_PAGE_SIZE,
+                ...(after ? { after } : {}),
+              },
+            ],
+            options
+          )
+        )
+        parent = stringValue(page.parent) ?? null
+        if (Array.isArray(page.paths)) {
+          for (const item of page.paths.map(record)) {
+            const relativePath = stringValue(item.path)
+            if (relativePath) paths.add(relativePath)
+          }
+        }
+        after = page.has_more ? stringValue(page.next_cursor) : undefined
+      } while (after)
+      current = parent
+    }
+    if (current !== ancestor) {
+      throw new Error("The selected checkpoint is not in the current history")
+    }
+    return [...paths].sort()
   }
 
   private async setHttpCredential(

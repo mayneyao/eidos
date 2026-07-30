@@ -21,7 +21,7 @@ import {
   createEidosLiteDiagnostics,
   serializeEidosLiteDiagnostics,
 } from "./diagnostics"
-import { defaultGraftBinaryPath, GraftClient } from "./graft/graft-client"
+import { GraftClient } from "./graft/graft-client"
 import { GraftUtilityTransport } from "./graft/graft-utility-transport"
 import { resolveEidosFileLaunchIntent } from "./launch-intent"
 import { RuntimePool } from "./runtime/runtime-pool"
@@ -588,22 +588,11 @@ export class WindowController {
   }
 
   private createGraftClient(): GraftClient {
-    const graftBackend =
-      process.env.EIDOS_LITE_GRAFT_BACKEND === "cli" ? "cli" : "sdk"
     return new GraftClient({
-      backend: graftBackend,
-      binaryPath: defaultGraftBinaryPath({
-        packaged: app.isPackaged,
-        resourcesPath: process.resourcesPath,
-      }),
       syncRemoteOrigin: this.services.syncRemoteOrigin,
-      ...(graftBackend === "sdk"
-        ? {
-            sdkTransport: new GraftUtilityTransport(
-              fileURLToPath(new URL("./graft-worker.js", import.meta.url))
-            ),
-          }
-        : {}),
+      sdkTransport: new GraftUtilityTransport(
+        fileURLToPath(new URL("./graft-worker.js", import.meta.url))
+      ),
     })
   }
 

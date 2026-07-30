@@ -4,11 +4,18 @@ import {
   RepositorySession,
   sdkVersion,
   type CloneOptions,
+  type CommitChangedPathsOptions,
   type DiffOptions,
+  type DiffPathsOptions,
   type HistoryOptions,
+  type IgnoredPathsOptions,
+  type InventoryOptions,
   type RemoteConfigureOptions,
   type RemoteOperationOptions,
   type RestoreOptions,
+  type RestorePathsOptions,
+  type StagePathsOptions,
+  type UntrackPathsOptions,
 } from "@eidos.space/graft"
 
 import type { GraftSdkCommand } from "../../shared/graft-sdk-contracts"
@@ -16,10 +23,16 @@ import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 export class GraftInProcessTransport implements GraftSdkTransport {
   private session: RepositorySession | null = null
+  private opening: Promise<RepositorySession> | null = null
+  private lifecycleGeneration = 0
   target: string | null = null
 
   async open(root: string): Promise<void> {
     const target = path.resolve(root)
+    if (this.opening && this.target === target) {
+      await this.opening
+      return
+    }
     if (
       this.session !== null &&
       this.target === target &&
@@ -29,9 +42,20 @@ export class GraftInProcessTransport implements GraftSdkTransport {
       this.target = target
       return
     }
-    await this.session?.close()
-    this.session = await RepositorySession.open(target)
+    const generation = ++this.lifecycleGeneration
+    const current = this.session
+    this.session = null
+    await current?.close()
+    const opening = RepositorySession.open(target)
+    this.opening = opening
     this.target = target
+    const session = await opening
+    if (this.opening === opening) this.opening = null
+    if (generation !== this.lifecycleGeneration) {
+      await session.close()
+      return
+    }
+    this.session = session
   }
 
   async reopen(): Promise<void> {
@@ -39,58 +63,132 @@ export class GraftInProcessTransport implements GraftSdkTransport {
   }
 
   async close(): Promise<void> {
+    this.lifecycleGeneration += 1
     const session = this.session
+    const opening = this.opening
     this.session = null
+    this.opening = null
     this.target = null
     await session?.close()
+    const opened = await opening?.catch(() => null)
+    await opened?.close()
   }
 
   async command(
     command: GraftSdkCommand,
-    args: unknown[] = []
+    args: unknown[] = [],
+    options: { signal?: AbortSignal } = {}
   ): Promise<unknown> {
+    if (options.signal?.aborted) throw abortError()
     if (command === "sdkVersion") return sdkVersion()
     if (command === "operationMaterializesWorktree") {
       return operationMaterializesWorktree(this.string(args[0], "operation"))
     }
     const session = this.requireSession()
+    const signal = options.signal
     switch (command) {
       case "init":
-        return session.init()
+        return session.init({ signal })
       case "status":
-        return session.status()
+        return session.status({ signal })
+      case "statusIncremental":
+        return session.statusIncremental({ signal })
+      case "repositoryMetadata":
+        return session.repositoryMetadata({ signal })
+      case "listRemotes":
+        return session.listRemotes({ signal })
       case "addAll":
-        return session.addAll()
+        return session.addAll({ signal })
+      case "stagePaths":
+        return session.stagePaths({
+          ...(this.object(args[0]) as unknown as StagePathsOptions),
+          signal,
+        })
       case "commit":
-        return session.commit(this.string(args[0], "commit message"))
+        return session.commit(this.string(args[0], "commit message"), {
+          signal,
+        })
       case "diff":
-        return session.diff(this.object(args[0] ?? {}) as DiffOptions)
+        return session.diff({
+          ...(this.object(args[0] ?? {}) as DiffOptions),
+          signal,
+        })
+      case "diffPaths":
+        return session.diffPaths({
+          ...(this.object(args[0]) as unknown as DiffPathsOptions),
+          signal,
+        })
       case "history":
-        return session.history(this.object(args[0] ?? {}) as HistoryOptions)
+        return session.history({
+          ...(this.object(args[0] ?? {}) as HistoryOptions),
+          signal,
+        })
+      case "historySummaries":
+        return session.historySummaries({
+          ...(this.object(args[0] ?? {}) as HistoryOptions),
+          signal,
+        })
+      case "commitDetails":
+        return session.commitDetails(this.string(args[0], "revision"), {
+          signal,
+        })
+      case "commitChangedPaths":
+        return session.commitChangedPaths({
+          ...(this.object(args[0]) as unknown as CommitChangedPathsOptions),
+          signal,
+        })
+      case "isIgnoredPath":
+        return session.isIgnoredPath(this.string(args[0], "path"), { signal })
+      case "isIgnoredPaths":
+        return session.isIgnoredPaths({
+          ...(this.object(args[0]) as unknown as IgnoredPathsOptions),
+          signal,
+        })
+      case "inventory":
+        return session.inventory({
+          ...(this.object(args[0] ?? {}) as InventoryOptions),
+          signal,
+        })
       case "restore":
-        return session.restore(
-          this.object(args[0]) as unknown as RestoreOptions
-        )
+        return session.restore({
+          ...(this.object(args[0]) as unknown as RestoreOptions),
+          signal,
+        })
+      case "restorePaths":
+        return session.restorePaths({
+          ...(this.object(args[0]) as unknown as RestorePathsOptions),
+          signal,
+        })
+      case "untrackPaths":
+        return session.untrackPaths({
+          ...(this.object(args[0]) as unknown as UntrackPathsOptions),
+          signal,
+        })
       case "configureRemote":
-        return session.configureRemote(
-          this.object(args[0]) as unknown as RemoteConfigureOptions
-        )
+        return session.configureRemote({
+          ...(this.object(args[0]) as unknown as RemoteConfigureOptions),
+          signal,
+        })
       case "push":
-        return session.push(
-          this.object(args[0] ?? {}) as RemoteOperationOptions
-        )
+        return session.push({
+          ...(this.object(args[0] ?? {}) as RemoteOperationOptions),
+          signal,
+        })
       case "fetch":
-        return session.fetch(
-          this.object(args[0] ?? {}) as RemoteOperationOptions
-        )
+        return session.fetch({
+          ...(this.object(args[0] ?? {}) as RemoteOperationOptions),
+          signal,
+        })
       case "pull":
-        return session.pull(
-          this.object(args[0] ?? {}) as RemoteOperationOptions
-        )
+        return session.pull({
+          ...(this.object(args[0] ?? {}) as RemoteOperationOptions),
+          signal,
+        })
       case "cloneRepository":
-        return session.cloneRepository(
-          this.object(args[0]) as unknown as CloneOptions
-        )
+        return session.cloneRepository({
+          ...(this.object(args[0]) as unknown as CloneOptions),
+          signal,
+        })
       case "setHttpBearerToken":
         session.setHttpBearerToken(
           this.string(args[0], "Remote name"),
@@ -141,4 +239,10 @@ export class GraftInProcessTransport implements GraftSdkTransport {
     }
     return value
   }
+}
+
+function abortError(): Error {
+  const error = new Error("The Graft operation was cancelled")
+  error.name = "AbortError"
+  return error
 }

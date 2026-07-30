@@ -129,6 +129,23 @@ export class SpaceOperationGate {
     return scheduled
   }
 
+  withQuiescedRepositoryOperation<T>(
+    detail: string,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    return this.withRepositoryOperation(detail, async () => {
+      this.acceptingMutations = false
+      this.transition("quiescing", detail)
+      await this.waitForMutationDrain()
+      this.transition("syncing", detail)
+      try {
+        return await operation()
+      } finally {
+        this.acceptingMutations = !this.closing
+      }
+    })
+  }
+
   withMaterialization<T>(options: MaterializationOptions<T>): Promise<T> {
     return this.withRepositoryOperation(
       options.detail ?? options.kind,

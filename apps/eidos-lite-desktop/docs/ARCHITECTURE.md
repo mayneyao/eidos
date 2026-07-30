@@ -64,7 +64,7 @@ flowchart LR
   F1 -->|"guarded native SQLite handle"| E1["a.eidos"]
   F2 -->|"guarded native SQLite handle"| E2["nested/b.eidos"]
   M -->|"typed private IPC; one process per Space"| G["Graft utility process"]
-  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.1.0"]
+  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.0-rc.0 candidate"]
   N --> S["whole ordinary folder Space"]
   N -. "explicit in-memory credential; Sync/Clone only" .-> H["Selected official Hosted Remote"]
 ```
@@ -89,14 +89,18 @@ process capabilities. Main admits every mutation through
 `SpaceOperationGate.withMutation`; schema and row validation remains inside
 the Eidos File runtime.
 
-Each open Space separately owns one Graft utility process and one long-lived
-`RepositorySession`. The native addon is loaded only in that utility process,
+Each Space can own one Graft utility process and one long-lived
+`RepositorySession`, but neither is opened on the critical Space-window path.
+The root Explorer and local Eidos File runtime become usable first; an idle
+background status refresh or an explicit version/Sync action lazily creates the
+utility and session. The native addon is loaded only in that utility process,
 outside the sandboxed renderer. The SDK serializes commands for one retained
 repository session; different Space windows have different workers and can
-progress independently. Orderly Space shutdown drains repository work, awaits
-`RepositorySession.close()`, and only then releases the worker. If the worker
-crashes, its repository lock is released by the OS; the next operation spawns a
-fresh worker and opens the same durable repository state.
+progress independently. Orderly Space shutdown cancels pending background
+reads, drains repository work, awaits `RepositorySession.close()`, and only
+then releases the worker. If the worker crashes, its repository lock is
+released by the OS; the next operation spawns a fresh worker and opens the same
+durable repository state.
 
 The transport keys session ownership by the canonical Space root requested by
 main. It must not compare that root with `RepositorySession.target`, because the
@@ -225,25 +229,72 @@ Remote, authenticates an account, or claims cloud Sync.
 After versioning is enabled, the Space watcher also feeds a stable-change
 checkpoint scheduler. It coalesces edits for 30 seconds and bounds continuous
 editing at five minutes. Automatic checkpoints use the same mutation drain,
-SQLite handle close, whole-Space commit, validation, and LRU reopen contract as
-manual checkpoints. Window close performs a best-effort flush. When Eidos Sync
-is connected, the existing background queue coalesces the resulting checkpoint
-into one serialized whole-Space Sync run; Local-only Spaces remain account-free.
+bounded `stagePaths()`, and whole-Space commit contract as manual checkpoints.
+They do not close SQLite handles or run worktree validation because staging and
+commit do not materialize user files. Window close performs a best-effort
+flush. When Eidos Sync is connected, the existing background queue coalesces
+the resulting checkpoint into one serialized whole-Space Sync run; Local-only
+Spaces remain account-free.
 
 The user-facing version vocabulary is **Changes**, **History**, **checkpoint**,
 and **Restore**. The renderer receives a typed, sanitized projection of
-official SDK `diff({ rows: true })` and `history()` output. It can show
-ordinary path changes and logical Eidos table row changes, but never receives
-a Graft executable, repository path, or command surface.
+official SDK data, but the list surfaces never hydrate an unbounded repository:
+
+- Space snapshots use `statusIncremental()` and retain its generation/change
+  token for cache invalidation. A verified, content-addressed classification
+  snapshot under `.graft/cache/sdk-status` lets a replacement utility process
+  reuse path metadata; a fingerprint mismatch falls back to a complete rebuild.
+- Changes lists use only `status.paths`; History reads head/branch through the
+  zero-scan `repositoryMetadata()` API before paginated `historySummaries()`.
+- Remote inspection uses the credential-free, zero-scan `listRemotes()` API;
+  bearer credentials never appear in its projection.
+- Opening one checkpoint pages `commitChangedPaths()` without reading blobs.
+- Selecting one file requests only that path through historical or working
+  `diffPaths({ paths, rows: true })`.
+
+This can show ordinary path changes and logical Eidos table row changes without
+passing a Graft executable, repository path, or command surface to renderer.
+All reads are cancellable; cancelling a panel read leaves the retained session
+available for the next operation. If a concurrent filesystem/ref writer
+exhausts the SDK's internal stability checks, Lite retries the retryable
+`GRAFT_SDK_REPOSITORY_STALE` status result once without retrying mutations.
+
+A new large repository can require a cold session open and status
+classification even though subsequent resident status calls are cached.
+Initial window hydration therefore reads only the Space root directory and
+returns it with an explicit `checking` version state. Graft session creation is
+scheduled after the local shell is usable. Opening an Eidos File or expanding a
+directory cancels that low-priority read, completes the local interaction, and
+reschedules status. The authoritative status is emitted when ready; a status
+failure remains visible but does not invalidate the Explorer or Eidos File
+runtime. Mutating version and Sync actions never use the placeholder and still
+wait for a real repository read.
+
+Explorer directories load only when expanded and cache direct children by
+canonical relative path. Each directory request submits at most 1,000 entries
+per SDK batch-ignore query. The watcher coalesces filesystem events, invalidates
+only affected parent/prefix caches, and reloads only parents that were already
+visible. Sync preflight still scans the complete Space in breadth-first waves,
+with bounded batch ignore queries, because its approval contract requires exact
+whole-Space counts. Ignored untracked directories are pruned before descent.
+Ignored paths that are already tracked stay visible and synchronized until the
+user explicitly reviews the paginated `tracked_ignored` inventory and confirms
+an index-only `untrackPaths()` migration. Ignore rules never silently rewrite
+history or delete local files.
+
+Sync preflight computes its manifest and risk totals over the complete visible
+Space, but returns only a bounded review sample plus exact excluded, warning,
+and blocker counts. This keeps renderer IPC and React state bounded without
+weakening approval or blocker decisions.
 
 Whole-Space restore is forward-only:
 
 1. Main rejects a dirty worktree and an `expectedHead` that no longer matches.
-2. Graft compares the selected checkpoint with current head to enumerate every
-   changed Space path.
+2. Graft pages `commitChangedPaths()` from the selected checkpoint through the
+   current first-parent history to enumerate changed Space paths.
 3. `SpaceOperationGate` drains mutations and closes all Eidos File handles.
-4. Official SDK `restore({ source, expectedHead, path })` materializes each
-   changed path, including additions and deletions.
+4. Official SDK `restorePaths({ source, expectedHead, paths })` materializes
+   bounded batches, including additions and deletions.
 5. The gate opens every resulting `.eidos` with a native validation probe.
 6. Only after validation does main stage the whole Space and create a new
    `Restore checkpoint …` child commit, then reopen prior runtime sessions.
@@ -255,15 +306,14 @@ and never claims that a restore checkpoint was created.
 
 ## Graft boundary
 
-`GraftClient` remains the product-facing structured boundary, with selectable
-SDK and CLI adapters for the migration gate. Normal windows always construct
-the SDK adapter unless the operator explicitly sets
-`EIDOS_LITE_GRAFT_BACKEND=cli` for comparison. Status, diff, history,
-checkpoint, restore, push, and clone therefore create no CLI subprocess in the
-normal path.
+`GraftClient` remains the product-facing structured boundary and requires an
+SDK session transport at construction. Status, diff, history, checkpoint,
+restore, push, and clone never create a CLI subprocess; Lite has no backend
+switch, executable lookup, or CLI credential environment path.
 
-The SDK adapter pins `@eidos.space/graft@0.1.0`, opens one session when a Space
-binds, and closes it when the window closes. It asks the published
+The SDK adapter pins the local `@eidos.space/graft@0.3.0-rc.0` candidate,
+lazily opens one session on the first background or explicit repository read,
+and closes it when the window closes. It asks the published
 `operationMaterializesWorktree()` contract before restore. Remote credentials
 are set on the retained session with the SDK's explicit
 `setHttpBearerToken()`/`configureRemote({ bearerToken })` memory path, cleared
@@ -277,19 +327,16 @@ carry it. Checking only that `config.toml` omits the token is insufficient: it
 does not prove that the retained adapter session survived between credential
 injection and push.
 
-The CLI adapter remains only for repeatable parity testing and the current
-fallback package. It still accepts structured `execFile` arguments and never a
-shell. Product code accepts only HTTPS repository URLs beneath the selected
+Product code accepts only HTTPS repository URLs beneath the selected
 environment's exact official Remote origin. A staging process rejects
 production URLs and a production process rejects staging URLs. The `fs://`
-Remote is limited to the repeatable local adapter integration test.
+Remote is limited to the repeatable local SDK integration test.
 
-The local gate runs once through the resident SDK and once through the CLI
-comparison adapter. Both commit a Space containing two real Eidos Files plus
-an ordinary asset, push the whole repository, clone it to an isolated folder,
-check all files materialized, and open both SQLite files with the native
-runtime. The SDK gate additionally verifies declared materialization and
-close/reopen lifecycle.
+The local gate uses the resident SDK to commit a Space containing two real
+Eidos Files plus an ordinary asset, push the whole repository, clone it to an
+isolated folder, check all files materialized, and open both SQLite files with
+the native runtime. It also verifies declared materialization and close/reopen
+lifecycle.
 
 ## Service environments and control-plane separation
 

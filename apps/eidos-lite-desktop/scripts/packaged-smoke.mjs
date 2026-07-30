@@ -77,6 +77,12 @@ async function run(executable, space, result) {
   })
 }
 
+function resourcesPath(executable) {
+  return process.platform === "darwin"
+    ? path.resolve(path.dirname(executable), "../Resources")
+    : path.join(path.dirname(executable), "resources")
+}
+
 const temporaryRoot = await fs.mkdtemp(
   path.join(os.tmpdir(), "eidos-lite-packaged-smoke-")
 )
@@ -117,7 +123,17 @@ try {
     ),
     fs.writeFile(path.join(space, "README.md"), "# Packaged smoke Space\n"),
   ])
-  await run(await executablePath(), space, result)
+  const executable = await executablePath()
+  const packagedCli = path.join(resourcesPath(executable), "graft")
+  if (
+    await fs.stat(packagedCli).then(
+      () => true,
+      () => false
+    )
+  ) {
+    throw new Error(`Packaged Eidos Lite still contains ${packagedCli}`)
+  }
+  await run(executable, space, result)
   const reportText = await fs.readFile(result, "utf8").catch((error) => {
     if (error?.code === "ENOENT") {
       throw new Error(
@@ -215,7 +231,7 @@ try {
     ) ||
     !report.graft?.available ||
     report.graft?.backend !== "sdk" ||
-    report.graft?.version !== "0.1.0" ||
+    report.graft?.version !== "0.3.0-rc.0" ||
     report.mutation?.afterInsertCount !== report.mutation?.beforeCount + 1 ||
     report.mutation?.afterDeleteCount !== report.mutation?.beforeCount ||
     report.mutation?.checkpointCount !== report.mutation?.beforeCount + 1 ||

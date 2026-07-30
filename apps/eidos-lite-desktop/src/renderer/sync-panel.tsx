@@ -499,11 +499,11 @@ export function SyncPanel({
                         </div>
                         <div>
                           <dt>Excluded</dt>
-                          <dd>{preflight.excluded.length}</dd>
+                          <dd>{preflight.excludedCount}</dd>
                         </div>
                       </dl>
 
-                      {preflight.excluded.length > 0 ? (
+                      {preflight.excludedCount > 0 ? (
                         <details className="sync-preflight-paths">
                           <summary>
                             Excluded implementation and OS files
@@ -516,33 +516,48 @@ export function SyncPanel({
                               </li>
                             ))}
                           </ul>
+                          {preflight.excludedCount >
+                          preflight.excluded.length ? (
+                            <p className="sync-preflight-more">
+                              +
+                              {preflight.excludedCount -
+                                preflight.excluded.length}{" "}
+                              more excluded paths
+                            </p>
+                          ) : null}
                         </details>
                       ) : null}
 
-                      {preflight.blockers.length > 0 ? (
+                      {preflight.blockerCount > 0 ? (
                         <div className="sync-preflight-blockers" role="alert">
                           <ShieldAlert />
                           <div>
                             <strong>Resolve blocked entries before Sync</strong>
-                            <PreflightEntries entries={preflight.blockers} />
+                            <PreflightEntries
+                              entries={preflight.blockers}
+                              total={preflight.blockerCount}
+                            />
                           </div>
                         </div>
                       ) : null}
 
-                      {preflight.warnings.length > 0 ? (
+                      {preflight.warningCount > 0 ? (
                         <div className="sync-preflight-warnings">
                           <ShieldAlert />
                           <div>
                             <strong>
                               Review files that may need protection
                             </strong>
-                            <PreflightEntries entries={preflight.warnings} />
+                            <PreflightEntries
+                              entries={preflight.warnings}
+                              total={preflight.warningCount}
+                            />
                           </div>
                         </div>
                       ) : null}
 
-                      {preflight.warnings.length > 0 &&
-                      preflight.blockers.length === 0 ? (
+                      {preflight.warningCount > 0 &&
+                      preflight.blockerCount === 0 ? (
                         <label className="sync-preflight-confirm">
                           <input
                             type="checkbox"
@@ -613,8 +628,8 @@ export function SyncPanel({
                       disabled={
                         busy !== null ||
                         !preflight ||
-                        preflight.blockers.length > 0 ||
-                        (preflight.warnings.length > 0 && !confirmWarnings)
+                        preflight.blockerCount > 0 ||
+                        (preflight.warningCount > 0 && !confirmWarnings)
                       }
                       onClick={() => void enableSync()}
                     >
@@ -916,8 +931,10 @@ export function SyncPanel({
 
 function PreflightEntries({
   entries,
+  total,
 }: {
   entries: EidosSyncPreflight["warnings"]
+  total: number
 }) {
   return (
     <>
@@ -934,9 +951,9 @@ function PreflightEntries({
           </li>
         ))}
       </ul>
-      {entries.length > 12 ? (
+      {total > 12 ? (
         <p className="sync-preflight-more">
-          +{entries.length - 12} more paths in this review
+          +{total - 12} more paths in this review
         </p>
       ) : null}
     </>

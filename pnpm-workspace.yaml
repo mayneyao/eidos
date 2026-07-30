@@ -2,8 +2,6 @@ packages:
   # all packages in direct subdirs of packages/
   - "packages/*"
   - "apps/*"
-  # Official Graft HTTP Remote packages; current upstream tag is in UPSTREAM.md.
-  - "vendor/graft/packages/*"
   # built-in extensions
   - "extensions/blocks/*"
   - "extensions/scripts/*"

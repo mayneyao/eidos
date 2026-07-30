@@ -67,7 +67,6 @@ describeStaging("official Hosted Remote staging gate", () => {
     const staging = EIDOS_LITE_SERVICE_ENVIRONMENTS.staging
     expect(new URL(remoteUrl).origin).toBe(staging.syncRemoteOrigin)
     const graft = new GraftClient({
-      backend: "sdk",
       sdkTransport: new GraftInProcessTransport(),
       syncRemoteOrigin: staging.syncRemoteOrigin,
     })
@@ -115,7 +114,6 @@ describeStaging("official Hosted Remote staging gate", () => {
     const staging = EIDOS_LITE_SERVICE_ENVIRONMENTS.staging
     expect(new URL(remoteUrl).origin).toBe(staging.syncRemoteOrigin)
     const graft = new GraftClient({
-      backend: "sdk",
       sdkTransport: new GraftInProcessTransport(),
       syncRemoteOrigin: staging.syncRemoteOrigin,
     })

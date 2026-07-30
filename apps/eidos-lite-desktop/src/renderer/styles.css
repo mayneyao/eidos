@@ -2091,7 +2091,7 @@ button:focus-visible {
 /* Version navigation stays Explorer-dense; selected details own the main area. */
 .version-panel-body.version-panel-changes {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   overflow: hidden;
 }
 
@@ -2104,6 +2104,11 @@ button:focus-visible {
 .version-change-tree {
   min-width: 0;
   min-height: 0;
+}
+
+.version-change-tree-shell {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .version-change-tree {
@@ -2196,6 +2201,101 @@ button:focus-visible {
 .commit-loading svg {
   width: 0.72rem;
   height: 0.72rem;
+}
+
+.version-load-more {
+  display: block;
+  width: calc(100% - 1.2rem);
+  margin: 0.45rem 0.6rem 0.6rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  color: var(--ink-muted);
+  background: var(--surface);
+  font-size: 0.625rem;
+  text-align: center;
+}
+
+.version-load-more:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+
+.version-load-more:disabled {
+  opacity: 0.6;
+}
+
+.tracked-ignore-notice {
+  display: grid;
+  grid-template-columns: 0.8rem minmax(0, 1fr);
+  gap: 0.45rem;
+  margin: 0.5rem 0.6rem;
+  padding: 0.55rem;
+  border: 1px solid color-mix(in oklab, var(--warning) 38%, var(--line));
+  border-radius: 0.45rem;
+  background: color-mix(in oklab, var(--warning) 7%, var(--surface));
+}
+
+.tracked-ignore-notice > svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  margin-top: 0.08rem;
+  color: var(--warning);
+}
+
+.tracked-ignore-notice strong,
+.tracked-ignore-notice p {
+  font-size: 0.625rem;
+}
+
+.tracked-ignore-notice p {
+  margin: 0.18rem 0 0;
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+
+.tracked-ignore-notice .version-load-more {
+  width: auto;
+  margin: 0.45rem 0 0;
+}
+
+.tracked-ignore-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.tracked-ignore-actions button {
+  min-height: 1.7rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  font-size: 0.6rem;
+}
+
+.version-ignore-review,
+.tracked-ignore-clean {
+  margin: 0.35rem 0.65rem;
+  color: var(--ink-muted);
+  font-size: 0.6rem;
+}
+
+.version-ignore-review {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--ink-muted) 38%, transparent);
+  text-underline-offset: 0.16rem;
+}
+
+.version-ignore-review:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.tracked-ignore-clean {
+  line-height: 1.4;
 }
 
 .history-change-list,

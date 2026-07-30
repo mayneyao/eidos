@@ -72,7 +72,7 @@ const unversionedSpace: SpaceSnapshot = {
   graft: {
     available: true,
     backend: "sdk",
-    expectedVersion: "0.1.0",
+    expectedVersion: "0.3.0-rc.0",
     initialized: false,
   },
   invalidatedSessionIds: [],

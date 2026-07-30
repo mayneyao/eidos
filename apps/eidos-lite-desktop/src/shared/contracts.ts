@@ -22,6 +22,7 @@ export const IPC_CHANNELS = {
   removeRecentSpace: "eidos-lite:space-recent-remove",
   getSpace: "eidos-lite:space-get",
   refreshSpace: "eidos-lite:space-refresh",
+  loadSpaceDirectory: "eidos-lite:space-directory-load",
   spaceChanged: "eidos-lite:space-changed",
   launchFileAvailable: "eidos-lite:launch-file-available",
   takeLaunchFile: "eidos-lite:launch-file-take",
@@ -42,6 +43,10 @@ export const IPC_CHANNELS = {
   versionChanges: "eidos-lite:version-changes",
   versionHistory: "eidos-lite:version-history",
   versionDiff: "eidos-lite:version-diff",
+  versionPathDiff: "eidos-lite:version-path-diff",
+  versionCancel: "eidos-lite:version-cancel",
+  trackedIgnoredPaths: "eidos-lite:tracked-ignored-paths",
+  untrackIgnoredPaths: "eidos-lite:untrack-ignored-paths",
   restoreCheckpoint: "eidos-lite:checkpoint-restore",
   syncStatus: "eidos-lite:sync-status",
   syncSignIn: "eidos-lite:sync-sign-in",
@@ -70,6 +75,7 @@ export interface SpaceTreeEntry {
   size: number
   modifiedAtMs: number
   children?: SpaceTreeEntry[]
+  childrenLoaded?: boolean
 }
 
 export type SpaceOperationPhase =
@@ -90,13 +96,17 @@ export interface SpaceOperationState {
 
 export interface GraftSpaceStatus {
   available: boolean
-  backend: "cli" | "sdk"
+  backend: "sdk"
   version?: string
   expectedVersion: string
   initialized: boolean
   clean?: boolean
   changedPaths?: number
   currentHead?: string
+  generation?: number
+  changeToken?: string
+  statusCacheHit?: boolean
+  checking?: boolean
   error?: string
 }
 
@@ -135,6 +145,9 @@ export interface SpaceVersionDiff {
   to: string | null
   paths: SpaceVersionPathChange[]
   files: SpaceVersionFileDiff[]
+  totalPaths?: number
+  hasMore?: boolean
+  nextCursor?: string | null
 }
 
 export interface SpaceVersionTableSummary {
@@ -150,6 +163,7 @@ export interface SpaceVersionCommit {
   message: string
   timestampMs: number
   files: number
+  fileCountKnown?: boolean
   changes: SpaceVersionPathChange[]
   tables: SpaceVersionTableSummary[]
   changedTables: number
@@ -160,6 +174,14 @@ export interface SpaceVersionHistory {
   currentBranch: string | null
   commits: SpaceVersionCommit[]
   hasMore: boolean
+  nextCursor?: string | null
+}
+
+export interface GraftTrackedIgnoredPaths {
+  paths: string[]
+  total: number
+  hasMore: boolean
+  nextCursor: string | null
 }
 
 export interface SpaceSnapshot {
@@ -310,7 +332,7 @@ export interface EidosSyncPreflightEntry {
 
 export interface EidosSyncPreflightExclusion {
   relativePath: string
-  reason: "graft-metadata" | "os-noise" | "temporary-file"
+  reason: "graft-metadata" | "graft-ignore" | "os-noise" | "temporary-file"
 }
 
 export interface EidosSyncPreflight {
@@ -319,6 +341,9 @@ export interface EidosSyncPreflight {
   fileCount: number
   eidosFileCount: number
   totalBytes: number
+  excludedCount: number
+  warningCount: number
+  blockerCount: number
   excluded: EidosSyncPreflightExclusion[]
   warnings: EidosSyncPreflightEntry[]
   blockers: EidosSyncPreflightEntry[]
@@ -610,6 +635,7 @@ export interface EidosLiteApi {
   removeRecentSpace(id: string): Promise<RecentSpaceEntry[]>
   getSpace(): Promise<SpaceSnapshot | null>
   refreshSpace(): Promise<SpaceSnapshot | null>
+  loadSpaceDirectory(relativePath: string): Promise<SpaceSnapshot>
   onSpaceChanged(listener: (snapshot: SpaceSnapshot) => void): () => void
   takeLaunchEidosFile(): Promise<string | null>
   onLaunchEidosFileAvailable(listener: () => void): () => void
@@ -648,12 +674,28 @@ export interface EidosLiteApi {
   ): Promise<RuntimeCalls[M]["result"]>
   enableVersioning(): Promise<SpaceSnapshot>
   createCheckpoint(message?: string): Promise<SpaceSnapshot>
-  getVersionChanges(): Promise<SpaceVersionDiff>
-  getVersionHistory(limit?: number): Promise<SpaceVersionHistory>
+  getVersionChanges(limit?: number, after?: string): Promise<SpaceVersionDiff>
+  getVersionHistory(
+    limit?: number,
+    after?: string
+  ): Promise<SpaceVersionHistory>
   getVersionDiff(
     commitId: string,
+    parentId?: string | null,
+    limit?: number,
+    after?: string
+  ): Promise<SpaceVersionDiff>
+  getVersionPathDiff(
+    relativePath: string,
+    commitId?: string | null,
     parentId?: string | null
   ): Promise<SpaceVersionDiff>
+  cancelVersionReads(): Promise<void>
+  getTrackedIgnoredPaths(
+    limit?: number,
+    after?: string
+  ): Promise<GraftTrackedIgnoredPaths>
+  untrackIgnoredPaths(expectedHead: string): Promise<SpaceSnapshot>
   restoreCheckpoint(
     commitId: string,
     expectedHead: string

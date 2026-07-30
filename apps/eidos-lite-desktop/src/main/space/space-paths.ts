@@ -147,50 +147,176 @@ function entryKind(
   return "file"
 }
 
+export async function listSpaceDirectory(
+  root: string,
+  relativeDirectory: string | null,
+  options: {
+    maxEntries?: number
+    ignoredPaths?(
+      relativePaths: readonly string[]
+    ): Promise<ReadonlySet<string>>
+  } = {}
+): Promise<SpaceTreeEntry[]> {
+  const canonicalRoot = await fs.realpath(root)
+  const absoluteDirectory = await resolveSpaceDirectory(
+    canonicalRoot,
+    relativeDirectory
+  )
+  const directoryEntries = (
+    await fs.readdir(absoluteDirectory, { withFileTypes: true })
+  ).filter((entry) => !isHiddenImplementationEntry(entry.name))
+  const maxEntries = options.maxEntries ?? 100_000
+  if (directoryEntries.length > maxEntries) {
+    throw new Error(
+      `Space directory contains more than ${maxEntries} visible entries`
+    )
+  }
+  const candidates = directoryEntries.map((entry) => {
+    const absolutePath = path.join(absoluteDirectory, entry.name)
+    return {
+      entry,
+      absolutePath,
+      relativePath: path
+        .relative(canonicalRoot, absolutePath)
+        .split(path.sep)
+        .join("/"),
+    }
+  })
+  const ignored = new Set<string>()
+  if (options.ignoredPaths) {
+    for (let offset = 0; offset < candidates.length; offset += 1_000) {
+      const page = candidates
+        .slice(offset, offset + 1_000)
+        .map((candidate) => candidate.relativePath)
+      for (const relativePath of await options.ignoredPaths(page)) {
+        ignored.add(relativePath)
+      }
+    }
+  }
+  const visible = candidates.filter(
+    (candidate) => !ignored.has(candidate.relativePath)
+  )
+  const result: SpaceTreeEntry[] = []
+  for (let offset = 0; offset < visible.length; offset += 256) {
+    const resolved = await Promise.all(
+      visible.slice(offset, offset + 256).map(async (candidate) => ({
+        candidate,
+        stats: await fs.lstat(candidate.absolutePath),
+      }))
+    )
+    for (const { candidate, stats } of resolved) {
+      const kind = entryKind(candidate.entry.name, stats)
+      result.push({
+        name: candidate.entry.name,
+        relativePath: candidate.relativePath,
+        kind,
+        size: stats.size,
+        modifiedAtMs: stats.mtimeMs,
+        ...(kind === "directory"
+          ? { children: [], childrenLoaded: false }
+          : {}),
+      })
+    }
+  }
+  return result.sort((left, right) => {
+    if (left.kind === "directory" && right.kind !== "directory") return -1
+    if (right.kind === "directory" && left.kind !== "directory") return 1
+    return left.name.localeCompare(right.name, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    })
+  })
+}
+
 export async function listSpaceTree(
   root: string,
-  options: { maxEntries?: number } = {}
+  options: {
+    maxEntries?: number
+    ignoredPaths?(
+      relativePaths: readonly string[]
+    ): Promise<ReadonlySet<string>>
+  } = {}
 ): Promise<SpaceTreeEntry[]> {
   const maxEntries = options.maxEntries ?? 100_000
   let seen = 0
+  const result: SpaceTreeEntry[] = []
+  let directories: Array<{
+    absolutePath: string
+    children: SpaceTreeEntry[]
+  }> = [{ absolutePath: root, children: result }]
 
-  const visit = async (
-    absoluteDirectory: string
-  ): Promise<SpaceTreeEntry[]> => {
-    const directoryEntries = await fs.readdir(absoluteDirectory, {
-      withFileTypes: true,
-    })
-    const visible = directoryEntries.filter(
-      (entry) => !isHiddenImplementationEntry(entry.name)
+  while (directories.length > 0) {
+    const directoryPages = await Promise.all(
+      directories.map(async (directory) => ({
+        directory,
+        entries: await fs.readdir(directory.absolutePath, {
+          withFileTypes: true,
+        }),
+      }))
     )
-    const resolved = await Promise.all(
-      visible.map(async (entry): Promise<SpaceTreeEntry> => {
+    const candidates = directoryPages.flatMap(({ directory, entries }) =>
+      entries
+        .filter((entry) => !isHiddenImplementationEntry(entry.name))
+        .map((entry) => {
+          const absolutePath = path.join(directory.absolutePath, entry.name)
+          return {
+            parent: directory.children,
+            entry,
+            absolutePath,
+            relativePath: path
+              .relative(root, absolutePath)
+              .split(path.sep)
+              .join("/"),
+          }
+        })
+    )
+    const ignored = options.ignoredPaths
+      ? await options.ignoredPaths(
+          candidates.map((candidate) => candidate.relativePath)
+        )
+      : new Set<string>()
+    const visible = candidates.filter(
+      (candidate) => !ignored.has(candidate.relativePath)
+    )
+    const nextDirectories: typeof directories = []
+
+    for (let offset = 0; offset < visible.length; offset += 256) {
+      const resolved = await Promise.all(
+        visible.slice(offset, offset + 256).map(async (candidate) => ({
+          candidate,
+          stats: await fs.lstat(candidate.absolutePath),
+        }))
+      )
+      for (const { candidate, stats } of resolved) {
         seen += 1
         if (seen > maxEntries) {
           throw new Error(
             `Space contains more than ${maxEntries} visible entries`
           )
         }
-        const absolutePath = path.join(absoluteDirectory, entry.name)
-        const stats = await fs.lstat(absolutePath)
-        const relativePath = path
-          .relative(root, absolutePath)
-          .split(path.sep)
-          .join("/")
-        const kind = entryKind(entry.name, stats)
-        return {
-          name: entry.name,
-          relativePath,
+        const kind = entryKind(candidate.entry.name, stats)
+        const treeEntry: SpaceTreeEntry = {
+          name: candidate.entry.name,
+          relativePath: candidate.relativePath,
           kind,
           size: stats.size,
           modifiedAtMs: stats.mtimeMs,
-          ...(kind === "directory"
-            ? { children: await visit(absolutePath) }
-            : {}),
+          ...(kind === "directory" ? { children: [] } : {}),
         }
-      })
-    )
-    return resolved.sort((left, right) => {
+        candidate.parent.push(treeEntry)
+        if (kind === "directory") {
+          nextDirectories.push({
+            absolutePath: candidate.absolutePath,
+            children: treeEntry.children!,
+          })
+        }
+      }
+    }
+    directories = nextDirectories
+  }
+
+  const sortEntries = (entries: SpaceTreeEntry[]): void => {
+    entries.sort((left, right) => {
       if (left.kind === "directory" && right.kind !== "directory") return -1
       if (right.kind === "directory" && left.kind !== "directory") return 1
       return left.name.localeCompare(right.name, undefined, {
@@ -198,9 +324,12 @@ export async function listSpaceTree(
         sensitivity: "base",
       })
     })
+    for (const entry of entries) {
+      if (entry.children) sortEntries(entry.children)
+    }
   }
-
-  return visit(root)
+  sortEntries(result)
+  return result
 }
 
 export function flattenSpaceTree(

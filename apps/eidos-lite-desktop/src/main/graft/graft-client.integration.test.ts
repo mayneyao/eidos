@@ -4,7 +4,10 @@ import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { EidosFileRuntimeDataSource } from "@eidos.space/eidos-file"
-import { openEidosFile } from "@eidos.space/eidos-file/better-sqlite3"
+import {
+  createEidosFile,
+  openEidosFile,
+} from "@eidos.space/eidos-file/better-sqlite3"
 
 import { GraftClient } from "./graft-client"
 import { GraftInProcessTransport } from "./graft-in-process-transport"
@@ -14,15 +17,9 @@ const appRoot = path.resolve(
   "../../.."
 )
 const repositoryRoot = path.resolve(appRoot, "../..")
-const selectedBackend =
-  process.env.EIDOS_LITE_GRAFT_BACKEND === "cli" ? "cli" : "sdk"
-
 function createGraftClient(): GraftClient {
   return new GraftClient({
-    backend: selectedBackend,
-    ...(selectedBackend === "sdk"
-      ? { sdkTransport: new GraftInProcessTransport() }
-      : {}),
+    sdkTransport: new GraftInProcessTransport(),
   })
 }
 
@@ -65,6 +62,105 @@ async function insertBlankRow(filePath: string): Promise<void> {
 }
 
 describe("whole-Space real Graft integration", () => {
+  it("keeps an open Eidos File identity stable while initializing versioning", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-open-runtime-")
+    )
+    const filePath = path.join(root, "records.eidos")
+    const runtime = createEidosFile(filePath)
+    const client = createGraftClient()
+    try {
+      const before = await fs.stat(filePath)
+      const identity = { device: before.dev, inode: before.ino }
+      await client.open(root)
+      await client.initialize(root)
+      const afterInitialize = await fs.stat(filePath)
+      expect({
+        device: afterInitialize.dev,
+        inode: afterInitialize.ino,
+      }).toEqual(identity)
+      await client.stageAll(root)
+      const afterStage = await fs.stat(filePath)
+      expect({ device: afterStage.dev, inode: afterStage.ino }).toEqual(
+        identity
+      )
+      await client.commit(root, "Enable Space versioning")
+      const after = await fs.stat(filePath)
+
+      expect({ device: after.dev, inode: after.ino }).toEqual(identity)
+      expect(runtime.info().formatVersion).toBe("1.0")
+    } finally {
+      runtime.close()
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  }, 120_000)
+
+  it("inspects dirty status paths without running a whole-Space diff", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-status-")
+    )
+    const client = createGraftClient()
+    try {
+      await fs.writeFile(path.join(root, "notes.txt"), "base notes\n")
+      await client.open(root)
+      await client.initialize(root)
+      await client.stageAll(root)
+      await client.commit(root, "Base Space")
+      await fs.writeFile(path.join(root, "notes.txt"), "changed notes\n")
+      const workingDiff = vi
+        .spyOn(client, "workingDiff")
+        .mockRejectedValue(new Error("whole-Space diff must not run"))
+
+      await expect(client.inspectSpace(root)).resolves.toMatchObject({
+        initialized: true,
+        clean: false,
+        changedPaths: 1,
+      })
+      expect(workingDiff).not.toHaveBeenCalled()
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  }, 120_000)
+
+  it("keeps UTF-8 Markdown text across the sniff boundary in future checkpoints", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-utf8-boundary-")
+    )
+    const relativePath = "Eidos_Sync_商业计划书.md"
+    const filePath = path.join(root, relativePath)
+    const client = createGraftClient()
+    try {
+      await fs.writeFile(filePath, `${"a".repeat(8_191)}中\n`)
+      await client.open(root)
+      await client.initialize(root)
+      await client.stageAll(root)
+      await client.commit(root, "UTF-8 boundary base")
+      const firstHead = (await client.status(root)).currentHead
+      expect(firstHead).toMatch(/^[0-9a-f]{64}$/)
+
+      const firstDiff = await client.revisionDiff(root, firstHead!, null)
+      expect(firstDiff.paths).toContainEqual(
+        expect.objectContaining({ path: relativePath, kind: "text_file" })
+      )
+
+      await fs.appendFile(filePath, "future checkpoint\n")
+      await client.stageAll(root)
+      await client.commit(root, "UTF-8 boundary future checkpoint")
+      const secondHead = (await client.status(root)).currentHead
+      expect(secondHead).toMatch(/^[0-9a-f]{64}$/)
+
+      const futureDiff = await client.revisionDiff(root, secondHead!, firstHead)
+      expect(futureDiff.paths).toContainEqual(
+        expect.objectContaining({ path: relativePath, kind: "text_file" })
+      )
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  }, 120_000)
+
   it("pushes and clones multiple Eidos Files plus an ordinary asset", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-graft-"))
     const source = path.join(root, "source")
@@ -112,8 +208,8 @@ describe("whole-Space real Graft integration", () => {
       const status = await client.inspectSpace(clone)
       expect(status).toMatchObject({
         available: true,
-        backend: selectedBackend,
-        version: selectedBackend === "sdk" ? "0.1.0" : "0.8.1",
+        backend: "sdk",
+        version: "0.3.0-rc.0",
         initialized: true,
         clean: true,
         changedPaths: 0,
@@ -261,15 +357,226 @@ describe("whole-Space real Graft integration", () => {
       await client.close()
       await client.open(root)
       const reopened = await client.status(root)
-      expect(reopened).toEqual(first)
+      expect(reopened).toMatchObject({
+        dirty: first.dirty,
+        currentHead: first.currentHead,
+        currentBranch: first.currentBranch,
+        ahead: first.ahead,
+        behind: first.behind,
+        hasConflicts: first.hasConflicts,
+        changedPaths: first.changedPaths,
+        paths: first.paths,
+      })
+      expect(reopened.generation).toBeLessThanOrEqual(first.generation ?? 0)
     } finally {
       await client.close()
       await fs.rm(root, { recursive: true, force: true })
     }
   }, 20_000)
 
+  it("pages history and targeted commit diffs without loading the repository", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-pages-")
+    )
+    const client = createGraftClient()
+    try {
+      await client.open(root)
+      await client.initialize(root)
+      await Promise.all([
+        fs.writeFile(path.join(root, "one.txt"), "one\n"),
+        fs.writeFile(path.join(root, "two.txt"), "two\n"),
+      ])
+      await client.stageAll(root)
+      await client.commit(root, "Base")
+      await fs.writeFile(path.join(root, "one.txt"), "one changed\n")
+      await client.stageAll(root)
+      await client.commit(root, "First change")
+      await Promise.all([
+        fs.writeFile(path.join(root, "one.txt"), "one again\n"),
+        fs.writeFile(path.join(root, "two.txt"), "two again\n"),
+      ])
+      await client.stageAll(root)
+      await client.commit(root, "Second change")
+
+      const firstHistory = await client.history(root, 2)
+      expect(firstHistory.commits.map((item) => item.message)).toEqual([
+        "Second change",
+        "First change",
+      ])
+      expect(firstHistory.hasMore).toBe(true)
+      expect(firstHistory.nextCursor).toBeTruthy()
+      const secondHistory = await client.history(root, 2, {
+        after: firstHistory.nextCursor ?? undefined,
+      })
+      expect(secondHistory.commits.map((item) => item.message)).toEqual([
+        "Base",
+      ])
+
+      const commit = firstHistory.commits[0]
+      expect(commit).toBeDefined()
+      const firstDiff = await client.revisionDiff(
+        root,
+        commit!.id,
+        commit!.parent,
+        { limit: 1 }
+      )
+      expect(firstDiff.paths).toHaveLength(1)
+      expect(firstDiff.hasMore).toBe(true)
+      expect(firstDiff.nextCursor).toBeTruthy()
+      const secondDiff = await client.revisionDiff(
+        root,
+        commit!.id,
+        commit!.parent,
+        { limit: 1, after: firstDiff.nextCursor ?? undefined }
+      )
+      expect(
+        new Set(
+          [...firstDiff.paths, ...secondDiff.paths].map((item) => item.path)
+        )
+      ).toEqual(new Set(["one.txt", "two.txt"]))
+
+      const controller = new AbortController()
+      controller.abort()
+      await expect(
+        client.history(root, 10, { signal: controller.signal })
+      ).rejects.toMatchObject({ name: "AbortError" })
+      await expect(client.status(root)).resolves.toMatchObject({ dirty: false })
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  }, 20_000)
+
+  it("keeps ignored tracked files on disk while explicitly removing them from the index", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-ignore-")
+    )
+    const client = createGraftClient()
+    const ignoredPath = path.join(root, "generated.txt")
+    try {
+      await client.open(root)
+      await client.initialize(root)
+      await fs.writeFile(ignoredPath, "generated\n")
+      await client.stageAll(root)
+      await client.commit(root, "Track generated file")
+      await fs.writeFile(path.join(root, ".gitignore"), "generated.txt\n")
+      await client.stageAll(root)
+      await client.commit(root, "Ignore generated file")
+
+      await expect(
+        client.inspectIgnore(root, "generated.txt")
+      ).resolves.toEqual({
+        path: "generated.txt",
+        isIgnored: true,
+        isTracked: true,
+        isDirectory: false,
+        hasTrackedDescendants: false,
+      })
+      await expect(
+        client.inspectIgnores(root, ["generated.txt", ".gitignore"])
+      ).resolves.toEqual([
+        {
+          path: "generated.txt",
+          isIgnored: true,
+          isTracked: true,
+          isDirectory: false,
+          hasTrackedDescendants: false,
+        },
+        {
+          path: ".gitignore",
+          isIgnored: false,
+          isTracked: true,
+          isDirectory: false,
+          hasTrackedDescendants: false,
+        },
+      ])
+      const inventory = await client.trackedIgnored(root, { limit: 100 })
+      expect(inventory).toMatchObject({
+        paths: ["generated.txt"],
+        total: 1,
+        hasMore: false,
+      })
+      const expectedHead = (await client.status(root)).currentHead
+      expect(expectedHead).toMatch(/^[0-9a-f]{64}$/)
+      await expect(
+        client.untrackPaths(root, inventory.paths, "0".repeat(64))
+      ).rejects.toThrow()
+      await expect(client.status(root)).resolves.toMatchObject({
+        currentHead: expectedHead,
+        dirty: false,
+      })
+      await client.untrackPaths(root, inventory.paths, expectedHead!)
+      await client.commit(root, "Stop tracking ignored file")
+
+      await expect(fs.readFile(ignoredPath, "utf8")).resolves.toBe(
+        "generated\n"
+      )
+      await client.stageAll(root)
+      await expect(client.status(root)).resolves.toMatchObject({ dirty: false })
+      await expect(client.trackedIgnored(root)).resolves.toMatchObject({
+        total: 0,
+        paths: [],
+      })
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  }, 20_000)
+
+  it("invalidates incremental status for external writers and remains usable after cancel and close", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-incremental-")
+    )
+    const client = createGraftClient()
+    try {
+      await client.open(root)
+      await client.initialize(root)
+      await Promise.all(
+        Array.from({ length: 2_000 }, (_, index) =>
+          fs.writeFile(path.join(root, `file-${index}.txt`), `${index}\n`)
+        )
+      )
+
+      const controller = new AbortController()
+      const cancelled = client.status(root, { signal: controller.signal })
+      setTimeout(() => controller.abort(), 2)
+      await expect(cancelled).rejects.toMatchObject({ name: "AbortError" })
+
+      const first = await client.status(root)
+      const cached = await client.status(root)
+      expect(cached).toMatchObject({
+        changeToken: first.changeToken,
+        statusCacheHit: true,
+      })
+      await fs.writeFile(path.join(root, "external-writer.txt"), "external\n")
+      const external = await client.status(root)
+      expect(external.changeToken).not.toBe(first.changeToken)
+      expect(external.paths).toContain("external-writer.txt")
+
+      const inFlight = client.status(root)
+      const closing = client.close()
+      await expect(
+        Promise.race([
+          Promise.allSettled([inFlight, closing]),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error("in-flight close timed out")),
+              5_000
+            )
+          ),
+        ])
+      ).resolves.toBeDefined()
+      await client.open(root)
+      await expect(client.status(root)).resolves.toMatchObject({
+        dirty: true,
+      })
+    } finally {
+      await client.close().catch(() => undefined)
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  }, 30_000)
+
   it("keeps official HTTP credentials in SDK session memory only", async () => {
-    if (selectedBackend !== "sdk") return
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-graft-credential-")
     )
@@ -298,7 +605,6 @@ describe("whole-Space real Graft integration", () => {
   })
 
   it("sends an explicit push credential on every SDK HTTP request", async () => {
-    if (selectedBackend !== "sdk") return
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-graft-http-credential-")
     )
