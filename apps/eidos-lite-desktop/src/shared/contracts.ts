@@ -217,7 +217,12 @@ export type SpaceVersionTextContentState =
       contentHash?: string
     }
   | {
-      state: "too_large" | "missing_payload" | "invalid_utf8"
+      state:
+        | "too_large"
+        | "missing_payload"
+        | "invalid_utf8"
+        | "unsafe_path"
+        | "changed_during_read"
       size: number
       contentHash?: string
     }
