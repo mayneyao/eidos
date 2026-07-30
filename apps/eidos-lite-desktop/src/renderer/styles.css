@@ -9,55 +9,87 @@
   font-family:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
     "Segoe UI Variable", "Segoe UI", sans-serif;
-  color: oklch(0.25 0.018 255);
-  background: oklch(0.965 0.008 255);
+  color: var(--ink);
+  background: var(--lite-sidebar);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --canvas: oklch(0.978 0.006 255);
-  --lite-sidebar: oklch(0.935 0.011 255);
-  --sidebar-strong: oklch(0.905 0.015 255);
-  --surface: oklch(0.989 0.004 255);
-  --surface-hover: oklch(0.915 0.02 255);
-  --surface-selected: oklch(0.86 0.047 250);
-  --ink: oklch(0.25 0.018 255);
-  --ink-muted: oklch(0.49 0.019 255);
-  --line: oklch(0.84 0.015 255);
-  --lite-accent: oklch(0.49 0.105 248);
-  --accent-strong: oklch(0.39 0.105 248);
-  --danger: oklch(0.53 0.17 27);
+  --canvas: oklch(0.985 0.004 265);
+  --lite-sidebar: oklch(0.967 0.006 265);
+  --sidebar-strong: oklch(0.936 0.01 265);
+  --surface: oklch(0.995 0.003 265);
+  --surface-hover: oklch(0.948 0.012 285);
+  --surface-selected: oklch(0.92 0.05 304);
+  --ink: oklch(0.18 0.036 265);
+  --ink-muted: oklch(0.45 0.032 260);
+  --ink-faint: oklch(0.52 0.026 260);
+  --line: oklch(0.91 0.013 255);
+  --lite-accent: oklch(0.55 0.24 304);
+  --accent-strong: oklch(0.48 0.22 304);
+  --primary-action: oklch(0.18 0.036 265);
+  --primary-action-hover: oklch(0.235 0.04 265);
+  --primary-action-foreground: oklch(0.985 0.004 265);
+  --danger: oklch(0.54 0.18 27);
+  --danger-foreground: oklch(0.985 0.004 265);
   --success: oklch(0.46 0.105 153);
-  --focus: oklch(0.62 0.13 248);
-  --hairline: oklch(0.78 0.012 255 / 58%);
-  --control-fill: oklch(0.99 0.004 255 / 72%);
-  --control-border: oklch(0.7 0.014 255 / 55%);
+  --warning: oklch(0.57 0.13 70);
+  --focus: oklch(0.627 0.265 304);
+  --hairline: oklch(0.84 0.014 260 / 72%);
+  --control-fill: oklch(0.985 0.004 265);
+  --control-border: oklch(0.82 0.016 260);
   --control-shadow:
-    inset 0 1px oklch(1 0 0 / 58%), 0 1px 1px oklch(0.18 0.015 255 / 8%);
+    inset 0 1px oklch(1 0 0 / 64%), 0 1px 1px oklch(0.18 0.03 265 / 8%);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    color: oklch(0.88 0.012 255);
-    background: oklch(0.19 0.014 255);
-    --canvas: oklch(0.205 0.014 255);
-    --lite-sidebar: oklch(0.235 0.016 255);
-    --sidebar-strong: oklch(0.265 0.018 255);
-    --surface: oklch(0.185 0.012 255);
-    --surface-hover: oklch(0.3 0.022 255);
-    --surface-selected: oklch(0.38 0.065 250);
-    --ink: oklch(0.89 0.012 255);
-    --ink-muted: oklch(0.68 0.018 255);
-    --line: oklch(0.36 0.018 255);
-    --lite-accent: oklch(0.7 0.11 248);
-    --accent-strong: oklch(0.76 0.095 248);
+    --canvas: oklch(0.17 0.025 265);
+    --lite-sidebar: oklch(0.195 0.027 265);
+    --sidebar-strong: oklch(0.235 0.03 265);
+    --surface: oklch(0.215 0.028 265);
+    --surface-hover: oklch(0.27 0.03 285);
+    --surface-selected: oklch(0.31 0.07 304);
+    --ink: oklch(0.93 0.012 265);
+    --ink-muted: oklch(0.7 0.025 260);
+    --ink-faint: oklch(0.62 0.025 260);
+    --line: oklch(0.32 0.025 265);
+    --lite-accent: oklch(0.72 0.18 304);
+    --accent-strong: oklch(0.78 0.16 304);
+    --primary-action: oklch(0.93 0.012 265);
+    --primary-action-hover: oklch(0.86 0.014 265);
+    --primary-action-foreground: oklch(0.18 0.036 265);
     --danger: oklch(0.72 0.15 27);
+    --danger-foreground: oklch(0.985 0.004 265);
     --success: oklch(0.72 0.105 153);
-    --focus: oklch(0.72 0.13 248);
-    --hairline: oklch(0.46 0.015 255 / 68%);
-    --control-fill: oklch(0.32 0.014 255 / 72%);
-    --control-border: oklch(0.5 0.014 255 / 58%);
+    --warning: oklch(0.78 0.1 75);
+    --focus: oklch(0.72 0.18 304);
+    --hairline: oklch(0.43 0.025 265 / 72%);
+    --control-fill: oklch(0.27 0.027 265);
+    --control-border: oklch(0.42 0.025 265);
     --control-shadow:
-      inset 0 1px oklch(1 0 0 / 9%), 0 1px 1px oklch(0.05 0.01 255 / 24%);
+      inset 0 1px oklch(1 0 0 / 8%), 0 1px 1px oklch(0.08 0.02 265 / 28%);
   }
+}
+
+[data-eidos-file-root] {
+  --background: var(--surface);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--primary-action);
+  --primary-foreground: var(--primary-action-foreground);
+  --secondary: var(--lite-sidebar);
+  --secondary-foreground: var(--ink);
+  --muted: var(--lite-sidebar);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--surface-selected);
+  --accent-foreground: var(--ink);
+  --destructive: var(--danger);
+  --destructive-foreground: var(--danger-foreground);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--focus);
 }
 
 * {
@@ -215,10 +247,10 @@ button:focus-visible {
   gap: 0.625rem;
   margin-top: 2rem;
   padding: 0.625rem 1rem;
-  border: 1px solid var(--accent-strong);
+  border: 1px solid var(--primary-action);
   border-radius: 0.4rem;
-  color: oklch(0.97 0.008 248);
-  background: var(--accent-strong);
+  color: var(--primary-action-foreground);
+  background: var(--primary-action);
   font-weight: 600;
   cursor: pointer;
   transition:
@@ -227,7 +259,7 @@ button:focus-visible {
 }
 
 .primary-action:hover:not(:disabled) {
-  background: oklch(0.34 0.105 248);
+  background: var(--primary-action-hover);
 }
 
 .primary-action:active:not(:disabled) {
@@ -2169,12 +2201,17 @@ button:focus-visible {
 }
 
 .panel-primary-action {
-  border-color: var(--accent-strong);
-  color: oklch(0.97 0.008 248);
-  background: var(--accent-strong);
+  border-color: var(--primary-action);
+  color: var(--primary-action-foreground);
+  background: var(--primary-action);
   box-shadow:
     inset 0 1px oklch(1 0 0 / 18%),
     0 1px 1px oklch(0.16 0.015 255 / 12%);
+}
+
+.panel-primary-action:hover:not(:disabled) {
+  background: var(--primary-action-hover);
+  filter: none;
 }
 
 .panel-primary-action svg,
@@ -3082,10 +3119,10 @@ button:focus-visible {
   gap: 0.45rem;
   margin-top: 1rem;
   padding: 0.4rem 0.75rem;
-  border: 1px solid var(--accent-strong);
+  border: 1px solid var(--primary-action);
   border-radius: 0.35rem;
-  color: oklch(0.97 0.008 248);
-  background: var(--accent-strong);
+  color: var(--primary-action-foreground);
+  background: var(--primary-action);
   font: inherit;
   font-size: 0.75rem;
   font-weight: 600;
@@ -3093,7 +3130,7 @@ button:focus-visible {
 }
 
 .editor-empty-action:hover:not(:disabled) {
-  filter: brightness(1.06);
+  background: var(--primary-action-hover);
 }
 
 .editor-empty-action:focus-visible {
@@ -3142,8 +3179,8 @@ button:focus-visible {
 }
 
 .space-context-menu button:hover {
-  color: white;
-  background: var(--accent-strong);
+  color: var(--ink);
+  background: var(--surface-selected);
 }
 
 .space-context-menu button:hover svg {
@@ -3273,14 +3310,14 @@ button:focus-visible {
 }
 
 .path-dialog footer .primary-action {
-  border-color: var(--accent-strong);
-  color: oklch(0.97 0.008 248);
-  background: var(--accent-strong);
+  border-color: var(--primary-action);
+  color: var(--primary-action-foreground);
+  background: var(--primary-action);
 }
 
 .path-dialog footer .danger-action {
   border-color: var(--danger);
-  color: white;
+  color: var(--danger-foreground);
   background: var(--danger);
 }
 
