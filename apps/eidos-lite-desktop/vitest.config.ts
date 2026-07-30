@@ -8,6 +8,13 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: "@eidos.space/eidos-file-ui/runtime-editor-data-source",
+        replacement: path.resolve(
+          appRoot,
+          "../../packages/eidos-file-ui/src/runtime-editor-data-source.ts"
+        ),
+      },
+      {
         find: "@eidos.space/eidos-file/better-sqlite3",
         replacement: path.resolve(
           appRoot,

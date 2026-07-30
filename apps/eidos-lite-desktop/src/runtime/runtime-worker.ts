@@ -4,17 +4,8 @@ import type {
   EidosFileColumnStatConfig,
   EidosFileRowPageProjection,
   EidosFileRowQuery,
-  EidosFileRuntime,
 } from "@eidos.space/eidos-file"
-import {
-  EidosFileRuntimeDataSource,
-  importEidosFileCsv,
-  planEidosFileCsvImport,
-} from "@eidos.space/eidos-file"
-import {
-  createEidosFile,
-  openEidosFile,
-} from "@eidos.space/eidos-file/better-sqlite3"
+import type { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui/runtime-editor-data-source"
 
 import type {
   RuntimeCalls,
@@ -23,6 +14,11 @@ import type {
   RuntimeWorkerResponse,
 } from "../shared/contracts"
 import { EIDOS_LITE_CSV_IMPORT_BYTES_MAX } from "../shared/contracts"
+import {
+  createEidosLiteFileRuntime,
+  openEidosLiteFileRuntime,
+  type EidosLiteFileRuntime,
+} from "./eidos-file-runtime"
 
 interface UtilityParentPort {
   on(event: "message", listener: (event: { data: unknown }) => void): void
@@ -35,8 +31,8 @@ const parentPort = (
 
 if (!parentPort) throw new Error("Eidos File runtime requires a utility parent")
 
-let runtime: EidosFileRuntime | null = null
-let source: EidosFileRuntimeDataSource | null = null
+let openedRuntime: EidosLiteFileRuntime | null = null
+let source: EidosRuntimeEditorDataSource | null = null
 
 type RuntimeWorkerError = Extract<RuntimeWorkerResponse, { ok: false }>["error"]
 
@@ -54,20 +50,15 @@ function serializeError(error: unknown): RuntimeWorkerError {
   return { name: "Error", message: String(error) }
 }
 
-function requireSource(): EidosFileRuntimeDataSource {
+function requireSource(): EidosRuntimeEditorDataSource {
   if (!source) throw new Error("Eidos File runtime is not open")
   return source
 }
 
-function requireRuntime(): EidosFileRuntime {
-  if (!runtime) throw new Error("Eidos File runtime is not open")
-  return runtime
-}
-
-function csvFile(
+function csvInput(
   fileNameValue: unknown,
   bytesValue: unknown
-): { name: string; content: string } {
+): { name: string; bytes: ArrayBuffer } {
   const name = requireString(fileNameValue, "CSV file name")
   if (name.length > 255 || /[\\/\0]/.test(name)) {
     throw new Error("CSV file name is invalid")
@@ -80,7 +71,7 @@ function csvFile(
   }
   return {
     name,
-    content: new TextDecoder("utf-8", { fatal: true }).decode(bytesValue),
+    bytes: bytesValue,
   }
 }
 
@@ -172,11 +163,10 @@ async function runtimeCall(
     }
     case "previewFormula":
       return dataSource.previewFormula(...methodArgs<"previewFormula">(args))
-    case "previewCsv":
-      return planEidosFileCsvImport(
-        csvFile(args[0], args[1]),
-        csvOptions(args[2])
-      )
+    case "previewCsv": {
+      const input = csvInput(args[0], args[1])
+      return dataSource.previewCsv(input.name, input.bytes, csvOptions(args[2]))
+    }
     case "insertRow":
       return dataSource.insertRow(...methodArgs<"insertRow">(args))
     case "updateRow":
@@ -208,12 +198,8 @@ async function runtimeCall(
     case "updateView":
       return dataSource.updateView(...methodArgs<"updateView">(args))
     case "importCsv": {
-      const result = importEidosFileCsv(
-        requireRuntime(),
-        csvFile(args[0], args[1]),
-        csvOptions(args[2])
-      )
-      return { snapshot: await dataSource.getSnapshot(), result }
+      const input = csvInput(args[0], args[1])
+      return dataSource.importCsv(input.name, input.bytes, csvOptions(args[2]))
     }
   }
 }
@@ -224,34 +210,30 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
       if (!path.isAbsolute(request.filePath)) {
         throw new Error("Runtime file path must be absolute")
       }
-      if (runtime) throw new Error("Runtime already has an open Eidos File")
-      runtime = createEidosFile(request.filePath, {
-        title: request.title,
-        defaultTable: {
-          name: "Table 1",
-          fields: [{ name: "Name", type: "text" }],
-        },
-      })
-      source = new EidosFileRuntimeDataSource(runtime, request.title)
+      if (openedRuntime)
+        throw new Error("Runtime already has an open Eidos File")
+      openedRuntime = await createEidosLiteFileRuntime(
+        request.filePath,
+        request.title
+      )
+      source = openedRuntime.source
       return source.getSnapshot()
     }
     case "open": {
       if (!path.isAbsolute(request.filePath)) {
         throw new Error("Runtime file path must be absolute")
       }
-      if (runtime) throw new Error("Runtime already has an open Eidos File")
-      runtime = openEidosFile(request.filePath, { readonly: false })
-      source = new EidosFileRuntimeDataSource(
-        runtime,
-        path.basename(request.filePath)
-      )
+      if (openedRuntime)
+        throw new Error("Runtime already has an open Eidos File")
+      openedRuntime = await openEidosLiteFileRuntime(request.filePath)
+      source = openedRuntime.source
       return source.getSnapshot()
     }
     case "call":
       return runtimeCall(request.method, request.args)
     case "close":
-      runtime?.close()
-      runtime = null
+      await openedRuntime?.close()
+      openedRuntime = null
       source = null
       return { closed: true }
   }
