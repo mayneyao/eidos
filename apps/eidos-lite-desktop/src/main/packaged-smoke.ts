@@ -173,6 +173,13 @@ type TextHistorySmokeResult = {
   unifiedLayout: boolean
 }
 
+type WindowTransitionSmokeResult = {
+  welcome: { width: number; height: number }
+  space: { width: number; height: number }
+  expanded: boolean
+  minimumApplied: boolean
+}
+
 const emptySpaceOnboardingProbe = `
 (async () => {
   const waitFor = async (read, label) => {
@@ -1424,12 +1431,46 @@ async function runPackagedTextHistorySmoke(
   const { failures } = startup
   let welcomeWindow: BrowserWindow | null = startup.welcomeWindow
   let window: BrowserWindow | null = null
+  let seedWindow: BrowserWindow | null = null
   try {
-    window = await controller.createSpaceWindow(spaceRoot, (candidate) => {
+    const welcomeBounds = welcomeWindow.getBounds()
+    seedWindow = await controller.createSpaceWindow(spaceRoot, (candidate) => {
       observePackagedSmokeWindow(candidate, failures)
     })
-    welcomeWindow.destroy()
+    const recent = (await controller.listRecentSpaces()).at(0)
+    if (!recent)
+      throw new Error("Text History Space was not recorded as recent")
+    const seedClosed = new Promise<void>((resolve) => {
+      seedWindow?.once("closed", () => resolve())
+    })
+    seedWindow.destroy()
+    await seedClosed
+    seedWindow = null
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    await controller.openRecentSpace(welcomeWindow.webContents, recent.id)
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    const spaceBounds = welcomeWindow.getBounds()
+    const [minimumWidth, minimumHeight] = welcomeWindow.getMinimumSize()
+    const windowTransition: WindowTransitionSmokeResult = {
+      welcome: { width: welcomeBounds.width, height: welcomeBounds.height },
+      space: { width: spaceBounds.width, height: spaceBounds.height },
+      expanded:
+        spaceBounds.width > welcomeBounds.width &&
+        spaceBounds.height > welcomeBounds.height,
+      minimumApplied: minimumWidth === 900 && minimumHeight === 600,
+    }
+    if (!windowTransition.expanded || !windowTransition.minimumApplied) {
+      throw new Error(
+        `Welcome-to-Space window transition is incomplete: ${JSON.stringify(windowTransition)}`
+      )
+    }
+    window = welcomeWindow
     welcomeWindow = null
+    const reloaded = new Promise<void>((resolve) => {
+      window?.webContents.once("did-finish-load", () => resolve())
+    })
+    window.webContents.reload()
+    await reloaded
     const session = controller.requireSession(window.webContents)
     await session.enableVersioning()
     const readmePath = path.join(spaceRoot, "README.md")
@@ -1467,12 +1508,14 @@ async function runPackagedTextHistorySmoke(
       resultPath,
       JSON.stringify({
         ok: true,
+        windowTransition,
         textHistory: { directRead, ...ui },
         consoleErrors: failures,
       })
     )
   } finally {
     if (welcomeWindow && !welcomeWindow.isDestroyed()) welcomeWindow.destroy()
+    if (seedWindow && !seedWindow.isDestroyed()) seedWindow.destroy()
     if (window && !window.isDestroyed()) window.destroy()
     await controller.closeAll()
   }
