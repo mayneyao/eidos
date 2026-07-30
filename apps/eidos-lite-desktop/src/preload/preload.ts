@@ -100,6 +100,12 @@ const api: EidosLiteApi = {
       parentId,
       relativePath
     ),
+  getWorkingTextDiff: (expectedHead, relativePath) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.versionWorkingTextDiff,
+      expectedHead,
+      relativePath
+    ),
   restoreCheckpoint: (commitId, expectedHead) =>
     ipcRenderer.invoke(IPC_CHANNELS.restoreCheckpoint, commitId, expectedHead),
   getSyncStatus: () => ipcRenderer.invoke(IPC_CHANNELS.syncStatus),

@@ -451,6 +451,20 @@ export function registerIpc(
     }
   )
   ipcMain.handle(
+    IPC_CHANNELS.versionWorkingTextDiff,
+    (event, expectedHead: unknown, relativePath: unknown) => {
+      if (expectedHead !== null && typeof expectedHead !== "string") {
+        throw new Error("Invalid expected checkpoint")
+      }
+      if (typeof relativePath !== "string") {
+        throw new Error("Invalid working text path")
+      }
+      return controller
+        .requireSession(event.sender)
+        .getWorkingTextDiff(expectedHead, relativePath)
+    }
+  )
+  ipcMain.handle(
     IPC_CHANNELS.restoreCheckpoint,
     (event, commitId: unknown, expectedHead: unknown) => {
       if (typeof commitId !== "string" || typeof expectedHead !== "string") {

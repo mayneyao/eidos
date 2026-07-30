@@ -51,6 +51,7 @@ export const IPC_CHANNELS = {
   trackedIgnoredPaths: "eidos-lite:tracked-ignored-paths",
   untrackIgnoredPaths: "eidos-lite:untrack-ignored-paths",
   versionTextDiff: "eidos-lite:version-text-diff",
+  versionWorkingTextDiff: "eidos-lite:version-working-text-diff",
   restoreCheckpoint: "eidos-lite:checkpoint-restore",
   syncStatus: "eidos-lite:sync-status",
   syncSignIn: "eidos-lite:sync-sign-in",
@@ -756,6 +757,10 @@ export interface EidosLiteApi {
   getVersionTextDiff(
     commitId: string,
     parentId: string | null,
+    path: string
+  ): Promise<SpaceVersionTextContentDiff>
+  getWorkingTextDiff(
+    expectedHead: string | null,
     path: string
   ): Promise<SpaceVersionTextContentDiff>
   restoreCheckpoint(

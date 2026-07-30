@@ -54,6 +54,7 @@ import { SpaceWatcher } from "./space-watcher"
 import { StableCheckpointScheduler } from "./stable-checkpoint-scheduler"
 import { SpaceSyncStateStore } from "./sync-state"
 import { readTextFilePreview } from "./text-file-preview"
+import { readWorkingTextContent } from "./working-text-reader"
 
 const mutationMethods = new Set<RuntimeMethod>(RUNTIME_MUTATION_METHODS)
 type SyncProgressReporter = (phase: EidosSyncPhase, detail: string) => void
@@ -1016,6 +1017,43 @@ export class SpaceSession {
         safePath,
         EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX
       )
+    )
+  }
+
+  async getWorkingTextDiff(
+    expectedHead: string | null,
+    relativePath: string
+  ): Promise<SpaceVersionTextContentDiff> {
+    await this.requireInitializedVersioning()
+    if (expectedHead) this.assertRevisionId(expectedHead)
+    const safePath = normalizeMutableRelativePath(relativePath)
+    return this.gate.withRepositoryOperation(
+      "Reading local text changes",
+      async () => {
+        const status = await this.graft.status(this.canonical.root)
+        if (status.currentHead !== expectedHead) {
+          throw new Error(
+            "Space history changed; refresh Changes and try again"
+          )
+        }
+        const before = expectedHead
+          ? (
+              await this.graft.revisionTextDiff(
+                this.canonical.root,
+                expectedHead,
+                null,
+                safePath,
+                EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX
+              )
+            ).after
+          : ({ state: "absent" } as const)
+        const after = await readWorkingTextContent(
+          this.canonical.root,
+          safePath,
+          EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX
+        )
+        return { path: safePath, before, after }
+      }
     )
   }
 
