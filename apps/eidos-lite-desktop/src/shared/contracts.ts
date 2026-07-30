@@ -10,6 +10,7 @@ import type { EidosLiteServiceEnvironment } from "./service-environment"
 
 export const EIDOS_LITE_CSV_IMPORT_BYTES_MAX = 16 * 1024 * 1024
 export const EIDOS_LITE_CSV_EXPORT_BYTES_MAX = 256 * 1024 * 1024
+export const EIDOS_LITE_TEXT_PREVIEW_BYTES_MAX = 2 * 1024 * 1024
 
 export const IPC_CHANNELS = {
   appInfo: "eidos-lite:app-info",
@@ -27,6 +28,7 @@ export const IPC_CHANNELS = {
   launchFileAvailable: "eidos-lite:launch-file-available",
   takeLaunchFile: "eidos-lite:launch-file-take",
   openFile: "eidos-lite:file-open",
+  previewTextFile: "eidos-lite:text-file-preview",
   inspectFileIssue: "eidos-lite:file-issue-inspect",
   closeFile: "eidos-lite:file-close",
   createEidosFile: "eidos-lite:path-create-eidos",
@@ -77,6 +79,26 @@ export interface SpaceTreeEntry {
   children?: SpaceTreeEntry[]
   childrenLoaded?: boolean
 }
+
+export type TextFileEncoding = "utf-8" | "utf-16le" | "utf-16be"
+
+export type TextFilePreviewResult =
+  | {
+      type: "text"
+      relativePath: string
+      content: string
+      encoding: TextFileEncoding
+      size: number
+      modifiedAtMs: number
+      truncated: boolean
+    }
+  | {
+      type: "unavailable"
+      relativePath: string
+      reason: "binary" | "symlink" | "not-file"
+      size: number
+      modifiedAtMs: number
+    }
 
 export type SpaceOperationPhase =
   | "ready"
@@ -640,6 +662,7 @@ export interface EidosLiteApi {
   takeLaunchEidosFile(): Promise<string | null>
   onLaunchEidosFileAvailable(listener: () => void): () => void
   openEidosFile(relativePath: string): Promise<OpenEidosFileResult>
+  previewTextFile(relativePath: string): Promise<TextFilePreviewResult>
   inspectEidosFileIssue(relativePath: string): Promise<EidosFileIssue | null>
   closeEidosFile(sessionId: string): Promise<void>
   createEidosFile(

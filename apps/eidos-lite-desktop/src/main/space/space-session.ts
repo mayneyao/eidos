@@ -19,6 +19,7 @@ import type {
   SpaceVersionDiff,
   SpaceVersionHistory,
   SpaceTreeEntry,
+  TextFilePreviewResult,
 } from "../../shared/contracts"
 import { RUNTIME_MUTATION_METHODS } from "../../shared/contracts"
 import type { GraftClient, GraftIgnoreInspection } from "../graft/graft-client"
@@ -48,6 +49,7 @@ import {
 import { SpaceWatcher } from "./space-watcher"
 import { StableCheckpointScheduler } from "./stable-checkpoint-scheduler"
 import { SpaceSyncStateStore } from "./sync-state"
+import { readTextFilePreview } from "./text-file-preview"
 
 const mutationMethods = new Set<RuntimeMethod>(RUNTIME_MUTATION_METHODS)
 type SyncProgressReporter = (phase: EidosSyncPhase, detail: string) => void
@@ -241,6 +243,10 @@ export class SpaceSession {
       this.fileIssuesByPath.set(relativePath, issue)
       throw new EidosFileRuntimeError(issue)
     }
+  }
+
+  previewTextFile(relativePath: string): Promise<TextFilePreviewResult> {
+    return readTextFilePreview(this.canonical.root, relativePath)
   }
 
   async inspectEidosFileIssue(

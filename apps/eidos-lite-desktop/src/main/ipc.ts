@@ -175,6 +175,15 @@ export function registerIpc(
     return controller.requireSession(event.sender).openEidosFile(relativePath)
   })
   ipcMain.handle(
+    IPC_CHANNELS.previewTextFile,
+    (event, relativePath: unknown) => {
+      if (typeof relativePath !== "string") throw new Error("Invalid file path")
+      return controller
+        .requireSession(event.sender)
+        .previewTextFile(relativePath)
+    }
+  )
+  ipcMain.handle(
     IPC_CHANNELS.inspectFileIssue,
     (event, relativePath: unknown) => {
       if (typeof relativePath !== "string") throw new Error("Invalid file path")

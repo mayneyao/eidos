@@ -1590,6 +1590,106 @@ button:focus-visible {
   min-height: 0;
 }
 
+.text-file-preview {
+  display: grid;
+  grid-template-rows: 2rem minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  background: var(--canvas);
+}
+
+.text-preview-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 0 1rem;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--ink-muted);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.text-preview-readonly {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--accent-strong);
+  font-weight: 650;
+}
+
+.text-preview-readonly svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+.text-file-preview pre {
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  padding: clamp(1rem, 2.5vw, 2rem);
+  color: var(--ink);
+  background: transparent;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.75rem;
+  line-height: 1.65;
+  tab-size: 4;
+  user-select: text;
+  white-space: pre;
+}
+
+.text-file-preview pre:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.text-file-preview code {
+  font: inherit;
+}
+
+.text-file-preview > footer {
+  padding: 0.45rem 1rem;
+  border-top: 1px solid var(--hairline);
+  color: var(--ink-muted);
+  background: var(--surface);
+  font-size: 0.625rem;
+}
+
+.text-preview-empty {
+  display: flex;
+  align-self: center;
+  justify-self: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+}
+
+.text-preview-empty svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.text-preview-unavailable {
+  max-width: 30rem;
+}
+
+.text-preview-reveal {
+  border-color: var(--control-border);
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+}
+
+.text-preview-reveal:hover:not(:disabled) {
+  background: var(--surface-hover);
+  filter: none;
+}
+
 .lite-eidos-file-shell,
 .lite-eidos-file-shell > [data-eidos-file-content] {
   min-width: 0;
