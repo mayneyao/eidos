@@ -427,9 +427,7 @@ button:focus-visible {
 
 .space-sidebar {
   display: grid;
-  grid-template-rows:
-    var(--workbench-titlebar-height) 1.75rem minmax(0, 1fr)
-    3rem;
+  grid-template-rows: var(--workbench-titlebar-height) 1.75rem minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   border-right: 1px solid var(--hairline);
@@ -444,7 +442,6 @@ button:focus-visible {
 
 .sidebar-header,
 .space-heading,
-.space-switcher,
 .file-titlebar,
 .file-context-bar {
   display: flex;
@@ -452,7 +449,7 @@ button:focus-visible {
 }
 
 .sidebar-header {
-  justify-content: space-between;
+  justify-content: flex-start;
   padding: 0 0.5rem 0 0.75rem;
   color: var(--ink-muted);
   font-size: 0.6875rem;
@@ -465,12 +462,6 @@ button:focus-visible {
 
 .workbench[data-platform="darwin"] .sidebar-header {
   padding-left: 5rem;
-}
-
-.sidebar-header > div {
-  display: flex;
-  align-items: center;
-  gap: 0.125rem;
 }
 
 .icon-button {
@@ -496,13 +487,38 @@ button:focus-visible {
   transform: translateY(0.5px);
 }
 
+.titlebar-navigation {
+  position: absolute;
+  z-index: 50;
+  top: calc((var(--workbench-titlebar-height) - 1.75rem) / 2);
+  left: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  -webkit-app-region: no-drag;
+}
+
+.workbench[data-platform="darwin"] .titlebar-navigation {
+  left: 5rem;
+}
+
+.sidebar-toggle-button:active:not(:disabled) {
+  transform: none;
+}
+
+.titlebar-navigation .icon-button:disabled {
+  cursor: default;
+  opacity: 0.32;
+}
+
 .icon-button svg {
   width: 0.875rem;
   height: 0.875rem;
 }
 
 .space-heading {
-  gap: 0.5rem;
+  position: relative;
+  gap: 0.35rem;
   min-width: 0;
   padding: 0 0.625rem 0 0.75rem;
   font-size: 0.6875rem;
@@ -518,11 +534,42 @@ button:focus-visible {
 }
 
 .space-heading span {
+  flex: 0 0 auto;
   color: var(--ink-muted);
   font-size: 0.625rem;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
   text-transform: none;
+  transition: opacity 120ms ease-out;
+}
+
+.space-heading-actions {
+  position: absolute;
+  right: 0.375rem;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.0625rem;
+  background: color-mix(in oklab, var(--lite-sidebar) 88%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
+.space-heading-actions .icon-button {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.space-heading:hover > span,
+.space-heading:focus-within > span {
+  opacity: 0;
+}
+
+.space-heading:hover .space-heading-actions,
+.space-heading:focus-within .space-heading-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .explorer {
@@ -549,43 +596,6 @@ button:focus-visible {
 .explorer-busy svg {
   width: 0.75rem;
   height: 0.75rem;
-}
-
-.space-switcher {
-  min-width: 0;
-  gap: 0.6rem;
-  padding: 0.4rem 0.75rem;
-  border-top: 1px solid var(--hairline);
-  background: color-mix(in oklab, var(--sidebar-strong) 76%, transparent);
-}
-
-.space-switcher > svg {
-  width: 1rem;
-  height: 1rem;
-  color: var(--accent-strong);
-}
-
-.space-switcher span {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-}
-
-.space-switcher strong {
-  overflow: hidden;
-  font-size: 0.75rem;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.space-switcher small {
-  overflow: hidden;
-  color: var(--ink-muted);
-  font-size: 0.625rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .sidebar-resizer {
@@ -649,9 +659,13 @@ button:focus-visible {
   -webkit-user-select: none;
 }
 
+.workbench[data-sidebar-collapsed="true"] .file-titlebar {
+  padding-left: 7rem;
+}
+
 .workbench[data-platform="darwin"][data-sidebar-collapsed="true"]
   .file-titlebar {
-  padding-left: 5rem;
+  padding-left: 11.25rem;
 }
 
 .file-titlebar-identity,
@@ -694,15 +708,6 @@ button:focus-visible {
 .file-titlebar-actions {
   justify-content: flex-end;
   gap: 0.125rem;
-}
-
-.sidebar-open-button {
-  margin-left: -0.5rem;
-}
-
-.workbench[data-platform="darwin"][data-sidebar-collapsed="true"]
-  .sidebar-open-button {
-  margin-left: 0;
 }
 
 .active-file-close {
@@ -3280,7 +3285,7 @@ button:focus-visible {
 }
 
 .path-dialog footer button:disabled,
-.sidebar-header .icon-button:disabled {
+.space-heading-actions .icon-button:disabled {
   cursor: wait;
   opacity: 0.5;
 }

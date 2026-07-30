@@ -11,6 +11,8 @@ import {
 } from "react"
 import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
 import {
+  ArrowLeft,
+  ArrowRight,
   CircleAlert,
   Cloud,
   CloudDownload,
@@ -23,8 +25,7 @@ import {
   HardDrive,
   History,
   LoaderCircle,
-  PanelLeftClose,
-  PanelLeftOpen,
+  PanelLeft,
   Pencil,
   RefreshCw,
   Trash2,
@@ -44,6 +45,15 @@ import type {
 } from "../shared/contracts"
 import { FileRecoveryNotice } from "./file-recovery-notice"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
+import {
+  createNavigationHistory,
+  navigationAtOffset,
+  pathMatchesPrefix,
+  pushNavigationLocation,
+  removeNavigationPathPrefix,
+  replaceNavigationPathPrefix,
+  type NavigationHistory,
+} from "./navigation-history"
 import { TextFilePreview } from "./text-file-preview"
 import type { VersionInspection } from "./version-change-tree"
 
@@ -91,6 +101,69 @@ function useSystemTheme(): "light" | "dark" {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+interface TitlebarNavigationProps {
+  collapsed: boolean
+  canGoBack: boolean
+  canGoForward: boolean
+  busy: boolean
+  onToggle(): void
+  onBack(): void
+  onForward(): void
+}
+
+function TitlebarNavigation({
+  collapsed,
+  canGoBack,
+  canGoForward,
+  busy,
+  onToggle,
+  onBack,
+  onForward,
+}: TitlebarNavigationProps) {
+  const label = collapsed ? "Show Space Explorer" : "Collapse Space Explorer"
+
+  return (
+    <nav
+      className="titlebar-navigation"
+      aria-label="Document navigation"
+      data-titlebar-navigation
+    >
+      <button
+        type="button"
+        className="icon-button sidebar-toggle-button"
+        data-sidebar-toggle={collapsed ? "open" : "close"}
+        onClick={onToggle}
+        aria-label={label}
+        title={label}
+      >
+        <PanelLeft />
+      </button>
+      <button
+        type="button"
+        className="icon-button"
+        data-navigation-action="back"
+        onClick={onBack}
+        aria-label="Go back"
+        title="Go back (⌘[ or Alt+Left)"
+        disabled={busy || !canGoBack}
+      >
+        <ArrowLeft />
+      </button>
+      <button
+        type="button"
+        className="icon-button"
+        data-navigation-action="forward"
+        onClick={onForward}
+        aria-label="Go forward"
+        title="Go forward (⌘] or Alt+Right)"
+        disabled={busy || !canGoForward}
+      >
+        <ArrowRight />
+      </button>
+    </nav>
+  )
 }
 
 const DEFAULT_SIDEBAR_WIDTH = 280
@@ -427,6 +500,9 @@ export function App() {
   const [fileIssue, setFileIssue] = useState<EidosFileIssue | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [navigationHistory, setNavigationHistory] = useState<NavigationHistory>(
+    createNavigationHistory
+  )
   const [selectedEntry, setSelectedEntry] = useState<SpaceTreeEntry | null>(
     null
   )
@@ -439,6 +515,28 @@ export function App() {
   const [pathMutationBusy, setPathMutationBusy] = useState(false)
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false)
   const fileOpenInFlight = useRef(false)
+  const navigationHistoryRef = useRef(navigationHistory)
+  navigationHistoryRef.current = navigationHistory
+
+  const updateNavigationHistory = useCallback(
+    (update: (current: NavigationHistory) => NavigationHistory) => {
+      setNavigationHistory((current) => {
+        const next = update(current)
+        navigationHistoryRef.current = next
+        return next
+      })
+    },
+    []
+  )
+
+  const recordNavigationLocation = useCallback(
+    (relativePath: string | null) => {
+      updateNavigationHistory((current) =>
+        pushNavigationLocation(current, relativePath)
+      )
+    },
+    [updateNavigationHistory]
+  )
 
   const invalidateCachedSessions = useCallback((sessionIds: string[]) => {
     if (sessionIds.length === 0) return
@@ -550,7 +648,11 @@ export function App() {
     }
   }, [space?.id])
 
-  useEffect(() => setTextPreview(null), [space?.id])
+  useEffect(() => {
+    setActiveSession(null)
+    setTextPreview(null)
+    updateNavigationHistory(() => createNavigationHistory())
+  }, [space?.id, updateNavigationHistory])
 
   useEffect(() => {
     if (!contextMenu) return
@@ -659,10 +761,14 @@ export function App() {
   }, [])
 
   const openEntry = useCallback(
-    async (entry: SpaceTreeEntry) => {
+    async (
+      entry: SpaceTreeEntry,
+      options: { recordHistory?: boolean } = {}
+    ): Promise<boolean> => {
+      if (entry.kind === "directory") return false
       setVersionInspection(null)
       if (entry.kind !== "eidos") {
-        if (fileOpenInFlight.current) return
+        if (fileOpenInFlight.current) return false
         fileOpenInFlight.current = true
         setBusyFile(entry.relativePath)
         setError(null)
@@ -670,18 +776,23 @@ export function App() {
         setActiveSession(null)
         setTextPreview(null)
         try {
-          setTextPreview(
-            await window.eidosLite.previewTextFile(entry.relativePath)
+          const preview = await window.eidosLite.previewTextFile(
+            entry.relativePath
           )
+          setTextPreview(preview)
+          if (options.recordHistory !== false) {
+            recordNavigationLocation(entry.relativePath)
+          }
+          return true
         } catch (cause) {
           setError(`Could not preview ${entry.name}. ${errorMessage(cause)}`)
+          return false
         } finally {
           fileOpenInFlight.current = false
           setBusyFile(null)
         }
-        return
       }
-      if (fileOpenInFlight.current) return
+      if (fileOpenInFlight.current) return false
       fileOpenInFlight.current = true
       setBusyFile(entry.relativePath)
       setError(null)
@@ -729,7 +840,10 @@ export function App() {
             ]
           })
           setActiveSession(opened.sessionId)
-          return
+          if (options.recordHistory !== false) {
+            recordNavigationLocation(entry.relativePath)
+          }
+          return true
         }
         const source = new IpcEidosFileDataSource(
           opened.sessionId,
@@ -765,18 +879,23 @@ export function App() {
           ].slice(-MAX_CACHED_FILES)
         )
         setActiveSession(opened.sessionId)
+        if (options.recordHistory !== false) {
+          recordNavigationLocation(entry.relativePath)
+        }
+        return true
       } catch (cause) {
         const issue = await window.eidosLite
           .inspectEidosFileIssue(entry.relativePath)
           .catch(() => null)
         if (issue) setFileIssue(issue)
         else setError(`Could not open ${entry.name}. ${errorMessage(cause)}`)
+        return false
       } finally {
         fileOpenInFlight.current = false
         setBusyFile(null)
       }
     },
-    [cachedFiles]
+    [cachedFiles, recordNavigationLocation]
   )
 
   const launchSpace = useRef(space)
@@ -835,6 +954,68 @@ export function App() {
     }
   }, [space?.id])
 
+  const navigateHistory = useCallback(
+    async (offset: -1 | 1) => {
+      if (!space || fileOpenInFlight.current) return
+      const target = navigationAtOffset(navigationHistoryRef.current, offset)
+      if (!target) return
+      if (target.location === null) {
+        setVersionInspection(null)
+        setFileIssue(null)
+        setActiveSession(null)
+        setTextPreview(null)
+        setSelectedEntry(null)
+        updateNavigationHistory((current) =>
+          current.entries[target.index] === null
+            ? { ...current, index: target.index }
+            : current
+        )
+        return
+      }
+      const entry = findSpaceEntry(space.entries, target.location)
+      if (!entry || entry.kind === "directory") {
+        setError(`${target.location} is no longer available in this Space.`)
+        updateNavigationHistory((current) =>
+          removeNavigationPathPrefix(current, target.location ?? "")
+        )
+        return
+      }
+      setSelectedEntry(entry)
+      if (!(await openEntry(entry, { recordHistory: false }))) return
+      updateNavigationHistory((current) =>
+        current.entries[target.index] === target.location
+          ? { ...current, index: target.index }
+          : current
+      )
+    },
+    [openEntry, space, updateNavigationHistory]
+  )
+
+  useEffect(() => {
+    const handleNavigationShortcut = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      const target = event.target
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.matches("input, textarea, select, [role='textbox']"))
+      ) {
+        return
+      }
+      const goBack =
+        (event.altKey && event.key === "ArrowLeft") ||
+        (event.metaKey && event.key === "[")
+      const goForward =
+        (event.altKey && event.key === "ArrowRight") ||
+        (event.metaKey && event.key === "]")
+      if (!goBack && !goForward) return
+      event.preventDefault()
+      void navigateHistory(goBack ? -1 : 1)
+    }
+    window.addEventListener("keydown", handleNavigationShortcut)
+    return () => window.removeEventListener("keydown", handleNavigationShortcut)
+  }, [navigateHistory])
+
   const retryFileIssue = useCallback(async () => {
     if (!fileIssue || !space) return
     const entry = findSpaceEntry(space.entries, fileIssue.relativePath)
@@ -872,6 +1053,54 @@ export function App() {
       invalidateCachedSessions(result.invalidatedSessionIds)
     },
     [acceptSpaceSnapshot, invalidateCachedSessions]
+  )
+
+  const closeActiveDocument = useCallback(async () => {
+    try {
+      if (activeFile) await closeFile(activeFile.sessionId)
+      else setTextPreview(null)
+      recordNavigationLocation(null)
+    } catch (cause) {
+      setError(`Could not close the active file. ${errorMessage(cause)}`)
+    }
+  }, [activeFile, closeFile, recordNavigationLocation])
+
+  const moveTreeEntry = useCallback(
+    async (relativePath: string, targetDirectory: string | null) => {
+      setPathMutationBusy(true)
+      setError(null)
+      const activePathMoved = pathMatchesPrefix(
+        activeDocumentPath,
+        relativePath
+      )
+      try {
+        const result = await window.eidosLite.movePath(
+          relativePath,
+          targetDirectory
+        )
+        applyPathMutation(result)
+        if (result.relativePath) {
+          updateNavigationHistory((current) => {
+            const moved = replaceNavigationPathPrefix(
+              current,
+              relativePath,
+              result.relativePath!
+            )
+            return activePathMoved ? pushNavigationLocation(moved, null) : moved
+          })
+          setSelectedEntry(
+            findSpaceEntry(result.snapshot.entries, result.relativePath)
+          )
+        }
+        if (activePathMoved) {
+          setActiveSession(null)
+          setTextPreview(null)
+        }
+      } finally {
+        setPathMutationBusy(false)
+      }
+    },
+    [activeDocumentPath, applyPathMutation, updateNavigationHistory]
   )
 
   const submitPathDialog = useCallback(
@@ -924,12 +1153,37 @@ export function App() {
         }
         applyPathMutation(result)
         const changedPath = pathDialog.entry?.relativePath
-        if (
-          textPreview &&
+        const activePathChanged =
+          changedPath !== undefined &&
+          pathMatchesPrefix(activeDocumentPath, changedPath)
+        const movedPath =
           changedPath &&
-          (textPreview.relativePath === changedPath ||
-            textPreview.relativePath.startsWith(`${changedPath}/`))
-        ) {
+          result.relativePath &&
+          result.relativePath !== changedPath &&
+          (pathDialog.action === "rename" || pathDialog.action === "move")
+            ? result.relativePath
+            : null
+        if (changedPath && movedPath) {
+          updateNavigationHistory((current) => {
+            const moved = replaceNavigationPathPrefix(
+              current,
+              changedPath,
+              movedPath
+            )
+            return activePathChanged
+              ? pushNavigationLocation(moved, null)
+              : moved
+          })
+        } else if (changedPath && pathDialog.action === "delete") {
+          updateNavigationHistory((current) => {
+            const removed = removeNavigationPathPrefix(current, changedPath)
+            return activePathChanged
+              ? pushNavigationLocation(removed, null)
+              : removed
+          })
+        }
+        if (activePathChanged) {
+          setActiveSession(null)
           setTextPreview(null)
         }
         setPathDialog(null)
@@ -951,7 +1205,13 @@ export function App() {
         setPathMutationBusy(false)
       }
     },
-    [applyPathMutation, openEntry, pathDialog, textPreview]
+    [
+      activeDocumentPath,
+      applyPathMutation,
+      openEntry,
+      pathDialog,
+      updateNavigationHistory,
+    ]
   )
 
   const importFiles = useCallback(async () => {
@@ -968,6 +1228,10 @@ export function App() {
       setPathMutationBusy(false)
     }
   }, [applyPathMutation, selectedEntry])
+  const navigationBusy = busyFile !== null || pathMutationBusy
+  const canGoBack = navigationHistory.index > 0
+  const canGoForward =
+    navigationHistory.index < navigationHistory.entries.length - 1
   if (!space) {
     return (
       <>
@@ -1031,8 +1295,27 @@ export function App() {
     >
       <aside className="space-sidebar" aria-hidden={sidebarCollapsed}>
         <header className="sidebar-header">
-          <span>Explorer</span>
-          <div>
+          <TitlebarNavigation
+            collapsed={false}
+            canGoBack={canGoBack}
+            canGoForward={canGoForward}
+            busy={navigationBusy}
+            onToggle={() => setSidebarCollapsed(true)}
+            onBack={() => void navigateHistory(-1)}
+            onForward={() => void navigateHistory(1)}
+          />
+        </header>
+        <div className="space-heading">
+          <strong title={space.displayPath}>{space.name}</strong>
+          <span>
+            {space.eidosFileCount} Eidos{" "}
+            {spaceTreeIncomplete ? "loaded" : "Files"}
+          </span>
+          <div
+            className="space-heading-actions"
+            role="toolbar"
+            aria-label="Space file actions"
+          >
             <button
               type="button"
               className="icon-button"
@@ -1078,24 +1361,7 @@ export function App() {
             >
               <RefreshCw />
             </button>
-            <button
-              type="button"
-              className="icon-button"
-              data-sidebar-toggle="close"
-              onClick={() => setSidebarCollapsed(true)}
-              aria-label="Collapse Space Explorer"
-              title="Collapse Space Explorer"
-            >
-              <PanelLeftClose />
-            </button>
           </div>
-        </header>
-        <div className="space-heading">
-          <strong>{space.name}</strong>
-          <span>
-            {space.eidosFileCount} Eidos{" "}
-            {spaceTreeIncomplete ? "loaded" : "Files"}
-          </span>
         </div>
         <nav className="explorer" aria-label={`${space.name} files`}>
           <Suspense
@@ -1117,6 +1383,10 @@ export function App() {
                   .then(acceptSpaceSnapshot)
                   .catch((error) => setError(errorMessage(error)))
               }}
+              onMove={moveTreeEntry}
+              onMoveError={(cause) =>
+                setError(`Could not move item. ${errorMessage(cause)}`)
+              }
               onContextMenu={(entry, x, y) =>
                 setContextMenu({
                   entry,
@@ -1132,13 +1402,6 @@ export function App() {
             </p>
           ) : null}
         </nav>
-        <footer className="space-switcher">
-          <HardDrive />
-          <span>
-            <strong>{space.name}</strong>
-            <small title={space.displayPath}>{space.displayPath}</small>
-          </span>
-        </footer>
       </aside>
 
       <div
@@ -1163,19 +1426,18 @@ export function App() {
 
       <main className="editor-region" id="main-content">
         <header className="file-titlebar">
+          {sidebarCollapsed ? (
+            <TitlebarNavigation
+              collapsed
+              canGoBack={canGoBack}
+              canGoForward={canGoForward}
+              busy={navigationBusy}
+              onToggle={() => setSidebarCollapsed(false)}
+              onBack={() => void navigateHistory(-1)}
+              onForward={() => void navigateHistory(1)}
+            />
+          ) : null}
           <div className="file-titlebar-identity">
-            {sidebarCollapsed ? (
-              <button
-                type="button"
-                className="icon-button sidebar-open-button"
-                data-sidebar-toggle="open"
-                onClick={() => setSidebarCollapsed(false)}
-                aria-label="Show Space Explorer"
-                title="Show Space Explorer"
-              >
-                <PanelLeftOpen />
-              </button>
-            ) : null}
             <div>
               <strong>
                 {activeDocumentPath ? fileName(activeDocumentPath) : space.name}
@@ -1191,10 +1453,7 @@ export function App() {
                 className="icon-button active-file-close"
                 aria-label={`Close ${activeDocumentPath}`}
                 title={`Close ${activeDocumentPath}`}
-                onClick={() => {
-                  if (activeFile) void closeFile(activeFile.sessionId)
-                  else setTextPreview(null)
-                }}
+                onClick={() => void closeActiveDocument()}
               >
                 <X />
               </button>

@@ -2,9 +2,11 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type CSSProperties,
   type SyntheticEvent,
 } from "react"
+import type { FileTreeDropContext, FileTreeDropTarget } from "@pierre/trees"
 import {
   FileTree,
   useFileTree,
@@ -20,6 +22,8 @@ interface SpaceFileTreeProps {
   onSelect(entry: SpaceTreeEntry): void
   onOpen(entry: SpaceTreeEntry): void
   onLoadDirectory(relativePath: string): void
+  onMove(relativePath: string, targetDirectory: string | null): Promise<void>
+  onMoveError(error: unknown): void
   onContextMenu(entry: SpaceTreeEntry, x: number, y: number): void
 }
 
@@ -34,6 +38,31 @@ export function parentTreePaths(relativePath: string): string[] {
   return segments
     .slice(0, -1)
     .map((_, index) => `${segments.slice(0, index + 1).join("/")}/`)
+}
+
+export function relativePathFromTreePath(treePath: string): string {
+  return treePath.endsWith("/") ? treePath.slice(0, -1) : treePath
+}
+
+export function dropTargetDirectory(target: FileTreeDropTarget): string | null {
+  return target.kind === "root" || target.directoryPath === null
+    ? null
+    : relativePathFromTreePath(target.directoryPath)
+}
+
+function parentTreeDirectory(treePath: string): string | null {
+  const relativePath = relativePathFromTreePath(treePath)
+  const separator = relativePath.lastIndexOf("/")
+  return separator < 0 ? null : `${relativePath.slice(0, separator)}/`
+}
+
+export function canMoveTreeDrop(context: FileTreeDropContext): boolean {
+  if (context.draggedPaths.length !== 1) return false
+  const sourcePath = context.draggedPaths[0]
+  if (!sourcePath) return false
+  const targetDirectory =
+    context.target.kind === "root" ? null : context.target.directoryPath
+  return parentTreeDirectory(sourcePath) !== targetDirectory
 }
 
 function toTreePath(entry: SpaceTreeEntry): string {
@@ -93,6 +122,15 @@ const TREE_CSS = `
   button[data-type="item"]:focus-visible {
     outline-offset: -1px;
   }
+
+  button[data-type="item"][data-item-dragging] {
+    opacity: 0.45;
+  }
+
+  button[data-type="item"][data-item-drag-target] {
+    background: var(--surface-selected);
+    box-shadow: inset 0 0 0 1px var(--focus);
+  }
 `
 
 export function SpaceFileTree({
@@ -102,14 +140,24 @@ export function SpaceFileTree({
   onSelect,
   onOpen,
   onLoadDirectory,
+  onMove,
+  onMoveError,
   onContextMenu,
 }: SpaceFileTreeProps) {
+  const [treeResetVersion, setTreeResetVersion] = useState(0)
+  const disabledRef = useRef(disabled)
+  disabledRef.current = disabled
+  const mutationInFlightRef = useRef(false)
   const onOpenRef = useRef(onOpen)
   onOpenRef.current = onOpen
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
   const onLoadDirectoryRef = useRef(onLoadDirectory)
   onLoadDirectoryRef.current = onLoadDirectory
+  const onMoveRef = useRef(onMove)
+  onMoveRef.current = onMove
+  const onMoveErrorRef = useRef(onMoveError)
+  onMoveErrorRef.current = onMoveError
   const onContextMenuRef = useRef(onContextMenu)
   onContextMenuRef.current = onContextMenu
   const tree = useMemo(() => buildSpaceFileTreeModel(entries), [entries])
@@ -126,6 +174,38 @@ export function SpaceFileTree({
     icons: { set: "standard", colored: false },
     stickyFolders: false,
     unsafeCSS: TREE_CSS,
+    dragAndDrop: {
+      canDrag: (paths) =>
+        disabledRef.current !== true &&
+        mutationInFlightRef.current === false &&
+        paths.length === 1 &&
+        treeRef.current.entryByTreePath.has(paths[0] ?? ""),
+      canDrop: (context) =>
+        disabledRef.current !== true &&
+        mutationInFlightRef.current === false &&
+        canMoveTreeDrop(context),
+      onDropComplete: ({ draggedPaths, target }) => {
+        const sourcePath = draggedPaths[0]
+        if (!sourcePath) return
+        mutationInFlightRef.current = true
+        void onMoveRef
+          .current(
+            relativePathFromTreePath(sourcePath),
+            dropTargetDirectory(target)
+          )
+          .catch((cause) => {
+            setTreeResetVersion((current) => current + 1)
+            onMoveErrorRef.current(cause)
+          })
+          .finally(() => {
+            mutationInFlightRef.current = false
+          })
+      },
+      onDropError: (message) => {
+        setTreeResetVersion((current) => current + 1)
+        onMoveErrorRef.current(new Error(message))
+      },
+    },
   })
   const selectedPaths = useFileTreeSelection(model)
 
@@ -133,7 +213,7 @@ export function SpaceFileTree({
     model.resetPaths(tree.paths, {
       initialExpandedPaths: tree.initialExpandedPaths,
     })
-  }, [model, treeSignature])
+  }, [model, treeResetVersion, treeSignature])
 
   useEffect(() => {
     if (!activePath) return

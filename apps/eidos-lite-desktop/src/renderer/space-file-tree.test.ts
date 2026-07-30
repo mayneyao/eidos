@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest"
 
 import type { SpaceTreeEntry } from "../shared/contracts"
-import { buildSpaceFileTreeModel, parentTreePaths } from "./space-file-tree"
+import {
+  buildSpaceFileTreeModel,
+  canMoveTreeDrop,
+  dropTargetDirectory,
+  parentTreePaths,
+  relativePathFromTreePath,
+} from "./space-file-tree"
 
 describe("buildSpaceFileTreeModel", () => {
   it("uses canonical Space paths and expands only root directories", () => {
@@ -60,5 +66,51 @@ describe("buildSpaceFileTreeModel", () => {
       "projects/active/",
     ])
     expect(parentTreePaths("Roadmap.eidos")).toEqual([])
+  })
+})
+
+describe("Space file tree drag and drop", () => {
+  it("maps Pierre tree paths to Space move destinations", () => {
+    expect(relativePathFromTreePath("projects/archive/")).toBe(
+      "projects/archive"
+    )
+    expect(
+      dropTargetDirectory({
+        directoryPath: "projects/archive/",
+        flattenedSegmentPath: null,
+        hoveredPath: "projects/archive/",
+        kind: "directory",
+      })
+    ).toBe("projects/archive")
+    expect(
+      dropTargetDirectory({
+        directoryPath: null,
+        flattenedSegmentPath: null,
+        hoveredPath: null,
+        kind: "root",
+      })
+    ).toBeNull()
+  })
+
+  it("allows one-item moves while rejecting no-op and multi-item drops", () => {
+    const target = {
+      directoryPath: "archive/",
+      flattenedSegmentPath: null,
+      hoveredPath: "archive/",
+      kind: "directory" as const,
+    }
+
+    expect(canMoveTreeDrop({ draggedPaths: ["notes/today.md"], target })).toBe(
+      true
+    )
+    expect(
+      canMoveTreeDrop({ draggedPaths: ["archive/today.md"], target })
+    ).toBe(false)
+    expect(
+      canMoveTreeDrop({
+        draggedPaths: ["notes/today.md", "notes/tomorrow.md"],
+        target,
+      })
+    ).toBe(false)
   })
 })
