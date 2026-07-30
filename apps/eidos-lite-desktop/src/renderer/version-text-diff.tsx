@@ -30,7 +30,11 @@ function contentStateMessage(
     case "missing_payload":
       return "The file metadata exists, but its historical payload is not available locally."
     case "invalid_utf8":
-      return "This historical version is not valid UTF-8 text."
+      return "This file version is not valid UTF-8 text."
+    case "unsafe_path":
+      return "The working path is not a regular file or was replaced by a symbolic link."
+    case "changed_during_read":
+      return "The working file changed while it was being read. Retry to compare its latest contents."
   }
 }
 
@@ -161,14 +165,27 @@ function ComputedTextDiff({
 }
 
 export function VersionTextDiff({
+  mode,
   commitId,
   parentId,
+  expectedHead,
   path,
 }: {
-  commitId: string
-  parentId: string | null
   path: string
-}) {
+} & (
+  | {
+      mode: "history"
+      commitId: string
+      parentId: string | null
+      expectedHead?: never
+    }
+  | {
+      mode: "changes"
+      expectedHead: string | null
+      commitId?: never
+      parentId?: never
+    }
+)) {
   const [content, setContent] = useState<SpaceVersionTextContentDiff | null>(
     null
   )
@@ -179,8 +196,11 @@ export function VersionTextDiff({
     let current = true
     setContent(null)
     setFailure(null)
-    void window.eidosLite
-      .getVersionTextDiff(commitId, parentId, path)
+    const request =
+      mode === "history"
+        ? window.eidosLite.getVersionTextDiff(commitId, parentId, path)
+        : window.eidosLite.getWorkingTextDiff(expectedHead, path)
+    void request
       .then((result) => {
         if (current) setContent(result)
       })
@@ -190,14 +210,18 @@ export function VersionTextDiff({
     return () => {
       current = false
     }
-  }, [attempt, commitId, parentId, path])
+  }, [attempt, commitId, expectedHead, mode, parentId, path])
 
   if (failure) {
     return (
       <div className="version-text-diff-message" role="alert">
         <CircleAlert aria-hidden="true" />
         <div>
-          <strong>Could not read checkpoint text</strong>
+          <strong>
+            {mode === "history"
+              ? "Could not read checkpoint text"
+              : "Could not read local text"}
+          </strong>
           <p>{failure}</p>
           <button
             type="button"
@@ -215,7 +239,9 @@ export function VersionTextDiff({
     return (
       <div className="version-text-diff-loading" role="status">
         <LoaderCircle className="spin" aria-hidden="true" />
-        Reading checkpoint text…
+        {mode === "history"
+          ? "Reading checkpoint text…"
+          : "Reading local text…"}
       </div>
     )
   }

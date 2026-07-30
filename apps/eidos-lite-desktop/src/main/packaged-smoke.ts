@@ -167,6 +167,8 @@ interface RendererSmokeResult {
 type EmptySpaceOnboardingResult = RendererSmokeResult["onboarding"]
 type TextHistorySmokeResult = {
   directRead: boolean
+  workingDirectRead: boolean
+  workingPierreRendered: boolean
   pierreRendered: boolean
   scrollable: boolean
   splitLayout: boolean
@@ -297,6 +299,47 @@ const textHistoryProbe = `
     () => document.querySelector(".version-panel"),
     "reopened Version History panel"
   )
+  const changesTab = [...panel.querySelectorAll('[role="tab"]')].find(
+    (candidate) => candidate.textContent?.trim() === "Changes"
+  )
+  if (!changesTab) throw new Error("Changes tab is missing")
+  changesTab.click()
+  const changeTreeShell = await waitFor(
+    () => document.querySelector(".version-change-tree-shell"),
+    "working change tree"
+  )
+  const changeTree = await waitFor(
+    () => [...changeTreeShell.querySelectorAll("*")].find(
+      (candidate) => candidate.shadowRoot?.querySelector('[data-type="item"]')
+    ),
+    "Pierre working change tree"
+  )
+  const workingTextFile = await waitFor(
+    () => [...changeTree.shadowRoot.querySelectorAll('[data-type="item"]')]
+      .find((candidate) => candidate.dataset.itemPath === "README.md"),
+    "README working change"
+  )
+  workingTextFile.click()
+  const workingDiff = await waitFor(
+    () => document.querySelector("[data-version-text-diff]"),
+    "working text diff"
+  )
+  const workingPierreRendered = await waitFor(() => {
+    const surface = workingDiff.querySelector(".version-text-diff-virtualizer")
+    if (!surface) return false
+    return [...surface.querySelectorAll("*")].some(
+      (candidate) => candidate.shadowRoot?.querySelector("[data-line]")
+    )
+  }, "Pierre working text diff lines")
+  const closeInspector = document.querySelector(
+    '.version-inspector-bar button[aria-label="Close change details"]'
+  )
+  if (!closeInspector) throw new Error("Working diff close action is missing")
+  closeInspector.click()
+  await waitFor(
+    () => !document.querySelector(".version-inspector") && true,
+    "closed working text diff"
+  )
   const historyTab = [...panel.querySelectorAll('[role="tab"]')].find(
     (candidate) => candidate.textContent?.trim() === "History"
   )
@@ -349,6 +392,7 @@ const textHistoryProbe = `
     "unified text diff layout"
   )
   return {
+    workingPierreRendered: Boolean(workingPierreRendered),
     pierreRendered: Boolean(pierreRendered),
     scrollable: Boolean(scrollable),
     splitLayout: true,
@@ -1498,10 +1542,26 @@ async function runPackagedTextHistorySmoke(
         `Historical README content does not match: ${JSON.stringify(content)}`
       )
     }
+    const working = after.split("After line").join("Working line")
+    await fs.writeFile(readmePath, working)
+    const workingContent = await session.getWorkingTextDiff(
+      history.currentHead,
+      "README.md"
+    )
+    const workingDirectRead =
+      workingContent.before.state === "utf8" &&
+      workingContent.before.content === after &&
+      workingContent.after.state === "utf8" &&
+      workingContent.after.content === working
+    if (!workingDirectRead) {
+      throw new Error(
+        `Working README content does not match: ${JSON.stringify(workingContent)}`
+      )
+    }
     const ui = (await window.webContents.executeJavaScript(
       textHistoryProbe,
       true
-    )) as Omit<TextHistorySmokeResult, "directRead">
+    )) as Omit<TextHistorySmokeResult, "directRead" | "workingDirectRead">
     if (failures.length) throw new Error(failures.join("\n"))
     await fs.mkdir(path.dirname(resultPath), { recursive: true })
     await fs.writeFile(
@@ -1509,7 +1569,7 @@ async function runPackagedTextHistorySmoke(
       JSON.stringify({
         ok: true,
         windowTransition,
-        textHistory: { directRead, ...ui },
+        textHistory: { directRead, workingDirectRead, ...ui },
         consoleErrors: failures,
       })
     )

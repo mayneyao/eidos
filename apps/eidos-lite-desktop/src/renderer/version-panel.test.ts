@@ -221,4 +221,26 @@ describe("VersionPanel row diff paging", () => {
     expect(markup).toContain("Reading checkpoint text…")
     expect(markup).not.toContain("metadata only")
   })
+
+  it("loads text content after selecting a working tree text change", () => {
+    const inspection: VersionInspection = {
+      type: "file",
+      key: "notes/readme.md",
+      mode: "changes",
+      diff: versionDiff,
+      change: versionDiff.paths[0]!,
+      file: null,
+      commit: null,
+    }
+
+    const markup = renderToStaticMarkup(
+      createElement(VersionDiffPreview, {
+        inspection,
+        onClose: () => undefined,
+      })
+    )
+
+    expect(markup).toContain("Reading local text…")
+    expect(markup).not.toContain("metadata only")
+  })
 })

@@ -55,10 +55,20 @@ try {
     })
   })
   const report = JSON.parse(await fs.readFile(result, "utf8"))
+  const requiredTextHistoryChecks = [
+    "directRead",
+    "workingDirectRead",
+    "workingPierreRendered",
+    "pierreRendered",
+    "scrollable",
+    "splitLayout",
+    "unifiedLayout",
+  ]
   if (
     !report.ok ||
-    Object.values(report.textHistory ?? {}).some((value) => value !== true) ||
-    Object.keys(report.textHistory ?? {}).length !== 5 ||
+    requiredTextHistoryChecks.some(
+      (check) => report.textHistory?.[check] !== true
+    ) ||
     report.consoleErrors?.length !== 0
   ) {
     throw new Error(

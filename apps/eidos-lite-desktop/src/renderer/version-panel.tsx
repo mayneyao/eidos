@@ -288,9 +288,8 @@ export function VersionDiffPreview({
         : "Version changes"
   const showsTextDiff =
     inspection.type === "file" &&
-    inspection.mode === "history" &&
     inspection.change.kind === "text_file" &&
-    inspection.commit !== null
+    (inspection.mode === "changes" || inspection.commit !== null)
 
   return (
     <section
@@ -359,12 +358,21 @@ export function VersionDiffPreview({
               <TableDiff table={inspection.table} showHeading={false} />
             </div>
           </>
-        ) : showsTextDiff && inspection.commit ? (
-          <VersionTextDiff
-            commitId={inspection.commit.id}
-            parentId={inspection.commit.parent}
-            path={inspection.change.path}
-          />
+        ) : showsTextDiff ? (
+          inspection.mode === "history" && inspection.commit ? (
+            <VersionTextDiff
+              mode="history"
+              commitId={inspection.commit.id}
+              parentId={inspection.commit.parent}
+              path={inspection.change.path}
+            />
+          ) : (
+            <VersionTextDiff
+              mode="changes"
+              expectedHead={inspection.diff.currentHead}
+              path={inspection.change.path}
+            />
+          )
         ) : inspection.file?.tables.length ? (
           <div className="version-inspector-file-summary">
             <p>
