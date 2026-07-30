@@ -2407,6 +2407,8 @@ export class EidosRuntimeService implements RuntimeClient {
     // (undocumented)
     readonly hostBridge: RuntimeHostBridge;
     // (undocumented)
+    importCsv: RuntimeClient["importCsv"];
+    // (undocumented)
     mutateRows(request: RowMutation, context: RequestContext): Promise<MutationResult>;
     // (undocumented)
     mutateSchema(request: SchemaMutationRequest, context: RequestContext): Promise<SchemaMutationResult>;
@@ -3189,7 +3191,9 @@ export type OwnedBytes = Uint8Array;
 export function parseEidosFileCsvRows(file: {
     name: string;
     content: string;
-}, plan: EidosFileCsvImportPlan): EidosFileRow[];
+}, plan: EidosFileCsvImportPlan, options?: {
+    hasHeader?: boolean;
+}): EidosFileRow[];
 
 // @public (undocumented)
 export function parseEidosFileJson(text: string): EidosFileJsonValue;

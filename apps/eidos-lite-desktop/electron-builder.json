@@ -4,22 +4,16 @@
   "directories": {
     "output": "dist-app"
   },
-  "npmRebuild": true,
+  "npmRebuild": false,
   "files": [
     "dist/**/*",
     "dist-electron/**/*",
     "package.json",
     "!**/node_modules/**/*",
     "**/node_modules/@eidos.space/graft/**/*",
-    "**/node_modules/@eidos.space/graft-*/**/*",
-    "**/node_modules/better-sqlite3/**/*",
-    "**/node_modules/bindings/**/*",
-    "**/node_modules/file-uri-to-path/**/*"
+    "**/node_modules/@eidos.space/graft-*/**/*"
   ],
-  "asarUnpack": [
-    "**/node_modules/@eidos.space/graft-*/**/*",
-    "**/node_modules/better-sqlite3/**/*"
-  ],
+  "asarUnpack": ["**/node_modules/@eidos.space/graft-*/**/*"],
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "fileAssociations": [
     {

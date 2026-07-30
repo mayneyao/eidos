@@ -12,6 +12,11 @@ import {
   openBrowserEidosFile,
   type EidosFileHandle as BrowserEidosFileHandleContract,
 } from "@eidos.space/eidos-file/browser"
+import {
+  NodeSqliteConnectionPort,
+  NodeSqliteEidosFileConnection,
+  type NodeSqliteConnectionPortOptions,
+} from "@eidos.space/eidos-file/node-sqlite"
 
 const runtime: EidosFileRuntimeAdapter = new EidosFileBrowserRuntime()
 const session = new EidosFileSession(
@@ -34,3 +39,6 @@ function revision(descriptor: EidosFileDescriptor): string {
 void open
 void registry
 void revision
+void NodeSqliteConnectionPort
+void NodeSqliteEidosFileConnection
+void ({} satisfies NodeSqliteConnectionPortOptions)

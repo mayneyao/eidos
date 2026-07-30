@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto"
 import path from "node:path"
+import { DatabaseSync } from "node:sqlite"
 import {
   Runtime,
   type RequestContext,
@@ -7,11 +8,10 @@ import {
   type RuntimeFactoryContext,
 } from "@eidos.space/eidos-file"
 import {
-  BetterSqlite3ConnectionPort,
+  NodeSqliteConnectionPort,
   hasSqliteHeader,
-} from "@eidos.space/eidos-file/better-sqlite3"
+} from "@eidos.space/eidos-file/node-sqlite"
 import { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui/runtime-editor-data-source"
-import Database from "better-sqlite3"
 
 const factoryContext: RuntimeFactoryContext = {
   cancellation: {
@@ -51,7 +51,7 @@ export interface EidosLiteFileRuntime {
 }
 
 async function bindRuntime(
-  connection: BetterSqlite3ConnectionPort,
+  connection: NodeSqliteConnectionPort,
   service: Awaited<ReturnType<typeof Runtime.open>>["service"],
   filePath: string
 ): Promise<EidosLiteFileRuntime> {
@@ -89,7 +89,15 @@ export async function createEidosLiteFileRuntime(
   title: string
 ): Promise<EidosLiteFileRuntime> {
   assertRuntimePath(filePath)
-  const connection = new BetterSqlite3ConnectionPort(new Database(filePath))
+  const connection = new NodeSqliteConnectionPort(
+    new DatabaseSync(filePath, {
+      allowExtension: false,
+      defensive: true,
+      enableDoubleQuotedStringLiterals: false,
+      enableForeignKeyConstraints: true,
+      timeout: 5_000,
+    })
+  )
   let opened: EidosLiteFileRuntime | null = null
   try {
     const binding = await Runtime.create(
@@ -104,7 +112,7 @@ export async function createEidosLiteFileRuntime(
   } catch (error) {
     if (opened) {
       await opened.close().catch(() => undefined)
-    } else if (connection.database.open) {
+    } else if (connection.database.isOpen) {
       connection.close()
     }
     throw error
@@ -118,8 +126,14 @@ export async function openEidosLiteFileRuntime(
   if (!hasSqliteHeader(filePath)) {
     throw new Error(`Not a SQLite file: ${filePath}`)
   }
-  const connection = new BetterSqlite3ConnectionPort(
-    new Database(filePath, { fileMustExist: true })
+  const connection = new NodeSqliteConnectionPort(
+    new DatabaseSync(filePath, {
+      allowExtension: false,
+      defensive: true,
+      enableDoubleQuotedStringLiterals: false,
+      enableForeignKeyConstraints: true,
+      timeout: 5_000,
+    })
   )
   try {
     const binding = await Runtime.open(
@@ -130,7 +144,7 @@ export async function openEidosLiteFileRuntime(
     )
     return await bindRuntime(connection, binding.service, filePath)
   } catch (error) {
-    if (connection.database.open) connection.close()
+    if (connection.database.isOpen) connection.close()
     throw error
   }
 }

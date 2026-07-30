@@ -7,7 +7,7 @@ import { EidosFileRuntimeDataSource } from "@eidos.space/eidos-file"
 import {
   createEidosFile,
   openEidosFile,
-} from "@eidos.space/eidos-file/better-sqlite3"
+} from "@eidos.space/eidos-file/node-sqlite"
 
 import { GraftClient } from "./graft-client"
 import { GraftInProcessTransport } from "./graft-in-process-transport"

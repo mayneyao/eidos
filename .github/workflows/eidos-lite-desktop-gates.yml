@@ -40,11 +40,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Select Node native runtime
-        run: pnpm --filter @eidos.space/eidos-lite-desktop native:node
-
       - name: Typecheck
         run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
+
+      - name: Test node:sqlite EA-Connection contract
+        run: pnpm --filter @eidos.space/eidos-file test:node-sqlite
 
       - name: Test source and real Graft SDK
         run: pnpm test:eidos-lite

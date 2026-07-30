@@ -61,8 +61,8 @@ flowchart LR
   R["Sandboxed renderer"] -->|"typed IPC; opaque session ID"| M["Electron main"]
   M -->|"one utility process per open file"| F1["Eidos File runtime A"]
   M -->|"one utility process per open file"| F2["Eidos File runtime B"]
-  F1 -->|"guarded native SQLite handle"| E1["a.eidos"]
-  F2 -->|"guarded native SQLite handle"| E2["nested/b.eidos"]
+  F1 -->|"guarded node:sqlite handle"| E1["a.eidos"]
+  F2 -->|"guarded node:sqlite handle"| E2["nested/b.eidos"]
   M -->|"typed private IPC; one process per Space"| G["Graft utility process"]
   G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.1"]
   N --> S["whole ordinary folder Space"]
@@ -76,9 +76,11 @@ main canonicalizes the Space by real path plus filesystem identity, rejects
 path escapes, does not traverse symlinked directories, and hides `.graft`
 from the Explorer.
 
-Each resident Eidos File owns an Electron utility process and one native
-`better-sqlite3` handle. Main independently caps resident utility processes at
-three, so preload or test callers cannot bypass the process bound. Evicted
+Each resident Eidos File owns an Electron utility process and one Electron 43
+`node:sqlite` handle. Main independently caps resident utility processes at
+three, so preload or test callers cannot bypass the process bound. Because
+`node:sqlite` has no public interrupt API, request cancellation retains the
+utility-process terminate profile. Evicted
 metadata can transparently reopen its child; normal renderer use closes the
 entire oldest session. A runtime crash rejects its in-flight requests and does
 not invalidate the other cached files. Reopening the path creates a fresh

@@ -461,6 +461,7 @@ declare class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource 
   readonly runtime: RuntimeClient;
   readonly path: string;
   private sequence;
+  private runtimeCapabilities;
   private runtimeSnapshot;
   private schema;
   private tables;

@@ -1,11 +1,14 @@
 import { spawn } from "node:child_process"
+import { fileURLToPath } from "node:url"
 
-const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm"
+const runner = fileURLToPath(
+  new URL("../../../scripts/run-electron-node.mjs", import.meta.url)
+)
 const child = spawn(
-  command,
+  process.execPath,
   [
-    "exec",
-    "vitest",
+    runner,
+    "../../node_modules/vitest/vitest.mjs",
     "run",
     "--config",
     "vitest.config.ts",

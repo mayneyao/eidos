@@ -13,15 +13,19 @@ Chinese documents are item-by-item references.
 
 ## Connection conformance
 
-Both reference SQLite implementations expose EA-Connection-1.0 tagged values,
-transactions, snapshots, cancellation and limits:
+The reference SQLite implementations expose EA-Connection-1.0 tagged values,
+transactions, snapshots, cancellation profiles and limits:
 
 - Browser: `SQLiteWasmConnectionPort`, hosted beside Runtime in a Dedicated
   Worker and reached through Adapter transport.
 - Desktop: `BetterSqlite3ConnectionPort`, kept behind the trusted main-process
   composition.
+- Electron 43: `NodeSqliteConnectionPort`, using Node 24's built-in
+  `node:sqlite` inside an Eidos Lite utility process. It snapshots with
+  `DatabaseSync.serialize()` and cancels by terminating the owning process
+  because Node does not expose `sqlite3_interrupt()`.
 
-Neither port exposes SQLite to UI. Both run the mandatory SQLite/JSON1/STRICT/
+No port exposes SQLite to UI. All run the mandatory SQLite/JSON1/STRICT/
 RETURNING/int64/scalar-function probes before Runtime opens a File.
 
 ## Runtime conformance
@@ -57,8 +61,8 @@ canonical URI.
 
 ## Interoperability verification
 
-Conformance work must cover the same contract through Browser WASM and Desktop
-better-sqlite3, plus Adapter transport and a mock Host/UI harness. API reports,
-fixtures and implementation-facing docs are generated from the same public
-surface. Frozen specifications are changed only for a demonstrated normative
-defect, never to match an implementation shortcut.
+Conformance work must cover the same contract through Browser WASM, Desktop
+better-sqlite3, and Electron 43 `node:sqlite`, plus Adapter transport and a mock
+Host/UI harness. API reports, fixtures and implementation-facing docs are
+generated from the same public surface. Frozen specifications are changed only
+for a demonstrated normative defect, never to match an implementation shortcut.

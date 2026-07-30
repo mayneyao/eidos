@@ -17,6 +17,11 @@
       "import": "./dist/better-sqlite3.mjs",
       "default": "./dist/better-sqlite3.mjs"
     },
+    "./node-sqlite": {
+      "types": "./dist/node-sqlite.d.mts",
+      "import": "./dist/node-sqlite.mjs",
+      "default": "./dist/node-sqlite.mjs"
+    },
     "./browser": {
       "types": "./dist/browser.d.mts",
       "browser": "./dist/browser.mjs",
@@ -41,6 +46,7 @@
     "api:report": "api-extractor run --local && api-extractor run --local --config api-extractor.browser.json",
     "api:check": "api-extractor run && api-extractor run --config api-extractor.browser.json",
     "test": "vitest run --config vitest.config.ts",
+    "test:node-sqlite": "node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.node-sqlite.config.ts",
     "typecheck": "tsc --noEmit",
     "typecheck:public": "tsc -p test-d/tsconfig.json",
     "typecheck:tsgo": "tsgo --noEmit",
@@ -79,7 +85,7 @@
   "devDependencies": {
     "@microsoft/api-extractor": "7.58.11",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^20.4.1",
+    "@types/node": "^24.12.2",
     "better-sqlite3": "^12.0.0",
     "tsdown": "^0.21.7",
     "typescript": "^5.8.3",

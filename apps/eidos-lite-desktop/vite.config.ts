@@ -80,10 +80,10 @@ const aliases = [
     ),
   },
   {
-    find: "@eidos.space/eidos-file/better-sqlite3",
+    find: "@eidos.space/eidos-file/node-sqlite",
     replacement: path.resolve(
       appRoot,
-      "../../packages/eidos-file/src/better-sqlite3.ts"
+      "../../packages/eidos-file/src/node-sqlite.ts"
     ),
   },
   {
@@ -132,7 +132,7 @@ export default defineConfig(({ mode }) => {
               target: "node24",
               reportCompressedSize: false,
               rolldownOptions: {
-                external: ["@eidos.space/graft", "better-sqlite3", "electron"],
+                external: ["@eidos.space/graft", "electron", "node:sqlite"],
                 output: { format: "esm" },
               },
             },
@@ -144,7 +144,7 @@ export default defineConfig(({ mode }) => {
             define: environmentDefine,
             resolve: { alias: aliases },
             build: {
-              target: "chrome144",
+              target: "chrome150",
               reportCompressedSize: false,
               rolldownOptions: {
                 external: ["electron"],
@@ -161,7 +161,7 @@ export default defineConfig(({ mode }) => {
     ],
     resolve: { alias: aliases },
     build: {
-      target: "chrome144",
+      target: "chrome150",
       reportCompressedSize: false,
       outDir: "dist",
       emptyOutDir: true,

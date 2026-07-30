@@ -78,6 +78,12 @@ describe("Eidos Lite package identity", () => {
     expect(packageJson.dependencies).toMatchObject({
       "@eidos.space/graft": expect.any(String),
     })
+    expect(packageJson.dependencies).not.toHaveProperty("better-sqlite3")
+    expect(packageJson.dependencies).not.toHaveProperty("bindings")
+    expect(packageJson.dependencies).not.toHaveProperty("file-uri-to-path")
+    expect(scripts["native:node"]).toBeUndefined()
+    expect(scripts["native:electron"]).toBeUndefined()
+    expect(JSON.stringify(builder)).not.toContain("better-sqlite3")
     expect(builder.extraResources).toBeUndefined()
     expect(scripts["test:graft:cli"]).toBeUndefined()
     expect(scripts["graft:install"]).toBeUndefined()

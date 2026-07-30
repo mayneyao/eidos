@@ -1,0 +1,203 @@
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
+import { DatabaseSync } from "node:sqlite"
+import { describe, expect, it } from "vitest"
+
+import { expectConnectionPortConformance } from "./connection-port.conformance"
+import {
+  createEidosFile,
+  NodeSqliteConnectionPort,
+  openEidosFile,
+} from "./node-sqlite"
+import { Runtime } from "./runtime-service"
+import type { RuntimeEnvironment } from "./runtime-contract"
+
+const sqliteFeatureProbe = new DatabaseSync(":memory:") as DatabaseSync & {
+  serialize?: () => Uint8Array
+  limits?: object
+}
+const supportsElectron43NodeSqlite =
+  typeof sqliteFeatureProbe.serialize === "function" &&
+  typeof sqliteFeatureProbe.limits === "object" &&
+  typeof sqliteFeatureProbe.setAuthorizer === "function"
+sqliteFeatureProbe.close()
+
+const runtimeEnvironment = (): RuntimeEnvironment => ({
+  clock: {
+    nowInstant: () => "2026-07-31T00:00:00.000Z",
+    nowMilliseconds: () => performance.now(),
+  },
+  entropy: {
+    randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
+  },
+})
+
+const runtimeFactoryContext = {
+  cancellation: {
+    cancelled: () => false,
+    onCancel: () => () => undefined,
+  },
+}
+
+const runtimeContext = (requestId: string) => ({
+  requestId,
+  deadlineMilliseconds: 30_000,
+})
+
+describe.runIf(supportsElectron43NodeSqlite)(
+  "NodeSqliteConnectionPort EA-Connection-1.0",
+  () => {
+    it("passes the shared Browser/Desktop connection transcript", async () => {
+      const connection = new NodeSqliteConnectionPort(
+        new DatabaseSync(":memory:")
+      )
+      try {
+        await expectConnectionPortConformance(connection)
+        expect(connection.capabilities()).toMatchObject({
+          sqliteVersion: "3.53.1",
+          interrupt: false,
+          defensiveMode: true,
+        })
+        expect(() => connection.interrupt()).toThrow(/terminate cancellation/)
+      } finally {
+        connection.close()
+      }
+    })
+
+    it("maps SQLite failures and enforces result limits", () => {
+      const database = new DatabaseSync(":memory:")
+      const connection = new NodeSqliteConnectionPort(database, {
+        maxResultRows: 1,
+        maxResultBytes: 256,
+      })
+      try {
+        connection.execSchema("CREATE TABLE records(value TEXT UNIQUE) STRICT")
+        connection.run("INSERT INTO records(value) VALUES (?1)", [
+          { tag: "text", value: "one" },
+        ])
+        expect(() =>
+          connection.run("INSERT INTO records(value) VALUES (?1)", [
+            { tag: "text", value: "one" },
+          ])
+        ).toThrowError(
+          expect.objectContaining({
+            code: "constraint",
+            sqlitePrimaryCode: 19,
+          })
+        )
+        connection.run("INSERT INTO records(value) VALUES (?1)", [
+          { tag: "text", value: "two" },
+        ])
+        expect(() => connection.get("SELECT zeroblob(512)")).toThrowError(
+          expect.objectContaining({ code: "resource-limit" })
+        )
+        expect(() =>
+          connection.query("SELECT value FROM records")
+        ).toThrowError(expect.objectContaining({ code: "resource-limit" }))
+      } finally {
+        connection.close()
+      }
+      expect(() => connection.capabilities()).toThrowError(
+        expect.objectContaining({ code: "adapter-closed" })
+      )
+
+      const logicalReadonly = new NodeSqliteConnectionPort(
+        new DatabaseSync(":memory:"),
+        { readOnly: true }
+      )
+      try {
+        expect(() =>
+          logicalReadonly.run("PRAGMA query_only = OFF")
+        ).toThrowError(expect.objectContaining({ code: "read-only" }))
+        expect(() =>
+          logicalReadonly.run("CREATE TABLE forbidden(value TEXT)")
+        ).toThrowError(expect.objectContaining({ code: "read-only" }))
+        expect(logicalReadonly.get("SELECT 1").row).toEqual([
+          { tag: "integer", value: "1" },
+        ])
+      } finally {
+        logicalReadonly.close()
+      }
+    })
+
+    it("keeps the synchronous EidosFileRuntime compatibility surface native-free", async () => {
+      const directory = await mkdtemp(path.join(tmpdir(), "eidos-node-sqlite-"))
+      const filePath = path.join(directory, "compatibility.eidos")
+      try {
+        const created = createEidosFile(filePath, {
+          title: "node:sqlite",
+          defaultTable: {
+            name: "Records",
+            fields: [{ name: "Name", type: "text", isRecordLabel: true }],
+          },
+        })
+        created.close()
+        const opened = openEidosFile(filePath, { readonly: true })
+        try {
+          expect(opened.inspect()).toMatchObject({ valid: true })
+          expect(opened.listTables()).toHaveLength(1)
+        } finally {
+          opened.close()
+        }
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+
+    it("opens a Runtime 1.0 binding over a read-only database", async () => {
+      const directory = await mkdtemp(
+        path.join(tmpdir(), "eidos-node-sqlite-readonly-")
+      )
+      const filePath = path.join(directory, "readonly.eidos")
+      try {
+        const writable = new NodeSqliteConnectionPort(
+          new DatabaseSync(filePath)
+        )
+        const created = await Runtime.create(
+          writable,
+          runtimeEnvironment(),
+          { title: "Read-only" },
+          runtimeFactoryContext
+        )
+        await created.service.close(runtimeContext("close-created"))
+        writable.close()
+
+        const readonly = new NodeSqliteConnectionPort(
+          new DatabaseSync(filePath, { readOnly: true }),
+          { readOnly: true }
+        )
+        try {
+          const opened = await Runtime.open(
+            readonly,
+            runtimeEnvironment(),
+            "read",
+            runtimeFactoryContext
+          )
+          await expect(
+            opened.service.negotiate(
+              { protocol: "eidos-runtime", versions: ["1.0"] },
+              runtimeContext("negotiate-readonly")
+            )
+          ).resolves.toMatchObject({
+            version: "1.0",
+            capabilities: {
+              readRows: true,
+              mutateRows: false,
+              csvImport: false,
+            },
+          })
+          expect(opened.service.importCsv).toBeUndefined()
+          expect(() => readonly.transaction("write", () => undefined)).toThrow(
+            /read-only/
+          )
+          await opened.service.close(runtimeContext("close-readonly"))
+        } finally {
+          readonly.close()
+        }
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+  }
+)

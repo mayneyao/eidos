@@ -15,10 +15,10 @@ export default defineConfig({
         ),
       },
       {
-        find: "@eidos.space/eidos-file/better-sqlite3",
+        find: "@eidos.space/eidos-file/node-sqlite",
         replacement: path.resolve(
           appRoot,
-          "../../packages/eidos-file/src/better-sqlite3.ts"
+          "../../packages/eidos-file/src/node-sqlite.ts"
         ),
       },
       {

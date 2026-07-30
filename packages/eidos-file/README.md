@@ -57,6 +57,9 @@ matching negotiated capability is true.
 
 - `BetterSqlite3ConnectionPort` in `@eidos.space/eidos-file/better-sqlite3`
   implements the Desktop EA-Connection binding.
+- `NodeSqliteConnectionPort` in `@eidos.space/eidos-file/node-sqlite`
+  implements the Electron 43 / Node 24 EA-Connection binding without a native
+  addon or a Node/Electron ABI rebuild.
 - `SQLiteWasmConnectionPort` in `@eidos.space/eidos-file/browser` implements
   the Browser Worker EA-Connection binding using the same conformance contract.
 - `AdapterTransportServer` and `AdapterTransportRuntimeClient` implement the

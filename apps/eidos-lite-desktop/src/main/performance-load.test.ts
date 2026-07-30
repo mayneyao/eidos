@@ -7,11 +7,12 @@ import { fileURLToPath } from "node:url"
 import {
   createEidosFile,
   openEidosFile,
-} from "@eidos.space/eidos-file/better-sqlite3"
+} from "@eidos.space/eidos-file/node-sqlite"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { flattenSpaceTree, listSpaceTree } from "./space/space-paths"
 import { SpaceWatcher } from "./space/space-watcher"
+import { createEidosLiteFileRuntime } from "../runtime/eidos-file-runtime"
 
 const performanceEnabled = process.env.EIDOS_LITE_RUN_PERFORMANCE === "1"
 const appRoot = path.resolve(
@@ -251,4 +252,46 @@ describe.runIf(performanceEnabled)("Eidos Lite PRD performance load", () => {
       runtime.close()
     }
   })
+
+  it("bulk imports 10,000 and 100,000 CSV rows within budget", async () => {
+    const cases = [
+      { rows: 10_000, budgetMs: 5_000 },
+      { rows: 100_000, budgetMs: 30_000 },
+    ] as const
+
+    for (const { rows, budgetMs } of cases) {
+      const filePath = path.join(root, `csv-${rows}.eidos`)
+      const opened = await createEidosLiteFileRuntime(filePath, `CSV ${rows}`)
+      try {
+        const lines = ["name,category,score,enabled,note"]
+        for (let index = 0; index < rows; index += 1) {
+          lines.push(
+            `Record ${index},Category ${index % 20},${index * 1.25},${index % 2 === 0},Note ${index}`
+          )
+        }
+        const encoded = new TextEncoder().encode(lines.join("\n"))
+        const csv = encoded.buffer.slice(
+          encoded.byteOffset,
+          encoded.byteOffset + encoded.byteLength
+        ) as ArrayBuffer
+        const startedAt = performance.now()
+        const imported = await opened.source.importCsv(`csv-${rows}.csv`, csv)
+        const durationMs = performance.now() - startedAt
+
+        console.info(
+          JSON.stringify({
+            benchmark: `csv-import-${rows}`,
+            durationMs,
+            rows: imported.result.importedRowCount,
+            csvBytes: encoded.byteLength,
+            fileBytes: (await fs.stat(filePath)).size,
+          })
+        )
+        expect(imported.result.importedRowCount).toBe(rows)
+        expect(durationMs).toBeLessThanOrEqual(budgetMs)
+      } finally {
+        await opened.close()
+      }
+    }
+  }, 45_000)
 })

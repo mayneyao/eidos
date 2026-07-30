@@ -5,7 +5,7 @@ import os from "node:os"
 import path from "node:path"
 import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
-import { openEidosFile } from "@eidos.space/eidos-file/better-sqlite3"
+import { openEidosFile } from "@eidos.space/eidos-file/node-sqlite"
 
 import { SpaceOperationGate } from "./operation-gate"
 import { SpaceOperationJournal } from "./operation-journal"

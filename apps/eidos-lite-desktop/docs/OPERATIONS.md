@@ -7,15 +7,17 @@ three target families. `src/main/package-contract.test.ts` verifies their file
 signatures together with the Lite app id, product name, author, and homepage;
 electron-builder must not report default-icon or missing-author warnings.
 
-Run native-runtime operations sequentially. The repository shares one linked
-`better-sqlite3` binary between Node and Electron.
+Eidos Lite source-runtime tests use Electron 43's Node 24 mode so they exercise
+the same built-in `node:sqlite` implementation as packaged utility processes.
+Lite no longer participates in the repository's `better-sqlite3` Node/Electron
+ABI switching; the main Eidos Desktop still owns that separate native workflow.
 
 ```bash
-# Node ABI, unit tests, and source integration
-pnpm --filter @eidos.space/eidos-lite-desktop native:node
+# Electron 43 node:sqlite contract, unit tests, and source integration
+pnpm --filter @eidos.space/eidos-file test:node-sqlite
 pnpm test:eidos-lite
 
-# Explicit PRD load gate (creates temporary 1k/10k Spaces and 10/100 MiB files)
+# Explicit load gate (1k/10k Spaces, 10/100 MiB files, Grid, and CSV 10k/100k)
 pnpm --filter @eidos.space/eidos-lite-desktop test:performance
 
 # Repeatable local whole-Space Remote gate using the resident SDK
@@ -27,7 +29,7 @@ pnpm smoke:eidos-lite-services
 # Renderer/main/utility-process staging build
 pnpm build:eidos-lite
 
-# Electron ABI, SDK native package, unpacked package, and packaged smoke
+# SDK native package, unsigned unpacked app, and packaged smoke
 pnpm build:eidos-lite:dev
 pnpm smoke:eidos-lite-packaged
 ```
@@ -278,7 +280,6 @@ The preferred complete acceptance starts from the owner-only staging smoke
 account state created by the account service:
 
 ```bash
-pnpm --filter @eidos.space/eidos-lite-desktop native:node
 EIDOS_LITE_STAGING_ACCOUNT_STATE=/absolute/path/to/smoke-account.json \
   pnpm smoke:eidos-lite-staging
 ```

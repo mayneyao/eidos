@@ -14,7 +14,7 @@ const fixedFiles = new Set([
 ])
 const chunkNames = [
   "application",
-  "better-sqlite3",
+  "node-sqlite",
   "contracts",
   "logging",
   "packaged-smoke",

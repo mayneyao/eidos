@@ -2,7 +2,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { openEidosFile } from "@eidos.space/eidos-file/better-sqlite3"
+import { openEidosFile } from "@eidos.space/eidos-file/node-sqlite"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { EIDOS_LITE_SERVICE_ENVIRONMENTS } from "../../shared/service-environment"
