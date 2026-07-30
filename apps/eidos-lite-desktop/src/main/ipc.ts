@@ -5,6 +5,8 @@ import {
   EIDOS_LITE_CSV_EXPORT_BYTES_MAX,
   IPC_CHANNELS,
   RUNTIME_METHODS,
+  type EidosLitePreferences,
+  type EidosLiteSettingsDestination,
   type EidosSyncHelpDestination,
   type EidosSyncQueueStatus,
   type EidosSyncRunResponse,
@@ -13,6 +15,7 @@ import {
   type RuntimeMethod,
 } from "../shared/contracts"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
+import { eidosLiteLogger, logCorrelationKey } from "./logging"
 import { BackgroundSyncQueue } from "./sync/background-sync-queue"
 import type { SyncControlPlane } from "./sync/sync-control-plane"
 import {
@@ -42,6 +45,35 @@ function requiredBytes(value: unknown, label: string): Uint8Array {
     throw new Error(`${label} exceeds the 256 MiB export limit`)
   }
   return new Uint8Array(value)
+}
+
+function preferencesPatch(value: unknown): Partial<EidosLitePreferences> {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid preferences")
+  }
+  const candidate = value as Record<string, unknown>
+  const patch: Partial<EidosLitePreferences> = {}
+  if ("appearance" in candidate) {
+    if (
+      candidate.appearance !== "system" &&
+      candidate.appearance !== "light" &&
+      candidate.appearance !== "dark"
+    ) {
+      throw new Error("Invalid appearance preference")
+    }
+    patch.appearance = candidate.appearance
+  }
+  if ("defaultSpaceLocation" in candidate) {
+    if (
+      candidate.defaultSpaceLocation !== null &&
+      (typeof candidate.defaultSpaceLocation !== "string" ||
+        !candidate.defaultSpaceLocation.trim())
+    ) {
+      throw new Error("Invalid default Space location")
+    }
+    patch.defaultSpaceLocation = candidate.defaultSpaceLocation
+  }
+  return patch
 }
 
 function syncPreflightApproval(value: unknown): EidosSyncPreflightApproval {
@@ -131,8 +163,34 @@ export function registerIpc(
     name: app.getName(),
     version: app.getVersion(),
     platform: process.platform,
+    architecture: process.arch,
     services,
   }))
+  ipcMain.handle(IPC_CHANNELS.preferencesGet, () => controller.getPreferences())
+  ipcMain.handle(IPC_CHANNELS.preferencesUpdate, (_event, value: unknown) =>
+    controller.updatePreferences(preferencesPatch(value))
+  )
+  ipcMain.handle(IPC_CHANNELS.preferencesChooseSpaceLocation, (event) =>
+    controller.chooseDefaultSpaceLocation(event.sender)
+  )
+  ipcMain.handle(IPC_CHANNELS.settingsOpen, () => {
+    controller.showSettingsWindow()
+  })
+  ipcMain.handle(
+    IPC_CHANNELS.settingsOpenDestination,
+    (_event, value: unknown) => {
+      if (
+        value !== "documentation" &&
+        value !== "website" &&
+        value !== "logs"
+      ) {
+        throw new Error("Invalid Settings destination")
+      }
+      return controller.openSettingsDestination(
+        value as EidosLiteSettingsDestination
+      )
+    }
+  )
   ipcMain.handle(IPC_CHANNELS.diagnostics, (event) =>
     controller.diagnostics(event.sender)
   )
@@ -516,32 +574,89 @@ export function registerIpc(
   )
   ipcMain.handle(IPC_CHANNELS.syncEnable, async (event, value: unknown) => {
     const session = controller.requireSession(event.sender)
-    const existing = await session.officialSyncRemoteUrl()
-    if (existing) return syncControl.status(existing)
-    const approval = syncPreflightApproval(value)
-    await session.assertSyncPreflight(approval)
-    await session.assertHostedSyncReady()
-    const provisioned = await syncControl.provisionRepository(
-      session.canonical.id
-    )
-    await session.enableHostedSync(
-      provisioned.remoteUrl,
-      provisioned.accessToken,
-      approval
-    )
-    return syncControl.status(provisioned.remoteUrl)
+    const spaceKey = logCorrelationKey(session.canonical.id)
+    let stage = "existing-remote"
+    eidosLiteLogger()?.info("sync.enable.started", { spaceKey })
+    try {
+      const existing = await session.officialSyncRemoteUrl()
+      if (existing) {
+        eidosLiteLogger()?.info("sync.enable.already-connected", { spaceKey })
+        return syncControl.status(existing)
+      }
+      stage = "preflight"
+      const approval = syncPreflightApproval(value)
+      await session.assertSyncPreflight(approval)
+      await session.assertHostedSyncReady()
+      stage = "provision"
+      const provisioned = await syncControl.provisionRepository(
+        session.canonical.id
+      )
+      eidosLiteLogger()?.info("sync.enable.remote-ready", { spaceKey })
+      stage = "initial-push"
+      await session.enableHostedSync(
+        provisioned.remoteUrl,
+        provisioned.accessToken,
+        approval
+      )
+      stage = "status"
+      const status = await syncControl.status(provisioned.remoteUrl)
+      eidosLiteLogger()?.info("sync.enable.completed", { spaceKey })
+      return status
+    } catch (error) {
+      const failure = classifySyncFailure(
+        error,
+        stage === "initial-push" ? "push" : "authorization"
+      )
+      eidosLiteLogger()?.error(
+        "sync.enable.failed",
+        {
+          spaceKey,
+          stage,
+          failureCode: failure.code,
+          status: failure.status,
+          retryable: failure.retryable,
+        },
+        error
+      )
+      throw error
+    }
   })
   ipcMain.handle(IPC_CHANNELS.syncRepositories, () =>
     syncControl.repositories()
   )
   ipcMain.handle(IPC_CHANNELS.syncClone, async (event, remoteUrl: unknown) => {
     const remote = requiredString(remoteUrl, "Hosted Remote")
-    const access = await syncControl.repositoryAccess(remote)
-    return controller.cloneAndBindSpace(
-      event.sender,
-      remote,
-      access.accessToken
-    )
+    const remoteKey = logCorrelationKey(remote)
+    const startedAtMs = Date.now()
+    eidosLiteLogger()?.info("sync.clone.started", { remoteKey })
+    try {
+      const access = await syncControl.repositoryAccess(remote)
+      const result = await controller.cloneAndBindSpace(
+        event.sender,
+        remote,
+        access.accessToken
+      )
+      eidosLiteLogger()?.info("sync.clone.completed", {
+        remoteKey,
+        durationMs: Math.max(0, Date.now() - startedAtMs),
+        cancelled: result === null,
+      })
+      return result
+    } catch (error) {
+      const failure = classifySyncFailure(error, "fetch")
+      eidosLiteLogger()?.error(
+        "sync.clone.failed",
+        {
+          remoteKey,
+          durationMs: Math.max(0, Date.now() - startedAtMs),
+          failureCode: failure.code,
+          status: failure.status,
+          retryable: failure.retryable,
+        },
+        error
+      )
+      throw error
+    }
   })
   ipcMain.handle(IPC_CHANNELS.syncRun, async (event) => {
     const { session } = await attachSyncQueue(event)

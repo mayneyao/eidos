@@ -5,6 +5,7 @@ import type {
   EidosSyncProgress,
   EidosSyncRunResponse,
 } from "../../shared/contracts"
+import { eidosLiteLogger, logCorrelationKey } from "../logging"
 import type { SpaceSession } from "../space/space-session"
 import type { SyncControlPlane } from "./sync-control-plane"
 import {
@@ -29,9 +30,23 @@ export class SyncExecutor {
     emitProgress: (progress: EidosSyncProgress) => void
   ): Promise<EidosSyncRunResponse> {
     const tracker = new SyncRunTracker(randomUUID(), emitProgress)
+    const logger = eidosLiteLogger()
+    const spaceKey = logger
+      ? logCorrelationKey(session.canonical.id)
+      : undefined
+    logger?.info("sync.run.started", {
+      runId: tracker.runId,
+      spaceKey,
+    })
     let currentPhase: EidosSyncPhase = "authorization"
     const transition = (phase: EidosSyncPhase, detail: string) => {
       currentPhase = phase
+      logger?.debug("sync.run.phase", {
+        runId: tracker.runId,
+        spaceKey,
+        phase,
+        detail,
+      })
       tracker.transition(phase, detail)
     }
     try {
@@ -53,21 +68,45 @@ export class SyncExecutor {
         access.access,
         transition
       )
+      const telemetry = tracker.complete(outcome.message)
+      logger?.info("sync.run.completed", {
+        runId: tracker.runId,
+        spaceKey,
+        durationMs: telemetry.durationMs,
+        phases: telemetry.phases.map((phase) => ({
+          phase: phase.phase,
+          durationMs: phase.durationMs,
+        })),
+      })
       return {
         ok: true,
         result: {
           ...outcome,
           runId: tracker.runId,
-          telemetry: tracker.complete(outcome.message),
+          telemetry,
         },
       }
     } catch (error) {
       const failure = classifySyncFailure(error, currentPhase)
+      const telemetry = tracker.fail(failure.message)
+      logger?.warn(
+        "sync.run.failed",
+        {
+          runId: tracker.runId,
+          spaceKey,
+          phase: currentPhase,
+          failureCode: failure.code,
+          status: failure.status,
+          retryable: failure.retryable,
+          durationMs: telemetry.durationMs,
+        },
+        error
+      )
       return {
         ok: false,
         runId: tracker.runId,
         failure,
-        telemetry: tracker.fail(failure.message),
+        telemetry,
       }
     }
   }

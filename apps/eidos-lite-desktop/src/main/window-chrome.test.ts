@@ -14,6 +14,10 @@ describe("macOS window chrome", () => {
     expect(macosTrafficLightPosition("welcome")).toEqual({ x: 16, y: 15 })
   })
 
+  it("uses the standard inset for the Settings titlebar", () => {
+    expect(macosTrafficLightPosition("settings")).toEqual({ x: 16, y: 15 })
+  })
+
   it("repositions a promoted Welcome window for the Space title row", () => {
     const setWindowButtonPosition = vi.fn()
 

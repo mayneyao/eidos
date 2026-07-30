@@ -14,6 +14,8 @@ import {
 import {
   IPC_CHANNELS,
   type EidosLiteDiagnostics,
+  type EidosLitePreferences,
+  type EidosLiteSettingsDestination,
   type EidosSyncRecoveryResult,
   type SpaceSnapshot,
 } from "../shared/contracts"
@@ -22,9 +24,11 @@ import {
   createEidosLiteDiagnostics,
   serializeEidosLiteDiagnostics,
 } from "./diagnostics"
+import { EidosLitePreferencesStore } from "./app-preferences"
 import { GraftClient } from "./graft/graft-client"
 import { GraftUtilityTransport } from "./graft/graft-utility-transport"
 import { resolveEidosFileLaunchIntent } from "./launch-intent"
+import { eidosLiteLogSummary, logCorrelationKey } from "./logging"
 import { RuntimePool } from "./runtime/runtime-pool"
 import {
   canonicalizeSpaceRoot,
@@ -43,6 +47,7 @@ import {
   macosTrafficLightPosition,
   type LiteWindowKind,
 } from "./window-chrome"
+import { welcomeWindowActionAfterSpaceClosed } from "./window-lifecycle"
 import {
   centeredWindowBounds,
   fitWindowBounds,
@@ -60,7 +65,9 @@ export class WindowController {
   private readonly sessionCloses = new SessionCloseTracker<SpaceSession>()
   private readonly openingSessions = new Set<Promise<SpaceSession>>()
   private recentSpacesStore: RecentSpacesStore | null = null
+  private preferencesStore: EidosLitePreferencesStore | null = null
   private cloneCoordinatorInstance: SpaceCloneCoordinator | null = null
+  private settingsWindow: BrowserWindow | null = null
   private readonly windowKind = new WeakMap<BrowserWindow, LiteWindowKind>()
   private readonly windowState = new LiteWindowStateStore(
     app.getPath("userData")
@@ -75,6 +82,21 @@ export class WindowController {
     const window = this.createWindow(beforeLoad === undefined, "welcome")
     beforeLoad?.(window)
     void this.loadRenderer(window)
+    return window
+  }
+
+  showSettingsWindow(): BrowserWindow {
+    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) {
+      this.focusWindow(this.settingsWindow)
+      return this.settingsWindow
+    }
+    const window = this.createWindow(true, "settings")
+    this.settingsWindow = window
+    window.setTitle("Settings — Eidos Lite")
+    window.once("closed", () => {
+      if (this.settingsWindow === window) this.settingsWindow = null
+    })
+    void this.loadRenderer(window, "/settings")
     return window
   }
 
@@ -173,7 +195,11 @@ export class WindowController {
     const options: Electron.SaveDialogOptions = {
       title: "Create Space",
       buttonLabel: "Create Space",
-      defaultPath: path.join(app.getPath("documents"), "Untitled Space"),
+      defaultPath: path.join(
+        (await this.preferences().get()).defaultSpaceLocation ??
+          app.getPath("documents"),
+        "Untitled Space"
+      ),
       nameFieldLabel: "Space name",
       properties: ["createDirectory", "showOverwriteConfirmation"],
     }
@@ -316,6 +342,7 @@ export class WindowController {
   async diagnostics(webContents: WebContents): Promise<EidosLiteDiagnostics> {
     const session = this.sessionFor(webContents)
     const snapshot = session ? await session.snapshot() : null
+    const logs = eidosLiteLogSummary()
     return createEidosLiteDiagnostics({
       app: {
         name: app.getName(),
@@ -326,6 +353,7 @@ export class WindowController {
       arch: process.arch,
       electronVersion: process.versions.electron ?? "unknown",
       environment: this.services.name,
+      logs,
       ...(session && snapshot
         ? {
             space: {
@@ -358,6 +386,51 @@ export class WindowController {
     const diagnostics = await this.diagnostics(webContents)
     clipboard.writeText(serializeEidosLiteDiagnostics(diagnostics))
     return diagnostics
+  }
+
+  getPreferences(): Promise<EidosLitePreferences> {
+    return this.preferences().get()
+  }
+
+  async updatePreferences(
+    patch: Partial<EidosLitePreferences>
+  ): Promise<EidosLitePreferences> {
+    const preferences = await this.preferences().update(patch)
+    this.broadcastPreferences(preferences)
+    return preferences
+  }
+
+  async chooseDefaultSpaceLocation(
+    webContents: WebContents
+  ): Promise<EidosLitePreferences | null> {
+    const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
+    const current = await this.preferences().get()
+    const options: Electron.OpenDialogOptions = {
+      title: "Choose Default Location for New Spaces",
+      buttonLabel: "Use This Folder",
+      defaultPath: current.defaultSpaceLocation ?? app.getPath("documents"),
+      properties: ["openDirectory", "createDirectory"],
+    }
+    const result = parent
+      ? await dialog.showOpenDialog(parent, options)
+      : await dialog.showOpenDialog(options)
+    if (result.canceled || !result.filePaths[0]) return null
+    return this.updatePreferences({ defaultSpaceLocation: result.filePaths[0] })
+  }
+
+  async openSettingsDestination(
+    destination: EidosLiteSettingsDestination
+  ): Promise<void> {
+    if (destination === "logs") {
+      const error = await shell.openPath(app.getPath("logs"))
+      if (error) throw new Error(error)
+      return
+    }
+    await shell.openExternal(
+      destination === "documentation"
+        ? "https://docs.eidos.space"
+        : "https://eidos.space"
+    )
   }
 
   async reveal(webContents: WebContents, relativePath: string): Promise<void> {
@@ -515,6 +588,7 @@ export class WindowController {
       void this.sessionCloses.close(session).catch((error: unknown) => {
         console.error("Failed to close Space session", error)
       })
+      this.showWelcomeAfterSpaceClosed()
     })
     await this.recentSpaces()
       .record(session.canonical)
@@ -531,6 +605,21 @@ export class WindowController {
     return this.recentSpacesStore
   }
 
+  private preferences(): EidosLitePreferencesStore {
+    this.preferencesStore ??= new EidosLitePreferencesStore(
+      path.join(app.getPath("userData"), "preferences.json")
+    )
+    return this.preferencesStore
+  }
+
+  private broadcastPreferences(preferences: EidosLitePreferences): void {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) {
+        window.webContents.send(IPC_CHANNELS.preferencesChanged, preferences)
+      }
+    }
+  }
+
   private async windowForSpaceRoot(
     root: string
   ): Promise<BrowserWindow | null> {
@@ -545,6 +634,26 @@ export class WindowController {
     if (window.isMinimized()) window.restore()
     window.show()
     window.focus()
+  }
+
+  private showWelcomeAfterSpaceClosed(): void {
+    const windows = BrowserWindow.getAllWindows().filter(
+      (window) => !window.isDestroyed()
+    )
+    const action = welcomeWindowActionAfterSpaceClosed(
+      this.closing,
+      windows.map((window) => this.windowKind.get(window) ?? "space")
+    )
+    if (action === "create") {
+      this.createWelcomeWindow()
+      return
+    }
+    if (action === "focus") {
+      const welcome = windows.find(
+        (window) => this.windowKind.get(window) === "welcome"
+      )
+      if (welcome) this.focusWindow(welcome)
+    }
   }
 
   private queueLaunchFile(
@@ -610,7 +719,10 @@ export class WindowController {
     return new GraftClient({
       syncRemoteOrigin: this.services.syncRemoteOrigin,
       sdkTransport: new GraftUtilityTransport(
-        fileURLToPath(new URL("./graft-worker.js", import.meta.url))
+        fileURLToPath(new URL("./graft-worker.js", import.meta.url)),
+        {
+          repositoryKey: (root) => logCorrelationKey(root),
+        }
       ),
     })
   }
@@ -623,14 +735,17 @@ export class WindowController {
     showWhenReady = true,
     kind: LiteWindowKind = "space"
   ): BrowserWindow {
-    const welcome = kind === "welcome"
-    const bounds = welcome
-      ? { width: 920, height: 620 }
-      : this.resolveSpaceWindowBounds()
+    const compact = kind !== "space"
+    const bounds =
+      kind === "welcome"
+        ? { width: 920, height: 620 }
+        : kind === "settings"
+          ? { width: 780, height: 640 }
+          : this.resolveSpaceWindowBounds()
     const window = new BrowserWindow({
       ...bounds,
-      minWidth: welcome ? 760 : 900,
-      minHeight: welcome ? 520 : 600,
+      minWidth: compact ? 680 : 900,
+      minHeight: compact ? 520 : 600,
       show: false,
       title: "Eidos Lite",
       titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
@@ -651,6 +766,13 @@ export class WindowController {
     })
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
     window.webContents.on("will-navigate", (event) => event.preventDefault())
+    window.on("app-command", (_event, command) => {
+      if (command === "browser-backward") {
+        window.webContents.send(IPC_CHANNELS.navigationCommand, "back")
+      } else if (command === "browser-forward") {
+        window.webContents.send(IPC_CHANNELS.navigationCommand, "forward")
+      }
+    })
     this.trackWindowState(window, kind)
     if (showWhenReady) window.once("ready-to-show", () => window.show())
     return window
@@ -710,16 +832,19 @@ export class WindowController {
     })
   }
 
-  private loadRenderer(window: BrowserWindow): Promise<void> {
+  private loadRenderer(window: BrowserWindow, route?: string): Promise<void> {
     const developmentUrl = process.env.VITE_DEV_SERVER_URL
     if (developmentUrl) {
-      return window.loadURL(developmentUrl)
+      const url = new URL(developmentUrl)
+      if (route) url.hash = route
+      return window.loadURL(url.toString())
     }
     return window.loadFile(
       path.join(
         path.dirname(fileURLToPath(import.meta.url)),
         "../dist/index.html"
-      )
+      ),
+      route ? { hash: route } : undefined
     )
   }
 }

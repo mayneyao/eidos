@@ -12,6 +12,29 @@ describe("Eidos Lite diagnostics", () => {
         arch: "arm64",
         electronVersion: "40.8.5",
         environment: "staging",
+        logs: {
+          retainedFiles: 2,
+          currentBytes: 1_024,
+          recent: [
+            {
+              schemaVersion: 1,
+              timestamp: "2026-07-29T00:00:00.000Z",
+              sequence: 4,
+              level: "error",
+              source: "main",
+              event: "sync.enable.failed",
+              context: {
+                stage: "initial-push",
+                spaceKey: "1782d90391ac",
+              },
+              error: {
+                name: "Error",
+                message:
+                  "HTTP failure at <service>/<namespace>/<repository>/raw/segments/<object>",
+              },
+            },
+          ],
+        },
         space: {
           eidosFileCount: 4,
           operation: { phase: "ready", recoverable: false },
@@ -37,6 +60,12 @@ describe("Eidos Lite diagnostics", () => {
       operation: { phase: "ready" },
       runtime: { residentCount: 3, trackedCount: 5 },
     })
+    expect(diagnostics.logs).toMatchObject({
+      format: "jsonl",
+      retainedFiles: 2,
+      currentBytes: 1_024,
+    })
+    expect(diagnostics.logs.recent).toHaveLength(1)
     expect(serialized).not.toContain("/Users/")
     expect(serialized).not.toContain("https://")
     expect(serialized).not.toContain("remoteUrl")

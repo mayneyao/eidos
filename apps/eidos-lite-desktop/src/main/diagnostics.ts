@@ -1,4 +1,5 @@
 import type {
+  EidosLiteDiagnosticLogEntry,
   EidosLiteDiagnostics,
   GraftSpaceStatus,
   SpaceOperationState,
@@ -15,6 +16,11 @@ export interface EidosLiteDiagnosticInput {
   arch: string
   electronVersion: string
   environment: EidosLiteEnvironmentName
+  logs?: {
+    retainedFiles: number
+    currentBytes: number
+    recent: EidosLiteDiagnosticLogEntry[]
+  }
   space?: {
     eidosFileCount: number
     operation: Pick<SpaceOperationState, "phase" | "recoverable">
@@ -66,6 +72,12 @@ export function createEidosLiteDiagnostics(
           },
         }
       : { open: false },
+    logs: {
+      format: "jsonl",
+      retainedFiles: input.logs?.retainedFiles ?? 0,
+      currentBytes: input.logs?.currentBytes ?? 0,
+      recent: input.logs?.recent ?? [],
+    },
     privacy: { excludes: [...DIAGNOSTIC_EXCLUSIONS] },
   }
 }

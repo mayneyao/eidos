@@ -1,5 +1,7 @@
 import { app } from "electron"
 
+import { eidosLiteLogger } from "./logging"
+
 const bootstrapStartedAtMs = Date.now()
 const bootstrapGlobal = globalThis as typeof globalThis & {
   __eidosLiteBootstrapState?: {
@@ -22,6 +24,7 @@ bootstrapGlobal.__eidosLiteBootstrapState = {
 }
 
 void import("./application").catch((error: unknown) => {
+  eidosLiteLogger()?.error("app.startup.failed", undefined, error)
   console.error("Failed to start Eidos Lite", error)
   process.exit(1)
 })

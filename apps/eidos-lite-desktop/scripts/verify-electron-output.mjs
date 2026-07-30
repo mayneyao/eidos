@@ -16,6 +16,7 @@ const chunkNames = [
   "application",
   "better-sqlite3",
   "contracts",
+  "logging",
   "packaged-smoke",
   "packaged-startup-smoke",
 ]

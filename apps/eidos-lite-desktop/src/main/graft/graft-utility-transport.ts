@@ -10,13 +10,25 @@ import type {
   SpaceVersionTextContentDiff,
   SpaceVersionTextContentRequest,
 } from "../../shared/contracts"
+import {
+  createTextLineBuffer,
+  eidosLiteLogger,
+  logCorrelationKey,
+} from "../logging"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 interface PendingRequest {
   child: UtilityProcess
+  operation: string
+  repositoryKey: string | null
+  startedAtMs: number
   cleanup(): void
   resolve(value: unknown): void
   reject(error: Error): void
+}
+
+interface GraftUtilityTransportOptions {
+  repositoryKey?(root: string): string
 }
 
 function isWorkerResponse(value: unknown): value is GraftSdkWorkerResponse {
@@ -38,7 +50,10 @@ export class GraftUtilityTransport implements GraftSdkTransport {
   private openInFlight: Promise<void> | null = null
   target: string | null = null
 
-  constructor(private readonly workerPath: string) {}
+  constructor(
+    private readonly workerPath: string,
+    private readonly options: GraftUtilityTransportOptions = {}
+  ) {}
 
   async open(root: string): Promise<void> {
     const target = path.resolve(root)
@@ -115,7 +130,7 @@ export class GraftUtilityTransport implements GraftSdkTransport {
     remoteUrl: string,
     token?: string
   ): Promise<unknown> {
-    const transport = new GraftUtilityTransport(this.workerPath)
+    const transport = new GraftUtilityTransport(this.workerPath, this.options)
     await transport.open(targetDirectory)
     try {
       return await transport.command("cloneRepository", [
@@ -144,12 +159,71 @@ export class GraftUtilityTransport implements GraftSdkTransport {
     const child = utilityProcess.fork(this.workerPath, [], {
       serviceName: `Graft · ${path.basename(target)}`,
       stdio: "pipe",
+      env: {
+        ...process.env,
+        GRAFT_PUSH_TRACE: "1",
+      },
+    })
+    const repositoryKey = this.repositoryKey(target)
+    eidosLiteLogger()?.record("info", "graft-worker", "graft.worker.started", {
+      repositoryKey,
+      pid: child.pid,
     })
     this.child = child
     this.target = target
+    child.stdout?.on("data", (chunk: Buffer | string) => {
+      eidosLiteLogger()?.record(
+        "debug",
+        "graft-worker",
+        "graft.worker.stdout",
+        {
+          repositoryKey,
+          output: String(chunk),
+        }
+      )
+    })
+    const stderrLines = createTextLineBuffer((line) => {
+      const output = line.trim()
+      if (!output) return
+      const tracePrefix = "graft-push-trace "
+      if (output.startsWith(tracePrefix)) {
+        let trace: unknown = output.slice(tracePrefix.length)
+        try {
+          trace = JSON.parse(String(trace))
+        } catch {
+          // A partial trace line remains useful as sanitized text.
+        }
+        eidosLiteLogger()?.record("debug", "graft-worker", "graft.http.trace", {
+          repositoryKey,
+          trace,
+        })
+      } else {
+        eidosLiteLogger()?.record(
+          "warn",
+          "graft-worker",
+          "graft.worker.stderr",
+          {
+            repositoryKey,
+            output,
+          }
+        )
+      }
+    })
+    child.stderr?.on("data", stderrLines.write)
+    child.stderr?.once("end", stderrLines.end)
     child.on("message", (message) => this.receive(child, message))
     child.on("exit", (code) => {
       const expected = this.expectedExits.has(child)
+      eidosLiteLogger()?.record(
+        expected ? "info" : "error",
+        "graft-worker",
+        "graft.worker.exited",
+        {
+          repositoryKey,
+          expected,
+          exitCode: code,
+        }
+      )
       if (this.child === child) this.child = null
       const error = Object.assign(
         new Error(
@@ -166,6 +240,7 @@ export class GraftUtilityTransport implements GraftSdkTransport {
       for (const [requestId, pending] of this.pending) {
         if (pending.child !== child) continue
         pending.cleanup()
+        this.logRequestCompleted(pending, error)
         pending.reject(error)
         this.pending.delete(requestId)
       }
@@ -192,6 +267,20 @@ export class GraftUtilityTransport implements GraftSdkTransport {
       return Promise.reject(new Error("Graft SDK utility process is closed"))
     }
     if (signal?.aborted) return Promise.reject(abortError())
+    const operation =
+      request.type === "command" ? request.command : request.type
+    const repositoryKey = this.target ? this.repositoryKey(this.target) : null
+    const startedAtMs = Date.now()
+    eidosLiteLogger()?.record(
+      this.remoteOperation(operation) ? "info" : "debug",
+      "graft-worker",
+      "graft.command.started",
+      {
+        repositoryKey,
+        requestId: request.requestId,
+        operation,
+      }
+    )
     return new Promise((resolve, reject) => {
       const cancel = () => {
         if (this.child === child) {
@@ -202,6 +291,9 @@ export class GraftUtilityTransport implements GraftSdkTransport {
       signal?.addEventListener("abort", cancel, { once: true })
       this.pending.set(request.requestId, {
         child,
+        operation,
+        repositoryKey,
+        startedAtMs,
         cleanup,
         resolve,
         reject,
@@ -217,6 +309,7 @@ export class GraftUtilityTransport implements GraftSdkTransport {
     this.pending.delete(message.requestId)
     pending.cleanup()
     if (message.ok) {
+      this.logRequestCompleted(pending)
       pending.resolve(message.result)
       return
     }
@@ -224,7 +317,35 @@ export class GraftUtilityTransport implements GraftSdkTransport {
     error.name = message.error.name
     if (message.error.stack) error.stack = message.error.stack
     if (message.error.code) Object.assign(error, { code: message.error.code })
+    this.logRequestCompleted(pending, error)
     pending.reject(error)
+  }
+
+  private repositoryKey(root: string): string {
+    return this.options.repositoryKey?.(root) ?? logCorrelationKey(root)
+  }
+
+  private remoteOperation(operation: string): boolean {
+    return ["push", "fetch", "pull", "cloneRepository"].includes(operation)
+  }
+
+  private logRequestCompleted(pending: PendingRequest, error?: Error): void {
+    const level = error
+      ? "error"
+      : this.remoteOperation(pending.operation)
+        ? "info"
+        : "debug"
+    eidosLiteLogger()?.record(
+      level,
+      "graft-worker",
+      error ? "graft.command.failed" : "graft.command.completed",
+      {
+        repositoryKey: pending.repositoryKey,
+        operation: pending.operation,
+        durationMs: Math.max(0, Date.now() - pending.startedAtMs),
+      },
+      error
+    )
   }
 }
 

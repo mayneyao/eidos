@@ -28,6 +28,7 @@ import {
   PanelLeft,
   Pencil,
   RefreshCw,
+  Settings,
   Trash2,
   Upload,
   X,
@@ -35,6 +36,7 @@ import {
 
 import type {
   EidosFileIssue,
+  EidosLiteAppearance,
   EidosLiteAppInfo,
   EidosSyncQueueStatus,
   RecentSpaceEntry,
@@ -43,19 +45,34 @@ import type {
   SpaceTreeEntry,
   TextFilePreviewResult,
 } from "../shared/contracts"
+import {
+  applyAppearance,
+  DEFAULT_RENDERER_PREFERENCES,
+  resolveAppearance,
+  type ResolvedAppearance,
+} from "./app-appearance"
 import { FileRecoveryNotice } from "./file-recovery-notice"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
 import {
-  createNavigationHistory,
-  navigationAtOffset,
+  canNavigateHistory,
+  initializeNavigationHistory,
+  navigationOffsetForKeyboardShortcut,
+  navigationOffsetForPointerButton,
   pathMatchesPrefix,
   pushNavigationLocation,
-  removeNavigationPathPrefix,
-  replaceNavigationPathPrefix,
-  type NavigationHistory,
+  readNavigationHistory,
+  replaceNavigationLocation,
+  type NavigationLocation,
+  type NavigationSnapshot,
 } from "./navigation-history"
 import { TextFilePreview } from "./text-file-preview"
+import { SettingsPage } from "./settings-page"
 import type { VersionInspection } from "./version-change-tree"
+import {
+  WORKSPACE_SHORTCUT_ARIA,
+  workspaceShortcutForKeyboardEvent,
+  workspaceShortcutLabel,
+} from "./workspace-shortcuts"
 
 const EidosFileWorkbench = lazy(async () => {
   const module = await import("./eidos-file-workbench")
@@ -86,16 +103,32 @@ interface CachedFile {
   tableId: string
 }
 
-function useSystemTheme(): "light" | "dark" {
-  const [theme, setTheme] = useState<"light" | "dark">(() =>
-    window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
+function useAppTheme(): ResolvedAppearance {
+  const media = useMemo(
+    () => window.matchMedia("(prefers-color-scheme: dark)"),
+    []
+  )
+  const [systemDark, setSystemDark] = useState(media.matches)
+  const [appearance, setAppearance] = useState<EidosLiteAppearance>(
+    DEFAULT_RENDERER_PREFERENCES.appearance
   )
   useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)")
-    const update = () => setTheme(media.matches ? "dark" : "light")
+    const update = () => setSystemDark(media.matches)
     media.addEventListener("change", update)
     return () => media.removeEventListener("change", update)
+  }, [media])
+  useEffect(() => {
+    void window.eidosLite
+      .getPreferences()
+      .then((preferences) => setAppearance(preferences.appearance))
+    return window.eidosLite.onPreferencesChanged((preferences) =>
+      setAppearance(preferences.appearance)
+    )
   }, [])
+  const theme = resolveAppearance(appearance, systemDark)
+  useEffect(() => {
+    applyAppearance(document.documentElement, appearance, systemDark)
+  }, [appearance, systemDark])
   return theme
 }
 
@@ -107,7 +140,7 @@ interface TitlebarNavigationProps {
   collapsed: boolean
   canGoBack: boolean
   canGoForward: boolean
-  busy: boolean
+  toggleShortcutLabel: string
   onToggle(): void
   onBack(): void
   onForward(): void
@@ -117,7 +150,7 @@ function TitlebarNavigation({
   collapsed,
   canGoBack,
   canGoForward,
-  busy,
+  toggleShortcutLabel,
   onToggle,
   onBack,
   onForward,
@@ -136,7 +169,8 @@ function TitlebarNavigation({
         data-sidebar-toggle={collapsed ? "open" : "close"}
         onClick={onToggle}
         aria-label={label}
-        title={label}
+        aria-keyshortcuts={WORKSPACE_SHORTCUT_ARIA["toggle-sidebar"]}
+        title={`${label} (${toggleShortcutLabel})`}
       >
         <PanelLeft />
       </button>
@@ -147,7 +181,7 @@ function TitlebarNavigation({
         onClick={onBack}
         aria-label="Go back"
         title="Go back (⌘[ or Alt+Left)"
-        disabled={busy || !canGoBack}
+        disabled={!canGoBack}
       >
         <ArrowLeft />
       </button>
@@ -158,7 +192,7 @@ function TitlebarNavigation({
         onClick={onForward}
         aria-label="Go forward"
         title="Go forward (⌘] or Alt+Right)"
-        disabled={busy || !canGoForward}
+        disabled={!canGoForward}
       >
         <ArrowRight />
       </button>
@@ -196,6 +230,10 @@ function syncQueueLabel(status: EidosSyncQueueStatus | null): string {
   if (status.state === "pending") return "Sync queued"
   if (status.state === "retry-wait") return "Sync retry pending"
   return "Sync paused"
+}
+
+function shortcutTitle(label: string, shortcut: string): string {
+  return `${label} (${shortcut})`
 }
 
 type PathDialogAction =
@@ -359,6 +397,7 @@ function Welcome({
   onOpenRecent,
   onRemoveRecent,
   onClone,
+  onOpenSettings,
   onCopyDiagnostics,
   diagnosticsCopied,
 }: {
@@ -371,6 +410,7 @@ function Welcome({
   onOpenRecent(id: string): void
   onRemoveRecent(id: string): void
   onClone(): void
+  onOpenSettings(): void
   onCopyDiagnostics(): void
   diagnosticsCopied: boolean
 }) {
@@ -384,6 +424,15 @@ function Welcome({
     >
       <header className="welcome-titlebar">
         <strong>Eidos Lite</strong>
+        <button
+          type="button"
+          className="icon-button welcome-settings-button"
+          onClick={onOpenSettings}
+          aria-label="Settings"
+          title="Settings (⌘,)"
+        >
+          <Settings />
+        </button>
       </header>
       <section className="welcome-copy" aria-labelledby="welcome-title">
         <p className="eyebrow">Local-first workspace</p>
@@ -474,8 +523,11 @@ function Welcome({
   )
 }
 
-export function App() {
-  const theme = useSystemTheme()
+function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
+  const macos = navigator.userAgent.includes("Macintosh")
+  const sidebarShortcutLabel = workspaceShortcutLabel("toggle-sidebar", macos)
+  const versionShortcutLabel = workspaceShortcutLabel("toggle-version", macos)
+  const syncShortcutLabel = workspaceShortcutLabel("toggle-sync", macos)
   const [appInfo, setAppInfo] = useState<EidosLiteAppInfo | null>(null)
   const [space, setSpace] = useState<SpaceSnapshot | null>(null)
   const [cachedFiles, setCachedFiles] = useState<CachedFile[]>([])
@@ -500,9 +552,8 @@ export function App() {
   const [fileIssue, setFileIssue] = useState<EidosFileIssue | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [navigationHistory, setNavigationHistory] = useState<NavigationHistory>(
-    createNavigationHistory
-  )
+  const [navigationSnapshot, setNavigationSnapshot] =
+    useState<NavigationSnapshot | null>(null)
   const [selectedEntry, setSelectedEntry] = useState<SpaceTreeEntry | null>(
     null
   )
@@ -515,27 +566,17 @@ export function App() {
   const [pathMutationBusy, setPathMutationBusy] = useState(false)
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false)
   const fileOpenInFlight = useRef(false)
-  const navigationHistoryRef = useRef(navigationHistory)
-  navigationHistoryRef.current = navigationHistory
-
-  const updateNavigationHistory = useCallback(
-    (update: (current: NavigationHistory) => NavigationHistory) => {
-      setNavigationHistory((current) => {
-        const next = update(current)
-        navigationHistoryRef.current = next
-        return next
-      })
-    },
-    []
-  )
+  const navigationSnapshotRef = useRef<NavigationSnapshot | null>(null)
 
   const recordNavigationLocation = useCallback(
     (relativePath: string | null) => {
-      updateNavigationHistory((current) =>
-        pushNavigationLocation(current, relativePath)
-      )
+      const current = navigationSnapshotRef.current
+      if (!current || !space) return
+      const next = pushNavigationLocation(current, space.id, relativePath)
+      navigationSnapshotRef.current = next
+      setNavigationSnapshot(next)
     },
-    [updateNavigationHistory]
+    [space]
   )
 
   const invalidateCachedSessions = useCallback((sessionIds: string[]) => {
@@ -651,8 +692,7 @@ export function App() {
   useEffect(() => {
     setActiveSession(null)
     setTextPreview(null)
-    updateNavigationHistory(() => createNavigationHistory())
-  }, [space?.id, updateNavigationHistory])
+  }, [space?.id])
 
   useEffect(() => {
     if (!contextMenu) return
@@ -900,10 +940,12 @@ export function App() {
 
   const launchSpace = useRef(space)
   const launchOpenEntry = useRef(openEntry)
+  const launchAcceptSpaceSnapshot = useRef(acceptSpaceSnapshot)
   useEffect(() => {
     launchSpace.current = space
     launchOpenEntry.current = openEntry
-  }, [openEntry, space])
+    launchAcceptSpaceSnapshot.current = acceptSpaceSnapshot
+  }, [acceptSpaceSnapshot, openEntry, space])
 
   useEffect(() => {
     if (!space) return
@@ -954,45 +996,147 @@ export function App() {
     }
   }, [space?.id])
 
-  const navigateHistory = useCallback(
-    async (offset: -1 | 1) => {
-      if (!space || fileOpenInFlight.current) return
-      const target = navigationAtOffset(navigationHistoryRef.current, offset)
-      if (!target) return
-      if (target.location === null) {
-        setVersionInspection(null)
-        setFileIssue(null)
-        setActiveSession(null)
-        setTextPreview(null)
-        setSelectedEntry(null)
-        updateNavigationHistory((current) =>
-          current.entries[target.index] === null
-            ? { ...current, index: target.index }
-            : current
-        )
-        return
+  const pendingNavigationLocation = useRef<NavigationLocation | undefined>(
+    undefined
+  )
+  const applyingNavigationLocation = useRef(false)
+  const applyNavigationLocation = useCallback(
+    (location: NavigationLocation) => {
+      pendingNavigationLocation.current = location
+      if (applyingNavigationLocation.current) return
+      applyingNavigationLocation.current = true
+
+      const drain = async () => {
+        try {
+          while (pendingNavigationLocation.current !== undefined) {
+            const target = pendingNavigationLocation.current
+            pendingNavigationLocation.current = undefined
+            while (fileOpenInFlight.current) {
+              await new Promise((resolve) => window.setTimeout(resolve, 25))
+            }
+
+            let currentSpace = launchSpace.current
+            if (!currentSpace) continue
+            if (target === null) {
+              setVersionInspection(null)
+              setFileIssue(null)
+              setActiveSession(null)
+              setTextPreview(null)
+              setSelectedEntry(null)
+              continue
+            }
+
+            let directoryPath = ""
+            for (const segment of target.split("/").slice(0, -1)) {
+              directoryPath = directoryPath
+                ? `${directoryPath}/${segment}`
+                : segment
+              const directory = findSpaceEntry(
+                currentSpace.entries,
+                directoryPath
+              )
+              if (directory?.kind !== "directory") break
+              if (directory.childrenLoaded) continue
+              currentSpace = await window.eidosLite.loadSpaceDirectory(
+                directory.relativePath
+              )
+              launchSpace.current = currentSpace
+              launchAcceptSpaceSnapshot.current(currentSpace)
+            }
+
+            const entry = findSpaceEntry(currentSpace.entries, target)
+            if (!entry || entry.kind === "directory") {
+              setError(`${target} is no longer available in this Space.`)
+              const current = navigationSnapshotRef.current
+              if (current) {
+                const next = replaceNavigationLocation(
+                  current,
+                  currentSpace.id,
+                  null
+                )
+                navigationSnapshotRef.current = next
+                setNavigationSnapshot(next)
+              }
+              setVersionInspection(null)
+              setFileIssue(null)
+              setActiveSession(null)
+              setTextPreview(null)
+              setSelectedEntry(null)
+              continue
+            }
+
+            setSelectedEntry(entry)
+            await launchOpenEntry.current(entry, { recordHistory: false })
+          }
+        } catch (cause) {
+          setError(`Could not follow browser history. ${errorMessage(cause)}`)
+        } finally {
+          applyingNavigationLocation.current = false
+        }
       }
-      const entry = findSpaceEntry(space.entries, target.location)
-      if (!entry || entry.kind === "directory") {
-        setError(`${target.location} is no longer available in this Space.`)
-        updateNavigationHistory((current) =>
-          removeNavigationPathPrefix(current, target.location ?? "")
-        )
-        return
-      }
-      setSelectedEntry(entry)
-      if (!(await openEntry(entry, { recordHistory: false }))) return
-      updateNavigationHistory((current) =>
-        current.entries[target.index] === target.location
-          ? { ...current, index: target.index }
-          : current
-      )
+      void drain()
     },
-    [openEntry, space, updateNavigationHistory]
+    []
   )
 
   useEffect(() => {
-    const handleNavigationShortcut = (event: KeyboardEvent) => {
+    if (!space) {
+      navigationSnapshotRef.current = null
+      setNavigationSnapshot(null)
+      return
+    }
+
+    const initial = initializeNavigationHistory(space.id)
+    navigationSnapshotRef.current = initial
+    setNavigationSnapshot(initial)
+    applyNavigationLocation(initial.location)
+
+    const handlePopState = () => {
+      const next = readNavigationHistory(space.id)
+      navigationSnapshotRef.current = next
+      setNavigationSnapshot(next)
+      applyNavigationLocation(next.location)
+    }
+    window.addEventListener("popstate", handlePopState)
+    return () => window.removeEventListener("popstate", handlePopState)
+  }, [applyNavigationLocation, space?.id])
+
+  const navigateHistory = useCallback(
+    (offset: -1 | 1) => {
+      if (
+        !space ||
+        fileOpenInFlight.current ||
+        pathMutationBusy ||
+        !canNavigateHistory(navigationSnapshotRef.current, offset)
+      ) {
+        return
+      }
+      window.history.go(offset)
+    },
+    [pathMutationBusy, space]
+  )
+
+  const toggleSidebar = useCallback(() => {
+    if (!space) return
+    setSidebarCollapsed((current) => !current)
+  }, [space])
+
+  const toggleVersionPanel = useCallback(() => {
+    if (!space?.graft.available) return
+    setSyncPanelMode(null)
+    if (versionPanelOpen) setVersionInspection(null)
+    setVersionPanelOpen((current) => !current)
+  }, [space?.graft.available, versionPanelOpen])
+
+  const toggleSyncPanel = useCallback(() => {
+    if (!space) return
+    setVersionPanelOpen(false)
+    setVersionInspection(null)
+    setSyncPanelMode((current) => (current === null ? "enable" : null))
+  }, [space])
+
+  useEffect(() => {
+    const handleKeyboardShortcut = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return
       const target = event.target
       if (
@@ -1002,19 +1146,50 @@ export function App() {
       ) {
         return
       }
-      const goBack =
-        (event.altKey && event.key === "ArrowLeft") ||
-        (event.metaKey && event.key === "[")
-      const goForward =
-        (event.altKey && event.key === "ArrowRight") ||
-        (event.metaKey && event.key === "]")
-      if (!goBack && !goForward) return
+      const workspaceShortcut = workspaceShortcutForKeyboardEvent(event)
+      if (workspaceShortcut && space) {
+        if (workspaceShortcut === "toggle-version" && !space.graft.available) {
+          return
+        }
+        event.preventDefault()
+        if (workspaceShortcut === "toggle-sidebar") toggleSidebar()
+        else if (workspaceShortcut === "toggle-version") toggleVersionPanel()
+        else toggleSyncPanel()
+        return
+      }
+      const offset = navigationOffsetForKeyboardShortcut(event)
+      if (!offset) return
       event.preventDefault()
-      void navigateHistory(goBack ? -1 : 1)
+      navigateHistory(offset)
     }
-    window.addEventListener("keydown", handleNavigationShortcut)
-    return () => window.removeEventListener("keydown", handleNavigationShortcut)
-  }, [navigateHistory])
+    const handlePointerNavigation = (event: PointerEvent) => {
+      const offset = navigationOffsetForPointerButton(event.button)
+      if (!offset) return
+      event.preventDefault()
+      navigateHistory(offset)
+    }
+    const preventAuxiliaryNavigation = (event: MouseEvent) => {
+      if (event.button === 3 || event.button === 4) event.preventDefault()
+    }
+    window.addEventListener("keydown", handleKeyboardShortcut)
+    window.addEventListener("pointerdown", handlePointerNavigation)
+    window.addEventListener("auxclick", preventAuxiliaryNavigation)
+    const unsubscribe = window.eidosLite.onNavigationCommand((direction) =>
+      navigateHistory(direction === "back" ? -1 : 1)
+    )
+    return () => {
+      window.removeEventListener("keydown", handleKeyboardShortcut)
+      window.removeEventListener("pointerdown", handlePointerNavigation)
+      window.removeEventListener("auxclick", preventAuxiliaryNavigation)
+      unsubscribe()
+    }
+  }, [
+    navigateHistory,
+    space,
+    toggleSidebar,
+    toggleSyncPanel,
+    toggleVersionPanel,
+  ])
 
   const retryFileIssue = useCallback(async () => {
     if (!fileIssue || !space) return
@@ -1080,14 +1255,6 @@ export function App() {
         )
         applyPathMutation(result)
         if (result.relativePath) {
-          updateNavigationHistory((current) => {
-            const moved = replaceNavigationPathPrefix(
-              current,
-              relativePath,
-              result.relativePath!
-            )
-            return activePathMoved ? pushNavigationLocation(moved, null) : moved
-          })
           setSelectedEntry(
             findSpaceEntry(result.snapshot.entries, result.relativePath)
           )
@@ -1095,12 +1262,13 @@ export function App() {
         if (activePathMoved) {
           setActiveSession(null)
           setTextPreview(null)
+          recordNavigationLocation(null)
         }
       } finally {
         setPathMutationBusy(false)
       }
     },
-    [activeDocumentPath, applyPathMutation, updateNavigationHistory]
+    [activeDocumentPath, applyPathMutation, recordNavigationLocation]
   )
 
   const submitPathDialog = useCallback(
@@ -1156,35 +1324,10 @@ export function App() {
         const activePathChanged =
           changedPath !== undefined &&
           pathMatchesPrefix(activeDocumentPath, changedPath)
-        const movedPath =
-          changedPath &&
-          result.relativePath &&
-          result.relativePath !== changedPath &&
-          (pathDialog.action === "rename" || pathDialog.action === "move")
-            ? result.relativePath
-            : null
-        if (changedPath && movedPath) {
-          updateNavigationHistory((current) => {
-            const moved = replaceNavigationPathPrefix(
-              current,
-              changedPath,
-              movedPath
-            )
-            return activePathChanged
-              ? pushNavigationLocation(moved, null)
-              : moved
-          })
-        } else if (changedPath && pathDialog.action === "delete") {
-          updateNavigationHistory((current) => {
-            const removed = removeNavigationPathPrefix(current, changedPath)
-            return activePathChanged
-              ? pushNavigationLocation(removed, null)
-              : removed
-          })
-        }
         if (activePathChanged) {
           setActiveSession(null)
           setTextPreview(null)
+          recordNavigationLocation(null)
         }
         setPathDialog(null)
         setSelectedEntry(
@@ -1210,7 +1353,7 @@ export function App() {
       applyPathMutation,
       openEntry,
       pathDialog,
-      updateNavigationHistory,
+      recordNavigationLocation,
     ]
   )
 
@@ -1228,10 +1371,8 @@ export function App() {
       setPathMutationBusy(false)
     }
   }, [applyPathMutation, selectedEntry])
-  const navigationBusy = busyFile !== null || pathMutationBusy
-  const canGoBack = navigationHistory.index > 0
-  const canGoForward =
-    navigationHistory.index < navigationHistory.entries.length - 1
+  const canGoBack = canNavigateHistory(navigationSnapshot, -1)
+  const canGoForward = canNavigateHistory(navigationSnapshot, 1)
   if (!space) {
     return (
       <>
@@ -1245,6 +1386,7 @@ export function App() {
           onOpenRecent={(id) => void openRecentSpace(id)}
           onRemoveRecent={(id) => void removeRecentSpace(id)}
           onClone={() => setSyncPanelMode("clone")}
+          onOpenSettings={() => void window.eidosLite.openSettings()}
           onCopyDiagnostics={() => void copyDiagnostics()}
           diagnosticsCopied={diagnosticsCopied}
         />
@@ -1299,10 +1441,10 @@ export function App() {
             collapsed={false}
             canGoBack={canGoBack}
             canGoForward={canGoForward}
-            busy={navigationBusy}
-            onToggle={() => setSidebarCollapsed(true)}
-            onBack={() => void navigateHistory(-1)}
-            onForward={() => void navigateHistory(1)}
+            toggleShortcutLabel={sidebarShortcutLabel}
+            onToggle={toggleSidebar}
+            onBack={() => navigateHistory(-1)}
+            onForward={() => navigateHistory(1)}
           />
         </header>
         <div className="space-heading">
@@ -1431,10 +1573,10 @@ export function App() {
               collapsed
               canGoBack={canGoBack}
               canGoForward={canGoForward}
-              busy={navigationBusy}
-              onToggle={() => setSidebarCollapsed(false)}
-              onBack={() => void navigateHistory(-1)}
-              onForward={() => void navigateHistory(1)}
+              toggleShortcutLabel={sidebarShortcutLabel}
+              onToggle={toggleSidebar}
+              onBack={() => navigateHistory(-1)}
+              onForward={() => navigateHistory(1)}
             />
           ) : null}
           <div className="file-titlebar-identity">
@@ -1471,6 +1613,7 @@ export function App() {
               data-version-change-count={versionChangeCount}
               disabled={!space.graft.available}
               aria-pressed={versionPanelOpen}
+              aria-keyshortcuts={WORKSPACE_SHORTCUT_ARIA["toggle-version"]}
               aria-label={
                 space.graft.checking
                   ? "Checking version history"
@@ -1482,11 +1625,8 @@ export function App() {
                         ? "Version history"
                         : "Set up version history"
               }
-              onClick={() => {
-                if (versionPanelOpen) setVersionInspection(null)
-                setVersionPanelOpen(!versionPanelOpen)
-              }}
-              title={
+              onClick={toggleVersionPanel}
+              title={shortcutTitle(
                 space.graft.checking
                   ? "Checking version history"
                   : !space.graft.available
@@ -1495,8 +1635,9 @@ export function App() {
                       ? `${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
                       : space.graft.initialized
                         ? "Version history"
-                        : "Set up version history"
-              }
+                        : "Set up version history",
+                versionShortcutLabel
+              )}
             >
               <History />
               {versionChangeCount > 0 ? (
@@ -1512,20 +1653,28 @@ export function App() {
               data-sync-queue-state={syncQueueStatus?.state ?? "idle"}
               aria-pressed={syncPanelMode === "enable"}
               aria-label={syncQueueLabel(syncQueueStatus)}
-              onClick={() => {
-                setVersionPanelOpen(false)
-                setVersionInspection(null)
-                setSyncPanelMode((current) =>
-                  current === "enable" ? null : "enable"
-                )
-              }}
-              title={syncQueueLabel(syncQueueStatus)}
+              aria-keyshortcuts={WORKSPACE_SHORTCUT_ARIA["toggle-sync"]}
+              onClick={toggleSyncPanel}
+              title={shortcutTitle(
+                syncQueueLabel(syncQueueStatus),
+                syncShortcutLabel
+              )}
             >
               {syncQueueStatus?.state === "running" ? (
                 <LoaderCircle className="spin" />
               ) : (
                 <Cloud />
               )}
+            </button>
+            <button
+              type="button"
+              className="icon-button titlebar-tool-button"
+              data-titlebar-action="settings"
+              onClick={() => void window.eidosLite.openSettings()}
+              aria-label="Settings"
+              title="Settings (⌘,)"
+            >
+              <Settings />
             </button>
           </div>
         </header>
@@ -1800,5 +1949,14 @@ export function App() {
         />
       ) : null}
     </div>
+  )
+}
+
+export function App() {
+  const theme = useAppTheme()
+  return window.location.hash === "#/settings" ? (
+    <SettingsPage />
+  ) : (
+    <WorkspaceApp theme={theme} />
   )
 }

@@ -1,13 +1,16 @@
 import fs from "node:fs"
 import path from "node:path"
-import { app, BrowserWindow, dialog } from "electron"
+import { app, BrowserWindow, dialog, Menu } from "electron"
 
 import {
   resolveEidosLiteServiceEnvironment,
   runtimeEnvironmentOverride,
 } from "../shared/service-environment"
+import { installElectronLogging } from "./electron-logging"
+import { eidosLiteApplicationMenuTemplate } from "./application-menu"
 import { registerIpc } from "./ipc"
 import { eidosFilePathsFromArguments } from "./launch-intent"
+import { initializeEidosLiteLogger } from "./logging"
 import { createSyncControlPlane } from "./sync/create-sync-control-plane"
 import { PACKAGED_SYNC_FAILURE_SEQUENCE } from "./sync/sync-failure"
 import { WindowController } from "./window-controller"
@@ -31,8 +34,9 @@ const smokeSpace = process.env.EIDOS_LITE_SMOKE_SPACE
 const smokeResult = process.env.EIDOS_LITE_SMOKE_RESULT
 const isPackagedSmoke = Boolean(smokeSpace || smokeResult)
 const smokeLaunchedAtMs = Number(process.env.EIDOS_LITE_SMOKE_LAUNCHED_AT_MS)
+let smokeUserData: string | null = null
 if (smokeResult) {
-  const smokeUserData = path.join(path.dirname(smokeResult), "user-data")
+  smokeUserData = path.join(path.dirname(smokeResult), "user-data")
   fs.mkdirSync(smokeUserData, { recursive: true })
   app.setPath("userData", smokeUserData)
 }
@@ -50,6 +54,21 @@ if (!hasSingleInstanceLock) {
 const services = resolveEidosLiteServiceEnvironment(
   runtimeEnvironmentOverride(app.isPackaged, process.env.EIDOS_LITE_ENVIRONMENT)
 )
+if (smokeUserData) {
+  app.setAppLogsPath(path.join(smokeUserData, "logs"))
+} else {
+  app.setAppLogsPath()
+}
+const logger = initializeEidosLiteLogger(app.getPath("logs"))
+const stopLogging = installElectronLogging(app, logger)
+logger.info("app.started", {
+  appVersion: app.getVersion(),
+  packaged: app.isPackaged,
+  environment: services.name,
+  platform: process.platform,
+  arch: process.arch,
+  electronVersion: process.versions.electron,
+})
 const controller = new WindowController(services)
 let shutdownStarted = false
 let closeIpc = (): Promise<void> => Promise.resolve()
@@ -133,6 +152,7 @@ app.on("before-quit", (event) => {
   if (shutdownStarted) return
   event.preventDefault()
   shutdownStarted = true
+  logger.info("app.shutdown.started")
   launchRoutingReady = false
   pendingLaunchFiles.length = 0
   void closeIpc()
@@ -141,14 +161,46 @@ app.on("before-quit", (event) => {
     .then(
       () => app.quit(),
       (error) => {
+        logger.error("app.shutdown.failed", undefined, error)
         console.error("Failed to close Eidos Lite runtimes", error)
         app.exit(1)
       }
     )
 })
 
+function installApplicationMenu(): void {
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate(
+      eidosLiteApplicationMenuTemplate(process.platform, app.getName(), {
+        openSettings: () => controller.showSettingsWindow(),
+        openDocumentation: () => {
+          void controller
+            .openSettingsDestination("documentation")
+            .catch((error) =>
+              logger.warn("settings.destination.failed", {
+                destination: "documentation",
+                error: error instanceof Error ? error.message : String(error),
+              })
+            )
+        },
+        openWebsite: () => {
+          void controller.openSettingsDestination("website").catch((error) =>
+            logger.warn("settings.destination.failed", {
+              destination: "website",
+              error: error instanceof Error ? error.message : String(error),
+            })
+          )
+        },
+      })
+    )
+  )
+}
+
 void app.whenReady().then(async () => {
   const appReadyAtMs = Date.now()
+  logger.info("app.ready", {
+    startupMs: Math.max(0, appReadyAtMs - bootstrapStartedAtMs),
+  })
   const syncControl = createSyncControlPlane(services)
   if (isPackagedSmoke) {
     if (!smokeSpace || !smokeResult) {
@@ -176,8 +228,10 @@ void app.whenReady().then(async () => {
       })
       const { runPackagedSmoke } = await import("./packaged-smoke")
       await runPackagedSmoke(controller, smokeSpace, smokeResult, startup)
+      logger.info("app.packaged-smoke.completed")
       app.exit(0)
     } catch (error) {
+      logger.error("app.packaged-smoke.failed", undefined, error)
       console.error(error)
       app.exit(1)
     }
@@ -185,10 +239,16 @@ void app.whenReady().then(async () => {
   }
   await controller.recoverCloneOperations()
   closeIpc = registerIpc(controller, services, syncControl).close
+  installApplicationMenu()
   launchRoutingReady = true
   if (pendingLaunchFiles.length > 0) {
     await drainLaunchFiles()
   } else {
     controller.createWelcomeWindow()
   }
+})
+
+app.once("quit", () => {
+  logger.info("app.shutdown.completed")
+  stopLogging()
 })

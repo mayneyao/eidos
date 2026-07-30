@@ -111,6 +111,18 @@ the JSON from an allowlist and owns the clipboard write; renderer never receives
 credentials, raw errors, Remote URLs, absolute paths, Space names, repository
 ids, file contents, or row data. The packaged smoke reads the same summary
 without mutating the clipboard and rejects path/URL/credential-shaped values.
+
+Main also writes owner-only structured JSONL logs under Electron's application
+`logs` directory (`~/Library/Logs/Eidos Lite/eidos-lite.jsonl` on macOS).
+The current file rotates at 2 MiB and retains at most four files. Logs cover
+application/renderer/utility-process lifecycle, Sync enable/clone/run phases,
+Graft command duration, and the SDK's safe HTTP request trace. Before a value is
+written, bearer tokens, credential-shaped fields, emails, absolute paths,
+service URLs, Space/repository identifiers, and object ids are removed. File
+contents and row data are never passed to the logger. **Copy diagnostics**
+includes the latest 80 already-redacted log events, so a normal support handoff
+does not require copying the raw log directory.
+
 Use [the release runbook](./RELEASE-RUNBOOK.md) for clean install, in-place
 upgrade, binary rollback, association verification, support handoff, and the
 remaining signed-update gates.

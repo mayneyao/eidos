@@ -1,60 +1,111 @@
-import { describe, expect, it } from "vitest"
+// @vitest-environment jsdom
+
+import { beforeEach, describe, expect, it } from "vitest"
 
 import {
-  createNavigationHistory,
-  navigationAtOffset,
+  canNavigateHistory,
+  initializeNavigationHistory,
+  navigationHash,
+  navigationOffsetForKeyboardShortcut,
+  navigationOffsetForPointerButton,
+  parseNavigationHash,
+  pathMatchesPrefix,
   pushNavigationLocation,
-  removeNavigationPathPrefix,
-  replaceNavigationPathPrefix,
+  readNavigationHistory,
+  replaceNavigationLocation,
 } from "./navigation-history"
 
-describe("Eidos Lite document navigation history", () => {
-  it("branches after going back and skips duplicate locations", () => {
-    let history = createNavigationHistory()
-    history = pushNavigationLocation(history, "notes/one.md")
-    history = pushNavigationLocation(history, "notes/two.md")
-    history = pushNavigationLocation(history, "notes/two.md")
-
-    expect(history.entries).toEqual([null, "notes/one.md", "notes/two.md"])
-    expect(navigationAtOffset(history, -1)).toEqual({
-      index: 1,
-      location: "notes/one.md",
-    })
-
-    history = { ...history, index: 1 }
-    history = pushNavigationLocation(history, "notes/three.md")
-    expect(history).toEqual({
-      entries: [null, "notes/one.md", "notes/three.md"],
-      index: 2,
-    })
-    expect(navigationAtOffset(history, 1)).toBeNull()
+describe("Eidos Lite browser navigation history", () => {
+  beforeEach(() => {
+    window.history.replaceState(null, "", "/")
+    window.sessionStorage.clear()
   })
 
-  it("keeps history valid when files and folders move", () => {
-    const history = {
-      entries: [
-        null,
-        "projects/plan.eidos",
-        "projects/archive/notes.md",
-        "README.md",
-      ],
-      index: 2,
-    }
+  it("encodes the active Space and file in the URL", () => {
+    const hash = navigationHash("space/一", "notes/road map.md")
 
-    expect(
-      replaceNavigationPathPrefix(history, "projects", "work/projects")
-    ).toEqual({
-      entries: [
-        null,
-        "work/projects/plan.eidos",
-        "work/projects/archive/notes.md",
-        "README.md",
-      ],
+    expect(hash).toBe("#/space/space%2F%E4%B8%80/file/notes%2Froad%20map.md")
+    expect(parseNavigationHash(hash)).toEqual({
+      spaceId: "space/一",
+      location: "notes/road map.md",
+    })
+    expect(parseNavigationHash("#invalid")).toBeNull()
+  })
+
+  it("branches with browser URLs and restores forward availability", () => {
+    const spaceId = "space-id"
+    let snapshot = initializeNavigationHistory(spaceId)
+    expect(snapshot).toMatchObject({ index: 0, length: 1, location: null })
+    expect(window.location.hash).toBe(navigationHash(spaceId, null))
+
+    snapshot = pushNavigationLocation(snapshot, spaceId, "notes/one.md")
+    const firstEntryState = window.history.state
+    snapshot = pushNavigationLocation(snapshot, spaceId, "notes/two.md")
+    expect(snapshot).toMatchObject({
       index: 2,
+      length: 3,
+      location: "notes/two.md",
     })
-    expect(removeNavigationPathPrefix(history, "projects/archive")).toEqual({
-      entries: [null, "projects/plan.eidos", "README.md"],
+
+    window.history.replaceState(
+      firstEntryState,
+      "",
+      navigationHash(spaceId, "notes/one.md")
+    )
+    snapshot = readNavigationHistory(spaceId)
+    expect(snapshot).toMatchObject({
       index: 1,
+      length: 3,
+      location: "notes/one.md",
     })
+    expect(canNavigateHistory(snapshot, -1)).toBe(true)
+    expect(canNavigateHistory(snapshot, 1)).toBe(true)
+
+    snapshot = pushNavigationLocation(snapshot, spaceId, "notes/three.md")
+    expect(snapshot).toMatchObject({
+      index: 2,
+      length: 3,
+      location: "notes/three.md",
+    })
+    expect(canNavigateHistory(snapshot, 1)).toBe(false)
+    expect(window.location.hash).toBe(navigationHash(spaceId, "notes/three.md"))
+  })
+
+  it("replaces a stale route without adding another history entry", () => {
+    const spaceId = "space-id"
+    let snapshot = initializeNavigationHistory(spaceId)
+    snapshot = pushNavigationLocation(snapshot, spaceId, "deleted.eidos")
+    const index = snapshot.index
+
+    snapshot = replaceNavigationLocation(snapshot, spaceId, null)
+
+    expect(snapshot).toMatchObject({ index, length: 2, location: null })
+    expect(window.location.hash).toBe(navigationHash(spaceId, null))
+  })
+
+  it("matches active files within renamed or deleted directories", () => {
+    expect(pathMatchesPrefix("projects/plan.eidos", "projects")).toBe(true)
+    expect(pathMatchesPrefix("projects-old/plan.eidos", "projects")).toBe(false)
+    expect(pathMatchesPrefix(null, "projects")).toBe(false)
+  })
+
+  it("maps keyboard shortcuts and mouse side buttons to browser history", () => {
+    expect(navigationOffsetForPointerButton(3)).toBe(-1)
+    expect(navigationOffsetForPointerButton(4)).toBe(1)
+    expect(navigationOffsetForPointerButton(0)).toBeNull()
+    expect(
+      navigationOffsetForKeyboardShortcut({
+        altKey: true,
+        metaKey: false,
+        key: "ArrowLeft",
+      })
+    ).toBe(-1)
+    expect(
+      navigationOffsetForKeyboardShortcut({
+        altKey: false,
+        metaKey: true,
+        key: "]",
+      })
+    ).toBe(1)
   })
 })

@@ -15,6 +15,13 @@ export const EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX = 1024 * 1024
 
 export const IPC_CHANNELS = {
   appInfo: "eidos-lite:app-info",
+  preferencesGet: "eidos-lite:preferences-get",
+  preferencesUpdate: "eidos-lite:preferences-update",
+  preferencesChanged: "eidos-lite:preferences-changed",
+  preferencesChooseSpaceLocation:
+    "eidos-lite:preferences-choose-space-location",
+  settingsOpen: "eidos-lite:settings-open",
+  settingsOpenDestination: "eidos-lite:settings-open-destination",
   diagnostics: "eidos-lite:diagnostics-get",
   copyDiagnostics: "eidos-lite:diagnostics-copy",
   openSpace: "eidos-lite:space-open",
@@ -26,6 +33,7 @@ export const IPC_CHANNELS = {
   refreshSpace: "eidos-lite:space-refresh",
   loadSpaceDirectory: "eidos-lite:space-directory-load",
   spaceChanged: "eidos-lite:space-changed",
+  navigationCommand: "eidos-lite:navigation-command",
   launchFileAvailable: "eidos-lite:launch-file-available",
   takeLaunchFile: "eidos-lite:launch-file-take",
   openFile: "eidos-lite:file-open",
@@ -72,6 +80,7 @@ export const IPC_CHANNELS = {
 } as const
 
 export type SpaceEntryKind = "directory" | "eidos" | "file" | "symlink"
+export type EidosLiteNavigationDirection = "back" | "forward"
 
 export interface SpaceTreeEntry {
   name: string
@@ -292,7 +301,39 @@ export interface EidosLiteAppInfo {
   name: string
   version: string
   platform: string
+  architecture: string
   services: EidosLiteServiceEnvironment
+}
+
+export type EidosLiteAppearance = "system" | "light" | "dark"
+
+export interface EidosLitePreferences {
+  appearance: EidosLiteAppearance
+  defaultSpaceLocation: string | null
+}
+
+export type EidosLiteSettingsDestination = "documentation" | "website" | "logs"
+
+export type EidosLiteLogLevel = "debug" | "info" | "warn" | "error"
+
+export interface EidosLiteDiagnosticLogError {
+  name: string
+  message: string
+  code?: string
+  stack?: string
+  cause?: EidosLiteDiagnosticLogError
+}
+
+export interface EidosLiteDiagnosticLogEntry {
+  schemaVersion: 1
+  timestamp: string
+  sequence: number
+  level: EidosLiteLogLevel
+  source: "main" | "renderer" | "graft-worker"
+  event: string
+  message?: string
+  context?: Record<string, unknown>
+  error?: EidosLiteDiagnosticLogError
 }
 
 export interface EidosLiteDiagnostics {
@@ -324,6 +365,12 @@ export interface EidosLiteDiagnostics {
         >
         runtime: { residentCount: number; trackedCount: number }
       }
+  logs: {
+    format: "jsonl"
+    retainedFiles: number
+    currentBytes: number
+    recent: EidosLiteDiagnosticLogEntry[]
+  }
   privacy: { excludes: string[] }
 }
 
@@ -683,6 +730,18 @@ export type RuntimeWorkerResponse =
 
 export interface EidosLiteApi {
   getAppInfo(): Promise<EidosLiteAppInfo>
+  getPreferences(): Promise<EidosLitePreferences>
+  updatePreferences(
+    patch: Partial<EidosLitePreferences>
+  ): Promise<EidosLitePreferences>
+  chooseDefaultSpaceLocation(): Promise<EidosLitePreferences | null>
+  onPreferencesChanged(
+    listener: (preferences: EidosLitePreferences) => void
+  ): () => void
+  openSettings(): Promise<void>
+  openSettingsDestination(
+    destination: EidosLiteSettingsDestination
+  ): Promise<void>
   getDiagnostics(): Promise<EidosLiteDiagnostics>
   copyDiagnostics(): Promise<EidosLiteDiagnostics>
   openSpace(): Promise<SpaceSnapshot | null>
@@ -694,6 +753,9 @@ export interface EidosLiteApi {
   refreshSpace(): Promise<SpaceSnapshot | null>
   loadSpaceDirectory(relativePath: string): Promise<SpaceSnapshot>
   onSpaceChanged(listener: (snapshot: SpaceSnapshot) => void): () => void
+  onNavigationCommand(
+    listener: (direction: EidosLiteNavigationDirection) => void
+  ): () => void
   takeLaunchEidosFile(): Promise<string | null>
   onLaunchEidosFileAvailable(listener: () => void): () => void
   openEidosFile(relativePath: string): Promise<OpenEidosFileResult>

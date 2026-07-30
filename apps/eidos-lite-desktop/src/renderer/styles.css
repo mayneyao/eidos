@@ -41,7 +41,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --canvas: oklch(0.17 0.025 265);
     --lite-sidebar: oklch(0.195 0.027 265);
     --sidebar-strong: oklch(0.235 0.03 265);
@@ -68,6 +68,34 @@
     --control-shadow:
       inset 0 1px oklch(1 0 0 / 8%), 0 1px 1px oklch(0.08 0.02 265 / 28%);
   }
+}
+
+:root[data-theme="dark"] {
+  --canvas: oklch(0.17 0.025 265);
+  --lite-sidebar: oklch(0.195 0.027 265);
+  --sidebar-strong: oklch(0.235 0.03 265);
+  --surface: oklch(0.215 0.028 265);
+  --surface-hover: oklch(0.27 0.03 285);
+  --surface-selected: oklch(0.31 0.07 304);
+  --ink: oklch(0.93 0.012 265);
+  --ink-muted: oklch(0.7 0.025 260);
+  --ink-faint: oklch(0.62 0.025 260);
+  --line: oklch(0.32 0.025 265);
+  --lite-accent: oklch(0.72 0.18 304);
+  --accent-strong: oklch(0.78 0.16 304);
+  --primary-action: oklch(0.93 0.012 265);
+  --primary-action-hover: oklch(0.86 0.014 265);
+  --primary-action-foreground: oklch(0.18 0.036 265);
+  --danger: oklch(0.72 0.15 27);
+  --danger-foreground: oklch(0.985 0.004 265);
+  --success: oklch(0.72 0.105 153);
+  --warning: oklch(0.78 0.1 75);
+  --focus: oklch(0.72 0.18 304);
+  --hairline: oklch(0.43 0.025 265 / 72%);
+  --control-fill: oklch(0.27 0.027 265);
+  --control-border: oklch(0.42 0.025 265);
+  --control-shadow:
+    inset 0 1px oklch(1 0 0 / 8%), 0 1px 1px oklch(0.08 0.02 265 / 28%);
 }
 
 [data-eidos-file-root] {
@@ -170,6 +198,12 @@ button:focus-visible {
   font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: -0.01em;
+}
+
+.welcome-settings-button {
+  position: absolute;
+  right: 0.75rem;
+  -webkit-app-region: no-drag;
 }
 
 .welcome-copy {
@@ -445,6 +479,365 @@ button:focus-visible {
   line-height: 1.5;
 }
 
+.settings-shell {
+  display: grid;
+  grid-template-columns: 12.5rem minmax(0, 1fr);
+  grid-template-rows: 3.25rem minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  background: var(--canvas);
+}
+
+.settings-titlebar {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--hairline);
+  background: color-mix(in oklab, var(--canvas) 86%, transparent);
+  -webkit-app-region: drag;
+  -webkit-user-select: none;
+}
+
+.settings-titlebar strong {
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.settings-sidebar {
+  min-width: 0;
+  padding: 1.5rem 0.75rem;
+  border-right: 1px solid var(--hairline);
+  background: color-mix(in oklab, var(--lite-sidebar) 88%, transparent);
+}
+
+.settings-sidebar-brand {
+  display: grid;
+  gap: 0.125rem;
+  padding: 0 0.625rem 1.25rem;
+}
+
+.settings-sidebar-brand span {
+  color: var(--ink);
+  font-size: 0.8125rem;
+  font-weight: 650;
+}
+
+.settings-sidebar-brand small {
+  color: var(--ink-faint);
+  font-size: 0.6875rem;
+}
+
+.settings-sidebar nav {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.settings-sidebar nav button {
+  display: flex;
+  width: 100%;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.625rem;
+  border: 0;
+  border-radius: 0.35rem;
+  color: var(--ink-muted);
+  background: transparent;
+  font-size: 0.75rem;
+  font-weight: 550;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-sidebar nav button:hover {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+
+.settings-sidebar nav button[aria-current="page"] {
+  color: var(--ink);
+  background: var(--surface-selected);
+}
+
+.settings-sidebar nav svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: 0 0 auto;
+}
+
+.settings-content {
+  position: relative;
+  min-width: 0;
+  overflow: auto;
+  background: var(--surface);
+}
+
+.settings-page {
+  width: min(100%, 36rem);
+  margin: 0 auto;
+  padding: 2.35rem 2.25rem 3rem;
+}
+
+.settings-page-heading {
+  margin-bottom: 2rem;
+}
+
+.settings-page h1,
+.settings-about-heading h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.settings-page-heading p,
+.settings-about-heading p {
+  margin: 0.4rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.settings-page section + section {
+  margin-top: 1.75rem;
+}
+
+.settings-page section > h2 {
+  margin: 0 0 0.5rem 0.15rem;
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.settings-group {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--canvas);
+}
+
+.settings-row {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 0.65rem 0.8rem;
+}
+
+.settings-row + .settings-row {
+  border-top: 1px solid var(--line);
+}
+
+.settings-row-stacked {
+  align-items: flex-start;
+}
+
+.settings-row-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 0.2rem;
+}
+
+.settings-row-copy strong {
+  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.settings-row-copy small {
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+  line-height: 1.45;
+}
+
+.settings-path {
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.settings-segmented-control {
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(3.2rem, 1fr));
+  flex: 0 0 auto;
+  gap: 0.15rem;
+  padding: 0.15rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.4rem;
+  background: var(--lite-sidebar);
+}
+
+.settings-segmented-control button {
+  min-height: 1.65rem;
+  padding: 0.2rem 0.55rem;
+  border: 0;
+  border-radius: 0.28rem;
+  color: var(--ink-muted);
+  background: transparent;
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+
+.settings-segmented-control button:hover {
+  color: var(--ink);
+}
+
+.settings-segmented-control button[aria-checked="true"] {
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+  font-weight: 600;
+}
+
+.settings-row-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.settings-button {
+  display: inline-flex;
+  min-height: 1.8rem;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.35rem;
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+  font-size: 0.6875rem;
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.settings-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.settings-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.settings-button-quiet {
+  border-color: transparent;
+  color: var(--ink-muted);
+  background: transparent;
+  box-shadow: none;
+}
+
+.settings-button svg {
+  width: 0.78rem;
+  height: 0.78rem;
+}
+
+.settings-section-note {
+  margin: 0.55rem 0.15rem 0;
+  color: var(--ink-faint);
+  font-size: 0.6875rem;
+}
+
+.settings-about-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 2rem;
+}
+
+.settings-app-mark {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in oklab, var(--lite-accent) 42%, var(--line));
+  border-radius: 0.65rem;
+  color: var(--lite-accent);
+  background: var(--surface-selected);
+}
+
+.settings-app-mark svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.settings-facts .settings-row {
+  min-height: 2.4rem;
+}
+
+.settings-facts dt {
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+}
+
+.settings-facts dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.75rem;
+  text-align: right;
+  user-select: text;
+}
+
+.settings-environment {
+  text-transform: capitalize;
+}
+
+.settings-action-list button.settings-row {
+  width: 100%;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  color: var(--ink);
+  background: transparent;
+  font-size: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-action-list button.settings-row:first-child {
+  border-top: 0;
+}
+
+.settings-action-list button.settings-row:hover {
+  background: var(--surface-hover);
+}
+
+.settings-action-list svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: 0 0 auto;
+  color: var(--ink-faint);
+}
+
+.settings-error {
+  position: sticky;
+  right: 1rem;
+  bottom: 1rem;
+  left: 1rem;
+  margin: 0 auto;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid color-mix(in oklab, var(--danger) 35%, var(--line));
+  border-radius: 0.4rem;
+  color: var(--danger);
+  background: color-mix(in oklab, var(--surface) 92%, var(--danger));
+  font-size: 0.6875rem;
+  user-select: text;
+}
+
 .workbench {
   --space-sidebar-width: 17.5rem;
   --workbench-titlebar-height: 2.5rem;
@@ -534,7 +927,7 @@ button:focus-visible {
   left: 5rem;
 }
 
-.sidebar-toggle-button:active:not(:disabled) {
+.titlebar-navigation .icon-button:active:not(:disabled) {
   transform: none;
 }
 
@@ -3345,6 +3738,29 @@ button:focus-visible {
 
   .space-heading span {
     display: none;
+  }
+
+  .settings-shell {
+    grid-template-columns: 10.5rem minmax(0, 1fr);
+  }
+
+  .settings-page {
+    padding-right: 1.5rem;
+    padding-left: 1.5rem;
+  }
+
+  .settings-row-stacked {
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+
+  .settings-row-actions,
+  .settings-segmented-control {
+    align-self: stretch;
+  }
+
+  .settings-row-actions {
+    justify-content: flex-end;
   }
 }
 

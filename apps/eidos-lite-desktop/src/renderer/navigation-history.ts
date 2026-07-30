@@ -1,78 +1,204 @@
 export type NavigationLocation = string | null
 
-export interface NavigationHistory {
-  entries: NavigationLocation[]
+export interface NavigationSnapshot {
+  stackId: string
+  index: number
+  length: number
+  location: NavigationLocation
+}
+
+interface NavigationState {
+  namespace: "eidos-lite"
+  stackId: string
+  spaceId: string
   index: number
 }
 
-const NAVIGATION_HISTORY_LIMIT = 50
+const NAVIGATION_LENGTH_STORAGE_PREFIX = "eidos-lite:navigation-length:"
+const navigationLengths = new Map<string, number>()
 
-export function createNavigationHistory(): NavigationHistory {
-  return { entries: [null], index: 0 }
+function createStackId(): string {
+  return typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-export function pushNavigationLocation(
-  history: NavigationHistory,
-  location: NavigationLocation
-): NavigationHistory {
-  if (history.entries[history.index] === location) return history
-  const entries = [
-    ...history.entries.slice(0, history.index + 1),
-    location,
-  ].slice(-NAVIGATION_HISTORY_LIMIT)
-  return { entries, index: entries.length - 1 }
+function navigationState(value: unknown): NavigationState | null {
+  if (!value || typeof value !== "object") return null
+  const candidate = value as Partial<NavigationState>
+  return candidate.namespace === "eidos-lite" &&
+    typeof candidate.stackId === "string" &&
+    typeof candidate.spaceId === "string" &&
+    Number.isInteger(candidate.index) &&
+    Number(candidate.index) >= 0
+    ? (candidate as NavigationState)
+    : null
 }
 
-export function navigationAtOffset(
-  history: NavigationHistory,
-  offset: -1 | 1
-): { index: number; location: NavigationLocation } | null {
-  const index = history.index + offset
-  if (index < 0 || index >= history.entries.length) return null
-  return { index, location: history.entries[index] ?? null }
-}
-
-export function replaceNavigationPathPrefix(
-  history: NavigationHistory,
-  sourcePath: string,
-  destinationPath: string
-): NavigationHistory {
-  const entries = history.entries.map((location) =>
-    remapRelativePath(location, sourcePath, destinationPath)
-  )
-  return entries.every((entry, index) => entry === history.entries[index])
-    ? history
-    : { entries, index: history.index }
-}
-
-export function removeNavigationPathPrefix(
-  history: NavigationHistory,
-  sourcePath: string
-): NavigationHistory {
-  const entries = history.entries.filter(
-    (location) => !pathMatchesPrefix(location, sourcePath)
-  )
-  if (entries.length === 0) return createNavigationHistory()
-  const removedThroughCurrent = history.entries
-    .slice(0, history.index + 1)
-    .filter((location) => pathMatchesPrefix(location, sourcePath)).length
-  return {
-    entries,
-    index: Math.min(
-      entries.length - 1,
-      Math.max(0, history.index - removedThroughCurrent)
-    ),
+function storedNavigationLength(stackId: string, minimum: number): number {
+  const inMemory = navigationLengths.get(stackId) ?? minimum
+  try {
+    const value = Number.parseInt(
+      window.sessionStorage.getItem(
+        `${NAVIGATION_LENGTH_STORAGE_PREFIX}${stackId}`
+      ) ?? "",
+      10
+    )
+    return Number.isFinite(value)
+      ? Math.max(minimum, inMemory, value)
+      : Math.max(minimum, inMemory)
+  } catch {
+    return Math.max(minimum, inMemory)
   }
 }
 
-export function remapRelativePath(
-  relativePath: NavigationLocation,
-  sourcePath: string,
-  destinationPath: string
-): NavigationLocation {
-  if (!pathMatchesPrefix(relativePath, sourcePath)) return relativePath
-  if (relativePath === sourcePath) return destinationPath
-  return `${destinationPath}${relativePath.slice(sourcePath.length)}`
+function storeNavigationLength(stackId: string, length: number): void {
+  navigationLengths.set(stackId, length)
+  try {
+    window.sessionStorage.setItem(
+      `${NAVIGATION_LENGTH_STORAGE_PREFIX}${stackId}`,
+      String(length)
+    )
+  } catch {
+    // Navigation still works when session storage is unavailable.
+  }
+}
+
+export function navigationHash(
+  spaceId: string,
+  location: NavigationLocation
+): string {
+  const space = encodeURIComponent(spaceId)
+  return location === null
+    ? `#/space/${space}`
+    : `#/space/${space}/file/${encodeURIComponent(location)}`
+}
+
+export function parseNavigationHash(
+  hash: string
+): { spaceId: string; location: NavigationLocation } | null {
+  const match = hash.match(/^#\/space\/([^/]+)(?:\/file\/(.+))?$/)
+  if (!match) return null
+  try {
+    return {
+      spaceId: decodeURIComponent(match[1]),
+      location: match[2] ? decodeURIComponent(match[2]) : null,
+    }
+  } catch {
+    return null
+  }
+}
+
+export function initializeNavigationHistory(
+  spaceId: string
+): NavigationSnapshot {
+  const state = navigationState(window.history.state)
+  const route = parseNavigationHash(window.location.hash)
+  if (state?.spaceId === spaceId && route?.spaceId === spaceId) {
+    const length = storedNavigationLength(state.stackId, state.index + 1)
+    return {
+      stackId: state.stackId,
+      index: state.index,
+      length,
+      location: route.location,
+    }
+  }
+
+  const stackId = createStackId()
+  const location = route?.spaceId === spaceId ? route.location : null
+  const nextState: NavigationState = {
+    namespace: "eidos-lite",
+    stackId,
+    spaceId,
+    index: 0,
+  }
+  window.history.replaceState(nextState, "", navigationHash(spaceId, location))
+  storeNavigationLength(stackId, 1)
+  return { stackId, index: 0, length: 1, location }
+}
+
+export function readNavigationHistory(spaceId: string): NavigationSnapshot {
+  const state = navigationState(window.history.state)
+  const route = parseNavigationHash(window.location.hash)
+  if (!state || state.spaceId !== spaceId || route?.spaceId !== spaceId) {
+    return initializeNavigationHistory(spaceId)
+  }
+  const length = storedNavigationLength(state.stackId, state.index + 1)
+  return {
+    stackId: state.stackId,
+    index: state.index,
+    length,
+    location: route.location,
+  }
+}
+
+export function pushNavigationLocation(
+  snapshot: NavigationSnapshot,
+  spaceId: string,
+  location: NavigationLocation
+): NavigationSnapshot {
+  if (snapshot.location === location) return snapshot
+  const index = snapshot.index + 1
+  const length = index + 1
+  const state: NavigationState = {
+    namespace: "eidos-lite",
+    stackId: snapshot.stackId,
+    spaceId,
+    index,
+  }
+  window.history.pushState(state, "", navigationHash(spaceId, location))
+  storeNavigationLength(snapshot.stackId, length)
+  return { stackId: snapshot.stackId, index, length, location }
+}
+
+export function replaceNavigationLocation(
+  snapshot: NavigationSnapshot,
+  spaceId: string,
+  location: NavigationLocation
+): NavigationSnapshot {
+  const state: NavigationState = {
+    namespace: "eidos-lite",
+    stackId: snapshot.stackId,
+    spaceId,
+    index: snapshot.index,
+  }
+  window.history.replaceState(state, "", navigationHash(spaceId, location))
+  return { ...snapshot, location }
+}
+
+export function canNavigateHistory(
+  snapshot: NavigationSnapshot | null,
+  offset: -1 | 1
+): boolean {
+  if (!snapshot) return false
+  const index = snapshot.index + offset
+  return index >= 0 && index < snapshot.length
+}
+
+export function navigationOffsetForPointerButton(
+  button: number
+): -1 | 1 | null {
+  if (button === 3) return -1
+  if (button === 4) return 1
+  return null
+}
+
+export function navigationOffsetForKeyboardShortcut(
+  event: Pick<KeyboardEvent, "altKey" | "metaKey" | "key">
+): -1 | 1 | null {
+  if (
+    (event.altKey && event.key === "ArrowLeft") ||
+    (event.metaKey && event.key === "[")
+  ) {
+    return -1
+  }
+  if (
+    (event.altKey && event.key === "ArrowRight") ||
+    (event.metaKey && event.key === "]")
+  ) {
+    return 1
+  }
+  return null
 }
 
 export function pathMatchesPrefix(

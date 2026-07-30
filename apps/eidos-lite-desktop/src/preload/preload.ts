@@ -3,6 +3,8 @@ import { contextBridge, ipcRenderer } from "electron"
 import {
   IPC_CHANNELS,
   type EidosLiteApi,
+  type EidosLiteNavigationDirection,
+  type EidosLitePreferences,
   type EidosSyncProgress,
   type EidosSyncQueueStatus,
   type RuntimeCalls,
@@ -12,6 +14,23 @@ import {
 
 const api: EidosLiteApi = {
   getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.appInfo),
+  getPreferences: () => ipcRenderer.invoke(IPC_CHANNELS.preferencesGet),
+  updatePreferences: (patch) =>
+    ipcRenderer.invoke(IPC_CHANNELS.preferencesUpdate, patch),
+  chooseDefaultSpaceLocation: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.preferencesChooseSpaceLocation),
+  onPreferencesChanged: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      preferences: EidosLitePreferences
+    ) => listener(preferences)
+    ipcRenderer.on(IPC_CHANNELS.preferencesChanged, handler)
+    return () =>
+      ipcRenderer.removeListener(IPC_CHANNELS.preferencesChanged, handler)
+  },
+  openSettings: () => ipcRenderer.invoke(IPC_CHANNELS.settingsOpen),
+  openSettingsDestination: (destination) =>
+    ipcRenderer.invoke(IPC_CHANNELS.settingsOpenDestination, destination),
   getDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.diagnostics),
   copyDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.copyDiagnostics),
   openSpace: () => ipcRenderer.invoke(IPC_CHANNELS.openSpace),
@@ -29,6 +48,15 @@ const api: EidosLiteApi = {
       listener(value)
     ipcRenderer.on(IPC_CHANNELS.spaceChanged, handler)
     return () => ipcRenderer.removeListener(IPC_CHANNELS.spaceChanged, handler)
+  },
+  onNavigationCommand: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      direction: EidosLiteNavigationDirection
+    ) => listener(direction)
+    ipcRenderer.on(IPC_CHANNELS.navigationCommand, handler)
+    return () =>
+      ipcRenderer.removeListener(IPC_CHANNELS.navigationCommand, handler)
   },
   takeLaunchEidosFile: () => ipcRenderer.invoke(IPC_CHANNELS.takeLaunchFile),
   onLaunchEidosFileAvailable: (listener) => {

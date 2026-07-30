@@ -1,10 +1,11 @@
 import type { BrowserWindow } from "electron"
 
-export type LiteWindowKind = "welcome" | "space"
+export type LiteWindowKind = "welcome" | "space" | "settings"
 
 const MACOS_TRAFFIC_LIGHT_POSITION = {
   welcome: { x: 16, y: 15 },
   space: { x: 16, y: 12 },
+  settings: { x: 16, y: 15 },
 } satisfies Record<LiteWindowKind, { x: number; y: number }>
 
 export function macosTrafficLightPosition(kind: LiteWindowKind): {
