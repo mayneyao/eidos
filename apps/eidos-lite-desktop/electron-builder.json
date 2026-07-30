@@ -16,13 +16,6 @@
     "**/node_modules/bindings/**/*",
     "**/node_modules/file-uri-to-path/**/*"
   ],
-  "extraResources": [
-    {
-      "from": "dist-graft",
-      "to": "graft",
-      "filter": ["**/*"]
-    }
-  ],
   "asarUnpack": [
     "**/node_modules/@eidos.space/graft-*/**/*",
     "**/node_modules/better-sqlite3/**/*"

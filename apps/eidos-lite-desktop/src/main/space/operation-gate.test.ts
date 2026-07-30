@@ -94,6 +94,40 @@ describe("SpaceOperationGate", () => {
     expect(await journal.read()).toBeNull()
   })
 
+  it("drains non-materializing repository writes without closing runtimes", async () => {
+    const { gate, calls, journal } = await gateWithHooks()
+    const mutation = deferred()
+    const runningMutation = gate.withMutation(async () => {
+      calls.push("mutation-start")
+      await mutation.promise
+      calls.push("mutation-end")
+    })
+    const checkpoint = gate.withQuiescedRepositoryOperation(
+      "Creating checkpoint",
+      async () => {
+        calls.push("repository-write")
+        return "checkpointed"
+      }
+    )
+
+    await Promise.resolve()
+    expect(gate.current().phase).toBe("quiescing")
+    await expect(gate.withMutation(async () => undefined)).rejects.toThrow(
+      "paused"
+    )
+    mutation.resolve()
+
+    await expect(checkpoint).resolves.toBe("checkpointed")
+    await runningMutation
+    expect(calls).toEqual([
+      "mutation-start",
+      "mutation-end",
+      "repository-write",
+    ])
+    expect(gate.current().phase).toBe("ready")
+    expect(await journal.read()).toBeNull()
+  })
+
   it("returns to editable ready state after a recoverable materialization failure", async () => {
     const { gate, calls, journal } = await gateWithHooks()
     await expect(

@@ -1,13 +1,28 @@
+import type { SpaceVersionTextContentRequest } from "./contracts"
+
 export type GraftSdkCommand =
   | "sdkVersion"
   | "operationMaterializesWorktree"
   | "init"
   | "status"
+  | "statusIncremental"
+  | "repositoryMetadata"
+  | "listRemotes"
   | "addAll"
+  | "stagePaths"
   | "commit"
   | "diff"
+  | "diffPaths"
   | "history"
+  | "historySummaries"
+  | "commitDetails"
+  | "commitChangedPaths"
+  | "isIgnoredPath"
+  | "isIgnoredPaths"
+  | "inventory"
   | "restore"
+  | "restorePaths"
+  | "untrackPaths"
   | "configureRemote"
   | "push"
   | "fetch"
@@ -30,11 +45,19 @@ export type GraftSdkWorkerRequest =
       requestId: number
       type: "close"
     }
+  | ({
+      requestId: number
+      type: "revisionTextDiff"
+    } & SpaceVersionTextContentRequest)
   | {
       requestId: number
       type: "command"
       command: GraftSdkCommand
       args: unknown[]
+    }
+  | {
+      requestId: number
+      type: "cancel"
     }
 
 export type GraftSdkWorkerResponse =

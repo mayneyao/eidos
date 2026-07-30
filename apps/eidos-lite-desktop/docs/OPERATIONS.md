@@ -21,17 +21,13 @@ pnpm --filter @eidos.space/eidos-lite-desktop test:performance
 # Repeatable local whole-Space Remote gate using the resident SDK
 pnpm smoke:eidos-lite-graft
 
-# Temporary adapter-parity gate using the verified CLI fallback
-EIDOS_LITE_GRAFT_CLI_PATH=/absolute/path/to/graft \
-  pnpm --filter @eidos.space/eidos-lite-desktop test:graft:cli
-
 # Public official service discovery (no login or writes)
 pnpm smoke:eidos-lite-services
 
 # Renderer/main/utility-process staging build
 pnpm build:eidos-lite
 
-# Electron ABI, verified Graft bundle, unpacked package, and packaged smoke
+# Electron ABI, SDK native package, unpacked package, and packaged smoke
 pnpm build:eidos-lite:dev
 pnpm smoke:eidos-lite-packaged
 ```
@@ -190,17 +186,64 @@ sequence.
 
 ## Stable Graft supply chain
 
-The normal runtime pins `@eidos.space/graft@0.1.0`. npm resolves one published
-Node-API 8 optional package for macOS arm64/x64, Linux glibc arm64/x64, or
-Windows x64. Packaging keeps the JavaScript wrapper in ASAR and unpacks only
-the selected native package; `graft-worker.js` loads it directly in an Electron
+The runtime pins published `@eidos.space/graft@0.3.0`; npm selects one of its
+five exact-version optional native packages for the current platform. Packaging
+keeps the JavaScript wrapper in ASAR and unpacks only the selected native
+package; `graft-worker.js` loads it directly in an Electron
 utility process. The package has no install script and unsupported
 platform/libc combinations fail explicitly.
 
-`graft-runtime-manifest.json` still pins the official CLI release and
-checksums for the temporary comparison/fallback adapter.
-`EIDOS_LITE_GRAFT_BACKEND=cli` is the only switch to that adapter. Normal
-packaged execution does not spawn the CLI or search the user's `PATH`.
+Large repositories persist a derived classification snapshot beneath
+`.graft/cache/sdk-status`. The SDK validates repository format, HEAD/index,
+refs/config, ignore-source contents, and current path metadata before using it;
+any mismatch triggers a full rebuild. This cache contains no Remote credential
+and is not authoritative history. A utility crash/reopen must retain correct
+status while reporting a persisted-snapshot hit on the next unchanged read.
+History and Remote metadata reads use `repositoryMetadata()` and
+`listRemotes()`, both of which examine zero worktree paths.
+
+Checkpoint, stage, commit, fetch, and push operations serialize through the
+repository gate. Checkpoint and first push pause new app mutations and drain
+in-flight writes, but retain open SQLite handles because those SDK operations
+do not materialize the worktree. Pull, restore, clone, and recovery continue to
+use the durable close → materialize → validate → reopen gate.
+
+Lite packages only the published Node-API SDK wrapper and the selected native
+package. There is no CLI runtime manifest, executable download, backend switch,
+`GRAFT_REMOTE_TOKEN` process environment, or search of the user's `PATH`.
+
+For large-repository regression testing, set
+`EIDOS_LITE_LARGE_REPOSITORY_ROOT` to an existing disposable or read-only
+repository and run the large-repository Vitest case. Its shell gate measures
+canonicalization plus the direct-root Explorer snapshot before any Graft
+session is opened and must remain below one second. The extended gate separately
+measures cold/hot incremental status, 50 history summaries, metadata-only
+Changes, a selected path diff, full validation-tree construction, bounded Sync
+preflight, batch ignore queries, and cold/hot tracked-ignore inventory. It also
+closes the first repository session and requires a replacement session to hit
+the persisted status snapshot. The test never stages, commits, restores, or
+writes Remote state. Hot and persisted-reopen status, history, metadata
+Changes, batch ignore, and cached inventory must each remain below their
+bounded budgets; full validation-tree construction and preflight must remain
+below three seconds with fewer than 100 ignore waves, the preflight IPC
+projection below 64 KiB, and one selected path diff below three seconds.
+
+Cold session open/status is reported separately from UI readiness. The first
+snapshot reads only direct root children and may show `Checking version history`
+before a Graft utility exists. Directory expansion and Eidos File open take
+priority and cancel/reschedule that background read. The renderer receives the
+authoritative status when it completes; a repository error must not block local
+browsing/editing. Do not reinterpret the placeholder as clean or permit a
+version mutation before a real repository read.
+
+```bash
+EIDOS_LITE_LARGE_REPOSITORY_ROOT=/path/to/large-space \
+  pnpm --filter @eidos.space/eidos-lite-desktop exec vitest run \
+  src/main/graft/large-repository.integration.test.ts
+```
+
+Packaged execution contains no CLI binary, does not spawn a Graft subprocess,
+and does not search the user's `PATH`.
 
 ## Official staging gate
 

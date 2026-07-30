@@ -6,10 +6,15 @@ import type {
   GraftSdkWorkerRequest,
   GraftSdkWorkerResponse,
 } from "../../shared/graft-sdk-contracts"
+import type {
+  SpaceVersionTextContentDiff,
+  SpaceVersionTextContentRequest,
+} from "../../shared/contracts"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 interface PendingRequest {
   child: UtilityProcess
+  cleanup(): void
   resolve(value: unknown): void
   reject(error: Error): void
 }
@@ -73,16 +78,36 @@ export class GraftUtilityTransport implements GraftSdkTransport {
     }
   }
 
-  command(command: GraftSdkCommand, args: unknown[] = []): Promise<unknown> {
+  command(
+    command: GraftSdkCommand,
+    args: unknown[] = [],
+    options: { signal?: AbortSignal } = {}
+  ): Promise<unknown> {
+    if (!this.child) {
+      return Promise.reject(new Error("Graft SDK utility process is closed"))
+    }
+    return this.request(
+      {
+        requestId: this.nextRequestId++,
+        type: "command",
+        command,
+        args,
+      },
+      options.signal
+    )
+  }
+
+  revisionTextDiff(
+    request: SpaceVersionTextContentRequest
+  ): Promise<SpaceVersionTextContentDiff> {
     if (!this.child) {
       return Promise.reject(new Error("Graft SDK utility process is closed"))
     }
     return this.request({
       requestId: this.nextRequestId++,
-      type: "command",
-      command,
-      args,
-    })
+      type: "revisionTextDiff",
+      ...request,
+    }) as Promise<SpaceVersionTextContentDiff>
   }
 
   async clone(
@@ -140,6 +165,7 @@ export class GraftUtilityTransport implements GraftSdkTransport {
       )
       for (const [requestId, pending] of this.pending) {
         if (pending.child !== child) continue
+        pending.cleanup()
         pending.reject(error)
         this.pending.delete(requestId)
       }
@@ -157,13 +183,29 @@ export class GraftUtilityTransport implements GraftSdkTransport {
     }
   }
 
-  private request(request: GraftSdkWorkerRequest): Promise<unknown> {
+  private request(
+    request: Exclude<GraftSdkWorkerRequest, { type: "cancel" }>,
+    signal?: AbortSignal
+  ): Promise<unknown> {
     const child = this.child
     if (!child) {
       return Promise.reject(new Error("Graft SDK utility process is closed"))
     }
+    if (signal?.aborted) return Promise.reject(abortError())
     return new Promise((resolve, reject) => {
-      this.pending.set(request.requestId, { child, resolve, reject })
+      const cancel = () => {
+        if (this.child === child) {
+          child.postMessage({ type: "cancel", requestId: request.requestId })
+        }
+      }
+      const cleanup = () => signal?.removeEventListener("abort", cancel)
+      signal?.addEventListener("abort", cancel, { once: true })
+      this.pending.set(request.requestId, {
+        child,
+        cleanup,
+        resolve,
+        reject,
+      })
       child.postMessage(request)
     })
   }
@@ -173,6 +215,7 @@ export class GraftUtilityTransport implements GraftSdkTransport {
     const pending = this.pending.get(message.requestId)
     if (!pending || pending.child !== child) return
     this.pending.delete(message.requestId)
+    pending.cleanup()
     if (message.ok) {
       pending.resolve(message.result)
       return
@@ -183,4 +226,10 @@ export class GraftUtilityTransport implements GraftSdkTransport {
     if (message.error.code) Object.assign(error, { code: message.error.code })
     pending.reject(error)
   }
+}
+
+function abortError(): Error {
+  const error = new Error("The Graft operation was cancelled")
+  error.name = "AbortError"
+  return error
 }

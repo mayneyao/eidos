@@ -10,6 +10,8 @@ import type { EidosLiteServiceEnvironment } from "./service-environment"
 
 export const EIDOS_LITE_CSV_IMPORT_BYTES_MAX = 16 * 1024 * 1024
 export const EIDOS_LITE_CSV_EXPORT_BYTES_MAX = 256 * 1024 * 1024
+export const EIDOS_LITE_TEXT_PREVIEW_BYTES_MAX = 2 * 1024 * 1024
+export const EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX = 1024 * 1024
 
 export const IPC_CHANNELS = {
   appInfo: "eidos-lite:app-info",
@@ -22,10 +24,12 @@ export const IPC_CHANNELS = {
   removeRecentSpace: "eidos-lite:space-recent-remove",
   getSpace: "eidos-lite:space-get",
   refreshSpace: "eidos-lite:space-refresh",
+  loadSpaceDirectory: "eidos-lite:space-directory-load",
   spaceChanged: "eidos-lite:space-changed",
   launchFileAvailable: "eidos-lite:launch-file-available",
   takeLaunchFile: "eidos-lite:launch-file-take",
   openFile: "eidos-lite:file-open",
+  previewTextFile: "eidos-lite:text-file-preview",
   inspectFileIssue: "eidos-lite:file-issue-inspect",
   closeFile: "eidos-lite:file-close",
   createEidosFile: "eidos-lite:path-create-eidos",
@@ -42,6 +46,12 @@ export const IPC_CHANNELS = {
   versionChanges: "eidos-lite:version-changes",
   versionHistory: "eidos-lite:version-history",
   versionDiff: "eidos-lite:version-diff",
+  versionPathDiff: "eidos-lite:version-path-diff",
+  versionCancel: "eidos-lite:version-cancel",
+  trackedIgnoredPaths: "eidos-lite:tracked-ignored-paths",
+  untrackIgnoredPaths: "eidos-lite:untrack-ignored-paths",
+  versionTextDiff: "eidos-lite:version-text-diff",
+  versionWorkingTextDiff: "eidos-lite:version-working-text-diff",
   restoreCheckpoint: "eidos-lite:checkpoint-restore",
   syncStatus: "eidos-lite:sync-status",
   syncSignIn: "eidos-lite:sync-sign-in",
@@ -70,7 +80,28 @@ export interface SpaceTreeEntry {
   size: number
   modifiedAtMs: number
   children?: SpaceTreeEntry[]
+  childrenLoaded?: boolean
 }
+
+export type TextFileEncoding = "utf-8" | "utf-16le" | "utf-16be"
+
+export type TextFilePreviewResult =
+  | {
+      type: "text"
+      relativePath: string
+      content: string
+      encoding: TextFileEncoding
+      size: number
+      modifiedAtMs: number
+      truncated: boolean
+    }
+  | {
+      type: "unavailable"
+      relativePath: string
+      reason: "binary" | "symlink" | "not-file"
+      size: number
+      modifiedAtMs: number
+    }
 
 export type SpaceOperationPhase =
   | "ready"
@@ -90,13 +121,17 @@ export interface SpaceOperationState {
 
 export interface GraftSpaceStatus {
   available: boolean
-  backend: "cli" | "sdk"
+  backend: "sdk"
   version?: string
   expectedVersion: string
   initialized: boolean
   clean?: boolean
   changedPaths?: number
   currentHead?: string
+  generation?: number
+  changeToken?: string
+  statusCacheHit?: boolean
+  checking?: boolean
   error?: string
 }
 
@@ -135,6 +170,9 @@ export interface SpaceVersionDiff {
   to: string | null
   paths: SpaceVersionPathChange[]
   files: SpaceVersionFileDiff[]
+  totalPaths?: number
+  hasMore?: boolean
+  nextCursor?: string | null
 }
 
 export interface SpaceVersionTableSummary {
@@ -150,6 +188,7 @@ export interface SpaceVersionCommit {
   message: string
   timestampMs: number
   files: number
+  fileCountKnown?: boolean
   changes: SpaceVersionPathChange[]
   tables: SpaceVersionTableSummary[]
   changedTables: number
@@ -160,6 +199,46 @@ export interface SpaceVersionHistory {
   currentBranch: string | null
   commits: SpaceVersionCommit[]
   hasMore: boolean
+  nextCursor?: string | null
+}
+
+export interface GraftTrackedIgnoredPaths {
+  paths: string[]
+  total: number
+  hasMore: boolean
+  nextCursor: string | null
+}
+
+export type SpaceVersionTextContentState =
+  | { state: "absent" }
+  | {
+      state: "utf8"
+      content: string
+      size: number
+      contentHash?: string
+    }
+  | {
+      state:
+        | "too_large"
+        | "missing_payload"
+        | "invalid_utf8"
+        | "unsafe_path"
+        | "changed_during_read"
+      size: number
+      contentHash?: string
+    }
+
+export interface SpaceVersionTextContentDiff {
+  path: string
+  before: SpaceVersionTextContentState
+  after: SpaceVersionTextContentState
+}
+
+export interface SpaceVersionTextContentRequest {
+  commitId: string
+  parentId: string | null
+  path: string
+  maxBytes: number
 }
 
 export interface SpaceSnapshot {
@@ -310,7 +389,7 @@ export interface EidosSyncPreflightEntry {
 
 export interface EidosSyncPreflightExclusion {
   relativePath: string
-  reason: "graft-metadata" | "os-noise" | "temporary-file"
+  reason: "graft-metadata" | "graft-ignore" | "os-noise" | "temporary-file"
 }
 
 export interface EidosSyncPreflight {
@@ -319,6 +398,9 @@ export interface EidosSyncPreflight {
   fileCount: number
   eidosFileCount: number
   totalBytes: number
+  excludedCount: number
+  warningCount: number
+  blockerCount: number
   excluded: EidosSyncPreflightExclusion[]
   warnings: EidosSyncPreflightEntry[]
   blockers: EidosSyncPreflightEntry[]
@@ -610,10 +692,12 @@ export interface EidosLiteApi {
   removeRecentSpace(id: string): Promise<RecentSpaceEntry[]>
   getSpace(): Promise<SpaceSnapshot | null>
   refreshSpace(): Promise<SpaceSnapshot | null>
+  loadSpaceDirectory(relativePath: string): Promise<SpaceSnapshot>
   onSpaceChanged(listener: (snapshot: SpaceSnapshot) => void): () => void
   takeLaunchEidosFile(): Promise<string | null>
   onLaunchEidosFileAvailable(listener: () => void): () => void
   openEidosFile(relativePath: string): Promise<OpenEidosFileResult>
+  previewTextFile(relativePath: string): Promise<TextFilePreviewResult>
   inspectEidosFileIssue(relativePath: string): Promise<EidosFileIssue | null>
   closeEidosFile(sessionId: string): Promise<void>
   createEidosFile(
@@ -648,12 +732,37 @@ export interface EidosLiteApi {
   ): Promise<RuntimeCalls[M]["result"]>
   enableVersioning(): Promise<SpaceSnapshot>
   createCheckpoint(message?: string): Promise<SpaceSnapshot>
-  getVersionChanges(): Promise<SpaceVersionDiff>
-  getVersionHistory(limit?: number): Promise<SpaceVersionHistory>
+  getVersionChanges(limit?: number, after?: string): Promise<SpaceVersionDiff>
+  getVersionHistory(
+    limit?: number,
+    after?: string
+  ): Promise<SpaceVersionHistory>
   getVersionDiff(
     commitId: string,
+    parentId?: string | null,
+    limit?: number,
+    after?: string
+  ): Promise<SpaceVersionDiff>
+  getVersionPathDiff(
+    relativePath: string,
+    commitId?: string | null,
     parentId?: string | null
   ): Promise<SpaceVersionDiff>
+  cancelVersionReads(): Promise<void>
+  getTrackedIgnoredPaths(
+    limit?: number,
+    after?: string
+  ): Promise<GraftTrackedIgnoredPaths>
+  untrackIgnoredPaths(expectedHead: string): Promise<SpaceSnapshot>
+  getVersionTextDiff(
+    commitId: string,
+    parentId: string | null,
+    path: string
+  ): Promise<SpaceVersionTextContentDiff>
+  getWorkingTextDiff(
+    expectedHead: string | null,
+    path: string
+  ): Promise<SpaceVersionTextContentDiff>
   restoreCheckpoint(
     commitId: string,
     expectedHead: string

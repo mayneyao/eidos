@@ -6,6 +6,7 @@ import {
   canonicalizeSpaceRoot,
   flattenSpaceTree,
   joinSpaceRelativePath,
+  listSpaceDirectory,
   listSpaceTree,
   normalizeMutableRelativePath,
   normalizeRelativePath,
@@ -37,6 +38,92 @@ describe("Space paths", () => {
     expect(entries.find((entry) => entry.name === "tasks.eidos")?.kind).toBe(
       "eidos"
     )
+  })
+
+  it("prunes ignored directories before walking their descendants", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-space-ignore-")
+    )
+    await fs.mkdir(path.join(root, "node_modules", "pkg"), { recursive: true })
+    await fs.mkdir(path.join(root, "notes"))
+    await fs.mkdir(path.join(root, "docs"))
+    await fs.writeFile(path.join(root, "node_modules", "pkg", "index.js"), "x")
+    await fs.writeFile(path.join(root, "notes", "visible.txt"), "visible")
+    await fs.writeFile(path.join(root, "docs", "guide.txt"), "guide")
+    const inspected: string[] = []
+    let batches = 0
+
+    try {
+      const entries = flattenSpaceTree(
+        await listSpaceTree(root, {
+          ignoredPaths: async (relativePaths) => {
+            batches += 1
+            inspected.push(...relativePaths)
+            return new Set(
+              relativePaths.filter(
+                (relativePath) => relativePath === "node_modules"
+              )
+            )
+          },
+        })
+      )
+
+      expect(entries.map((entry) => entry.relativePath)).toEqual([
+        "docs",
+        "docs/guide.txt",
+        "notes",
+        "notes/visible.txt",
+      ])
+      expect(inspected).toContain("node_modules")
+      expect(
+        inspected.some((relativePath) =>
+          relativePath.startsWith("node_modules/")
+        )
+      ).toBe(false)
+      expect(batches).toBe(2)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("lists only direct children and batches ignore inspection", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-space-directory-")
+    )
+    try {
+      await fs.mkdir(path.join(root, "large"))
+      await Promise.all(
+        Array.from({ length: 1_001 }, (_, index) =>
+          fs.writeFile(
+            path.join(
+              root,
+              "large",
+              `item-${String(index).padStart(4, "0")}.txt`
+            ),
+            "x"
+          )
+        )
+      )
+      let batches = 0
+      const rootEntries = await listSpaceDirectory(root, null)
+      const large = rootEntries.find((entry) => entry.name === "large")
+      expect(large).toMatchObject({
+        kind: "directory",
+        children: [],
+        childrenLoaded: false,
+      })
+
+      const children = await listSpaceDirectory(root, "large", {
+        ignoredPaths: async () => {
+          batches += 1
+          return new Set()
+        },
+      })
+      expect(children).toHaveLength(1_001)
+      expect(batches).toBe(2)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
   })
 
   it("rejects absolute and traversal paths", () => {

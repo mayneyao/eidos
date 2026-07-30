@@ -40,9 +40,11 @@ import type {
   SpacePathMutationResult,
   SpaceSnapshot,
   SpaceTreeEntry,
+  TextFilePreviewResult,
 } from "../shared/contracts"
 import { FileRecoveryNotice } from "./file-recovery-notice"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
+import { TextFilePreview } from "./text-file-preview"
 import type { VersionInspection } from "./version-change-tree"
 
 const EidosFileWorkbench = lazy(async () => {
@@ -155,6 +157,15 @@ function findSpaceEntry(
     if (nested) return nested
   }
   return null
+}
+
+function hasUnloadedDirectories(entries: readonly SpaceTreeEntry[]): boolean {
+  return entries.some(
+    (entry) =>
+      entry.kind === "directory" &&
+      (entry.childrenLoaded === false ||
+        hasUnloadedDirectories(entry.children ?? []))
+  )
 }
 
 function PathActionDialog({
@@ -396,6 +407,9 @@ export function App() {
   const [space, setSpace] = useState<SpaceSnapshot | null>(null)
   const [cachedFiles, setCachedFiles] = useState<CachedFile[]>([])
   const [activeSession, setActiveSession] = useState<string | null>(null)
+  const [textPreview, setTextPreview] = useState<TextFilePreviewResult | null>(
+    null
+  )
   const [openingSpace, setOpeningSpace] = useState(false)
   const [recentSpaces, setRecentSpaces] = useState<RecentSpaceEntry[]>([])
   const [busyFile, setBusyFile] = useState<string | null>(null)
@@ -487,6 +501,8 @@ export function App() {
     }
   }, [space?.id])
 
+  useEffect(() => setTextPreview(null), [space?.id])
+
   useEffect(() => {
     if (!contextMenu) return
     const close = () => setContextMenu(null)
@@ -507,6 +523,11 @@ export function App() {
 
   const activeFile =
     cachedFiles.find((file) => file.sessionId === activeSession) ?? null
+  const spaceTreeIncomplete = space
+    ? hasUnloadedDirectories(space.entries)
+    : false
+  const activeDocumentPath =
+    activeFile?.relativePath ?? textPreview?.relativePath ?? null
 
   const startSidebarResize = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -592,7 +613,23 @@ export function App() {
     async (entry: SpaceTreeEntry) => {
       setVersionInspection(null)
       if (entry.kind !== "eidos") {
-        await window.eidosLite.openPath(entry.relativePath)
+        if (fileOpenInFlight.current) return
+        fileOpenInFlight.current = true
+        setBusyFile(entry.relativePath)
+        setError(null)
+        setFileIssue(null)
+        setActiveSession(null)
+        setTextPreview(null)
+        try {
+          setTextPreview(
+            await window.eidosLite.previewTextFile(entry.relativePath)
+          )
+        } catch (cause) {
+          setError(`Could not preview ${entry.name}. ${errorMessage(cause)}`)
+        } finally {
+          fileOpenInFlight.current = false
+          setBusyFile(null)
+        }
         return
       }
       if (fileOpenInFlight.current) return
@@ -600,6 +637,7 @@ export function App() {
       setBusyFile(entry.relativePath)
       setError(null)
       setFileIssue(null)
+      setTextPreview(null)
       try {
         let availableCachedFiles = cachedFiles
         const alreadyCached = cachedFiles.some(
@@ -836,6 +874,15 @@ export function App() {
             break
         }
         applyPathMutation(result)
+        const changedPath = pathDialog.entry?.relativePath
+        if (
+          textPreview &&
+          changedPath &&
+          (textPreview.relativePath === changedPath ||
+            textPreview.relativePath.startsWith(`${changedPath}/`))
+        ) {
+          setTextPreview(null)
+        }
         setPathDialog(null)
         setSelectedEntry(
           result.relativePath
@@ -855,7 +902,7 @@ export function App() {
         setPathMutationBusy(false)
       }
     },
-    [applyPathMutation, openEntry, pathDialog]
+    [applyPathMutation, openEntry, pathDialog, textPreview]
   )
 
   const importFiles = useCallback(async () => {
@@ -996,7 +1043,10 @@ export function App() {
         </header>
         <div className="space-heading">
           <strong>{space.name}</strong>
-          <span>{space.eidosFileCount} Eidos Files</span>
+          <span>
+            {space.eidosFileCount} Eidos{" "}
+            {spaceTreeIncomplete ? "loaded" : "Files"}
+          </span>
         </div>
         <nav className="explorer" aria-label={`${space.name} files`}>
           <Suspense
@@ -1008,10 +1058,16 @@ export function App() {
           >
             <SpaceFileTree
               entries={space.entries}
-              activePath={activeFile?.relativePath ?? null}
+              activePath={activeDocumentPath}
               disabled={space.operation.phase !== "ready" || busyFile !== null}
               onSelect={setSelectedEntry}
               onOpen={(entry) => void openEntry(entry)}
+              onLoadDirectory={(relativePath) => {
+                void window.eidosLite
+                  .loadSpaceDirectory(relativePath)
+                  .then(acceptSpaceSnapshot)
+                  .catch((error) => setError(errorMessage(error)))
+              }}
               onContextMenu={(entry, x, y) =>
                 setContextMenu({
                   entry,
@@ -1073,20 +1129,23 @@ export function App() {
             ) : null}
             <div>
               <strong>
-                {activeFile ? fileName(activeFile.relativePath) : space.name}
+                {activeDocumentPath ? fileName(activeDocumentPath) : space.name}
               </strong>
-              {activeFile &&
-              activeFile.relativePath !== fileName(activeFile.relativePath) ? (
-                <small>{activeFile.relativePath}</small>
+              {activeDocumentPath &&
+              activeDocumentPath !== fileName(activeDocumentPath) ? (
+                <small>{activeDocumentPath}</small>
               ) : null}
             </div>
-            {activeFile ? (
+            {activeDocumentPath ? (
               <button
                 type="button"
                 className="icon-button active-file-close"
-                aria-label={`Close ${activeFile.relativePath}`}
-                title={`Close ${activeFile.relativePath}`}
-                onClick={() => void closeFile(activeFile.sessionId)}
+                aria-label={`Close ${activeDocumentPath}`}
+                title={`Close ${activeDocumentPath}`}
+                onClick={() => {
+                  if (activeFile) void closeFile(activeFile.sessionId)
+                  else setTextPreview(null)
+                }}
               >
                 <X />
               </button>
@@ -1105,26 +1164,30 @@ export function App() {
               disabled={!space.graft.available}
               aria-pressed={versionPanelOpen}
               aria-label={
-                !space.graft.available
-                  ? "Version history unavailable"
-                  : versionChangeCount > 0
-                    ? `Version history, ${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
-                    : space.graft.initialized
-                      ? "Version history"
-                      : "Set up version history"
+                space.graft.checking
+                  ? "Checking version history"
+                  : !space.graft.available
+                    ? "Version history unavailable"
+                    : versionChangeCount > 0
+                      ? `Version history, ${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
+                      : space.graft.initialized
+                        ? "Version history"
+                        : "Set up version history"
               }
               onClick={() => {
                 if (versionPanelOpen) setVersionInspection(null)
                 setVersionPanelOpen(!versionPanelOpen)
               }}
               title={
-                !space.graft.available
-                  ? (space.graft.error ?? "Version history unavailable")
-                  : versionChangeCount > 0
-                    ? `${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
-                    : space.graft.initialized
-                      ? "Version history"
-                      : "Set up version history"
+                space.graft.checking
+                  ? "Checking version history"
+                  : !space.graft.available
+                    ? (space.graft.error ?? "Version history unavailable")
+                    : versionChangeCount > 0
+                      ? `${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
+                      : space.graft.initialized
+                        ? "Version history"
+                        : "Set up version history"
               }
             >
               <History />
@@ -1222,6 +1285,15 @@ export function App() {
                   onClose={() => setVersionInspection(null)}
                 />
               </Suspense>
+            ) : textPreview ? (
+              <TextFilePreview
+                preview={textPreview}
+                onReveal={() =>
+                  void window.eidosLite
+                    .revealPath(textPreview.relativePath)
+                    .catch((cause) => setError(errorMessage(cause)))
+                }
+              />
             ) : activeFile && activeTable ? (
               <section
                 className="file-editor"
@@ -1267,7 +1339,7 @@ export function App() {
                   />
                 </Suspense>
               </section>
-            ) : space.eidosFileCount === 0 ? (
+            ) : space.eidosFileCount === 0 && !spaceTreeIncomplete ? (
               <section
                 className="editor-empty editor-empty-onboarding"
                 data-empty-space-onboarding
@@ -1352,7 +1424,8 @@ export function App() {
                 setContextMenu(null)
               }}
             >
-              <FolderOpen /> Open
+              <FolderOpen />
+              {contextMenu.entry.kind === "eidos" ? "Open" : "Preview"}
             </button>
           ) : null}
           <button

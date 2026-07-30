@@ -59,7 +59,7 @@ interface RendererSmokeResult {
   }
   graft: {
     available: boolean
-    backend: "cli" | "sdk"
+    backend: "sdk"
     version?: string
   }
   cachedFiles: string[]
@@ -165,6 +165,22 @@ interface RendererSmokeResult {
 }
 
 type EmptySpaceOnboardingResult = RendererSmokeResult["onboarding"]
+type TextHistorySmokeResult = {
+  directRead: boolean
+  workingDirectRead: boolean
+  workingPierreRendered: boolean
+  pierreRendered: boolean
+  scrollable: boolean
+  splitLayout: boolean
+  unifiedLayout: boolean
+}
+
+type WindowTransitionSmokeResult = {
+  welcome: { width: number; height: number }
+  space: { width: number; height: number }
+  expanded: boolean
+  minimumApplied: boolean
+}
 
 const emptySpaceOnboardingProbe = `
 (async () => {
@@ -255,6 +271,136 @@ const launchRouteProbe = `
 })()
 `
 
+const textHistoryProbe = `
+(async () => {
+  const waitFor = async (read, label) => {
+    const deadline = Date.now() + 15000
+    while (Date.now() < deadline) {
+      const value = read()
+      if (value) return value
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    throw new Error("Timed out waiting for " + label)
+  }
+  window.__eidosLiteSmokeStep = "historical text diff UI"
+  const versionAction = document.querySelector(
+    'button[data-titlebar-action="version"]'
+  )
+  if (!versionAction) throw new Error("Version History UI action is missing")
+  if (document.querySelector(".version-panel")) {
+    versionAction.click()
+    await waitFor(
+      () => !document.querySelector(".version-panel") && true,
+      "closed Version History panel"
+    )
+  }
+  versionAction.click()
+  const panel = await waitFor(
+    () => document.querySelector(".version-panel"),
+    "reopened Version History panel"
+  )
+  const changesTab = [...panel.querySelectorAll('[role="tab"]')].find(
+    (candidate) => candidate.textContent?.trim() === "Changes"
+  )
+  if (!changesTab) throw new Error("Changes tab is missing")
+  changesTab.click()
+  const changeTreeShell = await waitFor(
+    () => document.querySelector(".version-change-tree-shell"),
+    "working change tree"
+  )
+  const changeTree = await waitFor(
+    () => [...changeTreeShell.querySelectorAll("*")].find(
+      (candidate) => candidate.shadowRoot?.querySelector('[data-type="item"]')
+    ),
+    "Pierre working change tree"
+  )
+  const workingTextFile = await waitFor(
+    () => [...changeTree.shadowRoot.querySelectorAll('[data-type="item"]')]
+      .find((candidate) => candidate.dataset.itemPath === "README.md"),
+    "README working change"
+  )
+  workingTextFile.click()
+  const workingDiff = await waitFor(
+    () => document.querySelector("[data-version-text-diff]"),
+    "working text diff"
+  )
+  const workingPierreRendered = await waitFor(() => {
+    const surface = workingDiff.querySelector(".version-text-diff-virtualizer")
+    if (!surface) return false
+    return [...surface.querySelectorAll("*")].some(
+      (candidate) => candidate.shadowRoot?.querySelector("[data-line]")
+    )
+  }, "Pierre working text diff lines")
+  const closeInspector = document.querySelector(
+    '.version-inspector-bar button[aria-label="Close change details"]'
+  )
+  if (!closeInspector) throw new Error("Working diff close action is missing")
+  closeInspector.click()
+  await waitFor(
+    () => !document.querySelector(".version-inspector") && true,
+    "closed working text diff"
+  )
+  const historyTab = [...panel.querySelectorAll('[role="tab"]')].find(
+    (candidate) => candidate.textContent?.trim() === "History"
+  )
+  if (!historyTab) throw new Error("History tab is missing")
+  historyTab.click()
+  const commitRow = await waitFor(
+    () => [...document.querySelectorAll(".commit-row")].find(
+      (candidate) => candidate.textContent?.includes("Packaged text checkpoint")
+    ),
+    "text checkpoint"
+  )
+  commitRow.click()
+  const textFile = await waitFor(
+    () => [...document.querySelectorAll(".history-change-list > li > button")]
+      .find((candidate) => candidate.getAttribute("title") === "README.md"),
+    "README history change"
+  )
+  textFile.click()
+  const diff = await waitFor(
+    () => document.querySelector("[data-version-text-diff]"),
+    "historical text diff"
+  )
+  const split = diff.querySelector('button[aria-pressed="true"]')
+  const unified = [...diff.querySelectorAll("button")].find(
+    (candidate) => candidate.textContent?.trim() === "Unified"
+  )
+  if (!split || split.textContent?.trim() !== "Split" || !unified) {
+    throw new Error("Text diff layout controls are incomplete")
+  }
+  const pierreRendered = await waitFor(() => {
+    const surface = document.querySelector(".version-text-diff-virtualizer")
+    if (!surface) return false
+    return [...surface.querySelectorAll("*")].some(
+      (candidate) => candidate.shadowRoot?.querySelector("[data-line]")
+    )
+  }, "Pierre text diff lines")
+  const scrollable = await waitFor(() => {
+    const surface = document.querySelector(".version-text-diff-virtualizer")
+    if (!(surface instanceof HTMLElement)) return false
+    const overflowY = getComputedStyle(surface).overflowY
+    const maximum = surface.scrollHeight - surface.clientHeight
+    if (!(["auto", "scroll"].includes(overflowY)) || maximum <= 0) return false
+    surface.scrollTop = Math.min(maximum, 600)
+    surface.dispatchEvent(new Event("scroll"))
+    return surface.scrollTop > 0
+  }, "scrollable Pierre text diff")
+  unified.click()
+  const unifiedLayout = await waitFor(
+    () => unified.getAttribute("aria-pressed") === "true",
+    "unified text diff layout"
+  )
+  return {
+    workingPierreRendered: Boolean(workingPierreRendered),
+    pierreRendered: Boolean(pierreRendered),
+    scrollable: Boolean(scrollable),
+    splitLayout: true,
+    unifiedLayout: Boolean(unifiedLayout),
+  }
+})()
+`
+
 const rendererProbe = `
 (async () => {
   const waitFor = async (read, label) => {
@@ -280,7 +426,10 @@ const rendererProbe = `
       JSON.stringify(appInfo.services)
     )
   }
-  const space = await window.eidosLite.getSpace()
+  let space = await window.eidosLite.getSpace()
+  if (space?.entries.some((entry) => entry.relativePath === "projects")) {
+    space = await window.eidosLite.loadSpaceDirectory("projects")
+  }
   if (!space || space.eidosFileCount < 4) {
     throw new Error("UI smoke requires a bound Space with four Eidos Files")
   }
@@ -754,7 +903,10 @@ const rendererProbe = `
   )
   const versioned = await window.eidosLite.refreshSpace()
   if (!versioned.graft.initialized || versioned.graft.clean !== true) {
-    throw new Error("Enable Versioning did not create a clean local repository")
+    throw new Error(
+      "Enable Versioning did not create a clean local repository: " +
+        JSON.stringify(versioned.graft)
+    )
   }
   versionAction.click()
   await waitFor(
@@ -771,7 +923,8 @@ const rendererProbe = `
     throw new Error("A real Eidos File mutation did not dirty the Space repository")
   }
   const changes = await window.eidosLite.getVersionChanges()
-  const rowChanges = changes.files.reduce(
+  const selectedChanges = await window.eidosLite.getVersionPathDiff(eidosPaths[0])
+  const rowChanges = selectedChanges.files.reduce(
     (total, file) => total + file.tables.reduce(
       (tableTotal, tableDiff) => tableTotal + tableDiff.changes.length,
       0
@@ -800,7 +953,15 @@ const rendererProbe = `
     "Packaged mutation checkpoint"
   )
   if (checkpoint.graft.clean !== true) {
-    throw new Error("Whole-Space checkpoint did not leave a clean repository")
+    const residualChanges = await window.eidosLite.getVersionChanges()
+    const residualState = JSON.stringify({
+      graft: checkpoint.graft,
+      paths: residualChanges.paths,
+    })
+    throw new Error(
+      "Whole-Space checkpoint did not leave a clean repository: " +
+        residualState
+    )
   }
   const afterCheckpoint = await window.eidosLite.callRuntime(
     opened.sessionId,
@@ -1114,6 +1275,15 @@ export async function runPackagedSmoke(
   resultPath: string,
   startup: PackagedSmokeStartup
 ): Promise<void> {
+  if (process.env.EIDOS_LITE_SMOKE_SCOPE === "text-history") {
+    await runPackagedTextHistorySmoke(
+      controller,
+      spaceRoot,
+      resultPath,
+      startup
+    )
+    return
+  }
   const { coldStartMs, failures } = startup
   let welcomeWindow: BrowserWindow | null = startup.welcomeWindow
   let onboardingWindow: BrowserWindow | null = null
@@ -1291,6 +1461,121 @@ export async function runPackagedSmoke(
     if (onboardingWindow && !onboardingWindow.isDestroyed()) {
       onboardingWindow.destroy()
     }
+    if (window && !window.isDestroyed()) window.destroy()
+    await controller.closeAll()
+  }
+}
+
+async function runPackagedTextHistorySmoke(
+  controller: WindowController,
+  spaceRoot: string,
+  resultPath: string,
+  startup: PackagedSmokeStartup
+): Promise<void> {
+  const { failures } = startup
+  let welcomeWindow: BrowserWindow | null = startup.welcomeWindow
+  let window: BrowserWindow | null = null
+  let seedWindow: BrowserWindow | null = null
+  try {
+    const welcomeBounds = welcomeWindow.getBounds()
+    seedWindow = await controller.createSpaceWindow(spaceRoot, (candidate) => {
+      observePackagedSmokeWindow(candidate, failures)
+    })
+    const recent = (await controller.listRecentSpaces()).at(0)
+    if (!recent)
+      throw new Error("Text History Space was not recorded as recent")
+    const seedClosed = new Promise<void>((resolve) => {
+      seedWindow?.once("closed", () => resolve())
+    })
+    seedWindow.destroy()
+    await seedClosed
+    seedWindow = null
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    await controller.openRecentSpace(welcomeWindow.webContents, recent.id)
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    const spaceBounds = welcomeWindow.getBounds()
+    const [minimumWidth, minimumHeight] = welcomeWindow.getMinimumSize()
+    const windowTransition: WindowTransitionSmokeResult = {
+      welcome: { width: welcomeBounds.width, height: welcomeBounds.height },
+      space: { width: spaceBounds.width, height: spaceBounds.height },
+      expanded:
+        spaceBounds.width > welcomeBounds.width &&
+        spaceBounds.height > welcomeBounds.height,
+      minimumApplied: minimumWidth === 900 && minimumHeight === 600,
+    }
+    if (!windowTransition.expanded || !windowTransition.minimumApplied) {
+      throw new Error(
+        `Welcome-to-Space window transition is incomplete: ${JSON.stringify(windowTransition)}`
+      )
+    }
+    window = welcomeWindow
+    welcomeWindow = null
+    const reloaded = new Promise<void>((resolve) => {
+      window?.webContents.once("did-finish-load", () => resolve())
+    })
+    window.webContents.reload()
+    await reloaded
+    const session = controller.requireSession(window.webContents)
+    await session.enableVersioning()
+    const readmePath = path.join(spaceRoot, "README.md")
+    const before = await fs.readFile(readmePath, "utf8")
+    const after = before.split("Before line").join("After line")
+    await fs.writeFile(readmePath, after)
+    await session.createCheckpoint("Packaged text checkpoint")
+    const history = await session.getVersionHistory(10)
+    const commit = history.commits.find(
+      (candidate) => candidate.message === "Packaged text checkpoint"
+    )
+    if (!commit) throw new Error("Text checkpoint is missing from History")
+    const content = await session.getVersionTextDiff(
+      commit.id,
+      commit.parent,
+      "README.md"
+    )
+    const directRead =
+      content.before.state === "utf8" &&
+      content.before.content === before &&
+      content.after.state === "utf8" &&
+      content.after.content === after
+    if (!directRead) {
+      throw new Error(
+        `Historical README content does not match: ${JSON.stringify(content)}`
+      )
+    }
+    const working = after.split("After line").join("Working line")
+    await fs.writeFile(readmePath, working)
+    const workingContent = await session.getWorkingTextDiff(
+      history.currentHead,
+      "README.md"
+    )
+    const workingDirectRead =
+      workingContent.before.state === "utf8" &&
+      workingContent.before.content === after &&
+      workingContent.after.state === "utf8" &&
+      workingContent.after.content === working
+    if (!workingDirectRead) {
+      throw new Error(
+        `Working README content does not match: ${JSON.stringify(workingContent)}`
+      )
+    }
+    const ui = (await window.webContents.executeJavaScript(
+      textHistoryProbe,
+      true
+    )) as Omit<TextHistorySmokeResult, "directRead" | "workingDirectRead">
+    if (failures.length) throw new Error(failures.join("\n"))
+    await fs.mkdir(path.dirname(resultPath), { recursive: true })
+    await fs.writeFile(
+      resultPath,
+      JSON.stringify({
+        ok: true,
+        windowTransition,
+        textHistory: { directRead, workingDirectRead, ...ui },
+        consoleErrors: failures,
+      })
+    )
+  } finally {
+    if (welcomeWindow && !welcomeWindow.isDestroyed()) welcomeWindow.destroy()
+    if (seedWindow && !seedWindow.isDestroyed()) seedWindow.destroy()
     if (window && !window.isDestroyed()) window.destroy()
     await controller.closeAll()
   }

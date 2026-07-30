@@ -428,11 +428,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eidos-file-ui
       '@eidos.space/graft':
-        specifier: 0.1.0
-        version: 0.1.0
+        specifier: 0.3.0
+        version: 0.3.0
       '@glideapps/glide-data-grid':
         specifier: ^6.0.0
         version: 6.0.3(lodash@4.18.1)(marked@4.3.0)(react-dom@18.3.1(react@18.3.1))(react-responsive-carousel@3.2.23)(react@18.3.1)
+      '@pierre/diffs':
+        specifier: 1.2.7
+        version: 1.2.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@pierre/trees':
         specifier: 1.0.0-beta.5
         version: 1.0.0-beta.5(@shikijs/themes@4.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(shiki@4.3.1)
@@ -501,14 +504,14 @@ importers:
   apps/graft-remote:
     dependencies:
       '@eidos.space/graft-remote':
-        specifier: workspace:^
-        version: link:../../vendor/graft/packages/graft-remote
+        specifier: 0.1.0
+        version: 0.1.0
       '@eidos.space/graft-remote-cloudflare':
-        specifier: workspace:^
-        version: link:../../vendor/graft/packages/graft-remote-cloudflare
+        specifier: 0.1.0
+        version: 0.1.0(@cloudflare/workers-types@5.20260727.1)
       '@eidos.space/graft-remote-hono':
-        specifier: workspace:^
-        version: link:../../vendor/graft/packages/graft-remote-hono
+        specifier: 0.1.0
+        version: 0.1.0(hono@4.12.31)
       hono:
         specifier: 4.12.31
         version: 4.12.31
@@ -2111,44 +2114,6 @@ importers:
 
   packages/worker: {}
 
-  vendor/graft/packages/graft-remote:
-    devDependencies:
-      typescript:
-        specifier: 7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: 4.1.10
-        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@25.4.0)(happy-dom@20.10.6(bufferutil@4.0.9)(utf-8-validate@6.0.5))(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(vite@8.1.5(@types/node@25.4.0)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0))
-
-  vendor/graft/packages/graft-remote-cloudflare:
-    dependencies:
-      '@eidos.space/graft-remote':
-        specifier: workspace:^
-        version: link:../graft-remote
-    devDependencies:
-      '@cloudflare/workers-types':
-        specifier: 5.20260722.1
-        version: 5.20260722.1
-      typescript:
-        specifier: 7.0.2
-        version: 7.0.2
-
-  vendor/graft/packages/graft-remote-hono:
-    dependencies:
-      '@eidos.space/graft-remote':
-        specifier: workspace:^
-        version: link:../graft-remote
-    devDependencies:
-      hono:
-        specifier: 4.12.31
-        version: 4.12.31
-      typescript:
-        specifier: 7.0.2
-        version: 7.0.2
-      vitest:
-        specifier: 4.1.10
-        version: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@25.4.0)(happy-dom@20.10.6(bufferutil@4.0.9)(utf-8-validate@6.0.5))(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(vite@8.1.5(@types/node@25.4.0)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0))
-
 packages:
 
   7zip-bin@5.2.0:
@@ -3157,9 +3122,6 @@ packages:
   '@cloudflare/workers-types@4.20260702.1':
     resolution: {integrity: sha512-mOhf5TUEB1m2vPrxtqoIGfz0fUC9xyxRDx5gWHy5s+OCo6dcV+g7wI1R7gYCMFohhqF/2y2xeKVwMwCJjfn/WA==}
 
-  '@cloudflare/workers-types@5.20260722.1':
-    resolution: {integrity: sha512-8+kivCgFGzwrAfNOWgSpzy/VDvmT/i5KWBgQhnygv3d1kajNn6mCYTbLKpouG0aY8mXjhv+IQm1a8r2K/H4pqQ==}
-
   '@cloudflare/workers-types@5.20260727.1':
     resolution: {integrity: sha512-b/wT+LMZz0oELzxibww0ujFz5BD8NRz9WJ+xd+JNZJUMXgh8IHjpibKdGDvtkbotmihWUknP5tBPUU8KluLxxA==}
 
@@ -3288,38 +3250,54 @@ packages:
   '@eidos.space/core@0.28.3':
     resolution: {integrity: sha512-C++s4lGnoCuUjPfCvZKLxp0flhM1LsQpic6aNUz3GwkX65VtILMG1pEIaRtzqGhNt3UULw8ac+/KTjrW8NGzRQ==}
 
-  '@eidos.space/graft-darwin-arm64@0.1.0':
-    resolution: {integrity: sha512-0wXMlhoZ4Djrk9ld5R9YZQ2sGv5Ba210Rnj6tUkToY5Pj7wqAcBFYdFuzfQbAQOymfY7l5unydE/3b304oRXbw==}
+  '@eidos.space/graft-darwin-arm64@0.3.0':
+    resolution: {integrity: sha512-RUny4RtDXgMphmNMdvqeStpgb0KOq38mQRmwj5nQWiiVLehNiNsxs/O4Q6YRyPlZoV78h/Iu0urYyUqYC2mi7A==}
     engines: {node: '>=20'}
     cpu: [arm64]
     os: [darwin]
 
-  '@eidos.space/graft-darwin-x64@0.1.0':
-    resolution: {integrity: sha512-QPkIJT2o3gWpQ+08ifGh7GtV6CQLVPUBrqN83Be+PCg/bSN/YjIDHDHAzzAE22qaviDRuUPFr6Zp4UDIA5FY0A==}
+  '@eidos.space/graft-darwin-x64@0.3.0':
+    resolution: {integrity: sha512-OPW3HTIUpe9ErClXpK4u5MH9/SEJFo+DYpacMCMRTD8C3j+S9EYbvAK0i7O0VVGWAmifhIYBhzM2oidY9rto5Q==}
     engines: {node: '>=20'}
     cpu: [x64]
     os: [darwin]
 
-  '@eidos.space/graft-linux-arm64-gnu@0.1.0':
-    resolution: {integrity: sha512-JU2kCouhpEl+UtjFrY6HFA0T4cnpqxpXXUE92AqkRxPI03Ll3bBKDWLdZNyXpYX5xdRXxRDgffKco3YeybcMDA==}
+  '@eidos.space/graft-linux-arm64-gnu@0.3.0':
+    resolution: {integrity: sha512-Lp2XwHSKCgOEj3GVIlGh8BG0x06Ml1v9tUl2Uo/mS3F6HnMlJJK+ha+Yz/ybqqkq8NNiZm8lNom9cIKFatVsqw==}
     engines: {node: '>=20'}
     cpu: [arm64]
     os: [linux]
 
-  '@eidos.space/graft-linux-x64-gnu@0.1.0':
-    resolution: {integrity: sha512-FhDiStk6DEqvl0HqJ7rMkzt2jIVEb03qpZub9w/9SFtFyXI8QaK5uKkljBmWvbJon3BKQLMDrSWF+5jGIFzotw==}
+  '@eidos.space/graft-linux-x64-gnu@0.3.0':
+    resolution: {integrity: sha512-v7UVdhSmd4VyIEx6Iph6HkVFC4ttRRFUnjdu9sxYM/UGdScqm2Tm4lGtLSdH5E/BwusRCYP7wC+iFWJS74pcsQ==}
     engines: {node: '>=20'}
     cpu: [x64]
     os: [linux]
 
-  '@eidos.space/graft-win32-x64-msvc@0.1.0':
-    resolution: {integrity: sha512-nn6k3eoTpNzeue3EWYq0R6Pv77IQakyFcZDFB72s33aCWyipiWzyaMbmtcfMkA11vBIIrXQOOokBNoEucper1g==}
+  '@eidos.space/graft-remote-cloudflare@0.1.0':
+    resolution: {integrity: sha512-G6NlxSCD5OqYIQ5SZmNynW1F+B+A9oajQGY0R5N97M3ck7vyyMfRSNBlsWUwSOWF4jfZX0888s+twZveUZTmUA==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@cloudflare/workers-types': ^5.20260722.1
+
+  '@eidos.space/graft-remote-hono@0.1.0':
+    resolution: {integrity: sha512-KtqvakfkYUedxKUp2SohUGxqMNvlgWBayr2KlxeE7esQPP3dc5XNMjUNEfhvOEbFHRIZCpTfLITNXWbkt9Lp6A==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      hono: ^4.12.31
+
+  '@eidos.space/graft-remote@0.1.0':
+    resolution: {integrity: sha512-Js84WFgutZ0h9vu1YAZYqD+F0N2H1JbJgV6pmciiQ1tBzaHYeIy3okKmxhznqG1mTPr89XHeVu1sFKK4nmob1Q==}
+    engines: {node: '>=20'}
+
+  '@eidos.space/graft-win32-x64-msvc@0.3.0':
+    resolution: {integrity: sha512-5tgO5Ewtac/C1Q6E/rPrTfsqqmCYwFHaJO7Imo8wvCCMIcCNysU2CXjezBjeYaA6UHk+jfj4NpSyd4mvdBewmQ==}
     engines: {node: '>=20'}
     cpu: [x64]
     os: [win32]
 
-  '@eidos.space/graft@0.1.0':
-    resolution: {integrity: sha512-0rIYN4KxIrE8D5qYrin6YqlcjjrW5rToWyk1JEKl/wLdpLmw1SoUeCcNOIdus9PYee9dPdd5owK9wG6rDnoWsg==}
+  '@eidos.space/graft@0.3.0':
+    resolution: {integrity: sha512-lMSCX4Zt1od4fNb74aFcARTbZ0pBtCudIPL5gl6m3Hp1AA+gXzBooOIBdc5lOtpMZZVuZ4dOMiZprHENSeGjuw==}
     engines: {node: '>=20'}
 
   '@electron/asar@3.4.1':
@@ -10722,14 +10700,8 @@ packages:
     resolution: {integrity: sha512-VXJjc87FScF88uafS3JllDgvAm+c/Slfz06lorj2uAY34rlUu0Nt+v8wreiImcrgAjjIHp1rXpTDlLOGw29WwQ==}
     engines: {node: '>=18'}
 
-  oniguruma-parser@0.12.1:
-    resolution: {integrity: sha512-8Unqkvk1RYc6yq2WBYRj4hdnsAxVze8i7iPfQr8e4uSP3tRv0rpZcbGUDvxfQQcdwHt/e9PrMvGCsa8OqG9X3w==}
-
   oniguruma-parser@0.12.2:
     resolution: {integrity: sha512-6HVa5oIrgMC6aA6WF6XyyqbhRPJrKR02L20+2+zpDtO5QAzGHAUGw5TKQvwi5vctNnRHkJYmjAhRVQF2EKdTQw==}
-
-  oniguruma-to-es@4.3.5:
-    resolution: {integrity: sha512-Zjygswjpsewa0NLTsiizVuMQZbp0MDyM6lIt66OxsF21npUDlzpHi1Mgb/qhQdkb+dWFTzJmFbEWdvZgRho8eQ==}
 
   oniguruma-to-es@4.3.6:
     resolution: {integrity: sha512-csuQ9x3Yr0cEIs/Zgx/OEt9iBw9vqIunAPQkx19R/fiMq2oGVTgcMqO/V3Ybqefr1TBvosI6jU539ksaBULJyA==}
@@ -14717,8 +14689,6 @@ snapshots:
 
   '@cloudflare/workers-types@4.20260702.1': {}
 
-  '@cloudflare/workers-types@5.20260722.1': {}
-
   '@cloudflare/workers-types@5.20260727.1': {}
 
   '@codemirror/autocomplete@6.18.6':
@@ -14890,28 +14860,40 @@ snapshots:
     transitivePeerDependencies:
       - zod
 
-  '@eidos.space/graft-darwin-arm64@0.1.0':
+  '@eidos.space/graft-darwin-arm64@0.3.0':
     optional: true
 
-  '@eidos.space/graft-darwin-x64@0.1.0':
+  '@eidos.space/graft-darwin-x64@0.3.0':
     optional: true
 
-  '@eidos.space/graft-linux-arm64-gnu@0.1.0':
+  '@eidos.space/graft-linux-arm64-gnu@0.3.0':
     optional: true
 
-  '@eidos.space/graft-linux-x64-gnu@0.1.0':
+  '@eidos.space/graft-linux-x64-gnu@0.3.0':
     optional: true
 
-  '@eidos.space/graft-win32-x64-msvc@0.1.0':
+  '@eidos.space/graft-remote-cloudflare@0.1.0(@cloudflare/workers-types@5.20260727.1)':
+    dependencies:
+      '@cloudflare/workers-types': 5.20260727.1
+      '@eidos.space/graft-remote': 0.1.0
+
+  '@eidos.space/graft-remote-hono@0.1.0(hono@4.12.31)':
+    dependencies:
+      '@eidos.space/graft-remote': 0.1.0
+      hono: 4.12.31
+
+  '@eidos.space/graft-remote@0.1.0': {}
+
+  '@eidos.space/graft-win32-x64-msvc@0.3.0':
     optional: true
 
-  '@eidos.space/graft@0.1.0':
+  '@eidos.space/graft@0.3.0':
     optionalDependencies:
-      '@eidos.space/graft-darwin-arm64': 0.1.0
-      '@eidos.space/graft-darwin-x64': 0.1.0
-      '@eidos.space/graft-linux-arm64-gnu': 0.1.0
-      '@eidos.space/graft-linux-x64-gnu': 0.1.0
-      '@eidos.space/graft-win32-x64-msvc': 0.1.0
+      '@eidos.space/graft-darwin-arm64': 0.3.0
+      '@eidos.space/graft-darwin-x64': 0.3.0
+      '@eidos.space/graft-linux-arm64-gnu': 0.3.0
+      '@eidos.space/graft-linux-x64-gnu': 0.3.0
+      '@eidos.space/graft-win32-x64-msvc': 0.3.0
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -17909,7 +17891,7 @@ snapshots:
     dependencies:
       '@shikijs/types': 3.23.0
       '@shikijs/vscode-textmate': 10.0.2
-      oniguruma-to-es: 4.3.5
+      oniguruma-to-es: 4.3.6
 
   '@shikijs/engine-javascript@4.3.1':
     dependencies:
@@ -22818,15 +22800,7 @@ snapshots:
     dependencies:
       mimic-function: 5.0.1
 
-  oniguruma-parser@0.12.1: {}
-
   oniguruma-parser@0.12.2: {}
-
-  oniguruma-to-es@4.3.5:
-    dependencies:
-      oniguruma-parser: 0.12.1
-      regex: 6.1.0
-      regex-recursion: 6.0.2
 
   oniguruma-to-es@4.3.6:
     dependencies:

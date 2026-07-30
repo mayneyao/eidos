@@ -102,6 +102,91 @@ describe("Eidos Sync preflight", () => {
     }
   })
 
+  it("excludes ignored untracked trees without hiding tracked ignored files", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-sync-ignore-"))
+    try {
+      await fs.mkdir(path.join(root, "node_modules", "pkg"), {
+        recursive: true,
+      })
+      await fs.mkdir(path.join(root, "generated"))
+      await fs.mkdir(path.join(root, "notes"))
+      await fs.writeFile(
+        path.join(root, "node_modules", "pkg", "index.js"),
+        "ignored"
+      )
+      await fs.writeFile(path.join(root, "generated", "tracked.txt"), "kept")
+      await fs.writeFile(path.join(root, "notes.txt"), "visible")
+      await fs.writeFile(path.join(root, "notes", "nested.txt"), "nested")
+
+      let ignoreBatches = 0
+
+      const preflight = await createSyncPreflight(root, {
+        inspectIgnores: async (relativePaths) => {
+          ignoreBatches += 1
+          return new Map(
+            relativePaths.map((relativePath) => [
+              relativePath,
+              {
+                isIgnored:
+                  relativePath === "node_modules" ||
+                  relativePath === "generated" ||
+                  relativePath.startsWith("generated/"),
+                isTracked:
+                  relativePath === "generated" ||
+                  relativePath.startsWith("generated/"),
+                isDirectory: ["node_modules", "generated"].includes(
+                  relativePath
+                ),
+                hasTrackedDescendants: relativePath === "generated",
+              },
+            ])
+          )
+        },
+      })
+
+      expect(preflight.fileCount).toBe(3)
+      expect(ignoreBatches).toBe(2)
+      expect(preflight.excluded).toContainEqual({
+        relativePath: "node_modules",
+        reason: "graft-ignore",
+      })
+      expect(
+        preflight.excluded.some((entry) =>
+          entry.relativePath.startsWith("node_modules/")
+        )
+      ).toBe(false)
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("returns bounded review samples while preserving exact totals", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-sync-review-sample-")
+    )
+    try {
+      await Promise.all(
+        Array.from({ length: 150 }, (_, index) =>
+          fs.writeFile(path.join(root, `.hidden-${index}.txt`), "review")
+        )
+      )
+
+      const preflight = await createSyncPreflight(root)
+      expect(preflight.warningCount).toBe(150)
+      expect(preflight.warnings).toHaveLength(100)
+      expect(preflight.blockerCount).toBe(0)
+      expect(preflight.excludedCount).toBe(0)
+      expect(() =>
+        assertSyncPreflightApproval(preflight, {
+          manifestId: preflight.manifestId,
+          confirmWarnings: false,
+        })
+      ).toThrow("Confirm")
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it.skipIf(process.platform === "win32")(
     "blocks symlinks instead of silently following them",
     async () => {

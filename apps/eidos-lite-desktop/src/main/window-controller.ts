@@ -6,6 +6,7 @@ import {
   BrowserWindow,
   clipboard,
   dialog,
+  screen,
   shell,
   type WebContents,
 } from "electron"
@@ -21,7 +22,7 @@ import {
   createEidosLiteDiagnostics,
   serializeEidosLiteDiagnostics,
 } from "./diagnostics"
-import { defaultGraftBinaryPath, GraftClient } from "./graft/graft-client"
+import { GraftClient } from "./graft/graft-client"
 import { GraftUtilityTransport } from "./graft/graft-utility-transport"
 import { resolveEidosFileLaunchIntent } from "./launch-intent"
 import { RuntimePool } from "./runtime/runtime-pool"
@@ -38,6 +39,15 @@ import {
   type CloneRecoveryResult,
 } from "./sync/space-clone-coordinator"
 import { macosTrafficLightPosition, type LiteWindowKind } from "./window-chrome"
+import {
+  centeredWindowBounds,
+  fitWindowBounds,
+  type LiteWindowBounds,
+  LiteWindowStateStore,
+} from "./window-state"
+
+const SPACE_WINDOW_SIZE = { width: 1320, height: 860 }
+const SPACE_WINDOW_MINIMUM = { width: 900, height: 600 }
 
 export class WindowController {
   private readonly sessionByWebContents = new Map<number, SpaceSession>()
@@ -47,6 +57,10 @@ export class WindowController {
   private readonly openingSessions = new Set<Promise<SpaceSession>>()
   private recentSpacesStore: RecentSpacesStore | null = null
   private cloneCoordinatorInstance: SpaceCloneCoordinator | null = null
+  private readonly windowKind = new WeakMap<BrowserWindow, LiteWindowKind>()
+  private readonly windowState = new LiteWindowStateStore(
+    app.getPath("userData")
+  )
   private closing = false
 
   constructor(private readonly services: EidosLiteServiceEnvironment) {}
@@ -481,6 +495,7 @@ export class WindowController {
       throw new Error("The requesting window no longer exists")
     }
     this.sessionByWebContents.set(webContents.id, session)
+    this.promoteToSpaceWindow(window)
     session.onChanged((snapshot) => {
       if (!webContents.isDestroyed()) {
         webContents.send(IPC_CHANNELS.spaceChanged, snapshot)
@@ -588,22 +603,11 @@ export class WindowController {
   }
 
   private createGraftClient(): GraftClient {
-    const graftBackend =
-      process.env.EIDOS_LITE_GRAFT_BACKEND === "cli" ? "cli" : "sdk"
     return new GraftClient({
-      backend: graftBackend,
-      binaryPath: defaultGraftBinaryPath({
-        packaged: app.isPackaged,
-        resourcesPath: process.resourcesPath,
-      }),
       syncRemoteOrigin: this.services.syncRemoteOrigin,
-      ...(graftBackend === "sdk"
-        ? {
-            sdkTransport: new GraftUtilityTransport(
-              fileURLToPath(new URL("./graft-worker.js", import.meta.url))
-            ),
-          }
-        : {}),
+      sdkTransport: new GraftUtilityTransport(
+        fileURLToPath(new URL("./graft-worker.js", import.meta.url))
+      ),
     })
   }
 
@@ -616,9 +620,11 @@ export class WindowController {
     kind: LiteWindowKind = "space"
   ): BrowserWindow {
     const welcome = kind === "welcome"
+    const bounds = welcome
+      ? { width: 920, height: 620 }
+      : this.resolveSpaceWindowBounds()
     const window = new BrowserWindow({
-      width: welcome ? 920 : 1320,
-      height: welcome ? 620 : 860,
+      ...bounds,
       minWidth: welcome ? 760 : 900,
       minHeight: welcome ? 520 : 600,
       show: false,
@@ -641,8 +647,62 @@ export class WindowController {
     })
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
     window.webContents.on("will-navigate", (event) => event.preventDefault())
+    this.trackWindowState(window, kind)
     if (showWhenReady) window.once("ready-to-show", () => window.show())
     return window
+  }
+
+  private resolveSpaceWindowBounds(
+    reference?: LiteWindowBounds
+  ): LiteWindowBounds {
+    const saved = this.windowState.getSpaceBounds()
+    const display = saved
+      ? screen.getDisplayMatching(saved)
+      : reference
+        ? screen.getDisplayMatching(reference)
+        : screen.getPrimaryDisplay()
+    const workArea = display.workArea
+    if (saved) return fitWindowBounds(saved, workArea, SPACE_WINDOW_MINIMUM)
+    return centeredWindowBounds(SPACE_WINDOW_SIZE, workArea)
+  }
+
+  private promoteToSpaceWindow(window: BrowserWindow): void {
+    if (this.windowKind.get(window) === "space") return
+    this.windowKind.set(window, "space")
+    window.setMinimumSize(
+      SPACE_WINDOW_MINIMUM.width,
+      SPACE_WINDOW_MINIMUM.height
+    )
+    if (!window.isMaximized() && !window.isFullScreen()) {
+      window.setBounds(this.resolveSpaceWindowBounds(window.getBounds()), true)
+    }
+  }
+
+  private trackWindowState(window: BrowserWindow, kind: LiteWindowKind): void {
+    this.windowKind.set(window, kind)
+    let saveTimer: ReturnType<typeof setTimeout> | null = null
+    const save = () => {
+      if (this.windowKind.get(window) !== "space" || window.isDestroyed())
+        return
+      if (window.isMinimized() || window.isMaximized() || window.isFullScreen())
+        return
+      this.windowState.saveSpaceBounds(window.getNormalBounds())
+    }
+    const scheduleSave = () => {
+      if (this.windowKind.get(window) !== "space") return
+      if (saveTimer) clearTimeout(saveTimer)
+      saveTimer = setTimeout(() => {
+        saveTimer = null
+        save()
+      }, 250)
+    }
+    window.on("move", scheduleSave)
+    window.on("resize", scheduleSave)
+    window.once("close", () => {
+      if (saveTimer) clearTimeout(saveTimer)
+      saveTimer = null
+      save()
+    })
   }
 
   private loadRenderer(window: BrowserWindow): Promise<void> {

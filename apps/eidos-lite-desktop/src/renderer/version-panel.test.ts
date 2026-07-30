@@ -72,7 +72,7 @@ const unversionedSpace: SpaceSnapshot = {
   graft: {
     available: true,
     backend: "sdk",
-    expectedVersion: "0.1.0",
+    expectedVersion: "0.3.0",
     initialized: false,
   },
   invalidatedSessionIds: [],
@@ -189,5 +189,58 @@ describe("VersionPanel row diff paging", () => {
     expect(markup.match(/class="row-diff"/g)).toHaveLength(2)
     expect(markup).toContain("Hao Chen")
     expect(markup).toContain("Customer")
+  })
+
+  it("loads text content only after selecting a historical text file", () => {
+    const inspection: VersionInspection = {
+      type: "file",
+      key: "history:commit-2:notes/readme.md",
+      mode: "history",
+      diff: versionDiff,
+      change: versionDiff.paths[0]!,
+      file: null,
+      commit: {
+        id: "a".repeat(64),
+        parent: "b".repeat(64),
+        message: "Update notes",
+        timestampMs: 1_700_000_000_000,
+        files: 1,
+        changes: [versionDiff.paths[0]!],
+        tables: [],
+        changedTables: 0,
+      },
+    }
+
+    const markup = renderToStaticMarkup(
+      createElement(VersionDiffPreview, {
+        inspection,
+        onClose: () => undefined,
+      })
+    )
+
+    expect(markup).toContain("Reading checkpoint text…")
+    expect(markup).not.toContain("metadata only")
+  })
+
+  it("loads text content after selecting a working tree text change", () => {
+    const inspection: VersionInspection = {
+      type: "file",
+      key: "notes/readme.md",
+      mode: "changes",
+      diff: versionDiff,
+      change: versionDiff.paths[0]!,
+      file: null,
+      commit: null,
+    }
+
+    const markup = renderToStaticMarkup(
+      createElement(VersionDiffPreview, {
+        inspection,
+        onClose: () => undefined,
+      })
+    )
+
+    expect(markup).toContain("Reading local text…")
+    expect(markup).not.toContain("metadata only")
   })
 })

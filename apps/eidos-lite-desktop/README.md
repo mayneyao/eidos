@@ -89,11 +89,13 @@ credentials. The titlebar and Sync panel expose queued, running, retry-wait,
 and paused states. Local-only Spaces still neither log in nor create a Sync
 queue.
 
-Graft runs through the published `@eidos.space/graft@0.1.0` Node-API SDK. One
-Electron utility process retains one `RepositorySession` for each open Space;
-normal status, diff, history, checkpoint, restore, push, and clone paths do not
-spawn the Graft CLI. The old CLI adapter remains selectable only for parity
-testing during this migration slice.
+Graft runs through the published `@eidos.space/graft@0.3.0` Node-API SDK.
+Opening a Space does not open or classify its repository. The root Explorer and
+local Eidos File runtime become usable first; the first background or explicit
+version operation lazily starts one Electron utility process and retains one
+`RepositorySession` for that Space. Normal status, diff, history, checkpoint,
+restore, push, and clone paths use only the SDK; Lite contains no Graft CLI
+adapter, subprocess fallback, or bundled CLI binary.
 
 ## Local development
 
@@ -119,13 +121,7 @@ one-run local override. Release automation must use
 plus `sync.eidos.space`. Values other than `staging` and `production` fail at
 startup; Lite does not accept custom account, Billing, or Remote origins.
 
-The default real-Graft test uses the resident SDK. Run the temporary CLI parity
-gate separately when needed:
-
-```bash
-EIDOS_LITE_GRAFT_CLI_PATH=/absolute/path/to/graft \
-  pnpm --filter @eidos.space/eidos-lite-desktop test:graft:cli
-```
+The real-Graft test uses the same resident SDK as the packaged application.
 
 For an unsigned unpacked application and its process-boundary smoke:
 
@@ -135,9 +131,8 @@ pnpm smoke:eidos-lite-packaged
 ```
 
 Packaging includes the platform-specific published Node-API package outside
-ASAR for the utility process. It currently also bundles the verified CLI
-fallback described by `graft-runtime-manifest.json`; normal execution does not
-invoke it.
+ASAR for the utility process. Lite does not bundle, spawn, or search for the
+Graft CLI.
 The packaged smoke first opens a real empty Space, creates the first `.eidos`
 file from the onboarding action, and requires the canonical editor to open it.
 Before that it measures process launch through a usable Welcome renderer; it

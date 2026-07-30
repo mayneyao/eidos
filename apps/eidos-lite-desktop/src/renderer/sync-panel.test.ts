@@ -87,6 +87,9 @@ const preflight: EidosSyncPreflight = {
   fileCount: 4,
   eidosFileCount: 2,
   totalBytes: 125_829_120,
+  excludedCount: 1,
+  warningCount: 1,
+  blockerCount: 0,
   excluded: [{ relativePath: ".graft", reason: "graft-metadata" }],
   warnings: [
     {

@@ -4,27 +4,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:upstream": "pnpm --filter @eidos.space/graft-remote build && pnpm --filter @eidos.space/graft-remote-hono build && pnpm --filter @eidos.space/graft-remote-cloudflare build",
     "check": "wrangler types worker-configuration.d.ts --include-runtime false --check && tsc --noEmit",
     "deploy": "wrangler deploy",
     "deploy:staging": "wrangler deploy --env staging",
     "dev": "wrangler dev",
     "dev:staging": "wrangler dev --env staging",
     "dry-run:staging": "wrangler deploy --env staging --dry-run",
-    "precheck": "pnpm build:upstream",
-    "predeploy": "pnpm build:upstream",
-    "predeploy:staging": "pnpm build:upstream",
-    "predev": "pnpm build:upstream",
-    "predry-run:staging": "pnpm build:upstream",
-    "pretest": "pnpm build:upstream",
     "smoke:account-cli": "node scripts/account-cli-e2e.mjs",
     "test": "vitest run --config vitest.config.ts",
     "types": "wrangler types worker-configuration.d.ts --include-runtime false"
   },
   "dependencies": {
-    "@eidos.space/graft-remote": "workspace:^",
-    "@eidos.space/graft-remote-cloudflare": "workspace:^",
-    "@eidos.space/graft-remote-hono": "workspace:^",
+    "@eidos.space/graft-remote": "0.1.0",
+    "@eidos.space/graft-remote-cloudflare": "0.1.0",
+    "@eidos.space/graft-remote-hono": "0.1.0",
     "hono": "4.12.31"
   },
   "devDependencies": {

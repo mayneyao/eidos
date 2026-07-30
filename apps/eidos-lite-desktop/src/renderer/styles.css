@@ -1590,6 +1590,106 @@ button:focus-visible {
   min-height: 0;
 }
 
+.text-file-preview {
+  display: grid;
+  grid-template-rows: 2rem minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  background: var(--canvas);
+}
+
+.text-preview-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 0 1rem;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--ink-muted);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.text-preview-readonly {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--accent-strong);
+  font-weight: 650;
+}
+
+.text-preview-readonly svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+.text-file-preview pre {
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  padding: clamp(1rem, 2.5vw, 2rem);
+  color: var(--ink);
+  background: transparent;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.75rem;
+  line-height: 1.65;
+  tab-size: 4;
+  user-select: text;
+  white-space: pre;
+}
+
+.text-file-preview pre:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.text-file-preview code {
+  font: inherit;
+}
+
+.text-file-preview > footer {
+  padding: 0.45rem 1rem;
+  border-top: 1px solid var(--hairline);
+  color: var(--ink-muted);
+  background: var(--surface);
+  font-size: 0.625rem;
+}
+
+.text-preview-empty {
+  display: flex;
+  align-self: center;
+  justify-self: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+}
+
+.text-preview-empty svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.text-preview-unavailable {
+  max-width: 30rem;
+}
+
+.text-preview-reveal {
+  border-color: var(--control-border);
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+}
+
+.text-preview-reveal:hover:not(:disabled) {
+  background: var(--surface-hover);
+  filter: none;
+}
+
 .lite-eidos-file-shell,
 .lite-eidos-file-shell > [data-eidos-file-content] {
   min-width: 0;
@@ -2091,7 +2191,7 @@ button:focus-visible {
 /* Version navigation stays Explorer-dense; selected details own the main area. */
 .version-panel-body.version-panel-changes {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   overflow: hidden;
 }
 
@@ -2104,6 +2204,11 @@ button:focus-visible {
 .version-change-tree {
   min-width: 0;
   min-height: 0;
+}
+
+.version-change-tree-shell {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .version-change-tree {
@@ -2196,6 +2301,101 @@ button:focus-visible {
 .commit-loading svg {
   width: 0.72rem;
   height: 0.72rem;
+}
+
+.version-load-more {
+  display: block;
+  width: calc(100% - 1.2rem);
+  margin: 0.45rem 0.6rem 0.6rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  color: var(--ink-muted);
+  background: var(--surface);
+  font-size: 0.625rem;
+  text-align: center;
+}
+
+.version-load-more:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+
+.version-load-more:disabled {
+  opacity: 0.6;
+}
+
+.tracked-ignore-notice {
+  display: grid;
+  grid-template-columns: 0.8rem minmax(0, 1fr);
+  gap: 0.45rem;
+  margin: 0.5rem 0.6rem;
+  padding: 0.55rem;
+  border: 1px solid color-mix(in oklab, var(--warning) 38%, var(--line));
+  border-radius: 0.45rem;
+  background: color-mix(in oklab, var(--warning) 7%, var(--surface));
+}
+
+.tracked-ignore-notice > svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  margin-top: 0.08rem;
+  color: var(--warning);
+}
+
+.tracked-ignore-notice strong,
+.tracked-ignore-notice p {
+  font-size: 0.625rem;
+}
+
+.tracked-ignore-notice p {
+  margin: 0.18rem 0 0;
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+
+.tracked-ignore-notice .version-load-more {
+  width: auto;
+  margin: 0.45rem 0 0;
+}
+
+.tracked-ignore-actions {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.tracked-ignore-actions button {
+  min-height: 1.7rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  font-size: 0.6rem;
+}
+
+.version-ignore-review,
+.tracked-ignore-clean {
+  margin: 0.35rem 0.65rem;
+  color: var(--ink-muted);
+  font-size: 0.6rem;
+}
+
+.version-ignore-review {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--ink-muted) 38%, transparent);
+  text-underline-offset: 0.16rem;
+}
+
+.version-ignore-review:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.tracked-ignore-clean {
+  line-height: 1.4;
 }
 
 .history-change-list,
@@ -2360,6 +2560,12 @@ button:focus-visible {
   min-width: 0;
   min-height: 0;
   overflow: auto;
+}
+
+.version-inspector-scroll.version-inspector-text-layout {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .version-inspector-heading {
@@ -2564,6 +2770,148 @@ button:focus-visible {
   margin: 0;
   overflow-wrap: anywhere;
   user-select: text;
+}
+
+.version-text-diff {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: 2.25rem minmax(0, 1fr);
+}
+
+.version-text-diff > header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0 0.65rem 0 0.8rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--canvas);
+}
+
+.version-text-diff > header > div:first-child {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.version-text-diff > header strong {
+  font-size: 0.6875rem;
+  font-weight: 620;
+}
+
+.version-text-diff > header span {
+  color: var(--ink-muted);
+  font-size: 0.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.version-text-diff-layout {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 1px;
+  border: 1px solid var(--control-border);
+  border-radius: 0.3rem;
+  background: color-mix(in oklab, var(--canvas), var(--ink) 4%);
+}
+
+.version-text-diff-layout button {
+  min-height: 1.35rem;
+  padding: 0 0.45rem;
+  border: 0;
+  border-radius: 0.22rem;
+  color: var(--ink-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.625rem;
+}
+
+.version-text-diff-layout button[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+}
+
+.version-text-diff-layout button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.version-text-diff-surface,
+.version-text-diff-virtualizer {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.version-text-diff-surface {
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.version-text-diff-virtualizer {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.version-text-diff-loading,
+.version-text-diff-message {
+  display: flex;
+  min-height: 5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  color: var(--ink-muted);
+  font-size: 0.6875rem;
+}
+
+.version-text-diff-loading svg,
+.version-text-diff-message > svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: 0 0 auto;
+}
+
+.version-text-diff-message {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.version-text-diff-message strong {
+  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 620;
+}
+
+.version-text-diff-message p {
+  max-width: 52ch;
+  margin: 0.25rem 0 0;
+  line-height: 1.5;
+}
+
+.version-text-diff-message button {
+  display: inline-flex;
+  min-height: 1.65rem;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.6rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.3rem;
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+  font: inherit;
+  font-size: 0.65rem;
+}
+
+.version-text-diff-message button svg {
+  width: 0.72rem;
+  height: 0.72rem;
 }
 
 .selected-commit > header {

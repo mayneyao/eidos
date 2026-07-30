@@ -13,6 +13,7 @@ import type {
 export const LARGE_FILE_WARNING_BYTES = 100 * 1024 * 1024
 export const MAX_SYNC_FILE_BYTES = 1024 * 1024 * 1024
 const MAX_SYNC_ENTRIES = 100_000
+const MAX_REVIEW_SAMPLE_ENTRIES = 100
 const OS_NOISE_NAMES = new Set([".DS_Store", "Thumbs.db", "desktop.ini"])
 const SECRET_FILE_NAMES = new Set([
   ".dockercfg",
@@ -117,63 +118,130 @@ function classifyCandidate(candidate: ManifestCandidate): {
 }
 
 export async function createSyncPreflight(
-  root: string
+  root: string,
+  options: {
+    inspectIgnores?(relativePaths: readonly string[]): Promise<
+      Map<
+        string,
+        {
+          isIgnored: boolean
+          isTracked: boolean
+          isDirectory: boolean
+          hasTrackedDescendants: boolean
+        }
+      >
+    >
+  } = {}
 ): Promise<EidosSyncPreflight> {
   const candidates: ManifestCandidate[] = []
   const excluded: EidosSyncPreflightExclusion[] = []
   let seen = 0
-
-  const visit = async (absoluteDirectory: string): Promise<void> => {
-    const entries = await fs.readdir(absoluteDirectory, { withFileTypes: true })
-    entries.sort((left, right) => left.name.localeCompare(right.name))
-    for (const entry of entries) {
-      seen += 1
-      if (seen > MAX_SYNC_ENTRIES) {
-        throw new Error(
-          `Space contains more than ${MAX_SYNC_ENTRIES} entries; reduce its scope before Eidos Sync`
-        )
-      }
-      const absolutePath = path.join(absoluteDirectory, entry.name)
-      const relativePath = portablePath(root, absolutePath)
-      if (entry.name === ".graft") {
-        excluded.push({ relativePath, reason: "graft-metadata" })
-        continue
-      }
-      if (OS_NOISE_NAMES.has(entry.name)) {
-        excluded.push({ relativePath, reason: "os-noise" })
-        continue
-      }
-      if (isTemporaryFile(entry.name)) {
-        excluded.push({ relativePath, reason: "temporary-file" })
-        continue
-      }
-
-      const stats = await fs.lstat(absolutePath, { bigint: true })
-      if (stats.isDirectory()) {
-        await visit(absolutePath)
-        continue
-      }
-      const size =
-        stats.size > BigInt(Number.MAX_SAFE_INTEGER)
-          ? Number.MAX_SAFE_INTEGER
-          : Number(stats.size)
-      candidates.push({
-        relativePath,
-        kind: stats.isSymbolicLink()
-          ? "symlink"
-          : stats.isFile()
-            ? path.extname(entry.name).toLowerCase() === ".eidos"
-              ? "eidos"
-              : "file"
-            : "unsupported",
-        size,
-        sizeFingerprint: stats.size.toString(),
-        modifiedFingerprint: stats.mtimeNs.toString(),
-      })
+  let directories = [root]
+  while (directories.length > 0) {
+    const directoryPages = await Promise.all(
+      directories.map(async (absoluteDirectory) => ({
+        absoluteDirectory,
+        entries: await fs.readdir(absoluteDirectory, { withFileTypes: true }),
+      }))
+    )
+    const entries = directoryPages.flatMap(({ absoluteDirectory, entries }) =>
+      entries
+        .sort((left, right) => left.name.localeCompare(right.name))
+        .map((entry) => {
+          const absolutePath = path.join(absoluteDirectory, entry.name)
+          return {
+            entry,
+            absolutePath,
+            relativePath: portablePath(root, absolutePath),
+          }
+        })
+    )
+    seen += entries.length
+    if (seen > MAX_SYNC_ENTRIES) {
+      throw new Error(
+        `Space contains more than ${MAX_SYNC_ENTRIES} entries; reduce its scope before Eidos Sync`
+      )
     }
-  }
+    const inspectable = entries.filter(
+      ({ entry }) =>
+        entry.name !== ".graft" &&
+        !OS_NOISE_NAMES.has(entry.name) &&
+        !isTemporaryFile(entry.name)
+    )
+    const ignoreInspections = options.inspectIgnores
+      ? await options.inspectIgnores(
+          inspectable.map(({ relativePath }) => relativePath)
+        )
+      : new Map()
+    const visible: typeof inspectable = []
+    for (const item of entries) {
+      if (item.entry.name === ".graft") {
+        excluded.push({
+          relativePath: item.relativePath,
+          reason: "graft-metadata",
+        })
+        continue
+      }
+      if (OS_NOISE_NAMES.has(item.entry.name)) {
+        excluded.push({ relativePath: item.relativePath, reason: "os-noise" })
+        continue
+      }
+      if (isTemporaryFile(item.entry.name)) {
+        excluded.push({
+          relativePath: item.relativePath,
+          reason: "temporary-file",
+        })
+        continue
+      }
+      const ignore = ignoreInspections.get(item.relativePath)
+      if (
+        ignore?.isIgnored &&
+        !ignore.isTracked &&
+        !(ignore.isDirectory && ignore.hasTrackedDescendants)
+      ) {
+        excluded.push({
+          relativePath: item.relativePath,
+          reason: "graft-ignore",
+        })
+        continue
+      }
+      visible.push(item)
+    }
 
-  await visit(root)
+    const nextDirectories: string[] = []
+    for (let offset = 0; offset < visible.length; offset += 256) {
+      const resolved = await Promise.all(
+        visible.slice(offset, offset + 256).map(async (item) => ({
+          item,
+          stats: await fs.lstat(item.absolutePath, { bigint: true }),
+        }))
+      )
+      for (const { item, stats } of resolved) {
+        if (stats.isDirectory()) {
+          nextDirectories.push(item.absolutePath)
+          continue
+        }
+        const size =
+          stats.size > BigInt(Number.MAX_SAFE_INTEGER)
+            ? Number.MAX_SAFE_INTEGER
+            : Number(stats.size)
+        candidates.push({
+          relativePath: item.relativePath,
+          kind: stats.isSymbolicLink()
+            ? "symlink"
+            : stats.isFile()
+              ? path.extname(item.entry.name).toLowerCase() === ".eidos"
+                ? "eidos"
+                : "file"
+              : "unsupported",
+          size,
+          sizeFingerprint: stats.size.toString(),
+          modifiedFingerprint: stats.mtimeNs.toString(),
+        })
+      }
+    }
+    directories = nextDirectories
+  }
   candidates.sort((left, right) =>
     left.relativePath.localeCompare(right.relativePath)
   )
@@ -216,9 +284,12 @@ export async function createSyncPreflight(
       (total, candidate) => total + candidate.size,
       0
     ),
-    excluded,
-    warnings,
-    blockers,
+    excludedCount: excluded.length,
+    warningCount: warnings.length,
+    blockerCount: blockers.length,
+    excluded: excluded.slice(0, MAX_REVIEW_SAMPLE_ENTRIES),
+    warnings: warnings.slice(0, MAX_REVIEW_SAMPLE_ENTRIES),
+    blockers: blockers.slice(0, MAX_REVIEW_SAMPLE_ENTRIES),
   }
 }
 
@@ -231,12 +302,12 @@ export function assertSyncPreflightApproval(
       "The Space changed after Sync review. Review the updated upload scope before continuing."
     )
   }
-  if (preflight.blockers.length > 0) {
+  if (preflight.blockerCount > 0) {
     throw new Error(
       "The Space contains entries that Eidos Sync cannot upload safely. Resolve the blocked entries and review again."
     )
   }
-  if (preflight.warnings.length > 0 && !approval.confirmWarnings) {
+  if (preflight.warningCount > 0 && !approval.confirmWarnings) {
     throw new Error(
       "Confirm the hidden, secret-like, and large files before Eidos Sync."
     )
