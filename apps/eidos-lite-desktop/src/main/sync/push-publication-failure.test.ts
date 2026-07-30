@@ -53,8 +53,8 @@ describe("push publication failure", () => {
       inspectSpace: vi.fn(async () => ({
         available: true,
         backend: "sdk" as const,
-        version: "0.3.0-rc.0",
-        expectedVersion: "0.3.0-rc.0",
+        version: "0.3.0",
+        expectedVersion: "0.3.0",
         initialized: true,
         clean: true,
         currentHead: localHead,

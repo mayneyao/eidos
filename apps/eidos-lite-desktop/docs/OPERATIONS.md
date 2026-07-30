@@ -186,11 +186,10 @@ sequence.
 
 ## Stable Graft supply chain
 
-The normal runtime pins the local `@eidos.space/graft@0.3.0-rc.0` integration
-candidate. The eventual published package resolves one
-Node-API 8 optional package for macOS arm64/x64, Linux glibc arm64/x64, or
-Windows x64. Packaging keeps the JavaScript wrapper in ASAR and unpacks only
-the selected native package; `graft-worker.js` loads it directly in an Electron
+The runtime pins published `@eidos.space/graft@0.3.0`; npm selects one of its
+five exact-version optional native packages for the current platform. Packaging
+keeps the JavaScript wrapper in ASAR and unpacks only the selected native
+package; `graft-worker.js` loads it directly in an Electron
 utility process. The package has no install script and unsupported
 platform/libc combinations fail explicitly.
 

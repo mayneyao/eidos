@@ -24,7 +24,7 @@ import type {
   SpaceVersionTextContentRequest,
 } from "../../shared/contracts"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
-import { readTemporaryRevisionTextDiff } from "./temporary-object-reader"
+import { readRevisionTextDiff } from "./revision-text-reader"
 
 export class GraftInProcessTransport implements GraftSdkTransport {
   private session: RepositorySession | null = null
@@ -209,12 +209,7 @@ export class GraftInProcessTransport implements GraftSdkTransport {
   async revisionTextDiff(
     request: SpaceVersionTextContentRequest
   ): Promise<SpaceVersionTextContentDiff> {
-    if (!this.target) throw new Error("Graft repository session is not open")
-    return readTemporaryRevisionTextDiff(
-      this.requireSession(),
-      this.target,
-      request
-    )
+    return readRevisionTextDiff(this.requireSession(), request)
   }
 
   async clone(

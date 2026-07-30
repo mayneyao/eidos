@@ -29,8 +29,7 @@
   "dependencies": {
     "@eidos.space/eidos-file": "workspace:*",
     "@eidos.space/eidos-file-ui": "workspace:*",
-    "@eidos.space/graft": "file:/private/tmp/graft-sdk-local-pack-04d6-rc7-final-2S45J7/eidos.space-graft-0.3.0-rc.0.tgz",
-    "@eidos.space/graft-darwin-arm64": "file:/private/tmp/graft-sdk-local-pack-04d6-rc7-final-2S45J7/eidos.space-graft-darwin-arm64-0.3.0-rc.0.tgz",
+    "@eidos.space/graft": "0.3.0",
     "@glideapps/glide-data-grid": "^6.0.0",
     "@pierre/diffs": "1.2.7",
     "@pierre/trees": "1.0.0-beta.5",
