@@ -38,7 +38,11 @@ import {
   SpaceCloneCoordinator,
   type CloneRecoveryResult,
 } from "./sync/space-clone-coordinator"
-import { macosTrafficLightPosition, type LiteWindowKind } from "./window-chrome"
+import {
+  applyMacosTrafficLightPosition,
+  macosTrafficLightPosition,
+  type LiteWindowKind,
+} from "./window-chrome"
 import {
   centeredWindowBounds,
   fitWindowBounds,
@@ -669,6 +673,7 @@ export class WindowController {
   private promoteToSpaceWindow(window: BrowserWindow): void {
     if (this.windowKind.get(window) === "space") return
     this.windowKind.set(window, "space")
+    applyMacosTrafficLightPosition(window, "space")
     window.setMinimumSize(
       SPACE_WINDOW_MINIMUM.width,
       SPACE_WINDOW_MINIMUM.height

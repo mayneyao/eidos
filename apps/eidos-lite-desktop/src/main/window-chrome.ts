@@ -1,3 +1,5 @@
+import type { BrowserWindow } from "electron"
+
 export type LiteWindowKind = "welcome" | "space"
 
 const MACOS_TRAFFIC_LIGHT_POSITION = {
@@ -10,4 +12,13 @@ export function macosTrafficLightPosition(kind: LiteWindowKind): {
   y: number
 } {
   return MACOS_TRAFFIC_LIGHT_POSITION[kind]
+}
+
+export function applyMacosTrafficLightPosition(
+  window: Pick<BrowserWindow, "setWindowButtonPosition">,
+  kind: LiteWindowKind,
+  platform: NodeJS.Platform = process.platform
+): void {
+  if (platform !== "darwin") return
+  window.setWindowButtonPosition(macosTrafficLightPosition(kind))
 }
