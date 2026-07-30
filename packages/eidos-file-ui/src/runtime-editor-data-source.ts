@@ -49,6 +49,7 @@ import {
   type RowPage,
   type RowQuery,
   type RuntimeClient,
+  type RuntimeCapabilities,
   type RuntimeSnapshot,
   type SavedViewQuery,
   type SchemaChange,
@@ -107,6 +108,7 @@ function conversionTargetNullable(
  */
 export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   private sequence = 0
+  private runtimeCapabilities: RuntimeCapabilities | null = null
   private runtimeSnapshot: RuntimeSnapshot | null = null
   private schema: SchemaDescriptor[] = []
   private tables = new Map<string, TableDescriptor>()
@@ -121,10 +123,11 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   ) {}
 
   async initialize(): Promise<EidosFileSnapshot> {
-    await this.runtime.negotiate(
+    const negotiation = await this.runtime.negotiate(
       { protocol: "eidos-runtime", versions: ["1.0"] },
       this.context("negotiate")
     )
+    this.runtimeCapabilities = negotiation.capabilities
     return this.getSnapshot()
   }
 
@@ -1044,34 +1047,57 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     const fieldByName = new Map(
       table.fields.map((field) => [field.name, field])
     )
-    for (let offset = 0; offset < prepared.rows.length; offset += 500) {
-      const rows = prepared.rows.slice(offset, offset + 500)
-      const result = await this.runtime.mutateRows(
+    if (
+      prepared.rows.length > 0 &&
+      this.runtimeCapabilities?.csvImport &&
+      this.runtime.importCsv
+    ) {
+      const result = await this.runtime.importCsv(
         {
           tableId: table.table.id,
           expectedRevision: this.revision(),
-          changes: rows.map((row, index) => ({
-            kind: "create" as const,
-            clientKey: `${offset + index + 1}`,
-            values: Object.fromEntries(
-              prepared.plan.columns.flatMap((column) => {
-                const field = fieldByName.get(column.name)
-                const value = row[column.columnName]
-                return field && value !== undefined
-                  ? [
-                      [
-                        field.id,
-                        this.runtimeValue(this.fields.get(field.id)!, value),
-                      ] as const,
-                    ]
-                  : []
-              })
-            ),
-          })),
+          hasHeader: true,
+          columns: prepared.plan.columns.map((column) => {
+            const field = fieldByName.get(column.name)
+            if (!field)
+              throw new Error(`CSV destination field not found: ${column.name}`)
+            return { csvIndex: column.sourceIndex, fieldId: field.id }
+          }),
+          csv: new Uint8Array(bytes.slice(0)),
         },
         this.context("csv-import")
       )
       this.acceptRevision(result.revision)
+    } else {
+      for (let offset = 0; offset < prepared.rows.length; offset += 500) {
+        const rows = prepared.rows.slice(offset, offset + 500)
+        const result = await this.runtime.mutateRows(
+          {
+            tableId: table.table.id,
+            expectedRevision: this.revision(),
+            changes: rows.map((row, index) => ({
+              kind: "create" as const,
+              clientKey: `${offset + index + 1}`,
+              values: Object.fromEntries(
+                prepared.plan.columns.flatMap((column) => {
+                  const field = fieldByName.get(column.name)
+                  const value = row[column.columnName]
+                  return field && value !== undefined
+                    ? [
+                        [
+                          field.id,
+                          this.runtimeValue(this.fields.get(field.id)!, value),
+                        ] as const,
+                      ]
+                    : []
+                })
+              ),
+            })),
+          },
+          this.context("csv-import")
+        )
+        this.acceptRevision(result.revision)
+      }
     }
     snapshot = await this.getSnapshot()
     return {

@@ -138,8 +138,13 @@ describe("BetterSqlite3ConnectionPort EA-Connection-1.0", () => {
           )
         ).resolves.toMatchObject({
           version: "1.0",
-          capabilities: { readRows: true, mutateRows: false },
+          capabilities: {
+            readRows: true,
+            mutateRows: false,
+            csvImport: false,
+          },
         })
+        expect(opened.service.importCsv).toBeUndefined()
         await opened.service.close(runtimeContext("close-readonly"))
       } finally {
         readonly.close()

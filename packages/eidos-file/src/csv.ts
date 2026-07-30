@@ -92,7 +92,7 @@ function invalidCsv(error: unknown): EidosFileError {
   )
 }
 
-function parseCsv(content: string): ParsedCsv {
+function parseCsv(content: string, hasHeader = true): ParsedCsv {
   if (!content.trim()) {
     throw new EidosFileError("invalid-csv", "CSV file is empty")
   }
@@ -117,10 +117,13 @@ function parseCsv(content: string): ParsedCsv {
   if (records.length === 0 || records[0].length === 0) {
     throw new EidosFileError("invalid-csv", "CSV header is missing")
   }
-  const header = records[0].map((value) => String(value ?? "").trim())
+  const firstRecord = records[0]
+  const header = hasHeader
+    ? firstRecord.map((value) => String(value ?? "").trim())
+    : firstRecord.map((_, index) => `Column ${index + 1}`)
   const rows: string[][] = []
   let inconsistentRows = 0
-  for (const record of records.slice(1)) {
+  for (const record of hasHeader ? records.slice(1) : records) {
     if (record.length !== header.length) {
       inconsistentRows += 1
       continue
@@ -420,9 +423,11 @@ export function eidosFileCsvRowToEidosFileRow(
 
 export function parseEidosFileCsvRows(
   file: { name: string; content: string },
-  plan: EidosFileCsvImportPlan
+  plan: EidosFileCsvImportPlan,
+  options: { hasHeader?: boolean } = {}
 ): EidosFileRow[] {
-  return parseCsv(file.content).rows.map((row, rowIndex) =>
-    eidosFileCsvRowToEidosFileRow(row, rowIndex + 2, plan)
+  const hasHeader = options.hasHeader ?? true
+  return parseCsv(file.content, hasHeader).rows.map((row, rowIndex) =>
+    eidosFileCsvRowToEidosFileRow(row, rowIndex + (hasHeader ? 2 : 1), plan)
   )
 }

@@ -97,6 +97,24 @@ describe("Eidos File CSV import", () => {
     ).toThrow(/RFC 3339 timestamp/)
   })
 
+  it("imports the first record when the Runtime CSV request has no header", () => {
+    const plan = planEidosFileCsvImport({
+      name: "scores.csv",
+      content: "Name,Score\nAda,1",
+    })
+
+    expect(
+      parseEidosFileCsvRows(
+        { name: "scores.csv", content: "Grace,2\nLinus,3" },
+        plan,
+        { hasHeader: false }
+      )
+    ).toEqual([
+      expect.objectContaining({ Name: "Grace", Score: 2 }),
+      expect.objectContaining({ Name: "Linus", Score: 3 }),
+    ])
+  })
+
   it("rejects empty and structurally invalid files with Eidos File errors", () => {
     expect(() =>
       planEidosFileCsvImport({ name: "empty.csv", content: "  " })

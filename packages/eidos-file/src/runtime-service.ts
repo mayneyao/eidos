@@ -1,6 +1,7 @@
 import type { ConnectionPort, SqlValue } from "./adapter-contract"
 import type { EidosFileSqlPrimitive } from "./connection"
 import { canonicalizeEidosFileJson } from "./canonical-json"
+import { parseEidosFileCsvRows } from "./csv"
 import {
   planCanonicalFieldConversion,
   type CanonicalConversionPlan,
@@ -25,6 +26,8 @@ import {
 } from "./lookup"
 import type {
   CreateEidosFileFieldInput,
+  EidosFileCsvImportColumn,
+  EidosFileCsvImportPlan,
   EidosFileFieldInfo,
   EidosFileFilterOperator,
   EidosFileFilterValue,
@@ -41,6 +44,8 @@ import type {
   ColumnDescriptor,
   ColumnStatistics,
   CommitReconciliation,
+  CsvImportRequest,
+  CsvImportResult,
   CreatedSchemaObject,
   FieldDescriptor,
   FileEntry,
@@ -164,6 +169,7 @@ function runtimeCapabilities(writable: boolean): RuntimeCapabilities {
     mutateView: writable,
     schemaPreflight: writable,
     mutateSchema: writable,
+    csvImport: writable,
   }
 }
 
@@ -302,6 +308,7 @@ interface RetainedSchemaPlan {
 }
 
 export class EidosRuntimeService implements RuntimeClient {
+  declare importCsv: RuntimeClient["importCsv"]
   readonly hostBridge: RuntimeHostBridge
   private readonly capabilitiesValue: RuntimeCapabilities
   private readonly epoch: string
@@ -320,6 +327,10 @@ export class EidosRuntimeService implements RuntimeClient {
     private readonly generator: EidosUuidV7Generator
   ) {
     this.capabilitiesValue = runtimeCapabilities(writable)
+    if (writable) {
+      this.importCsv = (request, context) =>
+        this.importCsvRequest(request, context)
+    }
     this.epoch = generator.next()
     this.cursorSecret = environment.entropy.randomBytes(16).slice()
     if (this.cursorSecret.byteLength !== 16) {
@@ -1175,6 +1186,191 @@ export class EidosRuntimeService implements RuntimeClient {
       }
     }
     return normalized
+  }
+
+  private importCsvRequest(
+    request: CsvImportRequest,
+    context: RequestContext
+  ): Promise<CsvImportResult> {
+    const requestSummary = {
+      tableId: request.tableId,
+      expectedRevision: request.expectedRevision,
+      hasHeader: request.hasHeader,
+      columns: request.columns,
+      csvBytes: request.csv instanceof Uint8Array ? request.csv.byteLength : -1,
+    }
+    return this.invoke(
+      context,
+      async () => {
+        this.assertWritable("importCsv")
+        if (!(request.csv instanceof Uint8Array)) {
+          throw runtimeError("invalid-request", "CSV bytes are required")
+        }
+        if (typeof request.hasHeader !== "boolean") {
+          throw runtimeError("invalid-request", "hasHeader must be boolean")
+        }
+        if (request.csv.byteLength > EIDOS_RUNTIME_LIMITS.csvBytesMax) {
+          throw runtimeError("resource-limit", "CSV exceeds csvBytesMax")
+        }
+        if (!Array.isArray(request.columns) || request.columns.length < 1) {
+          throw runtimeError("invalid-request", "CSV columns are required")
+        }
+        if (request.columns.length > EIDOS_RUNTIME_LIMITS.projectionFieldsMax) {
+          throw runtimeError(
+            "resource-limit",
+            "CSV column mapping is too large"
+          )
+        }
+
+        const before = this.core.info()
+        assertCurrentRevision(request.expectedRevision, String(before.revision))
+        const table = this.core.getTable(request.tableId)
+        const fields = new Map(
+          this.core
+            .listFields(request.tableId)
+            .map((field) => [field.id!, field])
+        )
+        const csvIndexes = new Set<number>()
+        const fieldIds = new Set<string>()
+        const columns: EidosFileCsvImportColumn[] = request.columns.map(
+          ({ csvIndex, fieldId }) => {
+            if (!Number.isSafeInteger(csvIndex) || csvIndex < 0) {
+              throw runtimeError(
+                "invalid-request",
+                "CSV column indexes must be non-negative integers"
+              )
+            }
+            if (csvIndexes.has(csvIndex) || fieldIds.has(fieldId)) {
+              throw runtimeError(
+                "invalid-request",
+                "CSV column mappings must be unique"
+              )
+            }
+            csvIndexes.add(csvIndex)
+            fieldIds.add(fieldId)
+            const field = fields.get(fieldId)
+            if (!field) {
+              throw runtimeError(
+                "not-found",
+                "CSV destination Field not found",
+                {
+                  fieldId,
+                }
+              )
+            }
+            if (!fieldWritable(field)) {
+              throw runtimeError(
+                "forbidden",
+                "CSV destination Field is read-only",
+                { fieldId }
+              )
+            }
+            const type = csvImportFieldType(field)
+            if (!type) {
+              throw runtimeError(
+                "unsupported",
+                `CSV import does not support ${field.type} Fields`,
+                { fieldId }
+              )
+            }
+            return {
+              sourceIndex: csvIndex,
+              sourceName: field.name,
+              name: field.name,
+              columnName: field.id!,
+              type,
+            }
+          }
+        )
+        let content: string
+        try {
+          content = new TextDecoder("utf-8", { fatal: true }).decode(
+            request.csv
+          )
+        } catch {
+          throw runtimeError("invalid-value", "CSV must be valid UTF-8")
+        }
+        const plan: EidosFileCsvImportPlan = {
+          fileName: "runtime-import.csv",
+          tableName: table.name,
+          rowCount: 0,
+          skippedRowCount: 0,
+          columns,
+          sampleRows: [],
+          issues: [],
+        }
+        const rows = parseEidosFileCsvRows(
+          { name: plan.fileName, content },
+          plan,
+          { hasHeader: request.hasHeader }
+        )
+        if (rows.length === 0) {
+          return {
+            fileId: before.fileId,
+            tableId: request.tableId,
+            revision: String(before.revision),
+            changed: false,
+            createdRows: [],
+          }
+        }
+
+        const beforeRevision = String(before.revision)
+        const importedRows = rows.map((row) => {
+          const rowId = this.generator.next()
+          return { rowId, row: { ...row, _id: rowId } }
+        })
+        const createdRows = importedRows.map(({ rowId }, index) => ({
+          recordIndex: index + (request.hasHeader ? 1 : 0),
+          rowId,
+        }))
+        assertJcsBytes(
+          {
+            fileId: before.fileId,
+            tableId: request.tableId,
+            revision: "-9223372036854775808",
+            changed: true,
+            createdRows,
+          },
+          EIDOS_RUNTIME_LIMITS.responseBytesMax,
+          "CSV import result"
+        )
+        return this.withCommitBarrier(
+          "importCsv",
+          beforeRevision,
+          context,
+          () => {
+            this.core.applyCanonicalMutation(
+              () =>
+                this.core.appendImportedRows(
+                  request.tableId,
+                  importedRows.map((entry) => entry.row)
+                ),
+              parseRevision(request.expectedRevision)
+            )
+            const after = this.core.info()
+            return {
+              fileId: after.fileId,
+              tableId: request.tableId,
+              revision: String(after.revision),
+              changed: String(after.revision) !== beforeRevision,
+              createdRows,
+            }
+          },
+          (result) => ({
+            operation: "importCsv",
+            result: {
+              fileId: result.fileId,
+              tableId: result.tableId,
+              revision: result.revision,
+              changed: true,
+              createdRows: result.createdRows,
+            },
+          })
+        )
+      },
+      false,
+      requestSummary
+    )
   }
 
   async mutateView(
@@ -3430,6 +3626,17 @@ function fieldValueType(
     return display as TypeRef
   }
   return field.type as TypeRef
+}
+
+function csvImportFieldType(
+  field: ReturnType<EidosFileRuntime["listFields"]>[number]
+): EidosFileCsvImportColumn["type"] | null {
+  if (field.isRecordLabel) return "record-label"
+  return ["text", "number", "checkbox", "date", "datetime", "url"].includes(
+    field.type
+  )
+    ? (field.type as EidosFileCsvImportColumn["type"])
+    : null
 }
 
 function fieldWritable(
