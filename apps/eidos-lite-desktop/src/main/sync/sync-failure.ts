@@ -55,9 +55,9 @@ const FAILURE_DEFINITIONS: Record<EidosSyncFailureCode, FailureDefinition> = {
   },
   "quota-exceeded": {
     state: "paused-storage-full",
-    title: "Hosted storage is full",
+    title: "Cloud storage is full",
     message:
-      "No new Hosted version was published. Free storage or increase the quota; local work remains safe.",
+      "Your changes were not uploaded. Free some storage or increase your limit, then try again. Local work remains safe.",
     action: "manage-account",
     actionLabel: "Manage storage",
     retryable: false,
@@ -67,7 +67,7 @@ const FAILURE_DEFINITIONS: Record<EidosSyncFailureCode, FailureDefinition> = {
     state: "needs-attention",
     title: "Eidos Lite needs an update",
     message:
-      "This Desktop or Graft version is incompatible with the Hosted Remote. No local files were replaced.",
+      "This version cannot connect to Eidos Sync. Update Eidos Lite and try again; no local files were replaced.",
     action: "update",
     actionLabel: "Get the latest Eidos Lite",
     retryable: false,
@@ -75,9 +75,9 @@ const FAILURE_DEFINITIONS: Record<EidosSyncFailureCode, FailureDefinition> = {
   },
   "remote-not-found": {
     state: "needs-attention",
-    title: "Hosted Space is unavailable",
+    title: "Cloud Space is unavailable",
     message:
-      "The connected Hosted Space was not found for this account. Re-clone or contact support before publishing.",
+      "This Space is no longer available to the signed-in account. Open another synced Space or contact support.",
     action: "clone-hosted",
     actionLabel: "Open Hosted Spaces",
     retryable: false,
@@ -85,9 +85,9 @@ const FAILURE_DEFINITIONS: Record<EidosSyncFailureCode, FailureDefinition> = {
   },
   "remote-conflict": {
     state: "needs-attention",
-    title: "Hosted Space changed",
+    title: "Cloud updates changed",
     message:
-      "Another device published a different version. Run Sync again to fetch it; no files were overwritten.",
+      "Another device uploaded a newer version. Try again to get it; no local files were overwritten.",
     action: "retry-now",
     actionLabel: "Fetch again",
     retryable: true,
@@ -96,9 +96,9 @@ const FAILURE_DEFINITIONS: Record<EidosSyncFailureCode, FailureDefinition> = {
   },
   "remote-persistence-failed": {
     state: "service-unavailable",
-    title: "Hosted save did not complete",
+    title: "Upload did not complete",
     message:
-      "The Remote did not confirm the new version. Local checkpoints remain safe and can be retried.",
+      "The cloud service did not confirm your changes. Your local work remains safe and can be retried.",
     action: "retry-now",
     actionLabel: "Retry now",
     retryable: true,
@@ -118,11 +118,11 @@ const FAILURE_DEFINITIONS: Record<EidosSyncFailureCode, FailureDefinition> = {
   },
   "repository-invalid": {
     state: "needs-attention",
-    title: "Space versioning needs attention",
+    title: "This Space needs attention",
     message:
-      "The local repository state is unavailable or inconsistent. Work locally, then repair or re-clone a copy.",
+      "Eidos Lite could not safely read this Space’s sync history. Keep working locally, then open a fresh cloud copy.",
     action: "clone-hosted",
-    actionLabel: "Re-clone Hosted Space",
+    actionLabel: "Open a fresh copy",
     retryable: false,
     localSafe: true,
   },

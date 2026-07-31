@@ -1,4 +1,5 @@
 import type {
+  EidosSyncOperation,
   EidosSyncPhase,
   EidosSyncPhaseTiming,
   EidosSyncProgress,
@@ -19,7 +20,8 @@ export class SyncRunTracker {
   constructor(
     readonly runId: string,
     private readonly emit: (progress: EidosSyncProgress) => void,
-    private readonly now: () => number = Date.now
+    private readonly now: () => number = Date.now,
+    private readonly operation: EidosSyncOperation = "sync"
   ) {
     this.startedAtMs = this.now()
   }
@@ -41,6 +43,7 @@ export class SyncRunTracker {
     const last = this.phases.at(-1)
     this.emit({
       runId: this.runId,
+      operation: this.operation,
       state: "completed",
       phase: last?.phase ?? "analyze",
       detail,
@@ -63,6 +66,7 @@ export class SyncRunTracker {
     const last = this.phases.at(-1)
     this.emit({
       runId: this.runId,
+      operation: this.operation,
       state: "failed",
       phase: active?.phase ?? last?.phase ?? "authorization",
       detail,
@@ -93,6 +97,7 @@ export class SyncRunTracker {
     if (!this.active) return
     this.emit({
       runId: this.runId,
+      operation: this.operation,
       state,
       phase: this.active.phase,
       detail: this.active.detail,

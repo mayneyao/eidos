@@ -3,10 +3,8 @@ import {
   Copy,
   ExternalLink,
   FolderOpen,
-  Info,
   MonitorCog,
   RotateCcw,
-  Settings2,
 } from "lucide-react"
 
 import type {
@@ -16,8 +14,6 @@ import type {
   EidosLiteSettingsDestination,
 } from "../shared/contracts"
 import { DEFAULT_RENDERER_PREFERENCES } from "./app-appearance"
-
-type SettingsSection = "general" | "about"
 
 const APPEARANCE_OPTIONS: Array<{
   value: EidosLiteAppearance
@@ -47,7 +43,6 @@ function platformLabel(appInfo: EidosLiteAppInfo): string {
 }
 
 export function SettingsPage() {
-  const [section, setSection] = useState<SettingsSection>("general")
   const [appInfo, setAppInfo] = useState<EidosLiteAppInfo | null>(null)
   const [preferences, setPreferences] = useState<EidosLitePreferences>(
     DEFAULT_RENDERER_PREFERENCES
@@ -136,191 +131,143 @@ export function SettingsPage() {
       <header className="settings-titlebar">
         <strong>Settings</strong>
       </header>
-      <aside className="settings-sidebar" aria-label="Settings sections">
-        <div className="settings-sidebar-brand">
-          <span>Eidos Lite</span>
-          <small>Preferences</small>
-        </div>
-        <nav>
-          <button
-            type="button"
-            aria-current={section === "general" ? "page" : undefined}
-            onClick={() => setSection("general")}
-          >
-            <Settings2 /> General
-          </button>
-          <button
-            type="button"
-            aria-current={section === "about" ? "page" : undefined}
-            onClick={() => setSection("about")}
-          >
-            <Info /> About
-          </button>
-        </nav>
-      </aside>
       <div className="settings-content">
-        {section === "general" ? (
-          <div className="settings-page" aria-labelledby="settings-general">
-            <header className="settings-page-heading">
-              <h1 id="settings-general">General</h1>
-              <p>Preferences apply to every Eidos Lite window.</p>
-            </header>
-
-            <section aria-labelledby="settings-appearance">
-              <h2 id="settings-appearance">Appearance</h2>
-              <div className="settings-group">
-                <div className="settings-row settings-row-stacked">
-                  <div className="settings-row-copy">
-                    <strong>Theme</strong>
-                    <small>Follow the system or keep one appearance.</small>
-                  </div>
-                  <div
-                    className="settings-segmented-control"
-                    role="radiogroup"
-                    aria-label="Theme"
-                  >
-                    {APPEARANCE_OPTIONS.map((option) => (
-                      <button
-                        type="button"
-                        role="radio"
-                        aria-checked={preferences.appearance === option.value}
-                        key={option.value}
-                        onClick={() =>
-                          void updatePreferences({
-                            appearance: option.value,
-                          })
-                        }
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
+        <div className="settings-page">
+          <section aria-labelledby="settings-appearance">
+            <h2 id="settings-appearance">Appearance</h2>
+            <div className="settings-group">
+              <div className="settings-row settings-row-stacked">
+                <div className="settings-row-copy">
+                  <strong>Theme</strong>
+                  <small>Follow the system or keep one appearance.</small>
                 </div>
-              </div>
-            </section>
-
-            <section aria-labelledby="settings-spaces">
-              <h2 id="settings-spaces">Spaces</h2>
-              <div className="settings-group">
-                <div className="settings-row settings-row-stacked">
-                  <div className="settings-row-copy">
-                    <strong>Default location for new Spaces</strong>
-                    <small className="settings-path">
-                      {preferences.defaultSpaceLocation ??
-                        "Documents folder (system default)"}
-                    </small>
-                  </div>
-                  <div className="settings-row-actions">
-                    {preferences.defaultSpaceLocation ? (
-                      <button
-                        type="button"
-                        className="settings-button settings-button-quiet"
-                        onClick={() =>
-                          void updatePreferences({
-                            defaultSpaceLocation: null,
-                          })
-                        }
-                      >
-                        <RotateCcw /> Use default
-                      </button>
-                    ) : null}
+                <div
+                  className="settings-segmented-control"
+                  role="radiogroup"
+                  aria-label="Theme"
+                >
+                  {APPEARANCE_OPTIONS.map((option) => (
                     <button
                       type="button"
-                      className="settings-button"
-                      disabled={busy}
-                      onClick={() => void chooseSpaceLocation()}
+                      role="radio"
+                      aria-checked={preferences.appearance === option.value}
+                      key={option.value}
+                      onClick={() =>
+                        void updatePreferences({
+                          appearance: option.value,
+                        })
+                      }
                     >
-                      <FolderOpen /> {busy ? "Choosing…" : "Choose…"}
+                      {option.label}
                     </button>
-                  </div>
+                  ))}
                 </div>
               </div>
-              <p className="settings-section-note">
-                Existing Spaces and their files are never moved.
-              </p>
-            </section>
-          </div>
-        ) : (
-          <div className="settings-page" aria-labelledby="settings-about">
-            <header className="settings-about-heading">
+            </div>
+          </section>
+
+          <section aria-labelledby="settings-spaces">
+            <h2 id="settings-spaces">Spaces</h2>
+            <div className="settings-group">
+              <div className="settings-row settings-row-stacked">
+                <div className="settings-row-copy">
+                  <strong>Default location for new Spaces</strong>
+                  <small className="settings-path">
+                    {preferences.defaultSpaceLocation ??
+                      "Documents folder (system default)"}
+                  </small>
+                </div>
+                <div className="settings-row-actions">
+                  {preferences.defaultSpaceLocation ? (
+                    <button
+                      type="button"
+                      className="settings-button settings-button-quiet"
+                      onClick={() =>
+                        void updatePreferences({
+                          defaultSpaceLocation: null,
+                        })
+                      }
+                    >
+                      <RotateCcw /> Use default
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="settings-button"
+                    disabled={busy}
+                    onClick={() => void chooseSpaceLocation()}
+                  >
+                    <FolderOpen /> {busy ? "Choosing…" : "Choose…"}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <p className="settings-section-note">
+              Existing Spaces and their files are never moved.
+            </p>
+          </section>
+
+          <section aria-labelledby="settings-about">
+            <h2 id="settings-about">About</h2>
+            <div className="settings-identity">
               <div className="settings-app-mark" aria-hidden="true">
                 <MonitorCog />
               </div>
-              <div>
-                <h1 id="settings-about">Eidos Lite</h1>
-                <p>Local-first work for Eidos Files.</p>
+              <div className="settings-identity-copy">
+                <strong>Eidos Lite</strong>
+                <small>Local-first work for Eidos Files.</small>
+                <small className="settings-identity-meta">
+                  {appInfo
+                    ? `${appInfo.version} · ${platformLabel(appInfo)} · `
+                    : "…"}
+                  {appInfo ? (
+                    <span className="settings-environment">
+                      {appInfo.services.name}
+                    </span>
+                  ) : null}
+                </small>
               </div>
-            </header>
-
-            <section aria-labelledby="settings-build">
-              <h2 id="settings-build">Application</h2>
-              <dl className="settings-group settings-facts">
-                <div className="settings-row">
-                  <dt>Version</dt>
-                  <dd>{appInfo?.version ?? "—"}</dd>
-                </div>
-                <div className="settings-row">
-                  <dt>Platform</dt>
-                  <dd>{appInfo ? platformLabel(appInfo) : "—"}</dd>
-                </div>
-                <div className="settings-row">
-                  <dt>Services</dt>
-                  <dd className="settings-environment">
-                    {appInfo?.services.name ?? "—"}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-
-            <section aria-labelledby="settings-resources">
-              <h2 id="settings-resources">Resources</h2>
-              <div className="settings-group settings-action-list">
-                <button
-                  type="button"
-                  className="settings-row"
-                  onClick={() => void openDestination("documentation")}
-                >
-                  <span>Documentation</span>
-                  <ExternalLink />
-                </button>
-                <button
-                  type="button"
-                  className="settings-row"
-                  onClick={() => void openDestination("website")}
-                >
-                  <span>Eidos website</span>
-                  <ExternalLink />
-                </button>
-              </div>
-            </section>
-
-            <section aria-labelledby="settings-diagnostics">
-              <h2 id="settings-diagnostics">Diagnostics</h2>
-              <div className="settings-group settings-action-list">
-                <button
-                  type="button"
-                  className="settings-row"
-                  onClick={() => void copyDiagnostics()}
-                >
-                  <span>
-                    {diagnosticsCopied
-                      ? "Diagnostics copied"
-                      : "Copy diagnostics"}
-                  </span>
-                  <Copy />
-                </button>
-                <button
-                  type="button"
-                  className="settings-row"
-                  onClick={() => void openDestination("logs")}
-                >
-                  <span>Show logs folder</span>
-                  <FolderOpen />
-                </button>
-              </div>
-            </section>
-          </div>
-        )}
+            </div>
+            <div className="settings-group settings-action-list">
+              <button
+                type="button"
+                className="settings-row"
+                onClick={() => void openDestination("documentation")}
+              >
+                <span>Documentation</span>
+                <ExternalLink />
+              </button>
+              <button
+                type="button"
+                className="settings-row"
+                onClick={() => void openDestination("website")}
+              >
+                <span>Eidos website</span>
+                <ExternalLink />
+              </button>
+              <button
+                type="button"
+                className="settings-row"
+                onClick={() => void copyDiagnostics()}
+              >
+                <span>
+                  {diagnosticsCopied
+                    ? "Diagnostics copied"
+                    : "Copy diagnostics"}
+                </span>
+                <Copy />
+              </button>
+              <button
+                type="button"
+                className="settings-row"
+                onClick={() => void openDestination("logs")}
+              >
+                <span>Show logs folder</span>
+                <FolderOpen />
+              </button>
+            </div>
+          </section>
+        </div>
         {error ? (
           <p className="settings-error" role="alert">
             {error}

@@ -1,9 +1,11 @@
 import type { AccountSyncClient } from "./account-sync-client"
 import { AccountSessionService } from "./account-session"
 import type { SecureAccountCredentialStore } from "./credential-store"
+import type { StoredAccountSession } from "./credential-store"
 import type { DeviceIdentityStore } from "./device-identity"
 import type { OAuthLoopbackCallback } from "./loopback-callback"
 import type { EidosOAuthClient } from "./oauth-client"
+import { EidosOAuthError } from "./oauth-client"
 
 describe("AccountSessionService", () => {
   it("binds the Lite OAuth token to a stable device before persisting it", async () => {
@@ -34,6 +36,14 @@ describe("AccountSessionService", () => {
       write,
       clear: vi.fn(async () => undefined),
     } as unknown as SecureAccountCredentialStore
+    const profile = {
+      read: vi.fn(async () => null),
+      write: vi.fn(async (user: { id: string }) => ({
+        ...user,
+        verifiedAtMs: Date.now(),
+      })),
+      clear: vi.fn(async () => undefined),
+    }
     const deviceIdentity = {
       getOrCreate: vi.fn(async () => ({
         version: 1,
@@ -89,7 +99,8 @@ describe("AccountSessionService", () => {
           platform: "macos",
           appVersion: "0.1.0",
         },
-      }
+      },
+      profile
     )
 
     await expect(account.signIn()).resolves.toMatchObject({
@@ -100,8 +111,62 @@ describe("AccountSessionService", () => {
     expect(calls).toEqual(["register", "authorize", "persist"])
     expect(write).toHaveBeenCalledWith(
       expect.objectContaining({
+        user: { id: "user-1" },
         device: expect.objectContaining({ id: "device-1" }),
       })
     )
+    expect(profile.write).toHaveBeenCalledWith({
+      id: "user-1",
+      email: "person@example.com",
+    })
+  })
+
+  it("keeps an expired credential available when refresh fails offline", async () => {
+    const session: StoredAccountSession = {
+      tokens: {
+        accessToken: "expired-access-token",
+        refreshToken: "refresh-token",
+        tokenType: "Bearer",
+        expiresIn: 1,
+        storedAtMs: 1,
+      },
+      user: { id: "user-1" },
+      device: {
+        id: "device-1",
+        displayName: "Test Mac",
+        platform: "macos",
+        appVersion: "0.1.0",
+        status: "active",
+        version: 1,
+      },
+    }
+    const clear = vi.fn(async () => undefined)
+    const account = new AccountSessionService(
+      {
+        refresh: vi.fn(async () => {
+          throw new EidosOAuthError(
+            "The Eidos account service could not be reached."
+          )
+        }),
+      } as unknown as EidosOAuthClient,
+      {
+        read: vi.fn(async () => session),
+        write: vi.fn(async () => undefined),
+        clear,
+      } as unknown as SecureAccountCredentialStore,
+      {} as DeviceIdentityStore,
+      {} as AccountSyncClient,
+      {
+        openExternal: vi.fn(async () => undefined),
+        device: {
+          displayName: "Test Mac",
+          platform: "macos",
+          appVersion: "0.1.0",
+        },
+      }
+    )
+
+    await expect(account.accessToken()).rejects.toThrow("could not be reached")
+    expect(clear).not.toHaveBeenCalled()
   })
 })

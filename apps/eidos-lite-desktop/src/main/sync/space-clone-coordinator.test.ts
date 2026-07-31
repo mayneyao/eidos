@@ -70,9 +70,19 @@ describe("SpaceCloneCoordinator", () => {
 
   it("validates a hidden sibling and atomically publishes a normal Space", async () => {
     const target = path.join(destinations, "Project Space")
+    const phases: string[] = []
     await expect(
-      coordinator().clone(target, remoteUrl, "memory-only-token")
+      coordinator().clone(target, remoteUrl, "memory-only-token", (phase) => {
+        phases.push(phase)
+      })
     ).resolves.toBe(target)
+    expect(phases).toEqual([
+      "preparing",
+      "cloning",
+      "validating",
+      "publishing",
+      "published",
+    ])
 
     await expect(
       fs.readFile(path.join(target, "project.eidos"), "utf8")

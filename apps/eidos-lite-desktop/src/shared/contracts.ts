@@ -386,6 +386,8 @@ export interface SyncAccountUser {
   id: string
   email?: string
   name?: string
+  avatarUrl?: string
+  avatarDataUrl?: string
 }
 
 export interface SyncAccountStatus {
@@ -403,6 +405,9 @@ export interface EidosSyncStatus {
     state: "not-checked" | "none" | "read-only" | "read-write" | "blocked"
     detail: string
     quotaBytes?: number
+    usedBytes?: number
+    reservedBytes?: number
+    remainingBytes?: number
   }
   remote: {
     state: "not-connected" | "connected"
@@ -479,8 +484,11 @@ export type EidosSyncPhase =
   | "reopen"
   | "push"
 
+export type EidosSyncOperation = "connect" | "sync" | "clone" | "recovery"
+
 export interface EidosSyncProgress {
   runId: string
+  operation: EidosSyncOperation
   state: "active" | "completed" | "failed"
   phase: EidosSyncPhase
   detail: string
@@ -501,6 +509,32 @@ export interface EidosSyncTelemetry {
   durationMs: number
   phases: EidosSyncPhaseTiming[]
 }
+
+export type EidosSyncConnectionResponse =
+  | {
+      ok: true
+      status: EidosSyncStatus
+      telemetry: EidosSyncTelemetry
+    }
+  | {
+      ok: false
+      runId: string
+      failure: EidosSyncFailure
+      telemetry: EidosSyncTelemetry
+    }
+
+export type EidosSyncCloneResponse =
+  | {
+      ok: true
+      snapshot: SpaceSnapshot | null
+      telemetry: EidosSyncTelemetry
+    }
+  | {
+      ok: false
+      runId: string
+      failure: EidosSyncFailure
+      telemetry: EidosSyncTelemetry
+    }
 
 export interface EidosSyncOutcome {
   state: "synced" | "conflict" | "read-only"
@@ -833,9 +867,11 @@ export interface EidosLiteApi {
   beginSyncSignIn(): Promise<EidosSyncStatus>
   signOutSync(): Promise<EidosSyncStatus>
   getSyncPreflight(): Promise<EidosSyncPreflight>
-  enableSync(approval: EidosSyncPreflightApproval): Promise<EidosSyncStatus>
+  enableSync(
+    approval: EidosSyncPreflightApproval
+  ): Promise<EidosSyncConnectionResponse>
   listSyncRepositories(): Promise<EidosSyncRepositoryList>
-  cloneSyncRepository(remoteUrl: string): Promise<SpaceSnapshot | null>
+  cloneSyncRepository(remoteUrl: string): Promise<EidosSyncCloneResponse>
   runSync(): Promise<EidosSyncRunResponse>
   onSyncProgress(listener: (progress: EidosSyncProgress) => void): () => void
   getSyncQueueStatus(): Promise<EidosSyncQueueStatus | null>

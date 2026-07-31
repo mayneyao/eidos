@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto"
 import path from "node:path"
 import { app, ipcMain, shell } from "electron"
 
@@ -11,6 +12,7 @@ import {
   type EidosSyncQueueStatus,
   type EidosSyncRunResponse,
   type EidosSyncPreflightApproval,
+  type EidosSyncPhase,
   type RuntimeCalls,
   type RuntimeMethod,
 } from "../shared/contracts"
@@ -24,6 +26,7 @@ import {
 } from "./sync/sync-failure"
 import { SyncExecutor } from "./sync/sync-executor"
 import { SyncQueueStore } from "./sync/sync-queue-store"
+import { SyncRunTracker } from "./sync/sync-run-tracker"
 import type { WindowController } from "./window-controller"
 
 const runtimeMethods = new Set<RuntimeMethod>(RUNTIME_METHODS)
@@ -575,38 +578,59 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.syncEnable, async (event, value: unknown) => {
     const session = controller.requireSession(event.sender)
     const spaceKey = logCorrelationKey(session.canonical.id)
+    const tracker = new SyncRunTracker(
+      randomUUID(),
+      (progress) => {
+        if (!event.sender.isDestroyed()) {
+          event.sender.send(IPC_CHANNELS.syncProgress, progress)
+        }
+      },
+      Date.now,
+      "connect"
+    )
+    let currentPhase: EidosSyncPhase = "authorization"
+    const transition = (phase: EidosSyncPhase, detail: string) => {
+      currentPhase = phase
+      tracker.transition(phase, detail)
+    }
     let stage = "existing-remote"
     eidosLiteLogger()?.info("sync.enable.started", { spaceKey })
     try {
+      transition("authorization", "Checking account access")
       const existing = await session.officialSyncRemoteUrl()
       if (existing) {
         eidosLiteLogger()?.info("sync.enable.already-connected", { spaceKey })
-        return syncControl.status(existing)
+        const status = await syncControl.status(existing)
+        const telemetry = tracker.complete("Space is connected")
+        return { ok: true as const, status, telemetry }
       }
       stage = "preflight"
+      transition("analyze", "Preparing this Space")
       const approval = syncPreflightApproval(value)
       await session.assertSyncPreflight(approval)
       await session.assertHostedSyncReady()
       stage = "provision"
+      transition("authorization", "Creating secure cloud access")
       const provisioned = await syncControl.provisionRepository(
         session.canonical.id
       )
       eidosLiteLogger()?.info("sync.enable.remote-ready", { spaceKey })
       stage = "initial-push"
+      transition("push", "Uploading this Space")
       await session.enableHostedSync(
         provisioned.remoteUrl,
         provisioned.accessToken,
         approval
       )
       stage = "status"
+      transition("validate", "Finishing the connection")
       const status = await syncControl.status(provisioned.remoteUrl)
+      const telemetry = tracker.complete("Space is connected")
       eidosLiteLogger()?.info("sync.enable.completed", { spaceKey })
-      return status
+      return { ok: true as const, status, telemetry }
     } catch (error) {
-      const failure = classifySyncFailure(
-        error,
-        stage === "initial-push" ? "push" : "authorization"
-      )
+      const failure = classifySyncFailure(error, currentPhase)
+      const telemetry = tracker.fail(failure.message)
       eidosLiteLogger()?.error(
         "sync.enable.failed",
         {
@@ -618,7 +642,12 @@ export function registerIpc(
         },
         error
       )
-      throw error
+      return {
+        ok: false as const,
+        runId: tracker.runId,
+        failure,
+        telemetry,
+      }
     }
   })
   ipcMain.handle(IPC_CHANNELS.syncRepositories, () =>
@@ -628,22 +657,54 @@ export function registerIpc(
     const remote = requiredString(remoteUrl, "Hosted Remote")
     const remoteKey = logCorrelationKey(remote)
     const startedAtMs = Date.now()
+    const tracker = new SyncRunTracker(
+      randomUUID(),
+      (progress) => {
+        if (!event.sender.isDestroyed()) {
+          event.sender.send(IPC_CHANNELS.syncProgress, progress)
+        }
+      },
+      Date.now,
+      "clone"
+    )
+    let currentPhase: EidosSyncPhase = "authorization"
+    const transition = (phase: EidosSyncPhase, detail: string) => {
+      currentPhase = phase
+      tracker.transition(phase, detail)
+    }
     eidosLiteLogger()?.info("sync.clone.started", { remoteKey })
     try {
+      transition("authorization", "Checking account access")
       const access = await syncControl.repositoryAccess(remote)
+      transition("drain", "Choose where to keep the local Space")
       const result = await controller.cloneAndBindSpace(
         event.sender,
         remote,
-        access.accessToken
+        access.accessToken,
+        (phase) => {
+          if (phase === "preparing") {
+            transition("drain", "Preparing the local Space")
+          } else if (phase === "cloning") {
+            transition("fetch", "Downloading the Space")
+          } else if (phase === "validating") {
+            transition("validate", "Checking downloaded files")
+          } else {
+            transition("reopen", "Opening the local Space")
+          }
+        }
+      )
+      const telemetry = tracker.complete(
+        result ? "Space is ready" : "Download cancelled"
       )
       eidosLiteLogger()?.info("sync.clone.completed", {
         remoteKey,
         durationMs: Math.max(0, Date.now() - startedAtMs),
         cancelled: result === null,
       })
-      return result
+      return { ok: true as const, snapshot: result, telemetry }
     } catch (error) {
-      const failure = classifySyncFailure(error, "fetch")
+      const failure = classifySyncFailure(error, currentPhase)
+      const telemetry = tracker.fail(failure.message)
       eidosLiteLogger()?.error(
         "sync.clone.failed",
         {
@@ -655,7 +716,12 @@ export function registerIpc(
         },
         error
       )
-      throw error
+      return {
+        ok: false as const,
+        runId: tracker.runId,
+        failure,
+        telemetry,
+      }
     }
   })
   ipcMain.handle(IPC_CHANNELS.syncRun, async (event) => {

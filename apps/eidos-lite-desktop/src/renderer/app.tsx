@@ -460,7 +460,7 @@ function Welcome({
             <FolderOpen /> Open Space
           </button>
           <button type="button" className="secondary-action" onClick={onClone}>
-            <CloudDownload /> Clone Synced Space
+            <CloudDownload /> Open Synced Space
           </button>
           <button
             type="button"
@@ -1394,6 +1394,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           <Suspense fallback={null}>
             <SyncPanel
               mode={syncPanelMode}
+              cacheKey="welcome"
+              hasUncheckpointedChanges={false}
               onClose={() => setSyncPanelMode(null)}
               onRequestClone={() => setSyncPanelMode("clone")}
               onClone={(snapshot) => {
@@ -1666,16 +1668,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 <Cloud />
               )}
             </button>
-            <button
-              type="button"
-              className="icon-button titlebar-tool-button"
-              data-titlebar-action="settings"
-              onClick={() => void window.eidosLite.openSettings()}
-              aria-label="Settings"
-              title="Settings (⌘,)"
-            >
-              <Settings />
-            </button>
           </div>
         </header>
 
@@ -1854,6 +1846,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         <Suspense fallback={null}>
           <SyncPanel
             mode={syncPanelMode}
+            cacheKey={space.id}
+            hasUncheckpointedChanges={
+              space.graft.initialized && space.graft.clean === false
+            }
             onClose={() => setSyncPanelMode(null)}
             onRequestClone={() => setSyncPanelMode("clone")}
             onReviewLocal={() => {

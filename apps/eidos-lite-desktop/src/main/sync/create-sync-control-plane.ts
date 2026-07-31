@@ -5,6 +5,7 @@ import { app, safeStorage, shell } from "electron"
 import type { EidosLiteServiceEnvironment } from "../../shared/service-environment"
 import { AccountSyncClient } from "../account/account-sync-client"
 import { AccountSessionService } from "../account/account-session"
+import { AccountProfileStore } from "../account/account-profile-store"
 import { SecureAccountCredentialStore } from "../account/credential-store"
 import { DeviceIdentityStore } from "../account/device-identity"
 import { EidosOAuthClient } from "../account/oauth-client"
@@ -44,7 +45,15 @@ export function createSyncControlPlane(
         platform: devicePlatform(),
         appVersion: app.getVersion(),
       },
-    }
+    },
+    new AccountProfileStore(
+      path.join(
+        app.getPath("userData"),
+        "accounts",
+        environment.name,
+        "profile.json"
+      )
+    )
   )
   return new SyncControlPlane(
     environment,

@@ -9,7 +9,10 @@ import type {
   AccountSessionService,
   AccountSessionStatus,
 } from "../account/account-session"
-import type { OfficialSyncClient } from "./official-sync-client"
+import type {
+  OfficialSyncClient,
+  OfficialSyncUsage,
+} from "./official-sync-client"
 
 export class SyncPolicyError extends Error {
   constructor(
@@ -31,7 +34,7 @@ export class SyncControlPlane {
   async status(remoteUrl: string | null = null): Promise<EidosSyncStatus> {
     const account = await this.account.status()
     return account.state === "signed-in"
-      ? this.projectStatus(
+      ? await this.projectSignedInStatus(
           account,
           await this.account.authorization(),
           remoteUrl
@@ -41,7 +44,7 @@ export class SyncControlPlane {
 
   async signIn(remoteUrl: string | null = null): Promise<EidosSyncStatus> {
     const account = await this.account.signIn()
-    return this.projectStatus(
+    return await this.projectSignedInStatus(
       account,
       account.authorization ?? (await this.account.authorization()),
       remoteUrl
@@ -107,10 +110,28 @@ export class SyncControlPlane {
     return { accessToken, access }
   }
 
+  private async projectSignedInStatus(
+    account: AccountSessionStatus,
+    authorization: SyncAuthorization,
+    remoteUrl: string | null
+  ): Promise<EidosSyncStatus> {
+    const access = authorization.access?.access
+    let usage: OfficialSyncUsage | undefined
+    if (access === "read_only" || access === "read_write") {
+      try {
+        usage = await this.remote.usage(await this.account.accessToken())
+      } catch (error) {
+        console.warn("Could not load Eidos Sync storage usage", error)
+      }
+    }
+    return this.projectStatus(account, authorization, remoteUrl, usage)
+  }
+
   private projectStatus(
     account: SyncAccountStatus | AccountSessionStatus,
     authorization?: SyncAuthorization,
-    remoteUrl: string | null = null
+    remoteUrl: string | null = null,
+    usage?: OfficialSyncUsage
   ): EidosSyncStatus {
     if (account.state === "signed-out") {
       return {
@@ -176,7 +197,18 @@ export class SyncControlPlane {
               : access === "blocked"
                 ? "The account service did not grant read or write access."
                 : "No Eidos Sync access grant is attached to this account.",
-        ...(grant ? { quotaBytes: grant.quotaBytes } : {}),
+        ...(grant
+          ? {
+              quotaBytes: usage?.quotaBytes ?? grant.quotaBytes,
+              ...(usage
+                ? {
+                    usedBytes: usage.usedBytes,
+                    reservedBytes: usage.reservedBytes,
+                    remainingBytes: usage.remainingBytes,
+                  }
+                : {}),
+            }
+          : {}),
       },
       remote: remoteUrl
         ? { state: "connected", url: remoteUrl }

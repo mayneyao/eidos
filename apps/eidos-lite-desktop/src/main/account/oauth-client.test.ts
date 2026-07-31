@@ -54,10 +54,16 @@ describe("EidosOAuthClient", () => {
           expires_in: 3600,
         })
       }
+      if (url.includes("/avatar/")) {
+        return new Response(new Uint8Array([137, 80, 78, 71]), {
+          headers: { "Content-Type": "image/png" },
+        })
+      }
       return Response.json({
         sub: "user-1",
         email: "user@example.test",
         name: "Eidos User",
+        picture: "https://eidos.space/avatar/user-1.png",
       })
     }) as unknown as typeof fetch
     const client = new EidosOAuthClient(staging, fetchImpl)
@@ -79,6 +85,8 @@ describe("EidosOAuthClient", () => {
       id: "user-1",
       email: "user@example.test",
       name: "Eidos User",
+      avatarUrl: "https://eidos.space/avatar/user-1.png",
+      avatarDataUrl: "data:image/png;base64,iVBORw==",
     })
   })
 

@@ -6,6 +6,14 @@ export const EIDOS_LITE_OAUTH_CLIENT_ID = "lite.desktop.eidos.space"
 export const EIDOS_LITE_OAUTH_SCOPES = "openid profile email offline_access"
 
 const REQUEST_TIMEOUT_MS = 30_000
+const AVATAR_TIMEOUT_MS = 8_000
+const AVATAR_BYTES_MAX = 512 * 1024
+const AVATAR_CONTENT_TYPES = new Set([
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+])
 
 export interface OAuthDiscovery {
   issuer: string
@@ -29,6 +37,8 @@ export interface OAuthUser {
   id: string
   email?: string
   name?: string
+  avatarUrl?: string
+  avatarDataUrl?: string
 }
 
 export interface AuthorizationRequest {
@@ -223,7 +233,7 @@ export class EidosOAuthClient {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
     )
-    return {
+    const user: OAuthUser = {
       id: requiredString(value, "sub"),
       ...(optionalString(value, "email")
         ? { email: optionalString(value, "email") }
@@ -231,6 +241,47 @@ export class EidosOAuthClient {
       ...(optionalString(value, "name")
         ? { name: optionalString(value, "name") }
         : {}),
+      ...(optionalString(value, "picture")
+        ? { avatarUrl: optionalString(value, "picture") }
+        : {}),
+    }
+    if (user.avatarUrl) {
+      const avatarDataUrl = await this.cacheAvatar(user.avatarUrl).catch(
+        () => undefined
+      )
+      if (avatarDataUrl) user.avatarDataUrl = avatarDataUrl
+    }
+    return user
+  }
+
+  private async cacheAvatar(url: string): Promise<string | undefined> {
+    const endpoint = new URL(url)
+    if (endpoint.protocol !== "https:") return undefined
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), AVATAR_TIMEOUT_MS)
+    try {
+      const response = await this.fetchImpl(endpoint, {
+        headers: { Accept: [...AVATAR_CONTENT_TYPES].join(", ") },
+        redirect: "follow",
+        signal: controller.signal,
+      })
+      const contentType = response.headers.get("Content-Type")?.split(";")[0]
+      const contentLength = Number(response.headers.get("Content-Length"))
+      if (
+        !response.ok ||
+        !contentType ||
+        !AVATAR_CONTENT_TYPES.has(contentType) ||
+        (Number.isFinite(contentLength) && contentLength > AVATAR_BYTES_MAX)
+      ) {
+        return undefined
+      }
+      const bytes = Buffer.from(await response.arrayBuffer())
+      if (bytes.byteLength === 0 || bytes.byteLength > AVATAR_BYTES_MAX) {
+        return undefined
+      }
+      return `data:${contentType};base64,${bytes.toString("base64")}`
+    } finally {
+      clearTimeout(timeout)
     }
   }
 

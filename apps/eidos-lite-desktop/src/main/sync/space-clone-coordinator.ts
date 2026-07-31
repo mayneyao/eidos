@@ -16,13 +16,15 @@ interface CloneGraftClient {
 }
 
 type CloneOperationKind = "remote-clone" | "local-recovery"
-type CloneOperationPhase =
+export type CloneOperationPhase =
   | "preparing"
   | "cloning"
   | "copying"
   | "validating"
   | "publishing"
   | "published"
+
+export type CloneProgressReporter = (phase: CloneOperationPhase) => void
 
 interface CloneJournalEntry {
   version: 2
@@ -64,10 +66,11 @@ export class SpaceCloneCoordinator {
   clone(
     targetPath: string,
     remoteUrl: string,
-    accessToken: string
+    accessToken: string,
+    reportProgress: CloneProgressReporter = () => undefined
   ): Promise<string> {
     const scheduled = this.operationTail.then(() =>
-      this.cloneExclusive(targetPath, remoteUrl, accessToken)
+      this.cloneExclusive(targetPath, remoteUrl, accessToken, reportProgress)
     )
     this.operationTail = scheduled.then(
       () => undefined,
@@ -139,7 +142,8 @@ export class SpaceCloneCoordinator {
   private async cloneExclusive(
     requestedTarget: string,
     remoteUrl: string,
-    accessToken: string
+    accessToken: string,
+    reportProgress: CloneProgressReporter
   ): Promise<string> {
     if (!accessToken) throw new Error("An Eidos Sync access token is required")
     if (!isOfficialRemoteUrl(remoteUrl, this.options.remoteOrigin)) {
@@ -167,16 +171,21 @@ export class SpaceCloneCoordinator {
     }
     const journalPath = this.journalPath(operationId)
     await this.writeJournal(journalPath, entry)
+    reportProgress("preparing")
     const client = this.options.createGraftClient()
     try {
       await fs.mkdir(stagingPath, { mode: 0o700 })
       entry = await this.advance(journalPath, entry, "cloning")
+      reportProgress("cloning")
       await client.clone(stagingPath, remoteUrl, accessToken)
       entry = await this.advance(journalPath, entry, "validating")
+      reportProgress("validating")
       await this.options.validateWorktree(stagingPath)
       entry = await this.advance(journalPath, entry, "publishing")
+      reportProgress("publishing")
       await fs.rename(stagingPath, targetPath)
       entry = await this.advance(journalPath, entry, "published")
+      reportProgress("published")
       await this.finishPublishedClone(entry)
       await fs.unlink(journalPath)
       return targetPath

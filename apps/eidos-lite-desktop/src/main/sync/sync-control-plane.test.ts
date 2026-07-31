@@ -25,7 +25,14 @@ function accountSession(state: "signed-out" | "signed-in") {
   } as unknown as AccountSessionService
 }
 
-const remote = {} as OfficialSyncClient
+const remote = {
+  usage: vi.fn().mockResolvedValue({
+    usedBytes: 2_147_483_648,
+    reservedBytes: 536_870_912,
+    quotaBytes: 10_737_418_240,
+    remainingBytes: 8_053_063_680,
+  }),
+} as unknown as OfficialSyncClient
 
 describe("SyncControlPlane", () => {
   it("keeps local use signed out and gates Remote provisioning", async () => {
@@ -90,7 +97,13 @@ describe("SyncControlPlane", () => {
 
     await expect(control.status()).resolves.toMatchObject({
       device: { state: "active" },
-      entitlement: { state: "read-write", quotaBytes: 10_737_418_240 },
+      entitlement: {
+        state: "read-write",
+        usedBytes: 2_147_483_648,
+        reservedBytes: 536_870_912,
+        quotaBytes: 10_737_418_240,
+        remainingBytes: 8_053_063_680,
+      },
       canEnable: true,
       canClone: true,
       blocker: null,

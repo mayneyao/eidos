@@ -22,6 +22,13 @@ export interface OfficialSyncProvisionResult {
   remoteUrl: string
 }
 
+export interface OfficialSyncUsage {
+  usedBytes: number
+  reservedBytes: number
+  quotaBytes: number
+  remainingBytes: number
+}
+
 export class OfficialSyncError extends Error {
   constructor(
     message: string,
@@ -42,6 +49,12 @@ function object(value: unknown): Record<string, unknown> {
     )
   }
   return value as Record<string, unknown>
+}
+
+function safeNonNegativeInteger(value: unknown): number | null {
+  return Number.isSafeInteger(value) && Number(value) >= 0
+    ? Number(value)
+    : null
 }
 
 function requestError(
@@ -213,6 +226,27 @@ export class OfficialSyncClient {
       repository,
       remoteUrl: value.remote_url,
     }
+  }
+
+  async usage(token: string): Promise<OfficialSyncUsage> {
+    const value = object(await this.requestJson("/api/graft/usage", {}, token))
+    const usedBytes = safeNonNegativeInteger(value.usedBytes)
+    const reservedBytes = safeNonNegativeInteger(value.reservedBytes)
+    const quotaBytes = safeNonNegativeInteger(value.quotaBytes)
+    const remainingBytes = safeNonNegativeInteger(value.remainingBytes)
+    if (
+      usedBytes === null ||
+      reservedBytes === null ||
+      quotaBytes === null ||
+      remainingBytes === null ||
+      usedBytes + reservedBytes + remainingBytes !== quotaBytes
+    ) {
+      throw new OfficialSyncError(
+        "Eidos Sync returned invalid storage usage.",
+        "invalid-response"
+      )
+    }
+    return { usedBytes, reservedBytes, quotaBytes, remainingBytes }
   }
 
   private async requestJson(

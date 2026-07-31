@@ -44,7 +44,7 @@ const welcomeProbe = `
         button.textContent?.includes("Open Space")
       ) &&
       [...welcome.querySelectorAll("button")].some((button) =>
-        button.textContent?.includes("Clone Synced Space")
+        button.textContent?.includes("Open Synced Space")
       )
     ) {
       return true

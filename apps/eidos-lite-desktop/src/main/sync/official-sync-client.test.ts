@@ -22,6 +22,16 @@ describe("OfficialSyncClient", () => {
           },
         })
       }
+      if (url.endsWith("/api/graft/usage")) {
+        return Response.json({
+          namespace: "u-alice",
+          enforcement: "enforce",
+          usedBytes: 2_147_483_648,
+          reservedBytes: 536_870_912,
+          quotaBytes: 10_737_418_240,
+          remainingBytes: 8_053_063_680,
+        })
+      }
       if (init?.method === "PUT") {
         return Response.json({
           created: true,
@@ -55,6 +65,12 @@ describe("OfficialSyncClient", () => {
     await expect(
       client.provisionRepository("project", "secret")
     ).resolves.toMatchObject({ created: true, repository: "project" })
+    await expect(client.usage("secret")).resolves.toEqual({
+      usedBytes: 2_147_483_648,
+      reservedBytes: 536_870_912,
+      quotaBytes: 10_737_418_240,
+      remainingBytes: 8_053_063_680,
+    })
     expect(
       requests.every(({ url }) => url.startsWith(staging.syncRemoteOrigin))
     ).toBe(true)
@@ -114,6 +130,23 @@ describe("OfficialSyncClient", () => {
       code: "rate-limited",
       status: 429,
       retryAfterMs: 7_000,
+    })
+  })
+
+  it("rejects inconsistent storage usage", async () => {
+    const client = new OfficialSyncClient(
+      staging,
+      vi.fn(async () =>
+        Response.json({
+          usedBytes: 8,
+          reservedBytes: 1,
+          quotaBytes: 10,
+          remainingBytes: 10,
+        })
+      )
+    )
+    await expect(client.usage("secret")).rejects.toMatchObject({
+      code: "invalid-response",
     })
   })
 })

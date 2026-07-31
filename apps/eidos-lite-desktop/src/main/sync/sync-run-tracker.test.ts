@@ -3,12 +3,17 @@ import { SyncRunTracker } from "./sync-run-tracker"
 describe("SyncRunTracker", () => {
   it("projects ordered phases and authoritative elapsed time", () => {
     let now = 1_000
-    const events: Array<{ state: string; phase: string; elapsedMs: number }> =
-      []
+    const events: Array<{
+      operation: string
+      state: string
+      phase: string
+      elapsedMs: number
+    }> = []
     const tracker = new SyncRunTracker(
       "run-1",
       (progress) =>
         events.push({
+          operation: progress.operation,
           state: progress.state,
           phase: progress.phase,
           elapsedMs: progress.elapsedMs,
@@ -39,10 +44,30 @@ describe("SyncRunTracker", () => {
       ],
     })
     expect(events).toEqual([
-      { state: "active", phase: "authorization", elapsedMs: 0 },
-      { state: "active", phase: "fetch", elapsedMs: 25 },
-      { state: "active", phase: "analyze", elapsedMs: 100 },
-      { state: "completed", phase: "analyze", elapsedMs: 110 },
+      {
+        operation: "sync",
+        state: "active",
+        phase: "authorization",
+        elapsedMs: 0,
+      },
+      {
+        operation: "sync",
+        state: "active",
+        phase: "fetch",
+        elapsedMs: 25,
+      },
+      {
+        operation: "sync",
+        state: "active",
+        phase: "analyze",
+        elapsedMs: 100,
+      },
+      {
+        operation: "sync",
+        state: "completed",
+        phase: "analyze",
+        elapsedMs: 110,
+      },
     ])
   })
 
@@ -69,5 +94,26 @@ describe("SyncRunTracker", () => {
       durationMs: 25,
       phases: [{ phase: "pull", durationMs: 25 }],
     })
+  })
+
+  it("identifies connection and clone progress independently from daily Sync", () => {
+    const operations: string[] = []
+    const connect = new SyncRunTracker(
+      "connect-1",
+      (progress) => operations.push(progress.operation),
+      () => 10,
+      "connect"
+    )
+    const clone = new SyncRunTracker(
+      "clone-1",
+      (progress) => operations.push(progress.operation),
+      () => 10,
+      "clone"
+    )
+
+    connect.transition("push", "Uploading")
+    clone.transition("fetch", "Downloading")
+
+    expect(operations).toEqual(["connect", "clone"])
   })
 })

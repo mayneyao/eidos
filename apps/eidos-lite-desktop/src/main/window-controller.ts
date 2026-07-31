@@ -41,6 +41,7 @@ import { SessionCloseTracker } from "./space/session-close-tracker"
 import {
   SpaceCloneCoordinator,
   type CloneRecoveryResult,
+  type CloneProgressReporter,
 } from "./sync/space-clone-coordinator"
 import {
   applyMacosTrafficLightPosition,
@@ -219,7 +220,8 @@ export class WindowController {
   async cloneAndBindSpace(
     webContents: WebContents,
     remoteUrl: string,
-    accessToken: string
+    accessToken: string,
+    reportProgress: CloneProgressReporter = () => undefined
   ): Promise<SpaceSnapshot | null> {
     if (this.sessionByWebContents.has(webContents.id)) {
       throw new Error("This window already owns a Space")
@@ -229,8 +231,8 @@ export class WindowController {
       new URL(remoteUrl).pathname.split("/").filter(Boolean).at(-1) ??
       "Synced Space"
     const options: Electron.SaveDialogOptions = {
-      title: "Clone Synced Space",
-      buttonLabel: "Clone Space",
+      title: "Open Synced Space",
+      buttonLabel: "Save Local Copy",
       defaultPath: path.join(app.getPath("documents"), repositoryName),
       nameFieldLabel: "Space name",
       properties: ["createDirectory", "showOverwriteConfirmation"],
@@ -242,7 +244,8 @@ export class WindowController {
     const target = await this.cloneCoordinator().clone(
       result.filePath,
       remoteUrl,
-      accessToken
+      accessToken,
+      reportProgress
     )
     return this.bindSpace(webContents, target)
   }
