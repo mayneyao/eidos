@@ -59,7 +59,10 @@ export class SyncControlPlane {
     )
   }
 
-  async provisionRepository(repository: string): Promise<{
+  async provisionRepository(
+    repository: string,
+    displayName: string
+  ): Promise<{
     remoteUrl: string
     accessToken: string
   }> {
@@ -73,6 +76,7 @@ export class SyncControlPlane {
     const accessToken = await this.account.accessToken()
     const provisioned = await this.remote.provisionRepository(
       repository,
+      displayName,
       accessToken
     )
     return { remoteUrl: provisioned.remoteUrl, accessToken }
@@ -82,6 +86,33 @@ export class SyncControlPlane {
     const { accessToken } = await this.repositoryAccess()
     await this.remote.discover()
     return this.remote.listRepositories(accessToken)
+  }
+
+  async repairLegacyRepositoryDisplayName(
+    remoteUrl: string,
+    displayName: string
+  ): Promise<boolean> {
+    const authorization = await this.account.authorization()
+    if (authorization.access?.access !== "read_write") return false
+    const accessToken = await this.account.accessToken()
+    await this.remote.discover()
+    const listed = await this.remote.listRepositories(accessToken)
+    const repository = listed.repositories.find(
+      (entry) => entry.remoteUrl === remoteUrl
+    )
+    if (
+      repository === undefined ||
+      repository.displayName !== repository.name ||
+      repository.displayName === displayName
+    ) {
+      return false
+    }
+    await this.remote.renameRepository(
+      repository.name,
+      displayName,
+      accessToken
+    )
+    return true
   }
 
   async repositoryAccess(remoteUrl?: string): Promise<{

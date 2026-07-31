@@ -83,6 +83,10 @@ interface SyncStorageUsage {
   remainingBytes: number
 }
 
+type SpaceSizeState = "idle" | "loading" | "available" | "unavailable"
+
+type SyncStorageState = "normal" | "warning" | "full" | "over"
+
 const OPERATION_LABELS: Record<EidosSyncOperation, string> = {
   connect: "Connecting this Space",
   sync: "Syncing this Space",
@@ -153,6 +157,8 @@ export function SyncPanel({
   const [selectedRepository, setSelectedRepository] =
     useState<EidosSyncRepository | null>(null)
   const [preflight, setPreflight] = useState<EidosSyncPreflight | null>(null)
+  const [spaceSizeState, setSpaceSizeState] = useState<SpaceSizeState>("idle")
+  const [preflightRefreshKey, setPreflightRefreshKey] = useState(0)
   const [confirmWarnings, setConfirmWarnings] = useState(false)
   const [syncResult, setSyncResult] = useState<EidosSyncRunResult | null>(null)
   const [syncFailure, setSyncFailure] = useState<EidosSyncFailure | null>(null)
@@ -183,10 +189,6 @@ export function SyncPanel({
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false)
 
   const loadResources = async (value: EidosSyncStatus) => {
-    if (mode === "enable" && value.canEnable) {
-      setPreflight(await window.eidosLite.getSyncPreflight())
-      setConfirmWarnings(false)
-    }
     if (mode === "clone" && value.canClone) {
       setBusy("repositories")
       setRepositories(await window.eidosLite.listSyncRepositories())
@@ -241,6 +243,41 @@ export function SyncPanel({
     // loadResources intentionally follows the current panel mode.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cacheKey, mode, reloadKey])
+
+  const shouldLoadSpaceSize =
+    mode === "enable" && status.account.state === "signed-in"
+
+  useEffect(() => {
+    if (!shouldLoadSpaceSize) {
+      setSpaceSizeState("idle")
+      return
+    }
+
+    let active = true
+    setPreflight(null)
+    setSpaceSizeState("loading")
+    if (typeof window.eidosLite.getSyncPreflight !== "function") {
+      setSpaceSizeState("unavailable")
+      return
+    }
+    void window.eidosLite.getSyncPreflight().then(
+      (value) => {
+        if (!active) return
+        setPreflight(value)
+        setConfirmWarnings(false)
+        setSpaceSizeState("available")
+      },
+      (cause) => {
+        console.error("Could not calculate this Space size", cause)
+        if (!active) return
+        setPreflight(null)
+        setSpaceSizeState("unavailable")
+      }
+    )
+    return () => {
+      active = false
+    }
+  }, [cacheKey, preflightRefreshKey, shouldLoadSpaceSize])
 
   useEffect(
     () =>
@@ -411,12 +448,7 @@ export function SyncPanel({
       } else {
         setSyncFailure(response.failure)
         setSyncFailureTelemetry(response.telemetry)
-        try {
-          setPreflight(await window.eidosLite.getSyncPreflight())
-          setConfirmWarnings(false)
-        } catch (cause) {
-          console.error("Could not refresh the Sync safety review", cause)
-        }
+        setPreflightRefreshKey((current) => current + 1)
       }
     } catch (cause) {
       showUnexpectedError(
@@ -436,7 +468,8 @@ export function SyncPanel({
     setBusy("clone")
     try {
       const response = await window.eidosLite.cloneSyncRepository(
-        repository.remoteUrl
+        repository.remoteUrl,
+        repository.displayName
       )
       setOperationTelemetry(response.telemetry)
       if (response.ok) {
@@ -471,6 +504,7 @@ export function SyncPanel({
         rememberStatus(await window.eidosLite.getSyncStatus(), {
           synced: true,
         })
+        setPreflightRefreshKey((current) => current + 1)
       } else {
         setSyncFailure(response.failure)
         setSyncFailureTelemetry(response.telemetry)
@@ -598,7 +632,8 @@ export function SyncPanel({
   const accountName =
     status.account.user?.email ?? status.account.user?.name ?? "Signed in"
   const storage = syncStorageUsage(status)
-  const storageIsLow = storage ? isStorageLow(storage) : false
+  const storageState = storage ? syncStorageState(storage) : "normal"
+  const storageIsLow = storageState !== "normal"
   const operationsBlocked = checking || loadError !== null
 
   return (
@@ -702,8 +737,12 @@ export function SyncPanel({
             ) : null}
           </section>
 
-          {status.account.state === "signed-in" && storage ? (
-            <SyncStorageSummary storage={storage} low={storageIsLow} />
+          {mode === "enable" && status.account.state === "signed-in" ? (
+            <SyncStorageSummary
+              storage={storage}
+              spaceBytes={preflight?.totalBytes}
+              spaceSizeState={spaceSizeState}
+            />
           ) : null}
 
           {loadError ? (
@@ -1199,7 +1238,7 @@ function syncOverview({
       pill: { label: operationPillLabel(progress), tone: "active" },
       title:
         progress.operation === "clone" && selectedRepository
-          ? `Opening ${selectedRepository.name}`
+          ? `Opening ${selectedRepository.displayName}`
           : OPERATION_LABELS[progress.operation],
       message: friendlyProgressDetail(progress),
       tone: "active",
@@ -1294,20 +1333,56 @@ function syncOverview({
     }
   }
   const storage = syncStorageUsage(status)
-  if (
-    status.entitlement.state === "read-write" &&
-    storage &&
-    isStorageLow(storage)
-  ) {
-    return {
-      pill: {
-        label: `${formatBytes(storage.usedBytes + storage.reservedBytes)} of ${formatBytes(storage.quotaBytes)}`,
+  const storageState = storage ? syncStorageState(storage) : "normal"
+  if (status.entitlement.state === "read-write" && storage) {
+    const projectedBytes = storage.usedBytes + storage.reservedBytes
+    if (storageState === "over") {
+      const pendingExceedsPlan =
+        storage.reservedBytes > 0 && storage.usedBytes <= storage.quotaBytes
+      return {
+        pill: {
+          label: `${formatBytes(projectedBytes - storage.quotaBytes)} over plan`,
+          tone: "danger",
+        },
+        title: pendingExceedsPlan
+          ? "Pending upload exceeds your plan"
+          : "Cloud storage is over its limit",
+        message: pendingExceedsPlan
+          ? "Manage storage before this upload can finish. Your local files remain safe."
+          : "Manage storage before uploading more. Your local files remain safe.",
         tone: "danger",
-      },
-      title: `${formatBytes(storage.remainingBytes)} cloud storage left`,
-      message:
-        "Manage storage before the next large upload. Your local files remain safe.",
-      tone: "warning",
+      }
+    }
+    if (storageState === "full") {
+      const pendingFillsPlan =
+        storage.reservedBytes > 0 && storage.usedBytes < storage.quotaBytes
+      return {
+        pill: {
+          label: pendingFillsPlan ? "Plan fully reserved" : "Storage full",
+          tone: "danger",
+        },
+        title: pendingFillsPlan
+          ? "Pending upload will fill cloud storage"
+          : "Cloud storage is full",
+        message: pendingFillsPlan
+          ? "This upload uses the remaining plan capacity. Your local files remain safe."
+          : "Manage storage before uploading more. Your local files remain safe.",
+        tone: "danger",
+      }
+    }
+    if (storageState === "warning") {
+      return {
+        pill: {
+          label: `${formatStoragePercent(projectedBytes, storage.quotaBytes)} ${
+            storage.reservedBytes > 0 ? "projected" : "used"
+          }`,
+          tone: "warning",
+        },
+        title: `${formatBytes(storage.remainingBytes)} cloud storage left`,
+        message:
+          "Manage storage before the next large upload. Your local files remain safe.",
+        tone: "warning",
+      }
     }
   }
   if (status.remote.state === "not-connected") {
@@ -1433,45 +1508,185 @@ function SyncIdentityChip({
 
 function SyncStorageSummary({
   storage,
-  low,
+  spaceBytes,
+  spaceSizeState,
 }: {
-  storage: SyncStorageUsage
-  low: boolean
+  storage: SyncStorageUsage | null
+  spaceBytes?: number
+  spaceSizeState: SpaceSizeState
 }) {
-  const consumed = storage.usedBytes + storage.reservedBytes
-  const usedPercent =
-    storage.quotaBytes === 0
-      ? 100
-      : Math.min(100, Math.round((consumed / storage.quotaBytes) * 100))
+  const state = storage ? syncStorageState(storage) : "normal"
+  const projectedBytes = storage
+    ? storage.usedBytes + storage.reservedBytes
+    : undefined
+  const overageBytes =
+    storage && projectedBytes
+      ? Math.max(0, projectedBytes - storage.quotaBytes)
+      : 0
+  const hasQuota = storage !== null && storage.quotaBytes > 0
+  const usedTrackBytes =
+    storage && hasQuota
+      ? Math.min(Math.max(0, storage.usedBytes), storage.quotaBytes)
+      : 0
+  const pendingTrackBytes =
+    storage && hasQuota
+      ? Math.min(
+          Math.max(0, storage.reservedBytes),
+          Math.max(0, storage.quotaBytes - usedTrackBytes)
+        )
+      : 0
+  const segmentWidth = (value: number) =>
+    storage && hasQuota ? `${(value / storage.quotaBytes) * 100}%` : "0%"
   return (
     <section
       className="sync-storage-summary"
-      data-sync-storage-used={storage.usedBytes}
-      data-sync-storage-remaining={storage.remainingBytes}
-      data-sync-storage-quota={storage.quotaBytes}
-      data-sync-storage-low={low ? "true" : "false"}
+      aria-label="Storage"
+      data-sync-space-bytes={
+        spaceSizeState === "available" ? spaceBytes : undefined
+      }
+      data-sync-space-size-state={spaceSizeState}
+      data-sync-storage-used={storage?.usedBytes}
+      data-sync-storage-remaining={storage?.remainingBytes}
+      data-sync-storage-quota={storage?.quotaBytes}
+      data-sync-storage-state={storage ? state : "unavailable"}
     >
-      <header>
-        <span>Cloud storage</span>
-        <strong>
-          {formatBytes(storage.usedBytes)} of {formatBytes(storage.quotaBytes)}
-          {" used"}
+      <div className="sync-storage-space-size" data-sync-space-size>
+        <span>
+          <HardDrive aria-hidden="true" />
+          This Space on this device
+        </span>
+        <strong aria-live="polite">
+          {spaceSizeState === "loading" ? (
+            <>
+              <LoaderCircle className="spin" /> Calculating…
+            </>
+          ) : spaceSizeState === "available" && spaceBytes !== undefined ? (
+            formatBytes(spaceBytes)
+          ) : (
+            "Unavailable"
+          )}
         </strong>
+      </div>
+
+      <header className="sync-storage-header">
+        <strong>Cloud storage</strong>
+        <span>
+          {storage
+            ? `${formatBytes(storage.usedBytes)} of ${formatBytes(storage.quotaBytes)} used`
+            : "Usage unavailable"}
+        </span>
       </header>
-      <progress
-        aria-label={`${usedPercent}% of cloud storage used`}
-        max={Math.max(1, storage.quotaBytes)}
-        value={consumed}
-      />
-      <footer>
-        <span>{usedPercent}% used</span>
-        <span>{formatBytes(storage.remainingBytes)} available</span>
-      </footer>
-      {storage.reservedBytes > 0 ? (
-        <small>
-          {formatBytes(storage.reservedBytes)} reserved for the current upload
-        </small>
+
+      {hasQuota && storage ? (
+        <div
+          className="sync-storage-capacity"
+          data-sync-storage-used-track-bytes={usedTrackBytes}
+          data-sync-storage-pending-track-bytes={pendingTrackBytes}
+        >
+          <progress
+            className="sync-storage-semantic-progress"
+            aria-label={`${formatBytes(storage.usedBytes)} of ${formatBytes(storage.quotaBytes)} cloud storage used`}
+            max={storage.quotaBytes}
+            value={storage.usedBytes}
+          />
+          <div className="sync-storage-segments" aria-hidden="true">
+            <span
+              className="sync-storage-segment sync-storage-segment-cloud"
+              data-sync-storage-segment="cloud-used"
+              data-sync-storage-segment-bytes={usedTrackBytes}
+              style={{ width: segmentWidth(usedTrackBytes) }}
+            />
+            <span
+              className="sync-storage-segment sync-storage-segment-pending"
+              data-sync-storage-segment="pending"
+              data-sync-storage-segment-bytes={pendingTrackBytes}
+              style={{ width: segmentWidth(pendingTrackBytes) }}
+            />
+            <span className="sync-storage-segment-available" />
+          </div>
+        </div>
+      ) : (
+        <p className="sync-storage-unavailable">
+          {storage
+            ? "No cloud storage is available on this plan."
+            : "Cloud usage is temporarily unavailable."}
+        </p>
+      )}
+
+      <ul className="sync-storage-legend" aria-label="Storage breakdown">
+        <li>
+          <span
+            className="sync-storage-legend-mark sync-storage-legend-mark-cloud"
+            aria-hidden="true"
+          />
+          <span>Cloud used</span>
+          <strong>
+            {storage ? formatBytes(storage.usedBytes) : "Unavailable"}
+          </strong>
+        </li>
+        <li>
+          <span
+            className="sync-storage-legend-mark sync-storage-legend-mark-total"
+            aria-hidden="true"
+          />
+          <span>Plan total</span>
+          <strong>
+            {storage ? formatBytes(storage.quotaBytes) : "Unavailable"}
+          </strong>
+        </li>
+        {storage &&
+        storage.reservedBytes > 0 &&
+        projectedBytes !== undefined ? (
+          <li data-sync-storage-reserved={storage.reservedBytes}>
+            <span
+              className="sync-storage-legend-mark sync-storage-legend-mark-pending"
+              aria-hidden="true"
+            />
+            <span>Pending</span>
+            <strong>
+              {formatBytes(storage.reservedBytes)} ·{" "}
+              {formatBytes(projectedBytes)} projected
+            </strong>
+          </li>
+        ) : null}
+      </ul>
+
+      {storage && hasQuota ? (
+        <footer>
+          <span>
+            <strong>
+              {formatStoragePercent(storage.usedBytes, storage.quotaBytes)} used
+            </strong>
+            {" · "}
+            {storage.reservedBytes > 0
+              ? `${formatBytes(storage.remainingBytes)} available after pending uploads`
+              : `${formatBytes(storage.remainingBytes)} available`}
+          </span>
+          {state === "warning" ? <span>Storage running low</span> : null}
+          {state === "full" ? (
+            <span>
+              {storage.reservedBytes > 0 &&
+              storage.usedBytes < storage.quotaBytes
+                ? "Full after pending upload"
+                : "Storage full"}
+            </span>
+          ) : null}
+          {state === "over" ? (
+            <span>
+              {formatBytes(overageBytes)} over plan
+              {storage.reservedBytes > 0 &&
+              storage.usedBytes <= storage.quotaBytes
+                ? " after pending uploads"
+                : ""}
+            </span>
+          ) : null}
+        </footer>
       ) : null}
+
+      <small className="sync-storage-note">
+        This Space is a local sync size, not its billed cloud contribution.
+        Cloud usage can differ because of history and deduplication.
+      </small>
     </section>
   )
 }
@@ -1570,7 +1785,7 @@ function RepositoryPicker({
               <button
                 type="button"
                 className="sync-repository"
-                data-sync-open-space={repository.name}
+                data-sync-open-space={repository.displayName}
                 key={repository.remoteUrl}
                 disabled={busy !== null || disabled}
                 onClick={() => onSelect(repository)}
@@ -1581,7 +1796,7 @@ function RepositoryPicker({
                   <FolderDown />
                 )}
                 <span>
-                  <strong>{repository.name}</strong>
+                  <strong>{repository.displayName}</strong>
                   <small>
                     Cloud copy created{" "}
                     {new Date(repository.createdAtMs).toLocaleDateString()}
@@ -1908,20 +2123,38 @@ function formatRelativeTime(value: number): string {
 function syncStorageUsage(status: EidosSyncStatus): SyncStorageUsage | null {
   const { usedBytes, reservedBytes, quotaBytes, remainingBytes } =
     status.entitlement
-  if (
-    usedBytes === undefined ||
-    reservedBytes === undefined ||
-    quotaBytes === undefined ||
-    remainingBytes === undefined
-  ) {
+  if (usedBytes === undefined || quotaBytes === undefined) {
     return null
   }
-  return { usedBytes, reservedBytes, quotaBytes, remainingBytes }
+  const pendingBytes = reservedBytes ?? 0
+  return {
+    usedBytes,
+    reservedBytes: pendingBytes,
+    quotaBytes,
+    remainingBytes:
+      remainingBytes ?? Math.max(0, quotaBytes - usedBytes - pendingBytes),
+  }
 }
 
-function isStorageLow(storage: SyncStorageUsage): boolean {
-  if (storage.quotaBytes === 0) return true
-  return (storage.usedBytes + storage.reservedBytes) / storage.quotaBytes >= 0.9
+function syncStorageState(storage: SyncStorageUsage): SyncStorageState {
+  const projectedBytes = storage.usedBytes + storage.reservedBytes
+  if (storage.quotaBytes <= 0) return projectedBytes > 0 ? "over" : "full"
+  if (projectedBytes > storage.quotaBytes) return "over"
+  if (projectedBytes === storage.quotaBytes) return "full"
+  return projectedBytes / storage.quotaBytes >= 0.9 ? "warning" : "normal"
+}
+
+function formatStoragePercent(usedBytes: number, quotaBytes: number): string {
+  if (quotaBytes <= 0) return usedBytes > 0 ? "Over 100%" : "0%"
+  if (usedBytes <= 0) return "0%"
+  const percent = (usedBytes / quotaBytes) * 100
+  if (percent < 1) return "<1%"
+  if (percent < 10) {
+    return `${percent.toLocaleString(undefined, {
+      maximumFractionDigits: 1,
+    })}%`
+  }
+  return `${Math.round(percent).toLocaleString()}%`
 }
 
 function formatDuration(value: number): string {

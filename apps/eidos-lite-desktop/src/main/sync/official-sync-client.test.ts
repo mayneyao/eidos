@@ -40,11 +40,20 @@ describe("OfficialSyncClient", () => {
           remote_url: "https://sync-staging.eidos.space/u-alice/project",
         })
       }
+      if (init?.method === "PATCH") {
+        return Response.json({
+          namespace: "u-alice",
+          repository: "project",
+          display_name: "Research Notes",
+          remote_url: "https://sync-staging.eidos.space/u-alice/project",
+        })
+      }
       return Response.json({
         namespace: "u-alice",
         repositories: [
           {
             name: "project",
+            display_name: "Research Notes",
             created_at: 123,
             remote_url: "https://sync-staging.eidos.space/u-alice/project",
           },
@@ -57,14 +66,18 @@ describe("OfficialSyncClient", () => {
       repositories: [
         {
           name: "project",
+          displayName: "Research Notes",
           createdAtMs: 123,
           remoteUrl: "https://sync-staging.eidos.space/u-alice/project",
         },
       ],
     })
     await expect(
-      client.provisionRepository("project", "secret")
+      client.provisionRepository("project", "Research Notes", "secret")
     ).resolves.toMatchObject({ created: true, repository: "project" })
+    await expect(
+      client.renameRepository("project", "Research Notes", "secret")
+    ).resolves.toBeUndefined()
     await expect(client.usage("secret")).resolves.toEqual({
       usedBytes: 2_147_483_648,
       reservedBytes: 536_870_912,
@@ -75,6 +88,48 @@ describe("OfficialSyncClient", () => {
       requests.every(({ url }) => url.startsWith(staging.syncRemoteOrigin))
     ).toBe(true)
     expect(requests.some(({ url }) => url.includes("secret"))).toBe(false)
+    const provision = requests.find(({ init }) => init?.method === "PUT")
+    expect(new Headers(provision?.init?.headers).get("Content-Type")).toBe(
+      "application/json"
+    )
+    expect(provision?.init?.body).toBe(
+      JSON.stringify({ display_name: "Research Notes" })
+    )
+    const rename = requests.find(({ init }) => init?.method === "PATCH")
+    expect(new Headers(rename?.init?.headers).get("Content-Type")).toBe(
+      "application/json"
+    )
+    expect(rename?.init?.body).toBe(
+      JSON.stringify({ display_name: "Research Notes" })
+    )
+  })
+
+  it("uses the stable repository key as a legacy display-name fallback", async () => {
+    const client = new OfficialSyncClient(
+      staging,
+      vi.fn(async () =>
+        Response.json({
+          namespace: "u-alice",
+          repositories: [
+            {
+              name: "legacy-repository",
+              created_at: 123,
+              remote_url:
+                "https://sync-staging.eidos.space/u-alice/legacy-repository",
+            },
+          ],
+        })
+      )
+    )
+
+    await expect(client.listRepositories("secret")).resolves.toMatchObject({
+      repositories: [
+        {
+          name: "legacy-repository",
+          displayName: "legacy-repository",
+        },
+      ],
+    })
   })
 
   it("rejects a production URL returned to the staging client", async () => {

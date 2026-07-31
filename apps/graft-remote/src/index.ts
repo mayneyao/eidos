@@ -20,6 +20,7 @@ import {
   RepositoryDirectoryDurableObject,
   type RepositoryCreateResult,
   type RepositoryRecord,
+  type RepositoryRenameResult,
 } from "./directory"
 import {
   parseContentLength,
@@ -53,8 +54,15 @@ export interface RemoteServiceDependencies {
   createRepository(
     env: Env,
     principal: EidosPrincipal,
-    name: string
+    name: string,
+    displayName: string
   ): Promise<RepositoryCreateResult>
+  renameRepository(
+    env: Env,
+    principal: EidosPrincipal,
+    name: string,
+    displayName: string
+  ): Promise<RepositoryRenameResult>
   findRepository(
     env: Env,
     principal: EidosPrincipal,
@@ -80,10 +88,18 @@ export interface RemoteServiceDependencies {
 
 const defaultDependencies: RemoteServiceDependencies = {
   authenticate: authenticateEidosUser,
-  async createRepository(env, principal, name) {
+  async createRepository(env, principal, name, displayName) {
     return await directory(env, principal).createRepository(
       principal.namespace,
       name,
+      displayName,
+      principal.userId
+    )
+  },
+  async renameRepository(env, principal, name, displayName) {
+    return await directory(env, principal).renameRepository(
+      name,
+      displayName,
       principal.userId
     )
   },
@@ -185,6 +201,7 @@ export function createGraftRemoteWorker(
       namespace: principal.namespace,
       repositories: repositories.map((repository) => ({
         name: repository.name,
+        display_name: repository.displayName,
         created_at: repository.createdAt,
         remote_url: repositoryUrl(
           context.env,
@@ -202,10 +219,13 @@ export function createGraftRemoteWorker(
     )
     dependencies.authorizeEntitlement(context.env, principal, "write")
     const name = validateRepositoryName(context.req.param("repository"))
+    const displayName =
+      (await optionalDisplayName(context.req.raw)) ?? validateDisplayName(name)
     const result = await dependencies.createRepository(
       context.env,
       principal,
-      name
+      name,
+      displayName
     )
     if (!result.ok) {
       throw new GraftProtocolError(
@@ -224,11 +244,49 @@ export function createGraftRemoteWorker(
         created: result.created,
         namespace: principal.namespace,
         repository: result.repository.name,
+        display_name: result.repository.displayName,
         remote_url: remoteUrl,
       },
       result.created ? 201 : 200,
       { Location: remoteUrl }
     )
+  })
+
+  app.patch("/api/graft/repositories/:repository", async (context) => {
+    const principal = await dependencies.authenticate(
+      context.req.raw,
+      context.env
+    )
+    dependencies.authorizeEntitlement(context.env, principal, "write")
+    const name = validateRepositoryName(context.req.param("repository"))
+    const displayName = await requiredDisplayName(context.req.raw)
+    const result = await dependencies.renameRepository(
+      context.env,
+      principal,
+      name,
+      displayName
+    )
+    if (!result.ok) {
+      if (result.reason === "owner_mismatch") {
+        throw new GraftProtocolError(
+          403,
+          "forbidden",
+          "Repository namespace access denied"
+        )
+      }
+      throw new GraftProtocolError(404, "not_found", "Repository not found")
+    }
+    const remoteUrl = repositoryUrl(
+      context.env,
+      principal.namespace,
+      result.repository.name
+    )
+    return jsonResponse({
+      namespace: principal.namespace,
+      repository: result.repository.name,
+      display_name: result.repository.displayName,
+      remote_url: remoteUrl,
+    })
   })
 
   app.get("/api/graft/usage", async (context) => {
@@ -362,6 +420,72 @@ function validateRepositoryName(value: string): string {
     )
   }
   return value
+}
+
+async function optionalDisplayName(
+  request: Request
+): Promise<string | undefined> {
+  const payload = await displayNamePayload(request, false)
+  return payload === undefined
+    ? undefined
+    : validateDisplayName(payload.display_name)
+}
+
+async function requiredDisplayName(request: Request): Promise<string> {
+  const payload = await displayNamePayload(request, true)
+  return validateDisplayName(payload?.display_name)
+}
+
+async function displayNamePayload(
+  request: Request,
+  required: boolean
+): Promise<{ display_name: unknown } | undefined> {
+  const body = await request.text()
+  if (body.length === 0) {
+    if (!required) return undefined
+    throw invalidDisplayName()
+  }
+
+  let payload: unknown
+  try {
+    payload = JSON.parse(body)
+  } catch {
+    throw invalidDisplayName()
+  }
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    Array.isArray(payload) ||
+    Object.keys(payload).some((key) => key !== "display_name")
+  ) {
+    throw invalidDisplayName()
+  }
+  const record = payload as Record<string, unknown>
+  if (!Object.hasOwn(record, "display_name")) {
+    if (!required) return undefined
+    throw invalidDisplayName()
+  }
+  return { display_name: record.display_name }
+}
+
+function validateDisplayName(value: unknown): string {
+  if (typeof value !== "string") {
+    throw invalidDisplayName()
+  }
+  const normalized = value.trim().normalize("NFC")
+  const length = [...normalized].length
+  if (length < 1 || length > 80 || /\p{Cc}/u.test(normalized)) {
+    throw invalidDisplayName()
+  }
+  return normalized
+}
+
+function invalidDisplayName(): GraftProtocolError {
+  return new GraftProtocolError(
+    400,
+    "invalid_display_name",
+    "Display name must be 1 to 80 Unicode characters without control characters"
+  )
 }
 
 function repositoryUrl(

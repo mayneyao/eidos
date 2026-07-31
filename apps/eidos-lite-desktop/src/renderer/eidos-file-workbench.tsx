@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import type {
   CreateEidosFileFieldInput,
   CreateEidosFileTableInput,
@@ -40,6 +40,7 @@ import { Check } from "lucide-react"
 
 import { EIDOS_LITE_CSV_IMPORT_BYTES_MAX } from "../shared/contracts"
 import { eidosLiteCsvFileName } from "./csv-workflow"
+import { shouldFocusEidosFileSearch } from "./eidos-file-workbench-shortcuts"
 import type { IpcEidosFileDataSource } from "./ipc-data-source"
 
 const VIEW_PLUGINS: EidosFilePlugin[] = [
@@ -88,7 +89,7 @@ export function EidosFileWorkbench({
 }: EidosFileWorkbenchProps) {
   const [activeViews, setActiveViews] = useState<Record<string, string>>({})
   const [search, setSearch] = useState("")
-  const [focusSearchToken] = useState(0)
+  const [focusSearchToken, setFocusSearchToken] = useState(0)
   const [propertyField, setPropertyField] = useState<EidosFileFieldInfo | null>(
     null
   )
@@ -102,6 +103,25 @@ export function EidosFileWorkbench({
   )
   const [reloadToken, setReloadToken] = useState(0)
   const csvFilesRef = useRef(new Map<string, File>())
+  const editorRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleFind = (event: KeyboardEvent) => {
+      if (
+        !shouldFocusEidosFileSearch(
+          event,
+          editorRef.current,
+          document.activeElement
+        )
+      ) {
+        return
+      }
+      event.preventDefault()
+      setFocusSearchToken((current) => current + 1)
+    }
+    document.addEventListener("keydown", handleFind)
+    return () => document.removeEventListener("keydown", handleFind)
+  }, [])
 
   const editorPlugins = useMemo<EidosFilePlugin[]>(
     () => [
@@ -316,6 +336,7 @@ export function EidosFileWorkbench({
   return (
     <EidosFileUIProvider locale="en" themeName={theme}>
       <EidosFileEditorShell
+        ref={editorRef}
         className="lite-eidos-file-shell min-h-0 flex-1 !h-auto"
         viewTabs={
           <EidosFileViewTabs

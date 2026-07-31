@@ -140,6 +140,7 @@ app.on("window-all-closed", () => {
 
 app.on("activate", () => {
   if (
+    app.isReady() &&
     BrowserWindow.getAllWindows().length === 0 &&
     pendingLaunchFiles.length === 0 &&
     !launchRoutingInFlight

@@ -19,6 +19,7 @@ import {
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
 import { eidosLiteLogger, logCorrelationKey } from "./logging"
 import { BackgroundSyncQueue } from "./sync/background-sync-queue"
+import { cloudDisplayNameForLocalSpace } from "./sync/cloud-space-name"
 import type { SyncControlPlane } from "./sync/sync-control-plane"
 import {
   classifySyncFailure,
@@ -538,9 +539,32 @@ export function registerIpc(
   )
   const currentRemoteUrl = async (event: Electron.IpcMainInvokeEvent) =>
     (await controller.sessionFor(event.sender)?.officialSyncRemoteUrl()) ?? null
-  ipcMain.handle(IPC_CHANNELS.syncStatus, async (event) =>
-    syncControl.status(await currentRemoteUrl(event))
-  )
+  ipcMain.handle(IPC_CHANNELS.syncStatus, async (event) => {
+    const session = controller.sessionFor(event.sender)
+    const remoteUrl = await currentRemoteUrl(event)
+    const status = await syncControl.status(remoteUrl)
+    if (session && remoteUrl && status.entitlement.state === "read-write") {
+      const spaceKey = logCorrelationKey(session.canonical.id)
+      try {
+        const repaired = await syncControl.repairLegacyRepositoryDisplayName(
+          remoteUrl,
+          cloudDisplayNameForLocalSpace(session.canonical.name)
+        )
+        if (repaired) {
+          eidosLiteLogger()?.info("sync.repository-display-name.repaired", {
+            spaceKey,
+          })
+        }
+      } catch (error) {
+        eidosLiteLogger()?.warn(
+          "sync.repository-display-name.repair-failed",
+          { spaceKey },
+          error
+        )
+      }
+    }
+    return status
+  })
   ipcMain.handle(IPC_CHANNELS.syncSignIn, async (event) =>
     syncControl.signIn(await currentRemoteUrl(event))
   )
@@ -612,7 +636,8 @@ export function registerIpc(
       stage = "provision"
       transition("authorization", "Creating secure cloud access")
       const provisioned = await syncControl.provisionRepository(
-        session.canonical.id
+        session.canonical.id,
+        cloudDisplayNameForLocalSpace(session.canonical.name)
       )
       eidosLiteLogger()?.info("sync.enable.remote-ready", { spaceKey })
       stage = "initial-push"
@@ -653,77 +678,85 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.syncRepositories, () =>
     syncControl.repositories()
   )
-  ipcMain.handle(IPC_CHANNELS.syncClone, async (event, remoteUrl: unknown) => {
-    const remote = requiredString(remoteUrl, "Hosted Remote")
-    const remoteKey = logCorrelationKey(remote)
-    const startedAtMs = Date.now()
-    const tracker = new SyncRunTracker(
-      randomUUID(),
-      (progress) => {
-        if (!event.sender.isDestroyed()) {
-          event.sender.send(IPC_CHANNELS.syncProgress, progress)
-        }
-      },
-      Date.now,
-      "clone"
-    )
-    let currentPhase: EidosSyncPhase = "authorization"
-    const transition = (phase: EidosSyncPhase, detail: string) => {
-      currentPhase = phase
-      tracker.transition(phase, detail)
-    }
-    eidosLiteLogger()?.info("sync.clone.started", { remoteKey })
-    try {
-      transition("authorization", "Checking account access")
-      const access = await syncControl.repositoryAccess(remote)
-      transition("drain", "Choose where to keep the local Space")
-      const result = await controller.cloneAndBindSpace(
-        event.sender,
-        remote,
-        access.accessToken,
-        (phase) => {
-          if (phase === "preparing") {
-            transition("drain", "Preparing the local Space")
-          } else if (phase === "cloning") {
-            transition("fetch", "Downloading the Space")
-          } else if (phase === "validating") {
-            transition("validate", "Checking downloaded files")
-          } else {
-            transition("reopen", "Opening the local Space")
+  ipcMain.handle(
+    IPC_CHANNELS.syncClone,
+    async (event, remoteUrl: unknown, displayName: unknown) => {
+      const remote = requiredString(remoteUrl, "Hosted Remote")
+      const suggestedName =
+        displayName === undefined
+          ? undefined
+          : requiredString(displayName, "Space name")
+      const remoteKey = logCorrelationKey(remote)
+      const startedAtMs = Date.now()
+      const tracker = new SyncRunTracker(
+        randomUUID(),
+        (progress) => {
+          if (!event.sender.isDestroyed()) {
+            event.sender.send(IPC_CHANNELS.syncProgress, progress)
           }
-        }
+        },
+        Date.now,
+        "clone"
       )
-      const telemetry = tracker.complete(
-        result ? "Space is ready" : "Download cancelled"
-      )
-      eidosLiteLogger()?.info("sync.clone.completed", {
-        remoteKey,
-        durationMs: Math.max(0, Date.now() - startedAtMs),
-        cancelled: result === null,
-      })
-      return { ok: true as const, snapshot: result, telemetry }
-    } catch (error) {
-      const failure = classifySyncFailure(error, currentPhase)
-      const telemetry = tracker.fail(failure.message)
-      eidosLiteLogger()?.error(
-        "sync.clone.failed",
-        {
+      let currentPhase: EidosSyncPhase = "authorization"
+      const transition = (phase: EidosSyncPhase, detail: string) => {
+        currentPhase = phase
+        tracker.transition(phase, detail)
+      }
+      eidosLiteLogger()?.info("sync.clone.started", { remoteKey })
+      try {
+        transition("authorization", "Checking account access")
+        const access = await syncControl.repositoryAccess(remote)
+        transition("drain", "Choose where to keep the local Space")
+        const result = await controller.cloneAndBindSpace(
+          event.sender,
+          remote,
+          access.accessToken,
+          suggestedName,
+          (phase) => {
+            if (phase === "preparing") {
+              transition("drain", "Preparing the local Space")
+            } else if (phase === "cloning") {
+              transition("fetch", "Downloading the Space")
+            } else if (phase === "validating") {
+              transition("validate", "Checking downloaded files")
+            } else {
+              transition("reopen", "Opening the local Space")
+            }
+          }
+        )
+        const telemetry = tracker.complete(
+          result ? "Space is ready" : "Download cancelled"
+        )
+        eidosLiteLogger()?.info("sync.clone.completed", {
           remoteKey,
           durationMs: Math.max(0, Date.now() - startedAtMs),
-          failureCode: failure.code,
-          status: failure.status,
-          retryable: failure.retryable,
-        },
-        error
-      )
-      return {
-        ok: false as const,
-        runId: tracker.runId,
-        failure,
-        telemetry,
+          cancelled: result === null,
+        })
+        return { ok: true as const, snapshot: result, telemetry }
+      } catch (error) {
+        const failure = classifySyncFailure(error, currentPhase)
+        const telemetry = tracker.fail(failure.message)
+        eidosLiteLogger()?.error(
+          "sync.clone.failed",
+          {
+            remoteKey,
+            durationMs: Math.max(0, Date.now() - startedAtMs),
+            failureCode: failure.code,
+            status: failure.status,
+            retryable: failure.retryable,
+          },
+          error
+        )
+        return {
+          ok: false as const,
+          runId: tracker.runId,
+          failure,
+          telemetry,
+        }
       }
     }
-  })
+  )
   ipcMain.handle(IPC_CHANNELS.syncRun, async (event) => {
     const { session } = await attachSyncQueue(event)
     return syncQueue.runNow(session.canonical.id)

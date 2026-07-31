@@ -152,12 +152,15 @@ describe("SyncControlPlane", () => {
       { provisionRepository } as unknown as OfficialSyncClient
     )
 
-    await expect(control.provisionRepository("space-id")).resolves.toEqual({
+    await expect(
+      control.provisionRepository("space-id", "Research")
+    ).resolves.toEqual({
       remoteUrl: "https://sync-staging.eidos.space/u-alice/space-id",
       accessToken: "oauth-access-token",
     })
     expect(provisionRepository).toHaveBeenCalledWith(
       "space-id",
+      "Research",
       "oauth-access-token"
     )
   })
@@ -172,6 +175,72 @@ describe("SyncControlPlane", () => {
     await expect(control.repositoryAccess()).rejects.toMatchObject({
       code: "entitlement-inactive",
     })
+  })
+
+  it("repairs only untouched legacy repository display names", async () => {
+    const account = accountSession("signed-in") as unknown as {
+      authorization: ReturnType<typeof vi.fn>
+      accessToken: ReturnType<typeof vi.fn>
+    }
+    account.authorization.mockResolvedValue({
+      subject: "user-1",
+      access: {
+        version: 1,
+        revision: 5,
+        service: "eidos_sync",
+        access: "read_write",
+        quotaBytes: 1024,
+        deviceLimit: 0,
+      },
+    })
+    const remoteUrl = "https://sync-staging.eidos.space/u-alice/legacy-space-id"
+    const discover = vi.fn().mockResolvedValue(undefined)
+    const listRepositories = vi.fn().mockResolvedValue({
+      namespace: "u-alice",
+      repositories: [
+        {
+          name: "legacy-space-id",
+          displayName: "legacy-space-id",
+          createdAtMs: 1,
+          remoteUrl,
+        },
+      ],
+    })
+    const renameRepository = vi.fn().mockResolvedValue(undefined)
+    const control = new SyncControlPlane(
+      EIDOS_LITE_SERVICE_ENVIRONMENTS.staging,
+      account as unknown as AccountSessionService,
+      {
+        discover,
+        listRepositories,
+        renameRepository,
+      } as unknown as OfficialSyncClient
+    )
+
+    await expect(
+      control.repairLegacyRepositoryDisplayName(remoteUrl, "Research")
+    ).resolves.toBe(true)
+    expect(renameRepository).toHaveBeenCalledWith(
+      "legacy-space-id",
+      "Research",
+      "oauth-access-token"
+    )
+
+    listRepositories.mockResolvedValueOnce({
+      namespace: "u-alice",
+      repositories: [
+        {
+          name: "legacy-space-id",
+          displayName: "My custom name",
+          createdAtMs: 1,
+          remoteUrl,
+        },
+      ],
+    })
+    await expect(
+      control.repairLegacyRepositoryDisplayName(remoteUrl, "Research")
+    ).resolves.toBe(false)
+    expect(renameRepository).toHaveBeenCalledTimes(1)
   })
 
   it("lists and re-authorizes only repositories owned by the account", async () => {
@@ -193,7 +262,14 @@ describe("SyncControlPlane", () => {
     const remoteUrl = "https://sync-staging.eidos.space/u-alice/project-space"
     const listRepositories = vi.fn().mockResolvedValue({
       namespace: "u-alice",
-      repositories: [{ name: "project-space", createdAtMs: 1, remoteUrl }],
+      repositories: [
+        {
+          name: "project-space",
+          displayName: "Project Space",
+          createdAtMs: 1,
+          remoteUrl,
+        },
+      ],
     })
     const discover = vi.fn().mockResolvedValue(undefined)
     const control = new SyncControlPlane(

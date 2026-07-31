@@ -1,0 +1,31 @@
+import { readFileSync } from "node:fs"
+
+import { describe, expect, it } from "vitest"
+
+const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8")
+
+describe("global scrollbar styling", () => {
+  it("uses shared theme-derived colors with a narrow transparent track", () => {
+    expect(styles).toContain(
+      "--scrollbar-thumb: color-mix(in oklab, var(--ink) 18%, transparent)"
+    )
+    expect(styles).toMatch(
+      /\*::\-webkit-scrollbar\s*\{[^}]*width:\s*10px;[^}]*height:\s*10px;/
+    )
+    expect(styles).toMatch(
+      /\*::\-webkit-scrollbar-thumb\s*\{[^}]*border:\s*3px solid transparent;[^}]*border-radius:\s*999px;[^}]*background:\s*var\(--scrollbar-thumb\);[^}]*background-clip:\s*padding-box;/
+    )
+    expect(styles).toMatch(
+      /\*::\-webkit-scrollbar-track,[\s\S]*?\{[^}]*background:\s*transparent;/
+    )
+  })
+
+  it("reveals stronger feedback only while interacting", () => {
+    expect(styles).toMatch(
+      /\*::\-webkit-scrollbar-thumb:hover\s*\{[^}]*var\(--scrollbar-thumb-hover\);/
+    )
+    expect(styles).toMatch(
+      /\*::\-webkit-scrollbar-thumb:active\s*\{[^}]*var\(--scrollbar-thumb-active\);/
+    )
+  })
+})

@@ -38,6 +38,7 @@ import {
 import { SpaceSession } from "./space/space-session"
 import { RecentSpacesStore } from "./space/recent-spaces"
 import { SessionCloseTracker } from "./space/session-close-tracker"
+import { localNameForCloudSpace } from "./sync/cloud-space-name"
 import {
   SpaceCloneCoordinator,
   type CloneRecoveryResult,
@@ -221,15 +222,20 @@ export class WindowController {
     webContents: WebContents,
     remoteUrl: string,
     accessToken: string,
+    displayName?: string,
     reportProgress: CloneProgressReporter = () => undefined
   ): Promise<SpaceSnapshot | null> {
     if (this.sessionByWebContents.has(webContents.id)) {
       throw new Error("This window already owns a Space")
     }
     const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
-    const repositoryName =
+    const repositoryNameFallback =
       new URL(remoteUrl).pathname.split("/").filter(Boolean).at(-1) ??
       "Synced Space"
+    const repositoryName = localNameForCloudSpace(
+      displayName,
+      repositoryNameFallback
+    )
     const options: Electron.SaveDialogOptions = {
       title: "Open Synced Space",
       buttonLabel: "Save Local Copy",

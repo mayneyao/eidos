@@ -465,6 +465,7 @@ export interface EidosSyncPreflightApproval {
 
 export interface EidosSyncRepository {
   name: string
+  displayName: string
   createdAtMs: number
   remoteUrl: string
 }
@@ -871,7 +872,10 @@ export interface EidosLiteApi {
     approval: EidosSyncPreflightApproval
   ): Promise<EidosSyncConnectionResponse>
   listSyncRepositories(): Promise<EidosSyncRepositoryList>
-  cloneSyncRepository(remoteUrl: string): Promise<EidosSyncCloneResponse>
+  cloneSyncRepository(
+    remoteUrl: string,
+    displayName?: string
+  ): Promise<EidosSyncCloneResponse>
   runSync(): Promise<EidosSyncRunResponse>
   onSyncProgress(listener: (progress: EidosSyncProgress) => void): () => void
   getSyncQueueStatus(): Promise<EidosSyncQueueStatus | null>

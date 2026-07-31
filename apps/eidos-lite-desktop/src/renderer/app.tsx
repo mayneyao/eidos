@@ -52,6 +52,7 @@ import {
   type ResolvedAppearance,
 } from "./app-appearance"
 import { FileRecoveryNotice } from "./file-recovery-notice"
+import { fileTitlebarPresentation } from "./file-titlebar-presentation"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
 import {
   canNavigateHistory,
@@ -65,6 +66,7 @@ import {
   type NavigationLocation,
   type NavigationSnapshot,
 } from "./navigation-history"
+import { blocksLocalInteraction } from "./space-operation-availability"
 import { TextFilePreview } from "./text-file-preview"
 import { SettingsPage } from "./settings-page"
 import type { VersionInspection } from "./version-change-tree"
@@ -218,10 +220,6 @@ function storedSidebarWidth(): number {
   return Number.isFinite(stored)
     ? clampSidebarWidth(stored)
     : DEFAULT_SIDEBAR_WIDTH
-}
-
-function fileName(relativePath: string): string {
-  return relativePath.split("/").at(-1) ?? relativePath
 }
 
 function syncQueueLabel(status: EidosSyncQueueStatus | null): string {
@@ -1420,6 +1418,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       : 0
   const versionChangeLabel =
     versionChangeCount > 99 ? "99+" : String(versionChangeCount)
+  const localInteractionBlocked = blocksLocalInteraction(space.operation.phase)
+  const titlebarPresentation = fileTitlebarPresentation(
+    space.name,
+    activeDocumentPath,
+    busyFile
+  )
 
   return (
     <div
@@ -1468,7 +1472,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               }
               aria-label="New Eidos File"
               title="New Eidos File"
-              disabled={pathMutationBusy || space.operation.phase !== "ready"}
+              disabled={pathMutationBusy || localInteractionBlocked}
             >
               <FilePlus2 />
             </button>
@@ -1480,7 +1484,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               }
               aria-label="New folder"
               title="New folder"
-              disabled={pathMutationBusy || space.operation.phase !== "ready"}
+              disabled={pathMutationBusy || localInteractionBlocked}
             >
               <FolderPlus />
             </button>
@@ -1490,7 +1494,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               onClick={() => void importFiles()}
               aria-label="Import files"
               title="Import files"
-              disabled={pathMutationBusy || space.operation.phase !== "ready"}
+              disabled={pathMutationBusy || localInteractionBlocked}
             >
               <Upload />
             </button>
@@ -1518,7 +1522,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             <SpaceFileTree
               entries={space.entries}
               activePath={activeDocumentPath}
-              disabled={space.operation.phase !== "ready" || busyFile !== null}
+              disabled={localInteractionBlocked || busyFile !== null}
               onSelect={setSelectedEntry}
               onOpen={(entry) => void openEntry(entry)}
               onLoadDirectory={(relativePath) => {
@@ -1583,15 +1587,15 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           ) : null}
           <div className="file-titlebar-identity">
             <div>
-              <strong>
-                {activeDocumentPath ? fileName(activeDocumentPath) : space.name}
-              </strong>
-              {activeDocumentPath &&
-              activeDocumentPath !== fileName(activeDocumentPath) ? (
-                <small>{activeDocumentPath}</small>
-              ) : null}
+              <strong>{titlebarPresentation.title}</strong>
+              <small
+                aria-hidden={titlebarPresentation.detail ? undefined : "true"}
+                data-empty={titlebarPresentation.detail ? undefined : "true"}
+              >
+                {titlebarPresentation.detail ?? "\u00a0"}
+              </small>
             </div>
-            {activeDocumentPath ? (
+            {activeDocumentPath && !titlebarPresentation.pending ? (
               <button
                 type="button"
                 className="icon-button active-file-close"
@@ -1764,7 +1768,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                     snapshot={activeFile.snapshot}
                     source={activeFile.source}
                     activeTableId={activeFile.tableId}
-                    disabled={space.operation.phase !== "ready"}
+                    disabled={localInteractionBlocked}
                     theme={theme}
                     onTableSelect={(tableId) =>
                       setCachedFiles((current) =>
@@ -1803,9 +1807,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   type="button"
                   className="editor-empty-action"
                   data-create-first-eidos
-                  disabled={
-                    pathMutationBusy || space.operation.phase !== "ready"
-                  }
+                  disabled={pathMutationBusy || localInteractionBlocked}
                   onClick={() =>
                     setPathDialog({ action: "create-eidos", entry: null })
                   }

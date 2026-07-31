@@ -189,7 +189,10 @@ describe("SyncPanel failure states", () => {
     })
 
     expect(host.textContent).toContain("person@example.com")
-    expect(host.textContent).toContain("2 GiB of 10 GiB used")
+    expect(host.textContent).toContain("Cloud used")
+    expect(host.textContent).toContain("2 GiB")
+    expect(host.textContent).toContain("Plan total")
+    expect(host.textContent).toContain("10 GiB")
     expect(host.textContent).toContain("Checking account and cloud status")
     expect(host.textContent).not.toContain("Checking Sync")
 
@@ -306,10 +309,212 @@ describe("SyncPanel failure states", () => {
 
     expect(host.textContent).toContain("We’ll sync when you’re back online")
     expect(host.textContent).toContain("person@example.com")
-    expect(host.textContent).toContain("2 GiB of 10 GiB used")
+    expect(host.textContent).toContain("Cloud used")
+    expect(host.textContent).toContain("2 GiB")
+    expect(host.textContent).toContain("Plan total")
+    expect(host.textContent).toContain("10 GiB")
     expect(host.textContent).toContain("You can keep working on this device")
     expect(host.textContent).not.toContain("network offline")
     expect(host.querySelectorAll("[data-sync-run]")).toHaveLength(0)
+  })
+
+  it("loads the current Space size independently for an already connected Space", async () => {
+    let finishPreflight: ((value: EidosSyncPreflight) => void) | undefined
+    const getSyncPreflight = vi.fn(
+      () =>
+        new Promise<EidosSyncPreflight>((resolve) => {
+          finishPreflight = resolve
+        })
+    )
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(status),
+      getSyncPreflight,
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          cacheKey: "connected-space",
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    const storage = host.querySelector<HTMLElement>(
+      "[data-sync-space-size-state]"
+    )
+    expect(storage?.dataset.syncSpaceSizeState).toBe("loading")
+    expect(storage?.textContent).toContain("This Space")
+    expect(storage?.textContent).toContain("Calculating")
+    expect(storage?.textContent).toContain("Cloud used")
+    expect(storage?.textContent).toContain("2 GiB")
+    expect(
+      storage
+        ?.querySelector("[data-sync-storage-segment='cloud-used']")
+        ?.getAttribute("data-sync-storage-segment-bytes")
+    ).toBe(status.entitlement.usedBytes?.toString())
+    expect(
+      storage?.querySelector("[data-sync-storage-segment='space']")
+    ).toBeNull()
+    expect(
+      storage
+        ?.querySelector("[data-sync-storage-segment='pending']")
+        ?.getAttribute("data-sync-storage-segment-bytes")
+    ).toBe(status.entitlement.reservedBytes?.toString())
+
+    await act(async () => finishPreflight?.(preflight))
+
+    expect(storage?.dataset.syncSpaceSizeState).toBe("available")
+    expect(storage?.dataset.syncSpaceBytes).toBe(
+      preflight.totalBytes.toString()
+    )
+    expect(storage?.textContent).toContain("120 MiB")
+    expect(storage?.textContent).toContain("Pending")
+    expect(storage?.textContent).toContain("512 MiB · 2.5 GiB projected")
+    expect(storage?.textContent).toContain("not its billed cloud contribution")
+    expect(storage?.textContent).toContain("history and deduplication")
+    expect(
+      storage?.querySelector(".sync-storage-header")?.textContent
+    ).toContain("2 GiB of 10 GiB used")
+    expect(
+      storage
+        ?.querySelector("[data-sync-storage-segment='cloud-used']")
+        ?.getAttribute("data-sync-storage-segment-bytes")
+    ).toBe(status.entitlement.usedBytes?.toString())
+    const progress = storage?.querySelector<HTMLProgressElement>("progress")
+    expect(progress?.value).toBe(status.entitlement.usedBytes)
+    expect(progress?.max).toBe(status.entitlement.quotaBytes)
+    expect(progress?.getAttribute("aria-label")).toBe(
+      "2 GiB of 10 GiB cloud storage used"
+    )
+    expect(getSyncPreflight).toHaveBeenCalledOnce()
+  })
+
+  it("keeps an oversized local Space separate from the cloud used bar", async () => {
+    const oversizedPreflight: EidosSyncPreflight = {
+      ...preflight,
+      totalBytes: 21_474_836_480,
+    }
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(status),
+      getSyncPreflight: vi.fn().mockResolvedValue(oversizedPreflight),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    const storage = host.querySelector<HTMLElement>("[data-sync-storage-used]")
+    expect(
+      storage
+        ?.querySelector("[data-sync-storage-segment='cloud-used']")
+        ?.getAttribute("data-sync-storage-segment-bytes")
+    ).toBe(status.entitlement.usedBytes?.toString())
+    expect(
+      storage?.querySelector("[data-sync-storage-segment='space']")
+    ).toBeNull()
+    expect(storage?.textContent).toContain("This Space on this device")
+    expect(storage?.textContent).toContain("20 GiB")
+    expect(storage?.textContent).toContain("not its billed cloud contribution")
+    const progress = storage?.querySelector<HTMLProgressElement>("progress")
+    expect(progress?.value).toBe(status.entitlement.usedBytes)
+    expect(progress?.max).toBe(status.entitlement.quotaBytes)
+  })
+
+  it("degrades only the current Space size when its local scan fails", async () => {
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(status),
+      getSyncPreflight: vi
+        .fn()
+        .mockRejectedValue(new Error("local scan unavailable")),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    const storage = host.querySelector<HTMLElement>(
+      "[data-sync-space-size-state]"
+    )
+    expect(storage?.dataset.syncSpaceSizeState).toBe("unavailable")
+    expect(
+      storage?.querySelector("[data-sync-space-size]")?.textContent
+    ).toContain("Unavailable")
+    expect(storage?.textContent).toContain("Cloud used")
+    expect(storage?.textContent).toContain("2 GiB")
+    expect(host.querySelector("[data-sync-run]")).not.toBeNull()
+    expect(host.textContent).not.toContain("Sync couldn’t be checked")
+  })
+
+  it("shows a truthful sub-one-percent label without inflating the progress value", async () => {
+    const tinyUsageStatus: EidosSyncStatus = {
+      ...status,
+      entitlement: {
+        ...status.entitlement,
+        usedBytes: 1_048_576,
+        reservedBytes: 0,
+        remainingBytes: 10_736_369_664,
+      },
+    }
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(tinyUsageStatus),
+      getSyncPreflight: vi.fn().mockResolvedValue(preflight),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    const storage = host.querySelector<HTMLElement>("[data-sync-storage-used]")
+    expect(storage?.textContent).toContain("<1% used")
+    expect(storage?.textContent).not.toContain("0% used")
+    const progress = storage?.querySelector<HTMLProgressElement>("progress")
+    expect(progress?.value).toBe(1_048_576)
+    expect(progress?.max).toBe(10_737_418_240)
   })
 
   it("shows real storage usage and promotes low capacity into an action", async () => {
@@ -348,7 +553,11 @@ describe("SyncPanel failure states", () => {
     expect(overview?.dataset.syncOverview).toBe("warning")
     expect(overview?.textContent).toContain("512 MiB cloud storage left")
     const storage = host.querySelector<HTMLElement>("[data-sync-storage-used]")
-    expect(storage?.textContent).toContain("9.5 GiB of 10 GiB used")
+    expect(storage?.dataset.syncStorageState).toBe("warning")
+    expect(storage?.textContent).toContain("Cloud used")
+    expect(storage?.textContent).toContain("9.5 GiB")
+    expect(storage?.textContent).toContain("Plan total")
+    expect(storage?.textContent).toContain("10 GiB")
     expect(storage?.textContent).toContain("512 MiB available")
 
     const manage = host.querySelector<HTMLButtonElement>(
@@ -358,6 +567,55 @@ describe("SyncPanel failure states", () => {
       manage?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
     })
     expect(openSyncHelp).toHaveBeenCalledWith("account")
+  })
+
+  it("marks a pending upload that would exceed the plan without inflating the used bar", async () => {
+    const projectedOverStatus: EidosSyncStatus = {
+      ...status,
+      entitlement: {
+        ...status.entitlement,
+        usedBytes: 10_200_547_328,
+        reservedBytes: 1_073_741_824,
+        remainingBytes: 0,
+      },
+    }
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(projectedOverStatus),
+      getSyncPreflight: vi.fn().mockResolvedValue(preflight),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    const overview = host.querySelector<HTMLElement>("[data-sync-overview]")
+    expect(overview?.dataset.syncOverview).toBe("danger")
+    expect(overview?.textContent).toContain("Pending upload exceeds your plan")
+    const storage = host.querySelector<HTMLElement>("[data-sync-storage-state]")
+    expect(storage?.dataset.syncStorageState).toBe("over")
+    expect(storage?.textContent).toContain("Pending")
+    expect(storage?.textContent).toContain("1 GiB · 10.5 GiB projected")
+    expect(storage?.textContent).toContain("512 MiB over plan")
+    expect(
+      storage
+        ?.querySelector("[data-sync-storage-segment='pending']")
+        ?.getAttribute("data-sync-storage-segment-bytes")
+    ).toBe("536870912")
+    expect(storage?.querySelector<HTMLProgressElement>("progress")?.value).toBe(
+      projectedOverStatus.entitlement.usedBytes
+    )
   })
 
   it("keeps unsaved-change guidance task-focused", async () => {
@@ -425,9 +683,11 @@ describe("SyncPanel failure states", () => {
         (entry) => entry.textContent === "Environment"
       )
     ).toBe(false)
-    expect(
-      host.querySelector("[data-sync-storage-used]")?.textContent
-    ).toContain("2 GiB of 10 GiB used")
+    const storage = host.querySelector("[data-sync-storage-used]")
+    expect(storage?.textContent).toContain("Cloud used")
+    expect(storage?.textContent).toContain("2 GiB")
+    expect(storage?.textContent).toContain("Plan total")
+    expect(storage?.textContent).toContain("10 GiB")
 
     await act(async () => {
       sync?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
@@ -736,16 +996,19 @@ describe("SyncPanel failure states", () => {
           }
         )
     )
+    const getSyncPreflight = vi.fn().mockResolvedValue(preflight)
     const api = {
       getSyncStatus: vi.fn().mockResolvedValue(status),
+      getSyncPreflight,
       getSyncQueueStatus: vi.fn().mockResolvedValue(null),
       listSyncRepositories: vi.fn().mockResolvedValue({
         namespace: "person",
         repositories: [
           {
-            name: "Research",
+            name: "7f4fd60c",
+            displayName: "Research",
             createdAtMs: 100,
-            remoteUrl: "https://sync-staging.eidos.space/person/research",
+            remoteUrl: "https://sync-staging.eidos.space/person/7f4fd60c",
           },
         ],
       }),
@@ -769,6 +1032,8 @@ describe("SyncPanel failure states", () => {
         })
       )
     })
+    expect(getSyncPreflight).not.toHaveBeenCalled()
+    expect(host.querySelector("[data-sync-space-size-state]")).toBeNull()
     await act(async () => {
       host
         .querySelector<HTMLButtonElement>("[data-sync-open-space='Research']")
@@ -789,8 +1054,18 @@ describe("SyncPanel failure states", () => {
 
     const progress = host.querySelector<HTMLElement>("[data-sync-progress]")
     expect(progress?.dataset.syncOperation).toBe("clone")
+    expect(cloneSyncRepository).toHaveBeenCalledWith(
+      "https://sync-staging.eidos.space/person/7f4fd60c",
+      "Research"
+    )
     expect(progress?.textContent).toContain("Downloading files from the cloud")
     expect(progress?.textContent).not.toContain("Remote URL")
+    expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
+      "Opening Research"
+    )
+    expect(
+      host.querySelector("[data-sync-overview]")?.textContent
+    ).not.toContain("7f4fd60c")
 
     await act(async () => {
       finish?.({

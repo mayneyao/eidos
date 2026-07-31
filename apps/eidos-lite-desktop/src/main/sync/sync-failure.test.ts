@@ -70,6 +70,25 @@ describe("classifySyncFailure", () => {
     expect(JSON.stringify(classified)).not.toContain("do-not-expose")
   })
 
+  it.each([
+    ["GRAFT_SDK_REMOTE_TRANSPORT_TIMEOUT", "offline"],
+    ["GRAFT_SDK_REMOTE_PUBLICATION_UNCONFIRMED", "remote-persistence-failed"],
+    [
+      "GRAFT_SDK_REMOTE_PUBLICATION_OUTCOME_UNKNOWN",
+      "remote-persistence-failed",
+    ],
+  ] satisfies Array<[string, EidosSyncFailureCode]>)(
+    "maps structured Graft SDK error %s to %s",
+    (code, expected) => {
+      expect(
+        classifySyncFailure(
+          Object.assign(new Error("safe structured Graft failure"), { code }),
+          "push"
+        )
+      ).toMatchObject({ code: expected, localSafe: true })
+    }
+  )
+
   it("maps the SDK missing-main normalization to a missing Remote", () => {
     const classified = classifySyncFailure(
       Object.assign(

@@ -1,6 +1,10 @@
 import type { GraftRepositoryBackend } from "@eidos.space/graft-remote"
 import { env, exports } from "cloudflare:workers"
-import { abortAllDurableObjects } from "cloudflare:test"
+import {
+  abortAllDurableObjects,
+  evictDurableObject,
+  runInDurableObject,
+} from "cloudflare:test"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { createGraftRemoteWorker } from "../src"
@@ -19,6 +23,7 @@ interface RepositoryResponse {
   created: boolean
   namespace: string
   repository: string
+  display_name: string
   remote_url: string
 }
 
@@ -26,9 +31,22 @@ interface RepositoryListResponse {
   namespace: string
   repositories: Array<{
     name: string
+    display_name: string
     created_at: number
     remote_url: string
   }>
+}
+
+interface RepositoryRenameResponse {
+  namespace: string
+  repository: string
+  display_name: string
+  remote_url: string
+}
+
+interface DisplayNameRow {
+  [key: string]: SqlStorageValue
+  display_name: string | null
 }
 
 interface SyncUsagePayload {
@@ -184,6 +202,7 @@ describe("eidos.space Graft Remote", () => {
       created: false,
       namespace: first.payload.namespace,
       repository: "project",
+      display_name: "project",
       remote_url: first.payload.remote_url,
     })
 
@@ -207,6 +226,247 @@ describe("eidos.space Graft Remote", () => {
     expect(forbidden.status).toBe(403)
     expect(forbidden.headers.get("graft-protocol")).toBe("1")
     await forbidden.text()
+  })
+
+  it("migrates legacy directory rows and preserves bodyless PUT compatibility", async () => {
+    const namespace = "legacy-" + crypto.randomUUID()
+    const ownerUserId = "legacy-owner"
+    const stub = env.GRAFT_DIRECTORY.getByName(namespace)
+    await runInDurableObject(stub, (_instance, state) => {
+      state.storage.sql.exec("DROP TABLE repositories")
+      state.storage.sql.exec(
+        "CREATE TABLE repositories (" +
+          "name TEXT PRIMARY KEY, " +
+          "repository_id TEXT NOT NULL UNIQUE, " +
+          "owner_user_id TEXT NOT NULL, " +
+          "created_at INTEGER NOT NULL)"
+      )
+      state.storage.sql.exec(
+        "INSERT INTO repositories(" +
+          "name, repository_id, owner_user_id, created_at" +
+          ") VALUES (?, ?, ?, ?)",
+        "legacy-oldest",
+        namespace + "/legacy-oldest",
+        ownerUserId,
+        123
+      )
+      for (const name of ["legacy-tie-b", "legacy-tie-a"]) {
+        state.storage.sql.exec(
+          "INSERT INTO repositories(" +
+            "name, repository_id, owner_user_id, created_at" +
+            ") VALUES (?, ?, ?, ?)",
+          name,
+          namespace + "/" + name,
+          ownerUserId,
+          456
+        )
+      }
+    })
+    await evictDurableObject(stub)
+
+    await expect(stub.listRepositories(ownerUserId)).resolves.toEqual([
+      {
+        name: "legacy-tie-a",
+        id: namespace + "/legacy-tie-a",
+        displayName: "legacy-tie-a",
+        createdAt: 456,
+      },
+      {
+        name: "legacy-tie-b",
+        id: namespace + "/legacy-tie-b",
+        displayName: "legacy-tie-b",
+        createdAt: 456,
+      },
+      {
+        name: "legacy-oldest",
+        id: namespace + "/legacy-oldest",
+        displayName: "legacy-oldest",
+        createdAt: 123,
+      },
+    ])
+    const storedDisplayName = await runInDurableObject(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<DisplayNameRow>(
+            "SELECT display_name FROM repositories WHERE name = ?",
+            "legacy-oldest"
+          )
+          .one().display_name
+    )
+    expect(storedDisplayName).toBe("legacy-oldest")
+
+    const bodyless = await createRepository(
+      "alice-token",
+      "bodyless-" + crypto.randomUUID()
+    )
+    expect(bodyless.response.status).toBe(201)
+    expect(bodyless.payload.display_name).toBe(bodyless.payload.repository)
+  })
+
+  it("normalizes Unicode display names and allows duplicates", async () => {
+    const first = await createRepository(
+      "alice-token",
+      "unicode-" + crypto.randomUUID(),
+      "  Cafe\u0301 🚀  "
+    )
+    const second = await createRepository(
+      "alice-token",
+      "duplicate-" + crypto.randomUUID(),
+      "Café 🚀"
+    )
+    const eightyCodePoints = await createRepository(
+      "alice-token",
+      "unicode-limit-" + crypto.randomUUID(),
+      "😀".repeat(80)
+    )
+
+    expect(first.response.status).toBe(201)
+    expect(first.payload.display_name).toBe("Café 🚀")
+    expect(second.response.status).toBe(201)
+    expect(second.payload.display_name).toBe("Café 🚀")
+    expect(eightyCodePoints.response.status).toBe(201)
+    expect([...eightyCodePoints.payload.display_name]).toHaveLength(80)
+
+    const listed = await listRepositories("alice-token")
+    expect(
+      listed.repositories.filter(
+        (repository) => repository.display_name === "Café 🚀"
+      )
+    ).toHaveLength(2)
+  })
+
+  it("renames only the display name while keeping repository identity stable", async () => {
+    const key = "stable-" + crypto.randomUUID()
+    const created = await createRepository("alice-token", key, "First name")
+    const directory = env.GRAFT_DIRECTORY.getByName(created.payload.namespace)
+    const before = await directory.findRepository(key, "alice")
+
+    const renamed = await renameRepository(
+      "alice-token",
+      key,
+      "  Re\u0301named Space  "
+    )
+    expect(renamed.response.status).toBe(200)
+    expect(renamed.payload).toEqual({
+      namespace: created.payload.namespace,
+      repository: key,
+      display_name: "Rénamed Space",
+      remote_url: created.payload.remote_url,
+    })
+
+    const after = await directory.findRepository(key, "alice")
+    expect(after).toEqual({
+      ...before,
+      displayName: "Rénamed Space",
+    })
+    expect(after?.id).toBe(before?.id)
+    expect(after?.name).toBe(before?.name)
+
+    const descriptor = await protocolFetch(created.payload.remote_url)
+    expect(descriptor.status).toBe(200)
+    expect(await descriptor.json()).toMatchObject({
+      repository: created.payload.namespace + "/" + key,
+    })
+  })
+
+  it("rejects invalid display name create and rename payloads", async () => {
+    const invalidPayloads = [
+      JSON.stringify({ display_name: "" }),
+      JSON.stringify({ display_name: "   " }),
+      JSON.stringify({ display_name: "has\u0000control" }),
+      JSON.stringify({ display_name: "a".repeat(81) }),
+      JSON.stringify({ display_name: 42 }),
+      JSON.stringify({ display_name: "valid", name: "attempted-key-change" }),
+      JSON.stringify([]),
+      "{",
+    ]
+    for (const [index, body] of invalidPayloads.entries()) {
+      const response = await serviceFetch(
+        "/api/graft/repositories/invalid-" + index,
+        {
+          method: "PUT",
+          headers: { Authorization: "Bearer alice-token" },
+          body,
+        }
+      )
+      expect(response.status, body).toBe(400)
+      expect(await response.json()).toMatchObject({
+        code: "invalid_display_name",
+      })
+    }
+
+    const created = await createRepository(
+      "alice-token",
+      "rename-invalid-" + crypto.randomUUID()
+    )
+    for (const body of ["", "{}", JSON.stringify({ display_name: null })]) {
+      const response = await serviceFetch(
+        "/api/graft/repositories/" + created.payload.repository,
+        {
+          method: "PATCH",
+          headers: { Authorization: "Bearer alice-token" },
+          body,
+        }
+      )
+      expect(response.status, body).toBe(400)
+      expect(await response.json()).toMatchObject({
+        code: "invalid_display_name",
+      })
+    }
+  })
+
+  it("requires write access for create and rename and isolates directory owners", async () => {
+    const readOnlyWorker = createGraftRemoteWorker({
+      async authenticate() {
+        return {
+          userId: "read-only-user",
+          namespace: "u-read-only",
+          syncAccess: {
+            ...activeAccessGrant(),
+            access: "read_only",
+          },
+        }
+      },
+    })
+    const list = await readOnlyWorker.request(
+      ORIGIN + "/api/graft/repositories",
+      { headers: { Authorization: "Bearer read-only-token" } },
+      env
+    )
+    expect(list.status).toBe(200)
+
+    for (const method of ["PUT", "PATCH"]) {
+      const response = await readOnlyWorker.request(
+        ORIGIN + "/api/graft/repositories/repository",
+        {
+          method,
+          headers: { Authorization: "Bearer read-only-token" },
+          ...(method === "PATCH"
+            ? { body: JSON.stringify({ display_name: "Renamed" }) }
+            : {}),
+        },
+        env
+      )
+      expect(response.status).toBe(403)
+      expect(await response.json()).toMatchObject({ code: "sync_read_only" })
+    }
+
+    const namespace = "owner-" + crypto.randomUUID()
+    const directory = env.GRAFT_DIRECTORY.getByName(namespace)
+    await expect(
+      directory.createRepository(namespace, "owned", "Owner's Space", "owner-a")
+    ).resolves.toMatchObject({ ok: true, created: true })
+    await expect(
+      directory.createRepository(namespace, "owned", "Other", "owner-b")
+    ).resolves.toEqual({ ok: false, reason: "owner_mismatch" })
+    await expect(
+      directory.renameRepository("owned", "Stolen", "owner-b")
+    ).resolves.toEqual({ ok: false, reason: "owner_mismatch" })
+    await expect(directory.listRepositories("owner-b")).resolves.toEqual([])
+    await expect(
+      directory.findRepository("owned", "owner-b")
+    ).resolves.toBeNull()
   })
 
   it("streams immutable R2 objects and rejects create-only collisions", async () => {
@@ -696,7 +956,12 @@ describe("eidos.space Graft Remote", () => {
         }
       },
       async findRepository() {
-        return { name: "repository", id: "u-test/repository", createdAt: 1 }
+        return {
+          name: "repository",
+          id: "u-test/repository",
+          displayName: "repository",
+          createdAt: 1,
+        }
       },
       createBackend() {
         return failingBackend
@@ -769,16 +1034,37 @@ async function listRepositories(
 
 async function createRepository(
   token: string,
-  name: string
+  name: string,
+  displayName?: string
 ): Promise<{ response: Response; payload: RepositoryResponse }> {
   const response = await serviceFetch(
     "/api/graft/repositories/" + encodeURIComponent(name),
     {
       method: "PUT",
       headers: { Authorization: "Bearer " + token },
+      ...(displayName === undefined
+        ? {}
+        : { body: JSON.stringify({ display_name: displayName }) }),
     }
   )
   const payload = (await response.json()) as RepositoryResponse
+  return { response, payload }
+}
+
+async function renameRepository(
+  token: string,
+  name: string,
+  displayName: string
+): Promise<{ response: Response; payload: RepositoryRenameResponse }> {
+  const response = await serviceFetch(
+    "/api/graft/repositories/" + encodeURIComponent(name),
+    {
+      method: "PATCH",
+      headers: { Authorization: "Bearer " + token },
+      body: JSON.stringify({ display_name: displayName }),
+    }
+  )
+  const payload = (await response.json()) as RepositoryRenameResponse
   return { response, payload }
 }
 

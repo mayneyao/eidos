@@ -242,6 +242,15 @@ export function classifySyncFailure(
   if (code === "EIDOS_LITE_GRAFT_WORKER_CRASHED") {
     return failure("sync-process-crashed", status)
   }
+  if (code === "GRAFT_SDK_REMOTE_TRANSPORT_TIMEOUT") {
+    return failure("offline", status)
+  }
+  if (
+    code === "GRAFT_SDK_REMOTE_PUBLICATION_UNCONFIRMED" ||
+    code === "GRAFT_SDK_REMOTE_PUBLICATION_OUTCOME_UNKNOWN"
+  ) {
+    return failure("remote-persistence-failed", status)
+  }
   if (code === "device-conflict" || code === "access-denied") {
     return failure("device-revoked", status)
   }

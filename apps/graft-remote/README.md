@@ -43,13 +43,20 @@ Authenticated repository discovery and idempotent provisioning:
 
     GET /api/graft/repositories
     PUT /api/graft/repositories/:repository
+    PATCH /api/graft/repositories/:repository
     GET /api/graft/usage
     Authorization: Bearer <OAuth access token or Sync CLI key>
 
-The create response contains the user's derived namespace and canonical
-remote_url. Repository names follow the Remote v1 repository segment rules.
-Deletion, rename, sharing, and organization ACL management are deliberately
-outside this initial slice.
+The URL repository segment is a stable technical key and follows the Remote v1
+repository segment rules. PUT remains compatible with bodyless clients and
+accepts an optional `{"display_name":"Personal Space"}` JSON body. PATCH
+updates only that display name; the technical key, internal repository id, and
+canonical `remote_url` remain unchanged. Display names are trimmed,
+NFC-normalized Unicode strings of 1–80 code points. They are user-visible
+labels, so duplicates are allowed. Repository discovery lists newly created
+Spaces first, using the technical key only as a stable tie-breaker. Deletion,
+technical-key rename, sharing, and organization ACL management are
+deliberately outside this initial slice.
 
 Protocol traffic is rooted directly at the repository URL. A repository must
 be provisioned before its descriptor or objects are accessible; an authorized
@@ -124,8 +131,9 @@ request must never charge Credits, create a subscription, or trigger renewal.
          -> R2 GRAFT_OBJECTS (immutable objects/store/logs/segments)
 
 - One SQLite RepositoryDirectoryDurableObject per user namespace stores
-  repository existence, the owner id, and the stable internal repository id.
-  INSERT OR IGNORE makes concurrent provisioning idempotent.
+  repository existence, the owner id, the stable internal repository id, and a
+  mutable display name. Existing directory rows are backfilled from their
+  technical name. INSERT OR IGNORE makes concurrent provisioning idempotent.
 - One official SQLite RepositoryDurableObject per repository stores mutable
   HEAD and refs/\*\*. CAS and CAD are single conditional SQL statements, so only
   one concurrent ref writer can win.

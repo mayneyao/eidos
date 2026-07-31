@@ -1,11 +1,13 @@
 import type { EidosLiteServiceEnvironment } from "../../shared/service-environment"
 import { isOfficialRemoteUrl } from "../graft/graft-client"
+import { normalizeCloudSpaceDisplayName } from "./cloud-space-name"
 
 const REQUEST_TIMEOUT_MS = 30_000
 const REPOSITORY_NAME = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$/
 
 export interface OfficialSyncRepository {
   name: string
+  displayName: string
   createdAtMs: number
   remoteUrl: string
 }
@@ -167,8 +169,13 @@ export class OfficialSyncClient {
     }
     const repositories = value.repositories.map((entry) => {
       const repository = object(entry)
+      const displayName =
+        repository.display_name === undefined
+          ? repository.name
+          : normalizeCloudSpaceDisplayName(repository.display_name)
       if (
         typeof repository.name !== "string" ||
+        typeof displayName !== "string" ||
         typeof repository.created_at !== "number" ||
         typeof repository.remote_url !== "string" ||
         !isOfficialRemoteUrl(
@@ -183,6 +190,7 @@ export class OfficialSyncClient {
       }
       return {
         name: repository.name,
+        displayName,
         createdAtMs: repository.created_at,
         remoteUrl: repository.remote_url,
       }
@@ -192,6 +200,7 @@ export class OfficialSyncClient {
 
   async provisionRepository(
     repository: string,
+    displayName: string,
     token: string
   ): Promise<OfficialSyncProvisionResult> {
     if (!REPOSITORY_NAME.test(repository)) {
@@ -200,11 +209,16 @@ export class OfficialSyncClient {
         "invalid-repository-name"
       )
     }
+    const normalizedDisplayName = requiredCloudSpaceDisplayName(displayName)
     await this.discover()
     const value = object(
       await this.requestJson(
         `/api/graft/repositories/${encodeURIComponent(repository)}`,
-        { method: "PUT" },
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ display_name: normalizedDisplayName }),
+        },
         token
       )
     )
@@ -225,6 +239,43 @@ export class OfficialSyncClient {
       namespace: value.namespace,
       repository,
       remoteUrl: value.remote_url,
+    }
+  }
+
+  async renameRepository(
+    repository: string,
+    displayName: string,
+    token: string
+  ): Promise<void> {
+    if (!REPOSITORY_NAME.test(repository)) {
+      throw new OfficialSyncError(
+        "Repository name must use 1–64 letters, digits, '.', '_' or '-'.",
+        "invalid-repository-name"
+      )
+    }
+    const normalizedDisplayName = requiredCloudSpaceDisplayName(displayName)
+    const value = object(
+      await this.requestJson(
+        `/api/graft/repositories/${encodeURIComponent(repository)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ display_name: normalizedDisplayName }),
+        },
+        token
+      )
+    )
+    if (
+      typeof value.namespace !== "string" ||
+      value.repository !== repository ||
+      value.display_name !== normalizedDisplayName ||
+      typeof value.remote_url !== "string" ||
+      !isOfficialRemoteUrl(value.remote_url, this.environment.syncRemoteOrigin)
+    ) {
+      throw new OfficialSyncError(
+        "Eidos Sync returned an invalid rename response.",
+        "invalid-response"
+      )
     }
   }
 
@@ -294,6 +345,17 @@ export class OfficialSyncClient {
       clearTimeout(timeout)
     }
   }
+}
+
+function requiredCloudSpaceDisplayName(value: string): string {
+  const normalized = normalizeCloudSpaceDisplayName(value)
+  if (normalized === null) {
+    throw new OfficialSyncError(
+      "Space name must use 1–80 characters without control characters.",
+      "invalid-display-name"
+    )
+  }
+  return normalized
 }
 
 function retryAfterMilliseconds(value: string | null): number | undefined {
