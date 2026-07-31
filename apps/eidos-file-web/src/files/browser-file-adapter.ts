@@ -187,6 +187,17 @@ export async function readHandleVersion(
   return readEidosFile(await handle.getFile())
 }
 
+export async function readHandleVersionIfGranted(
+  handle: FileSystemFileHandle,
+  permission: FileWritePermission
+): Promise<ReadEidosFile | null> {
+  // Handles restored from IndexedDB commonly return "prompt". Reading them
+  // before a user gesture would throw NotAllowedError and does not mean the
+  // handle is stale or unusable.
+  if (permission !== "granted") return null
+  return readHandleVersion(handle)
+}
+
 export async function writeAndVerifyHandle(
   handle: FileSystemFileHandle,
   bytes: Uint8Array

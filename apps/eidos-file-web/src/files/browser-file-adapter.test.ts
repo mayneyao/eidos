@@ -3,6 +3,7 @@ import {
   openEidosFileHandle,
   openImportedEidosFile,
   queryWritePermission,
+  readHandleVersionIfGranted,
   requestWritePermission,
   sameFileVersion,
   writeAndVerifyHandle,
@@ -39,6 +40,24 @@ describe("browser Eidos File adapter", () => {
     } as unknown as FileSystemFileHandle
     await expect(queryWritePermission(handle)).resolves.toBe("denied")
     await expect(requestWritePermission(handle)).resolves.toBe("denied")
+  })
+
+  it("does not read a restored handle until the user has granted access", async () => {
+    const handle = {
+      getFile: vi
+        .fn()
+        .mockRejectedValue(
+          new DOMException(
+            "User activation is required to restore file access",
+            "NotAllowedError"
+          )
+        ),
+    } as unknown as FileSystemFileHandle
+
+    await expect(
+      readHandleVersionIfGranted(handle, "prompt")
+    ).resolves.toBeNull()
+    expect(handle.getFile).not.toHaveBeenCalled()
   })
 
   it("rejects legacy suffixes across handle and copy imports", async () => {

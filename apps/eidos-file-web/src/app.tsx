@@ -87,6 +87,7 @@ import {
   pickSaveHandle,
   queryWritePermission,
   readHandleVersion,
+  readHandleVersionIfGranted,
   requestWritePermission,
   sameFileVersion,
   supportsDirectFileAccess,
@@ -869,15 +870,18 @@ export function App() {
         )
         if (target.handle) {
           try {
-            const disk = await readHandleVersion(target.handle)
-            if (!sameFileVersion(disk.version, target.sourceVersion)) {
+            const disk = await readHandleVersionIfGranted(
+              target.handle,
+              permission
+            )
+            if (disk && !sameFileVersion(disk.version, target.sourceVersion)) {
               dispatch({
                 type: "CONFLICT",
                 message:
                   "The original file changed after this recovery copy was created. Save As, reload the original, or explicitly overwrite it.",
               })
             }
-          } catch {
+          } catch (error) {
             const currentSession = sessionRef.current
             if (currentSession?.id === target.id) {
               const nextSession = {
@@ -888,8 +892,11 @@ export function App() {
               setSession(nextSession)
               dispatch({ type: "PERMISSION", permission: "prompt" })
             }
-            setNeedsOriginalRelink(true)
-            setNotice(t("recoveryOriginalUnavailable"))
+            const handleNeedsPermission = isFilePermissionError(error)
+            setNeedsOriginalRelink(!handleNeedsPermission)
+            setNotice(
+              handleNeedsPermission ? null : t("recoveryOriginalUnavailable")
+            )
           }
         }
         return true
