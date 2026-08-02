@@ -677,10 +677,10 @@ export const ZH_TEMPLATE_LOCALIZATIONS = [
           }),
         },
       },
-      eidos__Reference: {
-        name: "eidos__参考目录",
+      x__Reference: {
+        name: "x__参考目录",
         description:
-          "有意使用保留前缀的显示名称，用来体验可读名称与 SQLite 物理名称回退规则。",
+          "使用扩展风格名称的用户数据表，显示名称与 SQLite 物理名称保持一致。",
         fields: {
           Label: "标签",
           Kind: "类型",

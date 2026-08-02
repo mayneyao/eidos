@@ -21,9 +21,7 @@ use crate::model::{
     RelationFieldMeta, SystemRole, TableMeta, load_fields, load_file_meta, load_relation_fields,
     load_tables, load_views,
 };
-use crate::naming::{
-    PhysicalNameKind, assert_display_name, eidos_file_physical_name, quote_identifier,
-};
+use crate::naming::{assert_display_name, assert_table_name, quote_identifier, sqlite_nocase};
 use crate::relation;
 use crate::time::now_instant;
 
@@ -295,10 +293,19 @@ fn prepare_field(
     }
     assert_display_name(&field.name, "Field name")?;
     unsupported_virtual(field.kind)?;
+    let folded = sqlite_nocase(&field.name);
+    if existing_names
+        .iter()
+        .any(|name| sqlite_nocase(name) == folded)
+    {
+        return Err(EidosError::AlreadyExists(format!(
+            "duplicate Field name {:?}",
+            field.name
+        )));
+    }
     let id = generate_uuidv7();
-    let physical_name =
-        eidos_file_physical_name(PhysicalNameKind::Field, &field.name, &id, existing_names)?;
-    existing_names.push(physical_name.clone());
+    let physical_name = field.name.clone();
+    existing_names.push(field.name.clone());
     let relation = if field.kind == FieldType::Relation {
         Some(parse_relation(&id, field.definition.as_ref())?)
     } else {
@@ -446,7 +453,7 @@ fn create_table(
             "table clientKey must be non-empty".into(),
         ));
     }
-    assert_display_name(name, "Table name")?;
+    assert_table_name(name)?;
     let mut client_keys = HashSet::new();
     for field in fields {
         if !client_keys.insert(field.client_key.as_str()) {
@@ -463,16 +470,17 @@ fn create_table(
         }
     }
     let tables = load_tables(conn)?;
+    let folded = sqlite_nocase(name);
+    if tables
+        .iter()
+        .any(|table| sqlite_nocase(&table.name) == folded)
+    {
+        return Err(EidosError::AlreadyExists(format!(
+            "duplicate Table name {name:?}"
+        )));
+    }
     let table_id = generate_uuidv7();
-    let table_physical = eidos_file_physical_name(
-        PhysicalNameKind::Table,
-        name,
-        &table_id,
-        &tables
-            .iter()
-            .map(|table| table.physical_name.clone())
-            .collect::<Vec<_>>(),
-    )?;
+    let table_physical = name.to_string();
     let mut existing_fields = vec![
         "_id".to_string(),
         "_created_at".to_string(),
@@ -600,7 +608,7 @@ fn create_field(
         .collect();
     let mut existing = table_fields
         .iter()
-        .filter_map(|field| field.physical_name.clone())
+        .map(|field| field.name.clone())
         .collect();
     let mut prepared = prepare_field(field, table_fields.len(), &mut existing)?;
     if prepared.relation.is_some()
@@ -672,28 +680,54 @@ fn table_by_id(conn: &Connection, table_id: &str) -> Result<TableMeta> {
 }
 
 fn rename_table(conn: &Connection, table_id: &str, name: &str, instant: &str) -> Result<bool> {
-    assert_display_name(name, "Table name")?;
+    assert_table_name(name)?;
     let table = table_by_id(conn, table_id)?;
     if table.name == name {
         return Ok(false);
     }
     let tables = load_tables(conn)?;
-    let physical = eidos_file_physical_name(
-        PhysicalNameKind::Table,
-        name,
-        table_id,
-        &tables
-            .iter()
-            .filter(|other| other.id != table_id)
-            .map(|other| other.physical_name.clone())
-            .collect::<Vec<_>>(),
-    )?;
+    let folded = sqlite_nocase(name);
+    if tables
+        .iter()
+        .any(|other| other.id != table_id && sqlite_nocase(&other.name) == folded)
+    {
+        return Err(EidosError::AlreadyExists(format!(
+            "duplicate Table name {name:?}"
+        )));
+    }
+    let physical = name.to_string();
     if physical != table.physical_name {
-        conn.execute_batch(&format!(
-            "ALTER TABLE {} RENAME TO {}",
-            quote_identifier(&table.physical_name)?,
-            quote_identifier(&physical)?
-        ))?;
+        if sqlite_nocase(&physical) == sqlite_nocase(&table.physical_name) {
+            let occupied = {
+                let mut statement = conn.prepare("SELECT name FROM sqlite_schema")?;
+                statement
+                    .query_map([], |row| row.get::<_, String>(0))?
+                    .collect::<std::result::Result<HashSet<_>, _>>()?
+            };
+            let base = format!("eidos__rename_table__{}", table_id.replace('-', ""));
+            let mut temporary = base.clone();
+            let mut suffix = 0_u64;
+            while occupied
+                .iter()
+                .any(|name| sqlite_nocase(name) == sqlite_nocase(&temporary))
+            {
+                suffix += 1;
+                temporary = format!("{base}__{suffix}");
+            }
+            conn.execute_batch(&format!(
+                "ALTER TABLE {} RENAME TO {}; ALTER TABLE {} RENAME TO {}",
+                quote_identifier(&table.physical_name)?,
+                quote_identifier(&temporary)?,
+                quote_identifier(&temporary)?,
+                quote_identifier(&physical)?
+            ))?;
+        } else {
+            conn.execute_batch(&format!(
+                "ALTER TABLE {} RENAME TO {}",
+                quote_identifier(&table.physical_name)?,
+                quote_identifier(&physical)?
+            ))?;
+        }
     }
     conn.execute(
         "UPDATE eidos__tables SET name=?,physical_name=?,updated_at=? WHERE id=?",
@@ -713,6 +747,17 @@ fn rename_field(conn: &Connection, field_id: &str, name: &str, instant: &str) ->
     if field.name == name {
         return Ok(false);
     }
+    let fields = load_fields(conn)?;
+    let folded = sqlite_nocase(name);
+    if fields.iter().any(|other| {
+        other.table_id == field.table_id
+            && other.id != field_id
+            && sqlite_nocase(&other.name) == folded
+    }) {
+        return Err(EidosError::AlreadyExists(format!(
+            "duplicate Field name {name:?}"
+        )));
+    }
     let formula_count: i64 = conn.query_row(
         "SELECT count(*) FROM eidos__formula_fields ff JOIN eidos__fields f ON f.id=ff.field_id WHERE f.table_id=?",
         [field.table_id.as_str()],
@@ -724,24 +769,10 @@ fn rename_field(conn: &Connection, field_id: &str, name: &str, instant: &str) ->
         ));
     }
     let table = table_by_id(conn, &field.table_id)?;
-    let fields = load_fields(conn)?;
     let physical = field
         .physical_name
         .as_ref()
-        .map(|old| {
-            eidos_file_physical_name(
-                PhysicalNameKind::Field,
-                name,
-                field_id,
-                &fields
-                    .iter()
-                    .filter(|other| other.table_id == field.table_id && other.id != field_id)
-                    .filter_map(|other| other.physical_name.clone())
-                    .collect::<Vec<_>>(),
-            )
-            .map(|new| (old.clone(), new))
-        })
-        .transpose()?;
+        .map(|old| (old.clone(), name.to_string()));
     if let Some((old, new)) = &physical
         && old != new
     {
@@ -1060,5 +1091,58 @@ mod tests {
         let text = r#"{"kind":"create-table","clientKey":"t1","name":"Tasks","fields":[{"clientKey":"f1","name":"Title","kind":"text"}],"labelFieldClientKey":"f1"}"#;
         let change: SchemaLeafChange = serde_json::from_str(text).unwrap();
         assert_eq!(serde_json::to_string(&change).unwrap(), text);
+    }
+
+    #[test]
+    fn table_names_are_direct_unique_and_non_reserved() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("names.eidos");
+        ddl::create_eidos_file(&path, Some("Names")).unwrap();
+        let mut conn = Connection::open(path).unwrap();
+        ddl::configure_connection(&conn).unwrap();
+        let table = |client_key: &str, name: &str| SchemaLeafChange::CreateTable {
+            client_key: client_key.into(),
+            name: name.into(),
+            position: None,
+            settings: None,
+            fields: vec![text_field("title", "Title")],
+            label_field_client_key: Some("title".into()),
+        };
+
+        apply_schema_change(&mut conn, &table("tasks", "Tasks"), Some("0")).unwrap();
+        let duplicate =
+            apply_schema_change(&mut conn, &table("duplicate", "tasks"), Some("1")).unwrap_err();
+        assert_eq!(duplicate.code(), "already-exists");
+        let reserved =
+            apply_schema_change(&mut conn, &table("reserved", "EIDOS__Tasks"), Some("1"))
+                .unwrap_err();
+        assert_eq!(reserved.code(), "invalid-value");
+
+        let table_id = load_tables(&conn).unwrap()[0].id.clone();
+        apply_schema_change(
+            &mut conn,
+            &SchemaLeafChange::RenameTable {
+                table_id: table_id.clone(),
+                name: "tasks".into(),
+            },
+            Some("1"),
+        )
+        .unwrap();
+        let renamed = &load_tables(&conn).unwrap()[0];
+        assert_eq!(renamed.name, "tasks");
+        assert_eq!(renamed.physical_name, "tasks");
+
+        apply_schema_change(
+            &mut conn,
+            &table("extension-style", "x__vendor__Notes"),
+            Some("2"),
+        )
+        .unwrap();
+        assert!(
+            load_tables(&conn)
+                .unwrap()
+                .iter()
+                .any(|table| table.name == "x__vendor__Notes" && table.physical_name == table.name)
+        );
     }
 }

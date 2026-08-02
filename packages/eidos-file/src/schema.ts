@@ -28,11 +28,14 @@ CREATE TABLE eidos__tables(
       AND substr(id,20,1) IN ('8','9','a','b') AND substr(id,24,1)='-'
       AND lower(id)=id AND length(CAST(replace(id,'-','') AS BLOB))=32
       AND replace(id,'-','') NOT GLOB '*[^0-9a-f]*'),
-  name TEXT NOT NULL
-    CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024 AND instr(name,char(0))=0),
+  name TEXT NOT NULL COLLATE NOCASE UNIQUE
+    CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024
+      AND instr(name,char(0))=0
+      AND lower(substr(name,1,7)) NOT IN ('sqlite_','eidos__')),
   physical_name TEXT NOT NULL COLLATE NOCASE UNIQUE
     CHECK(length(CAST(physical_name AS BLOB)) BETWEEN 1 AND 1024
-      AND instr(physical_name,char(0))=0),
+      AND instr(physical_name,char(0))=0
+      AND physical_name COLLATE BINARY = name COLLATE BINARY),
   label_field_id TEXT NOT NULL COLLATE BINARY,
   position INTEGER NOT NULL DEFAULT 0,
   settings_json TEXT NOT NULL DEFAULT '{}'
@@ -70,7 +73,8 @@ CREATE TABLE eidos__fields(
   physical_name TEXT COLLATE NOCASE
     CHECK(physical_name IS NULL OR
       (length(CAST(physical_name AS BLOB)) BETWEEN 1 AND 1024
-       AND instr(physical_name,char(0))=0)),
+       AND instr(physical_name,char(0))=0
+       AND physical_name COLLATE BINARY = name COLLATE BINARY)),
   type TEXT NOT NULL CHECK(type IN (
     'text','number','integer','checkbox','date','datetime','url','json',
     'select','multi-select','file','relation','formula','lookup'

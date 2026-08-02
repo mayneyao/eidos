@@ -1816,10 +1816,10 @@ function buildFeatureLab(runtime) {
     ],
   })
   const reference = runtime.createTable({
-    name: "eidos__Reference",
+    name: "x__Reference",
     icon: "database",
     description:
-      "A deliberately reserved display name whose SQLite physical name uses the Eidos fallback rule.",
+      "An extension-style user table whose SQLite name remains directly readable.",
     fields: [
       { name: "Label", type: "text", isRecordLabel: true },
       {

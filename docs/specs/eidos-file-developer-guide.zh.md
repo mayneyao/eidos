@@ -783,7 +783,9 @@ console.log(
 database.close()
 ```
 
-这个例子使用不会碰撞的显示名称，所以物理表名和列名仍然可读。遇到保留名称或 SQLite 名称碰撞时，物理名称可能带稳定后缀；应从 Eidos 元数据读取映射，不要自行猜测。
+Eidos File 的用户 Table 与 stored Field 始终使用显示名称作为 SQLite 物理名称。Table
+名称按 `NOCASE` 在文件内唯一，且不能以 `sqlite_` 或 `eidos__` 开头；Field 名称按
+`NOCASE` 在所属 Table 内唯一。
 
 通用 SQLite 工具适合只读检查。直接写用户表可能绕过 revision、关系删除策略、Formula 依赖和 schema 原子性。
 

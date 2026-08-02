@@ -20,9 +20,9 @@ import {
 } from "./formula"
 import {
   assertEidosFileDisplayName,
+  assertEidosFileTableName,
   assertEidosFileUuid,
   createEidosFileUuid,
-  eidosFilePhysicalName,
   quoteIdentifier,
 } from "./identifiers"
 import {
@@ -1093,33 +1093,31 @@ export class EidosFileRuntime {
       )
       ;(firstScalar ?? system[0]!).isRecordLabel = true
     }
-    const existing = new Set<string>(system.map((field) => field.physicalName!))
     for (const field of userFields) {
       if (isVirtualField(field.type, field.input)) continue
-      field.physicalName = eidosFilePhysicalName(
-        "field",
-        field.name,
-        field.id,
-        existing
-      )
-      existing.add(field.physicalName)
+      field.physicalName = field.name
     }
     return [...system, ...userFields]
   }
 
   createTable(input: CreateEidosFileTableInput): EidosFileTableInfo {
-    assertEidosFileDisplayName(input.name, "Table name")
+    const physicalName = assertEidosFileTableName(input.name)
+    if (
+      this.listTables().some(
+        (table) =>
+          table.name.replace(/[A-Z]/g, (character) =>
+            character.toLowerCase()
+          ) ===
+          input.name.replace(/[A-Z]/g, (character) => character.toLowerCase())
+      )
+    ) {
+      throw new EidosFileError(
+        "constraint-conflict",
+        `Duplicate Table name: ${input.name}`
+      )
+    }
     const tableId = input.id ?? this.allocateId()
     assertEidosFileUuid(tableId, "Table ID")
-    const existing = this.listTables().map(
-      (table) => table.physicalName ?? table.rawTableName
-    )
-    const physicalName = eidosFilePhysicalName(
-      "table",
-      input.name,
-      tableId,
-      existing
-    )
     const fields = this.prepareFields(input)
     const position = this.listTables().length
     return this.mutate(() => {
@@ -1425,17 +1423,23 @@ export class EidosFileRuntime {
       let name = table.name
       let physicalName = table.physicalName ?? table.rawTableName
       if (changes.name !== undefined && changes.name !== table.name) {
-        name = assertEidosFileDisplayName(changes.name, "Table name")
-        physicalName = eidosFilePhysicalName(
-          "table",
-          name,
-          tableId,
-          this.listTables()
-            .filter((candidate) => candidate.id !== tableId)
-            .map(
-              (candidate) => candidate.physicalName ?? candidate.rawTableName
-            )
-        )
+        name = assertEidosFileTableName(changes.name)
+        if (
+          this.listTables().some(
+            (candidate) =>
+              candidate.id !== tableId &&
+              candidate.name.replace(/[A-Z]/g, (character) =>
+                character.toLowerCase()
+              ) ===
+                name.replace(/[A-Z]/g, (character) => character.toLowerCase())
+          )
+        ) {
+          throw new EidosFileError(
+            "constraint-conflict",
+            `Duplicate Table name: ${name}`
+          )
+        }
+        physicalName = name
         if (physicalName !== (table.physicalName ?? table.rawTableName)) {
           const previousPhysicalName = table.physicalName ?? table.rawTableName
           if (
@@ -1447,16 +1451,17 @@ export class EidosFileRuntime {
                 character.toLowerCase()
               )
           ) {
-            const baseTemporary = `t__rename__${tableId.replace(/-/g, "")}`
+            const baseTemporary = `eidos__rename_table__${tableId.replace(/-/g, "")}`
             let temporary = baseTemporary
             let suffix = 0
             const occupied = new Set(
-              this.listTables().map((candidate) =>
-                (candidate.physicalName ?? candidate.rawTableName).replace(
-                  /[A-Z]/g,
-                  (character) => character.toLowerCase()
+              this.connection
+                .query<{ name: string }>("SELECT name FROM sqlite_schema")
+                .map((object) =>
+                  object.name.replace(/[A-Z]/g, (character) =>
+                    character.toLowerCase()
+                  )
                 )
-              )
             )
             while (occupied.has(temporary.toLowerCase())) {
               suffix += 1
@@ -1541,16 +1546,7 @@ export class EidosFileRuntime {
         `Duplicate Field name: ${input.name}`
       )
     }
-    const physicalName = isVirtualField(type, input)
-      ? null
-      : eidosFilePhysicalName(
-          "field",
-          input.name,
-          id,
-          fields.flatMap((field) =>
-            field.physicalName ? [field.physicalName] : []
-          )
-        )
+    const physicalName = isVirtualField(type, input) ? null : input.name
     const prepared: PreparedField = {
       id,
       name: input.name,
@@ -1700,16 +1696,7 @@ export class EidosFileRuntime {
           )
         }
         if (field.physicalName) {
-          physicalName = eidosFilePhysicalName(
-            "field",
-            name,
-            fieldId,
-            fields
-              .filter((candidate) => candidate.id !== field.id)
-              .flatMap((candidate) =>
-                candidate.physicalName ? [candidate.physicalName] : []
-              )
-          )
+          physicalName = name
           if (physicalName !== field.physicalName) {
             this.connection.exec(
               `ALTER TABLE ${quoteIdentifier(table.physicalName ?? table.rawTableName)} RENAME COLUMN ${quoteIdentifier(field.physicalName)} TO ${quoteIdentifier(physicalName)}`
@@ -2167,10 +2154,10 @@ export class EidosFileRuntime {
         })!
     )
     const temporary = this.transientTableName(
-      "t__rebuild__" + tableId.replace(/-/g, "")
+      "eidos__rebuild_table__" + tableId.replace(/-/g, "")
     )
     const staging = this.transientTableName(
-      "t__rebuild_old__" + tableId.replace(/-/g, "")
+      "eidos__rebuild_old_table__" + tableId.replace(/-/g, "")
     )
     const relationFieldIds = Array.from(
       new Set([
@@ -2462,6 +2449,23 @@ export class EidosFileRuntime {
     input: CreateEidosFileViewInput
   ): EidosFileViewInfo {
     const fields = this.listFields(tableId)
+    const name = assertEidosFileDisplayName(input.name, "View name")
+    const foldedName = name.replace(/[A-Z]/g, (character) =>
+      character.toLowerCase()
+    )
+    if (
+      this.listViews(tableId).some(
+        (view) =>
+          view.name.replace(/[A-Z]/g, (character) =>
+            character.toLowerCase()
+          ) === foldedName
+      )
+    ) {
+      throw new EidosFileError(
+        "constraint-conflict",
+        `Duplicate View name: ${name}`
+      )
+    }
     const id = input.id ?? this.allocateId()
     const now = this.operationInstant()
     const fieldByKey = new Map<string, string>()
@@ -2529,7 +2533,7 @@ export class EidosFileRuntime {
         [
           assertEidosFileUuid(id, "View ID"),
           assertEidosFileUuid(tableId, "Table ID"),
-          input.name,
+          name,
           input.type,
           canonicalizeEidosFileJson({
             ...(filterToStorage(input.filter, fields)
@@ -2561,8 +2565,29 @@ export class EidosFileRuntime {
   ): EidosFileViewInfo {
     const current = this.mapView(this.viewRow(viewId))
     const fields = this.listFields(current.tableId)
+    const name = assertEidosFileDisplayName(
+      changes.name ?? current.name,
+      "View name"
+    )
+    const foldedName = name.replace(/[A-Z]/g, (character) =>
+      character.toLowerCase()
+    )
+    if (
+      this.listViews(current.tableId).some(
+        (view) =>
+          view.id !== viewId &&
+          view.name.replace(/[A-Z]/g, (character) =>
+            character.toLowerCase()
+          ) === foldedName
+      )
+    ) {
+      throw new EidosFileError(
+        "constraint-conflict",
+        `Duplicate View name: ${name}`
+      )
+    }
     const next: CreateEidosFileViewInput = {
-      name: changes.name ?? current.name,
+      name,
       type: changes.type ?? current.type,
       position: changes.position ?? current.position,
       properties:

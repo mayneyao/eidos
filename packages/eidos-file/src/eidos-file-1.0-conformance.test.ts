@@ -6,9 +6,9 @@ import {
   parseEidosFileJson,
 } from "./canonical-json"
 import {
+  assertEidosFileTableName,
   assertEidosFileUuid,
   createEidosFileUuid,
-  eidosFilePhysicalName,
   isEidosFileUuid,
 } from "./identifiers"
 import {
@@ -33,31 +33,19 @@ describe("Eidos File 1.0 primitive contracts", () => {
     )
   })
 
-  it("uses display names physically until a SQLite identifier collision", () => {
-    expect(eidosFilePhysicalName("table", "项目", ID)).toBe("项目")
-    expect(eidosFilePhysicalName("field", "Project Status", ID)).toBe(
-      "Project Status"
+  it("accepts direct user Table names and rejects reserved prefixes", () => {
+    expect(assertEidosFileTableName("项目")).toBe("项目")
+    expect(assertEidosFileTableName("x__vendor__Tasks")).toBe(
+      "x__vendor__Tasks"
     )
-    expect(eidosFilePhysicalName("field", "_id", ID)).toBe("_id__0198c72d")
-    expect(eidosFilePhysicalName("field", "Status", OTHER_ID, ["status"])).toBe(
-      "Status__0198c72d"
-    )
-    expect(eidosFilePhysicalName("table", "tasks", OTHER_ID, ["Tasks"])).toBe(
-      "tasks__0198c72d"
-    )
-  })
-
-  it("maps reserved-prefix Table names into the isolated fallback namespace", () => {
     for (const name of [
       "sqlite_Foo",
       "SQLITE_Foo",
       "eidos__Tasks",
       "EIDOS__Tasks",
-      "x__vendor__Tasks",
-      "X__vendor__Tasks",
     ]) {
-      expect(eidosFilePhysicalName("table", name, ID)).toBe(
-        "t__0198c72d__" + name
+      expect(() => assertEidosFileTableName(name)).toThrow(
+        /must not begin with sqlite_ or eidos__/
       )
     }
   })

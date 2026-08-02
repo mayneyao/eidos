@@ -19,6 +19,7 @@ use crate::model::{
     FieldMeta, FieldType, RelationDirection, SystemRole, load_fields, load_file_meta,
     load_formula_fields, load_lookup_fields, load_relation_fields, load_tables, load_views,
 };
+use crate::naming::{assert_display_name, is_reserved_table_name, sqlite_nocase};
 use crate::query::{ReadRowsOptions, RowQuery, read_rows};
 use crate::relation;
 
@@ -250,23 +251,92 @@ fn validate_structural(conn: &Connection, diagnostics: &mut Vec<Diagnostic>) -> 
             "/eidos__lookup_fields",
         );
     }
-    if let Err(error) = load_views(conn) {
-        diagnostic(
-            diagnostics,
-            Severity::Error,
-            "file-metadata-invalid",
-            error.to_string(),
-            "/eidos__views",
-        );
-    }
+    let views = match load_views(conn) {
+        Ok(views) => views,
+        Err(error) => {
+            diagnostic(
+                diagnostics,
+                Severity::Error,
+                "file-metadata-invalid",
+                error.to_string(),
+                "/eidos__views",
+            );
+            Vec::new()
+        }
+    };
 
     let table_ids: HashSet<&str> = tables.iter().map(|table| table.id.as_str()).collect();
     let field_ids: HashSet<&str> = fields.iter().map(|field| field.id.as_str()).collect();
+    let mut view_names = HashSet::new();
+    for view in &views {
+        if assert_display_name(&view.name, "View name").is_err() {
+            diagnostic(
+                diagnostics,
+                Severity::Error,
+                "file-metadata-invalid",
+                "view name is invalid",
+                format!("/views/{}/name", view.id),
+            );
+        }
+        if !view_names.insert((view.table_id.clone(), sqlite_nocase(&view.name))) {
+            diagnostic(
+                diagnostics,
+                Severity::Error,
+                "file-metadata-invalid",
+                "view names must be unique within a table under SQLite NOCASE",
+                format!("/views/{}/name", view.id),
+            );
+        }
+    }
+    let mut table_names = HashSet::new();
     for table in &tables {
+        if !table_names.insert(sqlite_nocase(&table.name)) {
+            diagnostic(
+                diagnostics,
+                Severity::Error,
+                "file-metadata-invalid",
+                "table names must be unique under SQLite NOCASE",
+                format!("/tables/{}/name", table.id),
+            );
+        }
+        if is_reserved_table_name(&table.name) || table.physical_name != table.name {
+            diagnostic(
+                diagnostics,
+                Severity::Error,
+                "file-physical-schema-invalid",
+                "table physical name must exactly equal its non-reserved display name",
+                format!("/tables/{}/physical", table.id),
+            );
+        }
         let table_fields: Vec<&FieldMeta> = fields
             .iter()
             .filter(|field| field.table_id == table.id)
             .collect();
+        let mut field_names = HashSet::new();
+        for field in &table_fields {
+            if !field_names.insert(sqlite_nocase(&field.name)) {
+                diagnostic(
+                    diagnostics,
+                    Severity::Error,
+                    "file-metadata-invalid",
+                    "field names must be unique within a table under SQLite NOCASE",
+                    format!("/fields/{}/name", field.id),
+                );
+            }
+            if field
+                .physical_name
+                .as_ref()
+                .is_some_and(|physical| physical != &field.name)
+            {
+                diagnostic(
+                    diagnostics,
+                    Severity::Error,
+                    "file-physical-schema-invalid",
+                    "stored field physical name must exactly equal its display name",
+                    format!("/fields/{}/physical", field.id),
+                );
+            }
+        }
         for role in [
             SystemRole::RowId,
             SystemRole::CreatedTime,

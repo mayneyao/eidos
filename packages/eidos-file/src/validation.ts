@@ -17,7 +17,12 @@ import {
 import { compileEidosFileFormula } from "./formula"
 import { smallestDependencyCycle } from "./dependency-graph"
 import { decodeEidosFileValues } from "./file-values"
-import { isEidosFileUuid, quoteIdentifier } from "./identifiers"
+import {
+  assertEidosFileDisplayName,
+  isEidosFileReservedTableName,
+  isEidosFileUuid,
+  quoteIdentifier,
+} from "./identifiers"
 import { isCanonicalEidosFileJson, parseEidosFileJson } from "./canonical-json"
 import { assertEidosFileSelectOptions } from "./select-options"
 import {
@@ -300,31 +305,11 @@ function valueKind(
 function validPhysicalMapping(
   kind: "table" | "field",
   name: string,
-  physicalName: string,
-  id: string
+  physicalName: string
 ): boolean {
-  const folded = name.replace(/[A-Z]/g, (character) => character.toLowerCase())
-  const reserved =
-    kind === "table"
-      ? ["sqlite_", "eidos__", "x__"].some((prefix) =>
-          folded.startsWith(prefix)
-        )
-      : ["_id", "_created_at", "_updated_at"].includes(folded)
-  const hex = id.replace(/-/g, "")
-  if (kind === "table" && reserved) {
-    return [8, 12, 32].some((length) => {
-      const prefix = `t__${hex.slice(0, length)}__`
-      return (
-        physicalName.startsWith(prefix) &&
-        new TextEncoder().encode(physicalName).byteLength <= 1024
-      )
-    })
-  }
-  if (physicalName === name) return !reserved
-  // A formerly-colliding suffixed mapping remains valid after the other object
-  // is removed (§6.3); validation therefore cannot require re-minimization.
-  return [8, 12, 32].some(
-    (length) => physicalName === `${name}__${hex.slice(0, length)}`
+  return (
+    physicalName === name &&
+    (kind === "field" || !isEidosFileReservedTableName(name))
   )
 }
 
@@ -667,6 +652,7 @@ export function validateEidosFile(
     : []
   const tables: EidosFileTableInfo[] = []
   const tableRowsById = new Map<string, TableRow>()
+  const tableNames = new Set<string>()
   for (const row of tableRows) {
     try {
       const id = uuid(row.id, "Table ID")
@@ -713,7 +699,19 @@ export function validateEidosFile(
           row.physical_name
         )
       }
-      if (!validPhysicalMapping("table", row.name, row.physical_name, id)) {
+      const foldedTableName = row.name.replace(/[A-Z]/g, (character) =>
+        character.toLowerCase()
+      )
+      if (tableNames.has(foldedTableName)) {
+        add(
+          errors,
+          "invalid-schema",
+          `Duplicate Table name under SQLite NOCASE: ${row.name}`,
+          row.physical_name
+        )
+      }
+      tableNames.add(foldedTableName)
+      if (!validPhysicalMapping("table", row.name, row.physical_name)) {
         add(
           errors,
           "invalid-schema",
@@ -877,23 +875,9 @@ export function validateEidosFile(
           `Stored Field ${row.name} requires a physical column`
         )
       }
-      const systemMapping =
-        (row.system_role === "row-id" &&
-          row.type === "text" &&
-          row.physical_name === "_id" &&
-          row.nullable === 0) ||
-        (row.system_role === "created-time" &&
-          row.type === "datetime" &&
-          row.physical_name === "_created_at" &&
-          row.nullable === 0) ||
-        (row.system_role === "updated-time" &&
-          row.type === "datetime" &&
-          row.physical_name === "_updated_at" &&
-          row.nullable === 0)
       if (
         row.physical_name &&
-        !systemMapping &&
-        !validPhysicalMapping("field", row.name, row.physical_name, id)
+        !validPhysicalMapping("field", row.name, row.physical_name)
       ) {
         add(
           errors,
@@ -1002,6 +986,20 @@ export function validateEidosFile(
     const mappedNames = fields.flatMap((field) =>
       field.physicalName ? [field.physicalName] : []
     )
+    const displayNames = fields.map((field) => field.name)
+    if (
+      new Set(
+        displayNames.map((name) =>
+          name.replace(/[A-Z]/g, (character) => character.toLowerCase())
+        )
+      ).size !== displayNames.length
+    ) {
+      add(
+        errors,
+        "invalid-schema",
+        `Table ${table.name} contains duplicate Field names under SQLite NOCASE`
+      )
+    }
     if (
       new Set(
         mappedNames.map((name) =>
@@ -1014,6 +1012,43 @@ export function validateEidosFile(
         "invalid-schema",
         `Table ${table.name} maps more than one Field to a physical column`
       )
+    }
+  }
+
+  if (sqliteTables.has(EIDOS_FILE_VIEWS_TABLE)) {
+    const viewNamesByTable = new Map<string, Set<string>>()
+    for (const view of connection.query<{
+      id: string
+      table_id: string
+      name: string
+    }>(`SELECT id, table_id, name FROM ${EIDOS_FILE_VIEWS_TABLE}`)) {
+      try {
+        uuid(view.id, "View ID")
+        const tableId = uuid(view.table_id, "View Table ID")
+        assertEidosFileDisplayName(view.name, "View name")
+        if (!tableRowsById.has(tableId)) {
+          throw new Error("View references an unknown Table")
+        }
+        const foldedName = view.name.replace(/[A-Z]/g, (character) =>
+          character.toLowerCase()
+        )
+        const names = viewNamesByTable.get(tableId) ?? new Set<string>()
+        if (names.has(foldedName)) {
+          add(
+            errors,
+            "invalid-schema",
+            `Table ${tableRowsById.get(tableId)!.name} contains duplicate View names under SQLite NOCASE`
+          )
+        }
+        names.add(foldedName)
+        viewNamesByTable.set(tableId, names)
+      } catch (error) {
+        add(
+          errors,
+          "invalid-schema",
+          error instanceof Error ? error.message : "Invalid View metadata"
+        )
+      }
     }
   }
 

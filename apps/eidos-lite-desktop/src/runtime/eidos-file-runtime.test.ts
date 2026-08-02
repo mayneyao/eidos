@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { performance } from "node:perf_hooks"
+import { DatabaseSync } from "node:sqlite"
 import { vi } from "vitest"
 
 import {
@@ -54,6 +55,78 @@ describe("Eidos Lite Runtime 1.0 editor adapter", () => {
           { table: { name: "Table 2" } },
         ],
       })
+    } finally {
+      await opened.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("keeps Table display and physical names identical", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-names-"))
+    const filePath = path.join(root, "names.eidos")
+    let opened = await createEidosLiteFileRuntime(filePath, "Names")
+    try {
+      await expect(
+        opened.source.createTable({ name: "table 1" })
+      ).rejects.toThrow(/Duplicate Table name/)
+      for (const name of ["sqlite_archive", "EIDOS__Internal"]) {
+        await expect(opened.source.createTable({ name })).rejects.toThrow(
+          /must not begin with sqlite_ or eidos__/
+        )
+      }
+
+      let snapshot = await opened.source.createTable({
+        name: "x__vendor__Notes",
+      })
+      const created = snapshot.tables.find(
+        (table) => table.table.name === "x__vendor__Notes"
+      )!
+      expect(created.table.name).toBe("x__vendor__Notes")
+
+      snapshot = await opened.source.updateTable(created.table.id, {
+        name: "Research Notes",
+      })
+      expect(
+        snapshot.tables.find((table) => table.table.id === created.table.id)
+          ?.table
+      ).toMatchObject({
+        name: "Research Notes",
+      })
+
+      snapshot = await opened.source.updateTable(created.table.id, {
+        name: "research notes",
+      })
+      expect(
+        snapshot.tables.find((table) => table.table.id === created.table.id)
+          ?.table
+      ).toMatchObject({
+        name: "research notes",
+      })
+
+      await opened.close()
+      opened = await openEidosLiteFileRuntime(filePath)
+      const reopenedSnapshot = await opened.source.getSnapshot()
+      expect(
+        reopenedSnapshot.tables.find(
+          (table) => table.table.id === created.table.id
+        )?.table
+      ).toMatchObject({
+        name: "research notes",
+      })
+      await opened.close()
+      const database = new DatabaseSync(filePath, { readOnly: true })
+      try {
+        expect(
+          database
+            .prepare("SELECT name,physical_name FROM eidos__tables WHERE id=?")
+            .get(created.table.id)
+        ).toEqual({
+          name: "research notes",
+          physical_name: "research notes",
+        })
+      } finally {
+        database.close()
+      }
     } finally {
       await opened.close()
       await rm(root, { recursive: true, force: true })

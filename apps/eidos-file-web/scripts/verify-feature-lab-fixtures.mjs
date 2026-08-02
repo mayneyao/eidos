@@ -158,19 +158,18 @@ function verifyEnglish(runtime, connection) {
   const tables = runtime.listTables()
   assertSet(
     tables.map((table) => table.name),
-    ["Experiments", "People", "Programs", "eidos__Reference"],
+    ["Experiments", "People", "Programs", "x__Reference"],
     "English tables"
   )
   const experiments = tables.find((table) => table.name === "Experiments")
   const people = tables.find((table) => table.name === "People")
-  const reference = tables.find((table) => table.name === "eidos__Reference")
+  const reference = tables.find((table) => table.name === "x__Reference")
   assert(experiments && people && reference, "English business tables exist")
   assert(runtime.countRows(experiments.id) === 180, "pagination data exists")
   assert(runtime.countRows(people.id) === 12, "Relation targets exist")
   assert(
-    reference.physicalName !== reference.name &&
-      reference.physicalName?.startsWith("t__"),
-    "reserved display name uses a readable physical-name fallback"
+    reference.physicalName === reference.name,
+    "user Table display and physical names are identical"
   )
 
   const fields = fieldMap(runtime, experiments.id)
@@ -364,7 +363,7 @@ function verifyChinese(runtime) {
   const tables = runtime.listTables()
   assertSet(
     tables.map((table) => table.name),
-    ["eidos__参考目录", "人员", "实验", "计划"],
+    ["x__参考目录", "人员", "实验", "计划"],
     "Chinese tables"
   )
   const experiments = tables.find((table) => table.name === "实验")

@@ -2848,12 +2848,12 @@ physical declaration change 使用 atomic table rebuild；permissive affinity、
 7. 证明不存在 old/rebuild object，再运行受影响的 structural/content/semantic
    check 与 foreign-key check，最后到达唯一 outer commit。
 
-第一个 transient name 是 `t__rebuild__<full-table-id-hex>`；发生 collision 时，
-依次追加 `__1`、`__2` 等，使用 smallest absent decimal suffix。old-table staging
-name 使用相同 algorithm，并以 `t__rebuild_old__` 开头。这些 prefix 不是 File-
-reserved；name 只存在于 write transaction 内，Runtime 在使用前证明它们在
-`sqlite_schema` 中不存在。File validation 运行时或 commit 时不存在任何 transient
-object。任何 failure 都会 rollback 到精确的旧 table 与 metadata。
+第一个 transient name 是 `eidos__rebuild_table__<full-table-id-hex>`；发生 collision
+时依次追加 `__1`、`__2` 等，使用 smallest absent decimal suffix。old-table staging
+name 使用相同 algorithm，并以 `eidos__rebuild_old_table__` 开头。这些 Writer-owned
+name 只存在于 write transaction 内，Runtime 在使用前证明它们在 `sqlite_schema` 中
+不存在。File validation 运行时或 commit 时不存在任何 transient object。任何 failure
+都会 rollback 到精确的旧 table 与 metadata。
 
 Rename 保留 stable ID。Field rename 按第 9 节 parse 并 rewrite Formula reference
 node；View query 与 Lookup/Relation definition 已使用 ID。Table rename 不改变

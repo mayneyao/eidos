@@ -266,9 +266,11 @@ names as SQLite identifiers and MUST NOT concatenate them as unquoted SQL.
 Quoting is exactly `"` + the name with every `"` doubled + `"`; values remain
 bound parameters and are never identifier-quoted.
 
-Field names MUST be unique within one Table under SQLite `NOCASE` comparison.
-They form the human-readable reference namespace used by Formula. Fields in
-different Tables MAY have the same name.
+Table names MUST be unique within one File under SQLite `NOCASE` comparison.
+Field names MUST be unique within one Table under the same comparison; the
+three system Fields occupy `_id`, `_created_at`, and `_updated_at` in that
+namespace. Fields in different Tables MAY have the same name. View names MUST
+be unique within one Table as specified by Section 13.
 
 SQLite `NOCASE` folds ASCII `A` through `Z` only. Eidos File Format 1.0 deliberately
 uses that exact portable rule for identifier collision detection. Non-ASCII
@@ -276,54 +278,28 @@ names are compared by their UTF-8 code units and are not normalized. A Writer
 MUST preserve the user's Unicode spelling and MUST NOT apply NFC, NFKC, locale
 case conversion, or transliteration to a name.
 
-For a newly created or explicitly renamed object, the Writer MUST first try:
+For every Table and every stored Field, the canonical mapping is exactly:
 
 ```text
 physical_name = display name
 ```
 
-Spaces, Chinese text, punctuation, and SQL keywords are valid quoted SQLite
-identifiers and do not justify changing the name.
+The equality is byte-for-byte BINARY equality. Formula, Lookup, and inverse
+Relation Fields have `physical_name = NULL` because they have no stored column.
+Spaces, Chinese text, punctuation, SQL keywords, and `x__` prefixes are valid
+quoted SQLite identifiers and do not justify changing the name.
 
-### 6.2 Fallback rule
+### 6.2 Name validity and conflicts
 
-A fallback is used only when the display name:
+Table, Field, and View names MUST contain 1 through 1,024 UTF-8 octets, contain
+only Unicode scalar values, and exclude U+0000. A Table name MUST NOT begin
+with `sqlite_` or `eidos__` under ASCII case-insensitive comparison. The
+`sqlite_` namespace belongs to SQLite and `eidos__` belongs to this format.
 
-- conflicts with another physical name under SQLite identifier resolution;
-- is one of `_id`, `_created_at`, or `_updated_at` for a field;
-- begins with reserved `sqlite_`, `eidos__`, or `x__`, compared with ASCII
-  case-insensitivity, for a table.
-
-Empty and U+0000-containing display names are invalid and MUST be rejected
-before fallback. Collision checks for a rename exclude the object being
-renamed. For an ordinary collision, or a stored Field name equal to a system
-column, append:
-
-```text
-__ + first 8 lowercase hexadecimal digits of the stable object ID
-```
-
-Hyphens are ignored only while deriving this physical-name suffix. If that
-still collides, use 12, then all 32 hexadecimal digits. For an `N`-digit
-suffix, the Writer takes the longest prefix of the display name whose UTF-8
-encoding is at most `1024 - 2 - N` octets, without splitting a Unicode scalar,
-and appends `__` plus the `N` ID digits. The display name in metadata is never
-truncated. The suffix is not an alternative ID representation.
-
-A reserved table prefix cannot be repaired by appending a suffix: it would
-still begin with the reserved prefix. For such a table, the Writer MUST use:
-
-```text
-t__ + first 8 ID hex digits + __ + display name
-```
-
-If that name collides, the ID component grows to 12 and then 32 hex digits. For
-an `N`-digit component, the display-name portion is truncated on a Unicode
-scalar boundary to at most `1024 - 5 - N` UTF-8 octets. The literal `t__` is
-not reserved. This algorithm is deterministic and keeps the user name readable
-without creating an object under a reserved namespace. If the full 32-digit
-candidate still collides, the Writer MUST reject the create or rename; it MUST
-NOT invent another persistent mapping.
+The Writer MUST reject an invalid, reserved, or `NOCASE`-duplicate name before
+executing DDL. It MUST NOT truncate, decorate, suffix, transliterate, or map a
+name into another persistent identifier. A rename conflict check excludes the
+object being renamed.
 
 Examples:
 
@@ -334,9 +310,7 @@ Tasks              Tasks
 Project Status     Project Status
 Order              Order
 Status             Status
-eidos__Tasks        t__a13f9c20__eidos__Tasks
-sqlite_archive      t__8c1044d2__sqlite_archive
-_id                _id__31a08e77
+x__vendor__Tasks    x__vendor__Tasks
 ```
 
 The stable Field ID remains necessary for Field and Formula identity, Lookup,
@@ -345,14 +319,11 @@ diff. It is not the column name and is not written into Formula source.
 
 ### 6.3 Rename
 
-A table rename updates `name`, attempts the preferred physical name, and uses
-`ALTER TABLE ... RENAME TO` when the physical name changes. For a table rename
-that changes only ASCII case under SQLite identifier comparison, the Writer
-MUST use two `ALTER TABLE` statements in the same transaction through an
-unoccupied temporary identifier. It probes
-`t__rename__<full-table-id-hex>`, then that name plus `__1`, `__2`, and so on,
-until an unoccupied temporary name is found; the temporary name is never
-canonical state.
+A table rename updates `name` and `physical_name` to the same new name and uses
+`ALTER TABLE ... RENAME TO`. For a table rename that changes only ASCII case
+under SQLite identifier comparison, the Writer MUST use two `ALTER TABLE`
+statements in the same transaction through an unoccupied transient internal
+identifier. That identifier is never canonical state.
 
 A stored-field rename similarly uses `ALTER TABLE ... RENAME COLUMN`. The
 Field ID remains unchanged, so ID-based structural dependencies require no
@@ -406,11 +377,14 @@ CREATE TABLE eidos__tables(
       AND substr(id,20,1) IN ('8','9','a','b') AND substr(id,24,1)='-'
       AND lower(id)=id AND length(CAST(replace(id,'-','') AS BLOB))=32
       AND replace(id,'-','') NOT GLOB '*[^0-9a-f]*'),
-  name TEXT NOT NULL
-    CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024 AND instr(name,char(0))=0),
+  name TEXT NOT NULL COLLATE NOCASE UNIQUE
+    CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024
+      AND instr(name,char(0))=0
+      AND lower(substr(name,1,7)) NOT IN ('sqlite_','eidos__')),
   physical_name TEXT NOT NULL COLLATE NOCASE UNIQUE
     CHECK(length(CAST(physical_name AS BLOB)) BETWEEN 1 AND 1024
-      AND instr(physical_name,char(0))=0),
+      AND instr(physical_name,char(0))=0
+      AND physical_name COLLATE BINARY = name COLLATE BINARY),
   label_field_id TEXT NOT NULL COLLATE BINARY,
   position INTEGER NOT NULL DEFAULT 0,
   settings_json TEXT NOT NULL DEFAULT '{}'
@@ -448,7 +422,8 @@ CREATE TABLE eidos__fields(
   physical_name TEXT COLLATE NOCASE
     CHECK(physical_name IS NULL OR
       (length(CAST(physical_name AS BLOB)) BETWEEN 1 AND 1024
-       AND instr(physical_name,char(0))=0)),
+       AND instr(physical_name,char(0))=0
+       AND physical_name COLLATE BINARY = name COLLATE BINARY)),
   type TEXT NOT NULL CHECK(type IN (
     'text','number','integer','checkbox','date','datetime','url','json',
     'select','multi-select','file','relation','formula','lookup'
@@ -1527,17 +1502,16 @@ preserved byte-semantically or the Writer refuses the write. A feature that
 changes a core raw value, query result, mutation postcondition, or other
 non-ignorable meaning MUST be `required=1`.
 
-Extensions use `x__<vendor>__*` names, where `vendor` is a non-empty
-lowercase ASCII token of letters, digits, and underscores beginning with a
-letter. A third-party feature name MUST use
+Extensions use unregistered `x__<vendor>__*` names, where `vendor` is a
+non-empty lowercase ASCII token of letters, digits, and underscores beginning
+with a letter. An `x__*` table registered in `eidos__tables` is a user Table,
+not an extension object. A third-party feature name MUST use
 `x__<vendor>__<feature>`, where `feature` follows the same token grammar. Every
-`x__<vendor>__*` schema object MUST have at least one feature row with that
-exact vendor prefix; an orphan vendor object is a structural error. An
-extension MUST NOT create a new `eidos__*` object, attach a trigger to a
+unregistered `x__<vendor>__*` schema object MUST have at least one feature row
+with that exact vendor prefix; an orphan vendor object is a structural error.
+An extension MUST NOT create a new `eidos__*` object, attach a trigger to a
 core/user table, shadow a user physical name, or reinterpret a core raw value.
-Extension tables and indexes are canonical only for the declared extension. A
-user Table whose display name begins with a reserved prefix uses Section 6's
-`t__<id-hex>__<display-name>` mapping.
+Extension tables and indexes are canonical only for the declared extension.
 
 A compatible clarification may add examples and tests but cannot change an
 existing valid byte/value interpretation. Any persisted meaning change
@@ -1581,9 +1555,10 @@ At minimum, shared fixtures and executable SQL MUST cover:
 - fixed date/instant parsing, malformed 24-octet and year-0000 negatives,
   BINARY ordering, and SQLite date-function round-trip;
 - JCS objects, arrays, Unicode, duplicate-key, non-finite, and size negatives;
-- Chinese, spaces, keywords, quotes, ASCII-NOCASE collisions, system-column
-  collisions, 1,024-octet truncation, exhausted fallback, case-only table
-  rename, and every reserved-prefix fallback/rename branch;
+- Chinese, spaces, keywords, quotes, exact physical/display equality,
+  ASCII-NOCASE duplicate rejection, system-column collision rejection,
+  1,024-octet rejection, reserved table-prefix rejection, `x__` user Tables,
+  and case-only table rename;
 - ordinary STRICT rowid and `STRICT, WITHOUT ROWID` user tables with identical
   canonical Row IDs;
 - every subtype-row/physical-name/`nullable` matrix branch and every stored
@@ -1668,17 +1643,17 @@ rename is a Runtime operation, not a second catalog-only raw encoding.
 ## Appendix B. Why Field IDs Remain (Informative)
 
 Human-readable physical names optimize inspectability. They are still mutable
-locations: users rename them, collisions need suffixes, and two branches can
-rename the same field differently. Lookup, inverse Relation, View, Formula
-identity, dependency diagnostics, and logical diff need identity that survives
-those operations.
+locations: users rename them, name conflicts must be resolved before commit,
+and two branches can rename the same field differently. Lookup, inverse
+Relation, View, Formula identity, dependency diagnostics, and logical diff need
+identity that survives those operations.
 
-The Field ID supplies that identity but does not obscure storage. In the normal
-case the SQLite column is exactly the display name; metadata connects that
-column to a stable Field ID. Human-authored Formula source intentionally uses
-quoted Field names. A rename keeps the ID and atomically rewrites only parsed
-Formula reference nodes; a merge chooses the final Field name before
-reserializing affected Formula source.
+The Field ID supplies that identity but does not obscure storage. The SQLite
+column is exactly the display name; metadata connects that column to a stable
+Field ID. Human-authored Formula source intentionally uses quoted Field names.
+A rename keeps the ID and atomically rewrites only parsed Formula reference
+nodes; a merge chooses the final Field name before reserializing affected
+Formula source.
 
 ## Appendix C. Reproducible SQLite Verification (Informative)
 

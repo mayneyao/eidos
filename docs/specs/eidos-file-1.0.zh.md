@@ -217,52 +217,34 @@ SQLite identifier。Writer 必须 quote identifier。
 规则精确为：外层加 `"`，名称内每个 `"` 写成 `""`。value 必须 parameter bind，不能
 当 identifier quote。
 
-同一 Table 内 Field name 必须按 SQLite `NOCASE` 唯一；它们构成 Formula 使用的人类
-可读引用 namespace。不同 Tables 可以拥有同名 Fields。
+同一 File 内 Table name 必须按 SQLite `NOCASE` 唯一。同一 Table 内 Field name 也必须
+按该规则唯一；三个 system Field 在这个 namespace 中占用 `_id`、`_created_at`、
+`_updated_at`。不同 Tables 可以拥有同名 Fields。View name 按第 13 节在所属 Table 内
+唯一。
 
 SQLite `NOCASE` 只折叠 ASCII A–Z。1.0 对 identifier collision 使用这一可移植规则；
 非 ASCII 按 UTF-8 code units 比较，不做 NFC/NFKC、locale case conversion 或转写。
 Writer 必须保留用户输入的 Unicode spelling。
 
-创建或明确重命名时，第一选择始终是：
+每个 Table 与 stored Field 的 canonical mapping 必须严格为：
 
 ```text
 physical_name = display name
 ```
 
-中文、空格、标点和 SQL keyword 都可以被 SQLite quote，因此不能因为这些字符而
-修改名称；例如 `"任务名称"`、`"Project Status"` 与 `"Order"` 都是合法物理列名。
+这里要求 byte-for-byte BINARY 相等。Formula、Lookup 与 inverse Relation Field 没有
+stored column，因此 `physical_name = NULL`。中文、空格、标点、SQL keyword 与 `x__`
+前缀都可以被 SQLite quote，不能因此修改名称。
 
-### 6.2 Fallback rule
+### 6.2 名称有效性与冲突
 
-只有以下情况使用 fallback：
+Table、Field 与 View name 必须包含 1–1,024 UTF-8 bytes，只包含 Unicode scalar value，
+且不含 U+0000。Table name 按 ASCII case-insensitive 比较时不得以 `sqlite_` 或
+`eidos__` 开头；`sqlite_` namespace 属于 SQLite，`eidos__` 属于本格式。
 
-- 与已有物理名称发生 SQLite identifier collision；
-- Field 使用 `_id`、`_created_at`、`_updated_at`；
-- Table 以 `sqlite_`、`eidos__`、`x__` 开头；reserved-prefix 判断按 ASCII
-  case-insensitive 进行。
-
-空名称和包含 U+0000 的名称必须在 fallback 前直接拒绝。rename collision 检查不包括
-被重命名对象本身。普通 collision 或 stored Field 与 system column 同名时，追加：
-
-```text
-__ + first 8 lowercase hexadecimal digits of the stable object ID
-```
-
-仅在派生 physical-name suffix 时忽略 UUID hyphen；仍冲突时依次使用 12 位和完整 32
-个 hex digits。使用 N 位 suffix 时，display-name 部分按 Unicode scalar boundary
-截到最多 `1024 - 2 - N` UTF-8 bytes，再追加 `__` 与 N 位 ID；metadata display name
-不截断。这个 suffix 不是另一种 ID 表示。
-
-reserved table prefix 不能靠追加 suffix 修复，因为开头仍然被保留。此时必须使用：
-
-```text
-t__ + first 8 ID hex digits + __ + display name
-```
-
-仍冲突时 ID 部分扩为 12、再到 32 位；N 位形式的 display-name 部分最多为
-`1024 - 5 - N` UTF-8 bytes。`t__` 本身不是保留前缀。完整 32 位 candidate 仍冲突时
-必须拒绝 create/rename，不能发明另一种 persistent mapping。
+Writer 必须在执行 DDL 前拒绝 invalid、reserved 或 `NOCASE` duplicate name，不得截断、
+decorate、追加 suffix、转写或映射为另一 persistent identifier。rename conflict 检查
+不包括被重命名对象本身。
 
 ```text
 display name       physical name
@@ -271,9 +253,7 @@ Tasks              Tasks
 Project Status     Project Status
 Order              Order
 Status             Status
-eidos__Tasks        t__a13f9c20__eidos__Tasks
-sqlite_archive      t__8c1044d2__sqlite_archive
-_id                _id__31a08e77
+x__vendor__Tasks    x__vendor__Tasks
 ```
 
 Field ID 继续用于 Field/Formula identity、Lookup、inverse Relation、View、rename
@@ -282,16 +262,17 @@ Formula source。
 
 ### 6.3 Rename
 
-rename 在同一事务中更新 metadata，并通过 `ALTER TABLE RENAME` 或
-`ALTER TABLE RENAME COLUMN` 修改真实物理对象。仅改变 ASCII case 的 Table rename 必须
-在同一事务中使用未占用的 `t__rename__<full-table-id-hex>` 临时名；冲突时依次追加
-`__1`、`__2`。Field ID 不变；Formula source 是唯一 name-based exception，其 AST
+rename 在同一事务中把 `name` 与 `physical_name` 更新为同一个新名称，并通过
+`ALTER TABLE RENAME` 或 `ALTER TABLE RENAME COLUMN` 修改真实物理对象。仅改变 ASCII
+case 的 Table rename 必须在同一事务中经过一个未占用的 transient internal identifier；
+该 identifier 永远不是 canonical state。Field ID 不变；Formula source 是唯一
+name-based exception，其 AST
 rewrite 属于 Runtime operation。stored-Field rename 所在 Table 存在 Formula 时，EF-only
 Writer 必须委托 ER-Writer 或拒绝，不能做文本替换。Table rename 本身不改变同表 Formula
 Field name，不需要 Formula rewrite。
 Writer 必须设置 `legacy_alter_table=OFF`、启用 foreign keys，并在 structural rename 后
 从 metadata 重建 Relation triggers；任何 parse、ambiguity 或 dependency 失败都整笔
-rollback。旧 collision 消失时不能静默改 physical name，只能在明确 rename/repair 时做。
+rollback。
 
 ## 7. Canonical metadata schema
 
@@ -322,11 +303,14 @@ CREATE TABLE eidos__tables(
       AND substr(id,20,1) IN ('8','9','a','b') AND substr(id,24,1)='-'
       AND lower(id)=id AND length(CAST(replace(id,'-','') AS BLOB))=32
       AND replace(id,'-','') NOT GLOB '*[^0-9a-f]*'),
-  name TEXT NOT NULL
-    CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024 AND instr(name,char(0))=0),
+  name TEXT NOT NULL COLLATE NOCASE UNIQUE
+    CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024
+      AND instr(name,char(0))=0
+      AND lower(substr(name,1,7)) NOT IN ('sqlite_','eidos__')),
   physical_name TEXT NOT NULL COLLATE NOCASE UNIQUE
     CHECK(length(CAST(physical_name AS BLOB)) BETWEEN 1 AND 1024
-      AND instr(physical_name,char(0))=0),
+      AND instr(physical_name,char(0))=0
+      AND physical_name COLLATE BINARY = name COLLATE BINARY),
   label_field_id TEXT NOT NULL COLLATE BINARY,
   position INTEGER NOT NULL DEFAULT 0,
   settings_json TEXT NOT NULL DEFAULT '{}'
@@ -364,7 +348,8 @@ CREATE TABLE eidos__fields(
   physical_name TEXT COLLATE NOCASE
     CHECK(physical_name IS NULL OR
       (length(CAST(physical_name AS BLOB)) BETWEEN 1 AND 1024
-       AND instr(physical_name,char(0))=0)),
+       AND instr(physical_name,char(0))=0
+       AND physical_name COLLATE BINARY = name COLLATE BINARY)),
   type TEXT NOT NULL CHECK(type IN (
     'text','number','integer','checkbox','date','datetime','url','json',
     'select','multi-select','file','relation','formula','lookup'
@@ -1296,13 +1281,14 @@ canonical Eidos data。
 preserve，否则拒绝写。改变 core raw value、query result、mutation postcondition 或其他
 不可忽略 meaning 的 feature 必须 `required=1`。
 
-extension object 使用 `x__<vendor>__*`；vendor 是 letter 开头、仅 lowercase ASCII
-letter/digit/underscore 的非空 token。第三方 feature name 必须是
-`x__<vendor>__<feature>`，feature 使用同一 token grammar；每个 vendor object 至少有一条
-同 vendor-prefix feature row，否则是 structural error。extension 不能创建 `eidos__*`、
-给 core/user table 挂 trigger、shadow user physical name 或重新解释 core raw value。
-extension table/index 只有对 declared extension 才是 canonical。reserved-prefix user
-Table 使用 `t__<id-hex>__<display-name>`。compatible clarification 可以增加
+未注册的 extension object 使用 `x__<vendor>__*`；vendor 是 letter 开头、仅 lowercase
+ASCII letter/digit/underscore 的非空 token。注册在 `eidos__tables` 中的 `x__*` table 是
+user Table，不是 extension object。第三方 feature name 必须是
+`x__<vendor>__<feature>`，feature 使用同一 token grammar；每个未注册 vendor object 至少
+有一条同 vendor-prefix feature row，否则是 structural error。extension 不能创建
+`eidos__*`、给 core/user table 挂 trigger、shadow user physical name 或重新解释 core raw
+value。extension table/index 只有对 declared extension 才是 canonical。compatible
+clarification 可以增加
 example/test，但不能改变已有 valid byte/value interpretation；任何 persisted meaning
 change 都必须升级 File Format version。Runtime/Adapter/UI version 相互独立。
 
@@ -1340,8 +1326,9 @@ shared fixtures/executable SQL 至少覆盖：
 - date/instant malformed-24-octet/year-0000 negatives、BINARY order、SQLite function
   round-trip；
 - JCS object/array、Unicode、duplicate-key、non-finite 与 size negatives；
-- 中文、空格、keyword、quote、NOCASE collision、system collision、1,024-octet truncation、
-  exhausted fallback、case-only Table rename 与全部 reserved fallback/rename；
+- 中文、空格、keyword、quote、physical/display 精确相等、ASCII-NOCASE duplicate rejection、
+  system-column collision rejection、1,024-octet rejection、reserved Table prefix rejection、
+  `x__` user Table 与 case-only Table rename；
 - ordinary STRICT rowid 与 `STRICT, WITHOUT ROWID`；
 - exact subtype/`nullable` matrix 与每个 stored Field 的 boundary raw value，包括
   int64/binary64 extrema、negative-zero normalization、NULL/empty 与 File objects；File
@@ -1413,14 +1400,14 @@ catalog-only 第二编码。
 ## Appendix B. 为什么保留 Field ID（informative）
 
 人类可读 physical name 优化 inspectability，但它仍是可变 location：用户会 rename，
-collision 需要 suffix，两个 branches 也可能把同一 Field 改成不同名称。Lookup、inverse
-Relation、View、Formula identity、dependency diagnostics 与 logical diff 都需要在这些
-操作后仍稳定的 identity。
+name conflict 必须在 commit 前解决，两个 branches 也可能把同一 Field 改成不同名称。
+Lookup、inverse Relation、View、Formula identity、dependency diagnostics 与 logical
+diff 都需要在这些操作后仍稳定的 identity。
 
-Field ID 提供该 identity，却不让 storage 变得不透明。正常情况下 SQLite column 就是
-display name；metadata 把它连接到 stable Field ID。人类编写的 Formula source 刻意使用
-quoted Field name。rename 保持 ID，并只原子改写 parsed Formula reference nodes；merge
-先决定最终 Field name，再重新 serialize 受影响 Formula source。
+Field ID 提供该 identity，却不让 storage 变得不透明。SQLite column 就是 display name；
+metadata 把它连接到 stable Field ID。人类编写的 Formula source 刻意使用 quoted Field
+name。rename 保持 ID，并只原子改写 parsed Formula reference nodes；merge 先决定最终
+Field name，再重新 serialize 受影响 Formula source。
 
 ## Appendix C. 可复现 SQLite 验证（informative）
 

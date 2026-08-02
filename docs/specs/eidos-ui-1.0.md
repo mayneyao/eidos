@@ -1651,9 +1651,9 @@ visible prefix as a complete impact report.
 ### 12.2 Rename and conversion
 
 A rename request from UI contains the stable object ID and the new display
-name only. It MUST NOT contain `physical_name`, quoted SQL, fallback prefixes,
-or generated Formula SQL. Runtime owns reference rewriting and physical-name
-derivation.
+name only. It MUST NOT contain `physical_name`, quoted SQL, alternate physical
+names, or generated Formula SQL. Runtime owns reference rewriting and enforces
+that a stored object's physical name is exactly its display name.
 
 Changing only rating presentation settings is an Integer display-settings
 edit, not a Field conversion. A type conversion uses the Runtime conversion

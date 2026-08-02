@@ -1502,8 +1502,9 @@ impact report。
 ### 12.2 Rename 与 conversion
 
 UI rename request 只包含 stable object ID 和 new display name。不得包含
-`physical_name`、quoted SQL、fallback prefix 或 generated Formula SQL。Reference
-rewrite 和 physical-name derivation 属 Runtime。
+`physical_name`、quoted SQL、alternate physical name 或 generated Formula SQL。
+Reference rewrite 属 Runtime；Runtime 强制 stored object 的 physical name 与 display
+name 精确相等。
 
 只改变 rating presentation setting 是 Integer display-settings edit，不是 Field
 conversion。Type conversion 使用 Runtime conversion matrix/plan classification。UI

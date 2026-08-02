@@ -11,18 +11,6 @@ function utf8Length(value: string): number {
   return new TextEncoder().encode(value).byteLength
 }
 
-function utf8Prefix(value: string, limit: number): string {
-  let result = ""
-  let length = 0
-  for (const scalar of value) {
-    const scalarLength = utf8Length(scalar)
-    if (length + scalarLength > limit) break
-    result += scalar
-    length += scalarLength
-  }
-  return result
-}
-
 export function isEidosFileUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_V7.test(value)
 }
@@ -204,77 +192,20 @@ export function assertEidosFileDisplayName(
   return name
 }
 
-export type EidosFilePhysicalNameKind = "table" | "field"
-
-function isReservedPhysicalName(
-  kind: EidosFilePhysicalNameKind,
-  displayName: string
-): boolean {
-  const folded = sqliteNoCase(displayName)
-  if (kind === "field") {
-    return ["_id", "_created_at", "_updated_at"].includes(folded)
-  }
-  return ["sqlite_", "eidos__", "x__"].some((prefix) =>
-    folded.startsWith(prefix)
-  )
+export function isEidosFileReservedTableName(name: string): boolean {
+  const folded = sqliteNoCase(name)
+  return folded.startsWith("sqlite_") || folded.startsWith("eidos__")
 }
 
-/**
- * Applies the display-first physical naming rule from Eidos File 1.0 §6.
- * `existingNames` is compared using SQLite's ASCII-only NOCASE behavior.
- */
-export function eidosFilePhysicalName(
-  kind: EidosFilePhysicalNameKind,
-  displayName: string,
-  stableId: string,
-  existingNames: Iterable<string> = []
-): string {
-  assertEidosFileDisplayName(
-    displayName,
-    kind === "table" ? "Table name" : "Field name"
-  )
-  const idHex = assertEidosFileUuid(stableId).replace(/-/g, "")
-  const existing = new Set(Array.from(existingNames, sqliteNoCase))
-  const available = (candidate: string) =>
-    !existing.has(sqliteNoCase(candidate))
-  if (kind === "table" && isReservedPhysicalName(kind, displayName)) {
-    for (const length of [8, 12, 32]) {
-      const prefix = `t__${idHex.slice(0, length)}__`
-      const candidate = `${prefix}${utf8Prefix(
-        displayName,
-        1024 - utf8Length(prefix)
-      )}`
-      if (available(candidate)) return candidate
-    }
+export function assertEidosFileTableName(name: string): string {
+  assertEidosFileDisplayName(name, "Table name")
+  if (isEidosFileReservedTableName(name)) {
     throw new EidosFileError(
-      "constraint-conflict",
-      `Unable to allocate a physical ${kind} name for “${displayName}”`
+      "invalid-identifier",
+      "Table name must not begin with sqlite_ or eidos__"
     )
   }
-  if (!isReservedPhysicalName(kind, displayName) && available(displayName)) {
-    return displayName
-  }
-  for (const length of [8, 12, 32]) {
-    const suffix = `__${idHex.slice(0, length)}`
-    const candidate = `${utf8Prefix(
-      displayName,
-      1024 - utf8Length(suffix)
-    )}${suffix}`
-    if (available(candidate)) return candidate
-  }
-  throw new EidosFileError(
-    "constraint-conflict",
-    `Unable to allocate a physical ${kind} name for “${displayName}”`
-  )
-}
-
-/** @deprecated Physical table names are display-first, not `tb_<id>`. */
-export function rawTableNameForId(tableId: string): string {
-  return eidosFilePhysicalName(
-    "table",
-    tableId,
-    assertEidosFileTableId(tableId)
-  )
+  return name
 }
 
 /** @deprecated Field display names are not restricted to bare SQL tokens. */

@@ -3008,11 +3008,11 @@ affinity, `CAST`, or partial in-place update is non-conforming. Runtime:
    foreign-key checks, then reaches the one outer commit.
 
 The first transient name is
-`t__rebuild__<full-table-id-hex>`; a collision appends `__1`, `__2`, and so on
-using the smallest absent decimal suffix. An old-table staging name uses the
-same algorithm with `t__rebuild_old__`. These prefixes are not File-reserved,
-the names exist only inside the write transaction, and Runtime proves absence
-in `sqlite_schema` before use. No transient object exists when File validation
+`eidos__rebuild_table__<full-table-id-hex>`; a collision appends `__1`, `__2`,
+and so on using the smallest absent decimal suffix. An old-table staging name
+uses the same algorithm with `eidos__rebuild_old_table__`. These Writer-owned
+names exist only inside the write transaction, and Runtime proves absence in
+`sqlite_schema` before use. No transient object exists when File validation
 runs or at commit. Any failure rolls back to the exact old table and metadata.
 
 Rename retains stable IDs. Field rename parses and rewrites Formula reference

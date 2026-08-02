@@ -5,7 +5,7 @@ import { dirname, join } from "node:path"
 import { describe, expect, it } from "vitest"
 
 import { expectConnectionPortConformance } from "./connection-port.conformance"
-import { eidosFilePhysicalName, quoteIdentifier } from "./identifiers"
+import { quoteIdentifier } from "./identifiers"
 import { Runtime } from "./runtime-service"
 import { SQLiteWasmConnectionPort } from "./sqlite-wasm"
 import type { RequestContext, RuntimeEnvironment } from "./runtime-contract"
@@ -650,13 +650,8 @@ describe("Eidos Runtime 1.0 WASM conformance paths", () => {
       expect(fileRows.revision).toBe(fileMutation.revision)
       expect(fileRows.rows[0]?.values[0]).toEqual([inlineEntry])
 
-      const tablePhysicalName = eidosFilePhysicalName("table", "Items", tableId)
-      const fieldPhysicalName = eidosFilePhysicalName(
-        "field",
-        "Files",
-        fileFieldId,
-        ["_id", "_created_at", "_updated_at", "Group", "Amount"]
-      )
+      const tablePhysicalName = "Items"
+      const fieldPhysicalName = "Files"
       connection.transaction("write", () =>
         connection.query(
           `UPDATE ${quoteIdentifier(tablePhysicalName)} SET ${quoteIdentifier(fieldPhysicalName)} = ?1 WHERE "_id" = ?2 RETURNING "_id"`,

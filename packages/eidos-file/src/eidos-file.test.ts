@@ -82,6 +82,18 @@ describe("Eidos File 1.0 native Runtime", () => {
         name: "Secondary",
         type: "grid",
       })
+      expect(() =>
+        runtime.createView(table.table.id, {
+          name: "secondary",
+          type: "grid",
+        })
+      ).toThrow(/Duplicate View name/)
+      expect(() =>
+        runtime.updateView(defaultView.id, { name: "secondary" })
+      ).toThrow(/Duplicate View name/)
+      expect(
+        runtime.updateView(secondaryView.id, { name: "secondary" }).name
+      ).toBe("secondary")
       expect(orderedViewFieldNames(secondaryView.id)).toEqual([
         "Name",
         "_id",
@@ -239,7 +251,7 @@ describe("Eidos File 1.0 native Runtime", () => {
     }
   })
 
-  it("uses SQLite ASCII-case identifier semantics and maps reserved prefixes", () => {
+  it("uses exact user names and rejects duplicates in every name namespace", () => {
     const runtime = createEidosFile(filePath(), {
       defaultTable: {
         name: "Tasks",
@@ -247,30 +259,52 @@ describe("Eidos File 1.0 native Runtime", () => {
       },
     })
     try {
-      const lowerCaseVariant = runtime.createTable({
-        name: "tasks",
+      expect(() =>
+        runtime.createTable({
+          name: "tasks",
+          fields: [{ name: "Name", type: "text" }],
+        })
+      ).toThrow(/Duplicate Table name/)
+      const extensionStyle = runtime.createTable({
+        name: "x__vendor__Tasks",
         fields: [{ name: "Name", type: "text" }],
       })
-      expect(lowerCaseVariant.physicalName).toMatch(/^tasks__[0-9a-f]{8}$/)
-      expect(runtime.schema()).toHaveLength(2)
-
+      expect(extensionStyle.physicalName).toBe("x__vendor__Tasks")
       for (const name of [
         "sqlite_Foo",
         "SQLITE_Foo",
         "eidos__Tasks",
         "EIDOS__Tasks",
-        "x__vendor__Tasks",
-        "X__vendor__Tasks",
       ]) {
-        const table = runtime.createTable({
-          name,
-          fields: [{ name: "Name", type: "text" }],
-        })
-        expect(table.physicalName).toMatch(
-          /^t__[0-9a-f]{8}(?:[0-9a-f]{4}|[0-9a-f]{24})?__/
-        )
+        expect(() =>
+          runtime.createTable({
+            name,
+            fields: [{ name: "Name", type: "text" }],
+          })
+        ).toThrow(/must not begin with sqlite_ or eidos__/)
       }
-      expect(runtime.schema()).toHaveLength(8)
+      const tasks = runtime
+        .schema()
+        .find((item) => item.table.name === "Tasks")!
+      expect(() =>
+        runtime.addField(tasks.table.id, { name: "name", type: "text" })
+      ).toThrow(/Duplicate Field name/)
+      const status = runtime.addField(tasks.table.id, {
+        name: "Status",
+        type: "text",
+      })
+      expect(status.physicalName).toBe("Status")
+      expect(
+        runtime.updateField(tasks.table.id, status.id!, { name: "status" })
+          .physicalName
+      ).toBe("status")
+      expect(
+        runtime.connection.get<{ name: string; physical_name: string }>(
+          `SELECT name, physical_name FROM ${EIDOS_FILE_FIELDS_TABLE} WHERE id = ?`,
+          [status.id!]
+        )
+      ).toEqual({ name: "status", physical_name: "status" })
+      expect(runtime.schema()).toHaveLength(2)
     } finally {
       runtime.close()
     }
