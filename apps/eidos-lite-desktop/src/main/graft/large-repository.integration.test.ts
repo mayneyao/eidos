@@ -252,7 +252,9 @@ describe.skipIf(!largeRepositoryMutationRoot)(
         const database = new DatabaseSync(filePath)
         try {
           database
-            .prepare("UPDATE eidos__meta SET title = title || ' · perf'")
+            .prepare(
+              "UPDATE eidos__meta SET title = COALESCE(title, '') || ' · perf'"
+            )
             .run()
         } finally {
           database.close()
@@ -269,7 +271,9 @@ describe.skipIf(!largeRepositoryMutationRoot)(
         const warmDatabase = new DatabaseSync(filePath)
         try {
           warmDatabase
-            .prepare("UPDATE eidos__meta SET title = title || ' · perf-warm'")
+            .prepare(
+              "UPDATE eidos__meta SET title = COALESCE(title, '') || ' · perf-warm'"
+            )
             .run()
         } finally {
           warmDatabase.close()
@@ -346,8 +350,10 @@ describe.skipIf(!largeRepositoryDiffRoot)(
         const database = new DatabaseSync(filePath)
         try {
           database
-            .prepare("UPDATE eidos__meta SET title = title || ' · perf-diff'")
-            .run()
+            .prepare(
+              "UPDATE eidos__views SET layout_json = layout_json || ?, updated_at = ? WHERE id = (SELECT min(id) FROM eidos__views)"
+            )
+            .run(" ".repeat(500), "2026-08-03T15:00:00.000Z")
         } finally {
           database.close()
         }
