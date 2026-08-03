@@ -33,10 +33,12 @@ import type {
   EidosSyncStatus,
   EidosSyncTelemetry,
   SpaceSnapshot,
+  SpaceSyncHistoryStatus,
   SyncAccountUser,
 } from "../shared/contracts"
 import {
   clearSyncStatusSnapshots,
+  readSyncAccountContext,
   readSyncStatusSnapshot,
   writeSyncStatusSnapshot,
 } from "./sync-status-cache"
@@ -83,7 +85,12 @@ interface SyncStorageUsage {
   remainingBytes: number
 }
 
-type SpaceSizeState = "idle" | "loading" | "available" | "unavailable"
+type SpaceSizeState =
+  | "idle"
+  | "loading"
+  | "cached"
+  | "available"
+  | "unavailable"
 
 type SyncStorageState = "normal" | "warning" | "full" | "over"
 
@@ -131,8 +138,10 @@ const OPERATION_STEPS: Record<
 
 export function SyncPanel({
   mode,
+  variant = "dialog",
   cacheKey = mode === "clone" ? "welcome" : "current-space",
   hasUncheckpointedChanges = false,
+  syncHistory,
   onClose,
   onClone,
   onRequestClone,
@@ -140,8 +149,10 @@ export function SyncPanel({
   onSpaceChange,
 }: {
   mode: "enable" | "clone"
+  variant?: "dialog" | "inspector"
   cacheKey?: string
   hasUncheckpointedChanges?: boolean
+  syncHistory?: SpaceSyncHistoryStatus
   onClose(): void
   onClone?(snapshot: SpaceSnapshot): void
   onRequestClone?(): void
@@ -149,15 +160,23 @@ export function SyncPanel({
   onSpaceChange?(snapshot: SpaceSnapshot): void
 }) {
   const [initialSnapshot] = useState(() => readSyncStatusSnapshot(cacheKey))
+  const [initialAccountContext] = useState(() => readSyncAccountContext())
   const [status, setStatus] = useState<EidosSyncStatus>(
-    initialSnapshot?.status ?? initialSyncStatus()
+    initialSnapshot?.status ??
+      syncStatusFromAccountContext(initialAccountContext) ??
+      initialSyncStatus()
   )
   const [repositories, setRepositories] =
-    useState<EidosSyncRepositoryList | null>(null)
+    useState<EidosSyncRepositoryList | null>(
+      initialSnapshot?.repositories ?? null
+    )
   const [selectedRepository, setSelectedRepository] =
     useState<EidosSyncRepository | null>(null)
   const [preflight, setPreflight] = useState<EidosSyncPreflight | null>(null)
-  const [spaceSizeState, setSpaceSizeState] = useState<SpaceSizeState>("idle")
+  const [spaceBytes, setSpaceBytes] = useState(initialSnapshot?.spaceBytes)
+  const [spaceSizeState, setSpaceSizeState] = useState<SpaceSizeState>(
+    initialSnapshot?.spaceBytes === undefined ? "idle" : "cached"
+  )
   const [preflightRefreshKey, setPreflightRefreshKey] = useState(0)
   const [confirmWarnings, setConfirmWarnings] = useState(false)
   const [syncResult, setSyncResult] = useState<EidosSyncRunResult | null>(null)
@@ -184,14 +203,34 @@ export function SyncPanel({
   const [lastSyncedAtMs, setLastSyncedAtMs] = useState(
     initialSnapshot?.lastSyncedAtMs
   )
+  const [repositoriesCheckedAtMs, setRepositoriesCheckedAtMs] = useState(
+    initialSnapshot?.repositoriesCheckedAtMs
+  )
   const [loadError, setLoadError] = useState<LoadError | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false)
 
   const loadResources = async (value: EidosSyncStatus) => {
     if (mode === "clone" && value.canClone) {
-      setBusy("repositories")
-      setRepositories(await window.eidosLite.listSyncRepositories())
+      const cached = readSyncStatusSnapshot(cacheKey)
+      if (!cached?.repositories) setBusy("repositories")
+      try {
+        const nextRepositories = await window.eidosLite.listSyncRepositories()
+        setRepositories(nextRepositories)
+        const repositoriesCheckedAt = Date.now()
+        setRepositoriesCheckedAtMs(repositoriesCheckedAt)
+        const current = readSyncStatusSnapshot(cacheKey)
+        if (current) {
+          writeSyncStatusSnapshot(cacheKey, {
+            ...current,
+            repositories: nextRepositories,
+            repositoriesCheckedAtMs: repositoriesCheckedAt,
+          })
+        }
+      } catch (cause) {
+        if (!cached?.repositories) throw cause
+        console.error("Could not refresh synced Spaces", cause)
+      }
     }
   }
 
@@ -206,7 +245,8 @@ export function SyncPanel({
         if (!active) return
         if (
           value.account.state === "signed-out" &&
-          snapshotBeforeCheck?.status.account.state === "signed-in"
+          (snapshotBeforeCheck?.status.account.state === "signed-in" ||
+            initialAccountContext?.account.state === "signed-in")
         ) {
           setLoadError(
             syncStatusLoadError(
@@ -220,6 +260,7 @@ export function SyncPanel({
         setStatus(value)
         setCheckedAtMs(checkedAt)
         writeSyncStatusSnapshot(cacheKey, {
+          ...(snapshotBeforeCheck ?? {}),
           version: 1,
           status: value,
           checkedAtMs: checkedAt,
@@ -230,7 +271,13 @@ export function SyncPanel({
       } catch (cause) {
         console.error("Could not load Eidos Sync", cause)
         if (!active) return
-        setLoadError(syncStatusLoadError(cause, initialSnapshot !== null))
+        setLoadError(
+          syncStatusLoadError(
+            cause,
+            initialSnapshot !== null ||
+              initialAccountContext?.account.state === "signed-in"
+          )
+        )
         setBusy(null)
       } finally {
         if (active) setChecking(false)
@@ -242,7 +289,7 @@ export function SyncPanel({
     }
     // loadResources intentionally follows the current panel mode.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cacheKey, mode, reloadKey])
+  }, [cacheKey, mode, reloadKey, initialAccountContext, initialSnapshot])
 
   const shouldLoadSpaceSize =
     mode === "enable" && status.account.state === "signed-in"
@@ -254,24 +301,37 @@ export function SyncPanel({
     }
 
     let active = true
-    setPreflight(null)
-    setSpaceSizeState("loading")
+    const cachedSpaceBytes = readSyncStatusSnapshot(cacheKey)?.spaceBytes
+    setSpaceSizeState(cachedSpaceBytes === undefined ? "loading" : "cached")
     if (typeof window.eidosLite.getSyncPreflight !== "function") {
-      setSpaceSizeState("unavailable")
+      setSpaceSizeState(
+        cachedSpaceBytes === undefined ? "unavailable" : "cached"
+      )
       return
     }
     void window.eidosLite.getSyncPreflight().then(
       (value) => {
         if (!active) return
         setPreflight(value)
+        setSpaceBytes(value.totalBytes)
         setConfirmWarnings(false)
         setSpaceSizeState("available")
+        const current = readSyncStatusSnapshot(cacheKey)
+        if (current) {
+          writeSyncStatusSnapshot(cacheKey, {
+            ...current,
+            spaceBytes: value.totalBytes,
+            spaceSizeCheckedAtMs: Date.now(),
+          })
+        }
       },
       (cause) => {
         console.error("Could not calculate this Space size", cause)
         if (!active) return
         setPreflight(null)
-        setSpaceSizeState("unavailable")
+        setSpaceSizeState(
+          cachedSpaceBytes === undefined ? "unavailable" : "cached"
+        )
       }
     )
     return () => {
@@ -363,6 +423,7 @@ export function SyncPanel({
     setCheckedAtMs(checkedAt)
     setLastSyncedAtMs(syncedAt)
     writeSyncStatusSnapshot(cacheKey, {
+      ...(readSyncStatusSnapshot(cacheKey) ?? {}),
       version: 1,
       status: value,
       checkedAtMs: checkedAt,
@@ -571,6 +632,10 @@ export function SyncPanel({
 
   const runFailureAction = async () => {
     if (!syncFailure) return
+    if (syncFailure.action === "work-locally") {
+      onClose()
+      return
+    }
     if (syncFailure.action === "retry-now") {
       if (failureContext === "connect") await enableSync()
       else if (failureContext === "clone" && selectedRepository) {
@@ -628,20 +693,39 @@ export function SyncPanel({
     failure: syncFailure,
     hasUncheckpointedChanges,
     selectedRepository,
+    checking,
+    hasCachedAccount:
+      initialSnapshot !== null ||
+      initialAccountContext?.account.state === "signed-in",
+    syncHistory,
   })
   const accountName =
     status.account.user?.email ?? status.account.user?.name ?? "Signed in"
   const storage = syncStorageUsage(status)
   const storageState = storage ? syncStorageState(storage) : "normal"
   const storageIsLow = storageState !== "normal"
-  const operationsBlocked = checking || loadError !== null
+  const operationsBlocked =
+    loadError !== null || (checking && initialSnapshot === null)
+  const spaceStatusPending =
+    checking && initialSnapshot === null && status.account.state === "signed-in"
+  const syncAction = syncPrimaryAction({
+    status,
+    syncHistory,
+    hasUncheckpointedChanges,
+    syncResult,
+  })
 
   return (
-    <div className="sync-dialog-backdrop" role="presentation">
+    <div
+      className={
+        variant === "dialog" ? "sync-dialog-backdrop" : "sync-inspector-host"
+      }
+      role="presentation"
+    >
       <aside
-        className="sync-dialog"
-        role="dialog"
-        aria-modal="true"
+        className={`sync-dialog${variant === "inspector" ? " sync-dialog-inspector" : ""}`}
+        role={variant === "dialog" ? "dialog" : "complementary"}
+        aria-modal={variant === "dialog" ? "true" : undefined}
         aria-labelledby="sync-dialog-title"
         data-sync-mode={mode}
         data-sync-environment={status.environment}
@@ -715,19 +799,17 @@ export function SyncPanel({
             </span>
             <h2>{overview.title}</h2>
             <p className="sync-status-message">{overview.message}</p>
-            {status.account.state === "signed-in" && checking && !loadError ? (
-              <p className="sync-status-quiet">
-                <LoaderCircle className="spin" /> Checking account and cloud
-                status…
-              </p>
-            ) : null}
             {status.account.state === "signed-in" &&
-            !checking &&
-            lastSyncedAtMs &&
+            (mode === "clone" ? repositoriesCheckedAtMs : lastSyncedAtMs) &&
             !syncFailure &&
             syncProgress?.state !== "active" ? (
               <p className="sync-status-meta">
-                Last synced {formatRelativeTime(lastSyncedAtMs)}
+                {mode === "clone" ? "Cloud list updated" : "Last synced"}{" "}
+                {formatRelativeTime(
+                  mode === "clone"
+                    ? (repositoriesCheckedAtMs ?? 0)
+                    : (lastSyncedAtMs ?? 0)
+                )}
               </p>
             ) : null}
             {syncFailure ? (
@@ -737,43 +819,43 @@ export function SyncPanel({
             ) : null}
           </section>
 
-          {mode === "enable" && status.account.state === "signed-in" ? (
-            <SyncStorageSummary
-              storage={storage}
-              spaceBytes={preflight?.totalBytes}
-              spaceSizeState={spaceSizeState}
-            />
-          ) : null}
-
           {loadError ? (
             <div className="sync-primary-actions">
               <button
                 type="button"
                 className="primary-action"
                 onClick={() =>
-                  loadError.kind === "session-expired"
+                  loadError.kind === "session-expired" ||
+                  status.account.state === "signed-out"
                     ? void signIn()
                     : setReloadKey((current) => current + 1)
                 }
                 disabled={busy !== null}
               >
-                {loadError.kind === "session-expired" ? (
+                {loadError.kind === "session-expired" ||
+                status.account.state === "signed-out" ? (
                   <LogIn />
                 ) : (
                   <RefreshCw />
                 )}
                 {loadError.kind === "session-expired"
                   ? "Sign in again"
-                  : "Try again"}
+                  : status.account.state === "signed-out"
+                    ? "Sign in"
+                    : "Try again"}
               </button>
             </div>
           ) : null}
 
-          {syncFailure ? (
+          {syncFailure && !loadError ? (
             <div className="sync-primary-actions sync-failure-actions">
               <button
                 type="button"
-                className="primary-action"
+                className={
+                  syncFailure.action === "work-locally"
+                    ? "secondary-action"
+                    : "primary-action"
+                }
                 data-sync-failure-primary-action
                 disabled={
                   busy !== null ||
@@ -786,25 +868,13 @@ export function SyncPanel({
               >
                 {busy === "help" ? (
                   <LoaderCircle className="spin" />
-                ) : (
-                  <RefreshCw />
+                ) : syncFailure.action === "work-locally" ? null : (
+                  <FailureActionIcon action={syncFailure.action} />
                 )}
-                {syncFailure.actionLabel}
+                {syncFailure.action === "work-locally"
+                  ? "Close"
+                  : syncFailure.actionLabel}
               </button>
-              {syncFailure.action !== "work-locally" ? (
-                <button
-                  type="button"
-                  className="secondary-action"
-                  data-sync-work-locally
-                  disabled={busy !== null}
-                  onClick={() => {
-                    setSyncFailure(null)
-                    setSyncFailureTelemetry(null)
-                  }}
-                >
-                  Keep working locally
-                </button>
-              ) : null}
             </div>
           ) : null}
 
@@ -827,7 +897,7 @@ export function SyncPanel({
             </>
           ) : null}
 
-          {!syncFailure && !loadError ? (
+          {!syncFailure && !loadError && !spaceStatusPending ? (
             <>
               {status.account.state === "signed-out" ? (
                 <div className="sync-primary-actions">
@@ -939,16 +1009,12 @@ export function SyncPanel({
                           <LoaderCircle className="spin" />
                         ) : status.entitlement.state === "read-only" ? (
                           <CloudDownload />
+                        ) : syncHistory?.state === "ahead" ? (
+                          <CloudUpload />
                         ) : (
                           <RefreshCw />
                         )}
-                        {busy === "sync"
-                          ? "Syncing…"
-                          : status.entitlement.state === "read-only"
-                            ? "Get cloud updates"
-                            : syncResult
-                              ? "Check again"
-                              : "Sync now"}
+                        {busy === "sync" ? "Syncing…" : syncAction}
                       </button>
                       {storageIsLow ? (
                         <button
@@ -978,6 +1044,30 @@ export function SyncPanel({
                 />
               ) : null}
             </>
+          ) : null}
+
+          {mode === "enable" && status.account.state === "signed-in" ? (
+            <details
+              className="sync-storage-disclosure"
+              data-sync-storage-disclosure
+              open={storageIsLow || undefined}
+            >
+              <summary>
+                <HardDrive />
+                <strong>Storage</strong>
+                <span>
+                  {storage
+                    ? `${formatBytes(storage.usedBytes)} of ${formatBytes(storage.quotaBytes)}`
+                    : "Usage unavailable"}
+                </span>
+                <ChevronRight />
+              </summary>
+              <SyncStorageSummary
+                storage={storage}
+                spaceBytes={preflight?.totalBytes ?? spaceBytes}
+                spaceSizeState={spaceSizeState}
+              />
+            </details>
           ) : null}
 
           {syncResult?.state === "conflict" ? (
@@ -1177,6 +1267,15 @@ export function SyncPanel({
   )
 }
 
+function FailureActionIcon({ action }: { action: EidosSyncFailure["action"] }) {
+  if (action === "sign-in") return <LogIn />
+  if (action === "manage-account") return <UserRound />
+  if (action === "clone-hosted") return <FolderDown />
+  if (action === "review-local") return <FileWarning />
+  if (action === "update") return <CloudDownload />
+  return <RefreshCw />
+}
+
 function syncOverview({
   mode,
   loadError,
@@ -1187,6 +1286,9 @@ function syncOverview({
   failure,
   hasUncheckpointedChanges,
   selectedRepository,
+  checking,
+  hasCachedAccount,
+  syncHistory,
 }: {
   mode: "enable" | "clone"
   loadError: LoadError | null
@@ -1197,6 +1299,9 @@ function syncOverview({
   failure: EidosSyncFailure | null
   hasUncheckpointedChanges: boolean
   selectedRepository: EidosSyncRepository | null
+  checking: boolean
+  hasCachedAccount: boolean
+  syncHistory?: SpaceSyncHistoryStatus
 }): SyncOverview {
   if (loadError) {
     const pill: SyncPill =
@@ -1238,10 +1343,22 @@ function syncOverview({
       pill: { label: operationPillLabel(progress), tone: "active" },
       title:
         progress.operation === "clone" && selectedRepository
-          ? `Opening ${selectedRepository.displayName}`
+          ? `Opening ${repositoryDisplayName(selectedRepository)}`
           : OPERATION_LABELS[progress.operation],
       message: friendlyProgressDetail(progress),
       tone: "active",
+    }
+  }
+  if (checking && hasCachedAccount) {
+    return {
+      pill: { label: "Checking", tone: "neutral" },
+      title:
+        mode === "clone" ? "Refreshing your Spaces" : "Checking this Space",
+      message:
+        mode === "clone"
+          ? "Your account is ready while Eidos refreshes the cloud list."
+          : "Showing your saved account while Eidos checks this Space’s cloud status.",
+      tone: "neutral",
     }
   }
   if (mode === "clone") {
@@ -1318,7 +1435,7 @@ function syncOverview({
     }
     return {
       pill: { label: "Up to date", tone: "success" },
-      title: "Everything is up to date",
+      title: "Latest saved version is in the cloud",
       message: "There are no new local or cloud updates.",
       tone: "success",
     }
@@ -1405,10 +1522,10 @@ function syncOverview({
   }
   if (hasUncheckpointedChanges) {
     return {
-      pill: { label: "Changes to upload", tone: "active" },
-      title: "Review your latest changes",
+      pill: { label: "Unsaved changes", tone: "active" },
+      title: "Save a version before uploading",
       message:
-        "Finish saving the current changes in History before uploading them. Your cloud Space has not changed.",
+        "Your local changes are safe, but they aren’t part of a saved version yet.",
       tone: "warning",
     }
   }
@@ -1455,12 +1572,64 @@ function syncOverview({
       tone: "success",
     }
   }
+  if (syncHistory?.state === "ahead") {
+    return {
+      pill: { label: "Ready to upload", tone: "active" },
+      title: `${syncHistory.ahead} saved ${syncHistory.ahead === 1 ? "version" : "versions"} ready to upload`,
+      message: "Cloud is behind this device. Upload when you’re ready.",
+      tone: "active",
+    }
+  }
+  if (syncHistory?.state === "behind") {
+    return {
+      pill: { label: "Cloud updated", tone: "active" },
+      title: `Cloud has ${syncHistory.behind} newer ${syncHistory.behind === 1 ? "version" : "versions"}`,
+      message: "Get the latest saved work from the cloud.",
+      tone: "active",
+    }
+  }
+  if (syncHistory?.state === "diverged") {
+    return {
+      pill: { label: "Needs review", tone: "warning" },
+      title: "Local and cloud versions differ",
+      message: "Review both sides before choosing how to continue.",
+      tone: "warning",
+    }
+  }
+  if (syncHistory?.state === "up_to_date") {
+    return {
+      pill: { label: "Up to date", tone: "success" },
+      title: "Latest saved version is in the cloud",
+      message: "There are no saved versions waiting to upload or download.",
+      tone: "success",
+    }
+  }
   return {
     pill: { label: "Ready", tone: "neutral" },
-    title: "Ready to sync",
-    message: "Check for cloud updates and upload your latest saved changes.",
+    title: "Ready to check Sync",
+    message: "Check for cloud updates and upload any saved local versions.",
     tone: "neutral",
   }
+}
+
+function syncPrimaryAction({
+  status,
+  syncHistory,
+  hasUncheckpointedChanges,
+  syncResult,
+}: {
+  status: EidosSyncStatus
+  syncHistory?: SpaceSyncHistoryStatus
+  hasUncheckpointedChanges: boolean
+  syncResult: EidosSyncRunResult | null
+}): string {
+  if (hasUncheckpointedChanges) return "Review & save"
+  if (status.entitlement.state === "read-only") return "Get cloud updates"
+  if (syncHistory?.state === "ahead") return "Upload changes"
+  if (syncHistory?.state === "behind") return "Get updates"
+  if (syncHistory?.state === "diverged") return "Review differences"
+  if (syncResult) return "Check again"
+  return "Check for updates"
 }
 
 function operationStepPercent(progress: EidosSyncProgress): number {
@@ -1542,7 +1711,9 @@ function SyncStorageSummary({
       className="sync-storage-summary"
       aria-label="Storage"
       data-sync-space-bytes={
-        spaceSizeState === "available" ? spaceBytes : undefined
+        spaceSizeState === "available" || spaceSizeState === "cached"
+          ? spaceBytes
+          : undefined
       }
       data-sync-space-size-state={spaceSizeState}
       data-sync-storage-used={storage?.usedBytes}
@@ -1555,12 +1726,20 @@ function SyncStorageSummary({
           <HardDrive aria-hidden="true" />
           This Space on this device
         </span>
-        <strong aria-live="polite">
+        <strong
+          aria-live="polite"
+          title={
+            spaceSizeState === "cached"
+              ? "Showing the last calculated size while Eidos refreshes it"
+              : undefined
+          }
+        >
           {spaceSizeState === "loading" ? (
             <>
               <LoaderCircle className="spin" /> Calculating…
             </>
-          ) : spaceSizeState === "available" && spaceBytes !== undefined ? (
+          ) : (spaceSizeState === "available" || spaceSizeState === "cached") &&
+            spaceBytes !== undefined ? (
             formatBytes(spaceBytes)
           ) : (
             "Unavailable"
@@ -1761,6 +1940,25 @@ function RepositoryPicker({
   selectedRepository: EidosSyncRepository | null
   onSelect(repository: EidosSyncRepository): void
 }) {
+  const [query, setQuery] = useState("")
+  const visibleRepositories = [...(repositories?.repositories ?? [])]
+    .sort((left, right) => {
+      const namedDifference =
+        Number(isOpaqueRepositoryName(left)) -
+        Number(isOpaqueRepositoryName(right))
+      return (
+        namedDifference ||
+        right.createdAtMs - left.createdAtMs ||
+        left.displayName.localeCompare(right.displayName)
+      )
+    })
+    .filter((repository) => {
+      const needle = query.trim().toLocaleLowerCase()
+      if (!needle) return true
+      return `${repositoryDisplayName(repository)} ${repository.name}`
+        .toLocaleLowerCase()
+        .includes(needle)
+    })
   return (
     <section className="sync-repositories" data-sync-repositories>
       <header>
@@ -1778,14 +1976,26 @@ function RepositoryPicker({
         </p>
       ) : repositories?.repositories.length ? (
         <div>
-          {repositories.repositories.map((repository) => {
+          {repositories.repositories.length > 8 ? (
+            <label className="sync-repository-search">
+              <span className="sr-only">Search synced Spaces</span>
+              <input
+                type="search"
+                placeholder="Search Spaces"
+                value={query}
+                onChange={(event) => setQuery(event.currentTarget.value)}
+              />
+            </label>
+          ) : null}
+          {visibleRepositories.map((repository) => {
             const selected =
               selectedRepository?.remoteUrl === repository.remoteUrl
+            const displayName = repositoryDisplayName(repository)
             return (
               <button
                 type="button"
                 className="sync-repository"
-                data-sync-open-space={repository.displayName}
+                data-sync-open-space={displayName}
                 key={repository.remoteUrl}
                 disabled={busy !== null || disabled}
                 onClick={() => onSelect(repository)}
@@ -1796,16 +2006,22 @@ function RepositoryPicker({
                   <FolderDown />
                 )}
                 <span>
-                  <strong>{repository.displayName}</strong>
+                  <strong>{displayName}</strong>
                   <small>
-                    Cloud copy created{" "}
+                    Created{" "}
                     {new Date(repository.createdAtMs).toLocaleDateString()}
+                    {isOpaqueRepositoryName(repository)
+                      ? ` · ${shortRepositoryId(repository.name)}`
+                      : ""}
                   </small>
                 </span>
                 <ChevronRight />
               </button>
             )
           })}
+          {visibleRepositories.length === 0 ? (
+            <p className="sync-empty">No Spaces match “{query}”.</p>
+          ) : null}
         </div>
       ) : (
         <p className="sync-empty">
@@ -1815,6 +2031,25 @@ function RepositoryPicker({
       )}
     </section>
   )
+}
+
+function isOpaqueRepositoryName(repository: EidosSyncRepository): boolean {
+  const normalizedDisplayName = repository.displayName.trim().toLowerCase()
+  const normalizedName = repository.name.trim().toLowerCase()
+  return (
+    normalizedDisplayName === normalizedName ||
+    /^[a-f0-9]{24,}$/i.test(repository.displayName.trim())
+  )
+}
+
+function repositoryDisplayName(repository: EidosSyncRepository): string {
+  return isOpaqueRepositoryName(repository)
+    ? "Unnamed Space"
+    : repository.displayName
+}
+
+function shortRepositoryId(value: string): string {
+  return value.length > 10 ? `${value.slice(0, 8)}…` : value
 }
 
 function SyncSafetyReview({
@@ -2056,6 +2291,31 @@ function initialSyncStatus(): EidosSyncStatus {
       code: "authentication-required",
       message: "Sign in with your eidos.space account to continue.",
     },
+  }
+}
+
+function syncStatusFromAccountContext(
+  context: ReturnType<typeof readSyncAccountContext>
+): EidosSyncStatus | null {
+  if (!context) return null
+  return {
+    environment: context.environment,
+    account: context.account,
+    device: context.device,
+    entitlement: context.entitlement,
+    remote: { state: "not-connected" },
+    canEnable: false,
+    canClone:
+      context.account.state === "signed-in" &&
+      (context.entitlement.state === "read-only" ||
+        context.entitlement.state === "read-write"),
+    blocker:
+      context.account.state === "signed-out"
+        ? {
+            code: "authentication-required",
+            message: "Sign in with your eidos.space account to continue.",
+          }
+        : null,
   }
 }
 

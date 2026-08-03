@@ -600,6 +600,37 @@ button:focus-visible {
   gap: 0.2rem;
 }
 
+.settings-account-summary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.settings-account-avatar {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  overflow: hidden;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--accent-strong);
+  background: color-mix(in oklab, var(--lite-accent) 9%, var(--canvas));
+}
+
+.settings-account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.settings-account-avatar svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
 .settings-row-copy strong {
   color: var(--ink);
   font-size: 0.75rem;
@@ -648,6 +679,50 @@ button:focus-visible {
   background: var(--control-fill);
   box-shadow: var(--control-shadow);
   font-weight: 600;
+}
+
+.settings-switch {
+  position: relative;
+  width: 2rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--control-border);
+  border-radius: 999px;
+  background: var(--lite-sidebar);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.settings-switch span {
+  position: absolute;
+  top: 0.13rem;
+  left: 0.14rem;
+  width: 0.78rem;
+  height: 0.78rem;
+  border-radius: 999px;
+  background: var(--ink-faint);
+  box-shadow: var(--control-shadow);
+  transition:
+    transform 120ms ease,
+    background 120ms ease;
+}
+
+.settings-switch[aria-checked="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.settings-switch[aria-checked="true"] span {
+  background: white;
+  transform: translateX(0.82rem);
+}
+
+.settings-switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .settings-row-actions {
@@ -1160,6 +1235,35 @@ button:focus-visible {
   --tone-danger: var(--danger);
 }
 
+.sync-inspector-host {
+  min-width: 0;
+  min-height: 0;
+  -webkit-app-region: no-drag;
+}
+
+.sync-dialog-inspector {
+  width: 100%;
+  height: 100%;
+  border-left: 1px solid var(--line);
+  background: var(--canvas);
+  box-shadow: none;
+}
+
+.sync-dialog-inspector > header {
+  min-height: var(--version-header-height);
+  height: var(--version-header-height);
+  padding: 0 0.5rem 0 0.75rem;
+  background: var(--canvas);
+}
+
+.sync-dialog-inspector > header small {
+  display: none;
+}
+
+.sync-dialog-inspector .sync-dialog-body {
+  padding-inline: 0.875rem;
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .sync-dialog {
     --tone-neutral: oklch(0.74 0.09 255);
@@ -1410,6 +1514,62 @@ button:focus-visible {
   border-bottom: 1px solid var(--line);
 }
 
+.sync-storage-disclosure {
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.sync-storage-disclosure > summary {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-size: 0.65rem;
+  list-style: none;
+}
+
+.sync-storage-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.sync-storage-disclosure > summary > svg:first-child {
+  width: 0.72rem;
+  height: 0.72rem;
+  color: var(--ink-faint);
+}
+
+.sync-storage-disclosure > summary > strong {
+  color: var(--ink);
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+.sync-storage-disclosure > summary > span {
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-storage-disclosure > summary > svg:last-child {
+  width: 0.7rem;
+  height: 0.7rem;
+  transition: transform 120ms ease;
+}
+
+.sync-storage-disclosure[open] > summary > svg:last-child {
+  transform: rotate(90deg);
+}
+
+.sync-storage-disclosure .sync-storage-summary {
+  padding-top: 0.25rem;
+  border-bottom: 0;
+}
+
 .sync-storage-space-size {
   display: flex;
   align-items: center;
@@ -1635,13 +1795,13 @@ button:focus-visible {
 }
 
 .sync-primary-actions .primary-action {
-  border-color: color-mix(in oklab, var(--sync-tone) 38%, transparent);
-  color: var(--sync-tone);
-  background: color-mix(in oklab, var(--sync-tone) 11%, var(--surface));
+  border-color: var(--primary-action);
+  color: var(--primary-action-foreground);
+  background: var(--primary-action);
 }
 
 .sync-primary-actions .primary-action:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--sync-tone) 17%, var(--surface));
+  background: var(--primary-action-hover);
 }
 
 .sync-failure-actions {
@@ -1932,6 +2092,23 @@ button:focus-visible {
 .sync-repositories > div {
   display: grid;
   gap: 0.4rem;
+}
+
+.sync-repository-search input {
+  width: 100%;
+  min-height: 1.9rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 0.3rem;
+  outline: none;
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+  font-size: 0.68rem;
+}
+
+.sync-repository-search input:focus {
+  border-color: color-mix(in oklab, var(--lite-accent) 55%, var(--line));
 }
 
 .sync-repository {
@@ -2409,7 +2586,8 @@ button:focus-visible {
   grid-row: 4;
 }
 
-.editor-work-area.with-version-panel {
+.editor-work-area.with-version-panel,
+.editor-work-area.with-utility-panel {
   --eidos-shell-workbar-height: 40px;
   --version-header-height: var(--eidos-shell-workbar-height);
 
@@ -3028,7 +3206,7 @@ button:focus-visible {
 /* Version navigation stays Explorer-dense; selected details own the main area. */
 .version-panel-body.version-panel-changes {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
 }
 
@@ -3069,6 +3247,81 @@ button:focus-visible {
   border-bottom: 1px solid var(--line);
 }
 
+.history-sync-summary {
+  display: grid;
+  grid-template-columns: 0.8rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.45rem;
+  padding: 0.55rem 0.6rem;
+  background: color-mix(in oklab, var(--surface) 72%, var(--canvas));
+}
+
+.history-sync-summary > svg {
+  width: 0.78rem;
+  height: 0.78rem;
+  margin-top: 0.08rem;
+  color: var(--ink-muted);
+}
+
+.history-sync-summary > span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+
+.history-sync-summary strong {
+  color: var(--ink);
+  font-size: 0.625rem;
+  font-weight: 620;
+  line-height: 1.35;
+}
+
+.history-sync-summary small {
+  color: var(--ink-muted);
+  font-size: 0.575rem;
+  line-height: 1.4;
+}
+
+.history-sync-summary[data-history-sync-state="up_to_date"] > svg {
+  color: var(--success);
+}
+
+.history-sync-summary[data-history-sync-state="ahead"] > svg,
+.history-sync-summary[data-history-sync-state="behind"] > svg {
+  color: var(--lite-accent);
+}
+
+.history-sync-summary[data-history-sync-state="diverged"] > svg {
+  color: var(--warning);
+}
+
+.history-cloud-boundary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 0.68rem auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.32rem 0.6rem;
+  border-bottom: 0 !important;
+  color: var(--ink-muted);
+}
+
+.history-cloud-boundary > span {
+  height: 1px;
+  background: var(--line);
+}
+
+.history-cloud-boundary > svg {
+  width: 0.68rem;
+  height: 0.68rem;
+  color: var(--lite-accent);
+}
+
+.history-cloud-boundary small {
+  font-size: 0.55rem;
+  white-space: nowrap;
+}
+
 .commit-list .commit-row {
   display: grid;
   grid-template-columns: 0.75rem 0.8rem minmax(0, 1fr);
@@ -3102,6 +3355,34 @@ button:focus-visible {
   display: flex;
   min-width: 0;
   flex-direction: column;
+}
+
+.commit-title-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.commit-title-line > strong {
+  min-width: 0;
+  flex: 1;
+}
+
+.commit-cloud-marker {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.18rem;
+  color: var(--ink-muted);
+  font-size: 0.55rem;
+  font-weight: 560;
+}
+
+.commit-cloud-marker > svg {
+  width: 0.62rem;
+  height: 0.62rem;
+  color: var(--lite-accent);
 }
 
 .commit-list .commit-row strong {
@@ -3160,79 +3441,6 @@ button:focus-visible {
 
 .version-load-more:disabled {
   opacity: 0.6;
-}
-
-.tracked-ignore-notice {
-  display: grid;
-  grid-template-columns: 0.8rem minmax(0, 1fr);
-  gap: 0.45rem;
-  margin: 0.5rem 0.6rem;
-  padding: 0.55rem;
-  border: 1px solid color-mix(in oklab, var(--warning) 38%, var(--line));
-  border-radius: 0.45rem;
-  background: color-mix(in oklab, var(--warning) 7%, var(--surface));
-}
-
-.tracked-ignore-notice > svg {
-  width: 0.8rem;
-  height: 0.8rem;
-  margin-top: 0.08rem;
-  color: var(--warning);
-}
-
-.tracked-ignore-notice strong,
-.tracked-ignore-notice p {
-  font-size: 0.625rem;
-}
-
-.tracked-ignore-notice p {
-  margin: 0.18rem 0 0;
-  color: var(--ink-muted);
-  line-height: 1.4;
-}
-
-.tracked-ignore-notice .version-load-more {
-  width: auto;
-  margin: 0.45rem 0 0;
-}
-
-.tracked-ignore-actions {
-  display: flex;
-  gap: 0.35rem;
-  margin-top: 0.45rem;
-}
-
-.tracked-ignore-actions button {
-  min-height: 1.7rem;
-  padding: 0.25rem 0.45rem;
-  border: 1px solid var(--line);
-  border-radius: 0.35rem;
-  font-size: 0.6rem;
-}
-
-.version-ignore-review,
-.tracked-ignore-clean {
-  margin: 0.35rem 0.65rem;
-  color: var(--ink-muted);
-  font-size: 0.6rem;
-}
-
-.version-ignore-review {
-  justify-self: start;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  text-decoration: underline;
-  text-decoration-color: color-mix(in oklab, var(--ink-muted) 38%, transparent);
-  text-underline-offset: 0.16rem;
-}
-
-.version-ignore-review:hover:not(:disabled) {
-  color: var(--ink);
-}
-
-.tracked-ignore-clean {
-  line-height: 1.4;
 }
 
 .history-change-list,
@@ -3528,6 +3736,11 @@ button:focus-visible {
   font-size: 0.6875rem;
 }
 
+.version-inspector-file-summary > .version-summary-hint {
+  margin-top: -0.35rem;
+  font-size: 0.625rem;
+}
+
 .version-inspector-file-summary ul {
   margin: 0;
   padding: 0;
@@ -3555,6 +3768,33 @@ button:focus-visible {
   color: var(--ink-muted);
   font-size: 0.625rem;
   font-variant-numeric: tabular-nums;
+}
+
+.version-inspector-loading {
+  display: flex;
+  max-width: 38rem;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 1.15rem 1.25rem;
+  color: var(--ink-muted);
+}
+
+.version-inspector-loading > svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+  margin-top: 0.08rem;
+}
+
+.version-inspector-loading strong {
+  color: var(--ink);
+  font-size: 0.75rem;
+}
+
+.version-inspector-loading p {
+  margin: 0.25rem 0 0;
+  font-size: 0.6875rem;
+  line-height: 1.5;
 }
 
 .version-inspector-empty {

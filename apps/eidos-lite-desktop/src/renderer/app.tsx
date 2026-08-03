@@ -1502,7 +1502,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               type="button"
               className="icon-button"
               onClick={() =>
-                void window.eidosLite.refreshSpace().then(setSpace)
+                void window.eidosLite.refreshExplorer().then(setSpace)
               }
               aria-label="Refresh Space Explorer"
               title="Refresh Space Explorer"
@@ -1721,7 +1721,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         ) : null}
 
         <div
-          className={`editor-work-area${versionPanelOpen ? " with-version-panel" : ""}`}
+          className={`editor-work-area${versionPanelOpen || syncPanelMode ? " with-utility-panel" : ""}`}
         >
           <div className="editor-work-content">
             {versionPanelOpen && versionInspection ? (
@@ -1842,27 +1842,29 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               />
             </Suspense>
           ) : null}
+          {syncPanelMode ? (
+            <Suspense fallback={null}>
+              <SyncPanel
+                mode={syncPanelMode}
+                variant="inspector"
+                cacheKey={space.id}
+                hasUncheckpointedChanges={
+                  space.graft.initialized && space.graft.clean === false
+                }
+                syncHistory={space.graft.sync}
+                onClose={() => setSyncPanelMode(null)}
+                onRequestClone={() => setSyncPanelMode("clone")}
+                onReviewLocal={() => {
+                  setSyncPanelMode(null)
+                  setVersionPanelOpen(true)
+                  setVersionInspection(null)
+                }}
+                onSpaceChange={acceptSpaceSnapshot}
+              />
+            </Suspense>
+          ) : null}
         </div>
       </main>
-      {syncPanelMode ? (
-        <Suspense fallback={null}>
-          <SyncPanel
-            mode={syncPanelMode}
-            cacheKey={space.id}
-            hasUncheckpointedChanges={
-              space.graft.initialized && space.graft.clean === false
-            }
-            onClose={() => setSyncPanelMode(null)}
-            onRequestClone={() => setSyncPanelMode("clone")}
-            onReviewLocal={() => {
-              setSyncPanelMode(null)
-              setVersionPanelOpen(true)
-              setVersionInspection(null)
-            }}
-            onSpaceChange={acceptSpaceSnapshot}
-          />
-        </Suspense>
-      ) : null}
       {contextMenu ? (
         <div
           className="space-context-menu"

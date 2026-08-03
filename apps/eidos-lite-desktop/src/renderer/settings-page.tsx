@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from "react"
 import {
+  Cloud,
   Copy,
   ExternalLink,
   FolderOpen,
+  LogIn,
+  LogOut,
   MonitorCog,
   RotateCcw,
 } from "lucide-react"
@@ -14,6 +17,11 @@ import type {
   EidosLiteSettingsDestination,
 } from "../shared/contracts"
 import { DEFAULT_RENDERER_PREFERENCES } from "./app-appearance"
+import {
+  clearSyncStatusSnapshots,
+  readSyncAccountContext,
+  writeSyncStatusSnapshot,
+} from "./sync-status-cache"
 
 const APPEARANCE_OPTIONS: Array<{
   value: EidosLiteAppearance
@@ -48,6 +56,10 @@ export function SettingsPage() {
     DEFAULT_RENDERER_PREFERENCES
   )
   const [busy, setBusy] = useState(false)
+  const [accountBusy, setAccountBusy] = useState<"sign-in" | "sign-out" | null>(
+    null
+  )
+  const [syncAccount, setSyncAccount] = useState(() => readSyncAccountContext())
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -120,6 +132,60 @@ export function SettingsPage() {
     }
   }, [])
 
+  const signIn = useCallback(async () => {
+    setAccountBusy("sign-in")
+    setError(null)
+    try {
+      const status = await window.eidosLite.beginSyncSignIn()
+      const checkedAtMs = Date.now()
+      writeSyncStatusSnapshot("settings", {
+        version: 1,
+        status,
+        checkedAtMs,
+      })
+      setSyncAccount(readSyncAccountContext())
+    } catch (cause) {
+      console.error("Could not sign in to Sync from Settings", cause)
+      setError(
+        "Could not update your Sync account. Your local Spaces are unaffected."
+      )
+    } finally {
+      setAccountBusy(null)
+    }
+  }, [])
+
+  const signOut = useCallback(async () => {
+    setAccountBusy("sign-out")
+    setError(null)
+    try {
+      const status = await window.eidosLite.signOutSync()
+      clearSyncStatusSnapshots()
+      writeSyncStatusSnapshot("settings", {
+        version: 1,
+        status,
+        checkedAtMs: Date.now(),
+      })
+      setSyncAccount(readSyncAccountContext())
+    } catch (cause) {
+      console.error("Could not sign out of Sync from Settings", cause)
+      setError(
+        "Could not update your Sync account. Your local Spaces are unaffected."
+      )
+    } finally {
+      setAccountBusy(null)
+    }
+  }, [])
+
+  const manageSyncAccount = useCallback(async () => {
+    setError(null)
+    try {
+      await window.eidosLite.openSyncHelp("account")
+    } catch (cause) {
+      console.error("Could not open the Sync account page", cause)
+      setError("Could not open your Sync account page. Try again later.")
+    }
+  }, [])
+
   return (
     <main
       className="settings-shell"
@@ -166,9 +232,103 @@ export function SettingsPage() {
             </div>
           </section>
 
+          <section aria-labelledby="settings-account-sync">
+            <h2 id="settings-account-sync">Account &amp; Sync</h2>
+            <div className="settings-group">
+              <div className="settings-row">
+                <div className="settings-account-summary">
+                  <span className="settings-account-avatar" aria-hidden="true">
+                    {syncAccount?.account.user?.avatarDataUrl ||
+                    syncAccount?.account.user?.avatarUrl ? (
+                      <img
+                        src={
+                          syncAccount.account.user.avatarDataUrl ??
+                          syncAccount.account.user.avatarUrl
+                        }
+                        alt=""
+                      />
+                    ) : (
+                      <Cloud />
+                    )}
+                  </span>
+                  <span className="settings-row-copy">
+                    <strong>
+                      {syncAccount?.account.state === "signed-in"
+                        ? (syncAccount.account.user?.name ?? "Eidos Sync")
+                        : "Eidos Sync"}
+                    </strong>
+                    <small>
+                      {syncAccount?.account.state === "signed-in"
+                        ? (syncAccount.account.user?.email ?? "Signed in")
+                        : "Not signed in"}
+                    </small>
+                  </span>
+                </div>
+                {syncAccount?.account.state === "signed-in" ? (
+                  <div className="settings-row-actions">
+                    <button
+                      type="button"
+                      className="settings-button settings-button-quiet"
+                      onClick={() => void manageSyncAccount()}
+                    >
+                      Manage account <ExternalLink />
+                    </button>
+                    <button
+                      type="button"
+                      className="settings-button"
+                      disabled={accountBusy !== null}
+                      onClick={() => void signOut()}
+                    >
+                      <LogOut />
+                      {accountBusy === "sign-out" ? "Signing out…" : "Sign out"}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="settings-button"
+                    disabled={accountBusy !== null}
+                    onClick={() => void signIn()}
+                  >
+                    <LogIn />
+                    {accountBusy === "sign-in" ? "Signing in…" : "Sign in"}
+                  </button>
+                )}
+              </div>
+            </div>
+            <p className="settings-section-note">
+              Your email and avatar are cached for a stable interface. Sign-in
+              credentials remain in secure system storage.
+            </p>
+          </section>
+
           <section aria-labelledby="settings-spaces">
             <h2 id="settings-spaces">Spaces</h2>
             <div className="settings-group">
+              <div className="settings-row">
+                <div className="settings-row-copy">
+                  <strong>Automatic versions</strong>
+                  <small>
+                    Save a new version after local activity settles. Off by
+                    default so background versioning never interrupts long local
+                    operations.
+                  </small>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  className="settings-switch"
+                  aria-label="Automatic versions"
+                  aria-checked={preferences.automaticCheckpoints}
+                  onClick={() =>
+                    void updatePreferences({
+                      automaticCheckpoints: !preferences.automaticCheckpoints,
+                    })
+                  }
+                >
+                  <span />
+                </button>
+              </div>
               <div className="settings-row settings-row-stacked">
                 <div className="settings-row-copy">
                   <strong>Default location for new Spaces</strong>
@@ -203,7 +363,8 @@ export function SettingsPage() {
               </div>
             </div>
             <p className="settings-section-note">
-              Existing Spaces and their files are never moved.
+              Manual saved versions remain available. Existing Spaces and their
+              files are never moved.
             </p>
           </section>
 

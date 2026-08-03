@@ -8,18 +8,25 @@ import { describe, expect, it } from "vitest"
 import type {
   EidosLiteApi,
   SpaceSnapshot,
+  SpaceVersionCommit,
   SpaceVersionDiff,
   SpaceVersionTableDiff,
 } from "../shared/contracts"
 import {
   buildVersionChangeTreeModel,
   type VersionInspection,
+  versionChangeTreeStructureKey,
 } from "./version-change-tree"
 import {
+  clearVersionPathDiffCacheForTests,
+  historySyncPresentation,
+  isVersionReadAbortError,
+  loadVersionPathDiff,
   TableDiff,
   VersionDiffPreview,
   VersionPanel,
   versionRowDiffPage,
+  withCommitTableSummaries,
 } from "./version-panel"
 
 const customersTable: SpaceVersionTableDiff = {
@@ -83,6 +90,32 @@ const unversionedSpace: SpaceSnapshot = {
 }
 
 describe("VersionPanel row diff paging", () => {
+  it("describes the cached cloud relationship in user-facing terms", () => {
+    expect(
+      historySyncPresentation({
+        state: "ahead",
+        remoteHead: "cloud-head",
+        ahead: 2,
+        behind: 0,
+        checkedAtMs: new Date("2026-08-01T04:00:00.000Z").getTime(),
+      })
+    ).toMatchObject({
+      tone: "ahead",
+      title: "2 local saved versions waiting to upload",
+    })
+    expect(
+      historySyncPresentation({
+        state: "behind",
+        ahead: 0,
+        behind: 1,
+      })
+    ).toMatchObject({
+      tone: "behind",
+      title: "Cloud has 1 newer saved version",
+      detail: expect.stringContaining("Open Sync"),
+    })
+  })
+
   it("keeps version setup inside the panel instead of the titlebar", () => {
     const markup = renderToStaticMarkup(
       createElement(VersionPanel, {
@@ -97,9 +130,343 @@ describe("VersionPanel row diff paging", () => {
     )
 
     expect(markup).toContain('data-version-initialized="false"')
-    expect(markup).toContain("Start local version history")
+    expect(markup).toContain("Start local versions")
     expect(markup).toContain("data-enable-versioning")
     expect(markup).not.toContain('role="tab"')
+  })
+
+  it("keeps cached Changes visible during a background status refresh", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionChanges: vi.fn().mockResolvedValue(versionDiff),
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: {
+            ...unversionedSpace,
+            graft: {
+              ...unversionedSpace.graft,
+              initialized: true,
+              checking: true,
+              clean: false,
+              currentHead: "a".repeat(64),
+              changeToken: "cached-token",
+            },
+          },
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange: () => undefined,
+          onFilesMaterialized: () => undefined,
+          onRefresh: () => undefined,
+          onInspectionChange: () => undefined,
+        })
+      )
+      await Promise.resolve()
+    })
+
+    expect(host.textContent).not.toContain("Checking local history…")
+    expect(
+      host.querySelector('[aria-label="Refreshing local changes"]')
+    ).not.toBeNull()
+    expect(host.textContent).toContain("Changes")
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("shows initialized history while the first status refresh is pending", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const getVersionHistory = vi.fn().mockResolvedValue({
+      currentHead: null,
+      currentBranch: null,
+      commits: [],
+      hasMore: false,
+    })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionHistory,
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: {
+            ...unversionedSpace,
+            graft: {
+              ...unversionedSpace.graft,
+              initialized: true,
+              checking: true,
+            },
+          },
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange: () => undefined,
+          onFilesMaterialized: () => undefined,
+          onRefresh: () => undefined,
+          onInspectionChange: () => undefined,
+        })
+      )
+      await Promise.resolve()
+    })
+
+    expect(host.textContent).not.toContain("Checking local history…")
+    expect(host.querySelectorAll('[role="tab"]')).toHaveLength(2)
+    expect(getVersionHistory).toHaveBeenCalledOnce()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("marks the latest cloud checkpoint without another network read", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const localHead = "a".repeat(64)
+    const remoteHead = "b".repeat(64)
+    const getVersionHistory = vi.fn().mockResolvedValue({
+      currentHead: localHead,
+      currentBranch: "main",
+      commits: [
+        {
+          id: localHead,
+          parent: remoteHead,
+          message: "Local edit",
+          timestampMs: new Date("2026-08-01T05:00:00.000Z").getTime(),
+          files: 1,
+          changes: [],
+          tables: [],
+          changedTables: 0,
+        },
+        {
+          id: remoteHead,
+          parent: null,
+          message: "Cloud baseline",
+          timestampMs: new Date("2026-08-01T04:00:00.000Z").getTime(),
+          files: 1,
+          changes: [],
+          tables: [],
+          changedTables: 0,
+        },
+      ] satisfies SpaceVersionCommit[],
+      hasMore: false,
+    })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionHistory,
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: {
+            ...unversionedSpace,
+            graft: {
+              ...unversionedSpace.graft,
+              initialized: true,
+              clean: true,
+              currentHead: localHead,
+              sync: {
+                state: "ahead",
+                remoteHead,
+                ahead: 1,
+                behind: 0,
+                checkedAtMs: new Date("2026-08-01T04:30:00.000Z").getTime(),
+              },
+            },
+          },
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange: () => undefined,
+          onFilesMaterialized: () => undefined,
+          onRefresh: () => undefined,
+          onInspectionChange: () => undefined,
+        })
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(getVersionHistory).toHaveBeenCalledOnce()
+    expect(
+      host.querySelector('[data-history-sync-state="ahead"]')?.textContent
+    ).toContain("1 local saved version waiting to upload")
+    expect(host.querySelector("[data-history-cloud-boundary]")).not.toBeNull()
+    expect(
+      host.querySelector('[data-cloud-checkpoint="true"]')?.textContent
+    ).toContain("Cloud")
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("does not restart an initial History read when status resolves to the same head", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const head = "a".repeat(64)
+    let finishHistory:
+      | ((history: {
+          currentHead: string | null
+          currentBranch: string | null
+          commits: SpaceVersionCommit[]
+          hasMore: boolean
+        }) => void)
+      | null = null
+    const getVersionHistory = vi.fn(
+      () =>
+        new Promise<{
+          currentHead: string | null
+          currentBranch: string | null
+          commits: SpaceVersionCommit[]
+          hasMore: boolean
+        }>((resolve) => {
+          finishHistory = resolve
+        })
+    )
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionHistory,
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+    const props = {
+      refreshKey: 0,
+      onClose: () => undefined,
+      onSpaceChange: () => undefined,
+      onFilesMaterialized: () => undefined,
+      onRefresh: () => undefined,
+      onInspectionChange: () => undefined,
+    }
+    const pendingSpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        checking: true,
+      },
+    }
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, { ...props, space: pendingSpace })
+      )
+      await Promise.resolve()
+    })
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          ...props,
+          space: {
+            ...pendingSpace,
+            graft: {
+              ...pendingSpace.graft,
+              checking: false,
+              clean: true,
+              currentHead: head,
+            },
+          },
+        })
+      )
+      await Promise.resolve()
+    })
+
+    expect(getVersionHistory).toHaveBeenCalledOnce()
+    await act(async () => {
+      finishHistory?.({
+        currentHead: head,
+        currentBranch: "main",
+        commits: [],
+        hasMore: false,
+      })
+      await Promise.resolve()
+    })
+    expect(getVersionHistory).toHaveBeenCalledOnce()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("refreshes working changes when the Space change token advances", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const getVersionChanges = vi.fn().mockResolvedValue(versionDiff)
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionChanges,
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+    const panelProps = {
+      refreshKey: 0,
+      onClose: () => undefined,
+      onSpaceChange: () => undefined,
+      onFilesMaterialized: () => undefined,
+      onRefresh: () => undefined,
+      onInspectionChange: () => undefined,
+    }
+    const dirtySpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        clean: false,
+        currentHead: "a".repeat(64),
+        changeToken: "working-1",
+      },
+    }
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          ...panelProps,
+          space: dirtySpace,
+        })
+      )
+      await Promise.resolve()
+    })
+    expect(getVersionChanges).toHaveBeenCalledOnce()
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          ...panelProps,
+          space: {
+            ...dirtySpace,
+            graft: { ...dirtySpace.graft, changeToken: "working-2" },
+          },
+        })
+      )
+      await Promise.resolve()
+    })
+
+    expect(getVersionChanges).toHaveBeenCalledTimes(2)
+
+    await act(async () => root.unmount())
+    host.remove()
   })
 
   it("keeps a 10k-row diff bounded while retaining every page", () => {
@@ -147,6 +514,93 @@ describe("VersionPanel row diff paging", () => {
     expect(markup).toContain('aria-label="Next row changes"')
   })
 
+  it("loads the next bounded row page from Graft on demand", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const summary = {
+      name: "Customers",
+      inserts: 150,
+      deletes: 0,
+      updates: 0,
+    }
+    const firstTable: SpaceVersionTableDiff = {
+      name: "Customers",
+      columns: ["name"],
+      primaryKeyColumns: [],
+      changes: Array.from({ length: 100 }, (_, index) => ({
+        op: "insert",
+        key: { rowid: index + 1 },
+        values: [`Customer ${index + 1}`],
+      })),
+      summary,
+      rowChangesLoaded: true,
+      hasMore: true,
+      nextCursor: "cursor-100",
+    }
+    const nextTable: SpaceVersionTableDiff = {
+      ...firstTable,
+      changes: Array.from({ length: 50 }, (_, index) => ({
+        op: "insert",
+        key: { rowid: index + 101 },
+        values: [`Customer ${index + 101}`],
+      })),
+      hasMore: false,
+      nextCursor: null,
+    }
+    const getVersionPathDiff = vi.fn().mockResolvedValue({
+      ...versionDiff,
+      files: [{ ...versionDiff.files[0]!, tables: [nextTable] }],
+    })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: { getVersionPathDiff } as unknown as EidosLiteApi,
+    })
+    const inspection: VersionInspection = {
+      type: "table",
+      key: "data/crm.eidos/Customers",
+      mode: "changes",
+      diff: versionDiff,
+      change: versionDiff.paths[1]!,
+      file: { ...versionDiff.files[0]!, tables: [firstTable] },
+      table: firstTable,
+      commit: null,
+    }
+
+    await act(async () => {
+      root.render(
+        createElement(VersionDiffPreview, {
+          inspection,
+          onClose: () => undefined,
+        })
+      )
+    })
+    expect(host.textContent).toContain("1–100 of 150")
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Next row changes"]'
+        )
+        ?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(getVersionPathDiff).toHaveBeenCalledWith(
+      "data/crm.eidos",
+      null,
+      null,
+      "Customers",
+      "cursor-100"
+    )
+    expect(host.textContent).toContain("101–150 of 150")
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
   it("models Eidos Files as expandable tree nodes with changed tables", () => {
     const model = buildVersionChangeTreeModel(versionDiff)
 
@@ -155,7 +609,11 @@ describe("VersionPanel row diff paging", () => {
       "data/crm.eidos/",
       "data/crm.eidos/Customers",
     ])
-    expect(model.initialExpandedPaths).toEqual(["notes/", "data/"])
+    expect(model.initialExpandedPaths).toEqual([
+      "notes/",
+      "data/",
+      "data/crm.eidos/",
+    ])
     expect(model.gitStatus).toEqual([
       { path: "notes/readme.md", status: "added" },
       { path: "data/crm.eidos/", status: "modified" },
@@ -165,6 +623,613 @@ describe("VersionPanel row diff paging", () => {
     expect(
       model.targetByTreePath.get("data/crm.eidos/Customers")?.table?.name
     ).toBe("Customers")
+  })
+
+  it("keeps the exact table summary after the first bounded row page loads", () => {
+    const table: SpaceVersionTableDiff = {
+      name: "1m-bandcamp-sales",
+      columns: ["item_type"],
+      primaryKeyColumns: [],
+      changes: Array.from({ length: 100 }, (_, index) => ({
+        op: "insert",
+        key: { rowid: index + 1 },
+        values: ["album"],
+      })),
+      summary: {
+        name: "1m-bandcamp-sales",
+        inserts: 1_000_000,
+        deletes: 0,
+        updates: 0,
+      },
+      rowChangesLoaded: true,
+      hasMore: true,
+      nextCursor: "row-page-1",
+    }
+    const diff: SpaceVersionDiff = {
+      ...versionDiff,
+      paths: [versionDiff.paths[1]!],
+      files: [{ ...versionDiff.files[0]!, tables: [table] }],
+    }
+    const model = buildVersionChangeTreeModel(diff)
+    const inspection: VersionInspection = {
+      type: "table",
+      key: "data/crm.eidos/1m-bandcamp-sales",
+      mode: "changes",
+      diff,
+      change: diff.paths[0]!,
+      file: diff.files[0]!,
+      table,
+      commit: null,
+    }
+
+    expect(model.decorationByPath.get("data/crm.eidos/1m-bandcamp-sales")).toBe(
+      "+1000000"
+    )
+
+    const markup = renderToStaticMarkup(
+      createElement(VersionDiffPreview, {
+        inspection,
+        onClose: () => undefined,
+      })
+    )
+    expect(markup).toContain("+1000000 rows")
+    expect(markup).toContain("1000000 total changes")
+    expect(markup).toContain("1–100 of 1,000,000")
+  })
+
+  it("keeps the tree structure stable when table details finish loading", () => {
+    const summaryDiff: SpaceVersionDiff = {
+      ...versionDiff,
+      files: [
+        {
+          ...versionDiff.files[0]!,
+          tables: [
+            {
+              ...customersTable,
+              changes: [],
+              summary: {
+                name: customersTable.name,
+                inserts: 1,
+                deletes: 0,
+                updates: 1,
+              },
+              rowChangesLoaded: false,
+            },
+          ],
+        },
+      ],
+    }
+
+    expect(
+      versionChangeTreeStructureKey(
+        buildVersionChangeTreeModel(summaryDiff).paths
+      )
+    ).toBe(
+      versionChangeTreeStructureKey(
+        buildVersionChangeTreeModel(versionDiff).paths
+      )
+    )
+  })
+
+  it("reuses a loaded working-tree table diff until its change key changes", async () => {
+    clearVersionPathDiffCacheForTests()
+    const loader = vi.fn().mockResolvedValue(versionDiff)
+
+    await loadVersionPathDiff("changes:space-1:token-1:meta", loader)
+    await loadVersionPathDiff("changes:space-1:token-1:meta", loader)
+    await loadVersionPathDiff("changes:space-1:token-2:meta", loader)
+
+    expect(loader).toHaveBeenCalledTimes(2)
+  })
+
+  it("does not scan an Eidos File before the user asks for its details", async () => {
+    clearVersionPathDiffCacheForTests()
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root: Root = createRoot(host)
+    const pathOnly: SpaceVersionDiff = { ...versionDiff, files: [] }
+    const getVersionPathDiff = vi.fn().mockResolvedValue(versionDiff)
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionChanges: vi.fn().mockResolvedValue(pathOnly),
+        getVersionPathDiff,
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: {
+            ...unversionedSpace,
+            graft: {
+              ...unversionedSpace.graft,
+              initialized: true,
+              clean: false,
+              currentHead: "a".repeat(64),
+              changeToken: "warm-working-summary",
+            },
+          },
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange: () => undefined,
+          onFilesMaterialized: () => undefined,
+          onRefresh: () => undefined,
+          onInspectionChange: () => undefined,
+        })
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(getVersionPathDiff).not.toHaveBeenCalled()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("clears version inspection before publishing a saved working snapshot", async () => {
+    clearVersionPathDiffCacheForTests()
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root: Root = createRoot(host)
+    const dirtySpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        clean: false,
+        currentHead: "a".repeat(64),
+        changeToken: "dirty-table",
+      },
+    }
+    const savedSpace: SpaceSnapshot = {
+      ...dirtySpace,
+      graft: {
+        ...dirtySpace.graft,
+        clean: true,
+        changedPaths: 0,
+        currentHead: "b".repeat(64),
+        changeToken: "saved-table",
+      },
+    }
+    const emptyChanges: SpaceVersionDiff = {
+      currentHead: savedSpace.graft.currentHead ?? null,
+      currentBranch: null,
+      from: savedSpace.graft.currentHead ?? null,
+      to: null,
+      paths: [],
+      files: [],
+      totalPaths: 0,
+      hasMore: false,
+      nextCursor: null,
+    }
+    const getVersionPathDiff = vi.fn().mockResolvedValue(versionDiff)
+    let resolveCheckpoint: ((snapshot: SpaceSnapshot) => void) | undefined
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionChanges: vi
+          .fn()
+          .mockResolvedValueOnce(versionDiff)
+          .mockResolvedValue(emptyChanges),
+        getVersionPathDiff,
+        getVersionHistory: vi.fn().mockResolvedValue({
+          currentHead: savedSpace.graft.currentHead ?? null,
+          currentBranch: "main",
+          commits: [],
+          hasMore: false,
+          nextCursor: null,
+        }),
+        createCheckpoint: vi.fn(
+          () =>
+            new Promise<SpaceSnapshot>((resolve) => {
+              resolveCheckpoint = resolve
+            })
+        ),
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+
+    let currentSpace = dirtySpace
+    let currentRefreshKey = 0
+    let latestInspection: VersionInspection | null = null
+    const onInspectionChange = vi.fn((inspection: VersionInspection | null) => {
+      latestInspection = inspection
+    })
+    const renderPanel = () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: currentSpace,
+          refreshKey: currentRefreshKey,
+          onClose: () => undefined,
+          onSpaceChange: (snapshot) => {
+            expect(onInspectionChange).toHaveBeenCalledWith(null)
+            currentSpace = snapshot
+            renderPanel()
+          },
+          onFilesMaterialized: () => undefined,
+          onRefresh: () => {
+            currentRefreshKey += 1
+            renderPanel()
+          },
+          onInspectionChange,
+        })
+      )
+    }
+
+    await act(async () => {
+      renderPanel()
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    const tree = host.querySelector<HTMLElement>("[data-version-change-tree]")
+    expect(tree).not.toBeNull()
+    const syntheticTableRow = document.createElement("button")
+    syntheticTableRow.dataset.itemPath = "data/crm.eidos/Customers"
+    syntheticTableRow.textContent = "Customers"
+    tree?.append(syntheticTableRow)
+    await act(async () => {
+      syntheticTableRow.dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      )
+    })
+    expect(latestInspection).toMatchObject({
+      type: "table",
+      table: { name: "Customers" },
+    })
+    onInspectionChange.mockClear()
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(".panel-primary-action")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      currentSpace = savedSpace
+      renderPanel()
+      await Promise.resolve()
+    })
+
+    expect(getVersionPathDiff).not.toHaveBeenCalled()
+    expect(latestInspection).toMatchObject({ type: "table" })
+
+    await act(async () => {
+      resolveCheckpoint?.(savedSpace)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onInspectionChange).toHaveBeenCalledWith(null)
+    expect(latestInspection).toBeNull()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("recognizes Electron-wrapped Graft cancellation as an expected abort", () => {
+    const wrapped = new Error(
+      "Error invoking remote method 'eidos-lite:version-path-diff': AbortError: The Graft operation was cancelled"
+    )
+
+    expect(isVersionReadAbortError(wrapped)).toBe(true)
+    expect(
+      isVersionReadAbortError(new DOMException("Cancelled", "AbortError"))
+    ).toBe(true)
+    expect(isVersionReadAbortError(new Error("Unable to read changes"))).toBe(
+      false
+    )
+  })
+
+  it("builds an instant table tree from a single Eidos File commit summary", () => {
+    const commit: SpaceVersionCommit = {
+      id: "a".repeat(64),
+      parent: "b".repeat(64),
+      message: "Update customers",
+      timestampMs: 1_700_000_000_000,
+      files: 1,
+      changes: [],
+      tables: [{ name: "Customers", inserts: 1, deletes: 0, updates: 1 }],
+      changedTables: 1,
+    }
+    const summary = withCommitTableSummaries(
+      { ...versionDiff, paths: [versionDiff.paths[1]!], files: [] },
+      commit
+    )
+
+    expect(buildVersionChangeTreeModel(summary)).toMatchObject({
+      paths: ["data/crm.eidos/", "data/crm.eidos/Customers"],
+    })
+    expect(summary.files[0]).toMatchObject({
+      path: "data/crm.eidos",
+      detailsLoaded: false,
+      tables: [
+        {
+          name: "Customers",
+          rowChangesLoaded: false,
+          summary: { inserts: 1, deletes: 0, updates: 1 },
+        },
+      ],
+    })
+  })
+
+  it("loads historical rows only after selecting a table", async () => {
+    clearVersionPathDiffCacheForTests()
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root: Root = createRoot(host)
+    const commit: SpaceVersionCommit = {
+      id: "a".repeat(64),
+      parent: "b".repeat(64),
+      message: "Update customers",
+      timestampMs: 1_700_000_000_000,
+      files: 1,
+      changes: [],
+      tables: [
+        { name: "Customers", inserts: 1, deletes: 0, updates: 1 },
+        { name: "Orders", inserts: 0, deletes: 1, updates: 0 },
+      ],
+      changedTables: 2,
+    }
+    const pathSummary: SpaceVersionDiff = {
+      ...versionDiff,
+      currentHead: commit.id,
+      from: commit.parent,
+      to: commit.id,
+      paths: [versionDiff.paths[1]!],
+      files: [],
+    }
+    let finishPathDiff: ((value: SpaceVersionDiff) => void) | undefined
+    const getVersionPathDiff = vi.fn(
+      () =>
+        new Promise<SpaceVersionDiff>((resolve) => {
+          finishPathDiff = resolve
+        })
+    )
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionHistory: vi.fn().mockResolvedValue({
+          currentHead: commit.id,
+          currentBranch: null,
+          commits: [commit],
+          hasMore: false,
+        }),
+        getVersionDiff: vi.fn().mockResolvedValue(pathSummary),
+        getVersionPathDiff,
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+    const inspections: VersionInspection[] = []
+    const versionedSpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        clean: true,
+        currentHead: commit.id,
+        changeToken: "clean-a",
+      },
+    }
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: versionedSpace,
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange: () => undefined,
+          onFilesMaterialized: () => undefined,
+          onRefresh: () => undefined,
+          onInspectionChange: (inspection) => {
+            if (inspection) inspections.push(inspection)
+          },
+        })
+      )
+    })
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(".commit-row")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+
+    expect(host.textContent).toContain("Customers")
+    expect(host.textContent).toContain("Orders")
+    expect(host.textContent).toContain("+1")
+    expect(host.textContent).toContain("~1")
+    expect(getVersionPathDiff).not.toHaveBeenCalled()
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          ".history-change-list > li > ul button"
+        )
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+      await Promise.resolve()
+    })
+
+    expect(getVersionPathDiff).toHaveBeenCalledOnce()
+    expect(getVersionPathDiff).toHaveBeenCalledWith(
+      "data/crm.eidos",
+      commit.id,
+      commit.parent,
+      "Customers"
+    )
+    expect(inspections.at(-1)).toMatchObject({
+      type: "table",
+      loadingDetails: true,
+    })
+
+    await act(async () => finishPathDiff?.(versionDiff))
+    expect(host.textContent).toContain("Orders")
+    expect(inspections.at(-1)).toMatchObject({
+      type: "table",
+      loadingDetails: false,
+      table: { name: "Customers", changes: customersTable.changes },
+    })
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("keeps rapid history table switching free of cancellation errors", async () => {
+    clearVersionPathDiffCacheForTests()
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root: Root = createRoot(host)
+    const commit: SpaceVersionCommit = {
+      id: "c".repeat(64),
+      parent: "b".repeat(64),
+      message: "Import",
+      timestampMs: 1_700_000_000_000,
+      files: 1,
+      changes: [],
+      tables: [
+        { name: "eidos__meta", inserts: 0, deletes: 0, updates: 1 },
+        { name: "eidos__tables", inserts: 1, deletes: 0, updates: 0 },
+      ],
+      changedTables: 2,
+    }
+    const pathSummary: SpaceVersionDiff = {
+      ...versionDiff,
+      currentHead: commit.id,
+      from: commit.parent,
+      to: commit.id,
+      paths: [versionDiff.paths[1]!],
+      files: [],
+    }
+    const requests: Array<{
+      table: string
+      resolve(value: SpaceVersionDiff): void
+      reject(reason: Error): void
+    }> = []
+    const getVersionPathDiff = vi.fn(
+      (_path, _commitId, _parentId, table: string) =>
+        new Promise<SpaceVersionDiff>((resolve, reject) => {
+          requests.push({ table, resolve, reject })
+        })
+    )
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionHistory: vi.fn().mockResolvedValue({
+          currentHead: commit.id,
+          currentBranch: null,
+          commits: [commit],
+          hasMore: false,
+        }),
+        getVersionDiff: vi.fn().mockResolvedValue(pathSummary),
+        getVersionPathDiff,
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+    const inspections: VersionInspection[] = []
+    const versionedSpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        clean: true,
+        currentHead: commit.id,
+        changeToken: "clean-c",
+      },
+    }
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: versionedSpace,
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange: () => undefined,
+          onFilesMaterialized: () => undefined,
+          onRefresh: () => undefined,
+          onInspectionChange: (inspection) => {
+            if (inspection) inspections.push(inspection)
+          },
+        })
+      )
+    })
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(".commit-row")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    const tableButtons = () =>
+      host.querySelectorAll<HTMLButtonElement>(
+        ".history-change-list > li > ul button"
+      )
+
+    await act(async () => {
+      tableButtons()[0]?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      )
+      await Promise.resolve()
+    })
+    await act(async () => {
+      tableButtons()[1]?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      )
+      requests[0]?.reject(
+        new Error(
+          "Error invoking remote method 'eidos-lite:version-path-diff': AbortError: The Graft operation was cancelled"
+        )
+      )
+      await Promise.resolve()
+    })
+    await act(async () => {
+      tableButtons()[0]?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true })
+      )
+      requests[1]?.reject(
+        new Error(
+          "Error invoking remote method 'eidos-lite:version-path-diff': AbortError: The Graft operation was cancelled"
+        )
+      )
+      await Promise.resolve()
+    })
+
+    expect(requests.map(({ table }) => table)).toEqual([
+      "eidos__meta",
+      "eidos__tables",
+      "eidos__meta",
+    ])
+
+    await act(async () => {
+      requests[2]?.resolve({
+        ...versionDiff,
+        files: [
+          {
+            ...versionDiff.files[0]!,
+            tables: [
+              {
+                ...customersTable,
+                name: "eidos__meta",
+              },
+            ],
+          },
+        ],
+      })
+      await Promise.resolve()
+    })
+
+    expect(host.querySelector(".version-error")).toBeNull()
+    expect(host.textContent).not.toContain("AbortError")
+    expect(inspections.at(-1)).toMatchObject({
+      type: "table",
+      loadingDetails: false,
+      table: { name: "eidos__meta" },
+    })
+
+    await act(async () => root.unmount())
+    host.remove()
   })
 
   it("renders a selected table diff in the main review surface", () => {
@@ -194,6 +1259,30 @@ describe("VersionPanel row diff paging", () => {
     expect(markup.match(/class="row-diff"/g)).toHaveLength(2)
     expect(markup).toContain("Hao Chen")
     expect(markup).toContain("Customer")
+  })
+
+  it("shows an honest loading state while changed tables are being discovered", () => {
+    const inspection: VersionInspection = {
+      type: "file",
+      key: "data/crm.eidos/",
+      mode: "changes",
+      diff: versionDiff,
+      change: versionDiff.paths[1]!,
+      file: null,
+      commit: null,
+      loadingDetails: true,
+    }
+
+    const markup = renderToStaticMarkup(
+      createElement(VersionDiffPreview, {
+        inspection,
+        onClose: () => undefined,
+      })
+    )
+
+    expect(markup).toContain("Finding changed tables…")
+    expect(markup).toContain('data-version-details-loading="true"')
+    expect(markup).not.toContain("File change recorded")
   })
 
   it("loads text content only after selecting a historical text file", () => {

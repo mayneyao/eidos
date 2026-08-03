@@ -29,6 +29,8 @@ export type VersionInspection =
       change: SpaceVersionPathChange
       file: SpaceVersionFileDiff | null
       commit: SpaceVersionCommit | null
+      loadingDetails?: boolean
+      detailsError?: string
     }
   | {
       type: "table"
@@ -39,6 +41,8 @@ export type VersionInspection =
       file: SpaceVersionFileDiff
       table: SpaceVersionTableDiff
       commit: SpaceVersionCommit | null
+      loadingDetails?: boolean
+      detailsError?: string
     }
 
 interface VersionTreeTarget {
@@ -54,6 +58,12 @@ export interface VersionChangeTreeModel {
   gitStatus: GitStatusEntry[]
   decorationByPath: Map<string, string>
   targetByTreePath: Map<string, VersionTreeTarget>
+}
+
+export function versionChangeTreeStructureKey(
+  paths: readonly string[]
+): string {
+  return paths.join("\u0000")
 }
 
 function isEidosPath(path: string): boolean {
@@ -80,6 +90,15 @@ function treeGitStatus(change: string): GitStatus {
 }
 
 function tableChangeSummary(table: SpaceVersionTableDiff): string {
+  if (table.summary) {
+    return [
+      table.summary.inserts ? `+${table.summary.inserts}` : "",
+      table.summary.deletes ? `−${table.summary.deletes}` : "",
+      table.summary.updates ? `~${table.summary.updates}` : "",
+    ]
+      .filter(Boolean)
+      .join(" ")
+  }
   let inserts = 0
   let deletes = 0
   let updates = 0
@@ -151,6 +170,7 @@ export function buildVersionChangeTreeModel(
 
     if (!eidos || !file) continue
     if (file.tables.length) {
+      initialExpandedPaths.add(treePath)
       decorationByPath.set(
         treePath,
         `${file.tables.length} ${file.tables.length === 1 ? "table" : "tables"}`
@@ -268,7 +288,10 @@ export function VersionChangeTree({
   decorationRef.current = tree.decorationByPath
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
-  const treeSignature = tree.paths.join("\u0000")
+  const treeSignature = versionChangeTreeStructureKey(tree.paths)
+  const gitStatusSignature = tree.gitStatus
+    .map(({ path, status }) => `${path}\u0000${status}`)
+    .join("\u0000")
 
   const { model } = useFileTree({
     paths: [],
@@ -287,11 +310,15 @@ export function VersionChangeTree({
   const selectedPaths = useFileTreeSelection(model)
 
   useEffect(() => {
-    model.resetPaths(tree.paths, {
-      initialExpandedPaths: tree.initialExpandedPaths,
+    const currentTree = treeRef.current
+    model.resetPaths(currentTree.paths, {
+      initialExpandedPaths: currentTree.initialExpandedPaths,
     })
-    model.setGitStatus(tree.gitStatus)
-  }, [model, tree, treeSignature])
+  }, [model, treeSignature])
+
+  useEffect(() => {
+    model.setGitStatus(treeRef.current.gitStatus)
+  }, [gitStatusSignature, model])
 
   useEffect(() => {
     if (!selectedKey) return

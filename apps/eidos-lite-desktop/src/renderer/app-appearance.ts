@@ -26,5 +26,6 @@ export function applyAppearance(
 
 export const DEFAULT_RENDERER_PREFERENCES: EidosLitePreferences = {
   appearance: "system",
+  automaticCheckpoints: false,
   defaultSpaceLocation: null,
 }

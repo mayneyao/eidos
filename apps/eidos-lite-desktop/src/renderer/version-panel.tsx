@@ -1,10 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import {
   Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
+  Cloud,
+  CloudDownload,
+  CloudUpload,
   Database,
   FileClock,
   FileText,
@@ -17,7 +27,6 @@ import {
 } from "lucide-react"
 
 import type {
-  GraftTrackedIgnoredPaths,
   SpaceSnapshot,
   SpaceVersionCommit,
   SpaceVersionDiff,
@@ -25,6 +34,7 @@ import type {
   SpaceVersionPathChange,
   SpaceVersionRowChange,
   SpaceVersionTableDiff,
+  SpaceSyncHistoryStatus,
 } from "../shared/contracts"
 import {
   VersionChangeTree,
@@ -35,6 +45,100 @@ import { VersionTextDiff } from "./version-text-diff"
 type PanelMode = "changes" | "history"
 
 const VERSION_ROW_DIFF_PAGE_SIZE = 100
+const VERSION_PATH_DIFF_CACHE_LIMIT = 64
+
+interface VersionPathDiffCacheEntry {
+  value?: SpaceVersionDiff
+  promise?: Promise<SpaceVersionDiff>
+}
+
+const versionPathDiffCache = new Map<string, VersionPathDiffCacheEntry>()
+
+function cachedVersionPathDiff(key: string): SpaceVersionDiff | null {
+  const entry = versionPathDiffCache.get(key)
+  if (!entry?.value) return null
+  versionPathDiffCache.delete(key)
+  versionPathDiffCache.set(key, entry)
+  return entry.value
+}
+
+function discardPendingVersionPathDiffs(): void {
+  for (const [key, entry] of versionPathDiffCache) {
+    if (entry.promise) versionPathDiffCache.delete(key)
+  }
+}
+
+function workingVersionIdentity(
+  space: SpaceSnapshot,
+  refreshKey: number
+): string {
+  return [
+    space.id,
+    space.graft.currentHead ?? "root",
+    space.graft.changeToken ??
+      space.graft.generation?.toString() ??
+      refreshKey.toString(),
+  ].join(":")
+}
+
+function versionPathDiffCacheKey(
+  inspection: VersionInspection,
+  space: SpaceSnapshot,
+  refreshKey: number
+): string {
+  const scope = inspection.type === "table" ? inspection.table.name : "file"
+  return inspection.mode === "history" && inspection.commit
+    ? [
+        "history",
+        inspection.commit.parent ?? "root",
+        inspection.commit.id,
+        inspection.change.path,
+        scope,
+      ].join(":")
+    : [
+        "changes",
+        workingVersionIdentity(space, refreshKey),
+        inspection.change.path,
+        scope,
+      ].join(":")
+}
+
+export function loadVersionPathDiff(
+  key: string,
+  load: () => Promise<SpaceVersionDiff>
+): Promise<SpaceVersionDiff> {
+  const cached = versionPathDiffCache.get(key)
+  if (cached?.value) return Promise.resolve(cached.value)
+  if (cached?.promise) return cached.promise
+
+  const entry: VersionPathDiffCacheEntry = {}
+  entry.promise = load()
+    .then((value) => {
+      if (versionPathDiffCache.get(key) !== entry) return value
+      entry.value = value
+      entry.promise = undefined
+      versionPathDiffCache.delete(key)
+      versionPathDiffCache.set(key, entry)
+      while (versionPathDiffCache.size > VERSION_PATH_DIFF_CACHE_LIMIT) {
+        const oldestKey = versionPathDiffCache.keys().next().value
+        if (typeof oldestKey !== "string") break
+        versionPathDiffCache.delete(oldestKey)
+      }
+      return value
+    })
+    .catch((error) => {
+      if (versionPathDiffCache.get(key) === entry) {
+        versionPathDiffCache.delete(key)
+      }
+      throw error
+    })
+  versionPathDiffCache.set(key, entry)
+  return entry.promise
+}
+
+export function clearVersionPathDiffCacheForTests(): void {
+  versionPathDiffCache.clear()
+}
 
 export function versionRowDiffPage<T>(
   changes: readonly T[],
@@ -64,8 +168,15 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === "AbortError"
+export function isVersionReadAbortError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false
+  const candidate = error as { name?: unknown; message?: unknown }
+  if (candidate.name === "AbortError") return true
+  if (typeof candidate.message !== "string") return false
+  return (
+    /(?:^|[\s:])AbortError(?:[\s:]|$)/i.test(candidate.message) &&
+    /\b(?:abort(?:ed)?|cancell?ed)\b/i.test(candidate.message)
+  )
 }
 
 function mergeVersionDiffPages(
@@ -76,7 +187,32 @@ function mergeVersionDiffPages(
   const paths = new Map(current.paths.map((change) => [change.path, change]))
   const files = new Map(current.files.map((file) => [file.path, file]))
   for (const change of next.paths) paths.set(change.path, change)
-  for (const file of next.files) files.set(file.path, file)
+  for (const file of next.files) {
+    const existing = files.get(file.path)
+    if (!existing) {
+      files.set(file.path, file)
+      continue
+    }
+    const tables = new Map(existing.tables.map((table) => [table.name, table]))
+    for (const table of file.tables) {
+      const existingTable = tables.get(table.name)
+      tables.set(
+        table.name,
+        existingTable
+          ? {
+              ...existingTable,
+              ...table,
+              summary: table.summary ?? existingTable.summary,
+            }
+          : table
+      )
+    }
+    files.set(file.path, {
+      ...existing,
+      ...file,
+      tables: [...tables.values()],
+    })
+  }
   return {
     ...next,
     paths: [...paths.values()],
@@ -148,14 +284,45 @@ function RowDiff({
 export function TableDiff({
   table,
   showHeading = true,
+  identityKey = table.name,
+  onLoadMore,
 }: {
   table: SpaceVersionTableDiff
   showHeading?: boolean
+  identityKey?: string
+  onLoadMore?(): Promise<boolean>
 }) {
   const [requestedPage, setRequestedPage] = useState(0)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const page = versionRowDiffPage(table.changes, requestedPage)
+  const summaryTotal = table.summary
+    ? table.summary.inserts + table.summary.deletes + table.summary.updates
+    : null
+  const canLoadMore = table.hasMore === true && Boolean(onLoadMore)
 
-  useEffect(() => setRequestedPage(0), [table])
+  useEffect(() => {
+    setRequestedPage(0)
+    setLoadingMore(false)
+    setLoadError(null)
+  }, [identityKey])
+
+  const showNextPage = async () => {
+    if (page.page < page.pageCount - 1) {
+      setRequestedPage(page.page + 1)
+      return
+    }
+    if (!canLoadMore || !onLoadMore) return
+    setLoadingMore(true)
+    setLoadError(null)
+    try {
+      if (await onLoadMore()) setRequestedPage(page.page + 1)
+    } catch (cause) {
+      setLoadError(errorMessage(cause))
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   return (
     <section className="table-diff">
@@ -169,7 +336,7 @@ export function TableDiff({
           />
         ))}
       </ul>
-      {page.pageCount > 1 ? (
+      {page.pageCount > 1 || canLoadMore ? (
         <nav className="row-diff-pagination" aria-label={`${table.name} rows`}>
           <button
             type="button"
@@ -180,17 +347,27 @@ export function TableDiff({
             <ChevronLeft />
           </button>
           <span>
-            {page.start + 1}–{page.end} of {page.total.toLocaleString()}
+            {page.start + 1}–{page.end}
+            {summaryTotal === null
+              ? ` of ${page.total.toLocaleString()} loaded`
+              : ` of ${summaryTotal.toLocaleString()}`}
           </span>
           <button
             type="button"
-            disabled={page.page >= page.pageCount - 1}
-            onClick={() => setRequestedPage(page.page + 1)}
+            disabled={
+              loadingMore || (page.page >= page.pageCount - 1 && !canLoadMore)
+            }
+            onClick={() => void showNextPage()}
             aria-label="Next row changes"
           >
-            <ChevronRight />
+            {loadingMore ? <LoaderCircle className="spin" /> : <ChevronRight />}
           </button>
         </nav>
+      ) : null}
+      {loadError ? (
+        <p className="version-limitation" role="alert">
+          More changed rows could not be loaded: {loadError}
+        </p>
       ) : null}
     </section>
   )
@@ -202,6 +379,76 @@ function commitTime(timestampMs: number): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(timestampMs))
+}
+
+interface HistorySyncPresentation {
+  tone: SpaceSyncHistoryStatus["state"]
+  title: string
+  detail: string
+}
+
+export function historySyncPresentation(
+  sync: SpaceSyncHistoryStatus
+): HistorySyncPresentation {
+  const checked = sync.checkedAtMs
+    ? `Last checked ${commitTime(sync.checkedAtMs)}.`
+    : "Open Sync to check the cloud."
+  switch (sync.state) {
+    case "up_to_date":
+      return {
+        tone: sync.state,
+        title: "Latest saved version is in the cloud",
+        detail: checked,
+      }
+    case "ahead":
+      return {
+        tone: sync.state,
+        title: `${sync.ahead.toLocaleString()} local saved ${sync.ahead === 1 ? "version" : "versions"} waiting to upload`,
+        detail: `Cloud is saved through an earlier version. ${checked}`,
+      }
+    case "behind":
+      return {
+        tone: sync.state,
+        title: `Cloud has ${sync.behind.toLocaleString()} newer saved ${sync.behind === 1 ? "version" : "versions"}`,
+        detail: `Open Sync to download the latest changes. ${checked}`,
+      }
+    case "diverged":
+      return {
+        tone: sync.state,
+        title: "This device and the cloud both have new saved versions",
+        detail: `${sync.ahead.toLocaleString()} local-only · ${sync.behind.toLocaleString()} cloud-only. Open Sync to review them safely. ${checked}`,
+      }
+    case "unknown":
+      return {
+        tone: sync.state,
+        title: "Cloud history has not been checked yet",
+        detail: checked,
+      }
+  }
+}
+
+function HistorySyncSummary({ sync }: { sync: SpaceSyncHistoryStatus }) {
+  const presentation = historySyncPresentation(sync)
+  const Icon =
+    sync.state === "ahead"
+      ? CloudUpload
+      : sync.state === "behind"
+        ? CloudDownload
+        : sync.state === "diverged"
+          ? GitBranch
+          : Cloud
+  return (
+    <li
+      className="history-sync-summary"
+      data-history-sync-state={presentation.tone}
+    >
+      <Icon aria-hidden="true" />
+      <span>
+        <strong>{presentation.title}</strong>
+        <small>{presentation.detail}</small>
+      </span>
+    </li>
+  )
 }
 
 function fileName(path: string): string {
@@ -246,6 +493,10 @@ function isEidosPath(path: string): boolean {
 }
 
 function tableStats(table: SpaceVersionTableDiff) {
+  if (table.summary) {
+    const { inserts, deletes, updates } = table.summary
+    return { inserts, deletes, updates, total: inserts + deletes + updates }
+  }
   let inserts = 0
   let deletes = 0
   let updates = 0
@@ -266,7 +517,41 @@ function tableStats(table: SpaceVersionTableDiff) {
 }
 
 function fileRowChanges(file: SpaceVersionFileDiff): number {
-  return file.tables.reduce((total, table) => total + table.changes.length, 0)
+  return file.tables.reduce(
+    (total, table) => total + tableStats(table).total,
+    0
+  )
+}
+
+export function withCommitTableSummaries(
+  diff: SpaceVersionDiff,
+  commit: SpaceVersionCommit
+): SpaceVersionDiff {
+  if (!commit.tables.length) return diff
+  const eidosChanges = diff.paths.filter((change) => isEidosPath(change.path))
+  if (eidosChanges.length !== 1) return diff
+  const change = eidosChanges[0]!
+  if (diff.files.some((file) => file.path === change.path)) return diff
+  return {
+    ...diff,
+    files: [
+      ...diff.files,
+      {
+        ...change,
+        rowDiffAvailable: true,
+        limitations: [],
+        detailsLoaded: false,
+        tables: commit.tables.map((summary) => ({
+          name: summary.name,
+          columns: [],
+          primaryKeyColumns: [],
+          changes: [],
+          summary,
+          rowChangesLoaded: false,
+        })),
+      },
+    ],
+  }
 }
 
 export function VersionDiffPreview({
@@ -276,13 +561,22 @@ export function VersionDiffPreview({
   inspection: VersionInspection
   onClose(): void
 }) {
+  const inspectionTable = inspection.type === "table" ? inspection.table : null
+  const [pagedTable, setPagedTable] = useState<SpaceVersionTableDiff | null>(
+    inspectionTable
+  )
+  useEffect(
+    () => setPagedTable(inspectionTable),
+    [inspection.key, inspectionTable]
+  )
+  const activeTable = inspection.type === "table" ? pagedTable : null
   const title =
     inspection.type === "table"
       ? inspection.table.name
       : fileName(inspection.change.path)
   const contextLabel =
     inspection.mode === "changes"
-      ? "Latest checkpoint → Local changes"
+      ? "Latest saved version → Local changes"
       : inspection.commit
         ? `${inspection.commit.id.slice(0, 8)} · ${commitTime(inspection.commit.timestampMs)}`
         : "Version changes"
@@ -290,6 +584,42 @@ export function VersionDiffPreview({
     inspection.type === "file" &&
     inspection.change.kind === "text_file" &&
     (inspection.mode === "changes" || inspection.commit !== null)
+
+  const loadMoreRows = async (): Promise<boolean> => {
+    if (
+      inspection.type !== "table" ||
+      !activeTable?.hasMore ||
+      !activeTable.nextCursor
+    ) {
+      return false
+    }
+    const next = await window.eidosLite.getVersionPathDiff(
+      inspection.change.path,
+      inspection.mode === "history" ? (inspection.commit?.id ?? null) : null,
+      inspection.mode === "history"
+        ? (inspection.commit?.parent ?? null)
+        : null,
+      activeTable.name,
+      activeTable.nextCursor
+    )
+    const nextTable = next.files
+      .find((file) => file.path === inspection.change.path)
+      ?.tables.find((table) => table.name === activeTable.name)
+    if (!nextTable) {
+      throw new Error("The next page of changed rows was not returned.")
+    }
+    setPagedTable((current) =>
+      current
+        ? {
+            ...current,
+            ...nextTable,
+            summary: current.summary ?? nextTable.summary,
+            changes: [...current.changes, ...nextTable.changes],
+          }
+        : nextTable
+    )
+    return nextTable.changes.length > 0
+  }
 
   return (
     <section
@@ -343,7 +673,7 @@ export function VersionDiffPreview({
           <>
             <div className="version-inspector-stats">
               {(() => {
-                const stats = tableStats(inspection.table)
+                const stats = tableStats(activeTable ?? inspection.table)
                 return (
                   <>
                     <span data-change="added">+{stats.inserts} rows</span>
@@ -354,9 +684,38 @@ export function VersionDiffPreview({
                 )
               })()}
             </div>
-            <div className="version-inspector-table">
-              <TableDiff table={inspection.table} showHeading={false} />
-            </div>
+            {inspection.loadingDetails ? (
+              <div
+                className="version-inspector-loading"
+                data-version-details-loading="true"
+              >
+                <LoaderCircle className="spin" aria-hidden="true" />
+                <div>
+                  <strong>Loading {inspection.table.name} changes…</strong>
+                  <p>
+                    Only this table is being compared. Large Eidos Files can
+                    take a moment to prepare.
+                  </p>
+                </div>
+              </div>
+            ) : inspection.detailsError ? (
+              <div className="version-inspector-loading" role="alert">
+                <CircleAlert aria-hidden="true" />
+                <div>
+                  <strong>Row details could not be loaded</strong>
+                  <p>{inspection.detailsError}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="version-inspector-table">
+                <TableDiff
+                  table={activeTable ?? inspection.table}
+                  showHeading={false}
+                  identityKey={inspection.key}
+                  onLoadMore={loadMoreRows}
+                />
+              </div>
+            )}
           </>
         ) : showsTextDiff ? (
           inspection.mode === "history" && inspection.commit ? (
@@ -373,6 +732,28 @@ export function VersionDiffPreview({
               path={inspection.change.path}
             />
           )
+        ) : inspection.loadingDetails ? (
+          <div
+            className="version-inspector-loading"
+            data-version-details-loading="true"
+          >
+            <LoaderCircle className="spin" aria-hidden="true" />
+            <div>
+              <strong>Finding changed tables…</strong>
+              <p>
+                Comparing this Eidos File with the latest saved version. You can
+                keep working while this finishes.
+              </p>
+            </div>
+          </div>
+        ) : inspection.detailsError ? (
+          <div className="version-inspector-loading" role="alert">
+            <CircleAlert aria-hidden="true" />
+            <div>
+              <strong>Changed tables could not be loaded</strong>
+              <p>{inspection.detailsError}</p>
+            </div>
+          </div>
         ) : inspection.file?.tables.length ? (
           <div className="version-inspector-file-summary">
             <p>
@@ -380,6 +761,11 @@ export function VersionDiffPreview({
               {inspection.file.tables.length === 1 ? "table" : "tables"} ·{" "}
               {fileRowChanges(inspection.file)} row changes
             </p>
+            {inspection.file.detailsLoaded === false ? (
+              <p className="version-summary-hint">
+                Select a table to load its changed rows.
+              </p>
+            ) : null}
             <ul>
               {inspection.file.tables.map((table) => {
                 const stats = tableStats(table)
@@ -549,9 +935,6 @@ export function VersionPanel({
   const [historyHead, setHistoryHead] = useState<string | null>(null)
   const [historyCursor, setHistoryCursor] = useState<string | null>(null)
   const [historyHasMore, setHistoryHasMore] = useState(false)
-  const [trackedIgnored, setTrackedIgnored] = useState<
-    GraftTrackedIgnoredPaths | null | undefined
-  >(undefined)
   const [selectedCommit, setSelectedCommit] =
     useState<SpaceVersionCommit | null>(null)
   const [selectedDiff, setSelectedDiff] = useState<SpaceVersionDiff | null>(
@@ -560,71 +943,198 @@ export function VersionPanel({
   const [selectedInspectionKey, setSelectedInspectionKey] = useState<
     string | null
   >(null)
-  const [loading, setLoading] = useState(false)
-  const [busy, setBusy] = useState<
-    | "enable"
-    | "checkpoint"
-    | "restore"
-    | "review-ignored"
-    | "untrack-ignored"
-    | null
-  >(null)
+  const selectedInspectionKeyRef = useRef<string | null>(null)
+  const selectedInspectionRef = useRef<VersionInspection | null>(null)
+  const previousWorkingChangeTokenRef = useRef(space.graft.changeToken)
+  const checkpointInFlightRef = useRef(false)
+  const inspectionRequestIdRef = useRef(0)
+  const modeRequestIdRef = useRef(0)
+  const selectionRequestIdRef = useRef(0)
+  const paginationRequestIdRef = useRef(0)
+  const modeLoadInFlightRef = useRef<PanelMode | null>(null)
+  const loadedHistoryHeadRef = useRef<string | null | undefined>(undefined)
+  const activeVersionPathDiffKeyRef = useRef<string | null>(null)
+  const [modeLoading, setModeLoading] = useState(false)
+  const [selectionLoading, setSelectionLoading] = useState(false)
+  const [paginationLoading, setPaginationLoading] = useState(false)
+  const [busy, setBusy] = useState<"enable" | "checkpoint" | "restore" | null>(
+    null
+  )
   const [checkpointMessage, setCheckpointMessage] = useState("")
   const [confirmRestore, setConfirmRestore] = useState(false)
-  const [confirmUntrackIgnored, setConfirmUntrackIgnored] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const clearInspection = useCallback(() => {
+    inspectionRequestIdRef.current += 1
+    activeVersionPathDiffKeyRef.current = null
+    discardPendingVersionPathDiffs()
+    selectedInspectionKeyRef.current = null
+    selectedInspectionRef.current = null
     setSelectedInspectionKey(null)
     onInspectionChange(null)
   }, [onInspectionChange])
 
   const inspect = useCallback(
     async (inspection: VersionInspection) => {
+      const requestId = ++inspectionRequestIdRef.current
+      selectedInspectionKeyRef.current = inspection.key
+      selectedInspectionRef.current = inspection
       setSelectedInspectionKey(inspection.key)
-      if (inspection.file || inspection.type === "table") {
+      const needsDatabaseDetails =
+        isEidosPath(inspection.change.path) &&
+        (!inspection.file ||
+          (inspection.type === "table" &&
+            inspection.table.rowChangesLoaded === false))
+      if (!needsDatabaseDetails) {
+        if (activeVersionPathDiffKeyRef.current) {
+          activeVersionPathDiffKeyRef.current = null
+          discardPendingVersionPathDiffs()
+          void window.eidosLite.cancelVersionReads().catch(() => undefined)
+        }
+        selectedInspectionRef.current = inspection
         onInspectionChange(inspection)
         return
       }
-      setLoading(true)
-      setError(null)
-      try {
-        const detail = await window.eidosLite.getVersionPathDiff(
-          inspection.change.path,
-          mode === "history" ? (selectedCommit?.id ?? null) : null,
-          mode === "history" ? (selectedCommit?.parent ?? null) : null
-        )
+
+      const cacheKey = versionPathDiffCacheKey(inspection, space, refreshKey)
+
+      const applyDetail = (detail: SpaceVersionDiff) => {
+        if (inspectionRequestIdRef.current !== requestId) return
         const source = mode === "changes" ? changes : selectedDiff
         const merged = source
           ? mergeVersionDiffPages(source, detail, true)
           : detail
         if (mode === "changes") setChanges(merged)
         else setSelectedDiff(merged)
-        onInspectionChange({
+
+        const file =
+          detail.files.find(
+            (candidate) => candidate.path === inspection.change.path
+          ) ?? null
+        if (inspection.type === "table") {
+          const table = file?.tables.find(
+            (candidate) => candidate.name === inspection.table.name
+          )
+          if (!file || !table) {
+            const nextInspection: VersionInspection = {
+              ...inspection,
+              diff: merged,
+              loadingDetails: false,
+              detailsError: "The selected table is not present in this change.",
+            }
+            selectedInspectionRef.current = nextInspection
+            onInspectionChange(nextInspection)
+            return
+          }
+          const nextInspection: VersionInspection = {
+            ...inspection,
+            diff: merged,
+            file,
+            table,
+            loadingDetails: false,
+            detailsError: undefined,
+          }
+          selectedInspectionRef.current = nextInspection
+          onInspectionChange(nextInspection)
+          return
+        }
+        const nextInspection: VersionInspection = {
           ...inspection,
           diff: merged,
-          file:
-            detail.files.find((file) => file.path === inspection.change.path) ??
-            null,
-        })
+          file,
+          loadingDetails: false,
+          detailsError: undefined,
+        }
+        selectedInspectionRef.current = nextInspection
+        onInspectionChange(nextInspection)
+      }
+
+      setError(null)
+      const replacedActiveRead =
+        activeVersionPathDiffKeyRef.current !== null &&
+        activeVersionPathDiffKeyRef.current !== cacheKey
+      if (replacedActiveRead) discardPendingVersionPathDiffs()
+      activeVersionPathDiffKeyRef.current = cacheKey
+      const cached = cachedVersionPathDiff(cacheKey)
+      if (cached) {
+        activeVersionPathDiffKeyRef.current = null
+        if (replacedActiveRead) {
+          void window.eidosLite.cancelVersionReads().catch(() => undefined)
+        }
+        applyDetail(cached)
+        return
+      }
+      const loadingInspection: VersionInspection = {
+        ...inspection,
+        loadingDetails: true,
+        detailsError: undefined,
+      }
+      selectedInspectionRef.current = loadingInspection
+      onInspectionChange(loadingInspection)
+      try {
+        const detail = await loadVersionPathDiff(cacheKey, () =>
+          window.eidosLite.getVersionPathDiff(
+            inspection.change.path,
+            inspection.mode === "history"
+              ? (inspection.commit?.id ?? null)
+              : null,
+            inspection.mode === "history"
+              ? (inspection.commit?.parent ?? null)
+              : null,
+            inspection.type === "table" ? inspection.table.name : undefined
+          )
+        )
+        applyDetail(detail)
       } catch (cause) {
-        if (!isAbortError(cause)) setError(errorMessage(cause))
+        if (
+          inspectionRequestIdRef.current === requestId &&
+          !isVersionReadAbortError(cause)
+        ) {
+          const message = errorMessage(cause)
+          setError(message)
+          const failedInspection: VersionInspection = {
+            ...inspection,
+            loadingDetails: false,
+            detailsError: message,
+          }
+          selectedInspectionRef.current = failedInspection
+          onInspectionChange(failedInspection)
+        }
       } finally {
-        setLoading(false)
+        if (inspectionRequestIdRef.current === requestId) {
+          activeVersionPathDiffKeyRef.current = null
+        }
       }
     },
-    [changes, mode, onInspectionChange, selectedCommit, selectedDiff]
+    [
+      changes,
+      mode,
+      onInspectionChange,
+      refreshKey,
+      selectedDiff,
+      space.graft.changeToken,
+      space.graft.currentHead,
+      space.graft.generation,
+      space.id,
+    ]
   )
 
   const loadMode = useCallback(async () => {
-    setLoading(true)
+    const requestedMode = mode
+    if (modeLoadInFlightRef.current === requestedMode) return
+    const requestId = ++modeRequestIdRef.current
+    modeLoadInFlightRef.current = requestedMode
+    setModeLoading(true)
     setError(null)
     try {
-      if (mode === "changes") {
+      if (requestedMode === "changes") {
         const nextChanges = await window.eidosLite.getVersionChanges(100)
+        if (modeRequestIdRef.current !== requestId) return
         setChanges(nextChanges)
       } else {
         const history = await window.eidosLite.getVersionHistory(50)
+        if (modeRequestIdRef.current !== requestId) return
+        loadedHistoryHeadRef.current = history.currentHead
         setCommits(history.commits)
         setHistoryHead(history.currentHead)
         setHistoryCursor(history.nextCursor ?? null)
@@ -637,22 +1147,83 @@ export function VersionPanel({
         )
       }
     } catch (cause) {
-      if (!isAbortError(cause)) setError(errorMessage(cause))
+      if (
+        modeRequestIdRef.current === requestId &&
+        !isVersionReadAbortError(cause)
+      ) {
+        setError(errorMessage(cause))
+      }
     } finally {
-      setLoading(false)
+      if (modeRequestIdRef.current === requestId) {
+        modeLoadInFlightRef.current = null
+        setModeLoading(false)
+      }
     }
   }, [mode])
+
+  const workingReloadIdentity =
+    mode === "changes" ? workingVersionIdentity(space, refreshKey) : null
 
   useEffect(() => {
     if (!space.graft.initialized) return
     void loadMode()
-  }, [
-    loadMode,
-    refreshKey,
-    space.graft.clean,
-    space.graft.currentHead,
-    space.graft.initialized,
-  ])
+  }, [loadMode, refreshKey, space.graft.initialized, workingReloadIdentity])
+
+  useEffect(() => {
+    if (
+      mode !== "history" ||
+      !space.graft.initialized ||
+      loadedHistoryHeadRef.current === undefined ||
+      space.graft.currentHead === undefined ||
+      loadedHistoryHeadRef.current === space.graft.currentHead
+    ) {
+      return
+    }
+    void loadMode()
+  }, [loadMode, mode, space.graft.currentHead, space.graft.initialized])
+
+  useEffect(() => {
+    const previousToken = previousWorkingChangeTokenRef.current
+    const nextToken = space.graft.changeToken
+    previousWorkingChangeTokenRef.current = nextToken
+    if (
+      mode !== "changes" ||
+      checkpointInFlightRef.current ||
+      previousToken === undefined ||
+      previousToken === nextToken
+    ) {
+      return
+    }
+
+    const inspection = selectedInspectionRef.current
+    if (
+      !inspection ||
+      inspection.mode !== "changes" ||
+      !isEidosPath(inspection.change.path)
+    ) {
+      return
+    }
+
+    discardPendingVersionPathDiffs()
+    const nextInspection: VersionInspection =
+      inspection.type === "table"
+        ? {
+            ...inspection,
+            table: {
+              ...inspection.table,
+              rowChangesLoaded: false,
+            },
+            loadingDetails: true,
+            detailsError: undefined,
+          }
+        : {
+            ...inspection,
+            file: null,
+            loadingDetails: true,
+            detailsError: undefined,
+          }
+    void inspect(nextInspection)
+  }, [inspect, mode, space.graft.changeToken])
 
   useEffect(() => {
     if (space.graft.clean === false && !manuallySelectedMode.current) {
@@ -672,44 +1243,68 @@ export function VersionPanel({
   )
 
   const selectCommit = async (commit: SpaceVersionCommit) => {
+    const requestId = ++selectionRequestIdRef.current
     if (selectedCommit?.id === commit.id) {
       setSelectedCommit(null)
       setSelectedDiff(null)
       setConfirmRestore(false)
       clearInspection()
+      setSelectionLoading(false)
       return
     }
     setSelectedCommit(commit)
     setSelectedDiff(null)
     setConfirmRestore(false)
-    setConfirmUntrackIgnored(false)
     clearInspection()
-    setLoading(true)
+    setSelectionLoading(true)
     setError(null)
     try {
-      setSelectedDiff(
-        await window.eidosLite.getVersionDiff(commit.id, commit.parent, 100)
+      const diff = withCommitTableSummaries(
+        await window.eidosLite.getVersionDiff(commit.id, commit.parent, 100),
+        commit
       )
+      if (selectionRequestIdRef.current === requestId) setSelectedDiff(diff)
     } catch (cause) {
-      if (!isAbortError(cause)) setError(errorMessage(cause))
+      if (
+        selectionRequestIdRef.current === requestId &&
+        !isVersionReadAbortError(cause)
+      ) {
+        setError(errorMessage(cause))
+      }
     } finally {
-      setLoading(false)
+      if (selectionRequestIdRef.current === requestId) {
+        setSelectionLoading(false)
+      }
     }
   }
 
   const createCheckpoint = async () => {
+    checkpointInFlightRef.current = true
     setBusy("checkpoint")
     setError(null)
     try {
       const snapshot = await window.eidosLite.createCheckpoint(
         checkpointMessage.trim() || undefined
       )
+      // The saved snapshot changes the working-tree identity. Drop the old selection before
+      // publishing it so the change-token effect cannot replay an obsolete table diff that will
+      // immediately be cleared by the refresh below. On a large Eidos File that redundant read
+      // can otherwise scan the newly committed snapshot for no user-visible result.
+      clearInspection()
       onSpaceChange(snapshot)
       setCheckpointMessage("")
+      // The checkpoint is durable when IPC resolves. Show the saved history
+      // immediately while post-commit worktree classification continues in the
+      // background; reloading Changes here would put that expensive status read
+      // back onto the save interaction's visible path.
+      manuallySelectedMode.current = false
+      setChanges(null)
+      setMode("history")
       onRefresh()
     } catch (cause) {
       setError(errorMessage(cause))
     } finally {
+      checkpointInFlightRef.current = false
       setBusy(null)
     }
   }
@@ -770,7 +1365,14 @@ export function VersionPanel({
   const changeMode = (nextMode: PanelMode) => {
     manuallySelectedMode.current = true
     if (mode === nextMode) return
+    modeRequestIdRef.current += 1
+    selectionRequestIdRef.current += 1
+    paginationRequestIdRef.current += 1
+    modeLoadInFlightRef.current = null
     setMode(nextMode)
+    setModeLoading(false)
+    setSelectionLoading(false)
+    setPaginationLoading(false)
     void window.eidosLite.cancelVersionReads().catch(() => undefined)
     setSelectedCommit(null)
     setSelectedDiff(null)
@@ -780,7 +1382,8 @@ export function VersionPanel({
 
   const loadMoreChanges = async () => {
     if (!changes?.hasMore || !changes.nextCursor) return
-    setLoading(true)
+    const requestId = ++paginationRequestIdRef.current
+    setPaginationLoading(true)
     setError(null)
     try {
       const next = await window.eidosLite.getVersionChanges(
@@ -791,15 +1394,23 @@ export function VersionPanel({
         current ? mergeVersionDiffPages(current, next) : next
       )
     } catch (cause) {
-      if (!isAbortError(cause)) setError(errorMessage(cause))
+      if (
+        paginationRequestIdRef.current === requestId &&
+        !isVersionReadAbortError(cause)
+      ) {
+        setError(errorMessage(cause))
+      }
     } finally {
-      setLoading(false)
+      if (paginationRequestIdRef.current === requestId) {
+        setPaginationLoading(false)
+      }
     }
   }
 
   const loadMoreHistory = async () => {
     if (!historyHasMore || !historyCursor) return
-    setLoading(true)
+    const requestId = ++paginationRequestIdRef.current
+    setPaginationLoading(true)
     setError(null)
     try {
       const next = await window.eidosLite.getVersionHistory(50, historyCursor)
@@ -812,9 +1423,16 @@ export function VersionPanel({
       setHistoryCursor(next.nextCursor ?? null)
       setHistoryHasMore(next.hasMore)
     } catch (cause) {
-      if (!isAbortError(cause)) setError(errorMessage(cause))
+      if (
+        paginationRequestIdRef.current === requestId &&
+        !isVersionReadAbortError(cause)
+      ) {
+        setError(errorMessage(cause))
+      }
     } finally {
-      setLoading(false)
+      if (paginationRequestIdRef.current === requestId) {
+        setPaginationLoading(false)
+      }
     }
   }
 
@@ -822,7 +1440,8 @@ export function VersionPanel({
     if (!selectedCommit || !selectedDiff?.hasMore || !selectedDiff.nextCursor) {
       return
     }
-    setLoading(true)
+    const requestId = ++paginationRequestIdRef.current
+    setPaginationLoading(true)
     setError(null)
     try {
       const next = await window.eidosLite.getVersionDiff(
@@ -835,43 +1454,29 @@ export function VersionPanel({
         current ? mergeVersionDiffPages(current, next) : next
       )
     } catch (cause) {
-      if (!isAbortError(cause)) setError(errorMessage(cause))
+      if (
+        paginationRequestIdRef.current === requestId &&
+        !isVersionReadAbortError(cause)
+      ) {
+        setError(errorMessage(cause))
+      }
     } finally {
-      setLoading(false)
+      if (paginationRequestIdRef.current === requestId) {
+        setPaginationLoading(false)
+      }
     }
   }
 
-  const untrackIgnored = async () => {
-    const expectedHead = historyHead ?? space.graft.currentHead
-    if (!expectedHead) return
-    setBusy("untrack-ignored")
-    setError(null)
-    try {
-      const snapshot = await window.eidosLite.untrackIgnoredPaths(expectedHead)
-      setTrackedIgnored(null)
-      setConfirmUntrackIgnored(false)
-      onSpaceChange(snapshot)
-      onRefresh()
-    } catch (cause) {
-      setError(errorMessage(cause))
-    } finally {
-      setBusy(null)
-    }
-  }
+  const hasCachedGraftStatus =
+    space.graft.clean !== undefined ||
+    space.graft.currentHead !== undefined ||
+    space.graft.changeToken !== undefined
 
-  const reviewIgnored = async () => {
-    setBusy("review-ignored")
-    setError(null)
-    try {
-      setTrackedIgnored(await window.eidosLite.getTrackedIgnoredPaths(100))
-    } catch (cause) {
-      if (!isAbortError(cause)) setError(errorMessage(cause))
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  if (space.graft.checking) {
+  if (
+    space.graft.checking &&
+    !space.graft.initialized &&
+    !hasCachedGraftStatus
+  ) {
     return (
       <aside
         className="version-panel version-panel-setup"
@@ -880,13 +1485,13 @@ export function VersionPanel({
         <header>
           <div>
             <FileClock aria-hidden="true" />
-            <strong>Version history</strong>
+            <strong>Versions</strong>
           </div>
           <button
             type="button"
             className="icon-button"
             onClick={onClose}
-            aria-label="Close version history"
+            aria-label="Close versions"
           >
             <X />
           </button>
@@ -908,13 +1513,13 @@ export function VersionPanel({
         <header>
           <div>
             <FileClock aria-hidden="true" />
-            <strong>Version history</strong>
+            <strong>Versions</strong>
           </div>
           <button
             type="button"
             className="icon-button"
             onClick={onClose}
-            aria-label="Close version history"
+            aria-label="Close versions"
           >
             <X />
           </button>
@@ -929,10 +1534,10 @@ export function VersionPanel({
 
         <section className="version-setup-copy">
           <GitBranch aria-hidden="true" />
-          <strong>Start local version history</strong>
+          <strong>Start local versions</strong>
           <p>
-            Create the first checkpoint for this Space. This stays local and
-            does not require an account.
+            Save the first version of this Space. This stays local and does not
+            require an account.
           </p>
           <button
             type="button"
@@ -962,13 +1567,23 @@ export function VersionPanel({
       <header>
         <div>
           <FileClock aria-hidden="true" />
-          <strong>Version history</strong>
+          <strong>Versions</strong>
+          {space.graft.checking ? (
+            <span
+              className="version-header-refresh"
+              role="status"
+              aria-label="Refreshing local changes"
+              title="Refreshing local changes"
+            >
+              <LoaderCircle className="spin" aria-hidden="true" />
+            </span>
+          ) : null}
         </div>
         <button
           type="button"
           className="icon-button"
           onClick={onClose}
-          aria-label="Close version history"
+          aria-label="Close versions"
         >
           <X />
         </button>
@@ -1002,7 +1617,7 @@ export function VersionPanel({
       ) : null}
 
       <div className={`version-panel-body version-panel-${mode}`}>
-        {loading && !changes && commits.length === 0 ? (
+        {modeLoading && !changes && commits.length === 0 ? (
           <div className="version-loading" role="status">
             <LoaderCircle className="spin" /> Loading version data…
           </div>
@@ -1019,77 +1634,10 @@ export function VersionPanel({
                 <p>
                   {hasLocalChanges
                     ? "Select a file or changed table to review it."
-                    : "The Space matches its latest checkpoint."}
+                    : "The Space matches its latest saved version."}
                 </p>
               </div>
             </section>
-            {trackedIgnored === undefined ? (
-              <button
-                type="button"
-                className="version-ignore-review"
-                disabled={busy !== null || space.operation.phase !== "ready"}
-                onClick={() => void reviewIgnored()}
-              >
-                {busy === "review-ignored"
-                  ? "Reviewing ignore rules…"
-                  : "Review ignored files"}
-              </button>
-            ) : trackedIgnored && trackedIgnored.total > 0 ? (
-              <section className="tracked-ignore-notice">
-                <CircleAlert aria-hidden="true" />
-                <div>
-                  <strong>
-                    {trackedIgnored.total.toLocaleString()} ignored paths are
-                    still tracked
-                  </strong>
-                  <p>
-                    Ignore rules do not remove existing paths from history or
-                    Sync. Stop tracking keeps every local file on disk and
-                    records the change as a checkpoint.
-                  </p>
-                  {confirmUntrackIgnored ? (
-                    <div className="tracked-ignore-actions">
-                      <button
-                        type="button"
-                        disabled={busy !== null}
-                        onClick={() => setConfirmUntrackIgnored(false)}
-                      >
-                        Keep tracking
-                      </button>
-                      <button
-                        type="button"
-                        className="danger-action"
-                        disabled={
-                          busy !== null ||
-                          hasLocalChanges ||
-                          !(historyHead ?? space.graft.currentHead)
-                        }
-                        onClick={() => void untrackIgnored()}
-                      >
-                        {busy === "untrack-ignored"
-                          ? "Updating…"
-                          : "Stop tracking ignored files"}
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className="version-load-more"
-                      disabled={
-                        busy !== null || space.operation.phase !== "ready"
-                      }
-                      onClick={() => setConfirmUntrackIgnored(true)}
-                    >
-                      Review tracking cleanup
-                    </button>
-                  )}
-                </div>
-              </section>
-            ) : trackedIgnored ? (
-              <p className="tracked-ignore-clean">
-                Ignored files are not present in the tracked Space history.
-              </p>
-            ) : null}
             {changes && changes.paths.length ? (
               <div className="version-change-tree-shell">
                 <VersionChangeTree
@@ -1102,17 +1650,17 @@ export function VersionPanel({
                   <button
                     type="button"
                     className="version-load-more"
-                    disabled={loading}
+                    disabled={paginationLoading}
                     onClick={() => void loadMoreChanges()}
                   >
-                    {loading ? "Loading…" : "Load more changed files"}
+                    {paginationLoading ? "Loading…" : "Load more changed files"}
                   </button>
                 ) : null}
               </div>
             ) : null}
             {hasLocalChanges ? (
               <section className="checkpoint-form">
-                <label htmlFor="checkpoint-message">Checkpoint message</label>
+                <label htmlFor="checkpoint-message">Version note</label>
                 <input
                   id="checkpoint-message"
                   value={checkpointMessage}
@@ -1132,135 +1680,174 @@ export function VersionPanel({
                   ) : (
                     <GitCommitHorizontal />
                   )}
-                  {busy === "checkpoint" ? "Creating…" : "Create checkpoint"}
+                  {busy === "checkpoint" ? "Saving…" : "Save version"}
                 </button>
               </section>
             ) : null}
           </>
-        ) : commits.length ? (
+        ) : commits.length || space.graft.sync ? (
           <ol className="commit-list">
+            {space.graft.sync ? (
+              <HistorySyncSummary sync={space.graft.sync} />
+            ) : null}
             {commits.map((commit) => {
               const expanded = selectedCommit?.id === commit.id
+              const cloudCheckpoint = space.graft.sync?.remoteHead === commit.id
+              const showCloudBoundary =
+                cloudCheckpoint && space.graft.sync?.state === "ahead"
               return (
-                <li key={commit.id} className={expanded ? "expanded" : ""}>
-                  <button
-                    type="button"
-                    className="commit-row"
-                    aria-expanded={expanded}
-                    onClick={() => void selectCommit(commit)}
+                <Fragment key={commit.id}>
+                  {showCloudBoundary ? (
+                    <li
+                      className="history-cloud-boundary"
+                      data-history-cloud-boundary
+                    >
+                      <span />
+                      <Cloud aria-hidden="true" />
+                      <small>Cloud is saved through this version</small>
+                      <span />
+                    </li>
+                  ) : null}
+                  <li
+                    className={expanded ? "expanded" : ""}
+                    data-cloud-checkpoint={cloudCheckpoint ? "true" : undefined}
                   >
-                    {expanded ? <ChevronDown /> : <ChevronRight />}
-                    <GitCommitHorizontal />
-                    <span>
-                      <strong>{commit.message}</strong>
-                      <small>
-                        {commitTime(commit.timestampMs)} ·{" "}
-                        {commit.fileCountKnown === false
-                          ? "files on demand"
-                          : `${commit.files} files`}
-                      </small>
-                    </span>
-                  </button>
-                  {expanded ? (
-                    <div className="commit-expanded">
-                      {loading && !selectedDiff ? (
-                        <p className="commit-loading">
-                          <LoaderCircle className="spin" /> Loading changes…
-                        </p>
-                      ) : selectedDiff ? (
-                        <>
-                          <HistoryDiffList
-                            diff={selectedDiff}
-                            commit={commit}
-                            selectedKey={selectedInspectionKey}
-                            onSelect={(inspection) => void inspect(inspection)}
-                          />
-                          {selectedDiff.hasMore && selectedDiff.nextCursor ? (
+                    <button
+                      type="button"
+                      className="commit-row"
+                      aria-expanded={expanded}
+                      onClick={() => void selectCommit(commit)}
+                    >
+                      {expanded ? <ChevronDown /> : <ChevronRight />}
+                      <GitCommitHorizontal />
+                      <span>
+                        <span className="commit-title-line">
+                          <strong>{commit.message}</strong>
+                          {cloudCheckpoint ? (
+                            <span
+                              className="commit-cloud-marker"
+                              title="Latest version known in the cloud"
+                            >
+                              <Cloud aria-hidden="true" /> Cloud
+                            </span>
+                          ) : null}
+                        </span>
+                        <small>
+                          {commitTime(commit.timestampMs)} ·{" "}
+                          {commit.fileCountKnown === false
+                            ? "files on demand"
+                            : `${commit.files} files`}
+                        </small>
+                      </span>
+                    </button>
+                    {expanded ? (
+                      <div className="commit-expanded">
+                        {selectionLoading && !selectedDiff ? (
+                          <p className="commit-loading">
+                            <LoaderCircle className="spin" /> Loading changes…
+                          </p>
+                        ) : selectedDiff ? (
+                          <>
+                            <HistoryDiffList
+                              diff={selectedDiff}
+                              commit={commit}
+                              selectedKey={selectedInspectionKey}
+                              onSelect={(inspection) =>
+                                void inspect(inspection)
+                              }
+                            />
+                            {selectedDiff.hasMore && selectedDiff.nextCursor ? (
+                              <button
+                                type="button"
+                                className="version-load-more"
+                                disabled={paginationLoading}
+                                onClick={() => void loadMoreSelectedDiff()}
+                              >
+                                {paginationLoading
+                                  ? "Loading…"
+                                  : "Load more changed files"}
+                              </button>
+                            ) : null}
+                          </>
+                        ) : null}
+                        <div className="commit-restore">
+                          {commit.id === historyHead ? (
+                            <p className="restore-note">
+                              This is the current saved version.
+                            </p>
+                          ) : hasLocalChanges ? (
+                            <p className="restore-note">
+                              Save a version of local changes before restoring.
+                            </p>
+                          ) : confirmRestore ? (
+                            <div className="restore-confirm">
+                              <p>
+                                Restore the entire Space to this version? A new
+                                saved version will record the restore.
+                              </p>
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmRestore(false)}
+                                  disabled={busy !== null}
+                                >
+                                  Keep current Space
+                                </button>
+                                <button
+                                  type="button"
+                                  className="danger-action"
+                                  onClick={() => void restore()}
+                                  disabled={busy !== null}
+                                >
+                                  {busy === "restore" ? (
+                                    <LoaderCircle className="spin" />
+                                  ) : (
+                                    <RotateCcw />
+                                  )}
+                                  {busy === "restore"
+                                    ? "Restoring…"
+                                    : "Restore Space"}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
                             <button
                               type="button"
-                              className="version-load-more"
-                              disabled={loading}
-                              onClick={() => void loadMoreSelectedDiff()}
+                              className="restore-action"
+                              onClick={() => setConfirmRestore(true)}
+                              disabled={
+                                busy !== null ||
+                                space.operation.phase !== "ready"
+                              }
                             >
-                              {loading ? "Loading…" : "Load more changed files"}
+                              <RotateCcw /> Restore this version
                             </button>
-                          ) : null}
-                        </>
-                      ) : null}
-                      <div className="commit-restore">
-                        {commit.id === historyHead ? (
-                          <p className="restore-note">
-                            This is the current checkpoint.
-                          </p>
-                        ) : hasLocalChanges ? (
-                          <p className="restore-note">
-                            Create a checkpoint for local changes before
-                            restoring.
-                          </p>
-                        ) : confirmRestore ? (
-                          <div className="restore-confirm">
-                            <p>
-                              Restore the entire Space to this checkpoint? A new
-                              checkpoint will record the restore.
-                            </p>
-                            <div>
-                              <button
-                                type="button"
-                                onClick={() => setConfirmRestore(false)}
-                                disabled={busy !== null}
-                              >
-                                Keep current Space
-                              </button>
-                              <button
-                                type="button"
-                                className="danger-action"
-                                onClick={() => void restore()}
-                                disabled={busy !== null}
-                              >
-                                {busy === "restore" ? (
-                                  <LoaderCircle className="spin" />
-                                ) : (
-                                  <RotateCcw />
-                                )}
-                                {busy === "restore"
-                                  ? "Restoring…"
-                                  : "Restore Space"}
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            className="restore-action"
-                            onClick={() => setConfirmRestore(true)}
-                            disabled={
-                              busy !== null || space.operation.phase !== "ready"
-                            }
-                          >
-                            <RotateCcw /> Restore this checkpoint
-                          </button>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ) : null}
-                </li>
+                    ) : null}
+                  </li>
+                </Fragment>
               )
             })}
+            {!commits.length ? (
+              <li className="version-empty-copy">No saved versions yet.</li>
+            ) : null}
             {historyHasMore && historyCursor ? (
               <li className="commit-load-more">
                 <button
                   type="button"
                   className="version-load-more"
-                  disabled={loading}
+                  disabled={paginationLoading}
                   onClick={() => void loadMoreHistory()}
                 >
-                  {loading ? "Loading…" : "Load older checkpoints"}
+                  {paginationLoading ? "Loading…" : "Load older versions"}
                 </button>
               </li>
             ) : null}
           </ol>
         ) : (
-          <p className="version-empty-copy">No checkpoints yet.</p>
+          <p className="version-empty-copy">No saved versions yet.</p>
         )}
       </div>
     </aside>

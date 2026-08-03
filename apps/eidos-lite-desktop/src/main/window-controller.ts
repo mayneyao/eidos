@@ -405,6 +405,9 @@ export class WindowController {
     patch: Partial<EidosLitePreferences>
   ): Promise<EidosLitePreferences> {
     const preferences = await this.preferences().update(patch)
+    for (const session of new Set(this.sessionByWebContents.values())) {
+      session.setAutomaticCheckpointsEnabled(preferences.automaticCheckpoints)
+    }
     this.broadcastPreferences(preferences)
     return preferences
   }
@@ -554,12 +557,14 @@ export class WindowController {
     }
     this.windowBySpaceId.set(canonical.id, window)
     let session: SpaceSession
+    const preferences = await this.preferences().get()
     const opening = SpaceSession.createCanonical(
       canonical,
       app.getPath("userData"),
       {
         graft: this.createGraftClient(),
         workerPath: this.runtimeWorkerPath(),
+        automaticCheckpointsEnabled: preferences.automaticCheckpoints,
       }
     )
     this.openingSessions.add(opening)

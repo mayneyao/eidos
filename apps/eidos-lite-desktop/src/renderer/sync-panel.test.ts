@@ -7,6 +7,7 @@ import type {
   EidosLiteApi,
   EidosSyncPreflight,
   EidosSyncProgress,
+  EidosSyncRepositoryList,
   EidosSyncRunResponse,
   EidosSyncStatus,
   SpaceSnapshot,
@@ -193,11 +194,21 @@ describe("SyncPanel failure states", () => {
     expect(host.textContent).toContain("2 GiB")
     expect(host.textContent).toContain("Plan total")
     expect(host.textContent).toContain("10 GiB")
-    expect(host.textContent).toContain("Checking account and cloud status")
+    expect(host.textContent).not.toContain("Checking account and cloud status")
     expect(host.textContent).not.toContain("Checking Sync")
+    expect(
+      host.querySelector<HTMLElement>("[data-sync-account-summary]")?.dataset
+        .syncAccountChecking
+    ).toBe("true")
+    expect(
+      host.querySelector<HTMLButtonElement>("[data-sync-run]")?.disabled
+    ).toBe(false)
 
     await act(async () => finishStatus?.(status))
-    expect(host.textContent).not.toContain("Checking account and cloud status")
+    expect(
+      host.querySelector<HTMLElement>("[data-sync-account-summary]")?.dataset
+        .syncAccountChecking
+    ).toBe("false")
     expect(getSyncStatus).toHaveBeenCalledOnce()
   })
 
@@ -226,6 +237,69 @@ describe("SyncPanel failure states", () => {
     expect(host.textContent).toContain("Keep this Space in sync")
     expect(host.textContent).not.toContain("Checking Sync")
     expect(host.querySelector(".sync-loading")).toBeNull()
+  })
+
+  it("reuses the global account identity while checking a new Space", async () => {
+    writeSyncStatusSnapshot("welcome", {
+      version: 1,
+      status,
+      checkedAtMs: Date.now() - 60_000,
+    })
+    const api = {
+      getSyncStatus: vi.fn(() => new Promise<EidosSyncStatus>(() => undefined)),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          cacheKey: "never-opened-space",
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    expect(host.textContent).toContain("person@example.com")
+    expect(host.textContent).toContain("Checking this Space")
+    expect(host.textContent).not.toContain("Local only")
+    expect(host.textContent).not.toContain("Manage account")
+  })
+
+  it("renders current-Space Sync as a non-modal inspector", async () => {
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(status),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          variant: "inspector",
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    expect(host.querySelector(".sync-dialog-backdrop")).toBeNull()
+    expect(host.querySelector(".sync-inspector-host")).not.toBeNull()
+    expect(host.querySelector("aside")?.getAttribute("role")).toBe(
+      "complementary"
+    )
+    expect(host.querySelector("aside")?.hasAttribute("aria-modal")).toBe(false)
   })
 
   it("keeps the cached identity when the secure session has expired", async () => {
@@ -396,6 +470,172 @@ describe("SyncPanel failure states", () => {
       "2 GiB of 10 GiB cloud storage used"
     )
     expect(getSyncPreflight).toHaveBeenCalledOnce()
+  })
+
+  it("keeps the cached Space size visible while refreshing it", async () => {
+    let finishPreflight: ((value: EidosSyncPreflight) => void) | undefined
+    writeSyncStatusSnapshot("cached-size-space", {
+      version: 1,
+      status,
+      checkedAtMs: Date.now() - 60_000,
+      spaceBytes: preflight.totalBytes,
+      spaceSizeCheckedAtMs: Date.now() - 120_000,
+    })
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(status),
+      getSyncPreflight: vi.fn(
+        () =>
+          new Promise<EidosSyncPreflight>((resolve) => {
+            finishPreflight = resolve
+          })
+      ),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          cacheKey: "cached-size-space",
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    const storage = host.querySelector<HTMLElement>(
+      "[data-sync-space-size-state]"
+    )
+    expect(storage?.dataset.syncSpaceSizeState).toBe("cached")
+    expect(storage?.dataset.syncSpaceBytes).toBe(
+      preflight.totalBytes.toString()
+    )
+    expect(storage?.textContent).toContain("120 MiB")
+    expect(storage?.textContent).not.toContain("Calculating")
+
+    await act(async () => finishPreflight?.(preflight))
+    expect(storage?.dataset.syncSpaceSizeState).toBe("available")
+  })
+
+  it("shows cached synced Spaces while refreshing the cloud list", async () => {
+    let finishStatus: ((value: EidosSyncStatus) => void) | undefined
+    const repositories = {
+      namespace: "person",
+      repositories: [
+        {
+          name: "space-id",
+          displayName: "Design notes",
+          createdAtMs: 100,
+          remoteUrl: "https://sync-staging.eidos.space/person/space-id",
+        },
+      ],
+    }
+    writeSyncStatusSnapshot("welcome", {
+      version: 1,
+      status,
+      checkedAtMs: Date.now() - 60_000,
+      repositories,
+      repositoriesCheckedAtMs: Date.now() - 120_000,
+    })
+    const api = {
+      getSyncStatus: vi.fn(
+        () =>
+          new Promise<EidosSyncStatus>((resolve) => {
+            finishStatus = resolve
+          })
+      ),
+      listSyncRepositories: vi.fn(
+        () => new Promise<EidosSyncRepositoryList>(() => undefined)
+      ),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "clone",
+          cacheKey: "welcome",
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    expect(host.textContent).toContain("Design notes")
+    expect(host.textContent).not.toContain("Loading your synced Spaces")
+
+    await act(async () => finishStatus?.(status))
+    expect(host.textContent).toContain("Design notes")
+    expect(host.textContent).not.toContain("Loading your synced Spaces")
+  })
+
+  it("makes opaque cloud repositories recognizable and searchable", async () => {
+    const opaqueNames = Array.from(
+      { length: 8 },
+      (_, index) => `${index.toString(16)}${"a".repeat(31)}`
+    )
+    writeSyncStatusSnapshot("repository-names", {
+      version: 1,
+      status,
+      checkedAtMs: Date.now() - 60_000,
+      repositoriesCheckedAtMs: Date.now() - 120_000,
+      repositories: {
+        namespace: "person",
+        repositories: [
+          ...opaqueNames.map((name, index) => ({
+            name,
+            displayName: name,
+            createdAtMs: index + 1,
+            remoteUrl: `https://sync-staging.eidos.space/person/${name}`,
+          })),
+          {
+            name: "design-notes-id",
+            displayName: "Design notes",
+            createdAtMs: 20,
+            remoteUrl:
+              "https://sync-staging.eidos.space/person/design-notes-id",
+          },
+        ],
+      },
+    })
+    const api = {
+      getSyncStatus: vi.fn(() => new Promise<EidosSyncStatus>(() => undefined)),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "clone",
+          cacheKey: "repository-names",
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    const repositoryButtons = [
+      ...host.querySelectorAll<HTMLElement>("[data-sync-open-space]"),
+    ]
+    expect(repositoryButtons[0]?.dataset.syncOpenSpace).toBe("Design notes")
+    expect(repositoryButtons[1]?.dataset.syncOpenSpace).toBe("Unnamed Space")
+    expect(host.querySelector('input[type="search"]')).not.toBeNull()
+    expect(host.textContent).toContain("Cloud list updated")
   })
 
   it("keeps an oversized local Space separate from the cloud used bar", async () => {
@@ -641,8 +881,8 @@ describe("SyncPanel failure states", () => {
     })
 
     const overview = host.querySelector<HTMLElement>("[data-sync-overview]")
-    expect(overview?.textContent).toContain("Review your latest changes")
-    expect(overview?.textContent).toContain("before uploading them")
+    expect(overview?.textContent).toContain("Save a version before uploading")
+    expect(overview?.textContent).toContain("aren’t part of a saved version")
     expect(overview?.textContent).not.toMatch(
       /checkpoint|repository|remote|transport|segment/i
     )
@@ -708,6 +948,59 @@ describe("SyncPanel failure states", () => {
       action?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
     })
     expect(openSyncHelp).toHaveBeenCalledWith("account")
+  })
+
+  it("does not call a gateway upload limit full cloud storage", async () => {
+    const uploadTooLarge = {
+      ...failureResponse,
+      failure: {
+        code: "upload-too-large",
+        state: "needs-attention",
+        title: "This upload is too large",
+        message:
+          "Eidos Sync could not accept this upload yet. Keep working locally; your files and checkpoints remain safe.",
+        action: "work-locally",
+        actionLabel: "Keep working locally",
+        retryable: false,
+        localSafe: true,
+        status: 413,
+      },
+    } satisfies EidosSyncRunResponse
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getSyncStatus: vi.fn().mockResolvedValue(status),
+        getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+        runSync: vi.fn().mockResolvedValue(uploadTooLarge),
+        onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+        onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+      } as unknown as EidosLiteApi,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          onClose: () => undefined,
+        })
+      )
+    })
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>("[data-sync-run]")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+
+    const failure = host.querySelector<HTMLElement>("[data-sync-failure]")
+    expect(failure?.dataset.syncFailure).toBe("upload-too-large")
+    expect(failure?.textContent).toContain("This upload is too large")
+    expect(failure?.textContent).toContain("Local files safe")
+    expect(failure?.textContent).not.toMatch(
+      /storage is full|increase your limit/i
+    )
+    expect(
+      host.querySelector("[data-sync-storage-used]")?.textContent
+    ).toContain("2 GiB")
   })
 
   it("surfaces a pending background retry without hiding Local safety", async () => {
@@ -1204,7 +1497,7 @@ describe("SyncPanel failure states", () => {
     })
 
     expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
-      "Everything is up to date"
+      "Latest saved version is in the cloud"
     )
   })
 

@@ -38,7 +38,6 @@ import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/galle
 import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
 import { Check } from "lucide-react"
 
-import { EIDOS_LITE_CSV_IMPORT_BYTES_MAX } from "../shared/contracts"
 import { eidosLiteCsvFileName } from "./csv-workflow"
 import { shouldFocusEidosFileSearch } from "./eidos-file-workbench-shortcuts"
 import type { IpcEidosFileDataSource } from "./ipc-data-source"
@@ -48,21 +47,6 @@ const VIEW_PLUGINS: EidosFilePlugin[] = [
   eidosFileKanbanPlugin,
 ]
 const PLUGIN_REGISTRY = createEidosFilePluginRegistry(VIEW_PLUGINS)
-
-function pickBrowserCsvFile(): Promise<File | null> {
-  return new Promise((resolve) => {
-    const input = document.createElement("input")
-    input.type = "file"
-    input.accept = ".csv,text/csv,text/plain"
-    input.addEventListener(
-      "change",
-      () => resolve(input.files?.item(0) ?? null),
-      { once: true }
-    )
-    input.addEventListener("cancel", () => resolve(null), { once: true })
-    input.click()
-  })
-}
 
 export interface EidosFileWorkbenchProps {
   relativePath: string
@@ -102,7 +86,6 @@ export function EidosFileWorkbench({
     null
   )
   const [reloadToken, setReloadToken] = useState(0)
-  const csvFilesRef = useRef(new Map<string, File>())
   const editorRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -128,38 +111,44 @@ export function EidosFileWorkbench({
       ...VIEW_PLUGINS,
       createEidosFileCsvImportPlugin({
         async pickFile() {
-          const file = await pickBrowserCsvFile()
-          if (!file) return null
-          if (file.size > EIDOS_LITE_CSV_IMPORT_BYTES_MAX) {
-            throw new Error("CSV files are limited to 16 MiB")
-          }
+          const selection = await window.eidosLite.selectCsvFile()
+          if (!selection) return null
           const selected: EidosFileCsvImportSource = {
-            id: crypto.randomUUID(),
-            fileName: file.name,
+            id: selection.token,
+            fileName: selection.fileName,
           }
-          csvFilesRef.current.set(selected.id, file)
           return selected
         },
-        async preview(selected, options) {
-          const file = csvFilesRef.current.get(selected.id)
-          if (!file) throw new Error("The selected CSV is no longer available")
-          return source.previewCsv(
-            selected.fileName,
-            await file.arrayBuffer(),
-            options
+        preview(selected, options, operationId) {
+          return window.eidosLite.callRuntime(
+            source.sessionId,
+            "previewCsvFile",
+            [selected.id, options, operationId]
           )
         },
-        async import(selected, options) {
-          const file = csvFilesRef.current.get(selected.id)
-          if (!file) throw new Error("The selected CSV is no longer available")
-          return source.importCsv(
-            selected.fileName,
-            await file.arrayBuffer(),
-            options
+        import(selected, options, operationId) {
+          return window.eidosLite.callRuntime(
+            source.sessionId,
+            "importCsvFile",
+            [selected.id, options, operationId]
+          )
+        },
+        progress(operationId) {
+          return window.eidosLite.callRuntime(
+            source.sessionId,
+            "getCsvOperationProgress",
+            [operationId]
+          )
+        },
+        cancel(operationId) {
+          return window.eidosLite.callRuntime(
+            source.sessionId,
+            "cancelCsvOperation",
+            [operationId]
           )
         },
         release(selected) {
-          csvFilesRef.current.delete(selected.id)
+          void window.eidosLite.releaseCsvFile(selected.id)
         },
       }),
     ],
@@ -173,6 +162,14 @@ export function EidosFileWorkbench({
       null,
     [activeTableId, snapshot.tables]
   )
+  const currentPropertyField = useMemo(() => {
+    if (!propertyField) return null
+    return (
+      snapshot.tables
+        .find((table) => table.table.id === propertyField.tableId)
+        ?.fields.find((field) => field.id === propertyField.id) ?? propertyField
+    )
+  }, [propertyField, snapshot.tables])
   const activeView = useMemo(() => {
     if (!activeTable) return undefined
     const requested = activeViews[activeTable.table.id]
@@ -338,6 +335,10 @@ export function EidosFileWorkbench({
       <EidosFileEditorShell
         ref={editorRef}
         className="lite-eidos-file-shell min-h-0 flex-1 !h-auto"
+        searchNavigation={{
+          search,
+          scopeKey: `${relativePath}:${activeTable.table.id}:${activeView?.id ?? "default"}`,
+        }}
         viewTabs={
           <EidosFileViewTabs
             views={activeTable.views}
@@ -523,7 +524,7 @@ export function EidosFileWorkbench({
           search={search}
           disabled={disabled}
           reloadToken={reloadToken}
-          propertyField={propertyField}
+          propertyField={currentPropertyField}
           capabilities={{
             read: true,
             mutate: !disabled,
