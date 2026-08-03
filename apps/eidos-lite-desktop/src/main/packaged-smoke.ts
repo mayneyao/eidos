@@ -4,6 +4,7 @@ import { performance } from "node:perf_hooks"
 import type { BrowserWindow } from "electron"
 import { createEidosFile } from "@eidos.space/eidos-file/node-sqlite"
 
+import { EIDOS_LITE_PERFORMANCE_BUDGET_MS } from "../shared/performance-contract"
 import {
   observePackagedSmokeWindow,
   type PackagedSmokeStartup,
@@ -14,6 +15,11 @@ import type { WindowController } from "./window-controller"
 interface RendererSmokeResult {
   performance: {
     coldStartMs: number
+    budgets: {
+      coldStartMs: number
+      utilityOpenP95Ms: number
+      denseGridFirstFrameMs: number
+    }
     startup: PackagedStartupTimings
     utilityOpenMs: number[]
     utilityOpenP95Ms: number
@@ -508,14 +514,21 @@ const rendererProbe = `
     }
     utilityOpenMs.push(performance.now() - openStartedAt)
   }
-  if (!denseGrid || denseGrid.renderedFirstFrameMs > 2000) {
+  if (
+    !denseGrid ||
+    denseGrid.renderedFirstFrameMs >
+      ${EIDOS_LITE_PERFORMANCE_BUDGET_MS.gridFirstPageHundredThousandRows}
+  ) {
     throw new Error(
       "Packaged 100,000-row Grid missed its rendered first-frame gate: " +
         JSON.stringify(denseGrid)
     )
   }
   const utilityOpenP95Ms = Math.max(...utilityOpenMs)
-  if (utilityOpenP95Ms > 1500) {
+  if (
+    utilityOpenP95Ms >
+    ${EIDOS_LITE_PERFORMANCE_BUDGET_MS.nativeOpenTenMiB}
+  ) {
     throw new Error(
       "Packaged utility open exceeded the PRD P95 budget: " +
         JSON.stringify(utilityOpenMs)
@@ -571,7 +584,9 @@ const rendererProbe = `
   const syncControl = {
     action: Boolean(syncAction),
     iconAction: syncAction.textContent?.trim() === "",
-    panel: syncPanel.getAttribute("role") === "dialog",
+    panel: ["dialog", "complementary"].includes(
+      syncPanel.getAttribute("role") ?? ""
+    ),
     environment: syncPanel.dataset.syncEnvironment === "staging",
     environmentBadge: Boolean(stagingBadge),
     signedOut: syncPanel.dataset.syncAccountState === "signed-out",
@@ -923,8 +938,30 @@ const rendererProbe = `
     throw new Error("A real Eidos File mutation did not dirty the Space repository")
   }
   const changes = await window.eidosLite.getVersionChanges()
-  const selectedChanges = await window.eidosLite.getVersionPathDiff(eidosPaths[0])
-  const rowChanges = selectedChanges.files.reduce(
+  const selectedSummary = await window.eidosLite.getVersionPathDiff(eidosPaths[0])
+  const changedTable = selectedSummary.files
+    .flatMap((file) => file.tables)
+    .find((tableDiff) => {
+      const summary = tableDiff.summary
+      return summary && summary.inserts + summary.deletes + summary.updates > 0
+    })
+  if (!changedTable) {
+    throw new Error(
+      "Row-aware whole-Space Changes did not return a table summary: " +
+        JSON.stringify({
+          requestedPath: eidosPaths[0],
+          changedPaths: changes.paths,
+          selectedSummary,
+        })
+    )
+  }
+  const selectedRows = await window.eidosLite.getVersionPathDiff(
+    eidosPaths[0],
+    null,
+    null,
+    changedTable.name
+  )
+  const rowChanges = selectedRows.files.reduce(
     (total, file) => total + file.tables.reduce(
       (tableTotal, tableDiff) => tableTotal + tableDiff.changes.length,
       0
@@ -952,10 +989,16 @@ const rendererProbe = `
   const checkpoint = await window.eidosLite.createCheckpoint(
     "Packaged mutation checkpoint"
   )
-  if (checkpoint.graft.clean !== true) {
+  if (!checkpoint.graft.currentHead || checkpoint.graft.checking !== true) {
+    throw new Error(
+      "Whole-Space checkpoint did not publish its durable HEAD before status refresh"
+    )
+  }
+  const settledCheckpoint = await window.eidosLite.refreshSpace()
+  if (settledCheckpoint.graft.clean !== true) {
     const residualChanges = await window.eidosLite.getVersionChanges()
     const residualState = JSON.stringify({
-      graft: checkpoint.graft,
+      graft: settledCheckpoint.graft,
       paths: residualChanges.paths,
     })
     throw new Error(
@@ -1018,6 +1061,11 @@ const rendererProbe = `
     throw new Error("Restore rewrote history instead of creating a new checkpoint")
   }
   window.__eidosLiteSmokeStep = "automatic checkpoint"
+  const defaultPreferences = await window.eidosLite.getPreferences()
+  if (defaultPreferences.automaticCheckpoints) {
+    throw new Error("Automatic checkpoints must be disabled by default")
+  }
+  await window.eidosLite.updatePreferences({ automaticCheckpoints: true })
   await window.eidosLite.createFolder(null, "automatic-checkpoint-probe")
   await window.eidosLite.createEidosFile(
     "automatic-checkpoint-probe",
@@ -1056,6 +1104,7 @@ const rendererProbe = `
   ) {
     throw new Error("Automatic checkpoint did not reopen the resident runtime")
   }
+  await window.eidosLite.updatePreferences({ automaticCheckpoints: false })
   window.__eidosLiteSmokeStep = "Sync failure safety"
   const expectedSyncFailures = [
     { code: "offline" },
@@ -1200,6 +1249,11 @@ const rendererProbe = `
   return {
     performance: {
       coldStartMs: 0,
+      budgets: {
+        coldStartMs: ${EIDOS_LITE_PERFORMANCE_BUDGET_MS.packagedColdStart},
+        utilityOpenP95Ms: ${EIDOS_LITE_PERFORMANCE_BUDGET_MS.nativeOpenTenMiB},
+        denseGridFirstFrameMs: ${EIDOS_LITE_PERFORMANCE_BUDGET_MS.gridFirstPageHundredThousandRows},
+      },
       startup: {
         launcherToBootstrapMs: 0,
         bootstrapToMainMs: 0,

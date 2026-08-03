@@ -17,8 +17,12 @@ ABI switching; the main Eidos Desktop still owns that separate native workflow.
 pnpm --filter @eidos.space/eidos-file test:node-sqlite
 pnpm test:eidos-lite
 
-# Explicit load gate (1k/10k Spaces, 10/100 MiB files, Grid, and CSV 10k/100k)
+# Explicit load gate (1k/10k Spaces, 10/100 MiB files, and Tables/CSV through 1m rows)
 pnpm --filter @eidos.space/eidos-lite-desktop test:performance
+
+# Real large-Space gate; mutations run only in an automatic temporary copy
+EIDOS_LITE_LARGE_REPOSITORY_ROOT=/path/to/large-space \
+  pnpm test:eidos-lite:performance:large
 
 # Repeatable local whole-Space Remote gate using the resident SDK
 pnpm smoke:eidos-lite-graft
@@ -48,17 +52,29 @@ signing, artifact upload, release, or production-service step. A local ARM pass
 does not count as Intel evidence; Public v1 requires both remote jobs to pass.
 
 The performance load gate measures the real Space tree walker, recursive
-watcher, native Eidos File validation/open path, and a generated canonical
-100,000-row table. The dense table reports preparation separately, then gates
-the first 100-row Grid query and five ordinary cell commits against the PRD P95
-budgets. The 10/100 MiB fixtures are valid SQLite files with padded extents, so
-they prove file-size handling and open overhead but not representative 100 MiB
+watcher, native Eidos File validation/open path, and generated canonical
+100,000-row and 1,000,000-row Tables. The million-row matrix gates first page,
+Table switching, deep viewport jumps, search, filter, sort, row mutations,
+metadata edits, physical field add/drop, and Text/Select conversion. A separate
+streaming fixture gates one-million-row CSV analysis, transactional import, the
+exact imported count, and the single final completed progress state. Fixture
+generation is reported separately from user-visible timings.
+
+Field conversion has its own independent-copy matrix: all editor conversion
+algorithm families run at 100,000 rows, Text/Select metadata conversion and one
+representative physical rewrite run at 1,000,000 rows, and invalid/File routes
+must fail within their bounded budgets without mutation. The normative route
+matrix and lossy policies live in `packages/eidos-file/FIELD-CONVERSION.md`.
+
+The 10/100 MiB fixtures are valid SQLite files with padded extents, so they
+prove file-size handling and open overhead but not representative 100 MiB
 high-density user data. Packaged acceptance independently generates a canonical
 100,000-row table after the cold-start measurement, then gates Explorer click
 through renderer/main/utility open, row-count projection, a non-zero Glide
-canvas, and two animation frames at 2,000 ms. This is rendered-first-frame
-evidence; it is not a substitute for scroll/repaint P95 or a user-perceived
-long-session benchmark.
+canvas, and two animation frames at 2,000 ms. The packaged check proves the
+rendered first-frame boundary; the million-row Runtime/DataSource matrix proves
+that viewport work remains bounded. Neither substitutes for long-session GPU
+repaint profiling.
 
 ## Environment selection
 
@@ -217,30 +233,42 @@ History and Remote metadata reads use `repositoryMetadata()` and
 `listRemotes()`, both of which examine zero worktree paths.
 
 Checkpoint, stage, commit, fetch, and push operations serialize through the
-repository gate. Checkpoint and first push pause new app mutations and drain
-in-flight writes, but retain open SQLite handles because those SDK operations
-do not materialize the worktree. Pull, restore, clone, and recovery continue to
-use the durable close → materialize → validate → reopen gate.
+repository coordinator without pausing ordinary local SQLite mutations.
+Checkpoint acknowledges the new durable HEAD after stage + commit; status
+reclassification, account access, Sync queue persistence, fetch, and push are
+explicit background work. Pull, restore, clone, and recovery continue to use
+the durable close → materialize → validate → reopen gate because they may
+replace worktree bytes.
 
 Lite packages only the published Node-API SDK wrapper and the selected native
 package. There is no CLI runtime manifest, executable download, backend switch,
 `GRAFT_REMOTE_TOKEN` process environment, or search of the user's `PATH`.
 
 For large-repository regression testing, set
-`EIDOS_LITE_LARGE_REPOSITORY_ROOT` to an existing disposable or read-only
-repository and run the large-repository Vitest case. Its shell gate measures
+`EIDOS_LITE_LARGE_REPOSITORY_ROOT` to an existing clean repository and run the
+large-Space performance command. The command reads the original for status and
+summary measurements, creates two independent automatic temporary copies for
+cold dirty-diff and checkpoint/restore measurements, and removes both copies
+afterward. Keeping the copies independent prevents a diff from warming the
+checkpoint path (or vice versa) and hiding cold-start regressions. Its shell gate measures
 canonicalization plus the direct-root Explorer snapshot before any Graft
 session is opened and must remain below one second. The extended gate separately
 measures cold/hot incremental status, 50 history summaries, metadata-only
 Changes, a selected path diff, full validation-tree construction, bounded Sync
 preflight, batch ignore queries, and cold/hot tracked-ignore inventory. It also
 closes the first repository session and requires a replacement session to hit
-the persisted status snapshot. The test never stages, commits, restores, or
-writes Remote state. Hot and persisted-reopen status, history, metadata
+the persisted status snapshot. The original repository is never staged,
+committed, restored, or given Remote state. Hot and persisted-reopen status, history, metadata
 Changes, batch ignore, and cached inventory must each remain below their
 bounded budgets; full validation-tree construction and preflight must remain
 below three seconds with fewer than 100 ignore waves, the preflight IPC
-projection below 64 KiB, and one selected path diff below three seconds.
+projection below 64 KiB, and one selected path diff below three seconds. The
+dirty-diff copy separately gates metadata-only Changes below one second, a cold
+selected-path diff below five seconds, and its selected-table diff below three
+seconds. The checkpoint copy separately gates a cold large-file checkpoint
+below five seconds and a subsequent warm one-line checkpoint below two seconds. The
+post-commit status rebuild is reported independently and is never included in
+the checkpoint acknowledgement budget.
 
 Cold session open/status is reported separately from UI readiness. The first
 snapshot reads only direct root children and may show `Checking version history`
@@ -252,8 +280,7 @@ version mutation before a real repository read.
 
 ```bash
 EIDOS_LITE_LARGE_REPOSITORY_ROOT=/path/to/large-space \
-  pnpm --filter @eidos.space/eidos-lite-desktop exec vitest run \
-  src/main/graft/large-repository.integration.test.ts
+  pnpm test:eidos-lite:performance:large
 ```
 
 Packaged execution contains no CLI binary, does not spawn a Graft subprocess,

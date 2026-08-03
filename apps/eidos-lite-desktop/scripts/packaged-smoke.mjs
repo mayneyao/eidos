@@ -176,6 +176,7 @@ try {
     null,
   ]
   const startup = report.performance?.startup
+  const budgets = report.performance?.budgets
   const startupPhases = startup
     ? [
         startup.launcherToBootstrapMs,
@@ -196,7 +197,8 @@ try {
       "https://sync-staging.eidos.space" ||
     report.environment?.stagingBadge !== true ||
     report.performance?.coldStartMs <= 0 ||
-    report.performance?.coldStartMs > 2_000 ||
+    !Number.isFinite(budgets?.coldStartMs) ||
+    report.performance?.coldStartMs > budgets.coldStartMs ||
     startupPhases.length !== 7 ||
     startupPhases.some(
       (duration) => !Number.isFinite(duration) || duration < 0
@@ -205,12 +207,15 @@ try {
     startupPhases.reduce((total, duration) => total + duration, 0) !==
       startup?.totalMs ||
     report.performance?.utilityOpenP95Ms <= 0 ||
-    report.performance?.utilityOpenP95Ms > 1_500 ||
+    !Number.isFinite(budgets?.utilityOpenP95Ms) ||
+    report.performance?.utilityOpenP95Ms > budgets.utilityOpenP95Ms ||
     report.performance?.utilityOpenMs?.length !== 4 ||
     report.performance?.denseGrid?.rows !== 100_000 ||
     report.performance?.denseGrid?.preparationMs <= 0 ||
     report.performance?.denseGrid?.renderedFirstFrameMs <= 0 ||
-    report.performance?.denseGrid?.renderedFirstFrameMs > 2_000 ||
+    !Number.isFinite(budgets?.denseGridFirstFrameMs) ||
+    report.performance?.denseGrid?.renderedFirstFrameMs >
+      budgets.denseGridFirstFrameMs ||
     report.performance?.denseGrid?.canvasWidth <= 0 ||
     report.performance?.denseGrid?.canvasHeight <= 0 ||
     Object.values(report.launchRouting ?? {}).some((value) => value !== true) ||
@@ -231,7 +236,7 @@ try {
     ) ||
     !report.graft?.available ||
     report.graft?.backend !== "sdk" ||
-    report.graft?.version !== "0.3.2" ||
+    report.graft?.version !== "0.3.5" ||
     report.mutation?.afterInsertCount !== report.mutation?.beforeCount + 1 ||
     report.mutation?.afterDeleteCount !== report.mutation?.beforeCount ||
     report.mutation?.checkpointCount !== report.mutation?.beforeCount + 1 ||

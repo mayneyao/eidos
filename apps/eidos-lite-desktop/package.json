@@ -13,6 +13,7 @@
     "build:production": "vite build --mode eidos-production && node scripts/verify-build-environment.mjs production && node scripts/verify-electron-output.mjs",
     "test": "node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts",
     "test:performance": "node scripts/performance-smoke.mjs",
+    "test:performance:large": "node scripts/large-space-performance.mjs",
     "test:graft": "node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts src/main/graft/graft-client.integration.test.ts",
     "test:service-discovery": "EIDOS_LITE_RUN_SERVICE_DISCOVERY=1 node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts src/main/services/service-environment.discovery.test.ts",
     "test:staging": "EIDOS_LITE_RUN_STAGING=1 node ../../scripts/run-electron-node.mjs ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts src/main/graft/graft-client.staging.test.ts",

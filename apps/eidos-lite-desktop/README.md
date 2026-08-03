@@ -89,7 +89,7 @@ credentials. The titlebar and Sync panel expose queued, running, retry-wait,
 and paused states. Local-only Spaces still neither log in nor create a Sync
 queue.
 
-Graft runs through the published `@eidos.space/graft@0.3.1` Node-API SDK.
+Graft runs through the published `@eidos.space/graft@0.3.5` Node-API SDK.
 Opening a Space does not open or classify its repository. The root Explorer and
 local Eidos File runtime become usable first; the first background or explicit
 version operation lazily starts one Electron utility process and retains one
@@ -105,6 +105,8 @@ From the repository root:
 pnpm install
 pnpm test:eidos-lite
 pnpm --filter @eidos.space/eidos-lite-desktop test:performance
+EIDOS_LITE_LARGE_REPOSITORY_ROOT=/path/to/large-space \
+  pnpm test:eidos-lite:performance:large
 pnpm smoke:eidos-lite-graft
 pnpm smoke:eidos-lite-services
 EIDOS_LITE_STAGING_ACCOUNT_STATE=/owner-only/path/to/smoke-account.json \
@@ -112,6 +114,10 @@ EIDOS_LITE_STAGING_ACCOUNT_STATE=/owner-only/path/to/smoke-account.json \
 pnpm build:eidos-lite
 pnpm dev:eidos-lite
 ```
+
+The standard performance command generates 100k/1m-row Eidos Files and a 1m-row
+CSV, then gates Table open/switch/scroll/query, row and field mutations, field
+conversion, CSV analysis, import, and final local completion.
 
 `pnpm dev:eidos-lite`, `pnpm build:eidos-lite`, and
 `pnpm build:eidos-lite:dev` default to `staging.eidos.space` plus

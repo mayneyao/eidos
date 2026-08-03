@@ -10,6 +10,7 @@ import {
 } from "@eidos.space/eidos-file/node-sqlite"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
+import { EIDOS_LITE_PERFORMANCE_BUDGET_MS } from "../shared/performance-contract"
 import { flattenSpaceTree, listSpaceTree } from "./space/space-paths"
 import { SpaceWatcher } from "./space/space-watcher"
 import { createEidosLiteFileRuntime } from "../runtime/eidos-file-runtime"
@@ -121,7 +122,9 @@ describe.runIf(performanceEnabled)("Eidos Lite PRD performance load", () => {
       JSON.stringify({ benchmark: "explorer-1000", durationMs, entries: 1000 })
     )
     expect(entries).toHaveLength(1_000)
-    expect(durationMs).toBeLessThanOrEqual(2_000)
+    expect(durationMs).toBeLessThanOrEqual(
+      EIDOS_LITE_PERFORMANCE_BUDGET_MS.explorerThousandEntries
+    )
   })
 
   it("observes a stable change in a 10,000-entry watched Space", async () => {
@@ -155,8 +158,12 @@ describe.runIf(performanceEnabled)("Eidos Lite PRD performance load", () => {
         entries: 10_000,
       })
     )
-    expect(startupMs).toBeLessThanOrEqual(2_000)
-    expect(changeMs).toBeLessThanOrEqual(2_000)
+    expect(startupMs).toBeLessThanOrEqual(
+      EIDOS_LITE_PERFORMANCE_BUDGET_MS.watcherTenThousandEntries
+    )
+    expect(changeMs).toBeLessThanOrEqual(
+      EIDOS_LITE_PERFORMANCE_BUDGET_MS.watcherTenThousandEntries
+    )
   })
 
   it("opens 10/100 MiB files within the native Runtime P95 budgets", async () => {
@@ -170,13 +177,13 @@ describe.runIf(performanceEnabled)("Eidos Lite PRD performance load", () => {
         benchmark: "eidos-open-10-mib",
         filePath: tenMegabyteFile,
         expectedBytes: 10 * 1024 * 1024,
-        budgetMs: 1_500,
+        budgetMs: EIDOS_LITE_PERFORMANCE_BUDGET_MS.nativeOpenTenMiB,
       },
       {
         benchmark: "eidos-open-100-mib",
         filePath: hundredMegabyteFile,
         expectedBytes: 100 * 1024 * 1024,
-        budgetMs: 4_000,
+        budgetMs: EIDOS_LITE_PERFORMANCE_BUDGET_MS.nativeOpenHundredMiB,
       },
     ]
 
@@ -245,9 +252,15 @@ describe.runIf(performanceEnabled)("Eidos Lite PRD performance load", () => {
       )
       expect(page.total).toBe(100_000)
       expect(page.rows).toHaveLength(100)
-      expect(firstPageMs).toBeLessThanOrEqual(2_000)
-      expect(commitP50Ms).toBeLessThanOrEqual(50)
-      expect(commitP95Ms).toBeLessThanOrEqual(150)
+      expect(firstPageMs).toBeLessThanOrEqual(
+        EIDOS_LITE_PERFORMANCE_BUDGET_MS.gridFirstPageHundredThousandRows
+      )
+      expect(commitP50Ms).toBeLessThanOrEqual(
+        EIDOS_LITE_PERFORMANCE_BUDGET_MS.gridCellCommitP50
+      )
+      expect(commitP95Ms).toBeLessThanOrEqual(
+        EIDOS_LITE_PERFORMANCE_BUDGET_MS.gridCellCommitP95
+      )
     } finally {
       runtime.close()
     }
@@ -255,8 +268,14 @@ describe.runIf(performanceEnabled)("Eidos Lite PRD performance load", () => {
 
   it("bulk imports 10,000 and 100,000 CSV rows within budget", async () => {
     const cases = [
-      { rows: 10_000, budgetMs: 5_000 },
-      { rows: 100_000, budgetMs: 30_000 },
+      {
+        rows: 10_000,
+        budgetMs: EIDOS_LITE_PERFORMANCE_BUDGET_MS.csvImportTenThousandRows,
+      },
+      {
+        rows: 100_000,
+        budgetMs: EIDOS_LITE_PERFORMANCE_BUDGET_MS.csvImportHundredThousandRows,
+      },
     ] as const
 
     for (const { rows, budgetMs } of cases) {

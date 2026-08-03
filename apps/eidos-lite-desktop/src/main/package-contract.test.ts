@@ -134,6 +134,55 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).not.toContain("softprops/action-gh-release")
   })
 
+  it("keeps local-first performance budgets and the real-Space gate executable", async () => {
+    const packageJson = await readJson("package.json")
+    const scripts = packageJson.scripts as Record<string, string>
+    const [contract, performanceSmoke, architecture, operations, conversions] =
+      await Promise.all([
+        fs.readFile(
+          path.resolve(appRoot, "src/shared/performance-contract.ts"),
+          "utf8"
+        ),
+        fs.readFile(
+          path.resolve(appRoot, "scripts/performance-smoke.mjs"),
+          "utf8"
+        ),
+        fs.readFile(path.resolve(appRoot, "docs/ARCHITECTURE.md"), "utf8"),
+        fs.readFile(path.resolve(appRoot, "docs/OPERATIONS.md"), "utf8"),
+        fs.readFile(
+          path.resolve(
+            appRoot,
+            "../../packages/eidos-file/FIELD-CONVERSION.md"
+          ),
+          "utf8"
+        ),
+      ])
+
+    expect(scripts["test:performance"]).toContain("performance-smoke.mjs")
+    expect(scripts["test:performance:large"]).toContain(
+      "large-space-performance.mjs"
+    )
+    expect(contract).toContain("packagedColdStart: 2_000")
+    expect(contract).toContain("nativeOpenTenMiB: 1_500")
+    expect(contract).toContain("gridFirstPageHundredThousandRows: 2_000")
+    expect(contract).toContain("tableOpenMillionRows: 2_000")
+    expect(contract).toContain("tableRowMutationP95: 200")
+    expect(contract).toContain("tablePhysicalSchemaMutationMillionRows: 5_000")
+    expect(contract).toContain("fieldConversionRewriteMillionRows: 60_000")
+    expect(contract).toContain("csvImportMillionRows: 60_000")
+    expect(contract).toContain("checkpointAcknowledgement: 2_000")
+    expect(contract).toContain('saveVersion: ["graft-stage", "graft-commit"]')
+    expect(performanceSmoke).toContain("table-performance.test.ts")
+    expect(performanceSmoke).toContain("field-conversion-performance.test.ts")
+    expect(performanceSmoke).toContain("csv-performance.test.ts")
+    expect(architecture).toContain("### Local-first performance contract")
+    expect(architecture).toContain("one-million-row")
+    expect(operations).toContain("million-row matrix")
+    expect(operations).toContain("pnpm test:eidos-lite:performance:large")
+    expect(conversions).toContain("## Editor conversion matrix")
+    expect(conversions).toContain("## Performance contract")
+  })
+
   it("documents install, upgrade, rollback, diagnostics, and external release gates", async () => {
     const runbook = await fs.readFile(
       path.resolve(appRoot, "docs/RELEASE-RUNBOOK.md"),

@@ -13,6 +13,9 @@ const child = spawn(
     "--config",
     "vitest.config.ts",
     "src/main/performance-load.test.ts",
+    "src/main/table-performance.test.ts",
+    "src/main/field-conversion-performance.test.ts",
+    "src/main/csv-performance.test.ts",
   ],
   {
     env: { ...process.env, EIDOS_LITE_RUN_PERFORMANCE: "1" },

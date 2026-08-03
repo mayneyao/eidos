@@ -64,7 +64,7 @@ flowchart LR
   F1 -->|"guarded node:sqlite handle"| E1["a.eidos"]
   F2 -->|"guarded node:sqlite handle"| E2["nested/b.eidos"]
   M -->|"typed private IPC; one process per Space"| G["Graft utility process"]
-  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.1"]
+  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.5"]
   N --> S["whole ordinary folder Space"]
   N -. "explicit in-memory credential; Sync/Clone only" .-> H["Selected official Hosted Remote"]
 ```
@@ -111,6 +111,49 @@ two identities would reopen the native session before every command, discard
 memory-only Remote credentials, and defeat both residency and serialization.
 
 ## Space operation gate
+
+### Local-first performance contract
+
+Local durability and cloud convergence are separate completion boundaries.
+The renderer may acknowledge an interaction only after its allowed local
+critical path completes:
+
+| Interaction         | Awaited critical path                               | Explicitly deferred work                            |
+| ------------------- | --------------------------------------------------- | --------------------------------------------------- |
+| Open Space          | directory shell                                     | Graft open/status, account, Remote                  |
+| Open Eidos File     | local runtime first frame                           | version status, History, Sync                       |
+| Open/switch Table   | selected 100-row viewport                           | unrelated Tables and offscreen rows                 |
+| Scroll/query        | visible row page + matching count                   | offscreen rows                                      |
+| Edit row            | local SQLite mutation                               | checkpoint, diff, Sync                              |
+| Edit field metadata | bounded distinct-value summary + metadata           | version status, Sync                                |
+| Add physical field  | local SQLite schema migration                       | version status, Sync                                |
+| Import CSV          | analyze, transactional import, final local snapshot | checkpoint, Sync                                    |
+| Save version        | Graft stage + commit                                | post-commit status, account, queue I/O, fetch, push |
+| Changes             | status/path/table summary                           | selected row diff                                   |
+| History             | repository metadata + paged summaries               | selected checkpoint/path diff                       |
+
+The executable budgets live in
+`src/shared/performance-contract.ts`. Source tests, the synthetic performance
+gate, real-Space probes, and packaged smoke must import or validate the same
+contract. A feature is not performance-complete when only its underlying SDK
+command is fast: evidence starts at the user action and ends at the first
+usable UI state, with local completion and background convergence logged as
+separate events.
+
+The standard performance gate creates canonical 100,000-row and 1,000,000-row
+Eidos Files. It measures first page, rapid Table switching, deep viewport
+jumps, search, filter, sort, insert/update/delete, metadata-only field edits,
+physical field add/drop, Text/Select conversion, and a streamed one-million-row
+CSV from analysis through its final visible snapshot. Physical SQLite schema
+migrations have a separate budget because `ALTER TABLE` can touch file pages;
+they must never be mislabeled as metadata-only work or block the renderer.
+
+One `SpaceRepositoryCoordinator` owns repository task priority for a Space.
+Foreground reads may preempt cancellable background classification; background
+work never cancels foreground work or another durable mutation. Renderer
+components subscribe to generation/change-token projections and cannot create
+their own repository session or place account/Remote work on a local critical
+path.
 
 Normal file reads can overlap. Repository operations are serialized per Space
 by both `SpaceOperationGate` and the SDK session. SDK `status`, `diff`,
@@ -223,10 +266,11 @@ and creates a fresh opaque runtime session.
 Local versioning is explicit and account-free. **Enable Versioning** initializes
 one repository for the ordinary folder, stages the whole Space, and creates an
 initial checkpoint. **Create Checkpoint** appears only when that repository is
-dirty and stages and commits all Space changes. Both actions use the full
-materialization state machine, including mutation drain, handle close, native
-validation of every `.eidos`, and handle reopen. Neither action provisions a
-Remote, authenticates an account, or claims cloud Sync.
+dirty and stages and commits all Space changes through a consistent online
+SQLite snapshot without closing editor runtimes. It returns the new durable
+HEAD immediately; post-commit classification and any connected Sync queue work
+are background operations. Neither action provisions a Remote, authenticates
+an account, or claims cloud Sync.
 
 After versioning is enabled, the Space watcher also feeds a stable-change
 checkpoint scheduler. It coalesces edits for 30 seconds and bounds continuous
@@ -313,7 +357,7 @@ SDK session transport at construction. Status, diff, history, checkpoint,
 restore, push, and clone never create a CLI subprocess; Lite has no backend
 switch, executable lookup, or CLI credential environment path.
 
-The SDK adapter pins published `@eidos.space/graft@0.3.1`,
+The SDK adapter pins published `@eidos.space/graft@0.3.5`,
 lazily opens one session on the first background or explicit repository read,
 and closes it when the window closes. It asks the published
 `operationMaterializesWorktree()` contract before restore. Remote credentials

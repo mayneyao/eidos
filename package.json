@@ -44,6 +44,8 @@
     "smoke:eidos-lite-staging": "pnpm run --filter @eidos.space/eidos-lite-desktop test:staging:oauth",
     "smoke:eidos-lite-packaged": "pnpm run --filter @eidos.space/eidos-lite-desktop smoke:packaged",
     "test:eidos-lite": "pnpm run --filter @eidos.space/eidos-lite-desktop test",
+    "test:eidos-lite:performance": "pnpm run --filter @eidos.space/eidos-lite-desktop test:performance",
+    "test:eidos-lite:performance:large": "pnpm run --filter @eidos.space/eidos-lite-desktop test:performance:large",
     "test:cli-release": "node --test apps/cli/install.test.mjs apps/cli/release.test.mjs apps/download/src/release-routing.test.mjs",
     "build:desktop:local": "pnpm run --filter eidos build:cli && pnpm run --filter eidos build && pnpm run --filter eidos package:dev",
     "extension:cli": "pnpm --filter @eidos.space/extension-cli build && node packages/extension-cli/dist/cli.mjs",
