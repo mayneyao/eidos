@@ -8,11 +8,15 @@ vi.mock("electron", () => ({ dialog: { showMessageBox: vi.fn() } }))
 
 import { isPortInUse } from "./port-checker"
 
-function listen(port: number, host: string): Promise<net.Server> {
+function listen(
+  port: number,
+  host: string,
+  ipv6Only = false
+): Promise<net.Server> {
   return new Promise((resolve, reject) => {
     const server = net.createServer()
     server.once("error", reject)
-    server.listen(port, host, () => resolve(server))
+    server.listen({ port, host, ipv6Only }, () => resolve(server))
   })
 }
 
@@ -47,10 +51,10 @@ describe("isPortInUse", () => {
     const port = await getFreePort()
     let server: net.Server
     try {
-      server = await listen(port, "::1")
+      server = await listen(port, "::", true)
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code
-      // Hosts without IPv6 (some containers) cannot bind ::1 at all
+      // Hosts without IPv6 (some containers) cannot bind :: at all
       if (
         code === "EADDRNOTAVAIL" ||
         code === "EAFNOSUPPORT" ||
