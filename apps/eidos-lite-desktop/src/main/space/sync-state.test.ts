@@ -23,10 +23,11 @@ describe("SpaceSyncStateStore", () => {
     await expect(store.read()).resolves.toBeNull()
     await store.markFirstPush(remoteUrl, new Date("2026-07-28T04:00:00.000Z"))
     await expect(store.read()).resolves.toEqual({
-      version: 2,
+      version: 3,
       remoteUrl,
       connectedAt: "2026-07-28T04:00:00.000Z",
       establishedBy: "first-push",
+      lastCheckedAt: "2026-07-28T04:00:00.000Z",
     })
   })
 
@@ -34,10 +35,26 @@ describe("SpaceSyncStateStore", () => {
     const store = new SpaceSyncStateStore(root, origin)
     await store.markClone(remoteUrl, new Date("2026-07-28T05:00:00.000Z"))
     await expect(store.read()).resolves.toEqual({
-      version: 2,
+      version: 3,
       remoteUrl,
       connectedAt: "2026-07-28T05:00:00.000Z",
       establishedBy: "clone",
+      lastCheckedAt: "2026-07-28T05:00:00.000Z",
+    })
+  })
+
+  it("updates the last verified cloud check without changing connection history", async () => {
+    const store = new SpaceSyncStateStore(root, origin)
+    await store.markClone(remoteUrl, new Date("2026-07-28T05:00:00.000Z"))
+
+    await expect(
+      store.markChecked(new Date("2026-07-29T06:30:00.000Z"))
+    ).resolves.toEqual({
+      version: 3,
+      remoteUrl,
+      connectedAt: "2026-07-28T05:00:00.000Z",
+      establishedBy: "clone",
+      lastCheckedAt: "2026-07-29T06:30:00.000Z",
     })
   })
 
@@ -52,10 +69,33 @@ describe("SpaceSyncStateStore", () => {
     )
     await expect(new SpaceSyncStateStore(root, origin).read()).resolves.toEqual(
       {
-        version: 2,
+        version: 3,
         remoteUrl,
         connectedAt: "2026-07-28T04:00:00.000Z",
         establishedBy: "first-push",
+        lastCheckedAt: "2026-07-28T04:00:00.000Z",
+      }
+    )
+  })
+
+  it("migrates the version 2 connection marker to a checked history state", async () => {
+    await fs.writeFile(
+      path.join(root, "sync-state.json"),
+      JSON.stringify({
+        version: 2,
+        remoteUrl,
+        connectedAt: "2026-07-28T05:00:00.000Z",
+        establishedBy: "clone",
+      })
+    )
+
+    await expect(new SpaceSyncStateStore(root, origin).read()).resolves.toEqual(
+      {
+        version: 3,
+        remoteUrl,
+        connectedAt: "2026-07-28T05:00:00.000Z",
+        establishedBy: "clone",
+        lastCheckedAt: "2026-07-28T05:00:00.000Z",
       }
     )
   })

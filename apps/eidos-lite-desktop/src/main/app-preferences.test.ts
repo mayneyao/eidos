@@ -32,10 +32,12 @@ describe("Eidos Lite preferences", () => {
     await expect(
       store.update({
         appearance: "dark",
+        automaticCheckpoints: true,
         defaultSpaceLocation: "/Users/example/Spaces",
       })
     ).resolves.toEqual({
       appearance: "dark",
+      automaticCheckpoints: true,
       defaultSpaceLocation: "/Users/example/Spaces",
     })
 
@@ -43,6 +45,7 @@ describe("Eidos Lite preferences", () => {
       new EidosLitePreferencesStore(filePath).get()
     ).resolves.toEqual({
       appearance: "dark",
+      automaticCheckpoints: true,
       defaultSpaceLocation: "/Users/example/Spaces",
     })
   })

@@ -1,7 +1,6 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "baseUrl": "../..",
     "types": ["node", "vite/client", "vitest/globals"],
     "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"]
   },

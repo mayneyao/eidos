@@ -5,10 +5,11 @@ import { randomUUID } from "node:crypto"
 import { isOfficialRemoteUrl } from "../graft/graft-client"
 
 export interface SpaceSyncState {
-  version: 2
+  version: 3
   remoteUrl: string
   connectedAt: string
   establishedBy: "first-push" | "clone"
+  lastCheckedAt: string
 }
 
 export class SpaceSyncStateStore {
@@ -42,17 +43,34 @@ export class SpaceSyncStateStore {
         Number.isFinite(Date.parse(value.firstPushedAt))
       ) {
         return {
-          version: 2,
+          version: 3,
           remoteUrl,
           connectedAt: value.firstPushedAt,
           establishedBy: "first-push",
+          lastCheckedAt: value.firstPushedAt,
         }
       }
       if (
-        value.version !== 2 ||
+        value.version === 2 &&
+        typeof value.connectedAt === "string" &&
+        Number.isFinite(Date.parse(value.connectedAt)) &&
+        ["first-push", "clone"].includes(String(value.establishedBy))
+      ) {
+        return {
+          version: 3,
+          remoteUrl,
+          connectedAt: value.connectedAt,
+          establishedBy: value.establishedBy as SpaceSyncState["establishedBy"],
+          lastCheckedAt: value.connectedAt,
+        }
+      }
+      if (
+        value.version !== 3 ||
         typeof value.connectedAt !== "string" ||
         !Number.isFinite(Date.parse(value.connectedAt)) ||
-        !["first-push", "clone"].includes(String(value.establishedBy))
+        !["first-push", "clone"].includes(String(value.establishedBy)) ||
+        typeof value.lastCheckedAt !== "string" ||
+        !Number.isFinite(Date.parse(value.lastCheckedAt))
       ) {
         throw new Error("invalid sync state")
       }
@@ -64,30 +82,54 @@ export class SpaceSyncStateStore {
     }
   }
 
-  async markFirstPush(remoteUrl: string, now = new Date()): Promise<void> {
-    await this.markConnected(remoteUrl, "first-push", now)
+  async markFirstPush(
+    remoteUrl: string,
+    now = new Date()
+  ): Promise<SpaceSyncState> {
+    return this.markConnected(remoteUrl, "first-push", now)
   }
 
-  async markClone(remoteUrl: string, now = new Date()): Promise<void> {
-    await this.markConnected(remoteUrl, "clone", now)
+  async markClone(
+    remoteUrl: string,
+    now = new Date()
+  ): Promise<SpaceSyncState> {
+    return this.markConnected(remoteUrl, "clone", now)
+  }
+
+  async markChecked(now = new Date()): Promise<SpaceSyncState> {
+    const current = await this.read()
+    if (!current) {
+      throw new Error(
+        "Cannot update Sync history before this Space is connected"
+      )
+    }
+    return this.write({
+      ...current,
+      lastCheckedAt: now.toISOString(),
+    })
   }
 
   private async markConnected(
     remoteUrl: string,
     establishedBy: SpaceSyncState["establishedBy"],
     now: Date
-  ): Promise<void> {
+  ): Promise<SpaceSyncState> {
     if (!isOfficialRemoteUrl(remoteUrl, this.remoteOrigin)) {
       throw new Error("Cannot store an untrusted Eidos Sync Remote")
     }
-    const directory = path.dirname(this.filePath)
-    const temporaryPath = `${this.filePath}.${randomUUID()}.tmp`
     const state: SpaceSyncState = {
-      version: 2,
+      version: 3,
       remoteUrl,
       connectedAt: now.toISOString(),
       establishedBy,
+      lastCheckedAt: now.toISOString(),
     }
+    return this.write(state)
+  }
+
+  private async write(state: SpaceSyncState): Promise<SpaceSyncState> {
+    const directory = path.dirname(this.filePath)
+    const temporaryPath = `${this.filePath}.${randomUUID()}.tmp`
     await fs.mkdir(directory, { recursive: true, mode: 0o700 })
     try {
       await fs.writeFile(temporaryPath, `${JSON.stringify(state)}\n`, {
@@ -97,6 +139,7 @@ export class SpaceSyncStateStore {
       })
       await fs.rename(temporaryPath, this.filePath)
       await fs.chmod(this.filePath, 0o600)
+      return state
     } catch (error) {
       await fs.unlink(temporaryPath).catch(() => undefined)
       throw error

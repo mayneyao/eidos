@@ -31,7 +31,7 @@ describe("classifySyncFailure", () => {
     [403, "device-revoked"],
     [404, "remote-not-found"],
     [409, "remote-conflict"],
-    [413, "quota-exceeded"],
+    [413, "upload-too-large"],
     [426, "protocol-version-mismatch"],
     [429, "rate-limited"],
     [500, "remote-persistence-failed"],
@@ -68,6 +68,29 @@ describe("classifySyncFailure", () => {
       localSafe: true,
     })
     expect(JSON.stringify(classified)).not.toContain("do-not-expose")
+  })
+
+  it("keeps an edge upload limit distinct from account storage quota", () => {
+    const classified = classifySyncFailure(
+      Object.assign(
+        new Error(
+          "Graft repository error: HTTP remote returned 413 for `segments/redacted`: 413 Payload Too Large"
+        ),
+        { code: "GRAFT_SDK_REPOSITORY_COMMAND" }
+      ),
+      "push"
+    )
+
+    expect(classified).toMatchObject({
+      code: "upload-too-large",
+      title: "This upload is too large",
+      action: "work-locally",
+      retryable: false,
+      localSafe: true,
+      status: 413,
+    })
+    expect(classified.title).not.toMatch(/storage|quota/i)
+    expect(classified.message).not.toMatch(/free some storage|increase/i)
   })
 
   it.each([

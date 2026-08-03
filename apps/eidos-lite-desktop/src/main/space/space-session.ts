@@ -38,6 +38,7 @@ import {
 } from "../sync/sync-preflight"
 import { SpaceOperationGate } from "./operation-gate"
 import { SpaceOperationJournal } from "./operation-journal"
+import { SpaceRepositoryCoordinator } from "./repository-coordinator"
 import {
   canonicalizeSpaceRoot,
   flattenSpaceTree,
@@ -52,21 +53,44 @@ import {
 } from "./space-paths"
 import { SpaceWatcher } from "./space-watcher"
 import { StableCheckpointScheduler } from "./stable-checkpoint-scheduler"
-import { SpaceSyncStateStore } from "./sync-state"
+import { type SpaceSyncState, SpaceSyncStateStore } from "./sync-state"
 import { readTextFilePreview } from "./text-file-preview"
 import { readWorkingTextContent } from "./working-text-reader"
 
 const mutationMethods = new Set<RuntimeMethod>(RUNTIME_MUTATION_METHODS)
+const csvOperationControlMethods = new Set<RuntimeMethod>([
+  "getCsvOperationProgress",
+  "cancelCsvOperation",
+])
+const versionReadKeys = [
+  "version-changes",
+  "version-history",
+  "version-diff",
+  "version-path-diff",
+  "version-tracked-ignored",
+  "version-text-diff",
+] as const
+type VersionReadKey = (typeof versionReadKeys)[number]
 type SyncProgressReporter = (phase: EidosSyncPhase, detail: string) => void
 const BACKGROUND_GRAFT_STATUS_DELAY_MS =
-  process.env.VITEST || process.env.EIDOS_LITE_SMOKE_RESULT ? 0 : 750
+  process.env.VITEST || process.env.EIDOS_LITE_SMOKE_RESULT ? 0 : 3_000
+const BACKGROUND_GRAFT_IGNORE_DELAY_MS =
+  process.env.VITEST || process.env.EIDOS_LITE_SMOKE_RESULT
+    ? 0
+    : BACKGROUND_GRAFT_STATUS_DELAY_MS + 250
 
 class AutomaticCheckpointSkipped extends Error {}
+
+interface CompletedCheckpoint {
+  currentHead: string
+  previousStatus: GraftSpaceStatus
+}
 
 export class SpaceSession {
   readonly runtimePool: RuntimePool
   readonly gate: SpaceOperationGate
   private readonly watcher: SpaceWatcher
+  private readonly repository: SpaceRepositoryCoordinator
   private readonly checkpointScheduler: StableCheckpointScheduler
   private readonly syncState: SpaceSyncStateStore
   private readonly changeListeners = new Set<
@@ -80,29 +104,38 @@ export class SpaceSession {
     string,
     GraftIgnoreInspection
   >()
+  private readonly ignoreReconciliationTimers = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >()
+  private readonly backgroundIgnoreKeys = new Set<string>()
   private readonly directoryEntriesCache = new Map<string, SpaceTreeEntry[]>()
   private graftStatusCache: GraftSpaceStatus | null = null
+  private lastKnownGraftStatus: GraftSpaceStatus | null = null
+  private syncHistoryState: SpaceSyncState | null = null
   private graftStatusEpoch = 0
   private graftStatusRefresh: {
     epoch: number
     authoritative: boolean
     promise: Promise<GraftSpaceStatus>
   } | null = null
-  private graftStatusController: AbortController | null = null
   private graftStatusTimer: NodeJS.Timeout | null = null
-  private versionReadController: AbortController | null = null
   private refreshInFlight: Promise<SpaceSnapshot> | null = null
   private closeInFlight: Promise<void> | null = null
-  private automaticCheckpointEnabled = false
+  private versioningEnabled = false
+  private automaticCheckpointsEnabled: boolean
   private closed = false
 
   private constructor(
     readonly canonical: CanonicalSpace,
     private readonly graft: GraftClient,
     stateDirectory: string,
-    workerPath?: string
+    workerPath?: string,
+    automaticCheckpointsEnabled = false
   ) {
+    this.automaticCheckpointsEnabled = automaticCheckpointsEnabled
     this.runtimePool = new RuntimePool(canonical.root, workerPath)
+    this.repository = new SpaceRepositoryCoordinator()
     this.syncState = new SpaceSyncStateStore(
       stateDirectory,
       graft.syncRemoteOrigin
@@ -120,7 +153,8 @@ export class SpaceSession {
           )
         },
         reopenRuntimes: () => this.runtimePool.reopenHandles(),
-      }
+      },
+      this.repository
     )
     this.checkpointScheduler = new StableCheckpointScheduler({
       run: () => this.createAutomaticCheckpoint(),
@@ -134,15 +168,15 @@ export class SpaceSession {
         const directoriesToRefresh =
           this.invalidateDirectoryCaches(relativePaths)
         this.invalidateGraftStatusCache()
-        if (this.automaticCheckpointEnabled) {
+        if (this.versioningEnabled && this.automaticCheckpointsEnabled) {
           this.checkpointScheduler.notifyStableChange()
         }
         void this.refreshAndEmit(true, directoriesToRefresh)
       },
       150,
       async (relativePaths) => {
-        this.cancelGraftStatusRefresh()
-        const ignored = await this.inspectIgnores(relativePaths)
+        if (this.gate.hasActiveMutations()) return new Set()
+        const ignored = await this.inspectIgnores(relativePaths, "background")
         return new Set(
           [...ignored.entries()]
             .filter(([, inspection]) => this.shouldPruneIgnored(inspection))
@@ -158,7 +192,11 @@ export class SpaceSession {
   static async create(
     root: string,
     userDataDirectory: string,
-    options: { graft: GraftClient; workerPath?: string }
+    options: {
+      graft: GraftClient
+      workerPath?: string
+      automaticCheckpointsEnabled?: boolean
+    }
   ): Promise<SpaceSession> {
     const canonical = await canonicalizeSpaceRoot(root)
     return this.createCanonical(canonical, userDataDirectory, options)
@@ -167,20 +205,28 @@ export class SpaceSession {
   static async createCanonical(
     canonical: CanonicalSpace,
     userDataDirectory: string,
-    options: { graft: GraftClient; workerPath?: string }
+    options: {
+      graft: GraftClient
+      workerPath?: string
+      automaticCheckpointsEnabled?: boolean
+    }
   ): Promise<SpaceSession> {
     const session = new SpaceSession(
       canonical,
       options.graft,
       path.join(userDataDirectory, "spaces", canonical.id),
-      options.workerPath
+      options.workerPath,
+      options.automaticCheckpointsEnabled
     )
     try {
       await session.gate.recoverInterruptedOperation()
-      session.automaticCheckpointEnabled = await fs
+      session.versioningEnabled = await fs
         .stat(path.join(canonical.root, ".graft"))
         .then((stats) => stats.isDirectory())
         .catch(() => false)
+      session.syncHistoryState = await session.syncState
+        .read()
+        .catch(() => null)
       session.watcher.start()
       return session
     } catch (error) {
@@ -201,6 +247,11 @@ export class SpaceSession {
     return () => this.automaticCheckpointListeners.delete(listener)
   }
 
+  setAutomaticCheckpointsEnabled(enabled: boolean): void {
+    this.automaticCheckpointsEnabled = enabled
+    if (!enabled) this.checkpointScheduler.cancelPending()
+  }
+
   snapshot(): Promise<SpaceSnapshot> {
     if (this.closed) return Promise.reject(new Error("Space is closed"))
     if (this.refreshInFlight) return this.refreshInFlight
@@ -218,10 +269,22 @@ export class SpaceSession {
     return this.readSnapshot(false, authoritativeGraftStatus)
   }
 
+  async refreshExplorer(): Promise<SpaceSnapshot> {
+    this.prioritizeLocalWork()
+    const loadedDirectories = [...this.directoryEntriesCache.keys()]
+    this.directoryEntriesCache.clear()
+    await this.reloadDirectoryEntries(loadedDirectories, false)
+    const snapshot = await this.readSnapshot(true)
+    for (const listener of this.changeListeners) listener(snapshot)
+    return snapshot
+  }
+
   async loadDirectory(relativePath: string): Promise<SpaceSnapshot> {
+    this.prioritizeLocalWork()
     const normalized = normalizeMutableRelativePath(relativePath)
-    this.cancelGraftStatusRefresh()
-    await this.loadDirectoryEntries(normalized)
+    // Explorer navigation is a local filesystem operation. Ignore filtering is
+    // version metadata and must never put Graft on the navigation critical path.
+    await this.loadDirectoryEntries(normalized, false)
     const snapshot = this.buildSnapshot(
       this.buildCachedTree(),
       this.graftStatusCache ?? this.pendingGraftStatus()
@@ -233,8 +296,8 @@ export class SpaceSession {
 
   async openEidosFile(relativePath: string): Promise<OpenEidosFileResult> {
     this.assertRuntimeAvailable()
+    this.prioritizeLocalWork()
     try {
-      this.cancelGraftStatusRefresh()
       await this.ensureAncestorDirectoriesLoaded(relativePath)
       const opened = await this.runtimePool.open(relativePath)
       this.fileIssuesByPath.delete(relativePath)
@@ -247,12 +310,18 @@ export class SpaceSession {
           ? error.issue
           : classifyEidosFileIssue(relativePath, error)
       this.fileIssuesByPath.set(relativePath, issue)
+      this.scheduleGraftStatusRefresh()
       throw new EidosFileRuntimeError(issue)
     }
   }
 
-  previewTextFile(relativePath: string): Promise<TextFilePreviewResult> {
-    return readTextFilePreview(this.canonical.root, relativePath)
+  async previewTextFile(relativePath: string): Promise<TextFilePreviewResult> {
+    this.prioritizeLocalWork()
+    try {
+      return await readTextFilePreview(this.canonical.root, relativePath)
+    } finally {
+      this.scheduleGraftStatusRefresh()
+    }
   }
 
   async inspectEidosFileIssue(
@@ -267,6 +336,7 @@ export class SpaceSession {
     parentRelativePath: string | null,
     requestedName: string
   ): Promise<SpacePathMutationResult> {
+    this.prioritizeLocalWork()
     const safeName = normalizeSpaceEntryName(requestedName)
     const name = safeName.toLowerCase().endsWith(".eidos")
       ? safeName
@@ -274,15 +344,8 @@ export class SpaceSession {
     const relativePath = joinSpaceRelativePath(parentRelativePath, name)
     await resolveSpaceDirectory(this.canonical.root, parentRelativePath)
     await this.requireMissingPath(relativePath)
-    await this.gate.withMaterialization({
-      kind: "create-eidos-file",
-      detail: `Creating ${relativePath}`,
-      materialize: async () => {
-        await this.runtimePool.create(
-          relativePath,
-          path.basename(name, ".eidos")
-        )
-      },
+    await this.gate.withMutation(async () => {
+      await this.runtimePool.create(relativePath, path.basename(name, ".eidos"))
     })
     this.noteLocalChange()
     return {
@@ -296,15 +359,14 @@ export class SpaceSession {
     parentRelativePath: string | null,
     requestedName: string
   ): Promise<SpacePathMutationResult> {
+    this.prioritizeLocalWork()
     const name = normalizeSpaceEntryName(requestedName)
     const relativePath = joinSpaceRelativePath(parentRelativePath, name)
     await resolveSpaceDirectory(this.canonical.root, parentRelativePath)
     await this.requireMissingPath(relativePath)
-    await this.gate.withMaterialization({
-      kind: "create-folder",
-      detail: `Creating ${relativePath}`,
-      materialize: () => fs.mkdir(this.resolveUserPath(relativePath)),
-    })
+    await this.gate.withMutation(() =>
+      fs.mkdir(this.resolveUserPath(relativePath))
+    )
     this.noteLocalChange()
     return {
       snapshot: await this.freshSnapshotAndEmit(),
@@ -317,6 +379,7 @@ export class SpaceSession {
     relativePath: string,
     requestedName: string
   ): Promise<SpacePathMutationResult> {
+    this.prioritizeLocalWork()
     const source = normalizeMutableRelativePath(relativePath)
     await fs.lstat(this.resolveUserPath(source))
     const name = normalizeSpaceEntryName(requestedName)
@@ -341,17 +404,13 @@ export class SpaceSession {
     )
     await this.requireMissingPath(target)
     let invalidatedSessionIds: string[] = []
-    await this.gate.withMaterialization({
-      kind: "rename-space-path",
-      detail: `Renaming ${source}`,
-      materialize: async () => {
-        invalidatedSessionIds =
-          await this.runtimePool.closeSessionsForPath(source)
-        await fs.rename(
-          this.resolveUserPath(source),
-          this.resolveUserPath(target)
-        )
-      },
+    await this.gate.withMutation(async () => {
+      invalidatedSessionIds =
+        await this.runtimePool.closeSessionsForPath(source)
+      await fs.rename(
+        this.resolveUserPath(source),
+        this.resolveUserPath(target)
+      )
     })
     this.noteLocalChange()
     return {
@@ -365,6 +424,7 @@ export class SpaceSession {
     relativePath: string,
     targetDirectory: string | null
   ): Promise<SpacePathMutationResult> {
+    this.prioritizeLocalWork()
     const source = normalizeMutableRelativePath(relativePath)
     await fs.lstat(this.resolveUserPath(source))
     await resolveSpaceDirectory(this.canonical.root, targetDirectory)
@@ -384,17 +444,13 @@ export class SpaceSession {
     }
     await this.requireMissingPath(target)
     let invalidatedSessionIds: string[] = []
-    await this.gate.withMaterialization({
-      kind: "move-space-path",
-      detail: `Moving ${source}`,
-      materialize: async () => {
-        invalidatedSessionIds =
-          await this.runtimePool.closeSessionsForPath(source)
-        await fs.rename(
-          this.resolveUserPath(source),
-          this.resolveUserPath(target)
-        )
-      },
+    await this.gate.withMutation(async () => {
+      invalidatedSessionIds =
+        await this.runtimePool.closeSessionsForPath(source)
+      await fs.rename(
+        this.resolveUserPath(source),
+        this.resolveUserPath(target)
+      )
     })
     this.noteLocalChange()
     return {
@@ -408,6 +464,7 @@ export class SpaceSession {
     relativePath: string,
     targetDirectory: string | null
   ): Promise<SpacePathMutationResult> {
+    this.prioritizeLocalWork()
     const source = normalizeMutableRelativePath(relativePath)
     const stats = await fs.lstat(this.resolveUserPath(source))
     if (stats.isSymbolicLink())
@@ -423,32 +480,29 @@ export class SpaceSession {
       throw new Error("A folder cannot be copied inside itself")
     }
     await this.requireMissingPath(target)
-    await this.gate.withMaterialization({
-      kind: "copy-space-path",
-      detail: `Copying ${source}`,
-      materialize: () =>
-        fs.cp(this.resolveUserPath(source), this.resolveUserPath(target), {
-          recursive: stats.isDirectory(),
-          errorOnExist: true,
-          force: false,
-          filter: async (sourcePath) => {
-            const sourceStats = await fs.lstat(sourcePath)
-            if (sourceStats.isSymbolicLink()) {
-              throw new Error("Space symlinks cannot be copied")
-            }
-            if (
-              sourcePath !== this.resolveUserPath(source) &&
-              path.basename(sourcePath).toLowerCase() === ".graft"
-            ) {
-              throw new Error("Nested .graft directories cannot be copied")
-            }
-            if (!sourceStats.isDirectory() && !sourceStats.isFile()) {
-              throw new Error("Only ordinary files and folders can be copied")
-            }
-            return true
-          },
-        }),
-    })
+    await this.gate.withMutation(() =>
+      fs.cp(this.resolveUserPath(source), this.resolveUserPath(target), {
+        recursive: stats.isDirectory(),
+        errorOnExist: true,
+        force: false,
+        filter: async (sourcePath) => {
+          const sourceStats = await fs.lstat(sourcePath)
+          if (sourceStats.isSymbolicLink()) {
+            throw new Error("Space symlinks cannot be copied")
+          }
+          if (
+            sourcePath !== this.resolveUserPath(source) &&
+            path.basename(sourcePath).toLowerCase() === ".graft"
+          ) {
+            throw new Error("Nested .graft directories cannot be copied")
+          }
+          if (!sourceStats.isDirectory() && !sourceStats.isFile()) {
+            throw new Error("Only ordinary files and folders can be copied")
+          }
+          return true
+        },
+      })
+    )
     this.noteLocalChange()
     return {
       snapshot: await this.freshSnapshotAndEmit(),
@@ -461,17 +515,14 @@ export class SpaceSession {
     relativePath: string,
     trash: (absolutePath: string) => Promise<void>
   ): Promise<SpacePathMutationResult> {
+    this.prioritizeLocalWork()
     const source = normalizeMutableRelativePath(relativePath)
     await fs.lstat(this.resolveUserPath(source))
     let invalidatedSessionIds: string[] = []
-    await this.gate.withMaterialization({
-      kind: "delete-space-path",
-      detail: `Moving ${source} to Trash`,
-      materialize: async () => {
-        invalidatedSessionIds =
-          await this.runtimePool.closeSessionsForPath(source)
-        await trash(this.resolveUserPath(source))
-      },
+    await this.gate.withMutation(async () => {
+      invalidatedSessionIds =
+        await this.runtimePool.closeSessionsForPath(source)
+      await trash(this.resolveUserPath(source))
     })
     this.noteLocalChange()
     return {
@@ -484,6 +535,7 @@ export class SpaceSession {
     sourcePaths: readonly string[],
     targetDirectory: string | null
   ): Promise<SpacePathMutationResult> {
+    this.prioritizeLocalWork()
     if (sourcePaths.length === 0) throw new Error("Choose at least one file")
     await resolveSpaceDirectory(this.canonical.root, targetDirectory)
     const sources = await Promise.all(
@@ -507,43 +559,39 @@ export class SpaceSession {
         }
       })
     )
-    await this.gate.withMaterialization({
-      kind: "import-space-files",
-      detail: `Importing ${sources.length} file${sources.length === 1 ? "" : "s"}`,
-      materialize: async () => {
-        const copied: string[] = []
-        const published: string[] = []
-        try {
-          for (const source of sources) {
-            await fs.copyFile(
-              source.sourcePath,
-              this.resolveUserPath(source.temporaryPath),
-              fsConstants.COPYFILE_EXCL
-            )
-            copied.push(source.temporaryPath)
-            if (source.eidos) {
-              await this.runtimePool.validatePaths([source.temporaryPath])
-            }
+    await this.gate.withMutation(async () => {
+      const copied: string[] = []
+      const published: string[] = []
+      try {
+        for (const source of sources) {
+          await fs.copyFile(
+            source.sourcePath,
+            this.resolveUserPath(source.temporaryPath),
+            fsConstants.COPYFILE_EXCL
+          )
+          copied.push(source.temporaryPath)
+          if (source.eidos) {
+            await this.runtimePool.validatePaths([source.temporaryPath])
           }
-          for (const source of sources) {
-            await fs.rename(
-              this.resolveUserPath(source.temporaryPath),
-              this.resolveUserPath(source.relativePath)
-            )
-            published.push(source.relativePath)
-          }
-        } catch (error) {
-          await Promise.all([
-            ...copied.map((temporaryPath) =>
-              fs.rm(this.resolveUserPath(temporaryPath), { force: true })
-            ),
-            ...published.map((relativePath) =>
-              fs.rm(this.resolveUserPath(relativePath), { force: true })
-            ),
-          ])
-          throw error
         }
-      },
+        for (const source of sources) {
+          await fs.rename(
+            this.resolveUserPath(source.temporaryPath),
+            this.resolveUserPath(source.relativePath)
+          )
+          published.push(source.relativePath)
+        }
+      } catch (error) {
+        await Promise.all([
+          ...copied.map((temporaryPath) =>
+            fs.rm(this.resolveUserPath(temporaryPath), { force: true })
+          ),
+          ...published.map((relativePath) =>
+            fs.rm(this.resolveUserPath(relativePath), { force: true })
+          ),
+        ])
+        throw error
+      }
     })
     this.noteLocalChange()
     return {
@@ -558,7 +606,8 @@ export class SpaceSession {
     method: M,
     args: RuntimeCalls[M]["args"]
   ): Promise<RuntimeCalls[M]["result"]> {
-    this.assertRuntimeAvailable()
+    if (!csvOperationControlMethods.has(method)) this.assertRuntimeAvailable()
+    if (mutationMethods.has(method)) this.prioritizeLocalWork()
     let result: RuntimeCalls[M]["result"]
     try {
       result = mutationMethods.has(method)
@@ -580,9 +629,11 @@ export class SpaceSession {
   }
 
   async enableVersioning(): Promise<SpaceSnapshot> {
-    const status = await this.graft.inspectSpace(
-      this.canonical.root,
-      this.graftStatusOptions()
+    const status = await this.repository.runForeground((signal) =>
+      this.graft.inspectSpace(
+        this.canonical.root,
+        this.graftStatusOptions(signal)
+      )
     )
     if (!status.available) {
       throw new Error(
@@ -590,10 +641,10 @@ export class SpaceSession {
       )
     }
     if (status.initialized) {
-      this.automaticCheckpointEnabled = true
+      this.versioningEnabled = true
       return this.freshSnapshotAndEmit(true)
     }
-    await this.gate.withQuiescedRepositoryOperation(
+    await this.gate.withRepositoryOperation(
       "Enabling local Space versioning",
       async () => {
         await this.graft.initialize(this.canonical.root)
@@ -607,7 +658,7 @@ export class SpaceSession {
         )
       }
     )
-    this.automaticCheckpointEnabled = true
+    this.versioningEnabled = true
     return this.freshSnapshotAndEmit(true)
   }
 
@@ -616,15 +667,18 @@ export class SpaceSession {
     if (normalizedMessage.length > 200) {
       throw new Error("Checkpoint message must be 200 characters or fewer")
     }
-    await this.commitCheckpoint(normalizedMessage, false)
-    this.automaticCheckpointEnabled = true
-    return this.freshSnapshotAndEmit(true)
+    const checkpoint = await this.commitCheckpoint(normalizedMessage, false)
+    if (!checkpoint) throw new Error("There are no local changes to checkpoint")
+    this.versioningEnabled = true
+    return this.checkpointSnapshotAndEmit(checkpoint)
   }
 
   async officialSyncRemoteUrl(): Promise<string | null> {
     const state = await this.syncState.read()
     if (!state) return null
-    const configured = await this.graft.remoteUrl(this.canonical.root)
+    const configured = await this.repository.runForeground(() =>
+      this.graft.remoteUrl(this.canonical.root)
+    )
     if (configured !== state.remoteUrl) {
       throw new Error(
         "The configured Graft Remote does not match this Space's verified Sync state."
@@ -659,9 +713,11 @@ export class SpaceSession {
       }
       return this.freshSnapshotAndEmit(true)
     }
-    const status = await this.graft.inspectSpace(
-      this.canonical.root,
-      this.graftStatusOptions()
+    const status = await this.repository.runForeground((signal) =>
+      this.graft.inspectSpace(
+        this.canonical.root,
+        this.graftStatusOptions(signal)
+      )
     )
     if (!status.available || !status.initialized) {
       throw new Error("Enable Local versioning before Eidos Sync")
@@ -669,7 +725,7 @@ export class SpaceSession {
     if (status.clean !== true) {
       throw new Error("Create a checkpoint for local changes before Eidos Sync")
     }
-    await this.gate.withQuiescedRepositoryOperation(
+    await this.gate.withRepositoryOperation(
       "Connecting the whole Space to Eidos Sync",
       async () => {
         await this.assertSyncPreflight(approval)
@@ -688,7 +744,7 @@ export class SpaceSession {
           accessToken
         )
         await this.graft.push(this.canonical.root, accessToken)
-        await this.syncState.markFirstPush(remoteUrl)
+        this.syncHistoryState = await this.syncState.markFirstPush(remoteUrl)
       }
     )
     return this.freshSnapshotAndEmit(true)
@@ -724,6 +780,7 @@ export class SpaceSession {
           throw new Error("Create a checkpoint for local changes before Sync")
         }
         await this.graft.fetch(this.canonical.root)
+        await this.recordSyncHistoryCheck()
         return this.graft.status(this.canonical.root, this.graftStatusOptions())
       }
     )
@@ -740,7 +797,11 @@ export class SpaceSession {
 
     let pulled = false
     if (relation.behind > 0) {
-      if (!(await this.graft.operationMaterializesWorktree("pull"))) {
+      if (
+        !(await this.repository.runForeground(() =>
+          this.graft.operationMaterializesWorktree("pull")
+        ))
+      ) {
         throw new Error("Graft pull materialization contract is unavailable")
       }
       let shouldPull = true
@@ -795,9 +856,8 @@ export class SpaceSession {
       } finally {
         stopProgress()
       }
-      relation = await this.graft.status(
-        this.canonical.root,
-        this.graftStatusOptions()
+      relation = await this.repository.runForeground((signal) =>
+        this.graft.status(this.canonical.root, this.graftStatusOptions(signal))
       )
     }
 
@@ -834,9 +894,8 @@ export class SpaceSession {
         }
       )
       pushed = true
-      relation = await this.graft.status(
-        this.canonical.root,
-        this.graftStatusOptions()
+      relation = await this.repository.runForeground((signal) =>
+        this.graft.status(this.canonical.root, this.graftStatusOptions(signal))
       )
     }
 
@@ -875,6 +934,7 @@ export class SpaceSession {
           )
         }
         await this.graft.fetch(this.canonical.root)
+        await this.recordSyncHistoryCheck()
         return this.graft.status(this.canonical.root, this.graftStatusOptions())
       }
     )
@@ -889,9 +949,8 @@ export class SpaceSession {
   async createLocalRecovery(
     copy: (sourceRoot: string) => Promise<string>
   ): Promise<string> {
-    const status = await this.graft.status(
-      this.canonical.root,
-      this.graftStatusOptions()
+    const status = await this.repository.runForeground((signal) =>
+      this.graft.status(this.canonical.root, this.graftStatusOptions(signal))
     )
     if (status.dirty) {
       throw new Error(
@@ -907,9 +966,11 @@ export class SpaceSession {
 
   async assertHostedSyncReady(): Promise<void> {
     if (await this.syncState.read()) return
-    const status = await this.graft.inspectSpace(
-      this.canonical.root,
-      this.graftStatusOptions()
+    const status = await this.repository.runForeground((signal) =>
+      this.graft.inspectSpace(
+        this.canonical.root,
+        this.graftStatusOptions(signal)
+      )
     )
     if (!status.available || !status.initialized) {
       throw new Error("Enable Local versioning before Eidos Sync")
@@ -924,13 +985,16 @@ export class SpaceSession {
     after?: string
   ): Promise<SpaceVersionDiff> {
     await this.requireInitializedVersioning()
-    return this.withVersionRead("Reading local changes", (signal) =>
-      this.graft.workingChanges(this.canonical.root, {
-        limit: this.safeVersionPageSize(limit),
-        after,
-        signal,
-        verifyPaths: this.runtimePool.openRelativePaths(),
-      })
+    return this.withVersionRead(
+      "version-changes",
+      "Reading local changes",
+      (signal) =>
+        this.graft.workingChanges(this.canonical.root, {
+          limit: this.safeVersionPageSize(limit),
+          after,
+          signal,
+          verifyPaths: this.runtimePool.openRelativePaths(),
+        })
     )
   }
 
@@ -939,11 +1003,18 @@ export class SpaceSession {
     after?: string
   ): Promise<SpaceVersionHistory> {
     await this.requireInitializedVersioning()
-    return this.withVersionRead("Reading Space history", (signal) =>
-      this.graft.history(this.canonical.root, this.safeVersionPageSize(limit), {
-        after,
-        signal,
-      })
+    return this.withVersionRead(
+      "version-history",
+      "Reading Space history",
+      (signal) =>
+        this.graft.history(
+          this.canonical.root,
+          this.safeVersionPageSize(limit),
+          {
+            after,
+            signal,
+          }
+        )
     )
   }
 
@@ -956,33 +1027,50 @@ export class SpaceSession {
     await this.requireInitializedVersioning()
     this.assertRevisionId(commitId)
     if (parentId) this.assertRevisionId(parentId)
-    return this.withVersionRead("Reading checkpoint changes", (signal) =>
-      this.graft.revisionChanges(this.canonical.root, commitId, parentId, {
-        limit: this.safeVersionPageSize(limit),
-        after,
-        signal,
-      })
+    return this.withVersionRead(
+      "version-diff",
+      "Reading checkpoint changes",
+      (signal) =>
+        this.graft.revisionChanges(this.canonical.root, commitId, parentId, {
+          limit: this.safeVersionPageSize(limit),
+          after,
+          signal,
+        })
     )
   }
 
   async getVersionPathDiff(
     relativePath: string,
     commitId?: string | null,
-    parentId?: string | null
+    parentId?: string | null,
+    tableName?: string,
+    rowAfter?: string
   ): Promise<SpaceVersionDiff> {
     await this.requireInitializedVersioning()
     const normalizedPath = normalizeMutableRelativePath(relativePath)
     if (commitId) this.assertRevisionId(commitId)
     if (parentId) this.assertRevisionId(parentId)
-    return this.withVersionRead("Reading file changes", (signal) =>
-      this.graft.pathDiff(this.canonical.root, normalizedPath, {
-        signal,
-        ...(commitId && parentId
-          ? { from: parentId, to: commitId }
-          : commitId
-            ? { root: commitId }
-            : {}),
-      })
+    if (tableName !== undefined && !tableName.trim()) {
+      throw new Error("Invalid diff table")
+    }
+    if (rowAfter !== undefined && (!tableName || !rowAfter.trim())) {
+      throw new Error("Invalid row-diff cursor")
+    }
+    return this.withVersionRead(
+      "version-path-diff",
+      "Reading file changes",
+      (signal) =>
+        this.graft.sqlitePathDiff(this.canonical.root, normalizedPath, {
+          signal,
+          ...(tableName ? { table: tableName } : {}),
+          ...(rowAfter ? { rowAfter } : {}),
+          rowLimit: 100,
+          ...(commitId && parentId
+            ? { from: parentId, to: commitId }
+            : commitId
+              ? { root: commitId }
+              : {}),
+        })
     )
   }
 
@@ -991,14 +1079,17 @@ export class SpaceSession {
     after?: string
   ): Promise<GraftTrackedIgnoredPaths> {
     await this.requireInitializedVersioning()
-    return this.withVersionRead("Reading ignored tracked files", (signal) =>
-      this.graft.trackedIgnored(this.canonical.root, {
-        limit: Number.isFinite(limit)
-          ? Math.max(1, Math.min(Math.trunc(limit), 1_000))
-          : 100,
-        after,
-        signal,
-      })
+    return this.withVersionRead(
+      "version-tracked-ignored",
+      "Reading ignored tracked files",
+      (signal) =>
+        this.graft.trackedIgnored(this.canonical.root, {
+          limit: Number.isFinite(limit)
+            ? Math.max(1, Math.min(Math.trunc(limit), 1_000))
+            : 100,
+          after,
+          signal,
+        })
     )
   }
 
@@ -1037,7 +1128,7 @@ export class SpaceSession {
         )
       }
     )
-    this.automaticCheckpointEnabled = true
+    this.versioningEnabled = true
     return this.freshSnapshotAndEmit(true)
   }
 
@@ -1050,14 +1141,17 @@ export class SpaceSession {
     this.assertRevisionId(commitId)
     if (parentId) this.assertRevisionId(parentId)
     const safePath = normalizeMutableRelativePath(relativePath)
-    return this.gate.withRepositoryOperation("Reading checkpoint text", () =>
-      this.graft.revisionTextDiff(
-        this.canonical.root,
-        commitId,
-        parentId,
-        safePath,
-        EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX
-      )
+    return this.withVersionRead(
+      "version-text-diff",
+      "Reading checkpoint text",
+      () =>
+        this.graft.revisionTextDiff(
+          this.canonical.root,
+          commitId,
+          parentId,
+          safePath,
+          EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX
+        )
     )
   }
 
@@ -1068,12 +1162,13 @@ export class SpaceSession {
     await this.requireInitializedVersioning()
     if (expectedHead) this.assertRevisionId(expectedHead)
     const safePath = normalizeMutableRelativePath(relativePath)
-    return this.gate.withRepositoryOperation(
+    return this.withVersionRead(
+      "version-text-diff",
       "Reading local text changes",
-      async () => {
+      async (signal) => {
         const status = await this.graft.status(
           this.canonical.root,
-          this.graftStatusOptions()
+          this.graftStatusOptions(signal)
         )
         if (status.currentHead !== expectedHead) {
           throw new Error(
@@ -1108,9 +1203,8 @@ export class SpaceSession {
     await this.requireInitializedVersioning()
     this.assertRevisionId(commitId)
     this.assertRevisionId(expectedHead)
-    const initialStatus = await this.graft.status(
-      this.canonical.root,
-      this.graftStatusOptions()
+    const initialStatus = await this.repository.runForeground((signal) =>
+      this.graft.status(this.canonical.root, this.graftStatusOptions(signal))
     )
     if (initialStatus.dirty) {
       throw new Error(
@@ -1120,18 +1214,23 @@ export class SpaceSession {
     if (initialStatus.currentHead !== expectedHead) {
       throw new Error("Space history changed; refresh History before restoring")
     }
-    const comparison = await this.graft.compareRevisions(
-      this.canonical.root,
-      commitId,
-      expectedHead
-    )
+    const { comparison, restoreMaterializes } =
+      await this.repository.runForeground(async () => ({
+        comparison: await this.graft.compareRevisions(
+          this.canonical.root,
+          commitId,
+          expectedHead
+        ),
+        restoreMaterializes:
+          await this.graft.operationMaterializesWorktree("restore"),
+      }))
     const paths = [...new Set(comparison.paths.map((change) => change.path))]
       .filter(Boolean)
       .sort()
     if (paths.length === 0) {
       throw new Error("The Space already matches this checkpoint")
     }
-    if (!(await this.graft.operationMaterializesWorktree("restore"))) {
+    if (!restoreMaterializes) {
       throw new Error("Graft restore materialization contract is unavailable")
     }
 
@@ -1179,7 +1278,9 @@ export class SpaceSession {
   }
 
   clearHostedSyncCredentials(): Promise<void> {
-    return this.graft.clearHttpCredentials(this.canonical.root)
+    return this.repository.runForeground(() =>
+      this.graft.clearHttpCredentials(this.canonical.root)
+    )
   }
 
   verifyGraftCrashRecoveryForTesting(): Promise<boolean> {
@@ -1204,12 +1305,20 @@ export class SpaceSession {
   private async closeInternal(): Promise<void> {
     this.watcher.close()
     this.cancelVersionReads()
+    for (const timer of this.ignoreReconciliationTimers.values()) {
+      clearTimeout(timer)
+    }
+    this.ignoreReconciliationTimers.clear()
+    for (const key of this.backgroundIgnoreKeys) this.repository.cancel(key)
+    this.backgroundIgnoreKeys.clear()
     const backgroundStatus = this.graftStatusRefresh?.promise
     this.cancelGraftStatusRefresh(true)
     await backgroundStatus?.catch(() => undefined)
-    await this.checkpointScheduler.close(true).catch((error) => {
-      console.warn("Could not flush the automatic Space checkpoint", error)
-    })
+    await this.checkpointScheduler
+      .close(this.automaticCheckpointsEnabled)
+      .catch((error) => {
+        console.warn("Could not flush the automatic Space checkpoint", error)
+      })
     this.closed = true
     await this.refreshInFlight?.catch(() => undefined)
     await this.gate.close()
@@ -1225,21 +1334,32 @@ export class SpaceSession {
   }
 
   private async createAutomaticCheckpoint(): Promise<void> {
-    if (!(await this.commitCheckpoint("Eidos Lite automatic checkpoint", true)))
+    if (!this.automaticCheckpointsEnabled || this.gate.hasActiveMutations()) {
       return
-    const snapshot = await this.freshSnapshotAndEmit(true)
+    }
+    const checkpoint = await this.commitCheckpoint(
+      "Eidos Lite automatic checkpoint",
+      true
+    )
+    if (!checkpoint) return
+    const snapshot = await this.checkpointSnapshotAndEmit(checkpoint)
     for (const listener of this.automaticCheckpointListeners) listener(snapshot)
   }
 
   private async commitCheckpoint(
     message: string,
     automatic: boolean
-  ): Promise<boolean> {
+  ): Promise<CompletedCheckpoint | null> {
+    let completed: CompletedCheckpoint | null = null
     try {
       const detail = automatic
         ? "Creating an automatic Space checkpoint"
         : "Creating a local Space checkpoint"
-      await this.gate.withQuiescedRepositoryOperation(detail, async () => {
+      // A checkpoint only reads the worktree and advances Graft's index/history; it never
+      // materializes files back into the Space. SQLite staging uses a consistent online backup,
+      // so edits that arrive while the checkpoint is being created safely remain as newer local
+      // changes instead of freezing the editor for the duration of a large diff.
+      await this.gate.withRepositoryOperation(detail, async () => {
         const status = await this.graft.inspectSpace(
           this.canonical.root,
           this.graftStatusOptions()
@@ -1264,13 +1384,70 @@ export class SpaceSession {
           this.canonical.root,
           this.graftStatusOptions()
         )
-        await this.graft.commit(this.canonical.root, message)
+        const commit = await this.graft.commit(this.canonical.root, message)
+        completed = {
+          currentHead: commit.id,
+          previousStatus: status,
+        }
       })
-      return true
+      return completed
     } catch (error) {
-      if (error instanceof AutomaticCheckpointSkipped) return false
+      if (error instanceof AutomaticCheckpointSkipped) return null
       throw error
     }
+  }
+
+  private async checkpointSnapshotAndEmit(
+    checkpoint: CompletedCheckpoint
+  ): Promise<SpaceSnapshot> {
+    this.invalidateGraftStatusCache()
+    const previousSync = checkpoint.previousStatus.sync
+    const ahead = previousSync ? previousSync.ahead + 1 : 1
+    const behind = previousSync?.behind ?? 0
+    const sync =
+      previousSync || this.syncHistoryState
+        ? {
+            state:
+              ahead > 0 && behind > 0
+                ? ("diverged" as const)
+                : ahead > 0
+                  ? ("ahead" as const)
+                  : behind > 0
+                    ? ("behind" as const)
+                    : ("up_to_date" as const),
+            ...(previousSync?.remoteHead
+              ? { remoteHead: previousSync.remoteHead }
+              : {}),
+            ahead,
+            behind,
+          }
+        : undefined
+    // Stage + commit already established the new history boundary. Do not make
+    // Save version wait for another whole-worktree classification: Graft
+    // invalidates its status cache after a commit, and rebuilding it can reread a
+    // very large SQLite file even though the version is already durable. Publish
+    // the new HEAD immediately and serialize the authoritative dirty check in the
+    // background so edits made during the checkpoint remain safe.
+    const pendingStatus: GraftSpaceStatus = {
+      available: true,
+      backend: this.graft.backend,
+      version:
+        checkpoint.previousStatus.version ?? this.graft.expectedVersion(),
+      expectedVersion: this.graft.expectedVersion(),
+      initialized: true,
+      currentHead: checkpoint.currentHead,
+      checking: true,
+      ...(checkpoint.previousStatus.generation === undefined
+        ? {}
+        : { generation: checkpoint.previousStatus.generation + 1 }),
+      changeToken: `checkpoint:${checkpoint.currentHead}`,
+      ...(sync ? { sync } : {}),
+    }
+    this.lastKnownGraftStatus = pendingStatus
+    const snapshot = await this.readSnapshot(false, pendingStatus)
+    for (const listener of this.changeListeners) listener(snapshot)
+    this.scheduleGraftStatusRefresh()
+    return snapshot
   }
 
   private async readSnapshot(
@@ -1283,7 +1460,9 @@ export class SpaceSession {
     for (const issue of reconciledFileIssues) {
       this.fileIssuesByPath.set(issue.relativePath, issue)
     }
-    await this.loadDirectoryEntries("", this.graftSessionOpen())
+    // A Space snapshot is the local browsing boundary. Version state is filled in
+    // progressively and must not delay the first usable tree.
+    await this.loadDirectoryEntries("", false)
     const entries = this.buildCachedTree()
     const graft =
       authoritativeGraftStatus ??
@@ -1300,12 +1479,18 @@ export class SpaceSession {
   }
 
   private pendingGraftStatus(): GraftSpaceStatus {
+    if (this.lastKnownGraftStatus) {
+      return {
+        ...this.lastKnownGraftStatus,
+        checking: true,
+      }
+    }
     return {
       available: true,
       backend: this.graft.backend,
       version: this.graft.expectedVersion(),
       expectedVersion: this.graft.expectedVersion(),
-      initialized: this.automaticCheckpointEnabled,
+      initialized: this.versioningEnabled,
       checking: true,
     }
   }
@@ -1324,36 +1509,55 @@ export class SpaceSession {
     authoritative = false
   ): Promise<GraftSpaceStatus> {
     const epoch = this.graftStatusEpoch
-    if (this.graftStatusRefresh?.epoch === epoch) {
-      if (authoritative) this.graftStatusRefresh.authoritative = true
-      return this.graftStatusRefresh.promise
-    }
-    const controller = new AbortController()
-    this.graftStatusController = controller
-    const promise = this.graft.inspectSpace(
-      this.canonical.root,
-      this.graftStatusOptions(controller.signal)
-    )
-    this.graftStatusRefresh = { epoch, authoritative, promise }
-    try {
-      const status = await promise
-      if (!this.closed && this.graftStatusEpoch === epoch) {
-        this.graftStatusCache = status
+    const activeRefresh = this.graftStatusRefresh
+    if (activeRefresh) {
+      if (activeRefresh.epoch === epoch) {
+        if (authoritative) activeRefresh.authoritative = true
+        return activeRefresh.promise
       }
-      return status
+      // An invalidation does not abort a repository read that is already useful.
+      // Let it settle, discard the stale generation, then perform exactly one
+      // follow-up read for the latest generation.
+      await activeRefresh.promise.catch(() => undefined)
+      if (this.closed) throw new Error("Space is closed")
+      return this.refreshGraftStatus(authoritative)
+    }
+    const readStatus = (signal: AbortSignal) =>
+      this.graft.inspectSpace(
+        this.canonical.root,
+        this.graftStatusOptions(signal)
+      )
+    const promise = authoritative
+      ? this.repository.runForeground(readStatus, {
+          key: "graft-status",
+          preemptible: true,
+        })
+      : this.repository.runBackground("graft-status", readStatus, {
+          preemptible: true,
+        })
+    this.graftStatusRefresh = { epoch, authoritative, promise }
+    let status: GraftSpaceStatus
+    try {
+      status = await promise
     } finally {
       if (this.graftStatusRefresh?.promise === promise) {
         this.graftStatusRefresh = null
       }
-      if (this.graftStatusController === controller) {
-        this.graftStatusController = null
-      }
     }
+    if (!this.closed && this.graftStatusEpoch !== epoch) {
+      return this.refreshGraftStatus(authoritative)
+    }
+    if (!this.closed) {
+      this.graftStatusCache = status
+      this.lastKnownGraftStatus = status
+    }
+    return status
   }
 
   private scheduleGraftStatusRefresh(): void {
     if (
       this.closed ||
+      this.gate.hasActiveMutations() ||
       this.graftStatusCache ||
       this.graftStatusRefresh ||
       this.graftStatusTimer
@@ -1363,18 +1567,29 @@ export class SpaceSession {
     this.graftStatusTimer = setTimeout(() => {
       this.graftStatusTimer = null
       void this.refreshGraftStatus()
-        .then(async () => {
-          const loadedDirectories = [...this.directoryEntriesCache.keys()]
-          this.directoryEntriesCache.clear()
-          await Promise.all(
-            loadedDirectories.map((relativePath) =>
-              this.loadDirectoryEntries(relativePath, true)
-            )
-          )
-          this.emitCachedOperationSnapshot()
-        })
+        .then(() => this.emitCachedOperationSnapshot())
         .catch(() => undefined)
     }, BACKGROUND_GRAFT_STATUS_DELAY_MS)
+  }
+
+  private prioritizeLocalWork(): void {
+    if (this.graftStatusTimer) {
+      clearTimeout(this.graftStatusTimer)
+      this.graftStatusTimer = null
+    }
+    for (const timer of this.ignoreReconciliationTimers.values()) {
+      clearTimeout(timer)
+    }
+    this.ignoreReconciliationTimers.clear()
+    for (const key of this.backgroundIgnoreKeys) this.repository.cancel(key)
+    this.backgroundIgnoreKeys.clear()
+    if (this.graftStatusRefresh && !this.graftStatusRefresh.authoritative) {
+      // Local data is the latency-critical path and must not wait or compete with
+      // an optional repository refresh. Cancellation is best-effort if Graft has
+      // already entered a non-interruptible cold open; the delayed reschedule keeps
+      // that case away from normal click-to-open and edit paths.
+      this.cancelGraftStatusRefresh()
+    }
   }
 
   private async loadDirectoryEntries(
@@ -1402,6 +1617,37 @@ export class SpaceSession {
         : {}
     )
     this.directoryEntriesCache.set(key, entries)
+    if (!respectIgnores)
+      this.reconcileDirectoryIgnoresInBackground(key, entries)
+  }
+
+  private reconcileDirectoryIgnoresInBackground(
+    relativePath: string,
+    entries: readonly SpaceTreeEntry[]
+  ): void {
+    if (!this.versioningEnabled || entries.length === 0 || this.closed) return
+    const existingTimer = this.ignoreReconciliationTimers.get(relativePath)
+    if (existingTimer) clearTimeout(existingTimer)
+    const timer = setTimeout(() => {
+      this.ignoreReconciliationTimers.delete(relativePath)
+      if (this.closed) return
+      const candidatePaths = entries.map((entry) => entry.relativePath)
+      void this.inspectIgnores(candidatePaths, "background")
+        .then((inspections) => {
+          if (this.closed) return
+          const current = this.directoryEntriesCache.get(relativePath)
+          if (!current) return
+          const filtered = current.filter((entry) => {
+            const inspection = inspections.get(entry.relativePath)
+            return !inspection || !this.shouldPruneIgnored(inspection)
+          })
+          if (filtered.length === current.length) return
+          this.directoryEntriesCache.set(relativePath, filtered)
+          this.emitCachedOperationSnapshot()
+        })
+        .catch(() => undefined)
+    }, BACKGROUND_GRAFT_IGNORE_DELAY_MS)
+    this.ignoreReconciliationTimers.set(relativePath, timer)
   }
 
   private async reloadDirectoryEntries(
@@ -1452,11 +1698,12 @@ export class SpaceSession {
     const normalized = normalizeMutableRelativePath(relativePath)
     const segments = normalized.split("/").slice(0, -1)
     if (segments.length === 0) return
-    this.cancelGraftStatusRefresh()
     let current = ""
     for (const segment of segments) {
       current = current ? `${current}/${segment}` : segment
-      await this.loadDirectoryEntries(current)
+      // Navigation to a known local file must not wait for repository ignore
+      // inspection. Versioning can reconcile Explorer filtering afterwards.
+      await this.loadDirectoryEntries(current, false)
     }
     this.emitCachedOperationSnapshot()
   }
@@ -1466,6 +1713,21 @@ export class SpaceSession {
     graft: GraftSpaceStatus
   ): SpaceSnapshot {
     const fileIssues = [...this.fileIssuesByPath.values()]
+    const { sync: repositorySync, ...graftStatus } = graft
+    const checkedAtMs = this.syncHistoryState
+      ? Date.parse(this.syncHistoryState.lastCheckedAt)
+      : Number.NaN
+    const sync = this.syncHistoryState
+      ? {
+          state: repositorySync?.state ?? ("unknown" as const),
+          ...(repositorySync?.remoteHead
+            ? { remoteHead: repositorySync.remoteHead }
+            : {}),
+          ahead: repositorySync?.ahead ?? 0,
+          behind: repositorySync?.behind ?? 0,
+          ...(Number.isFinite(checkedAtMs) ? { checkedAtMs } : {}),
+        }
+      : undefined
     return {
       id: this.canonical.id,
       name: this.canonical.name,
@@ -1476,8 +1738,9 @@ export class SpaceSession {
       ).length,
       operation: this.gate.current(),
       graft: {
-        ...graft,
-        initialized: this.automaticCheckpointEnabled && graft.initialized,
+        ...graftStatus,
+        initialized: this.versioningEnabled && graft.initialized,
+        ...(sync ? { sync } : {}),
       },
       invalidatedSessionIds: fileIssues.flatMap((issue) =>
         issue.sessionId ? [issue.sessionId] : []
@@ -1486,15 +1749,24 @@ export class SpaceSession {
     }
   }
 
+  private async recordSyncHistoryCheck(): Promise<void> {
+    try {
+      this.syncHistoryState = await this.syncState.markChecked()
+    } catch (error) {
+      console.warn("Could not cache the latest Space Sync check", error)
+    }
+  }
+
   private async inspectIgnores(
-    relativePaths: readonly string[]
+    relativePaths: readonly string[],
+    priority: "foreground" | "background" = "foreground"
   ): Promise<Map<string, GraftIgnoreInspection>> {
     const normalized = [
       ...new Set(
         relativePaths.map((relativePath) => relativePath.split("\\").join("/"))
       ),
     ]
-    if (!this.automaticCheckpointEnabled) {
+    if (!this.versioningEnabled) {
       return new Map(
         normalized.map((relativePath) => [
           relativePath,
@@ -1512,10 +1784,22 @@ export class SpaceSession {
       (relativePath) => !this.ignoreInspectionCache.has(relativePath)
     )
     if (missing.length > 0) {
-      const inspections = await this.graft.inspectIgnores(
-        this.canonical.root,
-        missing
-      )
+      const inspect = (signal: AbortSignal) =>
+        this.graft.inspectIgnores(this.canonical.root, missing, { signal })
+      let inspections: GraftIgnoreInspection[]
+      if (priority === "background") {
+        const key = `ignore:${missing.join("\u0000")}`
+        this.backgroundIgnoreKeys.add(key)
+        try {
+          inspections = await this.repository.runBackground(key, inspect, {
+            preemptible: true,
+          })
+        } finally {
+          this.backgroundIgnoreKeys.delete(key)
+        }
+      } else {
+        inspections = await this.repository.runForeground(inspect)
+      }
       for (const inspection of inspections) {
         this.ignoreInspectionCache.set(inspection.path, inspection)
       }
@@ -1590,7 +1874,7 @@ export class SpaceSession {
     try {
       await Promise.all(
         directoriesToRefresh.map((relativePath) =>
-          this.loadDirectoryEntries(relativePath)
+          this.loadDirectoryEntries(relativePath, false)
         )
       )
       const snapshot = await this.readSnapshot(scheduleGraftStatus)
@@ -1608,10 +1892,7 @@ export class SpaceSession {
     const authoritativeGraftStatus = authoritativeGraft
       ? await this.refreshGraftStatus(true)
       : undefined
-    await this.reloadDirectoryEntries(
-      loadedDirectories,
-      authoritativeGraft || this.graftSessionOpen()
-    )
+    await this.reloadDirectoryEntries(loadedDirectories, authoritativeGraft)
     const snapshot = await this.readSnapshot(
       !authoritativeGraft,
       authoritativeGraftStatus
@@ -1680,32 +1961,26 @@ export class SpaceSession {
     this.graftStatusTimer = null
     if (this.graftStatusRefresh?.authoritative && !force) return
     this.graftStatusEpoch += 1
-    this.graftStatusController?.abort()
-    this.graftStatusController = null
+    this.repository.cancel("graft-status")
     this.graftStatusRefresh = null
   }
 
   cancelVersionReads(): void {
-    this.versionReadController?.abort()
-    this.versionReadController = null
+    for (const key of versionReadKeys) this.repository.cancel(key)
   }
 
   private async withVersionRead<T>(
+    key: VersionReadKey,
     detail: string,
     read: (signal: AbortSignal) => Promise<T>
   ): Promise<T> {
-    this.cancelGraftStatusRefresh()
-    this.cancelVersionReads()
-    const controller = new AbortController()
-    this.versionReadController = controller
     try {
-      return await this.gate.withRepositoryOperation(detail, () =>
-        read(controller.signal)
-      )
+      return await this.gate.withRepositoryOperation(detail, read, {
+        key,
+        replace: true,
+        preemptible: true,
+      })
     } finally {
-      if (this.versionReadController === controller) {
-        this.versionReadController = null
-      }
       if (!this.graftStatusCache) this.scheduleGraftStatusRefresh()
     }
   }
@@ -1717,7 +1992,7 @@ export class SpaceSession {
 
   private noteLocalChange(): void {
     this.invalidateGraftStatusCache()
-    if (this.automaticCheckpointEnabled) {
+    if (this.versioningEnabled && this.automaticCheckpointsEnabled) {
       this.checkpointScheduler.notifyStableChange()
     }
   }
@@ -1730,7 +2005,7 @@ export class SpaceSession {
   }
 
   private async requireInitializedVersioning(): Promise<void> {
-    if (!this.automaticCheckpointEnabled) {
+    if (!this.versioningEnabled) {
       throw new Error("Enable local Space versioning first")
     }
   }

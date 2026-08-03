@@ -9,6 +9,7 @@ import type {
 import type { EidosLiteServiceEnvironment } from "./service-environment"
 
 export const EIDOS_LITE_CSV_IMPORT_BYTES_MAX = 16 * 1024 * 1024
+export const EIDOS_LITE_CSV_FILE_BYTES_MAX = 1024 * 1024 * 1024
 export const EIDOS_LITE_CSV_EXPORT_BYTES_MAX = 256 * 1024 * 1024
 export const EIDOS_LITE_TEXT_PREVIEW_BYTES_MAX = 2 * 1024 * 1024
 export const EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX = 1024 * 1024
@@ -31,6 +32,7 @@ export const IPC_CHANNELS = {
   removeRecentSpace: "eidos-lite:space-recent-remove",
   getSpace: "eidos-lite:space-get",
   refreshSpace: "eidos-lite:space-refresh",
+  refreshExplorer: "eidos-lite:space-explorer-refresh",
   loadSpaceDirectory: "eidos-lite:space-directory-load",
   spaceChanged: "eidos-lite:space-changed",
   navigationCommand: "eidos-lite:navigation-command",
@@ -47,6 +49,8 @@ export const IPC_CHANNELS = {
   copyPath: "eidos-lite:path-copy",
   deletePath: "eidos-lite:path-delete",
   importFiles: "eidos-lite:path-import",
+  selectCsv: "eidos-lite:csv-select",
+  releaseCsv: "eidos-lite:csv-release",
   saveCsv: "eidos-lite:csv-save",
   runtimeCall: "eidos-lite:runtime-call",
   enableVersioning: "eidos-lite:versioning-enable",
@@ -330,6 +334,7 @@ export type EidosLiteAppearance = "system" | "light" | "dark"
 
 export interface EidosLitePreferences {
   appearance: EidosLiteAppearance
+  automaticCheckpoints: boolean
   defaultSpaceLocation: string | null
 }
 
@@ -665,6 +670,26 @@ export interface EidosSyncRecoveryResult {
 
 export type EidosSyncHelpDestination = "account" | "download"
 
+export interface EidosLiteCsvSelection {
+  token: string
+  fileName: string
+  size: number
+  modifiedAtMs: number
+}
+
+export interface EidosLiteCsvOperationProgress {
+  operationId: string
+  kind: "plan" | "import"
+  status: "running" | "canceling" | "completed" | "canceled" | "failed"
+  phase: "analyzing" | "importing" | "finalizing"
+  processedBytes: number
+  totalBytes: number
+  processedRows: number
+  totalRows: number | null
+  message?: string
+  updatedAt: number
+}
+
 interface RuntimeCustomCalls {
   previewCsv: {
     args: [
@@ -685,6 +710,33 @@ interface RuntimeCustomCalls {
       result: EidosFileCsvImportResult
     }
   }
+  previewCsvFile: {
+    args: [
+      sourceToken: string,
+      options: EidosFileCsvImportOptions,
+      operationId: string,
+    ]
+    result: EidosFileCsvImportPlan
+  }
+  importCsvFile: {
+    args: [
+      sourceToken: string,
+      options: EidosFileCsvImportOptions,
+      operationId: string,
+    ]
+    result: {
+      snapshot: EidosFileSnapshot
+      result: EidosFileCsvImportResult
+    }
+  }
+  getCsvOperationProgress: {
+    args: [operationId: string]
+    result: EidosLiteCsvOperationProgress | null
+  }
+  cancelCsvOperation: {
+    args: [operationId: string]
+    result: boolean
+  }
 }
 
 export const RUNTIME_READ_METHODS = [
@@ -695,6 +747,9 @@ export const RUNTIME_READ_METHODS = [
   "calculateColumnStats",
   "previewFormula",
   "previewCsv",
+  "previewCsvFile",
+  "getCsvOperationProgress",
+  "cancelCsvOperation",
 ] as const satisfies readonly (
   | keyof EidosFileDataSource
   | keyof RuntimeCustomCalls
@@ -717,6 +772,7 @@ export const RUNTIME_MUTATION_METHODS = [
   "reorderViews",
   "updateView",
   "importCsv",
+  "importCsvFile",
 ] as const satisfies readonly (
   | keyof EidosFileDataSource
   | keyof RuntimeCustomCalls
@@ -808,6 +864,7 @@ export interface EidosLiteApi {
   removeRecentSpace(id: string): Promise<RecentSpaceEntry[]>
   getSpace(): Promise<SpaceSnapshot | null>
   refreshSpace(): Promise<SpaceSnapshot | null>
+  refreshExplorer(): Promise<SpaceSnapshot | null>
   loadSpaceDirectory(relativePath: string): Promise<SpaceSnapshot>
   onSpaceChanged(listener: (snapshot: SpaceSnapshot) => void): () => void
   onNavigationCommand(
@@ -843,6 +900,8 @@ export interface EidosLiteApi {
   importFiles(
     targetDirectory: string | null
   ): Promise<SpacePathMutationResult | null>
+  selectCsvFile(): Promise<EidosLiteCsvSelection | null>
+  releaseCsvFile(token: string): Promise<void>
   saveCsvFile(suggestedName: string, bytes: Uint8Array): Promise<boolean>
   callRuntime<M extends RuntimeMethod>(
     sessionId: string,

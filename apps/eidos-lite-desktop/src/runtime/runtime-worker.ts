@@ -17,6 +17,7 @@ import { EIDOS_LITE_CSV_IMPORT_BYTES_MAX } from "../shared/contracts"
 import {
   createEidosLiteFileRuntime,
   openEidosLiteFileRuntime,
+  type EidosLiteCsvFileSource,
   type EidosLiteFileRuntime,
 } from "./eidos-file-runtime"
 
@@ -55,6 +56,11 @@ function requireSource(): EidosRuntimeEditorDataSource {
   return source
 }
 
+function requireRuntime(): EidosLiteFileRuntime {
+  if (!openedRuntime) throw new Error("Eidos File runtime is not open")
+  return openedRuntime
+}
+
 function csvInput(
   fileNameValue: unknown,
   bytesValue: unknown
@@ -78,6 +84,24 @@ function csvInput(
 function csvOptions(value: unknown): EidosFileCsvImportOptions {
   if (value === undefined) return {}
   return objectValue(value, "CSV options") as EidosFileCsvImportOptions
+}
+
+function csvFileSource(value: unknown): EidosLiteCsvFileSource {
+  const source = objectValue(value, "CSV source")
+  const sourcePath = requireString(source.sourcePath, "CSV source path")
+  if (!path.isAbsolute(sourcePath)) {
+    throw new Error("CSV source path must be absolute")
+  }
+  const fileName = requireString(source.fileName, "CSV file name")
+  if (fileName.length > 255 || /[\\/\0]/.test(fileName)) {
+    throw new Error("CSV file name is invalid")
+  }
+  const size = requireInteger(source.size, "CSV file size")
+  const modifiedAtMs = source.modifiedAtMs
+  if (typeof modifiedAtMs !== "number" || !Number.isFinite(modifiedAtMs)) {
+    throw new Error("CSV modified time is invalid")
+  }
+  return { sourcePath, fileName, size, modifiedAtMs }
 }
 
 function requireString(value: unknown, label: string): string {
@@ -167,6 +191,20 @@ async function runtimeCall(
       const input = csvInput(args[0], args[1])
       return dataSource.previewCsv(input.name, input.bytes, csvOptions(args[2]))
     }
+    case "previewCsvFile":
+      return requireRuntime().previewCsvFile(
+        csvFileSource(args[0]),
+        csvOptions(args[1]),
+        requireString(args[2], "CSV operation ID")
+      )
+    case "getCsvOperationProgress":
+      return requireRuntime().getCsvOperationProgress(
+        requireString(args[0], "CSV operation ID")
+      )
+    case "cancelCsvOperation":
+      return requireRuntime().cancelCsvOperation(
+        requireString(args[0], "CSV operation ID")
+      )
     case "insertRow":
       return dataSource.insertRow(...methodArgs<"insertRow">(args))
     case "updateRow":
@@ -201,6 +239,12 @@ async function runtimeCall(
       const input = csvInput(args[0], args[1])
       return dataSource.importCsv(input.name, input.bytes, csvOptions(args[2]))
     }
+    case "importCsvFile":
+      return requireRuntime().importCsvFile(
+        csvFileSource(args[0]),
+        csvOptions(args[1]),
+        requireString(args[2], "CSV operation ID")
+      )
   }
 }
 
@@ -217,7 +261,7 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
         request.title
       )
       source = openedRuntime.source
-      return source.getSnapshot()
+      return openedRuntime.initialSnapshot
     }
     case "open": {
       if (!path.isAbsolute(request.filePath)) {
@@ -227,7 +271,7 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
         throw new Error("Runtime already has an open Eidos File")
       openedRuntime = await openEidosLiteFileRuntime(request.filePath)
       source = openedRuntime.source
-      return source.getSnapshot()
+      return openedRuntime.initialSnapshot
     }
     case "call":
       return runtimeCall(request.method, request.args)

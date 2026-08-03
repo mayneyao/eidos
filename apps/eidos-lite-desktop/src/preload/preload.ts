@@ -41,6 +41,7 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.removeRecentSpace, id),
   getSpace: () => ipcRenderer.invoke(IPC_CHANNELS.getSpace),
   refreshSpace: () => ipcRenderer.invoke(IPC_CHANNELS.refreshSpace),
+  refreshExplorer: () => ipcRenderer.invoke(IPC_CHANNELS.refreshExplorer),
   loadSpaceDirectory: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.loadSpaceDirectory, relativePath),
   onSpaceChanged: (listener) => {
@@ -87,6 +88,8 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.deletePath, relativePath),
   importFiles: (targetDirectory) =>
     ipcRenderer.invoke(IPC_CHANNELS.importFiles, targetDirectory),
+  selectCsvFile: () => ipcRenderer.invoke(IPC_CHANNELS.selectCsv),
+  releaseCsvFile: (token) => ipcRenderer.invoke(IPC_CHANNELS.releaseCsv, token),
   saveCsvFile: (suggestedName, bytes) =>
     ipcRenderer.invoke(IPC_CHANNELS.saveCsv, suggestedName, bytes),
   callRuntime: <M extends RuntimeMethod>(
@@ -109,12 +112,14 @@ const api: EidosLiteApi = {
       limit,
       after
     ),
-  getVersionPathDiff: (relativePath, commitId, parentId) =>
+  getVersionPathDiff: (relativePath, commitId, parentId, tableName, rowAfter) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.versionPathDiff,
       relativePath,
       commitId,
-      parentId
+      parentId,
+      tableName,
+      rowAfter
     ),
   cancelVersionReads: () => ipcRenderer.invoke(IPC_CHANNELS.versionCancel),
   getTrackedIgnoredPaths: (limit, after) =>

@@ -86,4 +86,20 @@ describe("StableCheckpointScheduler", () => {
     await vi.runAllTimersAsync()
     expect(run).toHaveBeenCalledTimes(1)
   })
+
+  it("discards a pending automatic checkpoint when the feature is disabled", async () => {
+    const run = vi.fn(async () => undefined)
+    const scheduler = new StableCheckpointScheduler({
+      quietMs: 100,
+      maxWaitMs: 1_000,
+      run,
+      onError: vi.fn(),
+    })
+
+    scheduler.notifyStableChange()
+    scheduler.cancelPending()
+    await vi.runAllTimersAsync()
+    expect(run).not.toHaveBeenCalled()
+    await scheduler.close(false)
+  })
 })

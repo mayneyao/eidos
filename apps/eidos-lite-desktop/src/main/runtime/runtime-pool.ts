@@ -39,6 +39,21 @@ interface RuntimeEntry {
 
 export const DEFAULT_MAX_RESIDENT_RUNTIMES = 3
 
+function defaultRuntimeWorkerPath(): string {
+  const workerUrl = new URL("./runtime-worker.js", import.meta.url)
+  if (workerUrl.protocol === "file:") return fileURLToPath(workerUrl)
+  if (process.env.VITEST) {
+    // Vitest may execute Electron main modules from an in-memory data URL. Tests
+    // that exercise the pool inject their own worker; SpaceSession unit tests only
+    // need a stable placeholder while runtime opening is mocked.
+    return path.resolve(
+      process.cwd(),
+      "apps/eidos-lite-desktop/src/main/runtime/runtime-worker.js"
+    )
+  }
+  throw new Error("Eidos File runtime worker must be loaded from a file URL")
+}
+
 export interface RuntimeResidencyCandidate {
   sessionId: string
   resident: boolean
@@ -84,9 +99,7 @@ export class RuntimePool {
 
   constructor(
     private readonly spaceRoot: string,
-    private readonly workerPath = fileURLToPath(
-      new URL("./runtime-worker.js", import.meta.url)
-    ),
+    private readonly workerPath = defaultRuntimeWorkerPath(),
     private readonly maxResidentRuntimes = DEFAULT_MAX_RESIDENT_RUNTIMES
   ) {
     if (!Number.isInteger(maxResidentRuntimes) || maxResidentRuntimes < 1) {

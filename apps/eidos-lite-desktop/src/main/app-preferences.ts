@@ -8,6 +8,7 @@ import type {
 
 export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
   appearance: "system",
+  automaticCheckpoints: false,
   defaultSpaceLocation: null,
 }
 
@@ -27,6 +28,10 @@ export function normalizeEidosLitePreferences(
   const defaultSpaceLocation = candidate.defaultSpaceLocation
   return {
     appearance: appearance(candidate.appearance),
+    automaticCheckpoints:
+      typeof candidate.automaticCheckpoints === "boolean"
+        ? candidate.automaticCheckpoints
+        : DEFAULT_EIDOS_LITE_PREFERENCES.automaticCheckpoints,
     defaultSpaceLocation:
       typeof defaultSpaceLocation === "string" && defaultSpaceLocation.trim()
         ? defaultSpaceLocation

@@ -61,6 +61,7 @@ describe("SpaceOperationGate", () => {
       await mutation.promise
       calls.push("mutation-end")
     })
+    expect(gate.hasActiveMutations()).toBe(true)
     const materialization = gate.withMaterialization({
       kind: "pull",
       materialize: async () => {
@@ -81,6 +82,7 @@ describe("SpaceOperationGate", () => {
 
     await expect(materialization).resolves.toBe("done")
     await runningMutation
+    expect(gate.hasActiveMutations()).toBe(false)
     expect(calls).toEqual([
       "mutation-start",
       "mutation-end",

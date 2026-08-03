@@ -5,6 +5,7 @@ import type {
   SpaceOperationJournal,
   SpaceOperationJournalEntry,
 } from "./operation-journal"
+import { SpaceRepositoryCoordinator } from "./repository-coordinator"
 
 interface MaterializationHooks {
   closeRuntimes(): Promise<void>
@@ -42,16 +43,20 @@ export class SpaceOperationGate {
   private acceptingMutations = true
   private closing = false
   private drain: PendingDrain | null = null
-  private repositoryTail: Promise<void> = Promise.resolve()
   private readonly listeners = new Set<(state: SpaceOperationState) => void>()
 
   constructor(
     private readonly journal: SpaceOperationJournal,
-    private readonly hooks: MaterializationHooks
+    private readonly hooks: MaterializationHooks,
+    private readonly repository = new SpaceRepositoryCoordinator()
   ) {}
 
   current(): SpaceOperationState {
     return { ...this.state }
+  }
+
+  hasActiveMutations(): boolean {
+    return this.activeMutations > 0
   }
 
   subscribe(listener: (state: SpaceOperationState) => void): () => void {
@@ -109,24 +114,27 @@ export class SpaceOperationGate {
 
   withRepositoryOperation<T>(
     detail: string,
-    operation: () => Promise<T>
+    operation: (signal: AbortSignal) => Promise<T>,
+    options: {
+      key?: string
+      replace?: boolean
+      preemptible?: boolean
+    } = {}
   ): Promise<T> {
-    const scheduled = this.repositoryTail.then(async () => {
+    if (this.closing || this.state.phase === "closed") {
+      return Promise.reject(new Error("Space is closed"))
+    }
+    return this.repository.runForeground(async (signal) => {
       if (this.closing || this.state.phase === "closed") {
         throw new Error("Space is closed")
       }
       this.transition("syncing", detail)
       try {
-        return await operation()
+        return await operation(signal)
       } finally {
         if (this.state.phase === "syncing") this.transition("ready")
       }
-    })
-    this.repositoryTail = scheduled.then(
-      () => undefined,
-      () => undefined
-    )
-    return scheduled
+    }, options)
   }
 
   withQuiescedRepositoryOperation<T>(
@@ -236,13 +244,13 @@ export class SpaceOperationGate {
 
   async close(): Promise<void> {
     if (this.closing || this.state.phase === "closed") {
-      await this.repositoryTail
+      await this.repository.whenIdle()
       return
     }
     this.closing = true
     this.acceptingMutations = false
     await this.waitForMutationDrain()
-    await this.repositoryTail
+    await this.repository.close()
     this.transition("closed")
   }
 

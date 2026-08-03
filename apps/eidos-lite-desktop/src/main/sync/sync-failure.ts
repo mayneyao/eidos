@@ -63,6 +63,16 @@ const FAILURE_DEFINITIONS: Record<EidosSyncFailureCode, FailureDefinition> = {
     retryable: false,
     localSafe: true,
   },
+  "upload-too-large": {
+    state: "needs-attention",
+    title: "This upload is too large",
+    message:
+      "Eidos Sync could not accept this upload yet. Keep working locally; your files and checkpoints remain safe.",
+    action: "work-locally",
+    actionLabel: "Keep working locally",
+    retryable: false,
+    localSafe: true,
+  },
   "protocol-version-mismatch": {
     state: "needs-attention",
     title: "Eidos Lite needs an update",
@@ -202,7 +212,7 @@ function statusFailure(status: number): EidosSyncFailureCode | null {
   if (status === 403) return "device-revoked"
   if (status === 404) return "remote-not-found"
   if (status === 409) return "remote-conflict"
-  if (status === 413) return "quota-exceeded"
+  if (status === 413) return "upload-too-large"
   if (status === 426) return "protocol-version-mismatch"
   if (status === 429) return "rate-limited"
   if (status === 500) return "remote-persistence-failed"
@@ -211,7 +221,9 @@ function statusFailure(status: number): EidosSyncFailureCode | null {
 }
 
 function statusFromMessage(message: string): number | undefined {
-  const match = message.match(/\b(?:HTTP|status)\s*[:=]?\s*(\d{3})\b/i)
+  const match = message.match(
+    /\b(?:HTTP(?:\s+remote)?(?:\s+returned)?|status)\s*[:=]?\s*(\d{3})\b/i
+  )
   return match ? Number(match[1]) : undefined
 }
 
@@ -296,12 +308,15 @@ export function classifySyncFailure(
   ) {
     return failure("remote-conflict", status)
   }
-  if (
-    normalized.includes("quota") ||
-    normalized.includes("storage full") ||
-    normalized.includes("payload too large")
-  ) {
+  if (normalized.includes("quota") || normalized.includes("storage full")) {
     return failure("quota-exceeded", status)
+  }
+  if (
+    normalized.includes("payload too large") ||
+    normalized.includes("content too large") ||
+    normalized.includes("request entity too large")
+  ) {
+    return failure("upload-too-large", status)
   }
   if (
     normalized.includes("protocol") ||

@@ -38,6 +38,11 @@ export class StableCheckpointScheduler {
     )
   }
 
+  cancelPending(): void {
+    this.clearTimers()
+    this.pending = false
+  }
+
   async close(flush: boolean): Promise<void> {
     if (!this.accepting) {
       await this.running

@@ -1,12 +1,15 @@
 import { randomUUID } from "node:crypto"
+import fs from "node:fs/promises"
 import path from "node:path"
-import { app, ipcMain, shell } from "electron"
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron"
 
 import {
   EIDOS_LITE_CSV_EXPORT_BYTES_MAX,
+  EIDOS_LITE_CSV_FILE_BYTES_MAX,
   IPC_CHANNELS,
   RUNTIME_METHODS,
   type EidosLitePreferences,
+  type EidosLiteCsvSelection,
   type EidosLiteSettingsDestination,
   type EidosSyncHelpDestination,
   type EidosSyncQueueStatus,
@@ -19,6 +22,7 @@ import {
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
 import { eidosLiteLogger, logCorrelationKey } from "./logging"
 import { BackgroundSyncQueue } from "./sync/background-sync-queue"
+import { scheduleCheckpointSyncAfterLocalSave } from "./sync/checkpoint-sync-scheduler"
 import { cloudDisplayNameForLocalSpace } from "./sync/cloud-space-name"
 import type { SyncControlPlane } from "./sync/sync-control-plane"
 import {
@@ -31,6 +35,13 @@ import { SyncRunTracker } from "./sync/sync-run-tracker"
 import type { WindowController } from "./window-controller"
 
 const runtimeMethods = new Set<RuntimeMethod>(RUNTIME_METHODS)
+const CSV_SOURCE_TTL_MS = 30 * 60_000
+const CSV_SOURCES_PER_WINDOW_MAX = 8
+
+interface RegisteredCsvSource extends EidosLiteCsvSelection {
+  sourcePath: string
+  expiresAtMs: number
+}
 
 function optionalRelativePath(value: unknown): string | null {
   if (value === null || value === undefined || value === "") return null
@@ -66,6 +77,12 @@ function preferencesPatch(value: unknown): Partial<EidosLitePreferences> {
       throw new Error("Invalid appearance preference")
     }
     patch.appearance = candidate.appearance
+  }
+  if ("automaticCheckpoints" in candidate) {
+    if (typeof candidate.automaticCheckpoints !== "boolean") {
+      throw new Error("Invalid automatic checkpoint preference")
+    }
+    patch.automaticCheckpoints = candidate.automaticCheckpoints
   }
   if ("defaultSpaceLocation" in candidate) {
     if (
@@ -115,6 +132,43 @@ export function registerIpc(
   })
   const attachedSenders = new Set<number>()
   const automaticCheckpointUnsubscribers = new Map<number, () => void>()
+  const csvSourcesBySender = new Map<number, Map<string, RegisteredCsvSource>>()
+  const csvSourceCleanupSenders = new Set<number>()
+  const sourcesForSender = (sender: Electron.WebContents) => {
+    let sources = csvSourcesBySender.get(sender.id)
+    if (!sources) {
+      sources = new Map()
+      csvSourcesBySender.set(sender.id, sources)
+    }
+    const now = Date.now()
+    for (const [token, source] of sources) {
+      if (source.expiresAtMs <= now) sources.delete(token)
+    }
+    if (!csvSourceCleanupSenders.has(sender.id)) {
+      csvSourceCleanupSenders.add(sender.id)
+      sender.once("destroyed", () => {
+        csvSourcesBySender.delete(sender.id)
+        csvSourceCleanupSenders.delete(sender.id)
+      })
+    }
+    return sources
+  }
+  const requireCsvSource = (
+    sender: Electron.WebContents,
+    token: unknown
+  ): RegisteredCsvSource => {
+    if (typeof token !== "string" || !token) {
+      throw new Error("Invalid CSV selection")
+    }
+    const source = sourcesForSender(sender).get(token)
+    if (!source) {
+      throw new Error(
+        "The selected CSV is no longer available; choose it again"
+      )
+    }
+    source.expiresAtMs = Date.now() + CSV_SOURCE_TTL_MS
+    return source
+  }
   const attachSyncQueue = async (event: Electron.IpcMainInvokeEvent) => {
     const session = controller.requireSession(event.sender)
     const emitStatus = (status: EidosSyncQueueStatus) => {
@@ -221,6 +275,10 @@ export function registerIpc(
   ipcMain.handle(
     IPC_CHANNELS.refreshSpace,
     (event) => controller.sessionFor(event.sender)?.refresh() ?? null
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.refreshExplorer,
+    (event) => controller.sessionFor(event.sender)?.refreshExplorer() ?? null
   )
   ipcMain.handle(
     IPC_CHANNELS.loadSpaceDirectory,
@@ -330,9 +388,58 @@ export function registerIpc(
         requiredBytes(bytes, "CSV content")
       )
   )
+  ipcMain.handle(IPC_CHANNELS.selectCsv, async (event) => {
+    controller.requireSession(event.sender)
+    const parent = BrowserWindow.fromWebContents(event.sender) ?? undefined
+    const options: Electron.OpenDialogOptions = {
+      title: "Import CSV as a new table",
+      buttonLabel: "Choose CSV",
+      defaultPath: app.getPath("downloads"),
+      filters: [
+        { name: "CSV", extensions: ["csv"] },
+        { name: "Text", extensions: ["txt"] },
+      ],
+      properties: ["openFile"],
+    }
+    const result = parent
+      ? await dialog.showOpenDialog(parent, options)
+      : await dialog.showOpenDialog(options)
+    const sourcePath = result.filePaths[0]
+    if (result.canceled || !sourcePath) return null
+    const stats = await fs.stat(sourcePath)
+    if (!stats.isFile()) throw new Error("The selected CSV is not a file")
+    if (stats.size > EIDOS_LITE_CSV_FILE_BYTES_MAX) {
+      throw new Error("CSV files larger than 1 GiB are not supported")
+    }
+    const source: RegisteredCsvSource = {
+      token: randomUUID(),
+      sourcePath,
+      fileName: path.basename(sourcePath),
+      size: stats.size,
+      modifiedAtMs: stats.mtimeMs,
+      expiresAtMs: Date.now() + CSV_SOURCE_TTL_MS,
+    }
+    const sources = sourcesForSender(event.sender)
+    while (sources.size >= CSV_SOURCES_PER_WINDOW_MAX) {
+      const oldest = sources.keys().next().value
+      if (typeof oldest !== "string") break
+      sources.delete(oldest)
+    }
+    sources.set(source.token, source)
+    return {
+      token: source.token,
+      fileName: source.fileName,
+      size: source.size,
+      modifiedAtMs: source.modifiedAtMs,
+    } satisfies EidosLiteCsvSelection
+  })
+  ipcMain.handle(IPC_CHANNELS.releaseCsv, (event, token: unknown) => {
+    if (typeof token !== "string") throw new Error("Invalid CSV selection")
+    sourcesForSender(event.sender).delete(token)
+  })
   ipcMain.handle(
     IPC_CHANNELS.runtimeCall,
-    (
+    async (
       event,
       sessionId: unknown,
       method: unknown,
@@ -348,12 +455,17 @@ export function registerIpc(
       }
       if (!Array.isArray(args))
         throw new Error("Runtime arguments must be an array")
+      const runtimeMethod = method as RuntimeMethod
+      const runtimeArgs =
+        runtimeMethod === "previewCsvFile" || runtimeMethod === "importCsvFile"
+          ? [requireCsvSource(event.sender, args[0]), ...args.slice(1)]
+          : args
       return controller
         .requireSession(event.sender)
         .callRuntime(
           sessionId,
-          method as RuntimeMethod,
-          args as RuntimeCalls[RuntimeMethod]["args"]
+          runtimeMethod,
+          runtimeArgs as RuntimeCalls[RuntimeMethod]["args"]
         )
     }
   )
@@ -367,15 +479,72 @@ export function registerIpc(
         throw new Error("Invalid checkpoint message")
       }
       const session = controller.requireSession(event.sender)
-      const snapshot = await session.createCheckpoint(message)
+      const checkpointRunId = randomUUID()
+      const checkpointStartedAtMs = Date.now()
+      const spaceKey = logCorrelationKey(session.canonical.id)
+      eidosLiteLogger()?.info("version.checkpoint.started", {
+        checkpointRunId,
+        spaceKey,
+      })
+      let snapshot
       try {
-        if (await session.officialSyncRemoteUrl()) {
-          await attachSyncQueue(event)
-          await syncQueue.enqueue(session.canonical.id, "local-checkpoint")
-        }
+        snapshot = await session.createCheckpoint(message)
       } catch (error) {
-        console.warn("Could not queue the new checkpoint for Eidos Sync", error)
+        eidosLiteLogger()?.error(
+          "version.checkpoint.failed",
+          {
+            checkpointRunId,
+            spaceKey,
+            durationMs: Math.max(0, Date.now() - checkpointStartedAtMs),
+          },
+          error
+        )
+        throw error
       }
+      const localCompletedAtMs = Date.now()
+      eidosLiteLogger()?.info("version.checkpoint.local-completed", {
+        checkpointRunId,
+        spaceKey,
+        durationMs: Math.max(0, localCompletedAtMs - checkpointStartedAtMs),
+      })
+      // The local checkpoint is already durable. Account lookup, queue-store I/O,
+      // and Hosted Sync scheduling must not extend the Save version interaction.
+      // The scheduler deliberately returns void so future callers cannot await
+      // this cloud-only tail by accident.
+      scheduleCheckpointSyncAfterLocalSave({
+        run: async () => {
+          if (await session.officialSyncRemoteUrl()) {
+            await attachSyncQueue(event)
+            await syncQueue.enqueue(session.canonical.id, "local-checkpoint")
+            eidosLiteLogger()?.info("version.checkpoint.sync-queued", {
+              checkpointRunId,
+              spaceKey,
+              delayMs: Math.max(0, Date.now() - localCompletedAtMs),
+            })
+          } else {
+            eidosLiteLogger()?.debug("version.checkpoint.sync-skipped", {
+              checkpointRunId,
+              spaceKey,
+              reason: "not-connected",
+            })
+          }
+        },
+        onError: (error) => {
+          eidosLiteLogger()?.warn(
+            "version.checkpoint.sync-queue-failed",
+            {
+              checkpointRunId,
+              spaceKey,
+              delayMs: Math.max(0, Date.now() - localCompletedAtMs),
+            },
+            error
+          )
+          console.warn(
+            "Could not queue the new checkpoint for Eidos Sync",
+            error
+          )
+        },
+      })
       return snapshot
     }
   )
@@ -442,7 +611,14 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.versionPathDiff,
-    (event, relativePath: unknown, commitId: unknown, parentId: unknown) => {
+    (
+      event,
+      relativePath: unknown,
+      commitId: unknown,
+      parentId: unknown,
+      tableName: unknown,
+      rowAfter: unknown
+    ) => {
       if (typeof relativePath !== "string") {
         throw new Error("Invalid diff path")
       }
@@ -460,12 +636,26 @@ export function registerIpc(
       ) {
         throw new Error("Invalid diff checkpoint parent")
       }
+      if (
+        tableName !== undefined &&
+        (typeof tableName !== "string" || !tableName.trim())
+      ) {
+        throw new Error("Invalid diff table")
+      }
+      if (
+        rowAfter !== undefined &&
+        (typeof rowAfter !== "string" || !rowAfter.trim())
+      ) {
+        throw new Error("Invalid row-diff cursor")
+      }
       return controller
         .requireSession(event.sender)
         .getVersionPathDiff(
           relativePath,
           commitId as string | null | undefined,
-          parentId as string | null | undefined
+          parentId as string | null | undefined,
+          tableName as string | undefined,
+          rowAfter as string | undefined
         )
     }
   )
@@ -539,28 +729,34 @@ export function registerIpc(
   )
   const currentRemoteUrl = async (event: Electron.IpcMainInvokeEvent) =>
     (await controller.sessionFor(event.sender)?.officialSyncRemoteUrl()) ?? null
+  const repositoryDisplayNameRepairs = new Set<string>()
   ipcMain.handle(IPC_CHANNELS.syncStatus, async (event) => {
     const session = controller.sessionFor(event.sender)
     const remoteUrl = await currentRemoteUrl(event)
     const status = await syncControl.status(remoteUrl)
     if (session && remoteUrl && status.entitlement.state === "read-write") {
       const spaceKey = logCorrelationKey(session.canonical.id)
-      try {
-        const repaired = await syncControl.repairLegacyRepositoryDisplayName(
-          remoteUrl,
-          cloudDisplayNameForLocalSpace(session.canonical.name)
-        )
-        if (repaired) {
-          eidosLiteLogger()?.info("sync.repository-display-name.repaired", {
-            spaceKey,
+      const displayName = cloudDisplayNameForLocalSpace(session.canonical.name)
+      const repairKey = `${remoteUrl}\0${displayName}`
+      if (!repositoryDisplayNameRepairs.has(repairKey)) {
+        repositoryDisplayNameRepairs.add(repairKey)
+        void syncControl
+          .repairLegacyRepositoryDisplayName(remoteUrl, displayName)
+          .then((repaired) => {
+            if (repaired) {
+              eidosLiteLogger()?.info("sync.repository-display-name.repaired", {
+                spaceKey,
+              })
+            }
           })
-        }
-      } catch (error) {
-        eidosLiteLogger()?.warn(
-          "sync.repository-display-name.repair-failed",
-          { spaceKey },
-          error
-        )
+          .catch((error) => {
+            repositoryDisplayNameRepairs.delete(repairKey)
+            eidosLiteLogger()?.warn(
+              "sync.repository-display-name.repair-failed",
+              { spaceKey },
+              error
+            )
+          })
       }
     }
     return status
