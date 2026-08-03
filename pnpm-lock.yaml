@@ -439,6 +439,9 @@ importers:
       '@pierre/trees':
         specifier: 1.0.0-beta.5
         version: 1.0.0-beta.5(@shikijs/themes@4.3.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(shiki@4.3.1)
+      '@tanstack/react-virtual':
+        specifier: ^3.13.12
+        version: 3.13.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       lucide-react:
         specifier: ^0.471.2
         version: 0.471.2(react@18.3.1)

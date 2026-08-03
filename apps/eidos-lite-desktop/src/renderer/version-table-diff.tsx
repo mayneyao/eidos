@@ -1,0 +1,390 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useVirtualizer } from "@tanstack/react-virtual"
+
+import type {
+  SpaceVersionRowChange,
+  SpaceVersionTableDiff,
+} from "../shared/contracts"
+
+const VERSION_ROW_DIFF_ESTIMATED_HEIGHT = 40
+const VERSION_ROW_DIFF_LOAD_AHEAD = 12
+const VERSION_ROW_DIFF_OVERSCAN = 8
+
+type ColumnMode = "changed" | "all"
+type RowChangeKind = "insert" | "delete" | "update"
+
+function displayValue(value: unknown): string {
+  if (value === null) return "null"
+  if (value === undefined) return "—"
+  if (typeof value === "string") return value || '""'
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function rowChangeKind(change: SpaceVersionRowChange): RowChangeKind {
+  const op = change.op.toLocaleLowerCase()
+  if (op === "insert" || op === "add" || op === "added") return "insert"
+  if (op === "delete" || op === "remove" || op === "deleted") {
+    return "delete"
+  }
+  return "update"
+}
+
+function estimatedRowHeight(change: SpaceVersionRowChange): number {
+  return rowChangeKind(change) === "update"
+    ? VERSION_ROW_DIFF_ESTIMATED_HEIGHT + 16
+    : VERSION_ROW_DIFF_ESTIMATED_HEIGHT
+}
+
+function valueBefore(change: SpaceVersionRowChange, index: number): unknown {
+  const kind = rowChangeKind(change)
+  if (kind === "insert") return undefined
+  if (change.oldValues && index in change.oldValues) {
+    return change.oldValues[index]
+  }
+  return kind === "delete" ? change.values?.[index] : undefined
+}
+
+function valueAfter(change: SpaceVersionRowChange, index: number): unknown {
+  return rowChangeKind(change) === "delete" ? undefined : change.values?.[index]
+}
+
+function columnChanged(change: SpaceVersionRowChange, index: number): boolean {
+  const kind = rowChangeKind(change)
+  if (kind === "insert") return valueAfter(change, index) !== undefined
+  if (kind === "delete") return valueBefore(change, index) !== undefined
+  return (
+    displayValue(valueBefore(change, index)) !==
+    displayValue(valueAfter(change, index))
+  )
+}
+
+function rowIdentity(change: SpaceVersionRowChange, fallback: number) {
+  const entries = Object.entries(change.key)
+  if (!entries.length) {
+    return { value: `Row ${fallback.toLocaleString()}`, fields: "Position" }
+  }
+  return {
+    value: entries.map(([, value]) => displayValue(value)).join(" · "),
+    fields: entries.map(([field]) => field).join(" · "),
+  }
+}
+
+function Value({ value }: { value: unknown }) {
+  const text = displayValue(value)
+  return (
+    <span
+      className="version-table-value"
+      data-value-kind={value === null ? "null" : typeof value}
+      title={text}
+    >
+      {text}
+    </span>
+  )
+}
+
+function DiffCell({
+  change,
+  columnIndex,
+}: {
+  change: SpaceVersionRowChange
+  columnIndex: number
+}) {
+  const kind = rowChangeKind(change)
+  const before = valueBefore(change, columnIndex)
+  const after = valueAfter(change, columnIndex)
+  const changed = columnChanged(change, columnIndex)
+
+  if (kind === "insert") {
+    return (
+      <td data-cell-change="insert">
+        <ins>
+          <Value value={after} />
+        </ins>
+      </td>
+    )
+  }
+  if (kind === "delete") {
+    return (
+      <td data-cell-change="delete">
+        <del>
+          <Value value={before} />
+        </del>
+      </td>
+    )
+  }
+  if (!changed) {
+    return (
+      <td data-cell-change="unchanged">
+        <Value value={after} />
+      </td>
+    )
+  }
+  return (
+    <td data-cell-change="update">
+      <span className="version-table-cell-delta">
+        <del>
+          <b aria-hidden="true">−</b>
+          <Value value={before} />
+        </del>
+        <ins>
+          <b aria-hidden="true">+</b>
+          <Value value={after} />
+        </ins>
+      </span>
+    </td>
+  )
+}
+
+function RowChangeBadge({ change }: { change: SpaceVersionRowChange }) {
+  const kind = rowChangeKind(change)
+  const presentation =
+    kind === "insert"
+      ? { mark: "+", label: "Added" }
+      : kind === "delete"
+        ? { mark: "−", label: "Deleted" }
+        : { mark: "~", label: "Updated" }
+  return (
+    <span
+      className="version-table-change-badge"
+      aria-label={presentation.label}
+    >
+      <b aria-hidden="true">{presentation.mark}</b>
+      <small>{presentation.label}</small>
+    </span>
+  )
+}
+
+export function VersionTableDiff({
+  table,
+  showHeading = true,
+  identityKey = table.name,
+  onLoadMore,
+}: {
+  table: SpaceVersionTableDiff
+  showHeading?: boolean
+  identityKey?: string
+  onLoadMore?(): Promise<boolean>
+}) {
+  const [columnMode, setColumnMode] = useState<ColumnMode>("changed")
+  const [automaticLoadingPaused, setAutomaticLoadingPaused] = useState(false)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const loadInFlightRef = useRef(false)
+  const canLoadMore = table.hasMore === true && Boolean(onLoadMore)
+  const changedColumnIndexes = useMemo(
+    () =>
+      table.columns
+        .map((_, index) => index)
+        .filter((index) =>
+          table.changes.some((change) => columnChanged(change, index))
+        ),
+    [table.changes, table.columns]
+  )
+  const visibleColumnIndexes =
+    columnMode === "all" || changedColumnIndexes.length === 0
+      ? table.columns.map((_, index) => index)
+      : changedColumnIndexes
+  const columnsAreFiltered = visibleColumnIndexes.length < table.columns.length
+  const rowVirtualizer = useVirtualizer({
+    count: table.changes.length,
+    getScrollElement: () => viewportRef.current,
+    estimateSize: (index) => estimatedRowHeight(table.changes[index]!),
+    getItemKey: (index) => `${identityKey}:${index}`,
+    initialRect: { width: 1024, height: 640 },
+    overscan: VERSION_ROW_DIFF_OVERSCAN,
+    useAnimationFrameWithResizeObserver: true,
+  })
+  const virtualRows = rowVirtualizer.getVirtualItems()
+  const fallbackRows = useMemo(() => {
+    let start = 0
+    return table.changes.slice(0, 24).map((change, index) => {
+      const size = estimatedRowHeight(change)
+      const row = {
+        key: `${identityKey}:${index}`,
+        index,
+        start,
+        end: start + size,
+      }
+      start += size
+      return row
+    })
+  }, [identityKey, table.changes])
+  const renderedRows = virtualRows.length > 0 ? virtualRows : fallbackRows
+  const firstVirtualRow = renderedRows[0]
+  const lastVirtualRow = renderedRows.at(-1)
+  const paddingTop = firstVirtualRow?.start ?? 0
+  const paddingBottom = Math.max(
+    0,
+    rowVirtualizer.getTotalSize() - (lastVirtualRow?.end ?? 0)
+  )
+
+  useEffect(() => {
+    setColumnMode("changed")
+    setAutomaticLoadingPaused(false)
+    loadInFlightRef.current = false
+    if (viewportRef.current) {
+      viewportRef.current.scrollTop = 0
+      viewportRef.current.scrollLeft = 0
+    }
+  }, [identityKey])
+
+  useEffect(() => {
+    setAutomaticLoadingPaused(false)
+  }, [table.changes.length])
+
+  const loadNextBatch = useCallback(async () => {
+    if (
+      !canLoadMore ||
+      !onLoadMore ||
+      loadInFlightRef.current ||
+      automaticLoadingPaused
+    ) {
+      return
+    }
+    loadInFlightRef.current = true
+    setAutomaticLoadingPaused(false)
+    try {
+      if (!(await onLoadMore())) setAutomaticLoadingPaused(true)
+    } catch {
+      setAutomaticLoadingPaused(true)
+    } finally {
+      loadInFlightRef.current = false
+    }
+  }, [automaticLoadingPaused, canLoadMore, onLoadMore])
+
+  useEffect(() => {
+    if (
+      lastVirtualRow === undefined ||
+      lastVirtualRow.index < table.changes.length - VERSION_ROW_DIFF_LOAD_AHEAD
+    ) {
+      return
+    }
+    void loadNextBatch()
+  }, [lastVirtualRow?.index, loadNextBatch, table.changes.length])
+
+  return (
+    <section className="version-table-diff" data-version-table-diff>
+      {showHeading ? <h4>{table.name}</h4> : null}
+      <header className="version-table-diff-toolbar">
+        <span>
+          {visibleColumnIndexes.length.toLocaleString()} of{" "}
+          {table.columns.length.toLocaleString()} columns
+        </span>
+        {columnsAreFiltered || columnMode === "all" ? (
+          <div aria-label="Visible table columns">
+            <button
+              type="button"
+              aria-pressed={columnMode === "changed"}
+              onClick={() => setColumnMode("changed")}
+            >
+              Changed
+            </button>
+            <button
+              type="button"
+              aria-pressed={columnMode === "all"}
+              onClick={() => setColumnMode("all")}
+            >
+              All columns
+            </button>
+          </div>
+        ) : (
+          <small>All columns changed</small>
+        )}
+      </header>
+
+      {table.changes.length ? (
+        <div
+          ref={viewportRef}
+          className="version-table-diff-viewport"
+          data-scrollable={table.changes.length > 12 || canLoadMore}
+          onScroll={(event) => {
+            const viewport = event.currentTarget
+            const loadThreshold = Math.max(viewport.clientHeight, 320)
+            if (
+              viewport.scrollTop + viewport.clientHeight >=
+              viewport.scrollHeight - loadThreshold
+            ) {
+              void loadNextBatch()
+            }
+          }}
+        >
+          <table>
+            <caption>Changed rows in {table.name}</caption>
+            <thead>
+              <tr>
+                <th className="version-table-change-column" scope="col">
+                  Change
+                </th>
+                <th className="version-table-key-column" scope="col">
+                  Row
+                </th>
+                {visibleColumnIndexes.map((index) => (
+                  <th key={`${table.columns[index]}-${index}`} scope="col">
+                    <span>{table.columns[index]}</span>
+                    {table.primaryKeyColumns.includes(table.columns[index]!) ? (
+                      <small>Key</small>
+                    ) : null}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {paddingTop > 0 ? (
+                <tr className="version-table-virtual-spacer" aria-hidden="true">
+                  <td
+                    colSpan={visibleColumnIndexes.length + 2}
+                    style={{ height: paddingTop }}
+                  />
+                </tr>
+              ) : null}
+              {renderedRows.map((virtualRow) => {
+                const change = table.changes[virtualRow.index]!
+                const kind = rowChangeKind(change)
+                const identity = rowIdentity(change, virtualRow.index + 1)
+                return (
+                  <tr
+                    key={virtualRow.key}
+                    ref={rowVirtualizer.measureElement}
+                    data-index={virtualRow.index}
+                    className="version-table-diff-row"
+                    data-row-change={kind}
+                  >
+                    <th className="version-table-change-column" scope="row">
+                      <RowChangeBadge change={change} />
+                    </th>
+                    <td className="version-table-key-column">
+                      <span title={identity.value}>{identity.value}</span>
+                      <small title={identity.fields}>{identity.fields}</small>
+                    </td>
+                    {visibleColumnIndexes.map((index) => (
+                      <DiffCell
+                        key={`${table.columns[index]}-${index}`}
+                        change={change}
+                        columnIndex={index}
+                      />
+                    ))}
+                  </tr>
+                )
+              })}
+              {paddingBottom > 0 ? (
+                <tr className="version-table-virtual-spacer" aria-hidden="true">
+                  <td
+                    colSpan={visibleColumnIndexes.length + 2}
+                    style={{ height: paddingBottom }}
+                  />
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="version-table-diff-empty">
+          No row-level changes were returned for this table.
+        </div>
+      )}
+    </section>
+  )
+}

@@ -9,7 +9,6 @@ import {
 import {
   Check,
   ChevronDown,
-  ChevronLeft,
   ChevronRight,
   CircleAlert,
   Cloud,
@@ -32,7 +31,6 @@ import type {
   SpaceVersionDiff,
   SpaceVersionFileDiff,
   SpaceVersionPathChange,
-  SpaceVersionRowChange,
   SpaceVersionTableDiff,
   SpaceSyncHistoryStatus,
 } from "../shared/contracts"
@@ -40,11 +38,13 @@ import {
   VersionChangeTree,
   type VersionInspection,
 } from "./version-change-tree"
+import { VersionTableDiff } from "./version-table-diff"
 import { VersionTextDiff } from "./version-text-diff"
+
+export { VersionTableDiff as TableDiff } from "./version-table-diff"
 
 type PanelMode = "changes" | "history"
 
-const VERSION_ROW_DIFF_PAGE_SIZE = 100
 const VERSION_PATH_DIFF_CACHE_LIMIT = 64
 
 interface VersionPathDiffCacheEntry {
@@ -140,30 +140,6 @@ export function clearVersionPathDiffCacheForTests(): void {
   versionPathDiffCache.clear()
 }
 
-export function versionRowDiffPage<T>(
-  changes: readonly T[],
-  requestedPage: number,
-  pageSize = VERSION_ROW_DIFF_PAGE_SIZE
-) {
-  const safePageSize = Number.isFinite(pageSize)
-    ? Math.max(1, Math.trunc(pageSize))
-    : VERSION_ROW_DIFF_PAGE_SIZE
-  const pageCount = Math.max(1, Math.ceil(changes.length / safePageSize))
-  const page = Number.isFinite(requestedPage)
-    ? Math.max(0, Math.min(Math.trunc(requestedPage), pageCount - 1))
-    : 0
-  const start = page * safePageSize
-  const end = Math.min(start + safePageSize, changes.length)
-  return {
-    items: changes.slice(start, end),
-    page,
-    pageCount,
-    start,
-    end,
-    total: changes.length,
-  }
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -222,155 +198,6 @@ function mergeVersionDiffPages(
       ? { hasMore: current.hasMore, nextCursor: current.nextCursor }
       : {}),
   }
-}
-
-function displayValue(value: unknown): string {
-  if (value === null) return "null"
-  if (value === undefined) return "—"
-  if (typeof value === "string") return value || '""'
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return String(value)
-  }
-}
-
-function rowChangeTitle(change: SpaceVersionRowChange): string {
-  const key = Object.values(change.key).map(displayValue).join(" · ")
-  return `${change.op} row${key ? ` · ${key}` : ""}`
-}
-
-function RowDiff({
-  columns,
-  change,
-}: {
-  columns: string[]
-  change: SpaceVersionRowChange
-}) {
-  const values = change.values ?? []
-  const oldValues = change.oldValues ?? []
-  const changedColumns = columns.filter((_, index) => {
-    if (change.op !== "update") return values[index] !== undefined
-    return displayValue(values[index]) !== displayValue(oldValues[index])
-  })
-  return (
-    <li className="row-diff" data-row-change={change.op}>
-      <strong>{rowChangeTitle(change)}</strong>
-      {changedColumns.length ? (
-        <dl>
-          {changedColumns.map((column) => {
-            const index = columns.indexOf(column)
-            return (
-              <div key={column}>
-                <dt>{column}</dt>
-                <dd>
-                  {change.op === "update" ? (
-                    <>
-                      <del>{displayValue(oldValues[index])}</del>
-                      <span aria-hidden="true">→</span>
-                    </>
-                  ) : null}
-                  <ins>{displayValue(values[index])}</ins>
-                </dd>
-              </div>
-            )
-          })}
-        </dl>
-      ) : null}
-    </li>
-  )
-}
-
-export function TableDiff({
-  table,
-  showHeading = true,
-  identityKey = table.name,
-  onLoadMore,
-}: {
-  table: SpaceVersionTableDiff
-  showHeading?: boolean
-  identityKey?: string
-  onLoadMore?(): Promise<boolean>
-}) {
-  const [requestedPage, setRequestedPage] = useState(0)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [loadError, setLoadError] = useState<string | null>(null)
-  const page = versionRowDiffPage(table.changes, requestedPage)
-  const summaryTotal = table.summary
-    ? table.summary.inserts + table.summary.deletes + table.summary.updates
-    : null
-  const canLoadMore = table.hasMore === true && Boolean(onLoadMore)
-
-  useEffect(() => {
-    setRequestedPage(0)
-    setLoadingMore(false)
-    setLoadError(null)
-  }, [identityKey])
-
-  const showNextPage = async () => {
-    if (page.page < page.pageCount - 1) {
-      setRequestedPage(page.page + 1)
-      return
-    }
-    if (!canLoadMore || !onLoadMore) return
-    setLoadingMore(true)
-    setLoadError(null)
-    try {
-      if (await onLoadMore()) setRequestedPage(page.page + 1)
-    } catch (cause) {
-      setLoadError(errorMessage(cause))
-    } finally {
-      setLoadingMore(false)
-    }
-  }
-
-  return (
-    <section className="table-diff">
-      {showHeading ? <h4>{table.name}</h4> : null}
-      <ul>
-        {page.items.map((change, index) => (
-          <RowDiff
-            key={`${change.op}-${page.start + index}`}
-            columns={table.columns}
-            change={change}
-          />
-        ))}
-      </ul>
-      {page.pageCount > 1 || canLoadMore ? (
-        <nav className="row-diff-pagination" aria-label={`${table.name} rows`}>
-          <button
-            type="button"
-            disabled={page.page === 0}
-            onClick={() => setRequestedPage(page.page - 1)}
-            aria-label="Previous row changes"
-          >
-            <ChevronLeft />
-          </button>
-          <span>
-            {page.start + 1}–{page.end}
-            {summaryTotal === null
-              ? ` of ${page.total.toLocaleString()} loaded`
-              : ` of ${summaryTotal.toLocaleString()}`}
-          </span>
-          <button
-            type="button"
-            disabled={
-              loadingMore || (page.page >= page.pageCount - 1 && !canLoadMore)
-            }
-            onClick={() => void showNextPage()}
-            aria-label="Next row changes"
-          >
-            {loadingMore ? <LoaderCircle className="spin" /> : <ChevronRight />}
-          </button>
-        </nav>
-      ) : null}
-      {loadError ? (
-        <p className="version-limitation" role="alert">
-          More changed rows could not be loaded: {loadError}
-        </p>
-      ) : null}
-    </section>
-  )
 }
 
 function commitTime(timestampMs: number): string {
@@ -565,10 +392,15 @@ export function VersionDiffPreview({
   const [pagedTable, setPagedTable] = useState<SpaceVersionTableDiff | null>(
     inspectionTable
   )
-  useEffect(
-    () => setPagedTable(inspectionTable),
-    [inspection.key, inspectionTable]
-  )
+  const [rowLoadState, setRowLoadState] = useState<
+    | { phase: "idle" }
+    | { phase: "loading" }
+    | { phase: "error"; message: string }
+  >({ phase: "idle" })
+  useEffect(() => {
+    setPagedTable(inspectionTable)
+    setRowLoadState({ phase: "idle" })
+  }, [inspection.key, inspectionTable])
   const activeTable = inspection.type === "table" ? pagedTable : null
   const title =
     inspection.type === "table"
@@ -593,32 +425,43 @@ export function VersionDiffPreview({
     ) {
       return false
     }
-    const next = await window.eidosLite.getVersionPathDiff(
-      inspection.change.path,
-      inspection.mode === "history" ? (inspection.commit?.id ?? null) : null,
-      inspection.mode === "history"
-        ? (inspection.commit?.parent ?? null)
-        : null,
-      activeTable.name,
-      activeTable.nextCursor
-    )
-    const nextTable = next.files
-      .find((file) => file.path === inspection.change.path)
-      ?.tables.find((table) => table.name === activeTable.name)
-    if (!nextTable) {
-      throw new Error("The next page of changed rows was not returned.")
+    setRowLoadState({ phase: "loading" })
+    try {
+      const next = await window.eidosLite.getVersionPathDiff(
+        inspection.change.path,
+        inspection.mode === "history" ? (inspection.commit?.id ?? null) : null,
+        inspection.mode === "history"
+          ? (inspection.commit?.parent ?? null)
+          : null,
+        activeTable.name,
+        activeTable.nextCursor
+      )
+      const nextTable = next.files
+        .find((file) => file.path === inspection.change.path)
+        ?.tables.find((table) => table.name === activeTable.name)
+      if (!nextTable) {
+        throw new Error("The next page of changed rows was not returned.")
+      }
+      setPagedTable((current) =>
+        current
+          ? {
+              ...current,
+              ...nextTable,
+              summary: current.summary ?? nextTable.summary,
+              changes: [...current.changes, ...nextTable.changes],
+            }
+          : nextTable
+      )
+      setRowLoadState({ phase: "idle" })
+      return nextTable.changes.length > 0
+    } catch (cause) {
+      setRowLoadState({ phase: "error", message: errorMessage(cause) })
+      throw cause
     }
-    setPagedTable((current) =>
-      current
-        ? {
-            ...current,
-            ...nextTable,
-            summary: current.summary ?? nextTable.summary,
-            changes: [...current.changes, ...nextTable.changes],
-          }
-        : nextTable
-    )
-    return nextTable.changes.length > 0
+  }
+
+  const retryLoadingRows = () => {
+    void loadMoreRows().catch(() => undefined)
   }
 
   return (
@@ -651,7 +494,7 @@ export function VersionDiffPreview({
       </header>
 
       <div
-        className={`version-inspector-scroll${showsTextDiff ? " version-inspector-text-layout" : ""}`}
+        className={`version-inspector-scroll${inspection.type === "table" ? " version-inspector-table-layout" : ""}${showsTextDiff ? " version-inspector-text-layout" : ""}`}
       >
         <header className="version-inspector-heading">
           <div>
@@ -673,13 +516,59 @@ export function VersionDiffPreview({
           <>
             <div className="version-inspector-stats">
               {(() => {
-                const stats = tableStats(activeTable ?? inspection.table)
+                const displayedTable = activeTable ?? inspection.table
+                const stats = tableStats(displayedTable)
                 return (
                   <>
                     <span data-change="added">+{stats.inserts} rows</span>
                     <span data-change="deleted">−{stats.deletes} rows</span>
                     <span data-change="modified">~{stats.updates} rows</span>
-                    <small>{stats.total} total changes</small>
+                    <div
+                      className="version-inspector-load-status"
+                      aria-live="polite"
+                    >
+                      <small>{stats.total} total changes</small>
+                      <i aria-hidden="true">·</i>
+                      {inspection.loadingDetails ? (
+                        <span data-load-state="loading">
+                          <LoaderCircle className="spin" aria-hidden="true" />
+                          Loading rows…
+                        </span>
+                      ) : inspection.detailsError ? (
+                        <small>Rows unavailable</small>
+                      ) : (
+                        <>
+                          <span>
+                            {displayedTable.changes.length.toLocaleString()}{" "}
+                            loaded
+                          </span>
+                          <i aria-hidden="true">·</i>
+                          {rowLoadState.phase === "loading" ? (
+                            <span data-load-state="loading">
+                              <LoaderCircle
+                                className="spin"
+                                aria-hidden="true"
+                              />
+                              Loading more…
+                            </span>
+                          ) : rowLoadState.phase === "error" ? (
+                            <button
+                              type="button"
+                              onClick={retryLoadingRows}
+                              aria-label={`Retry loading rows: ${rowLoadState.message}`}
+                              title={rowLoadState.message}
+                            >
+                              <RotateCcw aria-hidden="true" />
+                              Retry loading rows
+                            </button>
+                          ) : displayedTable.hasMore ? (
+                            <small>Scroll for more</small>
+                          ) : (
+                            <small>All loaded</small>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </>
                 )
               })()}
@@ -708,7 +597,7 @@ export function VersionDiffPreview({
               </div>
             ) : (
               <div className="version-inspector-table">
-                <TableDiff
+                <VersionTableDiff
                   table={activeTable ?? inspection.table}
                   showHeading={false}
                   identityKey={inspection.key}
@@ -1008,7 +897,7 @@ export function VersionPanel({
         else setSelectedDiff(merged)
 
         const file =
-          detail.files.find(
+          merged.files.find(
             (candidate) => candidate.path === inspection.change.path
           ) ?? null
         if (inspection.type === "table") {

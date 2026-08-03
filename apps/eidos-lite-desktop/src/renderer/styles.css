@@ -2997,97 +2997,358 @@ button:focus-visible {
   font-weight: 650;
 }
 
-.row-diff {
-  padding: 0.25rem 0;
-  color: var(--ink-muted);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 0.58rem;
-}
-
-.row-diff > strong {
-  color: var(--ink);
-  font-family: inherit;
-  font-size: 0.6rem;
-}
-
-.row-diff dl,
-.row-diff dl div {
-  margin: 0;
-}
-
-.row-diff dl div {
-  display: grid;
-  grid-template-columns: minmax(4rem, 0.45fr) minmax(0, 1fr);
-  gap: 0.35rem;
-  padding-top: 0.15rem;
-}
-
-.row-diff dt,
-.row-diff dd {
+.version-table-diff {
   min-width: 0;
-  margin: 0;
-  overflow-wrap: anywhere;
+  container-type: inline-size;
 }
 
-.row-diff dd {
+.version-table-diff > h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.6875rem;
+  font-weight: 650;
+}
+
+.version-table-diff-toolbar {
   display: flex;
-  gap: 0.25rem;
-}
-
-.row-diff-pagination {
-  display: grid;
-  grid-template-columns: 1.6rem minmax(0, 1fr) 1.6rem;
+  min-height: 2rem;
   align-items: center;
-  gap: 0.35rem;
-  margin-top: 0.35rem;
-  padding-top: 0.45rem;
-  border-top: 1px solid var(--hairline);
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0 0.1rem 0.45rem;
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
 }
 
-.row-diff-pagination button {
-  display: grid;
-  width: 1.6rem;
-  height: 1.45rem;
-  place-items: center;
-  padding: 0;
+.version-table-diff-toolbar > div {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 1px;
   border: 1px solid var(--control-border);
-  border-radius: 0.35rem;
-  color: var(--ink);
-  background: var(--control-fill);
-  box-shadow: var(--control-shadow);
+  border-radius: 0.3rem;
+  background: color-mix(in oklab, var(--canvas), var(--ink) 4%);
+}
+
+.version-table-diff-toolbar button {
+  min-height: 1.35rem;
+  padding: 0 0.45rem;
+  border: 0;
+  border-radius: 0.22rem;
+  color: var(--ink-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.625rem;
   cursor: pointer;
 }
 
-.row-diff-pagination button:hover:not(:disabled) {
+.version-table-diff-toolbar button[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--control-fill);
+  box-shadow: var(--control-shadow);
+}
+
+.version-table-diff-toolbar button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.version-table-diff-toolbar small {
+  font-size: inherit;
+}
+
+.version-table-diff-viewport {
+  max-height: min(56rem, calc(100vh - 16rem));
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  background: var(--surface);
+  overscroll-behavior: contain;
+}
+
+.version-table-diff-viewport[data-scrollable="true"] {
+  height: min(56rem, max(18rem, calc(100vh - 16rem)));
+}
+
+.version-table-diff table {
+  width: max-content;
+  min-width: 100%;
+  border-spacing: 0;
+  color: var(--ink);
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.version-table-diff caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.version-table-diff th,
+.version-table-diff td {
+  min-width: 8.5rem;
+  max-width: 24rem;
+  padding: 0.46rem 0.55rem;
+  border-right: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--hairline);
+  text-align: left;
+  vertical-align: top;
+}
+
+.version-table-diff tr:last-child > * {
+  border-bottom: 0;
+}
+
+.version-table-diff tr > *:last-child {
+  border-right: 0;
+}
+
+.version-table-diff .version-table-virtual-spacer > td {
+  padding: 0;
+  border-right: 0;
+  border-bottom: 0;
+  background: var(--surface);
+}
+
+.version-table-diff thead th {
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  height: 1.85rem;
+  padding-block: 0.38rem;
+  color: var(--ink-muted);
+  background: color-mix(in oklab, var(--canvas) 94%, var(--surface));
+  box-shadow: 0 1px 0 var(--line);
+  font-size: 0.6rem;
+  font-weight: 620;
+  white-space: nowrap;
+}
+
+.version-table-diff thead th > span {
+  display: inline-block;
+  max-width: 19rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+.version-table-diff thead th > small {
+  margin-left: 0.35rem;
+  padding: 0.06rem 0.23rem;
+  border-radius: 0.2rem;
+  color: var(--lite-accent);
+  background: color-mix(in oklab, var(--lite-accent) 10%, transparent);
+  font-size: 0.52rem;
+  font-weight: 650;
+  text-transform: uppercase;
+}
+
+.version-table-diff tbody tr:hover td[data-cell-change="unchanged"] {
   background: var(--surface-hover);
 }
 
-.row-diff-pagination button:disabled {
-  cursor: default;
-  opacity: 0.45;
+.version-table-change-column,
+.version-table-key-column {
+  position: sticky;
+  background: var(--surface);
 }
 
-.row-diff-pagination button svg {
-  width: 0.7rem;
-  height: 0.7rem;
+.version-table-change-column {
+  z-index: 2;
+  left: 0;
+  width: 5.5rem;
+  min-width: 5.5rem !important;
+  max-width: 5.5rem !important;
 }
 
-.row-diff-pagination span {
+.version-table-key-column {
+  z-index: 1;
+  left: 5.5rem;
+  width: 10rem;
+  min-width: 10rem !important;
+  max-width: 10rem !important;
+  box-shadow: 1px 0 0 var(--line);
+}
+
+.version-table-diff thead .version-table-change-column,
+.version-table-diff thead .version-table-key-column {
+  z-index: 5;
+  background: color-mix(in oklab, var(--canvas) 94%, var(--surface));
+}
+
+.version-table-diff thead .version-table-change-column {
+  z-index: 6;
+}
+
+.version-table-key-column > span,
+.version-table-key-column > small {
+  display: block;
   overflow: hidden;
-  color: var(--ink-muted);
-  font-size: 0.6rem;
-  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.row-diff del {
-  color: var(--danger);
+.version-table-key-column > span {
+  color: var(--ink);
+  font-weight: 590;
 }
 
-.row-diff ins {
+.version-table-key-column > small {
+  margin-top: 0.12rem;
+  color: var(--ink-faint);
+  font-size: 0.52rem;
+  font-weight: 500;
+}
+
+.version-table-change-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  white-space: nowrap;
+}
+
+.version-table-change-badge b {
+  display: grid;
+  width: 1.15rem;
+  height: 1.15rem;
+  place-items: center;
+  border-radius: 0.24rem;
+  background: color-mix(in oklab, currentColor 11%, transparent);
+  font-size: 0.7rem;
+  font-weight: 760;
+}
+
+.version-table-change-badge small {
+  color: currentColor;
+  font-size: 0.56rem;
+  font-weight: 620;
+}
+
+.version-table-diff-row[data-row-change="insert"] .version-table-change-column {
   color: var(--success);
+  background: color-mix(in oklab, var(--surface) 93%, var(--success));
+}
+
+.version-table-diff-row[data-row-change="delete"] .version-table-change-column {
+  color: var(--danger);
+  background: color-mix(in oklab, var(--surface) 93%, var(--danger));
+}
+
+.version-table-diff-row[data-row-change="update"] .version-table-change-column {
+  color: var(--lite-accent);
+  background: color-mix(in oklab, var(--surface) 94%, var(--lite-accent));
+}
+
+.version-table-diff td[data-cell-change="insert"] {
+  color: var(--success);
+  background: color-mix(in oklab, var(--surface) 94%, var(--success));
+}
+
+.version-table-diff td[data-cell-change="delete"] {
+  color: var(--danger);
+  background: color-mix(in oklab, var(--surface) 94%, var(--danger));
+}
+
+.version-table-diff td[data-cell-change="update"] {
+  padding: 0;
+  background: color-mix(in oklab, var(--surface) 96%, var(--lite-accent));
+}
+
+.version-table-diff td[data-cell-change="unchanged"] {
+  color: var(--ink-muted);
+}
+
+.version-table-diff ins,
+.version-table-diff del {
   text-decoration: none;
+}
+
+.version-table-diff td > ins,
+.version-table-diff td > del {
+  display: block;
+  min-width: 0;
+}
+
+.version-table-cell-delta {
+  display: grid;
+  min-width: 10rem;
+}
+
+.version-table-cell-delta > del,
+.version-table-cell-delta > ins {
+  display: grid;
+  min-width: 0;
+  min-height: 1.65rem;
+  grid-template-columns: 0.8rem minmax(0, 1fr);
+  align-items: center;
+  padding: 0.3rem 0.5rem 0.3rem 0.38rem;
+}
+
+.version-table-cell-delta > del {
+  color: var(--danger);
+  background: color-mix(in oklab, var(--surface) 91%, var(--danger));
+}
+
+.version-table-cell-delta > ins {
+  border-top: 1px solid color-mix(in oklab, var(--success) 24%, var(--hairline));
+  color: var(--success);
+  background: color-mix(in oklab, var(--surface) 91%, var(--success));
+}
+
+.version-table-cell-delta b {
+  font-size: 0.7rem;
+  font-weight: 760;
+}
+
+.version-table-value {
+  display: block;
+  min-width: 0;
+  max-width: 22rem;
+  overflow: hidden;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.61rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+
+.version-table-value[data-value-kind="null"],
+.version-table-value[data-value-kind="undefined"] {
+  opacity: 0.72;
+  font-style: italic;
+}
+
+.version-table-diff-empty {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  color: var(--ink-muted);
+  background: var(--canvas);
+  font-size: 0.65rem;
+  text-align: center;
+}
+
+@container (max-width: 42rem) {
+  .version-table-change-column {
+    width: 4rem;
+    min-width: 4rem !important;
+    max-width: 4rem !important;
+  }
+
+  .version-table-key-column {
+    left: 4rem;
+    width: 7.5rem;
+    min-width: 7.5rem !important;
+    max-width: 7.5rem !important;
+  }
+
+  .version-table-change-badge small {
+    display: none;
+  }
 }
 
 .ordinary-change {
@@ -3613,6 +3874,12 @@ button:focus-visible {
   overflow: hidden;
 }
 
+.version-inspector-scroll.version-inspector-table-layout {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
 .version-inspector-heading {
   display: flex;
   min-width: 0;
@@ -3671,6 +3938,7 @@ button:focus-visible {
 .version-inspector-stats {
   display: flex;
   min-height: 2.4rem;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.9rem;
   padding: 0.45rem 1.25rem;
@@ -3685,45 +3953,81 @@ button:focus-visible {
 }
 
 .version-inspector-stats small {
-  margin-left: auto;
   font-size: 0.625rem;
+}
+
+.version-inspector-load-status {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  margin-left: auto;
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+  white-space: nowrap;
+}
+
+.version-inspector-load-status > i {
+  color: var(--ink-faint);
+  font-style: normal;
+}
+
+.version-inspector-load-status > span,
+.version-inspector-load-status > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.version-inspector-load-status > span {
+  font-weight: 520;
+}
+
+.version-inspector-load-status > span[data-load-state="loading"] {
+  color: var(--lite-accent);
+}
+
+.version-inspector-load-status button {
+  padding: 0;
+  border: 0;
+  color: var(--danger);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.version-inspector-load-status button:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15rem;
+}
+
+.version-inspector-load-status svg {
+  width: 0.65rem;
+  height: 0.65rem;
 }
 
 .version-inspector-table {
-  padding: 0.4rem 1.25rem 1.5rem;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  padding: 0.65rem 1.25rem 0.75rem;
 }
 
-.version-inspector-table .row-diff {
-  padding: 0.7rem 0;
-  border-bottom: 1px solid var(--hairline);
-  font-family: inherit;
-  font-size: 0.6875rem;
+.version-inspector-table .version-table-diff {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
 }
 
-.version-inspector-table .row-diff > strong {
-  display: block;
-  margin-bottom: 0.3rem;
-  color: var(--ink);
-  font-family: inherit;
-  font-size: 0.75rem;
-  font-weight: 620;
-  text-transform: capitalize;
-}
-
-.version-inspector-table .row-diff dl div {
-  grid-template-columns: minmax(6rem, 0.28fr) minmax(0, 1fr);
-  gap: 0.75rem;
-  padding: 0.18rem 0;
-}
-
-.version-inspector-table .row-diff dt {
-  color: var(--ink-muted);
-  font-size: 0.625rem;
-}
-
-.version-inspector-table .row-diff dd {
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 0.64rem;
+.version-inspector-table .version-table-diff-viewport,
+.version-inspector-table .version-table-diff-viewport[data-scrollable="true"] {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
 }
 
 .version-inspector-file-summary {

@@ -25,7 +25,6 @@ import {
   TableDiff,
   VersionDiffPreview,
   VersionPanel,
-  versionRowDiffPage,
   withCommitTableSummaries,
 } from "./version-panel"
 
@@ -89,7 +88,7 @@ const unversionedSpace: SpaceSnapshot = {
   invalidatedSessionIds: [],
 }
 
-describe("VersionPanel row diff paging", () => {
+describe("VersionPanel table diff", () => {
   it("describes the cached cloud relationship in user-facing terms", () => {
     expect(
       historySyncPresentation({
@@ -469,33 +468,7 @@ describe("VersionPanel row diff paging", () => {
     host.remove()
   })
 
-  it("keeps a 10k-row diff bounded while retaining every page", () => {
-    const changes = Array.from({ length: 10_126 }, (_, index) => index)
-
-    expect(versionRowDiffPage(changes, 0)).toMatchObject({
-      page: 0,
-      pageCount: 102,
-      start: 0,
-      end: 100,
-      total: 10_126,
-      items: Array.from({ length: 100 }, (_, index) => index),
-    })
-    expect(versionRowDiffPage(changes, 101)).toMatchObject({
-      page: 101,
-      pageCount: 102,
-      start: 10_100,
-      end: 10_126,
-      total: 10_126,
-      items: Array.from({ length: 26 }, (_, index) => 10_100 + index),
-    })
-    expect(versionRowDiffPage(changes, 999)).toMatchObject({
-      page: 101,
-      start: 10_100,
-      end: 10_126,
-    })
-  })
-
-  it("mounts only the first bounded page for a 10k-row table diff", () => {
+  it("mounts only the visible window for a 10k-row table diff", () => {
     const table: SpaceVersionTableDiff = {
       name: "Elden Ring messages",
       columns: ["msg"],
@@ -508,13 +481,99 @@ describe("VersionPanel row diff paging", () => {
     }
 
     const markup = renderToStaticMarkup(createElement(TableDiff, { table }))
+    const mountedRows = markup.match(/class="version-table-diff-row"/g) ?? []
 
-    expect(markup.match(/class="row-diff"/g)).toHaveLength(100)
-    expect(markup).toContain("1–100 of 10,126")
-    expect(markup).toContain('aria-label="Next row changes"')
+    expect(mountedRows.length).toBeGreaterThan(0)
+    expect(mountedRows.length).toBeLessThan(40)
+    expect(markup).not.toContain("version-table-diff-status")
+    expect(markup).not.toContain("Next row changes")
   })
 
-  it("loads the next bounded row page from Graft on demand", async () => {
+  it("shows changed cells first and reveals full row context on demand", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const table: SpaceVersionTableDiff = {
+      name: "Customers",
+      columns: ["id", "name", "status", "updated_at"],
+      primaryKeyColumns: ["id"],
+      changes: [
+        {
+          op: "update",
+          key: { id: "customer-1" },
+          oldValues: ["customer-1", "Mei Lin", "Lead", "2026-08-01"],
+          values: ["customer-1", "Mei Lin", "Customer", "2026-08-01"],
+        },
+      ],
+    }
+
+    await act(async () => {
+      root.render(createElement(TableDiff, { table }))
+    })
+
+    expect(host.textContent).toContain("1 of 4 columns")
+    expect(host.querySelector("thead")?.textContent).toContain("status")
+    expect(host.querySelector("thead")?.textContent).not.toContain("name")
+    expect(
+      host.querySelector('td[data-cell-change="update"] del')?.textContent
+    ).toContain("Lead")
+    expect(
+      host.querySelector('td[data-cell-change="update"] ins')?.textContent
+    ).toContain("Customer")
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>('button[aria-pressed="false"]')
+        ?.click()
+    })
+
+    expect(host.textContent).toContain("4 of 4 columns")
+    expect(host.querySelector("thead")?.textContent).toContain("name")
+    expect(host.querySelector("thead")?.textContent).toContain("updated_at")
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("renders added, deleted, and updated rows as distinct table tracks", () => {
+    const table: SpaceVersionTableDiff = {
+      name: "Customers",
+      columns: ["name", "status"],
+      primaryKeyColumns: ["name"],
+      changes: [
+        {
+          op: "insert",
+          key: { name: "Hao Chen" },
+          values: ["Hao Chen", "Lead"],
+        },
+        {
+          op: "delete",
+          key: { name: "Lin Wei" },
+          values: ["Lin Wei", "Archived"],
+        },
+        {
+          op: "update",
+          key: { name: "Mei Lin" },
+          oldValues: ["Mei Lin", "Lead"],
+          values: ["Mei Lin", "Customer"],
+        },
+      ],
+    }
+
+    const markup = renderToStaticMarkup(createElement(TableDiff, { table }))
+
+    expect(markup).toContain('data-row-change="insert"')
+    expect(markup).toContain('data-row-change="delete"')
+    expect(markup).toContain('data-row-change="update"')
+    expect(markup).toContain('data-cell-change="insert"')
+    expect(markup).toContain('data-cell-change="delete"')
+    expect(markup).toContain('data-cell-change="update"')
+    expect(markup).toContain("Archived")
+    expect(markup).toContain("Customer")
+  })
+
+  it("loads the next cursor batch when the virtual list nears its end", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     const host = document.createElement("div")
     document.body.append(host)
@@ -576,14 +635,18 @@ describe("VersionPanel row diff paging", () => {
         })
       )
     })
-    expect(host.textContent).toContain("1–100 of 150")
+    expect(host.textContent).toContain("150 total changes")
+    expect(host.textContent).toContain("100 loaded")
+    expect(host.textContent).toContain("Scroll for more")
+    expect(host.querySelector(".version-table-diff-status")).toBeNull()
 
     await act(async () => {
-      host
-        .querySelector<HTMLButtonElement>(
-          'button[aria-label="Next row changes"]'
-        )
-        ?.click()
+      const viewport = host.querySelector<HTMLElement>(
+        ".version-table-diff-viewport"
+      )!
+      viewport.scrollTop = 4_000
+      viewport.dispatchEvent(new Event("scroll"))
+      await new Promise((resolve) => setTimeout(resolve, 0))
       await Promise.resolve()
       await Promise.resolve()
     })
@@ -595,7 +658,11 @@ describe("VersionPanel row diff paging", () => {
       "Customers",
       "cursor-100"
     )
-    expect(host.textContent).toContain("101–150 of 150")
+    expect(host.textContent).toContain("150 loaded")
+    expect(host.textContent).toContain("All loaded")
+    expect(
+      host.querySelectorAll(".version-table-diff-row").length
+    ).toBeLessThan(50)
 
     await act(async () => root.unmount())
     host.remove()
@@ -625,7 +692,7 @@ describe("VersionPanel row diff paging", () => {
     ).toBe("Customers")
   })
 
-  it("keeps the exact table summary after the first bounded row page loads", () => {
+  it("keeps the exact table summary after the first cursor batch loads", () => {
     const table: SpaceVersionTableDiff = {
       name: "1m-bandcamp-sales",
       columns: ["item_type"],
@@ -674,7 +741,8 @@ describe("VersionPanel row diff paging", () => {
     )
     expect(markup).toContain("+1000000 rows")
     expect(markup).toContain("1000000 total changes")
-    expect(markup).toContain("1–100 of 1,000,000")
+    expect(markup).toContain("100 loaded")
+    expect(markup).toContain("Scroll for more")
   })
 
   it("keeps the tree structure stable when table details finish loading", () => {
@@ -972,7 +1040,7 @@ describe("VersionPanel row diff paging", () => {
       files: 1,
       changes: [],
       tables: [
-        { name: "Customers", inserts: 1, deletes: 0, updates: 1 },
+        { name: "Customers", inserts: 100_000, deletes: 0, updates: 1 },
         { name: "Orders", inserts: 0, deletes: 1, updates: 0 },
       ],
       changedTables: 2,
@@ -1071,7 +1139,11 @@ describe("VersionPanel row diff paging", () => {
     expect(inspections.at(-1)).toMatchObject({
       type: "table",
       loadingDetails: false,
-      table: { name: "Customers", changes: customersTable.changes },
+      table: {
+        name: "Customers",
+        changes: customersTable.changes,
+        summary: { inserts: 100_000, deletes: 0, updates: 1 },
+      },
     })
 
     await act(async () => root.unmount())
@@ -1256,7 +1328,7 @@ describe("VersionPanel row diff paging", () => {
     expect(markup).toContain("Customers")
     expect(markup).toContain("+1 rows")
     expect(markup).toContain("~1 rows")
-    expect(markup.match(/class="row-diff"/g)).toHaveLength(2)
+    expect(markup.match(/class="version-table-diff-row"/g)).toHaveLength(2)
     expect(markup).toContain("Hao Chen")
     expect(markup).toContain("Customer")
   })

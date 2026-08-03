@@ -32,6 +32,7 @@
     "@glideapps/glide-data-grid": "^6.0.0",
     "@pierre/diffs": "1.2.7",
     "@pierre/trees": "1.0.0-beta.5",
+    "@tanstack/react-virtual": "^3.13.12",
     "lucide-react": "^0.471.2",
     "marked": "^4.3.0",
     "react": "^18.2.0",
