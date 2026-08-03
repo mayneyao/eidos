@@ -26,7 +26,7 @@ the `eidos-space/graft` repository at commit
 - @eidos.space/graft-remote-cloudflare owns the R2 and SQLite Durable Object
   backend.
 
-The service pins the three public Remote packages to `0.2.0`; no upstream
+The service pins the three public Remote packages to `0.2.1`; no upstream
 implementation is copied into the Eidos repository. Eidos-specific code does
 not duplicate or version-gate the protocol. A newer official Remote release
 becomes the tested baseline only after the service checks and current CLI

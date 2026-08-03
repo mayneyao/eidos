@@ -13,6 +13,7 @@ export type GraftSdkCommand =
   | "commit"
   | "diff"
   | "diffPaths"
+  | "diffSqlitePaths"
   | "history"
   | "historySummaries"
   | "commitDetails"

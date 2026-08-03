@@ -87,14 +87,25 @@ describe("GraftClient", () => {
       close: vi.fn(async () => undefined),
       command: vi.fn(async (command) => {
         commands.push(command)
-        if (command === "sdkVersion") return "0.3.2"
+        if (command === "sdkVersion") return "0.3.5"
         if (command === "statusIncremental") {
           return {
             generation: 1,
             change_token: "token-1",
             status: {
               dirty: true,
-              current_head: "head",
+              current_head: "local-head",
+              ahead: 1,
+              behind: 0,
+              upstream_status: {
+                remote: "origin",
+                branch: "main",
+                local: "local-head",
+                remote_target: "cloud-head",
+                ahead: 1,
+                behind: 0,
+                state: "ahead",
+              },
               paths: Array.from({ length: 1_000 }, (_, index) => ({
                 path: `file-${index}.txt`,
                 change: "modified",
@@ -120,6 +131,12 @@ describe("GraftClient", () => {
         initialized: true,
         clean: false,
         changedPaths: 1_000,
+        sync: {
+          state: "ahead",
+          remoteHead: "cloud-head",
+          ahead: 1,
+          behind: 0,
+        },
       })
       expect(commands).toEqual(["sdkVersion", "statusIncremental"])
     } finally {
@@ -197,6 +214,33 @@ describe("GraftClient", () => {
     }
   })
 
+  it("returns the durable checkpoint id without a follow-up status read", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-commit-result-")
+    )
+    const commands: string[] = []
+    const transport = createUnusedTransport()
+    transport.command = vi.fn(async (command) => {
+      commands.push(command)
+      if (command === "commit") {
+        return { commit: { id: "b".repeat(64) } }
+      }
+      throw new Error(`Unexpected Graft command: ${command}`)
+    })
+    const client = new GraftClient({ sdkTransport: transport })
+
+    try {
+      await expect(client.commit(root, "Fast checkpoint")).resolves.toEqual({
+        id: "b".repeat(64),
+      })
+      expect(commands).toEqual(["commit"])
+      expect(commands).not.toContain("statusIncremental")
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("retries one incremental status read after a repository stale race", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-graft-stale-status-")
@@ -253,12 +297,13 @@ describe("GraftClient", () => {
       path.join(os.tmpdir(), "eidos-lite-graft-history-apis-")
     )
     const commands: string[] = []
+    let diffOptions: Record<string, unknown> | undefined
     const transport: GraftSdkTransport = {
       target: root,
       open: vi.fn(async () => undefined),
       reopen: vi.fn(async () => undefined),
       close: vi.fn(async () => undefined),
-      command: vi.fn(async (command) => {
+      command: vi.fn(async (command, args) => {
         commands.push(command)
         if (command === "commitChangedPaths") {
           return {
@@ -277,6 +322,7 @@ describe("GraftClient", () => {
           }
         }
         if (command === "diffPaths") {
+          diffOptions = args[0] as Record<string, unknown>
           return {
             paths: [
               {
@@ -318,10 +364,164 @@ describe("GraftClient", () => {
         client.pathDiff(root, "data.eidos", {
           from: "a".repeat(64),
           to: revision,
+          table: "Customers",
         })
       ).resolves.toMatchObject({ paths: [{ path: "data.eidos" }] })
       expect(commands).toEqual(["commitChangedPaths", "diffPaths"])
       expect(commands).not.toContain("commitDetails")
+      expect(diffOptions).toMatchObject({
+        paths: ["data.eidos"],
+        rows: true,
+        table: "Customers",
+      })
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("loads SQLite table summaries before bounded row pages", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-sqlite-pages-")
+    )
+    const requests: Record<string, unknown>[] = []
+    const transport: GraftSdkTransport = {
+      target: root,
+      open: vi.fn(async () => undefined),
+      reopen: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined),
+      command: vi.fn(async (command, args) => {
+        if (command !== "diffSqlitePaths") {
+          throw new Error(`Unexpected Graft command: ${command}`)
+        }
+        const options = args[0] as Record<string, unknown>
+        requests.push(options)
+        const rows = options.mode === "rows"
+        return {
+          paths: [
+            {
+              path: "data.eidos",
+              diff: {
+                current_head: "b".repeat(64),
+                from: "a".repeat(64),
+                to: "b".repeat(64),
+                paths: [
+                  {
+                    path: "data.eidos",
+                    change: "modified",
+                    kind: "sqlite_database",
+                    storage: "sqlite_snapshot",
+                  },
+                ],
+                files: [
+                  {
+                    path: "data.eidos",
+                    change: "modified",
+                    kind: "sqlite_database",
+                    storage: "sqlite_snapshot",
+                    row_diff_available: true,
+                    mode: rows ? "rows" : "summary",
+                    logical_status: "logical_changes",
+                    limitations: [],
+                    ...(rows
+                      ? {
+                          tables: [
+                            {
+                              name: "Customers",
+                              columns: ["name"],
+                              changes: [
+                                {
+                                  op: "insert",
+                                  rowid: 101,
+                                  values: ["Ada"],
+                                },
+                              ],
+                            },
+                          ],
+                          has_more: true,
+                          next_cursor: "row-page-1",
+                        }
+                      : {
+                          summaries: [
+                            {
+                              name: "Customers",
+                              inserts: 1_000_000,
+                              deletes: 0,
+                              updates: 0,
+                            },
+                          ],
+                          has_more: false,
+                        }),
+                  },
+                ],
+              },
+            },
+          ],
+          has_more: false,
+          next_cursor: null,
+        }
+      }),
+      revisionTextDiff: unusedRevisionTextDiff,
+      clone: vi.fn(async () => undefined),
+    }
+    const client = new GraftClient({ sdkTransport: transport })
+
+    try {
+      await expect(
+        client.sqlitePathDiff(root, "data.eidos", {
+          from: "a".repeat(64),
+          to: "b".repeat(64),
+        })
+      ).resolves.toMatchObject({
+        files: [
+          {
+            path: "data.eidos",
+            tables: [
+              {
+                name: "Customers",
+                rowChangesLoaded: false,
+                summary: { inserts: 1_000_000, deletes: 0, updates: 0 },
+                changes: [],
+              },
+            ],
+          },
+        ],
+      })
+      await expect(
+        client.sqlitePathDiff(root, "data.eidos", {
+          table: "Customers",
+          rowAfter: "row-page-0",
+          rowLimit: 100,
+        })
+      ).resolves.toMatchObject({
+        files: [
+          {
+            tables: [
+              {
+                name: "Customers",
+                rowChangesLoaded: true,
+                hasMore: true,
+                nextCursor: "row-page-1",
+                changes: [{ op: "insert", key: { rowid: 101 } }],
+              },
+            ],
+          },
+        ],
+      })
+      expect(requests).toEqual([
+        expect.objectContaining({
+          paths: ["data.eidos"],
+          mode: "summary",
+          limit: 1,
+        }),
+        expect.objectContaining({
+          paths: ["data.eidos"],
+          mode: "rows",
+          table: "Customers",
+          rowLimit: 100,
+          rowAfter: "row-page-0",
+        }),
+      ])
     } finally {
       await client.close()
       await fs.rm(root, { recursive: true, force: true })

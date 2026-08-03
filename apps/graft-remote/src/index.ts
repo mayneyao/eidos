@@ -48,6 +48,8 @@ type AppEnv = {
 
 const REPOSITORY_NAME = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,62}[A-Za-z0-9])?$/
 const DEFAULT_SYNC_QUOTA_BYTES = 10 * 1024 * 1024 * 1024
+const MAX_GRAFT_REQUEST_BYTES = 64 * 1024 * 1024
+const GRAFT_MULTIPART_PART_BYTES = 16 * 1024 * 1024
 
 export interface RemoteServiceDependencies {
   authenticate(request: Request, env: Env): Promise<EidosPrincipal>
@@ -304,6 +306,10 @@ export function createGraftRemoteWorker(
   })
 
   const remote = createGraftRemote<AppEnv, EidosPrincipal>({
+    limits: {
+      maxRequestBytes: MAX_GRAFT_REQUEST_BYTES,
+      multipartPartBytes: GRAFT_MULTIPART_PART_BYTES,
+    },
     async authenticate({ request, adapterContext }) {
       return await measureRequestPhase(adapterContext, "authMs", () =>
         dependencies.authenticate(request, adapterContext.env)

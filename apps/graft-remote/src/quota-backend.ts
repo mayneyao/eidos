@@ -3,6 +3,7 @@ import {
   type GraftByteRange,
   type GraftListQuery,
   type GraftListResult,
+  type GraftMultipartBackend,
   type GraftObject,
   type GraftObjectMetadata,
   type GraftRepositoryBackend,
@@ -31,6 +32,7 @@ export class QuotaTrackedRepositoryBackend implements GraftRepositoryBackend {
   readonly #quotaBytes: number
   readonly #repositoryId: string
   readonly #usage: DurableObjectStub<SyncUsageDurableObject>
+  readonly multipart: GraftMultipartBackend | undefined
 
   constructor(input: {
     delegate: GraftRepositoryBackend
@@ -48,6 +50,83 @@ export class QuotaTrackedRepositoryBackend implements GraftRepositoryBackend {
     this.#quotaBytes = input.quotaBytes
     this.#repositoryId = input.repositoryId
     this.#usage = input.usage
+    const multipart = input.delegate.multipart
+    this.multipart =
+      multipart === undefined
+        ? undefined
+        : {
+            start: async (path, totalBytes, partBytes) => {
+              if (this.#mode !== "off") {
+                await this.reserveMultipart(path, totalBytes)
+              }
+              const upload = await multipart.start(path, totalBytes, partBytes)
+              if (upload === null && this.#mode !== "off") {
+                const metadata = await this.#delegate.head(path)
+                if (metadata !== null) {
+                  await this.#usage.observeExisting({
+                    repositoryId: this.#repositoryId,
+                    path,
+                    actualBytes: metadata.size,
+                    quotaBytes: this.#quotaBytes,
+                  })
+                }
+              }
+              return upload
+            },
+            uploadPart: async (
+              path,
+              uploadId,
+              partNumber,
+              value,
+              contentLength
+            ) => {
+              if (this.#mode !== "off") {
+                await this.#usage.renewPath({
+                  repositoryId: this.#repositoryId,
+                  path,
+                  quotaBytes: this.#quotaBytes,
+                })
+              }
+              await multipart.uploadPart(
+                path,
+                uploadId,
+                partNumber,
+                value,
+                contentLength
+              )
+            },
+            complete: async (path, uploadId) => {
+              const created = await multipart.complete(path, uploadId)
+              if (this.#mode !== "off") {
+                const metadata = await this.#delegate.head(path)
+                if (metadata === null) {
+                  throw new Error(
+                    "Multipart object is missing after completion"
+                  )
+                }
+                await this.#usage.observeExisting({
+                  repositoryId: this.#repositoryId,
+                  path,
+                  actualBytes: metadata.size,
+                  quotaBytes: this.#quotaBytes,
+                })
+              }
+              return created
+            },
+            abort: async (path, uploadId) => {
+              try {
+                await multipart.abort(path, uploadId)
+              } finally {
+                if (this.#mode !== "off") {
+                  await this.#usage.releasePath({
+                    repositoryId: this.#repositoryId,
+                    path,
+                    quotaBytes: this.#quotaBytes,
+                  })
+                }
+              }
+            },
+          }
   }
 
   head(
@@ -250,6 +329,30 @@ export class QuotaTrackedRepositoryBackend implements GraftRepositoryBackend {
 
   list(query: GraftListQuery): Promise<GraftListResult> | GraftListResult {
     return this.#delegate.list(query)
+  }
+
+  private async reserveMultipart(path: string, bytes: number): Promise<void> {
+    const reservation = await this.#usage.reserve({
+      reservationId: crypto.randomUUID(),
+      repositoryId: this.#repositoryId,
+      path,
+      bytes,
+      quotaBytes: this.#quotaBytes,
+      enforce: this.#mode === "enforce",
+    })
+    if (!reservation.ok) throw quotaExceeded(reservation.summary)
+    if (reservation.wouldExceed) {
+      console.warn(
+        JSON.stringify({
+          message: "sync quota shadow limit exceeded",
+          repositoryId: this.#repositoryId,
+          usedBytes: reservation.summary.usedBytes,
+          reservedBytes: reservation.summary.reservedBytes,
+          quotaBytes: reservation.summary.quotaBytes,
+          uploadBytes: bytes,
+        })
+      )
+    }
   }
 
   private async stageUnknownLength(

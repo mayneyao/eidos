@@ -209,7 +209,7 @@ describe("whole-Space real Graft integration", () => {
       expect(status).toMatchObject({
         available: true,
         backend: "sdk",
-        version: "0.3.2",
+        version: "0.3.5",
         initialized: true,
         clean: true,
         changedPaths: 0,
@@ -331,6 +331,31 @@ describe("whole-Space real Graft integration", () => {
       expect(history.commits[0]?.files).toBe(5)
 
       await insertBlankRow(projectPath)
+      const workingSummary = await client.sqlitePathDiff(
+        sourceRoot,
+        "project.eidos"
+      )
+      const changedTable = workingSummary.files[0]?.tables.find(
+        (table) => (table.summary?.inserts ?? 0) > 0
+      )
+      expect(changedTable).toMatchObject({
+        rowChangesLoaded: false,
+        changes: [],
+        summary: { inserts: 1 },
+      })
+      const workingRows = await client.sqlitePathDiff(
+        sourceRoot,
+        "project.eidos",
+        {
+          table: changedTable!.name,
+          rowLimit: 1,
+        }
+      )
+      expect(workingRows.files[0]?.tables[0]).toMatchObject({
+        name: changedTable!.name,
+        rowChangesLoaded: true,
+        changes: [{ op: "insert" }],
+      })
       await expect(
         client.inspectSpace(sourceRoot, {
           verifyPaths: ["project.eidos"],
@@ -630,7 +655,7 @@ describe("whole-Space real Graft integration", () => {
       await client.close()
       await fs.rm(root, { recursive: true, force: true })
     }
-  })
+  }, 20_000)
 
   it("sends an explicit push credential on every SDK HTTP request", async () => {
     const root = await fs.mkdtemp(
@@ -718,6 +743,11 @@ describe("whole-Space real Graft integration", () => {
       await sourceClient.push(source)
       await cloneClient.clone(clone, remoteUrl)
       await cloneClient.open(clone)
+      await expect(cloneClient.status(clone)).resolves.toMatchObject({
+        dirty: false,
+        ahead: 0,
+        behind: 0,
+      })
 
       await fs.writeFile(path.join(source, "remote-note.txt"), "remote one\n")
       await sourceClient.stageAll(source)
@@ -729,6 +759,7 @@ describe("whole-Space real Graft integration", () => {
         ahead: 0,
         behind: 1,
         hasConflicts: false,
+        statusCacheHit: true,
       })
       await cloneClient.pull(clone)
       await expect(
@@ -748,6 +779,14 @@ describe("whole-Space real Graft integration", () => {
         ahead: 1,
         behind: 1,
         hasConflicts: false,
+        statusCacheHit: false,
+      })
+      await expect(cloneClient.status(clone)).resolves.toMatchObject({
+        dirty: false,
+        ahead: 1,
+        behind: 1,
+        hasConflicts: false,
+        statusCacheHit: true,
       })
       await expect(
         fs.readFile(path.join(clone, "remote-note.txt"), "utf8")

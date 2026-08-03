@@ -697,6 +697,116 @@ describe("eidos.space Graft Remote", () => {
     })
   })
 
+  it("resumes quota-tracked multipart objects and commits their exact R2 size", async () => {
+    const { payload } = await createRepository(
+      "alice-token",
+      "multipart-" + crypto.randomUUID()
+    )
+    const descriptor = await protocolFetch(payload.remote_url)
+    expect(await descriptor.json()).toMatchObject({
+      capabilities: expect.arrayContaining(["multipart-object"]),
+      limits: {
+        max_request_bytes: 64 * 1024 * 1024,
+        multipart_part_bytes: 16 * 1024 * 1024,
+      },
+    })
+    const usageBeforeResponse = await serviceFetch("/api/graft/usage", {
+      headers: { Authorization: "Bearer alice-token" },
+    })
+    const usageBefore = (await usageBeforeResponse.json()) as SyncUsagePayload
+    const objectBytes = 17 * 1024 * 1024
+    const path = "/multipart-start/segments/large"
+    const started = await protocolFetch(payload.remote_url, path, {
+      init: {
+        method: "POST",
+        headers: {
+          "content-length": "0",
+          "x-graft-object-bytes": objectBytes.toString(),
+        },
+      },
+    })
+    expect(started.status).toBe(200)
+    const session = (await started.json()) as { upload_id: string }
+
+    const firstBytes = 16 * 1024 * 1024
+    const first = await protocolFetch(
+      payload.remote_url,
+      "/multipart-part/segments/large",
+      {
+        init: {
+          method: "PUT",
+          headers: {
+            "content-length": firstBytes.toString(),
+            "x-graft-upload-id": session.upload_id,
+            "x-graft-part-number": "1",
+          },
+          body: new Uint8Array(firstBytes).fill(1),
+        },
+      }
+    )
+    expect(first.status).toBe(204)
+
+    const resumed = await protocolFetch(payload.remote_url, path, {
+      init: {
+        method: "POST",
+        headers: {
+          "content-length": "0",
+          "x-graft-object-bytes": objectBytes.toString(),
+        },
+      },
+    })
+    expect(await resumed.json()).toMatchObject({
+      upload_id: session.upload_id,
+      uploaded_parts: [{ part_number: 1, bytes: firstBytes }],
+    })
+
+    const secondBytes = 1024 * 1024
+    const second = await protocolFetch(
+      payload.remote_url,
+      "/multipart-part/segments/large",
+      {
+        init: {
+          method: "PUT",
+          headers: {
+            "content-length": secondBytes.toString(),
+            "x-graft-upload-id": session.upload_id,
+            "x-graft-part-number": "2",
+          },
+          body: new Uint8Array(secondBytes).fill(2),
+        },
+      }
+    )
+    expect(second.status).toBe(204)
+    const complete = await protocolFetch(
+      payload.remote_url,
+      "/multipart-complete/segments/large",
+      {
+        init: {
+          method: "POST",
+          headers: {
+            "content-length": "0",
+            "x-graft-upload-id": session.upload_id,
+          },
+        },
+      }
+    )
+    expect(complete.status).toBe(204)
+
+    const object = await protocolFetch(
+      payload.remote_url,
+      "/raw/segments/large",
+      { init: { method: "HEAD" } }
+    )
+    expect(object.headers.get("content-length")).toBe(objectBytes.toString())
+    const usageAfter = await serviceFetch("/api/graft/usage", {
+      headers: { Authorization: "Bearer alice-token" },
+    })
+    expect(await usageAfter.json()).toMatchObject({
+      usedBytes: usageBefore.usedBytes + objectBytes,
+      reservedBytes: 0,
+    })
+  })
+
   it("serializes account-wide byte reservations and rejects quota overflow", async () => {
     const usage = env.GRAFT_USAGE.getByName("quota-" + crypto.randomUUID())
     const backend = memoryBackend()

@@ -128,6 +128,21 @@ export interface SpaceOperationState {
   recoverable: boolean
 }
 
+export type SpaceSyncHistoryState =
+  | "up_to_date"
+  | "ahead"
+  | "behind"
+  | "diverged"
+  | "unknown"
+
+export interface SpaceSyncHistoryStatus {
+  state: SpaceSyncHistoryState
+  remoteHead?: string
+  ahead: number
+  behind: number
+  checkedAtMs?: number
+}
+
 export interface GraftSpaceStatus {
   available: boolean
   backend: "sdk"
@@ -140,6 +155,7 @@ export interface GraftSpaceStatus {
   generation?: number
   changeToken?: string
   statusCacheHit?: boolean
+  sync?: SpaceSyncHistoryStatus
   checking?: boolean
   error?: string
 }
@@ -158,11 +174,22 @@ export interface SpaceVersionRowChange {
   oldValues?: unknown[]
 }
 
+export interface SpaceVersionTableSummary {
+  name: string
+  inserts: number
+  deletes: number
+  updates: number
+}
+
 export interface SpaceVersionTableDiff {
   name: string
   columns: string[]
   primaryKeyColumns: string[]
   changes: SpaceVersionRowChange[]
+  summary?: SpaceVersionTableSummary
+  rowChangesLoaded?: boolean
+  hasMore?: boolean
+  nextCursor?: string | null
 }
 
 export interface SpaceVersionFileDiff extends SpaceVersionPathChange {
@@ -170,6 +197,7 @@ export interface SpaceVersionFileDiff extends SpaceVersionPathChange {
   logicalStatus?: string
   limitations: string[]
   tables: SpaceVersionTableDiff[]
+  detailsLoaded?: boolean
 }
 
 export interface SpaceVersionDiff {
@@ -182,13 +210,6 @@ export interface SpaceVersionDiff {
   totalPaths?: number
   hasMore?: boolean
   nextCursor?: string | null
-}
-
-export interface SpaceVersionTableSummary {
-  name: string
-  inserts: number
-  deletes: number
-  updates: number
 }
 
 export interface SpaceVersionCommit {
@@ -558,6 +579,7 @@ export type EidosSyncFailureCode =
   | "device-revoked"
   | "entitlement-inactive"
   | "quota-exceeded"
+  | "upload-too-large"
   | "protocol-version-mismatch"
   | "remote-not-found"
   | "remote-conflict"
@@ -843,7 +865,9 @@ export interface EidosLiteApi {
   getVersionPathDiff(
     relativePath: string,
     commitId?: string | null,
-    parentId?: string | null
+    parentId?: string | null,
+    tableName?: string,
+    rowAfter?: string
   ): Promise<SpaceVersionDiff>
   cancelVersionReads(): Promise<void>
   getTrackedIgnoredPaths(

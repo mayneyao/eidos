@@ -14,6 +14,7 @@ import {
   type RemoteOperationOptions,
   type RestoreOptions,
   type RestorePathsOptions,
+  type SqliteDiffPathsOptions,
   type StagePathsOptions,
   type UntrackPathsOptions,
 } from "@eidos.space/graft"
@@ -75,6 +76,10 @@ function objectValue(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
+function unsupportedCommand(command: never): never {
+  throw new Error(`Unsupported Graft SDK command: ${String(command)}`)
+}
+
 async function runCommand(
   command: GraftSdkCommand,
   args: unknown[],
@@ -124,6 +129,14 @@ async function runCommand(
           args[0],
           "diff paths options"
         ) as unknown as DiffPathsOptions),
+        signal,
+      })
+    case "diffSqlitePaths":
+      return repository.diffSqlitePaths({
+        ...(objectValue(
+          args[0],
+          "SQLite diff paths options"
+        ) as unknown as SqliteDiffPathsOptions),
         signal,
       })
     case "history":
@@ -241,6 +254,8 @@ async function runCommand(
     case "clearHttpBearerToken":
       repository.clearHttpBearerToken(requireString(args[0], "Remote name"))
       return { cleared: true }
+    default:
+      return unsupportedCommand(command)
   }
 }
 

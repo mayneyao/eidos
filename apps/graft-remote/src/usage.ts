@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers"
 
-const RESERVATION_TTL_MS = 15 * 60 * 1000
+const RESERVATION_TTL_MS = 24 * 60 * 60 * 1000
 
 interface BytesRow {
   [key: string]: SqlStorageValue
@@ -83,6 +83,27 @@ export class SyncUsageDurableObject extends DurableObject<Env> {
       }
     }
 
+    const existing = this.pathReservation(input.repositoryId, input.path)
+    if (existing !== undefined) {
+      if (existing.bytes !== input.bytes) {
+        throw new RangeError("Existing reservation size does not match")
+      }
+      this.ctx.storage.sql.exec(
+        "UPDATE byte_reservations SET expires_at = ? WHERE id = ?",
+        now + RESERVATION_TTL_MS,
+        existing.id
+      )
+      const summary = this.readSummary(input.quotaBytes)
+      return {
+        ok: true,
+        reservationId: existing.id,
+        alreadyTracked: false,
+        wouldExceed:
+          summary.usedBytes + summary.reservedBytes > input.quotaBytes,
+        summary,
+      }
+    }
+
     const before = this.readSummary(input.quotaBytes)
     const wouldExceed =
       before.usedBytes + before.reservedBytes + input.bytes > input.quotaBytes
@@ -159,6 +180,37 @@ export class SyncUsageDurableObject extends DurableObject<Env> {
     return this.readSummary(quotaBytes)
   }
 
+  renewPath(input: {
+    repositoryId: string
+    path: string
+    quotaBytes: number
+  }): SyncUsageSummary {
+    validateObjectIdentity(input.repositoryId, input.path)
+    validateBytes(input.quotaBytes, "quotaBytes")
+    const now = Date.now()
+    this.removeExpired(now)
+    this.ctx.storage.sql.exec(
+      "UPDATE byte_reservations SET expires_at = ? " +
+        "WHERE repository_id = ? AND path = ?",
+      now + RESERVATION_TTL_MS,
+      input.repositoryId,
+      input.path
+    )
+    return this.readSummary(input.quotaBytes)
+  }
+
+  releasePath(input: {
+    repositoryId: string
+    path: string
+    quotaBytes: number
+  }): SyncUsageSummary {
+    validateObjectIdentity(input.repositoryId, input.path)
+    validateBytes(input.quotaBytes, "quotaBytes")
+    this.removePathReservations(input.repositoryId, input.path)
+    this.removeExpired(Date.now())
+    return this.readSummary(input.quotaBytes)
+  }
+
   summary(quotaBytes: number): SyncUsageSummary {
     validateBytes(quotaBytes, "quotaBytes")
     this.removeExpired(Date.now())
@@ -225,6 +277,20 @@ export class SyncUsageDurableObject extends DurableObject<Env> {
         )
         .toArray().length === 1
     )
+  }
+
+  private pathReservation(
+    repositoryId: string,
+    path: string
+  ): ReservationRow | undefined {
+    return this.ctx.storage.sql
+      .exec<ReservationRow>(
+        "SELECT id, repository_id, path, bytes FROM byte_reservations " +
+          "WHERE repository_id = ? AND path = ? ORDER BY created_at LIMIT 1",
+        repositoryId,
+        path
+      )
+      .toArray()[0]
   }
 
   private readSummary(quotaBytes: number): SyncUsageSummary {

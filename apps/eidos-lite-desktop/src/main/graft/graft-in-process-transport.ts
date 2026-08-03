@@ -14,6 +14,7 @@ import {
   type RemoteOperationOptions,
   type RestoreOptions,
   type RestorePathsOptions,
+  type SqliteDiffPathsOptions,
   type StagePathsOptions,
   type UntrackPathsOptions,
 } from "@eidos.space/graft"
@@ -123,6 +124,11 @@ export class GraftInProcessTransport implements GraftSdkTransport {
           ...(this.object(args[0]) as unknown as DiffPathsOptions),
           signal,
         })
+      case "diffSqlitePaths":
+        return session.diffSqlitePaths({
+          ...(this.object(args[0]) as unknown as SqliteDiffPathsOptions),
+          signal,
+        })
       case "history":
         return session.history({
           ...(this.object(args[0] ?? {}) as HistoryOptions),
@@ -203,6 +209,8 @@ export class GraftInProcessTransport implements GraftSdkTransport {
       case "clearHttpBearerToken":
         session.clearHttpBearerToken(this.string(args[0], "Remote name"))
         return { cleared: true }
+      default:
+        return this.unsupportedCommand(command)
     }
   }
 
@@ -249,6 +257,10 @@ export class GraftInProcessTransport implements GraftSdkTransport {
       throw new Error(`${label} is required`)
     }
     return value
+  }
+
+  private unsupportedCommand(command: never): never {
+    throw new Error(`Unsupported Graft SDK command: ${String(command)}`)
   }
 }
 

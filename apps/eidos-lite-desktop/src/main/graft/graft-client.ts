@@ -14,13 +14,14 @@ import type {
   SpaceVersionTableDiff,
   SpaceVersionTableSummary,
   SpaceVersionTextContentDiff,
+  SpaceSyncHistoryStatus,
 } from "../../shared/contracts"
 import { resolveEidosLiteServiceEnvironment } from "../../shared/service-environment"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 const SDK_DIFF_PAGE_SIZE = 100
 const SDK_PATH_BATCH_SIZE = 1_000
-export const GRAFT_SDK_VERSION = "0.3.2"
+export const GRAFT_SDK_VERSION = "0.3.5"
 
 export interface GraftClientOptions {
   sdkTransport: GraftSdkTransport
@@ -39,11 +40,16 @@ export interface GraftRepositoryStatus {
   changes: SpaceVersionPathChange[]
   generation?: number
   changeToken?: string
+  sync?: SpaceSyncHistoryStatus
   statusCacheHit?: boolean
   persistentSnapshotHit?: boolean
   persistentSnapshotSaved?: boolean
   stabilityRetries?: number
   verifiedPaths?: string[]
+}
+
+export interface GraftCommitResult {
+  id: string
 }
 
 interface GraftStatusOptions {
@@ -110,6 +116,25 @@ function numberValue(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0
 }
 
+function syncHistoryState(
+  value: unknown,
+  ahead: number,
+  behind: number
+): SpaceSyncHistoryStatus["state"] {
+  if (
+    value === "up_to_date" ||
+    value === "ahead" ||
+    value === "behind" ||
+    value === "diverged"
+  ) {
+    return value
+  }
+  if (ahead > 0 && behind > 0) return "diverged"
+  if (ahead > 0) return "ahead"
+  if (behind > 0) return "behind"
+  return "unknown"
+}
+
 function stringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item) => typeof item === "string")
@@ -130,11 +155,111 @@ function pathChange(value: unknown): SpaceVersionPathChange {
 
 function rowChange(value: unknown): SpaceVersionRowChange {
   const item = record(value)
+  const explicitKey = record(item.key)
+  const key =
+    Object.keys(explicitKey).length > 0
+      ? explicitKey
+      : typeof item.rowid === "number" && Number.isFinite(item.rowid)
+        ? { rowid: item.rowid }
+        : {}
   return {
     op: stringValue(item.op) ?? "change",
-    key: record(item.key),
+    key,
     ...(Array.isArray(item.values) ? { values: item.values } : {}),
     ...(Array.isArray(item.old_values) ? { oldValues: item.old_values } : {}),
+  }
+}
+
+function limitation(value: unknown): string | null {
+  if (typeof value === "string") return value
+  const item = record(value)
+  const kind = stringValue(item.kind)
+  if (!kind) return null
+  const subject = stringValue(item.subject)
+  return subject
+    ? `${kind.replaceAll("_", " ")} · ${subject}`
+    : kind.replaceAll("_", " ")
+}
+
+function boundedFileDiff(value: unknown): SpaceVersionFileDiff {
+  const item = record(value)
+  const mode = stringValue(item.mode)
+  const summaries = Array.isArray(item.summaries)
+    ? item.summaries.map(tableSummary)
+    : []
+  const tables =
+    mode === "summary"
+      ? summaries.map(
+          (summary): SpaceVersionTableDiff => ({
+            name: summary.name,
+            columns: [],
+            primaryKeyColumns: [],
+            changes: [],
+            summary,
+            rowChangesLoaded: false,
+          })
+        )
+      : Array.isArray(item.tables)
+        ? item.tables.map((table) => ({
+            ...tableDiff(table),
+            hasMore: item.has_more === true,
+            nextCursor: stringValue(item.next_cursor) ?? null,
+          }))
+        : []
+  return {
+    ...pathChange(value),
+    rowDiffAvailable: item.row_diff_available === true,
+    ...(stringValue(item.logical_status)
+      ? { logicalStatus: stringValue(item.logical_status) }
+      : {}),
+    limitations: Array.isArray(item.limitations)
+      ? item.limitations
+          .map(limitation)
+          .filter((entry): entry is string => entry !== null)
+      : [],
+    tables,
+    detailsLoaded: true,
+  }
+}
+
+function boundedVersionDiff(value: unknown): SpaceVersionDiff {
+  const item = record(value)
+  return {
+    currentHead: stringValue(item.current_head) ?? null,
+    currentBranch: stringValue(item.current_branch) ?? null,
+    from: stringValue(item.from) ?? null,
+    to: stringValue(item.to) ?? null,
+    paths: Array.isArray(item.paths) ? item.paths.map(pathChange) : [],
+    files: Array.isArray(item.files) ? item.files.map(boundedFileDiff) : [],
+    hasMore: false,
+    nextCursor: null,
+  }
+}
+
+function boundedSqliteDiffPage(value: unknown): SpaceVersionDiff {
+  const item = record(value)
+  const diffs = Array.isArray(item.paths)
+    ? item.paths.map((entry) => boundedVersionDiff(record(entry).diff))
+    : []
+  const paths = new Map<string, SpaceVersionPathChange>()
+  const files = new Map<string, SpaceVersionFileDiff>()
+  for (const diff of diffs) {
+    for (const change of diff.paths) paths.set(change.path, change)
+    for (const file of diff.files) files.set(file.path, file)
+  }
+  return {
+    currentHead: diffs[0]?.currentHead ?? null,
+    currentBranch: diffs[0]?.currentBranch ?? null,
+    from: diffs[0]?.from ?? null,
+    to: diffs[0]?.to ?? null,
+    paths: [...paths.values()].sort((left, right) =>
+      left.path.localeCompare(right.path)
+    ),
+    files: [...files.values()].sort((left, right) =>
+      left.path.localeCompare(right.path)
+    ),
+    hasMore: item.has_more === true,
+    nextCursor: stringValue(item.next_cursor) ?? null,
   }
 }
 
@@ -145,6 +270,7 @@ function tableDiff(value: unknown): SpaceVersionTableDiff {
     columns: stringArray(item.columns),
     primaryKeyColumns: stringArray(item.primary_key_columns),
     changes: Array.isArray(item.changes) ? item.changes.map(rowChange) : [],
+    rowChangesLoaded: true,
   }
 }
 
@@ -158,6 +284,7 @@ function fileDiff(value: unknown): SpaceVersionFileDiff {
       : {}),
     limitations: stringArray(item.limitations),
     tables: Array.isArray(item.tables) ? item.tables.map(tableDiff) : [],
+    detailsLoaded: true,
   }
 }
 
@@ -364,6 +491,7 @@ export class GraftClient {
         clean: !status.dirty,
         ...(changedPaths === undefined ? {} : { changedPaths }),
         ...(status.currentHead ? { currentHead: status.currentHead } : {}),
+        ...(status.sync ? { sync: status.sync } : {}),
         ...(status.generation === undefined
           ? {}
           : { generation: status.generation }),
@@ -429,8 +557,13 @@ export class GraftClient {
     return { batches: results }
   }
 
-  commit(root: string, message: string): Promise<unknown> {
-    return this.runSdk(root, "commit", [message])
+  async commit(root: string, message: string): Promise<GraftCommitResult> {
+    const value = record(await this.runSdk(root, "commit", [message]))
+    const id = stringValue(record(value.commit).id) ?? stringValue(value.id)
+    if (!id || !/^[0-9a-f]{64}$/i.test(id)) {
+      throw new Error("Graft did not return the saved checkpoint id")
+    }
+    return { id }
   }
 
   async status(
@@ -467,6 +600,16 @@ export class GraftClient {
       .filter((entry): entry is SpaceVersionPathChange => entry !== null)
     const changed = changes.map((entry) => entry.path)
     const telemetry = record(response.telemetry)
+    const ahead = Math.max(
+      0,
+      Math.trunc(numberValue(value.ahead ?? upstream.ahead))
+    )
+    const behind = Math.max(
+      0,
+      Math.trunc(numberValue(value.behind ?? upstream.behind))
+    )
+    const remoteHead = stringValue(upstream.remote_target)
+    const hasUpstreamStatus = Object.keys(upstream).length > 0
     const status: GraftRepositoryStatus = {
       dirty: value.dirty === true,
       currentHead:
@@ -475,19 +618,23 @@ export class GraftClient {
         null,
       currentBranch:
         stringValue(value.current_branch) ?? stringValue(head.name) ?? null,
-      ahead: Math.max(
-        0,
-        Math.trunc(numberValue(value.ahead ?? upstream.ahead))
-      ),
-      behind: Math.max(
-        0,
-        Math.trunc(numberValue(value.behind ?? upstream.behind))
-      ),
+      ahead,
+      behind,
       hasConflicts:
         value.has_conflicts === true || numberValue(value.conflicted) > 0,
       changedPaths: changed.length,
       paths: changed,
       changes,
+      ...(hasUpstreamStatus
+        ? {
+            sync: {
+              state: syncHistoryState(upstream.state, ahead, behind),
+              ...(remoteHead ? { remoteHead } : {}),
+              ahead,
+              behind,
+            },
+          }
+        : {}),
       ...(typeof response.generation === "number"
         ? { generation: response.generation }
         : {}),
@@ -641,6 +788,7 @@ export class GraftClient {
     relativePath: string,
     options: {
       rows?: boolean
+      table?: string
       from?: string | null
       to?: string | null
       root?: string | null
@@ -650,10 +798,52 @@ export class GraftClient {
     return this.diffExplicitPaths(root, [relativePath], {
       rows: options.rows ?? true,
       signal: options.signal,
+      ...(options.table ? { table: options.table } : {}),
       ...(options.from ? { from: options.from } : {}),
       ...(options.to ? { to: options.to } : {}),
       ...(options.root ? { root: options.root } : {}),
     })
+  }
+
+  async sqlitePathDiff(
+    root: string,
+    relativePath: string,
+    options: {
+      table?: string
+      rowAfter?: string
+      rowLimit?: number
+      from?: string | null
+      to?: string | null
+      root?: string | null
+      signal?: AbortSignal
+    } = {}
+  ): Promise<SpaceVersionDiff> {
+    const value = await this.runSdk(
+      root,
+      "diffSqlitePaths",
+      [
+        {
+          paths: [relativePath],
+          mode: options.table ? "rows" : "summary",
+          limit: 1,
+          ...(options.table
+            ? {
+                table: options.table,
+                rowLimit: Math.max(
+                  1,
+                  Math.min(Math.trunc(options.rowLimit ?? 100), 1_000)
+                ),
+                ...(options.rowAfter ? { rowAfter: options.rowAfter } : {}),
+              }
+            : {}),
+          ...(options.from ? { from: options.from } : {}),
+          ...(options.to ? { to: options.to } : {}),
+          ...(options.root ? { root: options.root } : {}),
+        },
+      ],
+      options
+    )
+    return boundedSqliteDiffPage(value)
   }
 
   async revisionDiff(
@@ -1136,6 +1326,7 @@ export class GraftClient {
     paths: readonly string[],
     options: {
       rows: boolean
+      table?: string
       limit?: number
       after?: string
       signal?: AbortSignal
@@ -1175,6 +1366,7 @@ export class GraftClient {
             paths: requestPaths,
             rows: options.rows,
             limit: pageSize,
+            ...(options.table ? { table: options.table } : {}),
             ...(options.from ? { from: options.from } : {}),
             ...(options.to ? { to: options.to } : {}),
             ...(options.root ? { root: options.root } : {}),
