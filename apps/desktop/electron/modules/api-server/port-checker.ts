@@ -48,12 +48,15 @@ function checkPortOnHost(port: number, host: string): Promise<boolean> {
  * Checks on all interfaces (IPv4 and IPv6) to detect any binding
  */
 export async function isPortInUse(port: number): Promise<boolean> {
-  // Check both IPv4 and IPv6 to ensure comprehensive detection
-  const [ipv4InUse, ipv6InUse] = await Promise.all([
-    checkPortOnHost(port, "0.0.0.0"),
-    checkPortOnHost(port, "::").catch(() => false), // IPv6 might not be available
-  ])
-  return ipv4InUse || ipv6InUse
+  // Probe sequentially, not in parallel. On Linux a bind to `::` is dual-stack
+  // (it also covers IPv4), so two simultaneous probes on 0.0.0.0 and :: collide
+  // with each other: whichever bind lands second fails with EADDRINUSE against
+  // the first probe's own socket, falsely reporting a free port as occupied on
+  // any dual-stack machine.
+  if (await checkPortOnHost(port, "0.0.0.0")) {
+    return true
+  }
+  return checkPortOnHost(port, "::").catch(() => false) // IPv6 might not be available
 }
 
 /**
