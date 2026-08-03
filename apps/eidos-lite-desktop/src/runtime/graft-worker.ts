@@ -12,6 +12,7 @@ import {
   type InventoryOptions,
   type RemoteConfigureOptions,
   type RemoteOperationOptions,
+  type RecordPathMoveOptions,
   type RestoreOptions,
   type RestorePathsOptions,
   type SqliteDiffPathsOptions,
@@ -112,6 +113,14 @@ async function runCommand(
           args[0],
           "stage paths options"
         ) as unknown as StagePathsOptions),
+        signal,
+      })
+    case "recordPathMove":
+      return repository.recordPathMove({
+        ...(objectValue(
+          args[0],
+          "record path move options"
+        ) as unknown as RecordPathMoveOptions),
         signal,
       })
     case "commit":

@@ -145,6 +145,9 @@ function pathChange(value: unknown): SpaceVersionPathChange {
   const item = record(value)
   return {
     path: stringValue(item.path) ?? "",
+    ...(stringValue(item.previous_path)
+      ? { previousPath: stringValue(item.previous_path) }
+      : {}),
     change: stringValue(item.change) ?? "modified",
     ...(stringValue(item.kind) ? { kind: stringValue(item.kind) } : {}),
     ...(stringValue(item.storage)
@@ -557,6 +560,20 @@ export class GraftClient {
     return { batches: results }
   }
 
+  async recordPathMove(
+    root: string,
+    previousPath: string,
+    path: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<unknown> {
+    return this.runSdk(
+      root,
+      "recordPathMove",
+      [{ previousPath, path }],
+      options
+    )
+  }
+
   async commit(root: string, message: string): Promise<GraftCommitResult> {
     const value = record(await this.runSdk(root, "commit", [message]))
     const id = stringValue(record(value.commit).id) ?? stringValue(value.id)
@@ -585,8 +602,12 @@ export class GraftClient {
         if (!relativePath) return null
         return {
           path: relativePath,
+          ...(stringValue(entry.previous_path)
+            ? { previousPath: stringValue(entry.previous_path) }
+            : {}),
           change:
             stringValue(entry.change) ??
+            stringValue(entry.staged_change) ??
             stringValue(entry.unstaged_change) ??
             stringValue(entry.worktree_status) ??
             stringValue(entry.index_status) ??
@@ -611,7 +632,7 @@ export class GraftClient {
     const remoteHead = stringValue(upstream.remote_target)
     const hasUpstreamStatus = Object.keys(upstream).length > 0
     const status: GraftRepositoryStatus = {
-      dirty: value.dirty === true,
+      dirty: value.dirty === true || value.has_staged_changes === true,
       currentHead:
         stringValue(value.current_head) ??
         stringValue(value.head_target) ??
@@ -812,6 +833,7 @@ export class GraftClient {
       table?: string
       rowAfter?: string
       rowLimit?: number
+      stagedFallback?: boolean
       from?: string | null
       to?: string | null
       root?: string | null
@@ -825,6 +847,7 @@ export class GraftClient {
         {
           paths: [relativePath],
           mode: options.table ? "rows" : "summary",
+          ...(options.stagedFallback ? { stagedFallback: true } : {}),
           limit: 1,
           ...(options.table
             ? {

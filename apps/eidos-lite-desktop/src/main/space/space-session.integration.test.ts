@@ -23,6 +23,72 @@ function deferred<T>() {
 }
 
 describe("SpaceSession Graft-backed snapshots", () => {
+  it("keeps a local rename responsive while Graft records the move identity", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-record-path-move-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-record-path-move-state-")
+    )
+    const recordStarted = deferred<void>()
+    const finishRecord = deferred<void>()
+    const recordPathMove = vi.fn(async () => {
+      recordStarted.resolve()
+      await finishRecord.promise
+    })
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.7",
+      close: async () => undefined,
+      inspectSpace: async () => ({
+        available: true,
+        backend: "sdk",
+        version: "0.3.7",
+        expectedVersion: "0.3.7",
+        initialized: true,
+        clean: false,
+      }),
+      inspectIgnores: async (_root: string, relativePaths: string[]) =>
+        relativePaths.map((relativePath) => ({
+          path: relativePath,
+          isIgnored: false,
+          isTracked: true,
+          isDirectory: false,
+          hasTrackedDescendants: false,
+        })),
+      recordPathMove,
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      await fs.mkdir(path.join(root, ".graft"))
+      await fs.writeFile(path.join(root, "old.txt"), "local content")
+      session = await SpaceSession.create(root, userData, { graft })
+
+      const renamed = await session.renamePath("old.txt", "new.txt")
+      expect(renamed.relativePath).toBe("new.txt")
+      await expect(
+        fs.readFile(path.join(root, "new.txt"), "utf8")
+      ).resolves.toBe("local content")
+      await recordStarted.promise
+      const canonicalRoot = await fs.realpath(root)
+      expect(recordPathMove).toHaveBeenCalledWith(
+        canonicalRoot,
+        "old.txt",
+        "new.txt",
+        expect.objectContaining({ signal: expect.anything() })
+      )
+    } finally {
+      finishRecord.resolve()
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  })
+
   it("exposes the cached cloud boundary only for a trusted connected Space", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-sync-history-")

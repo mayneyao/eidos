@@ -12,6 +12,7 @@ import {
   type InventoryOptions,
   type RemoteConfigureOptions,
   type RemoteOperationOptions,
+  type RecordPathMoveOptions,
   type RestoreOptions,
   type RestorePathsOptions,
   type SqliteDiffPathsOptions,
@@ -108,6 +109,11 @@ export class GraftInProcessTransport implements GraftSdkTransport {
       case "stagePaths":
         return session.stagePaths({
           ...(this.object(args[0]) as unknown as StagePathsOptions),
+          signal,
+        })
+      case "recordPathMove":
+        return session.recordPathMove({
+          ...(this.object(args[0]) as unknown as RecordPathMoveOptions),
           signal,
         })
       case "commit":

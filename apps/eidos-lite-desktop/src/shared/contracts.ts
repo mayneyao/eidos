@@ -166,6 +166,7 @@ export interface GraftSpaceStatus {
 
 export interface SpaceVersionPathChange {
   path: string
+  previousPath?: string
   change: string
   kind?: string
   storage?: string

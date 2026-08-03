@@ -10,6 +10,7 @@ export type GraftSdkCommand =
   | "listRemotes"
   | "addAll"
   | "stagePaths"
+  | "recordPathMove"
   | "commit"
   | "diff"
   | "diffPaths"

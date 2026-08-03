@@ -687,8 +687,16 @@ export function VersionDiffPreview({
                 be added without changing the Space history model.
               </p>
               <dl>
+                {inspection.change.previousPath ? (
+                  <div>
+                    <dt>Previous path</dt>
+                    <dd>{inspection.change.previousPath}</dd>
+                  </div>
+                ) : null}
                 <div>
-                  <dt>Path</dt>
+                  <dt>
+                    {inspection.change.previousPath ? "New path" : "Path"}
+                  </dt>
                   <dd>{inspection.change.path}</dd>
                 </div>
                 {inspection.change.kind ? (
@@ -744,7 +752,11 @@ function HistoryDiffList({
               {isEidosPath(change.path) ? <Database /> : <FileText />}
               <span>
                 <strong>{fileName(change.path)}</strong>
-                <small>{fileParent(change.path)}</small>
+                <small>
+                  {change.previousPath
+                    ? `${change.previousPath} → ${change.path}`
+                    : fileParent(change.path)}
+                </small>
               </span>
               <b
                 data-change={changeLabel(change.change).toLowerCase()}

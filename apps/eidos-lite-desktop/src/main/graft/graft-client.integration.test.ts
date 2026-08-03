@@ -62,6 +62,113 @@ async function insertBlankRow(filePath: string): Promise<void> {
 }
 
 describe("whole-Space real Graft integration", () => {
+  it("preserves an Eidos File identity when recording a path move", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-path-move-")
+    )
+    const previousPath = "old.eidos"
+    const currentPath = "folder/new.eidos"
+    const client = createGraftClient()
+    try {
+      const runtime = createEidosFile(path.join(root, previousPath))
+      runtime.importTable(
+        {
+          name: "Moved table",
+          fields: [{ name: "Name", type: "text", isRecordLabel: true }],
+        },
+        []
+      )
+      runtime.close()
+      await client.open(root)
+      await client.initialize(root)
+      await client.stageAll(root)
+      const base = await client.commit(root, "Base")
+
+      await fs.mkdir(path.join(root, "folder"))
+      await fs.rename(
+        path.join(root, previousPath),
+        path.join(root, currentPath)
+      )
+      await client.recordPathMove(root, previousPath, currentPath)
+
+      await expect(client.workingChanges(root)).resolves.toMatchObject({
+        totalPaths: 1,
+        paths: [
+          {
+            path: currentPath,
+            previousPath,
+            change: "renamed",
+          },
+        ],
+      })
+      await expect(
+        client.sqlitePathDiff(root, currentPath, { stagedFallback: true })
+      ).resolves.toMatchObject({
+        paths: [
+          {
+            path: currentPath,
+            previousPath,
+            change: "renamed",
+          },
+        ],
+      })
+      await insertBlankRow(path.join(root, currentPath))
+      await expect(client.workingChanges(root)).resolves.toMatchObject({
+        totalPaths: 1,
+        paths: [
+          {
+            path: currentPath,
+            previousPath,
+            change: "renamed",
+          },
+        ],
+      })
+      await expect(
+        client.sqlitePathDiff(root, currentPath, { stagedFallback: true })
+      ).resolves.toMatchObject({
+        paths: [
+          {
+            path: currentPath,
+            previousPath,
+            change: "renamed",
+          },
+        ],
+      })
+      await client.stageAll(root)
+      const moved = await client.commit(root, "Move")
+      await expect(
+        client.revisionChanges(root, moved.id)
+      ).resolves.toMatchObject({
+        totalPaths: 1,
+        paths: [
+          {
+            path: currentPath,
+            previousPath,
+            change: "renamed",
+          },
+        ],
+      })
+      await expect(
+        client.sqlitePathDiff(root, currentPath, {
+          from: base.id,
+          to: moved.id,
+        })
+      ).resolves.toMatchObject({
+        paths: [
+          {
+            path: currentPath,
+            previousPath,
+            change: "renamed",
+          },
+        ],
+      })
+      await validateEidosFile(path.join(root, currentPath))
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  }, 120_000)
+
   it("keeps an open Eidos File identity stable while initializing versioning", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-graft-open-runtime-")

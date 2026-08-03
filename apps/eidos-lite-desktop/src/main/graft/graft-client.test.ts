@@ -312,7 +312,8 @@ describe("GraftClient", () => {
             paths: [
               {
                 path: "data.eidos",
-                change: "modified",
+                previous_path: "archive/data.eidos",
+                change: "renamed",
                 kind: "sqlite_database",
                 storage: "sqlite_snapshot",
               },
@@ -357,7 +358,13 @@ describe("GraftClient", () => {
       ).resolves.toMatchObject({
         from: "a".repeat(64),
         to: revision,
-        paths: [{ path: "data.eidos" }],
+        paths: [
+          {
+            path: "data.eidos",
+            previousPath: "archive/data.eidos",
+            change: "renamed",
+          },
+        ],
         files: [],
       })
       await expect(

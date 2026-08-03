@@ -413,6 +413,7 @@ export class SpaceSession {
       )
     })
     this.noteLocalChange()
+    this.recordPathMoveInBackground(source, target)
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath: target,
@@ -453,6 +454,7 @@ export class SpaceSession {
       )
     })
     this.noteLocalChange()
+    this.recordPathMoveInBackground(source, target)
     return {
       snapshot: await this.freshSnapshotAndEmit(),
       relativePath: target,
@@ -1065,6 +1067,7 @@ export class SpaceSession {
           ...(tableName ? { table: tableName } : {}),
           ...(rowAfter ? { rowAfter } : {}),
           rowLimit: 100,
+          ...(!commitId ? { stagedFallback: true } : {}),
           ...(commitId && parentId
             ? { from: parentId, to: commitId }
             : commitId
@@ -1995,6 +1998,27 @@ export class SpaceSession {
     if (this.versioningEnabled && this.automaticCheckpointsEnabled) {
       this.checkpointScheduler.notifyStableChange()
     }
+  }
+
+  private recordPathMoveInBackground(previousPath: string, path: string): void {
+    if (!this.versioningEnabled) return
+    const key = `graft-path-move:${previousPath}:${path}`
+    void this.repository
+      .runBackground(
+        key,
+        (signal) =>
+          this.graft.recordPathMove(this.canonical.root, previousPath, path, {
+            signal,
+          }),
+        { preemptible: false }
+      )
+      .then(() => this.invalidateGraftStatusCache())
+      .catch((error) =>
+        console.warn(
+          `Could not record Space path move ${previousPath} -> ${path}`,
+          error
+        )
+      )
   }
 
   private assertRuntimeAvailable(): void {
