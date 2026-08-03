@@ -1,6 +1,6 @@
 {
   "name": "eidos",
-  "version": "0.32.2",
+  "version": "0.32.3",
   "description": "Eidos is an extensible framework for personal data management.",
   "main": "dist-electron/main.js",
   "start": "electron .",
