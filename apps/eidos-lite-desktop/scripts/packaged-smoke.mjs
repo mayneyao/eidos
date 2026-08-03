@@ -236,7 +236,7 @@ try {
     ) ||
     !report.graft?.available ||
     report.graft?.backend !== "sdk" ||
-    report.graft?.version !== "0.3.6" ||
+    report.graft?.version !== "0.3.7" ||
     report.mutation?.afterInsertCount !== report.mutation?.beforeCount + 1 ||
     report.mutation?.afterDeleteCount !== report.mutation?.beforeCount ||
     report.mutation?.checkpointCount !== report.mutation?.beforeCount + 1 ||
