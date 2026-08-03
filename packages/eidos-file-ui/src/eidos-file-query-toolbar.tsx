@@ -21,6 +21,7 @@ import {
 
 import { cn } from "./lib/cn"
 import { useEidosFileUI } from "./context"
+import { useEidosFileSearchNavigation } from "./eidos-file-search-navigation"
 import {
   Button,
   Input,
@@ -925,8 +926,8 @@ export function EidosFileQueryToolbar({
   search,
   disabled,
   focusSearchToken = 0,
-  searchResultCount = null,
-  searchResultIndex = null,
+  searchResultCount,
+  searchResultIndex,
   onSearchChange,
   onNavigateSearch,
   onFilterChange,
@@ -946,6 +947,17 @@ export function EidosFileQueryToolbar({
   onSortsChange: (sorts: EidosFileSort[]) => Promise<void> | void
 }) {
   const { translate: t } = useEidosFileUI()
+  const searchNavigation = useEidosFileSearchNavigation()
+  const resolvedSearchResultCount =
+    searchResultCount === undefined
+      ? (searchNavigation?.searchResultCount ?? null)
+      : searchResultCount
+  const resolvedSearchResultIndex =
+    searchResultIndex === undefined
+      ? (searchNavigation?.searchResultIndex ?? null)
+      : searchResultIndex
+  const navigateSearch =
+    onNavigateSearch ?? searchNavigation?.navigateSearchResults
   const inputRef = useRef<HTMLInputElement>(null)
   const [showSearch, setShowSearch] = useState(Boolean(search))
   useEffect(() => {
@@ -961,16 +973,18 @@ export function EidosFileQueryToolbar({
   }, [search])
   const hasSearch = search.trim().length > 0
   const hasResults =
-    hasSearch && searchResultCount !== null && searchResultCount > 0
+    hasSearch &&
+    resolvedSearchResultCount !== null &&
+    resolvedSearchResultCount > 0
   const resultStatus = !hasSearch
     ? ""
-    : searchResultCount === null
+    : resolvedSearchResultCount === null
       ? t("Searching")
-      : searchResultCount === 0
+      : resolvedSearchResultCount === 0
         ? t("No results")
         : t("{index} of {count}", {
-            index: (searchResultIndex ?? 0) + 1,
-            count: searchResultCount,
+            index: (resolvedSearchResultIndex ?? 0) + 1,
+            count: resolvedSearchResultCount,
           })
   return (
     <div
@@ -995,7 +1009,7 @@ export function EidosFileQueryToolbar({
               }
               if (event.key === "Enter" && hasResults) {
                 event.preventDefault()
-                onNavigateSearch?.(event.shiftKey ? "previous" : "next")
+                navigateSearch?.(event.shiftKey ? "previous" : "next")
               }
             }}
           />
@@ -1016,7 +1030,7 @@ export function EidosFileQueryToolbar({
             aria-label={t("Previous search result")}
             title={t("Previous result (Shift+Enter)")}
             disabled={!hasResults}
-            onClick={() => onNavigateSearch?.("previous")}
+            onClick={() => navigateSearch?.("previous")}
           >
             <ChevronUp className="h-3 w-3" />
           </Button>
@@ -1028,7 +1042,7 @@ export function EidosFileQueryToolbar({
             aria-label={t("Next search result")}
             title={t("Next result (Enter)")}
             disabled={!hasResults}
-            onClick={() => onNavigateSearch?.("next")}
+            onClick={() => navigateSearch?.("next")}
           >
             <ChevronDown className="h-3 w-3" />
           </Button>

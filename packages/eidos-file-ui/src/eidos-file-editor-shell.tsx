@@ -5,6 +5,7 @@ import {
   EidosFileEditorRoot,
   EidosFileEditorWorkbar,
 } from "./eidos-file-editor-chrome"
+import { EidosFileSearchNavigationProvider } from "./eidos-file-search-navigation"
 import { cn } from "./lib/cn"
 
 export interface EidosFileEditorShellProps extends Omit<
@@ -20,6 +21,7 @@ export interface EidosFileEditorShellProps extends Omit<
   contentProps?: HTMLAttributes<HTMLDivElement>
   sheetTabs?: ReactNode
   overlays?: ReactNode
+  searchNavigation?: { search: string; scopeKey: string }
 }
 
 /**
@@ -42,13 +44,14 @@ export const EidosFileEditorShell = forwardRef<
     contentProps,
     sheetTabs,
     overlays,
+    searchNavigation,
     className,
     ...props
   },
   ref
 ) {
   const hasFieldActions = fields !== undefined || fieldCreator !== undefined
-  return (
+  const editor = (
     <EidosFileEditorRoot
       ref={ref}
       className={className}
@@ -83,6 +86,13 @@ export const EidosFileEditorShell = forwardRef<
       {sheetTabs}
       {overlays}
     </EidosFileEditorRoot>
+  )
+  return searchNavigation ? (
+    <EidosFileSearchNavigationProvider {...searchNavigation}>
+      {editor}
+    </EidosFileSearchNavigationProvider>
+  ) : (
+    editor
   )
 })
 

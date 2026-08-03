@@ -367,6 +367,7 @@ export interface QueryRowsRequest {
   query: RowQuery
   projection: ProjectionSpec
   limit: number
+  offset?: number
   cursor?: string
   direction?: "forward" | "backward"
 }
@@ -381,6 +382,12 @@ export type AggregateItem =
   | { key: string; op: "count-all" }
   | {
       key: string
+      op: "distinct-values"
+      fieldId: string
+      limit: number
+    }
+  | {
+      key: string
       op: "count" | "distinct-count" | "sum" | "average" | "min" | "max"
       fieldId: string
     }
@@ -388,6 +395,7 @@ export type AggregateItem =
 
 export type AggregateResult =
   | { key: string; value: LogicalValue }
+  | { key: string; values: LogicalValue[]; truncated: boolean }
   | { key: string; statistics: ColumnStatistics }
 
 export interface AggregateResponse {

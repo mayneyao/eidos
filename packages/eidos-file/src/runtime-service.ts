@@ -3,6 +3,7 @@ import type { EidosFileSqlPrimitive } from "./connection"
 import { canonicalizeEidosFileJson } from "./canonical-json"
 import { parseEidosFileCsvRows } from "./csv"
 import {
+  eidosFileConversionCanReusePhysicalColumn,
   planCanonicalFieldConversion,
   type CanonicalConversionPlan,
 } from "./canonical-conversion"
@@ -102,6 +103,7 @@ import type {
   ViewMutationRequest,
   ViewMutationResult,
 } from "./runtime-contract"
+import { scanStableRowPages } from "./stable-row-scan"
 import { initializeEidosFileSchema } from "./schema"
 import {
   isCanonicalEidosFileDate,
@@ -554,6 +556,26 @@ export class EidosRuntimeService implements RuntimeClient {
         this.read(async () => {
           assertLimit(request.limit, EIDOS_RUNTIME_LIMITS.pageSizeMax, "limit")
           assertProjection(request.projection)
+          if (request.offset !== undefined) {
+            if (!Number.isSafeInteger(request.offset) || request.offset < 0) {
+              throw runtimeError(
+                "invalid-request",
+                "offset must be a non-negative JSON safe integer"
+              )
+            }
+            if (request.cursor !== undefined) {
+              throw runtimeError(
+                "invalid-request",
+                "offset and cursor cannot be used together"
+              )
+            }
+            if (request.direction === "backward") {
+              throw runtimeError(
+                "invalid-request",
+                "offset only supports forward row queries"
+              )
+            }
+          }
           const query = this.compatibilityQuery(request.tableId, request.query)
           const direction = request.direction ?? "forward"
           const metadata = this.core.info()
@@ -611,6 +633,7 @@ export class EidosRuntimeService implements RuntimeClient {
             fields,
             query: traversal,
             limit: request.limit + 1,
+            ...(request.offset !== undefined ? { offset: request.offset } : {}),
             cursor: coreCursor,
             resolveRelations: request.projection.resolveRelations.length > 0,
           })
@@ -644,7 +667,7 @@ export class EidosRuntimeService implements RuntimeClient {
           const hasEarlier =
             direction === "backward"
               ? hasMoreInTraversal
-              : request.cursor !== undefined
+              : request.cursor !== undefined || (request.offset ?? 0) > 0
           const hasLater =
             direction === "forward"
               ? hasMoreInTraversal
@@ -2049,8 +2072,85 @@ export class EidosRuntimeService implements RuntimeClient {
       )
     }
     const keys = new Set<string>()
+    for (const item of request.items) {
+      if (!item.key || keys.has(item.key)) {
+        throw runtimeError(
+          "invalid-request",
+          "Aggregate keys must be non-empty and unique"
+        )
+      }
+      keys.add(item.key)
+    }
+    const query = this.compatibilityQuery(request.tableId, request.query ?? {})
+    if (request.items.every((item) => item.op === "count-all")) {
+      const metadata = this.core.info()
+      const count = String(this.core.countRows(request.tableId, query))
+      return {
+        fileId: metadata.fileId,
+        tableId: request.tableId,
+        revision: String(metadata.revision),
+        results: request.items.map((item) => ({ key: item.key, value: count })),
+      }
+    }
     const fields = this.core.listFields(request.tableId)
     const fieldsById = new Map(fields.map((field) => [field.id!, field]))
+    const hasRowQuery =
+      request.query !== undefined && Object.keys(request.query).length > 0
+    if (
+      !hasRowQuery &&
+      request.items.every(
+        (item) =>
+          item.op === "count-all" ||
+          (item.op === "distinct-count" &&
+            fieldsById.get(item.fieldId)?.physicalName) ||
+          (item.op === "distinct-values" &&
+            fieldsById.get(item.fieldId)?.physicalName &&
+            ["text", "select", "url"].includes(
+              fieldsById.get(item.fieldId)!.type
+            ))
+      )
+    ) {
+      const metadata = this.core.info()
+      const table = this.core.getTable(request.tableId)
+      const tableSql = quoteSqlIdentifier(
+        table.physicalName ?? table.rawTableName
+      )
+      return {
+        fileId: metadata.fileId,
+        tableId: request.tableId,
+        revision: String(metadata.revision),
+        results: request.items.map((item) => {
+          if (item.op === "count-all") {
+            return {
+              key: item.key,
+              value: String(this.core.countRows(request.tableId)),
+            }
+          }
+          const field = fieldsById.get(item.fieldId)!
+          if (item.op === "distinct-values") {
+            const rows = this.core.connection.query<{
+              value: EidosFileSqlPrimitive
+            }>(
+              `SELECT DISTINCT ${quoteSqlIdentifier(field.physicalName!)} AS value
+                 FROM ${tableSql}
+                WHERE ${quoteSqlIdentifier(field.physicalName!)} IS NOT NULL
+                ORDER BY ${quoteSqlIdentifier(field.physicalName!)} COLLATE BINARY
+                LIMIT ?`,
+              [item.limit + 1]
+            )
+            return {
+              key: item.key,
+              values: rows.slice(0, item.limit).map((row) => String(row.value)),
+              truncated: rows.length > item.limit,
+            }
+          }
+          const count = this.core.connection.get<{ count: number | bigint }>(
+            `SELECT count(DISTINCT ${quoteSqlIdentifier(field.physicalName!)}) AS count FROM ${tableSql}`
+          )?.count
+          return { key: item.key, value: String(count ?? 0) }
+        }),
+      }
+    }
     const fieldIds = Array.from(
       new Set([
         ...request.items.flatMap((item) =>
@@ -2067,20 +2167,9 @@ export class EidosRuntimeService implements RuntimeClient {
       }
     }
     const rows = this.core
-      .runtimeScanLogicalRows(
-        request.tableId,
-        fieldIds,
-        this.compatibilityQuery(request.tableId, request.query ?? {})
-      )
+      .runtimeScanLogicalRows(request.tableId, fieldIds, query)
       .sort((left, right) => binaryCompare(left.id, right.id))
     const results = request.items.map((item) => {
-      if (!item.key || keys.has(item.key)) {
-        throw runtimeError(
-          "invalid-request",
-          "Aggregate keys must be non-empty and unique"
-        )
-      }
-      keys.add(item.key)
       if (item.op === "count-all") {
         return { key: item.key, value: String(rows.length) }
       }
@@ -2944,26 +3033,58 @@ export class EidosRuntimeService implements RuntimeClient {
         error: "Virtual and inverse Fields cannot be converted",
       }
     }
+    const targetNullable = "toNullable" in change ? change.toNullable : false
+    if (
+      eidosFileConversionCanReusePhysicalColumn(
+        field.type as StoredFieldType,
+        change.to,
+        field.nullable ?? false,
+        targetNullable
+      ) &&
+      change.to !== "url"
+    ) {
+      return {
+        classification: "metadata-only",
+        rows: [],
+        affectedRows: "0",
+        valueChanges: [],
+      }
+    }
     const table = this.core.getTable(field.tableId)
-    const rows = this.core.connection.query<{
+    const rows: Array<{
+      id: string
+      value: EidosFileSqlPrimitive
+    }> = []
+    scanStableRowPages<{
       id: string
       value: EidosFileSqlPrimitive
     }>(
-      `SELECT "_id" AS id, ${quoteSqlIdentifier(field.physicalName)} AS value
-         FROM ${quoteSqlIdentifier(table.physicalName ?? table.rawTableName)}
-        ORDER BY "_id" COLLATE BINARY`
+      this.core.connection,
+      {
+        columnsSql: `"_id" AS id, ${quoteSqlIdentifier(field.physicalName)} AS value`,
+        tableSql: quoteSqlIdentifier(table.physicalName ?? table.rawTableName),
+        rowIdSql: `"_id"`,
+        rowIdKey: "id",
+      },
+      (page) => rows.push(...page)
     )
     let relationIds: Set<string> | undefined
     if (change.to === "relation") {
       const target = this.core.getTable(change.definition.targetTableId)
-      relationIds = new Set(
-        this.core.connection
-          .query<{ id: string }>(
-            `SELECT "_id" AS id FROM ${quoteSqlIdentifier(
-              target.physicalName ?? target.rawTableName
-            )}`
-          )
-          .map((row) => row.id)
+      relationIds = new Set<string>()
+      scanStableRowPages<{ id: string }>(
+        this.core.connection,
+        {
+          columnsSql: `"_id" AS id`,
+          tableSql: quoteSqlIdentifier(
+            target.physicalName ?? target.rawTableName
+          ),
+          rowIdSql: `"_id"`,
+          rowIdKey: "id",
+        },
+        (page) => {
+          for (const row of page) relationIds!.add(row.id)
+        }
       )
     }
     return planCanonicalFieldConversion({
@@ -3243,19 +3364,37 @@ export class EidosRuntimeService implements RuntimeClient {
               conversion.error ?? "Conversion predicates no longer hold"
             )
           }
-          this.core.convertStoredField(
-            leaf.fieldId,
-            leaf.to,
-            "toNullable" in leaf ? leaf.toNullable : false,
-            conversion.rows,
-            leaf.to === "relation"
-              ? {
-                  targetTableId: leaf.definition.targetTableId,
-                  cardinality: leaf.definition.cardinality,
-                  onDelete: leaf.definition.onDelete,
-                }
-              : undefined
-          )
+          const targetNullable = "toNullable" in leaf ? leaf.toNullable : false
+          if (
+            conversion.classification === "metadata-only" &&
+            (leaf.to === "text" || leaf.to === "select" || leaf.to === "url") &&
+            eidosFileConversionCanReusePhysicalColumn(
+              field.type as StoredFieldType,
+              leaf.to,
+              field.nullable ?? false,
+              targetNullable
+            )
+          ) {
+            this.core.convertStoredFieldMetadataOnly(
+              leaf.fieldId,
+              leaf.to,
+              targetNullable
+            )
+          } else {
+            this.core.convertStoredField(
+              leaf.fieldId,
+              leaf.to,
+              targetNullable,
+              conversion.rows,
+              leaf.to === "relation"
+                ? {
+                    targetTableId: leaf.definition.targetTableId,
+                    cardinality: leaf.definition.cardinality,
+                    onDelete: leaf.definition.onDelete,
+                  }
+                : undefined
+            )
+          }
           affectedTableIds.add(field.tableId)
           affectedFieldIds.add(leaf.fieldId)
           break
@@ -4960,6 +5099,18 @@ function assertAggregateItems(
         fieldId: item.fieldId,
       })
     }
+    if (
+      item.op === "distinct-values" &&
+      (!Number.isInteger(item.limit) ||
+        item.limit < 1 ||
+        item.limit > EIDOS_RUNTIME_LIMITS.pageSizeMax)
+    ) {
+      throw runtimeError(
+        "invalid-request",
+        "Distinct value limit exceeds pageSizeMax",
+        { fieldId: item.fieldId }
+      )
+    }
   }
 }
 
@@ -5067,6 +5218,18 @@ function aggregateItemResult(
   }
   if (item.op === "distinct-count") {
     return { key: item.key, value: String(distinct.size) }
+  }
+  if (item.op === "distinct-values") {
+    const ordered = Array.from(distinct.values()).sort((left, right) =>
+      compareAggregateValues(left, right, valueType)
+    )
+    return {
+      key: item.key,
+      values: ordered
+        .slice(0, item.limit)
+        .map((value) => publicAggregateValue(value, valueType)),
+      truncated: ordered.length > item.limit,
+    }
   }
   const sortable = typeof valueType === "string" && isSortableType(valueType)
   const numeric = valueType === "integer" || valueType === "number"

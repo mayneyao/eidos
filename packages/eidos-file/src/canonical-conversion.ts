@@ -56,6 +56,51 @@ type Converted = {
   code?: SchemaValueChangeCode
 }
 
+/**
+ * Product defaults for conversions requested by the Eidos File editor.
+ *
+ * These policies are intentionally explicit: the Runtime still reports an
+ * `explicit-lossy` preflight and requires confirmation whenever the values in
+ * the current Field would actually lose information.
+ */
+export function recommendedEidosFileConversionPolicies(
+  from: StoredFieldType,
+  to: StoredFieldType
+): ConversionPolicy[] {
+  const policies: ConversionPolicy[] = []
+  if (from === "json" && to !== "json" && to !== "text") {
+    policies.push("json-null-to-sql-null")
+  }
+  if (from === "integer" && (to === "number" || to === "json")) {
+    policies.push("round-binary64")
+  }
+  if (from === "number" && to === "integer") {
+    policies.push("round-ties-even")
+  }
+  if ((from === "integer" || from === "number") && to === "checkbox") {
+    policies.push("zero-false-nonzero-true")
+  }
+  if (from === "datetime" && to === "date") policies.push("utc-date")
+  if (from === "multi-select" && to === "select") policies.push("first")
+  if (!LIST_TYPES.has(from) && LIST_TYPES.has(to)) {
+    policies.push("null-to-empty-list")
+  }
+  return policies
+}
+
+/** Returns the nullable shape used by editor-initiated conversions. */
+export function eidosFileConversionTargetNullable(
+  from: StoredFieldType,
+  to: StoredFieldType,
+  sourceNullable: boolean
+): boolean {
+  return (
+    sourceNullable ||
+    (from === "multi-select" && to === "select") ||
+    (from === "json" && to !== "json" && to !== "text")
+  )
+}
+
 const INT64_MIN = -9_223_372_036_854_775_808n
 const INT64_MAX = 9_223_372_036_854_775_807n
 const INT64 = /^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/u
@@ -71,6 +116,25 @@ const TEXT_TYPES = new Set<StoredFieldType>([
   "url",
   "select",
 ])
+const SHARED_TEXT_COLUMN_TYPES = new Set<StoredFieldType>([
+  "text",
+  "select",
+  "url",
+])
+
+/** True when a conversion can retain the exact nullable SQLite column DDL. */
+export function eidosFileConversionCanReusePhysicalColumn(
+  from: StoredFieldType,
+  to: StoredFieldType,
+  sourceNullable: boolean,
+  targetNullable: boolean
+): boolean {
+  return (
+    sourceNullable === targetNullable &&
+    SHARED_TEXT_COLUMN_TYPES.has(from) &&
+    SHARED_TEXT_COLUMN_TYPES.has(to)
+  )
+}
 
 export function planCanonicalFieldConversion(
   input: CanonicalConversionInput
@@ -358,8 +422,10 @@ function convertNonNull(
     if (from === "select" && to === "multi-select") {
       return { value: canonicalizeEidosFileJson([asText(value)]), class: 1 }
     }
+    if (from === "text" && to === "multi-select") {
+      return { value: canonicalizeEidosFileJson([asText(value)]), class: 1 }
+    }
     if (
-      from === "text" ||
       from === "json" ||
       (from === "multi-select" && to === "relation") ||
       (from === "relation" && to === "multi-select") ||

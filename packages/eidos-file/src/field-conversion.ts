@@ -64,6 +64,23 @@ export function isMutableEidosFileFieldType(
   return MUTABLE_TYPE_SET.has(type)
 }
 
+/**
+ * Whether the editor must disclose possible value loss before requesting the
+ * conversion. The Runtime remains authoritative and confirms the classification
+ * against the complete stored value domain during preflight.
+ */
+export function eidosFileFieldConversionMayRequireLossyConfirmation(
+  from: EidosFileFieldType,
+  to: EidosFileFieldType
+): boolean {
+  return (
+    (from === "multi-select" && to === "select") ||
+    (from === "datetime" && to === "date") ||
+    ((from === "number" || from === "rating") &&
+      (to === "checkbox" || to === "rating" || to === "number"))
+  )
+}
+
 export function decodeEidosFileMultiSelectValues(
   value: EidosFileSqlPrimitive
 ): string[] {

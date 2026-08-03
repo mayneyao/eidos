@@ -1,6 +1,9 @@
 import type { EidosFileFieldInfo } from "./types"
 import { encodeEidosFileAttachmentPaths } from "./file-values"
-import { planEidosFileFieldConversion } from "./field-conversion"
+import {
+  eidosFileFieldConversionMayRequireLossyConfirmation,
+  planEidosFileFieldConversion,
+} from "./field-conversion"
 
 function field(
   type: EidosFileFieldInfo["type"],
@@ -29,6 +32,30 @@ function field(
 }
 
 describe("Eidos File field conversion", () => {
+  it("marks every editor route that can use a lossy default policy", () => {
+    expect(
+      [
+        ["multi-select", "select"],
+        ["datetime", "date"],
+        ["number", "checkbox"],
+        ["number", "rating"],
+        ["rating", "checkbox"],
+        ["rating", "number"],
+      ].every(([from, to]) =>
+        eidosFileFieldConversionMayRequireLossyConfirmation(
+          from as EidosFileFieldInfo["type"],
+          to as EidosFileFieldInfo["type"]
+        )
+      )
+    ).toBe(true)
+    expect(
+      eidosFileFieldConversionMayRequireLossyConfirmation("text", "select")
+    ).toBe(false)
+    expect(
+      eidosFileFieldConversionMayRequireLossyConfirmation("date", "datetime")
+    ).toBe(false)
+  })
+
   it("normalizes numeric, checkbox, and rating values", () => {
     const rows = [
       { id: "a", value: "12.5" },

@@ -348,6 +348,117 @@ describe("EidosFileCsvImportPopover", () => {
     )
   })
 
+  it("does not label an import preflight scan as row import progress", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileCsvImportPopover
+          onSelect={() =>
+            Promise.resolve({
+              canceled: false,
+              token: "csv-token",
+              fileName: plan.fileName,
+            })
+          }
+          onPreview={() => Promise.resolve(plan)}
+          onImport={() => new Promise<void>(() => undefined)}
+          onProgress={(operationId) =>
+            Promise.resolve({
+              operationId,
+              kind: "import",
+              status: "running",
+              phase: "analyzing",
+              processedBytes: 50,
+              totalBytes: 100,
+              processedRows: 1,
+              totalRows: null,
+              updatedAt: 1,
+            })
+          }
+          onCancel={() => Promise.resolve(true)}
+        />
+      )
+    })
+
+    const choose = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("Import CSV")
+    )
+    await act(async () => {
+      choose?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const form = document.body.querySelector("form")
+    await act(async () => {
+      form?.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true })
+      )
+      await Promise.resolve()
+      vi.advanceTimersByTime(150)
+      await Promise.resolve()
+    })
+
+    expect(document.body.textContent).toContain("Analyzing CSV… 50%")
+    expect(document.body.textContent).not.toContain("Importing rows… 50%")
+  })
+
+  it("does not cancel an in-flight import when callbacks change during rerender", async () => {
+    const onImport = vi.fn(() => new Promise<void>(() => undefined))
+    const firstCancel = vi.fn(async () => true)
+    const secondCancel = vi.fn(async () => true)
+    const renderPopover = (
+      onCancel: (operationId: string) => Promise<boolean>
+    ) => (
+      <EidosFileCsvImportPopover
+        onSelect={() =>
+          Promise.resolve({
+            canceled: false,
+            token: "csv-token",
+            fileName: plan.fileName,
+          })
+        }
+        onPreview={() => Promise.resolve(plan)}
+        onImport={onImport}
+        onProgress={() => Promise.resolve(null)}
+        onCancel={onCancel}
+      />
+    )
+
+    await act(async () => {
+      root.render(renderPopover(firstCancel))
+    })
+    const choose = [...document.body.querySelectorAll("button")].find(
+      (button) => button.textContent?.includes("Import CSV")
+    )
+    await act(async () => {
+      choose?.click()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const form = document.body.querySelector("form")
+    await act(async () => {
+      form?.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true })
+      )
+      await Promise.resolve()
+    })
+
+    expect(onImport).toHaveBeenCalledOnce()
+    await act(async () => {
+      root.render(renderPopover(secondCancel))
+      await Promise.resolve()
+    })
+
+    expect(firstCancel).not.toHaveBeenCalled()
+    expect(secondCancel).not.toHaveBeenCalled()
+
+    await act(async () => {
+      root.unmount()
+      await Promise.resolve()
+    })
+    expect(secondCancel).toHaveBeenCalledOnce()
+    root = createRoot(container)
+  })
+
   it("opens immediately and can cancel CSV analysis", async () => {
     let rejectPreview: ((error: Error) => void) | undefined
     const onPreview = vi.fn(

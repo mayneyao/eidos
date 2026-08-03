@@ -74,6 +74,7 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
       view={view}
       disabled={disabled}
       reloadToken={reloadToken}
+      searchResultIndex={props.searchResultIndex}
       loadPage={loadPage}
       loadRow={
         source.getRow
@@ -83,6 +84,7 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
       onCellEdit={editCell}
       onDeleteRow={onDeleteRow}
       onSearchRelation={searchRelation}
+      onRowCountChange={props.onSearchResultCountChange}
       onError={onError}
       sidePanel={
         props.propertyField ? (

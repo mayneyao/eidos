@@ -84,6 +84,7 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
       view={view}
       disabled={disabled}
       reloadToken={reloadToken}
+      searchResultIndex={props.searchResultIndex}
       loadGroupCounts={(field) =>
         source.getGroupCounts!(table.table.id, eidosFileFieldKey(field), query)
       }
@@ -114,6 +115,7 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
       onAddRow={addRow}
       onDeleteRow={onDeleteRow}
       onSearchRelation={searchRelation}
+      onRowCountChange={props.onSearchResultCountChange}
       onError={onError}
       sidePanel={
         props.propertyField ? (

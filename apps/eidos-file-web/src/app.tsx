@@ -2060,6 +2060,10 @@ export function App() {
 
       <EidosFileEditorShell
         className="min-h-0 flex-1 !h-auto"
+        searchNavigation={{
+          search,
+          scopeKey: `${snapshot.metadata.fileId}:${activeTable.table.id}:${activeView?.id ?? "default"}`,
+        }}
         viewTabs={
           <EidosFileViewTabs
             views={activeTable.views}

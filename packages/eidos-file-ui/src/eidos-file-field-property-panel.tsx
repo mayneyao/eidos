@@ -6,7 +6,10 @@ import type {
   MutableEidosFileFieldType,
   UpdateEidosFileFieldInput,
 } from "@eidos.space/eidos-file"
-import { MUTABLE_BASE_FIELD_TYPES } from "@eidos.space/eidos-file"
+import {
+  eidosFileFieldConversionMayRequireLossyConfirmation,
+  MUTABLE_BASE_FIELD_TYPES,
+} from "@eidos.space/eidos-file"
 import {
   Calculator,
   ChevronRight,
@@ -92,7 +95,14 @@ export function EidosFileFieldPropertyPanel({
   const numberProperty = useMemo(() => eidosFileNumberProperty(field), [field])
   const mutable =
     field.valueKind === "source" &&
+    field.type !== "file" &&
     MUTABLE_BASE_FIELD_TYPES.some((type) => type === field.type)
+  const mutableTypes = MUTABLE_BASE_FIELD_TYPES.filter(
+    (type) => type !== "file"
+  )
+  const conversionMayChangeValues =
+    pendingType !== null &&
+    eidosFileFieldConversionMayRequireLossyConfirmation(field.type, pendingType)
   const currentTable = tables.find(
     (candidate) => candidate.table.id === field.tableId
   )
@@ -221,7 +231,10 @@ export function EidosFileFieldPropertyPanel({
     if (!pendingType || pendingType === field.type) return
     setApplyingType(true)
     try {
-      await update({ type: pendingType })
+      await update({
+        type: pendingType,
+        ...(conversionMayChangeValues ? { confirmLossy: true } : {}),
+      })
       setPendingType(null)
     } catch {
       // The pending type and local error remain available for an in-place retry.
@@ -308,7 +321,7 @@ export function EidosFileFieldPropertyPanel({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MUTABLE_BASE_FIELD_TYPES.map((type) => (
+                  {mutableTypes.map((type) => (
                     <SelectItem key={type} value={type}>
                       <span className="flex items-center gap-2">
                         <EidosFileFieldTypeIcon
@@ -330,9 +343,13 @@ export function EidosFileFieldPropertyPanel({
           {pendingType && pendingType !== field.type ? (
             <div className="grid gap-2 rounded-md border bg-muted/30 p-2.5">
               <p className="text-[11px] leading-4 text-muted-foreground">
-                {t(
-                  "Existing values will be converted in place and saved directly to this Eidos File."
-                )}
+                {conversionMayChangeValues
+                  ? t(
+                      "Some values may be shortened or changed. The conversion is atomic, so nothing changes if it cannot be completed."
+                    )
+                  : t(
+                      "Existing values will be converted in place. If a value does not fit, the field remains unchanged."
+                    )}
               </p>
               <div className="flex justify-end gap-1.5">
                 <Button
@@ -355,7 +372,11 @@ export function EidosFileFieldPropertyPanel({
                   disabled={busy || applyingType}
                   onClick={() => void applyType()}
                 >
-                  {applyingType ? t("Converting…") : t("Apply type")}
+                  {applyingType
+                    ? t("Converting…")
+                    : conversionMayChangeValues
+                      ? t("Convert anyway")
+                      : t("Apply type")}
                 </Button>
               </div>
             </div>

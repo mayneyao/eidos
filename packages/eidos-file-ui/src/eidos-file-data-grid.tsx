@@ -26,6 +26,7 @@ export interface EidosFileDataGridProps {
   tables?: readonly EidosFileTableSnapshot[]
   view?: EidosFileViewInfo
   search?: string
+  searchResultIndex?: number | null
   disabled?: boolean
   reloadToken?: number
   propertyField?: EidosFileFieldInfo | null
@@ -40,6 +41,7 @@ export interface EidosFileDataGridProps {
   onFieldAdd?: (position?: number) => void
   onEditFormula?: (field: EidosFileFieldInfo) => void
   onEditLookup?: (field: EidosFileFieldInfo) => void
+  onSearchResultCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
 }
 
@@ -54,6 +56,7 @@ export function EidosFileDataGrid({
   tables,
   view,
   search = "",
+  searchResultIndex = null,
   disabled = false,
   reloadToken = 0,
   propertyField,
@@ -65,6 +68,7 @@ export function EidosFileDataGrid({
   onFieldAdd,
   onEditFormula,
   onEditLookup,
+  onSearchResultCountChange,
   onError,
 }: EidosFileDataGridProps) {
   const [deleteFieldTarget, setDeleteFieldTarget] =
@@ -164,6 +168,7 @@ export function EidosFileDataGrid({
         view={view}
         disabled={disabled}
         reloadToken={reloadToken}
+        searchResultIndex={searchResultIndex}
         loadPage={loadPage}
         loadColumnStats={loadColumnStats}
         onAddRow={addRow}
@@ -175,6 +180,7 @@ export function EidosFileDataGrid({
         onAddField={onFieldAdd}
         onEditFormula={onEditFormula}
         onEditLookup={onEditLookup}
+        onRowCountChange={onSearchResultCountChange}
         onDeleteField={setDeleteFieldTarget}
         onSearchRelation={searchRelation}
         onRequestDeleteRows={

@@ -37,6 +37,7 @@
   "files": [
     "dist",
     "README.md",
+    "FIELD-CONVERSION.md",
     "DEVELOPER_PLATFORM.md",
     "LICENSE"
   ],

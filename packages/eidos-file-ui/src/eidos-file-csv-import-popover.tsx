@@ -141,6 +141,8 @@ export function EidosFileCsvImportPopover({
     useState<EidosFileCsvOperationProgress | null>(null)
   const previewSequence = useRef(0)
   const activeOperation = useRef<string | null>(null)
+  const onCancelRef = useRef(onCancel)
+  onCancelRef.current = onCancel
   const validatedTypes = useRef("")
   const pausedTypes = useRef("")
   const planReady = plan !== null
@@ -284,9 +286,11 @@ export function EidosFileCsvImportPopover({
 
   useEffect(
     () => () => {
-      if (activeOperation.current) void onCancel(activeOperation.current)
+      if (activeOperation.current) {
+        void onCancelRef.current(activeOperation.current)
+      }
     },
-    [onCancel]
+    []
   )
 
   useEffect(() => {
@@ -390,7 +394,7 @@ export function EidosFileCsvImportPopover({
     ? t("Canceling…")
     : progress?.phase === "finalizing"
       ? t("Finalizing table…")
-      : progress?.phase === "importing" || importing
+      : progress?.phase === "importing" || (importing && !progress)
         ? progress
           ? t("Importing rows… {percent}%", { percent })
           : t("Importing…")
@@ -757,9 +761,7 @@ export function EidosFileCsvImportPopover({
                       <LoaderCircle className="mr-1.5 h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
                     ) : null}
                     {importing
-                      ? progress
-                        ? t("Importing {percent}%", { percent })
-                        : t("Importing…")
+                      ? operationLabel
                       : t("Import {count} rows", {
                           count: plan.rowCount.toLocaleString(),
                         })}

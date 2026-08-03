@@ -7,6 +7,7 @@ import type {
 } from "@eidos.space/eidos-file"
 
 import { EidosFileCsvImportPopover } from "../eidos-file-csv-import-popover"
+import type { EidosFileCsvOperationProgress } from "../eidos-file-csv-operation-progress"
 import { defineEidosFilePlugin, type EidosFilePluginContext } from "../plugin"
 
 export interface EidosFileCsvImportSource {
@@ -18,15 +19,19 @@ export interface EidosFileCsvImportAdapter {
   pickFile(): Promise<EidosFileCsvImportSource | null>
   preview(
     source: EidosFileCsvImportSource,
-    options: EidosFileCsvImportOptions
+    options: EidosFileCsvImportOptions,
+    operationId: string
   ): Promise<EidosFileCsvImportPlan>
   import(
     source: EidosFileCsvImportSource,
-    options: EidosFileCsvImportOptions
+    options: EidosFileCsvImportOptions,
+    operationId: string
   ): Promise<{
     snapshot: EidosFileSnapshot
     result: EidosFileCsvImportResult
   }>
+  progress?(operationId: string): Promise<EidosFileCsvOperationProgress | null>
+  cancel?(operationId: string): Promise<boolean>
   release?(source: EidosFileCsvImportSource): void
 }
 
@@ -117,22 +122,26 @@ function CanonicalCsvImportAction({
           fileName: source.fileName,
         }
       }}
-      onPreview={async (token, options) => {
+      onPreview={async (token, options, operationId) => {
         const source = sources.current.get(token)
         if (!source) throw new Error("The selected CSV is no longer available")
-        return adapter.preview(source, options)
+        return adapter.preview(source, options, operationId)
       }}
-      onImport={async (token, options) => {
+      onImport={async (token, options, operationId) => {
         const source = sources.current.get(token)
         if (!source) throw new Error("The selected CSV is no longer available")
-        const imported = await adapter.import(source, options)
+        const imported = await adapter.import(source, options, operationId)
         context.onSnapshot(imported.snapshot)
         context.onTableSelect?.(imported.result.table.id)
         adapter.release?.(source)
         sources.current.delete(token)
       }}
-      onProgress={async () => null}
-      onCancel={async () => false}
+      onProgress={(operationId) =>
+        adapter.progress?.(operationId) ?? Promise.resolve(null)
+      }
+      onCancel={(operationId) =>
+        adapter.cancel?.(operationId) ?? Promise.resolve(false)
+      }
     />
   )
 }

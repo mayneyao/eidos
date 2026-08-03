@@ -187,11 +187,18 @@ describe("Eidos File CSV import", () => {
     })
     const connection = eidosFile.connection
     const originalRun = connection.run
+    const originalRunMany = connection.runMany
     connection.run = (sql, params) => {
       if (/^INSERT INTO "people"/u.test(sql.trim())) {
         throw new EidosFileError("invalid-csv", "simulated write failure")
       }
       return originalRun.call(connection, sql, params)
+    }
+    connection.runMany = (sql, parameterSets) => {
+      if (/^INSERT INTO "people"/u.test(sql.trim())) {
+        throw new EidosFileError("invalid-csv", "simulated write failure")
+      }
+      return originalRunMany!.call(connection, sql, parameterSets)
     }
 
     expect(() =>
@@ -203,6 +210,7 @@ describe("Eidos File CSV import", () => {
     expect(eidosFile.listTables()).toEqual([])
 
     connection.run = originalRun
+    connection.runMany = originalRunMany
     eidosFile.close()
   })
 

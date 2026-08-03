@@ -47,6 +47,7 @@ import {
 } from "./relation-values"
 import { incrementEidosFileRevision } from "./schema"
 import { assertEidosFileSelectOptions } from "./select-options"
+import { scanStableRowPages } from "./stable-row-scan"
 import {
   currentEidosFileInstant,
   eidosFileDateSqlCheck,
@@ -2016,6 +2017,40 @@ export class EidosFileRuntime {
   }
 
   /** @internal Applies a preflighted Runtime 1.0 stored-type conversion. */
+  convertStoredFieldMetadataOnly(
+    fieldId: string,
+    targetType: "text" | "select" | "url",
+    nullable: boolean
+  ): EidosFileFieldInfo {
+    const field = Array.from(this.allSchema().fields.values()).find(
+      (candidate) => candidate.id === fieldId
+    )
+    if (
+      !field ||
+      !field.physicalName ||
+      !["text", "select", "url"].includes(field.type) ||
+      (field.nullable ?? false) !== nullable
+    ) {
+      throw new EidosFileError(
+        "invalid-schema",
+        "Metadata-only conversion requires an unchanged Text, Select, or URL storage shape"
+      )
+    }
+    return this.mutate(() => {
+      this.connection.run(
+        `UPDATE ${EIDOS_FILE_FIELDS_TABLE} SET type = ? WHERE id = ?`,
+        [targetType, fieldId]
+      )
+      this.connection.run(
+        `UPDATE ${EIDOS_FILE_TABLES_TABLE} SET updated_at = ? WHERE id = ?`,
+        [this.operationInstant(), field.tableId]
+      )
+      this.schemaCache = undefined
+      return this.fieldByKey(field.tableId, fieldId)
+    })
+  }
+
+  /** @internal Applies a preflighted Runtime 1.0 stored-type conversion. */
   convertStoredField(
     fieldId: string,
     targetType: EidosFileFieldType,
@@ -2182,34 +2217,45 @@ export class EidosFileRuntime {
     )
     const columns = stored.map((field) => quoteIdentifier(field.physicalName!))
     if (transformed) {
-      const sourceRows = this.connection.query<
-        Record<string, EidosFileSqlPrimitive>
-      >(
-        `SELECT * FROM ${quoteIdentifier(physicalName)} ORDER BY "_id" COLLATE BINARY`
-      )
-      const parameterSets = sourceRows.map((row) => {
-        const rowId = String(row._id)
-        const conversion = transformed.rows.get(rowId)
-        if (!conversion) {
-          throw new EidosFileError(
-            "stale-revision",
-            "Conversion row set changed before apply"
-          )
-        }
-        return stored.map((storedField) => {
-          if (storedField.id === transformed.fieldId) return conversion.value
-          if (storedField.systemRole === "updated-time" && conversion.changed) {
-            return this.operationInstant()
-          }
-          return row[storedField.physicalName!]
-        })
-      })
       const placeholders = columns.map(() => "?").join(", ")
       const sql = `INSERT INTO ${quoteIdentifier(temporary)} (${columns.join(", ")}) VALUES (${placeholders})`
-      if (this.connection.runMany) this.connection.runMany(sql, parameterSets)
-      else
-        for (const parameters of parameterSets)
-          this.connection.run(sql, parameters)
+      scanStableRowPages<Record<string, EidosFileSqlPrimitive>>(
+        this.connection,
+        {
+          columnsSql: "*",
+          tableSql: quoteIdentifier(physicalName),
+          rowIdSql: `"_id"`,
+          rowIdKey: "_id",
+        },
+        (sourceRows) => {
+          const parameterSets = sourceRows.map((row) => {
+            const rowId = String(row._id)
+            const conversion = transformed.rows.get(rowId)
+            if (!conversion) {
+              throw new EidosFileError(
+                "stale-revision",
+                "Conversion row set changed before apply"
+              )
+            }
+            return stored.map((storedField) => {
+              if (storedField.id === transformed.fieldId)
+                return conversion.value
+              if (
+                storedField.systemRole === "updated-time" &&
+                conversion.changed
+              ) {
+                return this.operationInstant()
+              }
+              return row[storedField.physicalName!]
+            })
+          })
+          if (this.connection.runMany)
+            this.connection.runMany(sql, parameterSets)
+          else
+            for (const parameters of parameterSets)
+              this.connection.run(sql, parameters)
+        }
+      )
     } else {
       this.connection.exec(
         "INSERT INTO " +
@@ -3868,10 +3914,15 @@ export class EidosFileRuntime {
     const tableName = table.physicalName ?? table.rawTableName
     const plans = new Map<
       string,
-      { keys: string[]; fields: EidosFileFieldInfo[]; sql: string }
+      {
+        keys: string[]
+        fields: EidosFileFieldInfo[]
+        sql: string
+        parameterSets: EidosFileSqlPrimitive[][]
+      }
     >()
     const now = this.operationInstant()
-    return rows.map((row) => {
+    const ids = rows.map((row) => {
       const requestedId = row._id ?? row.id
       const rowId =
         typeof requestedId === "string"
@@ -3911,6 +3962,7 @@ export class EidosFileRuntime {
           sql: `INSERT INTO ${quoteIdentifier(tableName)}
             (${columns.map(quoteIdentifier).join(", ")})
            VALUES (${columns.map(() => "?").join(", ")})`,
+          parameterSets: [],
         }
         plans.set(signature, plan)
       }
@@ -3922,9 +3974,19 @@ export class EidosFileRuntime {
           this.normalizeStoredValue(plan.fields[index]!, row[key], true)
         ),
       ]
-      this.connection.run(plan.sql, values)
+      plan.parameterSets.push(values)
       return rowId
     })
+    for (const plan of plans.values()) {
+      if (this.connection.runMany) {
+        this.connection.runMany(plan.sql, plan.parameterSets)
+      } else {
+        for (const values of plan.parameterSets) {
+          this.connection.run(plan.sql, values)
+        }
+      }
+    }
+    return ids
   }
 
   insertRow(tableId: string, row: EidosFileRow): EidosFileRow {

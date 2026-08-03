@@ -87,6 +87,10 @@ bytes, and trusted Host authority remain outside UI.
 Unsupported pre-1.0 draft schemas are rejected rather than guessed or
 silently migrated.
 
+The supported editor matrix, lossy confirmation rules, canonical value
+requirements, and load budgets are documented in
+[`FIELD-CONVERSION.md`](./FIELD-CONVERSION.md).
+
 Runtime validates File values but grants no fetch, render, filesystem, or
 network authority. Relative/HTTPS bytes never enter a hidden SQLite attachment
 store. A Host resolves them through session-scoped asset leases; the canonical

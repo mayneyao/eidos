@@ -13,6 +13,7 @@ import { Puzzle } from "lucide-react"
 
 import { EidosFileDataGrid } from "./eidos-file-data-grid"
 import { eidosFileViewRowQuery } from "./eidos-file-view-query"
+import { useEidosFileSearchNavigation } from "./eidos-file-search-navigation"
 import type { EidosFileEditorDataSource } from "./data-source"
 import { createEidosFilePluginRegistry, type EidosFilePlugin } from "./plugin"
 
@@ -23,6 +24,8 @@ export interface EidosFileViewRendererProps {
   view?: EidosFileViewInfo
   query: EidosFileRowQuery
   search: string
+  searchResultIndex?: number | null
+  onSearchResultCountChange?: (rowCount: number | null) => void
   disabled: boolean
   reloadToken: number
   commands: readonly EidosFileViewCommand[]
@@ -121,6 +124,7 @@ export function EidosFileGridRenderer(props: EidosFileViewRendererProps) {
       tables={props.tables}
       view={props.view}
       search={props.search}
+      searchResultIndex={props.searchResultIndex}
       disabled={props.disabled}
       reloadToken={props.reloadToken}
       propertyField={props.propertyField}
@@ -132,6 +136,7 @@ export function EidosFileGridRenderer(props: EidosFileViewRendererProps) {
       onFieldAdd={props.onFieldAdd}
       onEditFormula={props.onEditFormula}
       onEditLookup={props.onEditLookup}
+      onSearchResultCountChange={props.onSearchResultCountChange}
       onError={props.onError}
     />
   )
@@ -179,6 +184,8 @@ export function EidosFileEditorView({
   table,
   view,
   search = "",
+  searchResultIndex,
+  onSearchResultCountChange,
   disabled = false,
   reloadToken = 0,
   commands = [],
@@ -196,6 +203,13 @@ export function EidosFileEditorView({
   renderUnsupportedView,
   ...callbacks
 }: EidosFileEditorViewProps) {
+  const searchNavigation = useEidosFileSearchNavigation()
+  const resolvedSearchResultIndex =
+    searchResultIndex === undefined
+      ? (searchNavigation?.searchResultIndex ?? null)
+      : searchResultIndex
+  const reportSearchResultCount =
+    onSearchResultCountChange ?? searchNavigation?.reportSearchResultCount
   const query = useMemo(
     () => eidosFileViewRowQuery(view, search),
     [search, view]
@@ -206,6 +220,8 @@ export function EidosFileEditorView({
     view,
     query,
     search,
+    searchResultIndex: resolvedSearchResultIndex,
+    onSearchResultCountChange: reportSearchResultCount,
     disabled,
     reloadToken,
     commands,

@@ -26,10 +26,13 @@ import {
   builtInEidosFileViewRenderers,
   type EidosFileViewRendererProps,
 } from "./eidos-file-editor-view"
+import { EidosFileQueryToolbar } from "./eidos-file-query-toolbar"
+import { EidosFileSearchNavigationProvider } from "./eidos-file-search-navigation"
 import {
   eidosFileViewGroupFilter,
   eidosFileViewRowQuery,
 } from "./eidos-file-view-query"
+import { EidosFileUIProvider } from "./context"
 import type { EidosFileEditorDataSource } from "./data-source"
 import { createEidosFilePluginRegistry, defineEidosFilePlugin } from "./plugin"
 import { eidosFileGalleryPlugin } from "./plugins/gallery"
@@ -221,6 +224,65 @@ describe("EidosFileEditorView registry", () => {
       filter: view.filter,
       sorts: view.sorts,
     })
+  })
+
+  it("coordinates toolbar navigation and active-view highlighting inside the shared UI package", () => {
+    const gridView: EidosFileViewInfo = { ...view, type: "grid" }
+    const onSearchChange = vi.fn()
+
+    act(() => {
+      root.render(
+        <EidosFileUIProvider>
+          <EidosFileSearchNavigationProvider
+            search="roadmap"
+            scopeKey="tasks:grid"
+          >
+            <EidosFileQueryToolbar
+              fields={table.fields}
+              filter={null}
+              sorts={[]}
+              search="roadmap"
+              onSearchChange={onSearchChange}
+              onFilterChange={vi.fn()}
+              onSortsChange={vi.fn()}
+            />
+            <EidosFileEditorView
+              source={source}
+              table={table}
+              view={gridView}
+              search="roadmap"
+            />
+          </EidosFileSearchNavigationProvider>
+        </EidosFileUIProvider>
+      )
+    })
+
+    act(() => gridMock.props?.onRowCountChange?.(3))
+    expect(document.body.textContent).toContain("1 of 3")
+    expect(gridMock.props?.searchResultIndex).toBe(0)
+
+    const input = document.body.querySelector<HTMLInputElement>(
+      'input[placeholder="Search rows"]'
+    )
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    })
+    expect(document.body.textContent).toContain("2 of 3")
+    expect(gridMock.props?.searchResultIndex).toBe(1)
+
+    act(() => {
+      input?.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          shiftKey: true,
+          bubbles: true,
+        })
+      )
+    })
+    expect(document.body.textContent).toContain("1 of 3")
+    expect(gridMock.props?.searchResultIndex).toBe(0)
   })
 
   it("routes Grid column stats through the public data source", async () => {

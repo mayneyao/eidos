@@ -151,6 +151,46 @@ describe("EidosFileDataGrid", () => {
     expect(getPage).toHaveBeenCalledWith("tasks", 0, 100, { filter }, undefined)
   })
 
+  it("forwards shared search navigation state to the Grid", async () => {
+    const onSearchResultCountChange = vi.fn()
+    const source = {
+      getPage: vi.fn(),
+      calculateColumnStats: vi.fn(),
+      insertRow: vi.fn(),
+      updateRow: vi.fn(),
+      deleteRowRanges: vi.fn(),
+      deleteRows: vi.fn(),
+      updateField: vi.fn(),
+      addField: vi.fn(),
+      deleteField: vi.fn(),
+      createTable: vi.fn(),
+      updateTable: vi.fn(),
+      deleteTable: vi.fn(),
+      createView: vi.fn(),
+      duplicateView: vi.fn(),
+      deleteView: vi.fn(),
+      reorderViews: vi.fn(),
+      updateView: vi.fn(),
+      getSnapshot: vi.fn(),
+    } as unknown as EidosFileDataSource
+
+    await act(async () => {
+      root.render(
+        <EidosFileDataGrid
+          source={source}
+          table={table}
+          search="Ada"
+          searchResultIndex={2}
+          onSearchResultCountChange={onSearchResultCountChange}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(mocks.props?.searchResultIndex).toBe(2)
+    expect(mocks.props?.onRowCountChange).toBe(onSearchResultCountChange)
+  })
+
   it("searches relation targets through the public data source contract", async () => {
     const getPage = vi.fn().mockResolvedValue({
       tableId: "people",

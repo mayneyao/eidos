@@ -492,6 +492,70 @@ describe("EidosFileFieldPropertyPanel", () => {
     })
   })
 
+  it("requires explicit confirmation before a conversion can shorten values", async () => {
+    const onUpdate = vi.fn(() => Promise.resolve())
+    await act(async () => {
+      root.render(
+        <EidosFileFieldPropertyPanel
+          field={field("multi-select")}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={onUpdate}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    await act(async () => {
+      container
+        .querySelector<HTMLElement>('button[role="combobox"]')
+        ?.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+        )
+      await Promise.resolve()
+    })
+    const selectOption = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent === "Select")
+    await act(async () => {
+      selectOption?.click()
+      await Promise.resolve()
+    })
+
+    expect(container.textContent).toContain(
+      "Some values may be shortened or changed"
+    )
+    expect(onUpdate).not.toHaveBeenCalled()
+    const confirm = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Convert anyway"
+    )
+    await act(async () => {
+      confirm?.click()
+      await Promise.resolve()
+    })
+    expect(onUpdate).toHaveBeenCalledWith(expect.any(Object), {
+      type: "select",
+      confirmLossy: true,
+    })
+  })
+
+  it("keeps File fields read-only instead of offering unsafe conversions", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileFieldPropertyPanel
+          field={field("file")}
+          disabled={false}
+          onClose={vi.fn()}
+          onUpdate={vi.fn()}
+          onDelete={vi.fn()}
+        />
+      )
+    })
+
+    expect(container.querySelector('button[role="combobox"]')).toBeNull()
+    expect(container.textContent).toContain("file")
+  })
+
   it("preserves a failed type conversion for an in-place retry", async () => {
     const onUpdate = vi
       .fn()

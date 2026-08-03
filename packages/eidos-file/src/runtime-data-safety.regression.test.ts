@@ -3,9 +3,13 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 
 import Database from "better-sqlite3"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { BetterSqlite3ConnectionPort, createEidosFile } from "./better-sqlite3"
+import {
+  BetterSqlite3ConnectionPort,
+  createEidosFile,
+  type BetterSqlite3ConnectionPortOptions,
+} from "./better-sqlite3"
 import type {
   RequestContext,
   RuntimeClient,
@@ -39,9 +43,15 @@ function environment(): RuntimeEnvironment {
   }
 }
 
-async function createRuntime(title = "Data safety") {
+async function createRuntime(
+  title = "Data safety",
+  connectionOptions: BetterSqlite3ConnectionPortOptions = {}
+) {
   const database = new Database(":memory:")
-  const connection = new BetterSqlite3ConnectionPort(database)
+  const connection = new BetterSqlite3ConnectionPort(
+    database,
+    connectionOptions
+  )
   const binding = await Runtime.create(
     connection,
     environment(),
@@ -99,7 +109,7 @@ async function createTable(
   fields: Array<{
     clientKey: string
     name: string
-    kind: "text" | "select" | "multi-select"
+    kind: "text" | "select" | "multi-select" | "url"
   }>
 ) {
   const applied = await applySchema(runtime, {
@@ -427,6 +437,329 @@ describe("Eidos Runtime P0 data safety regressions", () => {
         ["Empty", null],
         ["One", "A"],
       ])
+    } finally {
+      await runtime.close(context("close"))
+      connection.close()
+    }
+  })
+
+  it("wraps plain Text values as one Multi-select choice", async () => {
+    const { runtime, connection } = await createRuntime()
+    try {
+      const table = await createTable(runtime, "items", "Items", [
+        { clientKey: "title", name: "Title", kind: "text" },
+        { clientKey: "tags", name: "Tags", kind: "text" },
+      ])
+      const titleId = table.fieldIds.title!
+      const tagsId = table.fieldIds.tags!
+      const rows = await runtime.mutateRows(
+        {
+          tableId: table.tableId,
+          expectedRevision: table.revision,
+          changes: [
+            {
+              kind: "create",
+              clientKey: "alpha",
+              values: { [titleId]: "First", [tagsId]: "Alpha" },
+            },
+          ],
+        },
+        context("create-text-choice")
+      )
+      const converted = await applySchema(runtime, {
+        kind: "convert-field",
+        fieldId: tagsId,
+        to: "multi-select",
+      })
+      const result = await runtime.getRowsById(
+        {
+          tableId: table.tableId,
+          rowIds: [rows.created[0]!.rowId],
+          projection: { fields: [titleId, tagsId], resolveRelations: [] },
+        },
+        context("converted-text-choice")
+      )
+
+      expect(converted.plan.classification).toBe("lossless-rewrite")
+      expect(result.rows[0]!.values).toEqual(["First", ["Alpha"]])
+    } finally {
+      await runtime.close(context("close"))
+      connection.close()
+    }
+  })
+
+  it("reuses the physical TEXT column for Text, URL, and Select metadata conversions", async () => {
+    const { runtime, connection } = await createRuntime()
+    try {
+      const table = await createTable(runtime, "links", "Links", [
+        { clientKey: "title", name: "Title", kind: "text" },
+        { clientKey: "website", name: "Website", kind: "text" },
+      ])
+      const titleId = table.fieldIds.title!
+      const websiteId = table.fieldIds.website!
+      const rows = await runtime.mutateRows(
+        {
+          tableId: table.tableId,
+          expectedRevision: table.revision,
+          changes: [
+            {
+              kind: "create",
+              clientKey: "eidos",
+              values: {
+                [titleId]: "Eidos",
+                [websiteId]: "https://eidos.space/docs",
+              },
+            },
+          ],
+        },
+        context("create-link")
+      )
+      const execSchema = vi.spyOn(connection, "execSchema")
+
+      const asUrl = await applySchema(runtime, {
+        kind: "convert-field",
+        fieldId: websiteId,
+        to: "url",
+        toNullable: true,
+      })
+      expect(asUrl.plan.classification).toBe("metadata-only")
+      expect(execSchema).not.toHaveBeenCalled()
+
+      const asSelect = await applySchema(runtime, {
+        kind: "convert-field",
+        fieldId: websiteId,
+        to: "select",
+        toNullable: true,
+      })
+      expect(asSelect.plan.classification).toBe("metadata-only")
+      expect(execSchema).not.toHaveBeenCalled()
+
+      const asText = await applySchema(runtime, {
+        kind: "convert-field",
+        fieldId: websiteId,
+        to: "text",
+        toNullable: true,
+      })
+      expect(asText.plan.classification).toBe("metadata-only")
+      expect(execSchema).not.toHaveBeenCalled()
+
+      const schema = await runtime.getSchemaPage(
+        { revision: asText.result.revision, limit: 100 },
+        context("converted-link-schema")
+      )
+      expect(
+        schema.objects.find(
+          (object) => object.object === "field" && object.id === websiteId
+        )
+      ).toMatchObject({ kind: "text" })
+      const stored = await runtime.getRowsById(
+        {
+          tableId: table.tableId,
+          rowIds: [rows.created[0]!.rowId],
+          projection: { fields: [titleId, websiteId], resolveRelations: [] },
+        },
+        context("converted-link-value")
+      )
+      expect(stored.rows[0]!.values).toEqual([
+        "Eidos",
+        "https://eidos.space/docs",
+      ])
+    } finally {
+      await runtime.close(context("close"))
+      connection.close()
+    }
+  })
+
+  it("converts wide tables without exceeding adapter result budgets", async () => {
+    const { runtime, connection } = await createRuntime("Paged conversion", {
+      maxResultBytes: 32_768,
+    })
+    try {
+      const table = await createTable(runtime, "items", "Items", [
+        { clientKey: "title", name: "Title", kind: "text" },
+        { clientKey: "category", name: "Category", kind: "text" },
+        { clientKey: "notes", name: "Notes", kind: "text" },
+      ])
+      const titleId = table.fieldIds.title!
+      const categoryId = table.fieldIds.category!
+      const notesId = table.fieldIds.notes!
+      let revision = table.revision
+      for (let offset = 0; offset < 80; offset += 8) {
+        const inserted = await runtime.mutateRows(
+          {
+            tableId: table.tableId,
+            expectedRevision: revision,
+            changes: Array.from({ length: 8 }, (_, index) => {
+              const rowIndex = offset + index
+              return {
+                kind: "create" as const,
+                clientKey: String(rowIndex),
+                values: {
+                  [titleId]: `Record ${rowIndex}`,
+                  [categoryId]: `Category ${rowIndex % 5} ${"c".repeat(384)}`,
+                  [notesId]: `Notes ${rowIndex} ${"n".repeat(512)}`,
+                },
+              }
+            }),
+          },
+          context(`create-wide-rows-${offset}`)
+        )
+        revision = inserted.revision
+      }
+      connection.execSchema(`
+        CREATE TRIGGER "items_conversion_guard"
+        AFTER UPDATE ON "Items"
+        BEGIN
+          SELECT 1;
+        END
+      `)
+      const converted = await applySchema(runtime, {
+        kind: "convert-field",
+        fieldId: categoryId,
+        to: "select",
+        toNullable: true,
+      })
+      const schema = await runtime.getSchemaPage(
+        { revision: converted.result.revision, limit: 100 },
+        context("converted-wide-schema")
+      )
+
+      expect(converted.plan.classification).toBe("metadata-only")
+      expect(
+        connection.get(
+          "SELECT name FROM sqlite_schema WHERE type='trigger' AND name='items_conversion_guard'"
+        ).row
+      ).not.toBeNull()
+      expect(
+        schema.objects.find(
+          (candidate) =>
+            candidate.object === "field" && candidate.id === categoryId
+        )
+      ).toMatchObject({
+        kind: "select",
+        tableId: table.tableId,
+      })
+      expect(BigInt(converted.result.revision)).toBeGreaterThan(
+        BigInt(revision)
+      )
+    } finally {
+      await runtime.close(context("close"))
+      connection.close()
+    }
+  })
+
+  it("counts large tables without materializing every row in the adapter", async () => {
+    const { runtime, connection } = await createRuntime("Bounded count", {
+      maxResultBytes: 16_384,
+    })
+    try {
+      const table = await createTable(runtime, "items", "Items", [
+        { clientKey: "title", name: "Title", kind: "text" },
+      ])
+      const titleId = table.fieldIds.title!
+      let revision = table.revision
+      for (let offset = 0; offset < 400; offset += 20) {
+        const inserted = await runtime.mutateRows(
+          {
+            tableId: table.tableId,
+            expectedRevision: revision,
+            changes: Array.from({ length: 20 }, (_, index) => ({
+              kind: "create" as const,
+              clientKey: String(offset + index),
+              values: { [titleId]: `Record ${offset + index}` },
+            })),
+          },
+          context(`create-count-rows-${offset}`)
+        )
+        revision = inserted.revision
+      }
+
+      await expect(
+        runtime.aggregate(
+          {
+            tableId: table.tableId,
+            query: {},
+            items: [{ key: "count", op: "count-all" }],
+          },
+          context("bounded-count")
+        )
+      ).resolves.toMatchObject({
+        results: [{ key: "count", value: "400" }],
+      })
+      await expect(
+        runtime.aggregate(
+          {
+            tableId: table.tableId,
+            query: {},
+            items: [
+              {
+                key: "values",
+                op: "distinct-values",
+                fieldId: titleId,
+                limit: 5,
+              },
+            ],
+          },
+          context("bounded-distinct-values")
+        )
+      ).resolves.toMatchObject({
+        results: [
+          {
+            key: "values",
+            values: [
+              "Record 0",
+              "Record 1",
+              "Record 10",
+              "Record 100",
+              "Record 101",
+            ],
+            truncated: true,
+          },
+        ],
+      })
+
+      const offsetPage = await runtime.queryRows(
+        {
+          tableId: table.tableId,
+          query: {
+            sort: [{ fieldId: titleId, direction: "asc" }],
+          },
+          projection: {
+            fields: [titleId],
+            resolveRelations: [],
+          },
+          limit: 5,
+          offset: 390,
+        },
+        context("bounded-offset-page")
+      )
+      const expectedTitles = Array.from(
+        { length: 400 },
+        (_, index) => `Record ${index}`
+      )
+        .sort()
+        .slice(390, 395)
+
+      expect(offsetPage.rows.map((row) => row.values[0])).toEqual(
+        expectedTitles
+      )
+      expect(offsetPage.previousCursor).not.toBeNull()
+      await expect(
+        runtime.queryRows(
+          {
+            tableId: table.tableId,
+            query: {},
+            projection: {
+              fields: [titleId],
+              resolveRelations: [],
+            },
+            limit: 5,
+            offset: 1,
+            cursor: offsetPage.previousCursor!,
+          },
+          context("invalid-offset-cursor")
+        )
+      ).rejects.toMatchObject({ code: "invalid-request" })
     } finally {
       await runtime.close(context("close"))
       connection.close()

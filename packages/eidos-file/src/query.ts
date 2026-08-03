@@ -258,6 +258,25 @@ function escapeLike(value: string): string {
   return value.replace(/[\\%_]/g, "\\$&")
 }
 
+function requiresUnicodeCasefold(value: string): boolean {
+  const nonAscii = value.replace(/[\x00-\x7f]/g, "")
+  return nonAscii.toUpperCase() !== nonAscii.toLowerCase()
+}
+
+function caseInsensitiveLike(
+  expression: string,
+  pattern: string,
+  searchText: string,
+  params: EidosFileSqlPrimitive[]
+): string {
+  params.push(pattern)
+  return requiresUnicodeCasefold(searchText)
+    ? `eidos_casefold(COALESCE(CAST(${expression} AS TEXT), ''))
+         LIKE eidos_casefold(?) ESCAPE '\\'`
+    : `COALESCE(CAST(${expression} AS TEXT), '')
+         LIKE ? COLLATE NOCASE ESCAPE '\\'`
+}
+
 function searchableFields(
   fields: EidosFileFieldInfo[],
   selected?: readonly string[]
@@ -471,12 +490,9 @@ function likeExpression(
                ELSE '[]'
              END
            )
-          WHERE eidos_casefold(COALESCE(CAST(value AS TEXT), ''))
-                LIKE eidos_casefold(?) ESCAPE '\\'
+          WHERE ${caseInsensitiveLike("value", pattern, value, params)}
        )`
-    : `eidos_casefold(COALESCE(CAST(${column} AS TEXT), ''))
-         LIKE eidos_casefold(?) ESCAPE '\\'`
-  params.push(pattern)
+    : caseInsensitiveLike(column, pattern, value, params)
   return operator === "not-contains" ? `NOT (${expression})` : expression
 }
 
@@ -641,11 +657,13 @@ export function compileEidosFileRowQuery(
   if (search !== undefined && search !== "") {
     const pattern = `%${escapeLike(search)}%`
     const searchClauses = searchableFields(fields, query.searchFields).map(
-      (field) => {
-        params.push(pattern)
-        return `eidos_casefold(COALESCE(CAST(${quoteIdentifier(field.tableColumnName)} AS TEXT), ''))
-                LIKE eidos_casefold(?) ESCAPE '\\'`
-      }
+      (field) =>
+        caseInsensitiveLike(
+          quoteIdentifier(field.tableColumnName),
+          pattern,
+          search,
+          params
+        )
     )
     if (searchClauses.length > 0) where.push(`(${searchClauses.join(" OR ")})`)
   }

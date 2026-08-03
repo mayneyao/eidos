@@ -380,6 +380,8 @@ export interface UpdateEidosFileFieldInput {
   property?: Record<string, unknown> | null
   optionValueChanges?: EidosFileOptionValueChange[]
   isRecordLabel?: boolean
+  /** Explicit user approval for a preflighted conversion that may change values. */
+  confirmLossy?: boolean
 }
 
 export type EidosFileLogicalValue =

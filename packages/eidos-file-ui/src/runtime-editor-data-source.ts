@@ -3,20 +3,23 @@ import {
   canonicalizeEidosFileJson,
   decodeEidosFileMultiSelectValues,
   decodeEidosFileRelationIds,
+  eidosFileConversionTargetNullable,
   parseEidosFileJson,
+  parseEidosFileSelectOptions,
   planEidosFileCsvImport,
   prepareEidosFileCsvImport,
+  recommendedEidosFileConversionPolicies,
   type AggregateItem,
   type CreateEidosFileFieldInput,
   type CreateEidosFileTableInput,
   type CreateEidosFileViewInput,
-  type ConversionPolicy,
   type EidosFileColumnStatConfig,
   type EidosFileColumnStatResult,
   type EidosFileCsvImportOptions,
   type EidosFileCsvImportPlan,
   type EidosFileCsvImportResult,
   type EidosFileFieldInfo,
+  type EidosFileFieldType,
   type EidosFileFieldPlacement,
   type EidosFileFilterGroup,
   type EidosFileFilterOperator,
@@ -55,6 +58,7 @@ import {
   type SchemaChange,
   type SchemaDescriptor,
   type SchemaLeafChange,
+  type StoredFieldType,
   type TableDescriptor,
   type TypeRef,
   type UpdateEidosFileFieldInput,
@@ -66,39 +70,50 @@ import {
 import type { EidosFileEditorDataSource } from "./data-source"
 
 const DEFAULT_PAGE_SIZE = 250
+const MAX_INFERRED_FIELD_OPTIONS = 1_000
+const INFERRED_OPTION_COLORS = [
+  "gray",
+  "brown",
+  "pink",
+  "red",
+  "orange",
+  "yellow",
+  "green",
+  "cyan",
+  "blue",
+  "purple",
+] as const
 
-function conversionPolicies(from: string, to: string): ConversionPolicy[] {
-  const policies: ConversionPolicy[] = []
-  if (from === "json" && to !== "json" && to !== "text") {
-    policies.push("json-null-to-sql-null")
-  }
-  if (from === "integer" && (to === "number" || to === "json")) {
-    policies.push("round-binary64")
-  }
-  if ((from === "integer" || from === "number") && to === "checkbox") {
-    policies.push("zero-false-nonzero-true")
-  }
-  if (from === "datetime" && to === "date") policies.push("utc-date")
-  if (from === "multi-select" && to === "select") policies.push("first")
+function conversionErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
   if (
-    !["multi-select", "file", "relation"].includes(from) &&
-    ["multi-select", "file", "relation"].includes(to)
+    /List is not canonical JSON|List must contain only strings/.test(message)
   ) {
-    policies.push("null-to-empty-list")
+    return "Some values are not valid multiple-choice values. Clean up those values and try again."
   }
-  return policies
-}
-
-function conversionTargetNullable(
-  from: string,
-  to: string,
-  sourceNullable: boolean
-): boolean {
-  return (
-    sourceNullable ||
-    (from === "multi-select" && to === "select") ||
-    (from === "json" && to !== "json" && to !== "text")
-  )
+  if (
+    /File value must be valid JSON|File value contains an invalid entry/.test(
+      message
+    )
+  ) {
+    return "Existing values cannot be turned into attachments. Create a File field and add the files there instead."
+  }
+  if (/Text is not the exact inverse binary64 spelling/.test(message)) {
+    return "Some values are not consistently formatted numbers. Remove spaces and leading zeroes, then try again."
+  }
+  if (/Text is not lowercase true or false/.test(message)) {
+    return "Some values are not “true” or “false”. Update them before converting to Checkbox."
+  }
+  if (/Invalid Date value|Invalid Datetime value/.test(message)) {
+    return "Some values are not valid dates. Update them before changing this field type."
+  }
+  if (/Invalid URI-reference/.test(message)) {
+    return "Some values are not valid links. Update them before changing this field type."
+  }
+  if (/Fractional Number requires an Integer rounding policy/.test(message)) {
+    return "Rating values must be whole numbers from 0 to 5. Update fractional values and try again."
+  }
+  return message
 }
 
 /**
@@ -188,35 +203,14 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     const cursors = this.cursorCache.get(queryKey) ?? new Map([[0, undefined]])
     this.cursorCache.set(queryKey, cursors)
     if (cursor) cursors.set(offset, cursor)
-    let start =
-      [...cursors.keys()]
-        .filter((candidate) => candidate <= offset)
-        .sort((left, right) => right - left)[0] ?? 0
-    let nextCursor = cursors.get(start)
-    while (start < offset) {
-      const step = Math.min(1_000, offset - start)
-      const skipped = await this.runtime.queryRows(
-        {
-          tableId,
-          query: runtimeQuery,
-          projection: runtimeProjection,
-          limit: step,
-          ...(nextCursor ? { cursor: nextCursor } : {}),
-        },
-        this.context("seek")
-      )
-      if (skipped.rows.length === 0 || !skipped.nextCursor) break
-      start += skipped.rows.length
-      nextCursor = skipped.nextCursor
-      cursors.set(start, nextCursor)
-    }
+    const pageCursor = cursor ?? cursors.get(offset)
     const page = await this.runtime.queryRows(
       {
         tableId,
         query: runtimeQuery,
         projection: runtimeProjection,
         limit,
-        ...(nextCursor ? { cursor: nextCursor } : {}),
+        ...(pageCursor ? { cursor: pageCursor } : offset > 0 ? { offset } : {}),
       },
       this.context("rows")
     )
@@ -597,6 +591,150 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
     return snapshot
   }
 
+  private conversionOptionNames(
+    field: FieldDescriptor,
+    value: unknown
+  ): string[] {
+    if (value === null || value === undefined || value === "") return []
+    if (field.kind === "multi-select") {
+      if (Array.isArray(value)) {
+        return value.filter(
+          (entry): entry is string => typeof entry === "string" && entry !== ""
+        )
+      }
+      return typeof value === "string"
+        ? decodeEidosFileMultiSelectValues(value)
+        : []
+    }
+    if (field.kind === "checkbox") {
+      return [value === 1 || value === "1" ? "true" : "false"]
+    }
+    if (field.kind === "file" || field.kind === "relation") return []
+    if (value instanceof Uint8Array) return []
+    return [String(value)]
+  }
+
+  private async inferredFieldOptions(
+    tableId: string,
+    field: FieldDescriptor
+  ): Promise<Array<{ name: string; color: string }>> {
+    const aggregate = await this.runtime.aggregate(
+      {
+        tableId,
+        items: [
+          {
+            key: "values",
+            op: "distinct-values",
+            fieldId: field.id,
+            limit: MAX_INFERRED_FIELD_OPTIONS,
+          },
+        ],
+      },
+      this.context("conversion-options")
+    )
+    const distinctResult = aggregate.results.find(
+      (result) => result.key === "values"
+    )
+    if (!distinctResult || !("values" in distinctResult)) {
+      throw new Error("Choice values could not be read")
+    }
+    if (distinctResult.truncated) {
+      throw new Error(
+        `This field has more than ${MAX_INFERRED_FIELD_OPTIONS.toLocaleString()} choices. Reduce the number of unique values and try again.`
+      )
+    }
+
+    const existing = parseEidosFileSelectOptions(field.settings)
+    const names = existing.map((option) => option.name)
+    const seen = new Set(names)
+    const addCandidates = (value: unknown) => {
+      const candidates = this.conversionOptionNames(field, value)
+      for (const name of candidates) {
+        if (!name || seen.has(name)) continue
+        seen.add(name)
+        names.push(name)
+        if (names.length > MAX_INFERRED_FIELD_OPTIONS) {
+          throw new Error(
+            `This field has more than ${MAX_INFERRED_FIELD_OPTIONS.toLocaleString()} choices. Reduce the number of unique values and try again.`
+          )
+        }
+      }
+    }
+    distinctResult.values.forEach(addCandidates)
+    const existingByName = new Map(
+      existing.map((option) => [option.name, option.color])
+    )
+    return names.map((name, index) => ({
+      name,
+      color:
+        existingByName.get(name) ??
+        INFERRED_OPTION_COLORS[index % INFERRED_OPTION_COLORS.length]!,
+    }))
+  }
+
+  private async conversionFieldSettings(
+    tableId: string,
+    field: FieldDescriptor,
+    target: EidosFileFieldType
+  ): Promise<JsonObject | undefined> {
+    if (target === "rating") return { display: { kind: "rating" } }
+    if (target === "select" || target === "multi-select") {
+      return { options: await this.inferredFieldOptions(tableId, field) }
+    }
+    if (
+      [
+        "text",
+        "number",
+        "checkbox",
+        "date",
+        "datetime",
+        "url",
+        "json",
+      ].includes(target)
+    ) {
+      return {}
+    }
+    return undefined
+  }
+
+  private async assertRatingValues(
+    tableId: string,
+    field: FieldDescriptor
+  ): Promise<void> {
+    let cursor: string | undefined
+    do {
+      const page = await this.runtime.queryRows(
+        {
+          tableId,
+          query: {},
+          projection: { fields: [field.id], resolveRelations: [] },
+          limit: DEFAULT_PAGE_SIZE,
+          ...(cursor ? { cursor } : {}),
+        },
+        this.context("conversion-rating-values")
+      )
+      for (const row of page.rows) {
+        const value = row.values[0]
+        if (value === null) continue
+        if (
+          (field.kind === "text" || field.kind === "select") &&
+          (typeof value !== "string" || !/^[0-5]$/.test(value))
+        ) {
+          throw new Error(
+            "Rating values must be whole numbers from 0 to 5. Update those values and try again."
+          )
+        }
+        const number = typeof value === "number" ? value : Number(value)
+        if (!Number.isFinite(number) || number < 0 || number > 5) {
+          throw new Error(
+            "Rating values must be between 0 and 5. Update those values and try again."
+          )
+        }
+      }
+      cursor = page.nextCursor ?? undefined
+    } while (cursor)
+  }
+
   async updateField(
     tableId: string,
     fieldId: string,
@@ -604,6 +742,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   ): Promise<EidosFileSnapshot> {
     const field = this.assertField(fieldId, tableId)
     const leaves: SchemaLeafChange[] = []
+    let convertedSettings: JsonObject | undefined
     if (changes.name !== undefined && changes.name !== field.name) {
       leaves.push({ kind: "rename-field", fieldId, name: changes.name })
     }
@@ -611,7 +750,19 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       changes.type !== undefined &&
       changes.type !== this.editorFieldType(field)
     ) {
+      if (field.kind === "file" || changes.type === "file") {
+        throw new Error(
+          "File fields cannot be converted. Create a new File field and add attachments there instead."
+        )
+      }
+      if (changes.type === "rating") {
+        await this.assertRatingValues(tableId, field)
+      }
       const target = changes.type === "rating" ? "integer" : changes.type
+      convertedSettings =
+        changes.property === undefined
+          ? await this.conversionFieldSettings(tableId, field, changes.type)
+          : undefined
       if (["formula", "lookup"].includes(target)) {
         throw new Error(
           "Convert a stored Field before defining a derived Field"
@@ -632,7 +783,10 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
                   cardinality: "many",
                   onDelete: "restrict",
                 },
-          policies: conversionPolicies(field.kind, target),
+          policies: recommendedEidosFileConversionPolicies(
+            field.kind as StoredFieldType,
+            target
+          ),
         })
       } else if (
         [
@@ -664,19 +818,22 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
             | "select"
             | "multi-select"
             | "file",
-          toNullable: conversionTargetNullable(
-            field.kind,
-            target,
+          toNullable: eidosFileConversionTargetNullable(
+            field.kind as StoredFieldType,
+            target as StoredFieldType,
             field.nullable
           ),
-          policies: conversionPolicies(field.kind, target),
+          policies: recommendedEidosFileConversionPolicies(
+            field.kind as StoredFieldType,
+            target as StoredFieldType
+          ),
         })
       } else {
         throw new Error(`Field type cannot be converted: ${target}`)
       }
     }
-    if (changes.property !== undefined) {
-      const property = changes.property ?? {}
+    if (changes.property !== undefined || convertedSettings !== undefined) {
+      const property = changes.property ?? convertedSettings ?? {}
       const kind =
         changes.type === "rating" ? "integer" : (changes.type ?? field.kind)
       const settings = {
@@ -725,9 +882,21 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       })
     }
     if (leaves.length > 0) {
-      await this.commitSchema(
-        leaves.length === 1 ? leaves[0]! : { kind: "batch", changes: leaves }
-      )
+      try {
+        await this.commitSchema(
+          leaves.length === 1 ? leaves[0]! : { kind: "batch", changes: leaves },
+          changes.confirmLossy === true
+        )
+      } catch (error) {
+        if (changes.type === undefined) throw error
+        const convertedError = new Error(
+          conversionErrorMessage(error)
+        ) as Error & {
+          cause?: unknown
+        }
+        convertedError.cause = error
+        throw convertedError
+      }
     }
     return this.getSnapshot()
   }

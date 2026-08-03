@@ -146,11 +146,39 @@ function conversionRuntime(
         nextCursor: null,
       }
     },
-    async aggregate() {
+    async aggregate(request: AggregateRequest) {
       return {
         fileId: FILE,
         revision,
-        results: [{ key: "count", op: "count-all" as const, value: "1" }],
+        results: request.items.map((item) =>
+          item.op === "distinct-values"
+            ? {
+                key: item.key,
+                values: [["Quality"]],
+                truncated: false,
+              }
+            : {
+                key: item.key,
+                value: "1",
+              }
+        ),
+      }
+    },
+    async queryRows() {
+      return {
+        fileId: FILE,
+        tableId: PROJECTS,
+        revision,
+        projectionHash: "conversion-rows",
+        columns: [],
+        rows: [
+          {
+            id: PROJECT_ROW,
+            values: [["Quality"]],
+          },
+        ],
+        nextCursor: null,
+        previousCursor: null,
       }
     },
     preflightSchema,
@@ -588,6 +616,22 @@ describe("EidosRuntimeEditorDataSource", () => {
       JSON.stringify([{ id: TEAM_ROW, title: "Runtime Core" }])
     )
 
+    queryRows.mockClear()
+    await source.getPage(PROJECTS, 915_000, 1, {}, 1_000_000, undefined, {
+      columns: [TEAM],
+      fieldLimit: 1,
+      includeRecordLabel: true,
+    })
+
+    expect(queryRows).toHaveBeenCalledTimes(1)
+    expect(queryRows).toHaveBeenCalledWith(
+      expect.objectContaining({
+        offset: 915_000,
+      }),
+      expect.any(Object)
+    )
+    expect(queryRows.mock.calls[0]?.[0]).not.toHaveProperty("cursor")
+
     await expect(
       source.calculateColumnStats(
         PROJECTS,
@@ -673,11 +717,23 @@ describe("EidosRuntimeEditorDataSource", () => {
     await source.updateField(PROJECTS, SIGNALS, { type: "select" })
 
     expect(fixture.plannedChange()).toEqual({
-      kind: "convert-field",
-      fieldId: SIGNALS,
-      to: "select",
-      toNullable: true,
-      policies: ["first"],
+      kind: "batch",
+      changes: [
+        {
+          kind: "convert-field",
+          fieldId: SIGNALS,
+          to: "select",
+          toNullable: true,
+          policies: ["first"],
+        },
+        {
+          kind: "set-field-settings",
+          fieldId: SIGNALS,
+          settings: {
+            options: [{ name: "Quality", color: "gray" }],
+          },
+        },
+      ],
     })
     expect(fixture.mutateSchema).toHaveBeenCalledWith(
       expect.not.objectContaining({ confirmLossy: true }),
@@ -697,6 +753,25 @@ describe("EidosRuntimeEditorDataSource", () => {
       source.updateField(PROJECTS, SIGNALS, { type: "select" })
     ).rejects.toThrow(/discard list values/)
     expect(fixture.mutateSchema).not.toHaveBeenCalled()
+  })
+
+  it("applies an explicit-lossy conversion only after user confirmation", async () => {
+    const fixture = conversionRuntime("explicit-lossy")
+    const source = new EidosRuntimeEditorDataSource(
+      fixture.runtime,
+      "fixture.eidos"
+    )
+    await source.initialize()
+
+    await source.updateField(PROJECTS, SIGNALS, {
+      type: "select",
+      confirmLossy: true,
+    })
+
+    expect(fixture.mutateSchema).toHaveBeenCalledWith(
+      expect.objectContaining({ confirmLossy: true }),
+      expect.any(Object)
+    )
   })
 
   it("keeps editor deletes in one Runtime transaction and counts only deleted rows", async () => {

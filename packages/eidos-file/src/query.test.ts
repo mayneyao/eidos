@@ -85,6 +85,8 @@ describe("Eidos File row query", () => {
 
     const compiled = compileEidosFileRowQuery(fields, query)
     expect(compiled.whereSql).toContain("ESCAPE '\\'")
+    expect(compiled.whereSql).toContain("LIKE ? COLLATE NOCASE")
+    expect(compiled.whereSql).not.toContain("eidos_casefold")
     expect(compiled.whereSql).toContain('priority" >= ?')
     expect(compiled.whereSql).toContain("json_each")
     expect(compiled.orderSql).toBe(
@@ -99,6 +101,19 @@ describe("Eidos File row query", () => {
       "doing",
       "urgent",
     ])
+  })
+
+  it("keeps Unicode case folding only when the search text needs it", () => {
+    const unicode = compileEidosFileRowQuery([field("title", "text")], {
+      search: "Straße",
+    })
+    expect(unicode.whereSql).toContain("eidos_casefold")
+
+    const caselessUnicode = compileEidosFileRowQuery([field("title", "text")], {
+      search: "中国ABC",
+    })
+    expect(caselessUnicode.whereSql).toContain("LIKE ? COLLATE NOCASE")
+    expect(caselessUnicode.whereSql).not.toContain("eidos_casefold")
   })
 
   it("normalizes datetime filter inputs to canonical UTC text", () => {

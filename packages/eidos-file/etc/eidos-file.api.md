@@ -4106,6 +4106,7 @@ export type TypeRef = ScalarType | "row-id" | "file-entry" | {
 
 // @public (undocumented)
 export interface UpdateEidosFileFieldInput {
+    confirmLossy?: boolean;
     // (undocumented)
     isRecordLabel?: boolean;
     // (undocumented)
