@@ -5,12 +5,12 @@ import { describe, expect, it } from "vitest"
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8")
 
 describe("global scrollbar styling", () => {
-  it("uses shared theme-derived colors with a narrow transparent track", () => {
+  it("uses shared theme-derived colors with a default-width transparent track", () => {
     expect(styles).toContain(
       "--scrollbar-thumb: color-mix(in oklab, var(--ink) 18%, transparent)"
     )
     expect(styles).toMatch(
-      /\*::\-webkit-scrollbar\s*\{[^}]*width:\s*10px;[^}]*height:\s*10px;/
+      /\*::\-webkit-scrollbar\s*\{[^}]*width:\s*15px;[^}]*height:\s*15px;/
     )
     expect(styles).toMatch(
       /\*::\-webkit-scrollbar-thumb\s*\{[^}]*border:\s*3px solid transparent;[^}]*border-radius:\s*999px;[^}]*background:\s*var\(--scrollbar-thumb\);[^}]*background-clip:\s*padding-box;/

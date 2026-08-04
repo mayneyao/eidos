@@ -183,24 +183,6 @@ export function navigationOffsetForPointerButton(
   return null
 }
 
-export function navigationOffsetForKeyboardShortcut(
-  event: Pick<KeyboardEvent, "altKey" | "metaKey" | "key">
-): -1 | 1 | null {
-  if (
-    (event.altKey && event.key === "ArrowLeft") ||
-    (event.metaKey && event.key === "[")
-  ) {
-    return -1
-  }
-  if (
-    (event.altKey && event.key === "ArrowRight") ||
-    (event.metaKey && event.key === "]")
-  ) {
-    return 1
-  }
-  return null
-}
-
 export function pathMatchesPrefix(
   relativePath: NavigationLocation,
   sourcePath: string

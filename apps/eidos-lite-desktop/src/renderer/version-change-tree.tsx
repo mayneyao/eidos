@@ -359,7 +359,7 @@ export function VersionChangeTree({
     "--trees-git-modified-color-override": "var(--lite-accent)",
     "--trees-git-added-color-override": "var(--success)",
     "--trees-git-deleted-color-override": "var(--danger)",
-    "--trees-git-renamed-color-override": "oklch(0.62 0.13 70)",
+    "--trees-git-renamed-color-override": "var(--warning)",
     "--trees-icon-width-override": "14px",
     "--trees-item-margin-x-override": "4px",
     "--trees-item-row-gap-override": "4px",

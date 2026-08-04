@@ -1370,6 +1370,7 @@ function SyncAccessGate({
         data-sync-mode={mode}
         data-sync-environment={environment}
         data-sync-account-state={accountState}
+        data-sync-can-enable="false"
         data-sync-access-gate={signedOut ? "sign-in" : "waitlist"}
         data-sync-waitlist-joined={joined ? "true" : "false"}
       >

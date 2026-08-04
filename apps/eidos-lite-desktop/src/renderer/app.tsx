@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentProps,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react"
@@ -45,19 +46,25 @@ import type {
   SpaceTreeEntry,
   TextFilePreviewResult,
 } from "../shared/contracts"
+import { eidosLiteNewFileKind } from "../shared/new-file"
+import {
+  DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+  type EidosLiteKeyboardShortcuts,
+} from "../shared/keyboard-shortcuts"
 import {
   applyAppearance,
   DEFAULT_RENDERER_PREFERENCES,
   resolveAppearance,
+  toggledAppearance,
   type ResolvedAppearance,
 } from "./app-appearance"
 import { FileRecoveryNotice } from "./file-recovery-notice"
 import { fileTitlebarPresentation } from "./file-titlebar-presentation"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
+import { useEidosLiteI18n } from "./i18n"
 import {
   canNavigateHistory,
   initializeNavigationHistory,
-  navigationOffsetForKeyboardShortcut,
   navigationOffsetForPointerButton,
   pathMatchesPrefix,
   pushNavigationLocation,
@@ -66,20 +73,51 @@ import {
   type NavigationLocation,
   type NavigationSnapshot,
 } from "./navigation-history"
+import { RecentFilesEmptyState } from "./recent-files-empty-state"
+import {
+  loadRecentFiles,
+  rememberRecentFile,
+  remapRecentFiles,
+  storeRecentFiles,
+  type RecentFileEntry,
+} from "./recent-files"
 import { blocksLocalInteraction } from "./space-operation-availability"
-import { TextFilePreview } from "./text-file-preview"
+import {
+  prepareTextFilePreview,
+  TextFilePreview,
+  type TextFileDraft,
+} from "./text-file-preview"
 import { SettingsPage } from "./settings-page"
 import type { VersionInspection } from "./version-change-tree"
 import {
-  WORKSPACE_SHORTCUT_ARIA,
   workspaceShortcutForKeyboardEvent,
   workspaceShortcutLabel,
+  workspaceShortcutAriaKeyShortcuts,
 } from "./workspace-shortcuts"
 
-const EidosFileWorkbench = lazy(async () => {
-  const module = await import("./eidos-file-workbench")
+let eidosFileWorkbenchModule:
+  | Promise<typeof import("./eidos-file-workbench")>
+  | undefined
+let LoadedEidosFileWorkbench:
+  | (typeof import("./eidos-file-workbench"))["EidosFileWorkbench"]
+  | undefined
+
+async function loadEidosFileWorkbench() {
+  eidosFileWorkbenchModule ??= import("./eidos-file-workbench")
+  const module = await eidosFileWorkbenchModule
+  LoadedEidosFileWorkbench = module.EidosFileWorkbench
   return { default: module.EidosFileWorkbench }
-})
+}
+
+const LazyEidosFileWorkbench = lazy(loadEidosFileWorkbench)
+
+function EidosFileWorkbench(
+  props: ComponentProps<typeof LazyEidosFileWorkbench>
+) {
+  const Loaded = LoadedEidosFileWorkbench
+  return Loaded ? <Loaded {...props} /> : <LazyEidosFileWorkbench {...props} />
+}
+
 const SpaceFileTree = lazy(async () => {
   const module = await import("./space-file-tree")
   return { default: module.SpaceFileTree }
@@ -103,6 +141,11 @@ interface CachedFile {
   snapshot: EidosFileSnapshot
   source: IpcEidosFileDataSource
   tableId: string
+}
+
+interface RecentFileState {
+  spaceId: string | null
+  files: RecentFileEntry[]
 }
 
 function useAppTheme(): ResolvedAppearance {
@@ -142,7 +185,8 @@ interface TitlebarNavigationProps {
   collapsed: boolean
   canGoBack: boolean
   canGoForward: boolean
-  toggleShortcutLabel: string
+  keyboardShortcuts: EidosLiteKeyboardShortcuts
+  macos: boolean
   onToggle(): void
   onBack(): void
   onForward(): void
@@ -152,17 +196,25 @@ function TitlebarNavigation({
   collapsed,
   canGoBack,
   canGoForward,
-  toggleShortcutLabel,
+  keyboardShortcuts,
+  macos,
   onToggle,
   onBack,
   onForward,
 }: TitlebarNavigationProps) {
-  const label = collapsed ? "Show Space Explorer" : "Collapse Space Explorer"
-
+  const { t } = useEidosLiteI18n()
+  const label = collapsed
+    ? t("Show Space Explorer")
+    : t("Collapse Space Explorer")
+  const toggleShortcutLabel = workspaceShortcutLabel(
+    "toggle-sidebar",
+    macos,
+    keyboardShortcuts
+  )
   return (
     <nav
       className="titlebar-navigation"
-      aria-label="Document navigation"
+      aria-label={t("Document navigation")}
       data-titlebar-navigation
     >
       <button
@@ -171,8 +223,12 @@ function TitlebarNavigation({
         data-sidebar-toggle={collapsed ? "open" : "close"}
         onClick={onToggle}
         aria-label={label}
-        aria-keyshortcuts={WORKSPACE_SHORTCUT_ARIA["toggle-sidebar"]}
-        title={`${label} (${toggleShortcutLabel})`}
+        aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
+          "toggle-sidebar",
+          macos,
+          keyboardShortcuts
+        )}
+        title={shortcutTitle(label, toggleShortcutLabel)}
       >
         <PanelLeft />
       </button>
@@ -181,8 +237,8 @@ function TitlebarNavigation({
         className="icon-button"
         data-navigation-action="back"
         onClick={onBack}
-        aria-label="Go back"
-        title="Go back (⌘[ or Alt+Left)"
+        aria-label={t("Go back")}
+        title={t("Go back")}
         disabled={!canGoBack}
       >
         <ArrowLeft />
@@ -192,8 +248,8 @@ function TitlebarNavigation({
         className="icon-button"
         data-navigation-action="forward"
         onClick={onForward}
-        aria-label="Go forward"
-        title="Go forward (⌘] or Alt+Right)"
+        aria-label={t("Go forward")}
+        title={t("Go forward")}
         disabled={!canGoForward}
       >
         <ArrowRight />
@@ -231,11 +287,11 @@ function syncQueueLabel(status: EidosSyncQueueStatus | null): string {
 }
 
 function shortcutTitle(label: string, shortcut: string): string {
-  return `${label} (${shortcut})`
+  return shortcut === "—" ? label : `${label} (${shortcut})`
 }
 
 type PathDialogAction =
-  | "create-eidos"
+  | "create-file"
   | "create-folder"
   | "rename"
   | "move"
@@ -288,46 +344,55 @@ function PathActionDialog({
   onCancel(): void
   onSubmit(value: string): void
 }) {
+  const { t } = useEidosLiteI18n()
   const config = {
-    "create-eidos": {
-      title: "New Eidos File",
-      label: "File name",
+    "create-file": {
+      title: t("New File"),
+      label: t("File name"),
       initial: "Untitled.eidos",
-      action: "Create",
+      action: t("Create"),
     },
     "create-folder": {
-      title: "New folder",
-      label: "Folder name",
-      initial: "New folder",
-      action: "Create",
+      title: t("New folder"),
+      label: t("Folder name"),
+      initial: t("New folder"),
+      action: t("Create"),
     },
     rename: {
-      title: `Rename ${state.entry?.name ?? "item"}`,
-      label: "New name",
+      title: t("Rename {name}", { name: state.entry?.name ?? t("item") }),
+      label: t("New name"),
       initial: state.entry?.name ?? "",
-      action: "Rename",
+      action: t("Rename"),
     },
     move: {
-      title: `Move ${state.entry?.name ?? "item"}`,
-      label: "Destination folder (blank for Space root)",
+      title: t("Move {name}", { name: state.entry?.name ?? t("item") }),
+      label: t("Destination folder (blank for Space root)"),
       initial: "",
-      action: "Move",
+      action: t("Move"),
     },
     copy: {
-      title: `Copy ${state.entry?.name ?? "item"}`,
-      label: "Destination folder (blank for Space root)",
+      title: t("Copy {name}", { name: state.entry?.name ?? t("item") }),
+      label: t("Destination folder (blank for Space root)"),
       initial: "",
-      action: "Copy",
+      action: t("Copy"),
     },
     delete: {
-      title: `Move ${state.entry?.name ?? "item"} to Trash?`,
+      title: t("Move {name} to Trash?", {
+        name: state.entry?.name ?? t("item"),
+      }),
       label: "",
       initial: "",
-      action: "Move to Trash",
+      action: t("Move to Trash"),
     },
   }[state.action]
   const [value, setValue] = useState(config.initial)
   const destructive = state.action === "delete"
+  const description =
+    state.action === "create-file"
+      ? t(
+          "Use .eidos for an Eidos File. Another extension, such as .md or .txt, creates an empty text file. Names without an extension use .eidos."
+        )
+      : null
 
   return (
     <div className="path-dialog-backdrop" role="presentation">
@@ -345,7 +410,7 @@ function PathActionDialog({
             type="button"
             className="icon-button"
             onClick={onCancel}
-            aria-label="Cancel"
+            aria-label={t("Cancel")}
             disabled={busy}
           >
             <X />
@@ -353,8 +418,9 @@ function PathActionDialog({
         </header>
         {destructive ? (
           <p>
-            The item will leave this Space and can be recovered from the system
-            Trash.
+            {t(
+              "The item will leave this Space and can be recovered from the system Trash."
+            )}
           </p>
         ) : (
           <label>
@@ -365,11 +431,14 @@ function PathActionDialog({
               onChange={(event) => setValue(event.target.value)}
               disabled={busy}
             />
+            {description ? (
+              <small className="path-dialog-description">{description}</small>
+            ) : null}
           </label>
         )}
         <footer>
           <button type="button" onClick={onCancel} disabled={busy}>
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             type="submit"
@@ -377,7 +446,7 @@ function PathActionDialog({
             disabled={busy || (!destructive && !value.trim())}
           >
             {busy ? <LoaderCircle className="spin" /> : null}
-            {busy ? "Working…" : config.action}
+            {busy ? t("Working…") : config.action}
           </button>
         </footer>
       </form>
@@ -412,6 +481,7 @@ function Welcome({
   onCopyDiagnostics(): void
   diagnosticsCopied: boolean
 }) {
+  const { t } = useEidosLiteI18n()
   return (
     <main
       className="welcome-shell"
@@ -426,18 +496,19 @@ function Welcome({
           type="button"
           className="icon-button welcome-settings-button"
           onClick={onOpenSettings}
-          aria-label="Settings"
-          title="Settings (⌘,)"
+          aria-label={t("Settings")}
+          title={`${t("Settings")} (⌘,)`}
         >
           <Settings />
         </button>
       </header>
       <section className="welcome-copy" aria-labelledby="welcome-title">
-        <p className="eyebrow">Local-first workspace</p>
-        <h1 id="welcome-title">Choose a Space</h1>
+        <p className="eyebrow">{t("Local-first workspace")}</p>
+        <h1 id="welcome-title">{t("Choose a Space")}</h1>
         <p className="welcome-detail">
-          Open an ordinary folder and work across its Eidos Files. Local work
-          never requires an account.
+          {t(
+            "Open an ordinary folder and work across its Eidos Files. Local work never requires an account."
+          )}
         </p>
         <div className="welcome-actions">
           <button
@@ -447,7 +518,7 @@ function Welcome({
             disabled={opening}
           >
             {opening ? <LoaderCircle className="spin" /> : <FolderPlus />}
-            {opening ? "Opening Space…" : "New Space"}
+            {opening ? t("Opening Space…") : t("New Space")}
           </button>
           <button
             type="button"
@@ -455,10 +526,10 @@ function Welcome({
             onClick={onOpen}
             disabled={opening}
           >
-            <FolderOpen /> Open Space
+            <FolderOpen /> {t("Open Space")}
           </button>
           <button type="button" className="secondary-action" onClick={onClone}>
-            <CloudDownload /> Open Synced Space
+            <CloudDownload /> {t("Open Synced Space")}
           </button>
           <button
             type="button"
@@ -467,7 +538,9 @@ function Welcome({
             onClick={onCopyDiagnostics}
           >
             <Copy />{" "}
-            {diagnosticsCopied ? "Diagnostics copied" : "Copy diagnostics"}
+            {diagnosticsCopied
+              ? t("Diagnostics copied")
+              : t("Copy diagnostics")}
           </button>
         </div>
         {error ? (
@@ -477,10 +550,12 @@ function Welcome({
           </p>
         ) : null}
       </section>
-      <aside className="welcome-principles" aria-label="Recent Spaces">
+      <aside className="welcome-principles" aria-label={t("Recent Spaces")}>
         <header>
-          <span>Recent Spaces</span>
-          <small>{recents.length ? "Local folders" : "No recent Spaces"}</small>
+          <span>{t("Recent Spaces")}</span>
+          <small>
+            {recents.length ? t("Local folders") : t("No recent Spaces")}
+          </small>
         </header>
         <div className="recent-spaces">
           {recents.map((recent) => (
@@ -496,7 +571,7 @@ function Welcome({
                 <span>
                   <strong>{recent.name}</strong>
                   <small>
-                    {recent.available ? recent.path : "Folder unavailable"}
+                    {recent.available ? recent.path : t("Folder unavailable")}
                   </small>
                 </span>
               </button>
@@ -504,8 +579,10 @@ function Welcome({
                 type="button"
                 className="recent-space-remove"
                 onClick={() => onRemoveRecent(recent.id)}
-                aria-label={`Remove ${recent.name} from recent Spaces`}
-                title="Remove from recents"
+                aria-label={t("Remove {name} from recent Spaces", {
+                  name: recent.name,
+                })}
+                title={t("Remove from recents")}
               >
                 <X />
               </button>
@@ -513,8 +590,9 @@ function Welcome({
           ))}
         </div>
         <p className="recent-spaces-note">
-          Spaces remain ordinary folders. Removing one here never deletes its
-          files.
+          {t(
+            "Spaces remain ordinary folders. Removing one here never deletes its files."
+          )}
         </p>
       </aside>
     </main>
@@ -522,17 +600,41 @@ function Welcome({
 }
 
 function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
+  const { t } = useEidosLiteI18n()
   const macos = navigator.userAgent.includes("Macintosh")
-  const sidebarShortcutLabel = workspaceShortcutLabel("toggle-sidebar", macos)
-  const versionShortcutLabel = workspaceShortcutLabel("toggle-version", macos)
-  const syncShortcutLabel = workspaceShortcutLabel("toggle-sync", macos)
+  const [keyboardShortcuts, setKeyboardShortcuts] =
+    useState<EidosLiteKeyboardShortcuts>({
+      ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+    })
+  const versionShortcutLabel = workspaceShortcutLabel(
+    "toggle-version",
+    macos,
+    keyboardShortcuts
+  )
+  const syncShortcutLabel = workspaceShortcutLabel(
+    "toggle-sync",
+    macos,
+    keyboardShortcuts
+  )
+  const newFileShortcutLabel = workspaceShortcutLabel(
+    "new-file",
+    macos,
+    keyboardShortcuts
+  )
   const [appInfo, setAppInfo] = useState<EidosLiteAppInfo | null>(null)
   const [space, setSpace] = useState<SpaceSnapshot | null>(null)
   const [cachedFiles, setCachedFiles] = useState<CachedFile[]>([])
+  const [recentFileState, setRecentFileState] = useState<RecentFileState>({
+    spaceId: null,
+    files: [],
+  })
   const [activeSession, setActiveSession] = useState<string | null>(null)
   const [textPreview, setTextPreview] = useState<TextFilePreviewResult | null>(
     null
   )
+  const [textFileDrafts, setTextFileDrafts] = useState<
+    Record<string, TextFileDraft | undefined>
+  >({})
   const [openingSpace, setOpeningSpace] = useState(false)
   const [recentSpaces, setRecentSpaces] = useState<RecentSpaceEntry[]>([])
   const [busyFile, setBusyFile] = useState<string | null>(null)
@@ -550,6 +652,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [fileIssue, setFileIssue] = useState<EidosFileIssue | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
   const [navigationSnapshot, setNavigationSnapshot] =
     useState<NavigationSnapshot | null>(null)
   const [selectedEntry, setSelectedEntry] = useState<SpaceTreeEntry | null>(
@@ -566,6 +669,17 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const fileOpenInFlight = useRef(false)
   const navigationSnapshotRef = useRef<NavigationSnapshot | null>(null)
 
+  useEffect(() => {
+    void window.eidosLite
+      .getPreferences()
+      .then((preferences) =>
+        setKeyboardShortcuts(preferences.keyboardShortcuts)
+      )
+    return window.eidosLite.onPreferencesChanged((preferences) =>
+      setKeyboardShortcuts(preferences.keyboardShortcuts)
+    )
+  }, [])
+
   const recordNavigationLocation = useCallback(
     (relativePath: string | null) => {
       const current = navigationSnapshotRef.current
@@ -575,6 +689,40 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       setNavigationSnapshot(next)
     },
     [space]
+  )
+
+  const updateRecentFiles = useCallback(
+    (update: (files: readonly RecentFileEntry[]) => RecentFileEntry[]) => {
+      const spaceId = space?.id
+      if (!spaceId) return
+      setRecentFileState((current) => {
+        const files = update(
+          current.spaceId === spaceId
+            ? current.files
+            : loadRecentFiles(window.localStorage, spaceId)
+        )
+        storeRecentFiles(window.localStorage, spaceId, files)
+        return { spaceId, files }
+      })
+    },
+    [space?.id]
+  )
+
+  const rememberOpenedEntry = useCallback(
+    (entry: SpaceTreeEntry) => {
+      if (entry.kind === "directory") return
+      updateRecentFiles((files) => rememberRecentFile(files, entry))
+    },
+    [updateRecentFiles]
+  )
+
+  const updateRecentFilePaths = useCallback(
+    (sourcePath: string, destinationPath: string | null) => {
+      updateRecentFiles((files) =>
+        remapRecentFiles(files, sourcePath, destinationPath)
+      )
+    },
+    [updateRecentFiles]
   )
 
   const invalidateCachedSessions = useCallback((sessionIds: string[]) => {
@@ -690,6 +838,15 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   useEffect(() => {
     setActiveSession(null)
     setTextPreview(null)
+    setTextFileDrafts({})
+  }, [space?.id])
+
+  useEffect(() => {
+    const spaceId = space?.id ?? null
+    setRecentFileState({
+      spaceId,
+      files: spaceId ? loadRecentFiles(window.localStorage, spaceId) : [],
+    })
   }, [space?.id])
 
   useEffect(() => {
@@ -712,11 +869,29 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
 
   const activeFile =
     cachedFiles.find((file) => file.sessionId === activeSession) ?? null
+  const recentFiles =
+    recentFileState.spaceId === space?.id ? recentFileState.files : []
   const spaceTreeIncomplete = space
     ? hasUnloadedDirectories(space.entries)
     : false
   const activeDocumentPath =
     activeFile?.relativePath ?? textPreview?.relativePath ?? null
+  const activeDocumentDirty = Boolean(
+    activeDocumentPath && textFileDrafts[activeDocumentPath]
+  )
+
+  const updateTextFileDraft = useCallback(
+    (relativePath: string, draft: TextFileDraft | null) => {
+      setTextFileDrafts((current) => {
+        if (draft) return { ...current, [relativePath]: draft }
+        if (!(relativePath in current)) return current
+        const next = { ...current }
+        delete next[relativePath]
+        return next
+      })
+    },
+    []
+  )
 
   const startSidebarResize = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -811,13 +986,14 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         setBusyFile(entry.relativePath)
         setError(null)
         setFileIssue(null)
-        setActiveSession(null)
-        setTextPreview(null)
         try {
           const preview = await window.eidosLite.previewTextFile(
             entry.relativePath
           )
+          await prepareTextFilePreview(preview)
+          setActiveSession(null)
           setTextPreview(preview)
+          rememberOpenedEntry(entry)
           if (options.recordHistory !== false) {
             recordNavigationLocation(entry.relativePath)
           }
@@ -835,7 +1011,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       setBusyFile(entry.relativePath)
       setError(null)
       setFileIssue(null)
-      setTextPreview(null)
       try {
         let availableCachedFiles = cachedFiles
         const alreadyCached = cachedFiles.some(
@@ -855,6 +1030,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         const opened = await window.eidosLite.openEidosFile(entry.relativePath)
         const tableId = opened.snapshot.tables[0]?.table.id
         if (!tableId) throw new Error("This Eidos File has no tables")
+        await loadEidosFileWorkbench()
         const existing = availableCachedFiles.find(
           (file) => file.sessionId === opened.sessionId
         )
@@ -877,7 +1053,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               },
             ]
           })
+          setTextPreview(null)
           setActiveSession(opened.sessionId)
+          rememberOpenedEntry(entry)
           if (options.recordHistory !== false) {
             recordNavigationLocation(entry.relativePath)
           }
@@ -916,7 +1094,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             file,
           ].slice(-MAX_CACHED_FILES)
         )
+        setTextPreview(null)
         setActiveSession(opened.sessionId)
+        rememberOpenedEntry(entry)
         if (options.recordHistory !== false) {
           recordNavigationLocation(entry.relativePath)
         }
@@ -933,7 +1113,46 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         setBusyFile(null)
       }
     },
-    [cachedFiles, recordNavigationLocation]
+    [cachedFiles, recordNavigationLocation, rememberOpenedEntry]
+  )
+
+  const openRecentFile = useCallback(
+    async (recent: RecentFileEntry) => {
+      if (!space) return
+      setError(null)
+      try {
+        let currentSpace = space
+        let directoryPath = ""
+        for (const segment of recent.relativePath.split("/").slice(0, -1)) {
+          directoryPath = directoryPath
+            ? `${directoryPath}/${segment}`
+            : segment
+          const directory = findSpaceEntry(currentSpace.entries, directoryPath)
+          if (directory?.kind !== "directory") break
+          if (directory.childrenLoaded) continue
+          currentSpace = await window.eidosLite.loadSpaceDirectory(
+            directory.relativePath
+          )
+          acceptSpaceSnapshot(currentSpace)
+        }
+
+        const entry = findSpaceEntry(currentSpace.entries, recent.relativePath)
+        if (!entry || entry.kind === "directory") {
+          updateRecentFilePaths(recent.relativePath, null)
+          setError(
+            t("{name} is no longer available in this Space.", {
+              name: recent.name,
+            })
+          )
+          return
+        }
+        setSelectedEntry(entry)
+        await openEntry(entry)
+      } catch (cause) {
+        setError(errorMessage(cause))
+      }
+    },
+    [acceptSpaceSnapshot, openEntry, space, t, updateRecentFilePaths]
   )
 
   const launchSpace = useRef(space)
@@ -1119,6 +1338,13 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     setSidebarCollapsed((current) => !current)
   }, [space])
 
+  const toggleTheme = useCallback(() => {
+    setError(null)
+    void window.eidosLite
+      .updatePreferences({ appearance: toggledAppearance(theme) })
+      .catch((cause) => setError(errorMessage(cause)))
+  }, [theme])
+
   const toggleVersionPanel = useCallback(() => {
     if (!space?.graft.available) return
     setSyncPanelMode(null)
@@ -1136,6 +1362,27 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   useEffect(() => {
     const handleKeyboardShortcut = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return
+      const workspaceShortcut = workspaceShortcutForKeyboardEvent(
+        event,
+        keyboardShortcuts,
+        macos
+      )
+      if (workspaceShortcut === "new-file" && space) {
+        event.preventDefault()
+        if (
+          !pathDialog &&
+          !pathMutationBusy &&
+          !blocksLocalInteraction(space.operation.phase)
+        ) {
+          setPathDialog({ action: "create-file", entry: selectedEntry })
+        }
+        return
+      }
+      if (workspaceShortcut === "toggle-theme") {
+        event.preventDefault()
+        toggleTheme()
+        return
+      }
       const target = event.target
       if (
         target instanceof HTMLElement &&
@@ -1144,7 +1391,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       ) {
         return
       }
-      const workspaceShortcut = workspaceShortcutForKeyboardEvent(event)
       if (workspaceShortcut && space) {
         if (workspaceShortcut === "toggle-version" && !space.graft.available) {
           return
@@ -1155,10 +1401,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         else toggleSyncPanel()
         return
       }
-      const offset = navigationOffsetForKeyboardShortcut(event)
-      if (!offset) return
-      event.preventDefault()
-      navigateHistory(offset)
     }
     const handlePointerNavigation = (event: PointerEvent) => {
       const offset = navigationOffsetForPointerButton(event.button)
@@ -1169,23 +1411,29 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     const preventAuxiliaryNavigation = (event: MouseEvent) => {
       if (event.button === 3 || event.button === 4) event.preventDefault()
     }
-    window.addEventListener("keydown", handleKeyboardShortcut)
+    window.addEventListener("keydown", handleKeyboardShortcut, true)
     window.addEventListener("pointerdown", handlePointerNavigation)
     window.addEventListener("auxclick", preventAuxiliaryNavigation)
     const unsubscribe = window.eidosLite.onNavigationCommand((direction) =>
       navigateHistory(direction === "back" ? -1 : 1)
     )
     return () => {
-      window.removeEventListener("keydown", handleKeyboardShortcut)
+      window.removeEventListener("keydown", handleKeyboardShortcut, true)
       window.removeEventListener("pointerdown", handlePointerNavigation)
       window.removeEventListener("auxclick", preventAuxiliaryNavigation)
       unsubscribe()
     }
   }, [
+    keyboardShortcuts,
+    macos,
     navigateHistory,
+    pathDialog,
+    pathMutationBusy,
+    selectedEntry,
     space,
     toggleSidebar,
     toggleSyncPanel,
+    toggleTheme,
     toggleVersionPanel,
   ])
 
@@ -1253,6 +1501,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         )
         applyPathMutation(result)
         if (result.relativePath) {
+          updateRecentFilePaths(relativePath, result.relativePath)
+        }
+        if (result.relativePath) {
           setSelectedEntry(
             findSpaceEntry(result.snapshot.entries, result.relativePath)
           )
@@ -1266,7 +1517,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         setPathMutationBusy(false)
       }
     },
-    [activeDocumentPath, applyPathMutation, recordNavigationLocation]
+    [
+      activeDocumentPath,
+      applyPathMutation,
+      recordNavigationLocation,
+      updateRecentFilePaths,
+    ]
   )
 
   const submitPathDialog = useCallback(
@@ -1277,11 +1533,17 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       try {
         let result: SpacePathMutationResult
         switch (pathDialog.action) {
-          case "create-eidos":
-            result = await window.eidosLite.createEidosFile(
-              parentPath(pathDialog.entry),
-              value
-            )
+          case "create-file":
+            result =
+              eidosLiteNewFileKind(value) === "text"
+                ? await window.eidosLite.createTextFile(
+                    parentPath(pathDialog.entry),
+                    value
+                  )
+                : await window.eidosLite.createEidosFile(
+                    parentPath(pathDialog.entry),
+                    value
+                  )
             break
           case "create-folder":
             result = await window.eidosLite.createFolder(
@@ -1318,6 +1580,19 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             break
         }
         applyPathMutation(result)
+        if (pathDialog.entry) {
+          if (pathDialog.action === "delete") {
+            updateRecentFilePaths(pathDialog.entry.relativePath, null)
+          } else if (
+            (pathDialog.action === "rename" || pathDialog.action === "move") &&
+            result.relativePath
+          ) {
+            updateRecentFilePaths(
+              pathDialog.entry.relativePath,
+              result.relativePath
+            )
+          }
+        }
         const changedPath = pathDialog.entry?.relativePath
         const activePathChanged =
           changedPath !== undefined &&
@@ -1333,7 +1608,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             ? findSpaceEntry(result.snapshot.entries, result.relativePath)
             : null
         )
-        if (pathDialog.action === "create-eidos" && result.relativePath) {
+        if (pathDialog.action === "create-file" && result.relativePath) {
           const created = findSpaceEntry(
             result.snapshot.entries,
             result.relativePath
@@ -1352,6 +1627,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       openEntry,
       pathDialog,
       recordNavigationLocation,
+      updateRecentFilePaths,
     ]
   )
 
@@ -1447,7 +1723,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             collapsed={false}
             canGoBack={canGoBack}
             canGoForward={canGoForward}
-            toggleShortcutLabel={sidebarShortcutLabel}
+            keyboardShortcuts={keyboardShortcuts}
+            macos={macos}
             onToggle={toggleSidebar}
             onBack={() => navigateHistory(-1)}
             onForward={() => navigateHistory(1)}
@@ -1462,16 +1739,21 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           <div
             className="space-heading-actions"
             role="toolbar"
-            aria-label="Space file actions"
+            aria-label={t("Space file actions")}
           >
             <button
               type="button"
               className="icon-button"
               onClick={() =>
-                setPathDialog({ action: "create-eidos", entry: selectedEntry })
+                setPathDialog({ action: "create-file", entry: selectedEntry })
               }
-              aria-label="New Eidos File"
-              title="New Eidos File"
+              aria-label={t("New File")}
+              aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
+                "new-file",
+                macos,
+                keyboardShortcuts
+              )}
+              title={shortcutTitle(t("New File"), newFileShortcutLabel)}
               disabled={pathMutationBusy || localInteractionBlocked}
             >
               <FilePlus2 />
@@ -1482,8 +1764,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               onClick={() =>
                 setPathDialog({ action: "create-folder", entry: selectedEntry })
               }
-              aria-label="New folder"
-              title="New folder"
+              aria-label={t("New folder")}
+              title={t("New folder")}
               disabled={pathMutationBusy || localInteractionBlocked}
             >
               <FolderPlus />
@@ -1492,8 +1774,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               type="button"
               className="icon-button"
               onClick={() => void importFiles()}
-              aria-label="Import files"
-              title="Import files"
+              aria-label={t("Import files")}
+              title={t("Import files")}
               disabled={pathMutationBusy || localInteractionBlocked}
             >
               <Upload />
@@ -1504,8 +1786,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               onClick={() =>
                 void window.eidosLite.refreshExplorer().then(setSpace)
               }
-              aria-label="Refresh Space Explorer"
-              title="Refresh Space Explorer"
+              aria-label={t("Refresh Space Explorer")}
+              title={t("Refresh Space Explorer")}
             >
               <RefreshCw />
             </button>
@@ -1515,7 +1797,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           <Suspense
             fallback={
               <p className="explorer-busy" role="status">
-                <LoaderCircle className="spin" /> Loading Space Explorer…
+                <LoaderCircle className="spin" /> {t("Loading Space Explorer…")}
               </p>
             }
           >
@@ -1556,7 +1838,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         className="sidebar-resizer"
         data-sidebar-resizer
         role="separator"
-        aria-label="Resize Space Explorer"
+        aria-label={t("Resize Space Explorer")}
         aria-orientation="vertical"
         aria-valuemin={MIN_SIDEBAR_WIDTH}
         aria-valuemax={MAX_SIDEBAR_WIDTH}
@@ -1579,7 +1861,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               collapsed
               canGoBack={canGoBack}
               canGoForward={canGoForward}
-              toggleShortcutLabel={sidebarShortcutLabel}
+              keyboardShortcuts={keyboardShortcuts}
+              macos={macos}
               onToggle={toggleSidebar}
               onBack={() => navigateHistory(-1)}
               onForward={() => navigateHistory(1)}
@@ -1588,12 +1871,13 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           <div className="file-titlebar-identity">
             <div>
               <strong>{titlebarPresentation.title}</strong>
-              <small
-                aria-hidden={titlebarPresentation.detail ? undefined : "true"}
-                data-empty={titlebarPresentation.detail ? undefined : "true"}
-              >
-                {titlebarPresentation.detail ?? "\u00a0"}
-              </small>
+              {activeDocumentDirty && !titlebarPresentation.pending ? (
+                <span
+                  className="file-titlebar-dirty"
+                  aria-label={t("Unsaved changes")}
+                  title={t("Unsaved changes")}
+                />
+              ) : null}
             </div>
             {activeDocumentPath && !titlebarPresentation.pending ? (
               <button
@@ -1610,7 +1894,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           <div
             className="file-titlebar-actions"
             role="toolbar"
-            aria-label="Space actions"
+            aria-label={t("Space actions")}
           >
             <button
               type="button"
@@ -1619,7 +1903,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               data-version-change-count={versionChangeCount}
               disabled={!space.graft.available}
               aria-pressed={versionPanelOpen}
-              aria-keyshortcuts={WORKSPACE_SHORTCUT_ARIA["toggle-version"]}
+              aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
+                "toggle-version",
+                macos,
+                keyboardShortcuts
+              )}
               aria-label={
                 space.graft.checking
                   ? "Checking version history"
@@ -1659,7 +1947,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               data-sync-queue-state={syncQueueStatus?.state ?? "idle"}
               aria-pressed={syncPanelMode === "enable"}
               aria-label={syncQueueLabel(syncQueueStatus)}
-              aria-keyshortcuts={WORKSPACE_SHORTCUT_ARIA["toggle-sync"]}
+              aria-keyshortcuts={workspaceShortcutAriaKeyShortcuts(
+                "toggle-sync",
+                macos,
+                keyboardShortcuts
+              )}
               onClick={toggleSyncPanel}
               title={shortcutTitle(
                 syncQueueLabel(syncQueueStatus),
@@ -1691,7 +1983,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             <button
               type="button"
               onClick={() => setError(null)}
-              aria-label="Dismiss error"
+              aria-label={t("Dismiss error")}
             >
               <X />
             </button>
@@ -1729,18 +2021,34 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 fallback={
                   <div className="editor-empty" role="status">
                     <LoaderCircle className="spin" aria-hidden="true" />
-                    <p>Loading change details…</p>
+                    <p>{t("Loading change details…")}</p>
                   </div>
                 }
               >
                 <VersionDiffPreview
                   inspection={versionInspection}
+                  theme={theme}
                   onClose={() => setVersionInspection(null)}
                 />
               </Suspense>
             ) : textPreview ? (
               <TextFilePreview
                 preview={textPreview}
+                draft={textFileDrafts[textPreview.relativePath]}
+                theme={theme}
+                onSaved={(file) =>
+                  setTextPreview((current) =>
+                    current?.relativePath === file.relativePath ? file : current
+                  )
+                }
+                onReload={(preview) =>
+                  setTextPreview((current) =>
+                    current?.relativePath === preview.relativePath
+                      ? preview
+                      : current
+                  )
+                }
+                onDraftChange={updateTextFileDraft}
                 onReveal={() =>
                   void window.eidosLite
                     .revealPath(textPreview.relativePath)
@@ -1758,7 +2066,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   fallback={
                     <div className="editor-empty" role="status">
                       <LoaderCircle className="spin" aria-hidden="true" />
-                      <p>Loading Eidos File editor…</p>
+                      <p>{t("Loading Eidos File editor…")}</p>
                     </div>
                   }
                 >
@@ -1792,16 +2100,20 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   />
                 </Suspense>
               </section>
-            ) : space.eidosFileCount === 0 && !spaceTreeIncomplete ? (
+            ) : recentFiles.length === 0 &&
+              space.eidosFileCount === 0 &&
+              !spaceTreeIncomplete ? (
               <section
                 className="editor-empty editor-empty-onboarding"
                 data-empty-space-onboarding
               >
                 <Database aria-hidden="true" />
-                <h2>Create your first Eidos File</h2>
+                <h2>{t("Create your first Eidos File")}</h2>
                 <p>
-                  Start with a local <code>.eidos</code> file inside this Space.
-                  It remains an ordinary file you own and can move or back up.
+                  {t(
+                    "Start with a local {extension} file inside this Space. It remains an ordinary file you own and can move or back up.",
+                    { extension: ".eidos" }
+                  )}
                 </p>
                 <button
                   type="button"
@@ -1809,21 +2121,18 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   data-create-first-eidos
                   disabled={pathMutationBusy || localInteractionBlocked}
                   onClick={() =>
-                    setPathDialog({ action: "create-eidos", entry: null })
+                    setPathDialog({ action: "create-file", entry: null })
                   }
                 >
-                  <FilePlus2 /> New Eidos File
+                  <FilePlus2 /> {t("New Eidos File")}
                 </button>
               </section>
             ) : (
-              <section className="editor-empty">
-                <Database aria-hidden="true" />
-                <h2>Open an Eidos File</h2>
-                <p>
-                  Choose any <code>.eidos</code> file in this Space. Recently
-                  used files reopen from a small in-memory runtime cache.
-                </p>
-              </section>
+              <RecentFilesEmptyState
+                files={recentFiles}
+                busyPath={busyFile}
+                onOpen={(file) => void openRecentFile(file)}
+              />
             )}
           </div>
           {versionPanelOpen && space.graft.available ? (

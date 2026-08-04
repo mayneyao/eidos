@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useVirtualizer } from "@tanstack/react-virtual"
+import { LoaderCircle, RotateCcw } from "lucide-react"
 
 import type {
   SpaceVersionRowChange,
@@ -158,16 +159,35 @@ function RowChangeBadge({ change }: { change: SpaceVersionRowChange }) {
   )
 }
 
+function changedRowsSummary(table: SpaceVersionTableDiff): string {
+  const loaded = table.changes.length
+  const total = table.summary
+    ? table.summary.inserts + table.summary.deletes + table.summary.updates
+    : loaded
+  if (table.hasMore) {
+    return table.summary
+      ? `${loaded.toLocaleString()} of ${total.toLocaleString()} changed rows`
+      : `${loaded.toLocaleString()} changed rows loaded`
+  }
+  return `${total.toLocaleString()} changed ${total === 1 ? "row" : "rows"}`
+}
+
 export function VersionTableDiff({
   table,
   showHeading = true,
   identityKey = table.name,
   onLoadMore,
+  loadingMore = false,
+  loadError,
+  onRetryLoad,
 }: {
   table: SpaceVersionTableDiff
   showHeading?: boolean
   identityKey?: string
   onLoadMore?(): Promise<boolean>
+  loadingMore?: boolean
+  loadError?: string
+  onRetryLoad?(): void
 }) {
   const [columnMode, setColumnMode] = useState<ColumnMode>("changed")
   const [automaticLoadingPaused, setAutomaticLoadingPaused] = useState(false)
@@ -269,12 +289,39 @@ export function VersionTableDiff({
     <section className="version-table-diff" data-version-table-diff>
       {showHeading ? <h4>{table.name}</h4> : null}
       <header className="version-table-diff-toolbar">
-        <span>
-          {visibleColumnIndexes.length.toLocaleString()} of{" "}
-          {table.columns.length.toLocaleString()} columns
-        </span>
+        <div className="version-table-diff-toolbar-summary" aria-live="polite">
+          <span>{changedRowsSummary(table)}</span>
+          <i aria-hidden="true">·</i>
+          <span>
+            {visibleColumnIndexes.length.toLocaleString()} of{" "}
+            {table.columns.length.toLocaleString()} columns
+          </span>
+          {loadingMore ? (
+            <>
+              <i aria-hidden="true">·</i>
+              <span data-load-state="loading">
+                <LoaderCircle className="spin" aria-hidden="true" />
+                Loading…
+              </span>
+            </>
+          ) : loadError && onRetryLoad ? (
+            <button
+              type="button"
+              className="version-table-diff-load-retry"
+              onClick={onRetryLoad}
+              aria-label={`Retry loading rows: ${loadError}`}
+              title={loadError}
+            >
+              <RotateCcw aria-hidden="true" />
+              Retry
+            </button>
+          ) : null}
+        </div>
         {columnsAreFiltered || columnMode === "all" ? (
-          <div aria-label="Visible table columns">
+          <div
+            className="version-table-diff-column-mode"
+            aria-label="Visible table columns"
+          >
             <button
               type="button"
               aria-pressed={columnMode === "changed"}

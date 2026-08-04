@@ -6,6 +6,7 @@ import type {
   SpaceVersionTextContentDiff,
   SpaceVersionTextContentState,
 } from "../shared/contracts"
+import type { ResolvedAppearance } from "./app-appearance"
 import type { VersionTextDiffComputationResponse } from "./version-text-diff-computation"
 
 const PierreTextDiffSurface = lazy(() => import("./pierre-text-diff-surface"))
@@ -61,8 +62,10 @@ function VersionTextDiffUnavailable({
 
 function ComputedTextDiff({
   content,
+  theme,
 }: {
   content: SpaceVersionTextContentDiff
+  theme: ResolvedAppearance
 }) {
   const [layout, setLayout] = useState<"split" | "unified">("split")
   const [diff, setDiff] = useState<FileDiffMetadata | null>(null)
@@ -104,7 +107,7 @@ function ComputedTextDiff({
 
   return (
     <div className="version-text-diff" data-version-text-diff>
-      <header>
+      <header className="version-inspector-diff-bar version-text-diff-toolbar">
         <div>
           <strong>Text changes</strong>
           <span>
@@ -151,7 +154,7 @@ function ComputedTextDiff({
               </div>
             }
           >
-            <PierreTextDiffSurface diff={diff} layout={layout} />
+            <PierreTextDiffSurface diff={diff} layout={layout} theme={theme} />
           </Suspense>
         ) : (
           <div className="version-text-diff-loading" role="status">
@@ -170,8 +173,10 @@ export function VersionTextDiff({
   parentId,
   expectedHead,
   path,
+  theme,
 }: {
   path: string
+  theme: ResolvedAppearance
 } & (
   | {
       mode: "history"
@@ -246,5 +251,5 @@ export function VersionTextDiff({
     )
   }
 
-  return <ComputedTextDiff content={content} />
+  return <ComputedTextDiff content={content} theme={theme} />
 }

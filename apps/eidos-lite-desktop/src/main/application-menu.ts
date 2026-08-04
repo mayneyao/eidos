@@ -1,5 +1,7 @@
 import type { MenuItemConstructorOptions } from "electron"
 
+import { translateEidosLite, type EidosLiteLocale } from "../shared/i18n"
+
 interface ApplicationMenuHandlers {
   openSettings(): void
   openDocumentation(): void
@@ -9,10 +11,12 @@ interface ApplicationMenuHandlers {
 export function eidosLiteApplicationMenuTemplate(
   platform: NodeJS.Platform,
   appName: string,
-  handlers: ApplicationMenuHandlers
+  handlers: ApplicationMenuHandlers,
+  locale: EidosLiteLocale = "en"
 ): MenuItemConstructorOptions[] {
+  const t = (message: string) => translateEidosLite(locale, message)
   const settings: MenuItemConstructorOptions = {
-    label: "Settings…",
+    label: t("Settings…"),
     accelerator: "CmdOrCtrl+,",
     click: handlers.openSettings,
   }
@@ -38,20 +42,21 @@ export function eidosLiteApplicationMenuTemplate(
         ]
       : []),
     {
-      label: "File",
+      label: t("File"),
       submenu:
         platform === "darwin"
           ? [{ role: "close" }]
           : [settings, { type: "separator" }, { role: "quit" }],
     },
-    { role: "editMenu" },
-    { role: "viewMenu" },
-    { role: "windowMenu" },
+    { role: "editMenu", label: t("Edit") },
+    { role: "viewMenu", label: t("View") },
+    { role: "windowMenu", label: t("Window") },
     {
       role: "help",
+      label: t("Help"),
       submenu: [
-        { label: "Eidos Documentation", click: handlers.openDocumentation },
-        { label: "Eidos Website", click: handlers.openWebsite },
+        { label: t("Eidos Documentation"), click: handlers.openDocumentation },
+        { label: t("Eidos Website"), click: handlers.openWebsite },
         ...(platform === "darwin"
           ? []
           : [{ type: "separator" as const }, { role: "about" as const }]),

@@ -44,6 +44,7 @@ import {
   eidosLiteAssetPresenter,
 } from "./eidos-file-assets"
 import { shouldFocusEidosFileSearch } from "./eidos-file-workbench-shortcuts"
+import { useEidosLiteI18n } from "./i18n"
 import type { IpcEidosFileDataSource } from "./ipc-data-source"
 
 const VIEW_PLUGINS: EidosFilePlugin[] = [
@@ -75,6 +76,7 @@ export function EidosFileWorkbench({
   onSnapshot,
   onError,
 }: EidosFileWorkbenchProps) {
+  const { locale } = useEidosLiteI18n()
   const [activeViews, setActiveViews] = useState<Record<string, string>>({})
   const [search, setSearch] = useState("")
   const [focusSearchToken, setFocusSearchToken] = useState(0)
@@ -350,7 +352,7 @@ export function EidosFileWorkbench({
 
   return (
     <EidosFileUIProvider
-      locale="en"
+      locale={locale}
       themeName={theme}
       assetSession={assetSession}
       assetPresenter={eidosLiteAssetPresenter}
@@ -471,6 +473,9 @@ export function EidosFileWorkbench({
               setFormulaTarget(null)
               setLookupTarget(null)
             }}
+            onReorder={(tableIds) =>
+              source.reorderTables(tableIds).then(() => undefined)
+            }
             onRename={async (table, name) => {
               await source.updateTable(table.id, { name })
             }}

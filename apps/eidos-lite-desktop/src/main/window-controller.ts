@@ -20,6 +20,7 @@ import {
   type SpaceSnapshot,
 } from "../shared/contracts"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
+import { resolveEidosLiteLocale, translateEidosLite } from "../shared/i18n"
 import {
   createEidosLiteDiagnostics,
   serializeEidosLiteDiagnostics,
@@ -68,6 +69,9 @@ export class WindowController {
   private readonly openingSessions = new Set<Promise<SpaceSession>>()
   private recentSpacesStore: RecentSpacesStore | null = null
   private preferencesStore: EidosLitePreferencesStore | null = null
+  private readonly preferencesListeners = new Set<
+    (preferences: EidosLitePreferences) => void
+  >()
   private cloneCoordinatorInstance: SpaceCloneCoordinator | null = null
   private settingsWindow: BrowserWindow | null = null
   private readonly windowKind = new WeakMap<BrowserWindow, LiteWindowKind>()
@@ -94,7 +98,9 @@ export class WindowController {
     }
     const window = this.createWindow(true, "settings")
     this.settingsWindow = window
-    window.setTitle("Settings — Eidos Lite")
+    void this.locale().then((locale) =>
+      window.setTitle(`${translateEidosLite(locale, "Settings")} — Eidos Lite`)
+    )
     window.once("closed", () => {
       if (this.settingsWindow === window) this.settingsWindow = null
     })
@@ -175,9 +181,11 @@ export class WindowController {
       throw new Error("This window already owns a Space")
     }
     const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
+    const locale = await this.locale()
+    const t = (message: string) => translateEidosLite(locale, message)
     const options: Electron.OpenDialogOptions = {
-      title: "Open Folder as Space",
-      buttonLabel: "Open Space",
+      title: t("Open Folder as Space"),
+      buttonLabel: t("Open Space"),
       properties: ["openDirectory", "createDirectory"],
     }
     const result = parent
@@ -194,15 +202,17 @@ export class WindowController {
       throw new Error("This window already owns a Space")
     }
     const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
+    const preferences = await this.preferences().get()
+    const locale = resolveEidosLiteLocale(preferences.language, app.getLocale())
+    const t = (message: string) => translateEidosLite(locale, message)
     const options: Electron.SaveDialogOptions = {
-      title: "Create Space",
-      buttonLabel: "Create Space",
+      title: t("Create Space"),
+      buttonLabel: t("Create Space"),
       defaultPath: path.join(
-        (await this.preferences().get()).defaultSpaceLocation ??
-          app.getPath("documents"),
-        "Untitled Space"
+        preferences.defaultSpaceLocation ?? app.getPath("documents"),
+        t("Untitled Space")
       ),
-      nameFieldLabel: "Space name",
+      nameFieldLabel: t("Space name"),
       properties: ["createDirectory", "showOverwriteConfirmation"],
     }
     const result = parent
@@ -229,6 +239,8 @@ export class WindowController {
       throw new Error("This window already owns a Space")
     }
     const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
+    const locale = await this.locale()
+    const t = (message: string) => translateEidosLite(locale, message)
     const repositoryNameFallback =
       new URL(remoteUrl).pathname.split("/").filter(Boolean).at(-1) ??
       "Synced Space"
@@ -237,10 +249,10 @@ export class WindowController {
       repositoryNameFallback
     )
     const options: Electron.SaveDialogOptions = {
-      title: "Open Synced Space",
-      buttonLabel: "Save Local Copy",
+      title: t("Open Synced Space"),
+      buttonLabel: t("Save Local Copy"),
       defaultPath: path.join(app.getPath("documents"), repositoryName),
-      nameFieldLabel: "Space name",
+      nameFieldLabel: t("Space name"),
       properties: ["createDirectory", "showOverwriteConfirmation"],
     }
     const result = parent
@@ -409,7 +421,15 @@ export class WindowController {
       session.setAutomaticCheckpointsEnabled(preferences.automaticCheckpoints)
     }
     this.broadcastPreferences(preferences)
+    for (const listener of this.preferencesListeners) listener(preferences)
     return preferences
+  }
+
+  onPreferencesChanged(
+    listener: (preferences: EidosLitePreferences) => void
+  ): () => void {
+    this.preferencesListeners.add(listener)
+    return () => this.preferencesListeners.delete(listener)
   }
 
   async chooseDefaultSpaceLocation(
@@ -417,9 +437,11 @@ export class WindowController {
   ): Promise<EidosLitePreferences | null> {
     const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
     const current = await this.preferences().get()
+    const locale = resolveEidosLiteLocale(current.language, app.getLocale())
+    const t = (message: string) => translateEidosLite(locale, message)
     const options: Electron.OpenDialogOptions = {
-      title: "Choose Default Location for New Spaces",
-      buttonLabel: "Use This Folder",
+      title: t("Choose Default Location for New Spaces"),
+      buttonLabel: t("Use This Folder"),
       defaultPath: current.defaultSpaceLocation ?? app.getPath("documents"),
       properties: ["openDirectory", "createDirectory"],
     }
@@ -472,9 +494,11 @@ export class WindowController {
     targetDirectory: string | null
   ) {
     const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
+    const locale = await this.locale()
+    const t = (message: string) => translateEidosLite(locale, message)
     const options: Electron.OpenDialogOptions = {
-      title: "Import files into Space",
-      buttonLabel: "Import",
+      title: t("Import files into Space"),
+      buttonLabel: t("Import"),
       properties: ["openFile", "multiSelections"],
     }
     const result = parent
@@ -494,6 +518,8 @@ export class WindowController {
   ): Promise<boolean> {
     this.requireSession(webContents)
     const parent = BrowserWindow.fromWebContents(webContents) ?? undefined
+    const locale = await this.locale()
+    const t = (message: string) => translateEidosLite(locale, message)
     const candidate = path
       .basename(suggestedName.replace(/\\/g, "/"))
       .replace(/[\0\r\n]/g, "")
@@ -507,8 +533,8 @@ export class WindowController {
       ? segment
       : `${segment}.csv`
     const options: Electron.SaveDialogOptions = {
-      title: "Export Eidos File CSV",
-      buttonLabel: "Export CSV",
+      title: t("Export Eidos File CSV"),
+      buttonLabel: t("Export CSV"),
       defaultPath: path.join(app.getPath("downloads"), fileName),
       filters: [{ name: "CSV", extensions: ["csv"] }],
       properties: ["showOverwriteConfirmation"],
@@ -624,6 +650,11 @@ export class WindowController {
       path.join(app.getPath("userData"), "preferences.json")
     )
     return this.preferencesStore
+  }
+
+  private async locale() {
+    const preferences = await this.preferences().get()
+    return resolveEidosLiteLocale(preferences.language, app.getLocale())
   }
 
   private broadcastPreferences(preferences: EidosLitePreferences): void {

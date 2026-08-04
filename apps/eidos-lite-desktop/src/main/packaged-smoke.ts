@@ -80,6 +80,14 @@ interface RendererSmokeResult {
     copied: boolean
     trashed: boolean
   }
+  textEditor: {
+    surface: boolean
+    pierreRendered: boolean
+    createApi: boolean
+    saveApi: boolean
+    saved: boolean
+    conflictProtected: boolean
+  }
   lifecycleRecovery: {
     recentRecorded: boolean
     externalRenameInvalidated: boolean
@@ -213,11 +221,15 @@ const emptySpaceOnboardingProbe = `
   if (!createAction) throw new Error("Create-first-file action is missing")
   createAction.click()
   const dialog = await waitFor(
-    () => document.querySelector('form[aria-label="New Eidos File"]'),
-    "New Eidos File dialog"
+    () => document.querySelector('form[aria-label="New File"]'),
+    "New File dialog"
   )
+  const description = dialog.querySelector(".path-dialog-description")
+  if (!description?.textContent?.includes(".md")) {
+    throw new Error("New File dialog does not explain text-file extensions")
+  }
   const input = dialog.querySelector("input")
-  if (!input) throw new Error("New Eidos File name input is missing")
+  if (!input) throw new Error("New File name input is missing")
   const setValue = Object.getOwnPropertyDescriptor(
     HTMLInputElement.prototype,
     "value"
@@ -1237,6 +1249,57 @@ const rendererProbe = `
         JSON.stringify(syncReliability)
     )
   }
+  window.__eidosLiteSmokeStep = "text file editor"
+  const readmePreview = await window.eidosLite.previewTextFile("README.md")
+  if (readmePreview.type !== "text" || readmePreview.truncated) {
+    throw new Error("README text preview is not editable")
+  }
+  const readmeItem = await waitFor(() => treeItem("README.md"), "README in Space Explorer")
+  readmeItem.click()
+  const textEditorSurface = await waitFor(
+    () => document.querySelector('[data-text-file-editor="README.md"]'),
+    "README text editor"
+  )
+  const pierreEditor = await waitFor(() => {
+    const surface = textEditorSurface.querySelector(
+      ".text-file-editor-virtualizer"
+    )
+    if (!surface) return false
+    return [...surface.querySelectorAll("*")].some((candidate) =>
+      candidate.shadowRoot?.querySelector('[contenteditable="true"]')
+    )
+  }, "Pierre editable text surface")
+  const editedReadme = readmePreview.content + "Edited in packaged smoke.\\n"
+  const savedReadme = await window.eidosLite.saveTextFile({
+    relativePath: "README.md",
+    content: editedReadme,
+    expectedRevision: readmePreview.revision,
+  })
+  const reloadedReadme = await window.eidosLite.previewTextFile("README.md")
+  const staleSave = await window.eidosLite.saveTextFile({
+    relativePath: "README.md",
+    content: "This stale write must not win.\\n",
+    expectedRevision: readmePreview.revision,
+  })
+  const textEditor = {
+    surface: Boolean(textEditorSurface),
+    pierreRendered: Boolean(pierreEditor),
+    createApi: typeof window.eidosLite.createTextFile === "function",
+    saveApi: typeof window.eidosLite.saveTextFile === "function",
+    saved:
+      savedReadme.status === "saved" &&
+      reloadedReadme.type === "text" &&
+      reloadedReadme.content === editedReadme,
+    conflictProtected:
+      staleSave.status === "conflict" &&
+      staleSave.current.type === "text" &&
+      staleSave.current.content === editedReadme,
+  }
+  if (Object.values(textEditor).some((value) => !value)) {
+    throw new Error(
+      "Packaged text editor is incomplete: " + JSON.stringify(textEditor)
+    )
+  }
   const historyButton = document.querySelector(
     'button[data-titlebar-action="version"]'
   )
@@ -1294,6 +1357,7 @@ const rendererProbe = `
     cachedFiles,
     runtimeCache: { residentPaths: [], trackedPaths: [] },
     fileLifecycle,
+    textEditor,
     canonicalEditor,
     csvWorkflow,
     workbenchLayout,
@@ -1310,7 +1374,7 @@ const rendererProbe = `
     versioning: {
       initialized: automaticSnapshot.graft.initialized,
       clean: automaticSnapshot.graft.clean,
-      iconAction: historyButton.textContent?.trim() === "",
+      iconAction: Boolean(historyButton.querySelector("svg")),
       changeBadge,
       changePaths: changes.paths.length,
       rowChanges,

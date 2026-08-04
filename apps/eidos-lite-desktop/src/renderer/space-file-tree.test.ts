@@ -2,12 +2,19 @@ import { describe, expect, it } from "vitest"
 
 import type { SpaceTreeEntry } from "../shared/contracts"
 import {
+  SPACE_FILE_TREE_STYLES,
   buildSpaceFileTreeModel,
   canMoveTreeDrop,
   dropTargetDirectory,
   parentTreePaths,
   relativePathFromTreePath,
 } from "./space-file-tree"
+
+describe("Space file tree theme", () => {
+  it("inherits the resolved app color scheme inside the Pierre shadow root", () => {
+    expect(SPACE_FILE_TREE_STYLES.colorScheme).toBe("inherit")
+  })
+})
 
 describe("buildSpaceFileTreeModel", () => {
   it("uses canonical Space paths and expands only root directories", () => {

@@ -5,9 +5,16 @@ import type {
   EidosLiteAppearance,
   EidosLitePreferences,
 } from "../shared/contracts"
+import {
+  DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+  normalizeEidosLiteKeyboardShortcuts,
+} from "../shared/keyboard-shortcuts"
 
 export const DEFAULT_EIDOS_LITE_PREFERENCES: EidosLitePreferences = {
   appearance: "system",
+  language: "system",
+  keyboardShortcuts: { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS },
+  automaticUpdates: true,
   automaticCheckpoints: false,
   defaultSpaceLocation: null,
 }
@@ -16,6 +23,12 @@ function appearance(value: unknown): EidosLiteAppearance {
   return value === "light" || value === "dark" || value === "system"
     ? value
     : DEFAULT_EIDOS_LITE_PREFERENCES.appearance
+}
+
+function language(value: unknown): EidosLitePreferences["language"] {
+  return value === "system" || value === "en" || value === "zh"
+    ? value
+    : DEFAULT_EIDOS_LITE_PREFERENCES.language
 }
 
 export function normalizeEidosLitePreferences(
@@ -28,6 +41,14 @@ export function normalizeEidosLitePreferences(
   const defaultSpaceLocation = candidate.defaultSpaceLocation
   return {
     appearance: appearance(candidate.appearance),
+    language: language(candidate.language),
+    keyboardShortcuts: normalizeEidosLiteKeyboardShortcuts(
+      candidate.keyboardShortcuts
+    ),
+    automaticUpdates:
+      typeof candidate.automaticUpdates === "boolean"
+        ? candidate.automaticUpdates
+        : DEFAULT_EIDOS_LITE_PREFERENCES.automaticUpdates,
     automaticCheckpoints:
       typeof candidate.automaticCheckpoints === "boolean"
         ? candidate.automaticCheckpoints

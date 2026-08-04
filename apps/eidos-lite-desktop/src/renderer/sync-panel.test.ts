@@ -339,6 +339,9 @@ describe("SyncPanel failure states", () => {
     expect(host.textContent).not.toContain("person@example.com")
     expect(host.textContent).not.toContain("Storage")
     expect(
+      host.querySelector(".sync-dialog")?.getAttribute("data-sync-can-enable")
+    ).toBe("false")
+    expect(
       [...host.querySelectorAll("button")].filter(
         (button) => button.textContent?.trim() === "Sign in"
       )
@@ -392,6 +395,9 @@ describe("SyncPanel failure states", () => {
     expect(host.textContent).not.toContain("person@example.com")
     expect(host.textContent).not.toContain("Storage")
     expect(host.textContent).not.toContain("Details")
+    expect(
+      host.querySelector(".sync-dialog")?.getAttribute("data-sync-can-enable")
+    ).toBe("false")
     const action = host.querySelector<HTMLButtonElement>(
       "[data-sync-join-waitlist]"
     )

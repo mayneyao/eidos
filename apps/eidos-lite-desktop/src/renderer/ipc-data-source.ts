@@ -131,6 +131,12 @@ export class IpcEidosFileDataSource implements EidosFileEditorDataSource {
     return this.mutate("deleteTable", args)
   }
 
+  reorderTables(
+    ...args: Parameters<NonNullable<EidosFileEditorDataSource["reorderTables"]>>
+  ) {
+    return this.mutate("reorderTables", args)
+  }
+
   createView(...args: Parameters<EidosFileDataSource["createView"]>) {
     return this.mutate("createView", args)
   }

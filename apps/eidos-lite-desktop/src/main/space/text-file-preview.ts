@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "node:crypto"
 import { constants as fsConstants } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
@@ -6,6 +7,8 @@ import {
   EIDOS_LITE_TEXT_PREVIEW_BYTES_MAX,
   type TextFileEncoding,
   type TextFilePreviewResult,
+  type TextFileSaveRequest,
+  type TextFileSaveResult,
 } from "../../shared/contracts"
 import { normalizeMutableRelativePath, resolveSpacePath } from "./space-paths"
 
@@ -44,7 +47,7 @@ function hasBinaryControls(content: string): boolean {
 function decodeText(
   bytes: Uint8Array,
   truncated: boolean
-): { content: string; encoding: TextFileEncoding } | null {
+): { content: string; encoding: TextFileEncoding; bom: boolean } | null {
   let encoding: TextFileEncoding = "utf-8"
   let offset = 0
   if (bytes[0] === 0xff && bytes[1] === 0xfe) {
@@ -62,10 +65,38 @@ function decodeText(
     const content = decoder.decode(bytes.subarray(offset), {
       stream: truncated,
     })
-    return hasBinaryControls(content) ? null : { content, encoding }
+    return hasBinaryControls(content)
+      ? null
+      : { content, encoding, bom: offset > 0 }
   } catch {
     return null
   }
+}
+
+function bytesRevision(bytes: Uint8Array, suffix = ""): string {
+  return createHash("sha256").update(bytes).update(suffix).digest("hex")
+}
+
+function encodeText(
+  content: string,
+  encoding: TextFileEncoding,
+  bom: boolean
+): Buffer {
+  if (encoding === "utf-8") {
+    const body = Buffer.from(content, "utf8")
+    return bom ? Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), body]) : body
+  }
+
+  const body = Buffer.from(content, "utf16le")
+  if (encoding === "utf-16be") {
+    for (let index = 0; index + 1 < body.length; index += 2) {
+      const first = body[index]
+      body[index] = body[index + 1]
+      body[index + 1] = first
+    }
+    return bom ? Buffer.concat([Buffer.from([0xfe, 0xff]), body]) : body
+  }
+  return bom ? Buffer.concat([Buffer.from([0xff, 0xfe]), body]) : body
 }
 
 async function readPrefix(
@@ -126,11 +157,79 @@ export async function readTextFilePreview(
       relativePath,
       content: decoded.content,
       encoding: decoded.encoding,
+      bom: decoded.bom,
+      revision: bytesRevision(
+        bytes,
+        truncated ? `:${stats.size}:${stats.mtimeMs}` : ""
+      ),
       size: stats.size,
       modifiedAtMs: stats.mtimeMs,
       truncated,
     }
   } finally {
     await handle.close()
+  }
+}
+
+export async function saveTextFile(
+  root: string,
+  request: TextFileSaveRequest
+): Promise<TextFileSaveResult> {
+  const current = await readTextFilePreview(root, request.relativePath)
+  if (
+    current.type !== "text" ||
+    current.revision !== request.expectedRevision
+  ) {
+    return { status: "conflict", current }
+  }
+  if (current.truncated) {
+    throw new Error("Files larger than 2 MB are read-only")
+  }
+
+  const bytes = encodeText(request.content, current.encoding, current.bom)
+  if (bytes.byteLength > EIDOS_LITE_TEXT_PREVIEW_BYTES_MAX) {
+    throw new Error("Edited text exceeds the 2 MB file limit")
+  }
+
+  const canonicalRoot = await fs.realpath(root)
+  const candidate = resolveSpacePath(canonicalRoot, current.relativePath)
+  const currentStats = await fs.lstat(candidate)
+  if (!currentStats.isFile() || currentStats.isSymbolicLink()) {
+    return {
+      status: "conflict",
+      current: await readTextFilePreview(root, current.relativePath),
+    }
+  }
+
+  const temporaryPath = path.join(
+    path.dirname(candidate),
+    `.${path.basename(candidate)}.eidos-lite-${randomUUID()}.tmp`
+  )
+  try {
+    const handle = await fs.open(
+      temporaryPath,
+      fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL,
+      currentStats.mode
+    )
+    try {
+      await handle.writeFile(bytes)
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+
+    const latest = await readTextFilePreview(root, current.relativePath)
+    if (latest.type !== "text" || latest.revision !== current.revision) {
+      return { status: "conflict", current: latest }
+    }
+
+    await fs.rename(temporaryPath, candidate)
+    const saved = await readTextFilePreview(root, current.relativePath)
+    if (saved.type !== "text") {
+      throw new Error("Saved text could not be read back")
+    }
+    return { status: "saved", file: saved }
+  } finally {
+    await fs.rm(temporaryPath, { force: true })
   }
 }

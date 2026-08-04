@@ -1,4 +1,8 @@
-import { applyAppearance, resolveAppearance } from "./app-appearance"
+import {
+  applyAppearance,
+  resolveAppearance,
+  toggledAppearance,
+} from "./app-appearance"
 
 describe("Eidos Lite appearance", () => {
   it("resolves system, light, and dark preferences", () => {
@@ -31,5 +35,10 @@ describe("Eidos Lite appearance", () => {
     applyAppearance(root, "light", true)
     expect(root.dataset.theme).toBe("light")
     expect(root.classList.contains("dark")).toBe(false)
+  })
+
+  it("toggles between explicit light and dark preferences", () => {
+    expect(toggledAppearance("light")).toBe("dark")
+    expect(toggledAppearance("dark")).toBe("light")
   })
 })

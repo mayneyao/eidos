@@ -31,14 +31,16 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
   )
   expect(appSource).toContain('window.addEventListener("pointerdown"')
   expect(appSource).toContain("window.history.go(offset)")
-  expect(appSource).toContain("workspaceShortcutForKeyboardEvent(event)")
+  expect(appSource).toContain("workspaceShortcutForKeyboardEvent(")
+  expect(appSource).toContain("keyboardShortcuts")
+  expect(appSource).toContain('workspaceShortcut === "toggle-theme"')
+  expect(appSource).toContain("toggledAppearance(theme)")
   expect(appSource).toContain("onClick={toggleVersionPanel}")
   expect(appSource).toContain("onClick={toggleSyncPanel}")
   expect(appSource.match(/onToggle=\{toggleSidebar\}/g)).toHaveLength(2)
-  expect(appSource).toContain(
-    'aria-keyshortcuts={WORKSPACE_SHORTCUT_ARIA["toggle-version"]}'
+  expect(appSource.match(/workspaceShortcutAriaKeyShortcuts\(/g)).toHaveLength(
+    4
   )
-  expect(appSource).toContain(
-    'aria-keyshortcuts={WORKSPACE_SHORTCUT_ARIA["toggle-sync"]}'
-  )
+  expect(appSource).not.toContain('keyboardShortcuts["navigate-back"]')
+  expect(appSource).not.toContain('keyboardShortcuts["navigate-forward"]')
 })

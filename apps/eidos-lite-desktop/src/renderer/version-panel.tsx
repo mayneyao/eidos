@@ -34,6 +34,7 @@ import type {
   SpaceVersionTableDiff,
   SpaceSyncHistoryStatus,
 } from "../shared/contracts"
+import type { ResolvedAppearance } from "./app-appearance"
 import {
   VersionChangeTree,
   type VersionInspection,
@@ -384,9 +385,11 @@ export function withCommitTableSummaries(
 export function VersionDiffPreview({
   inspection,
   onClose,
+  theme,
 }: {
   inspection: VersionInspection
   onClose(): void
+  theme: ResolvedAppearance
 }) {
   const inspectionTable = inspection.type === "table" ? inspection.table : null
   const [pagedTable, setPagedTable] = useState<SpaceVersionTableDiff | null>(
@@ -406,12 +409,6 @@ export function VersionDiffPreview({
     inspection.type === "table"
       ? inspection.table.name
       : fileName(inspection.change.path)
-  const contextLabel =
-    inspection.mode === "changes"
-      ? "Latest saved version → Local changes"
-      : inspection.commit
-        ? `${inspection.commit.id.slice(0, 8)} · ${commitTime(inspection.commit.timestampMs)}`
-        : "Version changes"
   const showsTextDiff =
     inspection.type === "file" &&
     inspection.change.kind === "text_file" &&
@@ -496,83 +493,8 @@ export function VersionDiffPreview({
       <div
         className={`version-inspector-scroll${inspection.type === "table" ? " version-inspector-table-layout" : ""}${showsTextDiff ? " version-inspector-text-layout" : ""}`}
       >
-        <header className="version-inspector-heading">
-          <div>
-            {inspection.type === "table" ? <Table2 /> : <FileText />}
-            <span>
-              <h2>{title}</h2>
-              <p>{contextLabel}</p>
-            </span>
-          </div>
-          <span
-            className="version-change-label"
-            data-change={changeLabel(inspection.change.change).toLowerCase()}
-          >
-            {changeLabel(inspection.change.change)}
-          </span>
-        </header>
-
         {inspection.type === "table" ? (
           <>
-            <div className="version-inspector-stats">
-              {(() => {
-                const displayedTable = activeTable ?? inspection.table
-                const stats = tableStats(displayedTable)
-                return (
-                  <>
-                    <span data-change="added">+{stats.inserts} rows</span>
-                    <span data-change="deleted">−{stats.deletes} rows</span>
-                    <span data-change="modified">~{stats.updates} rows</span>
-                    <div
-                      className="version-inspector-load-status"
-                      aria-live="polite"
-                    >
-                      <small>{stats.total} total changes</small>
-                      <i aria-hidden="true">·</i>
-                      {inspection.loadingDetails ? (
-                        <span data-load-state="loading">
-                          <LoaderCircle className="spin" aria-hidden="true" />
-                          Loading rows…
-                        </span>
-                      ) : inspection.detailsError ? (
-                        <small>Rows unavailable</small>
-                      ) : (
-                        <>
-                          <span>
-                            {displayedTable.changes.length.toLocaleString()}{" "}
-                            loaded
-                          </span>
-                          <i aria-hidden="true">·</i>
-                          {rowLoadState.phase === "loading" ? (
-                            <span data-load-state="loading">
-                              <LoaderCircle
-                                className="spin"
-                                aria-hidden="true"
-                              />
-                              Loading more…
-                            </span>
-                          ) : rowLoadState.phase === "error" ? (
-                            <button
-                              type="button"
-                              onClick={retryLoadingRows}
-                              aria-label={`Retry loading rows: ${rowLoadState.message}`}
-                              title={rowLoadState.message}
-                            >
-                              <RotateCcw aria-hidden="true" />
-                              Retry loading rows
-                            </button>
-                          ) : displayedTable.hasMore ? (
-                            <small>Scroll for more</small>
-                          ) : (
-                            <small>All loaded</small>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </>
-                )
-              })()}
-            </div>
             {inspection.loadingDetails ? (
               <div
                 className="version-inspector-loading"
@@ -602,6 +524,13 @@ export function VersionDiffPreview({
                   showHeading={false}
                   identityKey={inspection.key}
                   onLoadMore={loadMoreRows}
+                  loadingMore={rowLoadState.phase === "loading"}
+                  loadError={
+                    rowLoadState.phase === "error"
+                      ? rowLoadState.message
+                      : undefined
+                  }
+                  onRetryLoad={retryLoadingRows}
                 />
               </div>
             )}
@@ -613,12 +542,14 @@ export function VersionDiffPreview({
               commitId={inspection.commit.id}
               parentId={inspection.commit.parent}
               path={inspection.change.path}
+              theme={theme}
             />
           ) : (
             <VersionTextDiff
               mode="changes"
               expectedHead={inspection.diff.currentHead}
               path={inspection.change.path}
+              theme={theme}
             />
           )
         ) : inspection.loadingDetails ? (

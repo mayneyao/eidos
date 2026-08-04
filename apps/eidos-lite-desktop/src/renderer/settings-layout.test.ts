@@ -3,9 +3,13 @@ import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8")
+const settings = readFileSync(
+  new URL("./settings-page.tsx", import.meta.url),
+  "utf8"
+)
 
 describe("Settings responsive layout", () => {
-  it("keeps the single-column shell after the sidebar was removed", () => {
+  it("keeps sidebar navigation at desktop and compact widths", () => {
     const responsiveStart = styles.indexOf("@media (max-width: 56rem)")
     const responsiveEnd = styles.indexOf(
       "@media (prefers-reduced-motion: reduce)",
@@ -15,8 +19,24 @@ describe("Settings responsive layout", () => {
 
     expect(responsiveStart).toBeGreaterThan(-1)
     expect(responsiveEnd).toBeGreaterThan(responsiveStart)
-    expect(responsiveStyles).not.toMatch(
-      /\.settings-shell\s*\{[^}]*grid-template-columns/
+    expect(styles).toMatch(
+      /\.settings-layout\s*\{[^}]*grid-template-columns:\s*12\.5rem minmax\(0, 1fr\)/
     )
+    expect(responsiveStyles).toMatch(
+      /\.settings-layout\s*\{[^}]*grid-template-columns:\s*12\.5rem minmax\(0, 1fr\)/
+    )
+    expect(styles).toMatch(
+      /\.settings-sidebar button > span\s*\{[^}]*white-space:\s*nowrap/
+    )
+    expect(styles).toMatch(
+      /\.settings-shortcut-row\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*minmax\(10rem, 1fr\) auto/
+    )
+    expect(responsiveStyles).not.toMatch(
+      /\.settings-shortcut-row\s*\{[^}]*flex-direction/
+    )
+    expect(settings).toContain('className="settings-sidebar"')
+    expect(settings).toContain('id: "shortcuts"')
+    expect(settings).toContain("<KeyboardShortcutSettings")
+    expect(settings).toContain("data-settings-page={activePage}")
   })
 })

@@ -6,7 +6,6 @@ import {
   canNavigateHistory,
   initializeNavigationHistory,
   navigationHash,
-  navigationOffsetForKeyboardShortcut,
   navigationOffsetForPointerButton,
   parseNavigationHash,
   pathMatchesPrefix,
@@ -89,23 +88,9 @@ describe("Eidos Lite browser navigation history", () => {
     expect(pathMatchesPrefix(null, "projects")).toBe(false)
   })
 
-  it("maps keyboard shortcuts and mouse side buttons to browser history", () => {
+  it("maps mouse side buttons to browser history", () => {
     expect(navigationOffsetForPointerButton(3)).toBe(-1)
     expect(navigationOffsetForPointerButton(4)).toBe(1)
     expect(navigationOffsetForPointerButton(0)).toBeNull()
-    expect(
-      navigationOffsetForKeyboardShortcut({
-        altKey: true,
-        metaKey: false,
-        key: "ArrowLeft",
-      })
-    ).toBe(-1)
-    expect(
-      navigationOffsetForKeyboardShortcut({
-        altKey: false,
-        metaKey: true,
-        key: "]",
-      })
-    ).toBe(1)
   })
 })

@@ -229,6 +229,8 @@ async function runtimeCall(
       return dataSource.updateTable(...methodArgs<"updateTable">(args))
     case "deleteTable":
       return dataSource.deleteTable(...methodArgs<"deleteTable">(args))
+    case "reorderTables":
+      return dataSource.reorderTables(...methodArgs<"reorderTables">(args))
     case "createView":
       return dataSource.createView(...methodArgs<"createView">(args))
     case "duplicateView":

@@ -3,7 +3,7 @@ import os from "node:os"
 import path from "node:path"
 
 import { EIDOS_LITE_TEXT_PREVIEW_BYTES_MAX } from "../../shared/contracts"
-import { readTextFilePreview } from "./text-file-preview"
+import { readTextFilePreview, saveTextFile } from "./text-file-preview"
 
 describe("text file preview", () => {
   it("reads UTF-8 text without changing the file", async () => {
@@ -18,6 +18,8 @@ describe("text file preview", () => {
         relativePath: "notes.md",
         content: "# Notes\n\nA local file.\n",
         encoding: "utf-8",
+        bom: false,
+        revision: expect.stringMatching(/^[a-f\d]{64}$/u),
         truncated: false,
       })
       await expect(fs.readFile(filePath, "utf8")).resolves.toBe(
@@ -42,7 +44,67 @@ describe("text file preview", () => {
         type: "text",
         content: "Hello, 世界",
         encoding: "utf-16le",
+        bom: true,
       })
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("saves text atomically while preserving encoding and BOM", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-text-"))
+    const filePath = path.join(root, "unicode.txt")
+    await fs.writeFile(
+      filePath,
+      Buffer.concat([
+        Buffer.from([0xff, 0xfe]),
+        Buffer.from("Before", "utf16le"),
+      ])
+    )
+    try {
+      const preview = await readTextFilePreview(root, "unicode.txt")
+      expect(preview.type).toBe("text")
+      if (preview.type !== "text") return
+
+      const result = await saveTextFile(root, {
+        relativePath: "unicode.txt",
+        content: "After 世界",
+        expectedRevision: preview.revision,
+      })
+      expect(result).toMatchObject({
+        status: "saved",
+        file: { content: "After 世界", encoding: "utf-16le", bom: true },
+      })
+      const bytes = await fs.readFile(filePath)
+      expect(bytes.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xfe]))
+      expect(bytes.subarray(2).toString("utf16le")).toBe("After 世界")
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("does not overwrite a file changed outside Eidos Lite", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-text-"))
+    const filePath = path.join(root, "notes.txt")
+    await fs.writeFile(filePath, "original")
+    try {
+      const preview = await readTextFilePreview(root, "notes.txt")
+      expect(preview.type).toBe("text")
+      if (preview.type !== "text") return
+
+      await fs.writeFile(filePath, "external change")
+      const result = await saveTextFile(root, {
+        relativePath: "notes.txt",
+        content: "editor change",
+        expectedRevision: preview.revision,
+      })
+      expect(result).toMatchObject({
+        status: "conflict",
+        current: { type: "text", content: "external change" },
+      })
+      await expect(fs.readFile(filePath, "utf8")).resolves.toBe(
+        "external change"
+      )
     } finally {
       await fs.rm(root, { recursive: true, force: true })
     }

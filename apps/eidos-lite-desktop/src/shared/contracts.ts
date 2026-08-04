@@ -9,6 +9,7 @@ import type {
 } from "@eidos.space/eidos-file"
 
 import type { EidosLiteServiceEnvironment } from "./service-environment"
+import type { EidosLiteKeyboardShortcuts } from "./keyboard-shortcuts"
 
 export const EIDOS_LITE_CSV_IMPORT_BYTES_MAX = 16 * 1024 * 1024
 export const EIDOS_LITE_CSV_FILE_BYTES_MAX = 1024 * 1024 * 1024
@@ -23,10 +24,16 @@ export const IPC_CHANNELS = {
   preferencesChanged: "eidos-lite:preferences-changed",
   preferencesChooseSpaceLocation:
     "eidos-lite:preferences-choose-space-location",
+  updateStatus: "eidos-lite:update-status",
+  updateChanged: "eidos-lite:update-changed",
+  updateCheck: "eidos-lite:update-check",
+  updateDownload: "eidos-lite:update-download",
+  updateInstall: "eidos-lite:update-install",
   settingsOpen: "eidos-lite:settings-open",
   settingsOpenDestination: "eidos-lite:settings-open-destination",
   diagnostics: "eidos-lite:diagnostics-get",
   copyDiagnostics: "eidos-lite:diagnostics-copy",
+  clipboardReadText: "eidos-lite:clipboard-read-text",
   openSpace: "eidos-lite:space-open",
   newSpace: "eidos-lite:space-new",
   recentSpaces: "eidos-lite:space-recents",
@@ -42,9 +49,11 @@ export const IPC_CHANNELS = {
   takeLaunchFile: "eidos-lite:launch-file-take",
   openFile: "eidos-lite:file-open",
   previewTextFile: "eidos-lite:text-file-preview",
+  saveTextFile: "eidos-lite:text-file-save",
   inspectFileIssue: "eidos-lite:file-issue-inspect",
   closeFile: "eidos-lite:file-close",
   createEidosFile: "eidos-lite:path-create-eidos",
+  createTextFile: "eidos-lite:path-create-text",
   createFolder: "eidos-lite:path-create-folder",
   renamePath: "eidos-lite:path-rename",
   movePath: "eidos-lite:path-move",
@@ -112,6 +121,8 @@ export type TextFilePreviewResult =
       relativePath: string
       content: string
       encoding: TextFileEncoding
+      bom: boolean
+      revision: string
       size: number
       modifiedAtMs: number
       truncated: boolean
@@ -122,6 +133,22 @@ export type TextFilePreviewResult =
       reason: "binary" | "symlink" | "not-file"
       size: number
       modifiedAtMs: number
+    }
+
+export interface TextFileSaveRequest {
+  relativePath: string
+  content: string
+  expectedRevision: string
+}
+
+export type TextFileSaveResult =
+  | {
+      status: "saved"
+      file: Extract<TextFilePreviewResult, { type: "text" }>
+    }
+  | {
+      status: "conflict"
+      current: TextFilePreviewResult
     }
 
 export type SpaceOperationPhase =
@@ -340,14 +367,36 @@ export interface EidosLiteAppInfo {
 }
 
 export type EidosLiteAppearance = "system" | "light" | "dark"
+export type EidosLiteLanguage = "system" | "en" | "zh"
 
 export interface EidosLitePreferences {
   appearance: EidosLiteAppearance
+  language: EidosLiteLanguage
+  keyboardShortcuts: EidosLiteKeyboardShortcuts
+  automaticUpdates: boolean
   automaticCheckpoints: boolean
   defaultSpaceLocation: string | null
 }
 
 export type EidosLiteSettingsDestination = "documentation" | "website" | "logs"
+
+export type EidosLiteUpdateState =
+  | "unavailable"
+  | "idle"
+  | "checking"
+  | "up-to-date"
+  | "available"
+  | "downloading"
+  | "downloaded"
+  | "error"
+
+export interface EidosLiteUpdateStatus {
+  state: EidosLiteUpdateState
+  currentVersion: string
+  version?: string
+  progressPercent?: number
+  unavailableReason?: "development" | "non-production" | "unsupported-platform"
+}
 
 export type EidosLiteLogLevel = "debug" | "info" | "warn" | "error"
 
@@ -714,6 +763,10 @@ interface RuntimeCustomCalls {
     args: [entryId: string]
     result: FileEntry | null
   }
+  reorderTables: {
+    args: [tableIds: string[]]
+    result: EidosFileSnapshot
+  }
   previewCsv: {
     args: [
       fileName: string,
@@ -790,6 +843,7 @@ export const RUNTIME_MUTATION_METHODS = [
   "createTable",
   "updateTable",
   "deleteTable",
+  "reorderTables",
   "createView",
   "duplicateView",
   "deleteView",
@@ -875,12 +929,20 @@ export interface EidosLiteApi {
   onPreferencesChanged(
     listener: (preferences: EidosLitePreferences) => void
   ): () => void
+  getUpdateStatus(): Promise<EidosLiteUpdateStatus>
+  onUpdateStatusChanged(
+    listener: (status: EidosLiteUpdateStatus) => void
+  ): () => void
+  checkForUpdates(): Promise<EidosLiteUpdateStatus>
+  downloadUpdate(): Promise<EidosLiteUpdateStatus>
+  restartToInstallUpdate(): Promise<void>
   openSettings(): Promise<void>
   openSettingsDestination(
     destination: EidosLiteSettingsDestination
   ): Promise<void>
   getDiagnostics(): Promise<EidosLiteDiagnostics>
   copyDiagnostics(): Promise<EidosLiteDiagnostics>
+  readClipboardText(): Promise<string>
   openSpace(): Promise<SpaceSnapshot | null>
   newSpace(): Promise<SpaceSnapshot | null>
   listRecentSpaces(): Promise<RecentSpaceEntry[]>
@@ -898,9 +960,14 @@ export interface EidosLiteApi {
   onLaunchEidosFileAvailable(listener: () => void): () => void
   openEidosFile(relativePath: string): Promise<OpenEidosFileResult>
   previewTextFile(relativePath: string): Promise<TextFilePreviewResult>
+  saveTextFile(request: TextFileSaveRequest): Promise<TextFileSaveResult>
   inspectEidosFileIssue(relativePath: string): Promise<EidosFileIssue | null>
   closeEidosFile(sessionId: string): Promise<void>
   createEidosFile(
+    parentRelativePath: string | null,
+    name: string
+  ): Promise<SpacePathMutationResult>
+  createTextFile(
     parentRelativePath: string | null,
     name: string
   ): Promise<SpacePathMutationResult>

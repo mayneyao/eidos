@@ -9,16 +9,14 @@ describe("fileTitlebarPresentation", () => {
     ).toEqual({
       documentPath: "images/next.jpg",
       title: "next.jpg",
-      detail: "images/next.jpg",
       pending: true,
     })
   })
 
-  it("keeps a stable detail row for root files without duplicating the name", () => {
+  it("shows only the file name for a root file", () => {
     expect(fileTitlebarPresentation("My Space", "notes.eidos", null)).toEqual({
       documentPath: "notes.eidos",
       title: "notes.eidos",
-      detail: null,
       pending: false,
     })
   })
@@ -27,7 +25,6 @@ describe("fileTitlebarPresentation", () => {
     expect(fileTitlebarPresentation("My Space", null, null)).toEqual({
       documentPath: null,
       title: "My Space",
-      detail: null,
       pending: false,
     })
   })

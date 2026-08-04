@@ -2,10 +2,13 @@ import fs from "node:fs"
 import path from "node:path"
 import { app, BrowserWindow, dialog, Menu } from "electron"
 
+import { IPC_CHANNELS } from "../shared/contracts"
 import {
   resolveEidosLiteServiceEnvironment,
   runtimeEnvironmentOverride,
 } from "../shared/service-environment"
+import { resolveEidosLiteLocale } from "../shared/i18n"
+import { eidosLiteUpdatesEnabledInBuild } from "../shared/update-environment"
 import { installElectronLogging } from "./electron-logging"
 import { eidosLiteApplicationMenuTemplate } from "./application-menu"
 import { registerIpc } from "./ipc"
@@ -13,6 +16,7 @@ import { eidosFilePathsFromArguments } from "./launch-intent"
 import { initializeEidosLiteLogger } from "./logging"
 import { createSyncControlPlane } from "./sync/create-sync-control-plane"
 import { PACKAGED_SYNC_FAILURE_SEQUENCE } from "./sync/sync-failure"
+import { EidosLiteUpdater, type EidosLiteAutoUpdater } from "./updater"
 import { WindowController } from "./window-controller"
 
 const mainModuleStartedAtMs = Date.now()
@@ -61,6 +65,26 @@ if (smokeUserData) {
 }
 const logger = initializeEidosLiteLogger(app.getPath("logs"))
 const stopLogging = installElectronLogging(app, logger)
+const updater = new EidosLiteUpdater({
+  currentVersion: app.getVersion(),
+  platform: process.platform,
+  architecture: process.arch,
+  packaged: app.isPackaged,
+  production: services.name === "production",
+  updatesEnabled: eidosLiteUpdatesEnabledInBuild(),
+  loadAutoUpdater: async () => {
+    const { autoUpdater } = await import("electron-updater")
+    return autoUpdater as unknown as EidosLiteAutoUpdater
+  },
+  broadcast: (status) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) {
+        window.webContents.send(IPC_CHANNELS.updateChanged, status)
+      }
+    }
+  },
+  logger,
+})
 logger.info("app.started", {
   appVersion: app.getVersion(),
   packaged: app.isPackaged,
@@ -169,30 +193,37 @@ app.on("before-quit", (event) => {
     )
 })
 
-function installApplicationMenu(): void {
+async function installApplicationMenu(): Promise<void> {
+  const preferences = await controller.getPreferences()
+  const locale = resolveEidosLiteLocale(preferences.language, app.getLocale())
   Menu.setApplicationMenu(
     Menu.buildFromTemplate(
-      eidosLiteApplicationMenuTemplate(process.platform, app.getName(), {
-        openSettings: () => controller.showSettingsWindow(),
-        openDocumentation: () => {
-          void controller
-            .openSettingsDestination("documentation")
-            .catch((error) =>
+      eidosLiteApplicationMenuTemplate(
+        process.platform,
+        app.getName(),
+        {
+          openSettings: () => controller.showSettingsWindow(),
+          openDocumentation: () => {
+            void controller
+              .openSettingsDestination("documentation")
+              .catch((error) =>
+                logger.warn("settings.destination.failed", {
+                  destination: "documentation",
+                  error: error instanceof Error ? error.message : String(error),
+                })
+              )
+          },
+          openWebsite: () => {
+            void controller.openSettingsDestination("website").catch((error) =>
               logger.warn("settings.destination.failed", {
-                destination: "documentation",
+                destination: "website",
                 error: error instanceof Error ? error.message : String(error),
               })
             )
+          },
         },
-        openWebsite: () => {
-          void controller.openSettingsDestination("website").catch((error) =>
-            logger.warn("settings.destination.failed", {
-              destination: "website",
-              error: error instanceof Error ? error.message : String(error),
-            })
-          )
-        },
-      })
+        locale
+      )
     )
   )
 }
@@ -211,7 +242,7 @@ void app.whenReady().then(async () => {
     }
     try {
       await controller.recoverCloneOperations()
-      closeIpc = registerIpc(controller, services, syncControl, {
+      closeIpc = registerIpc(controller, services, syncControl, updater, {
         syncFailuresForTesting: PACKAGED_SYNC_FAILURE_SEQUENCE,
       }).close
       const ipcReadyAtMs = Date.now()
@@ -239,14 +270,19 @@ void app.whenReady().then(async () => {
     return
   }
   await controller.recoverCloneOperations()
-  closeIpc = registerIpc(controller, services, syncControl).close
-  installApplicationMenu()
+  closeIpc = registerIpc(controller, services, syncControl, updater).close
+  await installApplicationMenu()
+  controller.onPreferencesChanged(() => void installApplicationMenu())
   launchRoutingReady = true
   if (pendingLaunchFiles.length > 0) {
     await drainLaunchFiles()
   } else {
     controller.createWelcomeWindow()
   }
+  const preferences = await controller.getPreferences()
+  setTimeout(() => {
+    void updater.start(preferences.automaticUpdates)
+  }, 0)
 })
 
 app.once("quit", () => {

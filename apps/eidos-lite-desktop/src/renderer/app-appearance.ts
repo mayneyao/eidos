@@ -2,6 +2,7 @@ import type {
   EidosLiteAppearance,
   EidosLitePreferences,
 } from "../shared/contracts"
+import { DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS } from "../shared/keyboard-shortcuts"
 
 export type ResolvedAppearance = "light" | "dark"
 
@@ -10,6 +11,12 @@ export function resolveAppearance(
   systemDark: boolean
 ): ResolvedAppearance {
   return appearance === "system" ? (systemDark ? "dark" : "light") : appearance
+}
+
+export function toggledAppearance(
+  current: ResolvedAppearance
+): EidosLiteAppearance {
+  return current === "dark" ? "light" : "dark"
 }
 
 export function applyAppearance(
@@ -26,6 +33,9 @@ export function applyAppearance(
 
 export const DEFAULT_RENDERER_PREFERENCES: EidosLitePreferences = {
   appearance: "system",
+  language: "system",
+  keyboardShortcuts: { ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS },
+  automaticUpdates: true,
   automaticCheckpoints: false,
   defaultSpaceLocation: null,
 }

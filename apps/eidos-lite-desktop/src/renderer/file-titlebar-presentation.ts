@@ -1,7 +1,6 @@
 export interface FileTitlebarPresentation {
   documentPath: string | null
   title: string
-  detail: string | null
   pending: boolean
 }
 
@@ -19,7 +18,6 @@ export function fileTitlebarPresentation(
   return {
     documentPath,
     title,
-    detail: documentPath && documentPath !== title ? documentPath : null,
     pending: pendingDocumentPath !== null,
   }
 }

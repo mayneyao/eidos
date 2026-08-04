@@ -1470,6 +1470,16 @@ describe("SpaceSession Graft-backed snapshots", () => {
           (entry) => entry.relativePath
         )
       ).toContain("local-folder")
+      const textFile = await session.createTextFile(null, "notes.md")
+      expect(textFile.relativePath).toBe("notes.md")
+      expect(
+        flattenSpaceTree(textFile.snapshot.entries).find(
+          (entry) => entry.relativePath === "notes.md"
+        )
+      ).toMatchObject({ kind: "file" })
+      await expect(
+        fs.readFile(path.join(root, "notes.md"), "utf8")
+      ).resolves.toBe("")
       expect(ignoreInspectionReleased).toBe(false)
       await new Promise((resolve) => setTimeout(resolve, 0))
       expect(inspectIgnores).toHaveBeenCalled()

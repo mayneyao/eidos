@@ -21,6 +21,7 @@
     "build:eidos-file-ui": "pnpm run --filter @eidos.space/eidos-file-ui build",
     "build:eidos-lite": "pnpm run --filter @eidos.space/eidos-lite-desktop build",
     "build:eidos-lite:production": "pnpm run --filter @eidos.space/eidos-lite-desktop build:production",
+    "build:eidos-lite:release": "pnpm run --filter @eidos.space/eidos-lite-desktop package:release",
     "build:eidos-lite:dev": "pnpm run --filter @eidos.space/eidos-lite-desktop build && pnpm run --filter @eidos.space/eidos-lite-desktop package:dir",
     "deploy:eidos-file-web": "pnpm run --filter @eidos.space/eidos-file-web deploy",
     "deploy:sqlite-viewer": "pnpm run --filter @eidos.space/sqlite-web-viewer deploy",

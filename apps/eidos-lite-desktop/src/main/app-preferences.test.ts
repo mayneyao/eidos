@@ -7,6 +7,7 @@ import {
   EidosLitePreferencesStore,
   normalizeEidosLitePreferences,
 } from "./app-preferences"
+import { DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS } from "../shared/keyboard-shortcuts"
 
 describe("Eidos Lite preferences", () => {
   it("normalizes unknown or stale preference values", () => {
@@ -21,7 +22,7 @@ describe("Eidos Lite preferences", () => {
     ).toEqual(DEFAULT_EIDOS_LITE_PREFERENCES)
   })
 
-  it("persists appearance and the default Space location", async () => {
+  it("persists appearance, language, shortcuts, and Space defaults", async () => {
     const directory = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-preferences-")
     )
@@ -32,11 +33,23 @@ describe("Eidos Lite preferences", () => {
     await expect(
       store.update({
         appearance: "dark",
+        language: "zh",
+        keyboardShortcuts: {
+          ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+          "toggle-sidebar": "Mod+Shift+B",
+        },
+        automaticUpdates: false,
         automaticCheckpoints: true,
         defaultSpaceLocation: "/Users/example/Spaces",
       })
     ).resolves.toEqual({
       appearance: "dark",
+      language: "zh",
+      keyboardShortcuts: {
+        ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+        "toggle-sidebar": "Mod+Shift+B",
+      },
+      automaticUpdates: false,
       automaticCheckpoints: true,
       defaultSpaceLocation: "/Users/example/Spaces",
     })
@@ -45,6 +58,12 @@ describe("Eidos Lite preferences", () => {
       new EidosLitePreferencesStore(filePath).get()
     ).resolves.toEqual({
       appearance: "dark",
+      language: "zh",
+      keyboardShortcuts: {
+        ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+        "toggle-sidebar": "Mod+Shift+B",
+      },
+      automaticUpdates: false,
       automaticCheckpoints: true,
       defaultSpaceLocation: "/Users/example/Spaces",
     })

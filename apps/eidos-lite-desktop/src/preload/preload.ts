@@ -5,6 +5,7 @@ import {
   type EidosLiteApi,
   type EidosLiteNavigationDirection,
   type EidosLitePreferences,
+  type EidosLiteUpdateStatus,
   type EidosSyncProgress,
   type EidosSyncQueueStatus,
   type RuntimeCalls,
@@ -28,11 +29,24 @@ const api: EidosLiteApi = {
     return () =>
       ipcRenderer.removeListener(IPC_CHANNELS.preferencesChanged, handler)
   },
+  getUpdateStatus: () => ipcRenderer.invoke(IPC_CHANNELS.updateStatus),
+  onUpdateStatusChanged: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      status: EidosLiteUpdateStatus
+    ) => listener(status)
+    ipcRenderer.on(IPC_CHANNELS.updateChanged, handler)
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.updateChanged, handler)
+  },
+  checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.updateCheck),
+  downloadUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.updateDownload),
+  restartToInstallUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.updateInstall),
   openSettings: () => ipcRenderer.invoke(IPC_CHANNELS.settingsOpen),
   openSettingsDestination: (destination) =>
     ipcRenderer.invoke(IPC_CHANNELS.settingsOpenDestination, destination),
   getDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.diagnostics),
   copyDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.copyDiagnostics),
+  readClipboardText: () => ipcRenderer.invoke(IPC_CHANNELS.clipboardReadText),
   openSpace: () => ipcRenderer.invoke(IPC_CHANNELS.openSpace),
   newSpace: () => ipcRenderer.invoke(IPC_CHANNELS.newSpace),
   listRecentSpaces: () => ipcRenderer.invoke(IPC_CHANNELS.recentSpaces),
@@ -70,12 +84,16 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.openFile, relativePath),
   previewTextFile: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.previewTextFile, relativePath),
+  saveTextFile: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.saveTextFile, request),
   inspectEidosFileIssue: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.inspectFileIssue, relativePath),
   closeEidosFile: (sessionId) =>
     ipcRenderer.invoke(IPC_CHANNELS.closeFile, sessionId),
   createEidosFile: (parentRelativePath, name) =>
     ipcRenderer.invoke(IPC_CHANNELS.createEidosFile, parentRelativePath, name),
+  createTextFile: (parentRelativePath, name) =>
+    ipcRenderer.invoke(IPC_CHANNELS.createTextFile, parentRelativePath, name),
   createFolder: (parentRelativePath, name) =>
     ipcRenderer.invoke(IPC_CHANNELS.createFolder, parentRelativePath, name),
   renamePath: (relativePath, name) =>

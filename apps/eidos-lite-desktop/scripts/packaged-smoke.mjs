@@ -231,6 +231,7 @@ try {
     report.probes?.length !== 3 ||
     report.runtimeCache?.residentPaths?.length > 3 ||
     Object.values(report.fileLifecycle ?? {}).some((value) => value !== true) ||
+    Object.values(report.textEditor ?? {}).some((value) => value !== true) ||
     Object.values(report.lifecycleRecovery ?? {}).some(
       (value) => value !== true
     ) ||

@@ -22,11 +22,14 @@ import type {
   SpaceVersionTextContentDiff,
   SpaceTreeEntry,
   TextFilePreviewResult,
+  TextFileSaveRequest,
+  TextFileSaveResult,
 } from "../../shared/contracts"
 import {
   EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX,
   RUNTIME_MUTATION_METHODS,
 } from "../../shared/contracts"
+import { eidosLiteNewFileKind } from "../../shared/new-file"
 import type { GraftClient, GraftIgnoreInspection } from "../graft/graft-client"
 import {
   classifyEidosFileIssue,
@@ -61,7 +64,7 @@ import {
 import { SpaceWatcher } from "./space-watcher"
 import { StableCheckpointScheduler } from "./stable-checkpoint-scheduler"
 import { type SpaceSyncState, SpaceSyncStateStore } from "./sync-state"
-import { readTextFilePreview } from "./text-file-preview"
+import { readTextFilePreview, saveTextFile } from "./text-file-preview"
 import { readWorkingTextContent } from "./working-text-reader"
 
 const mutationMethods = new Set<RuntimeMethod>(RUNTIME_MUTATION_METHODS)
@@ -336,6 +339,22 @@ export class SpaceSession {
     }
   }
 
+  async saveTextFile(
+    request: TextFileSaveRequest
+  ): Promise<TextFileSaveResult> {
+    this.prioritizeLocalWork()
+    const result = await this.gate.withMutation(() =>
+      saveTextFile(this.canonical.root, request)
+    )
+    if (result.status === "saved") {
+      this.noteLocalChange()
+      await this.freshSnapshotAndEmit()
+    } else {
+      this.scheduleGraftStatusRefresh()
+    }
+    return result
+  }
+
   async inspectEidosFileIssue(
     relativePath: string
   ): Promise<EidosFileIssue | null> {
@@ -359,6 +378,32 @@ export class SpaceSession {
     await this.gate.withMutation(async () => {
       await this.runtimePool.create(relativePath, path.basename(name, ".eidos"))
     })
+    this.noteLocalChange()
+    return {
+      snapshot: await this.freshSnapshotAndEmit(),
+      relativePath,
+      invalidatedSessionIds: [],
+    }
+  }
+
+  async createTextFile(
+    parentRelativePath: string | null,
+    requestedName: string
+  ): Promise<SpacePathMutationResult> {
+    this.prioritizeLocalWork()
+    const name = normalizeSpaceEntryName(requestedName)
+    if (eidosLiteNewFileKind(name) !== "text") {
+      throw new Error("New text files require a non-.eidos file extension")
+    }
+    const relativePath = joinSpaceRelativePath(parentRelativePath, name)
+    await resolveSpaceDirectory(this.canonical.root, parentRelativePath)
+    await this.requireMissingPath(relativePath)
+    await this.gate.withMutation(() =>
+      fs.writeFile(this.resolveUserPath(relativePath), "", {
+        encoding: "utf8",
+        flag: "wx",
+      })
+    )
     this.noteLocalChange()
     return {
       snapshot: await this.freshSnapshotAndEmit(),

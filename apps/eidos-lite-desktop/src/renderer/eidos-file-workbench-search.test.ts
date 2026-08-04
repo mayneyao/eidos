@@ -4,6 +4,11 @@ import { act, createElement } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
 
+import {
+  RUNTIME_MUTATION_METHODS,
+  type EidosLiteApi,
+} from "../shared/contracts"
+
 vi.mock("@eidos.space/eidos-file-ui/plugins/csv-import", () => ({
   createEidosFileCsvImportPlugin: () => ({ id: "test.csv-import" }),
 }))
@@ -38,6 +43,21 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
       )
     )
   }
+  function SheetTabsReporter({
+    onReorder,
+  }: {
+    onReorder?: (tableIds: string[]) => Promise<void> | void
+  }) {
+    return React.createElement(
+      "button",
+      {
+        type: "button",
+        disabled: !onReorder,
+        onClick: () => onReorder?.(["tasks"]),
+      },
+      "Reorder tables through host"
+    )
+  }
   return {
     ...actual,
     EidosFileEditorView: SearchResultReporter,
@@ -46,14 +66,14 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
     EidosFileLookupEditorPopover: Empty,
     EidosFilePluginSlot: Empty,
     EidosFileSheetCreatePopover: Empty,
-    EidosFileSheetTabs: Empty,
+    EidosFileSheetTabs: SheetTabsReporter,
     EidosFileViewFieldsPopover: Empty,
     EidosFileViewTabs: Empty,
   }
 })
 
 import { EidosFileWorkbench } from "./eidos-file-workbench"
-import type { IpcEidosFileDataSource } from "./ipc-data-source"
+import { IpcEidosFileDataSource } from "./ipc-data-source"
 
 const now = "2026-07-31T00:00:00.000Z"
 const snapshot: EidosFileSnapshot = {
@@ -187,5 +207,64 @@ describe("Eidos Lite Eidos File search navigation", () => {
     expect(
       host.querySelector('[data-testid="active-search-result"]')?.textContent
     ).toBe("0")
+  })
+
+  it("connects shared table-tab sorting to the Lite data source", async () => {
+    const callRuntime = vi.fn(
+      async (_sessionId: string, method: string): Promise<unknown> => {
+        if (method === "reorderTables" || method === "getSnapshot") {
+          return snapshot
+        }
+        throw new Error(`Unexpected runtime method: ${method}`)
+      }
+    )
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: { callRuntime } as unknown as EidosLiteApi,
+    })
+    const onSnapshot = vi.fn()
+    const source = new IpcEidosFileDataSource("session-1", snapshot, onSnapshot)
+
+    expect(RUNTIME_MUTATION_METHODS).toContain("reorderTables")
+
+    await act(async () => {
+      root.render(
+        createElement(EidosFileWorkbench, {
+          relativePath: "sample.eidos",
+          snapshot,
+          source,
+          activeTableId: "tasks",
+          disabled: false,
+          theme: "light",
+          onTableSelect: vi.fn(),
+          onSnapshot,
+          onError: vi.fn(),
+        })
+      )
+    })
+
+    const reorder = Array.from(host.querySelectorAll("button")).find(
+      (button) => button.textContent === "Reorder tables through host"
+    )
+    expect(reorder?.disabled).toBe(false)
+
+    await act(async () => {
+      reorder?.click()
+      await Promise.resolve()
+    })
+
+    expect(callRuntime).toHaveBeenNthCalledWith(
+      1,
+      "session-1",
+      "reorderTables",
+      [["tasks"]]
+    )
+    expect(callRuntime).toHaveBeenNthCalledWith(
+      2,
+      "session-1",
+      "getSnapshot",
+      []
+    )
+    expect(onSnapshot).toHaveBeenCalledWith(snapshot)
   })
 })

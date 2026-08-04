@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import fs from "node:fs/promises"
 import path from "node:path"
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron"
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron"
 import type { AssetLease } from "@eidos.space/eidos-file"
 
 import {
@@ -12,6 +12,7 @@ import {
   type EidosLitePreferences,
   type EidosLiteCsvSelection,
   type EidosLiteSettingsDestination,
+  type TextFileSaveRequest,
   type EidosSyncHelpDestination,
   type EidosSyncQueueStatus,
   type EidosSyncRunResponse,
@@ -21,7 +22,9 @@ import {
   type RuntimeMethod,
 } from "../shared/contracts"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
+import { isEidosLiteKeyboardShortcuts } from "../shared/keyboard-shortcuts"
 import { eidosLiteLogger, logCorrelationKey } from "./logging"
+import type { EidosLiteUpdater } from "./updater"
 import {
   EIDOS_LITE_ASSET_IMPORT_COUNT_MAX,
   portableEidosFileAssetName,
@@ -69,6 +72,26 @@ function optionalRelativePath(value: unknown): string | null {
 function requiredString(value: unknown, label: string): string {
   if (typeof value !== "string") throw new Error(`Invalid ${label}`)
   return value
+}
+
+function textFileSaveRequest(value: unknown): TextFileSaveRequest {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid text file save")
+  }
+  const candidate = value as Record<string, unknown>
+  if (
+    typeof candidate.relativePath !== "string" ||
+    typeof candidate.content !== "string" ||
+    typeof candidate.expectedRevision !== "string" ||
+    !/^[a-f\d]{64}$/u.test(candidate.expectedRevision)
+  ) {
+    throw new Error("Invalid text file save")
+  }
+  return {
+    relativePath: candidate.relativePath,
+    content: candidate.content,
+    expectedRevision: candidate.expectedRevision,
+  }
 }
 
 function requiredBytes(value: unknown, label: string): Uint8Array {
@@ -119,6 +142,28 @@ function preferencesPatch(value: unknown): Partial<EidosLitePreferences> {
     }
     patch.appearance = candidate.appearance
   }
+  if ("language" in candidate) {
+    if (
+      candidate.language !== "system" &&
+      candidate.language !== "en" &&
+      candidate.language !== "zh"
+    ) {
+      throw new Error("Invalid language preference")
+    }
+    patch.language = candidate.language
+  }
+  if ("keyboardShortcuts" in candidate) {
+    if (!isEidosLiteKeyboardShortcuts(candidate.keyboardShortcuts)) {
+      throw new Error("Invalid keyboard shortcut preferences")
+    }
+    patch.keyboardShortcuts = candidate.keyboardShortcuts
+  }
+  if ("automaticUpdates" in candidate) {
+    if (typeof candidate.automaticUpdates !== "boolean") {
+      throw new Error("Invalid automatic update preference")
+    }
+    patch.automaticUpdates = candidate.automaticUpdates
+  }
   if ("automaticCheckpoints" in candidate) {
     if (typeof candidate.automaticCheckpoints !== "boolean") {
       throw new Error("Invalid automatic checkpoint preference")
@@ -160,6 +205,7 @@ export function registerIpc(
   controller: WindowController,
   services: EidosLiteServiceEnvironment,
   syncControl: SyncControlPlane,
+  updater: EidosLiteUpdater,
   options: {
     syncFailuresForTesting?: readonly PackagedSyncFault[]
   } = {}
@@ -324,9 +370,21 @@ export function registerIpc(
     services,
   }))
   ipcMain.handle(IPC_CHANNELS.preferencesGet, () => controller.getPreferences())
-  ipcMain.handle(IPC_CHANNELS.preferencesUpdate, (_event, value: unknown) =>
-    controller.updatePreferences(preferencesPatch(value))
+  ipcMain.handle(
+    IPC_CHANNELS.preferencesUpdate,
+    async (_event, value: unknown) => {
+      const preferences = await controller.updatePreferences(
+        preferencesPatch(value)
+      )
+      updater.setAutomaticDownloads(preferences.automaticUpdates)
+      return preferences
+    }
   )
+  ipcMain.handle(IPC_CHANNELS.updateStatus, () => updater.getStatus())
+  ipcMain.handle(IPC_CHANNELS.updateCheck, () => updater.check())
+  ipcMain.handle(IPC_CHANNELS.updateDownload, () => updater.download())
+  ipcMain.handle(IPC_CHANNELS.updateInstall, () => updater.restartToInstall())
+  ipcMain.handle(IPC_CHANNELS.clipboardReadText, () => clipboard.readText())
   ipcMain.handle(IPC_CHANNELS.preferencesChooseSpaceLocation, (event) =>
     controller.chooseDefaultSpaceLocation(event.sender)
   )
@@ -402,6 +460,11 @@ export function registerIpc(
         .previewTextFile(relativePath)
     }
   )
+  ipcMain.handle(IPC_CHANNELS.saveTextFile, (event, request: unknown) =>
+    controller
+      .requireSession(event.sender)
+      .saveTextFile(textFileSaveRequest(request))
+  )
   ipcMain.handle(
     IPC_CHANNELS.inspectFileIssue,
     (event, relativePath: unknown) => {
@@ -423,6 +486,16 @@ export function registerIpc(
       controller
         .requireSession(event.sender)
         .createEidosFile(
+          optionalRelativePath(parentRelativePath),
+          requiredString(name, "file name")
+        )
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.createTextFile,
+    (event, parentRelativePath: unknown, name: unknown) =>
+      controller
+        .requireSession(event.sender)
+        .createTextFile(
           optionalRelativePath(parentRelativePath),
           requiredString(name, "file name")
         )

@@ -133,6 +133,32 @@ const TREE_CSS = `
   }
 `
 
+export const SPACE_FILE_TREE_STYLES = {
+  height: "100%",
+  minHeight: 0,
+  width: "100%",
+  colorScheme: "inherit",
+  "--trees-bg-override": "transparent",
+  "--trees-bg-muted-override": "var(--surface-hover)",
+  "--trees-border-color-override": "var(--line)",
+  "--trees-fg-override": "var(--ink)",
+  "--trees-fg-muted-override": "var(--ink-muted)",
+  "--trees-font-family-override": "inherit",
+  "--trees-font-size-override": "12px",
+  "--trees-focus-ring-color-override": "var(--focus)",
+  "--trees-focus-ring-offset-override": "-1px",
+  "--trees-focus-ring-width-override": "1px",
+  "--trees-action-lane-width-override": "22px",
+  "--trees-icon-width-override": "15px",
+  "--trees-item-margin-x-override": "4px",
+  "--trees-item-row-gap-override": "5px",
+  "--trees-item-padding-x-override": "5px",
+  "--trees-level-gap-override": "11px",
+  "--trees-padding-inline-override": "5px",
+  "--trees-selected-bg-override": "var(--surface-selected)",
+  "--trees-selected-fg-override": "var(--ink)",
+} as CSSProperties
+
 export function SpaceFileTree({
   entries,
   activePath,
@@ -244,31 +270,6 @@ export function SpaceFileTree({
     }
   }
 
-  const styles = {
-    height: "100%",
-    minHeight: 0,
-    width: "100%",
-    "--trees-bg-override": "transparent",
-    "--trees-bg-muted-override": "var(--surface-hover)",
-    "--trees-border-color-override": "var(--line)",
-    "--trees-fg-override": "var(--ink)",
-    "--trees-fg-muted-override": "var(--ink-muted)",
-    "--trees-font-family-override": "inherit",
-    "--trees-font-size-override": "12px",
-    "--trees-focus-ring-color-override": "var(--focus)",
-    "--trees-focus-ring-offset-override": "-1px",
-    "--trees-focus-ring-width-override": "1px",
-    "--trees-action-lane-width-override": "22px",
-    "--trees-icon-width-override": "15px",
-    "--trees-item-margin-x-override": "4px",
-    "--trees-item-row-gap-override": "5px",
-    "--trees-item-padding-x-override": "5px",
-    "--trees-level-gap-override": "11px",
-    "--trees-padding-inline-override": "5px",
-    "--trees-selected-bg-override": "var(--surface-selected)",
-    "--trees-selected-fg-override": "var(--ink)",
-  } as CSSProperties
-
   return (
     <FileTree
       model={model}
@@ -280,7 +281,7 @@ export function SpaceFileTree({
       data-active-selected={
         activePath && selectedPaths.includes(activePath) ? "true" : "false"
       }
-      style={styles}
+      style={SPACE_FILE_TREE_STYLES}
       onClick={(event) => openTreePath(eventTreePath(event))}
       onContextMenu={(event) => {
         const treePath = eventTreePath(event)

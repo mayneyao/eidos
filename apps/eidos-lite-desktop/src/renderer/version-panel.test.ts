@@ -631,13 +631,13 @@ describe("VersionPanel table diff", () => {
       root.render(
         createElement(VersionDiffPreview, {
           inspection,
+          theme: "light",
           onClose: () => undefined,
         })
       )
     })
-    expect(host.textContent).toContain("150 total changes")
-    expect(host.textContent).toContain("100 loaded")
-    expect(host.textContent).toContain("Scroll for more")
+    expect(host.textContent).toContain("100 of 150 changed rows")
+    expect(host.textContent).not.toContain("Scroll for more")
     expect(host.querySelector(".version-table-diff-status")).toBeNull()
 
     await act(async () => {
@@ -658,8 +658,8 @@ describe("VersionPanel table diff", () => {
       "Customers",
       "cursor-100"
     )
-    expect(host.textContent).toContain("150 loaded")
-    expect(host.textContent).toContain("All loaded")
+    expect(host.textContent).toContain("150 changed rows")
+    expect(host.textContent).not.toContain("All loaded")
     expect(
       host.querySelectorAll(".version-table-diff-row").length
     ).toBeLessThan(50)
@@ -736,13 +736,12 @@ describe("VersionPanel table diff", () => {
     const markup = renderToStaticMarkup(
       createElement(VersionDiffPreview, {
         inspection,
+        theme: "light",
         onClose: () => undefined,
       })
     )
-    expect(markup).toContain("+1000000 rows")
-    expect(markup).toContain("1000000 total changes")
-    expect(markup).toContain("100 loaded")
-    expect(markup).toContain("Scroll for more")
+    expect(markup).toContain("100 of 1,000,000 changed rows")
+    expect(markup).not.toContain("Scroll for more")
   })
 
   it("keeps the tree structure stable when table details finish loading", () => {
@@ -1320,14 +1319,17 @@ describe("VersionPanel table diff", () => {
     const markup = renderToStaticMarkup(
       createElement(VersionDiffPreview, {
         inspection,
+        theme: "light",
         onClose: () => undefined,
       })
     )
 
     expect(markup).toContain('data-version-inspector="table"')
+    expect(markup).not.toContain("version-inspector-stats")
+    expect(markup).not.toContain("version-inspector-heading")
+    expect(markup).not.toContain("Latest saved version")
     expect(markup).toContain("Customers")
-    expect(markup).toContain("+1 rows")
-    expect(markup).toContain("~1 rows")
+    expect(markup).toContain("2 changed rows")
     expect(markup.match(/class="version-table-diff-row"/g)).toHaveLength(2)
     expect(markup).toContain("Hao Chen")
     expect(markup).toContain("Customer")
@@ -1348,6 +1350,7 @@ describe("VersionPanel table diff", () => {
     const markup = renderToStaticMarkup(
       createElement(VersionDiffPreview, {
         inspection,
+        theme: "light",
         onClose: () => undefined,
       })
     )
@@ -1380,6 +1383,7 @@ describe("VersionPanel table diff", () => {
     const markup = renderToStaticMarkup(
       createElement(VersionDiffPreview, {
         inspection,
+        theme: "light",
         onClose: () => undefined,
       })
     )
@@ -1402,6 +1406,7 @@ describe("VersionPanel table diff", () => {
     const markup = renderToStaticMarkup(
       createElement(VersionDiffPreview, {
         inspection,
+        theme: "light",
         onClose: () => undefined,
       })
     )
