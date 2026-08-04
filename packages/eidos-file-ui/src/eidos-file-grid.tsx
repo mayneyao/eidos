@@ -51,7 +51,7 @@ import { defaultConfig } from "./grid-default-config"
 import { EIDOS_FILE_EMPTY_STAT_ICON } from "./header-icons"
 import { type UndoRedoEdit, useUndoRedo } from "./use-undo-redo"
 import { useEidosFileUI } from "./context"
-import { useEidosFileGridTheme } from "./theme"
+import { useEidosFileGridThemeForElement } from "./theme-internal"
 import { Button } from "./ui/primitives"
 import { useGlideDataGridPortal } from "./use-glide-data-grid-portal"
 
@@ -365,14 +365,15 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   onViewUpdate,
   onError,
 }: EidosFileGridProps) {
-  useGlideDataGridPortal()
   const {
     assetPresenter,
     assetSession,
     themeName,
     translate: t,
   } = useEidosFileUI()
-  const defaultTheme = useEidosFileGridTheme(themeName)
+  useGlideDataGridPortal(themeName)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const defaultTheme = useEidosFileGridThemeForElement(themeName, containerRef)
   const theme = useMemo(
     () => ({ ...defaultTheme, ...gridTheme }),
     [defaultTheme, gridTheme]
@@ -389,7 +390,6 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       ),
     [assetPresenter, assetSession]
   )
-  const containerRef = useRef<HTMLDivElement>(null)
   const widthSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rowsRef = useRef(new Map<number, EidosFileRow>())
   const rowMutationRevisionRef = useRef(new Map<number, number>())

@@ -152,6 +152,9 @@ describe("shared Eidos File editor chrome", () => {
     })
 
     const shell = container.querySelector('[data-testid="root"]')
+    expect(shell?.hasAttribute("data-eidos-file-root")).toBe(true)
+    expect(shell?.getAttribute("data-theme")).toBe("light")
+    expect(shell?.classList.contains("eidos-file-root")).toBe(true)
     expect(shell?.children[0]?.hasAttribute("data-eidos-file-workbar")).toBe(
       true
     )
@@ -183,6 +186,11 @@ describe("shared Eidos File editor chrome", () => {
     expect(
       container.querySelector("[data-eidos-file-view-tabs]")
     ).not.toBeNull()
+    expect(
+      grid
+        ?.querySelector("span")
+        ?.nextElementSibling?.classList.contains("bg-primary")
+    ).toBe(true)
     act(() =>
       grid?.dispatchEvent(
         new KeyboardEvent("keydown", {

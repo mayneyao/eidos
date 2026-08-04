@@ -1,6 +1,7 @@
 import * as React from "react"
 import { AlertDialog as AlertDialogPrimitive } from "radix-ui"
 
+import { useEidosFileUI } from "../context"
 import { cn } from "../lib/cn"
 import { buttonVariants } from "./primitives"
 
@@ -28,29 +29,34 @@ AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName
 const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
->(({ className, ...props }, ref) => (
-  <AlertDialogPortal>
-    <AlertDialogOverlay />
-    <AlertDialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg",
-        "duration-300 ease-out",
-        "origin-center",
-        "data-[state=open]:animate-in data-[state=closed]:animate-out",
-        "data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
-        "data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
+>(function AlertDialogContent({ className, ...props }, ref) {
+  const { themeName } = useEidosFileUI()
+  return (
+    <AlertDialogPortal>
+      <AlertDialogOverlay />
+      <AlertDialogPrimitive.Content
+        {...props}
+        ref={ref}
+        className={cn(
+          "eidos-file-root fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg",
+          "duration-300 ease-out",
+          "origin-center",
+          "data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
+          "data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95",
 
-        "data-[state=open]:slide-in-from-bottom-[48%]",
-        "data-[state=closed]:slide-out-to-bottom-[48%]",
-        // "data-[state=open]:slide-in-from-bottom-full data-[state=closed]:slide-out-to-bottom-full",
-        "sm:rounded-lg",
-        className
-      )}
-      {...props}
-    />
-  </AlertDialogPortal>
-))
+          "data-[state=open]:slide-in-from-bottom-[48%]",
+          "data-[state=closed]:slide-out-to-bottom-[48%]",
+          // "data-[state=open]:slide-in-from-bottom-full data-[state=closed]:slide-out-to-bottom-full",
+          "sm:rounded-lg",
+          className
+        )}
+        data-eidos-file-root=""
+        data-theme={themeName}
+      />
+    </AlertDialogPortal>
+  )
+})
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName
 
 const AlertDialogHeader = ({

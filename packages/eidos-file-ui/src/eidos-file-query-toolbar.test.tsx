@@ -2,6 +2,7 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import type { EidosFileFieldInfo } from "@eidos.space/eidos-file"
 
+import { EidosFileUIProvider } from "./context"
 import { EidosFileQueryToolbar } from "./eidos-file-query-toolbar"
 
 ;(
@@ -370,6 +371,32 @@ describe("shared EidosFileQueryToolbar", () => {
     expect(onSortsChange).toHaveBeenCalledWith([
       { field: fields[0].id, direction: "asc" },
     ])
+  })
+
+  it("carries the resolved theme into portalled query controls", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider themeName="dark">
+          <EidosFileQueryToolbar
+            fields={fields}
+            filter={null}
+            sorts={[]}
+            search=""
+            onSearchChange={onSearchChange}
+            onFilterChange={onFilterChange}
+            onSortsChange={onSortsChange}
+          />
+        </EidosFileUIProvider>
+      )
+    })
+    await act(async () => button("Sort")?.click())
+
+    const popover = document.body.querySelector(
+      "[data-eidos-file-sort-popover]"
+    )
+    expect(popover?.hasAttribute("data-eidos-file-root")).toBe(true)
+    expect(popover?.getAttribute("data-theme")).toBe("dark")
+    expect(popover?.classList.contains("eidos-file-root")).toBe(true)
   })
 
   it("keeps a failed filter draft open and retries it in place", async () => {

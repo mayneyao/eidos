@@ -42,16 +42,21 @@ export type {
 export const EidosFileEditorRoot = forwardRef<
   HTMLDivElement,
   HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      "relative flex h-full min-h-0 flex-col bg-background",
-      className
-    )}
-    {...props}
-  />
-))
+>(function EidosFileEditorRoot({ className, ...props }, ref) {
+  const { themeName } = useEidosFileUI()
+  return (
+    <div
+      {...props}
+      ref={ref}
+      className={cn(
+        "eidos-file-root relative flex h-full min-h-0 flex-col bg-background",
+        className
+      )}
+      data-eidos-file-root=""
+      data-theme={themeName}
+    />
+  )
+})
 EidosFileEditorRoot.displayName = "EidosFileEditorRoot"
 
 export const EidosFileEditorWorkbar = forwardRef<
@@ -242,7 +247,7 @@ export function EidosFileViewTabStrip({
                 />
                 <span className="truncate">{view.name}</span>
                 {view.id === activeViewId ? (
-                  <span className="absolute inset-x-2 bottom-0 h-0.5 bg-foreground/75" />
+                  <span className="absolute inset-x-2 bottom-0 h-0.5 bg-primary" />
                 ) : null}
               </button>
             )
@@ -374,7 +379,7 @@ export function EidosFileSheetTabStrip({
                 <Table2 className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{table.name}</span>
                 {table.id === activeTableId ? (
-                  <span className="absolute inset-x-2 top-0 h-0.5 bg-foreground/75" />
+                  <span className="absolute inset-x-2 top-0 h-0.5 bg-primary" />
                 ) : null}
               </button>
             )

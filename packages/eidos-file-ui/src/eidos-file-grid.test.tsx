@@ -223,6 +223,66 @@ describe("EidosFileGrid", () => {
     )
   })
 
+  it("updates the mounted Canvas from its scoped semantic theme", async () => {
+    const loadPage = createLoadPage()
+    const renderTheme = async (
+      themeName: "light" | "dark",
+      primary: string,
+      background: string
+    ) => {
+      await act(async () => {
+        root.render(
+          <EidosFileUIProvider themeName={themeName}>
+            <div
+              data-eidos-file-root=""
+              data-theme={themeName}
+              style={
+                {
+                  "--background": background,
+                  "--foreground": "rgb(24, 30, 35)",
+                  "--muted": "rgb(238, 242, 244)",
+                  "--muted-foreground": "rgb(91, 101, 108)",
+                  "--accent": "rgb(215, 240, 244)",
+                  "--border": "rgb(210, 216, 220)",
+                  "--primary": primary,
+                  "--primary-foreground": "rgb(250, 253, 254)",
+                } as never
+              }
+            >
+              <EidosFileGrid
+                table={table}
+                loadPage={loadPage}
+                onAddRow={vi.fn()}
+                onCellEdit={createCellEdit()}
+              />
+            </div>
+          </EidosFileUIProvider>
+        )
+        await Promise.resolve()
+      })
+    }
+
+    await renderTheme("light", "rgb(12, 132, 150)", "rgb(255, 255, 255)")
+    const mountedGrid = container.querySelector('[data-testid="glide-grid"]')
+    const mountedPortal = document.getElementById("portal")
+    await vi.waitFor(() => {
+      expect(mocks.props?.theme?.accentColor).toBe("rgb(12, 132, 150)")
+      expect(mocks.props?.theme?.bgCell).toBe("rgb(255, 255, 255)")
+      expect(mocks.props?.theme?.accentLight).toBe("rgb(215, 240, 244)")
+    })
+
+    await renderTheme("dark", "rgb(94, 208, 220)", "rgb(28, 34, 38)")
+    await vi.waitFor(() => {
+      expect(mocks.props?.theme?.accentColor).toBe("rgb(94, 208, 220)")
+      expect(mocks.props?.theme?.bgCell).toBe("rgb(28, 34, 38)")
+    })
+    expect(container.querySelector('[data-testid="glide-grid"]')).toBe(
+      mountedGrid
+    )
+    expect(document.getElementById("portal")).toBe(mountedPortal)
+    expect(mountedPortal?.dataset.theme).toBe("dark")
+  })
+
   it("keeps rendered rows, focus, and selection while a .eidos file query revalidates", async () => {
     const initialLoad = createLoadPage()
     let resolveRefresh: ((page: EidosFileRowPage) => void) | undefined
@@ -1633,7 +1693,7 @@ describe("EidosFileGrid", () => {
     expect(loadPage).toHaveBeenCalledWith(200, 100)
     expect(mocks.props?.highlightRegions).toMatchObject([
       {
-        color: "color-mix(in srgb, #37352f 14%, transparent)",
+        color: `color-mix(in srgb, ${mocks.props?.theme?.accentColor} 14%, transparent)`,
         range: { x: 0, y: 180, width: 2, height: 1 },
       },
     ])
@@ -1742,7 +1802,7 @@ describe("EidosFileGrid", () => {
     act(() => mocks.props?.onDragOverCell?.([2, 0], transfer))
     expect(mocks.props?.highlightRegions).toMatchObject([
       {
-        color: "color-mix(in srgb, #37352f 18%, transparent)",
+        color: `color-mix(in srgb, ${mocks.props?.theme?.accentColor} 18%, transparent)`,
         range: { x: 2, y: 0, width: 1, height: 1 },
       },
     ])

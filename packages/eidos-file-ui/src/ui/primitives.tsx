@@ -17,6 +17,7 @@ import {
   Search,
 } from "lucide-react"
 
+import { useEidosFileUI } from "../context"
 import { cn } from "../lib/cn"
 
 export const buttonVariants = cva(
@@ -107,25 +108,28 @@ export const PopoverContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content> & {
     container?: HTMLElement
   }
->(
-  (
-    { className, align = "center", sideOffset = 4, container, ...props },
-    ref
-  ) => (
+>(function PopoverContent(
+  { className, align = "center", sideOffset = 4, container, ...props },
+  ref
+) {
+  const { themeName } = useEidosFileUI()
+  return (
     <PopoverPrimitive.Portal {...(container ? { container } : {})}>
       <PopoverPrimitive.Content
+        {...props}
         ref={ref}
         align={align}
         sideOffset={sideOffset}
         className={cn(
-          "z-50 w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none",
+          "eidos-file-root z-50 w-72 rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-none",
           className
         )}
-        {...props}
+        data-eidos-file-root=""
+        data-theme={themeName}
       />
     </PopoverPrimitive.Portal>
   )
-)
+})
 PopoverContent.displayName = "PopoverContent"
 
 export const ScrollArea = React.forwardRef<
@@ -193,23 +197,31 @@ SelectTrigger.displayName = "SelectTrigger"
 export const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => (
-  <SelectPrimitive.Portal>
-    <SelectPrimitive.Content
-      ref={ref}
-      position={position}
-      className={cn(
-        "z-50 min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md",
-        className
-      )}
-      {...props}
-    >
-      <SelectPrimitive.Viewport className="p-1">
-        {children}
-      </SelectPrimitive.Viewport>
-    </SelectPrimitive.Content>
-  </SelectPrimitive.Portal>
-))
+>(function SelectContent(
+  { className, children, position = "popper", ...props },
+  ref
+) {
+  const { themeName } = useEidosFileUI()
+  return (
+    <SelectPrimitive.Portal>
+      <SelectPrimitive.Content
+        {...props}
+        ref={ref}
+        position={position}
+        className={cn(
+          "eidos-file-root z-50 min-w-32 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md",
+          className
+        )}
+        data-eidos-file-root=""
+        data-theme={themeName}
+      >
+        <SelectPrimitive.Viewport className="p-1">
+          {children}
+        </SelectPrimitive.Viewport>
+      </SelectPrimitive.Content>
+    </SelectPrimitive.Portal>
+  )
+})
 SelectContent.displayName = "SelectContent"
 
 export const SelectItem = React.forwardRef<
