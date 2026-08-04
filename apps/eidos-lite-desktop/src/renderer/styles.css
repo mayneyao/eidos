@@ -1383,6 +1383,14 @@ button:focus-visible {
   --sync-tone: var(--tone-neutral);
 }
 
+.sync-access-gate-body {
+  padding-top: 0.25rem;
+}
+
+.sync-access-gate-body .sync-primary-actions {
+  margin-top: 0.875rem;
+}
+
 .sync-dialog-body[data-sync-tone="active"] {
   --sync-tone: var(--tone-active);
 }

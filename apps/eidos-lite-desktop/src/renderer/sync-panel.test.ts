@@ -21,6 +21,7 @@ const status: EidosSyncStatus = {
     state: "signed-in",
     user: { id: "user-1", email: "person@example.com" },
   },
+  availability: { state: "available", joined: false },
   device: { state: "active" },
   entitlement: {
     state: "read-write",
@@ -146,11 +147,8 @@ describe("SyncPanel failure states", () => {
       )
     })
 
-    const overview = host.querySelector<HTMLElement>("[data-sync-overview]")
-    expect(overview?.dataset.syncOverview).toBe("danger")
-    expect(overview?.textContent).toContain("Sync couldn’t be checked")
-    expect(overview?.textContent).toContain("Your local files are safe")
-    expect(overview?.textContent).not.toContain("Checking Sync")
+    expect(host.querySelector("[data-sync-overview]")).toBeNull()
+    expect(host.textContent).toContain("Sign in")
     expect(host.textContent).not.toContain("keychain denied")
   })
 
@@ -234,7 +232,7 @@ describe("SyncPanel failure states", () => {
       )
     })
 
-    expect(host.textContent).toContain("Keep this Space in sync")
+    expect(host.textContent).toContain("Sign in")
     expect(host.textContent).not.toContain("Checking Sync")
     expect(host.querySelector(".sync-loading")).toBeNull()
   })
@@ -302,7 +300,7 @@ describe("SyncPanel failure states", () => {
     expect(host.querySelector("aside")?.hasAttribute("aria-modal")).toBe(false)
   })
 
-  it("keeps the cached identity when the secure session has expired", async () => {
+  it("removes cached identity when the secure session is signed out", async () => {
     writeSyncStatusSnapshot("space-expired", {
       version: 1,
       status,
@@ -338,19 +336,70 @@ describe("SyncPanel failure states", () => {
       )
     })
 
-    expect(host.textContent).toContain("person@example.com")
-    expect(host.textContent).toContain("Sign in again to continue syncing")
-    expect(host.textContent).not.toContain("No synced Spaces yet")
+    expect(host.textContent).not.toContain("person@example.com")
+    expect(host.textContent).not.toContain("Storage")
     expect(
-      [...host.querySelectorAll("button")].filter((button) =>
-        button.textContent?.includes("Sign in again")
+      [...host.querySelectorAll("button")].filter(
+        (button) => button.textContent?.trim() === "Sign in"
       )
     ).toHaveLength(1)
-    const signIn = [...host.querySelectorAll("button")].find((button) =>
-      button.textContent?.includes("Sign in again")
+    const signIn = [...host.querySelectorAll("button")].find(
+      (button) => button.textContent?.trim() === "Sign in"
     )
     await act(async () => signIn?.click())
     expect(beginSyncSignIn).toHaveBeenCalledOnce()
+  })
+
+  it("shows only the waitlist action when staging Sync is gated", async () => {
+    const waitlistStatus: EidosSyncStatus = {
+      ...status,
+      availability: { state: "waitlist", joined: false },
+      entitlement: {
+        state: "none",
+        detail: "Eidos Sync is currently accepting waitlist applications.",
+      },
+      remote: { state: "not-connected" },
+      canEnable: false,
+      canClone: false,
+      blocker: { code: "waitlist", message: "Join the waitlist." },
+    }
+    const joinedStatus: EidosSyncStatus = {
+      ...waitlistStatus,
+      availability: { state: "waitlist", joined: true },
+    }
+    const joinSyncWaitlist = vi.fn().mockResolvedValue(joinedStatus)
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(waitlistStatus),
+      joinSyncWaitlist,
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    expect(host.textContent).not.toContain("person@example.com")
+    expect(host.textContent).not.toContain("Storage")
+    expect(host.textContent).not.toContain("Details")
+    const action = host.querySelector<HTMLButtonElement>(
+      "[data-sync-join-waitlist]"
+    )
+    expect(action?.textContent).toContain("Apply to join the Sync waitlist")
+    await act(async () => action?.click())
+    expect(joinSyncWaitlist).toHaveBeenCalledOnce()
+    expect(action?.textContent).toContain("You’re on the Sync waitlist")
+    expect(action?.disabled).toBe(true)
   })
 
   it("keeps cached account and storage context available while offline", async () => {

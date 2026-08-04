@@ -33,6 +33,12 @@ export interface SyncAccessGrant {
 export interface SyncAuthorization {
   subject: string
   access: SyncAccessGrant | null
+  availability: SyncAvailability
+}
+
+export interface SyncAvailability {
+  state: "available" | "waitlist"
+  joined: boolean
 }
 
 export class AccountSyncError extends Error {
@@ -128,6 +134,21 @@ function parseAccess(value: unknown): SyncAccessGrant {
   }
 }
 
+function parseAvailability(value: unknown): SyncAvailability {
+  if (value === undefined) return { state: "available", joined: false }
+  const enrollment = object(value)
+  if (
+    enrollment.state !== "waitlist" ||
+    typeof enrollment.joined !== "boolean"
+  ) {
+    throw new AccountSyncError(
+      "The Eidos Sync enrollment response is invalid.",
+      "invalid-response"
+    )
+  }
+  return { state: "waitlist", joined: enrollment.joined }
+}
+
 export class AccountSyncClient {
   constructor(
     private readonly environment: EidosLiteServiceEnvironment,
@@ -153,8 +174,24 @@ export class AccountSyncClient {
     )
     return {
       subject: string(value, "sub"),
+      availability: parseAvailability(value.sync_enrollment),
       access:
         value.sync_access === undefined ? null : parseAccess(value.sync_access),
+    }
+  }
+
+  async joinWaitlist(accessToken: string): Promise<{
+    subject: string
+    availability: SyncAvailability
+  }> {
+    const value = object(
+      await this.requestJson("/api/sync/waitlist", accessToken, {
+        method: "POST",
+      })
+    )
+    return {
+      subject: string(value, "sub"),
+      availability: parseAvailability(value.sync_enrollment),
     }
   }
 

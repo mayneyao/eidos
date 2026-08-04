@@ -19,7 +19,12 @@ function accountSession(state: "signed-out" | "signed-in") {
     signOut: vi.fn().mockResolvedValue({ state: "signed-out" }),
     authorization: vi.fn().mockResolvedValue({
       subject: "user-1",
+      availability: { state: "available", joined: false },
       access: null,
+    }),
+    joinSyncWaitlist: vi.fn().mockResolvedValue({
+      state: "waitlist",
+      joined: true,
     }),
     accessToken: vi.fn().mockResolvedValue("oauth-access-token"),
   } as unknown as AccountSessionService
@@ -121,6 +126,34 @@ describe("SyncControlPlane", () => {
       environment: "production",
       account: { state: "signed-out" },
       blocker: { code: "authentication-required" },
+    })
+  })
+
+  it("gates staging Sync behind one waitlist enrollment state", async () => {
+    const account = accountSession("signed-in") as unknown as {
+      authorization: ReturnType<typeof vi.fn>
+    }
+    account.authorization.mockResolvedValue({
+      subject: "user-1",
+      availability: { state: "waitlist", joined: false },
+      access: null,
+    })
+    const control = new SyncControlPlane(
+      EIDOS_LITE_SERVICE_ENVIRONMENTS.staging,
+      account as unknown as AccountSessionService,
+      remote
+    )
+
+    await expect(control.status()).resolves.toMatchObject({
+      availability: { state: "waitlist", joined: false },
+      canEnable: false,
+      canClone: false,
+      blocker: { code: "waitlist" },
+    })
+    await expect(control.joinWaitlist()).resolves.toMatchObject({
+      availability: { state: "waitlist", joined: true },
+      canEnable: false,
+      canClone: false,
     })
   })
 

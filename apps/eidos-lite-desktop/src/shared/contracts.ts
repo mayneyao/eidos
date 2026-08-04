@@ -75,6 +75,7 @@ export const IPC_CHANNELS = {
   syncStatus: "eidos-lite:sync-status",
   syncSignIn: "eidos-lite:sync-sign-in",
   syncSignOut: "eidos-lite:sync-sign-out",
+  syncJoinWaitlist: "eidos-lite:sync-join-waitlist",
   syncPreflight: "eidos-lite:sync-preflight",
   syncEnable: "eidos-lite:sync-enable",
   syncRepositories: "eidos-lite:sync-repositories",
@@ -432,6 +433,10 @@ export interface SyncAccountStatus {
 export interface EidosSyncStatus {
   environment: "staging" | "production"
   account: SyncAccountStatus
+  availability?: {
+    state: "available" | "waitlist"
+    joined: boolean
+  }
   device: {
     state: "not-registered" | "active"
   }
@@ -453,6 +458,7 @@ export interface EidosSyncStatus {
     code:
       | "authentication-required"
       | "subscription-required"
+      | "waitlist"
       | "read-only"
       | "access-blocked"
     message: string
@@ -984,6 +990,7 @@ export interface EidosLiteApi {
   getSyncStatus(): Promise<EidosSyncStatus>
   beginSyncSignIn(): Promise<EidosSyncStatus>
   signOutSync(): Promise<EidosSyncStatus>
+  joinSyncWaitlist(): Promise<EidosSyncStatus>
   getSyncPreflight(): Promise<EidosSyncPreflight>
   enableSync(
     approval: EidosSyncPreflightApproval

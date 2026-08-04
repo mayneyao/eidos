@@ -330,45 +330,33 @@ const authorization = await responseJson(
 )
 if (
   authorization.sub !== state.userId ||
-  authorization.sync_access?.version !== 1 ||
-  authorization.sync_access?.service !== "eidos_sync" ||
-  authorization.sync_access?.access !== "read_write"
+  authorization.sync_enrollment?.state !== "waitlist" ||
+  typeof authorization.sync_enrollment?.joined !== "boolean" ||
+  authorization.sync_access !== undefined
 ) {
-  throw new Error("The staging account did not receive a read_write Sync grant")
+  throw new Error("The staging account did not receive the Sync waitlist gate")
 }
 
-const repository = `lite-oauth-${Date.now().toString(36)}-${randomBytes(4).toString("hex")}`
-const provisionResponse = await bearerJson(
-  `${SYNC_ORIGIN}/api/graft/repositories/${repository}`,
+const waitlistResponse = await bearerJson(
+  `${ACCOUNT_ORIGIN}/api/sync/waitlist`,
   refreshedTokens.access_token,
-  { method: "PUT" }
+  { method: "POST" }
 )
-const provision = await responseJson(
-  provisionResponse,
-  "Hosted Remote provisioning"
+const waitlist = await responseJson(
+  waitlistResponse,
+  "Eidos Sync waitlist enrollment"
 )
 if (
-  provision.repository !== repository ||
-  typeof provision.remote_url !== "string" ||
-  new URL(provision.remote_url).origin !== SYNC_ORIGIN
+  waitlist.sub !== state.userId ||
+  waitlist.sync_enrollment?.state !== "waitlist" ||
+  waitlist.sync_enrollment?.joined !== true
 ) {
-  throw new Error("Hosted Remote provisioning returned an invalid repository")
+  throw new Error("Eidos Sync waitlist enrollment was not recorded")
 }
-const missingRepository = `missing-${randomUUID()}`
-const missingRemoteUrl = new URL(provision.remote_url)
-missingRemoteUrl.pathname = `${missingRemoteUrl.pathname.replace(/\/[^/]+$/, "")}/${missingRepository}`
-const missingRepositoryStatus = await requireMissingRepository(
-  missingRemoteUrl,
-  refreshedTokens.access_token
-)
 
 let revoked = false
 try {
-  await runGraftGate(
-    provision.remote_url,
-    missingRemoteUrl.toString(),
-    refreshedTokens.access_token
-  )
+  // Enrollment is intentionally the last Sync action available in staging.
 } finally {
   const revoke = await request(`${ACCOUNT_ORIGIN}/api/account/sync-devices`, {
     method: "POST",
@@ -403,13 +391,8 @@ process.stdout.write(
         userInfoSubjectVerified: true,
         refreshBoundToSameDevice: true,
       },
-      access: authorization.sync_access,
-      remote: {
-        repository,
-        remoteUrl: provision.remote_url,
-        wholeSpacePushClone: true,
-        missingRepositoryStatus,
-      },
+      access: "withheld",
+      waitlist: waitlist.sync_enrollment,
       revocationInvalidatedToken: true,
     },
     null,

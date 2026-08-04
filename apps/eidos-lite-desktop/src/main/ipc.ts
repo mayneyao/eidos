@@ -1026,6 +1026,9 @@ export function registerIpc(
     }
     return status
   })
+  ipcMain.handle(IPC_CHANNELS.syncJoinWaitlist, async (event) =>
+    syncControl.joinWaitlist(await currentRemoteUrl(event))
+  )
   ipcMain.handle(IPC_CHANNELS.syncPreflight, (event) =>
     controller.requireSession(event.sender).syncPreflight()
   )

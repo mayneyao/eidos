@@ -46,6 +46,7 @@ import {
 type BusyAction =
   | "sign-in"
   | "sign-out"
+  | "waitlist"
   | "enable"
   | "repositories"
   | "clone"
@@ -209,8 +210,10 @@ export function SyncPanel({
   const [loadError, setLoadError] = useState<LoadError | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false)
+  const [waitlistJoinFailed, setWaitlistJoinFailed] = useState(false)
 
   const loadResources = async (value: EidosSyncStatus) => {
+    if (value.availability?.state === "waitlist") return
     if (mode === "clone" && value.canClone) {
       const cached = readSyncStatusSnapshot(cacheKey)
       if (!cached?.repositories) setBusy("repositories")
@@ -248,12 +251,12 @@ export function SyncPanel({
           (snapshotBeforeCheck?.status.account.state === "signed-in" ||
             initialAccountContext?.account.state === "signed-in")
         ) {
-          setLoadError(
-            syncStatusLoadError(
-              new Error("Your Eidos Sync session expired. Sign in again."),
-              true
-            )
-          )
+          clearSyncStatusSnapshots()
+          setStatus(value)
+          setRepositories(null)
+          setPreflight(null)
+          setLastSyncedAtMs(undefined)
+          setLoadError(null)
           return
         }
         const checkedAt = Date.now()
@@ -271,13 +274,27 @@ export function SyncPanel({
       } catch (cause) {
         console.error("Could not load Eidos Sync", cause)
         if (!active) return
-        setLoadError(
-          syncStatusLoadError(
-            cause,
-            initialSnapshot !== null ||
-              initialAccountContext?.account.state === "signed-in"
-          )
+        const nextLoadError = syncStatusLoadError(
+          cause,
+          initialSnapshot !== null ||
+            initialAccountContext?.account.state === "signed-in"
         )
+        if (nextLoadError.kind === "session-expired") {
+          clearSyncStatusSnapshots()
+          setStatus({
+            ...initialSyncStatus(),
+            environment:
+              initialSnapshot?.status.environment ??
+              initialAccountContext?.environment ??
+              "production",
+          })
+          setRepositories(null)
+          setPreflight(null)
+          setLastSyncedAtMs(undefined)
+          setLoadError(null)
+        } else {
+          setLoadError(nextLoadError)
+        }
         setBusy(null)
       } finally {
         if (active) setChecking(false)
@@ -292,7 +309,9 @@ export function SyncPanel({
   }, [cacheKey, mode, reloadKey, initialAccountContext, initialSnapshot])
 
   const shouldLoadSpaceSize =
-    mode === "enable" && status.account.state === "signed-in"
+    mode === "enable" &&
+    status.account.state === "signed-in" &&
+    status.availability?.state !== "waitlist"
 
   useEffect(() => {
     if (!shouldLoadSpaceSize) {
@@ -372,6 +391,11 @@ export function SyncPanel({
   )
 
   useEffect(() => {
+    if (status.availability?.state === "waitlist") {
+      setSyncQueueStatus(null)
+      setSyncFailure(null)
+      return
+    }
     let active = true
     void window.eidosLite.getSyncQueueStatus().then(
       (queue) => {
@@ -397,7 +421,7 @@ export function SyncPanel({
       active = false
       unsubscribe()
     }
-  }, [])
+  }, [status.availability?.state])
 
   useEffect(() => {
     if (!syncProgress || syncProgress.state !== "active") return
@@ -488,6 +512,19 @@ export function SyncPanel({
         "Could not sign out",
         "Your local files are unaffected. Try again from Sync details."
       )
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const joinWaitlist = async () => {
+    setBusy("waitlist")
+    setWaitlistJoinFailed(false)
+    try {
+      rememberStatus(await window.eidosLite.joinSyncWaitlist())
+    } catch (cause) {
+      console.error("Could not join the Eidos Sync waitlist", cause)
+      setWaitlistJoinFailed(true)
     } finally {
       setBusy(null)
     }
@@ -714,6 +751,26 @@ export function SyncPanel({
     hasUncheckpointedChanges,
     syncResult,
   })
+  const waitlistGate =
+    status.availability?.state === "waitlist" ||
+    (status.environment === "staging" && status.availability === undefined)
+
+  if (shouldRenderSyncAccessGate(status, waitlistGate)) {
+    return (
+      <SyncAccessGate
+        mode={mode}
+        variant={variant}
+        environment={status.environment}
+        accountState={status.account.state}
+        joined={status.availability?.joined === true}
+        busy={busy}
+        joinFailed={waitlistJoinFailed}
+        onClose={onClose}
+        onSignIn={() => void signIn()}
+        onJoinWaitlist={() => void joinWaitlist()}
+      />
+    )
+  }
 
   return (
     <div
@@ -1261,6 +1318,117 @@ export function SyncPanel({
               </div>
             </div>
           </details>
+        </div>
+      </aside>
+    </div>
+  )
+}
+
+function shouldRenderSyncAccessGate(
+  status: EidosSyncStatus,
+  waitlistGate: boolean
+): boolean {
+  return status.account.state === "signed-out" || waitlistGate
+}
+
+function SyncAccessGate({
+  mode,
+  variant,
+  environment,
+  accountState,
+  joined,
+  busy,
+  joinFailed,
+  onClose,
+  onSignIn,
+  onJoinWaitlist,
+}: {
+  mode: "enable" | "clone"
+  variant: "dialog" | "inspector"
+  environment: EidosSyncStatus["environment"]
+  accountState: EidosSyncStatus["account"]["state"]
+  joined: boolean
+  busy: BusyAction
+  joinFailed: boolean
+  onClose(): void
+  onSignIn(): void
+  onJoinWaitlist(): void
+}) {
+  const signedOut = accountState === "signed-out"
+  return (
+    <div
+      className={
+        variant === "dialog" ? "sync-dialog-backdrop" : "sync-inspector-host"
+      }
+      role="presentation"
+    >
+      <aside
+        className={`sync-dialog${variant === "inspector" ? " sync-dialog-inspector" : ""}`}
+        role={variant === "dialog" ? "dialog" : "complementary"}
+        aria-modal={variant === "dialog" ? "true" : undefined}
+        aria-labelledby="sync-dialog-title"
+        data-sync-mode={mode}
+        data-sync-environment={environment}
+        data-sync-account-state={accountState}
+        data-sync-access-gate={signedOut ? "sign-in" : "waitlist"}
+        data-sync-waitlist-joined={joined ? "true" : "false"}
+      >
+        <header>
+          <div>
+            <Cloud />
+            <span className="sync-dialog-title-line">
+              <strong id="sync-dialog-title">Sync</strong>
+              {environment === "staging" ? (
+                <span
+                  className="environment-badge"
+                  data-service-environment="staging"
+                >
+                  Staging
+                </span>
+              ) : null}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onClose}
+            aria-label="Close Eidos Sync"
+          >
+            <X />
+          </button>
+        </header>
+        <div className="sync-dialog-body sync-access-gate-body">
+          <div className="sync-primary-actions">
+            <button
+              type="button"
+              className="primary-action"
+              data-sync-sign-in={signedOut ? "" : undefined}
+              data-sync-join-waitlist={signedOut ? undefined : ""}
+              disabled={busy !== null || (!signedOut && joined)}
+              onClick={signedOut ? onSignIn : onJoinWaitlist}
+            >
+              {busy === "sign-in" || busy === "waitlist" ? (
+                <LoaderCircle className="spin" />
+              ) : joined ? (
+                <Check />
+              ) : signedOut ? (
+                <LogIn />
+              ) : (
+                <Cloud />
+              )}
+              {signedOut
+                ? busy === "sign-in"
+                  ? "Waiting for your browser…"
+                  : "Sign in"
+                : busy === "waitlist"
+                  ? "Joining…"
+                  : joined
+                    ? "You’re on the Sync waitlist"
+                    : joinFailed
+                      ? "Try joining the Sync waitlist again"
+                      : "Apply to join the Sync waitlist"}
+            </button>
+          </div>
         </div>
       </aside>
     </div>
@@ -2279,6 +2447,7 @@ function initialSyncStatus(): EidosSyncStatus {
   return {
     environment: "production",
     account: { state: "signed-out" },
+    availability: { state: "available", joined: false },
     device: { state: "not-registered" },
     entitlement: {
       state: "not-checked",
@@ -2301,6 +2470,7 @@ function syncStatusFromAccountContext(
   return {
     environment: context.environment,
     account: context.account,
+    availability: context.availability,
     device: context.device,
     entitlement: context.entitlement,
     remote: { state: "not-connected" },

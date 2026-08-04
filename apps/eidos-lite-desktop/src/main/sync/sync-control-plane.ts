@@ -59,6 +59,21 @@ export class SyncControlPlane {
     )
   }
 
+  async joinWaitlist(
+    remoteUrl: string | null = null
+  ): Promise<EidosSyncStatus> {
+    const account = await this.account.status()
+    if (account.state === "signed-out") {
+      return this.projectStatus(account, undefined, remoteUrl)
+    }
+    const availability = await this.account.joinSyncWaitlist()
+    return this.projectStatus(
+      account,
+      { subject: account.user?.id ?? "", access: null, availability },
+      remoteUrl
+    )
+  }
+
   async provisionRepository(
     repository: string,
     displayName: string
@@ -148,7 +163,10 @@ export class SyncControlPlane {
   ): Promise<EidosSyncStatus> {
     const access = authorization.access?.access
     let usage: OfficialSyncUsage | undefined
-    if (access === "read_only" || access === "read_write") {
+    if (
+      authorization.availability?.state !== "waitlist" &&
+      (access === "read_only" || access === "read_write")
+    ) {
       try {
         usage = await this.remote.usage(await this.account.accessToken())
       } catch (error) {
@@ -168,6 +186,7 @@ export class SyncControlPlane {
       return {
         environment: this.environment.name,
         account,
+        availability: { state: "available", joined: false },
         device: { state: "not-registered" },
         entitlement: {
           state: "not-checked",
@@ -187,6 +206,31 @@ export class SyncControlPlane {
     }
 
     const grant = authorization?.access ?? null
+    const availability = authorization?.availability ?? {
+      state: "available" as const,
+      joined: false,
+    }
+    if (availability.state === "waitlist") {
+      return {
+        environment: this.environment.name,
+        account,
+        availability,
+        device: { state: "active" },
+        entitlement: {
+          state: "none",
+          detail: "Eidos Sync is currently accepting waitlist applications.",
+        },
+        remote: remoteUrl
+          ? { state: "connected", url: remoteUrl }
+          : { state: "not-connected" },
+        canEnable: false,
+        canClone: false,
+        blocker: {
+          code: "waitlist",
+          message: "Join the Eidos Sync waitlist to hear when access opens.",
+        },
+      }
+    }
     const access = grant?.access
     const entitlementState =
       access === "read_write"
@@ -217,6 +261,7 @@ export class SyncControlPlane {
     return {
       environment: this.environment.name,
       account,
+      availability,
       device: { state: "active" },
       entitlement: {
         state: entitlementState,

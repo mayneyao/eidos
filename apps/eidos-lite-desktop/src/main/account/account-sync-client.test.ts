@@ -46,6 +46,7 @@ describe("AccountSyncClient", () => {
     ).resolves.toMatchObject({ id: "device-1", status: "active" })
     await expect(client.authorization("access-secret")).resolves.toEqual({
       subject: "user-1",
+      availability: { state: "available", joined: false },
       access: {
         version: 1,
         revision: 7,
@@ -73,7 +74,31 @@ describe("AccountSyncClient", () => {
     )
     await expect(client.authorization("token")).resolves.toEqual({
       subject: "user-1",
+      availability: { state: "available", joined: false },
       access: null,
+    })
+  })
+
+  it("reads and joins the staging Sync waitlist", async () => {
+    const fetchImpl = vi.fn(async (_input: string | URL, init?: RequestInit) =>
+      Response.json({
+        sub: "user-1",
+        sync_enrollment: {
+          state: "waitlist",
+          joined: init?.method === "POST",
+        },
+      })
+    ) as unknown as typeof fetch
+    const client = new AccountSyncClient(staging, fetchImpl)
+
+    await expect(client.authorization("token")).resolves.toEqual({
+      subject: "user-1",
+      availability: { state: "waitlist", joined: false },
+      access: null,
+    })
+    await expect(client.joinWaitlist("token")).resolves.toEqual({
+      subject: "user-1",
+      availability: { state: "waitlist", joined: true },
     })
   })
 
