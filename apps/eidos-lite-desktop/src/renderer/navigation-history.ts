@@ -175,14 +175,6 @@ export function canNavigateHistory(
   return index >= 0 && index < snapshot.length
 }
 
-export function navigationOffsetForPointerButton(
-  button: number
-): -1 | 1 | null {
-  if (button === 3) return -1
-  if (button === 4) return 1
-  return null
-}
-
 export function pathMatchesPrefix(
   relativePath: NavigationLocation,
   sourcePath: string

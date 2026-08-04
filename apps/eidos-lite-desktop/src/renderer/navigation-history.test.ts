@@ -6,7 +6,6 @@ import {
   canNavigateHistory,
   initializeNavigationHistory,
   navigationHash,
-  navigationOffsetForPointerButton,
   parseNavigationHash,
   pathMatchesPrefix,
   pushNavigationLocation,
@@ -86,11 +85,5 @@ describe("Eidos Lite browser navigation history", () => {
     expect(pathMatchesPrefix("projects/plan.eidos", "projects")).toBe(true)
     expect(pathMatchesPrefix("projects-old/plan.eidos", "projects")).toBe(false)
     expect(pathMatchesPrefix(null, "projects")).toBe(false)
-  })
-
-  it("maps mouse side buttons to browser history", () => {
-    expect(navigationOffsetForPointerButton(3)).toBe(-1)
-    expect(navigationOffsetForPointerButton(4)).toBe(1)
-    expect(navigationOffsetForPointerButton(0)).toBeNull()
   })
 })

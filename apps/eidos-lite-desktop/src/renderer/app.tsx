@@ -65,7 +65,6 @@ import { useEidosLiteI18n } from "./i18n"
 import {
   canNavigateHistory,
   initializeNavigationHistory,
-  navigationOffsetForPointerButton,
   pathMatchesPrefix,
   pushNavigationLocation,
   readNavigationHistory,
@@ -1427,25 +1426,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         return
       }
     }
-    const handlePointerNavigation = (event: PointerEvent) => {
-      const offset = navigationOffsetForPointerButton(event.button)
-      if (!offset) return
-      event.preventDefault()
-      navigateHistory(offset)
-    }
-    const preventAuxiliaryNavigation = (event: MouseEvent) => {
-      if (event.button === 3 || event.button === 4) event.preventDefault()
-    }
     window.addEventListener("keydown", handleKeyboardShortcut, true)
-    window.addEventListener("pointerdown", handlePointerNavigation)
-    window.addEventListener("auxclick", preventAuxiliaryNavigation)
     const unsubscribe = window.eidosLite.onNavigationCommand((direction) =>
       navigateHistory(direction === "back" ? -1 : 1)
     )
     return () => {
       window.removeEventListener("keydown", handleKeyboardShortcut, true)
-      window.removeEventListener("pointerdown", handlePointerNavigation)
-      window.removeEventListener("auxclick", preventAuxiliaryNavigation)
       unsubscribe()
     }
   }, [
