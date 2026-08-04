@@ -808,6 +808,10 @@ const rendererProbe = `
   const fieldsTriggerStyle = getComputedStyle(fieldsTrigger)
   const fieldsPopoverStyle = getComputedStyle(fieldsPopover)
   const borderTokenProbe = document.createElement("div")
+  borderTokenProbe.dataset.eidosFileRoot = ""
+  borderTokenProbe.dataset.theme =
+    document.documentElement.dataset.theme ?? "light"
+  borderTokenProbe.classList.add("eidos-file-root")
   borderTokenProbe.style.borderColor = "var(--border)"
   document.body.append(borderTokenProbe)
   const borderTokenColor = getComputedStyle(borderTokenProbe).borderTopColor
