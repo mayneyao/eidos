@@ -1,88 +1,106 @@
 <div align="center">
   <h1 align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="static/assets/images/eidos-logo-horizontal-dark.webp">
-    <img alt="eidos logo" height="150" src="static/assets/images/eidos-logo-horizontal-light.webp">
-  </picture>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="static/assets/images/eidos-logo-horizontal-dark.webp">
+      <img alt="Eidos" height="150" src="static/assets/images/eidos-logo-horizontal-light.webp">
+    </picture>
   </h1>
-<h3>
-   一个可扩展的个人数据管理框架
-</h3>
-<p align="center">
-  将 SQLite 转化为每个人都可以使用的个人口袋数据库
-</p>
-<div align="center">
-  <a target="_blank" href="https://eidos.space/download"><img src="https://img.shields.io/badge/download-eidos-cyan.svg?style=flat-square&sanitize=true" /></a>
-  <a target="_blank" href="https://discord.gg/cGQqjeFpZq"><img src="https://img.shields.io/badge/chat-on%20discord-7289da.svg?style=flat-square&sanitize=true" /></a>
-  <a aria-label="Top language of Eidos" href="https://github.com/mayneyao/eidos/search?l=typescript">
-    <img alt="Top language of Eidos" src="https://img.shields.io/github/languages/top/mayneyao/eidos?style=flat-square&labelColor=000&color=blue">
-  </a>
-  <a target="_blank" href="https://github.com/mayneyao/eidos/blob/dev/LICENSE"><img src="https://img.shields.io/badge/License-AGPL%20v3-blue.svg?style=flat-square&sanitize=true" /></a>
-  <a href="https://deepwiki.com/mayneyao/eidos"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
+  <h3>本地优先，数据以你拥有的文件存在。</h3>
+  <p>
+    Eidos Lite 将普通文件夹变成快速、可追溯的个人数据空间，<br />
+    核心数据保存在开放的 SQLite <code>.eidos</code> 文件中。
+  </p>
+  <p>
+    <a href="./apps/eidos-lite-desktop"><img src="https://img.shields.io/badge/Eidos%20Lite-主力桌面产品-8b5cf6.svg?style=flat-square" alt="Eidos Lite 是主力桌面应用" /></a>
+    <a href="https://docs.eidos.space/"><img src="https://img.shields.io/badge/文档-eidos.space-0ea5e9.svg?style=flat-square" alt="Eidos 文档" /></a>
+    <a href="https://discord.gg/cGQqjeFpZq"><img src="https://img.shields.io/badge/交流-Discord-7289da.svg?style=flat-square" alt="在 Discord 交流" /></a>
+    <a href="https://github.com/mayneyao/eidos/blob/dev/LICENSE"><img src="https://img.shields.io/badge/协议-AGPL%20v3-blue.svg?style=flat-square" alt="AGPL v3 协议" /></a>
+  </p>
+  <p>
+    <a href="./README.md">English</a> · <a href="./README.zh.md">中文</a>
+  </p>
 </div>
-
-<div align="center">
-  <a href="./README.md">English</a> | <a href="./README.zh.md">中文文档</a>
-</div>
-
-</div>
-
-![eidos](/static/assets/images/eidos-table-and-doc.webp)
 
 > [!IMPORTANT]
-> Eidos 正在积极开发中。虽然您可以试用，但不建议用于生产环境。请关注官方发布的更新。
+> **Eidos Lite 现在是 Eidos 的主力产品方向，也是新开发和测试默认选择的桌面应用。** 原 Electron 应用作为 [Eidos Desktop Legacy](./apps/desktop) 保留，用于已有用户和维护工作。Lite 的公开分发仍在准备中，贡献者现在即可运行和构建完整应用。
 
-## 功能特性
+## Eidos Lite
 
-- **个人数据管理**：一个全面的框架，用于组织、存储和管理您的个人数据，提供类似 Notion 的文档和数据库
-- **离线支持**：一切都在您的本地机器上运行。无需网络连接即可访问您的数据。数据本地存储，性能极速。
-- **AI 功能**：深度集成大语言模型，提供 AI 驱动的功能。在 Eidos 内翻译、总结和与您的数据交互。
-- **可扩展性**：简单而强大的扩展系统，让 Eidos 成为可塑的软件，手动编写扩展代码或使用 AI 生成扩展代码。构建工具并使用工具，无限扩展。
+Eidos Lite 从一个简单的产品模型开始：**Space 就是你拥有的普通文件夹**。一个 Space 可以包含多个 `.eidos` 文件，每个 `.eidos` 文件都是标准 SQLite 数据库，离开 Eidos 依然可以使用。
 
-  <details>
-  <summary>
-    Block：用于自定义数据显示和交互的 UI 组件。
-  </summary>
-    <img src="./static/assets/images/eidos-extension-micro-block.webp" alt="edios block extension" />
-  </details>
-  <details>
-  <summary>
-    Script：使用 TypeScript/JavaScript/Python 创建强大的数据处理逻辑。
-  </summary>
-    <img src="./static/assets/images/eidos-extension-script-as-llm-tools.webp" alt="extension script" />
-    <img src="./static/assets/images/eidos-llm-call-custom-script-tools.webp" alt="eidos ai call custom script tools" />
-  </details>
+- **本地优先**：打开后立即使用和编辑本地数据；版本历史与云端状态渐进可用，不会决定本地文件是否可用。
+- **开放文件**：可以用标准 SQLite 工具查看 `.eidos` 数据库，也可以导入 CSV 或将表格导出到其他工具。
+- **内置版本管理**：查看精确到行的变更、填写有意义的版本说明，并从本地历史恢复整个 Space。
+- **可选同步**：需要异地副本或多设备使用时再连接云端；离线或退出登录后，本地工作仍然可用。
+- **专注的桌面体验**：Lite 不依赖 Legacy 应用的 Web Server、Markdown、AI、浏览器、终端和扩展子系统。
+- **面向真实数据规模**：分页查询、虚拟表格、受限的变更预览和性能门禁共同覆盖大型 SQLite 文件。
 
-- **开放格式**：您获得原始数据，SQLite 中的一切都是开放的。
+## 选择合适的 Eidos
 
-## 如何使用
+| 产品                 | 状态                    | 适用场景                                            | 位置                                                                                               |
+| -------------------- | ----------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| **Eidos Lite**       | **主力产品 · 积极开发** | 本地优先的 Space、`.eidos` 文件、版本管理与可选同步 | [`apps/eidos-lite-desktop`](./apps/eidos-lite-desktop)                                             |
+| Eidos File Web       | 积极维护                | 在浏览器中打开单个 `.eidos` 文件                    | [`apps/eidos-file-web`](./apps/eidos-file-web) · [editor.eidos.space](https://editor.eidos.space/) |
+| Eidos CLI            | 积极维护                | 在终端中检查和自动化处理 `.eidos` 文件              | [`apps/cli`](./apps/cli)                                                                           |
+| Eidos Desktop Legacy | Legacy 维护             | 依赖文档、AI、扩展和原 Web App 架构的已有工作区     | [`apps/desktop`](./apps/desktop)                                                                   |
 
-从以下地址获取应用：https://eidos.space/download
+## 运行 Eidos Lite
 
-## 如何开发
+环境要求：Node.js `22.23.1`（由 [`.node-version`](./.node-version) 固定）和 Corepack。
 
-1. 克隆仓库 `git clone https://github.com/mayneyao/eidos.git`
-2. 运行 `pnpm install` 安装依赖
-3. 安装 SQLite 扩展：
-   - 运行 `pnpm install:sqlite-ext` 安装所需的 SQLite 扩展（仅首次需要）
-4. 开始开发：
-   - 桌面端开发：运行 `pnpm dev:desktop` 启动桌面应用
+```bash
+git clone https://github.com/mayneyao/eidos.git
+cd eidos
+corepack enable
+pnpm install --frozen-lockfile
+pnpm dev:eidos-lite
+```
 
-## Eidos 工作原理
+构建用于本地体验的未签名应用：
 
-更多详细信息，请访问：https://docs.eidos.space/
+```bash
+pnpm build:eidos-lite:dev
+```
+
+运行 Lite 的专项验证：
+
+```bash
+pnpm test:eidos-lite
+pnpm test:eidos-lite:performance
+pnpm smoke:eidos-lite-packaged
+```
+
+关于进程模型、安全边界、Sync 架构、打包门禁和运行检查，请阅读 [Eidos Lite 开发指南](./apps/eidos-lite-desktop/README.md)。
+
+<details>
+<summary><strong>需要维护 Eidos Desktop Legacy？</strong></summary>
+
+原 Desktop 应用复用 `apps/web-app`、运行本地 HTTP 服务，并承载早期的文档、AI 与扩展模型。它仍保留在仓库中用于维护，但不再是默认桌面开发路径。
+
+```bash
+pnpm install:sqlite-ext
+pnpm dev:desktop
+```
+
+修改前请先阅读 [Legacy Desktop 架构说明](./apps/desktop/readme.md)。
+
+</details>
+
+## 开放生态
+
+Eidos 仍然是一个可扩展的个人数据框架。仓库包含共享数据引擎、React 绑定、浏览器编辑器、CLI 和 Legacy 扩展生态。可以从[项目文档](https://docs.eidos.space/)开始，或通过 [`AGENTS.md`](./AGENTS.md)了解仓库结构。
 
 ## 贡献者
 
 <a href="https://github.com/mayneyao/eidos/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=mayneyao/eidos" />
+  <img src="https://contrib.rocks/image?repo=mayneyao/eidos" alt="Eidos 贡献者" />
 </a>
 
 ## 许可证
 
-本项目整体采用 AGPL 协议。为了方便集成和生态建设，特定的 package 采用 MIT 协议：
+本项目整体采用 AGPL v3 协议。为了方便集成和生态建设，以下 package 采用 MIT 协议：
 
-- `@eidos.space/core`: [MIT](./packages/core/LICENSE)
-- `@eidos.space/react`: [MIT](./packages/react/LICENSE)
+- `@eidos.space/core`：[MIT](./packages/core/LICENSE)
+- `@eidos.space/react`：[MIT](./packages/react/LICENSE)
 
-此外，[extensions/](./extensions/) 目录下的所有扩展均采用 MIT 协议发布。
+[`extensions/`](./extensions/) 目录下的所有扩展同样采用 MIT 协议。

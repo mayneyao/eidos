@@ -1,3 +1,12 @@
+# Eidos Desktop (Legacy)
+
+> [!WARNING]
+> This is the original Eidos Desktop application. It is retained for existing
+> users and maintenance, but it is no longer the default desktop product. New
+> local-first desktop development belongs in
+> [Eidos Lite](../eidos-lite-desktop/README.md). The architecture below remains
+> the reference for Legacy contributors.
+
 ## Architecture Overview
 
 The desktop client is built using **Electron**, providing a native application experience while reusing the web-app codebase.

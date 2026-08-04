@@ -1,5 +1,11 @@
 # Eidos Lite Desktop
 
+> [!NOTE]
+> Eidos Lite is the primary Eidos desktop product and the default target for
+> new desktop development. For the product overview and quick start, begin at
+> the [repository README](../../README.md). This document covers the detailed
+> architecture and verification contract.
+
 Eidos Lite is an independent Electron application for opening an ordinary
 folder as a Space and working with multiple `.eidos` files in that folder.
 It does not import the legacy Desktop application or its Markdown, extension,
