@@ -248,7 +248,7 @@ export function EidosFileFieldTypePicker({
           type="button"
           data-eidos-file-field-type-trigger={value}
           disabled={disabled}
-          className="flex h-9 w-full items-center gap-2 rounded-md border bg-background px-3 text-left text-xs shadow-sm outline-none hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+          className="flex h-9 w-full items-center gap-2 rounded-md border border-border/70 bg-background px-3 text-left text-xs shadow-none outline-none hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
           aria-label={t("Field type")}
         >
           <EidosFileFieldTypeIcon

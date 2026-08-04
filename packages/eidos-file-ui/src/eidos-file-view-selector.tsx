@@ -138,7 +138,7 @@ function EidosFileViewLayoutPicker({
               key={candidate.type}
               type="button"
               className={cn(
-                "grid min-h-16 place-items-center content-center gap-1 rounded-md border px-1.5 text-center outline-hidden hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-45",
+                "grid min-h-16 place-items-center content-center gap-1 rounded-md border border-border/70 px-1.5 text-center outline-hidden hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-45",
                 value === candidate.type && "border-foreground/30 bg-accent"
               )}
               disabled={disabled || unavailable}
@@ -851,7 +851,7 @@ export function EidosFileViewSelector({
                       "Choose visible fields for each card and drag to set their order."
                     )}
                   </p>
-                  <div className="max-h-40 overflow-x-hidden overflow-y-auto rounded-md border p-1">
+                  <div className="max-h-40 overflow-x-hidden overflow-y-auto rounded-md border border-border/70 p-1">
                     {cardCandidateFields.length > 0 ? (
                       <>
                         <SortableContainer

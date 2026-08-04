@@ -812,9 +812,11 @@ const rendererProbe = `
   borderTokenProbe.dataset.theme =
     document.documentElement.dataset.theme ?? "light"
   borderTokenProbe.classList.add("eidos-file-root")
-  borderTokenProbe.style.borderColor = "var(--border)"
+  borderTokenProbe.style.borderColor =
+    "color-mix(in oklab, var(--border) 70%, transparent)"
   document.body.append(borderTokenProbe)
-  const borderTokenColor = getComputedStyle(borderTokenProbe).borderTopColor
+  const softenedBorderTokenColor =
+    getComputedStyle(borderTokenProbe).borderTopColor
   borderTokenProbe.remove()
   const styleContract = {
     formControlsReset: fieldsTriggerStyle.borderTopWidth === "0px",
@@ -824,7 +826,7 @@ const rendererProbe = `
     portalBorder:
       fieldsPopoverStyle.borderTopWidth === "1px" &&
       fieldsPopoverStyle.borderTopStyle === "solid" &&
-      fieldsPopoverStyle.borderTopColor === borderTokenColor,
+      fieldsPopoverStyle.borderTopColor === softenedBorderTokenColor,
     portalRadius: Number.parseFloat(fieldsPopoverStyle.borderTopLeftRadius) > 0,
   }
   if (Object.values(styleContract).some((value) => !value)) {

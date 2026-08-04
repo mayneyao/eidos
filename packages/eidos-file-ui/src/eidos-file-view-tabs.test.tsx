@@ -146,6 +146,14 @@ describe("EidosFileViewTabs", () => {
     ).toBeNull()
     await openViewMenu(container, "gallery")
 
+    const menu = document.body.querySelector<HTMLElement>('[role="menu"]')
+    expect(menu?.className).toContain("w-max")
+    expect(
+      Array.from(
+        document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')
+      ).every((item) => item.className.includes("whitespace-nowrap"))
+    ).toBe(true)
+
     expect(
       Array.from(document.body.querySelectorAll('[role="menuitem"]')).map(
         (item) => item.textContent?.trim()

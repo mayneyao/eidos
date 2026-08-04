@@ -77,7 +77,7 @@ function EidosFileViewTabContextMenu({
     <ContextMenu onOpenChange={setOpen}>
       <ContextMenuTrigger asChild>{tab}</ContextMenuTrigger>
       <ContextMenuContent
-        className="w-44"
+        className="w-max max-w-[calc(100vw-1rem)]"
         onCloseAutoFocus={(event) => event.preventDefault()}
         onEscapeKeyDown={() => setOpen(false)}
       >

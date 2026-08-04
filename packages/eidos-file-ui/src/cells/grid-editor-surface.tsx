@@ -34,7 +34,7 @@ export function EidosFileGridEditorSurface({
     <div
       data-eidos-file-grid-editor-surface=""
       className={cn(
-        "click-outside-ignore flex w-80 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md",
+        "click-outside-ignore flex w-80 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-md border border-border/70 bg-popover text-popover-foreground shadow-xs",
         className
       )}
       {...props}
