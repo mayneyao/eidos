@@ -1,6 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from "react"
 import type { FileDiffMetadata } from "@pierre/diffs"
-import { CircleAlert, LoaderCircle, RotateCcw } from "lucide-react"
+import {
+  ArrowRight,
+  CircleAlert,
+  FileSymlink,
+  LoaderCircle,
+  RotateCcw,
+} from "lucide-react"
 
 import type {
   SpaceVersionTextContentDiff,
@@ -42,6 +48,37 @@ function contentStateMessage(
 function contentValue(state: SpaceVersionTextContentState): string | null {
   if (state.state === "absent") return ""
   return state.state === "utf8" ? state.content : null
+}
+
+function textContentMatches(content: SpaceVersionTextContentDiff): boolean {
+  const before = contentValue(content.before)
+  const after = contentValue(content.after)
+  return before !== null && after !== null && before === after
+}
+
+export function VersionRenameSummary({
+  previousPath,
+  path,
+  compact = false,
+}: {
+  previousPath: string
+  path: string
+  compact?: boolean
+}) {
+  return (
+    <div
+      className="version-rename-summary"
+      data-compact={compact ? "true" : undefined}
+      aria-label={`Renamed from ${previousPath} to ${path}`}
+    >
+      <FileSymlink aria-hidden="true" />
+      <div className="version-rename-paths">
+        <span title={previousPath}>{previousPath}</span>
+        <ArrowRight aria-hidden="true" />
+        <strong title={path}>{path}</strong>
+      </div>
+    </div>
+  )
 }
 
 function VersionTextDiffUnavailable({
@@ -167,15 +204,44 @@ function ComputedTextDiff({
   )
 }
 
+export function VersionTextDiffContent({
+  content,
+  previousPath,
+  theme,
+}: {
+  content: SpaceVersionTextContentDiff
+  previousPath?: string
+  theme: ResolvedAppearance
+}) {
+  if (previousPath && textContentMatches(content)) {
+    return (
+      <VersionRenameSummary previousPath={previousPath} path={content.path} />
+    )
+  }
+  if (!previousPath) return <ComputedTextDiff content={content} theme={theme} />
+  return (
+    <div className="version-text-change-stack">
+      <VersionRenameSummary
+        previousPath={previousPath}
+        path={content.path}
+        compact
+      />
+      <ComputedTextDiff content={content} theme={theme} />
+    </div>
+  )
+}
+
 export function VersionTextDiff({
   mode,
   commitId,
   parentId,
   expectedHead,
   path,
+  previousPath,
   theme,
 }: {
   path: string
+  previousPath?: string
   theme: ResolvedAppearance
 } & (
   | {
@@ -203,8 +269,13 @@ export function VersionTextDiff({
     setFailure(null)
     const request =
       mode === "history"
-        ? window.eidosLite.getVersionTextDiff(commitId, parentId, path)
-        : window.eidosLite.getWorkingTextDiff(expectedHead, path)
+        ? window.eidosLite.getVersionTextDiff(
+            commitId,
+            parentId,
+            path,
+            previousPath
+          )
+        : window.eidosLite.getWorkingTextDiff(expectedHead, path, previousPath)
     void request
       .then((result) => {
         if (current) setContent(result)
@@ -215,7 +286,7 @@ export function VersionTextDiff({
     return () => {
       current = false
     }
-  }, [attempt, commitId, expectedHead, mode, parentId, path])
+  }, [attempt, commitId, expectedHead, mode, parentId, path, previousPath])
 
   if (failure) {
     return (
@@ -251,5 +322,11 @@ export function VersionTextDiff({
     )
   }
 
-  return <ComputedTextDiff content={content} theme={theme} />
+  return (
+    <VersionTextDiffContent
+      content={content}
+      previousPath={previousPath}
+      theme={theme}
+    />
+  )
 }

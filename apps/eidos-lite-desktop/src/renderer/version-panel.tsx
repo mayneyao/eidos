@@ -37,10 +37,11 @@ import type {
 import type { ResolvedAppearance } from "./app-appearance"
 import {
   VersionChangeTree,
+  type VersionChangeDiscardTarget,
   type VersionInspection,
 } from "./version-change-tree"
 import { VersionTableDiff } from "./version-table-diff"
-import { VersionTextDiff } from "./version-text-diff"
+import { VersionRenameSummary, VersionTextDiff } from "./version-text-diff"
 
 export { VersionTableDiff as TableDiff } from "./version-table-diff"
 
@@ -156,7 +157,7 @@ export function isVersionReadAbortError(error: unknown): boolean {
   )
 }
 
-function mergeVersionDiffPages(
+export function mergeVersionDiffPages(
   current: SpaceVersionDiff,
   next: SpaceVersionDiff,
   preservePagination = false
@@ -190,8 +191,10 @@ function mergeVersionDiffPages(
       tables: [...tables.values()],
     })
   }
+  const changeToken = next.changeToken ?? current.changeToken
   return {
     ...next,
+    ...(changeToken ? { changeToken } : {}),
     paths: [...paths.values()],
     files: [...files.values()],
     totalPaths: next.totalPaths ?? current.totalPaths,
@@ -286,6 +289,74 @@ function fileName(path: string): string {
 function fileParent(path: string): string {
   const segments = path.split("/")
   return segments.length > 1 ? segments.slice(0, -1).join("/") : "Space root"
+}
+
+function DiscardWorkingChangesDialog({
+  target,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  target: VersionChangeDiscardTarget
+  busy: boolean
+  onCancel(): void
+  onConfirm(): void
+}) {
+  const title =
+    target.kind === "folder"
+      ? `Discard changes in ${fileName(target.path)}?`
+      : `Discard changes to ${fileName(target.path)}?`
+  const scope =
+    target.kind === "folder"
+      ? target.fileCount === null
+        ? `Every changed file currently under ${target.path}`
+        : `${target.fileCount} changed ${target.fileCount === 1 ? "file" : "files"} under ${target.path}`
+      : target.path
+  return (
+    <div className="path-dialog-backdrop" role="presentation">
+      <form
+        className="path-dialog discard-changes-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onSubmit={(event) => {
+          event.preventDefault()
+          onConfirm()
+        }}
+      >
+        <header>
+          <strong>{title}</strong>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onCancel}
+            aria-label="Cancel"
+            disabled={busy}
+          >
+            <X />
+          </button>
+        </header>
+        <p>
+          <strong>{scope}</strong> will return to the latest saved version.
+          Added files will be removed, deleted files will be restored, and
+          renamed files will return to their saved paths. This cannot be undone.
+        </p>
+        <footer>
+          <button type="button" autoFocus onClick={onCancel} disabled={busy}>
+            Keep changes
+          </button>
+          <button type="submit" className="danger-action" disabled={busy}>
+            {busy ? (
+              <LoaderCircle className="spin" aria-hidden="true" />
+            ) : (
+              <RotateCcw aria-hidden="true" />
+            )}
+            {busy ? "Discarding…" : "Discard changes"}
+          </button>
+        </footer>
+      </form>
+    </div>
+  )
 }
 
 function changeLabel(change: string): string {
@@ -413,6 +484,10 @@ export function VersionDiffPreview({
     inspection.type === "file" &&
     inspection.change.kind === "text_file" &&
     (inspection.mode === "changes" || inspection.commit !== null)
+  const showsRename =
+    inspection.type === "file" &&
+    Boolean(inspection.change.previousPath) &&
+    changeLabel(inspection.change.change) === "Renamed"
 
   const loadMoreRows = async (): Promise<boolean> => {
     if (
@@ -542,6 +617,7 @@ export function VersionDiffPreview({
               commitId={inspection.commit.id}
               parentId={inspection.commit.parent}
               path={inspection.change.path}
+              previousPath={inspection.change.previousPath}
               theme={theme}
             />
           ) : (
@@ -549,6 +625,7 @@ export function VersionDiffPreview({
               mode="changes"
               expectedHead={inspection.diff.currentHead}
               path={inspection.change.path}
+              previousPath={inspection.change.previousPath}
               theme={theme}
             />
           )
@@ -575,39 +652,53 @@ export function VersionDiffPreview({
             </div>
           </div>
         ) : inspection.file?.tables.length ? (
-          <div className="version-inspector-file-summary">
-            <p>
-              {inspection.file.tables.length} changed{" "}
-              {inspection.file.tables.length === 1 ? "table" : "tables"} ·{" "}
-              {fileRowChanges(inspection.file)} row changes
-            </p>
-            {inspection.file.detailsLoaded === false ? (
-              <p className="version-summary-hint">
-                Select a table to load its changed rows.
-              </p>
+          <>
+            {showsRename && inspection.change.previousPath ? (
+              <VersionRenameSummary
+                previousPath={inspection.change.previousPath}
+                path={inspection.change.path}
+                compact
+              />
             ) : null}
-            <ul>
-              {inspection.file.tables.map((table) => {
-                const stats = tableStats(table)
-                return (
-                  <li key={table.name}>
-                    <Table2 />
-                    <strong>{table.name}</strong>
-                    <span>
-                      {stats.inserts ? `+${stats.inserts}` : ""}
-                      {stats.deletes ? ` −${stats.deletes}` : ""}
-                      {stats.updates ? ` ~${stats.updates}` : ""}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-            {inspection.file.limitations.map((limitation) => (
-              <p key={limitation} className="version-limitation">
-                {limitation}
+            <div className="version-inspector-file-summary">
+              <p>
+                {inspection.file.tables.length} changed{" "}
+                {inspection.file.tables.length === 1 ? "table" : "tables"} ·{" "}
+                {fileRowChanges(inspection.file)} row changes
               </p>
-            ))}
-          </div>
+              {inspection.file.detailsLoaded === false ? (
+                <p className="version-summary-hint">
+                  Select a table to load its changed rows.
+                </p>
+              ) : null}
+              <ul>
+                {inspection.file.tables.map((table) => {
+                  const stats = tableStats(table)
+                  return (
+                    <li key={table.name}>
+                      <Table2 />
+                      <strong>{table.name}</strong>
+                      <span>
+                        {stats.inserts ? `+${stats.inserts}` : ""}
+                        {stats.deletes ? ` −${stats.deletes}` : ""}
+                        {stats.updates ? ` ~${stats.updates}` : ""}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+              {inspection.file.limitations.map((limitation) => (
+                <p key={limitation} className="version-limitation">
+                  {limitation}
+                </p>
+              ))}
+            </div>
+          </>
+        ) : showsRename && inspection.change.previousPath ? (
+          <VersionRenameSummary
+            previousPath={inspection.change.previousPath}
+            path={inspection.change.path}
+          />
         ) : (
           <div className="version-inspector-empty">
             <FileText />
@@ -754,7 +845,10 @@ export function VersionPanel({
   refreshKey: number
   onClose(): void
   onSpaceChange(snapshot: SpaceSnapshot): void
-  onFilesMaterialized(snapshot: SpaceSnapshot): void | Promise<void>
+  onFilesMaterialized(
+    snapshot: SpaceSnapshot,
+    relativePaths?: readonly string[]
+  ): void | Promise<void>
   onRefresh(): void
   onInspectionChange(inspection: VersionInspection | null): void
 }) {
@@ -789,11 +883,16 @@ export function VersionPanel({
   const [modeLoading, setModeLoading] = useState(false)
   const [selectionLoading, setSelectionLoading] = useState(false)
   const [paginationLoading, setPaginationLoading] = useState(false)
-  const [busy, setBusy] = useState<"enable" | "checkpoint" | "restore" | null>(
-    null
-  )
+  const [busy, setBusy] = useState<
+    "enable" | "checkpoint" | "restore" | "discard" | null
+  >(null)
   const [checkpointMessage, setCheckpointMessage] = useState("")
   const [confirmRestore, setConfirmRestore] = useState(false)
+  const [discardConfirmation, setDiscardConfirmation] = useState<{
+    target: VersionChangeDiscardTarget
+    expectedHead: string
+    expectedChangeToken: string
+  } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const clearInspection = useCallback(() => {
@@ -1185,6 +1284,50 @@ export function VersionPanel({
     }
   }
 
+  const requestDiscard = (target: VersionChangeDiscardTarget) => {
+    if (!changes?.currentHead || !changes.changeToken) {
+      setError("Refresh Changes before discarding local edits")
+      return
+    }
+    setDiscardConfirmation({
+      target,
+      expectedHead: changes.currentHead,
+      expectedChangeToken: changes.changeToken,
+    })
+  }
+
+  const discardWorkingChanges = async () => {
+    if (!discardConfirmation) return
+    setBusy("discard")
+    setError(null)
+    try {
+      const result = await window.eidosLite.discardWorkingChanges({
+        target: {
+          kind: discardConfirmation.target.kind,
+          path: discardConfirmation.target.path,
+        },
+        expectedHead: discardConfirmation.expectedHead,
+        expectedChangeToken: discardConfirmation.expectedChangeToken,
+      })
+      clearInspection()
+      onSpaceChange(result.snapshot)
+      try {
+        await onFilesMaterialized(result.snapshot, result.paths)
+      } catch (cause) {
+        setError(
+          `Changes were discarded, but an open file could not refresh. ${errorMessage(cause)}`
+        )
+      }
+      setDiscardConfirmation(null)
+      setChanges(null)
+      onRefresh()
+    } catch (cause) {
+      setError(errorMessage(cause))
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const changedRowCount = useMemo(
     () =>
       changes?.files.reduce((total, file) => total + fileRowChanges(file), 0) ??
@@ -1209,6 +1352,7 @@ export function VersionPanel({
     setSelectedCommit(null)
     setSelectedDiff(null)
     setConfirmRestore(false)
+    setDiscardConfirmation(null)
     clearInspection()
   }
 
@@ -1465,7 +1609,7 @@ export function VersionPanel({
                 </strong>
                 <p>
                   {hasLocalChanges
-                    ? "Select a file or changed table to review it."
+                    ? "Select to review. Hover a file or folder for actions."
                     : "The Space matches its latest saved version."}
                 </p>
               </div>
@@ -1477,6 +1621,7 @@ export function VersionPanel({
                   selectedKey={selectedInspectionKey}
                   mode="changes"
                   onSelect={(inspection) => void inspect(inspection)}
+                  onRequestDiscard={requestDiscard}
                 />
                 {changes.hasMore && changes.nextCursor ? (
                   <button
@@ -1682,6 +1827,14 @@ export function VersionPanel({
           <p className="version-empty-copy">No saved versions yet.</p>
         )}
       </div>
+      {discardConfirmation ? (
+        <DiscardWorkingChangesDialog
+          target={discardConfirmation.target}
+          busy={busy === "discard"}
+          onCancel={() => setDiscardConfirmation(null)}
+          onConfirm={() => void discardWorkingChanges()}
+        />
+      ) : null}
     </aside>
   )
 }

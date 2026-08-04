@@ -292,6 +292,88 @@ describe("GraftClient", () => {
     }
   })
 
+  it("trusts a clean Graft status when stale staged metadata remains", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-clean-staged-metadata-")
+    )
+    const transport = createUnusedTransport()
+    transport.command = vi.fn(async (command) => {
+      if (command !== "statusIncremental") {
+        throw new Error(`Unexpected Graft command: ${command}`)
+      }
+      return {
+        generation: 25,
+        change_token: "clean-token",
+        status: {
+          dirty: false,
+          has_staged_changes: true,
+          staged: ["docs/restored.md"],
+          paths: [],
+        },
+      }
+    })
+    const client = new GraftClient({ sdkTransport: transport })
+
+    try {
+      await expect(client.status(root)).resolves.toMatchObject({
+        dirty: false,
+        changedPaths: 0,
+        paths: [],
+      })
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("treats staged path changes as dirty even when the worktree is clean", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-staged-path-change-")
+    )
+    const transport = createUnusedTransport()
+    transport.command = vi.fn(async (command) => {
+      if (command !== "statusIncremental") {
+        throw new Error(`Unexpected Graft command: ${command}`)
+      }
+      return {
+        generation: 26,
+        change_token: "staged-rename-token",
+        status: {
+          dirty: false,
+          has_staged_changes: true,
+          paths: [
+            {
+              path: "docs/renamed.md",
+              previous_path: "docs/original.md",
+              staged_change: "renamed",
+              kind: "text_file",
+              storage: "inline",
+            },
+          ],
+        },
+      }
+    })
+    const client = new GraftClient({ sdkTransport: transport })
+
+    try {
+      await expect(client.status(root)).resolves.toMatchObject({
+        dirty: true,
+        changedPaths: 1,
+        paths: ["docs/renamed.md"],
+        changes: [
+          {
+            path: "docs/renamed.md",
+            previousPath: "docs/original.md",
+            change: "renamed",
+          },
+        ],
+      })
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("hydrates commit paths and one selected diff without loading full commit details", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-graft-history-apis-")

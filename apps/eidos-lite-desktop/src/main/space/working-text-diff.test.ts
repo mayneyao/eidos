@@ -74,6 +74,69 @@ describe("working text diff", () => {
     }
   })
 
+  it("reads a renamed working file from its previous checkpoint path", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-working-diff-"))
+    const space = path.join(root, "space")
+    const userData = path.join(root, "user-data")
+    await fs.mkdir(space)
+    await fs.mkdir(path.join(space, ".graft"))
+    await fs.mkdir(path.join(space, "docs"))
+    await fs.writeFile(path.join(space, "docs", "new-name.md"), "Same\n")
+    const revisionTextDiff = vi.fn(async () => ({
+      path: "docs/old-name.md",
+      before: { state: "absent" as const },
+      after: {
+        state: "utf8" as const,
+        content: "Same\n",
+        size: 5,
+      },
+    }))
+    const graft = {
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      open: vi.fn(async () => undefined),
+      close: vi.fn(async () => undefined),
+      inspectSpace: vi.fn(async () => ({
+        available: true,
+        backend: "sdk" as const,
+        version: "0.3.1",
+        expectedVersion: "0.3.1",
+        initialized: true,
+        clean: false,
+        currentHead: head,
+      })),
+      status: vi.fn(async () => ({
+        dirty: true,
+        currentHead: head,
+        currentBranch: "main",
+        ahead: 0,
+        behind: 0,
+        hasConflicts: false,
+      })),
+      revisionTextDiff,
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+    try {
+      session = await SpaceSession.create(space, userData, { graft })
+      await expect(
+        session.getWorkingTextDiff(head, "docs/new-name.md", "docs/old-name.md")
+      ).resolves.toEqual({
+        path: "docs/new-name.md",
+        before: { state: "utf8", content: "Same\n", size: 5 },
+        after: { state: "utf8", content: "Same\n", size: 5 },
+      })
+      expect(revisionTextDiff).toHaveBeenCalledWith(
+        expect.any(String),
+        head,
+        null,
+        "docs/old-name.md",
+        expect.any(Number)
+      )
+    } finally {
+      await session?.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("rejects a stale Changes view before reading checkpoint content", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-working-diff-"))
     const space = path.join(root, "space")

@@ -49,6 +49,46 @@ describe("revision text reader", () => {
     ])
   })
 
+  it("reads a renamed file from its previous parent path", async () => {
+    const calls: unknown[] = []
+    const readPathContent = vi.fn(async (options) => {
+      calls.push(options)
+      return {
+        revision: options.revision,
+        path: options.path,
+        kind: "text_file" as const,
+        storage: "inline" as const,
+        content: {
+          state: "utf8" as const,
+          content: "unchanged\n",
+          size: 10,
+          content_hash: "same-hash",
+        },
+      }
+    })
+
+    await expect(
+      readRevisionTextDiff(
+        { readPathContent },
+        {
+          commitId: "commit",
+          parentId: "parent",
+          path: "docs/new-name.md",
+          previousPath: "docs/old-name.md",
+          maxBytes: 1024,
+        }
+      )
+    ).resolves.toEqual({
+      path: "docs/new-name.md",
+      before: { state: "utf8", content: "unchanged\n", size: 10 },
+      after: { state: "utf8", content: "unchanged\n", size: 10 },
+    })
+    expect(calls).toEqual([
+      { revision: "parent", path: "docs/old-name.md", maxBytes: 1024 },
+      { revision: "commit", path: "docs/new-name.md", maxBytes: 1024 },
+    ])
+  })
+
   it("treats the parent of a root commit as absent", async () => {
     const readPathContent = vi.fn(async (options) => ({
       revision: options.revision,

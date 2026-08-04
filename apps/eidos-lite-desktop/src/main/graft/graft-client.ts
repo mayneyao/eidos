@@ -632,7 +632,7 @@ export class GraftClient {
     const remoteHead = stringValue(upstream.remote_target)
     const hasUpstreamStatus = Object.keys(upstream).length > 0
     const status: GraftRepositoryStatus = {
-      dirty: value.dirty === true || value.has_staged_changes === true,
+      dirty: value.dirty === true || changes.length > 0,
       currentHead:
         stringValue(value.current_head) ??
         stringValue(value.head_target) ??
@@ -756,6 +756,7 @@ export class GraftClient {
     return {
       currentHead: status.currentHead,
       currentBranch: status.currentBranch,
+      ...(status.changeToken ? { changeToken: status.changeToken } : {}),
       from: status.currentHead,
       to: null,
       paths,
@@ -916,13 +917,15 @@ export class GraftClient {
     commitId: string,
     parentId: string | null,
     relativePath: string,
-    maxBytes: number
+    maxBytes: number,
+    previousPath?: string
   ): Promise<SpaceVersionTextContentDiff> {
     await this.open(root)
     return this.requireSdkTransport().revisionTextDiff({
       commitId,
       parentId,
       path: relativePath,
+      ...(previousPath ? { previousPath } : {}),
       maxBytes,
     })
   }
@@ -1102,7 +1105,7 @@ export class GraftClient {
     source: string,
     expectedHead: string,
     relativePaths: readonly string[],
-    options: { signal?: AbortSignal } = {}
+    options: { signal?: AbortSignal; requireClean?: boolean } = {}
   ): Promise<void> {
     for (
       let index = 0;
@@ -1117,6 +1120,9 @@ export class GraftClient {
             source,
             expectedHead,
             paths: relativePaths.slice(index, index + SDK_PATH_BATCH_SIZE),
+            ...(options.requireClean === undefined
+              ? {}
+              : { requireClean: options.requireClean }),
           },
         ],
         options

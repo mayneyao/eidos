@@ -80,6 +80,7 @@ export const IPC_CHANNELS = {
   untrackIgnoredPaths: "eidos-lite:untrack-ignored-paths",
   versionTextDiff: "eidos-lite:version-text-diff",
   versionWorkingTextDiff: "eidos-lite:version-working-text-diff",
+  discardWorkingChanges: "eidos-lite:working-changes-discard",
   restoreCheckpoint: "eidos-lite:checkpoint-restore",
   syncStatus: "eidos-lite:sync-status",
   syncSignIn: "eidos-lite:sync-sign-in",
@@ -243,6 +244,7 @@ export interface SpaceVersionFileDiff extends SpaceVersionPathChange {
 export interface SpaceVersionDiff {
   currentHead: string | null
   currentBranch: string | null
+  changeToken?: string
   from: string | null
   to: string | null
   paths: SpaceVersionPathChange[]
@@ -250,6 +252,22 @@ export interface SpaceVersionDiff {
   totalPaths?: number
   hasMore?: boolean
   nextCursor?: string | null
+}
+
+export interface SpaceWorkingChangeTarget {
+  kind: "file" | "folder"
+  path: string
+}
+
+export interface SpaceWorkingChangesDiscardRequest {
+  target: SpaceWorkingChangeTarget
+  expectedHead: string
+  expectedChangeToken: string
+}
+
+export interface SpaceWorkingChangesDiscardResult {
+  snapshot: SpaceSnapshot
+  paths: string[]
 }
 
 export interface SpaceVersionCommit {
@@ -308,6 +326,7 @@ export interface SpaceVersionTextContentRequest {
   commitId: string
   parentId: string | null
   path: string
+  previousPath?: string
   maxBytes: number
 }
 
@@ -1044,12 +1063,17 @@ export interface EidosLiteApi {
   getVersionTextDiff(
     commitId: string,
     parentId: string | null,
-    path: string
+    path: string,
+    previousPath?: string
   ): Promise<SpaceVersionTextContentDiff>
   getWorkingTextDiff(
     expectedHead: string | null,
-    path: string
+    path: string,
+    previousPath?: string
   ): Promise<SpaceVersionTextContentDiff>
+  discardWorkingChanges(
+    request: SpaceWorkingChangesDiscardRequest
+  ): Promise<SpaceWorkingChangesDiscardResult>
   restoreCheckpoint(
     commitId: string,
     expectedHead: string

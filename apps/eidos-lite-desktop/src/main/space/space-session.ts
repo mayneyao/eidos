@@ -19,7 +19,10 @@ import type {
   SpacePathMutationResult,
   SpaceVersionDiff,
   SpaceVersionHistory,
+  SpaceVersionPathChange,
   SpaceVersionTextContentDiff,
+  SpaceWorkingChangesDiscardRequest,
+  SpaceWorkingChangesDiscardResult,
   SpaceTreeEntry,
   TextFilePreviewResult,
   TextFileSaveRequest,
@@ -91,6 +94,34 @@ const BACKGROUND_GRAFT_IGNORE_DELAY_MS =
 const PENDING_EIDOS_FILE_ASSETS_PER_SESSION_MAX = 10_000
 
 class AutomaticCheckpointSkipped extends Error {}
+
+function pathMatchesWorkingChangeTarget(
+  relativePath: string,
+  request: SpaceWorkingChangesDiscardRequest
+): boolean {
+  if (request.target.kind === "file") {
+    return relativePath === request.target.path
+  }
+  return relativePath.startsWith(`${request.target.path}/`)
+}
+
+function workingChangeMatchesTarget(
+  change: SpaceVersionPathChange,
+  request: SpaceWorkingChangesDiscardRequest
+): boolean {
+  return (
+    pathMatchesWorkingChangeTarget(change.path, request) ||
+    (change.previousPath
+      ? pathMatchesWorkingChangeTarget(change.previousPath, request)
+      : false)
+  )
+}
+
+function isAddedWorkingChange(change: SpaceVersionPathChange): boolean {
+  return ["added", "created", "new", "untracked"].includes(
+    change.change.toLowerCase()
+  )
+}
 
 interface CompletedCheckpoint {
   currentHead: string
@@ -1277,12 +1308,16 @@ export class SpaceSession {
   async getVersionTextDiff(
     commitId: string,
     parentId: string | null,
-    relativePath: string
+    relativePath: string,
+    previousRelativePath?: string
   ): Promise<SpaceVersionTextContentDiff> {
     await this.requireInitializedVersioning()
     this.assertRevisionId(commitId)
     if (parentId) this.assertRevisionId(parentId)
     const safePath = normalizeMutableRelativePath(relativePath)
+    const safePreviousPath = previousRelativePath
+      ? normalizeMutableRelativePath(previousRelativePath)
+      : undefined
     return this.withVersionRead(
       "version-text-diff",
       "Reading checkpoint text",
@@ -1292,18 +1327,23 @@ export class SpaceSession {
           commitId,
           parentId,
           safePath,
-          EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX
+          EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX,
+          safePreviousPath
         )
     )
   }
 
   async getWorkingTextDiff(
     expectedHead: string | null,
-    relativePath: string
+    relativePath: string,
+    previousRelativePath?: string
   ): Promise<SpaceVersionTextContentDiff> {
     await this.requireInitializedVersioning()
     if (expectedHead) this.assertRevisionId(expectedHead)
     const safePath = normalizeMutableRelativePath(relativePath)
+    const safePreviousPath = previousRelativePath
+      ? normalizeMutableRelativePath(previousRelativePath)
+      : safePath
     return this.withVersionRead(
       "version-text-diff",
       "Reading local text changes",
@@ -1323,7 +1363,7 @@ export class SpaceSession {
                 this.canonical.root,
                 expectedHead,
                 null,
-                safePath,
+                safePreviousPath,
                 EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX
               )
             ).after
@@ -1336,6 +1376,129 @@ export class SpaceSession {
         return { path: safePath, before, after }
       }
     )
+  }
+
+  async discardWorkingChanges(
+    request: SpaceWorkingChangesDiscardRequest
+  ): Promise<SpaceWorkingChangesDiscardResult> {
+    await this.requireInitializedVersioning()
+    this.assertRevisionId(request.expectedHead)
+    if (!request.expectedChangeToken.trim()) {
+      throw new Error("Refresh Changes before discarding local edits")
+    }
+    const targetPath = normalizeMutableRelativePath(request.target.path)
+    const normalizedRequest: SpaceWorkingChangesDiscardRequest = {
+      ...request,
+      target: { ...request.target, path: targetPath },
+    }
+    const restoreMaterializes = await this.repository.runForeground(() =>
+      this.graft.operationMaterializesWorktree("restorePaths")
+    )
+    if (!restoreMaterializes) {
+      throw new Error("Graft discard materialization contract is unavailable")
+    }
+
+    this.cancelVersionReads()
+    const materializedPaths = await this.gate.withMaterialization({
+      kind: "discard-working-changes",
+      detail:
+        request.target.kind === "folder"
+          ? `Discarding local changes in ${targetPath}`
+          : `Discarding local changes to ${targetPath}`,
+      materialize: async () => {
+        const status = await this.graft.status(
+          this.canonical.root,
+          this.graftStatusOptions()
+        )
+        if (
+          status.currentHead !== request.expectedHead ||
+          status.changeToken !== request.expectedChangeToken
+        ) {
+          throw new Error(
+            "Local changes changed before discard started; refresh Changes and try again"
+          )
+        }
+        const selectedChanges = status.changes.filter((change) =>
+          workingChangeMatchesTarget(change, normalizedRequest)
+        )
+        if (selectedChanges.length === 0) {
+          throw new Error("The selected file or folder has no local changes")
+        }
+        const addedPaths = selectedChanges
+          .filter(isAddedWorkingChange)
+          .map((change) => normalizeMutableRelativePath(change.path))
+        for (const relativePath of addedPaths) {
+          try {
+            const stats = await fs.lstat(
+              resolveSpacePath(this.canonical.root, relativePath)
+            )
+            if (stats.isDirectory()) {
+              throw new Error(
+                `Discard only supports files; ${relativePath} is a directory`
+              )
+            }
+          } catch (error) {
+            if (
+              !(
+                error instanceof Error &&
+                "code" in error &&
+                error.code === "ENOENT"
+              )
+            ) {
+              throw error
+            }
+          }
+        }
+        const trackedChanges = selectedChanges.filter(
+          (change) => !isAddedWorkingChange(change)
+        )
+        const trackedPaths = [
+          ...new Set(
+            trackedChanges.flatMap((change) =>
+              [change.path, change.previousPath].filter(
+                (candidate): candidate is string => Boolean(candidate)
+              )
+            )
+          ),
+        ]
+          .map(normalizeMutableRelativePath)
+          .sort()
+        if (trackedPaths.length > 0) {
+          await this.graft.restorePaths(
+            this.canonical.root,
+            request.expectedHead,
+            request.expectedHead,
+            trackedPaths,
+            { requireClean: false }
+          )
+        }
+        for (const change of trackedChanges) {
+          if (
+            !change.previousPath ||
+            change.change.toLowerCase() !== "renamed"
+          ) {
+            continue
+          }
+          await this.graft.recordPathMove(
+            this.canonical.root,
+            normalizeMutableRelativePath(change.path),
+            normalizeMutableRelativePath(change.previousPath)
+          )
+        }
+        await Promise.all(
+          addedPaths.map((relativePath) =>
+            fs.rm(resolveSpacePath(this.canonical.root, relativePath), {
+              force: true,
+            })
+          )
+        )
+        return [...new Set([...trackedPaths, ...addedPaths])].sort()
+      },
+    })
+    return {
+      snapshot: await this.freshSnapshotAndEmit(true),
+      paths: materializedPaths,
+    }
   }
 
   async restoreCheckpoint(

@@ -4259,6 +4259,59 @@ button:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+.version-rename-summary {
+  display: flex;
+  min-width: 0;
+  min-height: 4rem;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 1rem 1.25rem;
+  color: var(--ink-muted);
+}
+
+.version-rename-summary[data-compact="true"] {
+  min-height: 2.4rem;
+  padding: 0.45rem 0.8rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.version-rename-summary > svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+}
+
+.version-rename-paths {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.75rem;
+}
+
+.version-rename-paths span,
+.version-rename-paths strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.version-rename-paths span {
+  color: var(--ink-muted);
+}
+
+.version-rename-paths strong {
+  color: var(--ink);
+  font-weight: 620;
+}
+
+.version-rename-paths svg {
+  width: 0.72rem;
+  height: 0.72rem;
+  flex: 0 0 auto;
+  color: var(--ink-faint);
+}
+
 .version-inspector-loading {
   display: flex;
   max-width: 38rem;
@@ -4339,6 +4392,13 @@ button:focus-visible {
 }
 
 .version-text-diff {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.version-text-change-stack {
   display: grid;
   min-width: 0;
   min-height: 0;
@@ -4814,6 +4874,16 @@ button:focus-visible {
   color: var(--danger);
 }
 
+.version-change-context-menu button > span {
+  flex: 1;
+}
+
+.version-change-context-menu button > small {
+  color: var(--ink-faint);
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .path-dialog-backdrop {
   position: fixed;
   z-index: 90;
@@ -4862,6 +4932,11 @@ button:focus-visible {
 .path-dialog p {
   color: var(--ink-muted);
   font-size: 0.6875rem;
+}
+
+.discard-changes-dialog p strong {
+  color: var(--ink);
+  font-weight: 650;
 }
 
 .path-dialog-description {

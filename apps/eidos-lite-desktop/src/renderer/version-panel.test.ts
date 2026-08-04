@@ -15,6 +15,7 @@ import type {
 import {
   buildVersionChangeTreeModel,
   type VersionInspection,
+  versionChangeDiscardTarget,
   versionChangeTreeStructureKey,
 } from "./version-change-tree"
 import {
@@ -22,11 +23,13 @@ import {
   historySyncPresentation,
   isVersionReadAbortError,
   loadVersionPathDiff,
+  mergeVersionDiffPages,
   TableDiff,
   VersionDiffPreview,
   VersionPanel,
   withCommitTableSummaries,
 } from "./version-panel"
+import { VersionTextDiffContent } from "./version-text-diff"
 
 const customersTable: SpaceVersionTableDiff = {
   name: "Customers",
@@ -50,6 +53,7 @@ const customersTable: SpaceVersionTableDiff = {
 const versionDiff: SpaceVersionDiff = {
   currentHead: "head-2",
   currentBranch: null,
+  changeToken: "working-tree-2",
   from: "head-1",
   to: "worktree",
   paths: [
@@ -89,6 +93,39 @@ const unversionedSpace: SpaceSnapshot = {
 }
 
 describe("VersionPanel table diff", () => {
+  it("keeps the working change identity when table details omit it", () => {
+    const detail: SpaceVersionDiff = {
+      ...versionDiff,
+      changeToken: undefined,
+      files: [versionDiff.files[0]!],
+    }
+
+    expect(mergeVersionDiffPages(versionDiff, detail)).toMatchObject({
+      currentHead: versionDiff.currentHead,
+      changeToken: versionDiff.changeToken,
+    })
+  })
+
+  it("offers discard only for changed files and their containing folders", () => {
+    expect(versionChangeDiscardTarget(versionDiff, "notes/readme.md")).toEqual({
+      kind: "file",
+      path: "notes/readme.md",
+      fileCount: 1,
+    })
+    expect(versionChangeDiscardTarget(versionDiff, "notes/")).toEqual({
+      kind: "folder",
+      path: "notes",
+      fileCount: 1,
+    })
+    expect(
+      versionChangeDiscardTarget(versionDiff, "data/crm.eidos/Customers")
+    ).toEqual({
+      kind: "file",
+      path: "data/crm.eidos",
+      fileCount: 1,
+    })
+  })
+
   it("describes the cached cloud relationship in user-facing terms", () => {
     expect(
       historySyncPresentation({
@@ -1413,6 +1450,190 @@ describe("VersionPanel table diff", () => {
 
     expect(markup).toContain("Reading local text…")
     expect(markup).not.toContain("metadata only")
+  })
+
+  it("reduces a pure rename to its old and new paths", () => {
+    const renamed = {
+      path: "docs/new-name.png",
+      previousPath: "docs/old-name.png",
+      change: "renamed",
+      kind: "binary_file",
+    }
+    const inspection: VersionInspection = {
+      type: "file",
+      key: renamed.path,
+      mode: "changes",
+      diff: { ...versionDiff, paths: [renamed], files: [] },
+      change: renamed,
+      file: null,
+      commit: null,
+    }
+
+    const markup = renderToStaticMarkup(
+      createElement(VersionDiffPreview, {
+        inspection,
+        theme: "light",
+        onClose: () => undefined,
+      })
+    )
+
+    expect(markup).toContain("version-rename-summary")
+    expect(markup).toContain("docs/old-name.png")
+    expect(markup).toContain("docs/new-name.png")
+    expect(markup).not.toContain("File change recorded")
+    expect(markup).not.toContain("metadata only")
+    expect(markup).not.toContain("Kind")
+  })
+
+  it("shows only the path transition when renamed text is unchanged", () => {
+    const markup = renderToStaticMarkup(
+      createElement(VersionTextDiffContent, {
+        content: {
+          path: "docs/new-name.md",
+          before: { state: "utf8", content: "Same\n", size: 5 },
+          after: { state: "utf8", content: "Same\n", size: 5 },
+        },
+        previousPath: "docs/old-name.md",
+        theme: "light",
+      })
+    )
+
+    expect(markup).toContain("version-rename-summary")
+    expect(markup).toContain("docs/old-name.md")
+    expect(markup).toContain("docs/new-name.md")
+    expect(markup).not.toContain("Text changes")
+    expect(markup).not.toContain("Split")
+  })
+
+  it("keeps the text diff when a rename also changes content", () => {
+    const markup = renderToStaticMarkup(
+      createElement(VersionTextDiffContent, {
+        content: {
+          path: "docs/new-name.md",
+          before: { state: "utf8", content: "Before\n", size: 7 },
+          after: { state: "utf8", content: "After\n", size: 6 },
+        },
+        previousPath: "docs/old-name.md",
+        theme: "light",
+      })
+    )
+
+    expect(markup).toContain("version-rename-summary")
+    expect(markup).toContain("Text changes")
+    expect(markup).toContain("Split")
+  })
+
+  it("offers a hover action and discards every changed file in a folder", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root: Root = createRoot(host)
+    const dirtySpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        clean: false,
+        currentHead: "a".repeat(64),
+        changeToken: "working-tree-2",
+      },
+    }
+    const discardedSpace: SpaceSnapshot = {
+      ...dirtySpace,
+      graft: {
+        ...dirtySpace.graft,
+        clean: true,
+        changedPaths: 0,
+        changeToken: "clean-tree",
+      },
+    }
+    const discardWorkingChanges = vi.fn().mockResolvedValue({
+      snapshot: discardedSpace,
+      paths: ["notes/readme.md"],
+    })
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionChanges: vi.fn().mockResolvedValue(versionDiff),
+        discardWorkingChanges,
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+    const onSpaceChange = vi.fn()
+    const onFilesMaterialized = vi.fn().mockResolvedValue(undefined)
+    const onRefresh = vi.fn()
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: dirtySpace,
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange,
+          onFilesMaterialized,
+          onRefresh,
+          onInspectionChange: () => undefined,
+        })
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    const tree = host.querySelector<HTMLElement>("[data-version-change-tree]")
+    const folderRow = tree?.shadowRoot?.querySelector<HTMLElement>(
+      '[data-item-path="notes/"]'
+    )
+    expect(folderRow).not.toBeNull()
+
+    await act(async () => {
+      folderRow?.dispatchEvent(
+        new MouseEvent("pointerover", {
+          bubbles: true,
+          composed: true,
+        })
+      )
+      await Promise.resolve()
+    })
+    const action = tree?.shadowRoot?.querySelector<HTMLButtonElement>(
+      'button[data-type="context-menu-trigger"][data-visible="true"]'
+    )
+    expect(action).not.toBeNull()
+    await act(async () => {
+      action?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    expect(host.textContent).toContain("Discard folder changes…")
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          ".version-change-context-menu .danger-menu-item"
+        )
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    expect(host.textContent).toContain("Discard changes in notes?")
+    expect(discardWorkingChanges).not.toHaveBeenCalled()
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          ".discard-changes-dialog .danger-action"
+        )
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(discardWorkingChanges).toHaveBeenCalledWith({
+      target: { kind: "folder", path: "notes" },
+      expectedHead: versionDiff.currentHead,
+      expectedChangeToken: versionDiff.changeToken,
+    })
+    expect(onSpaceChange).toHaveBeenCalledWith(discardedSpace)
+    expect(onFilesMaterialized).toHaveBeenCalledWith(discardedSpace, [
+      "notes/readme.md",
+    ])
+    expect(onRefresh).toHaveBeenCalledOnce()
+
+    await act(async () => root.unmount())
+    host.remove()
   })
 
   it("refreshes open Eidos Files after restoring a Space checkpoint", async () => {

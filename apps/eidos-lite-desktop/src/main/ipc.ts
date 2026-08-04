@@ -20,6 +20,7 @@ import {
   type EidosSyncPhase,
   type RuntimeCalls,
   type RuntimeMethod,
+  type SpaceWorkingChangesDiscardRequest,
 } from "../shared/contracts"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
 import { isEidosLiteKeyboardShortcuts } from "../shared/keyboard-shortcuts"
@@ -91,6 +92,36 @@ function textFileSaveRequest(value: unknown): TextFileSaveRequest {
     relativePath: candidate.relativePath,
     content: candidate.content,
     expectedRevision: candidate.expectedRevision,
+  }
+}
+
+function workingChangesDiscardRequest(
+  value: unknown
+): SpaceWorkingChangesDiscardRequest {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid discard changes request")
+  }
+  const candidate = value as Record<string, unknown>
+  const target = candidate.target
+  if (typeof target !== "object" || target === null) {
+    throw new Error("Invalid discard changes target")
+  }
+  const targetCandidate = target as Record<string, unknown>
+  if (
+    (targetCandidate.kind !== "file" && targetCandidate.kind !== "folder") ||
+    typeof targetCandidate.path !== "string" ||
+    typeof candidate.expectedHead !== "string" ||
+    typeof candidate.expectedChangeToken !== "string"
+  ) {
+    throw new Error("Invalid discard changes request")
+  }
+  return {
+    target: {
+      kind: targetCandidate.kind,
+      path: targetCandidate.path,
+    },
+    expectedHead: candidate.expectedHead,
+    expectedChangeToken: candidate.expectedChangeToken,
   }
 }
 
@@ -996,7 +1027,13 @@ export function registerIpc(
   )
   ipcMain.handle(
     IPC_CHANNELS.versionTextDiff,
-    (event, commitId: unknown, parentId: unknown, relativePath: unknown) => {
+    (
+      event,
+      commitId: unknown,
+      parentId: unknown,
+      relativePath: unknown,
+      previousPath: unknown
+    ) => {
       if (typeof commitId !== "string") throw new Error("Invalid checkpoint")
       if (parentId !== null && typeof parentId !== "string") {
         throw new Error("Invalid checkpoint parent")
@@ -1004,24 +1041,40 @@ export function registerIpc(
       if (typeof relativePath !== "string") {
         throw new Error("Invalid version text path")
       }
+      if (previousPath !== undefined && typeof previousPath !== "string") {
+        throw new Error("Invalid previous version text path")
+      }
       return controller
         .requireSession(event.sender)
-        .getVersionTextDiff(commitId, parentId, relativePath)
+        .getVersionTextDiff(commitId, parentId, relativePath, previousPath)
     }
   )
   ipcMain.handle(
     IPC_CHANNELS.versionWorkingTextDiff,
-    (event, expectedHead: unknown, relativePath: unknown) => {
+    (
+      event,
+      expectedHead: unknown,
+      relativePath: unknown,
+      previousPath: unknown
+    ) => {
       if (expectedHead !== null && typeof expectedHead !== "string") {
         throw new Error("Invalid expected checkpoint")
       }
       if (typeof relativePath !== "string") {
         throw new Error("Invalid working text path")
       }
+      if (previousPath !== undefined && typeof previousPath !== "string") {
+        throw new Error("Invalid previous working text path")
+      }
       return controller
         .requireSession(event.sender)
-        .getWorkingTextDiff(expectedHead, relativePath)
+        .getWorkingTextDiff(expectedHead, relativePath, previousPath)
     }
+  )
+  ipcMain.handle(IPC_CHANNELS.discardWorkingChanges, (event, request) =>
+    controller
+      .requireSession(event.sender)
+      .discardWorkingChanges(workingChangesDiscardRequest(request))
   )
   ipcMain.handle(
     IPC_CHANNELS.restoreCheckpoint,

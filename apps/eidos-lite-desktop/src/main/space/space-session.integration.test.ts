@@ -23,6 +23,131 @@ function deferred<T>() {
 }
 
 describe("SpaceSession Graft-backed snapshots", () => {
+  it("expands a folder discard to changed files and rejects a stale view", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-discard-folder-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-discard-folder-state-")
+    )
+    const expectedHead = "c".repeat(64)
+    let discarded = false
+    const restorePaths = vi.fn(async () => {
+      discarded = true
+    })
+    const recordPathMove = vi.fn(async () => undefined)
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.7",
+      close: async () => undefined,
+      inspectSpace: async () => ({
+        available: true,
+        backend: "sdk",
+        version: "0.3.7",
+        expectedVersion: "0.3.7",
+        initialized: true,
+        clean: discarded,
+        changedPaths: discarded ? 0 : 4,
+        currentHead: expectedHead,
+        changeToken: discarded ? "clean-token" : "dirty-token",
+      }),
+      status: vi.fn(async () => ({
+        dirty: !discarded,
+        currentHead: expectedHead,
+        currentBranch: "main",
+        paths: discarded
+          ? []
+          : [
+              "docs/added.txt",
+              "docs/edited.txt",
+              "docs/new.txt",
+              "outside.txt",
+            ],
+        changes: discarded
+          ? []
+          : [
+              { path: "docs/added.txt", change: "untracked" },
+              { path: "docs/edited.txt", change: "modified" },
+              {
+                path: "docs/new.txt",
+                previousPath: "docs/old.txt",
+                change: "renamed",
+              },
+              { path: "outside.txt", change: "modified" },
+            ],
+        changedPaths: discarded ? 0 : 4,
+        changeToken: discarded ? "clean-token" : "dirty-token",
+      })),
+      inspectIgnores: async (_root: string, relativePaths: string[]) =>
+        relativePaths.map((relativePath) => ({
+          path: relativePath,
+          isIgnored: false,
+          isTracked: true,
+          isDirectory: relativePath === "docs",
+          hasTrackedDescendants: relativePath === "docs",
+        })),
+      operationMaterializesWorktree: vi.fn(async () => true),
+      restorePaths,
+      recordPathMove,
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      await fs.mkdir(path.join(root, ".graft"))
+      await fs.mkdir(path.join(root, "docs"))
+      await fs.writeFile(path.join(root, "docs", "added.txt"), "new\n")
+      session = await SpaceSession.create(root, userData, { graft })
+
+      await expect(
+        session.discardWorkingChanges({
+          target: { kind: "folder", path: "docs" },
+          expectedHead,
+          expectedChangeToken: "stale-token",
+        })
+      ).rejects.toThrow(/changed before discard started/i)
+      expect(restorePaths).not.toHaveBeenCalled()
+      expect(session.gate.current().phase).toBe("ready")
+
+      await expect(
+        session.discardWorkingChanges({
+          target: { kind: "folder", path: "docs" },
+          expectedHead,
+          expectedChangeToken: "dirty-token",
+        })
+      ).resolves.toMatchObject({
+        paths: [
+          "docs/added.txt",
+          "docs/edited.txt",
+          "docs/new.txt",
+          "docs/old.txt",
+        ],
+        snapshot: { graft: { clean: true } },
+      })
+      expect(restorePaths).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        expectedHead,
+        expectedHead,
+        ["docs/edited.txt", "docs/new.txt", "docs/old.txt"],
+        { requireClean: false }
+      )
+      expect(recordPathMove).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        "docs/new.txt",
+        "docs/old.txt"
+      )
+      await expect(
+        fs.stat(path.join(root, "docs", "added.txt"))
+      ).rejects.toMatchObject({ code: "ENOENT" })
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  })
+
   it("plans checkpoint restore from commit metadata without loading row diffs", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-restore-plan-")

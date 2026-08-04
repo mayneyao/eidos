@@ -34,7 +34,7 @@ export async function readRevisionTextDiff(
         (
           await repository.readPathContent({
             revision: request.parentId,
-            path: request.path,
+            path: request.previousPath ?? request.path,
             maxBytes: request.maxBytes,
           })
         ).content

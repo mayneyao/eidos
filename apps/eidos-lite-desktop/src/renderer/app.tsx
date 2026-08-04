@@ -749,8 +749,19 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   )
 
   const refreshMaterializedFiles = useCallback(
-    async (snapshot: SpaceSnapshot) => {
+    async (
+      snapshot: SpaceSnapshot,
+      materializedPaths: readonly string[] = []
+    ) => {
       const invalidated = new Set(snapshot.invalidatedSessionIds)
+      const materialized = new Set(materializedPaths)
+      if (materialized.size > 0) {
+        setTextFileDrafts((current) => {
+          const next = { ...current }
+          for (const relativePath of materialized) delete next[relativePath]
+          return next
+        })
+      }
       const results = await Promise.allSettled(
         cachedFiles
           .filter((file) => !invalidated.has(file.sessionId))
@@ -786,14 +797,28 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         })
       )
       setFileMaterializationKey((current) => current + 1)
+      if (textPreview && materialized.has(textPreview.relativePath)) {
+        try {
+          const preview = await window.eidosLite.previewTextFile(
+            textPreview.relativePath
+          )
+          await prepareTextFilePreview(preview)
+          setTextPreview(preview)
+        } catch {
+          // Discarding a newly added or renamed file can intentionally remove
+          // the path that was being previewed. Return to the Space landing
+          // state instead of keeping stale text or surfacing a false error.
+          setTextPreview(null)
+        }
+      }
       const failure = results.find((result) => result.status === "rejected")
       if (failure?.status === "rejected") {
         setError(
-          `Space restored, but an open Eidos File could not refresh. ${errorMessage(failure.reason)}`
+          `Space files changed, but an open Eidos File could not refresh. ${errorMessage(failure.reason)}`
         )
       }
     },
-    [cachedFiles]
+    [cachedFiles, textPreview]
   )
 
   useEffect(() => {

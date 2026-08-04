@@ -177,19 +177,23 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.trackedIgnoredPaths, limit, after),
   untrackIgnoredPaths: (expectedHead) =>
     ipcRenderer.invoke(IPC_CHANNELS.untrackIgnoredPaths, expectedHead),
-  getVersionTextDiff: (commitId, parentId, relativePath) =>
+  getVersionTextDiff: (commitId, parentId, relativePath, previousPath) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.versionTextDiff,
       commitId,
       parentId,
-      relativePath
+      relativePath,
+      previousPath
     ),
-  getWorkingTextDiff: (expectedHead, relativePath) =>
+  getWorkingTextDiff: (expectedHead, relativePath, previousPath) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.versionWorkingTextDiff,
       expectedHead,
-      relativePath
+      relativePath,
+      previousPath
     ),
+  discardWorkingChanges: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.discardWorkingChanges, request),
   restoreCheckpoint: (commitId, expectedHead) =>
     ipcRenderer.invoke(IPC_CHANNELS.restoreCheckpoint, commitId, expectedHead),
   getSyncStatus: () => ipcRenderer.invoke(IPC_CHANNELS.syncStatus),

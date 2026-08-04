@@ -91,6 +91,19 @@ describe("whole-Space real Graft integration", () => {
       )
       await client.recordPathMove(root, previousPath, currentPath)
 
+      await expect(client.status(root)).resolves.toMatchObject({
+        dirty: true,
+        changedPaths: 1,
+        paths: [currentPath],
+        changes: [
+          {
+            path: currentPath,
+            previousPath,
+            change: "renamed",
+          },
+        ],
+      })
+
       await expect(client.workingChanges(root)).resolves.toMatchObject({
         totalPaths: 1,
         paths: [
@@ -489,6 +502,88 @@ describe("whole-Space real Graft integration", () => {
           verifyPaths: ["project.eidos"],
         })
       ).resolves.toMatchObject({ dirty: false, changedPaths: 0 })
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  }, 120_000)
+
+  it("discards only explicit dirty files from the current checkpoint", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-discard-")
+    )
+    const client = createGraftClient()
+    try {
+      await fs.mkdir(path.join(root, "docs"), { recursive: true })
+      await Promise.all([
+        fs.writeFile(path.join(root, "docs", "edited.txt"), "saved edit\n"),
+        fs.writeFile(path.join(root, "docs", "renamed.txt"), "saved name\n"),
+        fs.writeFile(path.join(root, "docs", "deleted.txt"), "saved delete\n"),
+        fs.writeFile(path.join(root, "outside.txt"), "saved outside\n"),
+      ])
+      await client.open(root)
+      await client.initialize(root)
+      await client.stageAll(root)
+      await client.commit(root, "Saved files")
+      const head = (await client.status(root)).currentHead
+      expect(head).toMatch(/^[0-9a-f]{64}$/)
+
+      await Promise.all([
+        fs.writeFile(path.join(root, "docs", "edited.txt"), "local edit\n"),
+        fs.writeFile(path.join(root, "docs", "added.txt"), "local add\n"),
+        fs.unlink(path.join(root, "docs", "deleted.txt")),
+        fs.rename(
+          path.join(root, "docs", "renamed.txt"),
+          path.join(root, "docs", "new-name.txt")
+        ),
+        fs.writeFile(path.join(root, "outside.txt"), "keep local\n"),
+      ])
+      await client.recordPathMove(root, "docs/renamed.txt", "docs/new-name.txt")
+      const dirty = await client.status(root)
+      expect(dirty.changeToken).toBeTruthy()
+      expect(dirty.dirty).toBe(true)
+      expect(
+        dirty.changes.find((change) => change.path === "docs/added.txt")
+      ).toMatchObject({ change: "untracked" })
+
+      await fs.rm(path.join(root, "docs", "added.txt"))
+      await client.restorePaths(
+        root,
+        head!,
+        head!,
+        [
+          "docs/deleted.txt",
+          "docs/edited.txt",
+          "docs/new-name.txt",
+          "docs/renamed.txt",
+        ],
+        { requireClean: false }
+      )
+      await client.recordPathMove(root, "docs/new-name.txt", "docs/renamed.txt")
+
+      await expect(
+        fs.readFile(path.join(root, "docs", "edited.txt"), "utf8")
+      ).resolves.toBe("saved edit\n")
+      await expect(
+        fs.readFile(path.join(root, "docs", "deleted.txt"), "utf8")
+      ).resolves.toBe("saved delete\n")
+      await expect(
+        fs.readFile(path.join(root, "docs", "renamed.txt"), "utf8")
+      ).resolves.toBe("saved name\n")
+      await expect(
+        fs.stat(path.join(root, "docs", "added.txt"))
+      ).rejects.toMatchObject({ code: "ENOENT" })
+      await expect(
+        fs.stat(path.join(root, "docs", "new-name.txt"))
+      ).rejects.toMatchObject({ code: "ENOENT" })
+      await expect(
+        fs.readFile(path.join(root, "outside.txt"), "utf8")
+      ).resolves.toBe("keep local\n")
+      await expect(client.status(root)).resolves.toMatchObject({
+        dirty: true,
+        changedPaths: 1,
+        paths: ["outside.txt"],
+      })
     } finally {
       await client.close()
       await fs.rm(root, { recursive: true, force: true })
