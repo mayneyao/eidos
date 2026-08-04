@@ -12,7 +12,10 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileUIProvider, type AssetPresenter } from "./context"
-import { EidosFileEntrySurface } from "./eidos-file-entry-surface"
+import {
+  EidosFileEntryCoverSurface,
+  EidosFileEntrySurface,
+} from "./eidos-file-entry-surface"
 
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -155,6 +158,42 @@ describe("EidosFileEntrySurface", () => {
     fetchSpy.mockRestore()
   })
 
+  it("keeps a loaded Gallery cover free of attachment metadata overlays", async () => {
+    const file = entry("cover", "assets/cover.png", "cover.png")
+    const services = {
+      resolveAsset: vi.fn(async () => leaseFor(file, "thumbnail")),
+      releaseAsset: vi.fn(async () => undefined),
+    } as unknown as HostServices
+    const presenter: AssetPresenter<ReactNode> = {
+      renderImage: ({ lease, altText }) => (
+        <img src={lease.resourceToken} alt={altText} />
+      ),
+      activate: vi.fn(async () => undefined),
+    }
+
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider
+          assetSession={{
+            services,
+            serviceCapabilities,
+            state: hostState(),
+          }}
+          assetPresenter={presenter}
+        >
+          <EidosFileEntryCoverSurface entry={file} />
+        </EidosFileUIProvider>
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector("img")?.getAttribute("alt")).toBe(file.name)
+    expect(container.textContent).toBe("")
+    expect(container.querySelector("details")).toBeNull()
+    expect(container.querySelector("code")).toBeNull()
+  })
+
   it("falls back to trusted metadata and the lossless URI when policy denies a scheme", async () => {
     const file = entry("relative", "assets/private.png", "private.png")
     const resolveAsset = vi.fn()
@@ -175,6 +214,41 @@ describe("EidosFileEntrySurface", () => {
     expect(container.querySelector("img")).toBeNull()
     expect(container.querySelector("code")?.textContent).toBe(file.uri)
     expect(container.textContent).toContain(file.mediaType)
+  })
+
+  it("keeps compact file rows quiet and summarizes preview failures", async () => {
+    const file = entry("compact", "assets/private.png", "private.png")
+    const services = {
+      resolveAsset: vi.fn(async () => {
+        throw new Error("Error invoking remote method with internal details")
+      }),
+      releaseAsset: vi.fn(async () => undefined),
+    } as unknown as HostServices
+    const presenter: AssetPresenter<ReactNode> = {
+      renderImage: () => null,
+      activate: vi.fn(async () => undefined),
+    }
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider
+          assetSession={{
+            services,
+            serviceCapabilities,
+            state: hostState(),
+          }}
+          assetPresenter={presenter}
+        >
+          <EidosFileEntrySurface entry={file} compact />
+        </EidosFileUIProvider>
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(container.querySelector("code")).toBeNull()
+    expect(container.textContent).not.toContain(file.mediaType)
+    expect(container.textContent).not.toContain("internal details")
+    expect(container.textContent).toContain("Preview unavailable")
   })
 
   it("opens only through an explicit preview lease and presenter activation", async () => {

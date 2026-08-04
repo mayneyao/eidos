@@ -5,10 +5,12 @@ import { createRoot, type Root } from "react-dom/client"
 import {
   decodeEidosFileValues,
   encodeEidosFileAttachmentPaths,
+  encodeEidosFileValues,
   type EidosFileRowPage,
   type EidosFileRowMutationResult,
   type EidosFileRowsMutationResult,
   type EidosFileTableSnapshot,
+  type FileEntry,
 } from "@eidos.space/eidos-file"
 import {
   CompactSelection,
@@ -17,6 +19,7 @@ import {
 } from "@glideapps/glide-data-grid"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { EidosFileUIProvider } from "./context"
 import { EidosFileGrid, type EidosFileGridRowEdit } from "./eidos-file-grid"
 
 const ADA_ID = "0198c72d-82b5-7968-b163-98be4b7477df"
@@ -1690,6 +1693,10 @@ describe("EidosFileGrid", () => {
     const droppedEntries = decodeEidosFileValues(
       encodeEidosFileAttachmentPaths(["assets/dropped.png"])
     )
+    const duplicateExisting: FileEntry = {
+      ...existingEntries[0]!,
+      id: "0198c6b9-c9a3-7cb9-82d0-dfb39d51c45f",
+    }
     const loadPage = vi.fn(async () => ({
       tableId: "tasks",
       offset: 0,
@@ -1699,7 +1706,9 @@ describe("EidosFileGrid", () => {
     }))
     const onCellEdit = createCellEdit()
     const onImportFiles = vi.fn().mockResolvedValue(pickedEntries)
-    const onImportDroppedFiles = vi.fn().mockResolvedValue(droppedEntries)
+    const onImportDroppedFiles = vi
+      .fn()
+      .mockResolvedValue([duplicateExisting, ...droppedEntries])
     await act(async () => {
       root.render(
         <EidosFileGrid
@@ -1749,6 +1758,103 @@ describe("EidosFileGrid", () => {
         onCellEdit.mock.calls.at(-1)?.[2] as string | undefined
       ).map((entry) => entry.uri)
     ).toEqual(["assets/existing.pdf", "assets/dropped.png"])
+  })
+
+  it("keeps loaded attachment thumbnails across equivalent page loader updates", async () => {
+    const fileField = {
+      ...table.fields[1],
+      name: "Files",
+      type: "file" as const,
+      tableColumnName: "files",
+      storageCodec: "json_array" as const,
+    }
+    const fileTable: EidosFileTableSnapshot = {
+      ...table,
+      fields: [...table.fields, fileField],
+      rowCount: 1,
+    }
+    const entry: FileEntry = {
+      id: "0198c6b9-c9a3-7cb9-82d0-dfb39d51c45e",
+      mediaType: "image/png",
+      name: "cover.png",
+      size: "12",
+      uri: "assets/cover.png",
+    }
+    const row = {
+      ...rowAt(0),
+      files: encodeEidosFileValues([entry]),
+    }
+    const lease = {
+      leaseId: "lease-1",
+      entryId: entry.id,
+      purpose: "thumbnail" as const,
+      mediaType: entry.mediaType,
+      name: entry.name,
+      size: entry.size,
+      expiresAt: "2099-01-01T00:00:00.000Z",
+      resourceToken: "blob:host/lease-1",
+    }
+    const resolveAsset = vi.fn(async () => lease)
+    const releaseAsset = vi.fn(async () => undefined)
+    const source = { height: 32, width: 32 } as unknown as CanvasImageSource
+    const loadImage = vi.fn(async () => source)
+    const assetPresenter = { loadImage }
+    const assetSession = {
+      services: { resolveAsset, releaseAsset },
+      serviceCapabilities: { canUseAssets: true },
+      state: {
+        sessionId: "session-1",
+        phase: "ready-clean",
+        capabilities: { assetReadSchemes: ["relative"] },
+        limits: {
+          assetPreviewBytesMax: "1048576",
+          concurrentAssetLeasesMax: 8,
+        },
+      },
+    }
+    const page = () => ({
+      tableId: "tasks",
+      offset: 0,
+      limit: 100,
+      total: 1,
+      rows: [row],
+    })
+    const renderGrid = async (loadPage: ReturnType<typeof vi.fn>) => {
+      await act(async () => {
+        root.render(
+          <EidosFileUIProvider
+            assetSession={assetSession as never}
+            assetPresenter={assetPresenter as never}
+          >
+            <EidosFileGrid
+              table={fileTable}
+              loadPage={loadPage}
+              onAddRow={vi.fn()}
+              onCellEdit={createCellEdit()}
+            />
+          </EidosFileUIProvider>
+        )
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+    }
+
+    await renderGrid(vi.fn(async () => page()))
+    mocks.props?.getCellContent([2, 0])
+    await vi.waitFor(() => expect(resolveAsset).toHaveBeenCalledOnce())
+    await vi.waitFor(() =>
+      expect(mocks.props?.getCellContent([2, 0])).toMatchObject({
+        data: { thumbnails: [source] },
+      })
+    )
+
+    await renderGrid(vi.fn(async () => page()))
+
+    expect(mocks.props?.getCellContent([2, 0])).toMatchObject({
+      data: { thumbnails: [source] },
+    })
+    expect(resolveAsset).toHaveBeenCalledOnce()
+    expect(releaseAsset).not.toHaveBeenCalled()
   })
 
   it("hydrates relation cells and delegates target record search", async () => {

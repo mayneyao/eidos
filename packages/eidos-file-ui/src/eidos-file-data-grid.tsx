@@ -10,6 +10,7 @@ import type {
   EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
+  FileEntry,
   UpdateEidosFileFieldInput,
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
@@ -43,6 +44,8 @@ export interface EidosFileDataGridProps {
   onEditLookup?: (field: EidosFileFieldInfo) => void
   onSearchResultCountChange?: (rowCount: number | null) => void
   onError?: (error: unknown) => void
+  onImportFiles?: () => Promise<FileEntry[]>
+  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
 }
 
 /**
@@ -70,6 +73,8 @@ export function EidosFileDataGrid({
   onEditLookup,
   onSearchResultCountChange,
   onError,
+  onImportFiles,
+  onImportDroppedFiles,
 }: EidosFileDataGridProps) {
   const [deleteFieldTarget, setDeleteFieldTarget] =
     useState<EidosFileFieldInfo | null>(null)
@@ -183,6 +188,8 @@ export function EidosFileDataGrid({
         onRowCountChange={onSearchResultCountChange}
         onDeleteField={setDeleteFieldTarget}
         onSearchRelation={searchRelation}
+        onImportFiles={onImportFiles}
+        onImportDroppedFiles={onImportDroppedFiles}
         onRequestDeleteRows={
           onDeleteRows
             ? (ranges) => void onDeleteRows(ranges, query)

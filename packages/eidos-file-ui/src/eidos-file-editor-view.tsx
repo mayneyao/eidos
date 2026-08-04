@@ -8,6 +8,7 @@ import type {
   EidosFileSnapshot,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
+  FileEntry,
 } from "@eidos.space/eidos-file"
 import { Puzzle } from "lucide-react"
 
@@ -48,6 +49,8 @@ export interface EidosFileViewRendererProps {
   onEditFormula?: (field: EidosFileFieldInfo) => void
   onEditLookup?: (field: EidosFileFieldInfo) => void
   onError?: (error: unknown) => void
+  onImportFiles?: () => Promise<FileEntry[]>
+  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
 }
 
 export interface EidosFileCommandContext {
@@ -138,6 +141,8 @@ export function EidosFileGridRenderer(props: EidosFileViewRendererProps) {
       onEditLookup={props.onEditLookup}
       onSearchResultCountChange={props.onSearchResultCountChange}
       onError={props.onError}
+      onImportFiles={props.onImportFiles}
+      onImportDroppedFiles={props.onImportDroppedFiles}
     />
   )
 }

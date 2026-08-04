@@ -112,6 +112,8 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
           : undefined
       }
       onCellEdit={editCell}
+      onImportFiles={props.onImportFiles}
+      onImportDroppedFiles={props.onImportDroppedFiles}
       onAddRow={addRow}
       onDeleteRow={onDeleteRow}
       onSearchRelation={searchRelation}

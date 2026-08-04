@@ -114,7 +114,13 @@ function useThumbnailLease(entry: FileEntry): {
   return state
 }
 
-function EidosFileMediaIcon({ mediaType }: { mediaType: string }) {
+function EidosFileMediaIcon({
+  mediaType,
+  className,
+}: {
+  mediaType: string
+  className?: string
+}) {
   const family = mediaType.split("/", 1)[0]?.toLowerCase()
   const Icon =
     family === "image"
@@ -131,7 +137,7 @@ function EidosFileMediaIcon({ mediaType }: { mediaType: string }) {
             : mediaType.toLowerCase().includes("zip")
               ? Archive
               : File
-  return <Icon aria-hidden="true" className="h-4 w-4" />
+  return <Icon aria-hidden="true" className={cn("h-4 w-4", className)} />
 }
 
 function formattedSize(size: string): string {
@@ -161,7 +167,7 @@ export function EidosFileEntryCoverSurface({
   fitContent?: boolean
   className?: string
 }) {
-  const { assetPresenter, assetSession, translate: t } = useEidosFileUI()
+  const { assetPresenter, assetSession } = useEidosFileUI()
   const thumbnail = useThumbnailLease(entry)
   let preview: ReactNode = null
   if (thumbnail.lease && assetPresenter && assetSession) {
@@ -178,7 +184,7 @@ export function EidosFileEntryCoverSurface({
   return (
     <div
       className={cn(
-        "relative flex h-full w-full items-center justify-center overflow-hidden bg-muted text-muted-foreground",
+        "flex h-full w-full items-center justify-center overflow-hidden bg-muted text-muted-foreground",
         fitContent
           ? "[&>img]:h-full [&>img]:w-full [&>img]:object-contain"
           : "[&>img]:h-full [&>img]:w-full [&>img]:object-cover",
@@ -187,26 +193,24 @@ export function EidosFileEntryCoverSurface({
     >
       {preview ??
         (thumbnail.pending ? (
-          <LoaderCircle className="h-5 w-5 animate-spin" />
+          <LoaderCircle
+            aria-label={entry.name}
+            className="h-5 w-5 animate-spin"
+          />
         ) : (
-          <EidosFileMediaIcon mediaType={entry.mediaType} />
-        ))}
-      <details className="absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] rounded bg-background/90 px-1.5 py-0.5 text-[10px] text-foreground shadow-sm">
-        <summary className="max-w-full cursor-pointer truncate">
-          {entry.name}
-        </summary>
-        <div className="mt-1 max-h-20 overflow-auto">
-          <div>
-            {entry.mediaType} · {formattedSize(entry.size)}
-          </div>
-          <code
-            className="block select-all break-all"
-            aria-label={t("File URI")}
+          <span
+            className="flex min-w-0 max-w-full flex-col items-center gap-1.5 px-3 text-center"
+            role="img"
+            aria-label={entry.name}
+            title={entry.name}
           >
-            {entry.uri}
-          </code>
-        </div>
-      </details>
+            <EidosFileMediaIcon
+              mediaType={entry.mediaType}
+              className="h-5 w-5"
+            />
+            <span className="w-full truncate text-[11px]">{entry.name}</span>
+          </span>
+        ))}
     </div>
   )
 }
@@ -287,16 +291,22 @@ export function EidosFileEntrySurface({
   const canDownload =
     assetPresenter !== undefined &&
     eidosFileAssetResolutionAllowed(assetSession, entry, "download")
+  const assetError = activationError ?? thumbnail.error
 
   return (
     <div
       className={cn(
-        "group/file flex min-w-0 items-center gap-2 rounded-md",
-        compact ? "py-1" : "border border-border p-2",
+        "group/file flex min-w-0 items-center rounded-md",
+        compact ? "gap-1.5 py-0.5" : "gap-2 border border-border p-2",
         className
       )}
     >
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded bg-muted text-muted-foreground">
+      <span
+        className={cn(
+          "flex shrink-0 items-center justify-center overflow-hidden rounded bg-muted text-muted-foreground",
+          compact ? "h-7 w-7" : "h-8 w-8"
+        )}
+      >
         {preview ??
           (thumbnail.pending ? (
             <LoaderCircle
@@ -311,41 +321,64 @@ export function EidosFileEntrySurface({
         <div className="truncate text-xs font-medium" title={entry.name}>
           {entry.name}
         </div>
-        <div className="truncate text-[11px] text-muted-foreground">
-          {entry.mediaType} · {formattedSize(entry.size)}
-        </div>
-        <details className="text-[11px] text-muted-foreground">
-          <summary className="cursor-pointer select-none">
-            {t("File URI")}
-          </summary>
-          <div className="mt-1 flex min-w-0 items-center gap-1">
-            <code className="min-w-0 flex-1 select-all break-all rounded bg-muted px-1 py-0.5">
-              {entry.uri}
-            </code>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 shrink-0"
-              aria-label={t("Copy file URI")}
-              onClick={() => {
-                if (typeof navigator !== "undefined") {
-                  void navigator.clipboard?.writeText(entry.uri)
-                }
-              }}
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </Button>
+        {compact && assetError ? (
+          <p
+            role="status"
+            className="truncate text-[11px] text-destructive"
+            title={assetError}
+          >
+            {t("Preview unavailable")}
+          </p>
+        ) : (
+          <div
+            className="truncate text-[11px] text-muted-foreground"
+            title={`${entry.mediaType} · ${formattedSize(entry.size)}`}
+          >
+            {compact
+              ? formattedSize(entry.size)
+              : `${entry.mediaType} · ${formattedSize(entry.size)}`}
           </div>
-        </details>
-        {thumbnail.error || activationError ? (
+        )}
+        {!compact ? (
+          <details className="text-[11px] text-muted-foreground">
+            <summary className="cursor-pointer select-none">
+              {t("File URI")}
+            </summary>
+            <div className="mt-1 flex min-w-0 items-center gap-1">
+              <code className="min-w-0 flex-1 select-all break-all rounded bg-muted px-1 py-0.5">
+                {entry.uri}
+              </code>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0"
+                aria-label={t("Copy file URI")}
+                onClick={() => {
+                  if (typeof navigator !== "undefined") {
+                    void navigator.clipboard?.writeText(entry.uri)
+                  }
+                }}
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </details>
+        ) : null}
+        {!compact && assetError ? (
           <p role="status" className="text-[11px] text-destructive">
-            {activationError ?? thumbnail.error}
+            {assetError}
           </p>
         ) : null}
       </div>
       {showActions && (canOpen || canDownload) ? (
-        <div className="flex shrink-0 items-center">
+        <div
+          className={cn(
+            "flex shrink-0 items-center",
+            compact &&
+              "opacity-0 transition-opacity group-hover/file:opacity-100 group-focus-within/file:opacity-100"
+          )}
+        >
           {canOpen ? (
             <Button
               type="button"

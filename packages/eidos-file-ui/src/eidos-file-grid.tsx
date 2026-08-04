@@ -406,6 +406,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const historyRowsRef = useRef<ReadonlySet<number>>(new Set())
   const generationRef = useRef(0)
   const dataScopeRef = useRef<string | null>(null)
+  const thumbnailScopeRef = useRef<string | null>(null)
   const tableRowCountRef = useRef(table.rowCount)
   const onErrorRef = useRef(onError)
   const onRowCountChangeRef = useRef(onRowCountChange)
@@ -589,12 +590,16 @@ export const EidosFileGrid = memo(function EidosFileGrid({
 
   useEffect(() => {
     const scope = `${table.table.id}:${view?.id ?? "default"}`
+    const thumbnailScope = `${scope}:${reloadToken}`
     const preserveData = dataScopeRef.current === scope
     const pagesToRefresh = preserveData
       ? new Set([0, ...visiblePagesRef.current])
       : new Set([0])
     dataScopeRef.current = scope
-    attachmentThumbnails.clear()
+    if (thumbnailScopeRef.current !== thumbnailScope) {
+      thumbnailScopeRef.current = thumbnailScope
+      attachmentThumbnails.clear()
+    }
     generationRef.current += 1
     loadedPagesRef.current.clear()
     loadingPagesRef.current.clear()
@@ -1338,7 +1343,14 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         .then((imported) => {
           if (imported.length === 0) return
           const fileCell = current as EidosFileAttachmentCell
-          const entries = [...fileCell.data.entries, ...imported]
+          const existingUris = new Set(
+            fileCell.data.entries.map((entry) => entry.uri)
+          )
+          const entries = [
+            ...fileCell.data.entries,
+            ...imported.filter((entry) => !existingUris.has(entry.uri)),
+          ]
+          if (entries.length === fileCell.data.entries.length) return
           history.onCellEdited(location, {
             ...fileCell,
             copyData: encodeEidosFileValues(entries),

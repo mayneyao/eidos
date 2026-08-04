@@ -136,7 +136,11 @@ describe("Eidos File cell", () => {
     const imported = decodeEidosFileValues(
       encodeEidosFileAttachmentPaths(["assets/report.pdf"])
     )
-    const onImport = vi.fn().mockResolvedValue(imported)
+    const duplicate: FileEntry = {
+      ...existing[0]!,
+      id: "0198c6b9-c9a3-7cb9-82d0-dfb39d51c45f",
+    }
+    const onImport = vi.fn().mockResolvedValue([duplicate, ...imported])
     const cell: EidosFileAttachmentCell = {
       kind: GridCellKind.Custom,
       allowOverlay: true,
@@ -160,6 +164,9 @@ describe("Eidos File cell", () => {
         />
       )
     })
+    expect(container.textContent).toContain("Files")
+    expect(container.textContent).not.toContain("application/octet-stream")
+    expect(container.querySelector("code")).toBeNull()
 
     await act(async () => {
       button("Add files")?.click()

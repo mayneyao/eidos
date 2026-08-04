@@ -315,6 +315,25 @@ describe("EidosFileEditorView registry", () => {
       sorts: view.sorts,
     })
   })
+
+  it("routes host attachment imports through the built-in Grid renderer", () => {
+    const onImportFiles = vi.fn(async () => [])
+    const onImportDroppedFiles = vi.fn(async () => [])
+    act(() => {
+      root.render(
+        <EidosFileEditorView
+          source={source}
+          table={table}
+          view={{ ...view, type: "grid" }}
+          onImportFiles={onImportFiles}
+          onImportDroppedFiles={onImportDroppedFiles}
+        />
+      )
+    })
+
+    expect(gridMock.props?.onImportFiles).toBe(onImportFiles)
+    expect(gridMock.props?.onImportDroppedFiles).toBe(onImportDroppedFiles)
+  })
 })
 
 describe("Eidos File view query helpers", () => {

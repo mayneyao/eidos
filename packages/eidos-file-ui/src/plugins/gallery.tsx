@@ -82,6 +82,8 @@ function EidosFileGalleryRenderer(props: EidosFileViewRendererProps) {
           : undefined
       }
       onCellEdit={editCell}
+      onImportFiles={props.onImportFiles}
+      onImportDroppedFiles={props.onImportDroppedFiles}
       onDeleteRow={onDeleteRow}
       onSearchRelation={searchRelation}
       onRowCountChange={props.onSearchResultCountChange}

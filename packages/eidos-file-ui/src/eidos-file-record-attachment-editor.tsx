@@ -38,9 +38,12 @@ export function EidosFileRecordAttachmentEditor({
   const append = async (imported: FileEntry[]) => {
     if (imported.length === 0) return
     const existingIds = new Set(entries.map((entry) => entry.id))
+    const existingUris = new Set(entries.map((entry) => entry.uri))
     await commit([
       ...entries,
-      ...imported.filter((entry) => !existingIds.has(entry.id)),
+      ...imported.filter(
+        (entry) => !existingIds.has(entry.id) && !existingUris.has(entry.uri)
+      ),
     ])
   }
 

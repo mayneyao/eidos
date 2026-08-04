@@ -134,7 +134,9 @@ describe("EidosFileRecordCard", () => {
 
     expect(container.querySelector("img")).toBeNull()
     expect(container.textContent).toContain("cover.png")
-    expect(container.textContent).toContain("assets/cover.png")
+    expect(container.textContent).not.toContain("assets/cover.png")
+    expect(container.querySelector("details")).toBeNull()
+    expect(container.querySelector("code")).toBeNull()
 
     await act(async () => {
       root.render(
@@ -178,7 +180,7 @@ describe("EidosFileRecordCard", () => {
     )
   })
 
-  it("exposes the lossless nested relative URI as inert text", async () => {
+  it("keeps nested relative URIs out of the quiet cover fallback", async () => {
     await act(async () => {
       root.render(
         <EidosFileRecordCard
@@ -195,7 +197,8 @@ describe("EidosFileRecordCard", () => {
     })
 
     expect(container.querySelector("img")).toBeNull()
-    expect(container.textContent).toContain("Media/hello%20world%231.png")
+    expect(container.textContent).toContain("hello world#1.png")
+    expect(container.textContent).not.toContain("Media/hello%20world%231.png")
   })
 
   it("updates the inert File fallback when the entry changes", async () => {
@@ -215,11 +218,13 @@ describe("EidosFileRecordCard", () => {
 
     await act(async () => renderCover("assets/missing.png"))
     expect(container.querySelector("img")).toBeNull()
-    expect(container.textContent).toContain("assets/missing.png")
+    expect(container.textContent).toContain("missing.png")
+    expect(container.textContent).not.toContain("assets/missing.png")
 
     await act(async () => renderCover("assets/replacement.png"))
     expect(container.querySelector("img")).toBeNull()
-    expect(container.textContent).toContain("assets/replacement.png")
+    expect(container.textContent).toContain("replacement.png")
+    expect(container.textContent).not.toContain("assets/replacement.png")
   })
 
   it("exposes record actions from the card menu", async () => {

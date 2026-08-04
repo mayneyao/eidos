@@ -486,10 +486,10 @@ describe("EidosFileGalleryView", () => {
 
     expect(container.querySelectorAll("img")).toHaveLength(0)
     expect(
-      Array.from(container.querySelectorAll("code")).filter(
-        (element) => element.textContent === "assets/shared.png"
-      )
+      container.querySelectorAll('[role="img"][aria-label="shared.png"]')
     ).toHaveLength(2)
+    expect(container.querySelectorAll("code")).toHaveLength(0)
+    expect(container.textContent).not.toContain("assets/shared.png")
   })
 
   it("deletes a loaded card without resetting or reloading the gallery", async () => {

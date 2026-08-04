@@ -32,6 +32,8 @@ describe("EidosFileRecordAttachmentEditor", () => {
 
   it("imports and removes Space files without a modal editor", async () => {
     const onChange = vi.fn(async (_value: string | null) => undefined)
+    const existingValue = encodeEidosFileAttachmentPaths(["assets/old.png"])
+    const existing = decodeEidosFileValues(existingValue)[0]!
     const imported: FileEntry = {
       id: "0198c6b9-c9a3-7cb9-82d0-dfb39d51c45e",
       mediaType: "image/png",
@@ -39,11 +41,15 @@ describe("EidosFileRecordAttachmentEditor", () => {
       size: "42",
       uri: "assets/new.png",
     }
-    const onImportFiles = vi.fn(async () => [imported])
+    const duplicate: FileEntry = {
+      ...existing,
+      id: "0198c6b9-c9a3-7cb9-82d0-dfb39d51c45f",
+    }
+    const onImportFiles = vi.fn(async () => [duplicate, imported])
     await act(async () => {
       root.render(
         <EidosFileRecordAttachmentEditor
-          value={encodeEidosFileAttachmentPaths(["assets/old.png"])}
+          value={existingValue}
           disabled={false}
           onChange={onChange}
           onImportFiles={onImportFiles}

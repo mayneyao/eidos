@@ -138,7 +138,7 @@ function EidosFileAttachmentCard({
         opacity: sortable.isDragging ? 0.55 : 1,
       }}
       className={cn(
-        "group flex min-w-0 items-center gap-1 rounded-md px-1 hover:bg-accent/60",
+        "group flex min-w-0 items-center gap-0.5 rounded px-0.5 hover:bg-accent/60 focus-within:bg-accent/60",
         sortable.isDragging && "bg-accent shadow-sm"
       )}
     >
@@ -156,7 +156,7 @@ function EidosFileAttachmentCard({
         type="button"
         variant="ghost"
         size="icon"
-        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+        className="h-7 w-7 shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 group-focus-within:opacity-100"
         aria-label={t("Remove {file}", { file: entry.name })}
         onClick={() => onRemove(index)}
       >
@@ -184,11 +184,8 @@ export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
   )
 
   return (
-    <EidosFileGridEditorSurface className="max-h-[390px]">
-      <EidosFileGridEditorHeader
-        icon={<Paperclip />}
-        title={t("Manage files")}
-      />
+    <EidosFileGridEditorSurface className="max-h-[340px]">
+      <EidosFileGridEditorHeader icon={<Paperclip />} title={t("Files")} />
       <div className={EIDOS_FILE_GRID_EDITOR_BODY_CLASS_NAME}>
         {cell.data.entries.length > 0 ? (
           <SortableContainer
@@ -234,7 +231,15 @@ export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
                 .onImport?.()
                 .then((entries) => {
                   if (entries.length > 0) {
-                    updateEntries([...cell.data.entries, ...entries])
+                    const existingUris = new Set(
+                      cell.data.entries.map((entry) => entry.uri)
+                    )
+                    updateEntries([
+                      ...cell.data.entries,
+                      ...entries.filter(
+                        (entry) => !existingUris.has(entry.uri)
+                      ),
+                    ])
                   }
                 })
                 .catch((importError) => {

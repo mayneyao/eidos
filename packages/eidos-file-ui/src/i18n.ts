@@ -361,6 +361,8 @@ const zh: EidosFileUIMessageOverrides = {
   "Choose date": "选择日期",
   "Choose date & time": "选择日期与时间",
   "Manage files": "管理文件",
+  Files: "文件",
+  "Preview unavailable": "预览不可用",
   "Search...": "搜索…",
   "No options": "没有选项",
   "Create option": "创建选项",
