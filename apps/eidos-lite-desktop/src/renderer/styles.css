@@ -95,9 +95,9 @@
   --side-panel-shadow: -1rem 0 2.5rem var(--shadow-ambient);
   --elevation-shadow: 0 0.75rem 2rem var(--shadow-ambient);
   --elevation-shadow-strong: 0 1.5rem 4.5rem var(--shadow-strong);
-  --scrollbar-thumb: color-mix(in oklab, var(--ink) 18%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, var(--ink) 28%, transparent);
-  --scrollbar-thumb-active: color-mix(in oklab, var(--ink) 38%, transparent);
+  --scrollbar-thumb: color-mix(in oklab, var(--ink) 14%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--ink) 24%, transparent);
+  --scrollbar-thumb-active: color-mix(in oklab, var(--ink) 34%, transparent);
 }
 
 :root[data-theme="light"] {

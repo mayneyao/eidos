@@ -7,7 +7,7 @@ const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8")
 describe("global scrollbar styling", () => {
   it("uses shared theme-derived colors with a default-width transparent track", () => {
     expect(styles).toContain(
-      "--scrollbar-thumb: color-mix(in oklab, var(--ink) 18%, transparent)"
+      "--scrollbar-thumb: color-mix(in oklab, var(--ink) 14%, transparent)"
     )
     expect(styles).toMatch(
       /\*::\-webkit-scrollbar\s*\{[^}]*width:\s*15px;[^}]*height:\s*15px;/
@@ -21,6 +21,12 @@ describe("global scrollbar styling", () => {
   })
 
   it("reveals stronger feedback only while interacting", () => {
+    expect(styles).toContain(
+      "--scrollbar-thumb-hover: color-mix(in oklab, var(--ink) 24%, transparent)"
+    )
+    expect(styles).toContain(
+      "--scrollbar-thumb-active: color-mix(in oklab, var(--ink) 34%, transparent)"
+    )
     expect(styles).toMatch(
       /\*::\-webkit-scrollbar-thumb:hover\s*\{[^}]*var\(--scrollbar-thumb-hover\);/
     )
