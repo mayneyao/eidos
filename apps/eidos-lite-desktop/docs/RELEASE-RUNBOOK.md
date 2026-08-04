@@ -1,9 +1,71 @@
 # Eidos Lite install, upgrade, and rollback runbook
 
 This runbook describes the public-release procedure but does not authorize a
-release. The current local artifact is unsigned and staging-bound. Production
-packaging, signing, notarization, publishing, and update-feed changes require
-separate approval and must use the production build gate.
+release. The current local artifact is unsigned and staging-bound. A pushed
+`lite-v*` tag is the explicit production release action: it runs the isolated
+Lite workflow, deploys the update router, builds the update-enabled production
+application, signs the macOS and Windows packages, notarizes macOS, and creates
+the GitHub Release. Do not create or push a tag without release approval.
+
+## Version and channel contract
+
+- Eidos Lite owns the independent version in
+  `apps/eidos-lite-desktop/package.json`. It does not use the root/Classic
+  Desktop `v*` version script.
+- The committed version is the base version. `lite-v0.2.0-beta.1` requires a
+  committed Lite version of `0.2.0`; the release workflow applies the complete
+  tag version only inside its checked-out build workspace.
+- Stable tags use `lite-v<major>.<minor>.<patch>`. Prereleases use
+  `lite-v<version>-beta.N`, `-alpha.N`, or `-rc.N`. Bare `v*` tags remain the
+  Classic Desktop namespace, and `cli-v*` remains the standalone CLI namespace.
+- Stable Lite releases publish `latest` and `beta` metadata so a beta user can
+  move forward to a newer stable build. Prereleases publish only `beta`
+  metadata.
+- Each platform/architecture has an isolated feed beneath
+  `https://download.eidos.space/lite/updates/<stable|beta>/<arm64|x64>`.
+  Metadata is stored in the GitHub Release with architecture-qualified names,
+  preventing the macOS and Linux native packages from selecting the other
+  architecture and preventing Classic releases from shadowing Lite.
+
+Only `pnpm build:eidos-lite:release` compiles automatic updates on. Normal
+development, unsigned staging packages, and local production-mode verification
+compile them off. This prevents a local validation build from consulting or
+installing from the public update feed.
+
+## Release automation prerequisites
+
+Configure these GitHub Actions secrets before the first tag:
+
+- `MACOS_CERTIFICATE` and `MACOS_CERTIFICATE_PWD` for Developer ID signing;
+- `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID` for
+  notarization;
+- `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PWD` for Authenticode;
+- `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` for the download/update
+  Worker.
+
+The workflow fails closed when signing inputs are absent. macOS packages must
+pass `codesign` verification and stapler validation, and the Windows installer
+must report a valid Authenticode signature before its artifacts can reach the
+Release job.
+
+Before tagging, use a clean branch whose complete intended commits are pushed,
+then run the Lite source/type gates, download routing tests, and the unsigned
+packaged smoke. Confirm the target tag is absent locally and remotely. After
+approval, create one lightweight tag and push the branch plus tag. Monitor
+`build-and-release-eidos-lite.yml` through all five platform/architecture jobs,
+the Worker deployment, and the final Release job.
+
+After publication, require all of the following before reporting success:
+
+1. The remote `lite-v*` tag points to the approved commit.
+2. The workflow is green for macOS arm64/x64, Windows x64, and Linux
+   arm64/x64.
+3. The GitHub Release contains every installer, macOS update ZIP, update
+   metadata file, blockmap, and `SHA256SUMS`.
+4. Stable and beta feed URLs return the matching architecture metadata, and
+   every metadata path resolves to an uploaded asset.
+5. A previous signed package detects the new version, downloads it, restarts,
+   preserves its ordinary Spaces, and reports the new version in diagnostics.
 
 ## Invariants
 
@@ -51,6 +113,13 @@ separate approval and must use the production build gate.
    during staging acceptance. Production Sync is a separately authorized
    release gate.
 
+For an automatic upgrade, open **Settings > Updates**, check for the new
+version, wait for the signed payload to finish downloading, then choose
+**Restart to update**. Disabling automatic downloads stops background checks
+and downloads; manual checking and downloading remain available. Update
+failures expose only a safe retry state to the renderer, while detailed errors
+remain in the redacted main-process log.
+
 Platform acceptance must cover macOS arm64/x64, Windows x64, and Linux
 arm64/x64 GNU. The current repository packages macOS arm64 locally; the other
 targets require their CI runners and real installers.
@@ -93,9 +162,10 @@ an operation is failed or recoverable.
 
 ## Public-release blockers
 
-Before public v1, record successful signed installer install/upgrade/rollback
-evidence for every supported target, remote Apple Silicon and Intel packaged
-gates, signing/notarization, update-feed signature verification, and rollback
-from the update channel. The current repository does not configure or publish
-an auto-update feed, so signed automatic updates remain an explicit release
-blocker rather than an implied capability.
+Before public v1, execute the new workflow and record successful signed
+installer install/upgrade/rollback evidence for every supported target, remote
+Apple Silicon and Intel packaged gates, signing/notarization, live feed routing,
+and rollback from the update channel. The implementation and fail-closed gates
+are present, but they are not release evidence until an approved tag, deployed
+Worker, signed artifacts, and a real previous-version upgrade have all been
+verified.

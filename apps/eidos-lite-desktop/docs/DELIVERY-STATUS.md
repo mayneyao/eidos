@@ -1,6 +1,6 @@
 # Eidos Lite Desktop delivery status
 
-Last audited: 2026-07-29
+Last audited: 2026-08-04
 
 ## Verdict
 
@@ -27,6 +27,8 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 | Recovery                | Internal-ready            | Clone journals, operation journals, close/validate/reopen materialization, two-copy divergence recovery, external-path invalidation, file-utility and Graft-utility crash reopen |
 | Diagnostics             | Internal-ready            | Main-owned allowlisted Copy diagnostics excludes credentials, URLs, paths, Space/repository identity and user content                                                            |
 | Distribution operations | Runbook-ready             | Clean install, upgrade, binary rollback, association, support and uninstall procedure in [Release runbook](./RELEASE-RUNBOOK.md)                                                 |
+| Languages               | Source-ready              | System/English/Simplified Chinese preference, native menu/dialog translation, Lite core surfaces, and shared Eidos File editor locale                                            |
+| Release and updates     | Implementation-ready      | Isolated `lite-v*` workflow, five platform/architecture packages, fail-closed signing/notarization, product-specific stable/beta feeds, and Settings update state                |
 
 ## Current verification record
 
@@ -188,6 +190,11 @@ The following must stay visibly open before Public v1:
    encryption claims.
 9. Obtain explicit authorization before any production contact, signed build,
    deployment, push, PR, merge or release.
+10. Run an approved `lite-v*` release, deploy the new download Worker, verify
+    every architecture-specific update route, and perform a signed upgrade and
+    rollback from the preceding version. The implementation exists locally but
+    no tag, production deployment, signed artifact, or live update proof was
+    created by this audit.
 
 ## Next delivery sequence
 

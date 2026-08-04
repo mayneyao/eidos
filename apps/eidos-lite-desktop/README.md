@@ -121,6 +121,15 @@ pnpm build:eidos-lite
 pnpm dev:eidos-lite
 ```
 
+Lite follows the system language by default and currently includes English and
+Simplified Chinese. The preference in **Settings > Appearance > Language** also
+drives the shared Eidos File editor and the native application menu/dialogs.
+Settings uses a persistent category sidebar so new configuration surfaces do
+not lengthen one scrolling form. **Settings > Keyboard Shortcuts** records,
+clears, conflict-checks, and restores the workspace panel and navigation
+bindings; changes are persisted with the other Lite preferences and apply to
+open workspace windows immediately.
+
 The standard performance command generates 100k/1m-row Eidos Files and a 1m-row
 CSV, then gates Table open/switch/scroll/query, row and field mutations, field
 conversion, CSV analysis, import, and final local completion.
@@ -177,7 +186,14 @@ and row counts. It separately repeats the crash/reopen gate for the resident
 Graft SDK utility process.
 
 See [Architecture](./docs/ARCHITECTURE.md),
+[theme specification](./docs/THEME-SPEC.md),
 [Operations](./docs/OPERATIONS.md), and the
 [install/upgrade/rollback runbook](./docs/RELEASE-RUNBOOK.md). The current
 internal-candidate verdict, evidence, and explicit Public v1 gates live in
 [Delivery status](./docs/DELIVERY-STATUS.md).
+
+Production releases use the independent `lite-v*` tag namespace and
+`.github/workflows/build-and-release-eidos-lite.yml`. The full version/channel,
+signing prerequisites, architecture-specific update feeds, verification, and
+rollback procedure are documented in the
+[release runbook](./docs/RELEASE-RUNBOOK.md).

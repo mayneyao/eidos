@@ -19,6 +19,7 @@ const chunkNames = [
   "logging",
   "packaged-smoke",
   "packaged-startup-smoke",
+  "updater",
 ]
 
 const entries = await fs.readdir(outputRoot, { withFileTypes: true })

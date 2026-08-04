@@ -18,3 +18,96 @@ export function isStableDesktopRelease(release) {
     /^v\d/u.test(release?.tag_name ?? "")
   )
 }
+
+const LITE_TAG_PATTERN =
+  /^lite-v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$/u
+
+function liteVersion(release) {
+  if (release?.draft !== false) return null
+  const match = LITE_TAG_PATTERN.exec(release?.tag_name ?? "")
+  if (!match) return null
+  const prerelease = match[4] ?? null
+  if (release.prerelease !== (prerelease !== null)) return null
+  return {
+    core: [Number(match[1]), Number(match[2]), Number(match[3])],
+    prerelease,
+    prereleaseNumber: Number(match[5] ?? 0),
+  }
+}
+
+function compareLiteVersions(left, right) {
+  for (let index = 0; index < left.core.length; index += 1) {
+    if (left.core[index] !== right.core[index]) {
+      return left.core[index] - right.core[index]
+    }
+  }
+  if (left.prerelease === null || right.prerelease === null) {
+    return left.prerelease === right.prerelease
+      ? 0
+      : left.prerelease === null
+        ? 1
+        : -1
+  }
+  const order = { alpha: 0, beta: 1, rc: 2 }
+  return (
+    order[left.prerelease] - order[right.prerelease] ||
+    left.prereleaseNumber - right.prereleaseNumber
+  )
+}
+
+export function isStableEidosLiteRelease(release) {
+  return liteVersion(release)?.prerelease === null
+}
+
+export function selectEidosLiteRelease(releases, channel) {
+  const candidates = releases
+    .map((release) => ({ release, version: liteVersion(release) }))
+    .filter(
+      (candidate) =>
+        candidate.version !== null &&
+        (channel === "beta" || candidate.version.prerelease === null)
+    )
+  candidates.sort((left, right) =>
+    compareLiteVersions(right.version, left.version)
+  )
+  return candidates[0]?.release ?? null
+}
+
+export function selectPreferredDesktopRelease(releases) {
+  return (
+    selectEidosLiteRelease(releases, "stable") ??
+    releases.find(isStableDesktopRelease) ??
+    null
+  )
+}
+
+export function getEidosLiteUpdateRoute(pathname) {
+  const match = /^\/lite\/updates\/(stable|beta)\/(arm64|x64)\/([^/]+)$/u.exec(
+    pathname
+  )
+  if (!match) return null
+  let assetName
+  try {
+    assetName = decodeURIComponent(match[3])
+  } catch {
+    return null
+  }
+  if (
+    !assetName ||
+    assetName === "." ||
+    assetName === ".." ||
+    assetName.includes("/") ||
+    assetName.includes("\\")
+  ) {
+    return null
+  }
+  return { channel: match[1], architecture: match[2], assetName }
+}
+
+export function releaseAssetNameForLiteUpdate(route) {
+  const metadata = /^(latest|beta)(-mac|-linux)?\.yml$/u.exec(route.assetName)
+  if (!metadata) return route.assetName
+  const platform =
+    metadata[2] === "-mac" ? "mac" : metadata[2] === "-linux" ? "linux" : "win"
+  return `${metadata[1]}-${platform}-${route.architecture}.yml`
+}

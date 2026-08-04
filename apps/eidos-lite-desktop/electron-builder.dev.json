@@ -1,8 +1,12 @@
 {
   "extends": "electron-builder.json",
   "mac": {
+    "forceCodeSigning": false,
     "hardenedRuntime": false,
     "notarize": false,
     "identity": null
+  },
+  "win": {
+    "forceCodeSigning": false
   }
 }

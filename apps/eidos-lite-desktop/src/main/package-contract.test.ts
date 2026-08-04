@@ -134,6 +134,43 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).not.toContain("softprops/action-gh-release")
   })
 
+  it("ships Lite through an isolated signed release and update channel", async () => {
+    const packageJson = await readJson("package.json")
+    const builder = await readJson("electron-builder.json")
+    const mac = builder.mac as Record<string, unknown>
+    const win = builder.win as Record<string, unknown>
+    const publish = builder.publish as Record<string, unknown>
+    const workflow = await fs.readFile(
+      path.resolve(
+        appRoot,
+        "../../.github/workflows/build-and-release-eidos-lite.yml"
+      ),
+      "utf8"
+    )
+    const scripts = packageJson.scripts as Record<string, string>
+
+    expect(packageJson.dependencies).toMatchObject({
+      "electron-updater": expect.any(String),
+    })
+    expect(scripts["build:release"]).toContain("--mode eidos-release")
+    expect(scripts["package:release"]).toContain("--publish never")
+    expect(publish).toEqual({
+      provider: "generic",
+      url: "https://download.eidos.space/lite/updates/stable",
+      channel: "latest",
+    })
+    expect(mac.forceCodeSigning).toBe(true)
+    expect(mac.hardenedRuntime).toBe(true)
+    expect(mac.notarize).toBe(true)
+    expect(win.forceCodeSigning).toBe(true)
+    expect(workflow).toContain('- "lite-v*"')
+    expect(workflow).toContain("pnpm build:eidos-lite:release")
+    expect(workflow).toContain("codesign --verify --deep --strict")
+    expect(workflow).toContain("Get-AuthenticodeSignature")
+    expect(workflow).toContain("latest-mac.yml mac arm64")
+    expect(workflow).toContain("softprops/action-gh-release@v2")
+  })
+
   it("keeps local-first performance budgets and the real-Space gate executable", async () => {
     const packageJson = await readJson("package.json")
     const scripts = packageJson.scripts as Record<string, string>

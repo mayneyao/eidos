@@ -1,0 +1,308 @@
+name: Build and Release Eidos Lite
+
+on:
+  push:
+    tags:
+      - "lite-v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: eidos-lite-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify release source
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify tag and committed base version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs"
+          const tag = process.env.TAG
+          const match = /^lite-v(\d+\.\d+\.\d+)(?:-(?:alpha|beta|rc)\.\d+)?$/.exec(tag ?? "")
+          if (!match) throw new Error(`Invalid Eidos Lite release tag: ${tag}`)
+          const pkg = JSON.parse(fs.readFileSync("apps/eidos-lite-desktop/package.json", "utf8"))
+          if (pkg.version !== match[1]) {
+            throw new Error(`Tag base ${match[1]} does not match committed Lite version ${pkg.version}`)
+          }
+          NODE
+
+      - name: Typecheck
+        run: pnpm --filter @eidos.space/eidos-lite-desktop typecheck
+
+      - name: Test source and updater contracts
+        run: pnpm test:eidos-lite
+
+      - name: Test download and update routing
+        run: node --test apps/download/src/release-routing.test.mjs
+
+      - name: Build production assets
+        run: pnpm --filter @eidos.space/eidos-lite-desktop build:release
+
+  build:
+    name: Build ${{ matrix.platform }} ${{ matrix.architecture }}
+    needs: verify
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: mac
+            architecture: arm64
+            runner: macos-15
+            artifact: lite-mac-arm64
+          - platform: mac
+            architecture: x64
+            runner: macos-15-intel
+            artifact: lite-mac-x64
+          - platform: win
+            architecture: x64
+            runner: windows-latest
+            artifact: lite-win-x64
+          - platform: linux
+            architecture: x64
+            runner: ubuntu-latest
+            artifact: lite-linux-x64
+          - platform: linux
+            architecture: arm64
+            runner: ubuntu-24.04-arm
+            artifact: lite-linux-arm64
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply full tag version to package
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs"
+          const version = process.env.TAG.replace(/^lite-v/, "")
+          const file = "apps/eidos-lite-desktop/package.json"
+          const pkg = JSON.parse(fs.readFileSync(file, "utf8"))
+          pkg.version = version
+          fs.writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`)
+          NODE
+
+      - name: Build unsigned staging package for process-boundary smoke
+        run: pnpm build:eidos-lite:dev
+
+      - name: Prepare Linux sandbox
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          sandbox="$(find apps/eidos-lite-desktop/dist-app -type f -name chrome-sandbox -print -quit)"
+          test -n "$sandbox"
+          sudo chown root:root "$sandbox"
+          sudo chmod 4755 "$sandbox"
+
+      - name: Smoke packaged application
+        if: matrix.platform != 'linux'
+        run: pnpm smoke:eidos-lite-packaged
+
+      - name: Smoke packaged Linux application
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          if ! command -v xvfb-run >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+          executable="$(find apps/eidos-lite-desktop/dist-app -type f -name eidos-lite-desktop -print -quit)"
+          test -n "$executable"
+          EIDOS_LITE_PACKAGED_APP="$executable" xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
+
+      - name: Require macOS signing inputs
+        if: matrix.platform == 'mac'
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          test -n "$CSC_LINK"
+          test -n "$CSC_KEY_PASSWORD"
+          test -n "$APPLE_ID"
+          test -n "$APPLE_APP_SPECIFIC_PASSWORD"
+          test -n "$APPLE_TEAM_ID"
+
+      - name: Require Windows signing inputs
+        if: matrix.platform == 'win'
+        shell: bash
+        env:
+          WIN_CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PWD }}
+        run: |
+          test -n "$WIN_CSC_LINK"
+          test -n "$WIN_CSC_KEY_PASSWORD"
+
+      - name: Build signed and update-enabled release
+        env:
+          CSC_LINK: ${{ matrix.platform == 'mac' && secrets.MACOS_CERTIFICATE || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && secrets.MACOS_CERTIFICATE_PWD || '' }}
+          APPLE_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'mac' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_TEAM_ID || '' }}
+          WIN_CSC_LINK: ${{ matrix.platform == 'win' && secrets.WINDOWS_CERTIFICATE || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ matrix.platform == 'win' && secrets.WINDOWS_CERTIFICATE_PWD || '' }}
+        run: pnpm build:eidos-lite:release
+
+      - name: Verify macOS signature and notarization
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          application="$(find apps/eidos-lite-desktop/dist-app -type d -name 'Eidos Lite.app' -print -quit)"
+          test -n "$application"
+          codesign --verify --deep --strict --verbose=2 "$application"
+          xcrun stapler validate "$application"
+
+      - name: Verify Windows signature
+        if: matrix.platform == 'win'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem apps/eidos-lite-desktop/dist-app/*.exe | Select-Object -First 1
+          if (-not $installer) { throw "Eidos Lite installer is missing" }
+          $signature = Get-AuthenticodeSignature $installer.FullName
+          if ($signature.Status -ne "Valid") { throw "Invalid Authenticode signature: $($signature.Status)" }
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 2
+          path: |
+            apps/eidos-lite-desktop/dist-app/*.dmg
+            apps/eidos-lite-desktop/dist-app/*.zip
+            apps/eidos-lite-desktop/dist-app/*.exe
+            apps/eidos-lite-desktop/dist-app/*.AppImage
+            apps/eidos-lite-desktop/dist-app/*.blockmap
+            apps/eidos-lite-desktop/dist-app/latest*.yml
+
+  deploy-update-router:
+    name: Deploy Lite update router
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+
+      - name: Deploy download Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/download
+          command: deploy
+
+  release:
+    name: Publish GitHub Release
+    needs: [build, deploy-update-router]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download platform assets
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare channel-specific release assets
+        id: release
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG#lite-v}"
+          if [[ "$version" =~ -(alpha|beta|rc)\. ]]; then
+            channel=beta
+            prerelease=true
+          else
+            channel=latest
+            prerelease=false
+          fi
+          mkdir release-upload
+          find artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.blockmap' \) -exec cp {} release-upload/ \;
+
+          copy_metadata() {
+            local artifact="$1"
+            local source_name="$2"
+            local platform="$3"
+            local architecture="$4"
+            local source
+            source="$(find "artifacts/$artifact" -type f -name "$source_name" -print -quit)"
+            test -n "$source"
+            cp "$source" "release-upload/${channel}-${platform}-${architecture}.yml"
+            if [[ "$channel" == latest ]]; then
+              cp "$source" "release-upload/beta-${platform}-${architecture}.yml"
+            fi
+          }
+
+          copy_metadata lite-mac-arm64 latest-mac.yml mac arm64
+          copy_metadata lite-mac-x64 latest-mac.yml mac x64
+          copy_metadata lite-win-x64 latest.yml win x64
+          copy_metadata lite-linux-x64 latest-linux.yml linux x64
+          copy_metadata lite-linux-arm64 latest-linux.yml linux arm64
+
+          test -f "release-upload/Eidos Lite-${version}-mac-arm64.dmg"
+          test -f "release-upload/Eidos Lite-${version}-mac-arm64.zip"
+          test -f "release-upload/Eidos Lite-${version}-mac-x64.dmg"
+          test -f "release-upload/Eidos Lite-${version}-mac-x64.zip"
+          test -f "release-upload/Eidos Lite-${version}-win-x64.exe"
+          test -f "release-upload/Eidos Lite-${version}-linux-x64.AppImage"
+          test -f "release-upload/Eidos Lite-${version}-linux-arm64.AppImage"
+          test -f "release-upload/${channel}-mac-arm64.yml"
+          test -f "release-upload/${channel}-mac-x64.yml"
+          test -f "release-upload/${channel}-win-x64.yml"
+          test -f "release-upload/${channel}-linux-x64.yml"
+          test -f "release-upload/${channel}-linux-arm64.yml"
+
+          (cd release-upload && sha256sum * > SHA256SUMS)
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          find release-upload -maxdepth 1 -type f -printf '%f\n' | sort
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Eidos Lite ${{ steps.release.outputs.version }}
+          prerelease: ${{ steps.release.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: release-upload/*

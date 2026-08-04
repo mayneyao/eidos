@@ -1,4 +1,10 @@
-import { getCliSource, isStableDesktopRelease } from "./release-routing.mjs"
+import {
+  getCliSource,
+  getEidosLiteUpdateRoute,
+  releaseAssetNameForLiteUpdate,
+  selectEidosLiteRelease,
+  selectPreferredDesktopRelease,
+} from "./release-routing.mjs"
 
 /**
  * Welcome to Cloudflare Workers! This is your first worker.
@@ -79,10 +85,17 @@ export default {
       return serveCliFile(cliSource, url.pathname)
     }
 
+    const liteUpdateRoute = getEidosLiteUpdateRoute(url.pathname)
+
     const platform = url.pathname.split("/").pop()?.toLowerCase()
     const arch = url.searchParams.get("arch")?.toLowerCase()
 
-    if (platform !== "mac" && platform !== "win" && platform !== "linux") {
+    if (
+      !liteUpdateRoute &&
+      platform !== "mac" &&
+      platform !== "win" &&
+      platform !== "linux"
+    ) {
       return new Response("Invalid platform. Use /mac or /win or /linux", {
         status: 400,
       })
@@ -138,7 +151,29 @@ export default {
       }
 
       const releases = (await response.json()) as GitHubRelease[]
-      const latestRelease = releases.find(isStableDesktopRelease)
+      if (liteUpdateRoute) {
+        const release = selectEidosLiteRelease(
+          releases,
+          liteUpdateRoute.channel
+        )
+        if (!release) {
+          return new Response("No Eidos Lite update is available", {
+            status: 404,
+          })
+        }
+        const assetName = releaseAssetNameForLiteUpdate(liteUpdateRoute)
+        const asset = release.assets.find(
+          (candidate: GitHubAsset) => candidate.name === assetName
+        )
+        if (!asset) {
+          return new Response("Eidos Lite update asset is unavailable", {
+            status: 404,
+          })
+        }
+        return Response.redirect(asset.browser_download_url, 302)
+      }
+
+      const latestRelease = selectPreferredDesktopRelease(releases)
       if (!latestRelease) {
         return new Response("No stable Desktop release found", { status: 404 })
       }
@@ -148,7 +183,7 @@ export default {
         linux: ".AppImage".toLowerCase(),
       }
 
-      const asset = latestRelease.assets.find((asset) => {
+      const asset = latestRelease.assets.find((asset: GitHubAsset) => {
         const name = asset.name.toLowerCase()
         const ext = extMap[platform as keyof typeof extMap]
         if (arch) {

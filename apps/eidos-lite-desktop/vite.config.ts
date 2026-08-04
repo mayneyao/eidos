@@ -104,9 +104,12 @@ const aliases = [
 
 export default defineConfig(({ mode }) => {
   const defaultEnvironment: EidosLiteEnvironmentName =
-    mode === "eidos-production" ? "production" : "staging"
+    mode === "eidos-production" || mode === "eidos-release"
+      ? "production"
+      : "staging"
   const environmentDefine = {
     __EIDOS_LITE_DEFAULT_ENVIRONMENT__: JSON.stringify(defaultEnvironment),
+    __EIDOS_LITE_UPDATES_ENABLED__: JSON.stringify(mode === "eidos-release"),
   }
 
   return {
@@ -133,7 +136,13 @@ export default defineConfig(({ mode }) => {
               reportCompressedSize: false,
               rolldownOptions: {
                 external: ["@eidos.space/graft", "electron", "node:sqlite"],
-                output: { format: "esm" },
+                output: {
+                  format: "esm",
+                  chunkFileNames: (chunk) =>
+                    chunk.name === "main"
+                      ? "updater-[hash].js"
+                      : "[name]-[hash].js",
+                },
               },
             },
           },
