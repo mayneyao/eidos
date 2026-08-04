@@ -65,13 +65,21 @@ export function EidosFileSearchNavigationProvider({
           previous.key === resultKey
             ? previous
             : { key: resultKey, count: null, index: 0 }
+        const index =
+          rowCount !== null && rowCount > 0
+            ? Math.min(active.index, rowCount - 1)
+            : 0
+        if (
+          previous.key === resultKey &&
+          previous.count === rowCount &&
+          previous.index === index
+        ) {
+          return previous
+        }
         return {
           key: resultKey,
           count: rowCount,
-          index:
-            rowCount !== null && rowCount > 0
-              ? Math.min(active.index, rowCount - 1)
-              : 0,
+          index,
         }
       })
     },

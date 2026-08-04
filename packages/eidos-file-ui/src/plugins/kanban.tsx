@@ -35,6 +35,45 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
       view ? eidosFileRecordCardPageProjection(table.fields, view) : undefined,
     [table.fields, view]
   )
+  const loadGroupCounts = useCallback(
+    (field: EidosFileFieldInfo) =>
+      source.getGroupCounts!(table.table.id, eidosFileFieldKey(field), query),
+    [query, source, table.table.id]
+  )
+  const loadGroupPage = useCallback(
+    (
+      field: EidosFileFieldInfo,
+      value: string | null,
+      offset: number,
+      limit: number,
+      totalHint: number,
+      cursor?: string
+    ) =>
+      source.getPage(
+        table.table.id,
+        offset,
+        limit,
+        {
+          ...query,
+          filter: eidosFileViewGroupFilter(
+            query.filter,
+            eidosFileFieldKey(field),
+            value
+          ),
+        },
+        totalHint,
+        cursor,
+        projection
+      ),
+    [projection, query, source, table.table.id]
+  )
+  const loadRow = useMemo(
+    () =>
+      source.getRow
+        ? (rowId: string) => source.getRow!(table.table.id, rowId)
+        : undefined,
+    [source, table.table.id]
+  )
   const editCell = useCallback(
     async (
       row: EidosFileRow,
@@ -85,32 +124,9 @@ function EidosFileKanbanRenderer(props: EidosFileViewRendererProps) {
       disabled={disabled}
       reloadToken={reloadToken}
       searchResultIndex={props.searchResultIndex}
-      loadGroupCounts={(field) =>
-        source.getGroupCounts!(table.table.id, eidosFileFieldKey(field), query)
-      }
-      loadGroupPage={(field, value, offset, limit, totalHint, cursor) =>
-        source.getPage(
-          table.table.id,
-          offset,
-          limit,
-          {
-            ...query,
-            filter: eidosFileViewGroupFilter(
-              query.filter,
-              eidosFileFieldKey(field),
-              value
-            ),
-          },
-          totalHint,
-          cursor,
-          projection
-        )
-      }
-      loadRow={
-        source.getRow
-          ? (rowId) => source.getRow!(table.table.id, rowId)
-          : undefined
-      }
+      loadGroupCounts={loadGroupCounts}
+      loadGroupPage={loadGroupPage}
+      loadRow={loadRow}
       onCellEdit={editCell}
       onImportFiles={props.onImportFiles}
       onImportDroppedFiles={props.onImportDroppedFiles}

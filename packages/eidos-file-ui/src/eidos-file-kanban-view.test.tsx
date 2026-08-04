@@ -10,8 +10,13 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { EidosFileKanbanView } from "./eidos-file-kanban-view"
+import { EidosFileEditorView } from "./eidos-file-editor-view"
 import * as eidosFileRowWindow from "./eidos-file-row-window"
+import { EidosFileSearchNavigationProvider } from "./eidos-file-search-navigation"
 import * as eidosFileVirtualScroll from "./eidos-file-virtual-scroll"
+import { EidosFileUIProvider } from "./context"
+import type { EidosFileEditorDataSource } from "./data-source"
+import { eidosFileKanbanPlugin } from "./plugins/kanban"
 import {
   EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS,
   EIDOS_FILE_VIRTUAL_SCROLL_MAX_SIZE,
@@ -496,6 +501,49 @@ describe("EidosFileKanbanView", () => {
       expect.objectContaining({ tableColumnName: "status" }),
       "todo"
     )
+  })
+
+  it("settles loading when search result reporting rerenders the Kanban plugin", async () => {
+    const getGroupCounts = vi.fn(async () => [{ value: "todo", total: 1 }])
+    const getPage = vi.fn(async (_tableId, offset, limit) => ({
+      tableId: "tasks",
+      offset,
+      limit,
+      total: 1,
+      rows: [{ _id: "todo_1", title: "Stable todo", status: "todo" }],
+    }))
+    const source = {
+      getGroupCounts,
+      getPage,
+      getRow: vi.fn(async () => null),
+      updateRow: vi.fn(),
+      insertRow: vi.fn(),
+    } as unknown as EidosFileEditorDataSource
+
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider>
+          <EidosFileSearchNavigationProvider
+            search=""
+            scopeKey="tasks:view_board"
+          >
+            <EidosFileEditorView
+              source={source}
+              table={table}
+              view={view}
+              plugins={[eidosFileKanbanPlugin]}
+            />
+          </EidosFileSearchNavigationProvider>
+        </EidosFileUIProvider>
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await Promise.resolve()
+    })
+
+    expect(getGroupCounts).toHaveBeenCalledTimes(1)
+    expect(getPage).toHaveBeenCalledTimes(1)
+    expect(container.textContent).toContain("Stable todo")
   })
 
   it("omits zero-row catalog groups when showEmptyGroups is false", async () => {

@@ -889,6 +889,8 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
   const loadingInitialGroupsRef = useRef(new Map<string, number>())
   const loadingMoreGroupsRef = useRef(new Map<string, number>())
   const loadedGroupGenerationsRef = useRef(new Map<string, number>())
+  const onRowCountChangeRef = useRef(onRowCountChange)
+  onRowCountChangeRef.current = onRowCountChange
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const groupFieldName = view.properties?.groupField
   const groupField = table.fields.find(
@@ -1058,7 +1060,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     loadingMoreGroupsRef.current.clear()
     const generation = generationRef.current
     closeInspectorRow()
-    onRowCountChange?.(null)
+    onRowCountChangeRef.current?.(null)
     if (!groupField) {
       setGroups([])
       setCountsLoaded(false)
@@ -1146,14 +1148,13 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
     reloadToken,
     table.table.id,
     view.id,
-    onRowCountChange,
     t,
   ])
 
   useEffect(() => {
     if (!countsLoaded || groups.length === 0) return
-    onRowCountChange?.(groupedRowCount)
-  }, [countsLoaded, groupedRowCount, onRowCountChange])
+    onRowCountChangeRef.current?.(groupedRowCount)
+  }, [countsLoaded, groupedRowCount])
 
   const loadGroupWindow = useCallback(
     async (
