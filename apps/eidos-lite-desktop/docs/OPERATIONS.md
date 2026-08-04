@@ -2,9 +2,11 @@
 
 ## Verification ladder
 
-The builder reads the official icon sources from `apps/web-app/public` for all
-three target families. `src/main/package-contract.test.ts` verifies their file
-signatures together with the Lite app id, product name, author, and homepage;
+The builder reads the dedicated cyan icon sources from
+`apps/eidos-lite-desktop/assets` for all three target families. The mark keeps
+the official Eidos silhouette and uses Lite's `#007284` theme accent.
+`src/main/package-contract.test.ts` verifies the configured paths, file
+signatures, source color, Lite app id, product name, author, and homepage;
 electron-builder must not report default-icon or missing-author warnings.
 
 Eidos Lite source-runtime tests use Electron 43's Node 24 mode so they exercise

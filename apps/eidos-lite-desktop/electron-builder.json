@@ -30,7 +30,7 @@
   ],
   "mac": {
     "target": ["dmg", "zip"],
-    "icon": "../web-app/public/logo.icns",
+    "icon": "assets/logo.icns",
     "forceCodeSigning": true,
     "hardenedRuntime": true,
     "gatekeeperAssess": false,
@@ -38,11 +38,11 @@
   },
   "win": {
     "target": ["nsis"],
-    "icon": "../web-app/public/logo.ico",
+    "icon": "assets/logo.ico",
     "forceCodeSigning": true
   },
   "linux": {
     "target": ["AppImage"],
-    "icon": "../web-app/public/logo.png"
+    "icon": "assets/logo.png"
   }
 }

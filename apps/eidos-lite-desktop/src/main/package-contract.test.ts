@@ -97,7 +97,7 @@ describe("Eidos Lite package identity", () => {
     ).rejects.toThrow()
   })
 
-  it("uses the checked-in official Eidos icons on every target", async () => {
+  it("uses the checked-in cyan Eidos Lite icons on every target", async () => {
     const builder = await readJson("electron-builder.json")
     const mac = builder.mac as Record<string, unknown>
     const win = builder.win as Record<string, unknown>
@@ -108,6 +108,10 @@ describe("Eidos Lite package identity", () => {
       [linux.icon, Buffer.from([0x89, 0x50, 0x4e, 0x47])],
     ] as const
 
+    expect(mac.icon).toBe("assets/logo.icns")
+    expect(win.icon).toBe("assets/logo.ico")
+    expect(linux.icon).toBe("assets/logo.png")
+
     for (const [configuredPath, signature] of icons) {
       expect(typeof configuredPath).toBe("string")
       const bytes = await fs.readFile(
@@ -115,6 +119,13 @@ describe("Eidos Lite package identity", () => {
       )
       expect(bytes.subarray(0, signature.length)).toEqual(signature)
     }
+
+    const source = await fs.readFile(
+      path.resolve(appRoot, "assets/logo.svg"),
+      "utf8"
+    )
+    expect(source).toContain('fill="#007284"')
+    expect(source).not.toContain('fill="#828282"')
   })
 
   it("keeps both macOS packaged smoke architectures in the Lite-only gate", async () => {

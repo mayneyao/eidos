@@ -11,10 +11,13 @@ folder as a Space and working with multiple `.eidos` files in that folder.
 It does not import the legacy Desktop application or its Markdown, extension,
 AI, browser, or terminal architecture.
 
-The independent package uses the checked-in official Eidos ICNS, ICO, and
-1024px PNG as source assets for macOS, Windows, and Linux. A package contract
-test prevents builds from silently falling back to the Electron icon or losing
-the `space.eidos.lite` identity.
+The independent package uses a checked-in Eidos Lite icon family for macOS,
+Windows, and Linux. It preserves the official Eidos cube silhouette while
+recoloring the mark with Lite's `#007284` cyan accent, so Lite remains visibly
+related to Classic Desktop without sharing the same launcher identity. A
+package contract test prevents builds from silently falling back to the
+Electron or Classic icon, changing the Lite brand color, or losing the
+`space.eidos.lite` identity.
 
 The current architecture slice supports local editing through an explicit
 runtime mutation whitelist. The right-hand editor composes the same
