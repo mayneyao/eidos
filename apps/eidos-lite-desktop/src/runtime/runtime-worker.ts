@@ -20,6 +20,7 @@ import {
   type EidosLiteCsvFileSource,
   type EidosLiteFileRuntime,
 } from "./eidos-file-runtime"
+import { serializeRuntimeWorkerError } from "./runtime-worker-error"
 
 interface UtilityParentPort {
   on(event: "message", listener: (event: { data: unknown }) => void): void
@@ -34,22 +35,6 @@ if (!parentPort) throw new Error("Eidos File runtime requires a utility parent")
 
 let openedRuntime: EidosLiteFileRuntime | null = null
 let source: EidosRuntimeEditorDataSource | null = null
-
-type RuntimeWorkerError = Extract<RuntimeWorkerResponse, { ok: false }>["error"]
-
-function serializeError(error: unknown): RuntimeWorkerError {
-  if (error instanceof Error) {
-    const code =
-      "code" in error && typeof error.code === "string" ? error.code : undefined
-    return {
-      name: error.name,
-      message: error.message,
-      ...(code ? { code } : {}),
-      ...(error.stack ? { stack: error.stack } : {}),
-    }
-  }
-  return { name: "Error", message: String(error) }
-}
 
 function requireSource(): EidosRuntimeEditorDataSource {
   if (!source) throw new Error("Eidos File runtime is not open")
@@ -300,7 +285,7 @@ parentPort.on("message", (event) => {
       parentPort.postMessage({
         requestId: request.requestId,
         ok: false,
-        error: serializeError(error),
+        error: serializeRuntimeWorkerError(error),
       })
     }
   )
