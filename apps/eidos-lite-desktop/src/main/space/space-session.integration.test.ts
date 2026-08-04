@@ -23,6 +23,85 @@ function deferred<T>() {
 }
 
 describe("SpaceSession Graft-backed snapshots", () => {
+  it("plans checkpoint restore from commit metadata without loading row diffs", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-restore-plan-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-restore-plan-state-")
+    )
+    const commitId = "a".repeat(64)
+    const expectedHead = "c".repeat(64)
+    const materializationPathsBetweenRevisions = vi.fn(async () => [
+      "data.eidos",
+      "removed.txt",
+    ])
+    const compareRevisions = vi.fn(async () => {
+      throw new Error("Restore must not load row diffs")
+    })
+    const restorePaths = vi.fn(async () => undefined)
+    const stageAll = vi.fn(async () => undefined)
+    const commit = vi.fn(async () => ({ id: "d".repeat(64) }))
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.7",
+      close: async () => undefined,
+      inspectSpace: async () => ({
+        available: true,
+        backend: "sdk",
+        version: "0.3.7",
+        expectedVersion: "0.3.7",
+        initialized: true,
+        clean: true,
+        currentHead: expectedHead,
+      }),
+      status: vi.fn(async () => ({
+        initialized: true,
+        dirty: false,
+        currentHead: expectedHead,
+        paths: [],
+        changes: [],
+      })),
+      materializationPathsBetweenRevisions,
+      compareRevisions,
+      operationMaterializesWorktree: vi.fn(async () => true),
+      restorePaths,
+      stageAll,
+      commit,
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      await fs.mkdir(path.join(root, ".graft"))
+      session = await SpaceSession.create(root, userData, { graft })
+
+      await expect(
+        session.restoreCheckpoint(commitId, expectedHead)
+      ).resolves.toMatchObject({ graft: { initialized: true, clean: true } })
+      expect(materializationPathsBetweenRevisions).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        commitId,
+        expectedHead
+      )
+      expect(compareRevisions).not.toHaveBeenCalled()
+      expect(restorePaths).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        commitId,
+        expectedHead,
+        ["data.eidos", "removed.txt"]
+      )
+      expect(stageAll).toHaveBeenCalledOnce()
+      expect(commit).toHaveBeenCalledOnce()
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  })
+
   it("keeps a local rename responsive while Graft records the move identity", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-record-path-move-")

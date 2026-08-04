@@ -1217,19 +1217,17 @@ export class SpaceSession {
     if (initialStatus.currentHead !== expectedHead) {
       throw new Error("Space history changed; refresh History before restoring")
     }
-    const { comparison, restoreMaterializes } =
-      await this.repository.runForeground(async () => ({
-        comparison: await this.graft.compareRevisions(
+    const { paths, restoreMaterializes } = await this.repository.runForeground(
+      async () => ({
+        paths: await this.graft.materializationPathsBetweenRevisions(
           this.canonical.root,
           commitId,
           expectedHead
         ),
         restoreMaterializes:
           await this.graft.operationMaterializesWorktree("restore"),
-      }))
-    const paths = [...new Set(comparison.paths.map((change) => change.path))]
-      .filter(Boolean)
-      .sort()
+      })
+    )
     if (paths.length === 0) {
       throw new Error("The Space already matches this checkpoint")
     }

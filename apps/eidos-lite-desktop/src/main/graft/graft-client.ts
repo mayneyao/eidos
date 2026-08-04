@@ -940,6 +940,15 @@ export class GraftClient {
     })
   }
 
+  async materializationPathsBetweenRevisions(
+    root: string,
+    from: string,
+    to: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<string[]> {
+    return this.changedPathsBetween(root, from, to, options)
+  }
+
   async history(
     root: string,
     limit = 50,
@@ -1493,8 +1502,12 @@ export class GraftClient {
         parent = stringValue(page.parent) ?? null
         if (Array.isArray(page.paths)) {
           for (const item of page.paths.map(record)) {
-            const relativePath = stringValue(item.path)
-            if (relativePath) paths.add(relativePath)
+            for (const relativePath of [
+              stringValue(item.path),
+              stringValue(item.previous_path),
+            ]) {
+              if (relativePath) paths.add(relativePath)
+            }
           }
         }
         after = page.has_more ? stringValue(page.next_cursor) : undefined

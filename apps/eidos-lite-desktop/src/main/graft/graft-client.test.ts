@@ -387,6 +387,68 @@ describe("GraftClient", () => {
     }
   })
 
+  it("plans restore materialization from commit metadata without loading row diffs", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-restore-plan-")
+    )
+    const ancestor = "a".repeat(64)
+    const middle = "b".repeat(64)
+    const descendant = "c".repeat(64)
+    const commands: string[] = []
+    const transport = createUnusedTransport()
+    transport.command = vi.fn(async (command, args) => {
+      commands.push(command)
+      if (command !== "commitChangedPaths") {
+        throw new Error(`Unexpected Graft command: ${command}`)
+      }
+      const revision = (args[0] as { revision: string }).revision
+      if (revision === descendant) {
+        return {
+          revision,
+          parent: middle,
+          paths: [
+            {
+              path: "current/data.eidos",
+              previous_path: "archive/data.eidos",
+              change: "renamed",
+            },
+            { path: "removed.txt", change: "deleted" },
+          ],
+          has_more: false,
+          next_cursor: null,
+        }
+      }
+      if (revision === middle) {
+        return {
+          revision,
+          parent: ancestor,
+          paths: [{ path: "notes.txt", change: "modified" }],
+          has_more: false,
+          next_cursor: null,
+        }
+      }
+      throw new Error(`Unexpected revision: ${revision}`)
+    })
+    const client = new GraftClient({ sdkTransport: transport })
+
+    try {
+      await expect(
+        client.materializationPathsBetweenRevisions(root, ancestor, descendant)
+      ).resolves.toEqual([
+        "archive/data.eidos",
+        "current/data.eidos",
+        "notes.txt",
+        "removed.txt",
+      ])
+      expect(commands).toEqual(["commitChangedPaths", "commitChangedPaths"])
+      expect(commands).not.toContain("diffPaths")
+      expect(commands).not.toContain("diffSqlitePaths")
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("loads SQLite table summaries before bounded row pages", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-graft-sqlite-pages-")
