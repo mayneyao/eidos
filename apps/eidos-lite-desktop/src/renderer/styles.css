@@ -1081,29 +1081,52 @@ button:focus-visible {
 
 .workbench {
   --space-sidebar-width: 17.5rem;
+  --space-sidebar-track-width: var(--space-sidebar-width);
   --workbench-titlebar-height: var(--chrome-header-height);
+  --sidebar-motion-enter: 120ms;
+  --sidebar-motion-exit: 90ms;
+  --sidebar-motion-ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --sidebar-motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   display: grid;
-  grid-template-columns: var(--space-sidebar-width) minmax(0, 1fr);
+  grid-template-columns: var(--space-sidebar-track-width) minmax(0, 1fr);
   width: 100%;
   height: 100%;
+  isolation: isolate;
   color: var(--ink);
   background: var(--canvas);
 }
 
 .space-sidebar {
+  position: relative;
+  z-index: 45;
   display: grid;
+  width: var(--space-sidebar-width);
   grid-template-rows: var(--workbench-titlebar-height) 1.75rem minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   border-right: 1px solid var(--hairline);
   background: color-mix(in oklab, var(--lite-sidebar) 88%, transparent);
+  contain: paint;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity 90ms linear,
+    transform var(--sidebar-motion-enter) var(--sidebar-motion-ease-out),
+    visibility 0s linear;
+  will-change: transform, opacity;
 }
 
 .workbench[data-sidebar-collapsed="true"] .space-sidebar {
   visibility: hidden;
-  overflow: hidden;
+  opacity: 0;
+  transform: translate3d(-0.35rem, 0, 0);
   pointer-events: none;
+  transition:
+    opacity 70ms linear,
+    transform var(--sidebar-motion-exit) var(--sidebar-motion-ease-in),
+    visibility 0s linear var(--sidebar-motion-exit);
 }
 
 .sidebar-header,
@@ -1271,8 +1294,12 @@ button:focus-visible {
   bottom: 0;
   left: calc(var(--space-sidebar-width) - 3px);
   width: 6px;
+  opacity: 1;
   cursor: col-resize;
   touch-action: none;
+  transition:
+    opacity 70ms linear 100ms,
+    visibility 0s linear;
 }
 
 .sidebar-resizer::after {
@@ -1296,13 +1323,21 @@ button:focus-visible {
 }
 
 .workbench[data-sidebar-collapsed="true"] .sidebar-resizer {
-  display: none;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .resizing-space-sidebar,
 .resizing-space-sidebar * {
   cursor: col-resize !important;
   user-select: none !important;
+}
+
+.resizing-space-sidebar .workbench,
+.resizing-space-sidebar .space-sidebar,
+.resizing-space-sidebar .sidebar-resizer {
+  transition: none;
 }
 
 .editor-region {
@@ -5083,6 +5118,7 @@ button:focus-visible {
     scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    transition-delay: 0s !important;
     transition-duration: 0.01ms !important;
   }
 }

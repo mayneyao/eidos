@@ -1722,7 +1722,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
       style={
         {
-          "--space-sidebar-width": sidebarCollapsed
+          "--space-sidebar-width": `${sidebarWidth}px`,
+          "--space-sidebar-track-width": sidebarCollapsed
             ? "0px"
             : `${sidebarWidth}px`,
         } as CSSProperties

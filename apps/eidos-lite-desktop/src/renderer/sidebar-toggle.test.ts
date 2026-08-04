@@ -29,7 +29,9 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
   expect(styles).toMatch(
     /\.titlebar-navigation \.icon-button:active:not\(:disabled\)\s*\{[\s\S]*?transform:\s*none;/
   )
-  expect(appSource).toContain('window.addEventListener("pointerdown"')
+  expect(appSource).not.toContain("navigationOffsetForPointerButton")
+  expect(appSource).not.toContain('window.addEventListener("auxclick"')
+  expect(appSource).not.toContain("preventAuxiliaryNavigation")
   expect(appSource).toContain("window.history.go(offset)")
   expect(appSource).toContain("workspaceShortcutForKeyboardEvent(")
   expect(appSource).toContain("keyboardShortcuts")
@@ -40,6 +42,24 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
   expect(appSource.match(/onToggle=\{toggleSidebar\}/g)).toHaveLength(2)
   expect(appSource.match(/workspaceShortcutAriaKeyShortcuts\(/g)).toHaveLength(
     4
+  )
+  expect(appSource).toContain('"--space-sidebar-track-width": sidebarCollapsed')
+  expect(styles).toMatch(
+    /\.workbench\s*\{[\s\S]*?--sidebar-motion-enter:\s*120ms;[\s\S]*?grid-template-columns:\s*var\(--space-sidebar-track-width\)/
+  )
+  expect(styles).not.toMatch(/transition:\s*grid-template-columns/)
+  expect(styles).toMatch(
+    /\.space-sidebar\s*\{[\s\S]*?width:\s*var\(--space-sidebar-width\);[\s\S]*?contain:\s*paint;[\s\S]*?will-change:\s*transform, opacity;/
+  )
+  expect(styles).toMatch(
+    /\.workbench\[data-sidebar-collapsed="true"\]\s+\.space-sidebar\s*\{[\s\S]*?transform:\s*translate3d\(-0\.35rem, 0, 0\);[\s\S]*?visibility 0s linear var\(--sidebar-motion-exit\)/
+  )
+  expect(styles).not.toContain("sidebar-toggle-navigation-enter")
+  expect(styles).toMatch(
+    /\.resizing-space-sidebar \.workbench,[\s\S]*?\.resizing-space-sidebar \.sidebar-resizer\s*\{\s*transition:\s*none;/
+  )
+  expect(styles).toMatch(
+    /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?transition-delay:\s*0s !important;[\s\S]*?transition-duration:\s*0\.01ms !important;/
   )
   expect(appSource).not.toContain('keyboardShortcuts["navigate-back"]')
   expect(appSource).not.toContain('keyboardShortcuts["navigate-forward"]')
