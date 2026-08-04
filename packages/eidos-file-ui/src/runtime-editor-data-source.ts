@@ -23,6 +23,7 @@ import {
   type EidosFileFieldPlacement,
   type EidosFileFilterGroup,
   type EidosFileFilterOperator,
+  type EidosFileFilterRule,
   type EidosFileFormulaPreview,
   type EidosFileFormulaPreviewInput,
   type EidosFileLogicalValue,
@@ -1781,13 +1782,27 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   }
 
   private editorFilter(node?: FilterNode): EidosFileFilterGroup | null {
+    const filter = this.editorFilterNode(node)
+    if (!filter) return null
+    return filter.type === "group"
+      ? filter
+      : { type: "group", conjunction: "and", children: [filter] }
+  }
+
+  private editorFilterNode(
+    node?: FilterNode
+  ): EidosFileFilterRule | EidosFileFilterGroup | null {
     if (!node) return null
     if (node.op === "not") {
-      const group = this.editorFilter(node.arg) ?? {
-        type: "group",
-        conjunction: "and",
-        children: [],
-      }
+      const nested = this.editorFilterNode(node.arg)
+      const group: EidosFileFilterGroup =
+        nested?.type === "group"
+          ? nested
+          : {
+              type: "group",
+              conjunction: "and",
+              children: nested ? [nested] : [],
+            }
       return { ...group, negated: !group.negated }
     }
     if (node.op === "and" || node.op === "or") {
@@ -1795,8 +1810,8 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         type: "group",
         conjunction: node.op,
         children: node.args.flatMap((child) => {
-          const group = this.editorFilter(child)
-          return group ? [group] : []
+          const filter = this.editorFilterNode(child)
+          return filter ? [filter] : []
         }),
       }
     }
@@ -1830,16 +1845,10 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
             ? [node.rowId]
             : undefined
     return {
-      type: "group",
-      conjunction: "and",
-      children: [
-        {
-          type: "rule",
-          field: node.fieldId,
-          operator,
-          ...(value === undefined ? {} : { value: value as never }),
-        },
-      ],
+      type: "rule",
+      field: node.fieldId,
+      operator,
+      ...(value === undefined ? {} : { value: value as never }),
     }
   }
 

@@ -4059,7 +4059,7 @@ function assertRuntimeRowQuery(
         !Array.isArray(node.values) ||
         !node.values.every(
           (value) =>
-            value !== null && logicalValueMatchesType(value, elementType)
+            value !== null && filterValueMatchesType(value, elementType)
         )
       ) {
         throw runtimeError("invalid-query", "List Filter operand is invalid")
@@ -4081,7 +4081,7 @@ function assertRuntimeRowQuery(
       if (
         !Array.isArray(node.values) ||
         !node.values.every(
-          (value) => value !== null && logicalValueMatchesType(value, type)
+          (value) => value !== null && filterValueMatchesType(value, type)
         )
       ) {
         throw runtimeError("invalid-query", "in operands are invalid")
@@ -4094,8 +4094,8 @@ function assertRuntimeRowQuery(
         !isSortableType(type) ||
         node.lower === null ||
         node.upper === null ||
-        !logicalValueMatchesType(node.lower, type) ||
-        !logicalValueMatchesType(node.upper, type)
+        !filterValueMatchesType(node.lower, type) ||
+        !filterValueMatchesType(node.upper, type)
       ) {
         throw runtimeError("invalid-query", "between operands are invalid")
       }
@@ -4104,7 +4104,7 @@ function assertRuntimeRowQuery(
     if (
       !("value" in node) ||
       node.value === null ||
-      !logicalValueMatchesType(node.value, type) ||
+      !filterValueMatchesType(node.value, type) ||
       (["lt", "lte", "gt", "gte"].includes(node.op) &&
         (typeof type !== "string" || !isSortableType(type)))
     ) {
@@ -4112,6 +4112,11 @@ function assertRuntimeRowQuery(
     }
   }
   if (query.filter) visit(query.filter, 1)
+}
+
+function filterValueMatchesType(value: LogicalValue, type: TypeRef): boolean {
+  if (type === "row-id") return typeof value === "string"
+  return logicalValueMatchesType(value, type)
 }
 
 function isSortableType(type: string): boolean {
@@ -4211,15 +4216,25 @@ function isJsonValue(value: unknown): boolean {
 }
 
 function runtimeFilterToCompatibility(node: FilterNode): EidosFileFilterGroup {
+  const filter = runtimeFilterNodeToCompatibility(node)
+  return filter.type === "group"
+    ? filter
+    : { type: "group", conjunction: "and", children: [filter] }
+}
+
+function runtimeFilterNodeToCompatibility(
+  node: FilterNode
+): EidosFileFilterGroup["children"][number] {
   const group = (
     conjunction: "and" | "or",
     children: EidosFileFilterGroup["children"]
   ): EidosFileFilterGroup => ({ type: "group", conjunction, children })
   if (node.op === "and" || node.op === "or") {
-    return group(node.op, node.args.map(runtimeFilterToCompatibility))
+    return group(node.op, node.args.map(runtimeFilterNodeToCompatibility))
   }
   if (node.op === "not") {
-    const nested = runtimeFilterToCompatibility(node.arg)
+    const filter = runtimeFilterNodeToCompatibility(node.arg)
+    const nested = filter.type === "group" ? filter : group("and", [filter])
     return {
       ...nested,
       negated: nested.negated !== true,
@@ -4242,14 +4257,12 @@ function runtimeFilterToCompatibility(node: FilterNode): EidosFileFilterGroup {
     ])
   }
   if (node.op === "has-all") {
-    return group("and", [
-      {
-        type: "rule",
-        field: node.fieldId,
-        operator: "is-all-of",
-        value: node.values as Array<string | number | boolean | null>,
-      },
-    ])
+    return {
+      type: "rule",
+      field: node.fieldId,
+      operator: "is-all-of",
+      value: node.values as Array<string | number | boolean | null>,
+    }
   }
   const leaf = node as Exclude<
     FilterNode,
@@ -4285,22 +4298,20 @@ function runtimeFilterToCompatibility(node: FilterNode): EidosFileFilterGroup {
         : "value" in leaf
           ? leaf.value
           : undefined
-  return group("and", [
-    {
-      type: "rule",
-      field: leaf.fieldId,
-      operator: operator as EidosFileFilterOperator,
-      ...(value === undefined
-        ? {}
-        : {
-            value: value as EidosFileFilterValue | EidosFileFilterValue[],
-          }),
-    },
-  ])
+  return {
+    type: "rule",
+    field: leaf.fieldId,
+    operator: operator as EidosFileFilterOperator,
+    ...(value === undefined
+      ? {}
+      : {
+          value: value as EidosFileFilterValue | EidosFileFilterValue[],
+        }),
+  }
 }
 
 function compatibilityFilterToRuntime(group: EidosFileFilterGroup): FilterNode {
-  return {
+  const node: FilterNode = {
     op: group.conjunction,
     args: group.children.map((child) => {
       if (child.type === "group") return compatibilityFilterToRuntime(child)
@@ -4326,6 +4337,7 @@ function compatibilityFilterToRuntime(group: EidosFileFilterGroup): FilterNode {
       }
     }),
   }
+  return group.negated ? { op: "not", arg: node } : node
 }
 
 function compatibilityOperator(

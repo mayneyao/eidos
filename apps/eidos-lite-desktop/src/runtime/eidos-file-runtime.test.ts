@@ -107,6 +107,77 @@ describe("Eidos Lite Runtime 1.0 editor adapter", () => {
     }
   })
 
+  it("persists and executes an explicit Record ID filter group without flattening it", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-row-id-filter-"))
+    const filePath = path.join(root, "row-id-filter.eidos")
+    let opened = await createEidosLiteFileRuntime(filePath, "Row ID filter")
+    try {
+      const snapshot = await opened.source.getSnapshot()
+      const table = snapshot.tables[0]!
+      const view = table.views[0]!
+      const rowIdField = table.fields.find((field) => field.type === "row-id")!
+
+      const updated = await opened.source.updateView(view.id, {
+        filter: {
+          type: "group",
+          conjunction: "and",
+          children: [
+            {
+              type: "group",
+              conjunction: "and",
+              children: [
+                {
+                  type: "rule",
+                  field: rowIdField.id!,
+                  operator: "equals",
+                  value: "123",
+                },
+              ],
+            },
+          ],
+        },
+      })
+
+      expect(updated.tables[0]!.views[0]!.filter).toEqual({
+        type: "group",
+        conjunction: "and",
+        children: [
+          {
+            type: "group",
+            conjunction: "and",
+            children: [
+              {
+                type: "rule",
+                field: rowIdField.id,
+                operator: "equals",
+                value: "123",
+              },
+            ],
+          },
+        ],
+      })
+      await expect(
+        opened.source.getPage(table.table.id, 0, 50, {
+          filter: updated.tables[0]!.views[0]!.filter!,
+        })
+      ).resolves.toMatchObject({ rows: [], total: 0 })
+
+      await opened.close()
+      opened = await openEidosLiteFileRuntime(filePath)
+      const reopenedTable = opened.initialSnapshot.tables[0]!
+      const reopenedFilter = reopenedTable.views[0]!.filter
+      expect(reopenedFilter).toEqual(updated.tables[0]!.views[0]!.filter)
+      await expect(
+        opened.source.getPage(reopenedTable.table.id, 0, 50, {
+          filter: reopenedFilter!,
+        })
+      ).resolves.toMatchObject({ rows: [], total: 0 })
+    } finally {
+      await opened.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("keeps Table display and physical names identical", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-names-"))
     const filePath = path.join(root, "names.eidos")
