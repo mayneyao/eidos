@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron"
+import type { AssetLease } from "@eidos.space/eidos-file"
 
 import {
   EIDOS_LITE_CSV_EXPORT_BYTES_MAX,
@@ -21,6 +22,11 @@ import {
 } from "../shared/contracts"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
 import { eidosLiteLogger, logCorrelationKey } from "./logging"
+import {
+  EIDOS_LITE_ASSET_IMPORT_COUNT_MAX,
+  portableEidosFileAssetName,
+  type EidosFileAssetIdentity,
+} from "./space/eidos-file-attachments"
 import { BackgroundSyncQueue } from "./sync/background-sync-queue"
 import { scheduleCheckpointSyncAfterLocalSave } from "./sync/checkpoint-sync-scheduler"
 import { cloudDisplayNameForLocalSpace } from "./sync/cloud-space-name"
@@ -37,9 +43,20 @@ import type { WindowController } from "./window-controller"
 const runtimeMethods = new Set<RuntimeMethod>(RUNTIME_METHODS)
 const CSV_SOURCE_TTL_MS = 30 * 60_000
 const CSV_SOURCES_PER_WINDOW_MAX = 8
+const ASSET_LEASE_TTL_MS = 5 * 60_000
+const ASSET_LEASES_PER_SESSION_MAX = 16
 
 interface RegisteredCsvSource extends EidosLiteCsvSelection {
   sourcePath: string
+  expiresAtMs: number
+}
+
+interface RegisteredAssetLease {
+  ownerId: number
+  sessionId: string
+  absolutePath: string
+  identity: EidosFileAssetIdentity
+  lease: AssetLease
   expiresAtMs: number
 }
 
@@ -60,6 +77,30 @@ function requiredBytes(value: unknown, label: string): Uint8Array {
     throw new Error(`${label} exceeds the 256 MiB export limit`)
   }
   return new Uint8Array(value)
+}
+
+function requiredAbsolutePaths(value: unknown): string[] {
+  if (
+    !Array.isArray(value) ||
+    value.length < 1 ||
+    value.length > EIDOS_LITE_ASSET_IMPORT_COUNT_MAX ||
+    value.some(
+      (candidate) =>
+        typeof candidate !== "string" || !path.isAbsolute(candidate)
+    )
+  ) {
+    throw new Error("Invalid attachment sources")
+  }
+  return [...new Set(value)]
+}
+
+function requiredAssetPurpose(
+  value: unknown
+): "thumbnail" | "preview" | "download" {
+  if (value !== "thumbnail" && value !== "preview" && value !== "download") {
+    throw new Error("Invalid attachment purpose")
+  }
+  return value
 }
 
 function preferencesPatch(value: unknown): Partial<EidosLitePreferences> {
@@ -134,6 +175,64 @@ export function registerIpc(
   const automaticCheckpointUnsubscribers = new Map<number, () => void>()
   const csvSourcesBySender = new Map<number, Map<string, RegisteredCsvSource>>()
   const csvSourceCleanupSenders = new Set<number>()
+  const assetLeases = new Map<string, RegisteredAssetLease>()
+  const assetLeaseCleanupSenders = new Set<number>()
+  const releaseAssetLeases = (ownerId: number, sessionId?: string) => {
+    for (const [leaseId, record] of assetLeases) {
+      if (
+        record.ownerId === ownerId &&
+        (sessionId === undefined || record.sessionId === sessionId)
+      ) {
+        assetLeases.delete(leaseId)
+      }
+    }
+  }
+  const attachAssetLeaseCleanup = (sender: Electron.WebContents) => {
+    if (assetLeaseCleanupSenders.has(sender.id)) return
+    assetLeaseCleanupSenders.add(sender.id)
+    sender.once("destroyed", () => {
+      releaseAssetLeases(sender.id)
+      assetLeaseCleanupSenders.delete(sender.id)
+    })
+  }
+  const requireAssetLease = (
+    sender: Electron.WebContents,
+    sessionId: string,
+    leaseId: string
+  ): RegisteredAssetLease => {
+    const record = assetLeases.get(leaseId)
+    if (
+      !record ||
+      record.ownerId !== sender.id ||
+      record.sessionId !== sessionId ||
+      record.expiresAtMs <= Date.now()
+    ) {
+      if (record?.expiresAtMs && record.expiresAtMs <= Date.now()) {
+        assetLeases.delete(leaseId)
+      }
+      throw new Error("Attachment lease is invalid or expired")
+    }
+    return record
+  }
+  const assertAssetLeaseFileUnchanged = async (
+    record: RegisteredAssetLease
+  ) => {
+    const [stats, realPath] = await Promise.all([
+      fs.lstat(record.absolutePath),
+      fs.realpath(record.absolutePath),
+    ])
+    if (
+      realPath !== path.resolve(record.absolutePath) ||
+      stats.isSymbolicLink() ||
+      !stats.isFile() ||
+      stats.dev !== record.identity.device ||
+      stats.ino !== record.identity.inode ||
+      stats.size !== record.identity.size ||
+      stats.mtimeMs !== record.identity.modifiedAtMs
+    ) {
+      throw new Error("Attachment changed after the preview lease was issued")
+    }
+  }
   const sourcesForSender = (sender: Electron.WebContents) => {
     let sources = csvSourcesBySender.get(sender.id)
     if (!sources) {
@@ -315,6 +414,7 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.closeFile, (event, sessionId: unknown) => {
     if (typeof sessionId !== "string")
       throw new Error("Invalid runtime session")
+    releaseAssetLeases(event.sender.id, sessionId)
     return controller.requireSession(event.sender).closeEidosFile(sessionId)
   })
   ipcMain.handle(
@@ -378,6 +478,140 @@ export function registerIpc(
       event.sender,
       optionalRelativePath(targetDirectory)
     )
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.selectEidosFileAssets,
+    async (event, value: unknown) => {
+      const sessionId = requiredString(value, "Eidos File session")
+      const session = controller.requireSession(event.sender)
+      const parent = BrowserWindow.fromWebContents(event.sender) ?? undefined
+      const options: Electron.OpenDialogOptions = {
+        title: "Attach existing assets or import files",
+        buttonLabel: "Attach",
+        defaultPath: await session.eidosFileAssetsPath(sessionId),
+        properties: ["openFile", "multiSelections"],
+      }
+      const result = parent
+        ? await dialog.showOpenDialog(parent, options)
+        : await dialog.showOpenDialog(options)
+      if (result.canceled || result.filePaths.length === 0) return []
+      return session.importEidosFileAssets(sessionId, result.filePaths)
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.importEidosFileAssets,
+    (event, sessionValue: unknown, pathsValue: unknown) =>
+      controller
+        .requireSession(event.sender)
+        .importEidosFileAssets(
+          requiredString(sessionValue, "Eidos File session"),
+          requiredAbsolutePaths(pathsValue)
+        )
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.resolveEidosFileAsset,
+    async (
+      event,
+      sessionValue: unknown,
+      entryValue: unknown,
+      purposeValue: unknown
+    ) => {
+      const sessionId = requiredString(sessionValue, "Eidos File session")
+      const entryId = requiredString(entryValue, "File entry")
+      const purpose = requiredAssetPurpose(purposeValue)
+      const activeCount = [...assetLeases.values()].filter(
+        (record) =>
+          record.ownerId === event.sender.id &&
+          record.sessionId === sessionId &&
+          record.expiresAtMs > Date.now()
+      ).length
+      if (activeCount >= ASSET_LEASES_PER_SESSION_MAX) {
+        throw new Error("Concurrent attachment preview limit reached")
+      }
+      const { entry, resolved } = await controller
+        .requireSession(event.sender)
+        .resolveEidosFileAsset(sessionId, entryId, purpose)
+      const leaseId = `eidos-lite-asset-${randomUUID()}`
+      const expiresAtMs = Date.now() + ASSET_LEASE_TTL_MS
+      const lease: AssetLease = {
+        leaseId,
+        entryId: entry.id,
+        purpose,
+        mediaType: entry.mediaType,
+        name: entry.name,
+        size: entry.size,
+        expiresAt: new Date(expiresAtMs).toISOString(),
+        resourceToken: `eidos-lite-resource-${randomUUID()}`,
+      }
+      assetLeases.set(leaseId, {
+        ownerId: event.sender.id,
+        sessionId,
+        absolutePath: resolved.absolutePath,
+        identity: resolved.identity,
+        lease,
+        expiresAtMs,
+      })
+      attachAssetLeaseCleanup(event.sender)
+      return {
+        lease,
+        ...(resolved.bytes ? { bytes: resolved.bytes } : {}),
+      }
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.releaseEidosFileAsset,
+    (event, sessionValue: unknown, leaseValue: unknown) => {
+      const sessionId = requiredString(sessionValue, "Eidos File session")
+      const leaseId = requiredString(leaseValue, "attachment lease")
+      const record = assetLeases.get(leaseId)
+      if (
+        record?.ownerId === event.sender.id &&
+        record.sessionId === sessionId
+      ) {
+        assetLeases.delete(leaseId)
+      }
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.activateEidosFileAsset,
+    async (
+      event,
+      sessionValue: unknown,
+      leaseValue: unknown,
+      actionValue: unknown
+    ) => {
+      const sessionId = requiredString(sessionValue, "Eidos File session")
+      const leaseId = requiredString(leaseValue, "attachment lease")
+      if (actionValue !== "open" && actionValue !== "download") {
+        throw new Error("Invalid attachment action")
+      }
+      const record = requireAssetLease(event.sender, sessionId, leaseId)
+      await assertAssetLeaseFileUnchanged(record)
+      if (
+        (actionValue === "open" && record.lease.purpose !== "preview") ||
+        (actionValue === "download" && record.lease.purpose !== "download")
+      ) {
+        throw new Error("Attachment lease purpose does not allow this action")
+      }
+      if (actionValue === "open") {
+        const failure = await shell.openPath(record.absolutePath)
+        if (failure) throw new Error(failure)
+        return
+      }
+      const parent = BrowserWindow.fromWebContents(event.sender) ?? undefined
+      const options: Electron.SaveDialogOptions = {
+        defaultPath: path.join(
+          app.getPath("downloads"),
+          portableEidosFileAssetName(record.lease.name)
+        ),
+      }
+      const selected = parent
+        ? await dialog.showSaveDialog(parent, options)
+        : await dialog.showSaveDialog(options)
+      if (!selected.canceled && selected.filePath) {
+        await fs.copyFile(record.absolutePath, selected.filePath)
+      }
+    }
   )
   ipcMain.handle(
     IPC_CHANNELS.saveCsv,
@@ -1006,6 +1240,9 @@ export function registerIpc(
     return controller.openPath(event.sender, relativePath)
   })
   return {
-    close: () => syncQueue.close(),
+    async close() {
+      assetLeases.clear()
+      await syncQueue.close()
+    },
   }
 }

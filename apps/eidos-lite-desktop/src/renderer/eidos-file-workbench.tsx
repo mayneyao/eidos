@@ -39,6 +39,10 @@ import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban
 import { Check } from "lucide-react"
 
 import { eidosLiteCsvFileName } from "./csv-workflow"
+import {
+  createEidosLiteAssetSession,
+  eidosLiteAssetPresenter,
+} from "./eidos-file-assets"
 import { shouldFocusEidosFileSearch } from "./eidos-file-workbench-shortcuts"
 import type { IpcEidosFileDataSource } from "./ipc-data-source"
 
@@ -87,6 +91,20 @@ export function EidosFileWorkbench({
   )
   const [reloadToken, setReloadToken] = useState(0)
   const editorRef = useRef<HTMLDivElement>(null)
+  const assetSession = useMemo(
+    () =>
+      createEidosLiteAssetSession(source.sessionId, snapshot.metadata.fileId),
+    [snapshot.metadata.fileId, source.sessionId]
+  )
+  const importFiles = useMemo(
+    () => () => window.eidosLite.selectEidosFileAssets(source.sessionId),
+    [source.sessionId]
+  )
+  const importDroppedFiles = useMemo(
+    () => (files: File[]) =>
+      window.eidosLite.importDroppedEidosFileAssets(source.sessionId, files),
+    [source.sessionId]
+  )
 
   useEffect(() => {
     const handleFind = (event: KeyboardEvent) => {
@@ -331,7 +349,12 @@ export function EidosFileWorkbench({
   }
 
   return (
-    <EidosFileUIProvider locale="en" themeName={theme}>
+    <EidosFileUIProvider
+      locale="en"
+      themeName={theme}
+      assetSession={assetSession}
+      assetPresenter={eidosLiteAssetPresenter}
+    >
       <EidosFileEditorShell
         ref={editorRef}
         className="lite-eidos-file-shell min-h-0 flex-1 !h-auto"
@@ -528,7 +551,7 @@ export function EidosFileWorkbench({
           capabilities={{
             read: true,
             mutate: !disabled,
-            resolveAssets: false,
+            resolveAssets: true,
             rawFile: false,
             nativeFileSystem: false,
           }}
@@ -544,6 +567,8 @@ export function EidosFileWorkbench({
             setAddPropertyOpen(true)
           }}
           onError={onError}
+          onImportFiles={importFiles}
+          onImportDroppedFiles={importDroppedFiles}
         />
       </EidosFileEditorShell>
     </EidosFileUIProvider>

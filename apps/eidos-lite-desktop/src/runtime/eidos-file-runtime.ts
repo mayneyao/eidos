@@ -6,11 +6,15 @@ import { DatabaseSync } from "node:sqlite"
 import {
   ConnectionPortEidosFileConnection,
   createEidosFileCsvImportPlan,
+  decodeEidosFileValues,
   eidosFileCsvRowToEidosFileRow,
+  encodeEidosFileValues,
   EidosFileRuntime,
   EIDOS_FILE_CSV_INFERENCE_ROW_COUNT,
   EIDOS_FILE_CSV_PREVIEW_ROW_COUNT,
   Runtime,
+  quoteIdentifier,
+  type FileEntry,
   type EidosFileCsvImportIssue,
   type EidosFileCsvImportOptions,
   type EidosFileCsvImportPlan,
@@ -687,6 +691,7 @@ export interface EidosLiteFileRuntime {
   initialSnapshot: Awaited<
     ReturnType<EidosRuntimeEditorDataSource["initialize"]>
   >
+  findFileEntry(entryId: string): FileEntry | null
   previewCsvFile(
     source: EidosLiteCsvFileSource,
     options: EidosFileCsvImportOptions,
@@ -723,6 +728,8 @@ async function bindRuntime(
     return {
       source,
       initialSnapshot,
+      findFileEntry: (entryId) =>
+        findEidosFileEntry(connection.database, entryId),
       previewCsvFile: (csvSource, options, operationId) =>
         csv.preview(csvSource, options, operationId),
       importCsvFile: (csvSource, options, operationId) =>
@@ -748,6 +755,54 @@ async function bindRuntime(
     }
     throw error
   }
+}
+
+function findEidosFileEntry(
+  database: DatabaseSync,
+  entryId: string
+): FileEntry | null {
+  const fields = database
+    .prepare(
+      `SELECT t.physical_name AS table_name, f.physical_name AS column_name
+         FROM eidos__fields f
+         JOIN eidos__tables t ON t.id = f.table_id
+        WHERE f.type = 'file' AND f.physical_name IS NOT NULL
+        ORDER BY f.table_id COLLATE BINARY, f.id COLLATE BINARY`
+    )
+    .all() as Array<{ table_name: string; column_name: string }>
+  let matched: FileEntry | null = null
+  for (const field of fields) {
+    const column = quoteIdentifier(field.column_name)
+    const table = quoteIdentifier(field.table_name)
+    const values = database
+      .prepare(
+        `SELECT ${column} AS value
+           FROM ${table}
+          WHERE ${column} IS NOT NULL
+            AND (json_valid(${column}) = 0 OR EXISTS (
+              SELECT 1 FROM json_each(${column}) item
+               WHERE json_extract(item.value, '$.id') = ?
+            ))`
+      )
+      .all(entryId) as Array<{ value: unknown }>
+    for (const row of values) {
+      if (typeof row.value !== "string") {
+        throw new Error("Stored File value is not TEXT")
+      }
+      const entry = decodeEidosFileValues(row.value).find(
+        (candidate) => candidate.id === entryId
+      )
+      if (!entry) continue
+      if (
+        matched &&
+        encodeEidosFileValues([matched]) !== encodeEidosFileValues([entry])
+      ) {
+        throw new Error("File entry ID resolves to conflicting metadata")
+      }
+      matched = entry
+    }
+  }
+  return matched
 }
 
 export async function createEidosLiteFileRuntime(

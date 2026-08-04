@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import { constants as fsConstants } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
+import type { FileEntry } from "@eidos.space/eidos-file"
 
 import type {
   EidosFileIssue,
@@ -38,6 +39,12 @@ import {
 } from "../sync/sync-preflight"
 import { SpaceOperationGate } from "./operation-gate"
 import { SpaceOperationJournal } from "./operation-journal"
+import {
+  eidosFileAssetDirectory,
+  importEidosFileAttachments,
+  resolveEidosFileAttachment,
+  type ResolvedEidosFileAsset,
+} from "./eidos-file-attachments"
 import { SpaceRepositoryCoordinator } from "./repository-coordinator"
 import {
   canonicalizeSpaceRoot,
@@ -78,6 +85,7 @@ const BACKGROUND_GRAFT_IGNORE_DELAY_MS =
   process.env.VITEST || process.env.EIDOS_LITE_SMOKE_RESULT
     ? 0
     : BACKGROUND_GRAFT_STATUS_DELAY_MS + 250
+const PENDING_EIDOS_FILE_ASSETS_PER_SESSION_MAX = 10_000
 
 class AutomaticCheckpointSkipped extends Error {}
 
@@ -110,6 +118,10 @@ export class SpaceSession {
   >()
   private readonly backgroundIgnoreKeys = new Set<string>()
   private readonly directoryEntriesCache = new Map<string, SpaceTreeEntry[]>()
+  private readonly pendingEidosFileAssets = new Map<
+    string,
+    Map<string, FileEntry>
+  >()
   private graftStatusCache: GraftSpaceStatus | null = null
   private lastKnownGraftStatus: GraftSpaceStatus | null = null
   private syncHistoryState: SpaceSyncState | null = null
@@ -628,6 +640,88 @@ export class SpaceSession {
       void this.refreshAndEmit()
     }
     return result
+  }
+
+  async importEidosFileAssets(
+    sessionId: string,
+    sourcePaths: readonly string[]
+  ): Promise<FileEntry[]> {
+    this.assertRuntimeAvailable()
+    this.prioritizeLocalWork()
+    const eidosRelativePath = this.runtimePool.relativePathForSession(sessionId)
+    const imported = await this.gate.withMutation(() =>
+      importEidosFileAttachments(
+        this.canonical.root,
+        eidosRelativePath,
+        sourcePaths
+      )
+    )
+    let pending = this.pendingEidosFileAssets.get(sessionId)
+    if (!pending) {
+      pending = new Map()
+      this.pendingEidosFileAssets.set(sessionId, pending)
+    }
+    for (const entry of imported.entries) {
+      while (
+        !pending.has(entry.id) &&
+        pending.size >= PENDING_EIDOS_FILE_ASSETS_PER_SESSION_MAX
+      ) {
+        const oldestId = pending.keys().next().value
+        if (typeof oldestId !== "string") break
+        pending.delete(oldestId)
+      }
+      pending.set(entry.id, entry)
+    }
+    this.noteLocalChange()
+    void this.refreshAndEmit()
+    return imported.entries
+  }
+
+  eidosFileAssetsPath(sessionId: string): Promise<string> {
+    this.assertRuntimeAvailable()
+    return eidosFileAssetDirectory(
+      this.canonical.root,
+      this.runtimePool.relativePathForSession(sessionId)
+    )
+  }
+
+  async resolveEidosFileAsset(
+    sessionId: string,
+    entryId: string,
+    purpose: "thumbnail" | "preview" | "download"
+  ): Promise<{ entry: FileEntry; resolved: ResolvedEidosFileAsset }> {
+    this.assertRuntimeAvailable()
+    const eidosRelativePath = this.runtimePool.relativePathForSession(sessionId)
+    const persisted = await this.callRuntime(sessionId, "findFileEntry", [
+      entryId,
+    ])
+    const pending = this.pendingEidosFileAssets.get(sessionId)
+    const imported = pending?.get(entryId) ?? null
+    if (
+      persisted &&
+      imported &&
+      (persisted.uri !== imported.uri ||
+        persisted.name !== imported.name ||
+        persisted.mediaType !== imported.mediaType ||
+        persisted.size !== imported.size)
+    ) {
+      throw new Error("Persisted File entry conflicts with its imported asset")
+    }
+    const entry = persisted ?? imported
+    if (!entry) throw new Error("File entry is unavailable")
+    if (persisted && pending) {
+      pending.delete(entryId)
+      if (pending.size === 0) this.pendingEidosFileAssets.delete(sessionId)
+    }
+    return {
+      entry,
+      resolved: await resolveEidosFileAttachment(
+        this.canonical.root,
+        eidosRelativePath,
+        entry,
+        purpose
+      ),
+    }
   }
 
   async enableVersioning(): Promise<SpaceSnapshot> {
@@ -1271,6 +1365,7 @@ export class SpaceSession {
   }
 
   closeEidosFile(sessionId: string): Promise<void> {
+    this.pendingEidosFileAssets.delete(sessionId)
     return this.runtimePool.closeSession(sessionId)
   }
 
@@ -1327,6 +1422,7 @@ export class SpaceSession {
     await this.graft.close()
     this.changeListeners.clear()
     this.automaticCheckpointListeners.clear()
+    this.pendingEidosFileAssets.clear()
     this.fileIssuesByPath.clear()
     this.ignoreInspectionCache.clear()
     this.directoryEntriesCache.clear()

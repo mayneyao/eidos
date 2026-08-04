@@ -329,6 +329,10 @@ export class RuntimePool {
       .map((entry) => entry.relativePath)
   }
 
+  relativePathForSession(sessionId: string): string {
+    return this.requireEntry(sessionId).relativePath
+  }
+
   async verifyCrashRecoveryForTesting(sessionId: string): Promise<boolean> {
     if (!process.env.EIDOS_LITE_SMOKE_RESULT) {
       throw new Error("Runtime crash recovery probe is available only to smoke")

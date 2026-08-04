@@ -1,9 +1,11 @@
 import type {
+  AssetLease,
   EidosFileCsvImportOptions,
   EidosFileCsvImportPlan,
   EidosFileCsvImportResult,
   EidosFileDataSource,
   EidosFileSnapshot,
+  FileEntry,
 } from "@eidos.space/eidos-file"
 
 import type { EidosLiteServiceEnvironment } from "./service-environment"
@@ -49,6 +51,11 @@ export const IPC_CHANNELS = {
   copyPath: "eidos-lite:path-copy",
   deletePath: "eidos-lite:path-delete",
   importFiles: "eidos-lite:path-import",
+  selectEidosFileAssets: "eidos-lite:eidos-file-assets-select",
+  importEidosFileAssets: "eidos-lite:eidos-file-assets-import",
+  resolveEidosFileAsset: "eidos-lite:eidos-file-asset-resolve",
+  releaseEidosFileAsset: "eidos-lite:eidos-file-asset-release",
+  activateEidosFileAsset: "eidos-lite:eidos-file-asset-activate",
   selectCsv: "eidos-lite:csv-select",
   releaseCsv: "eidos-lite:csv-release",
   saveCsv: "eidos-lite:csv-save",
@@ -691,7 +698,16 @@ export interface EidosLiteCsvOperationProgress {
   updatedAt: number
 }
 
+export interface EidosLiteAssetResolution {
+  lease: AssetLease
+  bytes?: Uint8Array
+}
+
 interface RuntimeCustomCalls {
+  findFileEntry: {
+    args: [entryId: string]
+    result: FileEntry | null
+  }
   previewCsv: {
     args: [
       fileName: string,
@@ -742,6 +758,7 @@ interface RuntimeCustomCalls {
 
 export const RUNTIME_READ_METHODS = [
   "getSnapshot",
+  "findFileEntry",
   "getPage",
   "getRow",
   "getGroupCounts",
@@ -901,6 +918,22 @@ export interface EidosLiteApi {
   importFiles(
     targetDirectory: string | null
   ): Promise<SpacePathMutationResult | null>
+  selectEidosFileAssets(sessionId: string): Promise<FileEntry[]>
+  importDroppedEidosFileAssets(
+    sessionId: string,
+    files: readonly File[]
+  ): Promise<FileEntry[]>
+  resolveEidosFileAsset(
+    sessionId: string,
+    entryId: string,
+    purpose: AssetLease["purpose"]
+  ): Promise<EidosLiteAssetResolution>
+  releaseEidosFileAsset(sessionId: string, leaseId: string): Promise<void>
+  activateEidosFileAsset(
+    sessionId: string,
+    leaseId: string,
+    action: "open" | "download"
+  ): Promise<void>
   selectCsvFile(): Promise<EidosLiteCsvSelection | null>
   releaseCsvFile(token: string): Promise<void>
   saveCsvFile(suggestedName: string, bytes: Uint8Array): Promise<boolean>

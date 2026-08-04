@@ -138,6 +138,10 @@ async function runtimeCall(
   switch (method) {
     case "getSnapshot":
       return dataSource.getSnapshot()
+    case "findFileEntry":
+      return requireRuntime().findFileEntry(
+        requireString(args[0], "File entry ID")
+      )
     case "getPage": {
       const tableId = requireString(args[0], "tableId")
       const offset = requireInteger(args[1], "offset")

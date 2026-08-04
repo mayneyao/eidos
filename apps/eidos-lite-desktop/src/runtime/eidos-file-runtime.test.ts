@@ -4,6 +4,10 @@ import path from "node:path"
 import { performance } from "node:perf_hooks"
 import { DatabaseSync } from "node:sqlite"
 import { vi } from "vitest"
+import {
+  createEidosFileUuid,
+  encodeEidosFileValues,
+} from "@eidos.space/eidos-file"
 
 import {
   createEidosLiteFileRuntime,
@@ -11,6 +15,39 @@ import {
 } from "./eidos-file-runtime"
 
 describe("Eidos Lite Runtime 1.0 editor adapter", () => {
+  it("finds persisted File entries by stable ID and rejects unknown IDs", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-files-"))
+    const filePath = path.join(root, "files.eidos")
+    const opened = await createEidosLiteFileRuntime(filePath, "Files")
+    try {
+      let snapshot = await opened.source.getSnapshot()
+      const tableId = snapshot.tables[0]!.table.id
+      snapshot = await opened.source.addField(tableId, {
+        name: "Files",
+        type: "file",
+      })
+      const field = snapshot.tables[0]!.fields.find(
+        (candidate) => candidate.name === "Files"
+      )!
+      const entry = {
+        id: createEidosFileUuid(),
+        uri: "assets/photo.png",
+        name: "photo.png",
+        mediaType: "image/png",
+        size: "9",
+      }
+      await opened.source.insertRow(tableId, {
+        [field.id!]: encodeEidosFileValues([entry]),
+      })
+
+      expect(opened.findFileEntry(entry.id)).toEqual(entry)
+      expect(opened.findFileEntry(createEidosFileUuid())).toBeNull()
+    } finally {
+      await opened.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("creates scalar record labels and performs canonical field conversions", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-runtime-"))
     const filePath = path.join(root, "regression.eidos")

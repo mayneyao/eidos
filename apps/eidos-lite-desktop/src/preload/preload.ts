@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron"
+import { contextBridge, ipcRenderer, webUtils } from "electron"
 
 import {
   IPC_CHANNELS,
@@ -88,6 +88,39 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.deletePath, relativePath),
   importFiles: (targetDirectory) =>
     ipcRenderer.invoke(IPC_CHANNELS.importFiles, targetDirectory),
+  selectEidosFileAssets: (sessionId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.selectEidosFileAssets, sessionId),
+  importDroppedEidosFileAssets: (sessionId, files) => {
+    const sourcePaths = files.map((file) => webUtils.getPathForFile(file))
+    if (sourcePaths.some((sourcePath) => !sourcePath)) {
+      return Promise.reject(
+        new Error(
+          "Only files dropped from the operating system can be attached"
+        )
+      )
+    }
+    return ipcRenderer.invoke(
+      IPC_CHANNELS.importEidosFileAssets,
+      sessionId,
+      sourcePaths
+    )
+  },
+  resolveEidosFileAsset: (sessionId, entryId, purpose) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.resolveEidosFileAsset,
+      sessionId,
+      entryId,
+      purpose
+    ),
+  releaseEidosFileAsset: (sessionId, leaseId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.releaseEidosFileAsset, sessionId, leaseId),
+  activateEidosFileAsset: (sessionId, leaseId, action) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.activateEidosFileAsset,
+      sessionId,
+      leaseId,
+      action
+    ),
   selectCsvFile: () => ipcRenderer.invoke(IPC_CHANNELS.selectCsv),
   releaseCsvFile: (token) => ipcRenderer.invoke(IPC_CHANNELS.releaseCsv, token),
   saveCsvFile: (suggestedName, bytes) =>
