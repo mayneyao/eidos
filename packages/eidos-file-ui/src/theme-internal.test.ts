@@ -3,6 +3,16 @@
 import { resolveEidosFileGridTheme } from "./theme-internal"
 
 describe("Eidos File Grid theme adapter", () => {
+  it("keeps fallback colors compatible with Glide Canvas", () => {
+    const lightTheme = resolveEidosFileGridTheme("light", null)
+    const darkTheme = resolveEidosFileGridTheme("dark", null)
+
+    expect(lightTheme.bgCell).toBe("rgb(246, 249, 253)")
+    expect(darkTheme.bgCell).toBe("rgb(20, 25, 31)")
+    expect(Object.values(lightTheme).join(" ")).not.toContain("oklch(")
+    expect(Object.values(darkTheme).join(" ")).not.toContain("oklch(")
+  })
+
   it("resolves Canvas colors from the active Eidos File theme root", () => {
     const root = document.createElement("section")
     root.dataset.eidosFileRoot = ""
@@ -31,6 +41,35 @@ describe("Eidos File Grid theme adapter", () => {
   })
 
   it("resolves host variable chains before passing colors to Canvas", () => {
+    const colorPixels = new Map<string, readonly [number, number, number]>([
+      ["oklch(1 0 0)", [255, 255, 255]],
+      ["oklch(0.2 0.012 230)", [18, 24, 27]],
+      ["oklch(0.5 0.105 210)", [0, 126, 145]],
+      ["oklch(0.17 0.012 230)", [12, 18, 21]],
+      ["oklch(0.92 0.008 220)", [226, 231, 232]],
+      ["oklch(0.74 0.095 205)", [63, 194, 211]],
+    ])
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
+      () => {
+        let fillStyle = "#000000"
+        return {
+          clearRect: vi.fn(),
+          fillRect: vi.fn(),
+          get fillStyle() {
+            return fillStyle
+          },
+          set fillStyle(value: string | CanvasGradient | CanvasPattern) {
+            fillStyle = String(value)
+          },
+          getImageData: () => ({
+            data: new Uint8ClampedArray([
+              ...(colorPixels.get(fillStyle) ?? [0, 0, 0]),
+              255,
+            ]),
+          }),
+        } as unknown as CanvasRenderingContext2D
+      }
+    )
     const root = document.createElement("section")
     root.dataset.eidosFileRoot = ""
     root.style.setProperty(
@@ -61,12 +100,12 @@ describe("Eidos File Grid theme adapter", () => {
     const lightTheme = resolveEidosFileGridTheme("light", root)
     const darkTheme = resolveEidosFileGridTheme("dark", root)
 
-    expect(lightTheme.bgCell).toBe("oklch(1 0 0)")
-    expect(lightTheme.textDark).toBe("oklch(0.2 0.012 230)")
-    expect(lightTheme.accentColor).toBe("oklch(0.5 0.105 210)")
-    expect(darkTheme.bgCell).toBe("oklch(0.17 0.012 230)")
-    expect(darkTheme.textDark).toBe("oklch(0.92 0.008 220)")
-    expect(darkTheme.accentColor).toBe("oklch(0.74 0.095 205)")
+    expect(lightTheme.bgCell).toBe("rgb(255, 255, 255)")
+    expect(lightTheme.textDark).toBe("rgb(18, 24, 27)")
+    expect(lightTheme.accentColor).toBe("rgb(0, 126, 145)")
+    expect(darkTheme.bgCell).toBe("rgb(12, 18, 21)")
+    expect(darkTheme.textDark).toBe("rgb(226, 231, 232)")
+    expect(darkTheme.accentColor).toBe("rgb(63, 194, 211)")
     expect(Object.values(lightTheme).join(" ")).not.toContain("var(")
     expect(Object.values(darkTheme).join(" ")).not.toContain("var(")
 

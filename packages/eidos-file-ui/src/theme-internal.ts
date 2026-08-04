@@ -18,24 +18,24 @@ const commonTheme = {
 
 const fallback = {
   light: {
-    background: "oklch(0.982 0.006 255)",
-    foreground: "oklch(0.25 0.018 255)",
-    muted: "oklch(0.95 0.009 255)",
-    mutedForeground: "oklch(0.52 0.02 255)",
-    accent: "oklch(0.92 0.022 255)",
-    border: "oklch(0.88 0.012 255)",
-    primary: "oklch(0.43 0.09 255)",
-    primaryForeground: "oklch(0.985 0.005 255)",
+    background: "rgb(246, 249, 253)",
+    foreground: "rgb(28, 34, 42)",
+    muted: "rgb(234, 239, 245)",
+    mutedForeground: "rgb(97, 106, 117)",
+    accent: "rgb(219, 230, 243)",
+    border: "rgb(210, 216, 223)",
+    primary: "rgb(43, 81, 128)",
+    primaryForeground: "rgb(248, 250, 254)",
   },
   dark: {
-    background: "oklch(0.21 0.014 255)",
-    foreground: "oklch(0.92 0.01 255)",
-    muted: "oklch(0.275 0.016 255)",
-    mutedForeground: "oklch(0.69 0.02 255)",
-    accent: "oklch(0.31 0.025 255)",
-    border: "oklch(0.34 0.017 255)",
-    primary: "oklch(0.76 0.08 255)",
-    primaryForeground: "oklch(0.2 0.018 255)",
+    background: "rgb(20, 25, 31)",
+    foreground: "rgb(224, 229, 235)",
+    muted: "rgb(34, 40, 48)",
+    mutedForeground: "rgb(147, 156, 168)",
+    accent: "rgb(40, 49, 61)",
+    border: "rgb(50, 57, 65)",
+    primary: "rgb(143, 180, 228)",
+    primaryForeground: "rgb(17, 22, 30)",
   },
 } as const
 
@@ -122,6 +122,43 @@ function resolveCssValue(
   }).trim()
 }
 
+let colorConversionContext: CanvasRenderingContext2D | null | undefined
+
+function browserColorConversionContext(): CanvasRenderingContext2D | null {
+  if (colorConversionContext !== undefined) return colorConversionContext
+  if (typeof document === "undefined") return null
+  try {
+    const canvas = document.createElement("canvas")
+    canvas.width = 1
+    canvas.height = 1
+    colorConversionContext = canvas.getContext("2d", {
+      willReadFrequently: true,
+    })
+  } catch {
+    colorConversionContext = null
+  }
+  return colorConversionContext
+}
+
+function glideCompatibleColor(value: string, fallbackValue: string): string {
+  if (/^(?:#|rgba?\(|hsla?\(|[a-z]+$)/i.test(value)) return value
+  const context = browserColorConversionContext()
+  if (!context) return value
+  const sentinel = "#010203"
+  try {
+    context.clearRect(0, 0, 1, 1)
+    context.fillStyle = sentinel
+    context.fillStyle = value
+    if (context.fillStyle === sentinel) return fallbackValue
+    context.fillRect(0, 0, 1, 1)
+    const [red, green, blue, alpha] = context.getImageData(0, 0, 1, 1).data
+    if (alpha === 255) return `rgb(${red}, ${green}, ${blue})`
+    return `rgba(${red}, ${green}, ${blue}, ${alpha / 255})`
+  } catch {
+    return fallbackValue
+  }
+}
+
 function cssColor(
   styles: CSSStyleDeclaration | null,
   name: string,
@@ -138,9 +175,9 @@ function cssColor(
       resolved
     )
   ) {
-    return resolved
+    return glideCompatibleColor(resolved, fallbackValue)
   }
-  return `hsl(${resolved})`
+  return glideCompatibleColor(`hsl(${resolved})`, fallbackValue)
 }
 
 function themeSource(

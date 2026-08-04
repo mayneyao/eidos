@@ -1693,7 +1693,7 @@ describe("EidosFileGrid", () => {
     expect(loadPage).toHaveBeenCalledWith(200, 100)
     expect(mocks.props?.highlightRegions).toMatchObject([
       {
-        color: `color-mix(in srgb, ${mocks.props?.theme?.accentColor} 14%, transparent)`,
+        color: "rgba(43, 81, 128, 0.14)",
         range: { x: 0, y: 180, width: 2, height: 1 },
       },
     ])
@@ -1802,7 +1802,7 @@ describe("EidosFileGrid", () => {
     act(() => mocks.props?.onDragOverCell?.([2, 0], transfer))
     expect(mocks.props?.highlightRegions).toMatchObject([
       {
-        color: `color-mix(in srgb, ${mocks.props?.theme?.accentColor} 18%, transparent)`,
+        color: "rgba(43, 81, 128, 0.18)",
         range: { x: 2, y: 0, width: 1, height: 1 },
       },
     ])

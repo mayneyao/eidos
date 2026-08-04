@@ -110,6 +110,10 @@ function themeColorWithAlpha(color: string, alpha: number): string {
     const openParen = normalized.indexOf("(")
     const body = normalized.slice(openParen + 1, -1)
     if (!body.includes("/")) {
+      if (body.includes(",")) {
+        const functionName = normalized.startsWith("rgb(") ? "rgba" : "hsla"
+        return `${functionName}(${body}, ${alpha})`
+      }
       return `${normalized.slice(0, openParen + 1)}${body} / ${alpha})`
     }
   }
