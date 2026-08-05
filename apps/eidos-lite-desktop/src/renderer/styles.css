@@ -3803,6 +3803,8 @@ button:focus-visible {
 }
 
 .version-panel-changes .checkpoint-form {
+  align-self: end;
+  align-content: start;
   padding: 0.6rem 0.65rem 0.7rem;
   background: var(--canvas);
 }
