@@ -475,6 +475,17 @@ export function registerIpc(
         .requireSession(event.sender)
         .loadDirectory(requiredString(relativePath, "Space directory"))
   )
+  ipcMain.handle(
+    IPC_CHANNELS.searchPaths,
+    (event, query: unknown, limit: unknown) => {
+      if (typeof query !== "string") throw new Error("Invalid search query")
+      const normalizedLimit =
+        typeof limit === "number" && Number.isFinite(limit) ? limit : undefined
+      return controller
+        .requireSession(event.sender)
+        .searchPaths(query, normalizedLimit)
+    }
+  )
   ipcMain.handle(IPC_CHANNELS.takeLaunchFile, (event) =>
     controller.takeLaunchEidosFile(event.sender)
   )

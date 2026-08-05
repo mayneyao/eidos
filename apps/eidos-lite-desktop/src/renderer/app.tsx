@@ -73,6 +73,7 @@ import {
   type NavigationSnapshot,
 } from "./navigation-history"
 import { RecentFilesEmptyState } from "./recent-files-empty-state"
+import { QuickOpen } from "./quick-open"
 import {
   loadRecentFiles,
   rememberRecentFile,
@@ -638,6 +639,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [recentSpaces, setRecentSpaces] = useState<RecentSpaceEntry[]>([])
   const [busyFile, setBusyFile] = useState<string | null>(null)
   const [versionPanelOpen, setVersionPanelOpen] = useState(false)
+  const [quickOpenVisible, setQuickOpenVisible] = useState(false)
   const [versionInspection, setVersionInspection] =
     useState<VersionInspection | null>(null)
   const [syncPanelMode, setSyncPanelMode] = useState<"enable" | "clone" | null>(
@@ -1400,6 +1402,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         ) {
           setPathDialog({ action: "create-file", entry: selectedEntry })
         }
+        return
+      }
+      if (workspaceShortcut === "quick-open" && space) {
+        event.preventDefault()
+        setQuickOpenVisible((current) => !current)
         return
       }
       if (workspaceShortcut === "toggle-theme") {
@@ -2259,6 +2266,20 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             <Trash2 /> Move to Trash
           </button>
         </div>
+      ) : null}
+      {quickOpenVisible && space ? (
+        <QuickOpen
+          recentFiles={recentFiles}
+          onClose={() => setQuickOpenVisible(false)}
+          onOpen={(selection) => {
+            setQuickOpenVisible(false)
+            void openEntry({
+              ...selection,
+              size: 0,
+              modifiedAtMs: 0,
+            })
+          }}
+        />
       ) : null}
       {pathDialog ? (
         <PathActionDialog

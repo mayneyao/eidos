@@ -17,6 +17,7 @@ import type {
   RuntimeMethod,
   SpaceSnapshot,
   SpacePathMutationResult,
+  SpacePathSearchHit,
   SpaceVersionDiff,
   SpaceVersionHistory,
   SpaceVersionPathChange,
@@ -64,6 +65,7 @@ import {
   resolveSpacePath,
   type CanonicalSpace,
 } from "./space-paths"
+import { SpacePathIndex } from "./path-search"
 import { SpaceWatcher } from "./space-watcher"
 import { StableCheckpointScheduler } from "./stable-checkpoint-scheduler"
 import { type SpaceSyncState, SpaceSyncStateStore } from "./sync-state"
@@ -132,6 +134,7 @@ export class SpaceSession {
   readonly runtimePool: RuntimePool
   readonly gate: SpaceOperationGate
   private readonly watcher: SpaceWatcher
+  private readonly pathIndex: SpacePathIndex
   private readonly repository: SpaceRepositoryCoordinator
   private readonly checkpointScheduler: StableCheckpointScheduler
   private readonly syncState: SpaceSyncStateStore
@@ -181,6 +184,7 @@ export class SpaceSession {
   ) {
     this.automaticCheckpointsEnabled = automaticCheckpointsEnabled
     this.runtimePool = new RuntimePool(canonical.root, workerPath)
+    this.pathIndex = new SpacePathIndex(canonical.root)
     this.repository = new SpaceRepositoryCoordinator()
     this.syncState = new SpaceSyncStateStore(
       stateDirectory,
@@ -211,6 +215,7 @@ export class SpaceSession {
     this.watcher = new SpaceWatcher(
       canonical.root,
       (relativePaths) => {
+        void this.pathIndex.applyChanges(relativePaths).catch(() => undefined)
         const directoriesToRefresh =
           this.invalidateDirectoryCaches(relativePaths)
         this.invalidateGraftStatusCache()
@@ -274,6 +279,7 @@ export class SpaceSession {
         .read()
         .catch(() => null)
       session.watcher.start()
+      void session.pathIndex.ensureScanned().catch(() => undefined)
       return session
     } catch (error) {
       await session.close().catch(() => undefined)
@@ -305,6 +311,15 @@ export class SpaceSession {
       this.refreshInFlight = null
     })
     return this.refreshInFlight
+  }
+
+  async searchPaths(
+    query: string,
+    limit?: number
+  ): Promise<SpacePathSearchHit[]> {
+    if (this.closed) throw new Error("Space is closed")
+    await this.pathIndex.ensureScanned()
+    return this.pathIndex.search(query, limit)
   }
 
   async refresh(): Promise<SpaceSnapshot> {

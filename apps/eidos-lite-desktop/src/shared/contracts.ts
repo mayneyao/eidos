@@ -43,6 +43,7 @@ export const IPC_CHANNELS = {
   refreshSpace: "eidos-lite:space-refresh",
   refreshExplorer: "eidos-lite:space-explorer-refresh",
   loadSpaceDirectory: "eidos-lite:space-directory-load",
+  searchPaths: "eidos-lite:space-paths-search",
   spaceChanged: "eidos-lite:space-changed",
   navigationCommand: "eidos-lite:navigation-command",
   launchFileAvailable: "eidos-lite:launch-file-available",
@@ -103,6 +104,13 @@ export const IPC_CHANNELS = {
 
 export type SpaceEntryKind = "directory" | "eidos" | "file" | "symlink"
 export type EidosLiteNavigationDirection = "back" | "forward"
+
+export interface SpacePathSearchHit {
+  relativePath: string
+  name: string
+  kind: Exclude<SpaceEntryKind, "directory">
+  score: number
+}
 
 export interface SpaceTreeEntry {
   name: string
@@ -971,6 +979,7 @@ export interface EidosLiteApi {
   refreshSpace(): Promise<SpaceSnapshot | null>
   refreshExplorer(): Promise<SpaceSnapshot | null>
   loadSpaceDirectory(relativePath: string): Promise<SpaceSnapshot>
+  searchSpacePaths(query: string, limit?: number): Promise<SpacePathSearchHit[]>
   onSpaceChanged(listener: (snapshot: SpaceSnapshot) => void): () => void
   onNavigationCommand(
     listener: (direction: EidosLiteNavigationDirection) => void

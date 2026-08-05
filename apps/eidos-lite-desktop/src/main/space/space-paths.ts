@@ -133,7 +133,7 @@ export function resolveSpacePath(root: string, relativePath: string): string {
   return candidate
 }
 
-function isHiddenImplementationEntry(name: string): boolean {
+export function isHiddenImplementationEntry(name: string): boolean {
   return HIDDEN_IMPLEMENTATION_NAMES.has(name) || LOCAL_NOISE_NAMES.has(name)
 }
 

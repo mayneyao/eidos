@@ -5118,3 +5118,110 @@ button:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+.quick-open-backdrop {
+  position: fixed;
+  z-index: 95;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  inset: 0;
+  padding-top: 12vh;
+  background: var(--backdrop);
+}
+
+.quick-open-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: min(26rem, 70vh);
+  overflow: hidden;
+  border: 1px solid var(--hairline);
+  border-radius: 0.75rem;
+  color: var(--ink);
+  background: var(--canvas);
+  box-shadow: var(--elevation-shadow-strong);
+}
+
+.quick-open-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.quick-open-input-row input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+}
+
+.quick-open-input-row svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--ink-muted);
+}
+
+.quick-open-results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+}
+
+.quick-open-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 0;
+  border-radius: 0.375rem;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.quick-open-item[data-selected="true"] {
+  background: var(--surface-selected);
+}
+
+.quick-open-item svg {
+  flex: 0 0 auto;
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--ink-muted);
+}
+
+.quick-open-item-name {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-open-item-dir {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-muted);
+  font-size: 0.75em;
+}
+
+.quick-open-empty {
+  padding: 0.75rem;
+  color: var(--ink-muted);
+  font-size: 0.8125rem;
+  text-align: center;
+}

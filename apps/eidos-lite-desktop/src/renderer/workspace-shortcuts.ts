@@ -10,6 +10,7 @@ import {
 export type WorkspaceShortcut = Extract<
   EidosLiteShortcutCommand,
   | "new-file"
+  | "quick-open"
   | "toggle-sidebar"
   | "toggle-theme"
   | "toggle-version"
@@ -36,6 +37,7 @@ export function workspaceShortcutForKeyboardEvent(
     macos
   )
   return command === "new-file" ||
+    command === "quick-open" ||
     command === "toggle-sidebar" ||
     command === "toggle-theme" ||
     command === "toggle-version" ||

@@ -1,5 +1,6 @@
 export const EIDOS_LITE_SHORTCUT_COMMANDS = [
   "new-file",
+  "quick-open",
   "toggle-sidebar",
   "toggle-theme",
   "toggle-version",
@@ -17,6 +18,7 @@ export type EidosLiteKeyboardShortcuts = Record<
 export const DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS: EidosLiteKeyboardShortcuts =
   Object.freeze({
     "new-file": "Mod+N",
+    "quick-open": "Mod+P",
     "toggle-sidebar": "Mod+Backslash",
     "toggle-theme": "Mod+Shift+L",
     "toggle-version": "Mod+Shift+H",
