@@ -44,7 +44,12 @@ describe("QuickOpen", () => {
       name: string
       relativePath: string
     }) => void
+    onOpenTable?: (tableId: string) => void
     onClose?: () => void
+    activeTableSource?: {
+      relativePath: string
+      tables: { tableId: string; name: string }[]
+    } | null
   }) {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     host = document.createElement("div")
@@ -54,7 +59,9 @@ describe("QuickOpen", () => {
       root?.render(
         createElement(QuickOpen, {
           recentFiles,
+          activeTableSource: props.activeTableSource ?? null,
           onOpen: props.onOpen ?? (() => undefined),
+          onOpenTable: props.onOpenTable ?? (() => undefined),
           onClose: props.onClose ?? (() => undefined),
         })
       )
@@ -175,5 +182,58 @@ describe("QuickOpen", () => {
       await new Promise((resolve) => setTimeout(resolve, 150))
     })
     expect(host?.textContent).toContain("No matching files")
+  })
+
+  it("lists active Eidos File tables before any query is typed", async () => {
+    await renderQuickOpen({
+      activeTableSource: {
+        relativePath: "data/crm.eidos",
+        tables: [
+          { tableId: "tbl-1", name: "backlogs" },
+          { tableId: "tbl-2", name: "contacts" },
+        ],
+      },
+    })
+    const text = host?.textContent ?? ""
+    expect(text).toContain("backlogs")
+    expect(text).toContain("contacts")
+    expect(text).toContain("data/crm.eidos")
+    expect(text.indexOf("backlogs")).toBeLessThan(text.indexOf("readme.md"))
+  })
+
+  it("filters tables with a fuzzy query and jumps with Enter", async () => {
+    const searchSpacePaths = vi.fn().mockResolvedValue([])
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: { searchSpacePaths } as unknown as EidosLiteApi,
+    })
+    const onOpenTable = vi.fn()
+    const onOpen = vi.fn()
+    await renderQuickOpen({
+      onOpen,
+      onOpenTable,
+      activeTableSource: {
+        relativePath: "data/crm.eidos",
+        tables: [
+          { tableId: "tbl-1", name: "backlogs" },
+          { tableId: "tbl-2", name: "contacts" },
+        ],
+      },
+    })
+    const input = host?.querySelector<HTMLInputElement>(
+      'input[aria-label="Search files by name"]'
+    )
+    await act(async () => {
+      setInputValue(input!, "ctc")
+      await new Promise((resolve) => setTimeout(resolve, 150))
+    })
+    expect(host?.textContent).toContain("contacts")
+    expect(host?.textContent).not.toContain("backlogs")
+
+    await act(async () => {
+      keyDown(input!, "Enter")
+    })
+    expect(onOpenTable).toHaveBeenCalledWith("tbl-2")
+    expect(onOpen).not.toHaveBeenCalled()
   })
 })

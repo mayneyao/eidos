@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 
-import { Database, FileText, LoaderCircle } from "lucide-react"
+import { Database, FileText, LoaderCircle, Table2 } from "lucide-react"
 
 import type { SpacePathSearchHit, SpaceTreeEntry } from "../shared/contracts"
 import type { RecentFileEntry } from "./recent-files"
@@ -10,6 +10,11 @@ export type QuickOpenSelection = Pick<
   "kind" | "name" | "relativePath"
 >
 
+export interface QuickOpenTableSource {
+  relativePath: string
+  tables: { tableId: string; name: string }[]
+}
+
 const QUICK_OPEN_DEBOUNCE_MS = 80
 const QUICK_OPEN_RESULT_LIMIT = 50
 
@@ -17,6 +22,7 @@ interface QuickOpenItem {
   relativePath: string
   name: string
   kind: SpacePathSearchHit["kind"]
+  tableId?: string
 }
 
 export function quickOpenItemToSelection(
@@ -29,13 +35,35 @@ export function quickOpenItemToSelection(
   }
 }
 
+export function filterQuickOpenTables(
+  tables: QuickOpenTableSource["tables"],
+  query: string
+): QuickOpenTableSource["tables"] {
+  const needle = query.trim().toLowerCase()
+  if (!needle) return tables
+  return tables.filter((table) => {
+    const name = table.name.toLowerCase()
+    let cursor = 0
+    for (const character of needle) {
+      const index = name.indexOf(character, cursor)
+      if (index === -1) return false
+      cursor = index + 1
+    }
+    return true
+  })
+}
+
 export function QuickOpen({
   recentFiles,
+  activeTableSource,
   onOpen,
+  onOpenTable,
   onClose,
 }: {
   recentFiles: RecentFileEntry[]
+  activeTableSource?: QuickOpenTableSource | null
   onOpen(selection: QuickOpenSelection): void
+  onOpenTable?(tableId: string): void
   onClose(): void
 }) {
   const [query, setQuery] = useState("")
@@ -44,6 +72,19 @@ export function QuickOpen({
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const requestIdRef = useRef(0)
+
+  const tableItems = useMemo<QuickOpenItem[]>(
+    () =>
+      filterQuickOpenTables(activeTableSource?.tables ?? [], query).map(
+        (table) => ({
+          relativePath: activeTableSource?.relativePath ?? "",
+          name: table.name,
+          kind: "eidos" as const,
+          tableId: table.tableId,
+        })
+      ),
+    [activeTableSource, query]
+  )
 
   const recentItems = useMemo<QuickOpenItem[]>(
     () =>
@@ -56,7 +97,9 @@ export function QuickOpen({
   )
 
   const trimmedQuery = query.trim()
-  const items = trimmedQuery ? results : recentItems
+  const items = trimmedQuery
+    ? [...tableItems, ...results]
+    : [...tableItems, ...recentItems]
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -101,6 +144,10 @@ export function QuickOpen({
 
   const pick = (item: QuickOpenItem | undefined) => {
     if (!item) return
+    if (item.tableId) {
+      onOpenTable?.(item.tableId)
+      return
+    }
     onOpen(quickOpenItemToSelection(item))
   }
 
@@ -165,12 +212,14 @@ export function QuickOpen({
             </li>
           ) : (
             items.map((item, index) => {
-              const directory = item.relativePath.slice(
-                0,
-                item.relativePath.length - item.name.length
-              )
+              const directory = item.tableId
+                ? item.relativePath
+                : item.relativePath.slice(
+                    0,
+                    item.relativePath.length - item.name.length
+                  )
               return (
-                <li key={item.relativePath} role="presentation">
+                <li key={item.tableId ?? item.relativePath} role="presentation">
                   <button
                     type="button"
                     id={`quick-open-item-${index}`}
@@ -181,7 +230,9 @@ export function QuickOpen({
                     onMouseEnter={() => setSelectedIndex(index)}
                     onClick={() => pick(item)}
                   >
-                    {item.kind === "eidos" ? (
+                    {item.tableId ? (
+                      <Table2 aria-hidden="true" />
+                    ) : item.kind === "eidos" ? (
                       <Database aria-hidden="true" />
                     ) : (
                       <FileText aria-hidden="true" />

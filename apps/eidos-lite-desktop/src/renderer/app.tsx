@@ -2273,6 +2273,17 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       {quickOpenVisible && space ? (
         <QuickOpen
           recentFiles={recentFiles}
+          activeTableSource={
+            activeFile
+              ? {
+                  relativePath: activeFile.relativePath,
+                  tables: activeFile.snapshot.tables.map((table) => ({
+                    tableId: table.table.id,
+                    name: table.table.name,
+                  })),
+                }
+              : null
+          }
           onClose={() => setQuickOpenVisible(false)}
           onOpen={(selection) => {
             setQuickOpenVisible(false)
@@ -2281,6 +2292,16 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               size: 0,
               modifiedAtMs: 0,
             })
+          }}
+          onOpenTable={(tableId) => {
+            setQuickOpenVisible(false)
+            const sessionId = activeFile?.sessionId
+            if (!sessionId) return
+            setCachedFiles((current) =>
+              current.map((file) =>
+                file.sessionId === sessionId ? { ...file, tableId } : file
+              )
+            )
           }}
         />
       ) : null}
