@@ -224,6 +224,7 @@ const EidosFileKanbanCardItem = memo(function EidosFileKanbanCardItem({
   index,
   groupKey,
   disabled,
+  moveBusy,
   table,
   view,
   cardLayout,
@@ -237,6 +238,7 @@ const EidosFileKanbanCardItem = memo(function EidosFileKanbanCardItem({
   index: number
   groupKey: string
   disabled: boolean
+  moveBusy?: boolean
   table: EidosFileTableSnapshot
   view: EidosFileViewInfo
   cardLayout: EidosFileRecordCardLayout
@@ -257,7 +259,12 @@ const EidosFileKanbanCardItem = memo(function EidosFileKanbanCardItem({
       index={index}
       parent={groupKey}
       disabled={disabled}
-      className="rounded-lg border-0 bg-transparent shadow-none"
+      className={cn(
+        "rounded-lg border-0 bg-transparent shadow-none",
+        // A move-in-flight lock disables dragging without dimming the column;
+        // the dim would read as a flash every time a card is saved.
+        moveBusy && "opacity-100"
+      )}
     >
       <EidosFileRecordCard
         row={row}
@@ -283,6 +290,7 @@ interface EidosFileKanbanVirtualCardProps {
   virtualIndex: number
   offset: number
   disabled: boolean
+  moveBusy?: boolean
   table: EidosFileTableSnapshot
   view: EidosFileViewInfo
   cardLayout: EidosFileRecordCardLayout
@@ -312,6 +320,7 @@ function kanbanVirtualCardPropsEqual(
     previous.virtualIndex !== next.virtualIndex ||
     previous.offset !== next.offset ||
     previous.disabled !== next.disabled ||
+    previous.moveBusy !== next.moveBusy ||
     previous.group.key !== next.group.key ||
     previous.group.total !== next.group.total ||
     previous.table !== next.table ||
@@ -341,6 +350,7 @@ const EidosFileKanbanVirtualCard = memo(function EidosFileKanbanVirtualCard({
   virtualIndex,
   offset,
   disabled,
+  moveBusy,
   table,
   view,
   cardLayout,
@@ -378,6 +388,7 @@ const EidosFileKanbanVirtualCard = memo(function EidosFileKanbanVirtualCard({
           index={globalCardIndex}
           groupKey={group.key}
           disabled={disabled}
+          moveBusy={moveBusy}
           table={table}
           view={view}
           cardLayout={cardLayout}
@@ -547,6 +558,7 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
   view,
   cardLayout,
   disabled,
+  moveBusy,
   width,
   color,
   onOpen,
@@ -566,6 +578,7 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
   view: EidosFileViewInfo
   cardLayout: EidosFileRecordCardLayout
   disabled: boolean
+  moveBusy?: boolean
   width: number
   color: string
   onOpen: (row: EidosFileRow) => void
@@ -784,6 +797,7 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
                       virtualIndex={virtualItem.index}
                       offset={virtualCardOffset(virtualItem)}
                       disabled={disabled}
+                      moveBusy={moveBusy}
                       table={table}
                       view={view}
                       cardLayout={cardLayout}
@@ -1463,8 +1477,9 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
           if (group.key === target.key) {
             // A scrolled column keeps its window anchored: wiping the rows and
             // restarting at offset 0 would flash the column back to the top
-            // before the authoritative reload lands.
-            const anchored = group.startOffset !== 0
+            // before the authoritative reload lands. An empty window instead
+            // shows the moved card immediately instead of a loading spinner.
+            const anchored = group.startOffset !== 0 && group.rows.length > 0
             const retainedRows = anchored
               ? group.rows
               : group.rows.filter(
@@ -1478,6 +1493,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
                     0,
                     KANBAN_MAX_WINDOW_ROWS
                   ),
+              startOffset: anchored ? group.startOffset : 0,
               total: group.total + 1,
               loaded: true,
               needsReload: true,
@@ -1810,6 +1826,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
                         disabled={
                           disabled || movingGroupKeys?.has(group.key) === true
                         }
+                        moveBusy={movingGroupKeys?.has(group.key) === true}
                         width={columnWidth}
                         color={eidosFileOptionColor(group.color, theme)}
                         onOpen={openInspectorRow}
