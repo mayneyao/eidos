@@ -506,6 +506,71 @@ describe("VersionPanel table diff", () => {
     host.remove()
   })
 
+  it("refreshes working changes when clean state flips without a new change token", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const getVersionChanges = vi.fn().mockResolvedValue(versionDiff)
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionChanges,
+        getVersionHistory: vi.fn().mockResolvedValue({
+          currentHead: "a".repeat(64),
+          commits: [],
+          hasMore: false,
+          nextCursor: null,
+        }),
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+    const panelProps = {
+      refreshKey: 0,
+      onClose: () => undefined,
+      onSpaceChange: () => undefined,
+      onFilesMaterialized: () => undefined,
+      onRefresh: () => undefined,
+      onInspectionChange: () => undefined,
+    }
+    const cleanSpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        clean: true,
+        currentHead: "a".repeat(64),
+        changeToken: "working-1",
+      },
+    }
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, { ...panelProps, space: cleanSpace })
+      )
+      await Promise.resolve()
+    })
+    expect(getVersionChanges).not.toHaveBeenCalled()
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          ...panelProps,
+          space: {
+            ...cleanSpace,
+            graft: { ...cleanSpace.graft, clean: false, changedPaths: 3 },
+          },
+        })
+      )
+      await Promise.resolve()
+    })
+
+    expect(getVersionChanges).toHaveBeenCalledOnce()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
   it("mounts only the visible window for a 10k-row table diff", () => {
     const table: SpaceVersionTableDiff = {
       name: "Elden Ring messages",

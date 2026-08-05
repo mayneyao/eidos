@@ -81,6 +81,9 @@ function workingVersionIdentity(
     space.graft.changeToken ??
       space.graft.generation?.toString() ??
       refreshKey.toString(),
+    space.graft.clean === false
+      ? `dirty:${space.graft.changedPaths ?? "?"}`
+      : "clean",
   ].join(":")
 }
 
@@ -883,6 +886,8 @@ export function VersionPanel({
   const selectionRequestIdRef = useRef(0)
   const paginationRequestIdRef = useRef(0)
   const modeLoadInFlightRef = useRef<PanelMode | null>(null)
+  const modeLoadQueuedRef = useRef<PanelMode | null>(null)
+  const loadModeRef = useRef<(() => Promise<void>) | null>(null)
   const loadedHistoryHeadRef = useRef<string | null | undefined>(undefined)
   const activeVersionPathDiffKeyRef = useRef<string | null>(null)
   const [modeLoading, setModeLoading] = useState(false)
@@ -1057,7 +1062,13 @@ export function VersionPanel({
 
   const loadMode = useCallback(async () => {
     const requestedMode = mode
-    if (modeLoadInFlightRef.current === requestedMode) return
+    if (modeLoadInFlightRef.current === requestedMode) {
+      // A concurrent load started before this trigger and will return data
+      // captured before it. Queue exactly one follow-up so the panel cannot
+      // settle on a stale working-tree read.
+      modeLoadQueuedRef.current = requestedMode
+      return
+    }
     const requestId = ++modeRequestIdRef.current
     modeLoadInFlightRef.current = requestedMode
     setModeLoading(true)
@@ -1093,9 +1104,17 @@ export function VersionPanel({
       if (modeRequestIdRef.current === requestId) {
         modeLoadInFlightRef.current = null
         setModeLoading(false)
+        if (modeLoadQueuedRef.current === requestedMode) {
+          modeLoadQueuedRef.current = null
+          void loadModeRef.current?.()
+        }
       }
     }
   }, [mode])
+
+  useEffect(() => {
+    loadModeRef.current = loadMode
+  }, [loadMode])
 
   const workingReloadIdentity =
     mode === "changes" ? workingVersionIdentity(space, refreshKey) : null
