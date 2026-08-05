@@ -3008,21 +3008,6 @@ button:focus-visible {
   min-height: 0;
 }
 
-.lite-sheet-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  color: var(--ink-muted);
-  font-size: 0.625rem;
-  white-space: nowrap;
-}
-
-.lite-sheet-status svg {
-  width: 0.72rem;
-  height: 0.72rem;
-  color: var(--success);
-}
-
 .version-panel {
   display: grid;
   grid-template-rows: var(--version-header-height) 2.15rem minmax(0, 1fr);

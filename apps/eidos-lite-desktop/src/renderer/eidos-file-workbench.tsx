@@ -36,7 +36,6 @@ import {
 } from "@eidos.space/eidos-file-ui/plugins/csv-import"
 import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/gallery"
 import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
-import { Check } from "lucide-react"
 
 import { eidosLiteCsvFileName } from "./csv-workflow"
 import {
@@ -504,15 +503,6 @@ export function EidosFileWorkbench({
               return exportTableCsv(tableSnapshot)
             }}
             onExportError={onError}
-            status={
-              <span
-                className="lite-sheet-status"
-                title={`Saved directly to ${relativePath}`}
-              >
-                <Check aria-hidden="true" />
-                Local · SQLite {snapshot.metadata.schemaVersion}
-              </span>
-            }
           />
         }
         overlays={

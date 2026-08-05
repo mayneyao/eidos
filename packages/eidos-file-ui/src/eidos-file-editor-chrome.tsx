@@ -325,7 +325,7 @@ export function EidosFileSheetTabStrip({
   return (
     <footer
       data-eidos-file-sheet-tabs
-      className="eidos-shell-statusbar flex shrink-0 items-stretch border-t bg-muted/20"
+      className="eidos-shell-statusbar flex shrink-0 items-stretch border-t bg-muted/20 px-2"
     >
       {canScrollBackward ? (
         <Button

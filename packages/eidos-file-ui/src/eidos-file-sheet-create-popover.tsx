@@ -79,7 +79,7 @@ export function EidosFileSheetCreatePopover({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="flex h-full w-8 shrink-0 items-center justify-center border-r text-muted-foreground outline-hidden hover:bg-background/70 hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50"
+          className="flex h-full w-8 shrink-0 items-center justify-center text-muted-foreground outline-hidden hover:bg-background/70 hover:text-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50"
           aria-label={t("Add Eidos File table")}
           title={t("Add table")}
           disabled={disabled}
