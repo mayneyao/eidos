@@ -54,7 +54,10 @@ import {
   rowFromWindow,
   type EidosFileRowWindowRequest,
 } from "./eidos-file-row-window"
-import { useEidosFileBoundedVirtualizer } from "./eidos-file-virtual-scroll"
+import {
+  resetEidosFileVirtualizerMeasurements,
+  useEidosFileBoundedVirtualizer,
+} from "./eidos-file-virtual-scroll"
 import { orderedEidosFileFields } from "./eidos-file-view-layout"
 import { useEidosFileRecordInspectorRow } from "./use-eidos-file-record-inspector-row"
 
@@ -642,9 +645,15 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
     }
   }, [focusedRowIndex, group.total, scrollToVirtualCardIndex])
 
+  const layoutSignature = `${table.fields.map((field) => field.id).join("")}${JSON.stringify(view.properties ?? null)}`
+
   useEffect(() => {
-    cardVirtualizer.measure()
-  }, [cardVirtualizer, table.fields, view.properties])
+    // Snapshot updates replace table.fields/view.properties identities on every
+    // edit, so this effect also runs after plain card updates. Resetting the
+    // measurement cache without re-measuring the mounted cards would leave
+    // every card at its estimated height and squeeze the gaps between them.
+    resetEidosFileVirtualizerMeasurements(cardVirtualizer)
+  }, [cardVirtualizer, layoutSignature])
 
   return (
     <KanbanBoard
