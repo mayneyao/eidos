@@ -1323,7 +1323,9 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
       if (request) {
         void loadGroupWindow(
           group,
-          group.needsReload ? { mode: "replace", offset: 0 } : request
+          group.needsReload
+            ? { mode: "replace", offset: group.startOffset }
+            : request
         )
       }
     },
@@ -1459,19 +1461,23 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
             }
           }
           if (group.key === target.key) {
-            const retainedRows =
-              group.startOffset === 0
-                ? group.rows.filter(
-                    (candidate) => String(candidate._id) !== rowId
-                  )
-                : []
+            // A scrolled column keeps its window anchored: wiping the rows and
+            // restarting at offset 0 would flash the column back to the top
+            // before the authoritative reload lands.
+            const anchored = group.startOffset !== 0
+            const retainedRows = anchored
+              ? group.rows
+              : group.rows.filter(
+                  (candidate) => String(candidate._id) !== rowId
+                )
             return {
               ...group,
-              rows: [optimistic, ...retainedRows].slice(
-                0,
-                KANBAN_MAX_WINDOW_ROWS
-              ),
-              startOffset: 0,
+              rows: anchored
+                ? retainedRows
+                : [optimistic, ...retainedRows].slice(
+                    0,
+                    KANBAN_MAX_WINDOW_ROWS
+                  ),
               total: group.total + 1,
               loaded: true,
               needsReload: true,
@@ -1535,7 +1541,6 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
                   total: containedOptimisticRow
                     ? Math.max(0, group.total - 1)
                     : group.total,
-                  startOffset: 0,
                   loaded: true,
                   needsReload: true,
                 }
