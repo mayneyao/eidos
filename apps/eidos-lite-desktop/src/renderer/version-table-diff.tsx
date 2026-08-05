@@ -288,22 +288,19 @@ export function VersionTableDiff({
   return (
     <section className="version-table-diff" data-version-table-diff>
       {showHeading ? <h4>{table.name}</h4> : null}
-      <header className="version-table-diff-toolbar">
+      <header className="version-inspector-diff-bar version-text-diff-toolbar version-table-diff-toolbar">
         <div className="version-table-diff-toolbar-summary" aria-live="polite">
+          <strong>Row changes</strong>
           <span>{changedRowsSummary(table)}</span>
-          <i aria-hidden="true">·</i>
           <span>
             {visibleColumnIndexes.length.toLocaleString()} of{" "}
             {table.columns.length.toLocaleString()} columns
           </span>
           {loadingMore ? (
-            <>
-              <i aria-hidden="true">·</i>
-              <span data-load-state="loading">
-                <LoaderCircle className="spin" aria-hidden="true" />
-                Loading…
-              </span>
-            </>
+            <span data-load-state="loading">
+              <LoaderCircle className="spin" aria-hidden="true" />
+              Loading…
+            </span>
           ) : loadError && onRetryLoad ? (
             <button
               type="button"
@@ -319,7 +316,7 @@ export function VersionTableDiff({
         </div>
         {columnsAreFiltered || columnMode === "all" ? (
           <div
-            className="version-table-diff-column-mode"
+            className="version-text-diff-layout"
             aria-label="Visible table columns"
           >
             <button
@@ -338,7 +335,9 @@ export function VersionTableDiff({
             </button>
           </div>
         ) : (
-          <small>All columns changed</small>
+          <span className="version-table-diff-toolbar-note">
+            All columns changed
+          </span>
         )}
       </header>
 

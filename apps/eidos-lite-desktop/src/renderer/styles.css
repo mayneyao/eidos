@@ -3306,7 +3306,10 @@ button:focus-visible {
 }
 
 .version-table-diff {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
+  min-height: 0;
   container-type: inline-size;
 }
 
@@ -3317,28 +3320,12 @@ button:focus-visible {
 }
 
 .version-table-diff-toolbar {
-  display: flex;
-  min-height: 2rem;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0 0.1rem 0.45rem;
-  color: var(--ink-muted);
-  font-size: 0.625rem;
-  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
 }
 
 .version-table-diff-toolbar-summary {
-  display: flex;
-  min-width: 0;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.version-table-diff-toolbar-summary > i {
-  color: var(--ink-faint);
-  font-style: normal;
+  row-gap: 0.15rem;
 }
 
 .version-table-diff-toolbar-summary > span[data-load-state="loading"] {
@@ -3353,43 +3340,17 @@ button:focus-visible {
   height: 0.65rem;
 }
 
-.version-table-diff-toolbar > .version-table-diff-column-mode {
-  display: inline-flex;
-  flex: 0 0 auto;
-  padding: 1px;
-  border: 1px solid var(--control-border);
-  border-radius: 0.3rem;
-  background: color-mix(in oklab, var(--canvas), var(--ink) 4%);
-}
-
-.version-table-diff-toolbar button {
-  min-height: 1.35rem;
-  padding: 0 0.45rem;
-  border: 0;
-  border-radius: 0.22rem;
-  color: var(--ink-muted);
-  background: transparent;
-  font: inherit;
-  font-size: 0.625rem;
-  cursor: pointer;
-}
-
-.version-table-diff-toolbar button[aria-pressed="true"] {
-  color: var(--ink);
-  background: var(--control-fill);
-  box-shadow: var(--control-shadow);
-}
-
-.version-table-diff-toolbar button:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-}
-
 .version-table-diff-toolbar .version-table-diff-load-retry {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+  padding: 0;
+  border: 0;
   color: var(--danger);
+  background: transparent;
+  font: inherit;
+  font-size: inherit;
+  cursor: pointer;
 }
 
 .version-table-diff-toolbar .version-table-diff-load-retry:hover {
@@ -3397,15 +3358,14 @@ button:focus-visible {
   text-underline-offset: 0.15rem;
 }
 
-.version-table-diff-toolbar small {
-  font-size: inherit;
+.version-table-diff-toolbar-note {
+  color: var(--ink-faint);
+  font-size: 0.6rem;
 }
 
 .version-table-diff-viewport {
   max-height: min(56rem, calc(100vh - 16rem));
   overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: 0.35rem;
   background: var(--surface);
   overscroll-behavior: contain;
 }
@@ -3668,12 +3628,13 @@ button:focus-visible {
 }
 
 .version-table-diff-empty {
-  padding: 1rem;
-  border: 1px solid var(--line);
-  border-radius: 0.35rem;
+  display: flex;
+  min-height: 5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
   color: var(--ink-muted);
-  background: var(--canvas);
-  font-size: 0.65rem;
+  font-size: 0.6875rem;
   text-align: center;
 }
 
@@ -4238,7 +4199,7 @@ button:focus-visible {
   display: flex;
   min-height: 0;
   flex-direction: column;
-  padding: 0.65rem 1.25rem 0.75rem;
+  padding: 0;
 }
 
 .version-inspector-table .version-table-diff {
