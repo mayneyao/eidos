@@ -20,6 +20,7 @@ import {
   GitBranch,
   GitCommitHorizontal,
   LoaderCircle,
+  RefreshCw,
   RotateCcw,
   Table2,
   X,
@@ -138,8 +139,12 @@ export function loadVersionPathDiff(
   return entry.promise
 }
 
-export function clearVersionPathDiffCacheForTests(): void {
+export function clearVersionPathDiffCache(): void {
   versionPathDiffCache.clear()
+}
+
+export function clearVersionPathDiffCacheForTests(): void {
+  clearVersionPathDiffCache()
 }
 
 function errorMessage(error: unknown): string {
@@ -1095,6 +1100,11 @@ export function VersionPanel({
   const workingReloadIdentity =
     mode === "changes" ? workingVersionIdentity(space, refreshKey) : null
 
+  const refreshVersionData = useCallback(() => {
+    clearVersionPathDiffCache()
+    onRefresh()
+  }, [onRefresh])
+
   useEffect(() => {
     if (!space.graft.initialized) return
     void loadMode()
@@ -1555,14 +1565,27 @@ export function VersionPanel({
             </span>
           ) : null}
         </div>
-        <button
-          type="button"
-          className="icon-button"
-          onClick={onClose}
-          aria-label="Close versions"
-        >
-          <X />
-        </button>
+        <div className="version-header-actions">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={refreshVersionData}
+            aria-label="Refresh versions"
+            title="Refresh versions"
+            disabled={modeLoading}
+            data-refresh-versions
+          >
+            {modeLoading ? <LoaderCircle className="spin" /> : <RefreshCw />}
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onClose}
+            aria-label="Close versions"
+          >
+            <X />
+          </button>
+        </div>
       </header>
 
       <div className="version-tabs" role="tablist">

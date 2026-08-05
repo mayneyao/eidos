@@ -119,7 +119,8 @@ describe("VersionPanel table diff", () => {
     })
     expect(
       versionChangeDiscardTarget(versionDiff, "data/crm.eidos/Customers")
-    ).toEqual({
+    ).toBeNull()
+    expect(versionChangeDiscardTarget(versionDiff, "data/crm.eidos/")).toEqual({
       kind: "file",
       path: "data/crm.eidos",
       fileCount: 1,
@@ -1598,15 +1599,9 @@ describe("VersionPanel table diff", () => {
     )
     expect(action).not.toBeNull()
     await act(async () => {
-      action?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
-    })
-    expect(host.textContent).toContain("Discard folder changes…")
-    await act(async () => {
-      host
-        .querySelector<HTMLButtonElement>(
-          ".version-change-context-menu .danger-menu-item"
-        )
-        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+      action?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, composed: true })
+      )
     })
     expect(host.textContent).toContain("Discard changes in notes?")
     expect(discardWorkingChanges).not.toHaveBeenCalled()
@@ -1631,6 +1626,140 @@ describe("VersionPanel table diff", () => {
       "notes/readme.md",
     ])
     expect(onRefresh).toHaveBeenCalledOnce()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("does not discard when the hover action is used on an Eidos table row", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root: Root = createRoot(host)
+    const dirtySpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        clean: false,
+        currentHead: "a".repeat(64),
+        changeToken: "working-tree-2",
+      },
+    }
+    const discardWorkingChanges = vi.fn()
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionChanges: vi.fn().mockResolvedValue(versionDiff),
+        discardWorkingChanges,
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(VersionPanel, {
+          space: dirtySpace,
+          refreshKey: 0,
+          onClose: () => undefined,
+          onSpaceChange: () => undefined,
+          onFilesMaterialized: vi.fn().mockResolvedValue(undefined),
+          onRefresh: () => undefined,
+          onInspectionChange: () => undefined,
+        })
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    const tree = host.querySelector<HTMLElement>("[data-version-change-tree]")
+    const tableRow = tree?.shadowRoot?.querySelector<HTMLElement>(
+      '[data-item-path="data/crm.eidos/Customers"]'
+    )
+    expect(tableRow).not.toBeNull()
+
+    await act(async () => {
+      tableRow?.dispatchEvent(
+        new MouseEvent("pointerover", {
+          bubbles: true,
+          composed: true,
+        })
+      )
+      await Promise.resolve()
+    })
+    const trigger = tree?.shadowRoot?.querySelector<HTMLButtonElement>(
+      'button[data-type="context-menu-trigger"][data-visible="true"]'
+    )
+    expect(trigger).not.toBeNull()
+    await act(async () => {
+      trigger?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, composed: true })
+      )
+    })
+    expect(host.textContent).not.toContain("Discard changes in")
+    expect(host.textContent).not.toContain("Discard changes to")
+    expect(discardWorkingChanges).not.toHaveBeenCalled()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("refreshes version data from the header action", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root: Root = createRoot(host)
+    const dirtySpace: SpaceSnapshot = {
+      ...unversionedSpace,
+      graft: {
+        ...unversionedSpace.graft,
+        initialized: true,
+        clean: false,
+        currentHead: "a".repeat(64),
+        changeToken: "working-tree-2",
+      },
+    }
+    const getVersionChanges = vi.fn().mockResolvedValue(versionDiff)
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        getVersionChanges,
+        discardWorkingChanges: vi.fn(),
+        cancelVersionReads: vi.fn().mockResolvedValue(undefined),
+      } as unknown as EidosLiteApi,
+    })
+    const onRefresh = vi.fn()
+
+    const renderPanel = (refreshKey: number) =>
+      createElement(VersionPanel, {
+        space: dirtySpace,
+        refreshKey,
+        onClose: () => undefined,
+        onSpaceChange: () => undefined,
+        onFilesMaterialized: vi.fn().mockResolvedValue(undefined),
+        onRefresh,
+        onInspectionChange: () => undefined,
+      })
+
+    await act(async () => {
+      root.render(renderPanel(0))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(getVersionChanges).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>("button[data-refresh-versions]")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    expect(onRefresh).toHaveBeenCalledOnce()
+
+    await act(async () => {
+      root.render(renderPanel(1))
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(getVersionChanges).toHaveBeenCalledTimes(2)
 
     await act(async () => root.unmount())
     host.remove()

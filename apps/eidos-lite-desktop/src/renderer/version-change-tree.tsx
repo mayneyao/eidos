@@ -5,17 +5,12 @@ import {
   type CSSProperties,
   type SyntheticEvent,
 } from "react"
-import type {
-  ContextMenuOpenContext,
-  GitStatus,
-  GitStatusEntry,
-} from "@pierre/trees"
+import type { GitStatus, GitStatusEntry } from "@pierre/trees"
 import {
   FileTree,
   useFileTree,
   useFileTreeSelection,
 } from "@pierre/trees/react"
-import { RotateCcw } from "lucide-react"
 
 import type {
   SpaceVersionCommit,
@@ -246,6 +241,7 @@ export function versionChangeDiscardTarget(
   const tree = buildVersionChangeTreeModel(diff)
   const target = tree.targetByTreePath.get(treePath)
   if (target) {
+    if (target.table) return null
     return { kind: "file", path: target.change.path, fileCount: 1 }
   }
   if (!treePath.endsWith("/")) return null
@@ -279,10 +275,18 @@ function parentTreePaths(path: string): string[] {
     .map((_, index) => `${segments.slice(0, index + 1).join("/")}/`)
 }
 
+const DISCARD_SPRITE_SHEET = `<svg data-icon-sprite aria-hidden="true" width="0" height="0">
+  <symbol id="file-tree-icon-discard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 14 4 9l5-5"/>
+    <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11"/>
+  </symbol>
+</svg>`
+
 const TREE_CSS = `
   :host {
     display: block;
     min-height: 0;
+    --trees-context-menu-trigger-inline-offset: 14px;
   }
 
   [data-file-tree-virtualized-scroll="true"] {
@@ -304,6 +308,13 @@ const TREE_CSS = `
   button[data-type="context-menu-trigger"]:hover,
   button[data-type="context-menu-trigger"][aria-expanded="true"] {
     background: var(--trees-bg-muted);
+    color: var(--danger);
+  }
+
+  [data-file-tree-virtualized-root="true"]:has(
+    [data-type="item"][data-item-context-hover="true"][data-item-path*=".eidos/"]:not([data-item-path$="/"])
+  ) > [data-type="context-menu-anchor"] {
+    display: none !important;
   }
 
   [data-item-section="decoration"] {
@@ -345,12 +356,24 @@ export function VersionChangeTree({
     itemHeight: 26,
     initialExpansion: "closed",
     flattenEmptyDirectories: false,
-    icons: { set: "standard", colored: false },
+    icons: {
+      set: "standard",
+      colored: false,
+      spriteSheet: DISCARD_SPRITE_SHEET,
+      remap: {
+        "file-tree-icon-ellipsis": {
+          name: "file-tree-icon-discard",
+          width: 13,
+          height: 13,
+          viewBox: "0 0 24 24",
+        },
+      },
+    },
     stickyFolders: false,
     composition: {
       contextMenu: {
         enabled: mode === "changes" && onRequestDiscard !== undefined,
-        triggerMode: "both",
+        triggerMode: "button",
         buttonVisibility: "when-needed",
       },
     },
@@ -395,6 +418,36 @@ export function VersionChangeTree({
     onSelectRef.current(versionInspectionFromTarget(target, diff, mode, commit))
   }
 
+  const hostRef = useRef<HTMLDivElement | null>(null)
+  const hoverPathRef = useRef<string | null>(null)
+  const diffRef = useRef(diff)
+  diffRef.current = diff
+  const onRequestDiscardRef = useRef(onRequestDiscard)
+  onRequestDiscardRef.current = onRequestDiscard
+
+  useEffect(() => {
+    const host = hostRef.current
+    if (!host) return
+    const handleClick = (event: MouseEvent) => {
+      const isTrigger = event
+        .composedPath()
+        .some(
+          (target) =>
+            target instanceof HTMLElement &&
+            target.dataset.type === "context-menu-trigger"
+        )
+      if (!isTrigger) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      const treePath = hoverPathRef.current ?? model.getFocusedPath()
+      if (!treePath) return
+      const target = versionChangeDiscardTarget(diffRef.current, treePath)
+      if (target) onRequestDiscardRef.current?.(target)
+    }
+    host.addEventListener("click", handleClick, true)
+    return () => host.removeEventListener("click", handleClick, true)
+  }, [model])
+
   const styles = {
     height: "100%",
     minHeight: 0,
@@ -424,7 +477,20 @@ export function VersionChangeTree({
   } as CSSProperties
 
   return (
-    <>
+    <div
+      ref={hostRef}
+      style={{ height: "100%", minHeight: 0 }}
+      onPointerOver={(event) => {
+        hoverPathRef.current = eventTreePath(event) ?? hoverPathRef.current
+      }}
+      onPointerLeave={() => {
+        hoverPathRef.current = null
+      }}
+      onFocus={(event) => {
+        hoverPathRef.current =
+          eventTreePath(event) ?? model.getFocusedPath() ?? hoverPathRef.current
+      }}
+    >
       <FileTree
         model={model}
         aria-label={
@@ -443,74 +509,7 @@ export function VersionChangeTree({
           if (event.key !== "Enter" && event.key !== " ") return
           inspectTreePath(treePath)
         }}
-        renderContextMenu={
-          mode === "changes" && onRequestDiscard
-            ? (item, context) => {
-                const target = versionChangeDiscardTarget(diff, item.path)
-                if (!target) return null
-                return (
-                  <VersionChangeContextMenu
-                    target={target}
-                    context={context}
-                    onRequestDiscard={onRequestDiscard}
-                  />
-                )
-              }
-            : undefined
-        }
       />
-    </>
-  )
-}
-
-function VersionChangeContextMenu({
-  target,
-  context,
-  onRequestDiscard,
-}: {
-  target: VersionChangeDiscardTarget
-  context: ContextMenuOpenContext
-  onRequestDiscard(target: VersionChangeDiscardTarget): void
-}) {
-  const menuWidth = 168
-  const menuHeight = 38
-  const edge = 8
-  const gap = 4
-  const left = Math.min(
-    Math.max(edge, context.anchorRect.right - menuWidth),
-    Math.max(edge, window.innerWidth - menuWidth - edge)
-  )
-  const below = context.anchorRect.bottom + gap
-  const top =
-    below + menuHeight <= window.innerHeight - edge
-      ? below
-      : Math.max(edge, context.anchorRect.top - menuHeight - gap)
-
-  return (
-    <div
-      className="space-context-menu version-change-context-menu"
-      data-file-tree-context-menu-root="true"
-      role="menu"
-      aria-label={`Actions for ${target.path}`}
-      style={{ left, top }}
-    >
-      <button
-        type="button"
-        role="menuitem"
-        className="danger-menu-item"
-        onClick={() => {
-          context.close({ restoreFocus: false })
-          onRequestDiscard(target)
-        }}
-      >
-        <RotateCcw aria-hidden="true" />
-        <span>
-          {target.kind === "folder"
-            ? "Discard folder changes…"
-            : "Discard changes…"}
-        </span>
-        {target.fileCount === null ? null : <small>{target.fileCount}</small>}
-      </button>
     </div>
   )
 }

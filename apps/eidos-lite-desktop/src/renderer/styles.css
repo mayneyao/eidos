@@ -3061,6 +3061,12 @@ button:focus-visible {
   gap: 0.45rem;
 }
 
+.version-panel > header > .version-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
 .version-panel > header svg,
 .selected-commit > header svg {
   width: 0.85rem;
@@ -4907,16 +4913,6 @@ button:focus-visible {
 
 .space-context-menu .danger-menu-item {
   color: var(--danger);
-}
-
-.version-change-context-menu button > span {
-  flex: 1;
-}
-
-.version-change-context-menu button > small {
-  color: var(--ink-faint);
-  font-size: 0.625rem;
-  font-variant-numeric: tabular-nums;
 }
 
 .path-dialog-backdrop {
