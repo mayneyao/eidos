@@ -2,6 +2,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -667,6 +668,13 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
     // every card at its estimated height and squeeze the gaps between them.
     resetEidosFileVirtualizerMeasurements(cardVirtualizer)
   }, [cardVirtualizer, layoutSignature])
+
+  useLayoutEffect(() => {
+    // Row insertions and removals shift every index behind them while the
+    // virtualizer keys measurements by index. Re-measure the mounted cards
+    // before paint so following cards do not bounce through stale heights.
+    resetEidosFileVirtualizerMeasurements(cardVirtualizer)
+  }, [cardVirtualizer, group.rows])
 
   return (
     <KanbanBoard
