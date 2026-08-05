@@ -452,6 +452,7 @@ export function VersionChangeTree({
     height: "100%",
     minHeight: 0,
     width: "100%",
+    colorScheme: "inherit",
     "--trees-bg-override": "transparent",
     "--trees-bg-muted-override": "var(--surface-hover)",
     "--trees-border-color-override": "var(--line)",
