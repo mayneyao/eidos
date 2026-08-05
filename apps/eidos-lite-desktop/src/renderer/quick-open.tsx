@@ -218,8 +218,26 @@ export function QuickOpen({
                     0,
                     item.relativePath.length - item.name.length
                   )
+              const fileGroupStart = tableItems.length
+              const groupLabel =
+                tableItems.length > 0 && index === 0
+                  ? "Tables"
+                  : tableItems.length > 0 && index === fileGroupStart
+                    ? trimmedQuery
+                      ? "Files"
+                      : "Recent files"
+                    : null
               return (
-                <li key={item.tableId ?? item.relativePath} role="presentation">
+                <li
+                  key={item.tableId ?? item.relativePath}
+                  role="presentation"
+                  className={groupLabel ? "quick-open-group-start" : undefined}
+                >
+                  {groupLabel ? (
+                    <div className="quick-open-group-label" aria-hidden="true">
+                      {groupLabel}
+                    </div>
+                  ) : null}
                   <button
                     type="button"
                     id={`quick-open-item-${index}`}

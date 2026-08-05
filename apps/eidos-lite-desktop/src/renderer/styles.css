@@ -5125,6 +5125,21 @@ button:focus-visible {
   list-style: none;
 }
 
+.quick-open-group-start:not(:first-child) {
+  margin-top: 0.2rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--hairline);
+}
+
+.quick-open-group-label {
+  padding: 0.15rem 0.5rem 0.2rem;
+  color: var(--ink-faint);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
 .quick-open-item {
   display: flex;
   align-items: center;
