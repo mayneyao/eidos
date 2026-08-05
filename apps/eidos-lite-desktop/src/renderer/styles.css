@@ -4553,9 +4553,9 @@ button:focus-visible {
   margin-top: 0.55rem;
 }
 
-.danger-action {
-  border-color: var(--danger) !important;
-  color: var(--danger) !important;
+.restore-confirm .danger-action {
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 .panel-primary-action:disabled,
