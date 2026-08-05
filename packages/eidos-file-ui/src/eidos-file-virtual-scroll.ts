@@ -199,10 +199,14 @@ export function resetEidosFileVirtualizerMeasurements<
   TScrollElement extends HTMLElement,
   TItemElement extends Element,
 >(virtualizer: Virtualizer<TScrollElement, TItemElement>): void {
+  // Never call virtualizer.measure() here: it clears itemSizeCache, and
+  // resizeItem only re-records entries whose size changed against the stale
+  // measurementsCache, so unchanged items silently fall back to the estimated
+  // size and the rendered offsets bounce. Re-measuring the mounted elements
+  // against the intact cache applies real deltas instead.
   const measuredElements = virtualizer.scrollElement?.querySelectorAll(
     `[${EIDOS_FILE_VIRTUAL_INDEX_ATTRIBUTE}]`
   )
-  virtualizer.measure()
   measuredElements?.forEach((element) => {
     virtualizer.measureElement(element as TItemElement)
   })

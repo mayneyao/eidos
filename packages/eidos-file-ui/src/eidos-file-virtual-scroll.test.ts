@@ -128,7 +128,7 @@ describe("base virtual scroll geometry", () => {
     )
   })
 
-  it("clears old dynamic sizes and remeasures only the mounted window", () => {
+  it("remeasures the mounted window without clearing cached sizes", () => {
     const scrollElement = document.createElement("div")
     const first = document.createElement("div")
     const second = document.createElement("div")
@@ -146,10 +146,9 @@ describe("base virtual scroll geometry", () => {
 
     resetEidosFileVirtualizerMeasurements(virtualizer)
 
-    expect(measure).toHaveBeenCalledOnce()
+    // Clearing the cache would drop unchanged items back to their estimated
+    // size because resizeItem skips zero deltas against stale measurements.
+    expect(measure).not.toHaveBeenCalled()
     expect(measureElement.mock.calls).toEqual([[first], [second]])
-    expect(measure.mock.invocationCallOrder[0]).toBeLessThan(
-      measureElement.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
-    )
   })
 })

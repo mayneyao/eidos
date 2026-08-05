@@ -674,7 +674,7 @@ const EidosFileKanbanColumn = memo(function EidosFileKanbanColumn({
     // virtualizer keys measurements by index. Re-measure the mounted cards
     // before paint so following cards do not bounce through stale heights.
     resetEidosFileVirtualizerMeasurements(cardVirtualizer)
-  }, [cardVirtualizer, group.rows])
+  }, [cardVirtualizer, group.rows, group.key])
 
   return (
     <KanbanBoard
