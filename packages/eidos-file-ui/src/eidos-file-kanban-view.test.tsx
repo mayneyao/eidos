@@ -826,6 +826,197 @@ describe("EidosFileKanbanView", () => {
     expect(onError).toHaveBeenCalledWith(expect.any(Error))
   })
 
+  it("inserts an optimistically moved card at its authoritative _id position", async () => {
+    const doneRow = { _id: "aaa_done", title: "Baseline audit", status: "done" }
+    const todoRow = {
+      _id: "zzz_todo",
+      title: "Independent Lite",
+      status: "todo",
+    }
+    const move = deferred<{
+      tableId: string
+      row: typeof todoRow
+      rowCount: number
+    }>()
+
+    await act(async () => {
+      root.render(
+        <EidosFileKanbanView
+          table={table}
+          view={view}
+          loadGroupCounts={vi.fn(async () => [
+            { value: "todo", total: 1 },
+            { value: "done", total: 1 },
+          ])}
+          loadGroupPage={vi.fn(async (_field, value, offset, limit) => ({
+            tableId: "tasks",
+            offset,
+            limit,
+            total: value === "todo" || value === "done" ? 1 : 0,
+            rows:
+              value === "todo" ? [todoRow] : value === "done" ? [doneRow] : [],
+          }))}
+          onCellEdit={vi.fn(() => move.promise)}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    await act(async () => {
+      kanbanMocks.onDragEnd?.({
+        active: { id: "zzz_todo" },
+        over: { id: "eidos-file-kanban:done" },
+      })
+      await Promise.resolve()
+    })
+
+    // The moved card's _id sorts after the existing card, so prepending it at
+    // the top would flash the wrong order until the authoritative reload.
+    const doneRegion = container.querySelector(
+      '[role="region"][aria-label="done, 2 records"]'
+    )
+    expect(doneRegion).not.toBeNull()
+    expect(
+      Array.from(doneRegion!.querySelectorAll("[data-eidos-file-row-id]")).map(
+        (element) => element.getAttribute("data-eidos-file-row-id")
+      )
+    ).toEqual(["aaa_done", "zzz_todo"])
+
+    await act(async () => {
+      move.resolve({
+        tableId: "tasks",
+        row: { ...todoRow, status: "done" },
+        rowCount: 2,
+      })
+      await move.promise
+      await Promise.resolve()
+    })
+  })
+
+  it("waits for the authoritative page when a sorted view move position is unknown", async () => {
+    const sortedView: EidosFileViewInfo = {
+      ...view,
+      sorts: [{ field: "title", direction: "asc" }],
+    }
+    const doneRow = { _id: "aaa_done", title: "Baseline audit", status: "done" }
+    const todoRow = {
+      _id: "zzz_todo",
+      title: "Independent Lite",
+      status: "todo",
+    }
+    const movedRow = { ...todoRow, status: "done" }
+    const move = deferred<{
+      tableId: string
+      row: typeof todoRow
+      rowCount: number
+    }>()
+    let moveStarted = false
+    const donePages: Array<
+      ReturnType<
+        typeof deferred<{
+          tableId: string
+          offset: number
+          limit: number
+          total: number
+          rows: Array<typeof doneRow>
+        }>
+      >
+    > = []
+    const loadGroupPage = vi.fn(
+      (
+        _field: unknown,
+        value: string | null,
+        offset: number,
+        limit: number
+      ) => {
+        if (value === "done" && moveStarted) {
+          const page = deferred<{
+            tableId: string
+            offset: number
+            limit: number
+            total: number
+            rows: Array<typeof doneRow>
+          }>()
+          donePages.push(page)
+          return page.promise
+        }
+        return Promise.resolve({
+          tableId: "tasks",
+          offset,
+          limit,
+          total: value === "todo" || value === "done" ? 1 : 0,
+          rows:
+            value === "todo" ? [todoRow] : value === "done" ? [doneRow] : [],
+        })
+      }
+    )
+
+    await act(async () => {
+      root.render(
+        <EidosFileKanbanView
+          table={table}
+          view={sortedView}
+          loadGroupCounts={vi.fn(async () => [
+            { value: "todo", total: 1 },
+            { value: "done", total: 1 },
+          ])}
+          loadGroupPage={loadGroupPage}
+          onCellEdit={vi.fn(() => {
+            moveStarted = true
+            return move.promise
+          })}
+          onAddRow={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    await act(async () => {
+      kanbanMocks.onDragEnd?.({
+        active: { id: "zzz_todo" },
+        over: { id: "eidos-file-kanban:done" },
+      })
+      await Promise.resolve()
+    })
+
+    // Guessing a position under an explicit sort would flash the card at the
+    // wrong index, so the card only reappears from the authoritative reload.
+    const doneRegion = container.querySelector(
+      '[role="region"][aria-label="done, 2 records"]'
+    )
+    expect(doneRegion).not.toBeNull()
+    expect(
+      doneRegion!.querySelector('[data-eidos-file-row-id="zzz_todo"]')
+    ).toBeNull()
+    expect(
+      container
+        .querySelector("[data-eidos-file-kanban-scroll]")
+        ?.getAttribute("aria-busy")
+    ).toBe("true")
+
+    await act(async () => {
+      donePages[0]?.resolve({
+        tableId: "tasks",
+        offset: 0,
+        limit: 50,
+        total: 2,
+        rows: [doneRow, movedRow],
+      })
+      move.resolve({ tableId: "tasks", row: movedRow, rowCount: 2 })
+      await move.promise
+      await Promise.resolve()
+    })
+
+    expect(
+      container.querySelector(
+        '[role="region"][aria-label="done, 2 records"] [data-eidos-file-row-id="zzz_todo"]'
+      )
+    ).not.toBeNull()
+  })
+
   it("does not rerender cards outside the source and target columns while a move saves", async () => {
     const tableWithBlockedStatus: EidosFileTableSnapshot = {
       ...table,

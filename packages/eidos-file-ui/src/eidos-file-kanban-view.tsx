@@ -15,6 +15,7 @@ import type {
   EidosFileRowMutationResult,
   EidosFileRowPage,
   EidosFileRelationValue,
+  EidosFileSort,
   EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
   EidosFileViewInfo,
@@ -96,6 +97,32 @@ interface EidosFileKanbanMoveOption {
 
 function groupKey(value: string | null): string {
   return `eidos-file-kanban:${value ?? EMPTY_GROUP_VALUE}`
+}
+
+// The authoritative page order is the view's sort, falling back to _id
+// ascending. Only inject an optimistically moved card where that order
+// provably places it inside the loaded window; anything else would flash the
+// card at the wrong position and jump once the authoritative reload lands.
+// The _id comparison mirrors SQLite BINARY collation for the id alphabet.
+function optimisticMoveInsertIndex(
+  sorts: EidosFileSort[],
+  retainedRows: EidosFileRow[],
+  retainedTotal: number,
+  rowId: string
+): number | null {
+  if (sorts.length > 0) return null
+  if (retainedRows.length === 0) return retainedTotal === 0 ? 0 : null
+  let index = 0
+  while (
+    index < retainedRows.length &&
+    String(retainedRows[index]._id) < rowId
+  ) {
+    index += 1
+  }
+  if (index === retainedRows.length && retainedRows.length < retainedTotal) {
+    return null
+  }
+  return index
 }
 
 function kanbanMutationErrorMessage(error: unknown, fallback: string): string {
@@ -1485,22 +1512,31 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
           if (group.key === target.key) {
             // A scrolled column keeps its window anchored: wiping the rows and
             // restarting at offset 0 would flash the column back to the top
-            // before the authoritative reload lands. An empty window instead
-            // shows the moved card immediately instead of a loading spinner.
+            // before the authoritative reload lands.
             const anchored = group.startOffset !== 0 && group.rows.length > 0
             const retainedRows = anchored
               ? group.rows
               : group.rows.filter(
                   (candidate) => String(candidate._id) !== rowId
                 )
+            const insertIndex = anchored
+              ? null
+              : optimisticMoveInsertIndex(
+                  view.sorts,
+                  retainedRows,
+                  group.total,
+                  String(optimistic._id)
+                )
             return {
               ...group,
-              rows: anchored
-                ? retainedRows
-                : [optimistic, ...retainedRows].slice(
-                    0,
-                    KANBAN_MAX_WINDOW_ROWS
-                  ),
+              rows:
+                insertIndex === null
+                  ? retainedRows
+                  : [
+                      ...retainedRows.slice(0, insertIndex),
+                      optimistic,
+                      ...retainedRows.slice(insertIndex),
+                    ].slice(0, KANBAN_MAX_WINDOW_ROWS),
               startOffset: anchored ? group.startOffset : 0,
               total: group.total + 1,
               loaded: true,
@@ -1583,7 +1619,7 @@ export const EidosFileKanbanView = memo(function EidosFileKanbanView({
         })
       return true
     },
-    [disabled, groupField, onCellEdit, onError]
+    [disabled, groupField, onCellEdit, onError, view.sorts]
   )
 
   const dragEnd = (event: DragEndEvent) => {
