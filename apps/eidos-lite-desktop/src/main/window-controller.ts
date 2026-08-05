@@ -14,6 +14,7 @@ import {
 import {
   IPC_CHANNELS,
   type EidosLiteDiagnostics,
+  type EidosLitePathClipboardMode,
   type EidosLitePreferences,
   type EidosLiteSettingsDestination,
   type EidosSyncRecoveryResult,
@@ -35,6 +36,7 @@ import {
   canonicalizeSpaceRoot,
   flattenSpaceTree,
   listSpaceTree,
+  normalizeRelativePath,
 } from "./space/space-paths"
 import { SpaceSession } from "./space/space-session"
 import { RecentSpacesStore } from "./space/recent-spaces"
@@ -481,6 +483,19 @@ export class WindowController {
       this.requireSession(webContents).resolveUserPath(relativePath)
     )
     if (error) throw new Error(error)
+  }
+
+  copyPathText(
+    webContents: WebContents,
+    relativePath: string,
+    mode: EidosLitePathClipboardMode
+  ): void {
+    const session = this.requireSession(webContents)
+    clipboard.writeText(
+      mode === "absolute"
+        ? session.resolveUserPath(relativePath)
+        : normalizeRelativePath(relativePath)
+    )
   }
 
   deletePath(webContents: WebContents, relativePath: string) {

@@ -15,12 +15,12 @@ import {
   ArrowLeft,
   ArrowRight,
   CircleAlert,
+  ClipboardCopy,
   Cloud,
   CloudDownload,
   Copy,
   Database,
   FilePlus2,
-  FolderInput,
   FolderOpen,
   FolderPlus,
   HardDrive,
@@ -290,13 +290,7 @@ function shortcutTitle(label: string, shortcut: string): string {
   return shortcut === "—" ? label : `${label} (${shortcut})`
 }
 
-type PathDialogAction =
-  | "create-file"
-  | "create-folder"
-  | "rename"
-  | "move"
-  | "copy"
-  | "delete"
+type PathDialogAction = "create-file" | "create-folder" | "delete"
 
 interface PathDialogState {
   action: PathDialogAction
@@ -357,24 +351,6 @@ function PathActionDialog({
       label: t("Folder name"),
       initial: t("New folder"),
       action: t("Create"),
-    },
-    rename: {
-      title: t("Rename {name}", { name: state.entry?.name ?? t("item") }),
-      label: t("New name"),
-      initial: state.entry?.name ?? "",
-      action: t("Rename"),
-    },
-    move: {
-      title: t("Move {name}", { name: state.entry?.name ?? t("item") }),
-      label: t("Destination folder (blank for Space root)"),
-      initial: "",
-      action: t("Move"),
-    },
-    copy: {
-      title: t("Copy {name}", { name: state.entry?.name ?? t("item") }),
-      label: t("Destination folder (blank for Space root)"),
-      initial: "",
-      action: t("Copy"),
     },
     delete: {
       title: t("Move {name} to Trash?", {
@@ -666,6 +642,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   } | null>(null)
   const [pathDialog, setPathDialog] = useState<PathDialogState | null>(null)
   const [pathMutationBusy, setPathMutationBusy] = useState(false)
+  const [treeRenameRequest, setTreeRenameRequest] = useState<{
+    treePath: string
+    nonce: number
+  } | null>(null)
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false)
   const fileOpenInFlight = useRef(false)
   const navigationSnapshotRef = useRef<NavigationSnapshot | null>(null)
@@ -1543,6 +1523,43 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     ]
   )
 
+  const renameTreeEntry = useCallback(
+    async (entry: SpaceTreeEntry, name: string) => {
+      setPathMutationBusy(true)
+      setError(null)
+      const activePathMoved = pathMatchesPrefix(
+        activeDocumentPath,
+        entry.relativePath
+      )
+      try {
+        const result = await window.eidosLite.renamePath(
+          entry.relativePath,
+          name
+        )
+        applyPathMutation(result)
+        if (result.relativePath) {
+          updateRecentFilePaths(entry.relativePath, result.relativePath)
+          setSelectedEntry(
+            findSpaceEntry(result.snapshot.entries, result.relativePath)
+          )
+        }
+        if (activePathMoved) {
+          setActiveSession(null)
+          setTextPreview(null)
+          recordNavigationLocation(null)
+        }
+      } finally {
+        setPathMutationBusy(false)
+      }
+    },
+    [
+      activeDocumentPath,
+      applyPathMutation,
+      recordNavigationLocation,
+      updateRecentFilePaths,
+    ]
+  )
+
   const submitPathDialog = useCallback(
     async (value: string) => {
       if (!pathDialog) return
@@ -1569,27 +1586,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               value
             )
             break
-          case "rename":
-            if (!pathDialog.entry) throw new Error("Choose a Space item")
-            result = await window.eidosLite.renamePath(
-              pathDialog.entry.relativePath,
-              value
-            )
-            break
-          case "move":
-            if (!pathDialog.entry) throw new Error("Choose a Space item")
-            result = await window.eidosLite.movePath(
-              pathDialog.entry.relativePath,
-              value.trim() || null
-            )
-            break
-          case "copy":
-            if (!pathDialog.entry) throw new Error("Choose a Space item")
-            result = await window.eidosLite.copyPath(
-              pathDialog.entry.relativePath,
-              value.trim() || null
-            )
-            break
           case "delete":
             if (!pathDialog.entry) throw new Error("Choose a Space item")
             result = await window.eidosLite.deletePath(
@@ -1598,18 +1594,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             break
         }
         applyPathMutation(result)
-        if (pathDialog.entry) {
-          if (pathDialog.action === "delete") {
-            updateRecentFilePaths(pathDialog.entry.relativePath, null)
-          } else if (
-            (pathDialog.action === "rename" || pathDialog.action === "move") &&
-            result.relativePath
-          ) {
-            updateRecentFilePaths(
-              pathDialog.entry.relativePath,
-              result.relativePath
-            )
-          }
+        if (pathDialog.entry && pathDialog.action === "delete") {
+          updateRecentFilePaths(pathDialog.entry.relativePath, null)
         }
         const changedPath = pathDialog.entry?.relativePath
         const activePathChanged =
@@ -1824,6 +1810,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               entries={space.entries}
               activePath={activeDocumentPath}
               disabled={localInteractionBlocked || busyFile !== null}
+              renameRequest={treeRenameRequest}
               onSelect={setSelectedEntry}
               onOpen={(entry) => void openEntry(entry)}
               onLoadDirectory={(relativePath) => {
@@ -1835,6 +1822,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               onMove={moveTreeEntry}
               onMoveError={(cause) =>
                 setError(`Could not move item. ${errorMessage(cause)}`)
+              }
+              onRename={renameTreeEntry}
+              onRenameError={(cause) =>
+                setError(`Could not rename item. ${errorMessage(cause)}`)
               }
               onContextMenu={(entry, x, y) =>
                 setContextMenu({
@@ -2218,7 +2209,13 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             type="button"
             role="menuitem"
             onClick={() => {
-              setPathDialog({ action: "rename", entry: contextMenu.entry })
+              setTreeRenameRequest({
+                treePath:
+                  contextMenu.entry.kind === "directory"
+                    ? `${contextMenu.entry.relativePath}/`
+                    : contextMenu.entry.relativePath,
+                nonce: Date.now(),
+              })
               setContextMenu(null)
             }}
           >
@@ -2228,21 +2225,27 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             type="button"
             role="menuitem"
             onClick={() => {
-              setPathDialog({ action: "move", entry: contextMenu.entry })
+              void window.eidosLite.copyPathText(
+                contextMenu.entry.relativePath,
+                "absolute"
+              )
               setContextMenu(null)
             }}
           >
-            <FolderInput /> Move
+            <Copy /> Copy Path
           </button>
           <button
             type="button"
             role="menuitem"
             onClick={() => {
-              setPathDialog({ action: "copy", entry: contextMenu.entry })
+              void window.eidosLite.copyPathText(
+                contextMenu.entry.relativePath,
+                "relative"
+              )
               setContextMenu(null)
             }}
           >
-            <Copy /> Copy
+            <ClipboardCopy /> Copy Relative Path
           </button>
           <button
             type="button"

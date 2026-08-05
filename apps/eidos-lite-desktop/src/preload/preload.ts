@@ -237,6 +237,8 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.revealPath, relativePath),
   openPath: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.openPath, relativePath),
+  copyPathText: (relativePath, mode) =>
+    ipcRenderer.invoke(IPC_CHANNELS.copyPathText, relativePath, mode),
 }
 
 contextBridge.exposeInMainWorld("eidosLite", Object.freeze(api))

@@ -100,10 +100,12 @@ export const IPC_CHANNELS = {
   syncOpenHelp: "eidos-lite:sync-open-help",
   revealPath: "eidos-lite:path-reveal",
   openPath: "eidos-lite:path-open",
+  copyPathText: "eidos-lite:path-copy-text",
 } as const
 
 export type SpaceEntryKind = "directory" | "eidos" | "file" | "symlink"
 export type EidosLiteNavigationDirection = "back" | "forward"
+export type EidosLitePathClipboardMode = "absolute" | "relative"
 
 export interface SpacePathSearchHit {
   relativePath: string
@@ -1111,4 +1113,8 @@ export interface EidosLiteApi {
   openSyncHelp(destination: EidosSyncHelpDestination): Promise<void>
   revealPath(relativePath: string): Promise<void>
   openPath(relativePath: string): Promise<void>
+  copyPathText(
+    relativePath: string,
+    mode: EidosLitePathClipboardMode
+  ): Promise<void>
 }

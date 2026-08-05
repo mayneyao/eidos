@@ -8,6 +8,7 @@ import {
   dropTargetDirectory,
   parentTreePaths,
   relativePathFromTreePath,
+  remappedTreePaths,
 } from "./space-file-tree"
 
 describe("Space file tree theme", () => {
@@ -73,6 +74,51 @@ describe("buildSpaceFileTreeModel", () => {
       "projects/active/",
     ])
     expect(parentTreePaths("Roadmap.eidos")).toEqual([])
+  })
+})
+
+describe("remappedTreePaths", () => {
+  const paths = [
+    "projects/",
+    "projects/archive/",
+    "projects/archive/history.eidos",
+    "projects/roadmap.eidos",
+    "README.md",
+  ]
+
+  it("rewrites a file rename without touching sibling prefixes", () => {
+    expect(remappedTreePaths(paths, "README.md", "README.md.backup")).toEqual([
+      ...paths.slice(0, -1),
+      "README.md.backup",
+    ])
+    expect(
+      remappedTreePaths(["notes.md", "notes.md.bak"], "notes.md", "journal.md")
+    ).toEqual(["journal.md", "notes.md.bak"])
+  })
+
+  it("rewrites a folder rename including every descendant", () => {
+    expect(
+      remappedTreePaths(paths, "projects/archive/", "projects/attic/")
+    ).toEqual([
+      "projects/",
+      "projects/attic/",
+      "projects/attic/history.eidos",
+      "projects/roadmap.eidos",
+      "README.md",
+    ])
+  })
+
+  it("rewrites a drag move into a target directory", () => {
+    expect(remappedTreePaths(paths, "README.md", "projects/README.md")).toEqual(
+      [...paths.slice(0, -1), "projects/README.md"]
+    )
+    expect(remappedTreePaths(paths, "projects/", "archive/projects/")).toEqual([
+      "archive/projects/",
+      "archive/projects/archive/",
+      "archive/projects/archive/history.eidos",
+      "archive/projects/roadmap.eidos",
+      "README.md",
+    ])
   })
 })
 

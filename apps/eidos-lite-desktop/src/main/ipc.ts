@@ -11,6 +11,7 @@ import {
   RUNTIME_METHODS,
   type EidosLitePreferences,
   type EidosLiteCsvSelection,
+  type EidosLitePathClipboardMode,
   type EidosLiteSettingsDestination,
   type TextFileSaveRequest,
   type EidosSyncHelpDestination,
@@ -1379,6 +1380,22 @@ export function registerIpc(
     if (typeof relativePath !== "string") throw new Error("Invalid file path")
     return controller.openPath(event.sender, relativePath)
   })
+  ipcMain.handle(
+    IPC_CHANNELS.copyPathText,
+    (event, relativePath: unknown, mode: unknown) => {
+      if (typeof relativePath !== "string") {
+        throw new Error("Invalid file path")
+      }
+      const clipboardMode = requiredString(
+        mode,
+        "Path clipboard mode"
+      ) as EidosLitePathClipboardMode
+      if (clipboardMode !== "absolute" && clipboardMode !== "relative") {
+        throw new Error("Invalid path clipboard mode")
+      }
+      return controller.copyPathText(event.sender, relativePath, clipboardMode)
+    }
+  )
   return {
     async close() {
       assetLeases.clear()

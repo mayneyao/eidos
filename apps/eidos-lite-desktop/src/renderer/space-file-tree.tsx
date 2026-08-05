@@ -19,12 +19,20 @@ interface SpaceFileTreeProps {
   entries: SpaceTreeEntry[]
   activePath: string | null
   disabled?: boolean
+  renameRequest: SpaceTreeRenameRequest | null
   onSelect(entry: SpaceTreeEntry): void
   onOpen(entry: SpaceTreeEntry): void
   onLoadDirectory(relativePath: string): void
   onMove(relativePath: string, targetDirectory: string | null): Promise<void>
   onMoveError(error: unknown): void
+  onRename(entry: SpaceTreeEntry, nextName: string): Promise<void>
+  onRenameError(error: unknown): void
   onContextMenu(entry: SpaceTreeEntry, x: number, y: number): void
+}
+
+export interface SpaceTreeRenameRequest {
+  treePath: string
+  nonce: number
 }
 
 export interface SpaceFileTreeModel {
@@ -71,6 +79,41 @@ function toTreePath(entry: SpaceTreeEntry): string {
     : entry.relativePath
 }
 
+function treePathLeafName(treePath: string): string {
+  const bare = treePath.endsWith("/") ? treePath.slice(0, -1) : treePath
+  const separator = bare.lastIndexOf("/")
+  return separator < 0 ? bare : bare.slice(separator + 1)
+}
+
+function sortedPathsSignature(paths: readonly string[]): string {
+  return [...paths].sort().join("\u0000")
+}
+
+export function remappedTreePaths(
+  paths: readonly string[],
+  sourceTreePath: string,
+  destinationTreePath: string
+): string[] {
+  const isFolder = sourceTreePath.endsWith("/")
+  return paths.map((path) =>
+    path === sourceTreePath || (isFolder && path.startsWith(sourceTreePath))
+      ? `${destinationTreePath}${path.slice(sourceTreePath.length)}`
+      : path
+  )
+}
+
+function droppedTreePath(
+  sourceTreePath: string,
+  target: FileTreeDropTarget
+): string {
+  const isFolder = sourceTreePath.endsWith("/")
+  const targetDirectory = dropTargetDirectory(target)
+  const destination = targetDirectory
+    ? `${targetDirectory}/${treePathLeafName(sourceTreePath)}`
+    : treePathLeafName(sourceTreePath)
+  return isFolder ? `${destination}/` : destination
+}
+
 function eventTreePath(event: SyntheticEvent<HTMLElement>): string | null {
   for (const target of event.nativeEvent.composedPath()) {
     if (!(target instanceof HTMLElement)) continue
@@ -78,6 +121,16 @@ function eventTreePath(event: SyntheticEvent<HTMLElement>): string | null {
     if (path) return path
   }
   return null
+}
+
+function eventTargetsRenameInput(event: SyntheticEvent<HTMLElement>): boolean {
+  return event.nativeEvent
+    .composedPath()
+    .some(
+      (target) =>
+        target instanceof HTMLElement &&
+        target.dataset.itemRenameInput !== undefined
+    )
 }
 
 export function buildSpaceFileTreeModel(
@@ -163,11 +216,14 @@ export function SpaceFileTree({
   entries,
   activePath,
   disabled,
+  renameRequest,
   onSelect,
   onOpen,
   onLoadDirectory,
   onMove,
   onMoveError,
+  onRename,
+  onRenameError,
   onContextMenu,
 }: SpaceFileTreeProps) {
   const [treeResetVersion, setTreeResetVersion] = useState(0)
@@ -184,12 +240,17 @@ export function SpaceFileTree({
   onMoveRef.current = onMove
   const onMoveErrorRef = useRef(onMoveError)
   onMoveErrorRef.current = onMoveError
+  const onRenameRef = useRef(onRename)
+  onRenameRef.current = onRename
+  const onRenameErrorRef = useRef(onRenameError)
+  onRenameErrorRef.current = onRenameError
   const onContextMenuRef = useRef(onContextMenu)
   onContextMenuRef.current = onContextMenu
   const tree = useMemo(() => buildSpaceFileTreeModel(entries), [entries])
   const treeSignature = tree.paths.join("\u0000")
   const treeRef = useRef(tree)
   treeRef.current = tree
+  const appliedPathsSignatureRef = useRef<string | null>(null)
 
   const { model } = useFileTree({
     paths: [],
@@ -214,12 +275,20 @@ export function SpaceFileTree({
         const sourcePath = draggedPaths[0]
         if (!sourcePath) return
         mutationInFlightRef.current = true
+        appliedPathsSignatureRef.current = sortedPathsSignature(
+          remappedTreePaths(
+            treeRef.current.paths,
+            sourcePath,
+            droppedTreePath(sourcePath, target)
+          )
+        )
         void onMoveRef
           .current(
             relativePathFromTreePath(sourcePath),
             dropTargetDirectory(target)
           )
           .catch((cause) => {
+            appliedPathsSignatureRef.current = null
             setTreeResetVersion((current) => current + 1)
             onMoveErrorRef.current(cause)
           })
@@ -228,18 +297,62 @@ export function SpaceFileTree({
           })
       },
       onDropError: (message) => {
+        appliedPathsSignatureRef.current = null
         setTreeResetVersion((current) => current + 1)
         onMoveErrorRef.current(new Error(message))
+      },
+    },
+    renaming: {
+      canRename: (item) =>
+        disabledRef.current !== true &&
+        mutationInFlightRef.current === false &&
+        treeRef.current.entryByTreePath.has(
+          item.isFolder ? `${item.path}/` : item.path
+        ),
+      onError: (message) => onRenameErrorRef.current(new Error(message)),
+      onRename: ({ sourcePath, destinationPath, isFolder }) => {
+        const sourceTreePath = isFolder ? `${sourcePath}/` : sourcePath
+        const entry = treeRef.current.entryByTreePath.get(sourceTreePath)
+        if (!entry) return
+        const destinationTreePath = isFolder
+          ? `${destinationPath}/`
+          : destinationPath
+        mutationInFlightRef.current = true
+        appliedPathsSignatureRef.current = sortedPathsSignature(
+          remappedTreePaths(
+            treeRef.current.paths,
+            sourceTreePath,
+            destinationTreePath
+          )
+        )
+        void onRenameRef
+          .current(entry, treePathLeafName(destinationPath))
+          .catch((cause) => {
+            appliedPathsSignatureRef.current = null
+            setTreeResetVersion((current) => current + 1)
+            onRenameErrorRef.current(cause)
+          })
+          .finally(() => {
+            mutationInFlightRef.current = false
+          })
       },
     },
   })
   const selectedPaths = useFileTreeSelection(model)
 
   useEffect(() => {
+    const signature = sortedPathsSignature(tree.paths)
+    if (appliedPathsSignatureRef.current === signature) return
     model.resetPaths(tree.paths, {
       initialExpandedPaths: tree.initialExpandedPaths,
     })
+    appliedPathsSignatureRef.current = signature
   }, [model, treeResetVersion, treeSignature])
+
+  useEffect(() => {
+    if (!renameRequest) return
+    model.startRenaming(renameRequest.treePath)
+  }, [model, renameRequest])
 
   useEffect(() => {
     if (!activePath) return
@@ -294,6 +407,7 @@ export function SpaceFileTree({
       }}
       onKeyDown={(event) => {
         if (event.key !== "Enter" && event.key !== " ") return
+        if (eventTargetsRenameInput(event)) return
         openTreePath(eventTreePath(event) ?? model.getFocusedPath())
       }}
     />
