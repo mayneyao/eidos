@@ -3312,6 +3312,16 @@ button:focus-visible {
   flex: 0 0 auto;
 }
 
+.version-table-kind-filter button small {
+  margin-left: 0.25rem;
+  color: var(--ink-faint);
+  font-size: 0.5625rem;
+}
+
+.version-table-kind-filter button[aria-pressed="true"] small {
+  color: var(--ink-muted);
+}
+
 .version-table-diff-toolbar-summary {
   flex-wrap: wrap;
   row-gap: 0.15rem;

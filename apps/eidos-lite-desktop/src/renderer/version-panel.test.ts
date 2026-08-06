@@ -627,7 +627,9 @@ describe("VersionPanel table diff", () => {
 
     await act(async () => {
       host
-        .querySelector<HTMLButtonElement>('button[aria-pressed="false"]')
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Visible table columns"] button[aria-pressed="false"]'
+        )
         ?.click()
     })
 
@@ -674,6 +676,79 @@ describe("VersionPanel table diff", () => {
     expect(markup).toContain('data-cell-change="update"')
     expect(markup).toContain("Archived")
     expect(markup).toContain("Customer")
+  })
+
+  it("filters table diff rows by change kind", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+    const table: SpaceVersionTableDiff = {
+      name: "Customers",
+      columns: ["name", "status"],
+      primaryKeyColumns: ["name"],
+      changes: [
+        {
+          op: "insert",
+          key: { name: "Hao Chen" },
+          values: ["Hao Chen", "Lead"],
+        },
+        {
+          op: "delete",
+          key: { name: "Lin Wei" },
+          values: ["Lin Wei", "Archived"],
+        },
+        {
+          op: "update",
+          key: { name: "Mei Lin" },
+          oldValues: ["Mei Lin", "Lead"],
+          values: ["Mei Lin", "Customer"],
+        },
+      ],
+    }
+
+    await act(async () => {
+      root.render(createElement(TableDiff, { table }))
+    })
+
+    const kindButton = (label: string) =>
+      Array.from(
+        host.querySelectorAll<HTMLButtonElement>(
+          ".version-table-kind-filter button"
+        )
+      ).find((button) => button.textContent?.startsWith(label))!
+    const visibleRowKinds = () =>
+      Array.from(host.querySelectorAll(".version-table-diff-row")).map((row) =>
+        row.getAttribute("data-row-change")
+      )
+
+    expect(kindButton("All").getAttribute("aria-pressed")).toBe("true")
+    expect(visibleRowKinds()).toEqual(["insert", "delete", "update"])
+
+    await act(async () => {
+      kindButton("Updated").click()
+    })
+
+    expect(visibleRowKinds()).toEqual(["update"])
+    expect(host.textContent).toContain("Mei Lin")
+    expect(host.textContent).not.toContain("Hao Chen")
+    expect(host.textContent).toContain("1 of 3 changed rows")
+
+    await act(async () => {
+      kindButton("Added").click()
+    })
+
+    expect(visibleRowKinds()).toEqual(["insert"])
+    expect(host.textContent).toContain("Hao Chen")
+
+    await act(async () => {
+      kindButton("All").click()
+    })
+
+    expect(visibleRowKinds()).toEqual(["insert", "delete", "update"])
+
+    await act(async () => root.unmount())
+    host.remove()
   })
 
   it("loads the next cursor batch when the virtual list nears its end", async () => {

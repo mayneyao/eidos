@@ -13,6 +13,17 @@ const VERSION_ROW_DIFF_OVERSCAN = 8
 
 type ColumnMode = "changed" | "all"
 type RowChangeKind = "insert" | "delete" | "update"
+type RowKindFilter = RowChangeKind | "all"
+
+const ROW_KIND_FILTER_OPTIONS: Array<{
+  value: RowKindFilter
+  label: string
+}> = [
+  { value: "all", label: "All" },
+  { value: "insert", label: "Added" },
+  { value: "delete", label: "Deleted" },
+  { value: "update", label: "Updated" },
+]
 
 function displayValue(value: unknown): string {
   if (value === null) return "null"
@@ -172,6 +183,16 @@ function changedRowsSummary(table: SpaceVersionTableDiff): string {
   return `${total.toLocaleString()} changed ${total === 1 ? "row" : "rows"}`
 }
 
+function filteredRowsSummary(
+  table: SpaceVersionTableDiff,
+  kindFilter: RowKindFilter,
+  visibleCount: number
+): string {
+  const base = changedRowsSummary(table)
+  if (kindFilter === "all") return base
+  return `${visibleCount.toLocaleString()} of ${base}`
+}
+
 export function VersionTableDiff({
   table,
   showHeading = true,
@@ -190,18 +211,39 @@ export function VersionTableDiff({
   onRetryLoad?(): void
 }) {
   const [columnMode, setColumnMode] = useState<ColumnMode>("changed")
+  const [kindFilter, setKindFilter] = useState<RowKindFilter>("all")
   const [automaticLoadingPaused, setAutomaticLoadingPaused] = useState(false)
   const viewportRef = useRef<HTMLDivElement>(null)
   const loadInFlightRef = useRef(false)
   const canLoadMore = table.hasMore === true && Boolean(onLoadMore)
+  const kindCounts = useMemo(() => {
+    const counts: Record<RowChangeKind, number> = {
+      insert: 0,
+      delete: 0,
+      update: 0,
+    }
+    table.changes.forEach((change) => {
+      counts[rowChangeKind(change)] += 1
+    })
+    return counts
+  }, [table.changes])
+  const visibleChanges = useMemo(
+    () =>
+      kindFilter === "all"
+        ? table.changes
+        : table.changes.filter(
+            (change) => rowChangeKind(change) === kindFilter
+          ),
+    [kindFilter, table.changes]
+  )
   const changedColumnIndexes = useMemo(
     () =>
       table.columns
         .map((_, index) => index)
         .filter((index) =>
-          table.changes.some((change) => columnChanged(change, index))
+          visibleChanges.some((change) => columnChanged(change, index))
         ),
-    [table.changes, table.columns]
+    [visibleChanges, table.columns]
   )
   const visibleColumnIndexes =
     columnMode === "all" || changedColumnIndexes.length === 0
@@ -209,10 +251,10 @@ export function VersionTableDiff({
       : changedColumnIndexes
   const columnsAreFiltered = visibleColumnIndexes.length < table.columns.length
   const rowVirtualizer = useVirtualizer({
-    count: table.changes.length,
+    count: visibleChanges.length,
     getScrollElement: () => viewportRef.current,
-    estimateSize: (index) => estimatedRowHeight(table.changes[index]!),
-    getItemKey: (index) => `${identityKey}:${index}`,
+    estimateSize: (index) => estimatedRowHeight(visibleChanges[index]!),
+    getItemKey: (index) => `${identityKey}:${kindFilter}:${index}`,
     initialRect: { width: 1024, height: 640 },
     overscan: VERSION_ROW_DIFF_OVERSCAN,
     useAnimationFrameWithResizeObserver: true,
@@ -220,10 +262,10 @@ export function VersionTableDiff({
   const virtualRows = rowVirtualizer.getVirtualItems()
   const fallbackRows = useMemo(() => {
     let start = 0
-    return table.changes.slice(0, 24).map((change, index) => {
+    return visibleChanges.slice(0, 24).map((change, index) => {
       const size = estimatedRowHeight(change)
       const row = {
-        key: `${identityKey}:${index}`,
+        key: `${identityKey}:${kindFilter}:${index}`,
         index,
         start,
         end: start + size,
@@ -231,7 +273,7 @@ export function VersionTableDiff({
       start += size
       return row
     })
-  }, [identityKey, table.changes])
+  }, [identityKey, kindFilter, visibleChanges])
   const renderedRows = virtualRows.length > 0 ? virtualRows : fallbackRows
   const firstVirtualRow = renderedRows[0]
   const lastVirtualRow = renderedRows.at(-1)
@@ -243,6 +285,7 @@ export function VersionTableDiff({
 
   useEffect(() => {
     setColumnMode("changed")
+    setKindFilter("all")
     setAutomaticLoadingPaused(false)
     loadInFlightRef.current = false
     if (viewportRef.current) {
@@ -250,6 +293,12 @@ export function VersionTableDiff({
       viewportRef.current.scrollLeft = 0
     }
   }, [identityKey])
+
+  useEffect(() => {
+    if (viewportRef.current) {
+      viewportRef.current.scrollTop = 0
+    }
+  }, [kindFilter])
 
   useEffect(() => {
     setAutomaticLoadingPaused(false)
@@ -278,12 +327,12 @@ export function VersionTableDiff({
   useEffect(() => {
     if (
       lastVirtualRow === undefined ||
-      lastVirtualRow.index < table.changes.length - VERSION_ROW_DIFF_LOAD_AHEAD
+      lastVirtualRow.index < visibleChanges.length - VERSION_ROW_DIFF_LOAD_AHEAD
     ) {
       return
     }
     void loadNextBatch()
-  }, [lastVirtualRow?.index, loadNextBatch, table.changes.length])
+  }, [lastVirtualRow?.index, loadNextBatch, visibleChanges.length])
 
   return (
     <section className="version-table-diff" data-version-table-diff>
@@ -291,7 +340,9 @@ export function VersionTableDiff({
       <header className="version-inspector-diff-bar version-text-diff-toolbar version-table-diff-toolbar">
         <div className="version-table-diff-toolbar-summary" aria-live="polite">
           <strong>Row changes</strong>
-          <span>{changedRowsSummary(table)}</span>
+          <span>
+            {filteredRowsSummary(table, kindFilter, visibleChanges.length)}
+          </span>
           <span>
             {visibleColumnIndexes.length.toLocaleString()} of{" "}
             {table.columns.length.toLocaleString()} columns
@@ -313,6 +364,24 @@ export function VersionTableDiff({
               Retry
             </button>
           ) : null}
+        </div>
+        <div
+          className="version-text-diff-layout version-table-kind-filter"
+          aria-label="Row change types"
+        >
+          {ROW_KIND_FILTER_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={kindFilter === option.value}
+              onClick={() => setKindFilter(option.value)}
+            >
+              {option.label}
+              {option.value !== "all" ? (
+                <small>{kindCounts[option.value].toLocaleString()}</small>
+              ) : null}
+            </button>
+          ))}
         </div>
         {columnsAreFiltered || columnMode === "all" ? (
           <div
@@ -341,11 +410,11 @@ export function VersionTableDiff({
         )}
       </header>
 
-      {table.changes.length ? (
+      {visibleChanges.length ? (
         <div
           ref={viewportRef}
           className="version-table-diff-viewport"
-          data-scrollable={table.changes.length > 12 || canLoadMore}
+          data-scrollable={visibleChanges.length > 12 || canLoadMore}
           onScroll={(event) => {
             const viewport = event.currentTarget
             const loadThreshold = Math.max(viewport.clientHeight, 320)
@@ -387,7 +456,7 @@ export function VersionTableDiff({
                 </tr>
               ) : null}
               {renderedRows.map((virtualRow) => {
-                const change = table.changes[virtualRow.index]!
+                const change = visibleChanges[virtualRow.index]!
                 const kind = rowChangeKind(change)
                 const identity = rowIdentity(change, virtualRow.index + 1)
                 return (
@@ -425,6 +494,16 @@ export function VersionTableDiff({
               ) : null}
             </tbody>
           </table>
+        </div>
+      ) : table.changes.length ? (
+        <div className="version-table-diff-empty">
+          No{" "}
+          {kindFilter === "insert"
+            ? "added"
+            : kindFilter === "delete"
+              ? "deleted"
+              : "updated"}{" "}
+          rows among the loaded changes.
         </div>
       ) : (
         <div className="version-table-diff-empty">
