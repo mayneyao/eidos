@@ -673,6 +673,93 @@ describe("EidosFileGrid", () => {
     expect(mocks.props?.getCellContent([1, 0])).toMatchObject({ data: true })
   })
 
+  it("protects optimistic cells and keeps saves flowing across a refresh", async () => {
+    let resolveTitle: ((result: EidosFileRowMutationResult) => void) | undefined
+    const onCellEdit = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveTitle = resolve
+          })
+      )
+      .mockImplementation(async (row, field, value) => ({
+        tableId: "tasks",
+        row: { ...row, [field.tableColumnName]: value },
+        rowCount: table.rowCount,
+      }))
+    const renderGrid = (
+      loadPage: (offset: number, limit: number) => Promise<EidosFileRowPage>
+    ) => (
+      <EidosFileGrid
+        table={table}
+        view={table.views[0]}
+        loadPage={loadPage}
+        onAddRow={vi.fn()}
+        onCellEdit={onCellEdit}
+      />
+    )
+    await act(async () => {
+      root.render(renderGrid(createLoadPage()))
+      await Promise.resolve()
+    })
+
+    act(() => {
+      mocks.props?.onCellEdited?.([0, 0], {
+        kind: GridCellKind.Text,
+        allowOverlay: true,
+        data: "Write implementation",
+        displayData: "Write implementation",
+      })
+    })
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "Write implementation",
+    })
+
+    // A snapshot refresh lands while the first save is still in flight. Its
+    // refetch reads stale rows and must not clobber the optimistic cell, or
+    // an open editor would reset mid-typing.
+    await act(async () => {
+      root.render(renderGrid(createLoadPage()))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "Write implementation",
+    })
+
+    act(() => {
+      mocks.props?.onCellEdited?.([1, 0], {
+        kind: GridCellKind.Boolean,
+        allowOverlay: false,
+        data: true,
+      })
+    })
+
+    // Completing the first save must drain the queued edit even though the
+    // refresh advanced the grid generation; previously the queue stalled and
+    // the second write was silently discarded.
+    await act(async () => {
+      resolveTitle?.({
+        tableId: "tasks",
+        row: { ...rowAt(0), title: "Write implementation" },
+        rowCount: table.rowCount,
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(onCellEdit).toHaveBeenCalledTimes(2)
+    await act(async () => {
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "Write implementation",
+    })
+    expect(mocks.props?.getCellContent([1, 0])).toMatchObject({ data: true })
+  })
+
   it("merges queued optimistic edits into recovery when the first save fails", async () => {
     let rejectTitle: ((error: Error) => void) | undefined
     const onCellEdit = vi

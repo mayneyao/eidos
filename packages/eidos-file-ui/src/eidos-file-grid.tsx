@@ -532,7 +532,14 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         const page = await loadPage(pageIndex * PAGE_SIZE, PAGE_SIZE)
         if (generation !== generationRef.current) return false
         page.rows.forEach((row, index) => {
-          rowsRef.current.set(page.offset + index, row)
+          const rowIndex = page.offset + index
+          // A refetched page may have been read before a pending optimistic
+          // edit landed. Never clobber such rows: an open editor would reset
+          // to the stale value mid-typing, and the mutation result reapplies
+          // the authoritative row once the save completes.
+          if (!rowMutationRevisionRef.current.has(rowIndex)) {
+            rowsRef.current.set(rowIndex, row)
+          }
         })
         loadedPagesRef.current.add(pageIndex)
         touchPage(pageIndex)
@@ -1047,7 +1054,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           mutation.rowEdits,
           mutation.editedCellCount
         )
-        if (generation !== generationRef.current) return
+        // Applying the persisted rows stays safe across a refresh: the
+        // per-edit guards only touch rows still holding the same record and
+        // mutation revision. Discarding the result here used to strand the
+        // save silently and stall the whole mutation queue.
+        const generationChanged = generation !== generationRef.current
         const rowsById = new Map(
           result.rows.map((row) => [String(row._id), row])
         )
@@ -1062,15 +1073,28 @@ export const EidosFileGrid = memo(function EidosFileGrid({
             rowMutationRevisionRef.current.get(edit.rowIndex) === edit.revision
           ) {
             rowsRef.current.set(edit.rowIndex, persisted)
+            // Settled rows match the backend again, so later refetches may
+            // update them freely; only still-pending rows stay protected.
+            rowMutationRevisionRef.current.delete(edit.rowIndex)
             changed = true
           }
         }
-        setRowCount(result.rowCount)
-        updateFailedMutation(null)
-        if (changed) setCacheRevision((revision) => revision + 1)
-        refreshColumnStats()
+        if (!generationChanged) {
+          setRowCount(result.rowCount)
+          updateFailedMutation(null)
+          if (changed) setCacheRevision((revision) => revision + 1)
+          refreshColumnStats()
+        }
       } catch (error) {
-        if (generation !== generationRef.current) return
+        if (generation !== generationRef.current) {
+          // The world moved on and the failure can no longer be surfaced.
+          // Release the optimistic rows so the next refetch restores the
+          // backend truth instead of pinning values that were never saved.
+          for (const edit of mutation.rowEdits) {
+            rowMutationRevisionRef.current.delete(edit.rowIndex)
+          }
+          return
+        }
         const queued = queuedMutationsRef.current.splice(0)
         const failed = mergeGridMutations([mutation, ...queued])
         if (failed.rowEdits.length > 0) {
@@ -1080,16 +1104,18 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           })
         }
       } finally {
-        if (generation === generationRef.current) {
-          mutationInFlightRef.current = false
-          setMutationInFlight(false)
-          if (!failedMutationRef.current) {
-            const next = queuedMutationsRef.current.shift()
-            if (next) void runGridMutationRef.current(next)
-          }
-          if (prunePageCache()) {
-            setCacheRevision((revision) => revision + 1)
-          }
+        // Resetting the in-flight flag and draining the queue must happen
+        // even after a refresh advanced the generation, or every subsequent
+        // edit would queue behind a flag that never clears and silently
+        // never persist.
+        mutationInFlightRef.current = false
+        setMutationInFlight(false)
+        if (!failedMutationRef.current) {
+          const next = queuedMutationsRef.current.shift()
+          if (next) void runGridMutationRef.current(next)
+        }
+        if (generation === generationRef.current && prunePageCache()) {
+          setCacheRevision((revision) => revision + 1)
         }
       }
     },
