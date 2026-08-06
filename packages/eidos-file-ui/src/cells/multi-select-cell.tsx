@@ -330,16 +330,37 @@ const renderer: CustomRenderer<MultiSelectCell> = {
       width: rect.width - 2 * theme.cellHorizontalPadding,
       height: rect.height - 2 * theme.cellVerticalPadding,
     }
-    const rows = Math.max(
+    const maxRows = Math.max(
       1,
       Math.floor(drawArea.height / (tagHeight + innerPad))
     )
 
+    ctx.font = `12px ${theme.fontFamily}`
+    let rowsUsed = 1
+    {
+      let x = drawArea.x
+      for (const optionId of values!) {
+        const option = allowedValues.find((t) => t.id === optionId)
+        const name = option?.name ?? optionId ?? ""
+        const width = measureTextCached(name, ctx).width + innerPad * 2
+        if (
+          x !== drawArea.x &&
+          x + width > drawArea.x + drawArea.width &&
+          rowsUsed < maxRows
+        ) {
+          rowsUsed++
+          x = drawArea.x
+        }
+        x += width + 8
+        if (x > drawArea.x + drawArea.width && rowsUsed >= maxRows) break
+      }
+    }
+
     let x = drawArea.x
-    let row = 1
     let y =
       drawArea.y +
-      (drawArea.height - rows * tagHeight - (rows - 1) * innerPad) / 2
+      (drawArea.height - rowsUsed * tagHeight - (rowsUsed - 1) * innerPad) / 2
+    let row = 1
     for (const optionId of values!) {
       const option = allowedValues.find((t) => t.id === optionId)
       const colorName = option?.color
@@ -349,7 +370,6 @@ const renderer: CustomRenderer<MultiSelectCell> = {
       )
       const name = option?.name ?? optionId ?? ""
 
-      ctx.font = `12px ${theme.fontFamily}`
       const metrics = measureTextCached(name, ctx)
       const width = metrics.width + innerPad * 2
       const textY = tagHeight / 2
@@ -357,7 +377,7 @@ const renderer: CustomRenderer<MultiSelectCell> = {
       if (
         x !== drawArea.x &&
         x + width > drawArea.x + drawArea.width &&
-        row < rows
+        row < maxRows
       ) {
         row++
         y += tagHeight + innerPad
@@ -377,7 +397,7 @@ const renderer: CustomRenderer<MultiSelectCell> = {
       )
 
       x += width + 8
-      if (x > drawArea.x + drawArea.width && row >= rows) break
+      if (x > drawArea.x + drawArea.width && row >= maxRows) break
     }
 
     return true

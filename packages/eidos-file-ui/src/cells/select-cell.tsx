@@ -334,16 +334,10 @@ const renderer: CustomRenderer<SelectCell> = {
     }
     const tagHeight = 20
     const innerPad = 6
-    const rows = Math.max(
-      1,
-      Math.floor(drawArea.height / (tagHeight + innerPad))
-    )
     const metrics = measureTextCached(displayValue, ctx)
     const width = metrics.width + innerPad * 2
     let x = drawArea.x
-    let y =
-      drawArea.y +
-      (drawArea.height - rows * tagHeight - (rows - 1) * innerPad) / 2
+    const y = drawArea.y + (drawArea.height - tagHeight) / 2
     if (color) {
       ctx.fillStyle = color
       ctx.beginPath()
@@ -353,8 +347,8 @@ const renderer: CustomRenderer<SelectCell> = {
     ctx.fillStyle = theme.textDark
     ctx.fillText(
       displayValue,
-      rect.x + theme.cellHorizontalPadding + innerPad,
-      rect.y + rect.height / 2 + getMiddleCenterBias(ctx, theme)
+      x + innerPad,
+      y + tagHeight / 2 + getMiddleCenterBias(ctx, theme)
     )
 
     return true
