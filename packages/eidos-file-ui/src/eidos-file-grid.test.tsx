@@ -6,6 +6,7 @@ import {
   decodeEidosFileValues,
   encodeEidosFileAttachmentPaths,
   encodeEidosFileValues,
+  type EidosFileRow,
   type EidosFileRowPage,
   type EidosFileRowMutationResult,
   type EidosFileRowsMutationResult,
@@ -16,6 +17,7 @@ import {
   CompactSelection,
   GridCellKind,
   type DataEditorProps,
+  type EditableGridCell,
 } from "@glideapps/glide-data-grid"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -788,6 +790,282 @@ describe("EidosFileGrid", () => {
     })
     expect(firstRenderers).toBeDefined()
     expect(mocks.props?.customRenderers).toBe(firstRenderers)
+  })
+
+  it("keeps an appended empty editor bound to its row when sorting moves it", async () => {
+    const rowA = rowAt(0)
+    const rowB = rowAt(1)
+    const appendedRow = { _id: "row_appended", title: null, done: 0 }
+    const onCellEdit = createCellEdit()
+    const onAddRow = vi.fn(async () => ({
+      tableId: "tasks",
+      row: appendedRow,
+      rowCount: 3,
+    }))
+    const renderGrid = (rows: EidosFileRow[], reloadToken: number) => (
+      <EidosFileGrid
+        table={{ ...table, rowCount: 2 }}
+        view={table.views[0]}
+        reloadToken={reloadToken}
+        loadPage={vi.fn(async () => ({
+          tableId: "tasks",
+          offset: 0,
+          limit: 100,
+          total: rows.length,
+          rows,
+        }))}
+        onAddRow={onAddRow}
+        onCellEdit={onCellEdit}
+      />
+    )
+    await act(async () => {
+      root.render(renderGrid([rowA, rowB], 0))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      await mocks.props?.onRowAppended?.()
+    })
+    const appendedCell = mocks.props?.getCellContent([0, 2])
+    expect(appendedCell).toMatchObject({ data: "" })
+
+    // The updated-time sort puts the just-created row at the top while Glide's
+    // open overlay editor remains attached to the old bottom index.
+    await act(async () => {
+      root.render(renderGrid([appendedRow, rowA, rowB], 1))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mocks.props?.getCellContent([0, 2])).toMatchObject({
+      data: "Row 1",
+    })
+
+    // DataEditor always offers edits to onCellsEdited first. Exiting the
+    // untouched empty editor must target the appended row by identity, not
+    // clear the unrelated record that moved into its former index.
+    act(() => {
+      mocks.props?.onCellsEdited?.([
+        {
+          location: [0, 2],
+          value: appendedCell as EditableGridCell,
+        },
+      ])
+    })
+    await act(async () => {
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(onCellEdit).not.toHaveBeenCalled()
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "",
+    })
+    expect(mocks.props?.getCellContent([0, 2])).toMatchObject({
+      data: "Row 1",
+    })
+
+    act(() => {
+      mocks.props?.onCellsEdited?.([
+        {
+          location: [0, 2],
+          value: {
+            ...(appendedCell as EditableGridCell),
+            data: "New task",
+            displayData: "New task",
+          } as EditableGridCell,
+        },
+      ])
+    })
+    await act(async () => {
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(onCellEdit).toHaveBeenCalledWith(
+      appendedRow,
+      table.fields[0],
+      "New task"
+    )
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "New task",
+    })
+    expect(mocks.props?.getCellContent([0, 2])).toMatchObject({
+      data: "Row 1",
+    })
+  })
+
+  it("keeps fill edits on their target rows", async () => {
+    const onCellEdit = createCellEdit()
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={{ ...table, rowCount: 2 }}
+          view={table.views[0]}
+          loadPage={vi.fn(async () => ({
+            tableId: "tasks",
+            offset: 0,
+            limit: 100,
+            total: 2,
+            rows: [rowAt(0), rowAt(1)],
+          }))}
+          onAddRow={vi.fn()}
+          onCellEdit={onCellEdit}
+        />
+      )
+      await Promise.resolve()
+    })
+    const sourceCell = mocks.props?.getCellContent([0, 0])
+
+    // Glide's fill handle copies the source cell object into another row. Its
+    // identity metadata describes the value source, while the edit location
+    // is the record that must be changed.
+    act(() => {
+      mocks.props?.onCellsEdited?.([
+        {
+          location: [0, 1],
+          value: sourceCell as EditableGridCell,
+        },
+      ])
+    })
+    await act(async () => {
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(onCellEdit).toHaveBeenCalledWith(
+      rowAt(1),
+      table.fields[0],
+      "Write RFC"
+    )
+    expect(mocks.props?.getCellContent([0, 1])).toMatchObject({
+      data: "Write RFC",
+    })
+  })
+
+  it("retargets undo history after rows are re-sorted", async () => {
+    const rowA = rowAt(0)
+    const rowB = rowAt(1)
+    const onCellEdit = createCellEdit()
+    const renderGrid = (rows: EidosFileRow[]) => (
+      <EidosFileGrid
+        table={{ ...table, rowCount: 2 }}
+        view={table.views[0]}
+        loadPage={vi.fn(async () => ({
+          tableId: "tasks",
+          offset: 0,
+          limit: 100,
+          total: 2,
+          rows,
+        }))}
+        onAddRow={vi.fn()}
+        onCellEdit={onCellEdit}
+      />
+    )
+    await act(async () => {
+      root.render(renderGrid([rowA, rowB]))
+      await Promise.resolve()
+    })
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 1],
+          range: { x: 0, y: 1, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    const editedCell = mocks.props?.getCellContent([0, 1])
+    act(() => {
+      mocks.props?.onCellsEdited?.([
+        {
+          location: [0, 1],
+          value: {
+            ...(editedCell as EditableGridCell),
+            data: "Edited row B",
+            displayData: "Edited row B",
+          } as EditableGridCell,
+        },
+      ])
+    })
+    await act(async () => {
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    await act(async () => {
+      root.render(renderGrid([{ ...rowB, title: "Edited row B" }, rowA]))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    container.querySelector<HTMLElement>('[data-testid="glide-grid"]')?.focus()
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "z", metaKey: true })
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(onCellEdit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ _id: rowB._id }),
+      table.fields[0],
+      rowB.title
+    )
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: rowB.title,
+    })
+    expect(mocks.props?.getCellContent([0, 1])).toMatchObject({
+      data: rowA.title,
+    })
+  })
+
+  it("drops an editor commit whose row left the grid", async () => {
+    const rowA = rowAt(0)
+    const rowB = rowAt(1)
+    const onCellEdit = createCellEdit()
+    const renderGrid = (rows: ReturnType<typeof rowAt>[]) => (
+      <EidosFileGrid
+        table={{ ...table, rowCount: rows.length }}
+        view={table.views[0]}
+        loadPage={vi.fn(async () => ({
+          tableId: "tasks",
+          offset: 0,
+          limit: 100,
+          total: rows.length,
+          rows,
+        }))}
+        onAddRow={vi.fn()}
+        onCellEdit={onCellEdit}
+      />
+    )
+    await act(async () => {
+      root.render(renderGrid([rowA, rowB]))
+      await Promise.resolve()
+    })
+    const editedCell = mocks.props?.getCellContent([0, 1])
+
+    await act(async () => {
+      root.render(renderGrid([rowA]))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    act(() => {
+      mocks.props?.onCellsEdited?.([
+        {
+          location: [0, 1],
+          value: {
+            ...(editedCell as EditableGridCell),
+            data: "Edited row B",
+            displayData: "Edited row B",
+          } as EditableGridCell,
+        },
+      ])
+    })
+    await act(async () => {
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(onCellEdit).not.toHaveBeenCalled()
   })
 
   it("merges queued optimistic edits into recovery when the first save fails", async () => {

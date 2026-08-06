@@ -34,6 +34,7 @@ import DataEditor, {
   type DataEditorProps,
   type DataEditorRef,
   type EditableGridCell,
+  type GridCell,
   type GridColumn,
   type GridSelection,
   type HeaderClickedEventArgs,
@@ -109,6 +110,22 @@ const EIDOS_FILE_GRID_CUSTOM_RENDERERS = [
   EidosFileAttachmentCellRenderer,
   EidosFileRelationCellRenderer,
 ]
+
+function eidosFileRowIdentity(row: EidosFileRow): string | undefined {
+  const rowId = row._id
+  if (typeof rowId !== "string" && typeof rowId !== "number") return undefined
+  return String(rowId)
+}
+
+function tagGridCellRowIdentity<T extends GridCell>(
+  cell: T,
+  row: EidosFileRow,
+  rowIndex: number
+): T {
+  const rowId = eidosFileRowIdentity(row)
+  if (rowId === undefined) return cell
+  return { ...cell, eidosFileRowId: rowId, eidosFileRowIndex: rowIndex }
+}
 
 function themeColorWithAlpha(color: string, alpha: number): string {
   const normalized = color.trim()
@@ -555,6 +572,16 @@ export const EidosFileGrid = memo(function EidosFileGrid({
             rowsRef.current.set(rowIndex, row)
           }
         })
+        for (const rowIndex of [...rowsRef.current.keys()]) {
+          // Drop cached rows beyond the authoritative total (deleted or
+          // filtered out) so a stale entry can never be edited by accident.
+          if (
+            rowIndex >= page.total &&
+            !rowMutationRevisionRef.current.has(rowIndex)
+          ) {
+            rowsRef.current.delete(rowIndex)
+          }
+        }
         loadedPagesRef.current.add(pageIndex)
         touchPage(pageIndex)
         prunePageCache()
@@ -821,32 +848,40 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         (cell.data as { kind?: unknown }).kind === "eidos-file-file-cell"
       ) {
         const fileCell = cell as EidosFileAttachmentCell
-        return {
-          ...fileCell,
-          data: {
-            ...fileCell.data,
-            thumbnails: attachmentThumbnails.prepare(
-              fileCell.data.entries,
-              columnIndex,
-              rowIndex
-            ),
-            onImport: onImportFiles,
-          },
-        } as EidosFileAttachmentCell
+        return tagGridCellRowIdentity(
+          {
+            ...fileCell,
+            data: {
+              ...fileCell.data,
+              thumbnails: attachmentThumbnails.prepare(
+                fileCell.data.entries,
+                columnIndex,
+                rowIndex
+              ),
+              onImport: onImportFiles,
+            },
+          } as EidosFileAttachmentCell,
+          row,
+          rowIndex
+        )
       }
       if (
         cell.kind === GridCellKind.Custom &&
         (cell.data as { kind?: unknown }).kind === "eidos-file-relation-cell"
       ) {
-        return {
-          ...cell,
-          data: {
-            ...cell.data,
-            onSearch: onSearchRelation
-              ? (query: string) => onSearchRelation(field, query)
-              : undefined,
-          },
-        } as EidosFileRelationCell
+        return tagGridCellRowIdentity(
+          {
+            ...cell,
+            data: {
+              ...cell.data,
+              onSearch: onSearchRelation
+                ? (query: string) => onSearchRelation(field, query)
+                : undefined,
+            },
+          } as EidosFileRelationCell,
+          row,
+          rowIndex
+        )
       }
       if (
         cell.kind === GridCellKind.Custom &&
@@ -854,27 +889,31 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           (cell.data as { kind?: unknown }).kind === "multi-select-cell")
       ) {
         const allowCreate = !gridWriteLocked && Boolean(onFieldUpdate)
-        return {
-          ...cell,
-          data: {
-            ...cell.data,
-            allowCreate,
-            onCreateOption: allowCreate
-              ? async (options: readonly EidosFileGridSelectOption[]) => {
-                  try {
-                    await onFieldUpdate?.(field, {
-                      property: selectOptionsProperty(field, options),
-                    })
-                  } catch (error) {
-                    onError?.(error)
-                    throw error
+        return tagGridCellRowIdentity(
+          {
+            ...cell,
+            data: {
+              ...cell.data,
+              allowCreate,
+              onCreateOption: allowCreate
+                ? async (options: readonly EidosFileGridSelectOption[]) => {
+                    try {
+                      await onFieldUpdate?.(field, {
+                        property: selectOptionsProperty(field, options),
+                      })
+                    } catch (error) {
+                      onError?.(error)
+                      throw error
+                    }
                   }
-                }
-              : undefined,
+                : undefined,
+            },
           },
-        }
+          row,
+          rowIndex
+        )
       }
-      return cell
+      return tagGridCellRowIdentity(cell, row, rowIndex)
     },
     [
       attachmentThumbnails,
@@ -1152,16 +1191,45 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     void runGridMutationRef.current(mutation)
   }, [])
 
+  // Grid coordinates are only a viewport address. Overlay editors can remain
+  // open while a refresh re-sorts the underlying records, so their commit
+  // location may no longer identify the row that opened the editor. Cells
+  // carry that row identity and their source index. The source index lets us
+  // distinguish an editor commit from a fill operation, where Glide copies a
+  // source cell into a deliberately different target row.
+  const retargetEditedCellLocation = useCallback(
+    (location: Item, cell: GridCell): Item | null => {
+      const identity = cell as {
+        eidosFileRowId?: unknown
+        eidosFileRowIndex?: unknown
+      }
+      const rowId = identity.eidosFileRowId
+      if (typeof rowId !== "string") return location
+      if (identity.eidosFileRowIndex !== location[1]) return location
+      const currentRow = rowsRef.current.get(location[1])
+      if (currentRow && eidosFileRowIdentity(currentRow) === rowId) {
+        return location
+      }
+      for (const [rowIndex, row] of rowsRef.current) {
+        if (eidosFileRowIdentity(row) === rowId) {
+          return [location[0], rowIndex]
+        }
+      }
+      return null
+    },
+    []
+  )
+
   const commitCells = useCallback(
     (edits: readonly UndoRedoEdit[]) => {
       if (disabled || failedMutationRef.current) {
         return
       }
       const grouped = new Map<number, EidosFileGridPendingRowEdit>()
-      for (const {
-        cell: [columnIndex, rowIndex],
-        newValue,
-      } of edits) {
+      for (const { cell, newValue } of edits) {
+        const target = retargetEditedCellLocation(cell, newValue)
+        if (!target) continue
+        const [columnIndex, rowIndex] = target
         const field = fields[columnIndex]
         const row = rowsRef.current.get(rowIndex)
         if (!field || !row || field.valueKind === "system") continue
@@ -1203,7 +1271,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       )
       enqueueGridMutation({ rowEdits, editedCellCount })
     },
-    [disabled, enqueueGridMutation, fields]
+    [disabled, enqueueGridMutation, fields, retargetEditedCellLocation]
   )
 
   const commitCell = useCallback(
@@ -1371,6 +1439,15 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     },
     [fields, fileDropHighlightColor]
   )
+  const onCellEditedWithRetarget = useCallback(
+    (location: Item, cell: EditableGridCell) => {
+      const target = retargetEditedCellLocation(location, cell)
+      if (!target) return
+      history.onCellEdited(target, cell)
+    },
+    [history.onCellEdited, retargetEditedCellLocation]
+  )
+
   const importFilesIntoAttachmentCell = useCallback(
     (location: Item, files: readonly File[]): boolean => {
       if (!onImportDroppedFiles || gridWriteLocked || files.length === 0) {
@@ -1396,7 +1473,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
             ...imported.filter((entry) => !existingUris.has(entry.uri)),
           ]
           if (entries.length === fileCell.data.entries.length) return
-          history.onCellEdited(location, {
+          onCellEditedWithRetarget(location, {
             ...fileCell,
             copyData: encodeEidosFileValues(entries),
             data: {
@@ -1411,7 +1488,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     [
       getCellContent,
       gridWriteLocked,
-      history.onCellEdited,
+      onCellEditedWithRetarget,
       onError,
       onImportDroppedFiles,
     ]
@@ -1452,15 +1529,14 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     NonNullable<DataEditorProps["onCellsEdited"]>
   >(
     (edits) => {
-      history.onCellsEdited(
-        edits.map((edit) => ({
-          cell: edit.location,
-          newValue: edit.value,
-        }))
-      )
+      const retargeted = edits.flatMap((edit) => {
+        const target = retargetEditedCellLocation(edit.location, edit.value)
+        return target ? [{ cell: target, newValue: edit.value }] : []
+      })
+      history.onCellsEdited(retargeted)
       return true
     },
-    [history.onCellsEdited]
+    [history.onCellsEdited, retargetEditedCellLocation]
   )
 
   const onColumnResize = useCallback(
@@ -1651,7 +1727,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           highlightRegions={[...searchHighlightRegions, ...fileDropHighlights]}
           fillHandle={!gridWriteLocked}
           gridSelection={history.gridSelection ?? undefined}
-          onCellEdited={gridWriteLocked ? undefined : history.onCellEdited}
+          onCellEdited={gridWriteLocked ? undefined : onCellEditedWithRetarget}
           onCellsEdited={gridWriteLocked ? undefined : onCellsEdited}
           onGridSelectionChange={history.onGridSelectionChange}
           onHeaderClicked={onHeaderClicked}
