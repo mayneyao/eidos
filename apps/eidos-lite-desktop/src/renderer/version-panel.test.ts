@@ -732,7 +732,7 @@ describe("VersionPanel table diff", () => {
     expect(visibleRowKinds()).toEqual(["update"])
     expect(host.textContent).toContain("Mei Lin")
     expect(host.textContent).not.toContain("Hao Chen")
-    expect(host.textContent).toContain("1 of 3 changed rows")
+    expect(host.textContent).toContain("1 of 1 updated rows")
 
     await act(async () => {
       kindButton("Added").click()
@@ -749,6 +749,39 @@ describe("VersionPanel table diff", () => {
 
     await act(async () => root.unmount())
     host.remove()
+  })
+
+  it("uses the backend summary for kind counts so unloaded rows stay visible", () => {
+    const table: SpaceVersionTableDiff = {
+      name: "Events",
+      columns: ["_id", "payload"],
+      primaryKeyColumns: ["_id"],
+      changes: Array.from({ length: 100 }, (_, index) => ({
+        op: "insert",
+        key: { _id: `event-${index + 1}` },
+        values: [`event-${index + 1}`, `payload ${index + 1}`],
+      })),
+      summary: {
+        name: "Events",
+        inserts: 3162,
+        deletes: 5,
+        updates: 2,
+      },
+      hasMore: true,
+      nextCursor: "cursor-100",
+    }
+
+    const markup = renderToStaticMarkup(createElement(TableDiff, { table }))
+
+    // Loaded pages only contain inserts, but the filter must advertise the
+    // deletes and updates waiting in unloaded pages.
+    expect(markup).toContain("Added")
+    expect(markup).toContain("3,162")
+    expect(markup).toContain("Deleted")
+    expect(markup).toContain(">5</small>")
+    expect(markup).toContain("Updated")
+    expect(markup).toContain(">2</small>")
+    expect(markup).toContain("100 of 3,169 changed rows")
   })
 
   it("loads the next cursor batch when the virtual list nears its end", async () => {

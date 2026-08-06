@@ -186,11 +186,18 @@ function changedRowsSummary(table: SpaceVersionTableDiff): string {
 function filteredRowsSummary(
   table: SpaceVersionTableDiff,
   kindFilter: RowKindFilter,
-  visibleCount: number
+  visibleCount: number,
+  kindTotal: number
 ): string {
   const base = changedRowsSummary(table)
   if (kindFilter === "all") return base
-  return `${visibleCount.toLocaleString()} of ${base}`
+  const label =
+    kindFilter === "insert"
+      ? "added"
+      : kindFilter === "delete"
+        ? "deleted"
+        : "updated"
+  return `${visibleCount.toLocaleString()} of ${kindTotal.toLocaleString()} ${label} rows`
 }
 
 export function VersionTableDiff({
@@ -217,6 +224,16 @@ export function VersionTableDiff({
   const loadInFlightRef = useRef(false)
   const canLoadMore = table.hasMore === true && Boolean(onLoadMore)
   const kindCounts = useMemo(() => {
+    // The backend summary is authoritative for the whole change set; counts
+    // derived from loaded rows would shift as pages stream in and hide the
+    // kinds that only exist in unloaded pages.
+    if (table.summary) {
+      return {
+        insert: table.summary.inserts,
+        delete: table.summary.deletes,
+        update: table.summary.updates,
+      }
+    }
     const counts: Record<RowChangeKind, number> = {
       insert: 0,
       delete: 0,
@@ -226,7 +243,7 @@ export function VersionTableDiff({
       counts[rowChangeKind(change)] += 1
     })
     return counts
-  }, [table.changes])
+  }, [table.changes, table.summary])
   const visibleChanges = useMemo(
     () =>
       kindFilter === "all"
@@ -325,8 +342,11 @@ export function VersionTableDiff({
   }, [automaticLoadingPaused, canLoadMore, onLoadMore])
 
   useEffect(() => {
+    // An empty or short filtered list means the last virtual row sits at the
+    // end (or no row exists at all), so pages keep streaming until matching
+    // rows appear or the change set is exhausted.
     if (
-      lastVirtualRow === undefined ||
+      lastVirtualRow !== undefined &&
       lastVirtualRow.index < visibleChanges.length - VERSION_ROW_DIFF_LOAD_AHEAD
     ) {
       return
@@ -341,7 +361,12 @@ export function VersionTableDiff({
         <div className="version-table-diff-toolbar-summary" aria-live="polite">
           <strong>Row changes</strong>
           <span>
-            {filteredRowsSummary(table, kindFilter, visibleChanges.length)}
+            {filteredRowsSummary(
+              table,
+              kindFilter,
+              visibleChanges.length,
+              kindFilter === "all" ? 0 : kindCounts[kindFilter]
+            )}
           </span>
           <span>
             {visibleColumnIndexes.length.toLocaleString()} of{" "}
