@@ -295,7 +295,11 @@ function columnPixelWidth(stored: number | undefined, base: number): number {
 
 function viewRowHeight(view: EidosFileViewInfo | undefined): number {
   if (view?.properties?.rowDensity === "compact") return 28
-  if (view?.properties?.rowDensity === "comfortable") return 44
+  // Glide wraps text on a 17px line pitch (13px font, lineHeight 1.4) with 3px
+  // vertical padding, so 52px fits exactly three lines and 69px fits four.
+  // The previous 44px clipped a third line in half.
+  if (view?.properties?.rowDensity === "comfortable") return 52
+  if (view?.properties?.rowDensity === "huge") return 69
   return 36
 }
 
@@ -809,7 +813,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         row[field.tableColumnName],
         gridWriteLocked,
         row,
-        t("Unavailable record")
+        t("Unavailable record"),
+        view?.properties?.textWrapping === true
       )
       if (
         cell.kind === GridCellKind.Custom &&

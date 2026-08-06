@@ -113,7 +113,8 @@ export function eidosFileValueToGridCell(
   value: EidosFileRowValue | undefined,
   readonly = false,
   row?: EidosFileRow,
-  unavailableRelationTitle = "Unavailable record"
+  unavailableRelationTitle = "Unavailable record",
+  allowWrapping = false
 ): GridCell {
   if (field.type === "lookup" && field.storageCodec === "json_array") {
     const values = decodeEidosFileJsonArray(value)
@@ -123,7 +124,7 @@ export function eidosFileValueToGridCell(
     return {
       kind: GridCellKind.Text,
       allowOverlay: true,
-      allowWrapping: true,
+      allowWrapping,
       readonly: true,
       data: typeof value === "string" ? value : "[]",
       displayData,
@@ -150,7 +151,8 @@ export function eidosFileValueToGridCell(
       value,
       true,
       row,
-      unavailableRelationTitle
+      unavailableRelationTitle,
+      allowWrapping
     )
   }
   if (field.type === "relation") {
@@ -318,7 +320,7 @@ export function eidosFileValueToGridCell(
   return {
     kind: GridCellKind.Text,
     allowOverlay: true,
-    allowWrapping: true,
+    allowWrapping,
     readonly: readonly || isOptionalEidosFileSystemField(field),
     data: text,
     displayData: text,

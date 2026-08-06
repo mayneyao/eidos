@@ -120,6 +120,8 @@ const zh: EidosFileUIMessageOverrides = {
   Compact: "紧凑",
   Standard: "标准",
   Comfortable: "宽松",
+  Huge: "巨大",
+  "Wrap text": "自动换行",
   Extensions: "扩展",
   Grid: "表格",
   Gallery: "画廊",

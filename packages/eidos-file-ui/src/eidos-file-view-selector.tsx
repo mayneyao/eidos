@@ -252,6 +252,7 @@ export function EidosFileViewSelector({
   const fitImageId = useId()
   const hideEmptyFieldsId = useId()
   const showEmptyGroupsId = useId()
+  const wrapTextId = useId()
   const handledRequestIdRef = useRef<number | null>(null)
   const managedView = useMemo(
     () => views.find((view) => view.id === managedViewId),
@@ -785,8 +786,24 @@ export function EidosFileViewSelector({
                     <SelectItem value="comfortable">
                       {t("Comfortable")}
                     </SelectItem>
+                    <SelectItem value="huge">{t("Huge")}</SelectItem>
                   </SelectContent>
                 </Select>
+                <label
+                  className="mt-1 flex items-center justify-between gap-3 text-xs"
+                  htmlFor={wrapTextId}
+                >
+                  <span>{t("Wrap text")}</span>
+                  <Switch
+                    id={wrapTextId}
+                    aria-label={t("Wrap text")}
+                    checked={managedView.properties?.textWrapping === true}
+                    disabled={busy}
+                    onCheckedChange={(textWrapping) =>
+                      updateProperties({ textWrapping })
+                    }
+                  />
+                </label>
               </div>
             ) : null}
             {managedView.type === "kanban" ? (
