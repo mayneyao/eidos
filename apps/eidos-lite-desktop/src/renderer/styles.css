@@ -218,7 +218,7 @@ button:focus-visible {
   position: relative;
   display: grid;
   grid-template-columns: minmax(19rem, 0.8fr) minmax(24rem, 1.2fr);
-  min-height: 100%;
+  height: 100%;
   padding-top: var(--chrome-header-height);
   background: var(--canvas);
 }
@@ -395,6 +395,7 @@ button:focus-visible {
 
 .welcome-principles {
   display: flex;
+  min-height: 0;
   flex-direction: column;
   justify-content: flex-start;
   gap: 1rem;
@@ -428,8 +429,11 @@ button:focus-visible {
 .recent-spaces {
   display: flex;
   max-width: none;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
   gap: 0.25rem;
+  overflow-y: auto;
 }
 
 .recent-space {
