@@ -100,6 +100,16 @@ const PAGE_OVERSCAN = 1
 const MAX_CACHED_PAGES = 8
 const MAX_UNDO_HISTORY_BATCHES = 50
 
+const EIDOS_FILE_GRID_CUSTOM_RENDERERS = [
+  RatingCell,
+  RangeCell,
+  SelectCell,
+  MultiSelectCell,
+  DatePickerCell,
+  EidosFileAttachmentCellRenderer,
+  EidosFileRelationCellRenderer,
+]
+
 function themeColorWithAlpha(color: string, alpha: number): string {
   const normalized = color.trim()
   if (!normalized) return "transparent"
@@ -1595,15 +1605,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           freezeColumns={freezeColumns}
           getCellContent={getCellContent}
           onVisibleRegionChanged={onVisibleRegionChanged}
-          customRenderers={[
-            RatingCell,
-            RangeCell,
-            SelectCell,
-            MultiSelectCell,
-            DatePickerCell,
-            EidosFileAttachmentCellRenderer,
-            EidosFileRelationCellRenderer,
-          ]}
+          customRenderers={EIDOS_FILE_GRID_CUSTOM_RENDERERS}
           onDragOverCell={onDragOverCell}
           onDragLeave={() => setFileDropHighlights([])}
           onDrop={onDrop}

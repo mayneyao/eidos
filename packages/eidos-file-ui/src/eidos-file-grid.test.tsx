@@ -760,6 +760,36 @@ describe("EidosFileGrid", () => {
     expect(mocks.props?.getCellContent([1, 0])).toMatchObject({ data: true })
   })
 
+  it("keeps customRenderers referentially stable across refreshes", async () => {
+    const renderGrid = (
+      loadPage: (offset: number, limit: number) => Promise<EidosFileRowPage>
+    ) => (
+      <EidosFileGrid
+        table={table}
+        view={table.views[0]}
+        loadPage={loadPage}
+        onAddRow={vi.fn()}
+        onCellEdit={vi.fn()}
+      />
+    )
+    await act(async () => {
+      root.render(renderGrid(createLoadPage()))
+      await Promise.resolve()
+    })
+    const firstRenderers = mocks.props?.customRenderers
+
+    // A snapshot refresh re-renders the grid. Glide rebuilds its cell-renderer
+    // lookup whenever customRenderers changes identity, which remounts an open
+    // overlay editor and re-selects its text mid-typing.
+    await act(async () => {
+      root.render(renderGrid(createLoadPage()))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(firstRenderers).toBeDefined()
+    expect(mocks.props?.customRenderers).toBe(firstRenderers)
+  })
+
   it("merges queued optimistic edits into recovery when the first save fails", async () => {
     let rejectTitle: ((error: Error) => void) | undefined
     const onCellEdit = vi
