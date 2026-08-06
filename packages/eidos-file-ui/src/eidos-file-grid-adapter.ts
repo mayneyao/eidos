@@ -123,6 +123,7 @@ export function eidosFileValueToGridCell(
     return {
       kind: GridCellKind.Text,
       allowOverlay: true,
+      allowWrapping: true,
       readonly: true,
       data: typeof value === "string" ? value : "[]",
       displayData,
@@ -317,6 +318,7 @@ export function eidosFileValueToGridCell(
   return {
     kind: GridCellKind.Text,
     allowOverlay: true,
+    allowWrapping: true,
     readonly: readonly || isOptionalEidosFileSystemField(field),
     data: text,
     displayData: text,
