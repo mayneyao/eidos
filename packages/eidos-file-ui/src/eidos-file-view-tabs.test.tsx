@@ -170,10 +170,8 @@ describe("EidosFileViewTabs", () => {
     })
 
     expect(document.body.textContent).toContain("Layout")
-    expect(document.body.textContent).toContain("Card content")
-    expect(document.body.textContent).toContain(
-      "Choose visible fields for each card and drag to set their order."
-    )
+    expect(document.body.textContent).toContain("Card appearance")
+    expect(document.body.textContent).not.toContain("Card content")
     expect(
       document.body.querySelector<HTMLInputElement>(
         "#eidos-file-managed-view-name"
@@ -182,6 +180,29 @@ describe("EidosFileViewTabs", () => {
     expect(
       document.body.querySelector("[data-eidos-file-view-context-anchor]")
     ).not.toBeNull()
+
+    await act(async () => {
+      Array.from(document.body.querySelectorAll<HTMLElement>("button"))
+        .find((item) => item.textContent?.includes("Card appearance"))
+        ?.click()
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    expect(document.body.textContent).toContain("Card content")
+    expect(document.body.textContent).toContain("Card cover")
+    expect(document.body.textContent).toContain("Card size")
+
+    await act(async () => {
+      document.body
+        .querySelectorAll<HTMLElement>("button.mb-3")
+        .forEach((item) => {
+          if (item.textContent?.trim() === "Cards") item.click()
+        })
+      await new Promise((resolve) => window.setTimeout(resolve, 0))
+    })
+
+    expect(document.body.textContent).toContain("Layout")
+    expect(document.body.textContent).toContain("Card appearance")
   })
 
   it("exports the view selected from its context menu", async () => {

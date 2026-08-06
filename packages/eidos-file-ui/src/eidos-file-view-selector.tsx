@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
+  ChevronRight,
   Copy,
   GripVertical,
   MoreHorizontal,
@@ -62,7 +63,7 @@ export interface EidosFileExternalViewContribution {
   permissionHash?: string
 }
 
-type Panel = "list" | "create" | "manage" | "delete"
+type Panel = "list" | "create" | "manage" | "delete" | "card"
 export interface EidosFileViewSelectorRequest {
   anchorRect: Pick<DOMRect, "height" | "left" | "top" | "width">
   focusName?: boolean
@@ -860,218 +861,18 @@ export function EidosFileViewSelector({
               </div>
             ) : null}
             {managedView.type === "gallery" || managedView.type === "kanban" ? (
-              <div className="mt-3 grid gap-3 border-t pt-3">
-                <div className="grid gap-1.5">
-                  <p className="text-xs font-medium">{t("Card content")}</p>
-                  <p className="text-[11px] leading-4 text-muted-foreground">
-                    {t(
-                      "Choose visible fields for each card and drag to set their order."
-                    )}
-                  </p>
-                  <div className="max-h-40 overflow-x-hidden overflow-y-auto rounded-md border border-border/70 p-1">
-                    {cardCandidateFields.length > 0 ? (
-                      <>
-                        <SortableContainer
-                          items={selectedCardFields.map((field) => ({
-                            id: eidosFileFieldKey(field),
-                            field,
-                          }))}
-                          optimistic={false}
-                          disabled={busy}
-                          onReorder={(next) =>
-                            updateProperties({
-                              cardFields: [
-                                ...next.map(({ id }) => id),
-                                ...unavailableCardFieldIds,
-                              ],
-                            })
-                          }
-                          className="grid gap-0.5"
-                          renderItem={({ id: fieldId, field }) => (
-                            <SortableSelectorRow
-                              id={fieldId}
-                              label={t("Reorder {field}", {
-                                field: field.name,
-                              })}
-                              disabled={busy}
-                            >
-                              <label className="flex h-8 min-w-0 flex-1 cursor-pointer items-center gap-2 px-1 text-xs">
-                                <input
-                                  type="checkbox"
-                                  checked
-                                  disabled={busy}
-                                  aria-label={t("Show {field} on cards", {
-                                    field: field.name,
-                                  })}
-                                  onChange={(event) =>
-                                    toggleCardField(
-                                      fieldId,
-                                      event.currentTarget.checked
-                                    )
-                                  }
-                                />
-                                <span className="truncate">{field.name}</span>
-                              </label>
-                            </SortableSelectorRow>
-                          )}
-                        />
-                        {unselectedCardFields.map((field) => {
-                          const fieldId = eidosFileFieldKey(field)
-                          return (
-                            <div
-                              key={fieldId}
-                              className="flex h-8 items-center rounded px-1.5 hover:bg-accent"
-                            >
-                              <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-xs">
-                                <input
-                                  type="checkbox"
-                                  checked={false}
-                                  disabled={busy}
-                                  aria-label={t("Show {field} on cards", {
-                                    field: field.name,
-                                  })}
-                                  onChange={(event) =>
-                                    toggleCardField(
-                                      fieldId,
-                                      event.currentTarget.checked
-                                    )
-                                  }
-                                />
-                                <span className="truncate">{field.name}</span>
-                              </label>
-                            </div>
-                          )
-                        })}
-                      </>
-                    ) : (
-                      <p className="px-2 py-3 text-[11px] text-muted-foreground">
-                        {t("No fields are available for cards.")}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="grid gap-1.5">
-                  <p className="text-xs font-medium">{t("Card cover")}</p>
-                  <Select
-                    value={
-                      typeof managedView.properties?.coverField === "string"
-                        ? managedView.properties.coverField
-                        : "__none__"
-                    }
-                    disabled={busy}
-                    onValueChange={(coverField) =>
-                      updateProperties({
-                        coverField:
-                          coverField === "__none__" ? null : coverField,
-                      })
-                    }
-                  >
-                    <SelectTrigger
-                      className="h-8 text-xs"
-                      aria-label={t("{view} card cover", {
-                        view:
-                          managedView.type === "kanban"
-                            ? t("Kanban")
-                            : t("Gallery"),
-                      })}
-                    >
-                      <SelectValue placeholder={t("No cover")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">{t("No cover")}</SelectItem>
-                      {coverFields.map((field) => (
-                        <SelectItem
-                          key={eidosFileFieldKey(field)}
-                          value={eidosFileFieldKey(field)}
-                        >
-                          {field.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {coverFields.length === 0 ? (
-                    <p className="text-[11px] leading-4 text-muted-foreground">
-                      {t(
-                        "Add a File field to use record images as card covers."
-                      )}
-                    </p>
-                  ) : null}
-                </div>
-                {managedView.properties?.coverField ? (
-                  <label
-                    className="flex items-center justify-between gap-3 text-xs"
-                    htmlFor={fitImageId}
-                  >
-                    <span>{t("Fit image")}</span>
-                    <Switch
-                      id={fitImageId}
-                      aria-label={t("Fit image")}
-                      checked={
-                        managedView.properties?.coverFit === "contain" ||
-                        (managedView.properties?.coverFit !== "cover" &&
-                          managedView.properties?.fitContent === true)
-                      }
-                      disabled={busy}
-                      onCheckedChange={(fitImage) =>
-                        updateProperties({
-                          coverFit: fitImage ? "contain" : "cover",
-                        })
-                      }
-                    />
-                  </label>
-                ) : null}
-              </div>
-            ) : null}
-            {managedView.type === "gallery" || managedView.type === "kanban" ? (
-              <div className="mt-3 grid gap-1.5 border-t pt-3">
-                <p className="text-xs font-medium">{t("Card size")}</p>
-                <div
-                  className="grid grid-cols-3 rounded-md border p-0.5"
-                  role="group"
-                  aria-label={t("Card size")}
-                >
-                  {(["small", "medium", "large"] as const).map((size) => (
-                    <button
-                      key={size}
-                      type="button"
-                      className={cn(
-                        "h-7 rounded-[3px] text-[11px] capitalize hover:text-foreground",
-                        (managedView.properties?.cardSize ?? "medium") === size
-                          ? "bg-accent text-accent-foreground"
-                          : "text-muted-foreground"
-                      )}
-                      disabled={busy}
-                      aria-pressed={
-                        (managedView.properties?.cardSize ?? "medium") === size
-                      }
-                      onClick={() => updateProperties({ cardSize: size })}
-                    >
-                      {t(size)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {managedView.type === "gallery" || managedView.type === "kanban" ? (
-              <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
-                <label htmlFor={hideEmptyFieldsId}>
-                  <p className="text-xs font-medium">
-                    {t("Hide empty fields")}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {t("Keep cards focused on populated properties.")}
-                  </p>
-                </label>
-                <Switch
-                  id={hideEmptyFieldsId}
-                  aria-label={t("Hide empty fields")}
-                  checked={managedView.properties?.hideEmptyFields !== false}
-                  disabled={busy}
-                  onCheckedChange={(hideEmptyFields) =>
-                    updateProperties({ hideEmptyFields })
-                  }
+              <button
+                type="button"
+                className="mt-3 flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border/70 px-2 text-left text-xs hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={busy}
+                onClick={() => setPanel("card")}
+              >
+                <span className="font-medium">{t("Card appearance")}</span>
+                <ChevronRight
+                  className="h-3.5 w-3.5 text-muted-foreground"
+                  aria-hidden
                 />
-              </div>
+              </button>
             ) : null}
             <div className="mt-3 grid gap-1.5">
               <Button
@@ -1112,6 +913,219 @@ export function EidosFileViewSelector({
               <Trash2 className="h-3.5 w-3.5" />
               {t("Delete view")}
             </button>
+          </div>
+        ) : null}
+
+        {panel === "card" &&
+        managedView &&
+        (managedView.type === "gallery" || managedView.type === "kanban") ? (
+          <div className="p-1.5">
+            <button
+              type="button"
+              className="mb-3 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setPanel("manage")}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              {managedView.name}
+            </button>
+            <div className="grid gap-1.5">
+              <p className="text-xs font-medium">{t("Card content")}</p>
+              <div className="max-h-44 overflow-x-hidden overflow-y-auto rounded-md border border-border/70 p-1">
+                {cardCandidateFields.length > 0 ? (
+                  <>
+                    <SortableContainer
+                      items={selectedCardFields.map((field) => ({
+                        id: eidosFileFieldKey(field),
+                        field,
+                      }))}
+                      optimistic={false}
+                      disabled={busy}
+                      onReorder={(next) =>
+                        updateProperties({
+                          cardFields: [
+                            ...next.map(({ id }) => id),
+                            ...unavailableCardFieldIds,
+                          ],
+                        })
+                      }
+                      className="grid gap-0.5"
+                      renderItem={({ id: fieldId, field }) => (
+                        <SortableSelectorRow
+                          id={fieldId}
+                          label={t("Reorder {field}", {
+                            field: field.name,
+                          })}
+                          disabled={busy}
+                        >
+                          <label className="flex h-8 min-w-0 flex-1 cursor-pointer items-center gap-2 px-1 text-xs">
+                            <input
+                              type="checkbox"
+                              className="accent-primary"
+                              checked
+                              disabled={busy}
+                              aria-label={t("Show {field} on cards", {
+                                field: field.name,
+                              })}
+                              onChange={(event) =>
+                                toggleCardField(
+                                  fieldId,
+                                  event.currentTarget.checked
+                                )
+                              }
+                            />
+                            <span className="truncate">{field.name}</span>
+                          </label>
+                        </SortableSelectorRow>
+                      )}
+                    />
+                    {unselectedCardFields.map((field) => {
+                      const fieldId = eidosFileFieldKey(field)
+                      return (
+                        <div
+                          key={fieldId}
+                          className="flex h-8 items-center rounded px-1.5 hover:bg-accent"
+                        >
+                          <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-xs">
+                            <input
+                              type="checkbox"
+                              className="accent-primary"
+                              checked={false}
+                              disabled={busy}
+                              aria-label={t("Show {field} on cards", {
+                                field: field.name,
+                              })}
+                              onChange={(event) =>
+                                toggleCardField(
+                                  fieldId,
+                                  event.currentTarget.checked
+                                )
+                              }
+                            />
+                            <span className="truncate">{field.name}</span>
+                          </label>
+                        </div>
+                      )
+                    })}
+                  </>
+                ) : (
+                  <p className="px-2 py-3 text-[11px] text-muted-foreground">
+                    {t("No fields are available for cards.")}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="mt-3 grid gap-1.5 border-t pt-3">
+              <p className="text-xs font-medium">{t("Card cover")}</p>
+              <Select
+                value={
+                  typeof managedView.properties?.coverField === "string"
+                    ? managedView.properties.coverField
+                    : "__none__"
+                }
+                disabled={busy}
+                onValueChange={(coverField) =>
+                  updateProperties({
+                    coverField: coverField === "__none__" ? null : coverField,
+                  })
+                }
+              >
+                <SelectTrigger
+                  className="h-8 text-xs"
+                  aria-label={t("{view} card cover", {
+                    view:
+                      managedView.type === "kanban"
+                        ? t("Kanban")
+                        : t("Gallery"),
+                  })}
+                >
+                  <SelectValue placeholder={t("No cover")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">{t("No cover")}</SelectItem>
+                  {coverFields.map((field) => (
+                    <SelectItem
+                      key={eidosFileFieldKey(field)}
+                      value={eidosFileFieldKey(field)}
+                    >
+                      {field.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {coverFields.length === 0 ? (
+                <p className="text-[11px] leading-4 text-muted-foreground">
+                  {t("Add a File field to use record images as card covers.")}
+                </p>
+              ) : null}
+              {managedView.properties?.coverField ? (
+                <label
+                  className="flex items-center justify-between gap-3 text-xs"
+                  htmlFor={fitImageId}
+                >
+                  <span>{t("Fit image")}</span>
+                  <Switch
+                    id={fitImageId}
+                    aria-label={t("Fit image")}
+                    checked={
+                      managedView.properties?.coverFit === "contain" ||
+                      (managedView.properties?.coverFit !== "cover" &&
+                        managedView.properties?.fitContent === true)
+                    }
+                    disabled={busy}
+                    onCheckedChange={(fitImage) =>
+                      updateProperties({
+                        coverFit: fitImage ? "contain" : "cover",
+                      })
+                    }
+                  />
+                </label>
+              ) : null}
+            </div>
+            <div className="mt-3 grid gap-1.5 border-t pt-3">
+              <p className="text-xs font-medium">{t("Card size")}</p>
+              <div
+                className="grid grid-cols-3 rounded-md border p-0.5"
+                role="group"
+                aria-label={t("Card size")}
+              >
+                {(["small", "medium", "large"] as const).map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    className={cn(
+                      "h-7 rounded-[3px] text-[11px] capitalize hover:text-foreground",
+                      (managedView.properties?.cardSize ?? "medium") === size
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground"
+                    )}
+                    disabled={busy}
+                    aria-pressed={
+                      (managedView.properties?.cardSize ?? "medium") === size
+                    }
+                    onClick={() => updateProperties({ cardSize: size })}
+                  >
+                    {t(size)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-3 border-t pt-3">
+              <label htmlFor={hideEmptyFieldsId}>
+                <p className="text-xs font-medium">{t("Hide empty fields")}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {t("Keep cards focused on populated properties.")}
+                </p>
+              </label>
+              <Switch
+                id={hideEmptyFieldsId}
+                aria-label={t("Hide empty fields")}
+                checked={managedView.properties?.hideEmptyFields !== false}
+                disabled={busy}
+                onCheckedChange={(hideEmptyFields) =>
+                  updateProperties({ hideEmptyFields })
+                }
+              />
+            </div>
           </div>
         ) : null}
 

@@ -137,6 +137,7 @@ const zh: EidosFileUIMessageOverrides = {
   "Add a Select field before configuring this Kanban.":
     "请先添加单选字段，再配置此看板。",
   "Card cover": "卡片封面",
+  "Card appearance": "卡片外观",
   "Card fields": "卡片字段",
   "Card content": "卡片内容",
   "Choose visible fields for each card and drag to set their order.":
