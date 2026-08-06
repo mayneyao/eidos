@@ -1937,6 +1937,105 @@ describe("EidosFileGrid", () => {
     ).toEqual(["assets/existing.pdf", "assets/dropped.png"])
   })
 
+  it("imports clipboard image files into the selected attachment cell", async () => {
+    const fileField = {
+      ...table.fields[1],
+      name: "Files",
+      type: "file" as const,
+      tableColumnName: "files",
+      storageCodec: "json_array" as const,
+    }
+    const fileTable: EidosFileTableSnapshot = {
+      ...table,
+      fields: [...table.fields, fileField],
+      rowCount: 1,
+    }
+    const row = {
+      ...rowAt(0),
+      files: encodeEidosFileAttachmentPaths(["assets/existing.pdf"]),
+    }
+    const droppedEntries = decodeEidosFileValues(
+      encodeEidosFileAttachmentPaths(["assets/pasted.png"])
+    )
+    const loadPage = vi.fn(async () => ({
+      tableId: "tasks",
+      offset: 0,
+      limit: 100,
+      total: 1,
+      rows: [row],
+    }))
+    const onCellEdit = createCellEdit()
+    const onImportDroppedFiles = vi.fn().mockResolvedValue(droppedEntries)
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={fileTable}
+          loadPage={loadPage}
+          onAddRow={vi.fn()}
+          onCellEdit={onCellEdit}
+          onImportDroppedFiles={onImportDroppedFiles}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const dispatchPaste = (file: File) => {
+      const pasteEvent = new Event("paste", {
+        bubbles: true,
+        cancelable: true,
+      })
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: { files: [file] },
+      })
+      container
+        .querySelector(".eidos-file-detail-layout")!
+        .dispatchEvent(pasteEvent)
+      return pasteEvent
+    }
+    const pasted = new File(["image"], "pasted.png", { type: "image/png" })
+
+    // A text cell is selected: clipboard files stay untouched.
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [0, 0],
+          range: { x: 0, y: 0, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    expect(dispatchPaste(pasted).defaultPrevented).toBe(false)
+    expect(onImportDroppedFiles).not.toHaveBeenCalled()
+
+    // The attachment cell is selected: pasted files import and persist.
+    act(() => {
+      mocks.props?.onGridSelectionChange?.({
+        columns: CompactSelection.empty(),
+        rows: CompactSelection.empty(),
+        current: {
+          cell: [2, 0],
+          range: { x: 2, y: 0, width: 1, height: 1 },
+          rangeStack: [],
+        },
+      })
+    })
+    const handledPaste = dispatchPaste(pasted)
+    expect(handledPaste.defaultPrevented).toBe(true)
+    expect(onImportDroppedFiles).toHaveBeenCalledWith([pasted])
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(onCellEdit).toHaveBeenCalledWith(row, fileField, expect.any(String))
+    expect(
+      decodeEidosFileValues(
+        onCellEdit.mock.calls.at(-1)?.[2] as string | undefined
+      ).map((entry) => entry.uri)
+    ).toEqual(["assets/existing.pdf", "assets/pasted.png"])
+  })
+
   it("keeps loaded attachment thumbnails across equivalent page loader updates", async () => {
     const fileField = {
       ...table.fields[1],

@@ -1371,20 +1371,20 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     },
     [fields, fileDropHighlightColor]
   )
-  const onDrop = useCallback<NonNullable<DataEditorProps["onDrop"]>>(
-    (location, transfer) => {
-      setFileDropHighlights([])
-      if (!transfer || !onImportDroppedFiles) return
+  const importFilesIntoAttachmentCell = useCallback(
+    (location: Item, files: readonly File[]): boolean => {
+      if (!onImportDroppedFiles || gridWriteLocked || files.length === 0) {
+        return false
+      }
       const current = getCellContent(location)
       if (
         current.kind !== GridCellKind.Custom ||
-        (current.data as { kind?: unknown }).kind !== "eidos-file-file-cell"
+        (current.data as { kind?: unknown }).kind !== "eidos-file-file-cell" ||
+        current.readonly === true
       ) {
-        return
+        return false
       }
-      const files = Array.from(transfer.files)
-      if (files.length === 0) return
-      void onImportDroppedFiles(files)
+      void onImportDroppedFiles([...files])
         .then((imported) => {
           if (imported.length === 0) return
           const fileCell = current as EidosFileAttachmentCell
@@ -1406,9 +1406,43 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           })
         })
         .catch((error) => onError?.(error))
+      return true
     },
-    [getCellContent, history.onCellEdited, onError, onImportDroppedFiles]
+    [
+      getCellContent,
+      gridWriteLocked,
+      history.onCellEdited,
+      onError,
+      onImportDroppedFiles,
+    ]
   )
+  const onDrop = useCallback<NonNullable<DataEditorProps["onDrop"]>>(
+    (location, transfer) => {
+      setFileDropHighlights([])
+      if (!transfer) return
+      importFilesIntoAttachmentCell(location, Array.from(transfer.files))
+    },
+    [importFilesIntoAttachmentCell]
+  )
+
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container || !onImportDroppedFiles) return
+    const onPasteFiles = (event: ClipboardEvent) => {
+      const files = event.clipboardData?.files
+      if (!files || files.length === 0) return
+      const cell = history.gridSelection?.current?.cell
+      if (!cell) return
+      if (!importFilesIntoAttachmentCell(cell, Array.from(files))) return
+      event.preventDefault()
+    }
+    container.addEventListener("paste", onPasteFiles)
+    return () => container.removeEventListener("paste", onPasteFiles)
+  }, [
+    history.gridSelection,
+    importFilesIntoAttachmentCell,
+    onImportDroppedFiles,
+  ])
 
   useEffect(() => {
     history.reset()
