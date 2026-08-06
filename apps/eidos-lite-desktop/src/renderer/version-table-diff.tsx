@@ -408,31 +408,32 @@ export function VersionTableDiff({
             </button>
           ))}
         </div>
-        {columnsAreFiltered || columnMode === "all" ? (
-          <div
-            className="version-text-diff-layout"
-            aria-label="Visible table columns"
+        <div
+          className="version-text-diff-layout"
+          aria-label="Visible table columns"
+          title={
+            columnsAreFiltered || columnMode === "all"
+              ? undefined
+              : "All columns changed"
+          }
+        >
+          <button
+            type="button"
+            aria-pressed={columnMode === "changed"}
+            disabled={!columnsAreFiltered && columnMode === "changed"}
+            onClick={() => setColumnMode("changed")}
           >
-            <button
-              type="button"
-              aria-pressed={columnMode === "changed"}
-              onClick={() => setColumnMode("changed")}
-            >
-              Changed
-            </button>
-            <button
-              type="button"
-              aria-pressed={columnMode === "all"}
-              onClick={() => setColumnMode("all")}
-            >
-              All columns
-            </button>
-          </div>
-        ) : (
-          <span className="version-table-diff-toolbar-note">
-            All columns changed
-          </span>
-        )}
+            Changed
+          </button>
+          <button
+            type="button"
+            aria-pressed={columnMode === "all"}
+            disabled={!columnsAreFiltered && columnMode === "changed"}
+            onClick={() => setColumnMode("all")}
+          >
+            All columns
+          </button>
+        </div>
       </header>
 
       {visibleChanges.length ? (
