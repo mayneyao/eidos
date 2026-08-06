@@ -4,6 +4,7 @@ import path from "node:path"
 
 import {
   eidosFileAssetDirectory,
+  importEidosFileAttachmentData,
   importEidosFileAttachments,
   portableEidosFileAssetName,
   resolveEidosFileAttachment,
@@ -72,6 +73,53 @@ describe("Eidos Lite attachment files", () => {
       size: String(PNG.byteLength),
     })
     await expect(fs.readdir(assetRoot)).resolves.toEqual(["existing.png"])
+  })
+
+  it("imports clipboard-style bytes with sniffed media types and fallback names", async () => {
+    const root = await fixture()
+    const first = await importEidosFileAttachmentData(
+      root,
+      "project/data.eidos",
+      [
+        { name: "image.png", data: PNG },
+        { name: "", data: PNG },
+      ]
+    )
+    const second = await importEidosFileAttachmentData(
+      root,
+      "project/data.eidos",
+      [{ name: "image.png", data: PNG }]
+    )
+
+    expect(first.entries[0]).toMatchObject({
+      uri: "assets/image.png",
+      name: "image.png",
+      mediaType: "image/png",
+      size: String(PNG.byteLength),
+    })
+    expect(first.entries[1]).toMatchObject({
+      uri: "assets/attachment",
+      name: "attachment",
+      mediaType: "image/png",
+    })
+    expect(second.entries[0]?.uri).toBe("assets/image%20(2).png")
+    await expect(
+      fs.readFile(path.join(root, "project", "assets", "image.png"))
+    ).resolves.toEqual(Buffer.from(PNG))
+  })
+
+  it("rejects clipboard imports above the count limit", async () => {
+    const root = await fixture()
+    await expect(
+      importEidosFileAttachmentData(
+        root,
+        "project/data.eidos",
+        Array.from({ length: 65 }, (_, index) => ({
+          name: `paste-${index}.png`,
+          data: PNG,
+        }))
+      )
+    ).rejects.toThrow("Choose between 1 and 64 attachments")
   })
 
   it("resolves verified raster thumbnails and rejects metadata drift", async () => {

@@ -11,6 +11,11 @@ import type {
 import type { EidosLiteServiceEnvironment } from "./service-environment"
 import type { EidosLiteKeyboardShortcuts } from "./keyboard-shortcuts"
 
+export interface EidosLiteAssetDataSource {
+  name: string
+  data: Uint8Array
+}
+
 export const EIDOS_LITE_CSV_IMPORT_BYTES_MAX = 16 * 1024 * 1024
 export const EIDOS_LITE_CSV_FILE_BYTES_MAX = 1024 * 1024 * 1024
 export const EIDOS_LITE_CSV_EXPORT_BYTES_MAX = 256 * 1024 * 1024
@@ -63,6 +68,7 @@ export const IPC_CHANNELS = {
   importFiles: "eidos-lite:path-import",
   selectEidosFileAssets: "eidos-lite:eidos-file-assets-select",
   importEidosFileAssets: "eidos-lite:eidos-file-assets-import",
+  importEidosFileAssetData: "eidos-lite:eidos-file-assets-import-data",
   resolveEidosFileAsset: "eidos-lite:eidos-file-asset-resolve",
   releaseEidosFileAsset: "eidos-lite:eidos-file-asset-release",
   activateEidosFileAsset: "eidos-lite:eidos-file-asset-activate",

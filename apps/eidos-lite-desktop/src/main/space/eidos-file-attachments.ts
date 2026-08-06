@@ -409,6 +409,100 @@ function importedAssetRecord(
   }
 }
 
+export interface EidosFileAttachmentDataSource {
+  name: string
+  data: Uint8Array
+}
+
+async function writeDataToStage(
+  data: Uint8Array,
+  stagePath: string
+): Promise<{ size: number; header: Uint8Array }> {
+  if (data.byteLength > EIDOS_LITE_ASSET_BYTES_MAX) {
+    throw new Error("Attachments larger than 256 MiB are not supported")
+  }
+  const destination = await fs.open(stagePath, "wx", 0o600)
+  try {
+    await destination.writeFile(data)
+    await destination.sync()
+  } finally {
+    await destination.close().catch(() => undefined)
+  }
+  return {
+    size: data.byteLength,
+    header: data.subarray(0, Math.min(32, data.byteLength)),
+  }
+}
+
+export async function importEidosFileAttachmentData(
+  spaceRoot: string,
+  eidosRelativePath: string,
+  sources: readonly EidosFileAttachmentDataSource[]
+): Promise<ImportedEidosFileAssets> {
+  if (
+    sources.length < 1 ||
+    sources.length > EIDOS_LITE_ASSET_IMPORT_COUNT_MAX
+  ) {
+    throw new Error(
+      `Choose between 1 and ${EIDOS_LITE_ASSET_IMPORT_COUNT_MAX} attachments`
+    )
+  }
+  const { assetRoot, sourceRoot } = await requireManagedAssetDirectory(
+    spaceRoot,
+    eidosRelativePath
+  )
+  const existingKeys = new Set((await fs.readdir(assetRoot)).map(collisionKey))
+  const staged: Array<{
+    stagePath: string
+    targetPath: string
+    relativePath: string
+    entry: FileEntry
+  }> = []
+  const published: string[] = []
+  try {
+    for (const source of sources) {
+      const name = uniqueAssetName(existingKeys, source.name)
+      const stagePath = path.join(assetRoot, `.eidos-asset-${randomUUID()}.tmp`)
+      const targetPath = path.join(assetRoot, name)
+      let written: Awaited<ReturnType<typeof writeDataToStage>>
+      try {
+        written = await writeDataToStage(source.data, stagePath)
+      } catch (error) {
+        await fs.unlink(stagePath).catch(() => undefined)
+        throw error
+      }
+      try {
+        const record = importedAssetRecord(
+          spaceRoot,
+          sourceRoot,
+          targetPath,
+          name,
+          written
+        )
+        staged.push({ stagePath, targetPath, ...record })
+      } catch (error) {
+        await fs.unlink(stagePath).catch(() => undefined)
+        throw error
+      }
+    }
+    for (const item of staged) {
+      await fs.link(item.stagePath, item.targetPath)
+      published.push(item.targetPath)
+      await fs.unlink(item.stagePath)
+    }
+    return {
+      entries: staged.map((item) => item.entry),
+      relativePaths: staged.map((item) => item.relativePath),
+    }
+  } catch (error) {
+    await Promise.allSettled([
+      ...staged.map((item) => fs.unlink(item.stagePath)),
+      ...published.map((targetPath) => fs.unlink(targetPath)),
+    ])
+    throw error
+  }
+}
+
 export async function importEidosFileAttachments(
   spaceRoot: string,
   eidosRelativePath: string,

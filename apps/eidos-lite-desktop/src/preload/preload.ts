@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer, webUtils } from "electron"
 import {
   IPC_CHANNELS,
   type EidosLiteApi,
+  type EidosLiteAssetDataSource,
   type EidosLiteNavigationDirection,
   type EidosLitePreferences,
   type EidosLiteUpdateStatus,
@@ -12,6 +13,7 @@ import {
   type RuntimeMethod,
   type SpaceSnapshot,
 } from "../shared/contracts"
+import type { FileEntry } from "@eidos.space/eidos-file"
 
 const api: EidosLiteApi = {
   getAppInfo: () => ipcRenderer.invoke(IPC_CHANNELS.appInfo),
@@ -110,20 +112,49 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.importFiles, targetDirectory),
   selectEidosFileAssets: (sessionId) =>
     ipcRenderer.invoke(IPC_CHANNELS.selectEidosFileAssets, sessionId),
-  importDroppedEidosFileAssets: (sessionId, files) => {
-    const sourcePaths = files.map((file) => webUtils.getPathForFile(file))
-    if (sourcePaths.some((sourcePath) => !sourcePath)) {
-      return Promise.reject(
-        new Error(
-          "Only files dropped from the operating system can be attached"
-        )
-      )
+  importDroppedEidosFileAssets: async (sessionId, files) => {
+    if (files.length === 0) return []
+    const importedByIndex: (FileEntry | null)[] = files.map(() => null)
+    const sourcePaths: string[] = []
+    const pathIndexes: number[] = []
+    const dataSources: EidosLiteAssetDataSource[] = []
+    const dataIndexes: number[] = []
+    for (const [index, file] of files.entries()) {
+      const sourcePath = webUtils.getPathForFile(file)
+      if (sourcePath) {
+        pathIndexes.push(index)
+        sourcePaths.push(sourcePath)
+      } else {
+        dataIndexes.push(index)
+        dataSources.push({
+          name: file.name,
+          data: new Uint8Array(await file.arrayBuffer()),
+        })
+      }
     }
-    return ipcRenderer.invoke(
-      IPC_CHANNELS.importEidosFileAssets,
-      sessionId,
-      sourcePaths
-    )
+    const [pathEntries, dataEntries] = await Promise.all([
+      sourcePaths.length > 0
+        ? ipcRenderer.invoke(
+            IPC_CHANNELS.importEidosFileAssets,
+            sessionId,
+            sourcePaths
+          )
+        : Promise.resolve<FileEntry[]>([]),
+      dataSources.length > 0
+        ? ipcRenderer.invoke(
+            IPC_CHANNELS.importEidosFileAssetData,
+            sessionId,
+            dataSources
+          )
+        : Promise.resolve<FileEntry[]>([]),
+    ])
+    pathIndexes.forEach((fileIndex, position) => {
+      importedByIndex[fileIndex] = pathEntries[position] ?? null
+    })
+    dataIndexes.forEach((fileIndex, position) => {
+      importedByIndex[fileIndex] = dataEntries[position] ?? null
+    })
+    return importedByIndex.filter((entry): entry is FileEntry => entry !== null)
   },
   resolveEidosFileAsset: (sessionId, entryId, purpose) =>
     ipcRenderer.invoke(

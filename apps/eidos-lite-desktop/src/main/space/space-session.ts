@@ -48,8 +48,11 @@ import { SpaceOperationGate } from "./operation-gate"
 import { SpaceOperationJournal } from "./operation-journal"
 import {
   eidosFileAssetDirectory,
+  importEidosFileAttachmentData,
   importEidosFileAttachments,
   resolveEidosFileAttachment,
+  type EidosFileAttachmentDataSource,
+  type ImportedEidosFileAssets,
   type ResolvedEidosFileAsset,
 } from "./eidos-file-attachments"
 import { SpaceRepositoryCoordinator } from "./repository-coordinator"
@@ -747,6 +750,30 @@ export class SpaceSession {
         sourcePaths
       )
     )
+    return this.trackImportedEidosFileAssets(sessionId, imported)
+  }
+
+  async importEidosFileAssetData(
+    sessionId: string,
+    sources: readonly EidosFileAttachmentDataSource[]
+  ): Promise<FileEntry[]> {
+    this.assertRuntimeAvailable()
+    this.prioritizeLocalWork()
+    const eidosRelativePath = this.runtimePool.relativePathForSession(sessionId)
+    const imported = await this.gate.withMutation(() =>
+      importEidosFileAttachmentData(
+        this.canonical.root,
+        eidosRelativePath,
+        sources
+      )
+    )
+    return this.trackImportedEidosFileAssets(sessionId, imported)
+  }
+
+  private trackImportedEidosFileAssets(
+    sessionId: string,
+    imported: ImportedEidosFileAssets
+  ): FileEntry[] {
     let pending = this.pendingEidosFileAssets.get(sessionId)
     if (!pending) {
       pending = new Map()

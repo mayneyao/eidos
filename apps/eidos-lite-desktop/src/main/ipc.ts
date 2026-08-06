@@ -28,9 +28,11 @@ import { isEidosLiteKeyboardShortcuts } from "../shared/keyboard-shortcuts"
 import { eidosLiteLogger, logCorrelationKey } from "./logging"
 import type { EidosLiteUpdater } from "./updater"
 import {
+  EIDOS_LITE_ASSET_BYTES_MAX,
   EIDOS_LITE_ASSET_IMPORT_COUNT_MAX,
   portableEidosFileAssetName,
   type EidosFileAssetIdentity,
+  type EidosFileAttachmentDataSource,
 } from "./space/eidos-file-attachments"
 import { BackgroundSyncQueue } from "./sync/background-sync-queue"
 import { scheduleCheckpointSyncAfterLocalSave } from "./sync/checkpoint-sync-scheduler"
@@ -147,6 +149,28 @@ function requiredAbsolutePaths(value: unknown): string[] {
     throw new Error("Invalid attachment sources")
   }
   return [...new Set(value)]
+}
+
+function requiredAssetDataSources(
+  value: unknown
+): EidosFileAttachmentDataSource[] {
+  if (
+    !Array.isArray(value) ||
+    value.length < 1 ||
+    value.length > EIDOS_LITE_ASSET_IMPORT_COUNT_MAX ||
+    value.some((candidate) => {
+      if (typeof candidate !== "object" || candidate === null) return true
+      const { name, data } = candidate as { name?: unknown; data?: unknown }
+      return (
+        typeof name !== "string" ||
+        !(data instanceof Uint8Array) ||
+        data.byteLength > EIDOS_LITE_ASSET_BYTES_MAX
+      )
+    })
+  ) {
+    throw new Error("Invalid attachment sources")
+  }
+  return value as EidosFileAttachmentDataSource[]
 }
 
 function requiredAssetPurpose(
@@ -622,6 +646,16 @@ export function registerIpc(
         .importEidosFileAssets(
           requiredString(sessionValue, "Eidos File session"),
           requiredAbsolutePaths(pathsValue)
+        )
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.importEidosFileAssetData,
+    (event, sessionValue: unknown, sourcesValue: unknown) =>
+      controller
+        .requireSession(event.sender)
+        .importEidosFileAssetData(
+          requiredString(sessionValue, "Eidos File session"),
+          requiredAssetDataSources(sourcesValue)
         )
   )
   ipcMain.handle(
