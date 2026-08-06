@@ -11,7 +11,12 @@ import type {
   EidosFileCsvImportOptions,
   EidosFileCsvImportPlan,
 } from "@eidos.space/eidos-file"
-import { AlertTriangle, FileUp, LoaderCircle, Table2 } from "lucide-react"
+import {
+  AlertTriangle,
+  FileSpreadsheet,
+  FileUp,
+  LoaderCircle,
+} from "lucide-react"
 
 import { useEidosFileUI } from "./context"
 import { EidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
@@ -496,14 +501,18 @@ export function EidosFileCsvImportPopover({
       >
         {plan && token ? (
           <form onSubmit={(event) => void submit(event)}>
-            <div className="flex items-start justify-between gap-4 border-b px-4 py-3">
-              <div className="min-w-0">
-                <h2 className="flex items-center gap-2 text-sm font-semibold">
-                  <Table2 className="h-4 w-4 text-muted-foreground" />
-                  {t("Import as a new table")}
+            <div className="flex items-center gap-3 border-b px-4 py-3">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60">
+                <FileSpreadsheet
+                  className="h-4 w-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-sm font-semibold">
+                  {plan.fileName}
                 </h2>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                  {plan.fileName} ·{" "}
                   {t("{count} ready", {
                     count: plan.rowCount.toLocaleString(),
                   })}
@@ -526,29 +535,28 @@ export function EidosFileCsvImportPopover({
               </Button>
             </div>
 
-            <div className="max-h-[min(68vh,620px)] overflow-y-auto">
-              <div className="grid gap-1.5 border-b px-4 py-3">
+            <div className="max-h-[min(68vh,620px)] overflow-y-auto px-4 py-3">
+              <div className="flex items-center gap-3">
                 <label
                   htmlFor="eidos-file-csv-table-name"
-                  className="text-xs font-medium"
+                  className="w-24 shrink-0 truncate text-xs text-muted-foreground"
                 >
                   {t("Table name")}
                 </label>
                 <Input
                   id="eidos-file-csv-table-name"
                   value={tableName}
-                  className="h-8"
+                  className="h-8 flex-1"
                   disabled={importing}
                   onChange={(event) => setTableName(event.target.value)}
                 />
               </div>
 
-              <div className="border-b">
-                <div className="grid grid-cols-[minmax(140px,1fr)_140px] gap-3 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                  <span>{t("Field name")}</span>
-                  <span>{t("Type")}</span>
-                </div>
-                <div className="max-h-52 overflow-y-auto px-2 pb-2">
+              <div className="mt-4">
+                <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">
+                  {t("Fields")} · {columns.length.toLocaleString()}
+                </h3>
+                <div className="-mx-2 max-h-52 overflow-y-auto px-2">
                   {columns.map((column, index) => (
                     <div
                       key={column.sourceIndex}
@@ -626,25 +634,10 @@ export function EidosFileCsvImportPopover({
                 </div>
               </div>
 
-              <div className="px-4 py-3">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <h3 className="text-xs font-medium">{t("Preview")}</h3>
-                  <span
-                    className={cn(
-                      "flex items-center gap-1 text-[11px] text-muted-foreground",
-                      displayedError && "text-destructive"
-                    )}
-                  >
-                    {validating ? (
-                      <LoaderCircle className="h-3 w-3 animate-spin motion-reduce:animate-none" />
-                    ) : displayedError ? (
-                      <AlertTriangle className="h-3 w-3" />
-                    ) : null}
-                    {validating
-                      ? operationLabel
-                      : displayedError || notice || t("Ready to import")}
-                  </span>
-                </div>
+              <div className="mt-4">
+                <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">
+                  {t("Preview")}
+                </h3>
                 <div className="overflow-x-auto rounded-md border">
                   <table className="min-w-full border-collapse text-xs">
                     <thead className="bg-muted/45 text-left text-muted-foreground">
@@ -712,9 +705,27 @@ export function EidosFileCsvImportPopover({
                       <span>{operationLabel}</span>
                     </div>
                   )
-                ) : notice ? (
-                  <p className="text-[11px] text-muted-foreground">{notice}</p>
-                ) : null}
+                ) : displayedError || notice ? (
+                  <p
+                    className={cn(
+                      "flex items-center gap-1.5 text-[11px] text-muted-foreground",
+                      displayedError && "text-destructive"
+                    )}
+                    role={displayedError ? "alert" : undefined}
+                  >
+                    {displayedError ? (
+                      <AlertTriangle
+                        className="h-3 w-3 shrink-0"
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                    {displayedError || notice}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground/70">
+                    {t("Ready to import")}
+                  </p>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {validating || importing ? (
@@ -772,14 +783,21 @@ export function EidosFileCsvImportPopover({
           </form>
         ) : token ? (
           <div>
-            <div className="border-b px-4 py-3">
-              <h2 className="flex items-center gap-2 text-sm font-semibold">
-                <Table2 className="h-4 w-4 text-muted-foreground" />
-                {t("Analyze CSV")}
-              </h2>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                {sourceFileName}
-              </p>
+            <div className="flex items-center gap-3 border-b px-4 py-3">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/60">
+                <FileSpreadsheet
+                  className="h-4 w-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="truncate text-sm font-semibold">
+                  {sourceFileName}
+                </h2>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {t("Analyzing the file before import")}
+                </p>
+              </div>
             </div>
             <div className="space-y-3 px-4 py-4">
               {validating ? (
