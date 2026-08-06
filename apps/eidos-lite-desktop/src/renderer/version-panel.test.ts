@@ -678,6 +678,47 @@ describe("VersionPanel table diff", () => {
     expect(markup).toContain("Customer")
   })
 
+  it("renders schema-added and schema-deleted columns as one-sided changes", () => {
+    const table: SpaceVersionTableDiff = {
+      name: "Tasks",
+      columns: ["name", "status", "done"],
+      columnChanges: [
+        null,
+        { kind: "deleted", before: "status" },
+        { kind: "added", after: "done" },
+      ],
+      primaryKeyColumns: ["name"],
+      changes: [
+        {
+          op: "update",
+          key: { name: "First" },
+          oldValues: ["First", "Pending", undefined],
+          values: ["First", undefined, null],
+        },
+        {
+          op: "update",
+          key: { name: "Second" },
+          oldValues: ["Second", "Done", undefined],
+          values: ["Second", undefined, 1],
+        },
+      ],
+    }
+
+    const markup = renderToStaticMarkup(createElement(TableDiff, { table }))
+
+    expect(markup).toContain('data-column-schema-change="deleted"')
+    expect(markup).toContain('data-column-schema-change="added"')
+    expect(markup).toContain("Removed")
+    expect(markup).toContain("Added")
+    expect(markup).toContain('data-cell-change="column-delete"')
+    expect(markup).toContain('data-cell-change="column-insert"')
+    expect(markup).toContain("Pending")
+    expect(markup).toContain("Done")
+    expect(markup).toContain("version-table-schema-empty")
+    expect(markup).not.toContain(">null<")
+    expect(markup).not.toContain(">—<")
+  })
+
   it("filters table diff rows by change kind", async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     const host = document.createElement("div")

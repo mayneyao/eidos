@@ -36,6 +36,10 @@ import {
 import { eidosLiteNewFileKind } from "../../shared/new-file"
 import type { GraftClient, GraftIgnoreInspection } from "../graft/graft-client"
 import {
+  normalizeEidosTableDiff,
+  readEidosPhysicalSchema,
+} from "../graft/eidos-schema-diff"
+import {
   classifyEidosFileIssue,
   EidosFileRuntimeError,
 } from "../runtime/eidos-file-issue"
@@ -1273,8 +1277,8 @@ export class SpaceSession {
     return this.withVersionRead(
       "version-path-diff",
       "Reading file changes",
-      (signal) =>
-        this.graft.sqlitePathDiff(this.canonical.root, normalizedPath, {
+      async (signal) => {
+        const options = {
           signal,
           ...(tableName ? { table: tableName } : {}),
           ...(rowAfter ? { rowAfter } : {}),
@@ -1285,7 +1289,44 @@ export class SpaceSession {
             : commitId
               ? { root: commitId }
               : {}),
-        })
+        }
+        const diff = await this.graft.sqlitePathDiff(
+          this.canonical.root,
+          normalizedPath,
+          options
+        )
+        if (!tableName || tableName.startsWith("eidos__")) {
+          return diff
+        }
+        try {
+          const fieldsDiff = await this.graft.sqlitePathDiff(
+            this.canonical.root,
+            normalizedPath,
+            {
+              signal,
+              table: "eidos__fields",
+              rowLimit: 1_000,
+              ...(!commitId ? { stagedFallback: true } : {}),
+              ...(commitId && parentId
+                ? { from: parentId, to: commitId }
+                : commitId
+                  ? { root: commitId }
+                  : {}),
+            }
+          )
+          return normalizeEidosTableDiff(
+            diff,
+            fieldsDiff,
+            readEidosPhysicalSchema(
+              resolveSpacePath(this.canonical.root, normalizedPath)
+            ),
+            tableName
+          )
+        } catch (error) {
+          if (signal.aborted) throw error
+          return diff
+        }
+      }
     )
   }
 

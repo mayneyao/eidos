@@ -1,6 +1,7 @@
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { DatabaseSync } from "node:sqlite"
 
 import { GraftClient } from "../graft/graft-client"
 import { EIDOS_LITE_PERFORMANCE_BUDGET_MS } from "../../shared/performance-contract"
@@ -23,6 +24,121 @@ function deferred<T>() {
 }
 
 describe("SpaceSession Graft-backed snapshots", () => {
+  it("normalizes business row values through stable Eidos Field identities", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-field-diff-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-field-diff-state-")
+    )
+    const filePath = path.join(root, "space.eidos")
+    const database = new DatabaseSync(filePath)
+    database.exec(`
+      CREATE TABLE eidos__tables(id TEXT PRIMARY KEY, physical_name TEXT NOT NULL);
+      CREATE TABLE eidos__fields(
+        id TEXT PRIMARY KEY,
+        table_id TEXT NOT NULL,
+        physical_name TEXT,
+        position INTEGER NOT NULL
+      );
+      INSERT INTO eidos__tables VALUES ('table-ux', 'ux');
+      INSERT INTO eidos__fields VALUES ('field-id', 'table-ux', '_id', -3);
+      INSERT INTO eidos__fields VALUES ('field-screenshot', 'table-ux', '截图', 5);
+      INSERT INTO eidos__fields VALUES ('field-done', 'table-ux', 'done', 6);
+    `)
+    database.close()
+    await fs.mkdir(path.join(root, ".graft"))
+
+    const diffWithTable = (
+      table: SpaceVersionDiff["files"][number]["tables"][number]
+    ): SpaceVersionDiff => ({
+      currentHead: "a".repeat(64),
+      currentBranch: "main",
+      from: "index",
+      to: null,
+      paths: [{ path: "space.eidos", change: "modified" }],
+      files: [
+        {
+          path: "space.eidos",
+          change: "modified",
+          rowDiffAvailable: true,
+          limitations: [],
+          tables: [table],
+        },
+      ],
+    })
+    const sqlitePathDiff = vi.fn(
+      async (
+        _root: string,
+        _relativePath: string,
+        options: { table?: string }
+      ) =>
+        options.table === "eidos__fields"
+          ? diffWithTable({
+              name: "eidos__fields",
+              columns: ["id", "table_id", "physical_name", "position"],
+              primaryKeyColumns: ["id"],
+              changes: [
+                {
+                  op: "delete",
+                  key: { id: "field-status" },
+                  values: ["field-status", "table-ux", "状态", 4],
+                },
+                {
+                  op: "insert",
+                  key: { id: "field-done" },
+                  values: ["field-done", "table-ux", "done", 6],
+                },
+              ],
+            })
+          : diffWithTable({
+              name: "ux",
+              columns: ["_id", "截图", "done"],
+              primaryKeyColumns: ["_id"],
+              changes: [
+                {
+                  op: "update",
+                  key: { _id: "row-1" },
+                  oldValues: ["row-1", "待处理", "[]"],
+                  values: ["row-1", "[]", 1],
+                },
+              ],
+            })
+    )
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.7",
+      close: async () => undefined,
+      sqlitePathDiff,
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      session = await SpaceSession.create(root, userData, { graft })
+      const result = await session.getVersionPathDiff(
+        "space.eidos",
+        null,
+        null,
+        "ux"
+      )
+      const table = result.files[0]!.tables[0]!
+
+      expect(table.columns).toEqual(["_id", "状态", "截图", "done"])
+      expect(table.changes[0]).toMatchObject({
+        oldValues: ["row-1", "待处理", "[]", undefined],
+        values: ["row-1", undefined, "[]", 1],
+      })
+      expect(sqlitePathDiff).toHaveBeenCalledTimes(2)
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  })
+
   it("expands a folder discard to changed files and rejects a stale view", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-discard-folder-")

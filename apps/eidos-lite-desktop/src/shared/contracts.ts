@@ -238,9 +238,18 @@ export interface SpaceVersionTableSummary {
   updates: number
 }
 
+export type SpaceVersionColumnChangeKind = "added" | "deleted" | "renamed"
+
+export interface SpaceVersionColumnChange {
+  kind: SpaceVersionColumnChangeKind
+  before?: string
+  after?: string
+}
+
 export interface SpaceVersionTableDiff {
   name: string
   columns: string[]
+  columnChanges?: Array<SpaceVersionColumnChange | null>
   primaryKeyColumns: string[]
   changes: SpaceVersionRowChange[]
   summary?: SpaceVersionTableSummary

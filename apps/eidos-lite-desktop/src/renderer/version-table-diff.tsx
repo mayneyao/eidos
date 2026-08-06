@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { LoaderCircle, RotateCcw } from "lucide-react"
 
 import type {
+  SpaceVersionColumnChange,
   SpaceVersionRowChange,
   SpaceVersionTableDiff,
 } from "../shared/contracts"
@@ -98,18 +99,60 @@ function Value({ value }: { value: unknown }) {
   )
 }
 
+function SchemaValue({ value }: { value: unknown }) {
+  if (value === null || value === undefined) {
+    return (
+      <span className="version-table-schema-empty" aria-label="Empty value" />
+    )
+  }
+  return <Value value={value} />
+}
+
+function columnChangeLabel(change: SpaceVersionColumnChange): string {
+  if (change.kind === "added") return "Added"
+  if (change.kind === "deleted") return "Removed"
+  return "Renamed"
+}
+
 function DiffCell({
   change,
   columnIndex,
+  columnChange,
 }: {
   change: SpaceVersionRowChange
   columnIndex: number
+  columnChange?: SpaceVersionColumnChange | null
 }) {
   const kind = rowChangeKind(change)
   const before = valueBefore(change, columnIndex)
   const after = valueAfter(change, columnIndex)
   const changed = columnChanged(change, columnIndex)
 
+  if (columnChange?.kind === "added") {
+    return (
+      <td data-cell-change="column-insert" data-column-schema-change="added">
+        <ins>
+          <SchemaValue value={after} />
+        </ins>
+      </td>
+    )
+  }
+  if (columnChange?.kind === "deleted") {
+    return (
+      <td data-cell-change="column-delete" data-column-schema-change="deleted">
+        <del>
+          <SchemaValue value={before} />
+        </del>
+      </td>
+    )
+  }
+  if (columnChange?.kind === "renamed" && !changed) {
+    return (
+      <td data-cell-change="unchanged" data-column-schema-change="renamed">
+        <SchemaValue value={after ?? before} />
+      </td>
+    )
+  }
   if (kind === "insert") {
     return (
       <td data-cell-change="insert">
@@ -257,10 +300,12 @@ export function VersionTableDiff({
     () =>
       table.columns
         .map((_, index) => index)
-        .filter((index) =>
-          visibleChanges.some((change) => columnChanged(change, index))
+        .filter(
+          (index) =>
+            Boolean(table.columnChanges?.[index]) ||
+            visibleChanges.some((change) => columnChanged(change, index))
         ),
-    [visibleChanges, table.columns]
+    [visibleChanges, table.columnChanges, table.columns]
   )
   const visibleColumnIndexes =
     columnMode === "all" || changedColumnIndexes.length === 0
@@ -462,14 +507,28 @@ export function VersionTableDiff({
                 <th className="version-table-key-column" scope="col">
                   Row
                 </th>
-                {visibleColumnIndexes.map((index) => (
-                  <th key={`${table.columns[index]}-${index}`} scope="col">
-                    <span>{table.columns[index]}</span>
-                    {table.primaryKeyColumns.includes(table.columns[index]!) ? (
-                      <small>Key</small>
-                    ) : null}
-                  </th>
-                ))}
+                {visibleColumnIndexes.map((index) => {
+                  const columnChange = table.columnChanges?.[index]
+                  return (
+                    <th
+                      key={`${table.columns[index]}-${index}`}
+                      scope="col"
+                      data-column-schema-change={columnChange?.kind}
+                    >
+                      <span>{table.columns[index]}</span>
+                      {columnChange ? (
+                        <small data-schema-change={columnChange.kind}>
+                          {columnChangeLabel(columnChange)}
+                        </small>
+                      ) : null}
+                      {table.primaryKeyColumns.includes(
+                        table.columns[index]!
+                      ) ? (
+                        <small>Key</small>
+                      ) : null}
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody>
@@ -505,6 +564,7 @@ export function VersionTableDiff({
                         key={`${table.columns[index]}-${index}`}
                         change={change}
                         columnIndex={index}
+                        columnChange={table.columnChanges?.[index]}
                       />
                     ))}
                   </tr>

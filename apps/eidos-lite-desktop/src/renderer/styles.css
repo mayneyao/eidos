@@ -3454,6 +3454,28 @@ button:focus-visible {
   text-transform: uppercase;
 }
 
+.version-table-diff thead th[data-column-schema-change="added"] {
+  background: color-mix(in oklab, var(--canvas) 96%, var(--success));
+}
+
+.version-table-diff thead th[data-column-schema-change="deleted"] {
+  background: color-mix(in oklab, var(--canvas) 96%, var(--danger));
+}
+
+.version-table-diff thead th[data-column-schema-change="renamed"] {
+  background: color-mix(in oklab, var(--canvas) 96%, var(--lite-accent));
+}
+
+.version-table-diff thead th > small[data-schema-change="added"] {
+  color: var(--success);
+  background: color-mix(in oklab, var(--success) 10%, transparent);
+}
+
+.version-table-diff thead th > small[data-schema-change="deleted"] {
+  color: var(--danger);
+  background: color-mix(in oklab, var(--danger) 10%, transparent);
+}
+
 .version-table-diff tbody tr:hover td[data-cell-change="unchanged"] {
   background: var(--surface-hover);
 }
@@ -3560,6 +3582,16 @@ button:focus-visible {
   background: color-mix(in oklab, var(--surface) 94%, var(--danger));
 }
 
+.version-table-diff td[data-cell-change="column-insert"] {
+  color: var(--success);
+  background: color-mix(in oklab, var(--surface) 97%, var(--success));
+}
+
+.version-table-diff td[data-cell-change="column-delete"] {
+  color: var(--danger);
+  background: color-mix(in oklab, var(--surface) 97%, var(--danger));
+}
+
 .version-table-diff td[data-cell-change="update"] {
   padding: 0;
   background: color-mix(in oklab, var(--surface) 96%, var(--lite-accent));
@@ -3578,6 +3610,16 @@ button:focus-visible {
 .version-table-diff td > del {
   display: block;
   min-width: 0;
+}
+
+.version-table-diff td[data-cell-change="column-insert"] > ins,
+.version-table-diff td[data-cell-change="column-delete"] > del {
+  min-height: 1rem;
+}
+
+.version-table-schema-empty {
+  display: block;
+  min-height: 0.9rem;
 }
 
 .version-table-cell-delta {
