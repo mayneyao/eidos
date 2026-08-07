@@ -166,6 +166,10 @@ const zh: Record<string, string> = {
     "仅显示前 2 MB，磁盘上的文件不会被更改。",
   "Preview unavailable": "无法预览",
   "Reveal in Finder": "在访达中显示",
+  Image: "图片",
+  Video: "视频",
+  Audio: "音频",
+  "{kind} preview of {path}": "{path} 的{kind}预览",
   "Linked files are not previewed, so the Space boundary stays explicit.":
     "为明确 Space 边界，不会预览符号链接文件。",
   "This item is not a regular file and cannot be shown as text.":

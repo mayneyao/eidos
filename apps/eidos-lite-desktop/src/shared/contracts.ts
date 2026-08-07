@@ -132,6 +132,10 @@ export interface SpaceTreeEntry {
 
 export type TextFileEncoding = "utf-8" | "utf-16le" | "utf-16be"
 
+export type MediaFileKind = "image" | "video" | "audio"
+
+export const EIDOS_SPACE_MEDIA_SCHEME = "eidos-space-media"
+
 export type TextFilePreviewResult =
   | {
       type: "text"
@@ -143,6 +147,15 @@ export type TextFilePreviewResult =
       size: number
       modifiedAtMs: number
       truncated: boolean
+    }
+  | {
+      type: "media"
+      relativePath: string
+      mediaKind: MediaFileKind
+      mimeType: string
+      previewUrl: string
+      size: number
+      modifiedAtMs: number
     }
   | {
       type: "unavailable"

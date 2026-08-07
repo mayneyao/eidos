@@ -10,6 +10,7 @@ import {
   type TextFileSaveRequest,
   type TextFileSaveResult,
 } from "../../shared/contracts"
+import { detectMediaFileType, issueMediaPreviewUrl } from "./media-file-preview"
 import { normalizeMutableRelativePath, resolveSpacePath } from "./space-paths"
 
 function unavailable(
@@ -136,6 +137,23 @@ export async function readTextFilePreview(
   const resolved = await fs.realpath(candidate)
   if (resolved !== path.resolve(candidate)) {
     return unavailable(relativePath, "symlink", pathStats)
+  }
+
+  const mediaType = detectMediaFileType(relativePath)
+  if (mediaType) {
+    return {
+      type: "media",
+      relativePath,
+      mediaKind: mediaType.mediaKind,
+      mimeType: mediaType.mimeType,
+      previewUrl: issueMediaPreviewUrl(
+        canonicalRoot,
+        relativePath,
+        mediaType.mimeType
+      ),
+      size: pathStats.size,
+      modifiedAtMs: pathStats.mtimeMs,
+    }
   }
 
   const handle = await fs.open(

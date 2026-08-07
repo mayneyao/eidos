@@ -153,6 +153,37 @@ describe("text file preview", () => {
     }
   })
 
+  it("routes browser-native media files to a streamed preview", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-text-"))
+    await fs.writeFile(
+      path.join(root, "photo.png"),
+      Buffer.from([0x89, 0x50, 0x4e, 0x47])
+    )
+    await fs.writeFile(path.join(root, "clip.mp4"), Buffer.from([0, 1, 2, 3]))
+    try {
+      await expect(
+        readTextFilePreview(root, "photo.png")
+      ).resolves.toMatchObject({
+        type: "media",
+        relativePath: "photo.png",
+        mediaKind: "image",
+        mimeType: "image/png",
+        previewUrl: expect.stringMatching(
+          /^eidos-space-media:\/\/preview\/[\w-]+$/u
+        ),
+      })
+      await expect(
+        readTextFilePreview(root, "clip.mp4")
+      ).resolves.toMatchObject({
+        type: "media",
+        mediaKind: "video",
+        mimeType: "video/mp4",
+      })
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("rejects paths outside the Space and identifies directories", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-text-"))
     await fs.mkdir(path.join(root, "notes"))

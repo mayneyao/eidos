@@ -47,6 +47,7 @@ function PierreTextEditorSurface(
 }
 
 type TextPreview = Extract<TextFilePreviewResult, { type: "text" }>
+type TextSurfacePreview = Exclude<TextFilePreviewResult, { type: "media" }>
 type SaveState = "saved" | "dirty" | "saving" | "conflict" | "error"
 
 export interface TextFileDraft {
@@ -288,7 +289,7 @@ export function TextFilePreview({
   onReload,
   onDraftChange,
 }: {
-  preview: TextFilePreviewResult
+  preview: TextSurfacePreview
   draft?: TextFileDraft
   theme: ResolvedAppearance
   onReveal(): void

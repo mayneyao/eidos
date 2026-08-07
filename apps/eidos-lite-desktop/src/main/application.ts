@@ -1,8 +1,8 @@
 import fs from "node:fs"
 import path from "node:path"
-import { app, BrowserWindow, dialog, Menu } from "electron"
+import { app, BrowserWindow, dialog, Menu, protocol } from "electron"
 
-import { IPC_CHANNELS } from "../shared/contracts"
+import { EIDOS_SPACE_MEDIA_SCHEME, IPC_CHANNELS } from "../shared/contracts"
 import {
   resolveEidosLiteServiceEnvironment,
   runtimeEnvironmentOverride,
@@ -12,6 +12,7 @@ import { eidosLiteUpdatesEnabledInBuild } from "../shared/update-environment"
 import { installElectronLogging } from "./electron-logging"
 import { eidosLiteApplicationMenuTemplate } from "./application-menu"
 import { registerIpc } from "./ipc"
+import { serveMediaPreview } from "./space/media-file-preview"
 import { eidosFilePathsFromArguments } from "./launch-intent"
 import { initializeEidosLiteLogger } from "./logging"
 import { createSyncControlPlane } from "./sync/create-sync-control-plane"
@@ -20,6 +21,13 @@ import { EidosLiteUpdater, type EidosLiteAutoUpdater } from "./updater"
 import { WindowController } from "./window-controller"
 
 const mainModuleStartedAtMs = Date.now()
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: EIDOS_SPACE_MEDIA_SCHEME,
+    privileges: { stream: true },
+  },
+])
 const bootstrapState = (
   globalThis as typeof globalThis & {
     __eidosLiteBootstrapState?: {
@@ -233,6 +241,9 @@ void app.whenReady().then(async () => {
   logger.info("app.ready", {
     startupMs: Math.max(0, appReadyAtMs - bootstrapStartedAtMs),
   })
+  protocol.handle(EIDOS_SPACE_MEDIA_SCHEME, (request) =>
+    serveMediaPreview(request.url, request.headers)
+  )
   const syncControl = createSyncControlPlane(services)
   if (isPackagedSmoke) {
     if (!smokeSpace || !smokeResult) {

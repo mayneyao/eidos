@@ -82,6 +82,7 @@ import {
   type RecentFileEntry,
 } from "./recent-files"
 import { blocksLocalInteraction } from "./space-operation-availability"
+import { MediaFilePreview } from "./media-file-preview"
 import {
   prepareTextFilePreview,
   TextFilePreview,
@@ -2042,29 +2043,42 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 />
               </Suspense>
             ) : textPreview ? (
-              <TextFilePreview
-                preview={textPreview}
-                draft={textFileDrafts[textPreview.relativePath]}
-                theme={theme}
-                onSaved={(file) =>
-                  setTextPreview((current) =>
-                    current?.relativePath === file.relativePath ? file : current
-                  )
-                }
-                onReload={(preview) =>
-                  setTextPreview((current) =>
-                    current?.relativePath === preview.relativePath
-                      ? preview
-                      : current
-                  )
-                }
-                onDraftChange={updateTextFileDraft}
-                onReveal={() =>
-                  void window.eidosLite
-                    .revealPath(textPreview.relativePath)
-                    .catch((cause) => setError(errorMessage(cause)))
-                }
-              />
+              textPreview.type === "media" ? (
+                <MediaFilePreview
+                  preview={textPreview}
+                  onReveal={() =>
+                    void window.eidosLite
+                      .revealPath(textPreview.relativePath)
+                      .catch((cause) => setError(errorMessage(cause)))
+                  }
+                />
+              ) : (
+                <TextFilePreview
+                  preview={textPreview}
+                  draft={textFileDrafts[textPreview.relativePath]}
+                  theme={theme}
+                  onSaved={(file) =>
+                    setTextPreview((current) =>
+                      current?.relativePath === file.relativePath
+                        ? file
+                        : current
+                    )
+                  }
+                  onReload={(preview) =>
+                    setTextPreview((current) =>
+                      current?.relativePath === preview.relativePath
+                        ? preview
+                        : current
+                    )
+                  }
+                  onDraftChange={updateTextFileDraft}
+                  onReveal={() =>
+                    void window.eidosLite
+                      .revealPath(textPreview.relativePath)
+                      .catch((cause) => setError(errorMessage(cause)))
+                  }
+                />
+              )
             ) : activeFile && activeTable ? (
               <section
                 className="file-editor"
