@@ -165,6 +165,22 @@ function defaultRule(field: EidosFileFieldInfo): EidosFileFilterRule {
   }
 }
 
+function padTimeUnit(unit: number): string {
+  return String(unit).padStart(2, "0")
+}
+
+function datetimeLocalFromFilterInstant(value: EidosFileFilterValue): string {
+  if (typeof value !== "string" || value.length === 0) return ""
+  const timestamp = Date.parse(value)
+  if (Number.isNaN(timestamp)) return ""
+  const date = new Date(timestamp)
+  return `${date.getFullYear()}-${padTimeUnit(date.getMonth() + 1)}-${padTimeUnit(date.getDate())}T${padTimeUnit(date.getHours())}:${padTimeUnit(date.getMinutes())}:${padTimeUnit(date.getSeconds())}`
+}
+
+function filterInstantFromDatetimeLocal(value: string): string {
+  return new Date(value).toISOString()
+}
+
 function FilterValueEditor({
   field,
   rule,
@@ -244,15 +260,40 @@ function FilterValueEditor({
       </Select>
     )
   }
+  if (displayType === "date" || displayType === "datetime") {
+    const rawValue = Array.isArray(rule.value)
+      ? (rule.value[0] ?? "")
+      : (rule.value ?? "")
+    return (
+      <Input
+        className="h-7 min-w-0 text-xs"
+        type={displayType === "date" ? "date" : "datetime-local"}
+        step={displayType === "datetime" ? 1 : undefined}
+        value={
+          displayType === "datetime"
+            ? datetimeLocalFromFilterInstant(rawValue)
+            : String(rawValue)
+        }
+        placeholder={t("Value")}
+        onChange={(event) => {
+          if (displayType === "datetime") {
+            onChange(
+              event.target.value
+                ? filterInstantFromDatetimeLocal(event.target.value)
+                : ""
+            )
+          } else {
+            onChange(event.target.value)
+          }
+        }}
+      />
+    )
+  }
   return (
     <Input
       className="h-7 min-w-0 text-xs"
       type={
-        displayType === "number" || displayType === "rating"
-          ? "number"
-          : displayType === "date" || displayType === "datetime"
-            ? "date"
-            : "text"
+        displayType === "number" || displayType === "rating" ? "number" : "text"
       }
       value={String(
         Array.isArray(rule.value) ? (rule.value[0] ?? "") : (rule.value ?? "")

@@ -373,6 +373,87 @@ describe("shared EidosFileQueryToolbar", () => {
     ])
   })
 
+  it("converts a datetime filter operand to the canonical UTC instant", async () => {
+    await act(async () => button("Filter")?.click())
+    await act(async () => button("Add filter")?.click())
+    await act(async () => button("Add condition")?.click())
+    const fieldSelect =
+      document.body.querySelectorAll<HTMLElement>('[role="combobox"]')[1]
+    await act(async () => fieldSelect?.click())
+    const createdAt = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="option"]')
+    ).find((option) => option.textContent?.trim() === "Created at")
+    await act(async () => createdAt?.click())
+
+    const valueInput = document.body.querySelector<HTMLInputElement>(
+      'input[type="datetime-local"]'
+    )
+    expect(valueInput).not.toBeNull()
+    await act(async () => {
+      if (!valueInput) return
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set
+      setter?.call(valueInput, "2026-08-07T10:30:15")
+      valueInput.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => button("Apply")?.click())
+
+    expect(onFilterChange).toHaveBeenCalledWith({
+      type: "group",
+      conjunction: "and",
+      children: [
+        {
+          type: "rule",
+          field: fields[3].id,
+          operator: "equals",
+          value: new Date("2026-08-07T10:30:15").toISOString(),
+        },
+      ],
+    })
+  })
+
+  it("renders a persisted datetime filter in local time", async () => {
+    const instant = new Date("2026-08-07T10:30:15").toISOString()
+    await act(async () => {
+      root.render(
+        <EidosFileQueryToolbar
+          fields={fields}
+          filter={{
+            type: "group",
+            conjunction: "and",
+            children: [
+              {
+                type: "rule",
+                field: fields[3].id,
+                operator: "equals",
+                value: instant,
+              },
+            ],
+          }}
+          sorts={[]}
+          search=""
+          onSearchChange={onSearchChange}
+          onFilterChange={onFilterChange}
+          onSortsChange={onSortsChange}
+        />
+      )
+    })
+    await act(async () =>
+      document.body
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Filter Eidos File rows"]'
+        )
+        ?.click()
+    )
+
+    const valueInput = document.body.querySelector<HTMLInputElement>(
+      'input[type="datetime-local"]'
+    )
+    expect(valueInput?.value).toMatch(/^2026-08-07T10:30:15(?:\.000)?$/)
+  })
+
   it("carries the resolved theme into portalled query controls", async () => {
     await act(async () => {
       root.render(
