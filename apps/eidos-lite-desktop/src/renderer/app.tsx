@@ -2216,8 +2216,40 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               }}
             >
               <FolderOpen />
-              {contextMenu.entry.kind === "eidos" ? "Open" : "Preview"}
+              {contextMenu.entry.kind === "eidos" ? t("Open") : t("Preview")}
             </button>
+          ) : null}
+          {contextMenu.entry.kind === "directory" ? (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={pathMutationBusy || localInteractionBlocked}
+                onClick={() => {
+                  setPathDialog({
+                    action: "create-file",
+                    entry: contextMenu.entry,
+                  })
+                  setContextMenu(null)
+                }}
+              >
+                <FilePlus2 /> {t("New File")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={pathMutationBusy || localInteractionBlocked}
+                onClick={() => {
+                  setPathDialog({
+                    action: "create-folder",
+                    entry: contextMenu.entry,
+                  })
+                  setContextMenu(null)
+                }}
+              >
+                <FolderPlus /> {t("New folder")}
+              </button>
+            </>
           ) : null}
           <button
             type="button"
@@ -2233,7 +2265,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               setContextMenu(null)
             }}
           >
-            <Pencil /> Rename
+            <Pencil /> {t("Rename")}
           </button>
           <button
             type="button"
@@ -2246,7 +2278,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               setContextMenu(null)
             }}
           >
-            <Copy /> Copy Path
+            <Copy /> {t("Copy Path")}
           </button>
           <button
             type="button"
@@ -2259,7 +2291,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               setContextMenu(null)
             }}
           >
-            <ClipboardCopy /> Copy Relative Path
+            <ClipboardCopy /> {t("Copy Relative Path")}
           </button>
           <button
             type="button"
@@ -2269,7 +2301,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               setContextMenu(null)
             }}
           >
-            <FolderOpen /> Reveal in Finder
+            <FolderOpen /> {t("Reveal in Finder")}
           </button>
           <button
             type="button"
@@ -2280,7 +2312,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               setContextMenu(null)
             }}
           >
-            <Trash2 /> Move to Trash
+            <Trash2 /> {t("Move to Trash")}
           </button>
         </div>
       ) : null}
