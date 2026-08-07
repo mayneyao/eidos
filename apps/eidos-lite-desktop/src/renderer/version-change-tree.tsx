@@ -345,11 +345,14 @@ export function VersionChangeTree({
   decorationRef.current = tree.decorationByPath
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
+  const diffRef = useRef(diff)
+  diffRef.current = diff
+  const onRequestDiscardRef = useRef(onRequestDiscard)
+  onRequestDiscardRef.current = onRequestDiscard
   const treeSignature = versionChangeTreeStructureKey(tree.paths)
   const gitStatusSignature = tree.gitStatus
     .map(({ path, status }) => `${path}\u0000${status}`)
     .join("\u0000")
-
   const { model } = useFileTree({
     paths: [],
     density: 1,
@@ -375,6 +378,11 @@ export function VersionChangeTree({
         enabled: mode === "changes" && onRequestDiscard !== undefined,
         triggerMode: "button",
         buttonVisibility: "when-needed",
+        onOpen: (item, context) => {
+          context.close({ restoreFocus: false })
+          const target = versionChangeDiscardTarget(diffRef.current, item.path)
+          if (target) onRequestDiscardRef.current?.(target)
+        },
       },
     },
     unsafeCSS: TREE_CSS,
@@ -418,36 +426,6 @@ export function VersionChangeTree({
     onSelectRef.current(versionInspectionFromTarget(target, diff, mode, commit))
   }
 
-  const hostRef = useRef<HTMLDivElement | null>(null)
-  const hoverPathRef = useRef<string | null>(null)
-  const diffRef = useRef(diff)
-  diffRef.current = diff
-  const onRequestDiscardRef = useRef(onRequestDiscard)
-  onRequestDiscardRef.current = onRequestDiscard
-
-  useEffect(() => {
-    const host = hostRef.current
-    if (!host) return
-    const handleClick = (event: MouseEvent) => {
-      const isTrigger = event
-        .composedPath()
-        .some(
-          (target) =>
-            target instanceof HTMLElement &&
-            target.dataset.type === "context-menu-trigger"
-        )
-      if (!isTrigger) return
-      event.preventDefault()
-      event.stopImmediatePropagation()
-      const treePath = hoverPathRef.current ?? model.getFocusedPath()
-      if (!treePath) return
-      const target = versionChangeDiscardTarget(diffRef.current, treePath)
-      if (target) onRequestDiscardRef.current?.(target)
-    }
-    host.addEventListener("click", handleClick, true)
-    return () => host.removeEventListener("click", handleClick, true)
-  }, [model])
-
   const styles = {
     height: "100%",
     minHeight: 0,
@@ -478,20 +456,7 @@ export function VersionChangeTree({
   } as CSSProperties
 
   return (
-    <div
-      ref={hostRef}
-      style={{ height: "100%", minHeight: 0 }}
-      onPointerOver={(event) => {
-        hoverPathRef.current = eventTreePath(event) ?? hoverPathRef.current
-      }}
-      onPointerLeave={() => {
-        hoverPathRef.current = null
-      }}
-      onFocus={(event) => {
-        hoverPathRef.current =
-          eventTreePath(event) ?? model.getFocusedPath() ?? hoverPathRef.current
-      }}
-    >
+    <div style={{ height: "100%", minHeight: 0 }}>
       <FileTree
         model={model}
         aria-label={
