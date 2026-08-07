@@ -263,6 +263,7 @@ const DEFAULT_SIDEBAR_WIDTH = 280
 const MIN_SIDEBAR_WIDTH = 208
 const MAX_SIDEBAR_WIDTH = 480
 const SIDEBAR_WIDTH_STORAGE_KEY = "eidos-lite:space-sidebar-width"
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "eidos-lite:space-sidebar-collapsed"
 const MAX_CACHED_FILES = 3
 
 function clampSidebarWidth(width: number): number {
@@ -277,6 +278,10 @@ function storedSidebarWidth(): number {
   return Number.isFinite(stored)
     ? clampSidebarWidth(stored)
     : DEFAULT_SIDEBAR_WIDTH
+}
+
+function storedSidebarCollapsed(): boolean {
+  return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true"
 }
 
 function syncQueueLabel(status: EidosSyncQueueStatus | null): string {
@@ -629,7 +634,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [error, setError] = useState<string | null>(null)
   const [fileIssue, setFileIssue] = useState<EidosFileIssue | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    storedSidebarCollapsed
+  )
 
   const [navigationSnapshot, setNavigationSnapshot] =
     useState<NavigationSnapshot | null>(null)
@@ -873,6 +880,13 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth))
   }, [sidebarWidth])
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      SIDEBAR_COLLAPSED_STORAGE_KEY,
+      String(sidebarCollapsed)
+    )
+  }, [sidebarCollapsed])
 
   const activeFile =
     cachedFiles.find((file) => file.sessionId === activeSession) ?? null
