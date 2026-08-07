@@ -291,6 +291,45 @@ describe("EidosFileGalleryView", () => {
     expect(container.textContent).toContain("Review UX")
   })
 
+  it("renders every Gallery card at the same fixed height", async () => {
+    const loadPage = vi.fn(
+      async (offset: number, limit: number, _totalHint?: number) => ({
+        tableId: "tasks",
+        offset,
+        limit,
+        total: 3,
+        rows:
+          offset === 0
+            ? [
+                { _id: "row_1", title: "Write RFC", status: "todo" },
+                { _id: "row_2", title: "Ship Eidos File", status: null },
+              ]
+            : [{ _id: "row_3", title: "Review UX", status: "todo" }],
+      })
+    )
+
+    await act(async () => {
+      root.render(
+        <EidosFileGalleryView
+          table={table}
+          view={view}
+          loadPage={loadPage}
+          onOpenRecordInTab={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const cards = Array.from(
+      container.querySelectorAll<HTMLElement>('[role="listitem"]')
+    )
+    expect(cards.length).toBeGreaterThan(1)
+    const heights = new Set(cards.map((card) => card.style.height))
+    expect(cards[0]?.style.height).not.toBe("")
+    expect(heights.size).toBe(1)
+  })
+
   it("loads the complete Gallery record only when its inspector opens", async () => {
     let resolveRow:
       | ((row: { _id: string; title: string; notes: string }) => void)

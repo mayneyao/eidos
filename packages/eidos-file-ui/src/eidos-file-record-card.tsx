@@ -231,6 +231,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   view,
   layout: providedLayout,
   compact = false,
+  fixedHeight,
   onOpen,
   onDelete,
   moveOptions,
@@ -247,6 +248,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   view: EidosFileViewInfo
   layout?: EidosFileRecordCardLayout
   compact?: boolean
+  fixedHeight?: number
   onOpen: (row: EidosFileRow) => void
   onDelete?: (row: EidosFileRow) => void
   moveOptions?: Array<{ id: string; label: string; disabled?: boolean }>
@@ -261,7 +263,10 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
   const layout =
     providedLayout ?? createEidosFileRecordCardLayout(fields, view, compact)
   const { themeName: theme, translate: t } = useEidosFileUI()
-  const visibleFields = selectEidosFileRecordCardFields(layout, row)
+  const uniform = fixedHeight !== undefined
+  const visibleFields = uniform
+    ? layout.fields.slice(0, layout.fieldLimit)
+    : selectEidosFileRecordCardFields(layout, row)
   const title = eidosFileRecordTitle(row, fields)
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null)
   const suppressPointerOpenRef = useRef(false)
@@ -312,6 +317,7 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
         focused &&
           "border-ring ring-2 ring-ring/45 ring-offset-2 ring-offset-background"
       )}
+      style={uniform ? { height: fixedHeight } : undefined}
       aria-current={focused ? "true" : undefined}
       aria-posinset={role === "listitem" ? positionInSet : undefined}
       aria-setsize={role === "listitem" ? setSize : undefined}
@@ -339,7 +345,12 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
       <div className={cn("grid gap-3", compact ? "p-3" : "p-4")}>
         <div className="flex min-w-0 items-start gap-2">
           <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-          <h3 className="min-w-0 flex-1 break-words text-sm font-medium leading-5">
+          <h3
+            className={cn(
+              "min-w-0 flex-1 text-sm font-medium leading-5",
+              uniform ? "truncate" : "break-words"
+            )}
+          >
             {title}
           </h3>
           <span className="-mr-1 -mt-1 flex shrink-0 items-center">
@@ -417,7 +428,12 @@ export const EidosFileRecordCard = memo(function EidosFileRecordCard({
                 <span className="truncate text-[11px] text-muted-foreground">
                   {eidosFileFieldDisplayName(fieldLayout.field)}
                 </span>
-                <span className="min-w-0">
+                <span
+                  className={cn(
+                    "min-w-0",
+                    uniform && "block max-h-6 truncate overflow-hidden"
+                  )}
+                >
                   <CardFieldValue
                     layout={fieldLayout}
                     row={row}

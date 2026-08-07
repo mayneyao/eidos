@@ -61,7 +61,7 @@ function galleryCardWidth(view: EidosFileViewInfo): number {
   return 280
 }
 
-function estimatedGalleryCardHeight(layout: EidosFileRecordCardLayout): number {
+function uniformGalleryCardHeight(layout: EidosFileRecordCardLayout): number {
   const visibleFieldCount = Math.min(layout.fields.length, layout.fieldLimit)
   return 72 + (layout.coverField ? 144 : 0) + visibleFieldCount * 32
 }
@@ -147,7 +147,7 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
     <div
       ref={measureElement}
       role="presentation"
-      className="absolute left-0 top-0 grid w-full items-start gap-3 [contain:layout_style]"
+      className="absolute left-0 top-0 grid w-full items-stretch gap-3 [contain:layout_style]"
       data-index={globalRowIndex}
       data-eidos-file-virtual-index={virtualIndex}
       style={{
@@ -167,6 +167,7 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
               fields={fields}
               view={view}
               layout={layout}
+              fixedHeight={uniformGalleryCardHeight(layout)}
               role="listitem"
               positionInSet={absoluteIndex + 1}
               setSize={total}
@@ -179,6 +180,7 @@ const EidosFileGalleryVirtualRow = memo(function EidosFileGalleryVirtualRow({
               key={`gallery-placeholder-${absoluteIndex}`}
               data-eidos-file-gallery-placeholder
               className="min-h-24 rounded-lg border bg-muted/20"
+              style={{ height: uniformGalleryCardHeight(layout) }}
               aria-hidden="true"
             />
           )
@@ -411,7 +413,7 @@ export const EidosFileGalleryView = memo(function EidosFileGalleryView({
   } = useEidosFileBoundedVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: virtualRowCount,
     getScrollElement: () => scrollContainerRef.current,
-    estimatedItemSize: estimatedGalleryCardHeight(cardLayout),
+    estimatedItemSize: uniformGalleryCardHeight(cardLayout),
     getItemKey: galleryVirtualRowKey,
     gap: GALLERY_GAP,
     initialRect: { width: 1024, height: 640 },
