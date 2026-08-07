@@ -351,7 +351,7 @@ CREATE TABLE eidos__fields(
        AND instr(physical_name,char(0))=0
        AND physical_name COLLATE BINARY = name COLLATE BINARY)),
   type TEXT NOT NULL CHECK(type IN (
-    'text','number','integer','checkbox','date','datetime','url','json',
+    'text','number','integer','checkbox','date','datetime','url',
     'select','multi-select','file','relation','formula','lookup'
   )),
   system_role TEXT CHECK(system_role IN ('row-id','created-time','updated-time')),
@@ -461,7 +461,7 @@ CREATE TABLE eidos__formula_fields(
   source_text TEXT NOT NULL
     CHECK(length(CAST(source_text AS BLOB)) BETWEEN 1 AND 4096),
   result_type TEXT NOT NULL
-    CHECK(result_type IN ('text','number','integer','checkbox','date','datetime','url','json'))
+    CHECK(result_type IN ('text','number','integer','checkbox','date','datetime','url'))
 ) STRICT, WITHOUT ROWID;
 
 CREATE TABLE eidos__lookup_fields(
@@ -598,7 +598,6 @@ BEGIN SELECT RAISE(ABORT,'EIDOS_ROW_ID_IMMUTABLE'); END;
 | `datetime`         | named TEXT      | canonical UTC instant/NULL          |
 | `url`              | named TEXT      | URI-reference/NULL                  |
 | `file`             | named JSON TEXT | ordered file list                   |
-| `json`             | named JSON TEXT | JSON/NULL                           |
 | `select`           | named TEXT      | option name/NULL                    |
 | `multi-select`     | named JSON TEXT | option-name list                    |
 | forward `relation` | named JSON TEXT | Row-ID list                         |
@@ -646,10 +645,9 @@ integer                    -> INTEGER
 checkbox                   -> INTEGER CHECK(value IS NULL OR value IN (0, 1))
 file, multi-select,
 forward relation           -> TEXT NOT NULL DEFAULT '[]' with JSON-array CHECK
-json                       -> TEXT with JSON CHECK when non-NULL
 ```
 
-stored scalar/JSON Field 的 `nullable=0` 必须对应 physical `NOT NULL`，`nullable=1`
+stored scalar Field 的 `nullable=0` 必须对应 physical `NOT NULL`，`nullable=1`
 必须对应省略 `NOT NULL`，不能用额外 constraint 静默缩小 raw domain。File、
 Multi-select、forward/inverse Relation 固定 `nullable=0`；Formula/Lookup 在 core 1.0
 固定 `nullable=1`，因为 EF 不能证明 derived result non-NULL；三个 system roles 固定为 0。
@@ -724,7 +722,7 @@ stored Field 可以按上述类型成为 Record Label。Formula 只有在持久 
 上述 scalar 时才可以。core 1.0 的 Lookup 不能成为 Record Label，因为其 exact
 scalar/list result shape 没有持久化到 `eidos__lookup_fields`；未来 required feature 只有
 在持久声明 exact scalar result 后才能放宽。Relation、inverse Relation、Multi-select、
-File、JSON 与 list value 不能成为 Record Label。低层 Writer 可以选择 `_id`；产品可以
+File 与 list value 不能成为 Record Label。低层 Writer 可以选择 `_id`；产品可以
 默认创建普通 `Name` text Field，但名称和该 Field 的存在都不是格式要求。
 
 同一 Table 的所有引用观察同一个 Record Label Field ID。View 不能改变 table-level

@@ -388,7 +388,6 @@ interface RuntimeLimits {
   searchBytesMax: number
   listElementsMax: number
   logicalValueBytesMax: number
-  jsonCellBytesMax: number
   formulaBytesMax: number
   formulaNodesMax: number
   formulaDepthMax: number
@@ -914,8 +913,8 @@ the owner of value meaning.
     },
     {
       "fieldId": "0198c6b9-c9a3-7cb9-82d0-dfb39d51c45f",
-      "name": "Payload",
-      "valueType": "json",
+      "name": "Notes",
+      "valueType": "text",
       "source": "stored",
       "writable": true
     },
@@ -932,7 +931,7 @@ the owner of value meaning.
       "id": "0198c72d-82b5-7968-b163-98be4b747702",
       "values": [
         "9223372036854775807",
-        "null",
+        "Hello",
         ["0198c72d-82b5-7968-b163-98be4b747703"]
       ],
       "resolvedRelations": [
@@ -1661,7 +1660,7 @@ matrix and plan classification. The UI MUST show whether the operation is
 metadata-only, a lossless rewrite, explicitly lossy, or forbidden; it MUST NOT
 infer safety from SQLite coercion or a sample alone.
 
-UI constructs the exact tagged `convert-field` leaf. A scalar/JSON
+UI constructs the exact tagged `convert-field` leaf. A scalar
 destination always includes `toNullable`; Multi-select/File omits it; Relation
 instead includes the complete forward Relation definition. Selected
 conversion controls become the unique `policies` array in Runtime's canonical

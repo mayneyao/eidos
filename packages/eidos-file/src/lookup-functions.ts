@@ -116,10 +116,6 @@ function decodeLookupAtom(value: unknown, type: string): LookupAtom {
     return Object.is(number, -0) ? 0 : number
   }
   if (type === "checkbox") return value === true || value === 1
-  if (type === "json") {
-    const source = typeof value === "string" ? value : JSON.stringify(value)
-    return canonicalizeEidosFileJson(JSON.parse(source))
-  }
   if (type === "file-entry") {
     const object =
       typeof value === "string" ? (JSON.parse(value) as unknown) : value
@@ -137,7 +133,6 @@ function decodeLookupAtom(value: unknown, type: string): LookupAtom {
 function publicLookupAtom(value: LookupAtom, type: string): unknown {
   if (value === null) return null
   if (type === "integer") return String(value)
-  if (type === "json") return String(value)
   return value
 }
 

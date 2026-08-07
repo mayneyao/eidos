@@ -19,7 +19,6 @@ const EIDOS_FILE_FIELD_TYPES = new Set<EidosFileFieldType>([
   "text",
   "number",
   "integer",
-  "json",
   "relation",
   "checkbox",
   "date",

@@ -44,7 +44,6 @@ export type AtomicType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
   | "select"
   | "row-id"
   | "file-entry"
@@ -147,7 +146,6 @@ export interface RuntimeLimits {
   searchBytesMax: number
   listElementsMax: number
   logicalValueBytesMax: number
-  jsonCellBytesMax: number
   formulaBytesMax: number
   formulaNodesMax: number
   formulaDepthMax: number
@@ -488,7 +486,6 @@ export type FormulaResultType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
 
 export interface FormulaDefinition {
   sourceText: string
@@ -697,7 +694,6 @@ export type StoredFieldType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
   | "select"
   | "multi-select"
   | "file"
@@ -720,7 +716,6 @@ export type ConversionPolicy =
   | "zero-false-nonzero-true"
   | "utc-date"
   | "first"
-  | "json-null-to-sql-null"
   | "null-to-empty-list"
 
 export type ScalarStoredFieldType =
@@ -731,7 +726,6 @@ export type ScalarStoredFieldType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
   | "select"
 
 export type ConvertFieldChange =
@@ -797,7 +791,6 @@ export type SchemaValueChangeCode =
   | "integer-rounded"
   | "numeric-to-checkbox"
   | "datetime-to-date"
-  | "json-null-to-sql-null"
   | "null-to-empty-list"
   | "list-empty-to-null"
   | "list-tail-dropped"

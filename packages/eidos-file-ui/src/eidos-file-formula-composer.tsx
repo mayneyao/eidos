@@ -3,9 +3,9 @@ import {
   compileEidosFileFormula,
   compileEidosFileFormulaFields,
   type EidosFileFieldInfo,
-  type EidosFileFormulaDisplayType,
   type EidosFileFormulaPreview,
   type EidosFileFormulaPreviewInput,
+  type EidosFileFormulaResultType,
   type EidosFileRowValue,
 } from "@eidos.space/eidos-file"
 import {
@@ -38,7 +38,7 @@ import {
 export type { EidosFileFormulaInputRef }
 
 const DISPLAY_TYPES: Array<{
-  value: EidosFileFormulaDisplayType
+  value: EidosFileFormulaResultType
   label: string
 }> = [
   { value: "text", label: "Text" },
@@ -48,7 +48,6 @@ const DISPLAY_TYPES: Array<{
   { value: "date", label: "Date" },
   { value: "datetime", label: "Date & time" },
   { value: "url", label: "URL" },
-  { value: "json", label: "JSON" },
 ]
 
 type FormulaStatus = "idle" | "checking" | "valid" | "error"
@@ -151,10 +150,10 @@ export interface EidosFileFormulaComposerProps {
   name: string
   columnName: string
   formula: string
-  displayType: EidosFileFormulaDisplayType
+  displayType: EidosFileFormulaResultType
   editorRef?: RefObject<EidosFileFormulaInputRef>
   onFormulaChange: (formula: string) => void
-  onDisplayTypeChange: (displayType: EidosFileFormulaDisplayType) => void
+  onDisplayTypeChange: (displayType: EidosFileFormulaResultType) => void
   onPreview?: (
     input: EidosFileFormulaPreviewInput
   ) => Promise<EidosFileFormulaPreview>
@@ -363,7 +362,7 @@ export function EidosFileFormulaComposer({
             value={displayType}
             disabled={disabled}
             onValueChange={(value) =>
-              onDisplayTypeChange(value as EidosFileFormulaDisplayType)
+              onDisplayTypeChange(value as EidosFileFormulaResultType)
             }
           >
             <SelectTrigger className="eidos-file-formula-display-select h-8 text-xs">

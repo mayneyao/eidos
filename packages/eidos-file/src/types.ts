@@ -31,7 +31,6 @@ export interface EidosFileTableInfo {
 
 export type EidosFileFieldType =
   | "integer"
-  | "json"
   | "relation"
   | "text"
   | "number"
@@ -253,6 +252,11 @@ export type EidosFileFormulaDisplayType =
   | "url"
   | "json"
 
+export type EidosFileFormulaResultType = Exclude<
+  EidosFileFormulaDisplayType,
+  "json"
+>
+
 export interface EidosFileFormulaProperty extends Record<string, unknown> {
   formula: string
   displayType: EidosFileFormulaDisplayType
@@ -274,7 +278,7 @@ export interface EidosFileFormulaPreviewInput {
   name: string
   columnName: string
   formula: string
-  displayType: EidosFileFormulaDisplayType
+  displayType: EidosFileFormulaResultType
 }
 
 export interface EidosFileFormulaPreviewDependency {

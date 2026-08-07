@@ -11,7 +11,7 @@ import {
   eidosFileLookupDisplayType,
   type CreateEidosFileFieldInput,
   type EidosFileFieldInfo,
-  type EidosFileFormulaDisplayType,
+  type EidosFileFormulaResultType,
   type EidosFileFormulaPreview,
   type EidosFileFormulaPreviewInput,
   type EidosFileLookupAggregate,
@@ -114,7 +114,7 @@ export function EidosFileFieldCreatePopover({
   const [multiple, setMultiple] = useState(true)
   const [formula, setFormula] = useState("")
   const [formulaDisplayType, setFormulaDisplayType] =
-    useState<EidosFileFormulaDisplayType>("text")
+    useState<EidosFileFormulaResultType>("text")
   const [formulaValid, setFormulaValid] = useState(false)
   const [lookupRelationField, setLookupRelationField] = useState("")
   const [lookupTargetField, setLookupTargetField] = useState("")

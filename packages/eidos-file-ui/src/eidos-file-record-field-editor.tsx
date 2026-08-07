@@ -5,7 +5,6 @@ import type {
   EidosFileSqlPrimitive,
 } from "@eidos.space/eidos-file"
 import {
-  canonicalizeEidosFileJson,
   decodeEidosFileMultiSelectValues,
   encodeEidosFileMultiSelectValues,
 } from "@eidos.space/eidos-file"
@@ -74,12 +73,6 @@ export function EidosFileRecordFieldEditor({
       next = /^(?:0|-[1-9][0-9]*|[1-9][0-9]*)$/.test(draft.trim())
         ? BigInt(draft.trim())
         : draft
-    } else if (field.type === "json" && draft.trim().length > 0) {
-      try {
-        next = canonicalizeEidosFileJson(JSON.parse(draft))
-      } catch {
-        next = draft
-      }
     } else if (field.type === "datetime" && draft) {
       const date = new Date(draft)
       next = Number.isNaN(date.getTime()) ? null : date.toISOString()
@@ -200,18 +193,14 @@ export function EidosFileRecordFieldEditor({
     )
   }
 
-  if (field.type === "text" || field.type === "json") {
+  if (field.type === "text") {
     return (
       <Textarea
         value={draft}
-        rows={field.isRecordLabel ? 1 : field.type === "json" ? 5 : 3}
+        rows={field.isRecordLabel ? 1 : 3}
         aria-label={field.name}
         disabled={disabled}
-        className={
-          field.type === "json"
-            ? "min-h-24 resize-y font-mono text-xs"
-            : "min-h-8 resize-y text-xs"
-        }
+        className="min-h-8 resize-y text-xs"
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commitDraft}
         onKeyDown={(event) => {

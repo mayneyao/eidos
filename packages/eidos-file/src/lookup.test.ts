@@ -45,7 +45,6 @@ describe("Eidos File lookup policy", () => {
     expect(eidosFileLookupValueType("first", "file")).toBe("file-entry")
     expect(eidosFileLookupValueType("sum", "integer")).toBe("integer")
     expect(eidosFileLookupValueType("average", "integer")).toBe("number")
-    expect(eidosFileLookupAggregateSupportsTarget("min", "json")).toBe(false)
     expect(eidosFileLookupAggregateSupportsTarget("max", "file")).toBe(false)
   })
 

@@ -463,7 +463,7 @@ try {
       { name: "Reference", type: "url" },
       { name: "Brief", type: "file" },
       { name: "Notes", columnName: "Notes", type: "text" },
-      { name: "Context", type: "json" },
+      { name: "Context", type: "text" },
     ],
   })
 
@@ -667,11 +667,11 @@ try {
         sequence % 5 === 0
           ? "Review with the Eidos File runtime and UI owners."
           : null,
-      Context: {
+      Context: JSON.stringify({
         owner: team.Lead,
         risk: sequence % 11 === 0 ? "high" : "normal",
         sprint: `S${(sequence % 12) + 1}`,
-      },
+      }),
       Team: [teamIds[teamIndex]],
     }
   })

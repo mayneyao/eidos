@@ -212,7 +212,6 @@ const FIELD_TYPES = new Set<EidosFileFieldType>([
   "datetime",
   "url",
   "file",
-  "json",
   "select",
   "multi-select",
   "relation",
@@ -239,7 +238,6 @@ const FORMULA_RESULT_TYPES = new Set([
   "date",
   "datetime",
   "url",
-  "json",
 ])
 
 const NUMERIC_LOOKUP_TYPES = new Set(["number", "integer"])
@@ -322,7 +320,6 @@ function expectedColumnType(type: string): string | null {
       "date",
       "datetime",
       "file",
-      "json",
       "multi-select",
       "relation",
     ].includes(type)
@@ -1830,16 +1827,6 @@ export function validateEidosFile(
                 `${table.name}.${field.name} must be a unique string array`
               )
             }
-          }
-          if (
-            field.type === "json" &&
-            (typeof value !== "string" || !isCanonicalEidosFileJson(value))
-          ) {
-            add(
-              errors,
-              "invalid-value",
-              `${table.name}.${field.name} must be canonical JSON`
-            )
           }
           if (field.type === "relation") {
             const ids = relationIds(value)

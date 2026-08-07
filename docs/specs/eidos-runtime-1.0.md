@@ -423,7 +423,6 @@ interface RuntimeLimits {
   searchBytesMax: number
   listElementsMax: number
   logicalValueBytesMax: number
-  jsonCellBytesMax: number
   formulaBytesMax: number
   formulaNodesMax: number
   formulaDepthMax: number
@@ -463,8 +462,7 @@ Unknown future capability or limit members are ignored. A missing 1.0 member,
 wrong type, zero limit, or contradictory capability is a protocol error.
 Every input and output `LogicalValue` fits `logicalValueBytesMax`, and every
 successful result fits `responseBytesMax`; Runtime returns `resource-limit`
-before emitting a partial result otherwise. `jsonCellBytesMax` additionally
-bounds the UTF-8 bytes inside the JCS-text string of a JSON Field.
+before emitting a partial result otherwise.
 
 Limit accounting is exact:
 
@@ -487,7 +485,6 @@ Limit accounting is exact:
 | `searchBytesMax`                      | UTF-8 bytes of `search.text`                                                                                                                   |
 | `listElementsMax`                     | elements in each input/result canonical list or flattened Lookup sequence                                                                      |
 | `logicalValueBytesMax`                | UTF-8 bytes of JCS for one public `LogicalValue`, including any complete list/File value                                                       |
-| `jsonCellBytesMax`                    | UTF-8 bytes of one JSON Field's JCS text                                                                                                       |
 | `formulaBytesMax`                     | UTF-8 bytes of source text                                                                                                                     |
 | `formulaNodesMax` / `formulaDepthMax` | all AST nodes / root-at-1 AST depth                                                                                                            |
 | `diagnosticsMax`                      | diagnostics retained in one result                                                                                                             |
@@ -605,15 +602,12 @@ Public JSON-compatible values use these exact representations:
 | checkbox                 | JSON boolean                                                     |
 | date                     | canonical `YYYY-MM-DD` string                                    |
 | datetime                 | canonical `YYYY-MM-DDTHH:MM:SS.sssZ` string                      |
-| JSON Field               | canonical JCS text string                                        |
 | multi-select             | ordered unique string array                                      |
 | Relation                 | ordered unique Row-ID string array                               |
 | File                     | ordered `FileEntry` array                                        |
 
-An Integer is never a JSON number. A JSON Field is never parsed into an
-untyped public object: SQL NULL is JSON `null`, while the JSON literal null is
-the string `"null"`. This preserves all int64 values and the SQL-NULL/JSON-null
-distinction across JavaScript, native, and JSON transports.
+An Integer is never a JSON number. This preserves all int64 values across
+JavaScript, native, and JSON transports.
 
 Ordinary Runtime values are already canonical. A UI/import helper that accepts
 external datetime text MUST implement this explicit normalization algorithm,
@@ -666,7 +660,6 @@ type AtomicType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
   | "select"
   | "row-id"
   | "file-entry"
@@ -770,7 +763,6 @@ the latter uses Section 7.3's Field-aware scalar or exploded value domain.
 | Date             | `YYYY-MM-DD` TEXT / `date`                     | writable  | equality, `in`, ordered range                 | yes  | yes   | only canonical Record-Label text when in that role  | C/D/O                | null/distinct, earliest/latest, explicit buckets                  | yes                  | `date` atom          | eligible         | canonical date                      | no timezone; calendar presentation is UI-owned                         |
 | Datetime         | UTC instant TEXT / `datetime`                  | writable  | equality, `in`, ordered range                 | yes  | yes   | only canonical Record-Label text when in that role  | C/D/O                | null/distinct, earliest/latest, explicit UTC buckets              | yes                  | `datetime` atom      | eligible         | canonical UTC datetime              | UI localizes; import normalizes before mutation                        |
 | URL              | URI-reference TEXT / `url`                     | writable  | equality, `in`, contains/prefix/suffix        | yes  | yes   | raw URI-reference                                   | C/D/O                | null/empty/non-empty/distinct; optional raw-scheme facet          | yes                  | `url` atom           | eligible         | raw URI-reference                   | UI link/copy/text fallback; no automatic fetch                         |
-| JSON             | JCS TEXT / `json` JCS string                   | writable  | typed equality and `in`                       | no   | no    | none                                                | C/D                  | null and distinct complete JCS values                             | yes                  | `json` atom          | no               | JCS text                            | inert JSON editor; no implicit JSON-path statistics                    |
 | Select           | Option-name TEXT / `select`                    | writable  | equality, `in`, contains                      | yes  | yes   | Option name                                         | C/D/O                | null, observed Option facets, uncatalogued raw values             | text                 | `select` atom        | eligible         | Option name                         | color/icon and zero-use catalog entries are UI state                   |
 | Multi-select     | unique Option-name JSON array / `multi-select` | writable  | whole equality/`in`; `has-any`/`has-all`      | no   | no    | each Option name                                    | C/D on whole array   | empty rows, selection count, distinct Options, Option facets      | no                   | list of `select`     | no               | JCS string array                    | UI renders chips and adds zero-use catalog entries                     |
 | File             | FileEntry JSON array / `file`                  | writable  | whole typed equality and `in`                 | no   | no    | entry name, non-`data:` URI, raw media type         | C/D on whole array   | File rows, entries, exact bytes, MIME/URI-kind facets, fan-out    | no                   | list of `file-entry` | no               | JCS FileEntry array                 | UI renders preview/icon/URI fallback; Adapter resolves or reads assets |
@@ -904,7 +896,7 @@ No descriptor contains a physical name.
 `FieldDescriptor.definition` is present exactly for Relation, Formula, and
 Lookup Fields and absent for every other Field. `writable` is structural, not
 a session-permission bit: it is true exactly for a non-system stored
-scalar/JSON/Multi-select/File Field or a forward Relation, and false for every
+scalar/Multi-select/File Field or a forward Relation, and false for every
 system Field, Formula, Lookup, and inverse Relation. A read-only binding still
 reports this same descriptor and rejects mutation separately with
 `unsupported`.
@@ -1703,7 +1695,6 @@ type FormulaResultType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
 
 interface FormulaDefinition {
   sourceText: string
@@ -1783,9 +1774,9 @@ declared type. Formula commit requires the inferred non-null result type to
 equal `resultType` exactly.
 
 The complete non-null Formula type universe is exactly `text`, `number`,
-`integer`, `checkbox`, `date`, `datetime`, `url`, and `json`. A referenced
+`integer`, `checkbox`, `date`, `datetime`, and `url`. A referenced
 Field enters that universe by this mapping: `select` and `row-id` become
-`text`; those eight same-named types remain themselves. This applies equally
+`text`; those seven same-named types remain themselves. This applies equally
 to stored/system Fields and scalar Formula/Lookup results. `multi-select`,
 `file`, `relation`, `file-entry`, and list TypeRefs cannot be Formula operands,
 even to `IS_NULL`; referencing one is `invalid-formula`. Formula cannot
@@ -2248,7 +2239,7 @@ created/updated timestamps.
 
 Select values absent from the display catalog remain valid. Multi-select and
 Relation values must already be ordered/unique; Runtime does not silently
-deduplicate. JSON Field input is JCS text, not an object. Date/datetime input
+deduplicate. Date/datetime input
 is canonical unless an explicitly selected schema/CSV conversion says
 otherwise.
 
@@ -2274,7 +2265,7 @@ cross-Table detach rows; trigger execution order cannot change the outcome.
 
 An update with an empty map is `invalid-request`. An update changes
 `_updated_at` only when at least one resulting canonical cell differs. Equal
-binary64 values compare after negative-zero normalization; JSON/list/File
+binary64 values compare after negative-zero normalization; list/File
 values compare canonical JCS bytes; all other raw values compare their exact
 canonical representation.
 
@@ -2499,7 +2490,6 @@ type StoredFieldType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
   | "select"
   | "multi-select"
   | "file"
@@ -2522,7 +2512,6 @@ type ConversionPolicy =
   | "zero-false-nonzero-true"
   | "utc-date"
   | "first"
-  | "json-null-to-sql-null"
   | "null-to-empty-list"
 
 type ScalarStoredFieldType =
@@ -2533,7 +2522,6 @@ type ScalarStoredFieldType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
   | "select"
 
 type ConvertFieldChange =
@@ -2578,27 +2566,27 @@ allocation. `create-field` may create any kind using only stable-ID
 definitions from the base revision. There are no implicit client-key object
 references other than `labelFieldClientKey` within `create-table`.
 
-`nullable` defaults to true for stored scalar/JSON Fields, is fixed false for
+`nullable` defaults to true for stored scalar Fields, is fixed false for
 File, Multi-select, forward/inverse Relation, and is fixed true for Formula and
 Lookup in core 1.0. Runtime rejects a contrary request. Physical `NOT NULL`
 must match the File Format matrix exactly.
 
-`set-field-nullable` applies only to a stored scalar/JSON Field. Equal input is
+`set-field-nullable` applies only to a stored scalar Field. Equal input is
 a no-op. Changing the declaration in either direction is `metadata-only`
 because the rebuild mechanism does not itself change a canonical cell. Making
 it non-nullable is permitted only when no SQL NULL exists and is otherwise
-forbidden; no implicit default is invented. A conversion to a scalar/JSON
+forbidden; no implicit default is invented. A conversion to a scalar
 destination uses required `toNullable`; list/forward-Relation destinations are
 fixed non-null.
 
 Creating a stored Field on a populated Table has exact fill behavior. A
-nullable scalar/JSON Field fills every existing row with SQL NULL. A
-non-nullable scalar/JSON Field is permitted only when the Table has zero rows;
+nullable scalar Field fills every existing row with SQL NULL. A
+non-nullable scalar Field is permitted only when the Table has zero rows;
 there is no default/initial-value member in Runtime 1.0. Multi-select, File,
 and forward Relation Fields fill every existing row with canonical `[]`.
 Formula, Lookup, and inverse Relation Fields add no user-table column.
 
-`convert-field.fieldId` must currently identify a stored scalar/JSON,
+`convert-field.fieldId` must currently identify a stored scalar,
 Multi-select, File, or forward Relation Field. A system Field, Formula,
 Lookup, or inverse Relation is rejected as `forbidden`; changing one of those
 definitions uses its dedicated leaf operation instead. A conversion to
@@ -2617,13 +2605,12 @@ inverse Field is the unique inverse of its forward Field as required by File
 Format; a conflicting pair is forbidden.
 
 `policies`, when present, is unique and must occur in this canonical order:
-`json-null-to-sql-null`, `round-binary64`, `truncate-toward-zero`,
+`round-binary64`, `truncate-toward-zero`,
 `round-ties-even`, `zero-false-nonzero-true`, `utc-date`, `first`,
 `null-to-empty-list`. `truncate-toward-zero` and `round-ties-even` are mutually
 exclusive. Runtime rejects a policy irrelevant to the selected source and
 destination. Multiple policies are allowed only for disjoint stages of one
-cell conversion: JSON-root handling, then scalar conversion, then destination
-null-to-list handling.
+cell conversion.
 
 `batch.changes` is non-empty, ordered, and contains no nested batch. Every
 stable-ID reference names an object that exists at the base revision. Runtime preflights the complete batch as one object with one hash and one
@@ -2679,7 +2666,6 @@ type SchemaValueChangeCode =
   | "integer-rounded"
   | "numeric-to-checkbox"
   | "datetime-to-date"
-  | "json-null-to-sql-null"
   | "null-to-empty-list"
   | "list-empty-to-null"
   | "list-tail-dropped"
@@ -2905,9 +2891,8 @@ nullability guard succeeds. The other cells use only these algorithms:
    decimal, or lowercase `true`/`false`. No trim, locale, thousands separator,
    Boolean synonym, or permissive SQLite cast exists.
 2. **To text/select.** Numeric/Boolean values serialize by the exact spellings
-   above (`true`/`false` for Checkbox); this is lossless. JSON/list/File/
-   Relation to text keeps its canonical JCS text bytes, so JSON literal null
-   becomes text `null` while SQL NULL stays SQL NULL. Date/datetime/URL/select
+   above (`true`/`false` for Checkbox); this is lossless. List/File/Relation
+   to text keeps its canonical JCS text bytes. Date/datetime/URL/select
    to text and textual subtype to select need no rewrite.
 3. **Number and Integer.** Integer to Number is lossless only for values exactly
    representable as binary64. Otherwise `round-binary64` is explicit-lossy.
@@ -2925,29 +2910,13 @@ nullability guard succeeds. The other cells use only these algorithms:
 5. **Date/datetime.** Date to datetime appends `T00:00:00.000Z` and is lossless.
    Datetime to date is lossless only when every value is UTC midnight;
    otherwise `utc-date` discards the time and is explicit-lossy.
-6. **To JSON.** Text/date/datetime/URL/select become a JCS JSON string; Number
-   becomes a JCS number; Checkbox becomes a JSON Boolean; SQL NULL remains SQL
-   NULL. Integer is lossless only if exactly binary64-representable; otherwise
-   `round-binary64` is the available explicit-lossy policy. Canonical
-   Multi-select/File/Relation array text can change type metadata without byte
-   rewrite.
-7. **From JSON.** Text receives the entire JCS text, not an unquoted JSON
-   string. Other destinations require every non-null JSON root to have the
-   exact destination kind and then unwrap/rebind it losslessly. JSON strings
-   are additionally validated for date/datetime/URL; arrays are validated for
-   Multi-select/File/Relation. A JSON literal null may become SQL NULL only
-   with `json-null-to-sql-null`. That mapping is lossless when the actual
-   source domain contains no SQL NULL, because the inverse maps destination
-   null back to JSON literal null; it is explicit-lossy when both source SQL
-   NULL and JSON literal null occur. Mixed or otherwise incompatible root kinds
-   are forbidden.
-8. **Select and lists.** Select to Multi-select wraps a non-null string as a
+6. **Select and lists.** Select to Multi-select wraps a non-null string as a
    one-item array. Every Multi-select/File/forward-Relation destination is
    physically non-null; a source SQL NULL therefore makes the conversion
    forbidden unless `null-to-empty-list` explicitly maps it to `[]`.
    Select-to-Multi-select remains injective with that policy: SQL NULL alone
    maps to `[]`, while every string maps to a singleton, so the whole valid
-   conversion is lossless. For Text/JSON to a list, every non-null value must
+   conversion is lossless. For Text to a list, every non-null value must
    already be exact canonical JCS of the destination and therefore keeps its
    bytes. With no SQL NULL this is metadata-only. With SQL NULL and
    `null-to-empty-list`, it is lossless-rewrite when no non-null source value
@@ -2964,16 +2933,16 @@ nullability guard succeeds. The other cells use only these algorithms:
    canonical ID resolving in that target. Multi-select-to-Relation and
    Relation-to-Multi-select preserve ordered JCS bytes and are metadata-only
    after validation. File has no scalar/list coercion other than the stated
-   Text/JSON preservation.
+   Text preservation.
 
-9. **Relation to Relation.** Keeping the same target/direction is metadata-only.
+7. **Relation to Relation.** Keeping the same target/direction is metadata-only.
    A new target Table is allowed only if every ID resolves in it, yielding
    `M?`; otherwise it is forbidden. `convert-field` never changes direction;
    the same-direction `set-relation` rules and the direction-flip prohibition
    are in Section 12.1.
 
-Null remains SQL NULL in every conversion except the two explicitly selected
-JSON-literal/list policies above. For a scalar/JSON destination,
+Null remains SQL NULL in every conversion except the explicitly selected
+`null-to-empty-list` policy above. For a scalar destination,
 `toNullable=true` preserves source SQL NULL; `toNullable=false` is forbidden
 if any conversion stage produces SQL NULL. For a non-null list destination,
 source SQL NULL is forbidden without `null-to-empty-list`. A named policy does
@@ -3475,7 +3444,7 @@ all inputs and expected logical outputs.
 ER-Reader covers at least:
 
 1. int64 minimum/maximum/zero, finite binary64 edge values, negative-zero
-   normalization, SQL NULL versus JSON literal null, Unicode, empty values,
+   normalization, Unicode, empty values,
    canonical date/datetime, File entries, and malformed-value rejection,
    including relative/`https:`/inline-image URI classes, exact Base64,
    media-type and decoded-size agreement, and the 1 MiB boundary;

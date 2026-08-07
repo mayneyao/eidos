@@ -81,7 +81,7 @@ export function eidosFileLookupElementType(
   if (type === "multi-select") return "select"
   if (type === "file") return "file-entry"
   if (type === "relation") return "row-id"
-  return type
+  return type as AtomicType
 }
 
 export function eidosFileLookupValueType(
@@ -121,7 +121,7 @@ export function eidosFileLookupTargetDisplayType(
   if (type === "date") return "date"
   if (type === "datetime") return "datetime"
   if (type === "url") return "url"
-  if (type === "json" || type === "file") return "json"
+  if (type === "file") return "json"
   return "text"
 }
 

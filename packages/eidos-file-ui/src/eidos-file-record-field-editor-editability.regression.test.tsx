@@ -13,11 +13,11 @@ import { EidosFileRecordFieldEditor } from "./eidos-file-record-field-editor"
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
-function field(type: "integer" | "json", column: string): EidosFileFieldInfo {
+function field(type: "integer" | "text", column: string): EidosFileFieldInfo {
   return {
     id: `field-${column}`,
     tableId: "table-records",
-    name: type === "integer" ? "Exact integer" : "Payload",
+    name: type === "integer" ? "Exact integer" : "Notes",
     type,
     tableName: "records",
     tableColumnName: column,
@@ -85,14 +85,14 @@ describe("Record field editor editability regression", () => {
     expect(changes).toEqual([9_223_372_036_854_775_807n])
   })
 
-  it("canonicalizes JSON edits and treats an empty editor as logical null", async () => {
+  it("commits text edits and treats an empty editor as logical null", async () => {
     const changes: EidosFileSqlPrimitive[] = []
-    const payload = field("json", "payload")
+    const notes = field("text", "notes")
     await act(async () => {
       root.render(
         <EidosFileRecordFieldEditor
-          field={payload}
-          row={{ _id: "row-1", payload: '{"current":true}' }}
+          field={notes}
+          row={{ _id: "row-1", notes: "current" }}
           disabled={false}
           onChange={async (value) => {
             changes.push(value)
@@ -102,20 +102,20 @@ describe("Record field editor editability regression", () => {
     })
 
     const textarea = container.querySelector<HTMLTextAreaElement>(
-      '[aria-label="Payload"]'
+      '[aria-label="Notes"]'
     )!
     await act(async () => {
       textarea.focus()
-      enterValue(textarea, '{ "z": 2, "a": [true, null] }')
+      enterValue(textarea, "updated notes")
     })
     await act(async () => textarea.blur())
-    expect(changes).toEqual(['{"a":[true,null],"z":2}'])
+    expect(changes).toEqual(["updated notes"])
 
     await act(async () => {
       root.render(
         <EidosFileRecordFieldEditor
-          field={payload}
-          row={{ _id: "row-1", payload: '{"a":[true,null],"z":2}' }}
+          field={notes}
+          row={{ _id: "row-1", notes: "updated notes" }}
           disabled={false}
           onChange={async (value) => {
             changes.push(value)
@@ -129,6 +129,6 @@ describe("Record field editor editability regression", () => {
     })
     await act(async () => textarea.blur())
 
-    expect(changes).toEqual(['{"a":[true,null],"z":2}', null])
+    expect(changes).toEqual(["updated notes", null])
   })
 })

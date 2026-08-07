@@ -53,7 +53,6 @@ const runtimeLimits: RuntimeLimits = {
   searchBytesMax: 4_096,
   listElementsMax: 10_000,
   logicalValueBytesMax: 1_048_576,
-  jsonCellBytesMax: 1_048_576,
   formulaBytesMax: 4_096,
   formulaNodesMax: 10_000,
   formulaDepthMax: 256,

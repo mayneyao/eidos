@@ -133,7 +133,6 @@ export const EIDOS_RUNTIME_LIMITS: RuntimeLimits = Object.freeze({
   listElementsMax: 10_000,
   // A 1 MiB inline image expands to roughly 1.4 MiB as canonical Base64 JSON.
   logicalValueBytesMax: 2 * 1_048_576,
-  jsonCellBytesMax: 1_048_576,
   formulaBytesMax: 4_096,
   formulaNodesMax: 10_000,
   formulaDepthMax: 256,
@@ -1175,32 +1174,6 @@ export class EidosRuntimeService implements RuntimeClient {
         throw runtimeError("invalid-value", "Datetime is not canonical", {
           fieldId,
         })
-      }
-      if (type === "json") {
-        const text = value as string
-        if (
-          new TextEncoder().encode(text).byteLength >
-          EIDOS_RUNTIME_LIMITS.jsonCellBytesMax
-        ) {
-          throw runtimeError(
-            "resource-limit",
-            "JSON cell exceeds jsonCellBytesMax",
-            {
-              fieldId,
-            }
-          )
-        }
-        try {
-          if (canonicalizeEidosFileJson(JSON.parse(text)) !== text) {
-            throw new Error("non-canonical")
-          }
-        } catch {
-          throw runtimeError(
-            "invalid-value",
-            "JSON Field value must be canonical JCS text",
-            { fieldId }
-          )
-        }
       }
       if (type === "integer") {
         normalized[fieldId] = parseSignedInt64(value as string, "Integer value")

@@ -321,8 +321,6 @@ function fieldColumnSql(field: PreparedField): string | null {
       return `${column} INTEGER`
     case "checkbox":
       return `${column} INTEGER${field.nullable ? "" : " NOT NULL"} CHECK(${column} IS NULL OR ${column} IN (0, 1))`
-    case "json":
-      return `${column} TEXT${field.nullable ? "" : " NOT NULL"} CHECK(${column} IS NULL OR json_valid(${column}))`
     case "file":
     case "multi-select":
     case "relation":
@@ -2877,7 +2875,7 @@ export class EidosFileRuntime {
     const encoded =
       targetResultType === "integer"
         ? "CASE WHEN value IS NULL THEN NULL ELSE CAST(value AS TEXT) END"
-        : targetResultType === "json" || targetResultType === "file-entry"
+        : targetResultType === "file-entry"
           ? "CASE WHEN value IS NULL THEN NULL ELSE json(value) END"
           : "value"
     const payload = `(SELECT coalesce(
@@ -3296,8 +3294,7 @@ export class EidosFileRuntime {
               field.type === "multi-select" ||
               field.type === "relation" ||
               (field.type === "lookup" &&
-                field.property?.aggregate === "values") ||
-              field.type === "json")
+                field.property?.aggregate === "values"))
           ) {
             if (field.type === "file") {
               try {
@@ -3751,11 +3748,6 @@ export class EidosFileRuntime {
         )
       }
       return value
-    }
-    if (field.type === "json") {
-      const text =
-        typeof value === "string" ? value : canonicalizeEidosFileJson(value)
-      return canonicalizeEidosFileJson(parseEidosFileJson(text))
     }
     if (field.type === "multi-select") {
       const parsed =

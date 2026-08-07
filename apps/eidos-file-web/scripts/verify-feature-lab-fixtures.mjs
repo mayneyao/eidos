@@ -209,7 +209,6 @@ function verifyEnglish(runtime, connection) {
       "file",
       "formula",
       "integer",
-      "json",
       "lookup",
       "multi-select",
       "number",
@@ -257,16 +256,7 @@ function verifyEnglish(runtime, connection) {
     connection
       .query("SELECT result_type FROM eidos__formula_fields")
       .map((row) => row.result_type),
-    [
-      "checkbox",
-      "date",
-      "datetime",
-      "integer",
-      "json",
-      "number",
-      "text",
-      "url",
-    ],
+    ["checkbox", "date", "datetime", "integer", "number", "text", "url"],
     "Formula result types"
   )
 

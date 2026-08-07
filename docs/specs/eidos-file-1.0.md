@@ -425,7 +425,7 @@ CREATE TABLE eidos__fields(
        AND instr(physical_name,char(0))=0
        AND physical_name COLLATE BINARY = name COLLATE BINARY)),
   type TEXT NOT NULL CHECK(type IN (
-    'text','number','integer','checkbox','date','datetime','url','json',
+    'text','number','integer','checkbox','date','datetime','url',
     'select','multi-select','file','relation','formula','lookup'
   )),
   system_role TEXT CHECK(system_role IN ('row-id','created-time','updated-time')),
@@ -535,7 +535,7 @@ CREATE TABLE eidos__formula_fields(
   source_text TEXT NOT NULL
     CHECK(length(CAST(source_text AS BLOB)) BETWEEN 1 AND 4096),
   result_type TEXT NOT NULL
-    CHECK(result_type IN ('text','number','integer','checkbox','date','datetime','url','json'))
+    CHECK(result_type IN ('text','number','integer','checkbox','date','datetime','url'))
 ) STRICT, WITHOUT ROWID;
 
 CREATE TABLE eidos__lookup_fields(
@@ -673,7 +673,6 @@ Core storage is:
 | `datetime`         | named TEXT column      | canonical instant or NULL              |
 | `url`              | named TEXT column      | RFC 3986 URI-reference or NULL         |
 | `file`             | named TEXT JSON column | ordered file list                      |
-| `json`             | named TEXT JSON column | canonical JSON or NULL                 |
 | `select`           | named TEXT column      | option name or NULL                    |
 | `multi-select`     | named TEXT JSON column | ordered option-name list               |
 | forward `relation` | named TEXT JSON column | ordered Row-ID list                    |
@@ -718,10 +717,9 @@ integer                    -> INTEGER
 checkbox                   -> INTEGER CHECK(value IS NULL OR value IN (0, 1))
 file, multi-select,
 forward relation           -> TEXT NOT NULL DEFAULT '[]' with JSON-array CHECK
-json                       -> TEXT with JSON CHECK when non-NULL
 ```
 
-For a stored scalar or `json` Field, `nullable=0` means that the physical
+For a stored scalar Field, `nullable=0` means that the physical
 column has `NOT NULL`; `nullable=1` means that it omits `NOT NULL`. These are
 exact structural counterparts, and extra constraints MUST NOT silently narrow
 the declared raw domain. File, Multi-select, and forward Relation Fields always
@@ -824,7 +822,7 @@ those scalar types. A Lookup MUST NOT be the Record Label Field in core 1.0:
 its exact scalar/list result shape is inferred by Runtime and is not persisted
 in `eidos__lookup_fields`. A required future feature that persistently declares
 an exact scalar Lookup result may relax that rule. Relation, inverse Relation,
-Multi-select, File, JSON, and list values MUST NOT be Record Label Fields.
+Multi-select, File, and list values MUST NOT be Record Label Fields.
 
 The stored role is table-wide: all references to a Table observe this one
 Field ID. Evaluation and Relation resolution are defined by Eidos Runtime 1.0;

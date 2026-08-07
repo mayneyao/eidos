@@ -8,7 +8,6 @@ import { decodeEidosFileValues } from "./file-values"
 import { isEidosFileUuid } from "./identifiers"
 import type {
   ConversionPolicy,
-  ScalarStoredFieldType,
   SchemaValueChangeCode,
   StoredFieldType,
 } from "./runtime-contract"
@@ -68,10 +67,7 @@ export function recommendedEidosFileConversionPolicies(
   to: StoredFieldType
 ): ConversionPolicy[] {
   const policies: ConversionPolicy[] = []
-  if (from === "json" && to !== "json" && to !== "text") {
-    policies.push("json-null-to-sql-null")
-  }
-  if (from === "integer" && (to === "number" || to === "json")) {
+  if (from === "integer" && to === "number") {
     policies.push("round-binary64")
   }
   if (from === "number" && to === "integer") {
@@ -94,11 +90,7 @@ export function eidosFileConversionTargetNullable(
   to: StoredFieldType,
   sourceNullable: boolean
 ): boolean {
-  return (
-    sourceNullable ||
-    (from === "multi-select" && to === "select") ||
-    (from === "json" && to !== "json" && to !== "text")
-  )
+  return sourceNullable || (from === "multi-select" && to === "select")
 }
 
 const INT64_MIN = -9_223_372_036_854_775_808n
@@ -140,10 +132,6 @@ export function planCanonicalFieldConversion(
   input: CanonicalConversionInput
 ): CanonicalConversionPlan {
   const policies = new Set(input.policies ?? [])
-  const sourceHasSqlNull = input.rows.some((row) => row.value === null)
-  const sourceHasJsonNull = input.rows.some(
-    (row) => input.from === "json" && row.value === "null"
-  )
   const sourceHasEmptyList = input.rows.some((row) => {
     if (row.value === null || typeof row.value !== "string") return false
     return row.value === "[]"
@@ -157,17 +145,9 @@ export function planCanonicalFieldConversion(
     try {
       let converted: Converted
       if (row.value === null) {
-        converted = convertNull(
-          input,
-          policies,
-          sourceHasJsonNull,
-          sourceHasEmptyList
-        )
+        converted = convertNull(input, policies, sourceHasEmptyList)
       } else {
-        converted = convertNonNull(input, row.value, policies, {
-          sourceHasSqlNull,
-          sourceHasJsonNull,
-        })
+        converted = convertNonNull(input, row.value, policies)
       }
       if (
         converted.value === null &&
@@ -227,7 +207,6 @@ export function planCanonicalFieldConversion(
 function convertNull(
   input: CanonicalConversionInput,
   policies: ReadonlySet<ConversionPolicy>,
-  sourceHasJsonNull: boolean,
   sourceHasEmptyList: boolean
 ): Converted {
   if (LIST_TYPES.has(input.to)) {
@@ -245,19 +224,13 @@ function convertNull(
   if (!input.toNullable) {
     throw new Error("Destination non-nullability rejects SQL NULL")
   }
-  // SQL NULL is preserved. A JSON-literal-null policy affects only the JSON
-  // literal and is classified there using the complete source domain.
-  return {
-    value: null,
-    class: sourceHasJsonNull && policies.has("json-null-to-sql-null") ? 2 : 0,
-  }
+  return { value: null, class: 0 }
 }
 
 function convertNonNull(
   input: CanonicalConversionInput,
   value: Exclude<EidosFileSqlPrimitive, null>,
-  policies: ReadonlySet<ConversionPolicy>,
-  domain: { sourceHasSqlNull: boolean; sourceHasJsonNull: boolean }
+  policies: ReadonlySet<ConversionPolicy>
 ): Converted {
   const { from, to } = input
   if (from === to) return { value, class: 0 }
@@ -285,8 +258,7 @@ function convertNonNull(
     if (from === "integer") return { value: String(asInteger(value)), class: 1 }
     if (from === "checkbox")
       return { value: asCheckbox(value) ? "true" : "false", class: 1 }
-    if (from === "json" || LIST_TYPES.has(from))
-      return { value: asText(value), class: 0 }
+    if (LIST_TYPES.has(from)) return { value: asText(value), class: 0 }
   }
 
   if (to === "select") {
@@ -308,8 +280,6 @@ function convertNonNull(
       }
       return { value: list[0]!, class: 2, code: "list-tail-dropped" }
     }
-    if (from === "json")
-      return unwrapJsonScalar(value, "select", policies, domain)
   }
 
   if (to === "number") {
@@ -334,8 +304,6 @@ function convertNonNull(
       }
       return { value: number, class: 1 }
     }
-    if (from === "json")
-      return unwrapJsonScalar(value, "number", policies, domain)
   }
 
   if (to === "integer") {
@@ -345,8 +313,6 @@ function convertNonNull(
       return { value: parseInt64(asText(value)), class: 1 }
     }
     if (from === "number") return numberToInteger(asNumber(value), policies)
-    if (from === "json")
-      return unwrapJsonScalar(value, "integer", policies, domain)
   }
 
   if (to === "checkbox") {
@@ -381,41 +347,6 @@ function convertNonNull(
         code: "numeric-to-checkbox",
       }
     }
-    if (from === "json")
-      return unwrapJsonScalar(value, "checkbox", policies, domain)
-  }
-
-  if (to === "date" || to === "datetime" || to === "url") {
-    if (from === "json") return unwrapJsonScalar(value, to, policies, domain)
-  }
-
-  if (to === "json") {
-    if (from === "json" || LIST_TYPES.has(from))
-      return { value: asText(value), class: 0 }
-    if (TEXT_TYPES.has(from)) {
-      return { value: canonicalizeEidosFileJson(asText(value)), class: 1 }
-    }
-    if (from === "number") {
-      return { value: canonicalizeEidosFileJson(asNumber(value)), class: 1 }
-    }
-    if (from === "integer") {
-      const integer = asInteger(value)
-      const number = Number(integer)
-      if (Number.isInteger(number) && BigInt(number) === integer) {
-        return { value: canonicalizeEidosFileJson(number), class: 1 }
-      }
-      if (!policies.has("round-binary64") || !Number.isFinite(number)) {
-        throw new Error("Integer JSON conversion requires round-binary64")
-      }
-      return {
-        value: canonicalizeEidosFileJson(number),
-        class: 2,
-        code: "binary64-rounded",
-      }
-    }
-    if (from === "checkbox") {
-      return { value: asCheckbox(value) ? "true" : "false", class: 1 }
-    }
   }
 
   if (LIST_TYPES.has(to)) {
@@ -426,7 +357,6 @@ function convertNonNull(
       return { value: canonicalizeEidosFileJson([asText(value)]), class: 1 }
     }
     if (
-      from === "json" ||
       (from === "multi-select" && to === "relation") ||
       (from === "relation" && to === "multi-select") ||
       from === to
@@ -436,41 +366,6 @@ function convertNonNull(
   }
 
   throw new Error(`Conversion from ${from} to ${to} is forbidden`)
-}
-
-function unwrapJsonScalar(
-  value: Exclude<EidosFileSqlPrimitive, null>,
-  to: ScalarStoredFieldType,
-  policies: ReadonlySet<ConversionPolicy>,
-  domain: { sourceHasSqlNull: boolean; sourceHasJsonNull: boolean }
-): Converted {
-  const parsed = parseEidosFileJson(asText(value))
-  if (parsed === null) {
-    if (!policies.has("json-null-to-sql-null")) {
-      throw new Error("JSON literal null requires json-null-to-sql-null")
-    }
-    return {
-      value: null,
-      class: domain.sourceHasSqlNull && domain.sourceHasJsonNull ? 2 : 1,
-      code: "json-null-to-sql-null",
-    }
-  }
-  if (to === "number" && typeof parsed === "number") {
-    return { value: parsed, class: 1 }
-  }
-  if (to === "integer" && typeof parsed === "number") {
-    return numberToInteger(parsed, policies)
-  }
-  if (to === "checkbox" && typeof parsed === "boolean") {
-    return { value: parsed ? 1n : 0n, class: 1 }
-  }
-  if (
-    ["text", "date", "datetime", "url", "select"].includes(to) &&
-    typeof parsed === "string"
-  ) {
-    return { value: parsed, class: 1 }
-  }
-  throw new Error(`JSON root is incompatible with ${to}`)
 }
 
 function numberToInteger(
@@ -528,10 +423,6 @@ function validateDestination(
     case "url":
       if (!isUriReference(asText(value)))
         throw new Error("Invalid URI-reference")
-      return
-    case "json":
-      if (!isCanonicalEidosFileJson(asText(value)))
-        throw new Error("Invalid canonical JSON")
       return
     case "multi-select":
       parseStringList(value)

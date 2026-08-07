@@ -371,7 +371,6 @@ interface RuntimeLimits {
   searchBytesMax: number
   listElementsMax: number
   logicalValueBytesMax: number
-  jsonCellBytesMax: number
   formulaBytesMax: number
   formulaNodesMax: number
   formulaDepthMax: number
@@ -859,8 +858,8 @@ disabled/absent control 及 accessible reason，不能 speculative call。
     },
     {
       "fieldId": "0198c6b9-c9a3-7cb9-82d0-dfb39d51c45f",
-      "name": "Payload",
-      "valueType": "json",
+      "name": "Notes",
+      "valueType": "text",
       "source": "stored",
       "writable": true
     },
@@ -877,7 +876,7 @@ disabled/absent control 及 accessible reason，不能 speculative call。
       "id": "0198c72d-82b5-7968-b163-98be4b747702",
       "values": [
         "9223372036854775807",
-        "null",
+        "Hello",
         ["0198c72d-82b5-7968-b163-98be4b747703"]
       ],
       "resolvedRelations": [
@@ -1511,7 +1510,7 @@ conversion。Type conversion 使用 Runtime conversion matrix/plan classificatio
 必须展示 metadata-only、lossless rewrite、explicitly lossy 或 forbidden；不得从
 SQLite coercion 或样本自行推断安全性。
 
-UI 构造 exact tagged `convert-field` leaf。Scalar/JSON destination 始终含
+UI 构造 exact tagged `convert-field` leaf。Scalar destination 始终含
 `toNullable`；Multi-select/File 省略；Relation 则含完整 forward Relation definition。
 Selected conversion control 按 Runtime canonical policy order 形成 unique `policies`
 array。不得发送 singular `policy`、irrelevant policy、implicit nullability choice 或

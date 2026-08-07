@@ -3,7 +3,7 @@ import {
   eidosFileLookupAggregateSupportsTarget,
   eidosFileLookupDisplayType,
   type EidosFileFieldInfo,
-  type EidosFileFormulaDisplayType,
+  type EidosFileFormulaResultType,
   type EidosFileFormulaPreview,
   type EidosFileFormulaPreviewInput,
   type EidosFileLookupAggregate,
@@ -64,7 +64,7 @@ export function EidosFileFormulaEditorPopover({
   const savingRef = useRef(false)
   const [formula, setFormula] = useState("")
   const [displayType, setDisplayType] =
-    useState<EidosFileFormulaDisplayType>("text")
+    useState<EidosFileFormulaResultType>("text")
   const [formulaValid, setFormulaValid] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)

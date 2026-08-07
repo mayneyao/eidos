@@ -69,16 +69,6 @@ function compatibleValue(
     case "file":
     case "relation":
       return '["Alpha"]'
-    case "json":
-      if (to === "number" || to === "integer") return "1"
-      if (to === "checkbox") return "true"
-      if (to === "date") return '"2026-08-02"'
-      if (to === "datetime") return '"2026-08-02T00:00:00.000Z"'
-      if (to === "url") return '"https://eidos.space"'
-      if (to === "multi-select" || to === "file" || to === "relation") {
-        return '["Alpha"]'
-      }
-      return '"Alpha"'
   }
 }
 
@@ -120,9 +110,6 @@ describe("canonical Eidos File conversion standard", () => {
     expect(
       recommendedEidosFileConversionPolicies("multi-select", "select")
     ).toEqual(["first"])
-    expect(recommendedEidosFileConversionPolicies("json", "checkbox")).toEqual([
-      "json-null-to-sql-null",
-    ])
     expect(
       recommendedEidosFileConversionPolicies("text", "multi-select")
     ).toEqual(["null-to-empty-list"])
@@ -133,9 +120,6 @@ describe("canonical Eidos File conversion standard", () => {
     expect(
       eidosFileConversionTargetNullable("multi-select", "select", false)
     ).toBe(true)
-    expect(eidosFileConversionTargetNullable("json", "number", false)).toBe(
-      true
-    )
     expect(
       eidosFileConversionCanReusePhysicalColumn("text", "url", true, true)
     ).toBe(true)
@@ -216,16 +200,7 @@ describe("canonical Eidos File conversion standard", () => {
     })
   })
 
-  it("covers stored JSON, File, and Relation boundaries outside the editor picker", () => {
-    expect(
-      planCanonicalFieldConversion({
-        from: "json",
-        to: "number",
-        toNullable: true,
-        policies: ["json-null-to-sql-null"],
-        rows: [{ id: "row", value: "42" }],
-      }).classification
-    ).toBe("lossless-rewrite")
+  it("covers stored File and Relation boundaries outside the editor picker", () => {
     expect(
       planCanonicalFieldConversion({
         from: "file",

@@ -1800,7 +1800,7 @@ function buildFeatureLab(runtime) {
         type: "multi-select",
         property: selectOptions(["SQLite", "WASM", "UX", "Research", "QA"]),
       },
-      { name: "Profile data", type: "json" },
+      { name: "Profile data", type: "text" },
     ],
   })
   const programs = runtime.createTable({
@@ -1829,7 +1829,7 @@ function buildFeatureLab(runtime) {
       },
       { name: "Version", type: "integer" },
       { name: "Canonical", type: "checkbox" },
-      { name: "Metadata", type: "json" },
+      { name: "Metadata", type: "text" },
     ],
   })
   const experiments = runtime.createTable({
@@ -1879,7 +1879,7 @@ function buildFeatureLab(runtime) {
       { name: "Start date", type: "date" },
       { name: "Review at", type: "datetime" },
       { name: "Assets", type: "file" },
-      { name: "Payload", type: "json" },
+      { name: "Payload", type: "text" },
     ],
   })
 
@@ -1915,12 +1915,12 @@ function buildFeatureLab(runtime) {
         ["WASM", "QA"],
         ["QA"],
       ][index % 4],
-      "Profile data": {
+      "Profile data": JSON.stringify({
         locale: index % 2 === 0 ? "en" : "zh",
         timezone: ["Asia/Shanghai", "Europe/Paris", "America/New_York"][
           index % 3
         ],
-      },
+      }),
     })
   )
   const peopleIds = peopleRows.map((row) => String(row._id))
@@ -1954,7 +1954,11 @@ function buildFeatureLab(runtime) {
       Kind,
       Version: index + 1,
       Canonical: index < 2,
-      Metadata: { edition: 1, owner: "Feature Lab", sequence: index + 1 },
+      Metadata: JSON.stringify({
+        edition: 1,
+        owner: "Feature Lab",
+        sequence: index + 1,
+      }),
     })
   )
   const referenceIds = referenceRows.map((row) => String(row._id))
@@ -2037,7 +2041,7 @@ function buildFeatureLab(runtime) {
       relationField: owner.id,
       targetField: requiredField(runtime, people.id, "Profile data").id,
       aggregate: "first",
-      displayType: "json",
+      displayType: "text",
     },
   })
   runtime.addField(experiments.id, {
@@ -2159,7 +2163,7 @@ function buildFeatureLab(runtime) {
   runtime.addField(experiments.id, {
     name: "Payload mirror",
     type: "formula",
-    property: { formula: '"Payload"', displayType: "json" },
+    property: { formula: '"Payload"', displayType: "text" },
   })
   const relationBackedLoad = runtime.addField(experiments.id, {
     name: "Relation-backed load",
@@ -2306,12 +2310,12 @@ function buildFeatureLab(runtime) {
       Payload:
         index % 14 === 13
           ? null
-          : {
+          : JSON.stringify({
               flags: ["offline-first", index % 2 === 0 ? "wasm" : "sqlite"],
               measurement: index / 10,
               nested: { empty: "", exactInteger: "9223372036854775807" },
               sequence,
-            },
+            }),
       Owner: [peopleIds[ownerIndex]],
       Collaborators: collaboratorsForRow,
       Program: [programIds[index % programIds.length]],

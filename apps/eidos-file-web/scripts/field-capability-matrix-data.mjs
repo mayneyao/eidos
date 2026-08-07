@@ -280,32 +280,6 @@ const capabilityRows = [
     ),
   },
   {
-    fieldKind: "JSON",
-    canonicalValue: t(
-      "JCS TEXT / json JCS string",
-      "JCS TEXT / json JCS 字符串"
-    ),
-    mutation: t("Writable", "可写"),
-    filter: "typed eq / in",
-    sort: t("No", "不支持"),
-    group: t("No", "不支持"),
-    search: t("Not searched by default", "默认不搜索"),
-    wholeCellAggregate: "count / distinct-count",
-    semanticSummary: t(
-      "Null and distinct complete JCS values",
-      "null 与不同完整 JCS 值"
-    ),
-    formulaOperand: t("Yes", "支持"),
-    lookupResult: "json atom",
-    recordLabel: t("No", "不支持"),
-    csv: "JCS text",
-    layerOwners: layers.fileRuntimeUi,
-    uiAdapter: t(
-      "JSON editor; content remains inert",
-      "JSON 编辑器；内容保持 inert"
-    ),
-  },
-  {
     fieldKind: "Select",
     canonicalValue: t("Option name TEXT / select", "Option name TEXT / select"),
     mutation: t("Writable", "可写"),

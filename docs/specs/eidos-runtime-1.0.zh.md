@@ -400,7 +400,6 @@ interface RuntimeLimits {
   searchBytesMax: number
   listElementsMax: number
   logicalValueBytesMax: number
-  jsonCellBytesMax: number
   formulaBytesMax: number
   formulaNodesMax: number
   formulaDepthMax: number
@@ -439,8 +438,7 @@ capability bit，只要 lifecycle 允许就始终可用。
 错误、limit 为零或 capability 自相矛盾，均为 protocol error。
 每个 input 与 output `LogicalValue` 都必须符合 `logicalValueBytesMax`，每个
 successful result 都必须符合 `responseBytesMax`；否则 Runtime 会在产生 partial
-result 前返回 `resource-limit`。`jsonCellBytesMax` 还约束 JSON Field 的 JCS-text
-string 内部所含 UTF-8 byte。
+result 前返回 `resource-limit`。
 
 Limit accounting 是精确的：
 
@@ -463,7 +461,6 @@ Limit accounting 是精确的：
 | `searchBytesMax`                      | `search.text` 的 UTF-8 byte                                                                                               |
 | `listElementsMax`                     | 每个 input/result canonical list 或 flattened Lookup sequence 的 element 数量                                             |
 | `logicalValueBytesMax`                | 一个 public `LogicalValue` 的 JCS UTF-8 byte，包括任何完整 list/File value                                                |
-| `jsonCellBytesMax`                    | 一个 JSON Field 的 JCS text 所含 UTF-8 byte                                                                               |
 | `formulaBytesMax`                     | source text 的 UTF-8 byte                                                                                                 |
 | `formulaNodesMax` / `formulaDepthMax` | 全部 AST node / root-at-1 AST depth                                                                                       |
 | `diagnosticsMax`                      | 一个 result 中保留的 diagnostic 数量                                                                                      |
@@ -576,15 +573,12 @@ Public JSON-compatible value 使用以下精确表示：
 | checkbox                 | JSON boolean                                                |
 | date                     | canonical `YYYY-MM-DD` string                               |
 | datetime                 | canonical `YYYY-MM-DDTHH:MM:SS.sssZ` string                 |
-| JSON Field               | canonical JCS text string                                   |
 | multi-select             | ordered unique string array                                 |
 | Relation                 | ordered unique Row-ID string array                          |
 | File                     | ordered `FileEntry` array                                   |
 
-Integer 永远不是 JSON number。JSON Field 永远不会解析为 untyped public
-object：SQL NULL 是 JSON `null`，而 JSON literal null 是 string `"null"`。
-这可在 JavaScript、native 与 JSON transport 间保留所有 int64 value 以及
-SQL-NULL/JSON-null 区别。
+Integer 永远不是 JSON number。这可在 JavaScript、native 与 JSON transport
+间保留所有 int64 value。
 
 普通 Runtime value 已经 canonical。接受 external datetime text 的 UI/import
 helper MUST 实现以下显式 normalization algorithm，绝不能把它隐藏在
@@ -636,7 +630,6 @@ type AtomicType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
   | "select"
   | "row-id"
   | "file-entry"
@@ -732,7 +725,6 @@ exploded value domain。
 | Date             | `YYYY-MM-DD` TEXT / `date`                     | 可写     | equality、`in`、ordered range                 | 是   | 是    | 仅在充当 Record Label 时使用 canonical label text | C/D/O                | null/distinct、earliest/latest、explicit bucket               | 是                   | `date` atom          | 可用         | canonical date                    | 无 timezone；calendar presentation 归 UI                      |
 | Datetime         | UTC instant TEXT / `datetime`                  | 可写     | equality、`in`、ordered range                 | 是   | 是    | 仅在充当 Record Label 时使用 canonical label text | C/D/O                | null/distinct、earliest/latest、explicit UTC bucket           | 是                   | `datetime` atom      | 可用         | canonical UTC datetime            | UI localize；import 在 mutation 前 normalize                  |
 | URL              | URI-reference TEXT / `url`                     | 可写     | equality、`in`、contains/prefix/suffix        | 是   | 是    | raw URI-reference                                 | C/D/O                | null/empty/non-empty/distinct；optional raw-scheme facet      | 是                   | `url` atom           | 可用         | raw URI-reference                 | UI link/copy/text fallback；不自动 fetch                      |
-| JSON             | JCS TEXT / `json` JCS string                   | 可写     | typed equality 与 `in`                        | 否   | 否    | 无                                                | C/D                  | null 与 distinct complete JCS value                           | 是                   | `json` atom          | 否           | JCS text                          | inert JSON editor；无 implicit JSON-path statistics           |
 | Select           | Option-name TEXT / `select`                    | 可写     | equality、`in`、contains                      | 是   | 是    | Option name                                       | C/D/O                | null、observed Option facet、uncatalogued raw value           | text                 | `select` atom        | 可用         | Option name                       | color/icon 与 zero-use catalog entry 属于 UI state            |
 | Multi-select     | unique Option-name JSON array / `multi-select` | 可写     | whole equality/`in`；`has-any`/`has-all`      | 否   | 否    | 每个 Option name                                  | C/D on whole array   | empty row、selection count、distinct Option、Option facet     | 否                   | list of `select`     | 否           | JCS string array                  | UI 渲染 chips 并补充 zero-use catalog entry                   |
 | File             | FileEntry JSON array / `file`                  | 可写     | whole typed equality 与 `in`                  | 否   | 否    | entry name、非 `data:` URI、raw media type        | C/D on whole array   | File row、entry、exact byte、MIME/URI-kind facet、fan-out     | 否                   | list of `file-entry` | 否           | JCS FileEntry array               | UI 负责 preview/icon/URI fallback；Adapter resolve/read asset |
@@ -861,7 +853,7 @@ descriptor 都不包含 physical name。
 
 `FieldDescriptor.definition` 当且仅当 Field 是 Relation、Formula 或 Lookup 时
 存在，其他每个 Field 都不存在。`writable` 是 structural property，而不是 session
-permission bit：对 non-system stored scalar/JSON/Multi-select/File Field 或 forward
+permission bit：对 non-system stored scalar/Multi-select/File Field 或 forward
 Relation 恰好为 true；对每个 system Field、Formula、Lookup 与 inverse Relation
 为 false。read-only binding 仍报告同一 descriptor，并通过 `unsupported` 单独
 拒绝 mutation。
@@ -1193,7 +1185,6 @@ serialization 做搜索。对一行与一个 requested Field，Runtime 按以下
 | `text`、`url`、`select`                   | logical string                                                                                                                                     |
 | Row-ID system Field                       | UUID；把该 system Field ID 放入 `search.fields` 就是 explicit ID-search request                                                                    |
 | Number、Integer、Checkbox、Date、Datetime | 无，但下方 Record Label 规则除外                                                                                                                   |
-| JSON                                      | 无；Runtime 绝不搜索 JCS punctuation 或 member serialization                                                                                       |
 | Multi-select                              | 按 stored order 的每个 Option name                                                                                                                 |
 | File                                      | 按 entry 顺序的 `name`、`mediaType`，以及仅 relative/`https:` URI；完整 `data:` URI/Base64 payload 永不参与搜索                                    |
 | forward/inverse Relation                  | 每个 resolved target/source 当前 Record Label text；unresolved item 贡献其可见 Row-ID fallback                                                     |
@@ -1625,7 +1616,6 @@ type FormulaResultType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
 
 interface FormulaDefinition {
   sourceText: string
@@ -1703,8 +1693,8 @@ Null 是每种 Formula result 的可能 value，但不是独立的 declared type
 Formula 要求 inferred non-null result type 与 `resultType` 精确相等。
 
 完整的 non-null Formula type universe 恰好是 `text`、`number`、`integer`、
-`checkbox`、`date`、`datetime`、`url` 与 `json`。referenced Field 按以下 mapping
-进入该 universe：`select` 与 `row-id` 变为 `text`；上述八种同名 type 保持自身。
+`checkbox`、`date`、`datetime` 与 `url`。referenced Field 按以下 mapping
+进入该 universe：`select` 与 `row-id` 变为 `text`；上述七种同名 type 保持自身。
 这同等适用于 stored/system Field 与 scalar Formula/Lookup result。
 `multi-select`、`file`、`relation`、`file-entry` 与 list TypeRef 不能作为 Formula
 operand，即使对 `IS_NULL` 也不行；引用其中任一项都是 `invalid-formula`。Formula
@@ -2167,7 +2157,7 @@ execution order 不得改变 outcome。
 
 使用 empty map 的 update 是 `invalid-request`。仅当至少一个 resulting canonical
 cell 不同时，update 才改变 `_updated_at`。equal binary64 value 在 negative-zero
-normalization 后比较；JSON/list/File value 比较 canonical JCS byte；其他 raw
+normalization 后比较；list/File value 比较 canonical JCS byte；其他 raw
 value 比较其精确 canonical representation。
 
 如果存在 `returning`，successful result 会在新 revision（或不变的 no-op
@@ -2379,7 +2369,6 @@ type StoredFieldType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
   | "select"
   | "multi-select"
   | "file"
@@ -2402,7 +2391,6 @@ type ConversionPolicy =
   | "zero-false-nonzero-true"
   | "utc-date"
   | "first"
-  | "json-null-to-sql-null"
   | "null-to-empty-list"
 
 type ScalarStoredFieldType =
@@ -2413,7 +2401,6 @@ type ScalarStoredFieldType =
   | "date"
   | "datetime"
   | "url"
-  | "json"
   | "select"
 
 type ConvertFieldChange =
@@ -2456,24 +2443,24 @@ stable ID 存在后，通过后续 schema operation 添加它们。允许 Formul
 revision 上仅含 stable-ID 的 definition 创建任意 kind。除 `create-table` 内的
 `labelFieldClientKey` 外，不存在 implicit client-key object reference。
 
-`nullable` 对 stored scalar/JSON Field 默认为 true；对 File、Multi-select、
+`nullable` 对 stored scalar Field 默认为 true；对 File、Multi-select、
 forward/inverse Relation 固定为 false；对 core 1.0 的 Formula 与 Lookup 固定为
 true。Runtime 拒绝相反的 request。physical `NOT NULL` 必须与 File Format matrix
 精确一致。
 
-`set-field-nullable` 只适用于 stored scalar/JSON Field。equal input 是 no-op。
+`set-field-nullable` 只适用于 stored scalar Field。equal input 是 no-op。
 任一方向改变 declaration 都是 `metadata-only`，因为 rebuild mechanism 本身不会
 改变 canonical cell。只有不存在 SQL NULL 时才允许改为 non-nullable，否则
-forbidden；不会 invent implicit default。转换为 scalar/JSON destination 时使用
+forbidden；不会 invent implicit default。转换为 scalar destination 时使用
 required `toNullable`；list/forward-Relation destination 固定 non-null。
 
-在 populated Table 上创建 stored Field 有精确的 fill behavior。nullable scalar/
-JSON Field 以 SQL NULL 填充每个 existing row。只有 Table 为零行时才允许创建
-non-nullable scalar/JSON Field；Runtime 1.0 中没有 default/initial-value member。
+在 populated Table 上创建 stored Field 有精确的 fill behavior。nullable scalar
+Field 以 SQL NULL 填充每个 existing row。只有 Table 为零行时才允许创建
+non-nullable scalar Field；Runtime 1.0 中没有 default/initial-value member。
 Multi-select、File 与 forward Relation Field 以 canonical `[]` 填充每个 existing
 row。Formula、Lookup 与 inverse Relation Field 不添加 user-table column。
 
-`convert-field.fieldId` 当前必须标识 stored scalar/JSON、Multi-select、File 或
+`convert-field.fieldId` 当前必须标识 stored scalar、Multi-select、File 或
 forward Relation Field。system Field、Formula、Lookup 或 inverse Relation 以
 `forbidden` 拒绝；改变这些 Field 的 definition 要使用各自专用 leaf operation。
 转换为 Relation 始终创建 forward Relation，且 supplied complete
@@ -2489,12 +2476,11 @@ valid forward Relation；这也是 `metadata-only` generated-definition replacem
 Field 是其 forward Field 的 unique inverse；conflicting pair 是 forbidden。
 
 存在 `policies` 时，其中元素唯一且必须遵循以下 canonical order：
-`json-null-to-sql-null`、`round-binary64`、`truncate-toward-zero`、
+`round-binary64`、`truncate-toward-zero`、
 `round-ties-even`、`zero-false-nonzero-true`、`utc-date`、`first`、
 `null-to-empty-list`。`truncate-toward-zero` 与 `round-ties-even` mutually
 exclusive。Runtime 拒绝与 selected source/destination 无关的 policy。只有针对
-一次 cell conversion 中互不重叠的 stage，才允许多个 policy：先处理 JSON root，
-再进行 scalar conversion，最后处理 destination null-to-list。
+一次 cell conversion 中互不重叠的 stage，才允许多个 policy。
 
 `batch.changes` non-empty、ordered，且不含 nested batch。每个 stable-ID
 reference 命名一个 base revision 上存在的 object。Runtime 把整个 batch 作为
@@ -2550,7 +2536,6 @@ type SchemaValueChangeCode =
   | "integer-rounded"
   | "numeric-to-checkbox"
   | "datetime-to-date"
-  | "json-null-to-sql-null"
   | "null-to-empty-list"
   | "list-empty-to-null"
   | "list-tail-dropped"
@@ -2758,9 +2743,8 @@ metadata-only。其他 cell 只使用以下 algorithm：
    `true`/`false`。不存在 trim、locale、thousands separator、Boolean synonym 或
    permissive SQLite cast。
 2. **到 text/select。** Numeric/Boolean value 按上述 exact spelling serialize
-   （Checkbox 使用 `true`/`false`）；这是 lossless。JSON/list/File/Relation 到
-   text 会保留其 canonical JCS text byte，所以 JSON literal null 变为 text
-   `null`，SQL NULL 则仍是 SQL NULL。Date/datetime/URL/select 到 text，以及
+   （Checkbox 使用 `true`/`false`）；这是 lossless。List/File/Relation 到
+   text 会保留其 canonical JCS text byte。Date/datetime/URL/select 到 text，以及
    textual subtype 到 select 均无需 rewrite。
 3. **Number 与 Integer。** Integer 到 Number 仅对可以精确表示为 binary64 的
    value 是 lossless；否则 `round-binary64` 是 explicit-lossy。Number 到
@@ -2777,25 +2761,12 @@ metadata-only。其他 cell 只使用以下 algorithm：
 5. **Date/datetime。** Date 到 datetime 追加 `T00:00:00.000Z`，且为 lossless。
    Datetime 到 date 仅在每个 value 都为 UTC midnight 时是 lossless；否则
    `utc-date` 丢弃 time，属于 explicit-lossy。
-6. **到 JSON。** Text/date/datetime/URL/select 变为 JCS JSON string；Number
-   变为 JCS number；Checkbox 变为 JSON Boolean；SQL NULL 仍是 SQL NULL。
-   Integer 仅在可精确表示为 binary64 时是 lossless；否则可用的 explicit-lossy
-   policy 是 `round-binary64`。canonical Multi-select/File/Relation array text
-   可以只改变 type metadata 而不 rewrite byte。
-7. **从 JSON。** Text 接收完整 JCS text，而不是 unquoted JSON string。其他
-   destination 要求每个 non-null JSON root 都具有精确 destination kind，再无损
-   unwrap/rebind。还要验证 JSON string 是否符合 date/datetime/URL；验证 array
-   是否符合 Multi-select/File/Relation。只有通过 `json-null-to-sql-null`，JSON
-   literal null 才能变为 SQL NULL。当 actual source domain 不包含 SQL NULL 时，
-   该 mapping 是 lossless，因为 inverse 把 destination null 映射回 JSON literal
-   null；当 source SQL NULL 与 JSON literal null 都出现时，它是 explicit-lossy。
-   mixed 或其他 incompatible root kind 均为 forbidden。
-8. **Select 与 list。** Select 到 Multi-select 把 non-null string 包装为 one-item
+6. **Select 与 list。** Select 到 Multi-select 把 non-null string 包装为 one-item
    array。每个 Multi-select/File/forward-Relation destination 在 physical 层都
    non-null；因此 source SQL NULL 会使 conversion forbidden，除非
    `null-to-empty-list` 明确把它映射为 `[]`。使用该 policy 时，Select-to-
    Multi-select 仍为 injective：只有 SQL NULL 映射为 `[]`，每个 string 映射为
-   singleton，因此整个 valid conversion 是 lossless。对 Text/JSON 到 list，
+   singleton，因此整个 valid conversion 是 lossless。对 Text 到 list，
    每个 non-null value 必须已经是 destination 的 exact canonical JCS，因此保持
    byte。不含 SQL NULL 时是 metadata-only。存在 SQL NULL 且使用
    `null-to-empty-list` 时，如果没有 non-null source value 是 destination empty
@@ -2810,16 +2781,16 @@ metadata-only。其他 cell 只使用以下 algorithm：
    的 empty/longer array 均为 forbidden。创建 Relation 还要求 target Table，且
    每个 string 都是能在该 target 中解析的 canonical ID。Multi-select-to-Relation
    与 Relation-to-Multi-select 在 validation 后保持 ordered JCS byte，且为
-   metadata-only。除上述 Text/JSON preservation 外，File 没有 scalar/list
+   metadata-only。除上述 Text preservation 外，File 没有 scalar/list
    coercion。
 
-9. **Relation 到 Relation。** 保持相同 target/direction 是 metadata-only。只有
+7. **Relation 到 Relation。** 保持相同 target/direction 是 metadata-only。只有
    每个 ID 都能在新 target Table 中 resolve 时才允许新 target Table，结果为
    `M?`；否则 forbidden。`convert-field` 从不改变 direction；same-direction
    `set-relation` rule 与 direction-flip prohibition 见第 12.1 节。
 
-除上述两个显式选择的 JSON-literal/list policy 外，每种 conversion 中 null 都保持
-SQL NULL。对于 scalar/JSON destination，`toNullable=true` 保留 source SQL NULL；
+除上述显式选择的 `null-to-empty-list` policy 外，每种 conversion 中 null 都保持
+SQL NULL。对于 scalar destination，`toNullable=true` 保留 source SQL NULL；
 如果任一 conversion stage 产生 SQL NULL，则 `toNullable=false` 为 forbidden。
 对于 non-null list destination，如果不使用 `null-to-empty-list`，source SQL NULL
 为 forbidden。named policy 本身并不会强制 `explicit-lossy`；上述 complete actual-
@@ -3281,7 +3252,7 @@ output。
 ER-Reader 至少覆盖：
 
 1. int64 minimum/maximum/zero、finite binary64 edge value、negative-zero
-   normalization、SQL NULL 与 JSON literal null 的区别、Unicode、empty value、
+   normalization、Unicode、empty value、
    canonical date/datetime、File entry 与 malformed-value rejection，包括
    relative/`https:`/inline-image URI classes、exact Base64、media-type/decoded-size
    agreement 与 1 MiB boundary；

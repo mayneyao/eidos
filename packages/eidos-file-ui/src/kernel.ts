@@ -926,7 +926,6 @@ function validateRuntimeNegotiation(
     "searchBytesMax",
     "listElementsMax",
     "logicalValueBytesMax",
-    "jsonCellBytesMax",
     "formulaBytesMax",
     "formulaNodesMax",
     "formulaDepthMax",

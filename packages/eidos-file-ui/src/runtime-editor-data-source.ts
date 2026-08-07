@@ -683,15 +683,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       return { options: await this.inferredFieldOptions(tableId, field) }
     }
     if (
-      [
-        "text",
-        "number",
-        "checkbox",
-        "date",
-        "datetime",
-        "url",
-        "json",
-      ].includes(target)
+      ["text", "number", "checkbox", "date", "datetime", "url"].includes(target)
     ) {
       return {}
     }
@@ -798,7 +790,6 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
           "date",
           "datetime",
           "url",
-          "json",
           "select",
           "multi-select",
           "file",
@@ -815,7 +806,6 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
             | "date"
             | "datetime"
             | "url"
-            | "json"
             | "select"
             | "multi-select"
             | "file",
@@ -1508,7 +1498,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       (field.settings.control === "rating" || display?.kind === "rating")
     )
       return "rating"
-    return field.kind
+    return field.kind as EidosFileFieldInfo["type"]
   }
 
   private editorRow(
