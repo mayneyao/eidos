@@ -9,6 +9,15 @@ import { EidosFileQueryToolbar } from "./eidos-file-query-toolbar"
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
+vi.stubGlobal(
+  "ResizeObserver",
+  class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+)
+
 const fields: EidosFileFieldInfo[] = [
   {
     id: "0198c72d-82b5-7000-8000-000000000001",

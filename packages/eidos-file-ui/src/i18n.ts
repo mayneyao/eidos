@@ -45,6 +45,7 @@ const zh: EidosFileUIMessageOverrides = {
   "No conditions in this group.": "此分组中没有条件。",
   "Unable to update filters": "无法更新筛选条件",
   "Choose option": "选择选项",
+  "Search options…": "搜索选项…",
   Checked: "已勾选",
   Unchecked: "未勾选",
   Value: "值",

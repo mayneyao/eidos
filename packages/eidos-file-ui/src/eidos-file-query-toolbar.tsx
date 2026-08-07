@@ -9,7 +9,9 @@ import type {
 } from "@eidos.space/eidos-file"
 import {
   ArrowUpDown,
+  Check,
   ChevronDown,
+  ChevronsUpDown,
   ChevronUp,
   Filter,
   LoaderCircle,
@@ -24,6 +26,8 @@ import { useEidosFileUI } from "./context"
 import { useEidosFileSearchNavigation } from "./eidos-file-search-navigation"
 import {
   Button,
+  CommandGroup,
+  CommandItem,
   Input,
   Popover,
   PopoverContent,
@@ -34,6 +38,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/primitives"
+
+import { EidosFileCommandCombobox } from "./eidos-file-command-combobox"
 
 import {
   eidosFileFieldDisplayName,
@@ -191,6 +197,7 @@ function FilterValueEditor({
   onChange: (value: EidosFileFilterValue | EidosFileFilterValue[]) => void
 }) {
   const { translate: t } = useEidosFileUI()
+  const [optionsOpen, setOptionsOpen] = useState(false)
   if (emptyOperators.has(rule.operator)) return null
   const displayType = fieldDisplayType(field)
   const options = fieldOptions(field)
@@ -224,24 +231,62 @@ function FilterValueEditor({
     )
   }
   if (field.type === "select" || field.type === "multi-select") {
+    const currentValue = String(
+      Array.isArray(rule.value) ? (rule.value[0] ?? "") : (rule.value ?? "")
+    )
+    const selectedOption = options.find(
+      (option) => option.value === currentValue
+    )
     return (
-      <Select
-        value={String(
-          Array.isArray(rule.value) ? (rule.value[0] ?? "") : (rule.value ?? "")
-        )}
-        onValueChange={onChange}
+      <EidosFileCommandCombobox
+        open={optionsOpen}
+        onOpenChange={setOptionsOpen}
+        searchPlaceholder={t("Search options…")}
+        emptyText={t("No results")}
+        contentClassName="w-[220px]"
+        trigger={
+          <button
+            type="button"
+            role="combobox"
+            aria-expanded={optionsOpen}
+            className={cn(
+              "flex h-7 w-full min-w-0 items-center justify-between gap-1 rounded-md border border-input bg-transparent px-2 text-xs shadow-xs outline-none",
+              !selectedOption && "text-muted-foreground"
+            )}
+          >
+            <span className="min-w-0 truncate">
+              {selectedOption ? (
+                <SelectOptionItem
+                  option={selectedOption}
+                  className="max-w-[190px]"
+                />
+              ) : (
+                t("Choose option")
+              )}
+            </span>
+            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+          </button>
+        }
       >
-        <SelectTrigger className="h-7 min-w-0 text-xs">
-          <SelectValue placeholder={t("Choose option")} />
-        </SelectTrigger>
-        <SelectContent>
+        <CommandGroup>
           {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              <SelectOptionItem option={option} className="max-w-[190px]" />
-            </SelectItem>
+            <CommandItem
+              key={option.value}
+              value={option.value}
+              onSelect={() => {
+                onChange(option.value)
+                setOptionsOpen(false)
+              }}
+              className="text-xs"
+            >
+              <SelectOptionItem option={option} className="max-w-[170px]" />
+              {option.value === currentValue && (
+                <Check className="ml-auto h-3.5 w-3.5" />
+              )}
+            </CommandItem>
           ))}
-        </SelectContent>
-      </Select>
+        </CommandGroup>
+      </EidosFileCommandCombobox>
     )
   }
   if (displayType === "checkbox") {

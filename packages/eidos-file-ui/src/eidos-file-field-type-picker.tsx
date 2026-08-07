@@ -1,4 +1,4 @@
-import { useMemo, useState, type ComponentType } from "react"
+import { useState, type ComponentType } from "react"
 import type { CreateEidosFileFieldInput } from "@eidos.space/eidos-file"
 import {
   Baseline,
@@ -11,7 +11,6 @@ import {
   ImageIcon,
   Link,
   Link2,
-  Search,
   Sigma,
   Star,
   Tag,
@@ -21,7 +20,8 @@ import {
 
 import { useEidosFileUI } from "./context"
 import { cn } from "./lib/cn"
-import { Input, Popover, PopoverContent, PopoverTrigger } from "./ui/primitives"
+import { EidosFileCommandCombobox } from "./eidos-file-command-combobox"
+import { CommandGroup, CommandItem } from "./ui/primitives"
 
 export type EidosFileCreatableFieldType = CreateEidosFileFieldInput["type"]
 
@@ -204,40 +204,30 @@ export function EidosFileFieldTypePicker({
 }) {
   const { translate: t } = useEidosFileUI()
   const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState("")
   const selected =
     selectedOption(value) ?? EIDOS_FILE_FIELD_TYPE_GROUPS[0].options[0]
-  const groups = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    if (!needle) return EIDOS_FILE_FIELD_TYPE_GROUPS
-    return EIDOS_FILE_FIELD_TYPE_GROUPS.map((group) => ({
-      ...group,
-      options: group.options.filter((option) =>
-        [
-          option.label,
-          t(option.label),
-          option.description,
-          t(option.description),
-          ...option.keywords,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(needle)
-      ),
-    })).filter((group) => group.options.length > 0)
-  }, [query, t])
 
   return (
-    <Popover
+    <EidosFileCommandCombobox
       open={open}
-      onOpenChange={(nextOpen) => {
-        setOpen(nextOpen)
-        if (!nextOpen) setQuery("")
-      }}
-    >
-      <PopoverTrigger asChild>
+      onOpenChange={setOpen}
+      searchPlaceholder={t("Search field types…")}
+      emptyText={t("No matching field type.")}
+      filter={(value, search, keywords) =>
+        [value, ...(keywords ?? [])]
+          .join(" ")
+          .toLowerCase()
+          .includes(search.trim().toLowerCase())
+          ? 1
+          : 0
+      }
+      contentClassName="w-[340px] max-w-[calc(100vw-24px)]"
+      listClassName="max-h-80"
+      trigger={
         <button
           type="button"
+          role="combobox"
+          aria-expanded={open}
           data-eidos-file-field-type-trigger={value}
           disabled={disabled}
           className="flex h-9 w-full items-center gap-2 rounded-md border border-border/70 bg-background px-3 text-left text-xs shadow-none outline-none hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
@@ -257,70 +247,58 @@ export function EidosFileFieldTypePicker({
           </span>
           <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
         </button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-[340px] max-w-[calc(100vw-24px)] p-0"
-      >
-        <div className="relative border-b p-2">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            autoFocus
-            value={query}
-            className="h-8 pl-8 text-xs"
-            placeholder={t("Search field types…")}
-            aria-label={t("Search field types")}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
-        <div className="max-h-80 overflow-y-auto p-1.5">
-          {groups.length ? (
-            groups.map((group) => (
-              <section key={group.label} className="mb-2 last:mb-0">
-                <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {t(group.label)}
-                </p>
-                {group.options.map((option) => {
-                  const active = option.value === value
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      data-eidos-file-field-type={option.value}
-                      className={cn(
-                        "flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                        active && "bg-accent"
-                      )}
-                      onClick={() => {
-                        onChange(option.value)
-                        setOpen(false)
-                      }}
-                    >
-                      <EidosFileFieldTypeIcon
-                        type={option.value}
-                        className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-xs font-medium">
-                          {t(option.label)}
-                        </span>
-                        <span className="block text-[10px] leading-4 text-muted-foreground">
-                          {t(option.description)}
-                        </span>
-                      </span>
-                      {active ? <Check className="mt-0.5 h-3.5 w-3.5" /> : null}
-                    </button>
-                  )
-                })}
-              </section>
-            ))
-          ) : (
-            <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-              {t("No matching field type.")}
-            </p>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+      }
+    >
+      {EIDOS_FILE_FIELD_TYPE_GROUPS.map((group) => (
+        <CommandGroup
+          key={group.label}
+          heading={
+            <span className="block px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              {t(group.label)}
+            </span>
+          }
+        >
+          {group.options.map((option) => {
+            const active = option.value === value
+            return (
+              <CommandItem
+                key={option.value}
+                value={option.value}
+                keywords={[
+                  option.label,
+                  t(option.label),
+                  option.description,
+                  t(option.description),
+                  ...option.keywords,
+                ]}
+                data-eidos-file-field-type={option.value}
+                onSelect={() => {
+                  onChange(option.value)
+                  setOpen(false)
+                }}
+                className={cn(
+                  "items-start gap-2.5 px-2 py-2",
+                  active && "bg-accent"
+                )}
+              >
+                <EidosFileFieldTypeIcon
+                  type={option.value}
+                  className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-medium">
+                    {t(option.label)}
+                  </span>
+                  <span className="block text-[10px] leading-4 text-muted-foreground">
+                    {t(option.description)}
+                  </span>
+                </span>
+                {active ? <Check className="mt-0.5 h-3.5 w-3.5" /> : null}
+              </CommandItem>
+            )
+          })}
+        </CommandGroup>
+      ))}
+    </EidosFileCommandCombobox>
   )
 }
