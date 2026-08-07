@@ -16,7 +16,7 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 
 import { useEidosFileUI } from "./context"
-import { EIDOS_FILE_FIELD_TYPE_GROUPS } from "./eidos-file-field-type-picker"
+import { eidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
 import {
   eidosFileFieldDisplayName,
   eidosFileFieldKey,
@@ -349,10 +349,7 @@ export function EidosFileViewFieldsPopover({
                   hiddenFields,
                   visibleSystemFields
                 )
-                const typeOption = EIDOS_FILE_FIELD_TYPE_GROUPS.flatMap(
-                  (group) => group.options
-                ).find((option) => option.value === field.type)
-                const TypeIcon = typeOption?.icon ?? Columns3
+                const TypeIcon = eidosFileFieldTypeIcon(field.type) ?? Columns3
                 const fieldName = eidosFileFieldDisplayName(field)
                 const fieldSummary = (
                   <>

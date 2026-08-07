@@ -7,6 +7,7 @@ import {
   CheckSquare,
   ChevronDown,
   Clock3,
+  Fingerprint,
   Hash,
   ImageIcon,
   Link,
@@ -45,6 +46,24 @@ const EIDOS_FILE_FIELD_TYPE_ICONS = {
   ComponentType<{ className?: string }>
 >
 
+const EIDOS_FILE_SYSTEM_FIELD_TYPE_ICONS = {
+  "row-id": Fingerprint,
+  "created-time": Clock3,
+  "last-edited-time": Clock3,
+} satisfies Record<string, ComponentType<{ className?: string }>>
+
+/** Icon for a creatable or system Field type, undefined for unknown types. */
+export function eidosFileFieldTypeIcon(
+  type: string
+): ComponentType<{ className?: string }> | undefined {
+  return (
+    EIDOS_FILE_FIELD_TYPE_ICONS[type as EidosFileCreatableFieldType] ??
+    EIDOS_FILE_SYSTEM_FIELD_TYPE_ICONS[
+      type as keyof typeof EIDOS_FILE_SYSTEM_FIELD_TYPE_ICONS
+    ]
+  )
+}
+
 /** Shared visual identity for every field-type choice and selected value. */
 export function EidosFileFieldTypeIcon({
   type,
@@ -53,7 +72,7 @@ export function EidosFileFieldTypeIcon({
   type: EidosFileCreatableFieldType
   className?: string
 }) {
-  const Icon = EIDOS_FILE_FIELD_TYPE_ICONS[type]
+  const Icon = eidosFileFieldTypeIcon(type) ?? Baseline
   return (
     <Icon
       aria-hidden="true"
