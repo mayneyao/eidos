@@ -3,12 +3,14 @@ import type { CreateEidosFileFieldInput } from "@eidos.space/eidos-file"
 import {
   Baseline,
   CalendarDays,
+  CalendarPlus,
   Check,
   CheckSquare,
   ChevronDown,
   Clock3,
   Fingerprint,
   Hash,
+  History,
   ImageIcon,
   Link,
   Link2,
@@ -48,8 +50,8 @@ const EIDOS_FILE_FIELD_TYPE_ICONS = {
 
 const EIDOS_FILE_SYSTEM_FIELD_TYPE_ICONS = {
   "row-id": Fingerprint,
-  "created-time": Clock3,
-  "last-edited-time": Clock3,
+  "created-time": CalendarPlus,
+  "last-edited-time": History,
 } satisfies Record<string, ComponentType<{ className?: string }>>
 
 /** Icon for a creatable or system Field type, undefined for unknown types. */
