@@ -10,14 +10,13 @@ the GitHub Release. Do not create or push a tag without release approval.
 ## Version and channel contract
 
 - Eidos Lite owns the independent version in
-  `apps/eidos-lite-desktop/package.json`. It does not use the root/Classic
-  Desktop `v*` version script.
+  `apps/eidos-lite-desktop/package.json`.
 - The committed version is the base version. `lite-v0.2.0-beta.1` requires a
   committed Lite version of `0.2.0`; the release workflow applies the complete
   tag version only inside its checked-out build workspace.
 - Stable tags use `lite-v<major>.<minor>.<patch>`. Prereleases use
-  `lite-v<version>-beta.N`, `-alpha.N`, or `-rc.N`. Bare `v*` tags remain the
-  Classic Desktop namespace, and `cli-v*` remains the standalone CLI namespace.
+  `lite-v<version>-beta.N`, `-alpha.N`, or `-rc.N`. `cli-v*` remains the
+  independent standalone CLI namespace; do not create bare `v*` tags.
 - Stable Lite releases publish `latest` and `beta` metadata so a beta user can
   move forward to a newer stable build. Prereleases publish only `beta`
   metadata.
@@ -25,7 +24,7 @@ the GitHub Release. Do not create or push a tag without release approval.
   `https://download.eidos.space/lite/updates/<stable|beta>/<arm64|x64>`.
   Metadata is stored in the GitHub Release with architecture-qualified names,
   preventing the macOS and Linux native packages from selecting the other
-  architecture and preventing Classic releases from shadowing Lite.
+  architecture or unrelated release assets from shadowing Lite.
 
 Only `pnpm build:eidos-lite:release` compiles automatic updates on. Normal
 development, unsigned staging packages, and local production-mode verification

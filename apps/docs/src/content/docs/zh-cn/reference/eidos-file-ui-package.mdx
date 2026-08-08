@@ -77,15 +77,17 @@ Fields、数据画布、Table tabs 与编辑器 overlay。
 ```tsx
 import { EidosFileEditorShell } from "@eidos.space/eidos-file-ui/eidos-file-editor-shell"
 
-<EidosFileEditorShell
-  viewTabs={<EidosFileViewTabs {...viewTabs} />}
-  queryToolbar={<EidosFileQueryToolbar {...query} />}
-  fields={<EidosFileViewFieldsPopover {...fields} />}
-  fieldCreator={<EidosFileFieldCreatePopover {...fieldCreator} />}
-  sheetTabs={<EidosFileSheetTabs {...sheets} />}
->
-  <EidosFileEditorView source={source} table={table} view={view} />
-</EidosFileEditorShell>
+const editor = (
+  <EidosFileEditorShell
+    viewTabs={<EidosFileViewTabs {...viewTabs} />}
+    queryToolbar={<EidosFileQueryToolbar {...query} />}
+    fields={<EidosFileViewFieldsPopover {...fields} />}
+    fieldCreator={<EidosFileFieldCreatePopover {...fieldCreator} />}
+    sheetTabs={<EidosFileSheetTabs {...sheets} />}
+  >
+    <EidosFileEditorView source={source} table={table} view={view} />
+  </EidosFileEditorShell>
+)
 ```
 
 以上具名控件由 Host 组合提供。浏览器文件选择器、Desktop 文件系统集成、保存与

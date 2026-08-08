@@ -91,8 +91,10 @@ export function createEidosLiteAssetSession(
         request.purpose
       )
       if (resolution.bytes) {
+        const blobBytes = new Uint8Array(resolution.bytes.byteLength)
+        blobBytes.set(resolution.bytes)
         const url = URL.createObjectURL(
-          new Blob([resolution.bytes], { type: resolution.lease.mediaType })
+          new Blob([blobBytes], { type: resolution.lease.mediaType })
         )
         objectUrlsByResource.set(resolution.lease.resourceToken, url)
         resourcesByLease.set(

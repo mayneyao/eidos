@@ -6,7 +6,6 @@ on:
     paths:
       - ".github/workflows/graft-remote.yml"
       - "apps/graft-remote/**"
-      - "vendor/graft/**"
       - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
   push:
@@ -15,7 +14,6 @@ on:
     paths:
       - ".github/workflows/graft-remote.yml"
       - "apps/graft-remote/**"
-      - "vendor/graft/**"
       - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
 
@@ -40,7 +38,7 @@ jobs:
 
       - name: Check formatting and lint
         run: |
-          pnpm exec oxfmt --check apps/graft-remote .github/workflows/graft-remote.yml vendor/graft/UPSTREAM.md pnpm-workspace.yaml .prettierignore
+          pnpm exec oxfmt --check apps/graft-remote .github/workflows/graft-remote.yml pnpm-workspace.yaml .prettierignore
           pnpm exec oxlint apps/graft-remote/src apps/graft-remote/test
 
       - name: Check generated bindings and TypeScript

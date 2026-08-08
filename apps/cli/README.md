@@ -1,6 +1,8 @@
 # Eidos CLI
 
-`eidos` is the agent-first Rust interface to the open Eidos File format. It reads and modifies `.eidos` files directly, emits JSON only, and does not connect to Eidos Desktop.
+`eidos` is the agent-first Rust interface to the open Eidos File format. It
+reads and modifies `.eidos` files directly, emits JSON only, and does not
+require a running Eidos application.
 
 ## Responsibilities
 
@@ -11,7 +13,9 @@
 - Validate file identity, structure, content, and supported semantics.
 - Serve a local web editor for one file over HTTP on macOS, Linux, and Windows.
 
-The CLI does not manage legacy Spaces, documents, Desktop RPC, version history, or sync. Use ordinary file tools for Markdown and attachments, and Graft for history/sync.
+The CLI does not manage Space lifecycle, ordinary documents, application RPC,
+version history, or Sync. Use ordinary file tools for text and attachments,
+and Graft for history or Sync.
 
 ## Install
 
@@ -166,7 +170,7 @@ pnpm --filter @eidos.space/eidos-file-serve build
 
 ## Standalone release
 
-The CLI owns the version in `Cargo.toml`; Desktop app version bumps do not
+The CLI owns the version in `Cargo.toml`; Eidos Lite version bumps do not
 change it. To prepare a CLI release:
 
 1. Update `apps/cli/Cargo.toml` to the exact semantic version.
@@ -182,7 +186,7 @@ The tag triggers
 [`build-and-release-cli.yml`](../../.github/workflows/build-and-release-cli.yml),
 which rebuilds and verifies four platform archives, generates `SHA256SUMS`,
 and creates a dedicated GitHub Release from the checked-in CLI release notes
-without changing the repository's Desktop “Latest Release” pointer.
+without changing the repository's Eidos Lite “Latest Release” pointer.
 
 The workspace contains:
 

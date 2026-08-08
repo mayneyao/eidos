@@ -26,9 +26,7 @@
       "@eidos.space/eidos-file-ui": [
         "../../packages/eidos-file-ui/src/index.ts"
       ],
-      "@eidos.space/eidos-file-ui/*": ["../../packages/eidos-file-ui/src/*"],
-      "@eidos.space/core": ["../../packages/core/index.ts"],
-      "@eidos.space/core/*": ["../../packages/core/*"]
+      "@eidos.space/eidos-file-ui/*": ["../../packages/eidos-file-ui/src/*"]
     }
   },
   "include": [

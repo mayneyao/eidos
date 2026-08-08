@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer"
 import { createHash, randomBytes } from "node:crypto"
 import {
-  DatabaseSync,
+  type DatabaseSync,
   type SQLInputValue,
   type StatementSync,
 } from "node:sqlite"

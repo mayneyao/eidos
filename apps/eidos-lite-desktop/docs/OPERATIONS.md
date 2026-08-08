@@ -12,7 +12,8 @@ electron-builder must not report default-icon or missing-author warnings.
 Eidos Lite source-runtime tests use Electron 43's Node 24 mode so they exercise
 the same built-in `node:sqlite` implementation as packaged utility processes.
 Lite no longer participates in the repository's `better-sqlite3` Node/Electron
-ABI switching; the main Eidos Desktop still owns that separate native workflow.
+ABI switching. Lite tests and packaged utility processes both use the built-in
+`node:sqlite` implementation.
 
 ```bash
 # Electron 43 node:sqlite contract, unit tests, and source integration

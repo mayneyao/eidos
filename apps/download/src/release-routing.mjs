@@ -11,14 +11,6 @@ export function getCliSource(pathname) {
   return cliSources[pathname] ?? null
 }
 
-export function isStableDesktopRelease(release) {
-  return (
-    release?.draft === false &&
-    release?.prerelease === false &&
-    /^v\d/u.test(release?.tag_name ?? "")
-  )
-}
-
 const LITE_TAG_PATTERN =
   /^lite-v(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$/u
 
@@ -71,14 +63,6 @@ export function selectEidosLiteRelease(releases, channel) {
     compareLiteVersions(right.version, left.version)
   )
   return candidates[0]?.release ?? null
-}
-
-export function selectPreferredDesktopRelease(releases) {
-  return (
-    selectEidosLiteRelease(releases, "stable") ??
-    releases.find(isStableDesktopRelease) ??
-    null
-  )
 }
 
 export function getEidosLiteUpdateRoute(pathname) {

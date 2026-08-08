@@ -1,7 +1,6 @@
 import { copyFile, mkdir, rm } from "node:fs/promises"
+import { DatabaseSync } from "node:sqlite"
 import { fileURLToPath } from "node:url"
-
-import Database from "better-sqlite3"
 
 const fixturesDirectory = fileURLToPath(
   new URL("../fixtures/", import.meta.url)
@@ -23,10 +22,10 @@ await Promise.all([
   rm(emptyPath, { force: true }),
 ])
 
-const database = new Database(databasePath)
-database.pragma("foreign_keys = ON")
-database.pragma("application_id = 1162103123")
-database.pragma("user_version = 7")
+const database = new DatabaseSync(databasePath)
+database.exec("PRAGMA foreign_keys = ON")
+database.exec("PRAGMA application_id = 1162103123")
+database.exec("PRAGMA user_version = 7")
 database.exec(`
   CREATE TABLE authors (
     code TEXT PRIMARY KEY,
@@ -92,7 +91,8 @@ insertEntry.run(
   "present",
   "1952-01-01T00:00:00Z"
 )
-database.transaction(() => {
+database.exec("BEGIN")
+try {
   for (let index = 3; index <= 620; index += 1) {
     insertEntry.run(
       index % 2 === 0 ? "grace" : "ada",
@@ -104,11 +104,15 @@ database.transaction(() => {
       `2024-01-${String((index % 28) + 1).padStart(2, "0")}T00:00:00Z`
     )
   }
-})()
+  database.exec("COMMIT")
+} catch (error) {
+  database.exec("ROLLBACK")
+  throw error
+}
 database.close()
 
-const emptyDatabase = new Database(emptyPath)
-emptyDatabase.pragma("user_version = 1")
+const emptyDatabase = new DatabaseSync(emptyPath)
+emptyDatabase.exec("PRAGMA user_version = 1")
 emptyDatabase.close()
 
 await copyFile(databasePath, eidosPath)

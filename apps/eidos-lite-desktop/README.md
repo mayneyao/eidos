@@ -8,15 +8,15 @@
 
 Eidos Lite is an independent Electron application for opening an ordinary
 folder as a Space and working with multiple `.eidos` files in that folder.
-It does not import the legacy Desktop application or its Markdown, extension,
-AI, browser, or terminal architecture.
+Its runtime is intentionally limited to the Eidos File, local filesystem,
+history, account, and optional Sync boundaries documented here.
 
 The independent package uses a checked-in Eidos Lite icon family for macOS,
 Windows, and Linux. It preserves the official Eidos cube silhouette while
 recoloring the mark with Lite's `#007284` cyan accent, so Lite remains visibly
-related to Classic Desktop without sharing the same launcher identity. A
-package contract test prevents builds from silently falling back to the
-Electron or Classic icon, changing the Lite brand color, or losing the
+part of the Eidos product family while retaining its own launcher identity. A
+package contract test prevents builds from silently falling back to a generic
+Electron icon, changing the Lite brand color, or losing the
 `space.eidos.lite` identity.
 
 The current architecture slice supports local editing through an explicit
@@ -35,8 +35,8 @@ ordinary-file import through the Space operation gate. New/Open/Recent Space
 keeps the project model as normal user-owned folders. It proves the multi-file
 Space model, isolated native runtimes, operation gating,
 account-free Local versioning, row-aware Changes, History, forward-only
-whole-Space restore, and whole-Space Graft push/clone without importing Classic
-Desktop subsystems. Its service environment is one typed preset: development
+whole-Space restore, and whole-Space Graft push/clone within one focused
+application. Its service environment is one typed preset: development
 and unsigned packages use official staging, while an explicit production build
 selects the production account/Billing and Hosted Remote origins together. The
 compiled main bundle carries a verified environment manifest, and packaged

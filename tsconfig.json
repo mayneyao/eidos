@@ -21,80 +21,10 @@
     // "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "paths": {
-      "@eidos.space/core": ["./packages/core/index.ts"],
-      "@eidos.space/core/*": ["./packages/core/*"],
-      "@eidos.space/client": ["./packages/client/src/index.ts"],
-      "@eidos.space/client/*": ["./packages/client/src/*"],
-      "@eidos.space/react": ["./packages/react/src/index.ts"],
-      "@eidos.space/react/*": ["./packages/react/src/*"],
-      "@eidos.space/v3": ["./packages/v3/src/index.ts"],
-      "@eidos.space/v3/*": ["./packages/v3/src/*"],
-      "@eidos.space/space-manager": ["./packages/space-manager/src/index.ts"],
-      "@eidos.space/space-manager/*": ["./packages/space-manager/src/*"],
-      "@eidos.space/file-space": ["./packages/file-space/src/index.ts"],
-      "@eidos.space/file-space/*": ["./packages/file-space/src/*"],
       "@eidos.space/eidos-file": ["./packages/eidos-file/src/index.ts"],
       "@eidos.space/eidos-file/*": ["./packages/eidos-file/src/*"],
       "@eidos.space/eidos-file-ui": ["./packages/eidos-file-ui/src/index.ts"],
       "@eidos.space/eidos-file-ui/*": ["./packages/eidos-file-ui/src/*"],
-      "@eidos.space/legacy-space-migration": [
-        "./packages/legacy-space-migration/src/index.ts"
-      ],
-      "@eidos.space/legacy-space-migration/*": [
-        "./packages/legacy-space-migration/src/*"
-      ],
-      "@eidos.space/markdown-editor": [
-        "./packages/markdown-editor/src/index.ts"
-      ],
-      "@eidos.space/markdown-editor/*": ["./packages/markdown-editor/src/*"],
-      "@eidos.space/proxy": ["./packages/proxy/src/index.ts"],
-      "@eidos.space/proxy/*": ["./packages/proxy/src/*"],
-      "@eidos.space/sync": ["./packages/sync/index.ts"],
-      "@eidos.space/sync/*": ["./packages/sync/*"],
-      "@eidos.space/ext-server": ["./packages/ext-server/src/index.ts"],
-      "@eidos.space/ext-server/*": ["./packages/ext-server/src/*"],
-      "@eidos.space/rawdata": ["./packages/rawdata/src/index.ts"],
-      "@eidos.space/rawdata/*": ["./packages/rawdata/src/*"],
-      "@eidos.space/electron-ipc": ["./packages/electron-ipc/src/index.ts"],
-      "@eidos.space/electron-ipc/*": ["./packages/electron-ipc/src/*"],
-      "@eidos.space/extension-manifest": [
-        "./packages/extension-manifest/src/index.ts"
-      ],
-      "@eidos.space/extension-manifest/*": [
-        "./packages/extension-manifest/src/*"
-      ],
-      "@eidos.space/extension-cli": ["./packages/extension-cli/src/index.ts"],
-      "@eidos.space/extension-cli/*": ["./packages/extension-cli/src/*"],
-      "@eidos.space/extension-installer": [
-        "./packages/extension-installer/src/index.ts"
-      ],
-      "@eidos.space/extension-installer/*": [
-        "./packages/extension-installer/src/*"
-      ],
-      "@eidos.space/extension-runtime": [
-        "./packages/extension-runtime/src/index.ts"
-      ],
-      "@eidos.space/extension-runtime/*": [
-        "./packages/extension-runtime/src/*"
-      ],
-      "@eidos.space/extension-surface-protocol": [
-        "./packages/extension-surface-protocol/src/index.ts"
-      ],
-      "@eidos.space/extension-surface-protocol/*": [
-        "./packages/extension-surface-protocol/src/*"
-      ],
-      "@eidos.space/extension-sdk": ["./packages/extension-sdk/src/index.ts"],
-      "@eidos.space/extension-sdk/*": ["./packages/extension-sdk/src/*"],
-      "@eidos.space/extension-state": [
-        "./packages/extension-state/src/index.ts"
-      ],
-      "@eidos.space/extension-state/*": ["./packages/extension-state/src/*"],
-      "@/locales/*": ["./packages/locales/*"],
-      "@/worker/*": ["./packages/worker/*"],
-      "@/lib/*": ["./packages/lib/*"],
-      "@/components/*": ["./apps/web-app/components/*"],
-      "@/hooks/*": ["./apps/web-app/hooks/*"],
-      "@/styles/*": ["./apps/web-app/styles/*"],
       "@/*": ["./*"]
     },
     "types": [
@@ -105,7 +35,7 @@
       "@types/wicg-file-system-access"
     ]
   },
-  "include": ["**/*.wasm", "packages/shared/types/**/*.d.ts"],
+  "include": ["**/*.wasm"],
   "exclude": [
     ".wrangler",
     "node_modules",

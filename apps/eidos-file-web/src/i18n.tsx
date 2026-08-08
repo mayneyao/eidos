@@ -95,7 +95,7 @@ const en = {
     "Eidos File defines the portable file, shared runtime, typed fields, relations, saved views, and table experiences.",
   stackEidos: "Local-first application",
   stackEidosBody:
-    "Eidos Desktop combines Eidos File, documents, files, extensions, local AI, and Graft workflows into one personal data system.",
+    "Eidos Lite combines Eidos Files, ordinary files, local version history, and optional Sync in one focused workspace.",
   graftCommit: "Commit",
   graftCommitBody: "Name a coherent set of local table and schema changes.",
   graftDiff: "Diff",
@@ -205,7 +205,7 @@ const en = {
   records: "{count} records",
   noVisibleProperties: "No visible properties in this view.",
   chooseAnotherView:
-    "Choose another view or make a property visible in Eidos Desktop.",
+    "Choose another view or make a property visible in this view.",
   editProperty: "Edit {field} property",
   launchFooter: "Local by default · SQLite underneath · Open runtime boundary",
 } as const
@@ -299,7 +299,7 @@ const zh: Record<MessageKey, string> = {
     "Eidos File 定义可携带文件、共享 runtime、字段类型、关系、视图状态与多维表格体验。",
   stackEidos: "本地优先应用",
   stackEidosBody:
-    "Eidos Desktop 将 Eidos File、文档、文件、扩展、本地 AI 与 Graft 工作流组合为完整的个人数据系统。",
+    "Eidos Lite 将 Eidos File、普通文件、本地版本历史与可选同步组合在一个聚焦的工作区中。",
   graftCommit: "提交",
   graftCommitBody: "为一组相关的数据表和 schema 修改写下清晰的提交说明。",
   graftDiff: "差异",
@@ -402,7 +402,7 @@ const zh: Record<MessageKey, string> = {
   loadingRecords: "正在加载记录…",
   records: "{count} 条记录",
   noVisibleProperties: "此视图中没有可见字段。",
-  chooseAnotherView: "请选择其他视图，或在 Eidos Desktop 中显示字段。",
+  chooseAnotherView: "请选择其他视图，或在当前视图中显示字段。",
   editProperty: "编辑 {field} 字段",
   launchFooter: "默认本地 · 底层 SQLite · 开放 runtime 边界",
 }

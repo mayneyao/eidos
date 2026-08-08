@@ -8,7 +8,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
     name = "eidos",
     version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"),
     about = "Read and modify Eidos File (*.eidos) for agents and automation",
-    long_about = "A JSON-only, agent-first interface to the open Eidos File format. It works directly on .eidos files and does not connect to Eidos Desktop."
+    long_about = "A JSON-only, agent-first interface to the open Eidos File format. It works directly on .eidos files and does not require a running Eidos application."
 )]
 pub struct Cli {
     /// Explicitly request JSON. JSON is always the default and only output format.

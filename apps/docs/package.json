@@ -6,9 +6,7 @@
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
-    "precheck:examples": "pnpm --filter @eidos.space/extension-cli build",
-    "check:examples": "node scripts/check-examples.mjs",
-    "build": "pnpm run check:examples && astro build",
+    "build": "astro build",
     "preview": "astro preview",
     "deploy": "wrangler deploy",
     "deploy:preview": "wrangler deploy --env preview",
@@ -25,8 +23,6 @@
     "starlight-theme-flexoki": "^0.1.0"
   },
   "devDependencies": {
-    "@eidos.space/extension-cli": "workspace:*",
-    "ajv": "^8.20.0",
     "wrangler": "4.102.0"
   }
 }

@@ -1,7 +1,7 @@
 # Standalone Eidos CLI release
 
 Use this runbook for the Rust CLI in `apps/cli`. A CLI release is independent
-from the Desktop `v*` release surface.
+from Eidos Lite and Eidos File Web.
 
 ## Establish the release contract
 
@@ -12,14 +12,12 @@ from the Desktop `v*` release surface.
   it for every version; do not use GitHub's monorepo-generated release notes.
 - Tags use `cli-v<semver>` and trigger
   `.github/workflows/build-and-release-cli.yml` only.
-- Desktop app version bumps never rewrite the CLI version. Desktop packages
-  bundle the CLI version present at their source commit.
+- Eidos Lite version bumps never rewrite the CLI version.
 - CLI Releases set `make_latest: false` so they do not replace the repository's
-  Desktop Latest Release pointer.
+  Eidos Lite Latest Release pointer.
 - `https://download.eidos.space/cli/install.sh`, `/cli/install.ps1`, and
-  `/cli/latest` are served by `apps/download`. Its Desktop lookup must keep
-  filtering for stable `v*` tags so a stable `cli-v*` Release cannot shadow
-  Desktop downloads.
+  `/cli/latest` are served by `apps/download`. CLI tags never participate in
+  Lite installer or update selection.
 
 Expected release assets are:
 

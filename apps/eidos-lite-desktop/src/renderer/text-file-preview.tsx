@@ -18,12 +18,13 @@ import {
 import type { TextFilePreviewResult } from "../shared/contracts"
 import type { ResolvedAppearance } from "./app-appearance"
 import { useEidosLiteI18n } from "./i18n"
+import type PierreTextEditorSurfaceImplementation from "./pierre-text-editor-surface"
 
 let pierreTextEditorModule:
-  | Promise<typeof import("./pierre-text-editor-surface")>
+  | Promise<{ default: typeof PierreTextEditorSurfaceImplementation }>
   | undefined
 let LoadedPierreTextEditorSurface:
-  | (typeof import("./pierre-text-editor-surface"))["default"]
+  | typeof PierreTextEditorSurfaceImplementation
   | undefined
 
 async function loadPierreTextEditorSurface() {

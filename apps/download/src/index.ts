@@ -3,7 +3,6 @@ import {
   getEidosLiteUpdateRoute,
   releaseAssetNameForLiteUpdate,
   selectEidosLiteRelease,
-  selectPreferredDesktopRelease,
 } from "./release-routing.mjs"
 
 /**
@@ -173,9 +172,11 @@ export default {
         return Response.redirect(asset.browser_download_url, 302)
       }
 
-      const latestRelease = selectPreferredDesktopRelease(releases)
+      const latestRelease = selectEidosLiteRelease(releases, "stable")
       if (!latestRelease) {
-        return new Response("No stable Desktop release found", { status: 404 })
+        return new Response("No stable Eidos Lite release found", {
+          status: 404,
+        })
       }
       const extMap = {
         mac: ".dmg",
