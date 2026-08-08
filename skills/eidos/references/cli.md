@@ -252,9 +252,9 @@ to the file, so the revision advances while the server runs.
 eidos serve file.eidos --port 8420 --open
 ```
 
-The server binds `127.0.0.1` only. It is available on macOS and Linux; Windows
-builds reject the command. Prefer it for interactive review and bulk edits that
-are easier in a grid; keep using the JSON commands for scripted workflows.
+The server binds `127.0.0.1` only and is available on macOS, Linux, and
+Windows. Prefer it for interactive review and bulk edits that are easier in a
+grid; keep using the JSON commands for scripted workflows.
 
 ## Logical values
 

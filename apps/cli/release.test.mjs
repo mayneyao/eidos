@@ -86,21 +86,30 @@ test("CLI workflow publishes the complete independent release contract", async (
 })
 
 test("Windows builds include and smoke-test the embedded serve runtime", async () => {
-  const [app, cargo, readme, releaseWorkflow, windowsGate, windowsSmoke] =
-    await Promise.all([
-      read(files.app),
-      read(files.cargo),
-      read(files.cliReadme),
-      read(files.releaseWorkflow),
-      read(files.windowsGateWorkflow),
-      read(files.windowsSmoke),
-    ])
+  const [
+    app,
+    cargo,
+    readme,
+    releaseWorkflow,
+    skillCliReference,
+    windowsGate,
+    windowsSmoke,
+  ] = await Promise.all([
+    read(files.app),
+    read(files.cargo),
+    read(files.cliReadme),
+    read(files.releaseWorkflow),
+    read(files.skillCliReference),
+    read(files.windowsGateWorkflow),
+    read(files.windowsSmoke),
+  ])
 
   assert.match(cargo, /^qjs-host = \{ path = "qjs-host" \}$/mu)
   assert.doesNotMatch(cargo, /cfg\(not\(windows\)\)/u)
   assert.doesNotMatch(app, /cfg\((?:not\()?windows/u)
   assert.doesNotMatch(app, /serve is not supported on Windows/u)
   assert.doesNotMatch(readme, /serve` is not available on Windows/u)
+  assert.doesNotMatch(skillCliReference, /Windows builds reject the command/u)
   assert.match(windowsSmoke, /Invoke-WebRequest/u)
   assert.match(windowsSmoke, /api\/manifest/u)
   assert.match(windowsGate, /runs-on: windows-latest/u)
