@@ -32,7 +32,7 @@
     "test:eidos-lite": "pnpm run --filter @eidos.space/eidos-lite-desktop test",
     "test:eidos-lite:performance": "pnpm run --filter @eidos.space/eidos-lite-desktop test:performance",
     "test:eidos-lite:performance:large": "pnpm run --filter @eidos.space/eidos-lite-desktop test:performance:large",
-    "test:eidos-file": "pnpm run --filter @eidos.space/eidos-file test && pnpm run --filter @eidos.space/eidos-file-ui test && pnpm run --filter @eidos.space/eidos-file-web test",
+    "test:eidos-file": "pnpm run --filter @eidos.space/eidos-file test && pnpm run --filter @eidos.space/eidos-file-ui test && pnpm run --filter @eidos.space/eidos-file-serve test && pnpm run --filter @eidos.space/eidos-file-web test",
     "test:sqlite-web-viewer": "pnpm run --filter @eidos.space/sqlite-web-viewer test",
     "test:cli-release": "node --test apps/cli/install.test.mjs apps/cli/release.test.mjs apps/download/src/release-routing.test.mjs",
     "lint": "oxlint .",

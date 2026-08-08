@@ -23,6 +23,10 @@ import type {
 import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui/context"
 import { exportEidosFileViewCsv } from "@eidos.space/eidos-file-ui/eidos-file-editor-chrome"
 import { EidosFileEditorShell } from "@eidos.space/eidos-file-ui/eidos-file-editor-shell"
+import {
+  EidosFileEmptyState,
+  type EidosFileEmptyStateTemplate,
+} from "@eidos.space/eidos-file-ui/eidos-file-empty-state"
 import { EidosFileFieldCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-field-create-popover"
 import { EidosFileQueryToolbar } from "@eidos.space/eidos-file-ui/eidos-file-query-toolbar"
 import { EidosFileSheetCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-sheet-create-popover"
@@ -52,6 +56,7 @@ import {
   fetchCliHostManifest,
   type CliHostManifest,
 } from "./client"
+import { firstTableTemplate, resolveServeEditorState } from "./empty-file"
 
 const EidosFileEditorView = lazy(() =>
   import("@eidos.space/eidos-file-ui/eidos-file-editor-view").then(
@@ -151,6 +156,12 @@ export function ServeApp() {
   const [activeViews, setActiveViews] = useState<Record<string, string>>({})
   const [search, setSearch] = useState("")
   const [notice, setNotice] = useState<string | null>(null)
+  const [creatingTemplate, setCreatingTemplate] =
+    useState<EidosFileEmptyStateTemplate | null>(null)
+  const [templateError, setTemplateError] = useState<{
+    template: EidosFileEmptyStateTemplate
+    message: string
+  } | null>(null)
   const [saving, setSaving] = useState(false)
   const [propertyField, setPropertyField] = useState<EidosFileFieldInfo | null>(
     null
@@ -473,6 +484,21 @@ export function ServeApp() {
     [onStructureSnapshot, snapshot]
   )
 
+  const createFirstTable = useCallback(
+    async (template: EidosFileEmptyStateTemplate) => {
+      setCreatingTemplate(template)
+      setTemplateError(null)
+      try {
+        await createTable(firstTableTemplate(template, locale))
+      } catch (error) {
+        setTemplateError({ template, message: errorMessage(error) })
+      } finally {
+        setCreatingTemplate(null)
+      }
+    },
+    [createTable, locale]
+  )
+
   const renameTable = useCallback(
     async (tableId: string, name: string) => {
       const current = clientRef.current
@@ -666,6 +692,27 @@ export function ServeApp() {
     }
   }, [activeTable, activeView, client, onStructureSnapshot, saving, snapshot])
 
+  const editorState = resolveServeEditorState({
+    bootPhase,
+    hasSnapshot: snapshot !== null,
+    hasClient: client !== null,
+    hasActiveTable: activeTable !== null,
+  })
+
+  const noticeToast = notice ? (
+    <div className="toast" role="alert">
+      <AlertTriangle size={15} aria-hidden="true" />
+      <span>{notice}</span>
+      <button
+        type="button"
+        aria-label="Dismiss message"
+        onClick={() => setNotice(null)}
+      >
+        <X size={14} />
+      </button>
+    </div>
+  ) : null
+
   if (bootPhase === "no-manifest") {
     return (
       <main className="serve-shell">
@@ -691,7 +738,7 @@ export function ServeApp() {
     )
   }
 
-  if (bootPhase !== "ready" || !snapshot || !client || !activeTable) {
+  if (editorState === "loading" || !snapshot || !client) {
     return (
       <main className="serve-shell">
         <div className="boot-loading" role="status">
@@ -699,6 +746,33 @@ export function ServeApp() {
           <span>Opening {manifest?.fileName ?? "Eidos File"}…</span>
         </div>
       </main>
+    )
+  }
+
+  if (editorState === "empty" || !activeTable) {
+    return (
+      <EidosFileUIProvider themeName={theme} locale={locale}>
+        <main className="serve-shell">
+          <EidosFileEditorShell className="min-h-0 flex-1 !h-auto">
+            <EidosFileEmptyState
+              disabled={saving}
+              creatingTemplate={creatingTemplate}
+              templateError={templateError}
+              importAction={
+                pluginContext ? (
+                  <EidosFilePluginSlot
+                    context={pluginContext}
+                    plugins={editorPlugins}
+                    slot="sheet-create"
+                  />
+                ) : null
+              }
+              onCreateTemplate={(template) => void createFirstTable(template)}
+            />
+          </EidosFileEditorShell>
+          {noticeToast}
+        </main>
+      </EidosFileUIProvider>
     )
   }
 
@@ -918,19 +992,7 @@ export function ServeApp() {
           </Suspense>
         </EidosFileEditorShell>
 
-        {notice ? (
-          <div className="toast" role="alert">
-            <AlertTriangle size={15} aria-hidden="true" />
-            <span>{notice}</span>
-            <button
-              type="button"
-              aria-label="Dismiss message"
-              onClick={() => setNotice(null)}
-            >
-              <X size={14} />
-            </button>
-          </div>
-        ) : null}
+        {noticeToast}
       </main>
     </EidosFileUIProvider>
   )

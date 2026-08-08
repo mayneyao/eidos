@@ -1,33 +1,24 @@
 ## What's new
 
-### Local web editor on Windows
+### Empty files open correctly in the local editor
 
-`eidos serve` now opens the embedded Eidos File editor on Windows x64 as well
-as macOS and Linux:
+Files created without an initial table now open in `eidos serve` instead of
+remaining on the loading screen:
 
-```powershell
-eidos serve tracker.eidos --open
+```sh
+eidos create example.eidos --title "Example"
+eidos serve example.eidos --open
 ```
 
-The Windows release uses the same embedded QuickJS runtime, rusqlite bridge,
-loopback-only HTTP server, and direct-to-file mutation path as the Unix
-builds. The release pipeline compiles and tests the complete workspace on
-MSVC, then starts the packaged `.exe`, opens the runtime API, and verifies the
-embedded editor assets before publishing it.
+The editor shows the shared Eidos File empty state and can create the first
+table from a blank, tasks, or project-tracker template. Once created, the table
+is saved directly to the served file.
 
-### Consistent embedded editor UI
+### Consistent empty-state behavior
 
-The CLI editor now consumes the same host theme, typography, Tailwind source,
-and Eidos File UI components as Eidos Web and Lite. This also removes the
-stale generated-package path that could make `eidos serve` display older
-styles than the current editor source.
-
-### Intuitive negative filters
-
-Negative filters now use total boolean semantics. For example, `Priority is
-not P2` includes rows whose Priority is blank, while `is null` and `is not
-null` remain the explicit blank-value operators. The behavior is aligned
-between the format specification, runtime, and Rust CLI query engine.
+CLI Serve now uses the same empty-state component and first-table templates as
+Eidos File Web and Eidos Lite. Loading, empty, and ready states are resolved
+explicitly so a valid tableless Eidos File is not mistaken for a booting file.
 
 ### Version-matched Eidos Skill for Codex
 
@@ -35,7 +26,7 @@ Install the Eidos Skill from the same immutable CLI tag to keep the safe
 `context` → `apply` → `validate` workflow aligned with this release:
 
 ```sh
-npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.0/skills/eidos --skill eidos -g -a codex -y
+npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.1/skills/eidos --skill eidos -g -a codex -y
 ```
 
 ## Install
@@ -52,5 +43,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v0.36.0 and verify the downloaded archive against the
+The installers select v0.36.1 and verify the downloaded archive against the
 release `SHA256SUMS` before replacing an existing binary.

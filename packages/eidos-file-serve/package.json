@@ -10,6 +10,7 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
