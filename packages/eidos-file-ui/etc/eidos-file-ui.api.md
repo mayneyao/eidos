@@ -1742,7 +1742,7 @@ declare function EidosFileViewHost({
   renderEmpty,
   disabled,
   ...props
-}: EidosFileViewHostProps): string | number | boolean | _$react_jsx_runtime0.JSX.Element | Iterable<ReactNode> | null | undefined;
+}: EidosFileViewHostProps): string | number | boolean | Iterable<ReactNode> | _$react_jsx_runtime0.JSX.Element | null | undefined;
 //#endregion
 export { EidosFileProvider, EidosFileProviderProps, EidosFileReactContextValue, EidosFileReactTrust, EidosFileViewHost, EidosFileViewHostProps, useEidosFile, useEidosFileSession };
 ```
@@ -1943,7 +1943,7 @@ declare function EidosStandardView({
   pageSize,
   className,
   renderEmpty
-}: EidosStandardViewProps): string | number | boolean | _$react_jsx_runtime0.JSX.Element | Iterable<ReactNode> | null | undefined;
+}: EidosStandardViewProps): string | number | boolean | Iterable<ReactNode> | _$react_jsx_runtime0.JSX.Element | null | undefined;
 //#endregion
 export { EidosStandardView, EidosStandardViewProps, EidosUIRuntimeContextValue, EidosUIRuntimeProvider, EidosUIRuntimeProviderProps, useEidosUIRuntime };
 ```
@@ -2084,7 +2084,7 @@ type KanbanHeaderProps = {
   color: Status["color"];
   className?: string;
 };
-declare const KanbanHeader: (props: KanbanHeaderProps) => string | number | boolean | _$react_jsx_runtime0.JSX.Element | Iterable<React.ReactNode> | null | undefined;
+declare const KanbanHeader: (props: KanbanHeaderProps) => string | number | boolean | Iterable<React.ReactNode> | _$react_jsx_runtime0.JSX.Element | null | undefined;
 type KanbanProviderProps = {
   children: ReactNode;
   onDragEnd: (event: DragEndEvent$1) => void;

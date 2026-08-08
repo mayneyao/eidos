@@ -8,6 +8,12 @@ const manifest = JSON.parse(
   readFileSync(path.join(root, "package.json"), "utf8")
 )
 const sections = []
+const reactHtmlAttributes = "[A-Za-z_$][\\w$]*\\.HTMLAttributes<[^>]+>"
+const commandRefUnionAtom = `(?:"key"|"asChild"|keyof ${reactHtmlAttributes})`
+const commandRefUnionPattern = new RegExp(
+  `(${commandRefUnionAtom}) \\| (${commandRefUnionAtom}) \\| (${commandRefUnionAtom})`,
+  "g"
+)
 
 for (const [name, target] of Object.entries(manifest.exports).sort(
   ([left], [right]) => left.localeCompare(right)
@@ -21,6 +27,19 @@ for (const [name, target] of Object.entries(manifest.exports).sort(
     .replace(
       /"key" \| keyof ([A-Za-z_$][\w$]*\.HTMLAttributes<[^>]+>)/g,
       'keyof $1 | "key"'
+    )
+    .replace(commandRefUnionPattern, (union, left, middle, right) => {
+      const members = [left, middle, right]
+      const attributes = members.find((member) => member.startsWith("keyof "))
+      return attributes &&
+        members.includes('"key"') &&
+        members.includes('"asChild"')
+        ? `${attributes} | "key" | "asChild"`
+        : union
+    })
+    .replace(
+      /(_\$react_jsx_runtime\d+\.JSX\.Element) \| (Iterable<(?:[A-Za-z_$][\w$]*\.)?ReactNode>)/g,
+      "$2 | $1"
     )
     .replace(/^\/\/# sourceMappingURL=.*$/gm, "")
     .trim()
