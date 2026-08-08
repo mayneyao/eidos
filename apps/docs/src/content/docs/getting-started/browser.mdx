@@ -1,0 +1,42 @@
+---
+title: Web Editor quickstart
+description: Create or open one local Eidos File in a browser.
+sidebar:
+  order: 10
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components"
+
+The Web Editor creates and edits Eidos Files directly in your browser. It does
+not require installation or an account.
+
+<Steps>
+
+1. Open [editor.eidos.space](https://editor.eidos.space/).
+
+2. Choose **New** for a blank file, **Open** for an existing `.eidos` file, or
+   open the bundled sample first.
+
+3. Add records, fields, tables, or views. Double-click a Grid cell or press
+
+   <kbd>Enter</kbd> to edit it.
+
+4. Use **Save** to update a directly opened file. If the browser cannot keep a
+   writable file handle, use **Save As** or **Download a copy**.
+
+</Steps>
+
+<Aside type="note" title="Know which copy you are editing">
+  Chromium-based browsers can usually write back to a file after you grant
+  permission. Other browsers import a working copy and require Save As or a
+  download. The editor shows the current save state in its titlebar.
+</Aside>
+
+## What stays local
+
+File bytes, SQLite queries, and edits remain on the device. The editor keeps a
+browser-private recovery copy for unsaved work where supported; that recovery
+copy is not a substitute for saving or backing up the `.eidos` file.
+
+Continue with [Eidos File basics](/user-guide/eidos-file-basics/) or
+[Data location and safety](/user-guide/data-safety/).

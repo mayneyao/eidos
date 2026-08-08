@@ -1,0 +1,38 @@
+---
+title: Eidos Specifications
+description: Normative, independently implementable contracts for the Eidos File stack.
+sidebar:
+  order: 1
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+Eidos File interoperability is defined by four specifications. The English
+pages are normative. Chinese pages are informative translations and cannot
+override the English contract.
+
+<CardGrid>
+  <LinkCard
+    title="Eidos File Format 1.0"
+    description="SQLite container identity, canonical schema, stored values, and validity."
+    href="/specifications/file-format-1-0/"
+  />
+  <LinkCard
+    title="Eidos Runtime 1.0"
+    description="Logical types, queries, filters, derived values, mutations, revisions, and errors."
+    href="/specifications/runtime-1-0/"
+  />
+  <LinkCard
+    title="Eidos Adapter 1.0"
+    description="ConnectionPort, transport, file lifecycle, persistence, and platform profiles."
+    href="/specifications/adapter-1-0/"
+  />
+  <LinkCard
+    title="Eidos UI 1.0"
+    description="RuntimeClient and HostServices consumption, interaction, editing, and accessibility."
+    href="/specifications/ui-1-0/"
+  />
+</CardGrid>
+
+The canonical source files are available in
+[`docs/specs`](https://github.com/mayneyao/eidos/tree/dev/docs/specs).

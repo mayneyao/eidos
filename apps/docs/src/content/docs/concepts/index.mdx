@@ -1,36 +1,46 @@
 ---
 title: Core concepts
-description: The stable concepts shared by Eidos File and Eidos Lite.
+description: Eidos File, Runtime, Host, Space, shared UI, history, and Sync.
 sidebar:
-  order: 1
+  order: 40
 ---
 
 ## Eidos File
 
-An Eidos File is a physical SQLite file with canonical metadata and data
-objects. The Runtime maps those objects to typed tables, fields, records, and
-views. Hosts must not reinterpret those semantics.
+An Eidos File is a SQLite application file with canonical metadata and data
+objects. Its Runtime maps those objects to typed tables, fields, records,
+relations, formulas, and saved views. A `.eidos` extension alone does not make
+an arbitrary SQLite database a valid Eidos File.
+
+## Runtime
+
+Runtime owns logical meaning: query, filter, sort, Formula, Lookup, Relation,
+conversion, revision, mutation, and validation behavior. A host must call
+Runtime instead of reimplementing those rules in UI code or raw SQL.
+
+## Host and Adapter
+
+A host is the environment around Runtime. The browser handles file permission
+and recovery; Lite handles folders, local processes, and native file dialogs;
+CLI Serve handles one local file over HTTP. Adapters connect Runtime to SQLite
+and platform capabilities without changing data semantics.
 
 ## Space
 
-In Eidos Lite, a Space is an ordinary folder the user opens. It may contain
-multiple `.eidos` files and other normal files. Eidos does not replace it with
-a proprietary container.
-
-## Runtime and hosts
-
-The portable Runtime owns query, Formula, Lookup, Relation, conversion,
-revision, and validation meaning. Browser, desktop, and CLI adapters supply
-SQLite connections and platform capabilities without changing those results.
+In Eidos Lite, a Space is an ordinary folder chosen by the user. It can contain
+several Eidos Files and other files. Space describes a desktop working context,
+not a new database format.
 
 ## Shared UI
 
-`@eidos.space/eidos-file-ui` provides the editor used by Eidos File Web, Eidos
-Lite, and `eidos serve`. Grid, Gallery, Kanban, record editing, query controls,
-and semantic theme tokens are shared implementations rather than host forks.
+`@eidos.space/eidos-file-ui` supplies the editor shared by Web, Lite, and CLI
+Serve. Grid, Gallery, Kanban, record editing, query controls, and theme roles
+are shared implementations.
 
-## Version history and Sync
+## Graft, history, and Sync
 
-Eidos Lite uses Graft for local Space history and an optional authenticated
-remote. Versioning and Sync do not define whether local files are readable:
-files remain available while offline or signed out.
+Graft provides version history for SQLite-backed files and Spaces. Eidos Lite
+can connect that local history to an optional authenticated remote. Local files
+remain usable while offline or signed out.
+
+For exact ownership rules, read the [specification suite](/specifications/).

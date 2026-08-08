@@ -1,38 +1,42 @@
 ---
-title: 从这里开始
-description: 选择合适的 Eidos File host，使用真正属于你的数据。
+title: 快速开始
+description: 创建或打开第一个 Eidos File。
 sidebar:
   order: 1
 ---
 
-**Eidos File** 是标准 SQLite 数据库，并为表、字段、记录和保存的视图定义了明确结构。
-离开任何单一 Eidos 应用后，这种格式仍然可用。
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-## 选择 Host
+Eidos File 把结构化数据保存在一个可移植的 SQLite 文件中。你可以直接在浏览器中打开，
+通过 CLI 在本地使用，或用 Eidos Lite 管理整个文件夹。
 
-| Host                | 适用场景                                     |
-| ------------------- | -------------------------------------------- |
-| Eidos Lite          | 管理包含本地文件的文件夹、版本历史与可选同步 |
-| Eidos File Web      | 在兼容浏览器中打开单个 `.eidos` 文件         |
-| Eidos CLI           | 从终端创建、检查、查询、修改和服务文件       |
-| Eidos File packages | 在其他应用中嵌入 Runtime 或共享 React UI     |
+<CardGrid>
+  <LinkCard
+    title="在浏览器中打开一个文件"
+    description="无需安装应用，直接创建或编辑本地文件。"
+    href="/zh-cn/getting-started/browser/"
+  />
+  <LinkCard
+    title="用 CLI 创建并服务文件"
+    description="安装 CLI、创建文件并打开本地编辑器。"
+    href="/zh-cn/getting-started/cli/"
+  />
+  <LinkCard
+    title="用 Eidos Lite 管理本地 Space"
+    description="在普通文件夹中管理多个文件、本地历史和可选同步。"
+    href="/zh-cn/getting-started/eidos-lite/"
+  />
+  <LinkCard
+    title="在应用里集成 Eidos"
+    description="使用 Eidos File Runtime 或共享 React UI。"
+    href="/zh-cn/developers/"
+  />
+</CardGrid>
 
-## 体验 CLI
+## 关于 Eidos File
 
-安装当前稳定版本，创建文件并打开本地编辑器：
+**Eidos File** 是 SQLite application file，使用带版本的格式保存数据表、字段、记录、关系和
+视图。Web Editor、Eidos Lite 与 CLI Serve 使用同一个 Runtime 读写文件。
 
-```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://download.eidos.space/cli/install.sh | sh
-
-eidos create tracker.eidos --title "Project Tracker"
-eidos serve tracker.eidos --open
-```
-
-Windows PowerShell：
-
-```powershell
-irm https://download.eidos.space/cli/install.ps1 | iex
-```
-
-下一步可以阅读[核心概念](/zh-cn/concepts/)或 [Eidos File 参考](/zh-cn/reference/)。
+进一步了解 Runtime、Space 和 Graft，请阅读[核心概念](/zh-cn/concepts/)；要继续编辑文件，
+请前往[使用指南](/zh-cn/user-guide/)。

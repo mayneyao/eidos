@@ -1,0 +1,67 @@
+---
+title: CLI quickstart
+description: Install Eidos CLI, create a useful file, and open its local editor.
+sidebar:
+  order: 30
+---
+
+import { Aside, TabItem, Tabs } from "@astrojs/starlight/components"
+
+The standalone `eidos` CLI works directly with `.eidos` files. It does not
+need Eidos Lite or a background service.
+
+## 1. Install
+
+<Tabs syncKey="cli-install">
+  <TabItem label="macOS / Linux">
+
+```bash
+curl -fsSL https://download.eidos.space/cli/install.sh | sh
+```
+
+  </TabItem>
+  <TabItem label="Windows PowerShell">
+
+```powershell
+irm https://download.eidos.space/cli/install.ps1 | iex
+```
+
+  </TabItem>
+</Tabs>
+
+Restart the terminal if `eidos` is not immediately on `PATH`, then run
+`eidos --help`.
+
+## 2. Create a file with a table
+
+```bash
+eidos create example.eidos \
+  --title "Example" \
+  --table Tasks \
+  --label-field Title \
+  --fields '[{"name":"Title","type":"text","nullable":false},{"name":"Status","type":"select"}]'
+```
+
+Creating the first table makes the result useful in every released editor,
+including CLI versions that predate the empty-file start screen.
+
+## 3. Open the local editor
+
+```bash
+eidos serve example.eidos --open
+```
+
+The server listens on `127.0.0.1`, opens the shared Eidos File UI, and writes
+committed edits directly to `example.eidos`. Stop it with <kbd>Ctrl</kbd> +
+
+<kbd>C</kbd>.
+
+<Aside type="tip" title="Verify the result">
+
+```bash
+eidos example.eidos validate --level full
+```
+
+</Aside>
+
+Continue with the [CLI and automation guide](/cli/).

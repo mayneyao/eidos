@@ -4,14 +4,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "astro dev",
-    "start": "astro dev",
-    "build": "astro build",
+    "sync:specs": "node ./scripts/sync-specs.mjs",
+    "check:content": "pnpm run sync:specs && node ./scripts/check-content.mjs",
+    "dev": "pnpm run sync:specs && astro dev",
+    "start": "pnpm run dev",
+    "build": "pnpm run check:content && astro build && node ./scripts/check-build.mjs",
     "preview": "astro preview",
     "deploy": "wrangler deploy",
     "deploy:preview": "wrangler deploy --env preview",
     "astro": "astro",
-    "typecheck": "astro sync && tsc --noEmit",
+    "typecheck": "pnpm run check:content && astro check",
     "typecheck:tsgo": "echo 'skip'"
   },
   "dependencies": {
@@ -23,6 +25,9 @@
     "starlight-theme-flexoki": "^0.1.0"
   },
   "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@astrojs/markdown-satteri": "0.3.0",
+    "typescript": "5.8.3",
     "wrangler": "4.102.0"
   }
 }

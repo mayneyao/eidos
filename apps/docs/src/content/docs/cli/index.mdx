@@ -1,0 +1,55 @@
+---
+title: CLI and automation
+description: Use the JSON-only Eidos CLI as a safe machine boundary for Eidos Files.
+sidebar:
+  order: 1
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+`eidos` is an agent-first Rust CLI for the open Eidos File format. It reads and
+modifies files directly and does not connect to a running Eidos application.
+
+<CardGrid>
+  <LinkCard
+    title="Install and create a file"
+    description="Complete the first visual workflow in a few commands."
+    href="/getting-started/cli/"
+  />
+  <LinkCard
+    title="Automate safely"
+    description="Use context, revision checks, atomic apply, and full validation."
+    href="/cli/automation-workflow/"
+  />
+  <LinkCard
+    title="Serve the local editor"
+    description="Open the shared Eidos File UI for one path on localhost."
+    href="/cli/serve/"
+  />
+</CardGrid>
+
+## Command model
+
+The help output uses command-first syntax:
+
+```bash
+eidos inspect tracker.eidos
+eidos context tracker.eidos Tasks --fields Title,Status --limit 50
+eidos validate tracker.eidos --level full
+```
+
+File-first forms such as `eidos tracker.eidos inspect` are also accepted for
+compatibility. New scripts should prefer command-first syntax so they match
+`eidos --help`.
+
+Successful commands write one JSON document to stdout. Failed commands write
+one JSON error document to stderr and return a nonzero exit status.
+
+## Supported responsibility
+
+The CLI creates, inspects, queries, mutates, validates, and serves Eidos Files.
+It does not manage Eidos Lite Space lifecycle, ordinary documents, application
+RPC, version history, or Sync. Use normal file tools for ordinary files and
+Graft-aware workflows for history.
+
+Raw SQLite writes are not a supported automation interface.

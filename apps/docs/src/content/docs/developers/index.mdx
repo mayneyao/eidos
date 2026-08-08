@@ -1,0 +1,48 @@
+---
+title: Build with Eidos
+description: Use the Eidos CLI, Runtime, React UI, and interoperability specifications.
+sidebar:
+  order: 1
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+Use the CLI for process automation, Runtime for typed data access, and the
+shared React package for an Eidos editor. Direct metadata-table access and SQL
+generation are not supported integration APIs.
+
+| Build                                  | Use                                                                      | Provides                                                          |
+| -------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| Script or Agent automation             | [`eidos` CLI](/cli/)                                                     | Stable JSON process boundary with atomic mutations and validation |
+| Node application working with one file | [`@eidos.space/eidos-file/node-sqlite`](/developers/runtime-quickstart/) | Built-in `node:sqlite` with Runtime-owned semantics               |
+| Browser application                    | `@eidos.space/eidos-file/browser`                                        | SQLite WASM stays in a Dedicated Worker                           |
+| React viewer or editor host            | [`@eidos.space/eidos-file-ui`](/reference/eidos-file-ui-package/)        | Shared UI consumes only RuntimeClient and HostServices            |
+| Independent compatible implementation  | [Eidos Specifications](/specifications/)                                 | Normative format, behavior, adapter, and interaction contracts    |
+
+<CardGrid>
+  <LinkCard
+    title="Runtime quickstart"
+    description="Create, mutate, validate, and reopen a file with Node's built-in SQLite."
+    href="/developers/runtime-quickstart/"
+  />
+  <LinkCard
+    title="Runtime and host boundaries"
+    description="Understand which layer owns data meaning, platform behavior, and presentation."
+    href="/developers/runtime-and-hosts/"
+  />
+  <LinkCard
+    title="React UI package"
+    description="Compose the standard viewer or editor without giving React direct SQLite access."
+    href="/reference/eidos-file-ui-package/"
+  />
+  <LinkCard
+    title="Custom saved views"
+    description="Preserve open view metadata and register trusted React renderers."
+    href="/reference/eidos-file-custom-views/"
+  />
+</CardGrid>
+
+## Public packages
+
+`@eidos.space/eidos-file` and `@eidos.space/eidos-file-ui` are MIT-licensed.
+The repository and first-party applications remain under AGPL v3.

@@ -1,0 +1,39 @@
+---
+title: Data location and safety
+description: Know where your Eidos data lives and when writes become durable.
+sidebar:
+  order: 20
+---
+
+## Where data lives
+
+| Host                           | Durable data                                | How writes reach it                                                          |
+| ------------------------------ | ------------------------------------------- | ---------------------------------------------------------------------------- |
+| Web Editor, direct-file mode   | The `.eidos` file you selected              | **Save** writes after browser permission and conflict checks                 |
+| Web Editor, imported-copy mode | A file you save or download                 | The in-browser working copy is not the original; use **Save As** or download |
+| CLI commands                   | The path passed to `eidos`                  | Successful mutations commit atomically to that file                          |
+| CLI Serve                      | The path passed to `eidos serve`            | Each committed editor mutation writes through to the file                    |
+| Eidos Lite                     | `.eidos` files in the ordinary Space folder | Runtime mutations write to those local files; history is a separate layer    |
+
+No supported host requires uploading a file merely to query or edit it.
+
+## Safe habits
+
+1. Keep ordinary backups of important `.eidos` files or the whole Space.
+2. Do not edit the same file through multiple writers at once. Close the other
+   host if you see a busy, locked, or external-change warning.
+3. Watch the titlebar save state before closing a browser tab.
+4. Use **Save As** when write permission is unavailable or the original changed
+   outside Eidos.
+5. After automated writes, run full validation.
+
+```bash
+eidos important.eidos validate --level full
+```
+
+## Raw SQLite access
+
+It is reasonable to inspect an Eidos File with SQLite tools. Direct SQL writes
+are not a supported editing boundary because they can bypass revision,
+canonical value, relation, derived-field, and validation rules. Use Runtime or
+the CLI for changes.

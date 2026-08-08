@@ -1,0 +1,54 @@
+---
+title: Troubleshooting
+description: Resolve common Eidos File, Web Editor, CLI, and save problems.
+sidebar:
+  order: 40
+---
+
+## A file will not open
+
+Run a full validation and read the JSON error:
+
+```bash
+eidos problem.eidos validate --level full
+```
+
+Check that the path ends in `.eidos`, the file is actually SQLite, and it was
+created by a compatible Eidos File implementation. Renaming an arbitrary
+SQLite database does not convert it.
+
+## Web edits did not reach the original
+
+Look at the titlebar state. Imported-copy mode and denied write permission
+require **Save As** or **Download a copy**. If the original changed outside the
+editor, choose reload, explicit overwrite, or Save As rather than silently
+replacing either version.
+
+## The file is busy or locked
+
+Close other Eidos, SQLite, preview, backup, or indexing processes that may hold
+the file. Do not run Desktop development and Node tests against the same native
+SQLite binary concurrently in this repository.
+
+## `eidos serve` does not open a browser
+
+Start without `--open`, then copy the printed loopback URL into a browser:
+
+```bash
+eidos serve example.eidos --port 8420
+```
+
+The server intentionally binds only `127.0.0.1`. Check local firewall or proxy
+rules if the URL is unreachable. If an older CLI keeps loading an empty file,
+create the first table with the command in the [CLI quickstart](/getting-started/cli/)
+or upgrade to a release with empty-file startup support.
+
+## A command failed in automation
+
+Successful CLI commands emit one JSON document to stdout. Failures emit one
+JSON error document to stderr and return a nonzero status. Preserve stderr and
+the exit code; do not parse human terminal text.
+
+If the problem remains, include the CLI version, operating system, validation
+output, and minimal reproduction in a
+[GitHub issue](https://github.com/mayneyao/eidos/issues).

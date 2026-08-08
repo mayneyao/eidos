@@ -1,0 +1,41 @@
+---
+title: Use Eidos
+description: Everyday guidance for editing, saving, recovering, and organizing Eidos Files.
+sidebar:
+  order: 1
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+Eidos stores structured data in `.eidos` files. The Web Editor opens one file
+in the browser, CLI Serve opens one local file, and Eidos Lite manages files in
+an ordinary folder.
+
+<CardGrid>
+  <LinkCard
+    title="Eidos File basics"
+    description="Learn how tables, fields, records, views, and search work."
+    href="/user-guide/eidos-file-basics/"
+  />
+  <LinkCard
+    title="Data location and safety"
+    description="Know where each host keeps data and when a change reaches the original file."
+    href="/user-guide/data-safety/"
+  />
+  <LinkCard
+    title="History, recovery, and Sync"
+    description="Separate browser recovery, local checkpoints, backups, and optional remote Sync."
+    href="/user-guide/history-and-sync/"
+  />
+  <LinkCard
+    title="Troubleshooting"
+    description="Diagnose invalid files, save state, locks, CLI Serve, and browser permissions."
+    href="/user-guide/troubleshooting/"
+  />
+</CardGrid>
+
+## Files and applications
+
+Your data is stored in the `.eidos` file. An application may keep a temporary
+working or recovery copy while you edit, so check its save state before closing
+the file.

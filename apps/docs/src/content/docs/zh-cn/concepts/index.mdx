@@ -1,31 +1,41 @@
 ---
 title: 核心概念
-description: Eidos File 与 Eidos Lite 共享的稳定概念。
+description: Eidos File、Runtime、Host、Space、共享 UI、历史与同步。
 sidebar:
-  order: 1
+  order: 40
 ---
 
 ## Eidos File
 
-Eidos File 是包含规范 metadata 与 data objects 的物理 SQLite 文件。Runtime 将这些对象映射为
-带类型的表、字段、记录和视图；Host 不得重新解释这些语义。
+Eidos File 是带规范 metadata 与 data object 的 SQLite application file。Runtime
+把它们映射为带类型的表、字段、记录、关系、公式和保存的视图。只有 `.eidos` 扩展名，不能让
+任意 SQLite 数据库自动成为有效的 Eidos File。
+
+## Runtime
+
+Runtime 拥有 logical meaning：query、filter、sort、Formula、Lookup、Relation、
+conversion、revision、mutation 与 validation 行为。Host 必须调用 Runtime，不能在 UI
+代码或 raw SQL 中重复实现这些规则。
+
+## Host 与 Adapter
+
+Host 是 Runtime 周围的运行环境。浏览器负责文件授权与恢复；Lite 负责文件夹、本地进程与原生
+文件对话框；CLI Serve 通过 HTTP 处理一个本地文件。Adapter 把 Runtime 连接到 SQLite 与
+平台能力，但不能改变数据语义。
 
 ## Space
 
-在 Eidos Lite 中，Space 是用户打开的普通文件夹，可以包含多个 `.eidos` 文件和其他普通文件。
-Eidos 不会把它替换为专有容器。
-
-## Runtime 与 Host
-
-可移植 Runtime 负责 query、Formula、Lookup、Relation、conversion、revision 与 validation 语义。
-Browser、Desktop 和 CLI adapter 提供 SQLite connection 与平台能力，但不能改变结果。
+在 Eidos Lite 中，Space 是用户选择的普通文件夹，可以包含多个 Eidos File 和其他文件。
+Space 描述桌面工作上下文，不是新的数据库格式。
 
 ## 共享 UI
 
-`@eidos.space/eidos-file-ui` 是 Eidos File Web、Eidos Lite 与 `eidos serve` 共用的编辑器。
-Grid、Gallery、Kanban、记录编辑、查询控件和语义主题 token 都是共享实现，不在 host 中分叉。
+`@eidos.space/eidos-file-ui` 是 Web、Lite 与 CLI Serve 共用的编辑器。Grid、
+Gallery、Kanban、记录编辑、查询控件和主题角色都是共享实现。
 
-## 版本历史与同步
+## Graft、历史与同步
 
-Eidos Lite 使用 Graft 管理本地 Space 历史，并可选连接认证远端。版本管理和同步不决定本地文件
-是否可读；离线或退出账号后文件仍然可用。
+Graft 为 SQLite 文件和 Space 提供版本历史。Eidos Lite 可以把本地历史连接到可选的认证远端。
+离线或退出账号时，本地文件仍然可用。
+
+精确的 ownership 规则见[规范套件](/zh-cn/specifications/)。

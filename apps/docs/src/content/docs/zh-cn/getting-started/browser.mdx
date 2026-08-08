@@ -1,0 +1,37 @@
+---
+title: Web Editor 快速开始
+description: 在浏览器里创建或打开一个本地 Eidos File。
+sidebar:
+  order: 10
+---
+
+import { Aside, Steps } from "@astrojs/starlight/components"
+
+Web Editor 直接在浏览器中创建和编辑 Eidos File，无需安装，也不需要账号。
+
+<Steps>
+
+1. 打开 [editor.eidos.space](https://editor.eidos.space/)。
+
+2. 选择 **新建** 创建空白文件，选择 **打开** 载入已有 `.eidos` 文件，也可以先打开内置示例。
+
+3. 添加记录、字段、数据表或视图。在 Grid 中双击单元格，或按 <kbd>Enter</kbd> 编辑。
+
+4. 通过 **保存** 更新直接打开的文件。如果浏览器无法持续持有可写文件句柄，请使用
+   **另存为**或**下载副本**。
+
+</Steps>
+
+<Aside type="note" title="确认你正在编辑哪一份副本">
+  Chromium
+  系浏览器通常可以在获得授权后写回原文件；其他浏览器会导入一份工作副本，
+  需要另存为或下载。编辑器标题栏会显示当前保存状态。
+</Aside>
+
+## 哪些内容保留在本地
+
+文件内容、SQLite 查询和编辑都留在当前设备。条件允许时，编辑器会在浏览器私有存储中保留
+未保存工作的恢复副本；恢复副本不能替代保存和备份 `.eidos` 文件。
+
+下一步阅读 [Eidos File 基础](/zh-cn/user-guide/eidos-file-basics/)或
+[数据位置与安全](/zh-cn/user-guide/data-safety/)。

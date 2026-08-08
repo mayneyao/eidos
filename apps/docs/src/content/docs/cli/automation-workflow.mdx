@@ -1,0 +1,78 @@
+---
+title: Safe automation workflow
+description: Discover context, apply revision-checked changes, and validate the result.
+sidebar:
+  order: 10
+---
+
+The reliable write sequence is **context → apply → validate**. It gives an
+Agent or script a bounded view, prevents writes based on stale data, and proves
+the committed file still satisfies the requested validation level.
+
+## 1. Read a bounded context
+
+```bash
+eidos context tracker.eidos Tasks \
+  --fields Title,Status \
+  --limit 50
+```
+
+`context` returns file revision, compact schema, and logical rows. Add `--full`
+only when stable IDs, system fields, settings, relations, and saved views are
+needed.
+
+Filters use portable JSON and may reference fields by name or stable ID:
+
+```bash
+eidos context tracker.eidos Tasks \
+  --where '{"op":"ne","field":"Status","value":"done"}' \
+  --fields Title,Status
+```
+
+`ne` is the Boolean complement of `eq`, so an empty Status also matches. Add an
+`is-not-null` rule when empty values should be excluded.
+
+## 2. Apply an exact change
+
+Save a request as `request.json` or pass it on stdin:
+
+```json
+{
+  "revision": "1",
+  "table": "Tasks",
+  "match": { "_id": "019..." },
+  "expect": 1,
+  "set": { "Status": "doing" },
+  "returning": ["Title", "Status"]
+}
+```
+
+```bash
+eidos apply tracker.eidos request.json
+```
+
+`revision` rejects stale work. `expect` prevents an unexpectedly broad update.
+The CLI validates the proposed final state before commit and returns the rows
+requested by `returning`.
+
+## 3. Validate the committed file
+
+```bash
+eidos validate tracker.eidos --level full
+```
+
+Treat a nonzero exit status at any step as a failed workflow. Do not continue
+from guessed or partially parsed output.
+
+## Lower-level operations
+
+`rows add`, `rows update`, `rows delete`, and `schema-apply` remain available
+for automation that already owns stable IDs and revision state. Schema changes
+support dry-run execution against the real transaction path before commit.
+
+```bash
+eidos schema-apply tracker.eidos \
+  --expected-revision 1 \
+  --op @schema-change.json \
+  --dry-run
+```

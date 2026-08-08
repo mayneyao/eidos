@@ -1,0 +1,37 @@
+---
+title: Eidos 规范
+description: Eidos File 技术栈可独立实现的规范性契约。
+sidebar:
+  order: 1
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+Eidos File 的互操作行为由四份规范定义。英文页面是规范性文本；中文页面是参考译本，不能覆盖
+英文契约。
+
+<CardGrid>
+  <LinkCard
+    title="Eidos File Format 1.0"
+    description="SQLite container identity、canonical schema、stored value 与 validity。"
+    href="/zh-cn/specifications/file-format-1-0/"
+  />
+  <LinkCard
+    title="Eidos Runtime 1.0"
+    description="Logical type、query、filter、derived value、mutation、revision 与 error。"
+    href="/zh-cn/specifications/runtime-1-0/"
+  />
+  <LinkCard
+    title="Eidos Adapter 1.0"
+    description="ConnectionPort、transport、文件生命周期、持久化与平台 profile。"
+    href="/zh-cn/specifications/adapter-1-0/"
+  />
+  <LinkCard
+    title="Eidos UI 1.0"
+    description="RuntimeClient 与 HostServices 消费、交互、编辑与可访问性。"
+    href="/zh-cn/specifications/ui-1-0/"
+  />
+</CardGrid>
+
+规范源文件位于
+[`docs/specs`](https://github.com/mayneyao/eidos/tree/dev/docs/specs)。

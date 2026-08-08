@@ -34,17 +34,19 @@
 ### 1. 安装
 
 ```bash
-pnpm add @eidos.space/eidos-file better-sqlite3
+pnpm add @eidos.space/eidos-file
 ```
 
-示例使用 Node.js ESM 和 TypeScript。
+示例使用 Node.js ESM、TypeScript 与 Node 内置的 `node:sqlite`，不需要安装 native
+SQLite addon。便利 API 使用 Node 22.23 或更新版本；严格的
+`NodeSqliteConnectionPort` profile 还需要 Node 24.16 或更新版本。
 
 ### 2. 创建文件、表和第一条记录
 
 ```ts
 import { resolve } from "node:path"
 
-import { createEidosFile } from "@eidos.space/eidos-file/better-sqlite3"
+import { createEidosFile } from "@eidos.space/eidos-file/node-sqlite"
 
 const filePath = resolve("reading-list.eidos")
 const runtime = createEidosFile(filePath, {
@@ -110,7 +112,7 @@ try {
 ```ts
 import { resolve } from "node:path"
 
-import { openEidosFile } from "@eidos.space/eidos-file/better-sqlite3"
+import { openEidosFile } from "@eidos.space/eidos-file/node-sqlite"
 
 const runtime = openEidosFile(resolve("reading-list.eidos"), {
   readonly: true,
@@ -146,7 +148,7 @@ try {
 ### 4. 先验证，再处理外部文件
 
 ```ts
-import { inspectEidosFile } from "@eidos.space/eidos-file/better-sqlite3"
+import { inspectEidosFile } from "@eidos.space/eidos-file/node-sqlite"
 
 const report = inspectEidosFile("reading-list.eidos")
 
@@ -186,7 +188,7 @@ Runtime：唯一解释逻辑语义的层
        │
        │ ConnectionPort：受限、带类型的 SQLite 操作
        ▼
-Adapter：Browser WASM 或 Desktop better-sqlite3
+Adapter：Browser WASM、Desktop node:sqlite 或其他 conforming driver
        │
        ▼
 私有 SQLite 工作库
@@ -229,14 +231,14 @@ Adapter：Browser WASM 或 Desktop better-sqlite3
 import { randomBytes } from "node:crypto"
 import { performance } from "node:perf_hooks"
 
-import Database from "better-sqlite3"
+import { DatabaseSync } from "node:sqlite"
 import {
   Runtime,
   type CancellationPort,
   type RequestContext,
   type RuntimeEnvironment,
 } from "@eidos.space/eidos-file"
-import { BetterSqlite3ConnectionPort } from "@eidos.space/eidos-file/better-sqlite3"
+import { NodeSqliteConnectionPort } from "@eidos.space/eidos-file/node-sqlite"
 
 const cancellation: CancellationPort = {
   cancelled: () => false,
@@ -262,10 +264,8 @@ const context = (label: string): RequestContext => ({
 const workingPath = process.env.EIDOS_WORKING_PATH
 if (!workingPath) throw new Error("请设置 EIDOS_WORKING_PATH")
 
-const database = new Database(workingPath, {
-  fileMustExist: true,
-})
-const connection = new BetterSqlite3ConnectionPort(database)
+const database = new DatabaseSync(workingPath)
+const connection = new NodeSqliteConnectionPort(database)
 
 const { service: runtime, hostBridge } = await Runtime.open(
   connection,
@@ -275,7 +275,13 @@ const { service: runtime, hostBridge } = await Runtime.open(
 )
 ```
 
-`BetterSqlite3ConnectionPort` 会建立必要的 SQLite 安全设置和能力探测。Browser 对应实现是 `SQLiteWasmConnectionPort`，并应放在 Dedicated Worker 中。
+`NodeSqliteConnectionPort` 会建立必要的 SQLite 安全设置和能力探测。Eidos Lite 在
+Electron utility process 中使用这个 Adapter，不携带 `better-sqlite3`。Browser 对应实现是
+`SQLiteWasmConnectionPort`，并应放在 Dedicated Worker 中。
+
+Package 仍提供 `BetterSqlite3ConnectionPort`，供已经选择该 driver 的通用 Node Host
+使用。它只是 non-normative Adapter 实现之一；conformance test 覆盖多个 driver，是为了
+证明更换 Adapter 不会改变 Runtime observable semantics。
 
 ### 为什么第一步是 negotiate
 
@@ -692,9 +698,11 @@ Window/Host
 
 ### Desktop
 
-Desktop 使用 `BetterSqlite3ConnectionPort`，但应放在专用 Worker、线程或进程中，避免同步 SQLite 阻塞 UI。Host 持有路径、锁、恢复和发布能力，Renderer 仍只消费受限 API。
+Eidos Lite 使用 `NodeSqliteConnectionPort`，并把同步 `node:sqlite` 放在专用 utility
+process 中，避免阻塞 UI。Host 持有路径、锁、恢复和发布能力，Renderer 仍只消费受限 API。
 
-可参考 [`BetterSqlite3ConnectionPort`](../../packages/eidos-file/src/better-sqlite3.ts)。
+可参考 [`NodeSqliteConnectionPort`](../../packages/eidos-file/src/node-sqlite.ts) 与
+[Eidos Lite Runtime 绑定](../../apps/eidos-lite-desktop/src/runtime/eidos-file-runtime.ts)。
 
 ## 接入 React Viewer
 
@@ -757,14 +765,11 @@ for (const diagnostic of report.diagnostics) {
 ### 只读 SQLite 检查
 
 ```ts
-import Database from "better-sqlite3"
+import { DatabaseSync } from "node:sqlite"
 
-const database = new Database("reading-list.eidos", {
-  fileMustExist: true,
-  readonly: true,
-})
+const database = new DatabaseSync("reading-list.eidos", { readOnly: true })
 
-database.pragma("trusted_schema = OFF")
+database.exec("PRAGMA trusted_schema = OFF")
 
 console.log(
   database

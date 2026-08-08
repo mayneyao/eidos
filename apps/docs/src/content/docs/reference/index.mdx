@@ -1,19 +1,19 @@
 ---
-title: Reference
-description: Stable Eidos File contracts and reusable package APIs.
+title: Integration reference
+description: Stable package and application-integration references.
 sidebar:
-  order: 1
+  order: 90
 ---
 
-## Specifications
-
-- [Eidos File 1.0 suite](https://github.com/mayneyao/eidos/tree/dev/docs/specs)
-  defines the canonical File Format, Runtime, Adapter, and UI contracts.
-- [Eidos File format and custom views](/reference/eidos-file-custom-views/)
-  describes `.eidos` metadata, Runtime adapters, built-in views, and trusted UI
-  view plugins.
 - [Build with Eidos File UI](/reference/eidos-file-ui-package/) documents the
-  published React package shared by first-party hosts.
+  published React presentation package and Host responsibilities.
+- [Eidos File format and custom views](/reference/eidos-file-custom-views/)
+  follows saved view metadata through Runtime and a trusted renderer.
+- [Runtime quickstart](/developers/runtime-quickstart/) provides an executable
+  `node:sqlite` example.
+- [Specifications](/specifications/) contain the normative File Format,
+  Runtime, Adapter, and UI contracts.
 
-English specification files are normative. Chinese files are informative
-translations and do not override the English contract.
+Package README files and generated API reports describe the current TypeScript
+surface. When behavior and a convenience API appear to disagree, the owning
+1.0 specification controls interoperability.

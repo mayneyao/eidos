@@ -1,0 +1,63 @@
+---
+title: CLI 快速开始
+description: 安装 Eidos CLI，创建一个可用文件，并打开本地编辑器。
+sidebar:
+  order: 30
+---
+
+import { Aside, TabItem, Tabs } from "@astrojs/starlight/components"
+
+独立的 `eidos` CLI 直接操作 `.eidos` 文件，不依赖 Eidos Lite 或后台服务。
+
+## 1. 安装
+
+<Tabs syncKey="cli-install">
+  <TabItem label="macOS / Linux">
+
+```bash
+curl -fsSL https://download.eidos.space/cli/install.sh | sh
+```
+
+  </TabItem>
+  <TabItem label="Windows PowerShell">
+
+```powershell
+irm https://download.eidos.space/cli/install.ps1 | iex
+```
+
+  </TabItem>
+</Tabs>
+
+如果安装后 `eidos` 没有立即进入 `PATH`，请重启终端，然后运行 `eidos --help`。
+
+## 2. 创建带数据表的文件
+
+```bash
+eidos create example.eidos \
+  --title "Example" \
+  --table Tasks \
+  --label-field Title \
+  --fields '[{"name":"Title","type":"text","nullable":false},{"name":"Status","type":"select"}]'
+```
+
+同时创建第一张表，可以让文件在所有已发布编辑器中直接可用，也兼容还没有空文件启动页的旧
+CLI 版本。
+
+## 3. 打开本地编辑器
+
+```bash
+eidos serve example.eidos --open
+```
+
+服务只监听 `127.0.0.1`，打开共享 Eidos File UI，并把已提交的编辑直接写入
+`example.eidos`。按 <kbd>Ctrl</kbd> + <kbd>C</kbd> 停止服务。
+
+<Aside type="tip" title="校验结果">
+
+```bash
+eidos example.eidos validate --level full
+```
+
+</Aside>
+
+下一步阅读 [CLI 与自动化指南](/zh-cn/cli/)。

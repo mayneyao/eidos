@@ -1,0 +1,87 @@
+---
+title: Runtime quickstart with node:sqlite
+description: Create and validate an Eidos File without a native SQLite addon.
+sidebar:
+  order: 10
+---
+
+import { Aside } from "@astrojs/starlight/components"
+
+This example uses Node's built-in `node:sqlite` implementation. It does not
+install `better-sqlite3` and does not depend on a Node/Electron native-addon ABI.
+
+## Install
+
+```bash
+pnpm add @eidos.space/eidos-file@2.0.0
+```
+
+Use Node 22.23 or newer for this synchronous convenience API. The exact
+EA-Connection-1.0 `NodeSqliteConnectionPort` profile additionally requires the
+limits exposed by Node 24.16 or newer.
+
+## Create and edit a file
+
+Create `create-tasks.mjs`:
+
+```js
+import { fileURLToPath } from "node:url"
+
+import {
+  createEidosFile,
+  inspectEidosFile,
+  openEidosFile,
+} from "@eidos.space/eidos-file/node-sqlite"
+
+const file = fileURLToPath(new URL("./tasks.eidos", import.meta.url))
+
+const writable = createEidosFile(file, {
+  title: "Tasks",
+  defaultTable: {
+    name: "Tasks",
+    fields: [
+      { name: "Title", type: "text", isRecordLabel: true, nullable: false },
+      { name: "Status", type: "select" },
+    ],
+  },
+})
+
+try {
+  const table = writable.schema()[0].table
+  const row = writable.insertRow(table.id, {
+    Title: "Ship the integration",
+    Status: "doing",
+  })
+  console.log(row)
+} finally {
+  writable.close()
+}
+
+console.log(inspectEidosFile(file))
+
+const readonly = openEidosFile(file, { readonly: true })
+try {
+  console.log(readonly.validate({ level: "full" }))
+} finally {
+  readonly.close()
+}
+```
+
+Run it:
+
+```bash
+node create-tasks.mjs
+```
+
+The resulting `tasks.eidos` can be opened by the Web Editor, Eidos Lite, or
+`eidos serve`.
+
+<Aside type="caution" title="Keep SQLite behind Runtime">
+  The convenience adapter opens the database, but application code should use
+  Runtime methods for schema, query, and mutation. Direct SQL writes bypass the
+  public Eidos File contract.
+</Aside>
+
+For a transportable Runtime 1.0 service, bind `Runtime.create` or
+`Runtime.open` to a conforming `ConnectionPort`, then expose only the returned
+service and trusted Host bridge. See [Runtime and hosts](/developers/runtime-and-hosts/).

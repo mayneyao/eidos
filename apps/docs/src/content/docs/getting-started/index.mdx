@@ -1,39 +1,43 @@
 ---
-title: Start here
-description: Choose an Eidos File host and work with data you own.
+title: Quick start
+description: Create or open your first Eidos File.
 sidebar:
   order: 1
 ---
 
-An **Eidos File** is a standard SQLite database with a defined schema for
-tables, fields, records, and saved views. The format remains useful outside any
-single Eidos application.
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-## Choose a host
+An Eidos File stores structured data in a portable SQLite file. Open one in the
+browser, work locally with the CLI, or manage a folder of files with Eidos Lite.
 
-| Host                | Best for                                                                    |
-| ------------------- | --------------------------------------------------------------------------- |
-| Eidos Lite          | Working with a folder of local files, version history, and optional Sync    |
-| Eidos File Web      | Opening one `.eidos` file in a compatible browser                           |
-| Eidos CLI           | Creating, inspecting, querying, mutating, and serving files from a terminal |
-| Eidos File packages | Embedding the Runtime or shared React UI in another application             |
+<CardGrid>
+  <LinkCard
+    title="Open one file in a browser"
+    description="Create or edit a local file without installing an application."
+    href="/getting-started/browser/"
+  />
+  <LinkCard
+    title="Create and serve a file with the CLI"
+    description="Install the CLI, create a file, and open the local editor."
+    href="/getting-started/cli/"
+  />
+  <LinkCard
+    title="Manage a local Space with Eidos Lite"
+    description="Use an ordinary folder for multiple files, local history, and optional Sync."
+    href="/getting-started/eidos-lite/"
+  />
+  <LinkCard
+    title="Add Eidos to an application"
+    description="Use the Eidos File Runtime or shared React UI."
+    href="/developers/"
+  />
+</CardGrid>
 
-## Try the CLI
+## About Eidos Files
 
-Install the current stable binary, create a file, and open its local editor:
+An **Eidos File** is a SQLite application file with a versioned format for
+tables, fields, records, relations, and saved views. Web Editor, Eidos Lite,
+and CLI Serve use the same Runtime to read and edit it.
 
-```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://download.eidos.space/cli/install.sh | sh
-
-eidos create tracker.eidos --title "Project Tracker"
-eidos serve tracker.eidos --open
-```
-
-Windows PowerShell users can install with:
-
-```powershell
-irm https://download.eidos.space/cli/install.ps1 | iex
-```
-
-Continue with [Core concepts](/concepts/) or the [Eidos File reference](/reference/).
+Read [Core concepts](/concepts/) for Runtime, Space, and Graft, or go directly
+to the [user guide](/user-guide/).

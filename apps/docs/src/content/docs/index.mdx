@@ -1,37 +1,72 @@
 ---
-title: Build with Eidos
-description: Developer documentation for Eidos File and Eidos Lite.
+title: Eidos Docs
+description: Documentation for Eidos Lite, Eidos File Web, the CLI, and the Eidos File format.
 template: splash
 hero:
-  tagline: Build local-first tools on open SQLite-backed Eidos Files.
+  title: Local-first data, in files you own.
+  tagline: Create and edit .eidos files in the browser or terminal, and manage local Spaces with Eidos Lite.
   image:
     file: ../../assets/logo.png
   actions:
-    - text: Start with Eidos File
+    - text: Quick start
       link: /getting-started/
       icon: right-arrow
-    - text: Read the reference
-      link: /reference/
-      icon: open-book
+    - text: Install the CLI
+      link: /getting-started/cli/
+      icon: rocket
       variant: minimal
 ---
 
-import { Card, CardGrid } from "@astrojs/starlight/components"
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+## Get started
 
 <CardGrid>
-  <Card title="Open data files" icon="document">
-    Store tables, fields, records, and views in standard SQLite `.eidos` files.
-  </Card>
-  <Card title="Use one Runtime" icon="setting">
-    Browser, desktop, and CLI hosts consume the same typed Eidos File semantics.
-  </Card>
-  <Card title="Share one UI" icon="puzzle">
-    Eidos File Web, Eidos Lite, and CLI Serve use the same React editor package.
-  </Card>
-  <Card title="Automate safely" icon="random">
-    Use the CLI's logical query and revision-checked mutation contracts.
-  </Card>
+  <LinkCard
+    title="Web Editor"
+    description="Create or open a local Eidos File without installing an application."
+    href="/getting-started/browser/"
+  />
+  <LinkCard
+    title="Eidos CLI"
+    description="Create a file, open the local editor, run queries, and automate changes."
+    href="/getting-started/cli/"
+  />
+  <LinkCard
+    title="Eidos Lite"
+    description="Use an ordinary folder as a Space for Eidos Files, other files, and local history."
+    href="/getting-started/eidos-lite/"
+  />
 </CardGrid>
 
-The normative File Format, Runtime, Adapter, and UI contracts live in the
-[Eidos File 1.0 specification suite](https://github.com/mayneyao/eidos/tree/dev/docs/specs).
+The Web Editor and CLI are available now. Eidos Lite is in active development;
+public signed installers are still being prepared.
+
+## Eidos File
+
+An Eidos File is a portable SQLite file for typed tables, relations, formulas,
+and saved views. Web Editor, Eidos Lite, and `eidos serve` use the same editor
+and Runtime.
+
+<CardGrid>
+  <LinkCard
+    title="User guide"
+    description="Learn how files, views, saving, history, and recovery work."
+    href="/user-guide/"
+  />
+  <LinkCard
+    title="CLI reference"
+    description="Use JSON commands for queries, validation, and atomic changes."
+    href="/cli/"
+  />
+  <LinkCard
+    title="Developer documentation"
+    description="Use the Runtime and shared React UI in your own application."
+    href="/developers/"
+  />
+  <LinkCard
+    title="Specifications"
+    description="Read the File Format, Runtime, Adapter, and UI contracts."
+    href="/specifications/"
+  />
+</CardGrid>

@@ -1,0 +1,84 @@
+---
+title: 使用 node:sqlite 快速开始 Runtime
+description: 不安装 native SQLite addon，创建并校验 Eidos File。
+sidebar:
+  order: 10
+---
+
+import { Aside } from "@astrojs/starlight/components"
+
+这个示例使用 Node 内置的 `node:sqlite`，不安装 `better-sqlite3`，也不依赖 Node/Electron
+native-addon ABI。
+
+## 安装
+
+```bash
+pnpm add @eidos.space/eidos-file@2.0.0
+```
+
+同步 convenience API 使用 Node 22.23 或更新版本。严格的 EA-Connection-1.0
+`NodeSqliteConnectionPort` profile 还需要 Node 24.16 或更新版本暴露的 limits。
+
+## 创建并编辑文件
+
+新建 `create-tasks.mjs`：
+
+```js
+import { fileURLToPath } from "node:url"
+
+import {
+  createEidosFile,
+  inspectEidosFile,
+  openEidosFile,
+} from "@eidos.space/eidos-file/node-sqlite"
+
+const file = fileURLToPath(new URL("./tasks.eidos", import.meta.url))
+
+const writable = createEidosFile(file, {
+  title: "Tasks",
+  defaultTable: {
+    name: "Tasks",
+    fields: [
+      { name: "Title", type: "text", isRecordLabel: true, nullable: false },
+      { name: "Status", type: "select" },
+    ],
+  },
+})
+
+try {
+  const table = writable.schema()[0].table
+  const row = writable.insertRow(table.id, {
+    Title: "Ship the integration",
+    Status: "doing",
+  })
+  console.log(row)
+} finally {
+  writable.close()
+}
+
+console.log(inspectEidosFile(file))
+
+const readonly = openEidosFile(file, { readonly: true })
+try {
+  console.log(readonly.validate({ level: "full" }))
+} finally {
+  readonly.close()
+}
+```
+
+运行：
+
+```bash
+node create-tasks.mjs
+```
+
+生成的 `tasks.eidos` 可以在 Web Editor、Eidos Lite 或 `eidos serve` 中打开。
+
+<Aside type="caution" title="让 SQLite 留在 Runtime 后面">
+  Convenience Adapter 负责打开数据库，但应用代码应通过 Runtime method 执行
+  schema、 query 与 mutation。Direct SQL write 会绕过公开 Eidos File contract。
+</Aside>
+
+需要可传输的 Runtime 1.0 service 时，把 `Runtime.create` 或 `Runtime.open` 绑定到
+conforming `ConnectionPort`，只向外暴露返回的 service 和可信 Host bridge。继续阅读
+[Runtime 与 Host](/zh-cn/developers/runtime-and-hosts/)。

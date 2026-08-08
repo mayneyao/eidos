@@ -1,0 +1,47 @@
+---
+title: Runtime 与 Host 边界
+description: 让每类关注点只属于一层，从而保持 Eidos 语义可移植。
+sidebar:
+  order: 20
+---
+
+实现方向是单向的：
+
+```text
+Eidos File Format → Runtime → Adapter / Host → UI
+```
+
+| 层             | 拥有                                                                | 不得拥有                                     |
+| -------------- | ------------------------------------------------------------------- | -------------------------------------------- |
+| File Format    | SQLite identity、canonical schema 与 stored value                   | Runtime API、平台行为、UI                    |
+| Runtime        | Logical value、筛选、公式、关系、mutation、revision、validation     | 路径、权限、native handle、渲染              |
+| Adapter / Host | SQLite execution、transport、文件生命周期、持久化、冲突、恢复、资产 | 字段或 query 的含义                          |
+| UI             | 交互、编辑 affordance、可访问性、presentation                       | SQLite connection、SQL、文件 bytes、平台权限 |
+
+## 当前 Adapter profile
+
+- **Browser：** `SQLiteWasmConnectionPort` 把 SQLite 与 Runtime 保留在 Dedicated
+  Worker 中。
+- **Eidos Lite：** `NodeSqliteConnectionPort` 在 utility process 中使用 Electron 43 /
+  Node 24 的 `node:sqlite`。Lite 不携带 `better-sqlite3`。
+- **通用 Node Host：** package 仍提供 `better-sqlite3` Adapter，作为一种 conforming
+  implementation choice。它的存在不代表 Lite 架构，也不是规范性依赖。
+- **CLI：** TypeScript Runtime 在 embedded QuickJS 中运行，通过 Rust `rusqlite`
+  bridge 访问 SQLite，对外语义仍然一致。
+
+这也是 conformance test 会覆盖多个 SQLite driver 的原因：它要证明替换 Adapter 不会改变
+Runtime result。
+
+## Service binding
+
+`Runtime.create` 初始化空 `ConnectionPort`，`Runtime.open` 校验已有 port。两者都返回：
+
+- 用于 schema、query、mutation 与 validation 的 public Runtime service；
+- 用于可信 lifecycle composition 的窄 Host-only bridge。
+
+UI 只接收 `RuntimeClient` 与 `HostServices`，不接收 port 或 database。Host 应在自己的
+边界执行 cancellation、request limit、read-only mode、publication、conflict check 与
+recovery。
+
+精确要求见 [Runtime 1.0](/zh-cn/specifications/runtime-1-0/)与
+[Adapter 1.0](/zh-cn/specifications/adapter-1-0/)。

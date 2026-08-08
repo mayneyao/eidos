@@ -1,0 +1,47 @@
+---
+title: 使用 Eidos 构建
+description: 使用 Eidos CLI、Runtime、React UI 与互操作规范。
+sidebar:
+  order: 1
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+进程自动化使用 CLI，类型化数据访问使用 Runtime，嵌入 Eidos 编辑器使用共享 React package。
+Eidos 不支持把直接读取 metadata table 或生成 SQL 作为集成 API。
+
+| 构建内容                    | 使用                                                                           | 提供                                                    |
+| --------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| 脚本或 Agent 自动化         | [`eidos` CLI](/zh-cn/cli/)                                                     | 稳定 JSON process 边界，提供原子 mutation 与 validation |
+| Node 应用处理一个文件       | [`@eidos.space/eidos-file/node-sqlite`](/zh-cn/developers/runtime-quickstart/) | 使用内置 `node:sqlite`，语义仍由 Runtime 拥有           |
+| 浏览器应用                  | `@eidos.space/eidos-file/browser`                                              | SQLite WASM 保留在 Dedicated Worker                     |
+| React viewer 或 editor Host | [`@eidos.space/eidos-file-ui`](/zh-cn/reference/eidos-file-ui-package/)        | 共享 UI 只消费 RuntimeClient 与 HostServices            |
+| 独立兼容实现                | [Eidos 规范](/zh-cn/specifications/)                                           | 规范性格式、行为、Adapter 与交互契约                    |
+
+<CardGrid>
+  <LinkCard
+    title="Runtime 快速开始"
+    description="使用 Node 内置 SQLite 创建、修改、校验并重新打开文件。"
+    href="/zh-cn/developers/runtime-quickstart/"
+  />
+  <LinkCard
+    title="Runtime 与 Host 边界"
+    description="理解数据语义、平台行为与 presentation 分别由哪一层拥有。"
+    href="/zh-cn/developers/runtime-and-hosts/"
+  />
+  <LinkCard
+    title="React UI package"
+    description="不给 React 直接 SQLite 权限，组合标准 viewer 或 editor。"
+    href="/zh-cn/reference/eidos-file-ui-package/"
+  />
+  <LinkCard
+    title="自定义保存视图"
+    description="无损保留开放的视图 metadata，并注册可信 React renderer。"
+    href="/zh-cn/reference/eidos-file-custom-views/"
+  />
+</CardGrid>
+
+## 公开 package
+
+`@eidos.space/eidos-file` 与 `@eidos.space/eidos-file-ui` 使用 MIT License。
+仓库和第一方应用仍采用 AGPL v3。

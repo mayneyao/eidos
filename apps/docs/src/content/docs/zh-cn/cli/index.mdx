@@ -1,0 +1,53 @@
+---
+title: CLI 与自动化
+description: 使用只输出 JSON 的 Eidos CLI，安全操作 Eidos File。
+sidebar:
+  order: 1
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+`eidos` 是面向 Agent 的 Rust CLI，直接读写开放的 Eidos File，不连接正在运行的 Eidos
+应用。
+
+<CardGrid>
+  <LinkCard
+    title="安装并创建文件"
+    description="用几条命令完成第一个可视化工作流。"
+    href="/zh-cn/getting-started/cli/"
+  />
+  <LinkCard
+    title="安全自动化"
+    description="使用 context、revision check、原子 apply 与 full validation。"
+    href="/zh-cn/cli/automation-workflow/"
+  />
+  <LinkCard
+    title="启动本地编辑器"
+    description="为一个本地路径打开共享 Eidos File UI。"
+    href="/zh-cn/cli/serve/"
+  />
+</CardGrid>
+
+## 命令模型
+
+帮助信息使用 command-first 语法：
+
+```bash
+eidos inspect tracker.eidos
+eidos context tracker.eidos Tasks --fields Title,Status --limit 50
+eidos validate tracker.eidos --level full
+```
+
+为兼容旧工作流，也接受 `eidos tracker.eidos inspect` 这样的 file-first 写法。新脚本建议使用
+command-first，与 `eidos --help` 保持一致。
+
+成功命令向 stdout 写一个 JSON document；失败命令向 stderr 写一个 JSON error
+document，并返回非零 exit status。
+
+## 支持边界
+
+CLI 负责 Eidos File 的创建、检查、查询、修改、校验与服务。它不管理 Eidos Lite Space
+生命周期、普通文档、应用 RPC、版本历史或同步。普通文件使用普通文件工具，历史使用
+Graft-aware 工作流。
+
+Raw SQLite write 不是受支持的自动化接口。

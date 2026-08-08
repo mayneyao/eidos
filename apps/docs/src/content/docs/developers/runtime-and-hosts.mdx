@@ -1,0 +1,49 @@
+---
+title: Runtime and host boundaries
+description: Keep Eidos semantics portable by assigning each concern to one layer.
+sidebar:
+  order: 20
+---
+
+The implementation direction is one-way:
+
+```text
+Eidos File Format → Runtime → Adapter / Host → UI
+```
+
+| Layer          | Owns                                                                                  | Must not own                                            |
+| -------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| File Format    | SQLite identity, canonical schema and stored values                                   | Runtime APIs, platform behavior, UI                     |
+| Runtime        | Logical values, filters, formulas, relations, mutations, revisions, validation        | Paths, permissions, native handles, rendering           |
+| Adapter / Host | SQLite execution, transport, file lifecycle, persistence, conflicts, recovery, assets | Field or query meaning                                  |
+| UI             | Interaction, editing affordances, accessibility, presentation                         | SQLite connections, SQL, file bytes, platform authority |
+
+## Current adapter profiles
+
+- **Browser:** `SQLiteWasmConnectionPort` keeps SQLite and Runtime in a
+  Dedicated Worker.
+- **Eidos Lite:** `NodeSqliteConnectionPort` uses Electron 43 / Node 24
+  `node:sqlite` inside a utility process. Lite does not ship `better-sqlite3`.
+- **Generic Node hosts:** the package still offers a `better-sqlite3` adapter as
+  one conforming implementation choice. Its presence does not make it the Lite
+  architecture or a normative dependency.
+- **CLI:** the TypeScript Runtime runs in embedded QuickJS over a Rust
+  `rusqlite` bridge. The observable semantics remain the same.
+
+This separation is why conformance tests may exercise more than one SQLite
+driver: they prove that replacing an Adapter does not change Runtime results.
+
+## Service binding
+
+`Runtime.create` initializes an empty `ConnectionPort`; `Runtime.open`
+validates an existing one. Each returns:
+
+- a public Runtime service for schema, query, mutation, and validation;
+- a narrow Host-only bridge for trusted lifecycle composition.
+
+UI receives a `RuntimeClient` and `HostServices`, never the port or database.
+Hosts should enforce cancellation, request limits, read-only mode, publication,
+conflict checks, and recovery at their own boundary.
+
+For exact requirements, read [Runtime 1.0](/specifications/runtime-1-0/) and
+[Adapter 1.0](/specifications/adapter-1-0/).

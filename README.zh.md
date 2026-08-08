@@ -21,6 +21,36 @@
   </p>
 </div>
 
+## 快速开始
+
+### 直接使用浏览器
+
+打开 [editor.eidos.space](https://editor.eidos.space/)，无需安装即可创建或编辑本地
+`.eidos` 文件。
+
+### 安装 CLI
+
+macOS 或 Linux：
+
+```bash
+curl -fsSL https://download.eidos.space/cli/install.sh | sh
+```
+
+Windows PowerShell：
+
+```powershell
+irm https://download.eidos.space/cli/install.ps1 | iex
+```
+
+创建文件，然后在本地打开同一套编辑器 UI：
+
+```bash
+eidos create example.eidos --title "Example"
+eidos serve example.eidos --open
+```
+
+查询、自动化与安全写入流程详见 [Eidos CLI 指南](./apps/cli/README.md)。
+
 ## 当前产品线
 
 本仓库包含仍在开发的 Eidos File 与 Eidos Lite 产品线，以及独立的只读 SQLite Web

@@ -1,37 +1,70 @@
 ---
-title: 使用 Eidos 构建
-description: Eidos File 与 Eidos Lite 开发者文档。
+title: Eidos 文档
+description: Eidos Lite、Eidos File Web、CLI 与 Eidos File 格式文档。
 template: splash
 hero:
-  tagline: 基于开放的 SQLite Eidos File 构建 local-first 工具。
+  title: 本地优先，数据以你拥有的文件存在。
+  tagline: 在浏览器或终端中创建和编辑 .eidos 文件，使用 Eidos Lite 管理本地 Space。
   image:
     file: ../../../assets/logo.png
   actions:
-    - text: 从 Eidos File 开始
+    - text: 快速开始
       link: /zh-cn/getting-started/
       icon: right-arrow
-    - text: 查阅参考
-      link: /zh-cn/reference/
-      icon: open-book
+    - text: 安装 Eidos CLI
+      link: /zh-cn/getting-started/cli/
+      icon: rocket
       variant: minimal
 ---
 
-import { Card, CardGrid } from "@astrojs/starlight/components"
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+## 开始使用
 
 <CardGrid>
-  <Card title="开放的数据文件" icon="document">
-    用标准 SQLite `.eidos` 文件保存表、字段、记录和视图。
-  </Card>
-  <Card title="统一 Runtime" icon="setting">
-    Browser、Desktop 与 CLI host 共享同一套 Eidos File 语义。
-  </Card>
-  <Card title="共享 UI" icon="puzzle">
-    Eidos File Web、Eidos Lite 与 CLI Serve 使用同一个 React editor package。
-  </Card>
-  <Card title="安全自动化" icon="random">
-    使用 CLI 的逻辑查询和带 revision 检查的 mutation contract。
-  </Card>
+  <LinkCard
+    title="Web Editor"
+    description="无需安装应用，直接创建或打开本地 Eidos File。"
+    href="/zh-cn/getting-started/browser/"
+  />
+  <LinkCard
+    title="Eidos CLI"
+    description="创建文件、打开本地编辑器、执行查询并自动化修改。"
+    href="/zh-cn/getting-started/cli/"
+  />
+  <LinkCard
+    title="Eidos Lite"
+    description="把普通文件夹作为 Space，管理 Eidos File、其他文件和本地历史。"
+    href="/zh-cn/getting-started/eidos-lite/"
+  />
 </CardGrid>
 
-规范性的 File Format、Runtime、Adapter 与 UI 契约位于
-[Eidos File 1.0 规范套件](https://github.com/mayneyao/eidos/tree/dev/docs/specs)。
+Web Editor 与 CLI 现在即可使用。Eidos Lite 正在活跃开发，公开签名安装包仍在准备中。
+
+## Eidos File
+
+Eidos File 是用于保存类型化数据表、关系、公式和视图的可移植 SQLite 文件。Web
+Editor、Eidos Lite 与 `eidos serve` 使用同一个编辑器和 Runtime。
+
+<CardGrid>
+  <LinkCard
+    title="使用指南"
+    description="了解文件、视图、保存、历史和恢复。"
+    href="/zh-cn/user-guide/"
+  />
+  <LinkCard
+    title="CLI 参考"
+    description="使用 JSON 命令执行查询、校验与原子修改。"
+    href="/zh-cn/cli/"
+  />
+  <LinkCard
+    title="开发者文档"
+    description="在自己的应用中使用 Runtime 和共享 React UI。"
+    href="/zh-cn/developers/"
+  />
+  <LinkCard
+    title="规范"
+    description="查阅 File Format、Runtime、Adapter 与 UI 契约。"
+    href="/zh-cn/specifications/"
+  />
+</CardGrid>

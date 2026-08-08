@@ -1,0 +1,46 @@
+---
+title: Local editor with eidos serve
+description: Serve one Eidos File through the shared UI on localhost.
+sidebar:
+  order: 20
+---
+
+`eidos serve` embeds the same Eidos File editor used by the first-party Web and
+Lite hosts. It is useful when you want a visual UI while keeping a terminal-owned
+file workflow.
+
+```bash
+eidos serve tracker.eidos --open
+```
+
+## Behavior
+
+- binds to `127.0.0.1` only;
+- uses port `8420` by default;
+- opens exactly one file;
+- commits editor mutations directly to that file;
+- requires no separate Save step;
+- ships the UI inside the macOS, Linux, and Windows binaries.
+
+Choose another port when needed:
+
+```bash
+eidos serve tracker.eidos --port 9000 --open
+```
+
+## Development UI override
+
+`--ui-dir` serves a different static build instead of the UI embedded in the
+binary. This is a developer and release-validation option, not a normal user
+requirement.
+
+```bash
+eidos serve tracker.eidos --ui-dir ./dist --port 8420
+```
+
+## Concurrency
+
+While Serve is running, let it be the only writer for that file. Stop the
+server before opening the same path in another write-capable host or SQLite
+tool. After a session, `eidos validate tracker.eidos --level full` provides an
+independent integrity check.

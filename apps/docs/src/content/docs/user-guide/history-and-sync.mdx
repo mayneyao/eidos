@@ -1,0 +1,34 @@
+---
+title: History, recovery, and Sync
+description: Separate recovery copies, local history, backups, and remote continuity.
+sidebar:
+  order: 30
+---
+
+Browser recovery, local history, Sync, and backups protect different copies of
+your work.
+
+| Mechanism             | Protects against                                             | Does not replace                                |
+| --------------------- | ------------------------------------------------------------ | ----------------------------------------------- |
+| Browser recovery copy | Closing or reloading with unsaved Web edits                  | Saving the file or keeping backups              |
+| System Trash          | Files deleted through the Eidos Lite Explorer                | Version history or off-device backup            |
+| Graft local history   | Returning to named states and reviewing supported changes    | A separate backup device or remote              |
+| Eidos Sync            | Continuity between a local Space and an authenticated remote | Local ownership or explicit conflict handling   |
+| Ordinary backup       | Device loss, corruption, or an unwanted history operation    | Runtime validation and a tested restore process |
+
+## Web recovery
+
+The Web Editor keeps recoverable work in browser-private storage where the
+browser supports it. Recover the work, then save or download a durable file.
+Clearing site data can remove browser recovery.
+
+## Lite history and Sync
+
+Eidos Lite uses Graft for local checkpoints and row-aware history. Local work
+does not require an account. Sync is optional and has explicit sign-in,
+authorization, fetch, analysis, pull, validation, and push states. A Sync
+failure should leave local files usable and present a recovery action instead
+of hiding the failure.
+
+Until public Lite installers ship, use normal file backups alongside Web or
+CLI workflows.

@@ -21,6 +21,37 @@
   </p>
 </div>
 
+## Quick start
+
+### Use the browser
+
+Open [editor.eidos.space](https://editor.eidos.space/) to create or edit a
+local `.eidos` file without installing anything.
+
+### Install the CLI
+
+On macOS or Linux:
+
+```bash
+curl -fsSL https://download.eidos.space/cli/install.sh | sh
+```
+
+On Windows PowerShell:
+
+```powershell
+irm https://download.eidos.space/cli/install.ps1 | iex
+```
+
+Create a file, then open the same editor UI locally:
+
+```bash
+eidos create example.eidos --title "Example"
+eidos serve example.eidos --open
+```
+
+See the [Eidos CLI guide](./apps/cli/README.md) for querying, automation, and
+safe mutation workflows.
+
 ## Current product line
 
 This repository contains the active Eidos File and Eidos Lite product line,

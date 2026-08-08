@@ -1,0 +1,74 @@
+---
+title: 安全自动化工作流
+description: 发现上下文、执行带 revision 检查的修改，并校验结果。
+sidebar:
+  order: 10
+---
+
+可靠的写入顺序是 **context → apply → validate**。它让 Agent 或脚本只读取有界上下文，
+避免基于过期数据写入，并证明提交后的文件仍满足指定 validation level。
+
+## 1. 读取有界上下文
+
+```bash
+eidos context tracker.eidos Tasks \
+  --fields Title,Status \
+  --limit 50
+```
+
+`context` 返回文件 revision、紧凑 schema 与 logical rows。只有需要 stable ID、
+system field、settings、relations 和保存视图时才添加 `--full`。
+
+筛选使用可移植 JSON，字段可以用名称或 stable ID：
+
+```bash
+eidos context tracker.eidos Tasks \
+  --where '{"op":"ne","field":"Status","value":"done"}' \
+  --fields Title,Status
+```
+
+`ne` 是 `eq` 的 Boolean complement，因此 Status 为空也会匹配。需要排除空值时，再添加
+`is-not-null` 规则。
+
+## 2. 执行精确修改
+
+把请求保存为 `request.json`，或通过 stdin 传入：
+
+```json
+{
+  "revision": "1",
+  "table": "Tasks",
+  "match": { "_id": "019..." },
+  "expect": 1,
+  "set": { "Status": "doing" },
+  "returning": ["Title", "Status"]
+}
+```
+
+```bash
+eidos apply tracker.eidos request.json
+```
+
+`revision` 拒绝过期工作；`expect` 防止修改范围意外扩大。CLI 在提交前校验 proposed final
+state，并返回 `returning` 指定的记录。
+
+## 3. 校验已提交文件
+
+```bash
+eidos validate tracker.eidos --level full
+```
+
+任一步返回非零 exit status，都应视为整个工作流失败。不要根据猜测或不完整解析继续执行。
+
+## 低层操作
+
+已经掌握 stable ID 与 revision state 的自动化仍可以使用 `rows add`、`rows update`、
+`rows delete` 与 `schema-apply`。Schema change 支持在提交前通过真实 transaction path
+执行 dry run。
+
+```bash
+eidos schema-apply tracker.eidos \
+  --expected-revision 1 \
+  --op @schema-change.json \
+  --dry-run
+```

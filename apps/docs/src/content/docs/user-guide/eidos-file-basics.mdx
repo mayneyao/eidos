@@ -1,0 +1,39 @@
+---
+title: Eidos File basics
+description: Learn how tables, fields, records, views, and search work.
+sidebar:
+  order: 10
+---
+
+## The parts of a file
+
+| Part   | Meaning                                                                                        |
+| ------ | ---------------------------------------------------------------------------------------------- |
+| Table  | A typed collection of records, such as Tasks or Books                                          |
+| Field  | A property shared by records, such as Status, Due date, or Rating                              |
+| Record | One row with a stable identity                                                                 |
+| View   | A saved presentation of a table, including visible fields, filters, sorts, and view properties |
+
+Grid, Gallery, and Kanban are views over the same records. Editing a record in
+one view changes the record, so the result is visible in every other view.
+
+## Start a useful file
+
+In the Web Editor, choose **New** or a template. In the CLI, create the first
+table as part of the file command:
+
+```bash
+eidos create tasks.eidos \
+  --title Tasks \
+  --table Tasks \
+  --label-field Title \
+  --fields '[{"name":"Title","type":"text","nullable":false},{"name":"Priority","type":"select"}]'
+```
+
+Every table has one record-label field. This is the human-readable value Eidos
+uses when another table refers to the record.
+
+## Views and search
+
+A view remembers its filters, sort order, visible fields, and layout. Search is
+temporary: clearing the search box returns to the saved view.

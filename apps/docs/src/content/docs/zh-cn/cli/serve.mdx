@@ -1,0 +1,43 @@
+---
+title: 使用 eidos serve 打开本地编辑器
+description: 通过 localhost 与共享 UI 编辑一个 Eidos File。
+sidebar:
+  order: 20
+---
+
+`eidos serve` 嵌入第一方 Web 与 Lite Host 使用的同一套 Eidos File 编辑器。它适合希望
+保留终端文件工作流，同时使用可视化 UI 的场景。
+
+```bash
+eidos serve tracker.eidos --open
+```
+
+## 行为
+
+- 只绑定 `127.0.0.1`；
+- 默认端口是 `8420`；
+- 一次只打开一个文件；
+- 编辑器 mutation 直接提交到该文件；
+- 不需要额外 Save 步骤；
+- macOS、Linux 与 Windows binary 都内置 UI。
+
+需要时可更换端口：
+
+```bash
+eidos serve tracker.eidos --port 9000 --open
+```
+
+## 开发 UI override
+
+`--ui-dir` 可以用另一份静态 build 替代 binary 内嵌 UI。这是开发和发行校验选项，不是普通
+使用要求。
+
+```bash
+eidos serve tracker.eidos --ui-dir ./dist --port 8420
+```
+
+## 并发
+
+Serve 运行时，应让它成为该文件唯一的 writer。使用其他可写 Host 或 SQLite 工具打开同一路径
+前，先停止服务。会话结束后，可以用 `eidos validate tracker.eidos --level full` 做独立
+完整性校验。

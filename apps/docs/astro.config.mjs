@@ -6,13 +6,16 @@ import { defineConfig } from "astro/config"
 import starlightSidebarTopics from "starlight-sidebar-topics"
 import starlightThemeFlexoki from "starlight-theme-flexoki"
 
+import { legacyRedirects } from "./src/lib/legacy-redirects.mjs"
+
 export default defineConfig({
   site: "https://docs.eidos.space",
+  redirects: legacyRedirects,
   integrations: [
     starlight({
-      title: "Eidos Developer Docs",
+      title: "Eidos Docs",
       description:
-        "Build with Eidos File and understand the Eidos Lite platform.",
+        "Documentation for Eidos Lite, Eidos File Web, the CLI, and the Eidos File format.",
       favicon: "/favicon.svg",
       lastUpdated: true,
       social: [
@@ -39,64 +42,64 @@ export default defineConfig({
       },
       plugins: [
         starlightThemeFlexoki(),
-        starlightSidebarTopics([
-          {
-            label: {
-              en: "Start here",
-              "zh-CN": "开始使用",
-            },
-            icon: "rocket",
-            link: "/getting-started/",
-            items: [
-              {
-                label: "Getting started",
-                items: [{ autogenerate: { directory: "getting-started" } }],
+        starlightSidebarTopics(
+          [
+            {
+              label: {
+                en: "Start here",
+                "zh-CN": "开始使用",
               },
-            ],
-          },
-          {
-            label: {
-              en: "Concepts",
-              "zh-CN": "核心概念",
+              icon: "rocket",
+              link: "/getting-started/",
+              items: [
+                { autogenerate: { directory: "getting-started" } },
+                { autogenerate: { directory: "concepts" } },
+              ],
             },
-            icon: "open-book",
-            link: "/concepts/",
-            items: [
-              {
-                label: "Core concepts",
-                items: [{ autogenerate: { directory: "concepts" } }],
+            {
+              label: {
+                en: "Use Eidos",
+                "zh-CN": "使用 Eidos",
               },
-            ],
-          },
-          {
-            label: {
-              en: "Automation",
-              "zh-CN": "自动化",
+              icon: "open-book",
+              link: "/user-guide/",
+              items: [{ autogenerate: { directory: "user-guide" } }],
             },
-            icon: "random",
-            link: "/automation/",
-            items: [
-              {
-                label: "Automation and APIs",
-                items: [{ autogenerate: { directory: "automation" } }],
+            {
+              label: {
+                en: "CLI & automation",
+                "zh-CN": "CLI 与自动化",
               },
-            ],
-          },
-          {
-            label: {
-              en: "Reference",
-              "zh-CN": "参考",
+              icon: "random",
+              link: "/cli/",
+              items: [{ autogenerate: { directory: "cli" } }],
             },
-            icon: "setting",
-            link: "/reference/",
-            items: [
-              {
-                label: "Reference",
-                items: [{ autogenerate: { directory: "reference" } }],
+            {
+              label: {
+                en: "Build with Eidos",
+                "zh-CN": "使用 Eidos 构建",
               },
-            ],
-          },
-        ]),
+              icon: "setting",
+              link: "/developers/",
+              items: [
+                { autogenerate: { directory: "developers" } },
+                { autogenerate: { directory: "reference" } },
+              ],
+            },
+            {
+              label: {
+                en: "Specifications",
+                "zh-CN": "规范",
+              },
+              icon: "document",
+              link: "/specifications/",
+              items: [{ autogenerate: { directory: "specifications" } }],
+            },
+          ],
+          {
+            exclude: ["/legacy", "/zh-cn/legacy"],
+          }
+        ),
       ],
     }),
     sitemap(),

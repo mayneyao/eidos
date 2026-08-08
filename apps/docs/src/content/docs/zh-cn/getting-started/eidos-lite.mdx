@@ -1,0 +1,35 @@
+---
+title: Eidos Lite
+description: 了解桌面 Space 模型与当前发行状态。
+sidebar:
+  order: 20
+---
+
+import { Aside } from "@astrojs/starlight/components"
+
+Eidos Lite 是把普通文件夹作为 Space 使用的主力桌面产品。一个 Space 可以包含多个
+`.eidos` 文件和普通文件，不会被改造成专有容器。
+
+<Aside type="caution" title="公开安装包尚未发布">
+  Eidos Lite
+  正在活跃开发，公开签名版本仍在准备中。今天需要稳定快速开始时，请使用 Web
+  Editor 或 CLI。发行状态见 [Eidos
+  下载页](https://eidos.space/zh/download#eidos-lite)。
+</Aside>
+
+## Lite 增加了什么
+
+- 在一个 Explorer 中管理 Eidos File、文件夹和普通文件；
+- 通过 `eidos-file-ui` 共享 Grid、Gallery 与 Kanban 编辑体验；
+- 通过 Graft 提供本地 Space 历史和记录级变更；
+- 从 Explorer 删除的文件会移到系统废纸篓；
+- 可选的认证同步，同时本地工作仍无需账号。
+
+## 文件模型
+
+你选择的文件夹始终是普通文件夹，`.eidos` 也始终是 SQLite application file。本地历史
+metadata 与数据模型分离；退出账号或离线不会使本地文件不可读。
+
+需要运行当前源码的开发者可以阅读
+[Eidos Lite workspace 指南](https://github.com/mayneyao/eidos/tree/dev/apps/eidos-lite-desktop)。
+日常数据保证见[历史、恢复与同步](/zh-cn/user-guide/history-and-sync/)。

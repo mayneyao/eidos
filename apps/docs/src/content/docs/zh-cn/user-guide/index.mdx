@@ -1,0 +1,39 @@
+---
+title: 使用 Eidos
+description: 编辑、保存、恢复和组织 Eidos File 的日常指南。
+sidebar:
+  order: 1
+---
+
+import { CardGrid, LinkCard } from "@astrojs/starlight/components"
+
+Eidos 把结构化数据保存在 `.eidos` 文件中。Web Editor 在浏览器中打开单个文件，CLI
+Serve 打开一个本地文件，Eidos Lite 则管理普通文件夹中的文件。
+
+<CardGrid>
+  <LinkCard
+    title="Eidos File 基础"
+    description="了解数据表、字段、记录、视图和搜索。"
+    href="/zh-cn/user-guide/eidos-file-basics/"
+  />
+  <LinkCard
+    title="数据位置与安全"
+    description="弄清每种 Host 在哪里保存数据，以及修改何时写入原文件。"
+    href="/zh-cn/user-guide/data-safety/"
+  />
+  <LinkCard
+    title="历史、恢复与同步"
+    description="区分浏览器恢复、本地 checkpoint、备份和可选远端同步。"
+    href="/zh-cn/user-guide/history-and-sync/"
+  />
+  <LinkCard
+    title="故障排查"
+    description="排查无效文件、保存状态、文件锁、CLI Serve 和浏览器权限。"
+    href="/zh-cn/user-guide/troubleshooting/"
+  />
+</CardGrid>
+
+## 文件与应用
+
+数据保存在 `.eidos` 文件中。编辑时，应用可能保留临时工作副本或恢复副本，因此关闭文件前应
+检查当前保存状态。

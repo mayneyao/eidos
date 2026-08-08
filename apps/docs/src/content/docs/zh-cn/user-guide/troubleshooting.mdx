@@ -1,0 +1,47 @@
+---
+title: 故障排查
+description: 解决常见的 Eidos File、Web Editor、CLI 与保存问题。
+sidebar:
+  order: 40
+---
+
+## 文件无法打开
+
+执行 full validation 并查看 JSON 错误：
+
+```bash
+eidos problem.eidos validate --level full
+```
+
+确认路径以 `.eidos` 结尾、文件确实是 SQLite，并由兼容的 Eidos File 实现创建。把任意
+SQLite 数据库改名不会自动完成格式转换。
+
+## Web 编辑没有写入原文件
+
+检查标题栏状态。导入副本模式或未获得写权限时，需要**另存为**或**下载副本**。如果原文件已被
+外部修改，请选择重新加载、显式覆盖或另存为，不要静默替换任一版本。
+
+## 文件 busy 或 locked
+
+关闭可能持有文件的其他 Eidos、SQLite、预览、备份或索引进程。在本仓库中，不要让 Desktop
+开发进程与 Node 测试同时使用同一个 native SQLite binary。
+
+## `eidos serve` 没有打开浏览器
+
+去掉 `--open` 启动，再把终端打印的 loopback URL 复制到浏览器：
+
+```bash
+eidos serve example.eidos --port 8420
+```
+
+服务有意只绑定 `127.0.0.1`。如果 URL 无法访问，检查本地防火墙或代理规则。如果旧版 CLI
+在打开空文件时一直加载，请按 [CLI 快速开始](/zh-cn/getting-started/cli/)创建第一张表，
+或升级到支持空文件启动页的版本。
+
+## 自动化命令失败
+
+成功的 CLI 命令向 stdout 输出一个 JSON document；失败时向 stderr 输出一个 JSON error
+document，并返回非零状态。请保留 stderr 和 exit code，不要解析面向人的终端文本。
+
+问题仍存在时，请在 [GitHub issue](https://github.com/mayneyao/eidos/issues) 中附上 CLI
+版本、操作系统、validation 输出和最小复现。

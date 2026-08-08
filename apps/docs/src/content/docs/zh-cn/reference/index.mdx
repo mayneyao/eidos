@@ -1,17 +1,17 @@
 ---
-title: 参考
-description: 稳定的 Eidos File 契约与可复用 package API。
+title: 集成参考
+description: 稳定的 package 与应用集成参考。
 sidebar:
-  order: 1
+  order: 90
 ---
 
-## 规范
+- [使用 Eidos File UI 构建编辑器](/zh-cn/reference/eidos-file-ui-package/)说明已发布
+  React presentation package 与 Host 职责。
+- [Eidos File 格式与自定义视图](/zh-cn/reference/eidos-file-custom-views/)从保存视图
+  metadata 一直追踪到 Runtime 与可信 renderer。
+- [Runtime 快速开始](/zh-cn/developers/runtime-quickstart/)提供可执行的 `node:sqlite`
+  示例。
+- [规范](/zh-cn/specifications/)包含 File Format、Runtime、Adapter 与 UI 的规范性契约。
 
-- [Eidos File 1.0 规范套件](https://github.com/mayneyao/eidos/tree/dev/docs/specs)
-  定义规范性的 File Format、Runtime、Adapter 与 UI 契约。
-- [Eidos File 格式与自定义视图](/zh-cn/reference/eidos-file-custom-views/)
-  说明 `.eidos` metadata、Runtime adapter、内置视图与可信 UI view plugin。
-- [使用 Eidos File UI 构建编辑器](/zh-cn/reference/eidos-file-ui-package/)
-  说明第一方 host 共享的已发布 React package。
-
-英文规范是 normative 文本；中文文件是说明性翻译，不能覆盖英文契约。
+Package README 与生成的 API report 描述当前 TypeScript surface。Behavior 与 convenience
+API 出现分歧时，由对应 1.0 规范决定互操作行为。

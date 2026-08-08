@@ -20,9 +20,9 @@ renderer contract。
 ```text
 tasks.eidos (SQLite)
   ├─ 用户表与记录
-  ├─ eidos__columns       字段类型与存储元数据
-  ├─ eidos__views         type、properties、filter、顺序、隐藏字段
-  └─ eidos__meta          格式版本与 schema 版本
+  ├─ Eidos metadata       数据表、字段、派生定义与 feature
+  ├─ eidos__views         type、query_json、layout_json、position
+  └─ 格式身份             PRAGMA application_id/user_version 与 eidos__meta
           │
           ▼
 @eidos.space/eidos-file         校验、查询、分组、写入
@@ -34,9 +34,10 @@ EidosFileEditorDataSource      worker/RPC adapter；React 主线程不运行 SQL
 @eidos.space/eidos-file-ui      Grid、Gallery、Kanban 或宿主注册的 renderer
 ```
 
-必需的元数据表是 `eidos__meta`、`eidos__tables`、`eidos__columns`、
-`eidos__views` 和 `eidos__references`。当前格式通过 `format=eidos-file` 标识；消费方必须
-读取格式版本与 schema 版本，不能只根据扩展名猜测。
+完整 metadata schema 由 [Eidos File Format
+1.0](/zh-cn/specifications/file-format-1-0/) 定义。Reader 通过 SQLite header、
+`PRAGMA application_id`、`PRAGMA user_version` 与 singleton `eidos__meta` row 识别格式，
+不能只根据扩展名猜测。
 
 UI 包不要复制这些表，也不要自行把视图筛选编译成 SQL。标识符校验、query 语义、cursor
 paging、字段 codec 和 mutation 都由 `@eidos.space/eidos-file` 负责。这样浏览器、
@@ -44,9 +45,10 @@ Desktop 和未来宿主才能安全编辑同一份文件。
 
 ## 已保存视图的契约
 
-`eidos__views.type` 是开放字符串。Eidos 内置 `grid`、`gallery`、`kanban`，宿主也可以保存
-`timeline` 等新类型。当当前宿主不认识某种视图时，打开和保存文件仍必须原样保留其 type 与
-未知的 `properties` 字段。
+`eidos__views.type` 是开放字符串；`query_json` 保存 Runtime query，`layout_json` 保存 UI
+layout。Runtime 将它们暴露为 `filter`、`sorts`、`properties`、`orderMap` 与
+`hiddenFields`。Eidos 内置 `grid`、`gallery`、`kanban`，Host 也可以保存 `timeline` 等新
+类型。即使当前 Host 无法渲染，仍必须保留未知 View type 与 layout member。
 
 Runtime 将视图暴露为 `EidosFileViewInfo`：
 

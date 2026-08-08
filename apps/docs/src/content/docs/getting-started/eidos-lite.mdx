@@ -1,0 +1,37 @@
+---
+title: Eidos Lite
+description: Understand the desktop Space model and current release status.
+sidebar:
+  order: 20
+---
+
+import { Aside } from "@astrojs/starlight/components"
+
+Eidos Lite is the primary desktop product for using an ordinary folder as a
+Space. A Space can contain several `.eidos` files and ordinary files without
+turning the folder into a proprietary container.
+
+<Aside type="caution" title="Public installers are not released yet">
+  Eidos Lite is in active development and its public signed release is still
+  being prepared. Use the Web Editor or CLI for a supported quick start today.
+  Follow the status on the [Eidos download
+  page](https://eidos.space/download#eidos-lite).
+</Aside>
+
+## What Lite adds
+
+- one Explorer for Eidos Files, folders, and ordinary files;
+- shared Grid, Gallery, and Kanban editing through `eidos-file-ui`;
+- local Space history and row-aware changes through Graft;
+- files deleted from the Explorer move to the system Trash;
+- optional authenticated Sync while local work remains account-free.
+
+## The file model
+
+The folder you choose remains a normal folder. `.eidos` files remain SQLite
+application files. Local history metadata is separate from the data model, and
+signing out or going offline does not make local files unreadable.
+
+Developers who need to run the current source can use the
+[Eidos Lite workspace guide](https://github.com/mayneyao/eidos/tree/dev/apps/eidos-lite-desktop).
+For everyday data guarantees, read [History, recovery, and Sync](/user-guide/history-and-sync/).
