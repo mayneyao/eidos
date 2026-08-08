@@ -57,7 +57,6 @@ pub fn run(command: Command) -> Result<CommandOutput> {
     }
 }
 
-#[cfg(not(windows))]
 fn serve_file(args: ServeArgs) -> Result<CommandOutput> {
     // Preflight: require an existing, well-formed .eidos file before binding
     // the port; run_serve opens its own connection afterwards.
@@ -65,14 +64,6 @@ fn serve_file(args: ServeArgs) -> Result<CommandOutput> {
     qjs_host::serve::run_serve(&args.file, args.port, args.ui_dir, args.open)
         .map_err(|error| AppError::internal(error.to_string()))?;
     Ok(CommandOutput::success(json!({ "served": true })))
-}
-
-#[cfg(windows)]
-fn serve_file(args: ServeArgs) -> Result<CommandOutput> {
-    Err(AppError::invalid_request(format!(
-        "serve is not supported on Windows yet: {}",
-        args.file.display()
-    )))
 }
 
 fn ensure_eidos_path(path: &Path) -> Result<()> {

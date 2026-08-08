@@ -1,0 +1,55 @@
+name: CLI Windows Gates
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/cli-windows-gates.yml"
+      - ".github/workflows/build-and-release-cli.yml"
+      - "apps/cli/**"
+  push:
+    branches:
+      - dev
+    paths:
+      - ".github/workflows/cli-windows-gates.yml"
+      - ".github/workflows/build-and-release-cli.yml"
+      - "apps/cli/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cli-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Check formatting
+        working-directory: apps/cli
+        run: cargo fmt --all --check
+
+      - name: Run Clippy
+        working-directory: apps/cli
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Run tests
+        working-directory: apps/cli
+        run: cargo test --workspace --locked
+
+      - name: Build release binary
+        working-directory: apps/cli
+        run: cargo build --release --locked
+
+      - name: Smoke-test embedded editor
+        shell: pwsh
+        run: ./apps/cli/windows-serve-smoke.ps1 -Binary ./apps/cli/target/release/eidos.exe

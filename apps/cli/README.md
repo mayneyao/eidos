@@ -126,8 +126,8 @@ target/debug/eidos serve tracker.eidos --port 8420 --open
 ```
 
 The server binds `127.0.0.1` only. `--ui-dir <dir>` serves a different static
-UI build instead of the embedded one. `serve` is not available on Windows yet
-because the embedded QuickJS host does not build under MSVC.
+UI build instead of the embedded one. The embedded editor is available in the
+published macOS, Linux, and Windows builds.
 
 Run `eidos --help` and the repository Skill at [`../../skills/eidos/SKILL.md`](../../skills/eidos/SKILL.md) for the complete command and safe-agent workflow.
 

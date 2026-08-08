@@ -129,6 +129,13 @@ jobs:
           set -euo pipefail
           "$BINARY" --version | grep -F "eidos $VERSION ("
 
+      - name: Smoke-test Windows embedded editor
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        shell: pwsh
+        env:
+          BINARY: ${{ matrix.binary }}
+        run: ./apps/cli/windows-serve-smoke.ps1 -Binary $env:BINARY
+
       - name: Package Unix archive
         if: matrix.archive == 'tar.gz'
         shell: bash

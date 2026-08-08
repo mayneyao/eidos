@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises"
 import test from "node:test"
 
 const files = {
+  app: "apps/cli/src/app.rs",
   cargo: "apps/cli/Cargo.toml",
   cargoLock: "apps/cli/Cargo.lock",
   desktopWorkflow: ".github/workflows/build-and-release-desktop-app.yml",
@@ -14,6 +15,8 @@ const files = {
   skillOperationsReference: "skills/eidos/references/operations.md",
   cliReadme: "apps/cli/README.md",
   versionScript: "scripts/version.cjs",
+  windowsGateWorkflow: ".github/workflows/cli-windows-gates.yml",
+  windowsSmoke: "apps/cli/windows-serve-smoke.ps1",
 }
 
 async function read(path) {
@@ -80,6 +83,30 @@ test("CLI workflow publishes the complete independent release contract", async (
   assert.match(workflow, /npx -y skills add/u)
   assert.match(workflow, /tree\/\$\{TAG\}\/skills\/eidos/u)
   assert.match(workflow, /\.agents\/skills\/eidos\/SKILL\.md/u)
+})
+
+test("Windows builds include and smoke-test the embedded serve runtime", async () => {
+  const [app, cargo, readme, releaseWorkflow, windowsGate, windowsSmoke] =
+    await Promise.all([
+      read(files.app),
+      read(files.cargo),
+      read(files.cliReadme),
+      read(files.releaseWorkflow),
+      read(files.windowsGateWorkflow),
+      read(files.windowsSmoke),
+    ])
+
+  assert.match(cargo, /^qjs-host = \{ path = "qjs-host" \}$/mu)
+  assert.doesNotMatch(cargo, /cfg\(not\(windows\)\)/u)
+  assert.doesNotMatch(app, /cfg\((?:not\()?windows/u)
+  assert.doesNotMatch(app, /serve is not supported on Windows/u)
+  assert.doesNotMatch(readme, /serve` is not available on Windows/u)
+  assert.match(windowsSmoke, /Invoke-WebRequest/u)
+  assert.match(windowsSmoke, /api\/manifest/u)
+  assert.match(windowsGate, /runs-on: windows-latest/u)
+  assert.match(windowsGate, /cargo test --workspace --locked/u)
+  assert.match(windowsGate, /windows-serve-smoke\.ps1/u)
+  assert.match(releaseWorkflow, /windows-serve-smoke\.ps1/u)
 })
 
 test("CLI release notes are versioned and scoped to the standalone CLI", async () => {

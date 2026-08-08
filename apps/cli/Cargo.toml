@@ -17,14 +17,10 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 rusqlite = { version = "0.32", features = ["bundled"] }
 eidos-file-core = { path = "core" }
+qjs-host = { path = "qjs-host" }
 
 [dev-dependencies]
 tempfile = "3.19"
-
-# The embedded QuickJS host does not build under MSVC yet, so `eidos serve`
-# is unavailable on Windows for now.
-[target.'cfg(not(windows))'.dependencies]
-qjs-host = { path = "qjs-host" }
 
 # Cargo workspace root. The workspace lives entirely under apps/cli so that
 # target/ stays at apps/cli/target and the desktop packaging script
