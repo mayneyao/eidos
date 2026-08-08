@@ -22,7 +22,7 @@ use serde_json::{Map, Value, json};
 
 use crate::cli::{
     ApplyArgs, Command, ContextArgs, CreateArgs, FileArgs, QueryArgs, RowAddArgs, RowCommand,
-    RowDeleteArgs, RowUpdateArgs, RowsArgs, SchemaApplyArgs, SchemaArgs, ValidateArgs,
+    RowDeleteArgs, RowUpdateArgs, RowsArgs, SchemaApplyArgs, SchemaArgs, ServeArgs, ValidateArgs,
     ValidationLevelArg,
 };
 use crate::error::{AppError, Result};
@@ -53,7 +53,26 @@ pub fn run(command: Command) -> Result<CommandOutput> {
         Command::Rows(args) => rows(args),
         Command::Validate(args) => validate_file(args),
         Command::SchemaApply(args) => schema_apply(args),
+        Command::Serve(args) => serve_file(args),
     }
+}
+
+#[cfg(not(windows))]
+fn serve_file(args: ServeArgs) -> Result<CommandOutput> {
+    // Preflight: require an existing, well-formed .eidos file before binding
+    // the port; run_serve opens its own connection afterwards.
+    drop(open_file(&args.file, true)?);
+    qjs_host::serve::run_serve(&args.file, args.port, args.ui_dir, args.open)
+        .map_err(|error| AppError::internal(error.to_string()))?;
+    Ok(CommandOutput::success(json!({ "served": true })))
+}
+
+#[cfg(windows)]
+fn serve_file(args: ServeArgs) -> Result<CommandOutput> {
+    Err(AppError::invalid_request(format!(
+        "serve is not supported on Windows yet: {}",
+        args.file.display()
+    )))
 }
 
 fn ensure_eidos_path(path: &Path) -> Result<()> {

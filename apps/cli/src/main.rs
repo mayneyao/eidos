@@ -107,6 +107,9 @@ mod tests {
             r#"{"revision":"0","table":"Tasks","match":{"_id":"01900000-0000-7000-8000-000000000000"},"set":{"Status":"done"}}"#,
         ]);
         assert!(matches!(apply.command, Command::Apply(_)));
+
+        let serve = parse_ok(&["eidos", "tasks.eidos", "serve", "--port", "9000"]);
+        assert!(matches!(serve.command, Command::Serve(_)));
     }
 
     #[test]

@@ -45,6 +45,11 @@ import { eidosFileGalleryPlugin } from "@eidos.space/eidos-file-ui/plugins/galle
 import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban"
 import { EidosFileQueryToolbar } from "@eidos.space/eidos-file-ui/eidos-file-query-toolbar"
 import {
+  EidosFileHttpClient,
+  fetchCliHostManifest,
+  type CliHostManifest,
+} from "@eidos.space/eidos-file-serve"
+import {
   AlertTriangle,
   Check,
   ChevronRight,
@@ -100,7 +105,10 @@ import {
 } from "./files/browser-file-adapter"
 import { registerPwaEidosFileHandler } from "./files/pwa-file-handler"
 import { useI18n, type Translator } from "./i18n"
-import { EidosFileWorkerClient } from "./runtime/worker-client"
+import {
+  EidosFileWorkerClient,
+  type EidosFileSessionClient,
+} from "./runtime/worker-client"
 import {
   getEidosFileTemplateSource,
   loadSampleEidosFile,
@@ -262,7 +270,7 @@ export function App() {
   const [snapshot, setSnapshot] = useState<EidosFileSnapshot | null>(null)
   const [session, setSession] = useState<OpenSession | null>(null)
   const [editorSource, setEditorSource] =
-    useState<EidosFileWorkerClient | null>(null)
+    useState<EidosFileSessionClient | null>(null)
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
   const [activeViews, setActiveViews] = useState<Record<string, string>>({})
   const [search, setSearch] = useState("")
@@ -307,7 +315,7 @@ export function App() {
       console.warn("Unable to register the Eidos File service worker", error)
     },
   })
-  const clientRef = useRef<EidosFileWorkerClient | null>(null)
+  const clientRef = useRef<EidosFileSessionClient | null>(null)
   const saveStateRef = useRef(saveState)
   const sessionRef = useRef(session)
   const recoveryRef = useRef(recovery)
@@ -315,7 +323,7 @@ export function App() {
     saveStateRef.current = saveReducer(saveStateRef.current, event)
     reactDispatch(event)
   }, [])
-  const retiringClientsRef = useRef<EidosFileWorkerClient[]>([])
+  const retiringClientsRef = useRef<EidosFileSessionClient[]>([])
   const structureMutationQueueRef = useRef<Promise<void>>(Promise.resolve())
   const inputRef = useRef<HTMLInputElement>(null)
   const csvFilesRef = useRef(new Map<string, File>())
@@ -580,6 +588,11 @@ export function App() {
       if (currentSession?.storage === "opfs-sahpool") {
         void rememberRecovery(currentSession)
       }
+      // CLI-hosted sessions write through to the file on every commit, so the
+      // working copy is never dirty: acknowledge the save immediately.
+      if (clientRef.current?.kind === "http") {
+        dispatch({ type: "SAVE_SUCCESS", at: Date.now(), mode: "direct" })
+      }
     },
     [rememberRecovery, session]
   )
@@ -593,7 +606,7 @@ export function App() {
 
   const installOpenResult = useCallback(
     async (
-      client: EidosFileWorkerClient,
+      client: EidosFileSessionClient,
       opened: Omit<OpenSession, "storage">,
       result: Awaited<ReturnType<EidosFileWorkerClient["openEditorSource"]>>,
       preferredTableName?: string,
@@ -695,6 +708,66 @@ export function App() {
     },
     [installOpenResult]
   )
+
+  const openCliSession = useCallback(
+    async (manifest: CliHostManifest) => {
+      const generation = ++openGenerationRef.current
+      dispatch({ type: "OPEN_START" })
+      const client = new EidosFileHttpClient()
+      const id = crypto.randomUUID()
+      try {
+        const result = await client.openEditorSource(
+          manifest.fileName,
+          id,
+          manifest.access
+        )
+        if (generation !== openGenerationRef.current) {
+          client.terminate()
+          return
+        }
+        await installOpenResult(
+          client,
+          {
+            id,
+            fileName: manifest.fileName,
+            mode: "direct",
+            permission: "granted",
+            sourceVersion: { size: 0, lastModified: 0, digest: "" },
+          },
+          result
+        )
+      } catch (error) {
+        client.terminate()
+        const message = errorMessage(error)
+        setNotice(message)
+        dispatch({ type: "OPEN_FAILURE", message })
+      }
+    },
+    [installOpenResult]
+  )
+
+  // A CLI-hosted session (eidos serve) always supersedes the boot sample: the
+  // server already owns one concrete file and opens it without any picker.
+  const cliManifestRef = useRef<CliHostManifest | null>(null)
+  const [cliHosted, setCliHosted] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const manifest = await fetchCliHostManifest()
+      if (cancelled || !manifest) return
+      cliManifestRef.current = manifest
+      setCliHosted(true)
+      bootstrappedRef.current = true
+      explicitOpenStartedRef.current = true
+      setNotice(null)
+      await openCliSession(manifest)
+    })()
+    return () => {
+      cancelled = true
+    }
+    // Runs once at boot; the CLI manifest never changes for the page lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Chromium may drain launchQueue synchronously during registration. A layout
   // effect lets React finish StrictMode's cleanup/re-register cycle before the
@@ -1075,6 +1148,17 @@ export function App() {
     async (overwrite = false) => {
       const client = clientRef.current
       if (!client || !session) return
+      if (client.kind === "http") {
+        // The CLI server already persists every commit; save is a checkpoint.
+        dispatch({ type: "SAVE_START" })
+        try {
+          await client.save()
+          dispatch({ type: "SAVE_SUCCESS", at: Date.now(), mode: "direct" })
+        } catch (error) {
+          dispatch({ type: "SAVE_FAILURE", message: errorMessage(error) })
+        }
+        return
+      }
       if (!session.handle || session.permission !== "granted") {
         await saveAs()
         return
@@ -1528,7 +1612,7 @@ export function App() {
 
   const runStructureMutation = useCallback(
     (
-      client: EidosFileWorkerClient,
+      client: EidosFileSessionClient,
       mutate: () => Promise<EidosFileSnapshot>
     ): Promise<void> => {
       const pending = structureMutationQueueRef.current
@@ -1896,22 +1980,24 @@ export function App() {
   if (!snapshot || !session || !editorSource || !activeTable) {
     return (
       <main className="editor-shell" id="main-content">
-        <AppTitlebar
-          fileOpen={false}
-          opening={saveState.phase === "opening"}
-          recentFiles={recentFiles}
-          theme={theme}
-          onNew={() => void createBlankFile()}
-          onOpen={() => void chooseFile()}
-          onOpenSample={() => void openSample()}
-          onOpenTemplate={(templateId) => void openTemplate(templateId)}
-          onOpenRecent={(id) => void openRecentFile(id)}
-          onClearRecentFiles={() => void clearRecentFileHistory()}
-          onSave={() => void saveOriginal()}
-          onDownload={() => void saveAs()}
-          onReauthorize={() => void reauthorize()}
-          onThemeChange={setTheme}
-        />
+        {!cliHosted && (
+          <AppTitlebar
+            fileOpen={false}
+            opening={saveState.phase === "opening"}
+            recentFiles={recentFiles}
+            theme={theme}
+            onNew={() => void createBlankFile()}
+            onOpen={() => void chooseFile()}
+            onOpenSample={() => void openSample()}
+            onOpenTemplate={(templateId) => void openTemplate(templateId)}
+            onOpenRecent={(id) => void openRecentFile(id)}
+            onClearRecentFiles={() => void clearRecentFileHistory()}
+            onSave={() => void saveOriginal()}
+            onDownload={() => void saveAs()}
+            onReauthorize={() => void reauthorize()}
+            onThemeChange={setTheme}
+          />
+        )}
 
         <div className="boot-loading" role="status">
           <LoaderCircle className="spin" size={18} aria-hidden="true" />
@@ -1980,41 +2066,43 @@ export function App() {
       <a className="skip-link" href="#eidos-file-grid">
         Skip to Eidos File grid
       </a>
-      <AppTitlebar
-        fileOpen
-        fileName={session.fileName}
-        tableName={activeTable.table.name}
-        opening={saveState.phase === "opening"}
-        statusLabel={status.label}
-        statusTone={status.tone}
-        StatusIcon={StatusIcon}
-        statusSpinning={
-          saveState.phase === "saving" || saveState.phase === "opening"
-        }
-        needsPermission={
-          session.mode === "direct" &&
-          (session.permission !== "granted" || needsOriginalRelink)
-        }
-        permissionActionLabel={
-          needsOriginalRelink ? t("locateOriginalFile") : t("grantWrite")
-        }
-        canSave={hasUnsavedChanges(saveState) && saveState.phase !== "saving"}
-        saveLabel={canSaveToOriginal(saveState) ? t("save") : t("saveAs")}
-        recentFiles={recentFiles}
-        theme={theme}
-        onNew={() => void createBlankFile()}
-        onOpen={() => void chooseFile()}
-        onOpenSample={() => void openSample()}
-        onOpenTemplate={(templateId) => void openTemplate(templateId)}
-        onOpenRecent={(id) => void openRecentFile(id)}
-        onClearRecentFiles={() => void clearRecentFileHistory()}
-        onSave={() => void saveOriginal()}
-        onDownload={() => void saveAs()}
-        onReauthorize={() =>
-          void (needsOriginalRelink ? reconnectOriginal() : reauthorize())
-        }
-        onThemeChange={setTheme}
-      />
+      {!cliHosted && (
+        <AppTitlebar
+          fileOpen
+          fileName={session.fileName}
+          tableName={activeTable.table.name}
+          opening={saveState.phase === "opening"}
+          statusLabel={status.label}
+          statusTone={status.tone}
+          StatusIcon={StatusIcon}
+          statusSpinning={
+            saveState.phase === "saving" || saveState.phase === "opening"
+          }
+          needsPermission={
+            session.mode === "direct" &&
+            (session.permission !== "granted" || needsOriginalRelink)
+          }
+          permissionActionLabel={
+            needsOriginalRelink ? t("locateOriginalFile") : t("grantWrite")
+          }
+          canSave={hasUnsavedChanges(saveState) && saveState.phase !== "saving"}
+          saveLabel={canSaveToOriginal(saveState) ? t("save") : t("saveAs")}
+          recentFiles={recentFiles}
+          theme={theme}
+          onNew={() => void createBlankFile()}
+          onOpen={() => void chooseFile()}
+          onOpenSample={() => void openSample()}
+          onOpenTemplate={(templateId) => void openTemplate(templateId)}
+          onOpenRecent={(id) => void openRecentFile(id)}
+          onClearRecentFiles={() => void clearRecentFileHistory()}
+          onSave={() => void saveOriginal()}
+          onDownload={() => void saveAs()}
+          onReauthorize={() =>
+            void (needsOriginalRelink ? reconnectOriginal() : reauthorize())
+          }
+          onThemeChange={setTheme}
+        />
+      )}
 
       <div className="alert-slot">
         {saveState.phase === "conflict" ? (

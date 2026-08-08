@@ -12,6 +12,7 @@ import {
   EidosRuntimeEditorDataSource,
   type EidosFileEditorDataSource,
 } from "@eidos.space/eidos-file-ui"
+import type { EidosFileHttpClient } from "@eidos.space/eidos-file-serve"
 
 import type {
   EidosFileWorkerAction,
@@ -33,6 +34,7 @@ interface PendingCall {
  * exposed here; UI receives only the RuntimeClient created by runtimeClient().
  */
 export class EidosFileWorkerClient {
+  readonly kind = "worker" as const
   private readonly worker = new Worker(
     new URL("./eidos-file.worker.ts", import.meta.url),
     { type: "module", name: "eidos-file-runtime" }
@@ -427,3 +429,5 @@ export class EidosFileWorkerClient {
     })
   }
 }
+
+export type EidosFileSessionClient = EidosFileWorkerClient | EidosFileHttpClient

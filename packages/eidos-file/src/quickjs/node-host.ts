@@ -1,4 +1,10 @@
-import type Database from "better-sqlite3"
+import { Buffer } from "node:buffer"
+import { createHash, randomBytes } from "node:crypto"
+import {
+  DatabaseSync,
+  type SQLInputValue,
+  type StatementSync,
+} from "node:sqlite"
 
 import { nativeToSqlValue, sqlValueToNative } from "../connection-port"
 import type { QuickJsHostBridge, QuickJsHostError } from "./port"
@@ -27,29 +33,24 @@ function ok(value: unknown): string {
 }
 
 function mapSqliteError(error: unknown): string {
-  const code =
-    typeof (error as { code?: unknown })?.code === "string"
-      ? ((error as { code: string }).code as string)
-      : ""
   const message = error instanceof Error ? error.message : String(error)
-  const primary = /^SQLITE_([A-Z]+)/.exec(code)?.[1] ?? ""
-  const numericPrimary = Number((error as { code?: string }).code ?? 0) & 0xff
+  const numericPrimary = sqlitePrimaryCode(error)
   const mapped =
-    primary === "CONSTRAINT"
+    numericPrimary === 19
       ? "constraint"
-      : primary === "BUSY"
+      : numericPrimary === 5
         ? "busy"
-        : primary === "LOCKED"
+        : numericPrimary === 6
           ? "locked"
-          : primary === "READONLY"
+          : numericPrimary === 8
             ? "read-only"
-            : primary === "INTERRUPT"
+            : numericPrimary === 9
               ? "cancelled"
-              : primary === "IOERR"
+              : numericPrimary === 10
                 ? "io-error"
-                : primary === "CORRUPT"
+                : numericPrimary === 11
                   ? "corrupt"
-                  : primary === "NOTADB"
+                  : numericPrimary === 26
                     ? "not-a-database"
                     : "sql-error"
   return hostError(mapped, message, {
@@ -57,30 +58,71 @@ function mapSqliteError(error: unknown): string {
   })
 }
 
-function parseBindings(bindingsJson: string): unknown[] {
+function sqlitePrimaryCode(error: unknown): number {
+  return Number((error as { errcode?: unknown }).errcode ?? 0) & 0xff
+}
+
+function mapReadOnlyError(error: unknown, forbidWrite: boolean): string {
+  if (forbidWrite && sqlitePrimaryCode(error) === 8) {
+    return hostError(
+      "read-only",
+      "Mutating statement is forbidden in a read transaction",
+      { sqlitePrimaryCode: 8 }
+    )
+  }
+  return mapSqliteError(error)
+}
+
+function parseBindings(bindingsJson: string): SQLInputValue[] {
   const wire = JSON.parse(bindingsJson) as WireSqlValue[]
-  if (wire.length === 0) return []
-  const named: Record<string, unknown> = {}
-  wire.forEach((value, index) => {
-    // better-sqlite3 exposes SQLite's ?NNN parameters through its named-
-    // parameter object API. The bridge ABI remains positional; the Rust side
-    // binds by sqlite3_bind_parameter_index instead.
-    named[String(index + 1)] = sqlValueToNative(wireToSqlValue(value))
-  })
-  return [named]
+  return wire.map(
+    (value) => sqlValueToNative(wireToSqlValue(value)) as SQLInputValue
+  )
+}
+
+function prepare(
+  database: DatabaseSync,
+  sql: string,
+  arrays = false
+): StatementSync {
+  const statement = database.prepare(sql)
+  statement.setReadBigInts(true)
+  statement.setAllowBareNamedParameters(false)
+  statement.setAllowUnknownNamedParameters(false)
+  if (arrays) statement.setReturnArrays(true)
+  return statement
+}
+
+function withReadOnlyGuard<T>(
+  database: DatabaseSync,
+  forbidWrite: boolean,
+  operation: () => T
+): T {
+  if (!forbidWrite) return operation()
+  database.exec("PRAGMA query_only = ON")
+  try {
+    return operation()
+  } finally {
+    database.exec("PRAGMA query_only = OFF")
+  }
+}
+
+export interface NodeSqliteHostBridgeOptions {
+  serialize?: () => Uint8Array
 }
 
 /**
- * Reference implementation of the Rust rusqlite host bridge contract, used to
- * validate the QuickJS port logic in Node before involving rquickjs. The Rust
- * side must reproduce this behavior envelope-for-envelope.
+ * node:sqlite reference implementation of the Rust rusqlite host bridge
+ * contract. It validates the QuickJS port logic before involving rquickjs;
+ * the Rust side must reproduce these envelopes.
  */
-export function createBetterSqlite3HostBridge(
-  database: Database.Database
+export function createNodeSqliteHostBridge(
+  database: DatabaseSync,
+  options: NodeSqliteHostBridgeOptions = {}
 ): QuickJsHostBridge {
-  database.pragma("foreign_keys = ON")
-  database.pragma("trusted_schema = OFF")
-  database.pragma(`busy_timeout = ${BUSY_TIMEOUT_MS}`)
+  database.exec(
+    `PRAGMA foreign_keys = ON; PRAGMA trusted_schema = OFF; PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`
+  )
 
   return {
     exec(sql: string): string {
@@ -94,59 +136,50 @@ export function createBetterSqlite3HostBridge(
 
     query(sql: string, bindingsJson: string, forbidWrite: boolean): string {
       try {
-        const statement = database.prepare(sql).safeIntegers(true)
-        if (!statement.reader) {
+        const statement = prepare(database, sql, true)
+        const columns = statement.columns()
+        if (columns.length === 0) {
           return hostError(
             "invalid-argument",
             "query requires one row-producing statement"
           )
         }
-        if (forbidWrite && !statement.readonly) {
-          return hostError(
-            "read-only",
-            "Mutating statement is forbidden in a read transaction"
-          )
-        }
-        const rows = statement
-          .raw(true)
-          .all(...parseBindings(bindingsJson)) as unknown[][]
+        const rows = withReadOnlyGuard(database, forbidWrite, () =>
+          statement.all(...parseBindings(bindingsJson))
+        ) as unknown as SQLInputValue[][]
         return ok({
-          columns: statement.columns().map((column) => ({ name: column.name })),
+          columns: columns.map((column) => ({ name: column.name })),
           rows: rows.map((row) => sqlValuesToWire(row.map(nativeToSqlValue))),
         })
       } catch (error) {
-        return mapSqliteError(error)
+        return mapReadOnlyError(error, forbidWrite)
       }
     },
 
     run(sql: string, bindingsJson: string, forbidWrite: boolean): string {
       try {
-        const statement = database.prepare(sql).safeIntegers(true)
-        if (statement.reader) {
+        const statement = prepare(database, sql)
+        if (statement.columns().length > 0) {
           return hostError(
             "invalid-argument",
             "run requires one no-result statement"
           )
         }
-        if (forbidWrite && !statement.readonly) {
-          return hostError(
-            "read-only",
-            "Mutating statement is forbidden in a read transaction"
-          )
-        }
-        const result = statement.run(...parseBindings(bindingsJson))
+        const result = withReadOnlyGuard(database, forbidWrite, () =>
+          statement.run(...parseBindings(bindingsJson))
+        )
         return ok({
           changes: String(result.changes),
           lastInsertRowid: String(result.lastInsertRowid),
         })
       } catch (error) {
-        return mapSqliteError(error)
+        return mapReadOnlyError(error, forbidWrite)
       }
     },
 
     registerScalar(name: string, arity: number): string {
       try {
-        const trampoline = (...values: unknown[]) => {
+        const trampoline = (...values: SQLInputValue[]) => {
           const argsJson = JSON.stringify(
             sqlValuesToWire(values.map(nativeToSqlValue))
           )
@@ -167,7 +200,7 @@ export function createBetterSqlite3HostBridge(
           {
             deterministic: true,
             directOnly: true,
-            safeIntegers: true,
+            useBigIntArguments: true,
             varargs: false,
           },
           trampoline
@@ -180,7 +213,8 @@ export function createBetterSqlite3HostBridge(
 
     dataVersion(): string {
       try {
-        const value = database.pragma("data_version", { simple: true })
+        const statement = prepare(database, "PRAGMA data_version", true)
+        const value = (statement.get() as unknown[] | undefined)?.[0]
         return ok(String(value))
       } catch (error) {
         return mapSqliteError(error)
@@ -189,8 +223,20 @@ export function createBetterSqlite3HostBridge(
 
     serialize(): string {
       try {
-        const buffer = database.serialize()
-        return ok(bytesToBase64(new Uint8Array(buffer)))
+        const serialize =
+          options.serialize ??
+          (() => {
+            const method = (
+              database as DatabaseSync & {
+                serialize?: (name?: string) => Uint8Array
+              }
+            ).serialize
+            if (typeof method !== "function") {
+              throw new Error("node:sqlite serialize() is unavailable")
+            }
+            return method.call(database, "main")
+          })
+        return ok(bytesToBase64(new Uint8Array(serialize())))
       } catch (error) {
         return mapSqliteError(error)
       }
@@ -199,23 +245,18 @@ export function createBetterSqlite3HostBridge(
     interrupt(): string {
       return hostError(
         "unsupported-capability",
-        "better-sqlite3 does not expose sqlite3_interrupt"
+        "node:sqlite does not expose sqlite3_interrupt"
       )
     },
 
     randomBytes(length: number): string {
-      const bytes = new Uint8Array(length)
-      for (let index = 0; index < length; index += 1) {
-        bytes[index] = Math.floor(Math.random() * 256)
-      }
-      return bytesToBase64(bytes)
+      return randomBytes(length).toString("base64")
     },
 
     sha256(bytesBase64: string): string {
-      // Only used when the polyfilled crypto.subtle.digest runs under Node,
-      // which never happens because Node provides real WebCrypto.
-      void bytesBase64
-      throw new Error("sha256 host call is unavailable in the Node bridge")
+      return createHash("sha256")
+        .update(Buffer.from(bytesBase64, "base64"))
+        .digest("base64")
     },
 
     log(level: string, message: string): void {
@@ -234,11 +275,10 @@ export function createBetterSqlite3HostBridge(
 
     sqliteProbe(): string {
       try {
-        const row = database
-          .prepare(
-            "SELECT sqlite_version() AS version, sqlite_source_id() AS source"
-          )
-          .get() as { version: string; source: string }
+        const row = prepare(
+          database,
+          "SELECT sqlite_version() AS version, sqlite_source_id() AS source"
+        ).get() as { version: string; source: string }
         return ok({ sqliteVersion: row.version, sourceId: row.source })
       } catch (error) {
         return mapSqliteError(error)

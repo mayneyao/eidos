@@ -1,0 +1,233 @@
+@import "@eidos.space/eidos-file-ui/styles.css";
+@import "../../../apps/web-app/styles/themes/default.css";
+
+:root {
+  color-scheme: light;
+  --shell: color-mix(in oklch, var(--background) 98%, var(--foreground));
+  --surface-raised: color-mix(
+    in oklch,
+    var(--background) 97%,
+    var(--foreground)
+  );
+  --surface-sunken: color-mix(
+    in oklch,
+    var(--background) 94%,
+    var(--foreground)
+  );
+  --status-success: oklch(48% 0.12 155);
+  --status-warning: oklch(53% 0.13 72);
+  --status-danger: oklch(52% 0.18 27);
+  --focus: oklch(55% 0.15 250);
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-editorial: var(--font-ui);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: var(--font-ui);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+.dark {
+  color-scheme: dark;
+  --shell: color-mix(in oklch, var(--background) 95%, oklch(28% 0.018 250));
+  --surface-raised: color-mix(
+    in oklch,
+    var(--background) 94%,
+    var(--foreground)
+  );
+  --surface-sunken: color-mix(in oklch, var(--background) 97%, black);
+  --status-success: oklch(72% 0.12 155);
+  --status-warning: oklch(76% 0.13 80);
+  --status-danger: oklch(72% 0.17 28);
+  --focus: oklch(75% 0.12 250);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  border-color: var(--border);
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 20rem;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--shell);
+  color: var(--foreground);
+  font-size: 1rem;
+  font-kerning: normal;
+}
+
+button,
+input,
+select {
+  color: inherit;
+  font: inherit;
+}
+
+button {
+  border: 0;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+button:focus,
+input:focus,
+select:focus,
+[tabindex]:focus {
+  outline: none;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.serve-shell {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--background);
+}
+
+.boot-loading {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+}
+
+.boot-error {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.boot-error code {
+  padding: 0.125rem 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--surface-sunken);
+  color: var(--foreground);
+  font-size: 0.8125rem;
+}
+
+.shared-grid-loading {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.eidos-file-content {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  container: eidos-file-content / inline-size;
+  overflow: hidden;
+}
+
+.status-separator {
+  opacity: 0.55;
+}
+
+.spin {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.toast {
+  position: fixed;
+  z-index: 80;
+  right: 1rem;
+  bottom: 2.5rem;
+  display: grid;
+  max-width: min(32rem, calc(100vw - 2rem));
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.625rem;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in oklch, var(--status-danger) 35%, var(--border));
+  border-radius: 0.5rem;
+  background: var(--popover);
+  box-shadow: 0 0.75rem 2rem
+    color-mix(in oklch, var(--foreground) 12%, transparent);
+  color: var(--status-danger);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  animation: toast-in 220ms var(--ease-out-expo) both;
+}
+
+.toast button {
+  display: grid;
+  padding: 0;
+  place-items: center;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+@keyframes toast-in {
+  from {
+    transform: translateY(0.5rem);
+    opacity: 0;
+  }
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

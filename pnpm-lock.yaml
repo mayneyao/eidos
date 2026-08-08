@@ -351,6 +351,9 @@ importers:
       '@eidos.space/eidos-file':
         specifier: workspace:*
         version: link:../../packages/eidos-file
+      '@eidos.space/eidos-file-serve':
+        specifier: workspace:*
+        version: link:../../packages/eidos-file-serve
       '@eidos.space/eidos-file-ui':
         specifier: workspace:*
         version: link:../../packages/eidos-file-ui
@@ -1511,6 +1514,40 @@ importers:
       vitest:
         specifier: 3.2.6
         version: 3.2.6(@types/debug@4.1.12)(@types/node@24.12.2)(happy-dom@20.10.6(bufferutil@4.0.9)(utf-8-validate@6.0.5))(jiti@2.6.1)(jsdom@26.1.0(bufferutil@4.0.9)(utf-8-validate@6.0.5))(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
+
+  packages/eidos-file-serve:
+    dependencies:
+      '@eidos.space/eidos-file':
+        specifier: workspace:*
+        version: link:../eidos-file
+      '@eidos.space/eidos-file-ui':
+        specifier: workspace:*
+        version: link:../eidos-file-ui
+      lucide-react:
+        specifier: ^0.471.2
+        version: 0.471.2(react@18.3.1)
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: ^18.2.0
+        version: 18.3.23
+      '@types/react-dom':
+        specifier: ^18.2.0
+        version: 18.3.7(@types/react@18.3.23)
+      '@vitejs/plugin-react':
+        specifier: ^5.2.0
+        version: 5.2.0(vite@8.1.5(@types/node@25.4.0)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0))
+      typescript:
+        specifier: ^5.8.0
+        version: 5.8.3
+      vite:
+        specifier: ^8.1.5
+        version: 8.1.5(@types/node@25.4.0)(esbuild@0.28.1)(jiti@2.6.1)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/eidos-file-ui:
     dependencies:

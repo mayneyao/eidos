@@ -9,6 +9,7 @@
 - Query rows through the Eidos query model rather than raw SQL.
 - Apply atomic row and schema mutations with optimistic revision checks.
 - Validate file identity, structure, content, and supported semantics.
+- Serve a local web editor for one file over HTTP (macOS and Linux).
 
 The CLI does not manage legacy Spaces, documents, Desktop RPC, version history, or sync. Use ordinary file tools for Markdown and attachments, and Graft for history/sync.
 
@@ -36,7 +37,7 @@ The short URLs are served by the `apps/download` Worker.
 Pin a version or installation directory with environment variables:
 
 ```bash
-EIDOS_VERSION=0.34.0 EIDOS_INSTALL_DIR=/usr/local/bin sh install.sh
+EIDOS_VERSION=0.35.0 EIDOS_INSTALL_DIR=/usr/local/bin sh install.sh
 ```
 
 Standalone assets currently cover macOS arm64/x64, Linux x64, and Windows x64.
@@ -50,7 +51,7 @@ stable CLI:
 
 ```bash
 npx skills add \
-  https://github.com/mayneyao/eidos/tree/cli-v0.34.0/skills/eidos \
+  https://github.com/mayneyao/eidos/tree/cli-v0.35.0/skills/eidos \
   --skill eidos -g -a codex -y
 ```
 
@@ -111,6 +112,23 @@ target/debug/eidos tracker.eidos validate --level full
 
 Both `eidos tracker.eidos inspect` and `eidos inspect tracker.eidos` are supported. Successful commands write one JSON document to stdout. Failed commands write one JSON error document to stderr and return a nonzero exit code.
 
+## Local web editor
+
+`eidos serve` hosts a dedicated Eidos File web editor over HTTP with the UI
+embedded in the binary. The editor lives in
+[`packages/eidos-file-serve`](../../packages/eidos-file-serve) on top of
+`@eidos.space/eidos-file-ui`, and the TypeScript runtime runs inside an
+embedded QuickJS engine on a rusqlite bridge, so every committed mutation
+writes straight to the file — there is no separate save step.
+
+```bash
+target/debug/eidos serve tracker.eidos --port 8420 --open
+```
+
+The server binds `127.0.0.1` only. `--ui-dir <dir>` serves a different static
+UI build instead of the embedded one. `serve` is not available on Windows yet
+because the embedded QuickJS host does not build under MSVC.
+
 Run `eidos --help` and the repository Skill at [`../../skills/eidos/SKILL.md`](../../skills/eidos/SKILL.md) for the complete command and safe-agent workflow.
 
 ## Safety model
@@ -133,6 +151,17 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo build --release
+```
+
+The embedded artifacts are generated but committed, so a clean checkout builds
+with cargo alone. Refresh them after changing the runtime or the serve UI:
+
+```bash
+# QuickJS runtime bundle (packages/eidos-file) -> qjs-host/bundle/
+pnpm --filter @eidos.space/eidos-file build:quickjs
+
+# Serve UI (packages/eidos-file-serve) -> qjs-host/ui/
+pnpm --filter @eidos.space/eidos-file-serve build
 ```
 
 ## Standalone release
@@ -158,6 +187,7 @@ The workspace contains:
 ```text
 apps/cli/
 ├── core/       # Eidos File format, query, mutation, and validation library
+├── qjs-host/   # Embedded QuickJS host bridging the TypeScript runtime to rusqlite
 ├── src/        # JSON CLI and agent-facing normalization
 └── tests/      # End-to-end external-agent contract tests
 ```

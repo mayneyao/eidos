@@ -42,6 +42,21 @@ pub enum Command {
     /// Apply one revision-checked schema operation.
     #[command(name = "schema-apply")]
     SchemaApply(SchemaApplyArgs),
+    /// Serve a local web editor for one file over HTTP.
+    Serve(ServeArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct ServeArgs {
+    pub file: PathBuf,
+    #[arg(long, default_value_t = 8420)]
+    pub port: u16,
+    /// Serve the web editor from this directory instead of the embedded UI.
+    #[arg(long)]
+    pub ui_dir: Option<PathBuf>,
+    /// Open the served URL in the default browser.
+    #[arg(long)]
+    pub open: bool,
 }
 
 #[derive(Debug, Args)]
@@ -220,6 +235,7 @@ const COMMANDS: &[&str] = &[
     "rows",
     "validate",
     "schema-apply",
+    "serve",
 ];
 
 /// Accept the ergonomic `eidos file.eidos query ...` form while keeping the

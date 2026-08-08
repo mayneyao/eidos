@@ -1,0 +1,29 @@
+{
+  "name": "@eidos.space/eidos-file-serve",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal Eidos File editor UI served by `eidos serve` over the CLI HTTP bridge",
+  "type": "module",
+  "exports": {
+    ".": "./src/client.ts"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@eidos.space/eidos-file": "workspace:*",
+    "@eidos.space/eidos-file-ui": "workspace:*",
+    "lucide-react": "^0.471.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "typescript": "^5.8.0",
+    "vite": "^8.1.5"
+  }
+}

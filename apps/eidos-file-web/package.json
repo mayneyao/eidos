@@ -20,6 +20,7 @@
   "dependencies": {
     "@eidos.space/eidos-file": "workspace:*",
     "@eidos.space/eidos-file-ui": "workspace:*",
+    "@eidos.space/eidos-file-serve": "workspace:*",
     "@glideapps/glide-data-grid": "^6.0.0",
     "@sqlite.org/sqlite-wasm": "3.45.3-build2",
     "lucide-react": "^0.471.2",

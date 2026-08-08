@@ -146,7 +146,9 @@ export class QuickJsConnectionPort implements ConnectionPort {
       int64: true,
       scalarFunctions: true,
       directOnlyFunctions: true,
-      interrupt: true,
+      // The embedded host executes one synchronous call at a time, so it
+      // cannot receive sqlite3_interrupt while that call is running.
+      interrupt: false,
       snapshot: true,
       defensiveMode: false,
       busyTimeoutMs,

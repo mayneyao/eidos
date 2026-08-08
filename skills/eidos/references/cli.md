@@ -10,6 +10,7 @@
 - [Row mutations](#row-mutations)
 - [Schema mutations](#schema-mutations)
 - [Validation](#validation)
+- [Local web editor](#local-web-editor)
 - [Logical values](#logical-values)
 - [Errors](#errors)
 
@@ -240,6 +241,20 @@ eidos file.eidos validate --level full --diagnostics-limit 100
 ```
 
 The process exits nonzero when `valid` is false.
+
+## Local web editor
+
+`serve` hosts the full Eidos File web editor for one file over HTTP, with the
+UI embedded in the binary. Mutations committed in the browser write straight
+to the file, so the revision advances while the server runs.
+
+```bash
+eidos serve file.eidos --port 8420 --open
+```
+
+The server binds `127.0.0.1` only. It is available on macOS and Linux; Windows
+builds reject the command. Prefer it for interactive review and bulk edits that
+are easier in a grid; keep using the JSON commands for scripted workflows.
 
 ## Logical values
 

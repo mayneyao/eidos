@@ -1,6 +1,6 @@
 [package]
 name = "eidos"
-version = "0.34.0"
+version = "0.35.0"
 edition = "2024"
 description = "Agent-first command-line interface for Eidos File"
 authors = ["mayneyao"]
@@ -21,12 +21,17 @@ eidos-file-core = { path = "core" }
 [dev-dependencies]
 tempfile = "3.19"
 
+# The embedded QuickJS host does not build under MSVC yet, so `eidos serve`
+# is unavailable on Windows for now.
+[target.'cfg(not(windows))'.dependencies]
+qjs-host = { path = "qjs-host" }
+
 # Cargo workspace root. The workspace lives entirely under apps/cli so that
 # target/ stays at apps/cli/target and the desktop packaging script
 # (apps/desktop/scripts/build-cli-local.cjs, runs `cargo build --release`
 # in apps/cli) keeps working.
 [workspace]
-members = ["core"]
+members = ["core", "qjs-host"]
 
 [profile.release]
 opt-level = 3

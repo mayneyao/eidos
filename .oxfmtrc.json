@@ -31,6 +31,8 @@
   "printWidth": 80,
   "sortPackageJson": false,
   "ignorePatterns": [
+    "apps/cli/qjs-host/bundle",
+    "apps/cli/qjs-host/ui",
     "packages/ext-server/src/generated/*.ts",
     "cache",
     ".cache",

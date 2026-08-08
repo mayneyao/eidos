@@ -1,0 +1,28 @@
+[package]
+name = "qjs-host"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Run the TypeScript Eidos File runtime inside QuickJS over a rusqlite bridge"
+
+[[bin]]
+name = "qjs-host"
+path = "src/main.rs"
+
+[dependencies]
+rquickjs = "0.12"
+rusqlite = { version = "0.32", features = [
+  "bundled",
+  "serialize",
+  "functions",
+  "limits",
+] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+base64 = "0.22"
+sha2 = "0.10"
+rand = "0.8"
+anyhow = "1"
+tiny_http = "0.12"
+open = "5"
+rust-embed = { version = "8", features = ["debug-embed"] }
