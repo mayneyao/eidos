@@ -8,6 +8,8 @@ from the Desktop `v*` release surface.
 - `apps/cli/Cargo.toml` is the CLI version source of truth.
 - `apps/cli/Cargo.lock` must contain the same `eidos` package version.
 - Stable releases update `apps/cli/LATEST`; prereleases do not move it.
+- `apps/cli/RELEASE_NOTES.md` is the exact standalone CLI Release body. Update
+  it for every version; do not use GitHub's monorepo-generated release notes.
 - Tags use `cli-v<semver>` and trigger
   `.github/workflows/build-and-release-cli.yml` only.
 - Desktop app version bumps never rewrite the CLI version. Desktop packages
@@ -41,7 +43,8 @@ git diff -- Cargo.toml Cargo.lock
 ```
 
 For a stable version, write the exact version without a `v` prefix to
-`apps/cli/LATEST`. Leave `LATEST` on the previous stable version for beta,
+`apps/cli/LATEST`. Rewrite `apps/cli/RELEASE_NOTES.md` for the exact version and
+CLI-only behavior. Leave `LATEST` on the previous stable version for beta,
 alpha, or rc tags.
 
 Commit the version preparation coherently. Before tagging, require the branch
@@ -65,9 +68,11 @@ git diff --check
 ```
 
 Also inspect `install.sh`, `install.ps1`, the workflow matrix, archive names,
-checksum verification, and the branded download routes whenever the release
-surface changes. Before the first CLI Release—or after changing those public
-routes—deploy `apps/download` separately and verify all three branded URLs.
+checksum verification, `RELEASE_NOTES.md`, and the branded download routes
+whenever the release surface changes. The notes MUST describe only standalone
+CLI changes and contain the matching immutable Skill tag. Before the first CLI
+Release—or after changing those public routes—deploy `apps/download`
+separately and verify all three branded URLs.
 
 ## Tag and monitor
 

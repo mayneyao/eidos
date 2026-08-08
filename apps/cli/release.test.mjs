@@ -7,6 +7,7 @@ const files = {
   cargoLock: "apps/cli/Cargo.lock",
   desktopWorkflow: ".github/workflows/build-and-release-desktop-app.yml",
   latest: "apps/cli/LATEST",
+  releaseNotes: "apps/cli/RELEASE_NOTES.md",
   releaseWorkflow: ".github/workflows/build-and-release-cli.yml",
   skill: "skills/eidos/SKILL.md",
   skillCliReference: "skills/eidos/references/cli.md",
@@ -50,7 +51,10 @@ test("standalone CLI release owns its version and stable pointer", async () => {
 })
 
 test("CLI workflow publishes the complete independent release contract", async () => {
-  const workflow = await read(files.releaseWorkflow)
+  const [workflow, releaseNotes] = await Promise.all([
+    read(files.releaseWorkflow),
+    read(files.releaseNotes),
+  ])
   const targets = [
     "aarch64-apple-darwin",
     "x86_64-apple-darwin",
@@ -66,10 +70,30 @@ test("CLI workflow publishes the complete independent release contract", async (
   assert.match(workflow, /SHA256SUMS/u)
   assert.match(workflow, /make_latest: false/u)
   assert.match(workflow, /softprops\/action-gh-release@v2/u)
-  assert.match(workflow, /https:\/\/download\.eidos\.space\/cli\/install\.sh/u)
+  assert.match(workflow, /generate_release_notes: false/u)
+  assert.match(workflow, /body_path: apps\/cli\/RELEASE_NOTES\.md/u)
+  assert.doesNotMatch(workflow, /generate_release_notes: true/u)
+  assert.match(
+    releaseNotes,
+    /https:\/\/download\.eidos\.space\/cli\/install\.sh/u
+  )
   assert.match(workflow, /npx -y skills add/u)
   assert.match(workflow, /tree\/\$\{TAG\}\/skills\/eidos/u)
   assert.match(workflow, /\.agents\/skills\/eidos\/SKILL\.md/u)
+})
+
+test("CLI release notes are versioned and scoped to the standalone CLI", async () => {
+  const [cargo, releaseNotes] = await Promise.all([
+    read(files.cargo),
+    read(files.releaseNotes),
+  ])
+  const version = cargo.match(/^version = "([^"]+)"$/mu)?.[1]
+
+  assert.ok(version)
+  assert.match(releaseNotes, /^## What's new$/mu)
+  assert.match(releaseNotes, new RegExp(`cli-v${version}/skills/eidos`, "u"))
+  assert.match(releaseNotes, new RegExp(`select v${version}`, "u"))
+  assert.doesNotMatch(releaseNotes, /github\.com\/mayneyao\/eidos\/compare\//u)
 })
 
 test("public Eidos Skill stays complete and pinned to the stable CLI tag", async () => {

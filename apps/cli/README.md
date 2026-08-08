@@ -173,14 +173,16 @@ change it. To prepare a CLI release:
 2. Run `cargo check --workspace` in `apps/cli` and commit the resulting
    `Cargo.lock` change.
 3. For a stable release, update `apps/cli/LATEST` to the same version.
-4. Run the formatter, Clippy, tests, and installer test.
-5. Tag the validated commit as `cli-v<version>` and push the branch and tag.
+4. Rewrite `apps/cli/RELEASE_NOTES.md` for that exact CLI version. Keep it
+   scoped to standalone CLI behavior; do not use monorepo-generated notes.
+5. Run the formatter, Clippy, tests, and installer test.
+6. Tag the validated commit as `cli-v<version>` and push the branch and tag.
 
 The tag triggers
 [`build-and-release-cli.yml`](../../.github/workflows/build-and-release-cli.yml),
 which rebuilds and verifies four platform archives, generates `SHA256SUMS`,
-and creates a dedicated GitHub Release without changing the repository's
-Desktop “Latest Release” pointer.
+and creates a dedicated GitHub Release from the checked-in CLI release notes
+without changing the repository's Desktop “Latest Release” pointer.
 
 The workspace contains:
 

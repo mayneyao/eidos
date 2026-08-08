@@ -214,25 +214,8 @@ jobs:
           name: Eidos CLI v${{ needs.verify.outputs.version }}
           prerelease: ${{ needs.verify.outputs.prerelease == 'true' }}
           make_latest: false
-          generate_release_notes: true
-          body: |
-            Install on macOS or Linux:
-
-            ```sh
-            curl --proto '=https' --tlsv1.2 -LsSf https://download.eidos.space/cli/install.sh | sh
-            ```
-
-            Install on Windows PowerShell:
-
-            ```powershell
-            irm https://download.eidos.space/cli/install.ps1 | iex
-            ```
-
-            Install the matching Eidos Skill for Codex:
-
-            ```sh
-            npx skills add https://github.com/${{ github.repository }}/tree/${{ github.ref_name }}/skills/eidos --skill eidos -g -a codex -y
-            ```
+          generate_release_notes: false
+          body_path: apps/cli/RELEASE_NOTES.md
           files: |
             release-assets/eidos-cli-*
             release-assets/eidos-installer.sh
