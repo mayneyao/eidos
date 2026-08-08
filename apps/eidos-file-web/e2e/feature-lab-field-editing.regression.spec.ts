@@ -194,11 +194,12 @@ test("edits every writable Feature Lab field through the Chromium editor", async
   )
 
   const payload = inspector.getByRole("textbox", { name: "Payload" })
-  await payload.fill('{ "z": 2, "a": [true, null] }')
+  const payloadText = 'Plain text payload: { "z": 2, "a": [true, null] }'
+  await payload.fill(payloadText)
   await payload.press("Control+Enter")
-  await expect(payload).toHaveValue('{"a":[true,null],"z":2}')
+  await expect(payload).toHaveValue(payloadText)
   await expect(await fieldRow(inspector, "Payload mirror")).toContainText(
-    '{"a":[true,null],"z":2}'
+    payloadText
   )
 
   const owner = inspector.getByRole("button", { name: "Owner", exact: true })
@@ -260,7 +261,7 @@ test("edits every writable Feature Lab field through the Chromium editor", async
     "41"
   )
   await expect(inspector.getByRole("textbox", { name: "Payload" })).toHaveValue(
-    '{"a":[true,null],"z":2}'
+    payloadText
   )
   await expect(
     inspector.getByRole("button", { name: "Owner", exact: true })

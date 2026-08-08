@@ -773,7 +773,7 @@ test("opens the bundled sample without a picker", async ({ page }) => {
   ).not.toBe("rgba(0, 0, 0, 0)")
   await expect(filterPopover.getByRole("button", { name: "Apply" })).toHaveCSS(
     "color",
-    "rgb(249, 250, 251)"
+    "oklch(0.99 0.002 220)"
   )
   await expect(filterPopover.getByRole("combobox")).toHaveCSS(
     "border-top-width",
@@ -1288,6 +1288,8 @@ test("persists a Grid multi-select edit when its popover closes", async ({
     const bounds = await canvas.boundingBox()
     if (!bounds) throw new Error("Feature Lab Grid is not visible")
     await page.mouse.click(bounds.x + 44 + 140, bounds.y + 54)
+    await canvas.focus()
+    await expect(canvas).toBeFocused()
     await expect(titleCell).toHaveAttribute("aria-selected", "true")
     for (let column = titleColumn + 1; column <= signalsColumn; column += 1) {
       await page.keyboard.press("ArrowRight")
@@ -1640,10 +1642,13 @@ test("imports CSV through the explicitly composed editor plugin", async ({
     ),
   })
 
-  const dialog = page
-    .getByRole("dialog")
-    .filter({ hasText: "Import as a new table" })
-  await expect(dialog).toContainText("Import as a new table")
+  const dialog = page.getByRole("dialog").filter({
+    has: page.getByRole("heading", {
+      name: "plugin-import.csv",
+      exact: true,
+    }),
+  })
+  await expect(dialog).toBeVisible()
   await expect(dialog).toContainText("2 ready")
   const tableName = page.getByLabel("Table name")
   await tableName.fill("CSV projects")
@@ -1913,10 +1918,13 @@ test("creates Formula, Relation, and Lookup fields through the shared editor UI"
     numberDisplayType.locator('[data-eidos-file-field-type-icon="number"]')
   ).toBeVisible()
   await numberDisplayType.click()
-  await formulaExpression.fill('"Estimate" * 2')
-  await expect(formulaCreator).toContainText(
-    "Preview · Ship Eidos File Web Editor: 4"
-  )
+  await formulaExpression.click()
+  await formulaExpression.press("ControlOrMeta+a")
+  await formulaExpression.pressSequentially('"Estimate" * 2')
+  await expect(formulaExpression).toHaveText('"Estimate" * 2')
+  await expect(
+    formulaCreator.locator('[data-eidos-file-formula-status="valid"]')
+  ).toContainText("Preview · Ship Eidos File Web Editor: 4")
   await formulaExpression.press("ControlOrMeta+s")
   await expect(formulaCreator).toBeHidden()
 
