@@ -4,7 +4,8 @@ Use this runbook to deploy `apps/eidos-file-web` to `https://editor.eidos.space`
 
 ## Establish the release boundary
 
-Treat the Web editor as a manual Cloudflare Workers deployment. No GitHub workflow currently deploys it, and a Desktop `v*` tag does not update it.
+Treat the Web editor as a manual Cloudflare Workers deployment. No GitHub
+workflow currently deploys it, and Lite or CLI tags do not update it.
 
 The production build consumes source directly from:
 

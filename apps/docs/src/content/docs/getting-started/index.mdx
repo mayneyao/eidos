@@ -1,41 +1,39 @@
 ---
 title: Start here
-description: Learn the file-based Eidos model before building on it.
+description: Choose an Eidos File host and work with data you own.
 sidebar:
   order: 1
 ---
 
-Eidos is a local-first environment for personal data. A **Space** is a normal
-directory you can inspect with other tools, back up, and version. Eidos adds
-structured views, editing, automation, and extension points without making the
-application the only way to access your data.
+An **Eidos File** is a standard SQLite database with a defined schema for
+tables, fields, records, and saved views. The format remains useful outside any
+single Eidos application.
 
-## The five-minute platform tour
+## Choose a host
 
-1. **Open a Space.** Eidos indexes the directory but does not replace it with a
-   proprietary container.
-2. **Work with files.** Markdown and other text formats remain ordinary files.
-   Unknown text files still have a readable fallback viewer.
-3. **Use Bases.** A `.eidos` file describes structured data and views while the
-   host provides grid, gallery, and kanban experiences.
-4. **Review changes.** Graft tracks file and database changes through the
-   Version panel.
-5. **Extend the host.** Extensions contribute commands, editors, views, and
-   agent tools through an explicit manifest and capability API.
+| Host                | Best for                                                                    |
+| ------------------- | --------------------------------------------------------------------------- |
+| Eidos Lite          | Working with a folder of local files, version history, and optional Sync    |
+| Eidos File Web      | Opening one `.eidos` file in a compatible browser                           |
+| Eidos CLI           | Creating, inspecting, querying, mutating, and serving files from a terminal |
+| Eidos File packages | Embedding the Runtime or shared React UI in another application             |
 
-## Choose a path
+## Try the CLI
 
-- If you are integrating an existing Space, continue with [Core concepts](/concepts/).
-- If you are building a plugin, start with [Extensions](/extensions/).
-- If you need scripts or external integration, open [Automation](/automation/).
-- If you maintain an older installation, use the [Legacy Docs](https://legacy.docs.eidos.space).
+Install the current stable binary, create a file, and open its local editor:
 
-## Vocabulary
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://download.eidos.space/cli/install.sh | sh
 
-| Term              | Meaning                                                                               |
-| ----------------- | ------------------------------------------------------------------------------------- |
-| Space             | The directory opened and managed by Eidos. Never call it a vault in Eidos APIs or UI. |
-| Eidos File        | A file-backed structured data definition with one or more sheets and views.           |
-| Contribution      | A capability an extension declares, such as a command or file editor.                 |
-| Extension package | Source, assets, manifest, and provenance installed inside a Space.                    |
-| Host capability   | A permission-checked operation exposed by Eidos to an extension.                      |
+eidos create tracker.eidos --title "Project Tracker"
+eidos serve tracker.eidos --open
+```
+
+Windows PowerShell users can install with:
+
+```powershell
+irm https://download.eidos.space/cli/install.ps1 | iex
+```
+
+Continue with [Core concepts](/concepts/) or the [Eidos File reference](/reference/).

@@ -33,7 +33,6 @@
   "ignorePatterns": [
     "apps/cli/qjs-host/bundle",
     "apps/cli/qjs-host/ui",
-    "packages/ext-server/src/generated/*.ts",
     "cache",
     ".cache",
     "package.json",

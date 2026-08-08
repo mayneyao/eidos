@@ -6,7 +6,7 @@ const files = {
   app: "apps/cli/src/app.rs",
   cargo: "apps/cli/Cargo.toml",
   cargoLock: "apps/cli/Cargo.lock",
-  desktopWorkflow: ".github/workflows/build-and-release-desktop-app.yml",
+  liteWorkflow: ".github/workflows/build-and-release-eidos-lite.yml",
   latest: "apps/cli/LATEST",
   releaseNotes: "apps/cli/RELEASE_NOTES.md",
   releaseWorkflow: ".github/workflows/build-and-release-cli.yml",
@@ -14,7 +14,6 @@ const files = {
   skillCliReference: "skills/eidos/references/cli.md",
   skillOperationsReference: "skills/eidos/references/operations.md",
   cliReadme: "apps/cli/README.md",
-  versionScript: "scripts/version.cjs",
   windowsGateWorkflow: ".github/workflows/cli-windows-gates.yml",
   windowsSmoke: "apps/cli/windows-serve-smoke.ps1",
 }
@@ -159,18 +158,10 @@ test("public Eidos Skill stays complete and pinned to the stable CLI tag", async
   assert.match(readme, /--skill eidos -g -a codex -y/u)
 })
 
-test("Desktop releases and app version bumps do not rewrite the CLI version", async () => {
-  const [desktopWorkflow, versionScript] = await Promise.all([
-    read(files.desktopWorkflow),
-    read(files.versionScript),
-  ])
-
+test("Eidos Lite releases do not rewrite the CLI version", async () => {
+  const liteWorkflow = await read(files.liteWorkflow)
   assert.doesNotMatch(
-    desktopWorkflow,
+    liteWorkflow,
     /(?:readFileSync|writeFileSync)\(['"]apps\/cli\/Cargo\.toml/u
-  )
-  assert.doesNotMatch(
-    versionScript,
-    /(?:readFileSync|writeFileSync|git add)\(?[`'"]apps\/cli\/Cargo\.toml/u
   )
 })

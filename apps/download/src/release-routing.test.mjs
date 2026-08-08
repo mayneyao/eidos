@@ -4,10 +4,8 @@ import test from "node:test"
 import {
   getCliSource,
   getEidosLiteUpdateRoute,
-  isStableDesktopRelease,
   releaseAssetNameForLiteUpdate,
   selectEidosLiteRelease,
-  selectPreferredDesktopRelease,
 } from "./release-routing.mjs"
 
 test("download worker exposes stable branded CLI entry points", () => {
@@ -26,35 +24,8 @@ test("download worker exposes stable branded CLI entry points", () => {
   assert.equal(getCliSource("/cli/unknown"), null)
 })
 
-test("standalone CLI releases cannot shadow stable Desktop downloads", () => {
-  assert.equal(
-    isStableDesktopRelease({
-      draft: false,
-      prerelease: false,
-      tag_name: "cli-v0.34.0",
-    }),
-    false
-  )
-  assert.equal(
-    isStableDesktopRelease({
-      draft: false,
-      prerelease: false,
-      tag_name: "v0.34.0",
-    }),
-    true
-  )
-  assert.equal(
-    isStableDesktopRelease({
-      draft: false,
-      prerelease: true,
-      tag_name: "v0.35.0-beta.1",
-    }),
-    false
-  )
-})
-
 test("Lite releases use an independent stable and beta namespace", () => {
-  const classic = {
+  const unrelated = {
     draft: false,
     prerelease: false,
     tag_name: "v0.34.0",
@@ -76,13 +47,12 @@ test("Lite releases use an independent stable and beta namespace", () => {
   }
 
   assert.equal(
-    selectEidosLiteRelease([classic, beta, stable], "stable"),
+    selectEidosLiteRelease([unrelated, beta, stable], "stable"),
     stable
   )
   assert.equal(selectEidosLiteRelease([stable, beta], "beta"), beta)
   assert.equal(selectEidosLiteRelease([invalid], "beta"), null)
-  assert.equal(selectPreferredDesktopRelease([classic, stable]), stable)
-  assert.equal(selectPreferredDesktopRelease([classic]), classic)
+  assert.equal(selectEidosLiteRelease([unrelated], "stable"), null)
 })
 
 test("Lite update routes isolate channel, architecture, and metadata assets", () => {

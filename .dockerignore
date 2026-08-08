@@ -11,8 +11,6 @@ apps/*/node_modules
 apps/*/dist-sqlite-ext
 packages/*/dist
 packages/*/node_modules
-extensions/*/dist
-extensions/*/node_modules
 .pnpm-store
 .env
 .env.example

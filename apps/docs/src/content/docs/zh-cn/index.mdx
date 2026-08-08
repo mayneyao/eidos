@@ -1,17 +1,17 @@
 ---
 title: 使用 Eidos 构建
-description: 面向 file-based Eidos 平台的开发者文档。
+description: Eidos File 与 Eidos Lite 开发者文档。
 template: splash
 hero:
-  tagline: 基于 Space、文件、Eidos File、版本历史和 capability-based 扩展运行时，构建 local-first 工具。
+  tagline: 基于开放的 SQLite Eidos File 构建 local-first 工具。
   image:
     file: ../../../assets/logo.png
   actions:
-    - text: 构建第一个扩展
-      link: /zh-cn/extensions/quickstart/
+    - text: 从 Eidos File 开始
+      link: /zh-cn/getting-started/
       icon: right-arrow
-    - text: 理解平台
-      link: /zh-cn/concepts/
+    - text: 查阅参考
+      link: /zh-cn/reference/
       icon: open-book
       variant: minimal
 ---
@@ -19,23 +19,19 @@ hero:
 import { Card, CardGrid } from "@astrojs/starlight/components"
 
 <CardGrid>
-  <Card title="从 Space 开始" icon="rocket">
-    了解 Eidos 如何把一个目录作为文件、Eidos
-    File、版本历史和扩展源码的持久载体。
+  <Card title="开放的数据文件" icon="document">
+    用标准 SQLite `.eidos` 文件保存表、字段、记录和视图。
   </Card>
-  <Card title="开发扩展" icon="puzzle">
-    从最小 package 开始，声明 contribution，并且只使用用户授予的能力。
+  <Card title="统一 Runtime" icon="setting">
+    Browser、Desktop 与 CLI host 共享同一套 Eidos File 语义。
   </Card>
-  <Card title="自动化工作流" icon="random">
-    使用 CLI、Space API 和 agent tools，同时保持 file-based 数据模型的边界。
+  <Card title="共享 UI" icon="puzzle">
+    Eidos File Web、Eidos Lite 与 CLI Serve 使用同一个 React editor package。
   </Card>
-  <Card title="查阅稳定契约" icon="document">
-    在统一的参考文档中查询 Manifest Schema、SDK、兼容性规则和错误语义。
+  <Card title="安全自动化" icon="random">
+    使用 CLI 的逻辑查询和带 revision 检查的 mutation contract。
   </Card>
 </CardGrid>
 
-:::note[架构迁移中]
-Eidos 正在从数据库驱动的应用模型转向 file-based Space。尚未完成实现的 API
-会明确标记为 **Design preview**，旧系统文档继续保留在
-[Legacy Docs](https://legacy.docs.eidos.space/zh-cn/) 中。
-:::
+规范性的 File Format、Runtime、Adapter 与 UI 契约位于
+[Eidos File 1.0 规范套件](https://github.com/mayneyao/eidos/tree/dev/docs/specs)。

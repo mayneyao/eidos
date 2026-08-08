@@ -70,7 +70,7 @@ uses the EIDOS_ACCOUNT service binding; the URL remains the public authority
 published by discovery and the exact request URL seen by Identity. That endpoint accepts two
 credential classes: a dedicated Sync CLI key with explicit read-only or
 read-write permission, or a Better Auth OAuth token bound to an active, stable
-Eidos Desktop device. Both resolve to the same stable `sub` and narrow Sync
+Eidos Lite device. Both resolve to the same stable `sub` and narrow Sync
 grant below. Sync derives an opaque, protocol-safe namespace from the first 96
 bits of `sub`'s SHA-256 digest. The namespace is an identifier, not an
 authorization secret.

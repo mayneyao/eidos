@@ -21,86 +21,70 @@
   </p>
 </div>
 
-> [!IMPORTANT]
-> **Eidos Lite is now the primary Eidos product direction and the recommended desktop target for new development and testing.** The original Electron application is preserved as [Eidos Desktop Legacy](./apps/desktop) for existing users and maintenance. Public Lite distribution is still being prepared; contributors can run and package it today.
+## Current product line
+
+This repository contains the active Eidos File and Eidos Lite product line,
+plus the standalone read-only SQLite Web Viewer. The retired application is
+archived on the `legacy/0.32` branch and is not part of current builds, tests,
+or releases.
+
+| Product                 | Purpose                                                         | Location                                                                                              |
+| ----------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Eidos Lite**          | Desktop Spaces, local files, version history, and optional Sync | [`apps/eidos-lite-desktop`](./apps/eidos-lite-desktop)                                                |
+| **Eidos File Web**      | Open and edit one `.eidos` file in a browser                    | [`apps/eidos-file-web`](./apps/eidos-file-web) · [editor.eidos.space](https://editor.eidos.space/)    |
+| **Eidos CLI**           | Create, inspect, automate, and serve `.eidos` files             | [`apps/cli`](./apps/cli)                                                                              |
+| **Eidos File packages** | Portable Runtime and shared React UI                            | [`packages/eidos-file`](./packages/eidos-file) · [`packages/eidos-file-ui`](./packages/eidos-file-ui) |
+| **SQLite Web Viewer**   | Inspect SQLite-compatible files without editing them            | [`apps/sqlite-web-viewer`](./apps/sqlite-web-viewer)                                                  |
 
 ## Eidos Lite
 
-Eidos Lite starts with a simple model: a **Space is an ordinary folder you own**. That folder can contain multiple `.eidos` files, and every `.eidos` file is a standard SQLite database that remains useful outside the app.
+A Space is an ordinary folder the user owns. It can contain multiple `.eidos`
+files plus normal text or media files. Eidos Lite adds focused editing,
+version history, and optional Sync without turning the folder into a proprietary
+container.
 
-- **Local first** — open and edit local data immediately. Version history and cloud status become available progressively and do not define whether your files are usable.
-- **Open files** — inspect `.eidos` databases with standard SQLite tools, import CSV data, and export your tables when you need them elsewhere.
-- **Built-in versions** — review row-aware changes, add a meaningful version note, and restore a Space from local history.
-- **Optional Sync** — connect a Space to the hosted service when you want another copy or another device. Local work remains available when you are offline or signed out.
-- **Focused desktop experience** — Lite is independent from the Legacy app's web server, Markdown, AI, browser, terminal, and extension subsystems.
-- **Designed for real datasets** — paged queries, virtualized tables, bounded change previews, and performance gates cover large SQLite files.
+- `.eidos` files remain standard SQLite databases.
+- Eidos File Web, Lite, and `eidos serve` share the same UI package and theme
+  contract.
+- Graft provides local history and the optional remote protocol.
+- Local files remain usable while offline or signed out.
 
-## Choose the right Eidos
+## Development
 
-| Product              | Status                           | Best for                                                                                            | Location                                                                                           |
-| -------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| **Eidos Lite**       | **Primary · active development** | Local-first Spaces, `.eidos` files, versions, and optional Sync                                     | [`apps/eidos-lite-desktop`](./apps/eidos-lite-desktop)                                             |
-| Eidos File Web       | Active                           | Opening one `.eidos` file in a browser                                                              | [`apps/eidos-file-web`](./apps/eidos-file-web) · [editor.eidos.space](https://editor.eidos.space/) |
-| Eidos CLI            | Active                           | Inspecting and automating `.eidos` files from a terminal                                            | [`apps/cli`](./apps/cli)                                                                           |
-| Eidos Desktop Legacy | Legacy maintenance               | Existing workspaces that depend on documents, AI, extensions, and the original web-app architecture | [`apps/desktop`](./apps/desktop)                                                                   |
-
-## Run Eidos Lite
-
-Requirements: Node.js `22.23.1` (pinned in [`.node-version`](./.node-version)) and Corepack.
+Requirements: Node.js `22.23.1` (pinned in [`.node-version`](./.node-version)),
+Corepack, and Rust stable for CLI work.
 
 ```bash
-git clone https://github.com/mayneyao/eidos.git
-cd eidos
 corepack enable
 pnpm install --frozen-lockfile
+
+# Primary desktop app
 pnpm dev:eidos-lite
-```
-
-Build an unsigned local app for hands-on testing:
-
-```bash
 pnpm build:eidos-lite:dev
-```
-
-Run the focused Lite verification suites:
-
-```bash
 pnpm test:eidos-lite
-pnpm test:eidos-lite:performance
-pnpm smoke:eidos-lite-packaged
+
+# Browser editor
+pnpm dev:eidos-file-web
+pnpm build:eidos-file-web
+
+# Read-only SQLite viewer
+pnpm dev:sqlite-web-viewer
+pnpm test:sqlite-web-viewer
+
+# CLI
+cd apps/cli
+cargo test --workspace --locked
+cargo run -- create example.eidos --title Example
+cargo run -- serve example.eidos --open
 ```
 
-See the [Eidos Lite development guide](./apps/eidos-lite-desktop/README.md) for its process model, security boundaries, Sync architecture, packaging gates, and operational checks.
-
-<details>
-<summary><strong>Working on Eidos Desktop Legacy?</strong></summary>
-
-The original Desktop application reuses `apps/web-app`, runs a local HTTP service, and supports the earlier document, AI, and extension model. It remains in the repository for maintenance, but it is no longer the default desktop path.
-
-```bash
-pnpm install:sqlite-ext
-pnpm dev:desktop
-```
-
-Read the [Legacy Desktop architecture guide](./apps/desktop/readme.md) before making changes.
-
-</details>
-
-## Open ecosystem
-
-Eidos remains an extensible personal data framework. The repository includes the shared data engine, React bindings, browser editor, CLI, and the Legacy extension ecosystem. Start with the [documentation](https://docs.eidos.space/) or explore the repository map in [`AGENTS.md`](./AGENTS.md).
-
-## Contributors
-
-<a href="https://github.com/mayneyao/eidos/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=mayneyao/eidos" alt="Eidos contributors" />
-</a>
+The normative Eidos File contracts live in [`docs/specs`](./docs/specs). See
+the [Eidos Lite guide](./apps/eidos-lite-desktop/README.md) for its process
+model, packaging gates, and Sync architecture.
 
 ## License
 
-This project is licensed under AGPL v3. Specific packages are released under MIT to facilitate integration and ecosystem growth:
-
-- `@eidos.space/core`: [MIT](./packages/core/LICENSE)
-- `@eidos.space/react`: [MIT](./packages/react/LICENSE)
-
-All extensions under [`extensions/`](./extensions/) are also released under the MIT License.
+The repository is licensed under AGPL v3. The reusable
+[`@eidos.space/eidos-file`](./packages/eidos-file) and
+[`@eidos.space/eidos-file-ui`](./packages/eidos-file-ui) packages are released
+under MIT.

@@ -79,15 +79,17 @@ query controls, Fields, the data canvas, Table tabs, and editor overlays.
 ```tsx
 import { EidosFileEditorShell } from "@eidos.space/eidos-file-ui/eidos-file-editor-shell"
 
-<EidosFileEditorShell
-  viewTabs={<EidosFileViewTabs {...viewTabs} />}
-  queryToolbar={<EidosFileQueryToolbar {...query} />}
-  fields={<EidosFileViewFieldsPopover {...fields} />}
-  fieldCreator={<EidosFileFieldCreatePopover {...fieldCreator} />}
-  sheetTabs={<EidosFileSheetTabs {...sheets} />}
->
-  <EidosFileEditorView source={source} table={table} view={view} />
-</EidosFileEditorShell>
+const editor = (
+  <EidosFileEditorShell
+    viewTabs={<EidosFileViewTabs {...viewTabs} />}
+    queryToolbar={<EidosFileQueryToolbar {...query} />}
+    fields={<EidosFileViewFieldsPopover {...fields} />}
+    fieldCreator={<EidosFileFieldCreatePopover {...fieldCreator} />}
+    sheetTabs={<EidosFileSheetTabs {...sheets} />}
+  >
+    <EidosFileEditorView source={source} table={table} view={view} />
+  </EidosFileEditorShell>
+)
 ```
 
 The named controls above are composition supplied by the host. Browser file

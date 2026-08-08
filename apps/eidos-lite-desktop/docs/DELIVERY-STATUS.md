@@ -18,7 +18,7 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 
 | Area                    | Internal-candidate status | Evidence boundary                                                                                                                                                                |
 | ----------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Independent application | Ready                     | Independent Electron main, sandboxed preload, utility processes, renderer, bundle id, package config and tests; no Classic Desktop Space/legacy runtime imports                  |
+| Independent application | Ready                     | Focused Electron main, sandboxed preload, utility processes, renderer, bundle id, package config, and tests                                                                      |
 | Local Space             | Ready                     | New/Open/Recent ordinary folders, canonical one-window ownership, Pierre Explorer, watcher, ordinary-file system open and recoverable file operations                            |
 | Eidos File editing      | Ready                     | Canonical `eidos-file-ui` Grid/View/Query/Fields/Sheet UI, real SQLite transactions, one active editor and a three-runtime LRU                                                   |
 | Local versioning        | Ready                     | Whole-Space status, Changes, row-aware diff, History, checkpoint, forward-only restore and stable-change automatic checkpoints through the resident Graft SDK                    |

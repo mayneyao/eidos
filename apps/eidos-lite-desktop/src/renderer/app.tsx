@@ -60,6 +60,7 @@ import {
 } from "./app-appearance"
 import { FileRecoveryNotice } from "./file-recovery-notice"
 import { fileTitlebarPresentation } from "./file-titlebar-presentation"
+import type { EidosFileWorkbench as EidosFileWorkbenchImplementation } from "./eidos-file-workbench"
 import { IpcEidosFileDataSource } from "./ipc-data-source"
 import { useEidosLiteI18n } from "./i18n"
 import {
@@ -97,10 +98,12 @@ import {
 } from "./workspace-shortcuts"
 
 let eidosFileWorkbenchModule:
-  | Promise<typeof import("./eidos-file-workbench")>
+  | Promise<{
+      EidosFileWorkbench: typeof EidosFileWorkbenchImplementation
+    }>
   | undefined
 let LoadedEidosFileWorkbench:
-  | (typeof import("./eidos-file-workbench"))["EidosFileWorkbench"]
+  | typeof EidosFileWorkbenchImplementation
   | undefined
 
 async function loadEidosFileWorkbench() {

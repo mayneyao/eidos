@@ -51,6 +51,6 @@ Before destructive changes, identify exact IDs and summarize impact. Never mutat
 
 ## Handle concurrency deliberately
 
-Do not automatically retry `stale-revision`. Re-run `context`, reconcile the affected rows, and form a new request. Do not write an existing File while Eidos Desktop or the Web editor has it open during the alpha.
+Do not automatically retry `stale-revision`. Re-run `context`, reconcile the affected rows, and form a new request. Do not write an existing File while Eidos Lite, Eidos File Web, or another editor has it open during the alpha.
 
 Read [references/cli.md](references/cli.md) only for advanced filters, logical value types, creation, or the complete command grammar. Read [references/operations.md](references/operations.md) only for relations, schema changes, deletion, recovery, or Graft workflows.

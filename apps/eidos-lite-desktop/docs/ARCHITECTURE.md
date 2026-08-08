@@ -11,7 +11,6 @@
 - Graft runs through the official `@eidos.space/graft` Node-API SDK. Lite does
   not implement the repository or HTTP Remote protocol. The verified CLI is a
   temporary comparison/fallback adapter, not the normal application path.
-- The application has no runtime dependency on `apps/desktop`.
 
 ## Editor composition
 
@@ -561,9 +560,9 @@ merge: the Local Recovery copy retains the Local bytes without `.graft` or a
 Sync marker, while the Hosted Recovery clone retains the Hosted bytes and its
 verified external marker. The original divergent binary remains untouched.
 
-Lite uses the independent OAuth client identity `lite.desktop.eidos.space` and
-does not import Classic Desktop session code. The account-service source owns a
-single registry for both the Better Auth trusted-client configuration and the
+Lite uses the OAuth client identity `lite.desktop.eidos.space`. The
+account-service source owns a single registry for both the Better Auth
+trusted-client configuration and the
 consent screen, with Lite fixed to the exact 13128 loopback redirect. The same
 registry is the allowlist for device-token binding. Deploying and exercising
 that source through the disposable staging OAuth acceptance verifies the real

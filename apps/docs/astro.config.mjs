@@ -12,7 +12,7 @@ export default defineConfig({
     starlight({
       title: "Eidos Developer Docs",
       description:
-        "Build file-based workflows, extensions, and automations for Eidos.",
+        "Build with Eidos File and understand the Eidos Lite platform.",
       favicon: "/favicon.svg",
       lastUpdated: true,
       social: [
@@ -65,20 +65,6 @@ export default defineConfig({
               {
                 label: "Core concepts",
                 items: [{ autogenerate: { directory: "concepts" } }],
-              },
-            ],
-          },
-          {
-            label: {
-              en: "Extensions",
-              "zh-CN": "扩展",
-            },
-            icon: "puzzle",
-            link: "/extensions/",
-            items: [
-              {
-                label: "Extension development",
-                items: [{ autogenerate: { directory: "extensions" } }],
               },
             ],
           },

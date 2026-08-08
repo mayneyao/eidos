@@ -44,14 +44,23 @@ Have an idea for a new feature? We'd love to hear it!
 
 ## Contributing to Specific Areas
 
-### Desktop App Development
+### Eidos Lite development
 
-For desktop application development, see the [Desktop Development Guide](https://github.com/mayneyao/eidos/blob/dev/apps/desktop/readme.md) which covers:
+For desktop application development, see the
+[Eidos Lite guide](https://github.com/mayneyao/eidos/blob/dev/apps/eidos-lite-desktop/README.md),
+which covers:
 
-- Architecture overview and service mode
-- Code organization and when to override web-app components
-- Native package building requirements
-- Development vs production setup
+- Main, preload, utility-process, and renderer boundaries
+- Eidos File UI composition and semantic theming
+- Graft history, account, and optional Sync
+- Local packaging and release gates
+
+### Eidos File development
+
+The normative contracts live in `docs/specs`. Runtime semantics belong in
+`packages/eidos-file`; reusable editor UI belongs in
+`packages/eidos-file-ui`. Keep Eidos File Web, Lite, and CLI Serve aligned by
+changing shared behavior at those package boundaries.
 
 ### Documentation
 
@@ -60,17 +69,8 @@ To contribute to the documentation website ([docs.eidos.space](https://docs.eido
 - The documentation project is located in `apps/docs/`
 - Built with Astro and Starlight
 - See the [documentation README](https://github.com/mayneyao/eidos/blob/dev/apps/docs/README.md) for setup instructions
-- The archived database-backed documentation is preserved in `apps/legacy-docs/`; do not add new platform documentation there
 
-### Translations
-
-To contribute translations:
-
-- See the [Translation Contributing Guide](https://github.com/mayneyao/eidos/blob/dev/packages/locales/CONTRIBUTING.md)
-- Eidos uses i18next for internationalization
-- Follow the guide to add a new language or improve existing translations
-
-### Core Packages
+### Packages
 
 Each package may have its own contributing guidelines. Check the respective package directory for more information.
 

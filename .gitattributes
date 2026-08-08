@@ -1,3 +1,2 @@
 # Mark compiled UI components as generated to exclude from GitHub language stats
-apps/web-app/public/compiled-ui/** linguist-vendored
 **/tailwind-raw.js linguist-vendored

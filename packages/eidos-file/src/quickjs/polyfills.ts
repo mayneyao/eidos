@@ -160,12 +160,9 @@ export function installQuickJsPolyfills(): void {
         }
         const bytes = data instanceof Uint8Array ? data : new Uint8Array(data)
         const digest = base64ToBytes(host().sha256(bytesToBase64(bytes)))
-        return Promise.resolve(
-          digest.buffer.slice(
-            digest.byteOffset,
-            digest.byteOffset + digest.byteLength
-          )
-        )
+        const result = new Uint8Array(digest.byteLength)
+        result.set(digest)
+        return Promise.resolve(result.buffer)
       },
     },
     randomUUID(): string {

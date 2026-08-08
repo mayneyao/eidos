@@ -1,17 +1,17 @@
 ---
 title: Build with Eidos
-description: Developer documentation for the file-based Eidos platform.
+description: Developer documentation for Eidos File and Eidos Lite.
 template: splash
 hero:
-  tagline: Build local-first tools on top of Spaces, files, Bases, version history, and a capability-based extension runtime.
+  tagline: Build local-first tools on open SQLite-backed Eidos Files.
   image:
     file: ../../assets/logo.png
   actions:
-    - text: Build your first extension
-      link: /extensions/quickstart/
+    - text: Start with Eidos File
+      link: /getting-started/
       icon: right-arrow
-    - text: Understand the platform
-      link: /concepts/
+    - text: Read the reference
+      link: /reference/
       icon: open-book
       variant: minimal
 ---
@@ -19,27 +19,19 @@ hero:
 import { Card, CardGrid } from "@astrojs/starlight/components"
 
 <CardGrid>
-  <Card title="Start with a Space" icon="rocket">
-    Learn how Eidos treats a directory as the durable home for files, Bases,
-    version history, and extension source code.
+  <Card title="Open data files" icon="document">
+    Store tables, fields, records, and views in standard SQLite `.eidos` files.
   </Card>
-  <Card title="Build extensions" icon="puzzle">
-    Start from a minimal package, declare contributions, and use only the
-    capabilities the user grants.
+  <Card title="Use one Runtime" icon="setting">
+    Browser, desktop, and CLI hosts consume the same typed Eidos File semantics.
   </Card>
-  <Card title="Automate workflows" icon="random">
-    Use the CLI, Space APIs, and agent tools without bypassing the file-based
-    data model.
+  <Card title="Share one UI" icon="puzzle">
+    Eidos File Web, Eidos Lite, and CLI Serve use the same React editor package.
   </Card>
-  <Card title="Use stable references" icon="document">
-    Find manifest schemas, SDK contracts, compatibility rules, and error
-    semantics in one place.
+  <Card title="Automate safely" icon="random">
+    Use the CLI's logical query and revision-checked mutation contracts.
   </Card>
 </CardGrid>
 
-:::note[Architecture transition]
-Eidos is moving from a database-backed application model to file-based Spaces.
-Pages describing APIs that are still being implemented are explicitly marked
-**Design preview**. The previous documentation remains available in the
-[Legacy Docs](https://legacy.docs.eidos.space).
-:::
+The normative File Format, Runtime, Adapter, and UI contracts live in the
+[Eidos File 1.0 specification suite](https://github.com/mayneyao/eidos/tree/dev/docs/specs).

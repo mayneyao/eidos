@@ -1,9 +1,0 @@
-{
-  "extends": "electron/electron-builder.json",
-  "afterSign": null,
-  "mac": {
-    "hardenedRuntime": false,
-    "notarize": false,
-    "identity": null
-  }
-}

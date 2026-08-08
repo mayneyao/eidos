@@ -1,29 +1,17 @@
 ---
 title: 参考
-description: 面向 Eidos 开发者的机器可读和人类可读契约。
+description: 稳定的 Eidos File 契约与可复用 package API。
 sidebar:
   order: 1
 ---
 
-参考页面描述的是契约，而不是教程。每一个稳定 API 页面都会包含可用状态、权限、输入、输出、
-错误以及完整示例。
+## 规范
 
-## 当前提供
+- [Eidos File 1.0 规范套件](https://github.com/mayneyao/eidos/tree/dev/docs/specs)
+  定义规范性的 File Format、Runtime、Adapter 与 UI 契约。
+- [Eidos File 格式与自定义视图](/zh-cn/reference/eidos-file-custom-views/)
+  说明 `.eidos` metadata、Runtime adapter、内置视图与可信 UI view plugin。
+- [使用 Eidos File UI 构建编辑器](/zh-cn/reference/eidos-file-ui-package/)
+  说明第一方 host 共享的已发布 React package。
 
-- [Extension Manifest Schema](/schemas/extension-manifest.schema.json)：file-based package manifest
-  的机器可读 **Design preview**。
-- [Extension surface protocol](/zh-cn/reference/extension-surface-protocol/)：custom UI 的可执行 P3a
-  text-document 与 transport contract。
-- [使用 Eidos File UI 构建编辑器](/zh-cn/reference/eidos-file-ui-package/)：已发布的 1.0 React package，
-  默认 Grid、按需启用 Gallery/Kanban，并支持自定义 view plugin。
-- [Eidos File 格式与自定义视图](/zh-cn/reference/eidos-file-custom-views/)：`.eidos` 元数据、runtime
-  adapter、内置 renderer 与可信自定义视图 API。
-- [`llms.txt`](/llms.txt)：面向 Agent 的规范文档导航。
-- [`llms-full.txt`](/llms-full.txt)：紧凑的扩展开发契约。
-
-## 随运行时补齐
-
-- Stable Extension SDK availability 和 capability error
-- Contribution point reference
-- Space path 与文件操作语义
-- 兼容性和 runtime ABI policy
+英文规范是 normative 文本；中文文件是说明性翻译，不能覆盖英文契约。

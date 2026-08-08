@@ -1,60 +1,36 @@
 ---
 title: Core concepts
-description: The durable concepts behind file-based Eidos.
+description: The stable concepts shared by Eidos File and Eidos Lite.
 sidebar:
   order: 1
 ---
 
-The platform is organized around a small set of durable concepts. UI features
-and extension APIs should build on these concepts instead of introducing a
-second data model.
+## Eidos File
+
+An Eidos File is a physical SQLite file with canonical metadata and data
+objects. The Runtime maps those objects to typed tables, fields, records, and
+views. Hosts must not reinterpret those semantics.
 
 ## Space
 
-A Space is the root directory the user opens. Paths exposed to extensions are
-always relative to this root. Private implementation directories such as
-`.eidos` and `.graft` are not ordinary user paths.
+In Eidos Lite, a Space is an ordinary folder the user opens. It may contain
+multiple `.eidos` files and other normal files. Eidos does not replace it with
+a proprietary container.
 
-## Files
+## Runtime and hosts
 
-Files are the default interoperability boundary. Eidos chooses an editor by
-media type and registered file editor contributions. Text files without a
-specialized editor fall back to a simple text viewer; binary files require an
-explicit handler.
+The portable Runtime owns query, Formula, Lookup, Relation, conversion,
+revision, and validation meaning. Browser, desktop, and CLI adapters supply
+SQLite connections and platform capabilities without changing those results.
 
-## Bases
+## Shared UI
 
-An Eidos File combines structured records, fields, sheets, and views. Grid, gallery,
-and kanban are views over the same underlying records—not separate copies of
-the data.
+`@eidos.space/eidos-file-ui` provides the editor used by Eidos File Web, Eidos
+Lite, and `eidos serve`. Grid, Gallery, Kanban, record editing, query controls,
+and semantic theme tokens are shared implementations rather than host forks.
 
-## Version history
+## Version history and Sync
 
-Graft records changes and staged snapshots. Eidos presents these operations as
-Changes, Stage, Commit, Diff, and Discard while keeping Graft storage details
-outside extension APIs. SQLite-backed Spaces remain ordinary physical SQLite
-files; Desktop uses the Graft CLI as the version-control control plane.
-Remote sync is provisioned by Electron main through the official Eidos Sync
-service and then delegated to Graft HTTP Remote v1. OAuth tokens are passed to
-the CLI ephemerally and are never stored in remote URLs or repository config.
-Graft v0.8 also preserves declared primary-key identities in row diffs and
-merges for STRICT and WITHOUT ROWID databases. Physical worktrees may use any
-valid SQLite page size; only the optional Graft VFS write path remains limited
-to 4096-byte pages.
-
-When cloning from Eidos Sync, File Space is the default: repository files and
-the root `.graft` directory are placed directly in the selected empty folder.
-Legacy Space is only for older database Spaces and restores its runtime under
-`.eidos`.
-
-## Extensions
-
-Extensions are Space-scoped packages. Their source can be versioned with the
-Space, while trust decisions, build caches, secrets, and runtime state remain
-local. Extensions do not receive raw Electron, Node.js, SQLite, or filesystem
-access.
-
-## Local-first is an invariant
-
-Installed source and Space data must keep working offline. Network access is a
-declared capability, not an implicit requirement for loading an extension.
+Eidos Lite uses Graft for local Space history and an optional authenticated
+remote. Versioning and Sync do not define whether local files are readable:
+files remain available while offline or signed out.

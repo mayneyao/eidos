@@ -1,8 +1,11 @@
 // @vitest-environment node
 
 import { fileURLToPath } from "node:url"
-
-import Database from "better-sqlite3"
+import {
+  DatabaseSync,
+  type SQLInputValue,
+  type StatementSync,
+} from "node:sqlite"
 
 import type { RelationDetails } from "../types"
 import {
@@ -18,17 +21,22 @@ const fixturePath = fileURLToPath(
   new URL("../../fixtures/sqlite-viewer-fixture.sqlite", import.meta.url)
 )
 
-function bindValues(bind: readonly SQLiteBindValue[] = []): unknown[] {
-  return [...bind]
+function bindValues(bind: readonly SQLiteBindValue[] = []): SQLInputValue[] {
+  return [...bind] as SQLInputValue[]
 }
 
-function adapter(database: Database.Database): SQLiteReadonlyDatabase {
+function arrayStatement(database: DatabaseSync, sql: string): StatementSync {
+  const statement = database.prepare(sql)
+  statement.setReturnArrays(true)
+  return statement
+}
+
+function adapter(database: DatabaseSync): SQLiteReadonlyDatabase {
   return {
     selectArrays(sql, bind) {
-      return database
-        .prepare(sql)
-        .raw(true)
-        .all(...bindValues(bind)) as unknown[][]
+      return arrayStatement(database, sql).all(
+        ...bindValues(bind)
+      ) as unknown as unknown[][]
     },
     selectObjects(sql, bind) {
       return database.prepare(sql).all(...bindValues(bind)) as Record<
@@ -37,21 +45,18 @@ function adapter(database: Database.Database): SQLiteReadonlyDatabase {
       >[]
     },
     selectValue(sql, bind) {
-      return database
-        .prepare(sql)
-        .pluck()
-        .get(...bindValues(bind))
+      return arrayStatement(database, sql).get(...bindValues(bind))?.[0]
     },
   }
 }
 
 describe("SQLite schema introspection", () => {
-  let database: Database.Database
+  let database: DatabaseSync
   let readonlyDatabase: SQLiteReadonlyDatabase
 
   beforeEach(() => {
-    database = new Database(fixturePath, { readonly: true })
-    database.pragma("query_only = ON")
+    database = new DatabaseSync(fixturePath, { readOnly: true })
+    database.exec("PRAGMA query_only = ON")
     readonlyDatabase = adapter(database)
   })
 

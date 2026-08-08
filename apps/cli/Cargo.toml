@@ -23,9 +23,7 @@ qjs-host = { path = "qjs-host" }
 tempfile = "3.19"
 
 # Cargo workspace root. The workspace lives entirely under apps/cli so that
-# target/ stays at apps/cli/target and the desktop packaging script
-# (apps/desktop/scripts/build-cli-local.cjs, runs `cargo build --release`
-# in apps/cli) keeps working.
+# target/ stays at apps/cli/target and standalone builds remain self-contained.
 [workspace]
 members = ["core", "qjs-host"]
 

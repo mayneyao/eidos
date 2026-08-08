@@ -1,45 +1,31 @@
 ---
 title: 核心概念
-description: file-based Eidos 背后的稳定概念。
+description: Eidos File 与 Eidos Lite 共享的稳定概念。
 sidebar:
   order: 1
 ---
 
-平台建立在少量稳定概念上。UI 功能和扩展 API 应复用这些概念，而不是再创建一套平行的数据模型。
+## Eidos File
+
+Eidos File 是包含规范 metadata 与 data objects 的物理 SQLite 文件。Runtime 将这些对象映射为
+带类型的表、字段、记录和视图；Host 不得重新解释这些语义。
 
 ## Space
 
-Space 是用户打开的根目录。扩展能够看到的路径始终相对于这个根目录；`.eidos`、`.graft`
-等内部目录不是普通用户路径。
+在 Eidos Lite 中，Space 是用户打开的普通文件夹，可以包含多个 `.eidos` 文件和其他普通文件。
+Eidos 不会把它替换为专有容器。
 
-## 文件
+## Runtime 与 Host
 
-文件是默认的互操作边界。Eidos 根据媒体类型和已注册的 file editor contribution 选择编辑器。
-没有专用编辑器的文本文件使用简单文本查看器，二进制文件必须有明确的 handler。
+可移植 Runtime 负责 query、Formula、Lookup、Relation、conversion、revision 与 validation 语义。
+Browser、Desktop 和 CLI adapter 提供 SQLite connection 与平台能力，但不能改变结果。
 
-## Eidos File
+## 共享 UI
 
-Eidos File 组合了结构化记录、字段、sheet 和 view。Grid、gallery 和 kanban 是同一份记录的不同视图，
-不是数据副本。
+`@eidos.space/eidos-file-ui` 是 Eidos File Web、Eidos Lite 与 `eidos serve` 共用的编辑器。
+Grid、Gallery、Kanban、记录编辑、查询控件和语义主题 token 都是共享实现，不在 host 中分叉。
 
-## 版本历史
+## 版本历史与同步
 
-Graft 保存变化和 staged snapshot。Eidos 对外提供 Changes、Stage、Commit、Diff 和 Discard，
-但不会把 Graft 的存储细节暴露给扩展。SQLite-backed Space 始终保留普通物理 SQLite 文件，
-Desktop 使用 Graft CLI 作为版本管理 control plane。
-远端同步由 Electron main 通过 Eidos 官方同步服务完成仓库 provision，随后交给 Graft HTTP
-Remote v1。OAuth token 只临时传给 CLI，不会写入 remote URL 或仓库配置。
-Graft v0.8 的 row diff/merge 也会保留 STRICT、WITHOUT ROWID 数据库的声明主键身份。
-物理 worktree 可以使用任意合法 SQLite page size；只有可选 Graft VFS 写入路径仍限制为 4096 字节。
-
-从 Eidos Sync 克隆时默认使用 File Space：仓库文件和根级 `.graft` 会直接放入所选空目录。
-Legacy Space 只用于旧数据库 Space，其运行时会恢复到 `.eidos` 下。
-
-## 扩展
-
-扩展是 Space-scoped package。源码可以跟随 Space 进入版本管理；trust decision、build cache、
-secret 和 runtime state 保持在本地。扩展不会直接获得 Electron、Node.js、SQLite 或文件系统权限。
-
-## Local-first 是不变量
-
-已安装源码和 Space 数据必须能够离线工作。网络访问是一项显式 capability，不能成为加载扩展的隐式前提。
+Eidos Lite 使用 Graft 管理本地 Space 历史，并可选连接认证远端。版本管理和同步不决定本地文件
+是否可读；离线或退出账号后文件仍然可用。
