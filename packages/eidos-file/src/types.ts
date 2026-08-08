@@ -495,7 +495,7 @@ export interface EidosFileFilterRule {
 export interface EidosFileFilterGroup {
   type: "group"
   conjunction: "and" | "or"
-  /** Internal compatibility representation of Runtime's three-valued NOT. */
+  /** Internal compatibility representation of Runtime's Boolean NOT. */
   negated?: boolean
   children: Array<EidosFileFilterRule | EidosFileFilterGroup>
 }

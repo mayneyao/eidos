@@ -81,10 +81,9 @@ pub enum NullsOrder {
     Last,
 }
 
-/// Filter tree, tagged by `op`. Logical nodes use the Runtime three-valued
-/// truth table (empty `and` is TRUE, empty `or` is FALSE); a null Field
-/// value produces UNKNOWN outside `is-null`/`is-not-null`, and a row is
-/// selected only by TRUE.
+/// Filter tree, tagged by `op`. Runtime predicates are total Boolean values:
+/// SQL NULL/UNKNOWN never escapes the compiler. Empty `and` is TRUE and empty
+/// `or` is FALSE.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all_fields = "camelCase")]
 pub enum FilterNode {
@@ -309,9 +308,8 @@ impl Compiler<'_> {
             ));
         }
         match node {
-            // Three-valued logic is inherited from SQLite: AND/OR/NOT over
-            // possibly-NULL operands implement the §7.1 truth table, and a
-            // row is selected only when the WHERE expression is TRUE.
+            // Every leaf below is total, so logical composition uses ordinary
+            // two-valued Boolean logic even though SQLite itself has NULL.
             FilterNode::And { args } => {
                 if args.is_empty() {
                     return Ok("1".into()); // empty `and` is TRUE
@@ -349,12 +347,13 @@ impl Compiler<'_> {
                     quote_identifier(stored_column(field)?)?
                 ))
             }
-            // `col = ?` / `col <> ?` evaluate to NULL (UNKNOWN) on a NULL
-            // field, so `ne` does NOT select null-field rows — exactly the
-            // §7.1 three-valued semantics.
-            FilterNode::Eq { field_id, value } => self.compile_compare(field_id, "=", value, false),
+            // SQLite IS / IS NOT are the portable null-safe equality operators.
+            // Query operands remain non-null, so `ne` includes a null Field.
+            FilterNode::Eq { field_id, value } => {
+                self.compile_compare(field_id, "IS", value, false)
+            }
             FilterNode::Ne { field_id, value } => {
-                self.compile_compare(field_id, "<>", value, false)
+                self.compile_compare(field_id, "IS NOT", value, false)
             }
             FilterNode::Lt { field_id, value } => self.compile_compare(field_id, "<", value, true),
             FilterNode::Lte { field_id, value } => {
@@ -376,10 +375,10 @@ impl Compiler<'_> {
                 let upper = coerce_operand(field, upper)?;
                 self.params.push(lower);
                 self.params.push(upper);
-                Ok(format!("{column} BETWEEN ? AND ?"))
+                Ok(format!("COALESCE({column} BETWEEN ? AND ?, 0)"))
             }
-            // `in` is the three-valued OR of typed eq comparisons; empty is
-            // FALSE. A NULL field makes the IN expression NULL (UNKNOWN).
+            // `in` is a total typed membership predicate; empty is FALSE and
+            // a null Field is FALSE.
             FilterNode::In { field_id, values } => {
                 let field = resolve_field(self.fields, field_id)?;
                 let column = quote_identifier(stored_column(field)?)?;
@@ -390,7 +389,7 @@ impl Compiler<'_> {
                     self.params.push(coerce_operand(field, value)?);
                 }
                 Ok(format!(
-                    "{column} IN ({})",
+                    "COALESCE({column} IN ({}), 0)",
                     values.iter().map(|_| "?").collect::<Vec<_>>().join(", ")
                 ))
             }
@@ -448,7 +447,12 @@ impl Compiler<'_> {
         // compare whole-cell canonical JCS text, so SQL byte equality is
         // the §7.1 typed equality.
         self.params.push(coerce_operand(field, value)?);
-        Ok(format!("{column} {sql_op} ?"))
+        let comparison = format!("{column} {sql_op} ?");
+        Ok(if ordered {
+            format!("COALESCE({comparison}, 0)")
+        } else {
+            comparison
+        })
     }
 
     fn compile_like(&mut self, field_id: &str, value: &str, kind: LikeKind) -> Result<String> {
@@ -474,7 +478,9 @@ impl Compiler<'_> {
         self.params.push(SqlValue::Text(pattern));
         // The §7.1 fold is ASCII A..Z -> a..z only; SQLite's built-in
         // LOWER() folds exactly ASCII and leaves non-ASCII unchanged.
-        Ok(format!("LOWER({column}) LIKE LOWER(?) ESCAPE '\\'"))
+        Ok(format!(
+            "COALESCE(LOWER({column}) LIKE LOWER(?) ESCAPE '\\', 0)"
+        ))
     }
 
     fn compile_set_membership(
@@ -702,7 +708,7 @@ fn compile(
 
 /// Compiles `query` against `table`'s fields into a parameterized
 /// WHERE/ORDER BY fragment, resolving Field IDs or display names to quoted
-/// physical names and applying the Runtime three-valued truth table, the
+/// physical names and applying the Runtime total-Boolean filter contract, the
 /// ASCII-only case fold, the §5.1 operator/type compatibility matrix, and
 /// the no-coercion operand rule.
 ///

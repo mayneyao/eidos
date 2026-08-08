@@ -336,28 +336,33 @@ export interface RowQuery {
   }>
 }
 
+export type FilterOperand = Exclude<LogicalValue, null>
+
 export type FilterNode =
+  // Every valid leaf is a total Boolean predicate. Runtime never exposes SQL
+  // NULL/UNKNOWN through logical composition; non-null operands are enforced
+  // by request validation.
   | { op: "and" | "or"; args: FilterNode[] }
   | { op: "not"; arg: FilterNode }
   | { op: "is-null" | "is-not-null"; fieldId: string }
   | {
       op: "eq" | "ne" | "lt" | "lte" | "gt" | "gte"
       fieldId: string
-      value: LogicalValue
+      value: FilterOperand
     }
   | {
       op: "between"
       fieldId: string
-      lower: LogicalValue
-      upper: LogicalValue
+      lower: FilterOperand
+      upper: FilterOperand
     }
-  | { op: "in"; fieldId: string; values: LogicalValue[] }
+  | { op: "in"; fieldId: string; values: FilterOperand[] }
   | {
       op: "contains" | "starts-with" | "ends-with"
       fieldId: string
       value: string
     }
-  | { op: "has-any" | "has-all"; fieldId: string; values: LogicalValue[] }
+  | { op: "has-any" | "has-all"; fieldId: string; values: FilterOperand[] }
   | { op: "relation-has"; fieldId: string; rowId: string }
 
 export interface QueryRowsRequest {

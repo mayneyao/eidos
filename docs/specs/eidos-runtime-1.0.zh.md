@@ -3,6 +3,7 @@
 状态：最终开放规范  
 版本：1.0  
 发布日期：2026-07-21  
+修订日期：2026-08-08\
 规范语言：英文
 
 ## 摘要
@@ -29,6 +30,10 @@ Runtime 从不打开 pathname、持有 native file handle、请求用户 permiss
 英文文档是规范正文；中文文档是资料性参考。除非明确作为 exact shape、
 algorithm、grammar、schema、truth table 或 conformance vector 引入，否则示例均为
 资料性内容。
+
+2026-08-08 修订属于 conformance correction：较早文本让 Filter node 继承了 SQL
+three-valued logic。第 7.1 节现明确 intended total-Boolean product semantics，包括
+null-inclusive negative predicate。Formula 的 null propagation 仍由第 9.3 节独立定义。
 
 ## 1. 在规范栈中的位置、范围与一致性
 
@@ -993,6 +998,8 @@ interface RowQuery {
   }>
 }
 
+type FilterOperand = Exclude<LogicalValue, null>
+
 type FilterNode =
   | { op: "and" | "or"; args: FilterNode[] }
   | { op: "not"; arg: FilterNode }
@@ -1000,16 +1007,21 @@ type FilterNode =
   | {
       op: "eq" | "ne" | "lt" | "lte" | "gt" | "gte"
       fieldId: string
-      value: LogicalValue
+      value: FilterOperand
     }
-  | { op: "between"; fieldId: string; lower: LogicalValue; upper: LogicalValue }
-  | { op: "in"; fieldId: string; values: LogicalValue[] }
+  | {
+      op: "between"
+      fieldId: string
+      lower: FilterOperand
+      upper: FilterOperand
+    }
+  | { op: "in"; fieldId: string; values: FilterOperand[] }
   | {
       op: "contains" | "starts-with" | "ends-with"
       fieldId: string
       value: string
     }
-  | { op: "has-any" | "has-all"; fieldId: string; values: LogicalValue[] }
+  | { op: "has-any" | "has-all"; fieldId: string; values: FilterOperand[] }
   | { op: "relation-has"; fieldId: string; rowId: string }
 ```
 
@@ -1094,7 +1106,7 @@ Runtime 还会执行 Field/type/limit validation。
           "properties": {
             "op": { "enum": ["eq", "ne", "lt", "lte", "gt", "gte"] },
             "fieldId": { "$ref": "#/$defs/id" },
-            "value": true
+            "value": { "not": { "type": "null" } }
           }
         },
         {
@@ -1104,8 +1116,8 @@ Runtime 还会执行 Field/type/limit validation。
           "properties": {
             "op": { "const": "between" },
             "fieldId": { "$ref": "#/$defs/id" },
-            "lower": true,
-            "upper": true
+            "lower": { "not": { "type": "null" } },
+            "upper": { "not": { "type": "null" } }
           }
         },
         {
@@ -1115,7 +1127,10 @@ Runtime 还会执行 Field/type/limit validation。
           "properties": {
             "op": { "enum": ["in", "has-any", "has-all"] },
             "fieldId": { "$ref": "#/$defs/id" },
-            "values": { "type": "array" }
+            "values": {
+              "type": "array",
+              "items": { "not": { "type": "null" } }
+            }
           }
         },
         {
@@ -1145,37 +1160,63 @@ Runtime 还会执行 Field/type/limit validation。
 ```
 
 `filterDepthMax` 以 root 为 depth 1。`filterNodesMax` 计入每个 logical node 与
-leaf node。empty `and` 为 TRUE；empty `or` 为 FALSE。`not`、`and` 和 `or`
-使用以下 three-valued truth table；仅 TRUE 会选中 row：
+leaf node。每个 valid Filter node 都必须恰好求值为 TRUE 或 FALSE；Runtime 不得把
+storage engine 的 SQL NULL/UNKNOWN 暴露为第三种 filter truth value。empty `and`
+为 TRUE，empty `or` 为 FALSE；`not`、`and` 与 `or` 使用普通 Boolean logic：
 
 | A   | B   | A AND B | A OR B |
 | --- | --- | ------- | ------ |
 | T   | T   | T       | T      |
 | T   | F   | F       | T      |
-| T   | U   | U       | T      |
 | F   | F   | F       | F      |
-| F   | U   | F       | U      |
-| U   | U   | U       | U      |
 
-`NOT T=F`、`NOT F=T` 且 `NOT U=U`。除 `is-null` 与 `is-not-null` 外，null
-Field value 产生 UNKNOWN。null query operand 无效；client 必须明确使用 null
-operator。
+`NOT T=F` 且 `NOT F=T`。root 恰好为 TRUE 时才选中 row。
+
+null query operand 无效；client 必须明确使用 `is-null` 或 `is-not-null`。在 operand
+valid 且 non-null 时，null Field value 的结果严格如下：
+
+| Leaf operation                                                                         | null Field 上的结果 |
+| -------------------------------------------------------------------------------------- | ------------------- |
+| `is-null`                                                                              | TRUE                |
+| `is-not-null`                                                                          | FALSE               |
+| `ne`                                                                                   | TRUE                |
+| `eq`、ordered comparison、`between`、`in`、string predicate、`has-any`、`relation-has` | FALSE               |
+| 带一个或多个 operand 的 `has-all`                                                      | FALSE               |
+
+与 operand 无关的恒等式仍然成立：empty `in` 与 empty `has-any` 为 FALSE；empty
+`has-all` 为 TRUE。因此 `not(eq(field, value))`、`not(contains(field, text))` 与
+`not(in(field, values))` 都会选中 Field value 为 null 的 row。`ne` 是 `eq` 的精确
+Boolean complement，不是会传播 SQL NULL 的 SQL `<>`。例如 null Select Field
+满足 `ne "p2"`。
+
+Operator/type compatibility 是 normative：
+
+| Operation                                  | 接受的 Field/result TypeRef                             |
+| ------------------------------------------ | ------------------------------------------------------- |
+| `is-null`、`is-not-null`、`eq`、`ne`、`in` | 每个 TypeRef                                            |
+| `lt`、`lte`、`gt`、`gte`、`between`        | 第 5.1 节 sortable TypeRef                              |
+| `contains`、`starts-with`、`ends-with`     | `text`、`url`、`select`、`row-id`                       |
+| `has-any`、`has-all`                       | Multi-select、Relation、File 与每个 public list TypeRef |
+| `relation-has`                             | forward 或 inverse Relation                             |
 
 Operand MUST 具有 Field 的精确 logical type；Runtime 不执行 string、number、
-Boolean、date 或 ID coercion。ordered comparison operator 仅适用于第 5.1 节的
-sortable TypeRef。`eq`、`ne` 与 `in` 适用于每个 TypeRef：JSON 使用精确 JCS
-text，`file-entry` object 使用其完整 JCS object，list/Multi-select/File/Relation
-使用 length 加 ordered typed element equality。`contains`、`starts-with` 与 `ends-with` 适用于
-text/URL/select/row-id，并在把 ASCII `A..Z` fold 为 `a..z` 后比较 Unicode
-scalar sequence；非 ASCII 保持不变。`search` 也使用同一 portable fold。
+Boolean、date 或 ID coercion。`eq` 使用 typed exact equality，`ne` 使用其
+complement：JSON 使用精确 JCS text，`file-entry` object 使用完整 JCS object，
+list/Multi-select/File/Relation 使用 length 加 ordered typed element equality。
+`in` 是 typed `eq` comparison 的 Boolean OR。`contains`、`starts-with` 与
+`ends-with` 在把 ASCII `A..Z` fold 为 `a..z` 后比较 Unicode scalar sequence；
+非 ASCII 保持不变。`search` 使用同一 portable fold。
 
-`has-any` 与 `has-all` 使用 typed exact element equality，适用于 Multi-select、
-Relation、File 与每个 public list TypeRef。empty `has-any` 为 FALSE，empty
-`has-all` 为 TRUE。
-`in` 是 typed `eq` comparison 的 three-valued OR；empty `in` 为 FALSE。
-`relation-has` 是优化后的精确 Row-ID membership test，接受 forward 或 inverse
-Relation。Runtime 把 list predicate 编译为 `json_each` 或等价 set operation；
-它 MUST NOT 为每行各 fetch 一个 list。
+Multi-select、File、Relation 与 list result 使用 `[]`，绝不使用 null。因此 empty
+list 与 null 不同：empty list 上 `eq []` 为 TRUE、`is-null` 为 FALSE，与 non-empty
+operand 的 membership 为 FALSE。`has-any` 与 `has-all` 使用 typed exact element
+equality。`relation-has` 是优化后的精确 Row-ID membership test。Runtime 把 list
+predicate 编译为 `json_each` 或等价 set operation；不得为每行各 fetch 一个 list。
+
+SQL-backed implementation 必须在 logical composition 前把每个 leaf totalize。
+SQLite 的 `IS`/`IS NOT` 与 `COALESCE(predicate, FALSE)` 是可用做法；若直接在
+`NOT` 下生成 raw `=`、`<>`、ordered comparison、`IN` 或 `LIKE` expression，且没有
+等价的 null handling，则不符合本规范。
 
 Search 匹配 **Search Fragment**，绝不对 SQLite storage class cast 或 JSON
 serialization 做搜索。对一行与一个 requested Field，Runtime 按以下顺序产生 fragment：
@@ -1720,9 +1761,11 @@ type 都有效。没有 expected/peer operand type 的 construct（例如
 | `= !=`         | same Formula type, or mixed numeric        | checkbox         |
 | `AND OR NOT`   | checkbox                                   | checkbox         |
 
-除 `IS_NULL`、`COALESCE` 与 `IF` 外，null operand 产生 null。Boolean operator
-使用第 7 节的 three-valued table。result type 为 Integer 的 Integer arithmetic
-使用精确 signed int64；overflow 产生 null。`/` 总是采用下述 Number-promotion
+除 `IS_NULL`、`COALESCE` 与 `IF` 外，null operand 产生 null。与 Filter node 不同，
+Formula Boolean operator 使用 three-valued logic：`NOT T=F`、`NOT F=T`、
+`NOT null=null`；`T AND null=null`、`F AND null=F`、`T OR null=T` 且
+`F OR null=null`。result type 为 Integer 的 Integer arithmetic 使用精确 signed
+int64；overflow 产生 null。`/` 总是采用下述 Number-promotion
 path，因此 Integer `INT64_MIN / -1` 得到 finite rounded Number result，而不是
 Integer overflow。Integer `%` 使用 toward-zero truncation 的 quotient，并返回
 `a - trunc(a/b) * b`；zero divisor 产生 null，且 `INT64_MIN % -1` 恰好为零。

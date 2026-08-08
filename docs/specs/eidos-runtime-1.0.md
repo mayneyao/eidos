@@ -3,6 +3,7 @@
 Status: Final open specification  
 Version: 1.0  
 Published: 2026-07-21  
+Revised: 2026-08-08\
 Canonical language: English
 
 ## Abstract
@@ -31,6 +32,11 @@ they appear in all capitals.
 English is normative. The Chinese document is informative. Examples are
 informative unless introduced as an exact shape, algorithm, grammar, schema,
 truth table, or conformance vector.
+
+The 2026-08-08 revision is a conformance correction: an earlier text inherited
+SQL three-valued logic for Filter nodes. Section 7.1 now defines the intended
+total-Boolean product semantics, including null-inclusive negative predicates.
+Formula null propagation remains independently defined in Section 9.3.
 
 ## 1. Position, Scope, and Conformance
 
@@ -1040,6 +1046,8 @@ interface RowQuery {
   }>
 }
 
+type FilterOperand = Exclude<LogicalValue, null>
+
 type FilterNode =
   | { op: "and" | "or"; args: FilterNode[] }
   | { op: "not"; arg: FilterNode }
@@ -1047,16 +1055,21 @@ type FilterNode =
   | {
       op: "eq" | "ne" | "lt" | "lte" | "gt" | "gte"
       fieldId: string
-      value: LogicalValue
+      value: FilterOperand
     }
-  | { op: "between"; fieldId: string; lower: LogicalValue; upper: LogicalValue }
-  | { op: "in"; fieldId: string; values: LogicalValue[] }
+  | {
+      op: "between"
+      fieldId: string
+      lower: FilterOperand
+      upper: FilterOperand
+    }
+  | { op: "in"; fieldId: string; values: FilterOperand[] }
   | {
       op: "contains" | "starts-with" | "ends-with"
       fieldId: string
       value: string
     }
-  | { op: "has-any" | "has-all"; fieldId: string; values: LogicalValue[] }
+  | { op: "has-any" | "has-all"; fieldId: string; values: FilterOperand[] }
   | { op: "relation-has"; fieldId: string; rowId: string }
 ```
 
@@ -1141,7 +1154,7 @@ for `RowQuery`. Runtime additionally performs Field/type/limit validation.
           "properties": {
             "op": { "enum": ["eq", "ne", "lt", "lte", "gt", "gte"] },
             "fieldId": { "$ref": "#/$defs/id" },
-            "value": true
+            "value": { "not": { "type": "null" } }
           }
         },
         {
@@ -1151,8 +1164,8 @@ for `RowQuery`. Runtime additionally performs Field/type/limit validation.
           "properties": {
             "op": { "const": "between" },
             "fieldId": { "$ref": "#/$defs/id" },
-            "lower": true,
-            "upper": true
+            "lower": { "not": { "type": "null" } },
+            "upper": { "not": { "type": "null" } }
           }
         },
         {
@@ -1162,7 +1175,10 @@ for `RowQuery`. Runtime additionally performs Field/type/limit validation.
           "properties": {
             "op": { "enum": ["in", "has-any", "has-all"] },
             "fieldId": { "$ref": "#/$defs/id" },
-            "values": { "type": "array" }
+            "values": {
+              "type": "array",
+              "items": { "not": { "type": "null" } }
+            }
           }
         },
         {
@@ -1192,39 +1208,68 @@ for `RowQuery`. Runtime additionally performs Field/type/limit validation.
 ```
 
 `filterDepthMax` counts the root as depth 1. `filterNodesMax` counts every
-logical and leaf node. Empty `and` is TRUE; empty `or` is FALSE. `not`, `and`,
-and `or` use this three-valued truth table; a row is selected only by TRUE:
+logical and leaf node. Every valid Filter node evaluates to exactly TRUE or
+FALSE. Runtime MUST NOT expose a storage engine's SQL NULL/UNKNOWN as a third
+filter truth value. Empty `and` is TRUE; empty `or` is FALSE; `not`, `and`, and
+`or` therefore use ordinary Boolean logic:
 
 | A   | B   | A AND B | A OR B |
 | --- | --- | ------- | ------ |
 | T   | T   | T       | T      |
 | T   | F   | F       | T      |
-| T   | U   | U       | T      |
 | F   | F   | F       | F      |
-| F   | U   | F       | U      |
-| U   | U   | U       | U      |
 
-`NOT T=F`, `NOT F=T`, and `NOT U=U`. Except for `is-null` and `is-not-null`, a
-null Field value produces UNKNOWN. A null query operand is invalid; clients
-use the null operators explicitly.
+`NOT T=F` and `NOT F=T`. A row is selected exactly when the root is TRUE.
+
+A null query operand is invalid; clients use `is-null` or `is-not-null`
+explicitly. Given valid non-null operands, a null Field value has this exact
+result:
+
+| Leaf operation                                                                           | Result on null Field |
+| ---------------------------------------------------------------------------------------- | -------------------- |
+| `is-null`                                                                                | TRUE                 |
+| `is-not-null`                                                                            | FALSE                |
+| `ne`                                                                                     | TRUE                 |
+| `eq`, ordered comparisons, `between`, `in`, string predicates, `has-any`, `relation-has` | FALSE                |
+| `has-all` with one or more operands                                                      | FALSE                |
+
+The operand-independent identities still apply: empty `in` and empty `has-any`
+are FALSE; empty `has-all` is TRUE. Consequently `not(eq(field, value))`,
+`not(contains(field, text))`, and `not(in(field, values))` all select a row
+whose Field value is null. `ne` is the exact Boolean complement of `eq`; it is
+not SQL `<>` with SQL NULL propagation. For example, a Select Field with null
+value satisfies `ne "p2"`.
+
+Operator/type compatibility is normative:
+
+| Operations                                 | Accepted Field/result TypeRefs                              |
+| ------------------------------------------ | ----------------------------------------------------------- |
+| `is-null`, `is-not-null`, `eq`, `ne`, `in` | every TypeRef                                               |
+| `lt`, `lte`, `gt`, `gte`, `between`        | the sortable TypeRefs in Section 5.1                        |
+| `contains`, `starts-with`, `ends-with`     | `text`, `url`, `select`, `row-id`                           |
+| `has-any`, `has-all`                       | Multi-select, Relation, File, and every public list TypeRef |
+| `relation-has`                             | forward or inverse Relation                                 |
 
 Operands MUST have the Field's exact logical type; Runtime performs no string,
-number, Boolean, date, or ID coercion. Ordered comparison operators apply only
-to the Section 5.1 sortable TypeRefs. `eq`, `ne`, and `in` apply to every
-TypeRef: JSON uses exact JCS text, a `file-entry` object uses its complete JCS
-object, and a list/Multi-select/File/Relation uses length plus ordered typed
-element equality. `contains`, `starts-with`, and `ends-with` apply to
-text/URL/select/row-id and compare Unicode scalar sequences after folding ASCII
-`A..Z` to `a..z`; non-ASCII is unchanged. This same portable fold is used by
-`search`.
+number, Boolean, date, or ID coercion. `eq` uses typed exact equality and `ne`
+uses its complement: JSON uses exact JCS text, a `file-entry` object uses its
+complete JCS object, and a list/Multi-select/File/Relation uses length plus
+ordered typed element equality. `in` is the Boolean OR of typed `eq`
+comparisons. `contains`, `starts-with`, and `ends-with` compare Unicode scalar
+sequences after folding ASCII `A..Z` to `a..z`; non-ASCII is unchanged. This
+same portable fold is used by `search`.
 
-`has-any` and `has-all` apply to Multi-select, Relation, File, and every public
-list TypeRef using typed exact element equality. Empty `has-any` is FALSE and
-empty `has-all` is TRUE.
-`in` is the three-valued OR of typed `eq` comparisons; an empty `in` is FALSE.
-`relation-has` is an optimized exact Row-ID membership test and accepts a
-forward or inverse Relation. Runtime compiles list predicates to `json_each`
-or an equivalent set operation; it MUST NOT fetch a list per row.
+Multi-select, File, Relation, and list results use `[]`, never null. The empty
+list is therefore distinct from null: `eq []` is TRUE for an empty list,
+`is-null` is FALSE, and membership against a non-empty operand is FALSE.
+`has-any` and `has-all` use typed exact element equality. `relation-has` is an
+optimized exact Row-ID membership test. Runtime compiles list predicates to
+`json_each` or an equivalent set operation; it MUST NOT fetch a list per row.
+
+A SQL-backed implementation MUST totalize every leaf before logical
+composition. SQLite `IS`/`IS NOT` and `COALESCE(predicate, FALSE)` are examples;
+emitting raw `=`, `<>`, ordered comparison, `IN`, or `LIKE` expressions under
+`NOT` without equivalent null handling is non-conforming.
 
 Search matches **Search Fragments**, never a SQLite storage-class cast or a
 JSON serialization. For one row and requested Field, Runtime produces this
@@ -1804,8 +1849,10 @@ type. After this contextual step, all ordinary exact-type rules below apply.
 | `AND OR NOT`   | checkbox                                   | checkbox         |
 
 Except for `IS_NULL`, `COALESCE`, and `IF`, a null operand produces null.
-Boolean operators use the three-valued table in Section 7. Integer arithmetic
-whose result type is Integer is exact signed int64; overflow produces null.
+Formula Boolean operators—unlike Filter nodes—use three-valued logic:
+`NOT T=F`, `NOT F=T`, `NOT null=null`; `T AND null=null`,
+`F AND null=F`, `T OR null=T`, and `F OR null=null`. Integer arithmetic whose
+result type is Integer is exact signed int64; overflow produces null.
 `/` always follows the Number-promotion path below, so Integer
 `INT64_MIN / -1` has a finite rounded Number result rather than Integer
 overflow. Integer `%` uses quotient truncation toward zero and returns

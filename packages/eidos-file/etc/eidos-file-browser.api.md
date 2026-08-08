@@ -266,6 +266,11 @@ export type AggregateItem = {
     op: "count-all";
 } | {
     key: string;
+    op: "distinct-values";
+    fieldId: string;
+    limit: number;
+} | {
+    key: string;
     op: "count" | "distinct-count" | "sum" | "average" | "min" | "max";
     fieldId: string;
 } | {
@@ -302,6 +307,10 @@ export type AggregateResult = {
     value: LogicalValue;
 } | {
     key: string;
+    values: LogicalValue[];
+    truncated: boolean;
+} | {
+    key: string;
     statistics: ColumnStatistics;
 };
 
@@ -326,7 +335,7 @@ export interface AssetLease {
 }
 
 // @public (undocumented)
-export type AtomicType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "json" | "select" | "row-id" | "file-entry";
+export type AtomicType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "select" | "row-id" | "file-entry";
 
 // @public (undocumented)
 export class BrowserEidosFileHandle implements EidosFileHandle {
@@ -530,7 +539,7 @@ export interface ConnectionSnapshot {
 }
 
 // @public (undocumented)
-export type ConversionPolicy = "round-binary64" | "truncate-toward-zero" | "round-ties-even" | "zero-false-nonzero-true" | "utc-date" | "first" | "json-null-to-sql-null" | "null-to-empty-list";
+export type ConversionPolicy = "round-binary64" | "truncate-toward-zero" | "round-ties-even" | "zero-false-nonzero-true" | "utc-date" | "first" | "null-to-empty-list";
 
 // @public (undocumented)
 export type ConvertFieldChange = {
@@ -1054,7 +1063,7 @@ export interface EidosFileFieldPlacement {
 }
 
 // @public (undocumented)
-export type EidosFileFieldType = "integer" | "json" | "relation" | "text" | "number" | "checkbox" | "date" | "datetime" | "file" | "multi-select" | "rating" | "select" | "url" | "formula" | "lookup" | "created-time" | "last-edited-time" | "row-id";
+export type EidosFileFieldType = "integer" | "relation" | "text" | "number" | "checkbox" | "date" | "datetime" | "file" | "multi-select" | "rating" | "select" | "url" | "formula" | "lookup" | "created-time" | "last-edited-time" | "row-id";
 
 // @public (undocumented)
 export interface EidosFileFileValue {
@@ -1125,7 +1134,7 @@ export interface EidosFileFormulaPreviewInput {
     // (undocumented)
     columnName: string;
     // (undocumented)
-    displayType: EidosFileFormulaDisplayType;
+    displayType: EidosFileFormulaResultType;
     // (undocumented)
     formula: string;
     // (undocumented)
@@ -1151,6 +1160,9 @@ export interface EidosFileFormulaProperty extends Record<string, unknown> {
     // (undocumented)
     formula: string;
 }
+
+// @public (undocumented)
+export type EidosFileFormulaResultType = Exclude<EidosFileFormulaDisplayType, "json">;
 
 // @public (undocumented)
 export interface EidosFileHandle {
@@ -1796,7 +1808,7 @@ export interface FormulaPreviewResult {
 }
 
 // @public (undocumented)
-export type FormulaResultType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "json";
+export type FormulaResultType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url";
 
 // @public (undocumented)
 export interface ForwardRelationDefinition {
@@ -2330,6 +2342,8 @@ export interface QueryRowsRequest {
     // (undocumented)
     limit: number;
     // (undocumented)
+    offset?: number;
+    // (undocumented)
     projection: ProjectionSpec;
     // (undocumented)
     query: RowQuery;
@@ -2713,8 +2727,6 @@ export interface RuntimeLimits {
     // (undocumented)
     groupPageSizeMax: number;
     // (undocumented)
-    jsonCellBytesMax: number;
-    // (undocumented)
     listElementsMax: number;
     // (undocumented)
     logicalValueBytesMax: number;
@@ -2814,7 +2826,7 @@ export interface ScalarDefinition {
 }
 
 // @public (undocumented)
-export type ScalarStoredFieldType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "json" | "select";
+export type ScalarStoredFieldType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "select";
 
 // @public (undocumented)
 export type ScalarType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "json" | "select" | "multi-select" | "file" | "relation";
@@ -3023,7 +3035,7 @@ export interface SchemaValueChange {
 }
 
 // @public (undocumented)
-export type SchemaValueChangeCode = "value-reencoded" | "binary64-rounded" | "fraction-truncated" | "integer-rounded" | "numeric-to-checkbox" | "datetime-to-date" | "json-null-to-sql-null" | "null-to-empty-list" | "list-empty-to-null" | "list-tail-dropped" | "relation-detached" | "option-value-renamed" | "option-duplicate-collapsed";
+export type SchemaValueChangeCode = "value-reencoded" | "binary64-rounded" | "fraction-truncated" | "integer-rounded" | "numeric-to-checkbox" | "datetime-to-date" | "null-to-empty-list" | "list-empty-to-null" | "list-tail-dropped" | "relation-detached" | "option-value-renamed" | "option-duplicate-collapsed";
 
 // @public (undocumented)
 export interface SnapshotContext {
@@ -3107,7 +3119,7 @@ export type SqlValue = {
 };
 
 // @public (undocumented)
-export type StoredFieldType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "json" | "select" | "multi-select" | "file" | "relation";
+export type StoredFieldType = "text" | "number" | "integer" | "checkbox" | "date" | "datetime" | "url" | "select" | "multi-select" | "file" | "relation";
 
 // @public (undocumented)
 export function supportsBrowserFileAccess(target?: Pick<Window, "showOpenFilePicker"> | undefined): boolean;

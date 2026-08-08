@@ -1,4 +1,5 @@
 import type { EidosFileSqlParams, EidosFileSqlPrimitive } from "./connection"
+import { canonicalizeEidosFileJson } from "./canonical-json"
 import { EidosFileError } from "./errors"
 import { quoteIdentifier } from "./identifiers"
 import { normalizeEidosFileDate, normalizeEidosFileInstant } from "./temporal"
@@ -492,7 +493,7 @@ function likeExpression(
            )
           WHERE ${caseInsensitiveLike("value", pattern, value, params)}
        )`
-    : caseInsensitiveLike(column, pattern, value, params)
+    : `COALESCE(${caseInsensitiveLike(column, pattern, value, params)}, 0)`
   return operator === "not-contains" ? `NOT (${expression})` : expression
 }
 
@@ -506,7 +507,7 @@ function compileRule(
   const arrayCodec =
     field.storageCodec === "json_array" || field.storageCodec === "relation"
   const empty = arrayCodec
-    ? `(json_valid(${column}) AND json_type(${column}) = 'array' AND json_array_length(${column}) = 0)`
+    ? `(${column} IS NULL OR (json_valid(${column}) AND json_type(${column}) = 'array' AND json_array_length(${column}) = 0))`
     : `(${column} IS NULL)`
 
   if (rule.operator === "is-empty") {
@@ -556,21 +557,25 @@ function compileRule(
     }
     params.push(...values.map((entry) => sqlFieldValue(field, entry)))
     if (rule.operator === "is-all-of") return "0"
-    const expression = `${column} IN (${values.map(() => "?").join(", ")})`
+    const expression = `COALESCE(${column} IN (${values.map(() => "?").join(", ")}), 0)`
     return rule.operator === "is-none-of" ? `NOT (${expression})` : expression
   }
 
   const value = Array.isArray(rule.value) ? rule.value[0] : rule.value
   if (rule.operator === "equals" || rule.operator === "not-equals") {
     if (arrayCodec && Array.isArray(rule.value)) {
-      params.push(JSON.stringify(rule.value.map(sqlValue)))
-      return rule.operator === "not-equals" ? `${column} <> ?` : `${column} = ?`
+      params.push(canonicalizeEidosFileJson(rule.value))
+      return rule.operator === "not-equals"
+        ? `${column} IS NOT ?`
+        : `${column} IS ?`
     }
     if (value === null || value === undefined) {
       return `${column} IS ${rule.operator === "not-equals" ? "NOT " : ""}NULL`
     }
     params.push(sqlFieldValue(field, value))
-    return rule.operator === "not-equals" ? `${column} <> ?` : `${column} = ?`
+    return rule.operator === "not-equals"
+      ? `${column} IS NOT ?`
+      : `${column} IS ?`
   }
 
   if (
@@ -591,7 +596,7 @@ function compileRule(
   }[rule.operator]
   if (!comparison) return "0"
   params.push(sqlFieldValue(field, value))
-  return `${column} ${comparison} ?`
+  return `COALESCE(${column} ${comparison} ?, 0)`
 }
 
 function compileGroup(

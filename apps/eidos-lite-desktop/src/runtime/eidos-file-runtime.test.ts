@@ -178,6 +178,115 @@ describe("Eidos Lite Runtime 1.0 editor adapter", () => {
     }
   })
 
+  it("uses total-Boolean filter semantics on the Node SQLite runtime", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-filters-"))
+    const filePath = path.join(root, "filters.eidos")
+    const opened = await createEidosLiteFileRuntime(filePath, "Filters")
+    try {
+      let snapshot = await opened.source.getSnapshot()
+      const tableId = snapshot.tables[0]!.table.id
+      snapshot = await opened.source.addField(tableId, {
+        name: "Priority",
+        type: "select",
+      })
+      snapshot = await opened.source.addField(tableId, {
+        name: "Note",
+        type: "text",
+      })
+      snapshot = await opened.source.addField(tableId, {
+        name: "Tags",
+        type: "multi-select",
+      })
+      const fields = snapshot.tables[0]!.fields
+      const name = fields.find((field) => field.name === "Name")!
+      const priority = fields.find((field) => field.name === "Priority")!
+      const note = fields.find((field) => field.name === "Note")!
+      const tags = fields.find((field) => field.name === "Tags")!
+
+      for (const values of [
+        {
+          [name.id!]: "P0",
+          [priority.id!]: "p0",
+          [note.id!]: "active",
+          [tags.id!]: JSON.stringify(["x"]),
+        },
+        {
+          [name.id!]: "P1",
+          [priority.id!]: "p1",
+          [note.id!]: "ready",
+          [tags.id!]: JSON.stringify(["y"]),
+        },
+        {
+          [name.id!]: "P2",
+          [priority.id!]: "p2",
+          [note.id!]: "archived",
+          [tags.id!]: JSON.stringify(["x"]),
+        },
+        { [name.id!]: "Unset" },
+      ]) {
+        await opened.source.insertRow(tableId, values)
+      }
+
+      const emptyTagsFilter = {
+        type: "group" as const,
+        conjunction: "and" as const,
+        children: [
+          {
+            type: "rule" as const,
+            field: tags.id!,
+            operator: "is-empty" as const,
+          },
+        ],
+      }
+      const saved = await opened.source.updateView(
+        snapshot.tables[0]!.views[0]!.id,
+        { filter: emptyTagsFilter }
+      )
+      expect(saved.tables[0]!.views[0]!.filter).toEqual(emptyTagsFilter)
+
+      const matchingNames = async (
+        operator: "not-equals" | "not-contains" | "is-none-of" | "is-empty",
+        field: string,
+        value?: string | string[]
+      ) => {
+        const page = await opened.source.getPage(tableId, 0, 50, {
+          filter: {
+            type: "group",
+            conjunction: "and",
+            children: [
+              {
+                type: "rule",
+                field,
+                operator,
+                ...(value === undefined ? {} : { value }),
+              },
+            ],
+          },
+        })
+        return page.rows.map((row) => String(row[name.id!])).sort()
+      }
+
+      await expect(
+        matchingNames("not-equals", priority.id!, "p2")
+      ).resolves.toEqual(["P0", "P1", "Unset"])
+      await expect(
+        matchingNames("not-contains", note.id!, "archive")
+      ).resolves.toEqual(["P0", "P1", "Unset"])
+      await expect(
+        matchingNames("is-none-of", tags.id!, ["x"])
+      ).resolves.toEqual(["P1", "Unset"])
+      await expect(matchingNames("is-empty", priority.id!)).resolves.toEqual([
+        "Unset",
+      ])
+      await expect(matchingNames("is-empty", tags.id!)).resolves.toEqual([
+        "Unset",
+      ])
+    } finally {
+      await opened.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("keeps Table display and physical names identical", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-names-"))
     const filePath = path.join(root, "names.eidos")

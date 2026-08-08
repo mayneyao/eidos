@@ -3,6 +3,7 @@
 状态：Eidos 最终标准的参考翻译  
 版本：1.0  
 发布日期：2026-07-21  
+修订日期：2026-08-08\
 编辑与变更控制：Eidos Project  
 规范语言：英文
 
@@ -1534,6 +1535,18 @@ position、期待 Runtime append，或把 visual array index 当 persistent iden
 Layout edit 只更新 Section 8 known key，并保留 unknown key。Saved query edit 发送
 Field ID 和 Runtime logical filter value，不能发送 display/physical name。Operator/
 type compatibility 和 query result 以 Runtime 为准。
+
+Filter label 必须保留 Runtime 第 7.1 节的 total-Boolean semantics。具体而言，
+**不是**发送 `ne`；**不包含**发送 `not(contains(...))`；**均不属于**对 scalar
+发送 `not(in(...))`，对 list 发送 `not(has-any(...))`。这些 negative label 会包含
+scalar Field value 为 null 的 row。产品不得用 raw SQL `<>`、`NOT LIKE` 或其他会
+泄漏 SQL UNKNOWN 的 expression 实现它们。
+
+**为空**与**不为空**是 shape-aware label。对 scalar 分别发送 `is-null` 与
+`is-not-null`；对 Multi-select、File、Relation 或其他 list result 分别发送 `eq []`
+与 `ne []`。Runtime list value 是 non-null，empty list 不用 null 表示。即使 editor
+内部 compatibility model 使用不同 operator name，加载和保存 View 时也必须保留
+这些语义。
 
 Section 8 的通用 Fields 控件以及适用的 Grid/Card/Kanban 控件是 Editor required
 surface，不是 optional authoring convenience。每个控件通过一次 revision-checked

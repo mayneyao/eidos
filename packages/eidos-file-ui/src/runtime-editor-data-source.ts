@@ -41,6 +41,7 @@ import {
   type EidosFileTableSnapshot,
   type EidosFileViewInfo,
   type FieldDescriptor,
+  type FilterOperand,
   type FilterNode,
   type FormulaDefinition,
   type JsonObject,
@@ -1727,45 +1728,65 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
         ? this.runtimeValue(elementField, value)
         : (value as LogicalValue)
     )
-    const scalar = values[0] ?? null
+    if (operator === "is-empty") {
+      return list
+        ? { op: "eq", fieldId, value: [] }
+        : { op: "is-null", fieldId }
+    }
+    if (operator === "is-not-empty") {
+      return list
+        ? { op: "ne", fieldId, value: [] }
+        : { op: "is-not-null", fieldId }
+    }
+    if (values.some((value) => value === null)) {
+      throw new TypeError(`Filter ${operator} requires a non-null operand`)
+    }
+    const operands = values as FilterOperand[]
+    const requireScalar = (): FilterOperand => {
+      const value = operands[0]
+      if (value === undefined) {
+        throw new TypeError(`Filter ${operator} requires an operand`)
+      }
+      return value
+    }
     switch (operator) {
-      case "is-empty":
-        return { op: "is-null", fieldId }
-      case "is-not-empty":
-        return { op: "is-not-null", fieldId }
       case "equals":
-        return { op: "eq", fieldId, value: scalar }
+        return { op: "eq", fieldId, value: requireScalar() }
       case "not-equals":
-        return { op: "ne", fieldId, value: scalar }
+        return { op: "ne", fieldId, value: requireScalar() }
       case "contains":
-        return { op: "contains", fieldId, value: String(scalar ?? "") }
+        return list
+          ? { op: "has-any", fieldId, values: [requireScalar()] }
+          : { op: "contains", fieldId, value: String(requireScalar()) }
       case "not-contains":
         return {
           op: "not",
-          arg: { op: "contains", fieldId, value: String(scalar ?? "") },
+          arg: list
+            ? { op: "has-any", fieldId, values: [requireScalar()] }
+            : { op: "contains", fieldId, value: String(requireScalar()) },
         }
       case "starts-with":
-        return { op: "starts-with", fieldId, value: String(scalar ?? "") }
+        return { op: "starts-with", fieldId, value: String(requireScalar()) }
       case "ends-with":
-        return { op: "ends-with", fieldId, value: String(scalar ?? "") }
+        return { op: "ends-with", fieldId, value: String(requireScalar()) }
       case "greater-than":
-        return { op: "gt", fieldId, value: scalar }
+        return { op: "gt", fieldId, value: requireScalar() }
       case "greater-than-or-equal":
-        return { op: "gte", fieldId, value: scalar }
+        return { op: "gte", fieldId, value: requireScalar() }
       case "less-than":
-        return { op: "lt", fieldId, value: scalar }
+        return { op: "lt", fieldId, value: requireScalar() }
       case "less-than-or-equal":
-        return { op: "lte", fieldId, value: scalar }
+        return { op: "lte", fieldId, value: requireScalar() }
       case "is-all-of":
-        return { op: "has-all", fieldId, values }
+        return { op: "has-all", fieldId, values: operands }
       case "is-any-of":
         return list
-          ? { op: "has-any", fieldId, values }
-          : { op: "in", fieldId, values }
+          ? { op: "has-any", fieldId, values: operands }
+          : { op: "in", fieldId, values: operands }
       case "is-none-of": {
         const arg: FilterNode = list
-          ? { op: "has-any", fieldId, values }
-          : { op: "in", fieldId, values }
+          ? { op: "has-any", fieldId, values: operands }
+          : { op: "in", fieldId, values: operands }
         return { op: "not", arg }
       }
     }
@@ -1784,6 +1805,22 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
   ): EidosFileFilterRule | EidosFileFilterGroup | null {
     if (!node) return null
     if (node.op === "not") {
+      if (node.arg.op === "contains") {
+        return {
+          type: "rule",
+          field: node.arg.fieldId,
+          operator: "not-contains",
+          value: node.arg.value,
+        }
+      }
+      if (node.arg.op === "in" || node.arg.op === "has-any") {
+        return {
+          type: "rule",
+          field: node.arg.fieldId,
+          operator: "is-none-of",
+          value: node.arg.values as never,
+        }
+      }
       const nested = this.editorFilterNode(node.arg)
       const group: EidosFileFilterGroup =
         nested?.type === "group"
@@ -1824,7 +1861,7 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
       "has-all": "is-all-of",
       "relation-has": "is-any-of",
     }
-    const operator = operators[node.op]
+    let operator = operators[node.op]
     if (!operator || !("fieldId" in node)) return null
     const value =
       "values" in node
@@ -1834,11 +1871,29 @@ export class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource {
           : "rowId" in node
             ? [node.rowId]
             : undefined
+    const field = this.fields.get(node.fieldId)
+    const list =
+      typeof field?.valueType === "object" ||
+      field?.valueType === "multi-select" ||
+      field?.valueType === "relation" ||
+      field?.valueType === "file"
+    if (
+      list &&
+      Array.isArray(value) &&
+      value.length === 0 &&
+      (node.op === "eq" || node.op === "ne")
+    ) {
+      operator = node.op === "eq" ? "is-empty" : "is-not-empty"
+    }
     return {
       type: "rule",
       field: node.fieldId,
       operator,
-      ...(value === undefined ? {} : { value: value as never }),
+      ...(value === undefined ||
+      operator === "is-empty" ||
+      operator === "is-not-empty"
+        ? {}
+        : { value: value as never }),
     }
   }
 

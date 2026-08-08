@@ -283,7 +283,7 @@ fn assert_invalid_query(result: eidos_file_core::Result<impl std::fmt::Debug>, w
 }
 
 // ---------------------------------------------------------------------------
-// Three-valued logic
+// Total-Boolean filter semantics
 // ---------------------------------------------------------------------------
 
 fn tasks_fixture() -> (tempfile::TempDir, Connection, TableMeta, Vec<FieldMeta>) {
@@ -324,13 +324,13 @@ fn tasks_fixture() -> (tempfile::TempDir, Connection, TableMeta, Vec<FieldMeta>)
             ("due", text("2025-01-02")),
         ],
     );
-    // All-scalar-NULL row: every comparison against it is UNKNOWN.
+    // All-scalar-NULL row exercises the Runtime null boundary.
     insert_row(&conn, "tasks", RID[2], &[]);
     (dir, conn, table, fields)
 }
 
 #[test]
-fn eq_ne_and_null_are_three_valued() {
+fn leaf_predicates_are_total_and_negative_filters_include_null() {
     let (_dir, conn, table, fields) = tasks_fixture();
     let title = field(&fields, "title");
     let priority = field(&fields, "priority");
@@ -341,30 +341,58 @@ fn eq_ne_and_null_are_three_valued() {
     });
     assert_eq!(matching_ids(&conn, &table, &fields, &eq), [RID[0]]);
 
-    // KEY SEMANTIC: `ne` against a NULL field is UNKNOWN, not TRUE — the
-    // null-titled row RID[2] is NOT selected.
+    // KEY SEMANTIC: `ne` is the total complement of `eq`, so the null row is
+    // selected by the user-facing "is not" predicate.
     let ne = filter_query(FilterNode::Ne {
         field_id: title.id.clone(),
         value: json!("Alpha"),
     });
-    assert_eq!(matching_ids(&conn, &table, &fields, &ne), [RID[1]]);
+    assert_eq!(matching_ids(&conn, &table, &fields, &ne), [RID[1], RID[2]]);
 
     let ne_int = filter_query(FilterNode::Ne {
         field_id: priority.id.clone(),
         value: json!("1"),
     });
-    assert_eq!(matching_ids(&conn, &table, &fields, &ne_int), [RID[1]]);
+    assert_eq!(
+        matching_ids(&conn, &table, &fields, &ne_int),
+        [RID[1], RID[2]]
+    );
 
-    // NOT UNKNOWN is UNKNOWN: the null row stays excluded under `not`.
+    // Every positive leaf is FALSE on null, so NOT includes the null row.
     let not_eq = filter_query(FilterNode::Not {
         arg: Box::new(FilterNode::Eq {
             field_id: title.id.clone(),
             value: json!("Alpha"),
         }),
     });
-    assert_eq!(matching_ids(&conn, &table, &fields, &not_eq), [RID[1]]);
+    assert_eq!(
+        matching_ids(&conn, &table, &fields, &not_eq),
+        [RID[1], RID[2]]
+    );
 
-    // is-null / is-not-null are the only null-aware operators.
+    let not_contains = filter_query(FilterNode::Not {
+        arg: Box::new(FilterNode::Contains {
+            field_id: title.id.clone(),
+            value: "ph".to_string(),
+        }),
+    });
+    assert_eq!(
+        matching_ids(&conn, &table, &fields, &not_contains),
+        [RID[1], RID[2]]
+    );
+
+    let not_gt = filter_query(FilterNode::Not {
+        arg: Box::new(FilterNode::Gt {
+            field_id: priority.id.clone(),
+            value: json!("1"),
+        }),
+    });
+    assert_eq!(
+        matching_ids(&conn, &table, &fields, &not_gt),
+        [RID[0], RID[2]]
+    );
+
+    // Explicit null predicates remain available for exact null tests.
     let is_null = filter_query(FilterNode::IsNull {
         field_id: title.id.clone(),
     });
@@ -509,6 +537,16 @@ fn ordered_ops_between_and_in() {
         values: vec![],
     });
     assert!(matching_ids(&conn, &table, &fields, &in_empty).is_empty());
+    let not_in = filter_query(FilterNode::Not {
+        arg: Box::new(FilterNode::In {
+            field_id: title.id.clone(),
+            values: vec![json!("Alpha")],
+        }),
+    });
+    assert_eq!(
+        matching_ids(&conn, &table, &fields, &not_in),
+        [RID[1], RID[2]]
+    );
 
     // Checkbox equality with a JSON boolean operand.
     let is_done = filter_query(FilterNode::Eq {

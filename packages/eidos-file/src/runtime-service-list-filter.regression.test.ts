@@ -161,6 +161,29 @@ describe("Runtime list-filter regression", () => {
       expect(result.revision).toBe(rows.revision)
       expect(result.rows).toHaveLength(1)
       expect(result.rows[0]?.values).toEqual(["Alpha", ["Quality", "Speed"]])
+
+      const wholeList = await runtime.queryRows(
+        {
+          tableId,
+          query: {
+            filter: {
+              op: "in",
+              fieldId: signalsFieldId,
+              values: [["Quality", "Speed"]],
+            },
+          },
+          projection: {
+            fields: [titleFieldId, signalsFieldId],
+            resolveRelations: [],
+          },
+          limit: 25,
+          direction: "forward",
+        },
+        context("whole-list-query")
+      )
+
+      expect(wholeList.rows).toHaveLength(1)
+      expect(wholeList.rows[0]?.values).toEqual(["Alpha", ["Quality", "Speed"]])
     } finally {
       await runtime.close(context("close"))
       connection.close()

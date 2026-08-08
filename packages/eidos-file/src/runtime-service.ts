@@ -30,9 +30,10 @@ import type {
   EidosFileCsvImportColumn,
   EidosFileCsvImportPlan,
   EidosFileFieldInfo,
-  EidosFileFilterOperator,
-  EidosFileFilterValue,
   EidosFileFilterGroup,
+  EidosFileFilterOperator,
+  EidosFileFilterRule,
+  EidosFileFilterValue,
   EidosFileLookupAggregate,
   EidosFileLogicalRow,
 } from "./types"
@@ -50,6 +51,7 @@ import type {
   CreatedSchemaObject,
   FieldDescriptor,
   FileEntry,
+  FilterOperand,
   FilterNode,
   FormulaDefinition,
   FormulaPreviewRequest,
@@ -1932,7 +1934,12 @@ export class EidosRuntimeService implements RuntimeClient {
         type: view.type,
         query: {
           ...(view.filter
-            ? { filter: compatibilityFilterToRuntime(view.filter) }
+            ? {
+                filter: compatibilityFilterToRuntime(
+                  view.filter,
+                  this.core.listFields(view.tableId)
+                ),
+              }
             : {}),
           ...(view.sorts.length > 0
             ? {
@@ -4237,6 +4244,25 @@ function runtimeFilterNodeToCompatibility(
       value: node.values as Array<string | number | boolean | null>,
     }
   }
+  if (node.op === "in") {
+    return group(
+      "or",
+      node.values.map((value) => ({
+        type: "rule",
+        field: node.fieldId,
+        operator: "equals",
+        value: value as EidosFileFilterValue | EidosFileFilterValue[],
+      }))
+    )
+  }
+  if (node.op === "is-null" || node.op === "is-not-null") {
+    return {
+      type: "rule",
+      field: node.fieldId,
+      operator: node.op === "is-null" ? "equals" : "not-equals",
+      value: null,
+    }
+  }
   const leaf = node as Exclude<
     FilterNode,
     { op: "and" | "or" } | { op: "not" } | { op: "between" } | { op: "has-all" }
@@ -4244,15 +4270,12 @@ function runtimeFilterNodeToCompatibility(
   const operatorMap: Partial<
     Record<FilterNode["op"], EidosFileFilterOperator>
   > = {
-    "is-null": "is-empty",
-    "is-not-null": "is-not-empty",
     eq: "equals",
     ne: "not-equals",
     lt: "less-than",
     lte: "less-than-or-equal",
     gt: "greater-than",
     gte: "greater-than-or-equal",
-    in: "is-any-of",
     contains: "contains",
     "starts-with": "starts-with",
     "ends-with": "ends-with",
@@ -4283,80 +4306,117 @@ function runtimeFilterNodeToCompatibility(
   }
 }
 
-function compatibilityFilterToRuntime(group: EidosFileFilterGroup): FilterNode {
+function compatibilityFilterToRuntime(
+  group: EidosFileFilterGroup,
+  fields: ReturnType<EidosFileRuntime["listFields"]> = []
+): FilterNode {
   const node: FilterNode = {
     op: group.conjunction,
     args: group.children.map((child) => {
-      if (child.type === "group") return compatibilityFilterToRuntime(child)
-      const operator = compatibilityOperator(child.operator)
-      if (operator === "is-null" || operator === "is-not-null") {
-        return { op: operator, fieldId: child.field }
-      }
-      if (operator === "in") {
-        return {
-          op: "in",
-          fieldId: child.field,
-          values: (Array.isArray(child.value)
-            ? child.value
-            : [child.value ?? null]) as LogicalValue[],
-        }
-      }
-      return {
-        op: (operator ?? "eq") as "eq",
-        fieldId: child.field,
-        value: (Array.isArray(child.value)
-          ? child.value[0]
-          : (child.value ?? null)) as LogicalValue,
-      }
+      if (child.type === "group")
+        return compatibilityFilterToRuntime(child, fields)
+      return compatibilityFilterRuleToRuntime(child, fields)
     }),
   }
   return group.negated ? { op: "not", arg: node } : node
 }
 
-function compatibilityOperator(
-  operator: EidosFileFilterOperator
-):
-  | "is-null"
-  | "is-not-null"
-  | "eq"
-  | "ne"
-  | "lt"
-  | "lte"
-  | "gt"
-  | "gte"
-  | "contains"
-  | "starts-with"
-  | "ends-with"
-  | "in"
-  | undefined {
-  switch (operator) {
+function compatibilityFilterRuleToRuntime(
+  rule: EidosFileFilterRule,
+  fields: ReturnType<EidosFileRuntime["listFields"]>
+): FilterNode {
+  const field = fields.find((candidate) => candidate.id === rule.field)
+  const type = field ? fieldValueType(field) : undefined
+  const list = type !== undefined && runtimeListElementType(type) !== undefined
+  const values = (
+    Array.isArray(rule.value) ? rule.value : [rule.value ?? null]
+  ) as LogicalValue[]
+  const scalarValue = values[0] ?? null
+  const equalityValue =
+    list && Array.isArray(rule.value)
+      ? (rule.value as LogicalValue)
+      : scalarValue
+  const requireValue = (): FilterOperand => {
+    if (scalarValue === null) {
+      throw runtimeError(
+        "corrupt-file",
+        "Stored View filter operand is missing"
+      )
+    }
+    return scalarValue
+  }
+  const requireValues = (): FilterOperand[] => {
+    if (values.some((value) => value === null)) {
+      throw runtimeError("corrupt-file", "Stored View filter operand is null")
+    }
+    return values as FilterOperand[]
+  }
+  const membership = (): FilterNode =>
+    list
+      ? { op: "has-any", fieldId: rule.field, values: requireValues() }
+      : { op: "in", fieldId: rule.field, values: requireValues() }
+
+  switch (rule.operator) {
     case "is-empty":
-      return "is-null"
+      return list
+        ? { op: "eq", fieldId: rule.field, value: [] }
+        : { op: "is-null", fieldId: rule.field }
     case "is-not-empty":
-      return "is-not-null"
+      return list
+        ? { op: "ne", fieldId: rule.field, value: [] }
+        : { op: "is-not-null", fieldId: rule.field }
     case "equals":
-      return "eq"
+      return equalityValue === null
+        ? { op: "is-null", fieldId: rule.field }
+        : { op: "eq", fieldId: rule.field, value: equalityValue }
     case "not-equals":
-      return "ne"
+      return equalityValue === null
+        ? { op: "is-not-null", fieldId: rule.field }
+        : { op: "ne", fieldId: rule.field, value: equalityValue }
     case "less-than":
-      return "lt"
+      return { op: "lt", fieldId: rule.field, value: requireValue() }
     case "less-than-or-equal":
-      return "lte"
+      return { op: "lte", fieldId: rule.field, value: requireValue() }
     case "greater-than":
-      return "gt"
+      return { op: "gt", fieldId: rule.field, value: requireValue() }
     case "greater-than-or-equal":
-      return "gte"
+      return { op: "gte", fieldId: rule.field, value: requireValue() }
     case "contains":
-      return "contains"
+      return list
+        ? membership()
+        : {
+            op: "contains",
+            fieldId: rule.field,
+            value: String(requireValue()),
+          }
+    case "not-contains": {
+      const arg: FilterNode = list
+        ? membership()
+        : {
+            op: "contains",
+            fieldId: rule.field,
+            value: String(requireValue()),
+          }
+      return { op: "not", arg }
+    }
     case "starts-with":
-      return "starts-with"
+      return {
+        op: "starts-with",
+        fieldId: rule.field,
+        value: String(requireValue()),
+      }
     case "ends-with":
-      return "ends-with"
+      return {
+        op: "ends-with",
+        fieldId: rule.field,
+        value: String(requireValue()),
+      }
     case "is-any-of":
-      return "in"
-    case "not-contains":
+      return membership()
+    case "is-all-of":
+      return { op: "has-all", fieldId: rule.field, values: requireValues() }
     case "is-none-of":
-      return undefined
+      return { op: "not", arg: membership() }
   }
 }
 

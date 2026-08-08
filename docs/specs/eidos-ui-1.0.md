@@ -3,6 +3,7 @@
 Status: Final Eidos Standard  
 Version: 1.0  
 Published: 2026-07-21  
+Revised: 2026-08-08\
 Editor and change controller: Eidos Project  
 Canonical language: English
 
@@ -1689,6 +1690,20 @@ When editing layout, the UI updates only keys defined in Section 8 and
 preserves unknown keys. When editing the saved query, it sends Field IDs and
 Runtime logical filter values; it never sends display or physical names.
 Runtime is authoritative for operator/type compatibility and query results.
+
+Filter labels MUST preserve the Runtime total-Boolean semantics from Runtime
+Section 7.1. In particular, **is not** emits `ne`; **does not contain** emits
+`not(contains(...))`; and **has none of** emits `not(in(...))` for a scalar or
+`not(has-any(...))` for a list. These negative labels include a row whose
+scalar Field value is null. A product MUST NOT implement them with raw SQL
+`<>`, `NOT LIKE`, or another expression that leaks SQL UNKNOWN.
+
+**Is empty** and **is not empty** are shape-aware labels. For a scalar they
+emit `is-null` and `is-not-null`. For Multi-select, File, Relation, or another
+list result they emit `eq []` and `ne []`; Runtime list values are non-null, so
+an empty list is not represented as null. The editor MUST preserve these
+meanings when loading and saving a View even if its internal compatibility
+model uses different operator names.
 
 The common Fields control and the applicable Grid/Card/Kanban controls from
 Section 8 are required Editor surfaces, not optional authoring conveniences.
