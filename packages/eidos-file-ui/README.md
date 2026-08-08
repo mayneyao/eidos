@@ -9,8 +9,8 @@ filesystem paths/handles, Electron IPC or application stores.
 ## Install
 
 ```bash
-pnpm add @eidos.space/eidos-file@1.0.0 \
-  @eidos.space/eidos-file-ui@1.0.0 react react-dom
+pnpm add @eidos.space/eidos-file@2.0.0 \
+  @eidos.space/eidos-file-ui@2.0.0 react react-dom
 ```
 
 Import the precompiled stylesheet once:

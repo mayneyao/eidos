@@ -1735,16 +1735,16 @@ export type FilterNode = {
 } | {
     op: "eq" | "ne" | "lt" | "lte" | "gt" | "gte";
     fieldId: string;
-    value: LogicalValue;
+    value: FilterOperand;
 } | {
     op: "between";
     fieldId: string;
-    lower: LogicalValue;
-    upper: LogicalValue;
+    lower: FilterOperand;
+    upper: FilterOperand;
 } | {
     op: "in";
     fieldId: string;
-    values: LogicalValue[];
+    values: FilterOperand[];
 } | {
     op: "contains" | "starts-with" | "ends-with";
     fieldId: string;
@@ -1752,12 +1752,15 @@ export type FilterNode = {
 } | {
     op: "has-any" | "has-all";
     fieldId: string;
-    values: LogicalValue[];
+    values: FilterOperand[];
 } | {
     op: "relation-has";
     fieldId: string;
     rowId: string;
 };
+
+// @public (undocumented)
+export type FilterOperand = Exclude<LogicalValue, null>;
 
 // @public (undocumented)
 export interface FormulaDefinition {

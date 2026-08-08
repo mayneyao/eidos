@@ -16,6 +16,12 @@ for (const [name, target] of Object.entries(manifest.exports).sort(
   if (typeof types !== "string") continue
   const declaration = readFileSync(path.join(root, types), "utf8")
     .replace(/([A-Za-z0-9-]+)-[A-Za-z0-9_]{8}\.mjs/g, "$1-HASH.mjs")
+    // Rolldown can emit equivalent keyof unions in either order across builds.
+    // Canonicalize them so the API gate only reports semantic declaration changes.
+    .replace(
+      /"key" \| keyof ([A-Za-z_$][\w$]*\.HTMLAttributes<[^>]+>)/g,
+      'keyof $1 | "key"'
+    )
     .replace(/^\/\/# sourceMappingURL=.*$/gm, "")
     .trim()
   sections.push(`## ${name}\n\n\`\`\`ts\n${declaration}\n\`\`\``)

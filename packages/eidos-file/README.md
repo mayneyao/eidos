@@ -17,7 +17,7 @@ receives SQL, a database, a path or a native file handle.
 ## Install
 
 ```bash
-pnpm add @eidos.space/eidos-file@1.0.0
+pnpm add @eidos.space/eidos-file@2.0.0
 ```
 
 Add `@eidos.space/eidos-file-ui` for the React Viewer binding.
@@ -55,11 +55,12 @@ matching negotiated capability is true.
 
 ## Adapter profiles
 
-- `BetterSqlite3ConnectionPort` in `@eidos.space/eidos-file/better-sqlite3`
-  implements the Desktop EA-Connection binding.
 - `NodeSqliteConnectionPort` in `@eidos.space/eidos-file/node-sqlite`
-  implements the Electron 43 / Node 24 EA-Connection binding without a native
-  addon or a Node/Electron ABI rebuild.
+  implements the Node 24.16+ EA-Connection binding without a native addon or a
+  Node/Electron ABI rebuild. Eidos Lite runs it in an Electron utility process.
+- `BetterSqlite3ConnectionPort` in `@eidos.space/eidos-file/better-sqlite3`
+  remains available to Node Hosts that have chosen that driver; it is not the
+  Eidos Lite adapter.
 - `SQLiteWasmConnectionPort` in `@eidos.space/eidos-file/browser` implements
   the Browser Worker EA-Connection binding using the same conformance contract.
 - `AdapterTransportServer` and `AdapterTransportRuntimeClient` implement the

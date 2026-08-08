@@ -15,7 +15,7 @@ import { EidosFileEditorShell, EidosFileEditorShellProps } from "./eidos-file-ed
 import { EidosFileEmptyState, EidosFileEmptyStateProps, EidosFileEmptyStateTemplate } from "./eidos-file-empty-state.mjs";
 import { eidosFileErrorMessage } from "./eidos-file-error-message.mjs";
 import { EidosFileFieldCreatePopover, EidosFileFieldCreatePopoverProps } from "./eidos-file-field-create-popover.mjs";
-import { EIDOS_FILE_FIELD_TYPE_GROUPS, EidosFileCreatableFieldType, EidosFileFieldTypeIcon, EidosFileFieldTypePicker } from "./eidos-file-field-type-picker.mjs";
+import { EIDOS_FILE_FIELD_TYPE_GROUPS, EidosFileCreatableFieldType, EidosFileFieldTypeIcon, EidosFileFieldTypePicker, eidosFileFieldTypeIcon } from "./eidos-file-field-type-picker.mjs";
 import { n as EidosFileFormulaComposerProps, r as EidosFileFormulaInputRef, t as EidosFileFormulaComposer } from "./eidos-file-formula-composer-HASH.mjs";
 import { EidosFileGalleryView } from "./eidos-file-gallery-view.mjs";
 import { EidosFileKanbanView } from "./eidos-file-kanban-view.mjs";
@@ -38,10 +38,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuPortal, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "./ui/dropdown-menu.mjs";
 import { DragEndEvent, KanbanBoard, KanbanBoardProps, KanbanCard, KanbanCardProps, KanbanCards, KanbanCardsProps, KanbanHeader, KanbanHeaderProps, KanbanProvider, KanbanProviderProps, Status } from "./ui/kanban.mjs";
 import { CreateEidosFileFieldInput, CreateEidosFileTableInput, CreateEidosFileViewInput, EidosFileColumnStatConfig, EidosFileColumnStatResult, EidosFileColumnStatType, EidosFileCsvImportOptions, EidosFileCsvImportPlan, EidosFileCsvImportResult, EidosFileFieldInfo, EidosFileFieldPlacement, EidosFileFilterGroup, EidosFileFormulaPreview, EidosFileFormulaPreviewInput, EidosFileLogicalValue, EidosFileOptionValueChange, EidosFileRelationValue, EidosFileRow, EidosFileRowGroupCount, EidosFileRowMutationResult, EidosFileRowPage, EidosFileRowPageProjection, EidosFileRowQuery, EidosFileRowRange, EidosFileRowValue, EidosFileRowsDeleteResult, EidosFileRowsMutationResult, EidosFileSnapshot, EidosFileSort, EidosFileSortDirection, EidosFileSqlPrimitive, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry, RuntimeClient, UpdateEidosFileFieldInput, UpdateEidosFileTableInput, UpdateEidosFileViewInput } from "@eidos.space/eidos-file";
-import * as _$react from "react";
-import { KeyboardEvent, ReactNode } from "react";
+import * as React$2 from "react";
+import { ComponentPropsWithoutRef, KeyboardEvent, ReactNode } from "react";
 import { BaseDrawArgs, BaseGridCell, CustomCell, CustomRenderer, DataEditorProps, DataEditorRef, EditableGridCell, GridCell, GridColumn, GridSelection, Item, ProvideEditorComponent, Rectangle, SelectionRange, SpriteMap, Theme } from "@glideapps/glide-data-grid";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
+import { Popover, ScrollArea, Select, Switch } from "radix-ui";
 import { NumberFormatValues } from "react-number-format/types/types.js";
 
 //#region src/eidos-file-field-property-panel.d.ts
@@ -63,6 +64,53 @@ declare function EidosFileFieldPropertyPanel({
   onDelete: (field: EidosFileFieldInfo) => void;
   onEditFormula?: (field: EidosFileFieldInfo) => void;
   onEditLookup?: (field: EidosFileFieldInfo) => void;
+}): _$react_jsx_runtime0.JSX.Element;
+//#endregion
+//#region src/ui/primitives.d.ts
+declare const Command: React$2.ForwardRefExoticComponent<Omit<{
+  children?: React$2.ReactNode;
+} & Pick<Pick<React$2.DetailedHTMLProps<React$2.HTMLAttributes<HTMLDivElement>, HTMLDivElement>, keyof React$2.HTMLAttributes<HTMLDivElement> | "key"> & {
+  ref?: React$2.Ref<HTMLDivElement>;
+} & {
+  asChild?: boolean;
+}, keyof React$2.HTMLAttributes<HTMLDivElement> | "key" | "asChild"> & {
+  label?: string;
+  shouldFilter?: boolean;
+  filter?: (value: string, search: string, keywords?: string[]) => number;
+  defaultValue?: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
+  loop?: boolean;
+  disablePointerSelection?: boolean;
+  vimBindings?: boolean;
+} & React$2.RefAttributes<HTMLDivElement>, "ref"> & React$2.RefAttributes<HTMLDivElement>>;
+//#endregion
+//#region src/eidos-file-command-combobox.d.ts
+/**
+ * Shared searchable dropdown shell: a Popover hosting a cmdk Command list
+ * with keyboard navigation (arrows/Enter), type-to-filter, and scrolling.
+ * Consumers own the trigger and the CommandGroup/CommandItem content.
+ */
+declare function EidosFileCommandCombobox({
+  open,
+  onOpenChange,
+  trigger,
+  searchPlaceholder,
+  emptyText,
+  filter,
+  contentClassName,
+  listClassName,
+  children
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  trigger: ReactNode;
+  searchPlaceholder: string;
+  emptyText: string;
+  filter?: ComponentPropsWithoutRef<typeof Command>["filter"];
+  contentClassName?: string;
+  listClassName?: string;
+  children: ReactNode;
 }): _$react_jsx_runtime0.JSX.Element;
 //#endregion
 //#region src/eidos-file-field-visibility.d.ts
@@ -152,7 +200,7 @@ interface EidosFileGridRowEdit {
   row: EidosFileRow;
   changes: EidosFileRow;
 }
-declare const EidosFileGrid: _$react.NamedExoticComponent<EidosFileGridProps>;
+declare const EidosFileGrid: React$2.NamedExoticComponent<EidosFileGridProps>;
 //#endregion
 //#region src/eidos-file-grid-adapter.d.ts
 /** Glide cell option shape derived from a direct Eidos File option value. */
@@ -163,7 +211,7 @@ interface EidosFileGridSelectOption {
 }
 declare function eidosFileGridColumn(field: EidosFileFieldInfo): GridColumn;
 declare function eidosFileGridSelectOptions(field: EidosFileFieldInfo): EidosFileGridSelectOption[];
-declare function eidosFileValueToGridCell(field: EidosFileFieldInfo, value: EidosFileRowValue | undefined, readonly?: boolean, row?: EidosFileRow, unavailableRelationTitle?: string): GridCell;
+declare function eidosFileValueToGridCell(field: EidosFileFieldInfo, value: EidosFileRowValue | undefined, readonly?: boolean, row?: EidosFileRow, unavailableRelationTitle?: string, allowWrapping?: boolean): GridCell;
 declare function gridCellToEidosFileValue(field: EidosFileFieldInfo, cell: EditableGridCell): EidosFileSqlPrimitive;
 //#endregion
 //#region src/eidos-file-grid-menus.d.ts
@@ -409,7 +457,7 @@ declare function useEidosFileRelationListbox(choices: EidosFileRelationValue[]):
   listboxId: string;
   moveActiveOption: (direction: -1 | 1 | EidosFileRelationListboxEdge) => void;
   optionId: (index: number) => string;
-  setActiveOptionId: _$react.Dispatch<_$react.SetStateAction<string | null>>;
+  setActiveOptionId: React$2.Dispatch<React$2.SetStateAction<string | null>>;
 };
 //#endregion
 //#region src/eidos-file-relation-option-list.d.ts
@@ -506,6 +554,10 @@ declare class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource 
   deleteRows(tableId: string, rowIds: string[]): Promise<EidosFileRowsDeleteResult>;
   deleteRowRanges(tableId: string, ranges: EidosFileRowRange[], query: EidosFileRowQuery): Promise<EidosFileRowsDeleteResult>;
   addField(tableId: string, field: CreateEidosFileFieldInput, placement?: EidosFileFieldPlacement): Promise<EidosFileSnapshot>;
+  private conversionOptionNames;
+  private inferredFieldOptions;
+  private conversionFieldSettings;
+  private assertRatingValues;
   updateField(tableId: string, fieldId: string, changes: UpdateEidosFileFieldInput): Promise<EidosFileSnapshot>;
   deleteField(tableId: string, fieldId: string): Promise<EidosFileSnapshot>;
   createTable(input: CreateEidosFileTableInput): Promise<EidosFileSnapshot>;
@@ -541,6 +593,7 @@ declare class EidosRuntimeEditorDataSource implements EidosFileEditorDataSource 
   private runtimeFilter;
   private runtimeFilterRule;
   private editorFilter;
+  private editorFilterNode;
   private savedViewQuery;
   private viewLayout;
   private editorOrderMap;
@@ -613,14 +666,14 @@ declare function useEidosFileTabStrip<T extends EidosFileTabStripItem>({
   activeId?: string | null;
   onSelect: (id: string) => void;
 }): {
-  activeTabRef: _$react.RefObject<HTMLButtonElement>;
+  activeTabRef: React$2.RefObject<HTMLButtonElement>;
   canScrollBackward: boolean;
   canScrollForward: boolean;
   navigateTabs: (event: KeyboardEvent<HTMLButtonElement>, currentIndex: number) => void;
   scrollTabs: (direction: -1 | 1) => void;
   tabStopId: string | null | undefined;
   updateScrollState: () => void;
-  viewportRef: _$react.RefObject<HTMLDivElement>;
+  viewportRef: React$2.RefObject<HTMLDivElement>;
 };
 //#endregion
 //#region src/cells/date-picker-cell.d.ts
@@ -678,7 +731,7 @@ interface Props {
   readonly thousandSeparator?: boolean | string;
   readonly decimalSeparator?: string;
 }
-declare const NumberOverlayEditor: _$react.FunctionComponent<Props>;
+declare const NumberOverlayEditor: React$2.FunctionComponent<Props>;
 //#endregion
 //#region src/cells/range-cell.d.ts
 interface RangeCellProps {
@@ -714,7 +767,7 @@ interface SelectCellProps {
 type SelectCell = CustomCell<SelectCellProps>;
 declare const renderer$4: CustomRenderer<SelectCell>;
 //#endregion
-export { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogOverlay, AlertDialogPortal, AlertDialogTitle, AlertDialogTrigger, AssetPresenter, DEFAULT_BASE_NUMBER_PROPERTY, renderer as DatePickerCell, type DatePickerCell as DatePickerCellType, DragEndEvent, DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuPortal, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, EIDOS_FILE_EMPTY_STAT_ICON, EIDOS_FILE_EXTENSION_VIEW_PREFIX, EIDOS_FILE_FIELD_TYPE_GROUPS, EIDOS_FILE_OPTION_COLORS, EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS, EIDOS_FILE_VIRTUAL_SCROLL_MAX_SIZE, EIDOS_UI_PROTOCOL, EidosFileActionPluginContribution, EidosFileAttachmentCell, EidosFileAttachmentCellData, EidosFileAttachmentCellEditor, EidosFileAttachmentCellRenderer, EidosFileBoundedVirtualizerResult, EidosFileBuiltInViewType, EidosFileCellMenu, EidosFileCellMenuState, EidosFileColumnStatMenu, EidosFileCommandContext, EidosFileCreatableFieldType, EidosFileCsvImportPopover, EidosFileCsvImportPopoverProps, EidosFileCsvOperationProgress, EidosFileCsvOperationProgressBar, EidosFileCsvOperationProgressBarProps, EidosFileDataGrid, EidosFileDataGridProps, EidosFileDataSource, EidosFileEditorContent, EidosFileEditorDataSource, EidosFileEditorRoot, EidosFileEditorShell, EidosFileEditorShellProps, EidosFileEditorView, EidosFileEditorViewProps, EidosFileEditorWorkbar, EidosFileEmptyState, EidosFileEmptyStateProps, EidosFileEmptyStateTemplate, EidosFileEntryCoverSurface, EidosFileEntrySurface, EidosFileEntrySurfaceProps, EidosFileExternalViewContribution, EidosFileFieldCreatePopover, EidosFileFieldCreatePopoverProps, EidosFileFieldMenu, EidosFileFieldMenuState, EidosFileFieldPropertyPanel, EidosFileFieldTypeIcon, EidosFileFieldTypePicker, EidosFileFormulaComposer, EidosFileFormulaComposerProps, EidosFileFormulaEditorPopover, EidosFileFormulaInputRef, EidosFileGalleryView, EidosFileGrid, EidosFileGridProps, EidosFileGridRenderer, EidosFileGridRowEdit, EidosFileKanbanView, EidosFileLookupEditorPopover, EidosFileNumberPropertiesEditor, EidosFileNumberProperty, EidosFileOptionsEditor, EidosFilePlugin, EidosFilePluginContext, EidosFilePluginRegistry, EidosFilePluginSlot, EidosFileProvider, EidosFileProviderProps, EidosFileQueryToolbar, EidosFileReactContextValue, EidosFileReactTrust, EidosFileRecordAttachmentEditor, EidosFileRecordCard, EidosFileRecordCardFieldLayout, EidosFileRecordCardLayout, EidosFileRecordDeleteDialog, EidosFileRecordFieldEditor, EidosFileRecordInspector, EidosFileRecordInspectorProps, EidosFileRecordRelationEditor, EidosFileRelationCell, EidosFileRelationCellEditor, EidosFileRelationCellRenderer, EidosFileRelationOptionList, EidosFileRowWindow, EidosFileRowWindowMergeMode, EidosFileRowWindowRequest, EidosFileSearchNavigationDirection, EidosFileSearchNavigationProvider, EidosFileSearchNavigationState, EidosFileSelectOption, EidosFileSelectOptionsEditor, EidosFileSheetCreatePopover, EidosFileSheetTabActions, EidosFileSheetTabRenderer, EidosFileSheetTabStrip, EidosFileSheetTabs, EidosFileSheetTabsProps, EidosFileTabStripItem, EidosFileUIAssetSession, EidosFileUIHost, EidosFileUILocale, EidosFileUIMessageOverrides, EidosFileUIMessageValues, EidosFileUIProvider, EidosFileUIThemeName, EidosFileUnsupportedView, EidosFileViewCapabilities, EidosFileViewCommand, EidosFileViewCsvExport, EidosFileViewFieldsPopover, EidosFileViewHost, EidosFileViewHostProps, EidosFileViewPluginContribution, EidosFileViewRenderer, EidosFileViewRendererProps, EidosFileViewRendererRegistry, EidosFileViewSelection, EidosFileViewSelector, EidosFileViewSelectorRequest, EidosFileViewState, EidosFileViewTabActions, EidosFileViewTabRenderer, EidosFileViewTabStrip, EidosFileViewTabs, EidosFileViewTabsProps, EidosFileViewTypeIcon, EidosFileVirtualWindow, EidosRuntimeEditorDataSource, EidosStandardView, EidosStandardViewProps, EidosUIKernel, EidosUIKernelOptions, EidosUIKernelPhase, EidosUIKernelState, EidosUIRuntimeContextValue, EidosUIRuntimeProvider, EidosUIRuntimeProviderProps, EidosUISchemaIndex, ExportEidosFileViewCsvOptions, KanbanBoard, KanbanBoardProps, KanbanCard, KanbanCardProps, KanbanCards, KanbanCardsProps, KanbanHeader, KanbanHeaderProps, KanbanProvider, KanbanProviderProps, renderer$1 as MultiSelectCell, type MultiSelectCell as MultiSelectCellType, NumberOverlayEditor, OpenEidosUISourceRequest, renderer$2 as RangeCell, type RangeCell as RangeCellType, renderer$3 as RatingCell, type RatingCell as RatingCellType, renderer$4 as SelectCell, type SelectCell as SelectCellType, Status, UndoRedoEdit, builtInEidosFileViewRenderers, contextRowRanges, createEidosFilePluginRegistry, createEidosFileRecordCardLayout, defaultConfig, defineEidosFilePlugin, defineEidosFileView, drawDrilldownCell, drawImage, eidosFileErrorMessage, eidosFileExtensionContributionId, eidosFileExtensionViewType, eidosFileFieldDisplayName, eidosFileFieldKey, eidosFileGridColumn, eidosFileGridScrollbarConfig, eidosFileGridSelectOptions, eidosFileNumberProperty, eidosFileOptionColor, eidosFileRecordCardPageProjection, eidosFileRecordFieldText, eidosFileRecordTitle, eidosFileSelectOptions, eidosFileValueToGridCell, eidosFileViewFreezeColumns, eidosFileViewGroupFilter, eidosFileViewRowQuery, eidosFileViewVisibleSystemFields, eidosFileVirtualItemOffset, eidosFileVirtualLogicalOffset, eidosFileVirtualPhysicalOffset, eidosFileVirtualPhysicalSize, eidosFileVirtualWindowForOffset, eidosUIPresentValue, eidosUIViewQuery, eidosUIVisibleFields, exportEidosFileViewCsv, getMiddleCenterBias, getScrollbarWidth, gridCellToEidosFileValue, headerIcons, isEidosFileBuiltInViewType, isEidosFileRecordCoverField, isEidosFileRecordLabelField, isOptionalEidosFileSystemField, makeHeaderIcons, measureTextCached, mergeRowWindowPage, nextEidosFileFieldSorts, nextEidosFileOptionColor, orderedEidosFileFields, removeItemFromArray, requestForPrefetchedRowWindow, requestForRowWindow, resetEidosFileVirtualizerMeasurements, roundedRect, rowFromWindow, rowRangeCount, rowSelectionRanges, selectEidosFileRecordCardFields, translateEidosFileUI, useEidosFile, useEidosFileBoundedVirtualizer, useEidosFileGridTheme, useEidosFileRecordInspectorRow, useEidosFileRelationListbox, useEidosFileSearchNavigation, useEidosFileSession, useEidosFileTabStrip, useEidosFileUI, useEidosUIRuntime, useUndoRedo, visibleEidosFileFields };
+export { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogOverlay, AlertDialogPortal, AlertDialogTitle, AlertDialogTrigger, AssetPresenter, DEFAULT_BASE_NUMBER_PROPERTY, renderer as DatePickerCell, type DatePickerCell as DatePickerCellType, DragEndEvent, DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuPortal, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, EIDOS_FILE_EMPTY_STAT_ICON, EIDOS_FILE_EXTENSION_VIEW_PREFIX, EIDOS_FILE_FIELD_TYPE_GROUPS, EIDOS_FILE_OPTION_COLORS, EIDOS_FILE_VIRTUAL_SCROLL_MAX_ITEMS, EIDOS_FILE_VIRTUAL_SCROLL_MAX_SIZE, EIDOS_UI_PROTOCOL, EidosFileActionPluginContribution, EidosFileAttachmentCell, EidosFileAttachmentCellData, EidosFileAttachmentCellEditor, EidosFileAttachmentCellRenderer, EidosFileBoundedVirtualizerResult, EidosFileBuiltInViewType, EidosFileCellMenu, EidosFileCellMenuState, EidosFileColumnStatMenu, EidosFileCommandCombobox, EidosFileCommandContext, EidosFileCreatableFieldType, EidosFileCsvImportPopover, EidosFileCsvImportPopoverProps, EidosFileCsvOperationProgress, EidosFileCsvOperationProgressBar, EidosFileCsvOperationProgressBarProps, EidosFileDataGrid, EidosFileDataGridProps, EidosFileDataSource, EidosFileEditorContent, EidosFileEditorDataSource, EidosFileEditorRoot, EidosFileEditorShell, EidosFileEditorShellProps, EidosFileEditorView, EidosFileEditorViewProps, EidosFileEditorWorkbar, EidosFileEmptyState, EidosFileEmptyStateProps, EidosFileEmptyStateTemplate, EidosFileEntryCoverSurface, EidosFileEntrySurface, EidosFileEntrySurfaceProps, EidosFileExternalViewContribution, EidosFileFieldCreatePopover, EidosFileFieldCreatePopoverProps, EidosFileFieldMenu, EidosFileFieldMenuState, EidosFileFieldPropertyPanel, EidosFileFieldTypeIcon, EidosFileFieldTypePicker, EidosFileFormulaComposer, EidosFileFormulaComposerProps, EidosFileFormulaEditorPopover, EidosFileFormulaInputRef, EidosFileGalleryView, EidosFileGrid, EidosFileGridProps, EidosFileGridRenderer, EidosFileGridRowEdit, EidosFileKanbanView, EidosFileLookupEditorPopover, EidosFileNumberPropertiesEditor, EidosFileNumberProperty, EidosFileOptionsEditor, EidosFilePlugin, EidosFilePluginContext, EidosFilePluginRegistry, EidosFilePluginSlot, EidosFileProvider, EidosFileProviderProps, EidosFileQueryToolbar, EidosFileReactContextValue, EidosFileReactTrust, EidosFileRecordAttachmentEditor, EidosFileRecordCard, EidosFileRecordCardFieldLayout, EidosFileRecordCardLayout, EidosFileRecordDeleteDialog, EidosFileRecordFieldEditor, EidosFileRecordInspector, EidosFileRecordInspectorProps, EidosFileRecordRelationEditor, EidosFileRelationCell, EidosFileRelationCellEditor, EidosFileRelationCellRenderer, EidosFileRelationOptionList, EidosFileRowWindow, EidosFileRowWindowMergeMode, EidosFileRowWindowRequest, EidosFileSearchNavigationDirection, EidosFileSearchNavigationProvider, EidosFileSearchNavigationState, EidosFileSelectOption, EidosFileSelectOptionsEditor, EidosFileSheetCreatePopover, EidosFileSheetTabActions, EidosFileSheetTabRenderer, EidosFileSheetTabStrip, EidosFileSheetTabs, EidosFileSheetTabsProps, EidosFileTabStripItem, EidosFileUIAssetSession, EidosFileUIHost, EidosFileUILocale, EidosFileUIMessageOverrides, EidosFileUIMessageValues, EidosFileUIProvider, EidosFileUIThemeName, EidosFileUnsupportedView, EidosFileViewCapabilities, EidosFileViewCommand, EidosFileViewCsvExport, EidosFileViewFieldsPopover, EidosFileViewHost, EidosFileViewHostProps, EidosFileViewPluginContribution, EidosFileViewRenderer, EidosFileViewRendererProps, EidosFileViewRendererRegistry, EidosFileViewSelection, EidosFileViewSelector, EidosFileViewSelectorRequest, EidosFileViewState, EidosFileViewTabActions, EidosFileViewTabRenderer, EidosFileViewTabStrip, EidosFileViewTabs, EidosFileViewTabsProps, EidosFileViewTypeIcon, EidosFileVirtualWindow, EidosRuntimeEditorDataSource, EidosStandardView, EidosStandardViewProps, EidosUIKernel, EidosUIKernelOptions, EidosUIKernelPhase, EidosUIKernelState, EidosUIRuntimeContextValue, EidosUIRuntimeProvider, EidosUIRuntimeProviderProps, EidosUISchemaIndex, ExportEidosFileViewCsvOptions, KanbanBoard, KanbanBoardProps, KanbanCard, KanbanCardProps, KanbanCards, KanbanCardsProps, KanbanHeader, KanbanHeaderProps, KanbanProvider, KanbanProviderProps, renderer$1 as MultiSelectCell, type MultiSelectCell as MultiSelectCellType, NumberOverlayEditor, OpenEidosUISourceRequest, renderer$2 as RangeCell, type RangeCell as RangeCellType, renderer$3 as RatingCell, type RatingCell as RatingCellType, renderer$4 as SelectCell, type SelectCell as SelectCellType, Status, UndoRedoEdit, builtInEidosFileViewRenderers, contextRowRanges, createEidosFilePluginRegistry, createEidosFileRecordCardLayout, defaultConfig, defineEidosFilePlugin, defineEidosFileView, drawDrilldownCell, drawImage, eidosFileErrorMessage, eidosFileExtensionContributionId, eidosFileExtensionViewType, eidosFileFieldDisplayName, eidosFileFieldKey, eidosFileFieldTypeIcon, eidosFileGridColumn, eidosFileGridScrollbarConfig, eidosFileGridSelectOptions, eidosFileNumberProperty, eidosFileOptionColor, eidosFileRecordCardPageProjection, eidosFileRecordFieldText, eidosFileRecordTitle, eidosFileSelectOptions, eidosFileValueToGridCell, eidosFileViewFreezeColumns, eidosFileViewGroupFilter, eidosFileViewRowQuery, eidosFileViewVisibleSystemFields, eidosFileVirtualItemOffset, eidosFileVirtualLogicalOffset, eidosFileVirtualPhysicalOffset, eidosFileVirtualPhysicalSize, eidosFileVirtualWindowForOffset, eidosUIPresentValue, eidosUIViewQuery, eidosUIVisibleFields, exportEidosFileViewCsv, getMiddleCenterBias, getScrollbarWidth, gridCellToEidosFileValue, headerIcons, isEidosFileBuiltInViewType, isEidosFileRecordCoverField, isEidosFileRecordLabelField, isOptionalEidosFileSystemField, makeHeaderIcons, measureTextCached, mergeRowWindowPage, nextEidosFileFieldSorts, nextEidosFileOptionColor, orderedEidosFileFields, removeItemFromArray, requestForPrefetchedRowWindow, requestForRowWindow, resetEidosFileVirtualizerMeasurements, roundedRect, rowFromWindow, rowRangeCount, rowSelectionRanges, selectEidosFileRecordCardFields, translateEidosFileUI, useEidosFile, useEidosFileBoundedVirtualizer, useEidosFileGridTheme, useEidosFileRecordInspectorRow, useEidosFileRelationListbox, useEidosFileSearchNavigation, useEidosFileSession, useEidosFileTabStrip, useEidosFileUI, useEidosUIRuntime, useUndoRedo, visibleEidosFileFields };
 ```
 
 ## ./context
@@ -781,7 +834,7 @@ export { EidosFileCsvOperationProgress, EidosFileCsvOperationProgressBar, EidosF
 
 ```ts
 import { n as EidosFileEditorDataSource } from "./data-source-HASH.mjs";
-import { EidosFileFieldInfo, EidosFileRowMutationResult, EidosFileRowQuery, EidosFileRowRange, EidosFileSnapshot, EidosFileTableSnapshot, EidosFileViewInfo } from "@eidos.space/eidos-file";
+import { EidosFileFieldInfo, EidosFileRowMutationResult, EidosFileRowQuery, EidosFileRowRange, EidosFileSnapshot, EidosFileTableSnapshot, EidosFileViewInfo, FileEntry } from "@eidos.space/eidos-file";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
 
 //#region src/eidos-file-data-grid.d.ts
@@ -805,6 +858,8 @@ interface EidosFileDataGridProps {
   onEditLookup?: (field: EidosFileFieldInfo) => void;
   onSearchResultCountChange?: (rowCount: number | null) => void;
   onError?: (error: unknown) => void;
+  onImportFiles?: () => Promise<FileEntry[]>;
+  onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>;
 }
 /**
  * Convenience adapter for hosts that expose the public EidosFileEditorDataSource.
@@ -830,7 +885,9 @@ declare function EidosFileDataGrid({
   onEditFormula,
   onEditLookup,
   onSearchResultCountChange,
-  onError
+  onError,
+  onImportFiles,
+  onImportDroppedFiles
 }: EidosFileDataGridProps): _$react_jsx_runtime0.JSX.Element;
 //#endregion
 export { EidosFileDataGrid, EidosFileDataGridProps };
@@ -1000,6 +1057,10 @@ import * as _$react_jsx_runtime0 from "react/jsx-runtime";
 
 //#region src/eidos-file-field-type-picker.d.ts
 type EidosFileCreatableFieldType = CreateEidosFileFieldInput["type"];
+/** Icon for a creatable or system Field type, undefined for unknown types. */
+declare function eidosFileFieldTypeIcon(type: string): ComponentType<{
+  className?: string;
+}> | undefined;
 /** Shared visual identity for every field-type choice and selected value. */
 declare function EidosFileFieldTypeIcon({
   type,
@@ -1032,7 +1093,7 @@ declare function EidosFileFieldTypePicker({
   disabled?: boolean;
 }): _$react_jsx_runtime0.JSX.Element;
 //#endregion
-export { EIDOS_FILE_FIELD_TYPE_GROUPS, EidosFileCreatableFieldType, EidosFileFieldTypeIcon, EidosFileFieldTypePicker };
+export { EIDOS_FILE_FIELD_TYPE_GROUPS, EidosFileCreatableFieldType, EidosFileFieldTypeIcon, EidosFileFieldTypePicker, eidosFileFieldTypeIcon };
 ```
 
 ## ./eidos-file-formula-composer
@@ -1157,6 +1218,7 @@ declare const EidosFileRecordCard: _$react.NamedExoticComponent<{
   view: EidosFileViewInfo;
   layout?: EidosFileRecordCardLayout;
   compact?: boolean;
+  fixedHeight?: number;
   onOpen: (row: EidosFileRow) => void;
   onDelete?: (row: EidosFileRow) => void;
   moveOptions?: Array<{
@@ -1359,7 +1421,7 @@ interface EidosFileExternalViewContribution {
   contentDigest?: string;
   permissionHash?: string;
 }
-type Panel = "list" | "create" | "manage" | "delete";
+type Panel = "list" | "create" | "manage" | "delete" | "card";
 interface EidosFileViewSelectorRequest {
   anchorRect: Pick<DOMRect, "height" | "left" | "top" | "width">;
   focusName?: boolean;
@@ -1695,6 +1757,7 @@ export { EidosFileActionPluginContribution, EidosFilePlugin, EidosFilePluginCont
 ## ./plugins/csv-import
 
 ```ts
+import { t as EidosFileCsvOperationProgress } from "../eidos-file-csv-operation-progress-HASH.mjs";
 import { r as EidosFilePluginContext } from "../plugin-HASH.mjs";
 import { EidosFileCsvImportOptions, EidosFileCsvImportPlan, EidosFileCsvImportResult, EidosFileSnapshot } from "@eidos.space/eidos-file";
 import * as _$react_jsx_runtime0 from "react/jsx-runtime";
@@ -1706,11 +1769,13 @@ interface EidosFileCsvImportSource {
 }
 interface EidosFileCsvImportAdapter {
   pickFile(): Promise<EidosFileCsvImportSource | null>;
-  preview(source: EidosFileCsvImportSource, options: EidosFileCsvImportOptions): Promise<EidosFileCsvImportPlan>;
-  import(source: EidosFileCsvImportSource, options: EidosFileCsvImportOptions): Promise<{
+  preview(source: EidosFileCsvImportSource, options: EidosFileCsvImportOptions, operationId: string): Promise<EidosFileCsvImportPlan>;
+  import(source: EidosFileCsvImportSource, options: EidosFileCsvImportOptions, operationId: string): Promise<{
     snapshot: EidosFileSnapshot;
     result: EidosFileCsvImportResult;
   }>;
+  progress?(operationId: string): Promise<EidosFileCsvOperationProgress | null>;
+  cancel?(operationId: string): Promise<boolean>;
   release?(source: EidosFileCsvImportSource): void;
 }
 interface EidosFileCsvImportPluginOptions {
