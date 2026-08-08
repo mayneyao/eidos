@@ -1,12 +1,18 @@
+import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
+
+import { eidosFileUiSourceAliases } from "../eidos-file-ui/vite-source-aliases"
 
 // The build output is embedded into the `eidos` CLI binary via qjs-host's
 // rust-embed folder, so it must land inside apps/cli/qjs-host/ui and be
 // committed (the same pattern as the bundled QuickJS runtime).
 export default defineConfig({
-  plugins: [react()],
+  plugins: [tailwindcss(), react()],
   base: "./",
+  resolve: {
+    alias: eidosFileUiSourceAliases(),
+  },
   build: {
     outDir: "../../apps/cli/qjs-host/ui",
     emptyOutDir: true,

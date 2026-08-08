@@ -19,6 +19,19 @@ Import the precompiled stylesheet once:
 import "@eidos.space/eidos-file-ui/styles.css"
 ```
 
+First-party full-page hosts use the shared host stylesheet instead. It includes
+the component stylesheet plus the canonical Eidos File Tailwind source,
+typography, color roles, focus treatment, and scrollbar styling:
+
+```ts
+import "@eidos.space/eidos-file-ui/host-styles.css"
+```
+
+Application styles should only define Host-owned shell layout after this
+import. In the Eidos workspace, Vite hosts also use
+`eidosFileUiSourceAliases()` so Web, Lite, and CLI Serve always compile the
+current UI source instead of a stale generated `dist` directory.
+
 ## EU-Viewer-1.0 composition
 
 ```tsx

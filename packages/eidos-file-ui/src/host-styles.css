@@ -1,0 +1,255 @@
+@import "tailwindcss";
+@import "./styles.css";
+
+@variant dark (&:where(.dark, .dark *));
+@source "./**/*.{ts,tsx}";
+
+:root {
+  color-scheme: light;
+  font-family: var(--font-ui);
+  color: var(--ink);
+  background: var(--canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue",
+    "Segoe UI Variable", "Segoe UI", sans-serif;
+  --font-code:
+    "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", monospace;
+  --font-editorial: var(--font-ui);
+  --font-size-ui: 0.8125rem;
+  --font-size-code: 0.8125rem;
+  --chrome-header-height: 2.5rem;
+  --theme-contrast: 45;
+  --theme-surface: light-dark(oklch(1 0 0), oklch(0.17 0.012 230));
+  --theme-ink: light-dark(oklch(0.2 0.012 230), oklch(0.92 0.008 220));
+  --theme-accent: light-dark(oklch(0.5 0.105 210), oklch(0.74 0.095 205));
+  --theme-success: light-dark(oklch(0.46 0.12 150), oklch(0.74 0.11 150));
+  --theme-warning: light-dark(oklch(0.48 0.11 75), oklch(0.78 0.1 75));
+  --theme-danger: light-dark(oklch(0.51 0.16 25), oklch(0.72 0.14 25));
+  --theme-neutral: light-dark(oklch(0.46 0.055 220), oklch(0.72 0.055 220));
+  --canvas: var(--theme-surface);
+  --lite-sidebar: light-dark(oklch(0.965 0.008 220), oklch(0.195 0.014 230));
+  --sidebar-strong: light-dark(oklch(0.925 0.014 220), oklch(0.235 0.02 230));
+  --surface: var(--canvas);
+  --surface-hover: light-dark(oklch(0.965 0.012 215), oklch(0.235 0.018 220));
+  --surface-active: light-dark(oklch(0.945 0.025 212), oklch(0.265 0.03 215));
+  --surface-selected: light-dark(oklch(0.925 0.04 210), oklch(0.285 0.045 210));
+  --ink: var(--theme-ink);
+  --ink-muted: light-dark(oklch(0.45 0.012 230), oklch(0.72 0.012 220));
+  --ink-faint: light-dark(oklch(0.54 0.01 230), oklch(0.64 0.01 220));
+  --line: light-dark(oklch(0.82 0.01 230 / 52%), oklch(0.42 0.014 230 / 52%));
+  --hairline: light-dark(
+    oklch(0.8 0.01 230 / 42%),
+    oklch(0.44 0.014 230 / 42%)
+  );
+  --lite-accent: var(--theme-accent);
+  --accent-strong: light-dark(oklch(0.43 0.105 210), oklch(0.8 0.08 205));
+  --accent-contrast: light-dark(oklch(0.99 0.002 220), oklch(0.15 0.012 230));
+  --primary-action: var(--lite-accent);
+  --primary-action-hover: light-dark(
+    oklch(0.45 0.115 210),
+    oklch(0.79 0.085 205)
+  );
+  --primary-action-foreground: var(--accent-contrast);
+  --danger: var(--theme-danger);
+  --danger-foreground: var(--accent-contrast);
+  --success: var(--theme-success);
+  --warning: var(--theme-warning);
+  --tone-neutral: var(--theme-neutral);
+  --focus: light-dark(oklch(0.55 0.13 210), oklch(0.77 0.105 205));
+  --control-fill: light-dark(oklch(0.975 0.004 220), oklch(0.225 0.014 230));
+  --control-border: light-dark(
+    oklch(0.78 0.012 230 / 72%),
+    oklch(0.46 0.018 230 / 72%)
+  );
+  --success-surface: color-mix(in oklab, var(--canvas) 92%, var(--success));
+  --success-border: color-mix(in oklab, var(--success) 38%, var(--line));
+  --warning-surface: color-mix(in oklab, var(--canvas) 90%, var(--warning));
+  --warning-border: color-mix(in oklab, var(--warning) 38%, var(--line));
+  --danger-surface: color-mix(in oklab, var(--canvas) 91%, var(--danger));
+  --danger-border: color-mix(in oklab, var(--danger) 42%, var(--line));
+  --backdrop: light-dark(
+    oklch(0.16 0.012 230 / 22%),
+    oklch(0.06 0.01 230 / 42%)
+  );
+  --control-highlight: light-dark(oklch(1 0 0 / 58%), oklch(1 0 0 / 9%));
+  --shadow-ambient: light-dark(
+    oklch(0.16 0.012 230 / 11%),
+    oklch(0.04 0.01 230 / 38%)
+  );
+  --shadow-strong: light-dark(
+    oklch(0.14 0.012 230 / 24%),
+    oklch(0.03 0.008 230 / 52%)
+  );
+  --shadow-pressed: light-dark(
+    oklch(0.16 0.012 230 / 14%),
+    oklch(0.03 0.008 230 / 44%)
+  );
+  --control-shadow:
+    inset 0 1px var(--control-highlight), 0 1px 1px var(--shadow-ambient);
+  --control-pressed-shadow: inset 0 1px 2px var(--shadow-pressed);
+  --primary-action-shadow:
+    inset 0 1px var(--control-highlight), 0 1px 1px var(--shadow-ambient);
+  --side-panel-shadow: -1rem 0 2.5rem var(--shadow-ambient);
+  --elevation-shadow: 0 0.75rem 2rem var(--shadow-ambient);
+  --elevation-shadow-strong: 0 1.5rem 4.5rem var(--shadow-strong);
+  --scrollbar-thumb: color-mix(in oklab, var(--ink) 14%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--ink) 24%, transparent);
+  --scrollbar-thumb-active: color-mix(in oklab, var(--ink) 34%, transparent);
+  --shell: var(--canvas);
+  --surface-raised: var(--surface);
+  --surface-sunken: var(--surface-hover);
+  --status-success: var(--success);
+  --status-warning: var(--warning);
+  --status-danger: var(--danger);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--canvas);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--primary-action);
+  --primary-foreground: var(--primary-action-foreground);
+  --secondary: var(--surface-selected);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-hover);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--surface-selected);
+  --accent-foreground: var(--ink);
+  --destructive: var(--danger);
+  --destructive-foreground: var(--danger-foreground);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--focus);
+}
+
+:root.dark,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+[data-eidos-file-root],
+[data-eidos-file-root][data-theme] {
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--canvas);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--primary-action);
+  --primary-foreground: var(--primary-action-foreground);
+  --secondary: var(--surface-selected);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-hover);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--surface-selected);
+  --accent-foreground: var(--ink);
+  --destructive: var(--danger);
+  --destructive-foreground: var(--danger-foreground);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--focus);
+  font-family: var(--font-ui);
+}
+
+*::-webkit-scrollbar {
+  width: 15px;
+  height: 15px;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner,
+*::-webkit-resizer {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--scrollbar-thumb);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    border-color: var(--border);
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  body {
+    background: var(--shell);
+    color: var(--foreground);
+    font-size: var(--font-size-ui);
+    font-kerning: normal;
+    line-height: 1.4;
+  }
+
+  button,
+  input,
+  select {
+    color: inherit;
+    font: inherit;
+  }
+
+  button {
+    border: 0;
+  }
+
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+  }
+
+  button:focus,
+  input:focus,
+  select:focus,
+  [tabindex]:focus {
+    outline: none;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 3px solid color-mix(in oklab, var(--focus) 58%, transparent);
+    outline-offset: 1px;
+  }
+}

@@ -2,7 +2,13 @@ import { readFileSync } from "node:fs"
 
 import { describe, expect, it } from "vitest"
 
-const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8")
+const styles = readFileSync(
+  new URL(
+    "../../../../packages/eidos-file-ui/src/host-styles.css",
+    import.meta.url
+  ),
+  "utf8"
+)
 const rootStart = styles.indexOf(":root {")
 const rootEnd = styles.indexOf("}\n", rootStart)
 const rootTheme = styles.slice(rootStart, rootEnd + 1)
@@ -55,7 +61,7 @@ function contrast(first: Oklch, second: Oklch): number {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
-describe("Eidos Lite default theme", () => {
+describe("shared Eidos File host theme", () => {
   it("derives the application palette from paired light and dark inputs", () => {
     expect(rootTheme).toContain("--theme-surface: light-dark(")
     expect(rootTheme).toContain("--theme-ink: light-dark(")

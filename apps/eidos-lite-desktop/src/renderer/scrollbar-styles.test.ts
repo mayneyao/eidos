@@ -2,9 +2,15 @@ import { readFileSync } from "node:fs"
 
 import { describe, expect, it } from "vitest"
 
-const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8")
+const styles = readFileSync(
+  new URL(
+    "../../../../packages/eidos-file-ui/src/host-styles.css",
+    import.meta.url
+  ),
+  "utf8"
+)
 
-describe("global scrollbar styling", () => {
+describe("shared Eidos File scrollbar styling", () => {
   it("uses shared theme-derived colors with a default-width transparent track", () => {
     expect(styles).toContain(
       "--scrollbar-thumb: color-mix(in oklab, var(--ink) 14%, transparent)"

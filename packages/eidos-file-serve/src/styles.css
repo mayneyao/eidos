@@ -1,104 +1,11 @@
-@import "@eidos.space/eidos-file-ui/styles.css";
-@import "../../../apps/web-app/styles/themes/default.css";
+@import "@eidos.space/eidos-file-ui/host-styles.css";
 
-:root {
-  color-scheme: light;
-  --shell: color-mix(in oklch, var(--background) 98%, var(--foreground));
-  --surface-raised: color-mix(
-    in oklch,
-    var(--background) 97%,
-    var(--foreground)
-  );
-  --surface-sunken: color-mix(
-    in oklch,
-    var(--background) 94%,
-    var(--foreground)
-  );
-  --status-success: oklch(48% 0.12 155);
-  --status-warning: oklch(53% 0.13 72);
-  --status-danger: oklch(52% 0.18 27);
-  --focus: oklch(55% 0.15 250);
-  --font-ui:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  --font-editorial: var(--font-ui);
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  font-family: var(--font-ui);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-}
-
-.dark {
-  color-scheme: dark;
-  --shell: color-mix(in oklch, var(--background) 95%, oklch(28% 0.018 250));
-  --surface-raised: color-mix(
-    in oklch,
-    var(--background) 94%,
-    var(--foreground)
-  );
-  --surface-sunken: color-mix(in oklch, var(--background) 97%, black);
-  --status-success: oklch(72% 0.12 155);
-  --status-warning: oklch(76% 0.13 80);
-  --status-danger: oklch(72% 0.17 28);
-  --focus: oklch(75% 0.12 250);
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  border-color: var(--border);
-}
-
-html,
-body,
-#root {
-  width: 100%;
-  min-width: 20rem;
-  height: 100%;
-  margin: 0;
-  overflow: hidden;
-}
-
-body {
-  background: var(--shell);
-  color: var(--foreground);
-  font-size: 1rem;
-  font-kerning: normal;
-}
-
-button,
-input,
-select {
-  color: inherit;
-  font: inherit;
-}
-
-button {
-  border: 0;
-}
-
-button:not(:disabled) {
-  cursor: pointer;
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-}
-
-button:focus,
-input:focus,
-select:focus,
-[tabindex]:focus {
-  outline: none;
-}
-
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-[tabindex]:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: -2px;
+@layer base {
+  html,
+  body,
+  #root {
+    min-width: 20rem;
+  }
 }
 
 .serve-shell {

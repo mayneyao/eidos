@@ -6,6 +6,8 @@ import react from "@vitejs/plugin-react"
 import { defineConfig, type Plugin } from "vite"
 import electron from "vite-plugin-electron/simple"
 
+import { eidosFileUiSourceAliases } from "../../packages/eidos-file-ui/vite-source-aliases"
+
 import {
   EIDOS_LITE_SERVICE_ENVIRONMENTS,
   type EidosLiteEnvironmentName,
@@ -51,46 +53,12 @@ function buildEnvironmentManifest(
 }
 
 const aliases = [
-  {
-    find: "@eidos.space/eidos-file-ui/runtime-editor-data-source",
-    replacement: path.resolve(
-      appRoot,
-      "../../packages/eidos-file-ui/src/runtime-editor-data-source.ts"
-    ),
-  },
-  {
-    find: "@eidos.space/eidos-file-ui/plugins/csv-import",
-    replacement: path.resolve(
-      appRoot,
-      "../../packages/eidos-file-ui/src/plugins/csv-import.tsx"
-    ),
-  },
-  {
-    find: "@eidos.space/eidos-file-ui/plugins/gallery",
-    replacement: path.resolve(
-      appRoot,
-      "../../packages/eidos-file-ui/src/plugins/gallery.tsx"
-    ),
-  },
-  {
-    find: "@eidos.space/eidos-file-ui/plugins/kanban",
-    replacement: path.resolve(
-      appRoot,
-      "../../packages/eidos-file-ui/src/plugins/kanban.tsx"
-    ),
-  },
+  ...eidosFileUiSourceAliases(),
   {
     find: "@eidos.space/eidos-file/node-sqlite",
     replacement: path.resolve(
       appRoot,
       "../../packages/eidos-file/src/node-sqlite.ts"
-    ),
-  },
-  {
-    find: "@eidos.space/eidos-file-ui",
-    replacement: path.resolve(
-      appRoot,
-      "../../packages/eidos-file-ui/src/index.ts"
     ),
   },
   {

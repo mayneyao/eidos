@@ -9,6 +9,8 @@ import { VitePWA } from "vite-plugin-pwa"
 import topLevelAwait from "vite-plugin-top-level-await"
 import wasm from "vite-plugin-wasm"
 
+import { eidosFileUiSourceAliases } from "../../packages/eidos-file-ui/vite-source-aliases"
+
 import {
   EIDOS_FILE_EXTENSION,
   EIDOS_FILE_MIME_TYPE,
@@ -130,91 +132,23 @@ export default defineConfig({
     }),
   ],
   resolve: {
-    alias: {
-      "@eidos.space/eidos-file-ui/styles.css": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/styles.css"
-      ),
-      "@eidos.space/eidos-file-ui/eidos-file-data-grid": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/eidos-file-data-grid.tsx"
-      ),
-      "@eidos.space/eidos-file-ui/eidos-file-editor-view": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/eidos-file-editor-view.tsx"
-      ),
-      "@eidos.space/eidos-file-ui/context": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/context.tsx"
-      ),
-      "@eidos.space/eidos-file-ui/eidos-file-editor-chrome": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/eidos-file-editor-chrome.tsx"
-      ),
-      "@eidos.space/eidos-file-ui/eidos-file-editor-shell": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/eidos-file-editor-shell.tsx"
-      ),
-      "@eidos.space/eidos-file-ui/eidos-file-sheet-create-popover":
-        path.resolve(
+    alias: [
+      ...eidosFileUiSourceAliases(),
+      {
+        find: "@eidos.space/eidos-file/csv",
+        replacement: path.resolve(
           directory,
-          "../../packages/eidos-file-ui/src/eidos-file-sheet-create-popover.tsx"
+          "../../packages/eidos-file/src/csv.ts"
         ),
-      "@eidos.space/eidos-file-ui/eidos-file-sheet-tabs": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/eidos-file-sheet-tabs.tsx"
-      ),
-      "@eidos.space/eidos-file-ui/eidos-file-view-tabs": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/eidos-file-view-tabs.tsx"
-      ),
-      "@eidos.space/eidos-file-ui/eidos-file-view-fields-popover": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/eidos-file-view-fields-popover.tsx"
-      ),
-      "@eidos.space/eidos-file-ui/eidos-file-query-toolbar": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/eidos-file-query-toolbar.tsx"
-      ),
-      "@eidos.space/eidos-file-ui/eidos-file-field-create-popover":
-        path.resolve(
+      },
+      {
+        find: "@eidos.space/eidos-file",
+        replacement: path.resolve(
           directory,
-          "../../packages/eidos-file-ui/src/eidos-file-field-create-popover.tsx"
+          "../../packages/eidos-file/src/index.ts"
         ),
-      "@eidos.space/eidos-file-ui/eidos-file-derived-field-editor":
-        path.resolve(
-          directory,
-          "../../packages/eidos-file-ui/src/eidos-file-derived-field-editor.tsx"
-        ),
-      "@eidos.space/eidos-file-ui/plugins/csv-import": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/plugins/csv-import.tsx"
-      ),
-      "@eidos.space/eidos-file-ui/plugins/gallery": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/plugins/gallery.tsx"
-      ),
-      "@eidos.space/eidos-file-ui/plugins/kanban": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/plugins/kanban.tsx"
-      ),
-      "@eidos.space/eidos-file-ui/plugin": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/plugin.tsx"
-      ),
-      "@eidos.space/eidos-file/csv": path.resolve(
-        directory,
-        "../../packages/eidos-file/src/csv.ts"
-      ),
-      "@eidos.space/eidos-file": path.resolve(
-        directory,
-        "../../packages/eidos-file/src/index.ts"
-      ),
-      "@eidos.space/eidos-file-ui": path.resolve(
-        directory,
-        "../../packages/eidos-file-ui/src/index.ts"
-      ),
-    },
+      },
+    ],
   },
   optimizeDeps: {
     exclude: ["@sqlite.org/sqlite-wasm"],

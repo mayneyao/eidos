@@ -197,7 +197,8 @@
       "import": "./dist/eidos-file-derived-field-editor.mjs",
       "default": "./dist/eidos-file-derived-field-editor.mjs"
     },
-    "./styles.css": "./dist/styles.css"
+    "./styles.css": "./dist/styles.css",
+    "./host-styles.css": "./dist/host-styles.css"
   },
   "files": [
     "dist",
@@ -209,7 +210,7 @@
   ],
   "scripts": {
     "build": "tsdown && pnpm run build:css",
-    "build:css": "tailwindcss -i ./src/styles.entry.css -o ./dist/styles.css --minify",
+    "build:css": "tailwindcss -i ./src/styles.entry.css -o ./dist/styles.css --minify && tailwindcss -i ./src/host-styles.css -o ./dist/host-styles.css --minify",
     "api:report": "node scripts/api-snapshot.mjs --write",
     "api:check": "node scripts/api-snapshot.mjs",
     "test": "vitest run --config vitest.config.ts",

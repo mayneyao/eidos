@@ -3,17 +3,26 @@ import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 const styles = readFileSync(new URL("./styles.css", import.meta.url), "utf8")
+const themeStyles = readFileSync(
+  new URL(
+    "../../../../packages/eidos-file-ui/src/host-styles.css",
+    import.meta.url
+  ),
+  "utf8"
+)
 
-function rule(selector: string): string {
-  const start = styles.indexOf(`${selector} {`)
+function rule(selector: string, source = styles): string {
+  const start = source.indexOf(`${selector} {`)
   if (start < 0) return ""
-  return styles.slice(start, styles.indexOf("}", start) + 1)
+  return source.slice(start, source.indexOf("}", start) + 1)
 }
 
 describe("Eidos Lite surface hierarchy", () => {
   it("reserves the tinted shell background for the file tree sidebar", () => {
-    expect(rule(":root")).toContain("--canvas: var(--theme-surface)")
-    expect(rule(":root")).toContain("--surface: var(--canvas)")
+    expect(rule(":root", themeStyles)).toContain(
+      "--canvas: var(--theme-surface)"
+    )
+    expect(rule(":root", themeStyles)).toContain("--surface: var(--canvas)")
     expect(rule(".space-sidebar")).toContain("var(--lite-sidebar)")
     expect(rule(".editor-region")).toContain("background: var(--canvas)")
     expect(rule(".settings-sidebar")).toContain("background: var(--canvas)")
@@ -23,8 +32,12 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(rule(".file-titlebar")).toContain("background: transparent")
     expect(rule(".settings-titlebar")).toContain("background: transparent")
     expect(rule(".welcome-titlebar")).toContain("background: transparent")
-    expect(rule(":root")).toMatch(/--line: light-dark\([\s\S]+\/ 52%\)/)
-    expect(rule(":root")).toMatch(/--hairline: light-dark\([\s\S]+\/ 42%\)/)
+    expect(rule(":root", themeStyles)).toMatch(
+      /--line: light-dark\([\s\S]+\/ 52%\)/
+    )
+    expect(rule(":root", themeStyles)).toMatch(
+      /--hairline: light-dark\([\s\S]+\/ 42%\)/
+    )
   })
 
   it("uses one compact height for title bars, workbars, and panel headers", () => {
@@ -32,7 +45,9 @@ describe("Eidos Lite surface hierarchy", () => {
       ".editor-work-area.with-version-panel,\n.editor-work-area.with-utility-panel"
     )
 
-    expect(rule(":root")).toContain("--chrome-header-height: 2.5rem")
+    expect(rule(":root", themeStyles)).toContain(
+      "--chrome-header-height: 2.5rem"
+    )
     expect(rule(".welcome-shell")).toContain(
       "padding-top: var(--chrome-header-height)"
     )
