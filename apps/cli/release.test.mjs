@@ -136,6 +136,29 @@ test("CLI release notes are versioned and scoped to the standalone CLI", async (
   assert.doesNotMatch(releaseNotes, /github\.com\/mayneyao\/eidos\/compare\//u)
 })
 
+test("Serve release notes provide a complete runnable example", async () => {
+  const releaseNotes = await read(files.releaseNotes)
+  const firstCreateCommand = releaseNotes.search(/^eidos create /mu)
+  const firstServeCommand = releaseNotes.search(/^eidos serve /mu)
+
+  if (firstServeCommand === -1) return
+
+  assert.notEqual(
+    firstCreateCommand,
+    -1,
+    "Serve release notes must first show how to create an Eidos File"
+  )
+  assert.ok(
+    firstCreateCommand < firstServeCommand,
+    "Serve release notes must create the Eidos File before serving it"
+  )
+  assert.match(
+    releaseNotes.slice(firstCreateCommand, firstServeCommand),
+    /--table\s+\S+/u,
+    "Serve release notes must create an initial table"
+  )
+})
+
 test("public Eidos Skill stays complete and pinned to the stable CLI tag", async () => {
   const [cargo, latest, readme, skill, cliReference, operationsReference] =
     await Promise.all([

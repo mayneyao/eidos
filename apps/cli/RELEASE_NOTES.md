@@ -1,15 +1,32 @@
 ## What's new
 
-### Use `eidos serve` from another device on a trusted LAN
+### Create a table, then open it from another device on a trusted LAN
 
-`eidos serve` still binds to `127.0.0.1` by default. The new `--lan` mode
-detects and binds one private interface so the same embedded editor can be
-opened from a phone, tablet, or another computer:
+Start by creating an Eidos File with a `Tasks` table:
+
+```sh
+eidos create tracker.eidos \
+  --table Tasks \
+  --label-field Title \
+  --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
+```
+
+Then start the embedded editor in LAN mode:
 
 ```sh
 eidos serve tracker.eidos --lan
+```
+
+Open the printed URL from a phone, tablet, or another computer on the same
+trusted network. If automatic interface detection does not select the address
+you want, provide that private address explicitly:
+
+```sh
 eidos serve tracker.eidos --lan --host 192.168.1.20
 ```
+
+`eidos serve` still binds to `127.0.0.1` by default. The new `--lan` mode
+detects and binds one private interface.
 
 The printed URL carries a fragment-only access key. Opening it establishes a
 process-local, HttpOnly browser session; API Host and Origin checks remain

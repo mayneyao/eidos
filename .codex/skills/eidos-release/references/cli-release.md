@@ -10,6 +10,9 @@ from Eidos Lite and Eidos File Web.
 - Stable releases update `apps/cli/LATEST`; prereleases do not move it.
 - `apps/cli/RELEASE_NOTES.md` is the exact standalone CLI Release body. Update
   it for every version; do not use GitHub's monorepo-generated release notes.
+- Release examples must be complete, runnable workflows that include their
+  prerequisites. A Serve example must create a `.eidos` file and its initial
+  table before running `eidos serve`; do not assume an existing input file.
 - Tags use `cli-v<semver>` and trigger
   `.github/workflows/build-and-release-cli.yml` only.
 - Eidos Lite version bumps never rewrite the CLI version.
