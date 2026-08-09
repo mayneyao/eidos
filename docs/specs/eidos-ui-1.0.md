@@ -1542,7 +1542,7 @@ Each edit batch follows this state machine:
 | `submitting` | `committed`, `rejected`, `stale`, `unknown` | optional optimistic overlay is UI-only; duplicate submit disabled                                                                                                  |
 | `committed`  | `clean`                                     | replace with returned row/revision, invalidate old caches, announce success when needed                                                                            |
 | `rejected`   | `drafting`, `clean`                         | remove overlay, retain correctable input, associate Runtime diagnostics with fields                                                                                |
-| `stale`      | `drafting`, `clean`                         | remove overlay, refresh, show conflict; no automatic retry                                                                                                         |
+| `stale`      | `submitting`, `drafting`, `clean`           | remove overlay and refresh; a verified-safe Field reapplication MAY return to `submitting`, otherwise show conflict                                                |
 | `unknown`    | `clean`, `drafting`                         | revoke the old Runtime client; reconcile only through Host, install the returned epoch, then refetch before deciding whether a new user-submitted mutation is safe |
 
 Only one unresolved mutation may own an optimistic overlay for the same Row
@@ -1550,11 +1550,26 @@ and Field. Separate non-overlapping mutations MAY be in flight if Runtime
 negotiation permits it, but their expected revisions and completion order
 remain authoritative. The simplest conforming Editor serializes mutations.
 
-On `stale-revision`, a UI MAY offer a three-way merge for a row update only
-after fetching the current row. Disjoint Field edits MAY be proposed for
-reapplication with the new revision. Overlapping Fields, deletes, option
-renames, Relation policy effects, schema changes, and lossy conversions
-require explicit user choice. No stale mutation is auto-replayed.
+On `stale-revision`, the rejected request has known rollback and a UI MAY
+perform a verified-safe Field reapplication only after fetching a fresh
+snapshot and the current Row. The UI MUST treat the reapplication as a new
+mutation using the fresh revision; `retryable` alone never authorizes it. An
+automatic reapplication is permitted only when all of these conditions hold:
+
+- the target Row still exists;
+- every edited Field is the same stable descriptor and remains an ordinary
+  stored Field without Relation, File, derived, or system side effects;
+- the current logical value of every edited Field equals the value observed
+  by the UI before drafting; and
+- the UI makes at most one automatic reapplication attempt for that
+  submission.
+
+The authoritative returned Row and revision replace the optimistic state. A
+second `stale-revision`, a changed target Field, an overlapping value, or a
+failed verification returns to `stale` and preserves the draft for explicit
+user choice. Unknown commit outcomes, deletes, option renames, Relation policy
+effects, File imports, schema or View changes, and lossy conversions MUST NOT
+be automatically reapplied.
 
 ### 11.3 Undo and redo
 

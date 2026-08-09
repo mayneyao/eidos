@@ -252,9 +252,17 @@ to the file, so the revision advances while the server runs.
 eidos serve file.eidos --port 8420 --open
 ```
 
-The server binds `127.0.0.1` only and is available on macOS, Linux, and
-Windows. Prefer it for interactive review and bulk edits that are easier in a
-grid; keep using the JSON commands for scripted workflows.
+The server binds `127.0.0.1` by default and is available on macOS, Linux, and
+Windows. On a trusted private network, `--lan` binds one detected private
+interface and prints a paired browser URL. Use `--lan --host <ip>` to select an
+exact RFC 1918, link-local, CGNAT/Tailscale, or IPv6 unique-local address. LAN
+mode never binds a public or wildcard address.
+
+Multiple paired browsers may edit through the same serialized Runtime writer;
+committed revisions are pushed to other browsers. LAN mode is HTTP and should
+not be used on an untrusted network. Prefer Serve for interactive review and
+bulk edits that are easier in a grid; keep using the JSON commands for scripted
+workflows.
 
 ## Logical values
 

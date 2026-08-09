@@ -15,6 +15,7 @@ export interface CliHostManifest {
   mode: "cli"
   fileName: string
   access: "read" | "readwrite"
+  network?: "loopback" | "lan"
 }
 
 export interface EidosFileHttpOpenResult {
@@ -33,6 +34,107 @@ interface HttpEnvelope {
   ok: boolean
   value?: unknown
   error?: { code?: string; message: string; retryable?: boolean }
+}
+
+const HTTP_CLIENT_ID = createBrowserId()
+
+export class CliHostAccessError extends Error {
+  constructor(
+    readonly code: "pairing-required" | "pairing-failed",
+    message: string
+  ) {
+    super(message)
+    this.name = "CliHostAccessError"
+  }
+}
+
+export function createBrowserId(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID()
+  }
+  if (typeof globalThis.crypto?.getRandomValues === "function") {
+    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16))
+    return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+}
+
+function accessTokenFromHash(): string | null {
+  if (typeof window === "undefined") return null
+  const token = new URLSearchParams(window.location.hash.slice(1)).get("access")
+  return token && /^[A-Za-z0-9_-]{16,512}$/.test(token) ? token : null
+}
+
+function clearAccessTokenHash(): void {
+  if (typeof window === "undefined" || !window.location.hash) return
+  const url = new URL(window.location.href)
+  url.hash = ""
+  window.history.replaceState(window.history.state, "", url)
+}
+
+export async function establishCliHostSession(
+  suppliedToken?: string
+): Promise<boolean> {
+  const supplied = suppliedToken?.trim()
+  let token = supplied || accessTokenFromHash()
+  if (supplied?.startsWith("http://") || supplied?.startsWith("https://")) {
+    try {
+      token = new URLSearchParams(new URL(supplied).hash.slice(1)).get("access")
+    } catch {
+      token = null
+    }
+  }
+  if (!token) return false
+  if (!/^[A-Za-z0-9_-]{16,512}$/.test(token)) {
+    throw new CliHostAccessError(
+      "pairing-failed",
+      "Enter the complete LAN access link or its access key."
+    )
+  }
+  const response = await fetch("/api/session", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "X-Eidos-Client-ID": HTTP_CLIENT_ID,
+    },
+  })
+  if (!response.ok) {
+    let message = "The LAN access key was not accepted."
+    try {
+      const envelope = (await response.json()) as HttpEnvelope
+      message = envelope.error?.message ?? message
+    } catch {
+      // Keep the stable public error when the response is not JSON.
+    }
+    throw new CliHostAccessError("pairing-failed", message)
+  }
+  clearAccessTokenHash()
+  return true
+}
+
+export function subscribeCliHostEvents(callbacks: {
+  onRevision: (revision: string) => void
+  onOpen?: () => void
+  onError?: () => void
+}): () => void {
+  const events = new EventSource(
+    `/api/events?client=${encodeURIComponent(HTTP_CLIENT_ID)}`
+  )
+  events.addEventListener("revision", (event) => {
+    try {
+      const value = JSON.parse((event as MessageEvent<string>).data) as {
+        revision?: unknown
+      }
+      if (typeof value.revision === "string") {
+        callbacks.onRevision(value.revision)
+      }
+    } catch {
+      // Ignore malformed event payloads and wait for the next revision.
+    }
+  })
+  if (callbacks.onOpen) events.addEventListener("open", callbacks.onOpen)
+  if (callbacks.onError) events.addEventListener("error", callbacks.onError)
+  return () => events.close()
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -55,7 +157,10 @@ function base64ToBytes(text: string): Uint8Array {
 async function postJson(path: string, body: unknown): Promise<HttpEnvelope> {
   const response = await fetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Eidos-Client-ID": HTTP_CLIENT_ID,
+    },
     body: JSON.stringify(body),
   })
   const envelope = (await response.json()) as HttpEnvelope
@@ -518,13 +623,20 @@ export class EidosFileHttpClient {
 export async function fetchCliHostManifest(): Promise<CliHostManifest | null> {
   try {
     const response = await fetch("/api/manifest")
+    if (response.status === 401) {
+      throw new CliHostAccessError(
+        "pairing-required",
+        "Open the LAN access link printed by eidos serve, or enter its access key."
+      )
+    }
     if (!response.ok) return null
     const manifest = (await response.json()) as Partial<CliHostManifest>
     if (manifest?.mode !== "cli" || typeof manifest.fileName !== "string") {
       return null
     }
     return manifest as CliHostManifest
-  } catch {
+  } catch (error) {
+    if (error instanceof CliHostAccessError) throw error
     return null
   }
 }

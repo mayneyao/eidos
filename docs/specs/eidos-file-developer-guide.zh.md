@@ -506,7 +506,7 @@ MutationResult(new revision, created Row ID, returned rows)
 
 它是乐观并发控制。调用方说：“我基于 revision 7 做这次修改。”如果 Runtime 已经到 revision 8，它返回 `stale-revision`，而不是把旧编辑盲目覆盖到新状态。
 
-处理方式是重新获取 snapshot 和受影响记录，让用户或业务规则决定是否重做。Mutation 不能因为 `retryable` 就自动重放。
+处理方式是重新获取 snapshot 和受影响记录，让用户或业务规则决定是否重做。Mutation 不能因为 `retryable` 就自动重放。若业务规则确认目标字段的语义没有变化，且 current value 仍等于用户编辑前看到的 base value，可以使用 current revision 提交一个新的 mutation；这属于验证后的新写入，不是重放旧请求。
 
 ## 创建表或改 schema：为什么要分两步
 
@@ -798,7 +798,7 @@ Eidos File 的用户 Table 与 stored Field 始终使用显示名称作为 SQLit
 
 ### `stale-revision`
 
-当前文件已被另一个 mutation 推进。重新读取 snapshot 和受影响数据，再决定是否提交新的显式 mutation。不要直接重放旧请求。
+当前文件已被另一个 mutation 推进。重新读取 snapshot 和受影响数据，再决定是否提交新的显式 mutation。不要直接重放旧请求；只有验证字段语义与 base value 都未变化后，才可以用 current revision 发起新的安全写入。
 
 ### `invalid-value`
 

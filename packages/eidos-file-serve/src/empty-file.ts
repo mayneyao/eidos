@@ -4,7 +4,13 @@ import type { EidosFileEmptyStateTemplate } from "@eidos.space/eidos-file-ui/eid
 export type ServeEditorState = "loading" | "empty" | "editor"
 
 export function resolveServeEditorState(input: {
-  bootPhase: "loading" | "no-manifest" | "opening" | "ready" | "error"
+  bootPhase:
+    | "loading"
+    | "pairing-required"
+    | "no-manifest"
+    | "opening"
+    | "ready"
+    | "error"
   hasSnapshot: boolean
   hasClient: boolean
   hasActiveTable: boolean

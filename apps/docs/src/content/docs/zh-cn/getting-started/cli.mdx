@@ -49,8 +49,11 @@ Schema 操作才需要显式配置非空约束。
 eidos serve example.eidos --open
 ```
 
-服务只监听 `127.0.0.1`，打开共享 Eidos File UI，并把已提交的编辑直接写入
-`example.eidos`。按 <kbd>Ctrl</kbd> + <kbd>C</kbd> 停止服务。
+服务默认监听 `127.0.0.1`，打开共享 Eidos File UI，并把已提交的编辑直接写入
+`example.eidos`。要在可信私有网络的另一台设备上使用，可运行
+`eidos serve example.eidos --lan` 并打开终端输出的配对 URL。按 <kbd>Ctrl</kbd> +
+
+<kbd>C</kbd> 停止服务。
 
 <Aside type="tip" title="校验结果">
 

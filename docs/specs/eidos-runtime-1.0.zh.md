@@ -550,6 +550,11 @@ invalid input 绝不下落为 raw SQLite error。
 只有 `busy`、`deadline-exceeded`、`stale-revision`、`conflict`、`cancelled`、
 或 `adapter-error` 允许 `retryable=true`；它绝不授权自动 replay mutation。
 
+发生已知 rollback 的 `stale-revision` 后，caller 可以读取 current state、验证由
+application 定义的 conflict policy，并使用 current revision 提交一个新 mutation。
+这个新 request 的授权来自 fresh read 和 policy verification，而不是 `retryable`
+或 rejected request。
+
 `unknown-commit` 始终具有 `retryable=false`。在 transported binding 上，其 public
 `details` 恰好是 `{reconciliationRequired:true}`。Adapter trusted composition
 保留并验证 private commit receipt；`RuntimeClient` 与 UI 均不接收它。caller 调用

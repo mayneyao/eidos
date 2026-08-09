@@ -5,6 +5,9 @@ import { createRoot, type Root } from "react-dom/client"
 import type {
   EidosFileDataSource,
   EidosFileFieldInfo,
+  EidosFileRow,
+  EidosFileRowMutationResult,
+  EidosFileSqlPrimitive,
   EidosFileTableSnapshot,
 } from "@eidos.space/eidos-file"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -46,6 +49,22 @@ const relationField: EidosFileFieldInfo = {
   dependsOn: null,
 }
 
+const titleField: EidosFileFieldInfo = {
+  id: "0198c72d-82b5-7000-8000-000000000002",
+  tableId: "tasks",
+  name: "Title",
+  type: "text",
+  tableName: "tb_tasks",
+  tableColumnName: "title",
+  property: null,
+  storageCodec: "scalar",
+  valueKind: "source",
+  isHidden: false,
+  isDerived: false,
+  sourceTableColumnName: null,
+  dependsOn: null,
+}
+
 const table: EidosFileTableSnapshot = {
   table: {
     id: "tasks",
@@ -57,9 +76,27 @@ const table: EidosFileTableSnapshot = {
     createdAt: "2026-07-18T00:00:00.000Z",
     updatedAt: "2026-07-18T00:00:00.000Z",
   },
-  fields: [relationField],
+  fields: [relationField, titleField],
   views: [],
   rowCount: 0,
+}
+
+type EditCell = (
+  row: EidosFileRow,
+  field: EidosFileFieldInfo,
+  value: EidosFileSqlPrimitive
+) => Promise<EidosFileRowMutationResult>
+
+function capturedEditCell(): EditCell {
+  expect(typeof mocks.props?.onCellEdit).toBe("function")
+  return mocks.props?.onCellEdit as EditCell
+}
+
+function staleRevisionError() {
+  return Object.assign(new Error("File revision has changed"), {
+    code: "stale-revision",
+    retryable: true,
+  })
 }
 
 describe("EidosFileDataGrid", () => {
@@ -322,5 +359,234 @@ describe("EidosFileDataGrid", () => {
 
     expect(deleteField).toHaveBeenCalledWith("tasks", relationField.id)
     expect(onSnapshot).toHaveBeenCalledWith({ tables: [table] })
+  })
+
+  it("reapplies a disjoint scalar edit once after verifying fresh state", async () => {
+    const stale = staleRevisionError()
+    const committed: EidosFileRowMutationResult = {
+      tableId: "tasks",
+      row: { _id: "row_1", [titleField.id]: "Mine", status: "theirs" },
+      rowCount: 1,
+      revision: 3,
+    }
+    const updateRow = vi
+      .fn()
+      .mockRejectedValueOnce(stale)
+      .mockResolvedValueOnce(committed)
+    const getSnapshot = vi.fn().mockResolvedValue({ tables: [table] })
+    const getRow = vi.fn().mockResolvedValue({
+      _id: "row_1",
+      [titleField.id]: "Base",
+      status: "theirs",
+    })
+    const onMutation = vi.fn()
+    const source = {
+      updateRow,
+      getSnapshot,
+      getRow,
+    } as unknown as EidosFileDataSource
+
+    await act(async () => {
+      root.render(
+        <EidosFileDataGrid
+          source={source}
+          table={table}
+          tables={[table]}
+          onMutation={onMutation}
+        />
+      )
+    })
+
+    await expect(
+      capturedEditCell()(
+        { _id: "row_1", [titleField.id]: "Base", status: "base" },
+        titleField,
+        "Mine"
+      )
+    ).resolves.toBe(committed)
+
+    expect(getSnapshot).toHaveBeenCalledTimes(1)
+    expect(getRow).toHaveBeenCalledWith("tasks", "row_1")
+    expect(updateRow).toHaveBeenCalledTimes(2)
+    expect(updateRow).toHaveBeenNthCalledWith(2, "tasks", "row_1", {
+      [titleField.id]: "Mine",
+    })
+    expect(onMutation).toHaveBeenCalledWith(committed)
+  })
+
+  it("preserves the stale conflict when the edited field overlaps", async () => {
+    const stale = staleRevisionError()
+    const updateRow = vi.fn().mockRejectedValue(stale)
+    const getSnapshot = vi.fn().mockResolvedValue({ tables: [table] })
+    const getRow = vi
+      .fn()
+      .mockResolvedValue({ _id: "row_1", [titleField.id]: "Theirs" })
+    const source = {
+      updateRow,
+      getSnapshot,
+      getRow,
+    } as unknown as EidosFileDataSource
+
+    await act(async () => {
+      root.render(
+        <EidosFileDataGrid source={source} table={table} tables={[table]} />
+      )
+    })
+
+    await expect(
+      capturedEditCell()(
+        { _id: "row_1", [titleField.id]: "Base" },
+        titleField,
+        "Mine"
+      )
+    ).rejects.toBe(stale)
+    expect(updateRow).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not treat retryable or unknown-commit as replay authorization", async () => {
+    const unknownCommit = Object.assign(
+      new Error("Commit outcome is unknown"),
+      {
+        code: "unknown-commit",
+        retryable: true,
+      }
+    )
+    const updateRow = vi.fn().mockRejectedValue(unknownCommit)
+    const getSnapshot = vi.fn()
+    const getRow = vi.fn()
+    const source = {
+      updateRow,
+      getSnapshot,
+      getRow,
+    } as unknown as EidosFileDataSource
+
+    await act(async () => {
+      root.render(
+        <EidosFileDataGrid source={source} table={table} tables={[table]} />
+      )
+    })
+
+    await expect(
+      capturedEditCell()(
+        { _id: "row_1", [titleField.id]: "Base" },
+        titleField,
+        "Mine"
+      )
+    ).rejects.toBe(unknownCommit)
+    expect(getSnapshot).not.toHaveBeenCalled()
+    expect(getRow).not.toHaveBeenCalled()
+    expect(updateRow).toHaveBeenCalledTimes(1)
+  })
+
+  it("stops after one verified automatic reapplication attempt", async () => {
+    const firstStale = staleRevisionError()
+    const secondStale = staleRevisionError()
+    const updateRow = vi
+      .fn()
+      .mockRejectedValueOnce(firstStale)
+      .mockRejectedValueOnce(secondStale)
+    const source = {
+      updateRow,
+      getSnapshot: vi.fn().mockResolvedValue({ tables: [table] }),
+      getRow: vi
+        .fn()
+        .mockResolvedValue({ _id: "row_1", [titleField.id]: "Base" }),
+    } as unknown as EidosFileDataSource
+
+    await act(async () => {
+      root.render(
+        <EidosFileDataGrid source={source} table={table} tables={[table]} />
+      )
+    })
+
+    await expect(
+      capturedEditCell()(
+        { _id: "row_1", [titleField.id]: "Base" },
+        titleField,
+        "Mine"
+      )
+    ).rejects.toBe(secondStale)
+    expect(updateRow).toHaveBeenCalledTimes(2)
+  })
+
+  it("does not reapply across a schema or View descriptor change", async () => {
+    const stale = staleRevisionError()
+    const updateRow = vi.fn().mockRejectedValue(stale)
+    const getSnapshot = vi.fn().mockResolvedValue({
+      tables: [
+        {
+          ...table,
+          views: [
+            {
+              id: "view_1",
+              name: "Changed View",
+              type: "grid",
+              tableId: "tasks",
+              query: "",
+              properties: null,
+              filter: null,
+              sorts: [],
+              orderMap: null,
+              hiddenFields: [],
+              position: 0,
+              createdAt: "2026-08-09T00:00:00.000Z",
+              updatedAt: "2026-08-09T00:00:00.000Z",
+            },
+          ],
+        },
+      ],
+    })
+    const getRow = vi.fn()
+    const source = {
+      updateRow,
+      getSnapshot,
+      getRow,
+    } as unknown as EidosFileDataSource
+
+    await act(async () => {
+      root.render(
+        <EidosFileDataGrid source={source} table={table} tables={[table]} />
+      )
+    })
+
+    await expect(
+      capturedEditCell()(
+        { _id: "row_1", [titleField.id]: "Base" },
+        titleField,
+        "Mine"
+      )
+    ).rejects.toBe(stale)
+    expect(getSnapshot).toHaveBeenCalledTimes(1)
+    expect(getRow).not.toHaveBeenCalled()
+    expect(updateRow).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not automatically reapply relation field edits", async () => {
+    const stale = staleRevisionError()
+    const updateRow = vi.fn().mockRejectedValue(stale)
+    const getSnapshot = vi.fn()
+    const getRow = vi.fn()
+    const source = {
+      updateRow,
+      getSnapshot,
+      getRow,
+    } as unknown as EidosFileDataSource
+
+    await act(async () => {
+      root.render(
+        <EidosFileDataGrid source={source} table={table} tables={[table]} />
+      )
+    })
+
+    await expect(
+      capturedEditCell()(
+        { _id: "row_1", [relationField.id]: "person_1" },
+        relationField,
+        "person_2"
+      )
+    ).rejects.toBe(stale)
+    expect(getSnapshot).not.toHaveBeenCalled()
+    expect(getRow).not.toHaveBeenCalled()
+    expect(updateRow).toHaveBeenCalledTimes(1)
   })
 })

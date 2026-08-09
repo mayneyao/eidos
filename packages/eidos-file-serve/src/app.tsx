@@ -1,4 +1,5 @@
 import {
+  type FormEvent,
   lazy,
   Suspense,
   useCallback,
@@ -52,8 +53,12 @@ import { eidosFileKanbanPlugin } from "@eidos.space/eidos-file-ui/plugins/kanban
 import { AlertTriangle, Check, LoaderCircle, X } from "lucide-react"
 
 import {
+  CliHostAccessError,
+  createBrowserId,
   EidosFileHttpClient,
+  establishCliHostSession,
   fetchCliHostManifest,
+  subscribeCliHostEvents,
   type CliHostManifest,
 } from "./client"
 import { firstTableTemplate, resolveServeEditorState } from "./empty-file"
@@ -147,9 +152,17 @@ export function ServeApp() {
   const [locale] = useState<"en" | "zh">(initialLocale)
   const [manifest, setManifest] = useState<CliHostManifest | null>(null)
   const [bootPhase, setBootPhase] = useState<
-    "loading" | "no-manifest" | "opening" | "ready" | "error"
+    | "loading"
+    | "pairing-required"
+    | "no-manifest"
+    | "opening"
+    | "ready"
+    | "error"
   >("loading")
   const [bootError, setBootError] = useState<string | null>(null)
+  const [accessKey, setAccessKey] = useState("")
+  const [pairingError, setPairingError] = useState<string | null>(null)
+  const [bootAttempt, setBootAttempt] = useState(0)
   const [snapshot, setSnapshot] = useState<EidosFileSnapshot | null>(null)
   const [client, setClient] = useState<EidosFileHttpClient | null>(null)
   const [activeTableId, setActiveTableId] = useState<string | null>(null)
@@ -177,6 +190,7 @@ export function ServeApp() {
   const [viewReloadToken, setViewReloadToken] = useState(0)
 
   const clientRef = useRef<EidosFileHttpClient | null>(null)
+  const snapshotRef = useRef<EidosFileSnapshot | null>(null)
   const structureMutationQueueRef = useRef<Promise<void>>(Promise.resolve())
   const csvFilesRef = useRef(new Map<string, File>())
 
@@ -188,20 +202,25 @@ export function ServeApp() {
 
   useEffect(() => {
     let cancelled = false
+    let openingClient: EidosFileHttpClient | null = null
     void (async () => {
-      const nextManifest = await fetchCliHostManifest()
-      if (cancelled) return
-      if (!nextManifest) {
-        setBootPhase("no-manifest")
-        return
-      }
-      setManifest(nextManifest)
-      setBootPhase("opening")
-      const nextClient = new EidosFileHttpClient()
       try {
+        setBootError(null)
+        setPairingError(null)
+        await establishCliHostSession()
+        const nextManifest = await fetchCliHostManifest()
+        if (cancelled) return
+        if (!nextManifest) {
+          setBootPhase("no-manifest")
+          return
+        }
+        setManifest(nextManifest)
+        setBootPhase("opening")
+        const nextClient = new EidosFileHttpClient()
+        openingClient = nextClient
         const result = await nextClient.openEditorSource(
           nextManifest.fileName,
-          crypto.randomUUID(),
+          createBrowserId(),
           nextManifest.access
         )
         if (cancelled) {
@@ -218,7 +237,16 @@ export function ServeApp() {
         )
         setBootPhase("ready")
       } catch (error) {
-        nextClient.terminate()
+        openingClient?.terminate()
+        if (error instanceof CliHostAccessError) {
+          if (!cancelled) {
+            setPairingError(
+              error.code === "pairing-failed" ? error.message : null
+            )
+            setBootPhase("pairing-required")
+          }
+          return
+        }
         if (!cancelled) {
           setBootError(errorMessage(error))
           setBootPhase("error")
@@ -228,7 +256,11 @@ export function ServeApp() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [bootAttempt])
+
+  useEffect(() => {
+    snapshotRef.current = snapshot
+  }, [snapshot])
 
   const activeTable = useMemo(
     () =>
@@ -257,7 +289,7 @@ export function ServeApp() {
             const file = await pickCsvFile()
             if (!file) return null
             const source: EidosFileCsvImportSource = {
-              id: crypto.randomUUID(),
+              id: createBrowserId(),
               fileName: file.name,
             }
             csvFilesRef.current.set(source.id, file)
@@ -326,21 +358,84 @@ export function ServeApp() {
     )
   }, [])
 
-  const onStructureSnapshot = useCallback(
-    (next: EidosFileSnapshot) => {
-      setSnapshot(next)
-      setPropertyField((current) => {
-        if (!current || !activeTable) return null
-        return (
-          next.tables
-            .find((table) => table.table.id === activeTable.table.id)
-            ?.fields.find(
-              (field) => field.tableColumnName === current.tableColumnName
-            ) ?? null
-        )
-      })
+  const onStructureSnapshot = useCallback((next: EidosFileSnapshot) => {
+    snapshotRef.current = next
+    setSnapshot(next)
+    setPropertyField((current) => {
+      if (!current) return null
+      return (
+        next.tables
+          .find((table) => table.table.id === current.tableId)
+          ?.fields.find(
+            (field) => field.tableColumnName === current.tableColumnName
+          ) ?? null
+      )
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!client || bootPhase !== "ready") return
+    let disposed = false
+    let refreshing = false
+    let refreshPending = false
+    let retryTimer: number | undefined
+    let hasOpened = false
+
+    const refresh = async () => {
+      refreshPending = true
+      if (disposed || refreshing) return
+      if (client.hasInFlightMutations()) {
+        retryTimer = window.setTimeout(() => void refresh(), 80)
+        return
+      }
+      refreshing = true
+      refreshPending = false
+      try {
+        const next = await client.getSnapshot()
+        if (!disposed) {
+          onStructureSnapshot(next)
+          setViewReloadToken((token) => token + 1)
+        }
+      } catch (error) {
+        if (!disposed) setNotice(errorMessage(error))
+      } finally {
+        refreshing = false
+        if (!disposed && refreshPending) void refresh()
+      }
+    }
+
+    const unsubscribe = subscribeCliHostEvents({
+      onRevision(revision) {
+        if (String(snapshotRef.current?.metadata.revision) !== revision) {
+          void refresh()
+        }
+      },
+      onOpen() {
+        if (hasOpened) void refresh()
+        hasOpened = true
+      },
+    })
+    return () => {
+      disposed = true
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer)
+      unsubscribe()
+    }
+  }, [bootPhase, client, onStructureSnapshot])
+
+  const submitPairing = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      setPairingError(null)
+      try {
+        await establishCliHostSession(accessKey)
+        setAccessKey("")
+        setBootPhase("loading")
+        setBootAttempt((attempt) => attempt + 1)
+      } catch (error) {
+        setPairingError(errorMessage(error))
+      }
     },
-    [activeTable]
+    [accessKey]
   )
 
   const runStructureMutation = useCallback(
@@ -712,6 +807,43 @@ export function ServeApp() {
       </button>
     </div>
   ) : null
+
+  if (bootPhase === "pairing-required") {
+    return (
+      <main className="serve-shell">
+        <form className="pairing-card" onSubmit={submitPairing}>
+          <div>
+            <h1>Pair this browser</h1>
+            <p>
+              Paste the LAN access link printed by <code>eidos serve</code>.
+              Access lasts until the CLI process stops.
+            </p>
+          </div>
+          <label htmlFor="lan-access-key">LAN access link or key</label>
+          <input
+            id="lan-access-key"
+            type="password"
+            value={accessKey}
+            autoComplete="off"
+            autoFocus
+            spellCheck={false}
+            onChange={(event) => setAccessKey(event.target.value)}
+          />
+          {pairingError ? (
+            <p className="pairing-error" role="alert">
+              {pairingError}
+            </p>
+          ) : null}
+          <button type="submit" disabled={!accessKey.trim()}>
+            Pair browser
+          </button>
+          <p className="pairing-note">
+            Use LAN mode only on a private network you trust.
+          </p>
+        </form>
+      </main>
+    )
+  }
 
   if (bootPhase === "no-manifest") {
     return (

@@ -1,6 +1,6 @@
 ---
-title: 使用 eidos serve 打开本地编辑器
-description: 通过 localhost 与共享 UI 编辑一个 Eidos File。
+title: 使用 eidos serve 打开本地与局域网编辑器
+description: 通过 localhost 或可信局域网与共享 UI 编辑一个 Eidos File。
 sidebar:
   order: 20
 ---
@@ -14,7 +14,7 @@ eidos serve tracker.eidos --open
 
 ## 行为
 
-- 只绑定 `127.0.0.1`；
+- 默认绑定 `127.0.0.1`；
 - 默认端口是 `8420`；
 - 一次只打开一个文件；
 - 编辑器 mutation 直接提交到该文件；
@@ -27,6 +27,30 @@ eidos serve tracker.eidos --open
 eidos serve tracker.eidos --port 9000 --open
 ```
 
+## 可信局域网访问
+
+`--lan` 会检测并绑定一个私有 IPv4 接口：
+
+```bash
+eidos serve tracker.eidos --lan
+```
+
+终端输出的 URL 在 fragment 中携带 access key。打开该链接后，浏览器会与当前 CLI
+进程配对；后续访问使用只存在于该进程内的 HttpOnly session cookie。自动检测找不到合适
+地址，或机器有多个网络接口时，可以指定准确的私网或 overlay network 地址：
+
+```bash
+eidos serve tracker.eidos --lan --host 192.168.1.20
+eidos serve tracker.eidos --lan --host 100.80.12.4
+```
+
+LAN 模式接受 RFC 1918、link-local、CGNAT（包括常见 Tailscale 地址）与 IPv6
+unique-local 地址，不接受公网地址或 wildcard bind。API Host 与 Origin 必须准确匹配所选
+地址。
+
+LAN 模式使用普通 HTTP。access link 可以阻止未配对的浏览器调用 API，但不能防止能够监听
+局域网流量的人读取通信内容，因此只应在可信私有网络使用。
+
 ## 开发 UI override
 
 `--ui-dir` 可以用另一份静态 build 替代 binary 内嵌 UI。这是开发和发行校验选项，不是普通
@@ -38,6 +62,10 @@ eidos serve tracker.eidos --ui-dir ./dist --port 8420
 
 ## 并发
 
-Serve 运行时，应让它成为该文件唯一的 writer。使用其他可写 Host 或 SQLite 工具打开同一路径
-前，先停止服务。会话结束后，可以用 `eidos validate tracker.eidos --level full` 做独立
-完整性校验。
+多个 localhost 或已配对的 LAN 浏览器可以同时编辑。Serve 通过一个权威 Runtime writer
+串行提交 mutation，并在每次 revision 提交后通知其他浏览器。同时发生的 stale edit 会以零
+副作用拒绝，浏览器随后刷新到最新 revision。
+
+Serve 进程仍必须是该文件唯一的物理 writer。使用其他可写 Host 或 SQLite 工具打开同一路径
+前，先停止服务。会话结束后，可以用 `eidos validate tracker.eidos --level full` 做独立完整性
+校验。

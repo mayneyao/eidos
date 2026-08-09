@@ -110,6 +110,20 @@ mod tests {
 
         let serve = parse_ok(&["eidos", "tasks.eidos", "serve", "--port", "9000"]);
         assert!(matches!(serve.command, Command::Serve(_)));
+
+        let lan = parse_ok(&[
+            "eidos",
+            "serve",
+            "tasks.eidos",
+            "--lan",
+            "--host",
+            "192.168.1.20",
+        ]);
+        assert!(matches!(
+            lan.command,
+            Command::Serve(ref args)
+                if args.lan && args.host == Some("192.168.1.20".parse().unwrap())
+        ));
     }
 
     #[test]

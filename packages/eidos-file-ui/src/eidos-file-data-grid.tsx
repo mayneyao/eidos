@@ -48,6 +48,85 @@ export interface EidosFileDataGridProps {
   onImportDroppedFiles?: (files: File[]) => Promise<FileEntry[]>
 }
 
+function isStaleRevision(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "stale-revision"
+  )
+}
+
+function isSafeReapplicationField(field: EidosFileFieldInfo): boolean {
+  return (
+    field.valueKind === "source" &&
+    !field.isDerived &&
+    field.systemRole == null &&
+    field.type !== "file"
+  )
+}
+
+function sameLogicalValue(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true
+  if (!(left instanceof Uint8Array) || !(right instanceof Uint8Array)) {
+    return false
+  }
+  if (left.byteLength !== right.byteLength) return false
+  return left.every((value, index) => value === right[index])
+}
+
+function hasOwn(record: object, key: PropertyKey): boolean {
+  return Object.prototype.hasOwnProperty.call(record, key)
+}
+
+function sameStructuredValue(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true
+  if (left instanceof Uint8Array && right instanceof Uint8Array) {
+    return sameLogicalValue(left, right)
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => sameStructuredValue(value, right[index]))
+    )
+  }
+  if (
+    typeof left !== "object" ||
+    left === null ||
+    typeof right !== "object" ||
+    right === null
+  ) {
+    return false
+  }
+  const leftRecord = left as Record<string, unknown>
+  const rightRecord = right as Record<string, unknown>
+  const leftKeys = Object.keys(leftRecord)
+    .filter((key) => leftRecord[key] !== undefined)
+    .sort()
+  const rightKeys = Object.keys(rightRecord)
+    .filter((key) => rightRecord[key] !== undefined)
+    .sort()
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key, index) =>
+        key === rightKeys[index] &&
+        sameStructuredValue(leftRecord[key], rightRecord[key])
+    )
+  )
+}
+
+function sameEditorSchema(
+  previous: readonly EidosFileTableSnapshot[],
+  current: readonly EidosFileTableSnapshot[]
+): boolean {
+  const descriptors = (snapshots: readonly EidosFileTableSnapshot[]) =>
+    snapshots.map(({ table, fields, views }) => ({ table, fields, views }))
+  return sameStructuredValue(descriptors(previous), descriptors(current))
+}
+
 /**
  * Convenience adapter for hosts that expose the public EidosFileEditorDataSource.
  * It keeps paging and mutations outside React while rendering the exact shared
@@ -117,13 +196,59 @@ export function EidosFileDataGrid({
       field: EidosFileFieldInfo,
       value: EidosFileSqlPrimitive
     ) => {
-      const result = await source.updateRow(table.table.id, String(row._id), {
-        [eidosFileFieldKey(field)]: value,
-      })
+      const fieldKey = eidosFileFieldKey(field)
+      const rowId = String(row._id)
+      const fields = { [fieldKey]: value }
+      let result: EidosFileRowMutationResult
+      try {
+        result = await source.updateRow(table.table.id, rowId, fields)
+      } catch (error) {
+        if (
+          !isStaleRevision(error) ||
+          !tables ||
+          !source.getRow ||
+          !isSafeReapplicationField(field) ||
+          !hasOwn(row, fieldKey)
+        ) {
+          throw error
+        }
+
+        let currentRow: EidosFileRow | null
+        try {
+          const currentSnapshot = await source.getSnapshot()
+          const currentTable = currentSnapshot.tables.find(
+            (candidate) => candidate.table.id === table.table.id
+          )
+          const currentField = currentTable?.fields.find(
+            (candidate) => candidate.id === field.id
+          )
+          if (
+            !currentField ||
+            !isSafeReapplicationField(currentField) ||
+            !sameEditorSchema(tables, currentSnapshot.tables) ||
+            !sameStructuredValue(field, currentField)
+          ) {
+            throw error
+          }
+          currentRow = await source.getRow(table.table.id, rowId)
+        } catch {
+          throw error
+        }
+
+        if (
+          !currentRow ||
+          !hasOwn(currentRow, fieldKey) ||
+          !sameLogicalValue(row[fieldKey], currentRow[fieldKey])
+        ) {
+          throw error
+        }
+
+        result = await source.updateRow(table.table.id, rowId, fields)
+      }
       onMutation?.(result)
       return result
     },
-    [onMutation, source, table.table.id]
+    [onMutation, source, table.table.id, tables]
   )
 
   const updateField = useCallback(

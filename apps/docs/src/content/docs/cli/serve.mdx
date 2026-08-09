@@ -1,6 +1,6 @@
 ---
-title: Local editor with eidos serve
-description: Serve one Eidos File through the shared UI on localhost.
+title: Local and LAN editor with eidos serve
+description: Serve one Eidos File through the shared UI on localhost or a trusted LAN.
 sidebar:
   order: 20
 ---
@@ -15,7 +15,7 @@ eidos serve tracker.eidos --open
 
 ## Behavior
 
-- binds to `127.0.0.1` only;
+- binds to `127.0.0.1` by default;
 - uses port `8420` by default;
 - opens exactly one file;
 - commits editor mutations directly to that file;
@@ -27,6 +27,33 @@ Choose another port when needed:
 ```bash
 eidos serve tracker.eidos --port 9000 --open
 ```
+
+## Trusted LAN access
+
+Use `--lan` to detect and bind one private IPv4 interface:
+
+```bash
+eidos serve tracker.eidos --lan
+```
+
+The printed URL contains a fragment-only access key. Opening it pairs that
+browser with the running CLI process; later visits use a process-local,
+HttpOnly session cookie. If automatic detection picks no suitable address,
+or the machine has several interfaces, choose an exact private or overlay
+network address:
+
+```bash
+eidos serve tracker.eidos --lan --host 192.168.1.20
+eidos serve tracker.eidos --lan --host 100.80.12.4
+```
+
+LAN mode accepts RFC 1918, link-local, CGNAT (including typical Tailscale), and
+IPv6 unique-local addresses. It never accepts a public address or wildcard
+bind. API Host and Origin must match the selected address exactly.
+
+LAN mode uses plain HTTP. The access link prevents unpaired browsers from
+using the API, but it does not protect traffic from someone able to observe
+the local network. Use it only on a private network you trust.
 
 ## Development UI override
 
@@ -40,7 +67,13 @@ eidos serve tracker.eidos --ui-dir ./dist --port 8420
 
 ## Concurrency
 
-While Serve is running, let it be the only writer for that file. Stop the
-server before opening the same path in another write-capable host or SQLite
-tool. After a session, `eidos validate tracker.eidos --level full` provides an
+Multiple localhost or paired LAN browsers can edit simultaneously. Serve
+serializes their mutations through one authoritative Runtime writer and
+notifies other browsers after every committed revision. A simultaneous stale
+edit is rejected without side effects and the browser refreshes to the latest
+revision.
+
+The Serve process must still be the file's only physical writer. Stop it
+before opening the same path in another write-capable host or SQLite tool.
+After a session, `eidos validate tracker.eidos --level full` provides an
 independent integrity check.

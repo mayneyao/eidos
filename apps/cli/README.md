@@ -128,9 +128,24 @@ writes straight to the file — there is no separate save step.
 target/debug/eidos serve tracker.eidos --port 8420 --open
 ```
 
-The server binds `127.0.0.1` only. `--ui-dir <dir>` serves a different static
-UI build instead of the embedded one. The embedded editor is available in the
-published macOS, Linux, and Windows builds.
+The server binds `127.0.0.1` by default. Use `--lan` to bind one detected
+private interface and print a paired access link for other devices on that
+trusted network:
+
+```bash
+target/debug/eidos serve tracker.eidos --lan
+target/debug/eidos serve tracker.eidos --lan --host 192.168.1.20
+```
+
+LAN API access requires the printed link to establish a browser session, and
+Host/Origin checks remain restricted to the exact bound address. Multiple
+paired browsers can edit through the same serialized Runtime writer and
+receive committed revisions live. LAN mode uses HTTP, so do not use it on an
+untrusted network.
+
+`--ui-dir <dir>` serves a different static UI build instead of the embedded
+one. The embedded editor is available in the published macOS, Linux, and
+Windows builds.
 
 Run `eidos --help` and the repository Skill at [`../../skills/eidos/SKILL.md`](../../skills/eidos/SKILL.md) for the complete command and safe-agent workflow.
 

@@ -52,8 +52,10 @@ otherwise.
 eidos serve example.eidos --open
 ```
 
-The server listens on `127.0.0.1`, opens the shared Eidos File UI, and writes
-committed edits directly to `example.eidos`. Stop it with <kbd>Ctrl</kbd> +
+The server listens on `127.0.0.1` by default, opens the shared Eidos File UI,
+and writes committed edits directly to `example.eidos`. To use another device
+on a trusted private network, run `eidos serve example.eidos --lan` and open
+the paired URL printed in the terminal. Stop it with <kbd>Ctrl</kbd> +
 
 <kbd>C</kbd>.
 

@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::net::IpAddr;
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
@@ -51,6 +52,12 @@ pub struct ServeArgs {
     pub file: PathBuf,
     #[arg(long, default_value_t = 8420)]
     pub port: u16,
+    /// Make the editor available on one private LAN interface.
+    #[arg(long)]
+    pub lan: bool,
+    /// Private LAN or overlay-network address to bind. Requires --lan.
+    #[arg(long, requires = "lan", value_name = "IP")]
+    pub host: Option<IpAddr>,
     /// Serve the web editor from this directory instead of the embedded UI.
     #[arg(long)]
     pub ui_dir: Option<PathBuf>,

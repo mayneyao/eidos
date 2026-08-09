@@ -579,6 +579,11 @@ controls behavior. Invalid input never falls through to a raw SQLite error.
 `stale-revision`, `conflict`, `cancelled`, or `adapter-error`; it never
 authorizes an automatic mutation replay.
 
+After a known-rollback `stale-revision`, a caller MAY read current state,
+verify an application-defined conflict policy, and submit a new mutation with
+the current revision. That new request is authorized by the fresh read and
+policy verification, not by `retryable` or the rejected request.
+
 `unknown-commit` always has `retryable=false`. On a transported binding its
 public `details` is exactly `{reconciliationRequired:true}`. Adapter trusted
 composition retains and validates the private commit receipt; neither

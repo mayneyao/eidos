@@ -38,10 +38,13 @@ Start without `--open`, then copy the printed loopback URL into a browser:
 eidos serve example.eidos --port 8420
 ```
 
-The server intentionally binds only `127.0.0.1`. Check local firewall or proxy
-rules if the URL is unreachable. If an older CLI keeps loading an empty file,
-create the first table with the command in the [CLI quickstart](/getting-started/cli/)
-or upgrade to a release with empty-file startup support.
+The server binds `127.0.0.1` by default. Check local firewall or proxy rules if
+the URL is unreachable. For another device on a trusted private network,
+restart it with `--lan`, open the exact paired URL printed in the terminal, and
+check that the selected private address is reachable. If an older CLI keeps
+loading an empty file, create the first table with the command in the
+[CLI quickstart](/getting-started/cli/) or upgrade to a release with empty-file
+startup support.
 
 ## A command failed in automation
 

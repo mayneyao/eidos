@@ -26,6 +26,8 @@ fn main() -> anyhow::Result<()> {
             let mut port: u16 = 8420;
             let mut ui_dir: Option<std::path::PathBuf> = None;
             let mut open_browser = false;
+            let mut lan = false;
+            let mut host: Option<std::net::IpAddr> = None;
             while let Some(flag) = args.next() {
                 match flag.as_str() {
                     "--port" => {
@@ -42,10 +44,29 @@ fn main() -> anyhow::Result<()> {
                         ))
                     }
                     "--open" => open_browser = true,
+                    "--lan" => lan = true,
+                    "--host" => {
+                        host = Some(
+                            args.next()
+                                .ok_or_else(|| anyhow!("--host needs a value"))?
+                                .parse()
+                                .context("parse --host")?,
+                        )
+                    }
                     other => return Err(anyhow!("unknown serve flag: {other}")),
                 }
             }
-            qjs_host::serve::run_serve(std::path::Path::new(&db_path), port, ui_dir, open_browser)
+            if host.is_some() && !lan {
+                return Err(anyhow!("--host requires --lan"));
+            }
+            qjs_host::serve::run_serve(
+                std::path::Path::new(&db_path),
+                port,
+                ui_dir,
+                open_browser,
+                lan,
+                host,
+            )
         }
         "open" => {
             let db_path = args.next().ok_or_else(|| anyhow!("open needs a path"))?;
@@ -53,7 +74,7 @@ fn main() -> anyhow::Result<()> {
         }
         other => {
             eprintln!(
-                "unknown command: {other}\nusage: qjs-host selftest [db-path] | create <db> [title] | open <db> | serve <db> [--port N] [--ui-dir DIR] [--open]"
+                "unknown command: {other}\nusage: qjs-host selftest [db-path] | create <db> [title] | open <db> | serve <db> [--port N] [--lan [--host IP]] [--ui-dir DIR] [--open]"
             );
             std::process::exit(2)
         }

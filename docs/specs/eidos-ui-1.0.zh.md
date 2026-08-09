@@ -1410,17 +1410,29 @@ request，不能把 batch 的一部分当成 committed。
 | `submitting` | `committed`, `rejected`, `stale`, `unknown` | optimistic overlay 仅 UI；disable duplicate submit                                                                                   |
 | `committed`  | `clean`                                     | 用 returned row/revision 替换，invalidate old cache，必要时 announce success                                                         |
 | `rejected`   | `drafting`, `clean`                         | 移除 overlay，保留可修正 input，把 Runtime diagnostic 关联到 Field                                                                   |
-| `stale`      | `drafting`, `clean`                         | 移除 overlay、refresh、显示 conflict；不 auto retry                                                                                  |
+| `stale`      | `submitting`, `drafting`, `clean`           | 移除 overlay 并 refresh；verified-safe Field reapplication 可以回到 `submitting`，否则显示 conflict                                  |
 | `unknown`    | `clean`, `drafting`                         | revoke 旧 Runtime client；只通过 Host reconciliation，安装 returned epoch 后 refetch，再判断是否安全发起新的 user-submitted mutation |
 
 同一 Row+Field 同时只有一个 unresolved mutation 可以拥有 optimistic overlay。若
 Runtime negotiation 允许，non-overlapping mutation 可以并行，但 expected revision
 和 completion order 仍以 Runtime 为准。最简单的 conforming Editor 串行 mutation。
 
-收到 `stale-revision` 后，UI 只有先获取 current row，才可以对 row update 提供
-three-way merge。Disjoint Field edit 可以建议以新 revision reapply；overlapping
-Field、delete、option rename、Relation policy effect、schema change、lossy conversion
-必须 explicit user choice。不得 auto-replay stale mutation。
+收到 `stale-revision` 后，rejected request 已知 rollback。UI 只有先获取 fresh
+snapshot 和 current Row，才可以执行 verified-safe Field reapplication。UI 必须把
+reapplication 当作使用 fresh revision 的新 mutation；仅凭 `retryable` 绝不构成授权。
+只有同时满足以下条件，才允许自动 reapply：
+
+- target Row 仍然存在；
+- 每个 edited Field 都保持相同 stable descriptor，并且仍是没有 Relation、File、
+  derived 或 system side effect 的普通 stored Field；
+- 每个 edited Field 的 current logical value 都等于 UI 开始 drafting 前观察到的值；
+- 对同一次 submission 最多自动 reapply 一次。
+
+authoritative returned Row 和 revision 替换 optimistic state。第二次
+`stale-revision`、target Field 已变化、value overlap 或 verification 失败时，回到
+`stale` 并保留 draft，等待 explicit user choice。Unknown commit outcome、delete、
+option rename、Relation policy effect、File import、schema/View change 和 lossy
+conversion 不得自动 reapply。
 
 ### 11.3 Undo/redo
 
