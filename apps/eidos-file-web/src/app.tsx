@@ -21,7 +21,11 @@ import type {
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 import { exportEidosFileViewCsv } from "@eidos.space/eidos-file-ui/eidos-file-editor-chrome"
-import { EidosFileEditorShell } from "@eidos.space/eidos-file-ui/eidos-file-editor-shell"
+import {
+  EidosFileEditorShell,
+  type EidosFileEditorShellProps,
+} from "@eidos.space/eidos-file-ui/eidos-file-editor-shell"
+import { EidosFileUIProvider } from "@eidos.space/eidos-file-ui/context"
 import { EidosFileSheetCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-sheet-create-popover"
 import { EidosFileSheetTabs } from "@eidos.space/eidos-file-ui/eidos-file-sheet-tabs"
 import { EidosFileFieldCreatePopover } from "@eidos.space/eidos-file-ui/eidos-file-field-create-popover"
@@ -136,6 +140,17 @@ interface OpenSession {
 interface RecentFileState extends RecentFileEntry, RecentFileMenuEntry {}
 
 type Theme = "light" | "dark"
+
+function ThemedEidosFileEditorShell({
+  themeName,
+  ...props
+}: EidosFileEditorShellProps & { themeName: Theme }) {
+  return (
+    <EidosFileUIProvider themeName={themeName}>
+      <EidosFileEditorShell {...props} />
+    </EidosFileUIProvider>
+  )
+}
 
 const PWA_UPDATE_PROMPT_CACHE = "eidos-file-pwa-update-prompt-ready-v1"
 
@@ -2146,7 +2161,8 @@ export function App() {
         ) : null}
       </div>
 
-      <EidosFileEditorShell
+      <ThemedEidosFileEditorShell
+        themeName={theme}
         className="min-h-0 flex-1 !h-auto"
         searchNavigation={{
           search,
@@ -2359,7 +2375,7 @@ export function App() {
           }}
           onError={(error) => setNotice(errorMessage(error))}
         />
-      </EidosFileEditorShell>
+      </ThemedEidosFileEditorShell>
 
       {pwaUpdatePrompt}
 

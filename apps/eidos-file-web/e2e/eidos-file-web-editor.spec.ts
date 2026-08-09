@@ -352,6 +352,26 @@ async function dragSortable(
   await page.mouse.up()
 }
 
+test("keeps shared editor chrome on the active dark theme", async ({
+  page,
+  browserName,
+}) => {
+  test.skip(
+    browserName !== "chromium",
+    "Chromium covers the shared editor theme boundary"
+  )
+  await installFallbackMode(page)
+  await page.goto("/")
+  await page.getByRole("button", { name: "Use dark theme" }).click()
+  await clickFileMenuItem(page, "Open sample Eidos File")
+  await waitForSampleEditor(page)
+
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark")
+  const editorShell = page.locator("[data-eidos-file-editor-shell]")
+  await expect(editorShell).toHaveAttribute("data-theme", "dark")
+  await expect(editorShell).toHaveCSS("color-scheme", "dark")
+})
+
 test.describe("Chromium original-file editing", () => {
   test.beforeEach(({ browserName }) => {
     test.skip(
