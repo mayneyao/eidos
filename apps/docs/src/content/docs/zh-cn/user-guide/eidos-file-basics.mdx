@@ -26,7 +26,7 @@ eidos create tasks.eidos \
   --title Tasks \
   --table Tasks \
   --label-field Title \
-  --fields '[{"name":"Title","type":"text","nullable":false},{"name":"Priority","type":"select"}]'
+  --fields '[{"name":"Title","type":"text"},{"name":"Priority","type":"select"}]'
 ```
 
 每张表都有一个 record-label 字段。其他表引用这条记录时，Eidos 会用它作为人类可读名称。

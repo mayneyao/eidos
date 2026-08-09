@@ -99,6 +99,14 @@ pub struct SchemaChangeResult {
     pub created_objects: Vec<CreatedSchemaObject>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InitialTableResult {
+    pub schema: SchemaChangeResult,
+    pub table_id: String,
+    pub view_id: String,
+}
+
 #[derive(Debug, Clone)]
 struct PreparedField {
     id: String,
@@ -1032,6 +1040,68 @@ pub fn apply_schema_change(
     expected_revision: Option<&str>,
 ) -> Result<SchemaChangeResult> {
     run_change(conn, change, expected_revision, true)
+}
+
+/// Initializes a fresh Eidos File with one Table, makes it the File default,
+/// and creates its first Grid View as one canonical revision.
+///
+/// This is the product-level composition used by `eidos create --table`. It
+/// deliberately does not change the semantics of the public `create-table`
+/// schema operation, which never chooses a default Table or creates a View.
+pub fn apply_initial_table(
+    conn: &mut Connection,
+    change: &SchemaLeafChange,
+) -> Result<InitialTableResult> {
+    if !matches!(change, SchemaLeafChange::CreateTable { .. }) {
+        return Err(EidosError::InvalidRequest(
+            "initial table operation must be create-table".into(),
+        ));
+    }
+
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let meta = load_file_meta(&tx)?;
+    if meta.revision != 0
+        || meta.default_table_id.is_some()
+        || !load_tables(&tx)?.is_empty()
+        || !load_views(&tx)?.is_empty()
+    {
+        return Err(EidosError::InvalidRequest(
+            "initial table requires a fresh Eidos File at revision 0".into(),
+        ));
+    }
+
+    let instant = now_instant();
+    let (changed, created_objects) = apply_inner(&tx, change, &instant)?;
+    let table_id = created_objects
+        .iter()
+        .find(|object| object.object == CreatedObjectKind::Table)
+        .map(|object| object.id.clone())
+        .ok_or_else(|| EidosError::InvalidSchema("create-table returned no Table ID".into()))?;
+    tx.execute(
+        "UPDATE eidos__meta SET default_table_id=? WHERE singleton=1",
+        [&table_id],
+    )?;
+
+    let view_id = generate_uuidv7();
+    tx.execute(
+        "INSERT INTO eidos__views(
+           id,table_id,name,type,query_json,layout_json,position,created_at,updated_at
+         ) VALUES(?,?,'Grid','grid','{}','{}',0,?,?)",
+        rusqlite::params![view_id, table_id, instant, instant],
+    )?;
+    ensure_foreign_keys(&tx)?;
+    let revision = ddl::increment_revision(&tx, &instant)?;
+    tx.commit()?;
+
+    Ok(InitialTableResult {
+        schema: SchemaChangeResult {
+            revision: revision.to_string(),
+            changed,
+            created_objects,
+        },
+        table_id,
+        view_id,
+    })
 }
 
 /// Execute the exact schema operation inside an IMMEDIATE transaction and

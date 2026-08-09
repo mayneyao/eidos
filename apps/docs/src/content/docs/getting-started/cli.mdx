@@ -39,11 +39,12 @@ eidos create example.eidos \
   --title "Example" \
   --table Tasks \
   --label-field Title \
-  --fields '[{"name":"Title","type":"text","nullable":false},{"name":"Status","type":"select"}]'
+  --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
 ```
 
-Creating the first table makes the result useful in every released editor,
-including CLI versions that predate the empty-file start screen.
+The CLI makes this initial table the File default and creates its first Grid
+view. Fields allow empty values unless an advanced schema operation says
+otherwise.
 
 ## 3. Open the local editor
 

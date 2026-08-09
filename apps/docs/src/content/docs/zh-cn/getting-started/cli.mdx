@@ -37,11 +37,11 @@ eidos create example.eidos \
   --title "Example" \
   --table Tasks \
   --label-field Title \
-  --fields '[{"name":"Title","type":"text","nullable":false},{"name":"Status","type":"select"}]'
+  --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
 ```
 
-同时创建第一张表，可以让文件在所有已发布编辑器中直接可用，也兼容还没有空文件启动页的旧
-CLI 版本。
+CLI 会把这张初始表设为文件默认表，并创建第一个 Grid 视图。字段默认允许空值；只有高级
+Schema 操作才需要显式配置非空约束。
 
 ## 3. 打开本地编辑器
 

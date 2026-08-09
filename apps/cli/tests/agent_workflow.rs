@@ -42,6 +42,15 @@ fn agent_can_create_query_mutate_and_validate_a_file() {
         r#"[{"name":"Title","type":"text","nullable":false},{"name":"Status","type":"select"},{"name":"Estimate","type":"integer"}]"#,
     ]);
     assert_eq!(created["file"]["revision"], "1");
+    let default_table_id = created["file"]["defaultTableId"]
+        .as_str()
+        .expect("initial table is the file default");
+    let schema = success(&[&file, "schema", "Tasks"]);
+    assert_eq!(schema["defaultTableId"], default_table_id);
+    assert_eq!(schema["tables"][0]["id"], default_table_id);
+    assert_eq!(schema["views"].as_array().unwrap().len(), 1);
+    assert_eq!(schema["views"][0]["name"], "Grid");
+    assert_eq!(schema["views"][0]["type"], "grid");
 
     let added = success(&[
         &file,

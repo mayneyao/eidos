@@ -28,7 +28,7 @@ export function firstTableTemplate(
       {
         name: locale === "zh" ? "任务" : "Task",
         type: "text",
-        nullable: false,
+        nullable: true,
         isRecordLabel: true,
       },
       {

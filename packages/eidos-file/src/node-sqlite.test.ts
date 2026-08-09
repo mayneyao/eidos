@@ -199,5 +199,118 @@ describe.runIf(supportsElectron43NodeSqlite)(
         await rm(directory, { recursive: true, force: true })
       }
     })
+
+    it("rejects a create missing a required Field before SQLite write", async () => {
+      const connection = new NodeSqliteConnectionPort(
+        new DatabaseSync(":memory:")
+      )
+      const binding = await Runtime.create(
+        connection,
+        runtimeEnvironment(),
+        { title: "Required values" },
+        runtimeFactoryContext
+      )
+      const runtime = binding.service
+      try {
+        const plan = await runtime.preflightSchema(
+          {
+            expectedRevision: "0",
+            change: {
+              kind: "create-table",
+              clientKey: "tasks",
+              name: "Tasks",
+              position: "0",
+              fields: [
+                {
+                  clientKey: "title",
+                  name: "Title",
+                  kind: "text",
+                  nullable: false,
+                  position: "0",
+                },
+                {
+                  clientKey: "notes",
+                  name: "Notes",
+                  kind: "text",
+                  position: "1",
+                },
+                {
+                  clientKey: "tags",
+                  name: "Tags",
+                  kind: "multi-select",
+                  position: "2",
+                },
+              ],
+              labelFieldClientKey: "title",
+            },
+          },
+          runtimeContext("required-schema-plan")
+        )
+        const schema = await runtime.mutateSchema(
+          {
+            expectedRevision: "0",
+            planToken: plan.planToken,
+            actionsHash: plan.actionsHash,
+          },
+          runtimeContext("required-schema-apply")
+        )
+        const id = (clientKey: string) =>
+          schema.createdObjects.find(
+            (entry) => "clientKey" in entry && entry.clientKey === clientKey
+          )!.id
+        const tableId = id("tasks")
+        const titleId = id("title")
+        const notesId = id("notes")
+        const tagsId = id("tags")
+
+        await expect(
+          runtime.mutateRows(
+            {
+              tableId,
+              expectedRevision: schema.revision,
+              changes: [{ kind: "create", clientKey: "missing", values: {} }],
+            },
+            runtimeContext("missing-required-value")
+          )
+        ).rejects.toMatchObject({
+          code: "invalid-value",
+          fieldId: titleId,
+        })
+        expect(
+          (await runtime.getSnapshot({}, runtimeContext("after-rejection")))
+            .revision
+        ).toBe(schema.revision)
+
+        const inserted = await runtime.mutateRows(
+          {
+            tableId,
+            expectedRevision: schema.revision,
+            changes: [
+              {
+                kind: "create",
+                clientKey: "complete",
+                values: { [titleId]: "First" },
+              },
+            ],
+          },
+          runtimeContext("complete-required-value")
+        )
+        const rows = await runtime.getRowsById(
+          {
+            tableId,
+            rowIds: [inserted.created[0]!.rowId],
+            projection: {
+              fields: [titleId, notesId, tagsId],
+              resolveRelations: [],
+            },
+          },
+          runtimeContext("created-default-values")
+        )
+        expect(rows.rows[0]!.values).toEqual(["First", null, []])
+      } finally {
+        await runtime.close(runtimeContext("close-required-values"))
+        connection.close()
+      }
+    })
   }
 )

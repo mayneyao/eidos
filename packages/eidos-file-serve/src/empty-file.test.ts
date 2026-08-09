@@ -41,9 +41,14 @@ describe("CLI-hosted empty Eidos Files", () => {
     expect(firstTableTemplate("tasks", "zh")).toMatchObject({
       name: "任务",
       fields: [
-        { name: "任务", type: "text", isRecordLabel: true },
-        { name: "状态", type: "select" },
-        { name: "截止日期", type: "date" },
+        {
+          name: "任务",
+          type: "text",
+          isRecordLabel: true,
+          nullable: true,
+        },
+        { name: "状态", type: "select", nullable: true },
+        { name: "截止日期", type: "date", nullable: true },
       ],
     })
   })

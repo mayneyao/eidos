@@ -13,7 +13,9 @@ use eidos_file_core::query::{
 use eidos_file_core::rows::{
     RowChange, RowMutation, ensure_revision, mutate_rows, mutate_rows_in_transaction,
 };
-use eidos_file_core::schema_ops::{SchemaLeafChange, apply_schema_change, preview_schema_change};
+use eidos_file_core::schema_ops::{
+    SchemaLeafChange, apply_initial_table, apply_schema_change, preview_schema_change,
+};
 use eidos_file_core::validate::{ValidationLevel, validate};
 use eidos_file_core::{EidosError, Result as CoreResult};
 use rusqlite::{Connection, OpenFlags, TransactionBehavior};
@@ -135,6 +137,7 @@ fn create(args: CreateArgs) -> Result<CommandOutput> {
     let result = (|| -> Result<Value> {
         let mut conn = open_file(&args.file, true)?;
         let mut schema_result = None;
+        let mut default_view_id = None;
         if let Some(table) = args.table {
             let fields = read_json_source(args.fields.as_deref().expect("clap requires fields"))?;
             let fields = fields.as_array().ok_or_else(|| {
@@ -150,13 +153,16 @@ fn create(args: CreateArgs) -> Result<CommandOutput> {
                 operation["labelField"] = json!(label_field);
             }
             let change = normalize_schema_change(&conn, operation)?;
-            schema_result = Some(apply_schema_change(&mut conn, &change, Some("0"))?);
+            let initialized = apply_initial_table(&mut conn, &change)?;
+            default_view_id = Some(initialized.view_id);
+            schema_result = Some(initialized.schema);
         }
         let meta = load_file_meta(&conn)?;
         Ok(json!({
             "created": true,
             "file": file_meta_json(&args.file, &meta),
             "schemaMutation": schema_result,
+            "defaultViewId": default_view_id,
         }))
     })();
     match result {

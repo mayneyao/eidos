@@ -1043,7 +1043,7 @@ export class EidosRuntimeService implements RuntimeClient {
         const inserts = request.changes
           .filter((change) => change.kind === "create")
           .map((change) => ({
-            fields: this.mutationValues(request.tableId, change.values),
+            fields: this.mutationValues(request.tableId, change.values, true),
           }))
         const updates = request.changes
           .filter((change) => change.kind === "update")
@@ -1120,11 +1120,11 @@ export class EidosRuntimeService implements RuntimeClient {
 
   private mutationValues(
     tableId: string,
-    values: Record<string, LogicalValue>
+    values: Record<string, LogicalValue>,
+    completeCreate = false
   ): Record<string, EidosFileLogicalRow["fields"][string]> {
-    const fields = new Map(
-      this.core.listFields(tableId).map((field) => [field.id!, field])
-    )
+    const tableFields = this.core.listFields(tableId)
+    const fields = new Map(tableFields.map((field) => [field.id!, field]))
     const normalized: Record<string, EidosFileLogicalRow["fields"][string]> = {}
     for (const [fieldId, value] of Object.entries(values)) {
       const field = fields.get(fieldId)
@@ -1181,6 +1181,27 @@ export class EidosRuntimeService implements RuntimeClient {
         normalized[fieldId] = parseSignedInt64(value as string, "Integer value")
       } else {
         normalized[fieldId] = value as EidosFileLogicalRow["fields"][string]
+      }
+    }
+    if (completeCreate) {
+      for (const field of tableFields) {
+        const fieldId = field.id!
+        if (!fieldWritable(field) || fieldId in normalized) continue
+        if (field.nullable) {
+          normalized[fieldId] = null
+          continue
+        }
+        if (
+          field.type === "multi-select" ||
+          field.type === "file" ||
+          field.type === "relation"
+        ) {
+          normalized[fieldId] = []
+          continue
+        }
+        throw runtimeError("invalid-value", "Required Field value is missing", {
+          fieldId,
+        })
       }
     }
     return normalized
