@@ -5,6 +5,10 @@ export default defineConfig({
   plugins: [
     cloudflareTest({
       miniflare: {
+        bindings: {
+          SYNC_ACCESS_ENFORCEMENT: "enforce",
+          SYNC_QUOTA_ENFORCEMENT: "shadow",
+        },
         serviceBindings: {
           EIDOS_ACCOUNT: async (request: Request) => {
             const users: Record<string, string> = {

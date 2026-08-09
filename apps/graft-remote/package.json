@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "check": "wrangler types worker-configuration.d.ts --include-runtime false --check && tsc --noEmit",
-    "deploy": "wrangler deploy",
+    "deploy": "pnpm deploy:production",
+    "deploy:production": "wrangler deploy --env=\"\" --strict",
     "deploy:staging": "wrangler deploy --env staging",
     "dev": "wrangler dev",
     "dev:staging": "wrangler dev --env staging",
+    "dry-run:production": "wrangler deploy --env=\"\" --dry-run --strict",
     "dry-run:staging": "wrangler deploy --env staging --dry-run",
     "smoke:account-cli": "node scripts/account-cli-e2e.mjs",
     "test": "vitest run --config vitest.config.ts",

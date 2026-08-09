@@ -13,8 +13,10 @@
   "vars": {
     "AUTH_USERINFO_URL": "https://eidos.space/api/sync/userinfo",
     "PUBLIC_REMOTE_ORIGIN": "https://sync.eidos.space",
-    // Identity must project an active Sync grant before repository access.
-    "SYNC_ACCESS_ENFORCEMENT": "enforce",
+    // Preserve existing Sync access while production claims are observed and
+    // explicit legacy entitlements are backfilled. Enable only after the
+    // rollout gates in eidos.space/db/eidos-cloud-billing.md are satisfied.
+    "SYNC_ACCESS_ENFORCEMENT": "off",
     // Track exact immutable bytes before enforcing the commercial 10 GB cap.
     "SYNC_QUOTA_ENFORCEMENT": "shadow",
   },
