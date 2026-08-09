@@ -22,7 +22,7 @@ and Graft for history or Sync.
 macOS and Linux:
 
 ```bash
-curl -LsSf https://download.eidos.space/cli/install.sh | sh
+curl -fsSL https://download.eidos.space/cli/install.sh | sh
 ```
 
 Windows PowerShell:
@@ -76,7 +76,6 @@ CLI rather than following the repository's moving development branch.
 cargo build
 
 target/debug/eidos create tracker.eidos \
-  --title "Project Tracker" \
   --table Tasks \
   --label-field Title \
   --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'

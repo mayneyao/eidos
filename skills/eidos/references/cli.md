@@ -45,14 +45,13 @@ eidos file.eidos schema Tasks
 Create an empty file:
 
 ```bash
-eidos create tracker.eidos --title "Project Tracker"
+eidos create tracker.eidos
 ```
 
 Create a file with an initial table:
 
 ```bash
 eidos create tracker.eidos \
-  --title "Project Tracker" \
   --table Tasks \
   --label-field Title \
   --fields '[

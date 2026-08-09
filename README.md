@@ -45,7 +45,7 @@ irm https://download.eidos.space/cli/install.ps1 | iex
 Create a file, then open the same editor UI locally:
 
 ```bash
-eidos create example.eidos --title "Example"
+eidos create example.eidos
 eidos serve example.eidos --open
 ```
 
@@ -105,7 +105,7 @@ pnpm test:sqlite-web-viewer
 # CLI
 cd apps/cli
 cargo test --workspace --locked
-cargo run -- create example.eidos --title Example
+cargo run -- create example.eidos
 cargo run -- serve example.eidos --open
 ```
 

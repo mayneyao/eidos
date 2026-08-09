@@ -28,7 +28,6 @@ Create the complete initial table in one operation, then validate:
 
 ```bash
 eidos create tracker.eidos \
-  --title "Launch Tracker" \
   --table Tasks \
   --label-field Title \
   --fields '[
