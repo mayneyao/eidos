@@ -17,8 +17,14 @@ import {
 const CONNECTOR_TICKET_TTL_MS = 5 * 60_000
 const BROWSER_SESSION_TTL_SECONDS = 12 * 60 * 60
 const BROWSER_SESSIONS_MAX = 64
+const BROWSER_AUTH_ATTEMPT_TTL_MS = 5 * 60_000
+const BROWSER_AUTH_ATTEMPTS_MAX = 16
+const BROWSER_GRANT_TTL_MS = 60_000
+const BROWSER_GRANTS_MAX = 16
 const RESPONSE_START_TIMEOUT_MS = 30_000
 const SESSION_COOKIE = "__Host-eidos_relay_session"
+
+type BrowserAccess = "account" | "share"
 
 interface TunnelStateRow {
   [key: string]: SqlStorageValue
@@ -27,11 +33,23 @@ interface TunnelStateRow {
   connector_hash: string | null
   connector_expires_at: number
   access_hash: string
+  browser_access: string
 }
 
 interface SessionRow {
   [key: string]: SqlStorageValue
   token_hash: string
+}
+
+interface BrowserAuthAttemptRow {
+  [key: string]: SqlStorageValue
+  verifier: string
+  expires_at: number
+}
+
+interface BrowserGrantRow {
+  [key: string]: SqlStorageValue
+  ticket_hash: string
 }
 
 interface ConnectorAttachment {
@@ -122,6 +140,17 @@ function cookie(request: Request, name: string): string | null {
   return null
 }
 
+function sessionCookie(session: string): string {
+  return (
+    `${SESSION_COOKIE}=${session}; Path=/; HttpOnly; Secure; ` +
+    `SameSite=Strict; Max-Age=${BROWSER_SESSION_TTL_SECONDS}`
+  )
+}
+
+function browserAccess(state: TunnelStateRow): BrowserAccess {
+  return state.browser_access === "account" ? "account" : "share"
+}
+
 function trustedBrowserRequest(
   request: Request,
   publicOrigin: string
@@ -199,17 +228,54 @@ export class TunnelDurableObject extends DurableObject<Env> {
         "connector_hash TEXT," +
         "connector_expires_at INTEGER NOT NULL," +
         "access_hash TEXT NOT NULL," +
+        "browser_access TEXT NOT NULL DEFAULT 'share'," +
         "updated_at INTEGER NOT NULL);" +
         "CREATE TABLE IF NOT EXISTS browser_sessions (" +
         "token_hash TEXT PRIMARY KEY," +
-        "expires_at INTEGER NOT NULL)"
+        "expires_at INTEGER NOT NULL);" +
+        "CREATE TABLE IF NOT EXISTS browser_auth_attempts (" +
+        "state_hash TEXT PRIMARY KEY," +
+        "verifier TEXT NOT NULL," +
+        "expires_at INTEGER NOT NULL," +
+        "created_at INTEGER NOT NULL);" +
+        "CREATE TABLE IF NOT EXISTS browser_grants (" +
+        "ticket_hash TEXT PRIMARY KEY," +
+        "expires_at INTEGER NOT NULL," +
+        "created_at INTEGER NOT NULL)"
     )
+    const columns = this.ctx.storage.sql
+      .exec<{ name: string }>("PRAGMA table_info(tunnel_state)")
+      .toArray()
+    if (!columns.some((column) => column.name === "browser_access")) {
+      this.ctx.storage.sql.exec(
+        "ALTER TABLE tunnel_state ADD COLUMN " +
+          "browser_access TEXT NOT NULL DEFAULT 'share'"
+      )
+    }
   }
 
   override async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
     if (url.pathname === "/_control/claim" && request.method === "POST") {
       return await this.claim(request)
+    }
+    if (
+      url.pathname === "/_control/browser-auth/start" &&
+      request.method === "POST"
+    ) {
+      return await this.startBrowserAuth(request)
+    }
+    if (
+      url.pathname === "/_control/browser-auth/consume" &&
+      request.method === "POST"
+    ) {
+      return await this.consumeBrowserAuth(request)
+    }
+    if (
+      url.pathname === "/_control/browser-auth/complete" &&
+      request.method === "POST"
+    ) {
+      return await this.completeBrowserAuth(request)
     }
     if (url.pathname === "/_connector") {
       return await this.connectWebSocket(request)
@@ -229,7 +295,8 @@ export class TunnelDurableObject extends DurableObject<Env> {
       body.userId.length === 0 ||
       body.userId.length > 256 ||
       typeof body.slug !== "string" ||
-      !/^u-[0-9a-f]{20}$/u.test(body.slug)
+      !/^u-[0-9a-f]{20}$/u.test(body.slug) ||
+      (body.browserAccess !== "account" && body.browserAccess !== "share")
     ) {
       return json({ error: { code: "invalid_request" } }, 400)
     }
@@ -246,22 +313,27 @@ export class TunnelDurableObject extends DurableObject<Env> {
     this.ctx.storage.sql.exec(
       "INSERT INTO tunnel_state(" +
         "singleton, owner_user_id, generation, connector_hash, " +
-        "connector_expires_at, access_hash, updated_at" +
-        ") VALUES (1, ?, ?, ?, ?, ?, ?) " +
+        "connector_expires_at, access_hash, browser_access, updated_at" +
+        ") VALUES (1, ?, ?, ?, ?, ?, ?, ?) " +
         "ON CONFLICT(singleton) DO UPDATE SET " +
         "owner_user_id=excluded.owner_user_id, " +
         "generation=excluded.generation, " +
         "connector_hash=excluded.connector_hash, " +
         "connector_expires_at=excluded.connector_expires_at, " +
-        "access_hash=excluded.access_hash, updated_at=excluded.updated_at",
+        "access_hash=excluded.access_hash, " +
+        "browser_access=excluded.browser_access, " +
+        "updated_at=excluded.updated_at",
       body.userId,
       generation,
       await tokenHash(connectorToken),
       connectorExpiresAt,
       await tokenHash(accessToken),
+      body.browserAccess,
       now
     )
     this.ctx.storage.sql.exec("DELETE FROM browser_sessions")
+    this.ctx.storage.sql.exec("DELETE FROM browser_auth_attempts")
+    this.ctx.storage.sql.exec("DELETE FROM browser_grants")
     for (const webSocket of this.ctx.getWebSockets("connector")) {
       webSocket.close(4001, "A newer Eidos Relay session took over")
     }
@@ -273,14 +345,164 @@ export class TunnelDurableObject extends DurableObject<Env> {
     const publicUrl = new URL(
       `https://${body.slug}${this.env.PUBLIC_HOST_LABEL_SUFFIX}.${this.env.PUBLIC_HOST_SUFFIX}/`
     )
-    publicUrl.hash = `access=${accessToken}`
+    if (body.browserAccess === "share") {
+      publicUrl.hash = `access=${accessToken}`
+    }
     return json({
       protocol: RELAY_PROTOCOL_VERSION,
+      browserAccess: body.browserAccess,
       publicUrl: publicUrl.toString(),
       connectorUrl: control.toString(),
       connectorToken,
       connectorExpiresAt,
     })
+  }
+
+  private async startBrowserAuth(request: Request): Promise<Response> {
+    const value = (await request.json()) as unknown
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return json({ error: { code: "invalid_request" } }, 400)
+    }
+    const body = value as Record<string, unknown>
+    if (
+      typeof body.state !== "string" ||
+      !/^u-[0-9a-f]{20}\.[A-Za-z0-9_-]{43}$/u.test(body.state) ||
+      typeof body.verifier !== "string" ||
+      !/^[A-Za-z0-9_-]{43}$/u.test(body.verifier)
+    ) {
+      return json({ error: { code: "invalid_request" } }, 400)
+    }
+    this.ensureSchema()
+    const state = this.state()
+    if (!state) {
+      return json({ error: { code: "not_found", message: "Not found" } }, 404)
+    }
+    if (browserAccess(state) !== "account") {
+      return json(
+        {
+          error: {
+            code: "pairing_required",
+            message: "This Relay uses a shared access link",
+          },
+        },
+        409
+      )
+    }
+    const now = Date.now()
+    this.ctx.storage.sql.exec(
+      "DELETE FROM browser_auth_attempts WHERE expires_at < ?",
+      now
+    )
+    this.ctx.storage.sql.exec(
+      "DELETE FROM browser_auth_attempts WHERE state_hash IN (" +
+        "SELECT state_hash FROM browser_auth_attempts ORDER BY created_at DESC " +
+        "LIMIT -1 OFFSET ?)",
+      BROWSER_AUTH_ATTEMPTS_MAX - 1
+    )
+    this.ctx.storage.sql.exec(
+      "INSERT INTO browser_auth_attempts(" +
+        "state_hash, verifier, expires_at, created_at" +
+        ") VALUES (?, ?, ?, ?)",
+      await tokenHash(body.state),
+      body.verifier,
+      now + BROWSER_AUTH_ATTEMPT_TTL_MS,
+      now
+    )
+    return json({ ok: true })
+  }
+
+  private async consumeBrowserAuth(request: Request): Promise<Response> {
+    const value = (await request.json()) as unknown
+    const stateValue =
+      typeof value === "object" && value !== null && !Array.isArray(value)
+        ? (value as Record<string, unknown>).state
+        : null
+    if (
+      typeof stateValue !== "string" ||
+      !/^u-[0-9a-f]{20}\.[A-Za-z0-9_-]{43}$/u.test(stateValue)
+    ) {
+      return json({ error: { code: "invalid_request" } }, 400)
+    }
+    this.ensureSchema()
+    const stateHash = await tokenHash(stateValue)
+    const attempt = this.ctx.storage.sql
+      .exec<BrowserAuthAttemptRow>(
+        "SELECT verifier, expires_at FROM browser_auth_attempts " +
+          "WHERE state_hash=?",
+        stateHash
+      )
+      .toArray()[0]
+    this.ctx.storage.sql.exec(
+      "DELETE FROM browser_auth_attempts WHERE state_hash=?",
+      stateHash
+    )
+    if (!attempt || attempt.expires_at < Date.now()) {
+      return json(
+        {
+          error: {
+            code: "oauth_expired",
+            message: "This Eidos sign-in attempt expired",
+          },
+        },
+        400
+      )
+    }
+    return json({ verifier: attempt.verifier })
+  }
+
+  private async completeBrowserAuth(request: Request): Promise<Response> {
+    const value = (await request.json()) as unknown
+    const userId =
+      typeof value === "object" && value !== null && !Array.isArray(value)
+        ? (value as Record<string, unknown>).userId
+        : null
+    if (
+      typeof userId !== "string" ||
+      userId.length === 0 ||
+      userId.length > 256 ||
+      /[\u0000-\u001f\u007f]/u.test(userId)
+    ) {
+      return json({ error: { code: "invalid_request" } }, 400)
+    }
+    this.ensureSchema()
+    const state = this.state()
+    if (!state) {
+      return json({ error: { code: "not_found", message: "Not found" } }, 404)
+    }
+    if (browserAccess(state) !== "account") {
+      return json({ error: { code: "access_mode_changed" } }, 409)
+    }
+    if (state.owner_user_id !== userId) {
+      return json(
+        {
+          error: {
+            code: "wrong_account",
+            message: "This Relay belongs to another Eidos account",
+          },
+        },
+        403
+      )
+    }
+    const ticket = randomToken()
+    const now = Date.now()
+    this.ctx.storage.sql.exec(
+      "DELETE FROM browser_grants WHERE expires_at < ?",
+      now
+    )
+    this.ctx.storage.sql.exec(
+      "DELETE FROM browser_grants WHERE ticket_hash IN (" +
+        "SELECT ticket_hash FROM browser_grants ORDER BY created_at DESC " +
+        "LIMIT -1 OFFSET ?)",
+      BROWSER_GRANTS_MAX - 1
+    )
+    this.ctx.storage.sql.exec(
+      "INSERT INTO browser_grants(ticket_hash, expires_at, created_at) " +
+        "VALUES (?, ?, ?)",
+      await tokenHash(ticket),
+      now + BROWSER_GRANT_TTL_MS,
+      now
+    )
+    return json({ ticket })
   }
 
   private async connectWebSocket(request: Request): Promise<Response> {
@@ -338,26 +560,56 @@ export class TunnelDurableObject extends DurableObject<Env> {
         403
       )
     }
-    if (!this.state()) {
+    const state = this.state()
+    if (!state) {
       return json({ error: { code: "not_found", message: "Not found" } }, 404)
     }
     const targetPath = target.split("?", 1)[0] ?? "/"
+    if (targetPath === "/_eidos/auth/callback" && request.method === "GET") {
+      return await this.redeemBrowserGrant(target)
+    }
+    const session = cookie(request, SESSION_COOKIE)
+    const hasSession = session !== null && (await this.hasSession(session))
+    if (
+      browserAccess(state) === "account" &&
+      targetPath === "/" &&
+      request.method === "GET" &&
+      !hasSession
+    ) {
+      const location = new URL(
+        "/v1/browser-auth/start",
+        this.env.CONTROL_ORIGIN
+      )
+      location.searchParams.set("return_to", publicOrigin)
+      return new Response(null, {
+        status: 302,
+        headers: {
+          "Cache-Control": "private, no-store",
+          Location: location.toString(),
+          "Referrer-Policy": "no-referrer",
+          "X-Content-Type-Options": "nosniff",
+        },
+      })
+    }
     if (targetPath === "/api/session" && request.method === "POST") {
+      if (browserAccess(state) !== "share") {
+        return json({ error: { code: "not_found", message: "Not found" } }, 404)
+      }
       return await this.pair(request)
     }
-    if (targetPath.startsWith("/api/")) {
-      const session = cookie(request, SESSION_COOKIE)
-      if (session === null || !(await this.hasSession(session))) {
-        return json(
-          {
-            error: {
-              code: "unauthorized",
-              message: "Open the Eidos Relay access link to pair this browser",
-            },
+    if (targetPath.startsWith("/api/") && !hasSession) {
+      return json(
+        {
+          error: {
+            code: "unauthorized",
+            message:
+              browserAccess(state) === "account"
+                ? "Sign in with the Eidos account that started this Relay"
+                : "Open the Eidos Relay access link to pair this browser",
           },
-          401
-        )
-      }
+        },
+        401
+      )
     }
     try {
       return await this.forward(request, target)
@@ -390,6 +642,68 @@ export class TunnelDurableObject extends DurableObject<Env> {
         401
       )
     }
+    const session = await this.createBrowserSession()
+    return json({ ok: true }, 200, {
+      "Set-Cookie": sessionCookie(session),
+    })
+  }
+
+  private async redeemBrowserGrant(target: string): Promise<Response> {
+    const callback = new URL(target, "https://relay.invalid")
+    const ticket = callback.searchParams.get("ticket")
+    if (
+      callback.pathname !== "/_eidos/auth/callback" ||
+      callback.searchParams.size !== 1 ||
+      ticket === null ||
+      ticket.length === 0 ||
+      ticket.length > 512
+    ) {
+      return json(
+        {
+          error: { code: "invalid_request", message: "Invalid sign-in ticket" },
+        },
+        400
+      )
+    }
+    this.ensureSchema()
+    const ticketHash = await tokenHash(ticket)
+    const grant = this.ctx.storage.sql
+      .exec<BrowserGrantRow>(
+        "SELECT ticket_hash FROM browser_grants " +
+          "WHERE ticket_hash=? AND expires_at>=?",
+        ticketHash,
+        Date.now()
+      )
+      .toArray()[0]
+    this.ctx.storage.sql.exec(
+      "DELETE FROM browser_grants WHERE ticket_hash=?",
+      ticketHash
+    )
+    if (grant?.ticket_hash !== ticketHash) {
+      return json(
+        {
+          error: {
+            code: "oauth_expired",
+            message: "This Eidos sign-in ticket expired",
+          },
+        },
+        401
+      )
+    }
+    const session = await this.createBrowserSession()
+    return new Response(null, {
+      status: 303,
+      headers: {
+        "Cache-Control": "private, no-store",
+        Location: "/",
+        "Referrer-Policy": "no-referrer",
+        "Set-Cookie": sessionCookie(session),
+        "X-Content-Type-Options": "nosniff",
+      },
+    })
+  }
+
+  private async createBrowserSession(): Promise<string> {
     const session = randomToken()
     const expiresAt = Date.now() + BROWSER_SESSION_TTL_SECONDS * 1000
     this.ctx.storage.sql.exec(
@@ -407,11 +721,7 @@ export class TunnelDurableObject extends DurableObject<Env> {
       await tokenHash(session),
       expiresAt
     )
-    return json({ ok: true }, 200, {
-      "Set-Cookie":
-        `${SESSION_COOKIE}=${session}; Path=/; HttpOnly; Secure; ` +
-        `SameSite=Strict; Max-Age=${BROWSER_SESSION_TTL_SECONDS}`,
-    })
+    return session
   }
 
   private async hasSession(session: string): Promise<boolean> {
@@ -633,7 +943,8 @@ export class TunnelDurableObject extends DurableObject<Env> {
       this.ctx.storage.sql
         .exec<TunnelStateRow>(
           "SELECT owner_user_id, generation, connector_hash, " +
-            "connector_expires_at, access_hash FROM tunnel_state WHERE singleton=1"
+            "connector_expires_at, access_hash, browser_access " +
+            "FROM tunnel_state WHERE singleton=1"
         )
         .toArray()[0] ?? null
     )

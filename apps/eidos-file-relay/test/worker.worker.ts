@@ -5,6 +5,7 @@ import { publicSlug } from "../src/index"
 
 interface TunnelClaim {
   protocol: number
+  browserAccess: "account" | "share"
   publicUrl: string
   connectorUrl: string
   connectorToken: string
@@ -47,6 +48,13 @@ describe("Eidos File Relay", () => {
       "https://u-00000000000000000000.eidos.ink/"
     )
     expect(response.status).toBe(404)
+
+    const nonCanonicalStart = await SELF.fetch(
+      "https://relay.eidos.ink/v1/browser-auth/start?return_to=" +
+        encodeURIComponent("https://u-00000000000000000000.eidos.ink:8443/"),
+      { redirect: "manual" }
+    )
+    expect(nonCanonicalStart.status).toBe(400)
   })
 
   it("requires an Eidos account and derives a stable opaque hostname", async () => {
@@ -69,8 +77,108 @@ describe("Eidos File Relay", () => {
       new URL(first.publicUrl).hostname
     )
     expect(first.connectorToken).not.toBe(second.connectorToken)
+    expect(first.browserAccess).toBe("share")
     expect(new URL(first.publicUrl).hash).toMatch(/^#access=.+/u)
     expect(first.connectorUrl).not.toContain(first.connectorToken)
+  })
+
+  it("uses Eidos account sign-in by default for explicit modern claims", async () => {
+    const claimValue = await claim("alice-token", "account")
+    const publicUrl = new URL(claimValue.publicUrl)
+    expect(claimValue.browserAccess).toBe("account")
+    expect(publicUrl.hash).toBe("")
+
+    const unauthorizedApi = await SELF.fetch(
+      new URL("/api/manifest", publicUrl),
+      { headers: { Origin: publicUrl.origin } }
+    )
+    expect(unauthorizedApi.status).toBe(401)
+    await expect(unauthorizedApi.json()).resolves.toMatchObject({
+      error: { message: expect.stringContaining("Eidos account") },
+    })
+
+    const root = await SELF.fetch(publicUrl, { redirect: "manual" })
+    expect(root.status).toBe(302)
+    const startUrl = new URL(root.headers.get("location") ?? "")
+    expect(startUrl.origin).toBe("https://relay.eidos.ink")
+    expect(startUrl.pathname).toBe("/v1/browser-auth/start")
+    expect(startUrl.searchParams.get("return_to")).toBe(publicUrl.origin)
+
+    const authorization = await SELF.fetch(startUrl, { redirect: "manual" })
+    expect(authorization.status).toBe(302)
+    const authorizationUrl = new URL(
+      authorization.headers.get("location") ?? ""
+    )
+    expect(authorizationUrl.origin).toBe("https://eidos.space")
+    expect(authorizationUrl.pathname).toBe("/api/auth/oauth2/authorize")
+    expect(authorizationUrl.searchParams.get("client_id")).toBe(
+      "relay.eidos.ink"
+    )
+    expect(authorizationUrl.searchParams.get("scope")).toBe("openid")
+    expect(authorizationUrl.searchParams.get("code_challenge_method")).toBe(
+      "S256"
+    )
+    expect(authorizationUrl.searchParams.get("redirect_uri")).toBe(
+      "https://relay.eidos.ink/v1/browser-auth/callback"
+    )
+
+    const callback = new URL(
+      authorizationUrl.searchParams.get("redirect_uri") ?? ""
+    )
+    callback.searchParams.set("code", "alice-code")
+    callback.searchParams.set(
+      "state",
+      authorizationUrl.searchParams.get("state") ?? ""
+    )
+    const completed = await SELF.fetch(callback, { redirect: "manual" })
+    expect(completed.status).toBe(303)
+    const ticketUrl = new URL(completed.headers.get("location") ?? "")
+    expect(ticketUrl.origin).toBe(publicUrl.origin)
+    expect(ticketUrl.pathname).toBe("/_eidos/auth/callback")
+    expect(ticketUrl.searchParams.get("ticket")).toMatch(/^[A-Za-z0-9_-]{43}$/u)
+
+    const redeemed = await SELF.fetch(ticketUrl, { redirect: "manual" })
+    expect(redeemed.status).toBe(303)
+    expect(redeemed.headers.get("location")).toBe("/")
+    const cookie = redeemed.headers.get("set-cookie")?.split(";", 1)[0]
+    expect(cookie).toMatch(/^__Host-eidos_relay_session=/u)
+
+    const authenticated = await SELF.fetch(
+      new URL("/api/manifest", publicUrl),
+      {
+        headers: {
+          Cookie: cookie ?? "",
+          Origin: publicUrl.origin,
+        },
+      }
+    )
+    expect(authenticated.status).toBe(503)
+
+    const reused = await SELF.fetch(ticketUrl, { redirect: "manual" })
+    expect(reused.status).toBe(401)
+  })
+
+  it("does not authorize the wrong Eidos account for a Relay", async () => {
+    const claimValue = await claim("alice-token", "account")
+    const publicUrl = new URL(claimValue.publicUrl)
+    const root = await SELF.fetch(publicUrl, { redirect: "manual" })
+    const start = await SELF.fetch(root.headers.get("location") ?? "", {
+      redirect: "manual",
+    })
+    const authorization = new URL(start.headers.get("location") ?? "")
+    const callback = new URL(
+      authorization.searchParams.get("redirect_uri") ?? ""
+    )
+    callback.searchParams.set("code", "bob-code")
+    callback.searchParams.set(
+      "state",
+      authorization.searchParams.get("state") ?? ""
+    )
+    const response = await SELF.fetch(callback, { redirect: "manual" })
+    expect(response.status).toBe(403)
+    expect(await response.text()).toContain(
+      "Use the account that started this Relay"
+    )
   })
 
   it("pairs a browser at the edge and streams a connector response", async () => {
@@ -220,10 +328,17 @@ describe("Eidos File Relay", () => {
   })
 })
 
-async function claim(token: string): Promise<TunnelClaim> {
+async function claim(
+  token: string,
+  browserAccess?: "account" | "share"
+): Promise<TunnelClaim> {
   const response = await SELF.fetch("https://relay.eidos.ink/v1/tunnels", {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(browserAccess ? { "Content-Type": "application/json" } : {}),
+    },
+    ...(browserAccess ? { body: JSON.stringify({ browserAccess }) } : {}),
   })
   expect(response.status).toBe(200)
   return (await response.json()) as TunnelClaim

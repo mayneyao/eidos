@@ -15,6 +15,7 @@
     },
   ],
   "vars": {
+    "AUTH_ORIGIN": "https://eidos.space",
     "AUTH_USERINFO_URL": "https://eidos.space/api/auth/oauth2/userinfo",
     "CONTROL_ORIGIN": "https://relay.eidos.ink",
     "PUBLIC_HOST_LABEL_SUFFIX": "",
@@ -68,6 +69,7 @@
         },
       ],
       "vars": {
+        "AUTH_ORIGIN": "https://staging.eidos.space",
         "AUTH_USERINFO_URL": "https://staging.eidos.space/api/auth/oauth2/userinfo",
         "CONTROL_ORIGIN": "https://relay-staging.eidos.ink",
         "PUBLIC_HOST_LABEL_SUFFIX": "-staging",

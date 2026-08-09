@@ -7,6 +7,25 @@ export default defineConfig({
       miniflare: {
         serviceBindings: {
           EIDOS_ACCOUNT: async (request: Request) => {
+            const url = new URL(request.url)
+            if (
+              url.pathname === "/api/auth/oauth2/token" &&
+              request.method === "POST"
+            ) {
+              const form = new URLSearchParams(await request.text())
+              const user =
+                form.get("code") === "alice-code"
+                  ? "alice"
+                  : form.get("code") === "bob-code"
+                    ? "bob"
+                    : null
+              return user
+                ? Response.json({
+                    access_token: `${user}-token`,
+                    token_type: "Bearer",
+                  })
+                : Response.json({ error: "invalid_grant" }, { status: 400 })
+            }
             const users: Record<string, string> = {
               "Bearer alice-token": "alice",
               "Bearer bob-token": "bob",

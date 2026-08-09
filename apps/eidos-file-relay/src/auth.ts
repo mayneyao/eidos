@@ -106,6 +106,21 @@ export async function authenticateEidosUser(
   env: Env
 ): Promise<RelayPrincipal> {
   const authorization = bearerAuthorization(request)
+  return await authenticateEidosAuthorization(authorization, env)
+}
+
+export async function authenticateEidosAuthorization(
+  authorization: string,
+  env: Env
+): Promise<RelayPrincipal> {
+  if (
+    !authorization.startsWith("Bearer ") ||
+    authorization.length <= "Bearer ".length ||
+    authorization.length > BEARER_TOKEN_BYTES_MAX ||
+    /[\r\n]/u.test(authorization)
+  ) {
+    throw new RelayHttpError(401, "unauthorized", "Sign in to Eidos first")
+  }
   let endpoint: URL
   try {
     endpoint = new URL(env.AUTH_USERINFO_URL)
