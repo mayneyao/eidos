@@ -1,6 +1,6 @@
 ## What's new
 
-### Create a table, then open it from another device on a trusted LAN
+### Create a table, then open it securely from any device
 
 Start by creating an Eidos File with a `Tasks` table:
 
@@ -11,42 +11,47 @@ eidos create tracker.eidos \
   --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
 ```
 
-Then start the embedded editor in LAN mode:
+Sign in once, verify the reusable CLI session, and publish the embedded editor
+through Eidos Relay:
 
 ```sh
-eidos serve tracker.eidos --lan
+eidos login
+eidos whoami
+eidos serve tracker.eidos --relay --open
 ```
 
-Open the printed URL from a phone, tablet, or another computer on the same
-trusted network. If automatic interface detection does not select the address
-you want, provide that private address explicitly:
+`eidos login` uses Authorization Code + PKCE and stores the renewable session
+in an owner-only user configuration file. Later Relay commands silently reuse
+or refresh it without a macOS Keychain or other operating-system credential
+prompt.
+
+The account receives a stable opaque `u-….eidos.ink` hostname. By default, the
+printed URL contains no access key: every browser signs in through eidos.space,
+and only the account that started the Relay can open the editor. The CLI keeps
+the file and Runtime on the local machine and connects through one outbound
+WebSocket.
+
+Create a guest link explicitly when another person should be able to edit
+without the owner's Eidos account:
 
 ```sh
-eidos serve tracker.eidos --lan --host 192.168.1.20
+eidos serve tracker.eidos --relay --share
 ```
 
-`eidos serve` still binds to `127.0.0.1` by default. The new `--lan` mode
-detects and binds one private interface.
+The `--share` URL contains a fragment-only access key. Treat it like a
+credential and share it only with intended collaborators.
 
-The printed URL carries a fragment-only access key. Opening it establishes a
-process-local, HttpOnly browser session; API Host and Origin checks remain
-restricted to the exact bound address. Public and wildcard bind addresses are
-rejected.
+### Faster row creation over Relay
 
-LAN mode uses plain HTTP and is intended only for a private network you trust.
+Adding a row in the embedded editor is now optimistic. The new row appears and
+accepts edits immediately while the Runtime mutation completes in the
+background, so Relay latency no longer blocks the appended-row editor. The UI
+reconciles the temporary Row ID with the committed Row ID and removes the
+placeholder if creation fails.
 
-### Smoother multi-browser editing
-
-All paired browsers share one authoritative Runtime writer. Mutations remain
-serialized, and committed revisions are pushed to the other browsers without
-a manual refresh.
-
-When two browsers edit different ordinary fields at the same time, the stale
-edit can now be reapplied once after the editor reads fresh state and verifies
-that the edited field still equals its original value. Overlapping edits,
-second stale revisions, Relation or File writes, schema/View changes, and
-unknown commit outcomes continue to preserve the draft and require explicit
-user choice.
+Other browsers still receive committed revisions from the single authoritative
+Runtime writer. This preserves serialized file mutations while making the
+initiating browser feel immediate.
 
 ### Version-matched Eidos Skill for Codex
 
@@ -54,7 +59,7 @@ Install the Eidos Skill from this immutable CLI tag to keep the safe
 `context` → `apply` → `validate` workflow aligned with the release:
 
 ```sh
-npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.4/skills/eidos --skill eidos -g -a codex -y
+npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.5/skills/eidos --skill eidos -g -a codex -y
 ```
 
 ## Install
@@ -71,5 +76,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v0.36.4 and verify the downloaded archive against the
+The installers select v0.36.5 and verify the downloaded archive against the
 release `SHA256SUMS` before replacing an existing binary.
