@@ -6,10 +6,12 @@ import {
   decodeEidosFileValues,
   encodeEidosFileAttachmentPaths,
   encodeEidosFileValues,
+  type EidosFileFieldInfo,
   type EidosFileRow,
   type EidosFileRowPage,
   type EidosFileRowMutationResult,
   type EidosFileRowsMutationResult,
+  type EidosFileSqlPrimitive,
   type EidosFileTableSnapshot,
   type FileEntry,
 } from "@eidos.space/eidos-file"
@@ -1165,6 +1167,87 @@ describe("EidosFileGrid", () => {
     expect(mocks.props?.getCellContent([0, 250])).toMatchObject({
       kind: GridCellKind.Text,
       data: "Row 250",
+    })
+  })
+
+  it("renders and edits a new row before its authoritative insert settles", async () => {
+    let resolveInsert:
+      | ((result: EidosFileRowMutationResult) => void)
+      | undefined
+    const settled = new Promise<EidosFileRowMutationResult>((resolve) => {
+      resolveInsert = resolve
+    })
+    const onAddRow = vi.fn(() => ({
+      tableId: "tasks",
+      row: { _id: "optimistic:new-row" },
+      rowCount: 1,
+      settled,
+    }))
+    const onCellEdit = vi.fn(
+      async (
+        row: EidosFileRow,
+        field: EidosFileFieldInfo,
+        value: EidosFileSqlPrimitive
+      ) => ({
+        tableId: "tasks",
+        row: { ...row, [field.tableColumnName]: value },
+        rowCount: 1,
+      })
+    )
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={{ ...table, rowCount: 0 }}
+          loadPage={vi.fn(async () => ({
+            tableId: "tasks",
+            offset: 0,
+            limit: 100,
+            total: 0,
+            rows: [],
+          }))}
+          onAddRow={onAddRow}
+          onCellEdit={onCellEdit}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    await act(async () => {
+      await mocks.props?.onRowAppended?.()
+    })
+    expect(mocks.props?.rows).toBe(1)
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({ data: "" })
+
+    act(() => {
+      mocks.props?.onCellEdited?.([0, 0], {
+        kind: GridCellKind.Text,
+        allowOverlay: true,
+        data: "Draft task",
+        displayData: "Draft task",
+      })
+    })
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "Draft task",
+    })
+    expect(onCellEdit).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveInsert?.({
+        tableId: "tasks",
+        row: { _id: "row_created", title: null, done: 0 },
+        rowCount: 1,
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(onCellEdit).toHaveBeenCalledWith(
+      expect.objectContaining({ _id: "row_created" }),
+      expect.objectContaining({ tableColumnName: "title" }),
+      "Draft task"
+    )
+    expect(mocks.props?.getCellContent([0, 0])).toMatchObject({
+      data: "Draft task",
     })
   })
 

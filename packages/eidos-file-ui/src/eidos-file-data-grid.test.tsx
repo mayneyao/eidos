@@ -228,6 +228,57 @@ describe("EidosFileDataGrid", () => {
     expect(mocks.props?.onRowCountChange).toBe(onSearchResultCountChange)
   })
 
+  it("returns an optimistic row while the Runtime insert is pending", async () => {
+    let resolveInsert:
+      | ((result: EidosFileRowMutationResult) => void)
+      | undefined
+    const insertRow = vi.fn(
+      () =>
+        new Promise<EidosFileRowMutationResult>((resolve) => {
+          resolveInsert = resolve
+        })
+    )
+    const onMutation = vi.fn()
+    const source = {
+      insertRow,
+    } as unknown as EidosFileDataSource
+
+    await act(async () => {
+      root.render(
+        <EidosFileDataGrid
+          source={source}
+          table={{ ...table, rowCount: 3 }}
+          onMutation={onMutation}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const addRow = mocks.props?.onAddRow
+    expect(typeof addRow).toBe("function")
+    const optimistic = (
+      addRow as () => {
+        row: EidosFileRow
+        rowCount: number
+        settled: Promise<EidosFileRowMutationResult>
+      }
+    )()
+    expect(optimistic.row._id).toMatch(/^optimistic:/)
+    expect(optimistic.rowCount).toBe(4)
+    expect(onMutation).not.toHaveBeenCalled()
+
+    const committed: EidosFileRowMutationResult = {
+      tableId: "tasks",
+      row: { _id: "row_created" },
+      rowCount: 4,
+    }
+    await act(async () => {
+      resolveInsert?.(committed)
+      await expect(optimistic.settled).resolves.toBe(committed)
+    })
+    expect(onMutation).toHaveBeenCalledWith(committed)
+  })
+
   it("searches relation targets through the public data source contract", async () => {
     const getPage = vi.fn().mockResolvedValue({
       tableId: "people",

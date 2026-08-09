@@ -15,11 +15,24 @@ import type {
   UpdateEidosFileViewInput,
 } from "@eidos.space/eidos-file"
 
-import { EidosFileGrid } from "./eidos-file-grid"
+import {
+  EidosFileGrid,
+  type EidosFileGridAppendResult,
+} from "./eidos-file-grid"
 import type { EidosFileEditorDataSource } from "./data-source"
 import { EidosFileFieldDeleteDialog } from "./eidos-file-field-delete-dialog"
 import { eidosFileFieldKey } from "./eidos-file-field-visibility"
 import { searchEidosFileRelationRecords } from "./eidos-file-relation-search"
+
+let optimisticRowSequence = 0
+
+function optimisticRowId(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return `optimistic:${globalThis.crypto.randomUUID()}`
+  }
+  optimisticRowSequence += 1
+  return `optimistic:${Date.now().toString(36)}:${optimisticRowSequence.toString(36)}`
+}
 
 export interface EidosFileDataGridProps {
   source: EidosFileEditorDataSource
@@ -184,11 +197,18 @@ export function EidosFileDataGrid({
     [query, source, table.table.id]
   )
 
-  const addRow = useCallback(async () => {
-    const result = await source.insertRow(table.table.id, {})
-    onMutation?.(result)
-    return result
-  }, [onMutation, source, table.table.id])
+  const addRow = useCallback((): EidosFileGridAppendResult => {
+    const settled = source.insertRow(table.table.id, {}).then((result) => {
+      onMutation?.(result)
+      return result
+    })
+    return {
+      tableId: table.table.id,
+      row: { _id: optimisticRowId() },
+      rowCount: table.rowCount + 1,
+      settled,
+    }
+  }, [onMutation, source, table.rowCount, table.table.id])
 
   const editCell = useCallback(
     async (

@@ -158,7 +158,7 @@ export interface EidosFileGridProps {
   loadColumnStats?: (
     configs: EidosFileColumnStatConfig[]
   ) => Promise<EidosFileColumnStatResult[]>
-  onAddRow: () => Promise<EidosFileRowMutationResult>
+  onAddRow: () => EidosFileGridAppendResult | Promise<EidosFileGridAppendResult>
   onCellEdit: (
     row: EidosFileRow,
     field: EidosFileFieldInfo,
@@ -196,6 +196,15 @@ export interface EidosFileGridProps {
   onRequestDeleteRows?: (ranges: EidosFileRowRange[]) => void
   onViewUpdate?: (changes: UpdateEidosFileViewInput) => Promise<void> | void
   onError?: (error: unknown) => void
+}
+
+export interface EidosFileGridAppendResult extends EidosFileRowMutationResult {
+  /**
+   * When present, `row` is an optimistic placeholder that can render and be
+   * edited immediately. The settled mutation supplies the authoritative Row
+   * ID and revision without blocking Glide's appended-row editor.
+   */
+  settled?: Promise<EidosFileRowMutationResult>
 }
 
 export interface EidosFileGridRowEdit {
@@ -428,6 +437,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const widthSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rowsRef = useRef(new Map<number, EidosFileRow>())
   const rowMutationRevisionRef = useRef(new Map<number, number>())
+  const pendingRowCreatesRef = useRef(
+    new Map<string, Promise<EidosFileRowMutationResult>>()
+  )
+  const rowIdAliasesRef = useRef(new Map<string, string>())
   const loadedPagesRef = useRef(new Set<number>())
   const loadingPagesRef = useRef(new Map<number, number>())
   const pageAccessRef = useRef(new Map<number, number>())
@@ -452,6 +465,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   onSelectedRowsChangeRef.current = onSelectedRowsChange
   const [cacheRevision, setCacheRevision] = useState(0)
   const [rowCount, setRowCount] = useState(table.rowCount)
+  const rowCountRef = useRef(rowCount)
+  rowCountRef.current = rowCount
   const [fieldMenu, setFieldMenu] = useState<EidosFileFieldMenuState | null>(
     null
   )
@@ -661,6 +676,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     if (!preserveData) {
       rowsRef.current.clear()
       rowMutationRevisionRef.current.clear()
+      pendingRowCreatesRef.current.clear()
+      rowIdAliasesRef.current.clear()
       visiblePagesRef.current.clear()
       historyRowsRef.current = new Set()
       mutationInFlightRef.current = false
@@ -1007,12 +1024,61 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     })
   }, [columns.length, requestVisiblePages, rowCount, searchResultIndex])
 
+  const canonicalRowId = useCallback((value: unknown): string | undefined => {
+    if (typeof value !== "string" && typeof value !== "number") {
+      return undefined
+    }
+    let id = String(value)
+    const visited = new Set<string>()
+    while (!visited.has(id)) {
+      visited.add(id)
+      const next = rowIdAliasesRef.current.get(id)
+      if (!next) break
+      id = next
+    }
+    return id
+  }, [])
+
+  const sameRowIdentity = useCallback(
+    (left: unknown, right: unknown) => {
+      const leftId = canonicalRowId(left)
+      return leftId !== undefined && leftId === canonicalRowId(right)
+    },
+    [canonicalRowId]
+  )
+
+  const resolvePendingRow = useCallback(
+    (row: EidosFileRow): EidosFileRow | Promise<EidosFileRow> => {
+      const id = eidosFileRowIdentity(row)
+      if (!id) return row
+      const pending = pendingRowCreatesRef.current.get(id)
+      if (pending) {
+        return pending.then((created) => {
+          const authoritativeId = eidosFileRowIdentity(created.row)
+          if (authoritativeId) rowIdAliasesRef.current.set(id, authoritativeId)
+          return created.row
+        })
+      }
+      const canonical = canonicalRowId(id)
+      if (!canonical || canonical === id) return row
+      for (const current of rowsRef.current.values()) {
+        if (eidosFileRowIdentity(current) === canonical) return current
+      }
+      return { ...row, _id: canonical }
+    },
+    [canonicalRowId]
+  )
+
   const persistRowEdits = useCallback(
     async (
       rowEdits: EidosFileGridPendingRowEdit[],
       editedCellCount: number
     ): Promise<EidosFileRowsMutationResult> => {
-      if (onRowsEdit && editedCellCount > 1) {
+      const hasPendingCreate = rowEdits.some((edit) => {
+        const id = eidosFileRowIdentity(edit.previous)
+        return id ? pendingRowCreatesRef.current.has(id) : false
+      })
+      if (onRowsEdit && editedCellCount > 1 && !hasPendingCreate) {
         return onRowsEdit(
           rowEdits.map(({ previous, changes }) => ({
             row: previous,
@@ -1024,7 +1090,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       let nextRowCount = rowCount
       const rows: EidosFileRow[] = []
       for (const edit of rowEdits) {
-        let latest = edit.previous
+        const resolved = resolvePendingRow(edit.previous)
+        let latest = resolved instanceof Promise ? await resolved : resolved
         for (const [column, value] of Object.entries(edit.changes)) {
           const field = edit.fields.get(column)
           if (!field) continue
@@ -1040,7 +1107,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       }
       return { tableId: table.table.id, rows, rowCount: nextRowCount }
     },
-    [onCellEdit, onRowsEdit, rowCount, table.table.id]
+    [onCellEdit, onRowsEdit, resolvePendingRow, rowCount, table.table.id]
   )
 
   const mergeGridMutations = useCallback(
@@ -1119,11 +1186,12 @@ export const EidosFileGrid = memo(function EidosFileGrid({
         let changed = false
         for (const edit of mutation.rowEdits) {
           const current = rowsRef.current.get(edit.rowIndex)
-          const persisted = rowsById.get(String(edit.previous._id))
+          const persistedId = canonicalRowId(edit.previous._id)
+          const persisted = persistedId ? rowsById.get(persistedId) : undefined
           if (
             persisted &&
             current &&
-            String(current._id) === String(edit.previous._id) &&
+            sameRowIdentity(current._id, edit.previous._id) &&
             rowMutationRevisionRef.current.get(edit.rowIndex) === edit.revision
           ) {
             rowsRef.current.set(edit.rowIndex, persisted)
@@ -1175,9 +1243,11 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     },
     [
       mergeGridMutations,
+      canonicalRowId,
       persistRowEdits,
       prunePageCache,
       refreshColumnStats,
+      sameRowIdentity,
       updateFailedMutation,
     ]
   )
@@ -1207,17 +1277,17 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       if (typeof rowId !== "string") return location
       if (identity.eidosFileRowIndex !== location[1]) return location
       const currentRow = rowsRef.current.get(location[1])
-      if (currentRow && eidosFileRowIdentity(currentRow) === rowId) {
+      if (currentRow && sameRowIdentity(currentRow._id, rowId)) {
         return location
       }
       for (const [rowIndex, row] of rowsRef.current) {
-        if (eidosFileRowIdentity(row) === rowId) {
+        if (sameRowIdentity(row._id, rowId)) {
           return [location[0], rowIndex]
         }
       }
       return null
     },
-    []
+    [sameRowIdentity]
   )
 
   const commitCells = useCallback(
@@ -1317,13 +1387,84 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   )
 
   const appendRow = useCallback(async () => {
+    const generation = generationRef.current
     try {
       const result = await onAddRow()
-      const index = Math.max(0, result.rowCount - 1)
+      const optimistic = result.settled !== undefined
+      const index = optimistic
+        ? rowCountRef.current
+        : Math.max(0, result.rowCount - 1)
       rowsRef.current.set(index, result.row)
-      setRowCount(result.rowCount)
+      rowCountRef.current = optimistic
+        ? rowCountRef.current + 1
+        : result.rowCount
+      setRowCount(rowCountRef.current)
       setCacheRevision((current) => current + 1)
-      refreshColumnStats()
+      if (!result.settled) {
+        refreshColumnStats()
+        return "bottom" as const
+      }
+
+      const optimisticId = eidosFileRowIdentity(result.row)
+      if (!optimisticId) {
+        throw new Error("An optimistic Eidos File row requires a temporary ID")
+      }
+      pendingRowCreatesRef.current.set(optimisticId, result.settled)
+      void result.settled
+        .then((settled) => {
+          pendingRowCreatesRef.current.delete(optimisticId)
+          if (generation !== generationRef.current) return
+          const authoritativeId = eidosFileRowIdentity(settled.row)
+          if (!authoritativeId) {
+            throw new Error("The created Eidos File row has no Row ID")
+          }
+          rowIdAliasesRef.current.set(optimisticId, authoritativeId)
+          for (const [rowIndex, current] of rowsRef.current) {
+            if (eidosFileRowIdentity(current) !== optimisticId) continue
+            rowsRef.current.set(rowIndex, {
+              ...settled.row,
+              ...current,
+              _id: settled.row._id,
+            })
+            break
+          }
+          rowCountRef.current = Math.max(
+            rowCountRef.current,
+            settled.rowCount + pendingRowCreatesRef.current.size
+          )
+          setRowCount(rowCountRef.current)
+          setCacheRevision((current) => current + 1)
+          refreshColumnStats()
+        })
+        .catch((error) => {
+          pendingRowCreatesRef.current.delete(optimisticId)
+          if (generation !== generationRef.current) return
+          const failedIndex = [...rowsRef.current].find(
+            ([, row]) => eidosFileRowIdentity(row) === optimisticId
+          )?.[0]
+          if (failedIndex !== undefined) {
+            rowsRef.current.delete(failedIndex)
+            rowMutationRevisionRef.current.delete(failedIndex)
+            for (
+              let rowIndex = failedIndex + 1;
+              rowIndex < rowCountRef.current;
+              rowIndex += 1
+            ) {
+              const shifted = rowsRef.current.get(rowIndex)
+              if (shifted) rowsRef.current.set(rowIndex - 1, shifted)
+              rowsRef.current.delete(rowIndex)
+              const revision = rowMutationRevisionRef.current.get(rowIndex)
+              if (revision !== undefined) {
+                rowMutationRevisionRef.current.set(rowIndex - 1, revision)
+              }
+              rowMutationRevisionRef.current.delete(rowIndex)
+            }
+            rowCountRef.current = Math.max(0, rowCountRef.current - 1)
+            setRowCount(rowCountRef.current)
+            setCacheRevision((current) => current + 1)
+          }
+          onErrorRef.current?.(error)
+        })
       return "bottom" as const
     } catch (error) {
       onError?.(error)
