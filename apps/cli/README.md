@@ -22,8 +22,7 @@ and Graft for history or Sync.
 macOS and Linux:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://download.eidos.space/cli/install.sh | sh
+curl -LsSf https://download.eidos.space/cli/install.sh | sh
 ```
 
 Windows PowerShell:
@@ -41,7 +40,7 @@ The short URLs are served by the `apps/download` Worker.
 Pin a version or installation directory with environment variables:
 
 ```bash
-EIDOS_VERSION=0.36.1 EIDOS_INSTALL_DIR=/usr/local/bin sh install.sh
+EIDOS_VERSION=0.36.2 EIDOS_INSTALL_DIR=/usr/local/bin sh install.sh
 ```
 
 Standalone assets currently cover macOS arm64/x64, Linux x64, and Windows x64.
@@ -55,7 +54,7 @@ stable CLI:
 
 ```bash
 npx skills add \
-  https://github.com/mayneyao/eidos/tree/cli-v0.36.1/skills/eidos \
+  https://github.com/mayneyao/eidos/tree/cli-v0.36.2/skills/eidos \
   --skill eidos -g -a codex -y
 ```
 
@@ -80,7 +79,7 @@ target/debug/eidos create tracker.eidos \
   --title "Project Tracker" \
   --table Tasks \
   --label-field Title \
-  --fields '[{"name":"Title","type":"text","nullable":false},{"name":"Status","type":"select"}]'
+  --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
 
 target/debug/eidos tracker.eidos context Tasks \
   --fields Title,Status \
