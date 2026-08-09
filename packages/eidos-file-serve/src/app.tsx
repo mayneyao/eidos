@@ -815,13 +815,15 @@ export function ServeApp() {
           <div>
             <h1>Pair this browser</h1>
             <p>
-              Paste the LAN access link printed by <code>eidos serve</code>.
-              Access lasts until the CLI process stops.
+              Paste the access link printed by <code>eidos serve</code>. Access
+              lasts until the CLI process stops.
             </p>
           </div>
-          <label htmlFor="lan-access-key">LAN access link or key</label>
+          <label htmlFor="serve-access-key">
+            Eidos Serve access link or key
+          </label>
           <input
-            id="lan-access-key"
+            id="serve-access-key"
             type="password"
             value={accessKey}
             autoComplete="off"
@@ -838,7 +840,8 @@ export function ServeApp() {
             Pair browser
           </button>
           <p className="pairing-note">
-            Use LAN mode only on a private network you trust.
+            Treat this access link as a secret. LAN mode should only be used on
+            a private network you trust.
           </p>
         </form>
       </main>

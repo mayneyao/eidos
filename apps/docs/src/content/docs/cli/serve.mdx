@@ -1,6 +1,6 @@
 ---
-title: Local and LAN editor with eidos serve
-description: Serve one Eidos File through the shared UI on localhost or a trusted LAN.
+title: Local, LAN, and Relay editor with eidos serve
+description: Serve one Eidos File through the shared UI on localhost, a trusted LAN, or Eidos Relay.
 sidebar:
   order: 20
 ---
@@ -55,6 +55,25 @@ LAN mode uses plain HTTP. The access link prevents unpaired browsers from
 using the API, but it does not protect traffic from someone able to observe
 the local network. Use it only on a private network you trust.
 
+## Eidos Relay access
+
+Use `--relay` when the other device cannot reach the CLI over a private network:
+
+```bash
+eidos serve tracker.eidos --relay --open
+```
+
+The CLI opens `eidos.space` for an Authorization Code + PKCE sign-in, claims
+your stable opaque `u-….eidos.ink` hostname, and connects out to Relay. The
+OAuth access token stays in memory only long enough to claim the tunnel and is
+never placed in the browser link. Browser traffic is HTTPS, and the fragment
+access key is exchanged for an HttpOnly session cookie at the Relay edge.
+
+Starting another Relay serve for the same account takes over the hostname and
+disconnects the older connector. Local and `--lan` use remain account-free.
+Relay currently accepts request bodies up to 4 MiB, so use localhost or LAN for
+large CSV imports. `--relay` and `--lan` are mutually exclusive.
+
 ## Development UI override
 
 `--ui-dir` serves a different static build instead of the UI embedded in the
@@ -67,7 +86,7 @@ eidos serve tracker.eidos --ui-dir ./dist --port 8420
 
 ## Concurrency
 
-Multiple localhost or paired LAN browsers can edit simultaneously. Serve
+Multiple localhost, paired LAN, or paired Relay browsers can edit simultaneously. Serve
 serializes their mutations through one authoritative Runtime writer and
 notifies other browsers after every committed revision. A simultaneous stale
 edit is rejected without side effects and the browser refreshes to the latest

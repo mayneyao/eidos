@@ -66,6 +66,7 @@ fn main() -> anyhow::Result<()> {
                 open_browser,
                 lan,
                 host,
+                None,
             )
         }
         "open" => {

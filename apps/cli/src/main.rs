@@ -1,6 +1,7 @@
 mod app;
 mod cli;
 mod error;
+mod relay_auth;
 
 use std::ffi::OsString;
 use std::io::{self, Write};
@@ -124,6 +125,36 @@ mod tests {
             Command::Serve(ref args)
                 if args.lan && args.host == Some("192.168.1.20".parse().unwrap())
         ));
+
+        let relay = parse_ok(&["eidos", "serve", "tasks.eidos", "--relay"]);
+        assert!(matches!(
+            relay.command,
+            Command::Serve(ref args)
+                if args.relay
+                    && args.account_origin == "https://eidos.space"
+                    && args.relay_origin == "https://relay.eidos.ink"
+        ));
+    }
+
+    #[test]
+    fn relay_is_explicit_and_mutually_exclusive_with_lan() {
+        for args in [
+            vec!["eidos", "serve", "tasks.eidos", "--relay", "--lan"],
+            vec![
+                "eidos",
+                "serve",
+                "tasks.eidos",
+                "--account-origin",
+                "https://staging.eidos.space",
+            ],
+        ] {
+            assert!(
+                Cli::try_parse_from(normalize_args(
+                    args.into_iter().map(OsString::from).collect()
+                ))
+                .is_err()
+            );
+        }
     }
 
     #[test]

@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::{self, Read};
+use std::net::{Ipv4Addr, TcpListener};
 use std::path::{Path, PathBuf};
 
 use eidos_file_core::ddl::{configure_connection, create_eidos_file};
@@ -28,6 +29,7 @@ use crate::cli::{
     ValidationLevelArg,
 };
 use crate::error::{AppError, Result};
+use crate::relay_auth::sign_in_and_claim;
 
 pub struct CommandOutput {
     pub value: Value,
@@ -63,6 +65,22 @@ fn serve_file(args: ServeArgs) -> Result<CommandOutput> {
     // Preflight: require an existing, well-formed .eidos file before binding
     // the port; run_serve opens its own connection afterwards.
     drop(open_file(&args.file, true)?);
+    let relay = if args.relay {
+        drop(
+            TcpListener::bind((Ipv4Addr::LOCALHOST, args.port)).map_err(|error| {
+                AppError::invalid_request(format!(
+                    "cannot start Eidos Serve on 127.0.0.1:{}: {error}",
+                    args.port
+                ))
+            })?,
+        );
+        Some(
+            sign_in_and_claim(&args.account_origin, &args.relay_origin)
+                .map_err(|error| AppError::internal(error.to_string()))?,
+        )
+    } else {
+        None
+    };
     qjs_host::serve::run_serve(
         &args.file,
         args.port,
@@ -70,6 +88,7 @@ fn serve_file(args: ServeArgs) -> Result<CommandOutput> {
         args.open,
         args.lan,
         args.host,
+        relay,
     )
     .map_err(|error| AppError::internal(error.to_string()))?;
     Ok(CommandOutput::success(json!({ "served": true })))

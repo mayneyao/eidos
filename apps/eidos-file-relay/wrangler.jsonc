@@ -1,0 +1,102 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "eidos-file-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "routes": [
+    {
+      "pattern": "relay.eidos.ink",
+      "custom_domain": true,
+    },
+    {
+      "pattern": "*.eidos.ink/*",
+      "zone_name": "eidos.ink",
+    },
+  ],
+  "vars": {
+    "AUTH_USERINFO_URL": "https://eidos.space/api/auth/oauth2/userinfo",
+    "CONTROL_ORIGIN": "https://relay.eidos.ink",
+    "PUBLIC_HOST_SUFFIX": "eidos.ink",
+  },
+  "services": [
+    {
+      "binding": "EIDOS_ACCOUNT",
+      "service": "eidos-space",
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "TUNNELS",
+        "class_name": "TunnelDurableObject",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["TunnelDurableObject"],
+    },
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": true,
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.01,
+    },
+  },
+  "env": {
+    "staging": {
+      "name": "eidos-file-relay-staging",
+      "compatibility_date": "2026-08-08",
+      "compatibility_flags": ["nodejs_compat"],
+      "routes": [
+        {
+          "pattern": "relay-staging.eidos.ink",
+          "custom_domain": true,
+        },
+        {
+          "pattern": "*.staging.eidos.ink/*",
+          "zone_name": "eidos.ink",
+        },
+      ],
+      "vars": {
+        "AUTH_USERINFO_URL": "https://staging.eidos.space/api/auth/oauth2/userinfo",
+        "CONTROL_ORIGIN": "https://relay-staging.eidos.ink",
+        "PUBLIC_HOST_SUFFIX": "staging.eidos.ink",
+      },
+      "services": [
+        {
+          "binding": "EIDOS_ACCOUNT",
+          "service": "eidos-space-staging",
+        },
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "TUNNELS",
+            "class_name": "TunnelDurableObject",
+          },
+        ],
+      },
+      "observability": {
+        "enabled": true,
+        "logs": {
+          "enabled": true,
+          "head_sampling_rate": 1,
+          "invocation_logs": true,
+        },
+        "traces": {
+          "enabled": true,
+          "head_sampling_rate": 0.01,
+        },
+      },
+    },
+  },
+}

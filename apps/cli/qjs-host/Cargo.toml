@@ -26,3 +26,13 @@ anyhow = "1"
 tiny_http = "0.12"
 open = "5"
 rust-embed = { version = "8", features = ["debug-embed"] }
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = [
+  "rustls-tls",
+  "stream",
+] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
+tokio-tungstenite = { version = "0.27", default-features = false, features = [
+  "connect",
+  "rustls-tls-native-roots",
+] }

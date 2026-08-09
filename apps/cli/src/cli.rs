@@ -55,6 +55,9 @@ pub struct ServeArgs {
     /// Make the editor available on one private LAN interface.
     #[arg(long)]
     pub lan: bool,
+    /// Publish the editor through the Eidos Relay service. Requires an Eidos account.
+    #[arg(long, conflicts_with = "lan")]
+    pub relay: bool,
     /// Private LAN or overlay-network address to bind. Requires --lan.
     #[arg(long, requires = "lan", value_name = "IP")]
     pub host: Option<IpAddr>,
@@ -64,6 +67,22 @@ pub struct ServeArgs {
     /// Open the served URL in the default browser.
     #[arg(long)]
     pub open: bool,
+    /// Eidos account issuer used by --relay.
+    #[arg(
+        long,
+        env = "EIDOS_ACCOUNT_ORIGIN",
+        default_value = "https://eidos.space",
+        requires = "relay"
+    )]
+    pub account_origin: String,
+    /// Eidos Relay control origin used by --relay.
+    #[arg(
+        long,
+        env = "EIDOS_RELAY_ORIGIN",
+        default_value = "https://relay.eidos.ink",
+        requires = "relay"
+    )]
+    pub relay_origin: String,
 }
 
 #[derive(Debug, Args)]

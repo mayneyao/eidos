@@ -1,0 +1,31 @@
+{
+  "name": "@eidos.space/eidos-file-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "wrangler types worker-configuration.d.ts --include-runtime false --check && tsc --noEmit",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "dry-run": "wrangler deploy --dry-run",
+    "dry-run:staging": "wrangler deploy --env staging --dry-run",
+    "test": "vitest run --config vitest.config.ts",
+    "types": "wrangler types worker-configuration.d.ts --include-runtime false",
+    "typecheck": "tsc --noEmit",
+    "typecheck:tsgo": "tsgo --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.20.3",
+    "@cloudflare/workers-types": "5.20260809.1",
+    "@vitest/expect": "4.1.10",
+    "@vitest/mocker": "4.1.10",
+    "@vitest/pretty-format": "4.1.10",
+    "@vitest/runner": "4.1.10",
+    "@vitest/snapshot": "4.1.10",
+    "@vitest/spy": "4.1.10",
+    "@vitest/utils": "4.1.10",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10",
+    "wrangler": "4.120.0"
+  }
+}

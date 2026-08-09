@@ -142,6 +142,19 @@ paired browsers can edit through the same serialized Runtime writer and
 receive committed revisions live. LAN mode uses HTTP, so do not use it on an
 untrusted network.
 
+When private-network access is unavailable, sign in with an eidos.space
+account and publish the same loopback server through Eidos Relay:
+
+```bash
+target/debug/eidos serve tracker.eidos --relay --open
+```
+
+Relay assigns the account a stable opaque `u-….eidos.ink` hostname and uses an
+outbound WebSocket, so the CLI does not bind a public interface. The OAuth token
+is kept in memory for the claim and never enters the browser access link.
+Starting another Relay serve for the same account takes over the hostname.
+Local and LAN modes remain account-free.
+
 `--ui-dir <dir>` serves a different static UI build instead of the embedded
 one. The embedded editor is available in the published macOS, Linux, and
 Windows builds.

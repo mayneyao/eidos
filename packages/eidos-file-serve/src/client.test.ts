@@ -7,7 +7,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe("CLI LAN browser pairing", () => {
+describe("CLI Serve browser pairing", () => {
   it("exchanges a fragment-safe access key without putting it in the body", async () => {
     const fetch = vi.fn(async () =>
       Response.json({ ok: true }, { status: 200 })
@@ -40,6 +40,24 @@ describe("CLI LAN browser pairing", () => {
 
     await establishCliHostSession(
       "http://192.168.1.20:8420/#access=abcdefghijklmnop"
+    )
+
+    const [, request] = fetch.mock.calls[0] as unknown as [string, RequestInit]
+    expect(request).toMatchObject({
+      headers: expect.objectContaining({
+        Authorization: "Bearer abcdefghijklmnop",
+      }),
+    })
+  })
+
+  it("accepts the complete HTTPS Relay access link", async () => {
+    const fetch = vi.fn(async () =>
+      Response.json({ ok: true }, { status: 200 })
+    )
+    vi.stubGlobal("fetch", fetch)
+
+    await establishCliHostSession(
+      "https://u-0123456789abcdefabcd.eidos.ink/#access=abcdefghijklmnop"
     )
 
     const [, request] = fetch.mock.calls[0] as unknown as [string, RequestInit]

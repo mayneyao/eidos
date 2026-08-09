@@ -19,6 +19,7 @@ use base64::{
 };
 use rand::RngCore;
 
+use crate::relay::{RelayConfig, RelayConnector};
 use crate::{open_host_state, QjsHost, ACTIVE_CTX};
 
 // Runtime calls can carry a base64-encoded CSV. Keep the HTTP boundary
@@ -541,6 +542,7 @@ pub fn run_serve(
     open_browser: bool,
     lan: bool,
     requested_host: Option<IpAddr>,
+    relay: Option<RelayConfig>,
 ) -> anyhow::Result<()> {
     let file_name = db_path
         .file_name()
@@ -554,10 +556,23 @@ pub fn run_serve(
 
     let server = tiny_http::Server::http(network.bind)
         .map_err(|error| anyhow!("bind {}: {error}", network.bind))?;
-    let browser_url = network.browser_url();
+    let browser_url = relay
+        .as_ref()
+        .map(|config| config.public_url.clone())
+        .unwrap_or_else(|| network.browser_url());
+    let relay_connector = relay
+        .map(|config| RelayConnector::start(config, network.bind.port()))
+        .transpose()?;
     println!("eidos serve {file_name}");
     println!("  url: {browser_url}");
-    println!("  network: {}", network.mode());
+    println!(
+        "  network: {}",
+        if relay_connector.is_some() {
+            "relay"
+        } else {
+            network.mode()
+        }
+    );
     if let Some(dir) = &ui_dir {
         println!("  ui:  {}", dir.display());
     } else {
@@ -566,6 +581,9 @@ pub fn run_serve(
     if network.lan.is_some() {
         println!("  access: paired browsers can read and write");
         println!("  warning: use this HTTP link only on a trusted private network");
+    } else if relay_connector.is_some() {
+        println!("  access: paired browsers can read and write");
+        println!("  warning: the URL fragment is the browser access key; share it carefully");
     }
     if open_browser {
         let _ = open::that(&browser_url);
@@ -613,13 +631,18 @@ pub fn run_serve(
         }
 
         let source_client_id = request_client_id(&request);
+        let request_network = if header_value(&request, "X-Eidos-Relay") == Some("1") {
+            "relay"
+        } else {
+            network.mode()
+        };
         let response = match (method.as_str(), url_path.as_str()) {
             ("GET", "/api/manifest") => json_response(
                 &serde_json::json!({
                     "mode": "cli",
                     "fileName": file_name,
                     "access": "readwrite",
-                    "network": network.mode(),
+                    "network": request_network,
                 })
                 .to_string(),
             ),

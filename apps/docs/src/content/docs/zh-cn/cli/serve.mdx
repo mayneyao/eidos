@@ -1,6 +1,6 @@
 ---
-title: 使用 eidos serve 打开本地与局域网编辑器
-description: 通过 localhost 或可信局域网与共享 UI 编辑一个 Eidos File。
+title: 使用 eidos serve 打开本地、局域网与 Relay 编辑器
+description: 通过 localhost、可信局域网或 Eidos Relay 与共享 UI 编辑一个 Eidos File。
 sidebar:
   order: 20
 ---
@@ -51,6 +51,23 @@ unique-local 地址，不接受公网地址或 wildcard bind。API Host 与 Orig
 LAN 模式使用普通 HTTP。access link 可以阻止未配对的浏览器调用 API，但不能防止能够监听
 局域网流量的人读取通信内容，因此只应在可信私有网络使用。
 
+## Eidos Relay 访问
+
+当另一台设备无法通过私网访问 CLI 时，可以启用 `--relay`：
+
+```bash
+eidos serve tracker.eidos --relay --open
+```
+
+CLI 会打开 `eidos.space`，通过 Authorization Code + PKCE 登录，认领属于该账号的稳定匿名
+`u-….eidos.ink` 域名，并主动连接 Relay。OAuth access token 只在内存中用于认领隧道，不会
+进入浏览器链接。浏览器流量使用 HTTPS；fragment 中的 access key 会在 Relay 边缘换成
+HttpOnly session cookie。
+
+同一账号启动新的 Relay serve 时，新连接会接管域名并断开旧 connector。本地与 `--lan`
+模式仍然无需账号。Relay 当前限制单个请求 body 为 4 MiB，大型 CSV 导入请使用 localhost
+或 LAN。`--relay` 与 `--lan` 不能同时使用。
+
 ## 开发 UI override
 
 `--ui-dir` 可以用另一份静态 build 替代 binary 内嵌 UI。这是开发和发行校验选项，不是普通
@@ -62,7 +79,7 @@ eidos serve tracker.eidos --ui-dir ./dist --port 8420
 
 ## 并发
 
-多个 localhost 或已配对的 LAN 浏览器可以同时编辑。Serve 通过一个权威 Runtime writer
+多个 localhost、已配对的 LAN 或 Relay 浏览器可以同时编辑。Serve 通过一个权威 Runtime writer
 串行提交 mutation，并在每次 revision 提交后通知其他浏览器。同时发生的 stale edit 会以零
 副作用拒绝，浏览器随后刷新到最新 revision。
 

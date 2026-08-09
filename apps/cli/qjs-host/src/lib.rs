@@ -13,6 +13,7 @@ use rusqlite::{
 };
 use serde::{Deserialize, Serialize};
 
+pub mod relay;
 pub mod serve;
 
 const BUNDLE: &str = include_str!("../bundle/eidos-runtime.js");

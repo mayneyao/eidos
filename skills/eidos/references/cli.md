@@ -263,6 +263,13 @@ not be used on an untrusted network. Prefer Serve for interactive review and
 bulk edits that are easier in a grid; keep using the JSON commands for scripted
 workflows.
 
+When a private network is unavailable, `eidos serve file.eidos --relay --open`
+signs in through eidos.space and publishes the loopback editor at a stable,
+opaque `u-….eidos.ink` hostname. The OAuth token stays in memory and is not
+included in the browser link. A later Relay serve for the same account takes
+over the hostname. `--relay` and `--lan` are mutually exclusive; Relay request
+bodies are limited to 4 MiB in the initial service.
+
 ## Logical values
 
 - `text`, `url`, `select`: JSON string or `null` when nullable.

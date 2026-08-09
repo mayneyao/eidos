@@ -15,7 +15,7 @@ export interface CliHostManifest {
   mode: "cli"
   fileName: string
   access: "read" | "readwrite"
-  network?: "loopback" | "lan"
+  network?: "loopback" | "lan" | "relay"
 }
 
 export interface EidosFileHttpOpenResult {
@@ -88,7 +88,7 @@ export async function establishCliHostSession(
   if (!/^[A-Za-z0-9_-]{16,512}$/.test(token)) {
     throw new CliHostAccessError(
       "pairing-failed",
-      "Enter the complete LAN access link or its access key."
+      "Enter the complete Eidos Serve access link or its access key."
     )
   }
   const response = await fetch("/api/session", {
@@ -99,7 +99,7 @@ export async function establishCliHostSession(
     },
   })
   if (!response.ok) {
-    let message = "The LAN access key was not accepted."
+    let message = "The Eidos Serve access key was not accepted."
     try {
       const envelope = (await response.json()) as HttpEnvelope
       message = envelope.error?.message ?? message
