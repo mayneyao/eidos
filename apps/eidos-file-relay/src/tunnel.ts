@@ -271,7 +271,7 @@ export class TunnelDurableObject extends DurableObject<Env> {
     control.protocol = "wss:"
     control.pathname = `/v1/connect/${body.slug}`
     const publicUrl = new URL(
-      `https://${body.slug}.${this.env.PUBLIC_HOST_SUFFIX}/`
+      `https://${body.slug}${this.env.PUBLIC_HOST_LABEL_SUFFIX}.${this.env.PUBLIC_HOST_SUFFIX}/`
     )
     publicUrl.hash = `access=${accessToken}`
     return json({

@@ -17,6 +17,7 @@
   "vars": {
     "AUTH_USERINFO_URL": "https://eidos.space/api/auth/oauth2/userinfo",
     "CONTROL_ORIGIN": "https://relay.eidos.ink",
+    "PUBLIC_HOST_LABEL_SUFFIX": "",
     "PUBLIC_HOST_SUFFIX": "eidos.ink",
   },
   "services": [
@@ -62,14 +63,15 @@
           "custom_domain": true,
         },
         {
-          "pattern": "*.staging.eidos.ink/*",
+          "pattern": "*staging.eidos.ink/*",
           "zone_name": "eidos.ink",
         },
       ],
       "vars": {
         "AUTH_USERINFO_URL": "https://staging.eidos.space/api/auth/oauth2/userinfo",
         "CONTROL_ORIGIN": "https://relay-staging.eidos.ink",
-        "PUBLIC_HOST_SUFFIX": "staging.eidos.ink",
+        "PUBLIC_HOST_LABEL_SUFFIX": "-staging",
+        "PUBLIC_HOST_SUFFIX": "eidos.ink",
       },
       "services": [
         {

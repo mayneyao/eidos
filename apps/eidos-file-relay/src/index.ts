@@ -56,11 +56,18 @@ function exactOrigin(value: string): string {
   return url.origin
 }
 
-function publicSlug(hostname: string, suffix: string): string | null {
+export function publicSlug(
+  hostname: string,
+  suffix: string,
+  labelSuffix: string
+): string | null {
   const ending = `.${suffix.toLowerCase()}`
   const lower = hostname.toLowerCase()
   if (!lower.endsWith(ending)) return null
-  const slug = lower.slice(0, -ending.length)
+  const label = lower.slice(0, -ending.length)
+  if (!label.endsWith(labelSuffix)) return null
+  const slug =
+    labelSuffix.length > 0 ? label.slice(0, -labelSuffix.length) : label
   return SLUG.test(slug) ? slug : null
 }
 
@@ -139,7 +146,11 @@ export default {
         if (match?.[1]) return await connect(request, env, match[1])
         return json({ error: { code: "not_found", message: "Not found" } }, 404)
       }
-      const slug = publicSlug(url.hostname, env.PUBLIC_HOST_SUFFIX)
+      const slug = publicSlug(
+        url.hostname,
+        env.PUBLIC_HOST_SUFFIX,
+        env.PUBLIC_HOST_LABEL_SUFFIX
+      )
       if (!slug) {
         return json({ error: { code: "not_found", message: "Not found" } }, 404)
       }

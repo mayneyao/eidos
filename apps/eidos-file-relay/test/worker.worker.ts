@@ -1,6 +1,8 @@
 import { SELF, abortAllDurableObjects } from "cloudflare:test"
 import { afterEach, describe, expect, it } from "vitest"
 
+import { publicSlug } from "../src/index"
+
 interface TunnelClaim {
   protocol: number
   publicUrl: string
@@ -24,6 +26,22 @@ afterEach(async () => {
 })
 
 describe("Eidos File Relay", () => {
+  it("matches production and single-label staging hostnames exactly", () => {
+    expect(
+      publicSlug("u-0123456789abcdefabcd.eidos.ink", "eidos.ink", "")
+    ).toBe("u-0123456789abcdefabcd")
+    expect(
+      publicSlug(
+        "u-0123456789abcdefabcd-staging.eidos.ink",
+        "eidos.ink",
+        "-staging"
+      )
+    ).toBe("u-0123456789abcdefabcd")
+    expect(
+      publicSlug("u-0123456789abcdefabcd.eidos.ink", "eidos.ink", "-staging")
+    ).toBeNull()
+  })
+
   it("does not provision unclaimed public hostnames", async () => {
     const response = await SELF.fetch(
       "https://u-00000000000000000000.eidos.ink/"

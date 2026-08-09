@@ -32,6 +32,7 @@ pnpm --filter @eidos.space/eidos-file-relay dry-run:staging
 ```
 
 Production uses `relay.eidos.ink` for authenticated control/WebSocket traffic
-and `*.eidos.ink` for browser traffic. Staging uses
-`relay-staging.eidos.ink` and `*.staging.eidos.ink`. Deployments require the
+and `u-<hash>.eidos.ink` for browser traffic. Staging uses
+`relay-staging.eidos.ink` and `u-<hash>-staging.eidos.ink`, which stays within
+the existing `*.eidos.ink` Universal SSL certificate. Deployments require the
 corresponding wildcard DNS/Worker route and the `EIDOS_ACCOUNT` service binding.

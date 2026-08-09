@@ -312,6 +312,14 @@ fn validate_claim(
     let public_url = Url::parse(&claim.public_url).context("parse the Eidos Relay public URL")?;
     let public_host = public_url.host_str().unwrap_or("");
     let public_label = public_host.split('.').next().unwrap_or("");
+    let expected_label_suffix = if relay_origin.host_str() == Some("relay-staging.eidos.ink") {
+        "-staging"
+    } else {
+        ""
+    };
+    let public_slug = public_label
+        .strip_suffix(expected_label_suffix)
+        .unwrap_or("");
     let access = public_url
         .fragment()
         .and_then(|fragment| fragment.strip_prefix("access="));
@@ -320,9 +328,10 @@ fn validate_claim(
         || public_url.password().is_some()
         || public_url.path() != "/"
         || public_url.query().is_some()
-        || public_label.len() != 22
-        || !public_label.starts_with("u-")
-        || !public_label[2..]
+        || public_host != format!("{public_label}.eidos.ink")
+        || public_slug.len() != 22
+        || !public_slug.starts_with("u-")
+        || !public_slug[2..]
             .bytes()
             .all(|byte| byte.is_ascii_hexdigit())
         || access.is_none_or(str::is_empty)
@@ -415,6 +424,25 @@ mod tests {
                 &relay,
             )
             .is_err()
+        );
+
+        let staging = service_origin("https://relay-staging.eidos.ink", "relay").unwrap();
+        assert!(
+            validate_claim(
+                ClaimResponse {
+                    protocol: 1,
+                    public_url:
+                        "https://u-0123456789abcdefabcd-staging.eidos.ink/#access=browser-secret"
+                            .to_string(),
+                    connector_url:
+                        "wss://relay-staging.eidos.ink/v1/connect/u-0123456789abcdefabcd"
+                            .to_string(),
+                    connector_token: "connector-secret".to_string(),
+                    connector_expires_at: now_millis() + 60_000,
+                },
+                &staging,
+            )
+            .is_ok()
         );
     }
 }
