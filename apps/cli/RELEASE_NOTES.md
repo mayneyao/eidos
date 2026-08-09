@@ -1,47 +1,43 @@
 ## What's new
 
-### `eidos serve` loads the complete embedded editor
+### Use `eidos serve` from another device on a trusted LAN
 
-The standalone binary now includes every generated JavaScript chunk used by
-the local web editor. This fixes the blank editor page in v0.36.2 on all
-platforms, including Windows.
-
-Release validation now checks both that every generated UI dependency is
-tracked by Git and that every runtime reference resolves to an embedded asset.
-
-### New files open with a ready-to-use Grid
-
-Creating a file with an initial table now makes that table the File default
-and creates its first Grid view in the same initial revision:
+`eidos serve` still binds to `127.0.0.1` by default. The new `--lan` mode
+detects and binds one private interface so the same embedded editor can be
+opened from a phone, tablet, or another computer:
 
 ```sh
-eidos create example.eidos \
-  --title "Example" \
-  --table Tasks \
-  --label-field Title \
-  --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
-eidos serve example.eidos --open
+eidos serve tracker.eidos --lan
+eidos serve tracker.eidos --lan --host 192.168.1.20
 ```
 
-The local editor opens directly on the saved Grid view, and its first blank row
-can be added without a `NOT NULL` failure.
+The printed URL carries a fragment-only access key. Opening it establishes a
+process-local, HttpOnly browser session; API Host and Origin checks remain
+restricted to the exact bound address. Public and wildcard bind addresses are
+rejected.
 
-### Clear required-value errors
+LAN mode uses plain HTTP and is intended only for a private network you trust.
 
-When an advanced schema declares a non-null scalar Field, a create mutation
-that omits it now returns the Runtime's structured `invalid-value` error before
-SQLite write. SQLite constraint messages no longer escape through this path.
+### Smoother multi-browser editing
 
-The CLI Serve Tasks template also keeps ordinary fields nullable until a
-dedicated required-field editing flow is available.
+All paired browsers share one authoritative Runtime writer. Mutations remain
+serialized, and committed revisions are pushed to the other browsers without
+a manual refresh.
+
+When two browsers edit different ordinary fields at the same time, the stale
+edit can now be reapplied once after the editor reads fresh state and verifies
+that the edited field still equals its original value. Overlapping edits,
+second stale revisions, Relation or File writes, schema/View changes, and
+unknown commit outcomes continue to preserve the draft and require explicit
+user choice.
 
 ### Version-matched Eidos Skill for Codex
 
-Install the Eidos Skill from the same immutable CLI tag to keep the safe
-`context` → `apply` → `validate` workflow aligned with this release:
+Install the Eidos Skill from this immutable CLI tag to keep the safe
+`context` → `apply` → `validate` workflow aligned with the release:
 
 ```sh
-npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.3/skills/eidos --skill eidos -g -a codex -y
+npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.4/skills/eidos --skill eidos -g -a codex -y
 ```
 
 ## Install
@@ -49,7 +45,7 @@ npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.3/skills/eidos -
 macOS or Linux:
 
 ```sh
-curl -LsSf https://download.eidos.space/cli/install.sh | sh
+curl -fsSL https://download.eidos.space/cli/install.sh | sh
 ```
 
 Windows PowerShell:
@@ -58,5 +54,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v0.36.3 and verify the downloaded archive against the
+The installers select v0.36.4 and verify the downloaded archive against the
 release `SHA256SUMS` before replacing an existing binary.
