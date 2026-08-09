@@ -287,7 +287,7 @@ dependencies = [
 
 [[package]]
 name = "eidos"
-version = "0.36.2"
+version = "0.36.3"
 dependencies = [
  "clap",
  "eidos-file-core",

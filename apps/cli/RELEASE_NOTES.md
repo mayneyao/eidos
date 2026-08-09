@@ -1,5 +1,14 @@
 ## What's new
 
+### `eidos serve` loads the complete embedded editor
+
+The standalone binary now includes every generated JavaScript chunk used by
+the local web editor. This fixes the blank editor page in v0.36.2 on all
+platforms, including Windows.
+
+Release validation now checks both that every generated UI dependency is
+tracked by Git and that every runtime reference resolves to an embedded asset.
+
 ### New files open with a ready-to-use Grid
 
 Creating a file with an initial table now makes that table the File default
@@ -32,7 +41,7 @@ Install the Eidos Skill from the same immutable CLI tag to keep the safe
 `context` → `apply` → `validate` workflow aligned with this release:
 
 ```sh
-npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.2/skills/eidos --skill eidos -g -a codex -y
+npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.3/skills/eidos --skill eidos -g -a codex -y
 ```
 
 ## Install
@@ -49,5 +58,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v0.36.2 and verify the downloaded archive against the
+The installers select v0.36.3 and verify the downloaded archive against the
 release `SHA256SUMS` before replacing an existing binary.
