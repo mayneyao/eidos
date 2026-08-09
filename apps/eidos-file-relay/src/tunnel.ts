@@ -188,6 +188,9 @@ export class TunnelDurableObject extends DurableObject<Env> {
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
+  }
+
+  private ensureSchema(): void {
     this.ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS tunnel_state (" +
         "singleton INTEGER PRIMARY KEY CHECK (singleton = 1)," +
@@ -230,6 +233,7 @@ export class TunnelDurableObject extends DurableObject<Env> {
     ) {
       return json({ error: { code: "invalid_request" } }, 400)
     }
+    this.ensureSchema()
     const connectorToken = randomToken()
     const accessToken = randomToken()
     const generation = crypto.randomUUID()
@@ -333,6 +337,9 @@ export class TunnelDurableObject extends DurableObject<Env> {
         },
         403
       )
+    }
+    if (!this.state()) {
+      return json({ error: { code: "not_found", message: "Not found" } }, 404)
     }
     const targetPath = target.split("?", 1)[0] ?? "/"
     if (targetPath === "/api/session" && request.method === "POST") {
@@ -615,6 +622,13 @@ export class TunnelDurableObject extends DurableObject<Env> {
   }
 
   private state(): TunnelStateRow | null {
+    const table = this.ctx.storage.sql
+      .exec<{ name: string }>(
+        "SELECT name FROM sqlite_master " +
+          "WHERE type='table' AND name='tunnel_state'"
+      )
+      .toArray()[0]
+    if (!table) return null
     return (
       this.ctx.storage.sql
         .exec<TunnelStateRow>(

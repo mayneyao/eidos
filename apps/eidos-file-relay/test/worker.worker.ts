@@ -24,6 +24,13 @@ afterEach(async () => {
 })
 
 describe("Eidos File Relay", () => {
+  it("does not provision unclaimed public hostnames", async () => {
+    const response = await SELF.fetch(
+      "https://u-00000000000000000000.eidos.ink/"
+    )
+    expect(response.status).toBe(404)
+  })
+
   it("requires an Eidos account and derives a stable opaque hostname", async () => {
     const missing = await SELF.fetch("https://relay.eidos.ink/v1/tunnels", {
       method: "POST",
