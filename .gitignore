@@ -8,6 +8,10 @@ dist-sqlite-ext
 dist-cli
 dist-*
 
+# Vite may name a generated CLI Serve chunk `dist-<hash>.js`. It must remain
+# tracked because the release binary embeds only files present in Git.
+!apps/cli/qjs-host/ui/assets/dist-*.js
+
 # wrangler
 .wrangler/*
 

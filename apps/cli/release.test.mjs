@@ -1,6 +1,11 @@
 import assert from "node:assert/strict"
+import { execFile } from "node:child_process"
 import { readFile } from "node:fs/promises"
+import path from "node:path"
 import test from "node:test"
+import { promisify } from "node:util"
+
+const execFileAsync = promisify(execFile)
 
 const files = {
   app: "apps/cli/src/app.rs",
@@ -164,4 +169,31 @@ test("Eidos Lite releases do not rewrite the CLI version", async () => {
     liteWorkflow,
     /(?:readFileSync|writeFileSync)\(['"]apps\/cli\/Cargo\.toml/u
   )
+})
+
+test("embedded Serve UI tracks every generated asset dependency", async () => {
+  const uiRoot = "apps/cli/qjs-host/ui"
+  const { stdout } = await execFileAsync("git", ["ls-files", "--", uiRoot])
+  const trackedFiles = new Set(stdout.trim().split("\n").filter(Boolean))
+  const sourceFiles = [...trackedFiles].filter((file) =>
+    /\.(?:css|html|js)$/u.test(file)
+  )
+  const assetPattern =
+    /["'`](\.\/[^"'`?#]+\.(?:css|ico|jpe?g|js|mjs|png|svg|wasm|woff2?)(?:\?[^"'`]*)?(?:#[^"'`]*)?)["'`]/gu
+
+  assert.ok(trackedFiles.has(`${uiRoot}/index.html`))
+
+  for (const sourceFile of sourceFiles) {
+    const source = await read(sourceFile)
+    for (const match of source.matchAll(assetPattern)) {
+      const reference = match[1].split(/[?#]/u)[0]
+      const dependency = path.posix.normalize(
+        path.posix.join(path.posix.dirname(sourceFile), reference)
+      )
+      assert.ok(
+        trackedFiles.has(dependency),
+        `${sourceFile} references untracked Serve UI asset ${dependency}`
+      )
+    }
+  }
 })

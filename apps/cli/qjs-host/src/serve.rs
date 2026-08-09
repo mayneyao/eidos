@@ -319,6 +319,56 @@ pub fn run_serve(
 mod tests {
     use super::{allowed_host, allowed_origin, EmbeddedUi};
 
+    fn relative_asset_references(source: &str) -> Vec<&str> {
+        let bytes = source.as_bytes();
+        let mut references = Vec::new();
+        let mut index = 0;
+
+        while index < bytes.len() {
+            let quote = bytes[index];
+            if !matches!(quote, b'\"' | b'\'' | b'`')
+                || bytes.get(index + 1) != Some(&b'.')
+                || bytes.get(index + 2) != Some(&b'/')
+            {
+                index += 1;
+                continue;
+            }
+
+            let start = index + 1;
+            let Some(end) = bytes[start..]
+                .iter()
+                .position(|byte| *byte == quote)
+                .map(|offset| start + offset)
+            else {
+                break;
+            };
+            let reference = &source[start..end];
+            let path = reference.split(['?', '#']).next().unwrap_or(reference);
+            let extension = path.rsplit_once('.').map(|(_, extension)| extension);
+            if matches!(
+                extension,
+                Some(
+                    "css"
+                        | "ico"
+                        | "jpg"
+                        | "jpeg"
+                        | "js"
+                        | "mjs"
+                        | "png"
+                        | "svg"
+                        | "wasm"
+                        | "woff"
+                        | "woff2"
+                )
+            ) {
+                references.push(path);
+            }
+            index = end + 1;
+        }
+
+        references
+    }
+
     #[test]
     fn accepts_only_the_bound_loopback_host() {
         assert!(allowed_host("127.0.0.1:8420", 8420));
@@ -339,21 +389,37 @@ mod tests {
     }
 
     #[test]
-    fn embedded_index_references_only_embedded_assets() {
-        let index = EmbeddedUi::get("index.html").expect("embedded index.html");
-        let html = std::str::from_utf8(index.data.as_ref()).expect("UTF-8 index.html");
+    fn embedded_ui_references_only_embedded_assets() {
+        for source_path in EmbeddedUi::iter() {
+            let source_path = source_path.as_ref();
+            if !matches!(
+                source_path.rsplit_once('.').map(|(_, extension)| extension),
+                Some("css" | "html" | "js")
+            ) {
+                continue;
+            }
+            let source_file = EmbeddedUi::get(source_path).expect("iterated embedded asset");
+            let source = std::str::from_utf8(source_file.data.as_ref()).expect("UTF-8 UI source");
+            let source_dir = source_path
+                .rsplit_once('/')
+                .map(|(directory, _)| directory)
+                .unwrap_or("");
 
-        for marker in ["src=\"./", "href=\"./"] {
-            let mut remaining = html;
-            while let Some(offset) = remaining.find(marker) {
-                let value = &remaining[offset + marker.len()..];
-                let end = value.find('"').expect("closed asset attribute");
-                let path = &value[..end];
+            for reference in relative_asset_references(source) {
                 assert!(
-                    EmbeddedUi::get(path).is_some(),
-                    "index.html references missing embedded asset {path}"
+                    !reference.split('/').any(|segment| segment == ".."),
+                    "{source_path} references parent asset path {reference}"
                 );
-                remaining = &value[end + 1..];
+                let dependency = reference.trim_start_matches("./");
+                let dependency = if source_dir.is_empty() {
+                    dependency.to_string()
+                } else {
+                    format!("{source_dir}/{dependency}")
+                };
+                assert!(
+                    EmbeddedUi::get(&dependency).is_some(),
+                    "{source_path} references missing embedded asset {dependency}"
+                );
             }
         }
     }
