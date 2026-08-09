@@ -24,12 +24,12 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 use crate::cli::{
-    ApplyArgs, Command, ContextArgs, CreateArgs, FileArgs, QueryArgs, RowAddArgs, RowCommand,
-    RowDeleteArgs, RowUpdateArgs, RowsArgs, SchemaApplyArgs, SchemaArgs, ServeArgs, ValidateArgs,
-    ValidationLevelArg,
+    AccountArgs, ApplyArgs, Command, ContextArgs, CreateArgs, FileArgs, QueryArgs, RowAddArgs,
+    RowCommand, RowDeleteArgs, RowUpdateArgs, RowsArgs, SchemaApplyArgs, SchemaArgs, ServeArgs,
+    ValidateArgs, ValidationLevelArg,
 };
 use crate::error::{AppError, Result};
-use crate::relay_auth::sign_in_and_claim;
+use crate::relay_auth::{login_account, logout_account, sign_in_and_claim, whoami_account};
 
 pub struct CommandOutput {
     pub value: Value,
@@ -47,6 +47,9 @@ impl CommandOutput {
 
 pub fn run(command: Command) -> Result<CommandOutput> {
     match command {
+        Command::Login(args) => login(args),
+        Command::Whoami(args) => whoami(args),
+        Command::Logout(args) => logout(args),
         Command::Create(args) => create(args),
         Command::Inspect(args) => inspect(args),
         Command::Tables(args) => tables(args),
@@ -59,6 +62,37 @@ pub fn run(command: Command) -> Result<CommandOutput> {
         Command::SchemaApply(args) => schema_apply(args),
         Command::Serve(args) => serve_file(args),
     }
+}
+
+fn login(args: AccountArgs) -> Result<CommandOutput> {
+    let account = login_account(&args.account_origin)
+        .map_err(|error| AppError::internal(error.to_string()))?;
+    Ok(CommandOutput::success(json!({
+        "loggedIn": true,
+        "issuer": account.issuer,
+        "accountId": account.subject,
+        "storage": "user-config-file",
+    })))
+}
+
+fn whoami(args: AccountArgs) -> Result<CommandOutput> {
+    let account = whoami_account(&args.account_origin)
+        .map_err(|error| AppError::internal(error.to_string()))?;
+    Ok(CommandOutput::success(json!({
+        "loggedIn": true,
+        "issuer": account.issuer,
+        "accountId": account.subject,
+    })))
+}
+
+fn logout(args: AccountArgs) -> Result<CommandOutput> {
+    let removed = logout_account(&args.account_origin)
+        .map_err(|error| AppError::internal(error.to_string()))?;
+    Ok(CommandOutput::success(json!({
+        "loggedOut": true,
+        "removedLocalCredential": removed,
+        "issuer": args.account_origin,
+    })))
 }
 
 fn serve_file(args: ServeArgs) -> Result<CommandOutput> {
@@ -75,7 +109,7 @@ fn serve_file(args: ServeArgs) -> Result<CommandOutput> {
             })?,
         );
         Some(
-            sign_in_and_claim(&args.account_origin, &args.relay_origin)
+            sign_in_and_claim(&args.account_origin, &args.relay_origin, args.share)
                 .map_err(|error| AppError::internal(error.to_string()))?,
         )
     } else {

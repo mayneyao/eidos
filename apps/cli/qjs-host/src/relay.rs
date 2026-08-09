@@ -21,7 +21,14 @@ const RESPONSE_CHUNK_BYTES_MAX: usize = 128 * 1024;
 const CONCURRENT_REQUESTS_MAX: usize = 32;
 const START_TIMEOUT: Duration = Duration::from_secs(30);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RelayBrowserAccess {
+    Account,
+    Share,
+}
+
 pub struct RelayConfig {
+    pub browser_access: RelayBrowserAccess,
     pub public_url: String,
     pub connector_url: String,
     pub connector_token: String,

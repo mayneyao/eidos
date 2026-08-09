@@ -19,7 +19,7 @@ use base64::{
 };
 use rand::RngCore;
 
-use crate::relay::{RelayConfig, RelayConnector};
+use crate::relay::{RelayBrowserAccess, RelayConfig, RelayConnector};
 use crate::{open_host_state, QjsHost, ACTIVE_CTX};
 
 // Runtime calls can carry a base64-encoded CSV. Keep the HTTP boundary
@@ -560,6 +560,7 @@ pub fn run_serve(
         .as_ref()
         .map(|config| config.public_url.clone())
         .unwrap_or_else(|| network.browser_url());
+    let relay_browser_access = relay.as_ref().map(|config| config.browser_access);
     let relay_connector = relay
         .map(|config| RelayConnector::start(config, network.bind.port()))
         .transpose()?;
@@ -581,9 +582,18 @@ pub fn run_serve(
     if network.lan.is_some() {
         println!("  access: paired browsers can read and write");
         println!("  warning: use this HTTP link only on a trusted private network");
-    } else if relay_connector.is_some() {
-        println!("  access: paired browsers can read and write");
-        println!("  warning: the URL fragment is the browser access key; share it carefully");
+    } else if let Some(browser_access) = relay_browser_access {
+        match browser_access {
+            RelayBrowserAccess::Account => {
+                println!("  access: your Eidos account can read and write");
+            }
+            RelayBrowserAccess::Share => {
+                println!("  access: anyone with the access link can read and write");
+                println!(
+                    "  warning: the URL fragment is the browser access key; share it carefully"
+                );
+            }
+        }
     }
     if open_browser {
         let _ = open::that(&browser_url);

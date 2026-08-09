@@ -9,6 +9,11 @@ sidebar:
 保留终端文件工作流，同时使用可视化 UI 的场景。
 
 ```bash
+eidos create tracker.eidos \
+  --table Tasks \
+  --label-field Title \
+  --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
+
 eidos serve tracker.eidos --open
 ```
 
@@ -56,17 +61,34 @@ LAN 模式使用普通 HTTP。access link 可以阻止未配对的浏览器调�
 当另一台设备无法通过私网访问 CLI 时，可以启用 `--relay`：
 
 ```bash
+eidos login
+eidos whoami
 eidos serve tracker.eidos --relay --open
 ```
 
-CLI 会打开 `eidos.space`，通过 Authorization Code + PKCE 登录，认领属于该账号的稳定匿名
-`u-….eidos.ink` 域名，并主动连接 Relay。OAuth access token 只在内存中用于认领隧道，不会
-进入浏览器链接。浏览器流量使用 HTTPS；fragment 中的 access key 会在 Relay 边缘换成
-HttpOnly session cookie。
+`eidos login` 会打开 `eidos.space`，通过 Authorization Code + PKCE 登录，
+并把可刷新的 CLI 会话存入仅当前用户可读的配置文件。后续 Relay 命令会
+无系统凭据弹窗地静默复用或刷新它；`eidos logout` 用于删除本机凭据。
 
-同一账号启动新的 Relay serve 时，新连接会接管域名并断开旧 connector。本地与 `--lan`
-模式仍然无需账号。Relay 当前限制单个请求 body 为 4 MiB，大型 CSV 导入请使用 localhost
-或 LAN。`--relay` 与 `--lan` 不能同时使用。
+账号会话用于授权 CLI 认领稳定匿名的 `u-….eidos.ink` 域名。默认输出的
+URL 不包含 access key。在任意设备打开后，浏览器会跳转到 eidos.space；
+只有认领该域名的同一账号才能完成登录。Relay 随后为该浏览器建立
+host-only HttpOnly session。OAuth token 不会进入浏览器 URL 或本地 Serve 进程。
+
+只有在访客需要不登录所有者 Eidos 账号就访问文件时，才使用 `--share`：
+
+```bash
+eidos serve tracker.eidos --relay --share
+```
+
+这种显式分享模式会输出当前 Serve 进程的 fragment-key capability。Relay 会把它
+换成 HttpOnly 浏览器 session，所以 key 不会出现在普通 HTTP 请求中。任何获得
+该链接的人，在本次 Relay session 有效期间都可以编辑文件。
+
+同一账号启动新的 Relay serve 时，新连接会接管域名并断开旧 connector，同时
+使上一次 claim 建立的浏览器 session 失效。本地与 `--lan` 模式仍然无需账号。
+Relay 当前限制单个请求 body 为 4 MiB，大型 CSV 导入请使用 localhost 或 LAN。
+`--share` 需要同时使用 `--relay`；`--relay` 与 `--lan` 不能同时使用。
 
 ## 开发 UI override
 
@@ -79,9 +101,12 @@ eidos serve tracker.eidos --ui-dir ./dist --port 8420
 
 ## 并发
 
-多个 localhost、已配对的 LAN 或 Relay 浏览器可以同时编辑。Serve 通过一个权威 Runtime writer
-串行提交 mutation，并在每次 revision 提交后通知其他浏览器。同时发生的 stale edit 会以零
-副作用拒绝，浏览器随后刷新到最新 revision。
+多个 localhost、已配对的 LAN、经账号授权的 Relay 或显式分享的 Relay 浏览器可以
+同时编辑。Serve 通过一个权威 Runtime writer 串行提交 mutation，并在每次 revision 提交后
+通知其他浏览器。同时发生的 stale edit 会以零副作用拒绝，浏览器随后刷新到最新 revision。
+
+单元格变更和新增行都会乐观渲染。新行的远端 insert 返回前就可以继续输入；
+Serve 仍会先提交建行，再发送依赖其权威 Row ID 的后续编辑。
 
 Serve 进程仍必须是该文件唯一的物理 writer。使用其他可写 Host 或 SQLite 工具打开同一路径
 前，先停止服务。会话结束后，可以用 `eidos validate tracker.eidos --level full` 做独立完整性

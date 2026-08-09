@@ -22,6 +22,12 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Sign in to Eidos and store a renewable CLI session securely.
+    Login(AccountArgs),
+    /// Show the Eidos account currently available to the CLI.
+    Whoami(AccountArgs),
+    /// Remove the stored Eidos CLI session from this device.
+    Logout(AccountArgs),
     /// Create a new Eidos File, optionally with an initial table.
     Create(CreateArgs),
     /// Inspect file identity, revision, and capabilities.
@@ -48,6 +54,17 @@ pub enum Command {
 }
 
 #[derive(Debug, Args)]
+pub struct AccountArgs {
+    /// Eidos account issuer.
+    #[arg(
+        long,
+        env = "EIDOS_ACCOUNT_ORIGIN",
+        default_value = "https://eidos.space"
+    )]
+    pub account_origin: String,
+}
+
+#[derive(Debug, Args)]
 pub struct ServeArgs {
     pub file: PathBuf,
     #[arg(long, default_value_t = 8420)]
@@ -58,6 +75,9 @@ pub struct ServeArgs {
     /// Publish the editor through the Eidos Relay service. Requires an Eidos account.
     #[arg(long, conflicts_with = "lan")]
     pub relay: bool,
+    /// Allow guest browsers to pair with a secret link instead of requiring the owner account.
+    #[arg(long, requires = "relay")]
+    pub share: bool,
     /// Private LAN or overlay-network address to bind. Requires --lan.
     #[arg(long, requires = "lan", value_name = "IP")]
     pub host: Option<IpAddr>,

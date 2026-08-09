@@ -131,8 +131,35 @@ mod tests {
             relay.command,
             Command::Serve(ref args)
                 if args.relay
+                    && !args.share
                     && args.account_origin == "https://eidos.space"
                     && args.relay_origin == "https://relay.eidos.ink"
+        ));
+
+        let shared_relay = parse_ok(&["eidos", "serve", "tasks.eidos", "--relay", "--share"]);
+        assert!(matches!(
+            shared_relay.command,
+            Command::Serve(ref args) if args.relay && args.share
+        ));
+
+        let login = parse_ok(&[
+            "eidos",
+            "login",
+            "--account-origin",
+            "https://staging.eidos.space",
+        ]);
+        assert!(matches!(
+            login.command,
+            Command::Login(ref args)
+                if args.account_origin == "https://staging.eidos.space"
+        ));
+        assert!(matches!(
+            parse_ok(&["eidos", "whoami"]).command,
+            Command::Whoami(_)
+        ));
+        assert!(matches!(
+            parse_ok(&["eidos", "logout"]).command,
+            Command::Logout(_)
         ));
     }
 
@@ -140,6 +167,7 @@ mod tests {
     fn relay_is_explicit_and_mutually_exclusive_with_lan() {
         for args in [
             vec!["eidos", "serve", "tasks.eidos", "--relay", "--lan"],
+            vec!["eidos", "serve", "tasks.eidos", "--share"],
             vec![
                 "eidos",
                 "serve",

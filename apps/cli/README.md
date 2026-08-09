@@ -146,14 +146,33 @@ When private-network access is unavailable, sign in with an eidos.space
 account and publish the same loopback server through Eidos Relay:
 
 ```bash
+target/debug/eidos login
+target/debug/eidos whoami
 target/debug/eidos serve tracker.eidos --relay --open
 ```
 
 Relay assigns the account a stable opaque `u-….eidos.ink` hostname and uses an
-outbound WebSocket, so the CLI does not bind a public interface. The OAuth token
-is kept in memory for the claim and never enters the browser access link.
-Starting another Relay serve for the same account takes over the hostname.
-Local and LAN modes remain account-free.
+outbound WebSocket, so the CLI does not bind a public interface. `eidos login`
+stores a renewable session in an owner-only user configuration file; later
+Relay commands silently reuse or refresh it without an operating-system
+credential prompt. `eidos logout` removes that local credential.
+
+By default, opening the Relay URL asks the browser to sign in with the same
+eidos.space account that claimed the hostname. Relay verifies account
+ownership and creates a host-only browser session; the URL contains no access
+key. OAuth tokens never enter the browser URL or the local Serve process.
+
+Create an explicit guest link only when you want to share the running file
+with a browser that does not have the owner's account:
+
+```bash
+target/debug/eidos serve tracker.eidos --relay --share
+```
+
+`--share` prints a fragment-key link that pairs the guest browser with this
+Serve process. Starting another Relay serve for the same account takes over
+the hostname and invalidates earlier browser sessions. Local and LAN modes
+remain account-free.
 
 `--ui-dir <dir>` serves a different static UI build instead of the embedded
 one. The embedded editor is available in the published macOS, Linux, and

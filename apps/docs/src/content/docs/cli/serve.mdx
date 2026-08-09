@@ -10,6 +10,11 @@ Lite hosts. It is useful when you want a visual UI while keeping a terminal-owne
 file workflow.
 
 ```bash
+eidos create tracker.eidos \
+  --table Tasks \
+  --label-field Title \
+  --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
+
 eidos serve tracker.eidos --open
 ```
 
@@ -60,19 +65,41 @@ the local network. Use it only on a private network you trust.
 Use `--relay` when the other device cannot reach the CLI over a private network:
 
 ```bash
+eidos login
+eidos whoami
 eidos serve tracker.eidos --relay --open
 ```
 
-The CLI opens `eidos.space` for an Authorization Code + PKCE sign-in, claims
-your stable opaque `u-….eidos.ink` hostname, and connects out to Relay. The
-OAuth access token stays in memory only long enough to claim the tunnel and is
-never placed in the browser link. Browser traffic is HTTPS, and the fragment
-access key is exchanged for an HttpOnly session cookie at the Relay edge.
+`eidos login` opens `eidos.space` for an Authorization Code + PKCE sign-in and
+stores a renewable CLI session in an owner-only user configuration file.
+Later Relay commands silently reuse or refresh it without an operating-system
+credential prompt. `eidos logout` removes the local credential.
+
+The account session authorizes the CLI to claim your stable opaque
+`u-….eidos.ink` hostname. By default, the printed URL contains no access key.
+Opening it on any device redirects the browser to eidos.space; only the same
+account that claimed the hostname can complete sign-in. Relay then creates a
+host-only HttpOnly session for that browser. OAuth tokens never enter the
+browser URL or the local Serve process.
+
+Use `--share` only when a guest should be able to open the running file without
+the owner's Eidos account:
+
+```bash
+eidos serve tracker.eidos --relay --share
+```
+
+This explicit share mode prints a fragment-key capability for the current
+Serve process. Relay exchanges it for an HttpOnly browser session, so the key
+is not sent in normal HTTP requests. Anyone who receives that link can edit
+the file while this Relay session remains active.
 
 Starting another Relay serve for the same account takes over the hostname and
-disconnects the older connector. Local and `--lan` use remain account-free.
+disconnects the older connector. It also invalidates browser sessions created
+by the previous claim. Local and `--lan` use remain account-free.
 Relay currently accepts request bodies up to 4 MiB, so use localhost or LAN for
-large CSV imports. `--relay` and `--lan` are mutually exclusive.
+large CSV imports. `--share` requires `--relay`; `--relay` and `--lan` are
+mutually exclusive.
 
 ## Development UI override
 
@@ -86,11 +113,15 @@ eidos serve tracker.eidos --ui-dir ./dist --port 8420
 
 ## Concurrency
 
-Multiple localhost, paired LAN, or paired Relay browsers can edit simultaneously. Serve
-serializes their mutations through one authoritative Runtime writer and
-notifies other browsers after every committed revision. A simultaneous stale
-edit is rejected without side effects and the browser refreshes to the latest
-revision.
+Multiple localhost, paired LAN, account-authorized Relay, or explicitly shared
+Relay browsers can edit simultaneously. Serve serializes their mutations
+through one authoritative Runtime writer and notifies other browsers after
+every committed revision. A simultaneous stale edit is rejected without side
+effects and the browser refreshes to the latest revision.
+
+Cell changes and newly appended rows render optimistically. In particular, a
+new row is editable before its remote insert returns; Serve still commits the
+row creation before sending edits that depend on its authoritative Row ID.
 
 The Serve process must still be the file's only physical writer. Stop it
 before opening the same path in another write-capable host or SQLite tool.
