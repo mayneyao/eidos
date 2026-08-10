@@ -240,6 +240,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4.102.0"
           workingDirectory: apps/download
           command: deploy
 
@@ -319,3 +320,28 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: release-upload/*
+
+      - name: Verify live update metadata
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG#lite-v}"
+          if [[ "$version" =~ -(alpha|beta|rc)\. ]]; then
+            channel=beta
+            metadata=beta
+          else
+            channel=stable
+            metadata=latest
+          fi
+          for route in \
+            "$channel/arm64/${metadata}-mac.yml" \
+            "$channel/x64/${metadata}-mac.yml" \
+            "$channel/x64/${metadata}.yml" \
+            "$channel/arm64/${metadata}-linux.yml" \
+            "$channel/x64/${metadata}-linux.yml"; do
+            response="$(curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
+              "https://download.eidos.space/lite/updates/$route")"
+            grep -Fq "version: $version" <<< "$response"
+          done

@@ -29,7 +29,7 @@ export interface Env {
   // MY_SERVICE: Fetcher;
 
   // GitHub personal access token for API requests
-  GITHUB_TOKEN: SecretsStoreSecret
+  GITHUB_TOKEN?: SecretsStoreSecret
 }
 
 interface GitHubAsset {
@@ -113,7 +113,7 @@ export default {
         Accept: "application/vnd.github.v3+json",
       }
 
-      const apiKey = await env.GITHUB_TOKEN.get()
+      const apiKey = await env.GITHUB_TOKEN?.get()
       // Add GitHub token if available
       if (apiKey) {
         headers["Authorization"] = `token ${apiKey}`

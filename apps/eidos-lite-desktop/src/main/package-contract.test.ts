@@ -202,6 +202,7 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain("Get-AuthenticodeSignature")
     expect(workflow).toContain('$signature.Status -ne "NotSigned"')
     expect(workflow).not.toContain("WINDOWS_CERTIFICATE")
+    expect(workflow).toContain('wranglerVersion: "4.102.0"')
     expect(workflow).toContain(
       'test -f "release-upload/Eidos Lite-${version}-linux-x86_64.AppImage"'
     )
@@ -210,6 +211,7 @@ describe("Eidos Lite package identity", () => {
     )
     expect(workflow).toContain("latest-mac.yml mac arm64")
     expect(workflow).toContain("softprops/action-gh-release@v2")
+    expect(workflow).toContain("Verify live update metadata")
   })
 
   it("keeps local-first performance budgets and the real-Space gate executable", async () => {
