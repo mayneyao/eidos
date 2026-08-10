@@ -17,7 +17,8 @@ export function findSpaceEntry(
 export async function resolveSpaceEntry(
   initialSnapshot: SpaceSnapshot,
   relativePath: string,
-  loadDirectory: (relativePath: string) => Promise<SpaceSnapshot>
+  loadDirectory: (relativePath: string) => Promise<SpaceSnapshot>,
+  refreshSnapshot?: () => Promise<SpaceSnapshot | null>
 ): Promise<{ snapshot: SpaceSnapshot; entry: SpaceTreeEntry | null }> {
   let snapshot = initialSnapshot
   let directoryPath = ""
@@ -30,8 +31,12 @@ export async function resolveSpaceEntry(
     if (directory.childrenLoaded) continue
     snapshot = await loadDirectory(directory.relativePath)
   }
-  return {
+  const result = {
     snapshot,
     entry: findSpaceEntry(snapshot.entries, relativePath),
   }
+  if (result.entry || !refreshSnapshot) return result
+  const refreshed = await refreshSnapshot()
+  if (!refreshed) return result
+  return resolveSpaceEntry(refreshed, relativePath, loadDirectory)
 }

@@ -29,7 +29,7 @@ Eidos Lite 使用 Graft 提供本地 checkpoint 和记录级历史。本地工�
 加入 waitlist 不会自动获得 Sync 权限。申请获批前，Lite 保持完全本地运行，不会 provision
 或连接远端。无论是否拥有 Sync 权限，都应保留普通文件备份。
 
-Lite 0.1.1 使用 Graft SDK 0.3.8。已获批并连接的 Space 可以增量 Pull 干净的
+Lite 0.1.2 使用 Graft SDK 0.3.8。已获批并连接的 Space 可以增量 Pull 干净的
 fast-forward 更新，在关闭期间安全取消、重新打开常驻 Eidos File handle，并再次重试。
 如果 Local 与 Hosted 历史发生分叉，Lite 会在物化前停止，通过显式恢复副本流程保留双方；
 不会 force push，也不会擅自选择 merge 赢家。

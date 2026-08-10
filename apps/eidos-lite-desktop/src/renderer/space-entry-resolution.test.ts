@@ -80,4 +80,45 @@ describe("resolveSpaceEntry", () => {
     expect(loadDirectory).not.toHaveBeenCalled()
     expect(result.entry?.relativePath).toBe("file.eidos")
   })
+
+  it("refreshes a stale loaded directory before rejecting a launch target", async () => {
+    const stale = snapshot([
+      {
+        name: "projects",
+        relativePath: "projects",
+        kind: "directory",
+        size: 0,
+        modifiedAtMs: 0,
+        children: [],
+        childrenLoaded: true,
+      },
+    ])
+    const refreshed = snapshot([
+      {
+        ...stale.entries[0]!,
+        children: [
+          {
+            name: "content-calendar.eidos",
+            relativePath: "projects/content-calendar.eidos",
+            kind: "eidos",
+            size: 1024,
+            modifiedAtMs: 1,
+          },
+        ],
+      },
+    ])
+    const loadDirectory = vi.fn(async () => refreshed)
+    const refreshSnapshot = vi.fn(async () => refreshed)
+
+    const result = await resolveSpaceEntry(
+      stale,
+      "projects/content-calendar.eidos",
+      loadDirectory,
+      refreshSnapshot
+    )
+
+    expect(refreshSnapshot).toHaveBeenCalledOnce()
+    expect(result.snapshot).toBe(refreshed)
+    expect(result.entry?.relativePath).toBe("projects/content-calendar.eidos")
+  })
 })

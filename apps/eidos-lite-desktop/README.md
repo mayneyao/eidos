@@ -6,12 +6,13 @@
 > the [repository README](../../README.md). This document covers the detailed
 > architecture and verification contract.
 
-Eidos Lite 0.1.1 is the current public release. Local Spaces, editing, and
-version history require no account. This release adopts Graft SDK 0.3.8 for
+Eidos Lite 0.1.2 is the current public release. Local Spaces, editing, and
+version history require no account. This release uses Graft SDK 0.3.8 for
 reliable incremental Pull, cooperative cancellation, and safe retry/reopen
-behavior. Eidos Sync remains an invite-only private preview: users may join the
-waitlist, but Lite provisions or connects a Remote only after an administrator
-grants `read_write` access.
+behavior, and refreshes stale Explorer state before opening an externally
+launched Eidos File. Eidos Sync remains an invite-only private preview: users
+may join the waitlist, but Lite provisions or connects a Remote only after an
+administrator grants `read_write` access.
 
 Eidos Lite is an independent Electron application for opening an ordinary
 folder as a Space and working with multiple `.eidos` files in that folder.

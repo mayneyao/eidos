@@ -1220,7 +1220,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   currentSpace,
                   relativePath,
                   (directoryPath) =>
-                    window.eidosLite.loadSpaceDirectory(directoryPath)
+                    window.eidosLite.loadSpaceDirectory(directoryPath),
+                  () => window.eidosLite.refreshExplorer()
                 )
               : null
             if (resolved && resolved.snapshot !== currentSpace) {
