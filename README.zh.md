@@ -5,7 +5,7 @@
       <img alt="Eidos" height="150" src="static/assets/images/eidos-logo-horizontal-light.webp">
     </picture>
   </h1>
-  <h3>本地优先，数据以你拥有的文件存在。</h3>
+  <h3>开放格式。本地优先。基于文件的多维表格。</h3>
   <p>
     Eidos Lite 将普通文件夹变成快速、可追溯的个人数据空间，<br />
     核心数据保存在开放的 SQLite <code>.eidos</code> 文件中。

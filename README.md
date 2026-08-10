@@ -5,7 +5,7 @@
       <img alt="Eidos" height="150" src="static/assets/images/eidos-logo-horizontal-light.webp">
     </picture>
   </h1>
-  <h3>Local-first personal data, in files you own.</h3>
+  <h3>An open format. Local-first. A file-based spreadsheet.</h3>
   <p>
     Eidos Lite turns an ordinary folder into a fast, versioned workspace<br />
     powered by open SQLite-based <code>.eidos</code> files.
