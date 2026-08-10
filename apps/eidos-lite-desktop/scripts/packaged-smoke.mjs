@@ -7,6 +7,33 @@ import { fileURLToPath } from "node:url"
 const appRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const repositoryRoot = path.resolve(appRoot, "../..")
 
+const expectedEnvironmentName =
+  process.env.EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT ?? "staging"
+if (
+  expectedEnvironmentName !== "staging" &&
+  expectedEnvironmentName !== "production"
+) {
+  throw new Error(
+    `Invalid packaged smoke environment: ${expectedEnvironmentName}`
+  )
+}
+const expectedServices =
+  expectedEnvironmentName === "production"
+    ? {
+        name: "production",
+        accountOrigin: "https://eidos.space",
+        billingOrigin: "https://eidos.space",
+        syncRemoteOrigin: "https://sync.eidos.space",
+        stagingBadge: false,
+      }
+    : {
+        name: "staging",
+        accountOrigin: "https://staging.eidos.space",
+        billingOrigin: "https://staging.eidos.space",
+        syncRemoteOrigin: "https://sync-staging.eidos.space",
+        stagingBadge: true,
+      }
+
 async function executablePath() {
   if (process.env.EIDOS_LITE_PACKAGED_APP) {
     return path.resolve(process.env.EIDOS_LITE_PACKAGED_APP)
@@ -190,12 +217,12 @@ try {
     : []
   if (
     !report.ok ||
-    report.environment?.name !== "staging" ||
-    report.environment?.accountOrigin !== "https://staging.eidos.space" ||
-    report.environment?.billingOrigin !== "https://staging.eidos.space" ||
+    report.environment?.name !== expectedServices.name ||
+    report.environment?.accountOrigin !== expectedServices.accountOrigin ||
+    report.environment?.billingOrigin !== expectedServices.billingOrigin ||
     report.environment?.syncRemoteOrigin !==
-      "https://sync-staging.eidos.space" ||
-    report.environment?.stagingBadge !== true ||
+      expectedServices.syncRemoteOrigin ||
+    report.environment?.stagingBadge !== expectedServices.stagingBadge ||
     report.performance?.coldStartMs <= 0 ||
     !Number.isFinite(budgets?.coldStartMs) ||
     report.performance?.coldStartMs > budgets.coldStartMs ||
@@ -223,7 +250,7 @@ try {
     report.diagnostics?.workbenchActionAbsent !== true ||
     report.diagnostics?.copyApi !== true ||
     report.diagnostics?.schemaVersion !== 1 ||
-    report.diagnostics?.environment !== "staging" ||
+    report.diagnostics?.environment !== expectedServices.name ||
     report.diagnostics?.openSpace !== true ||
     report.diagnostics?.safe !== true ||
     Object.values(report.onboarding ?? {}).some((value) => value !== true) ||

@@ -43,6 +43,7 @@
   },
   "linux": {
     "target": ["AppImage"],
-    "icon": "assets/logo.png"
+    "icon": "assets/logo.png",
+    "executableName": "eidos-lite-desktop"
   }
 }

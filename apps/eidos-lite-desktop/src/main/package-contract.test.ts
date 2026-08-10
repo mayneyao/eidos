@@ -150,6 +150,7 @@ describe("Eidos Lite package identity", () => {
     const builder = await readJson("electron-builder.json")
     const mac = builder.mac as Record<string, unknown>
     const win = builder.win as Record<string, unknown>
+    const linux = builder.linux as Record<string, unknown>
     const publish = builder.publish as Record<string, unknown>
     const workflow = await fs.readFile(
       path.resolve(
@@ -174,8 +175,15 @@ describe("Eidos Lite package identity", () => {
     expect(mac.hardenedRuntime).toBe(true)
     expect(mac.notarize).toBe(true)
     expect(win.forceCodeSigning).toBe(false)
+    expect(linux.executableName).toBe("eidos-lite-desktop")
     expect(workflow).toContain('- "lite-v*"')
     expect(workflow).toContain("pnpm build:eidos-lite:release")
+    expect(workflow).toContain(
+      "EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production"
+    )
+    expect(workflow).not.toContain(
+      "Build unsigned staging package for process-boundary smoke"
+    )
     expect(workflow).toContain("codesign --verify --deep --strict")
     expect(workflow).toContain("Get-AuthenticodeSignature")
     expect(workflow).toContain('$signature.Status -ne "NotSigned"')

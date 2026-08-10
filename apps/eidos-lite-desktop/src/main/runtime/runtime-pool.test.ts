@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   DEFAULT_MAX_RESIDENT_RUNTIMES,
+  isCurrentRuntimeChild,
   selectLruRuntimeToEvict,
 } from "./runtime-pool"
 
@@ -31,5 +32,13 @@ describe("RuntimePool LRU policy", () => {
         "opening"
       )
     ).toBe("other")
+  })
+
+  it("ignores a delayed exit from a replaced utility process", () => {
+    const previousChild = { id: "previous" }
+    const replacementChild = { id: "replacement" }
+
+    expect(isCurrentRuntimeChild(replacementChild, previousChild)).toBe(false)
+    expect(isCurrentRuntimeChild(replacementChild, replacementChild)).toBe(true)
   })
 })

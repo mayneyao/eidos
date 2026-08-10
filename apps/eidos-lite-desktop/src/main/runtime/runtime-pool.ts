@@ -39,6 +39,13 @@ interface RuntimeEntry {
 
 export const DEFAULT_MAX_RESIDENT_RUNTIMES = 3
 
+export function isCurrentRuntimeChild<T>(
+  currentChild: T | null,
+  exitingChild: T
+): boolean {
+  return currentChild === exitingChild
+}
+
 function defaultRuntimeWorkerPath(): string {
   const workerUrl = new URL("./runtime-worker.js", import.meta.url)
   if (workerUrl.protocol === "file:") return fileURLToPath(workerUrl)
@@ -555,9 +562,9 @@ export class RuntimePool {
     entry.crashed = false
     child.on("message", (message) => this.receive(entry, message))
     child.on("exit", (code) => {
-      const wasExpected = entry.child === null
+      if (!isCurrentRuntimeChild(entry.child, child)) return
       entry.child = null
-      entry.crashed = !wasExpected && code !== 0
+      entry.crashed = code !== 0
       for (const pending of entry.pending.values()) {
         pending.reject(
           new Error(

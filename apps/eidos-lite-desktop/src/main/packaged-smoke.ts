@@ -12,6 +12,31 @@ import {
 } from "./packaged-startup-smoke"
 import type { WindowController } from "./window-controller"
 
+type SmokeEnvironmentName = "staging" | "production"
+
+const smokeEnvironmentName = (() => {
+  const value = process.env.EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT ?? "staging"
+  if (value !== "staging" && value !== "production") {
+    throw new Error(`Invalid packaged smoke environment: ${value}`)
+  }
+  return value satisfies SmokeEnvironmentName
+})()
+
+const expectedSmokeServices =
+  smokeEnvironmentName === "production"
+    ? {
+        name: "production",
+        accountOrigin: "https://eidos.space",
+        billingOrigin: "https://eidos.space",
+        syncRemoteOrigin: "https://sync.eidos.space",
+      }
+    : {
+        name: "staging",
+        accountOrigin: "https://staging.eidos.space",
+        billingOrigin: "https://staging.eidos.space",
+        syncRemoteOrigin: "https://sync-staging.eidos.space",
+      }
+
 interface RendererSmokeResult {
   performance: {
     coldStartMs: number
@@ -421,6 +446,7 @@ const textHistoryProbe = `
 
 const rendererProbe = `
 (async () => {
+  const expectedServices = ${JSON.stringify(expectedSmokeServices)}
   const waitFor = async (read, label) => {
     const deadline = Date.now() + 15000
     while (Date.now() < deadline) {
@@ -434,13 +460,13 @@ const rendererProbe = `
   window.__eidosLiteSmokeStep = "startup"
   const appInfo = await window.eidosLite.getAppInfo()
   if (
-    appInfo.services.name !== "staging" ||
-    appInfo.services.accountOrigin !== "https://staging.eidos.space" ||
-    appInfo.services.billingOrigin !== "https://staging.eidos.space" ||
-    appInfo.services.syncRemoteOrigin !== "https://sync-staging.eidos.space"
+    appInfo.services.name !== expectedServices.name ||
+    appInfo.services.accountOrigin !== expectedServices.accountOrigin ||
+    appInfo.services.billingOrigin !== expectedServices.billingOrigin ||
+    appInfo.services.syncRemoteOrigin !== expectedServices.syncRemoteOrigin
   ) {
     throw new Error(
-      "Unsigned development package is not bound to the official staging preset: " +
+      "Packaged application is not bound to the expected service preset: " +
       JSON.stringify(appInfo.services)
     )
   }
@@ -583,7 +609,15 @@ const rendererProbe = `
   const syncPanel = await waitFor(
     () => {
       const candidate = document.querySelector('.sync-dialog[data-sync-mode="enable"]')
-      return candidate?.dataset.syncAccountState === "signed-out"
+      const candidateBadge = candidate?.querySelector(
+        '.environment-badge[data-service-environment="staging"]'
+      )
+      const badgeMatches = expectedServices.name === "staging"
+        ? Boolean(candidateBadge)
+        : !candidateBadge
+      return candidate?.dataset.syncAccountState === "signed-out" &&
+        candidate.dataset.syncEnvironment === expectedServices.name &&
+        badgeMatches
         ? candidate
         : null
     },
@@ -599,8 +633,12 @@ const rendererProbe = `
     panel: ["dialog", "complementary"].includes(
       syncPanel.getAttribute("role") ?? ""
     ),
-    environment: syncPanel.dataset.syncEnvironment === "staging",
-    environmentBadge: Boolean(stagingBadge),
+    environment:
+      syncPanel.dataset.syncEnvironment === expectedServices.name,
+    environmentBadge:
+      expectedServices.name === "staging"
+        ? Boolean(stagingBadge)
+        : !stagingBadge,
     signedOut: syncPanel.dataset.syncAccountState === "signed-out",
     gated: syncPanel.dataset.syncCanEnable === "false",
     signInAvailable: Boolean(syncSignIn),

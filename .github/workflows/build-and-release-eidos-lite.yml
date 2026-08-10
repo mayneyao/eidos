@@ -117,34 +117,6 @@ jobs:
           fs.writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`)
           NODE
 
-      - name: Build unsigned staging package for process-boundary smoke
-        run: pnpm build:eidos-lite:dev
-
-      - name: Prepare Linux sandbox
-        if: matrix.platform == 'linux'
-        shell: bash
-        run: |
-          sandbox="$(find apps/eidos-lite-desktop/dist-app -type f -name chrome-sandbox -print -quit)"
-          test -n "$sandbox"
-          sudo chown root:root "$sandbox"
-          sudo chmod 4755 "$sandbox"
-
-      - name: Smoke packaged application
-        if: matrix.platform != 'linux'
-        run: pnpm smoke:eidos-lite-packaged
-
-      - name: Smoke packaged Linux application
-        if: matrix.platform == 'linux'
-        shell: bash
-        run: |
-          if ! command -v xvfb-run >/dev/null; then
-            sudo apt-get update
-            sudo apt-get install -y xvfb
-          fi
-          executable="$(find apps/eidos-lite-desktop/dist-app -type f -name eidos-lite-desktop -print -quit)"
-          test -n "$executable"
-          EIDOS_LITE_PACKAGED_APP="$executable" xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
-
       - name: Require macOS signing inputs
         if: matrix.platform == 'mac'
         shell: bash
@@ -188,6 +160,35 @@ jobs:
           if (-not $installer) { throw "Eidos Lite installer is missing" }
           $signature = Get-AuthenticodeSignature $installer.FullName
           if ($signature.Status -ne "NotSigned") { throw "Expected an unsigned Windows installer, got: $($signature.Status)" }
+
+      - name: Prepare Linux sandbox
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          sandbox="$(find apps/eidos-lite-desktop/dist-app -type f -name chrome-sandbox -print -quit)"
+          test -n "$sandbox"
+          sudo chown root:root "$sandbox"
+          sudo chmod 4755 "$sandbox"
+
+      - name: Smoke packaged release
+        if: matrix.platform != 'linux'
+        env:
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
+        run: pnpm smoke:eidos-lite-packaged
+
+      - name: Smoke packaged Linux release
+        if: matrix.platform == 'linux'
+        shell: bash
+        env:
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
+        run: |
+          if ! command -v xvfb-run >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y xvfb
+          fi
+          executable="$(find apps/eidos-lite-desktop/dist-app -type f -name eidos-lite-desktop -print -quit)"
+          test -n "$executable"
+          EIDOS_LITE_PACKAGED_APP="$executable" xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
 
       - name: Upload release assets
         uses: actions/upload-artifact@v4
