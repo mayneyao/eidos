@@ -187,10 +187,11 @@ The Lite release workflow runs that packaged acceptance twice without changing
 the performance budgets. The first fresh-package process observes timings while
 still enforcing every functional, environment, data-safety, and integration
 assertion. A second new process then enforces the 2,000 ms cold-start, 1,500 ms
-utility-open P95, and 2,000 ms 100,000-row first-frame budgets. Linux runs both
-processes inside a session D-Bus and Xvfb. This two-pass beta gate separates
-one-time host cache setup from application performance; it does not replace the
-repeated clean-machine P95 evidence required for Public v1.
+utility-open P95, and 2,000 ms 100,000-row first-frame budgets on macOS and
+Windows. Linux runs the complete functional pass inside a session D-Bus and
+Xvfb, records the same timings, and does not treat software-rasterized Xvfb
+frames as representative UI performance evidence. This beta gate does not
+replace the repeated clean-machine P95 evidence required for Public v1.
 
 The smoke uses an isolated temporary Electron `userData` directory, opens the
 Eidos Sync panel, and requires the staging, signed-out, `canEnable: false`, and

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   DEFAULT_MAX_RESIDENT_RUNTIMES,
+  hasPendingRuntimeRequestsForChild,
   isCurrentRuntimeChild,
   selectLruRuntimeToEvict,
 } from "./runtime-pool"
@@ -94,6 +95,24 @@ describe("RuntimePool LRU policy", () => {
         },
       ])
     ).toBeNull()
+  })
+
+  it("drains only requests owned by the child being closed", () => {
+    const closingChild = { id: "closing" }
+    const replacementChild = { id: "replacement" }
+
+    expect(
+      hasPendingRuntimeRequestsForChild(
+        [{ child: closingChild }, { child: replacementChild }],
+        closingChild
+      )
+    ).toBe(true)
+    expect(
+      hasPendingRuntimeRequestsForChild(
+        [{ child: replacementChild }],
+        closingChild
+      )
+    ).toBe(false)
   })
 
   it("ignores a delayed exit from a replaced utility process", () => {

@@ -48,6 +48,16 @@ export function isCurrentRuntimeChild<T>(
   return currentChild === exitingChild
 }
 
+export function hasPendingRuntimeRequestsForChild<T>(
+  pending: Iterable<{ child: T }>,
+  child: T
+): boolean {
+  for (const request of pending) {
+    if (request.child === child) return true
+  }
+  return false
+}
+
 function defaultRuntimeWorkerPath(): string {
   const workerUrl = new URL("./runtime-worker.js", import.meta.url)
   if (workerUrl.protocol === "file:") return fileURLToPath(workerUrl)
@@ -108,7 +118,7 @@ export class RuntimePool {
   private readonly pendingInvalidations: EidosFileIssue[] = []
   private accessSequence = 0
   private residencyTail: Promise<void> = Promise.resolve()
-  private readonly idleResidentWaiters = new Set<() => void>()
+  private readonly pendingChangeWaiters = new Set<() => void>()
 
   constructor(
     private readonly spaceRoot: string,
@@ -588,7 +598,7 @@ export class RuntimePool {
           pending.reject(error)
         }
       }
-      this.notifyIdleResident(entry)
+      this.notifyPendingChange()
     })
     try {
       return (await this.request(
@@ -617,6 +627,7 @@ export class RuntimePool {
     const child = entry.child
     if (!child) return
     entry.child = null
+    await this.waitForChildRequests(entry, child)
     try {
       await this.requestChild(
         entry,
@@ -658,7 +669,7 @@ export class RuntimePool {
         child.postMessage(request)
       } catch (error) {
         entry.pending.delete(request.requestId)
-        this.notifyIdleResident(entry)
+        this.notifyPendingChange()
         reject(error instanceof Error ? error : new Error(String(error)))
       }
     })
@@ -669,7 +680,7 @@ export class RuntimePool {
     const pending = entry.pending.get(message.requestId)
     if (!pending) return
     entry.pending.delete(message.requestId)
-    this.notifyIdleResident(entry)
+    this.notifyPendingChange()
     if (message.ok) {
       pending.resolve(message.result)
       return
@@ -689,13 +700,25 @@ export class RuntimePool {
         entry.pending.size === 0
     )
     if (hasIdleResident) return Promise.resolve()
-    return new Promise((resolve) => this.idleResidentWaiters.add(resolve))
+    return this.waitForPendingChange()
   }
 
-  private notifyIdleResident(entry: RuntimeEntry): void {
-    if (entry.pending.size > 0) return
-    for (const resolve of this.idleResidentWaiters) resolve()
-    this.idleResidentWaiters.clear()
+  private async waitForChildRequests(
+    entry: RuntimeEntry,
+    child: UtilityProcess
+  ): Promise<void> {
+    while (hasPendingRuntimeRequestsForChild(entry.pending.values(), child)) {
+      await this.waitForPendingChange()
+    }
+  }
+
+  private waitForPendingChange(): Promise<void> {
+    return new Promise((resolve) => this.pendingChangeWaiters.add(resolve))
+  }
+
+  private notifyPendingChange(): void {
+    for (const resolve of this.pendingChangeWaiters) resolve()
+    this.pendingChangeWaiters.clear()
   }
 
   private requireEntry(sessionId: string): RuntimeEntry {

@@ -187,6 +187,7 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain('executable="$(realpath "$executable")"')
     expect(workflow).toContain("EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe")
     expect(workflow).toContain("Enforce packaged release performance")
+    expect(workflow).not.toContain("Enforce packaged Linux release performance")
     expect(workflow).toContain("dbus-run-session -- xvfb-run")
     expect(workflow).toContain(
       "EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production"

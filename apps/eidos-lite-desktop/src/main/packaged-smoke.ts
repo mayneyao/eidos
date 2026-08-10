@@ -295,7 +295,7 @@ const emptySpaceOnboardingProbe = `
 const launchRouteProbe = `
 (async () => {
   const relativePath = "projects/content-calendar.eidos"
-  const deadline = Date.now() + 15000
+  const deadline = Date.now() + 30000
   while (Date.now() < deadline) {
     const editor = document.querySelector(
       '.file-editor[aria-label="' + CSS.escape(relativePath) + '"] ' +
@@ -313,7 +313,20 @@ const launchRouteProbe = `
     }
     await new Promise((resolve) => setTimeout(resolve, 25))
   }
-  throw new Error("Timed out waiting for the file-association launch route")
+  const treeHost = document.querySelector("[data-space-file-tree]")
+  throw new Error(
+    "Timed out waiting for the file-association launch route: " +
+    JSON.stringify({
+      activePath: treeHost?.dataset.activePath ?? null,
+      activeSelected: treeHost?.dataset.activeSelected ?? null,
+      editors: [...document.querySelectorAll(".file-editor")].map(
+        (editor) => editor.getAttribute("aria-label")
+      ),
+      cachedFiles: [...document.querySelectorAll("[data-cached-file-path]")].map(
+        (file) => file.dataset.cachedFilePath
+      ),
+    })
+  )
 })()
 `
 

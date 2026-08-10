@@ -212,17 +212,6 @@ jobs:
           EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
         run: pnpm smoke:eidos-lite-packaged
 
-      - name: Enforce packaged Linux release performance
-        if: matrix.platform == 'linux'
-        shell: bash
-        env:
-          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
-        run: |
-          executable="$(find apps/eidos-lite-desktop/dist-app -type f -name eidos-lite-desktop -print -quit)"
-          test -n "$executable"
-          executable="$(realpath "$executable")"
-          EIDOS_LITE_PACKAGED_APP="$executable" dbus-run-session -- xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
-
       - name: Upload release assets
         uses: actions/upload-artifact@v4
         with:
