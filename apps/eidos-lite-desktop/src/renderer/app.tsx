@@ -39,6 +39,7 @@ import type {
   EidosFileIssue,
   EidosLiteAppearance,
   EidosLiteAppInfo,
+  EidosLiteUpdateStatus,
   EidosSyncQueueStatus,
   RecentSpaceEntry,
   SpacePathMutationResult,
@@ -75,6 +76,10 @@ import {
 } from "./navigation-history"
 import { RecentFilesEmptyState } from "./recent-files-empty-state"
 import { QuickOpen } from "./quick-open"
+import {
+  isSidebarUpdateReady,
+  SidebarUpdateAction,
+} from "./sidebar-update-action"
 import { findSpaceEntry, resolveSpaceEntry } from "./space-entry-resolution"
 import {
   loadRecentFiles,
@@ -627,6 +632,8 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     storedSidebarCollapsed
   )
+  const [updateStatus, setUpdateStatus] =
+    useState<EidosLiteUpdateStatus | null>(null)
 
   const [navigationSnapshot, setNavigationSnapshot] =
     useState<NavigationSnapshot | null>(null)
@@ -657,6 +664,25 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     return window.eidosLite.onPreferencesChanged((preferences) =>
       setKeyboardShortcuts(preferences.keyboardShortcuts)
     )
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    let receivedChange = false
+    const unsubscribe = window.eidosLite.onUpdateStatusChanged((status) => {
+      receivedChange = true
+      if (active) setUpdateStatus(status)
+    })
+    void window.eidosLite.getUpdateStatus().then(
+      (status) => {
+        if (active && !receivedChange) setUpdateStatus(status)
+      },
+      () => undefined
+    )
+    return () => {
+      active = false
+      unsubscribe()
+    }
   }, [])
 
   const recordNavigationLocation = useCallback(
@@ -1857,6 +1883,15 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             </p>
           ) : null}
         </nav>
+        {isSidebarUpdateReady(updateStatus) ? (
+          <SidebarUpdateAction
+            label={t("Restart to update")}
+            description={t("Version {version} is ready to install.", {
+              version: updateStatus.version ?? "",
+            })}
+            onRestart={() => void window.eidosLite.restartToInstallUpdate()}
+          />
+        ) : null}
       </aside>
 
       <div
