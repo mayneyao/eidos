@@ -2,11 +2,26 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import {
+  findReleaseAsset,
   getCliSource,
   getEidosLiteUpdateRoute,
   releaseAssetNameForLiteUpdate,
   selectEidosLiteRelease,
 } from "./release-routing.mjs"
+
+test("Lite assets retain access when GitHub normalizes spaces in names", () => {
+  const asset = {
+    name: "Eidos.Lite-0.1.0-beta.12-mac-arm64.zip",
+    label: "Eidos Lite-0.1.0-beta.12-mac-arm64.zip",
+  }
+  assert.equal(
+    findReleaseAsset(
+      [asset],
+      "Eidos Lite-0.1.0-beta.12-mac-arm64.zip"
+    ),
+    asset
+  )
+})
 
 test("download worker exposes stable branded CLI entry points", () => {
   assert.equal(

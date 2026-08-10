@@ -95,3 +95,10 @@ export function releaseAssetNameForLiteUpdate(route) {
     metadata[2] === "-mac" ? "mac" : metadata[2] === "-linux" ? "linux" : "win"
   return `${metadata[1]}-${platform}-${route.architecture}.yml`
 }
+
+export function findReleaseAsset(assets, assetName) {
+  return assets.find(
+    (candidate) =>
+      candidate.name === assetName || candidate.label === assetName
+  )
+}

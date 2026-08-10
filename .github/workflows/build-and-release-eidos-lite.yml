@@ -344,4 +344,10 @@ jobs:
             response="$(curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
               "https://download.eidos.space/lite/updates/$route")"
             grep -Fq "version: $version" <<< "$response"
+            asset="$(awk -F ': ' '/^path: / { print $2; exit }' <<< "$response")"
+            test -n "$asset"
+            asset="${asset// /%20}"
+            curl --fail --location --range 0-0 --output /dev/null \
+              --retry 5 --retry-all-errors --retry-delay 3 \
+              "https://download.eidos.space/lite/updates/${route%/*}/$asset"
           done

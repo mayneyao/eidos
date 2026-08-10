@@ -1,4 +1,5 @@
 import {
+  findReleaseAsset,
   getCliSource,
   getEidosLiteUpdateRoute,
   releaseAssetNameForLiteUpdate,
@@ -34,6 +35,7 @@ export interface Env {
 
 interface GitHubAsset {
   name: string
+  label?: string
   browser_download_url: string
 }
 
@@ -161,9 +163,9 @@ export default {
           })
         }
         const assetName = releaseAssetNameForLiteUpdate(liteUpdateRoute)
-        const asset = release.assets.find(
-          (candidate: GitHubAsset) => candidate.name === assetName
-        )
+        const asset = findReleaseAsset(release.assets, assetName) as
+          | GitHubAsset
+          | undefined
         if (!asset) {
           return new Response("Eidos Lite update asset is unavailable", {
             status: 404,

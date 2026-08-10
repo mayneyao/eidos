@@ -212,6 +212,7 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain("latest-mac.yml mac arm64")
     expect(workflow).toContain("softprops/action-gh-release@v2")
     expect(workflow).toContain("Verify live update metadata")
+    expect(workflow).toContain("--range 0-0 --output /dev/null")
   })
 
   it("keeps local-first performance budgets and the real-Space gate executable", async () => {
