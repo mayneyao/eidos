@@ -297,7 +297,8 @@ jobs:
           test -f "release-upload/Eidos Lite-${version}-mac-x64.dmg"
           test -f "release-upload/Eidos Lite-${version}-mac-x64.zip"
           test -f "release-upload/Eidos Lite-${version}-win-x64.exe"
-          test -f "release-upload/Eidos Lite-${version}-linux-x64.AppImage"
+          # electron-builder renders the Linux x64 `${arch}` macro as `x86_64`.
+          test -f "release-upload/Eidos Lite-${version}-linux-x86_64.AppImage"
           test -f "release-upload/Eidos Lite-${version}-linux-arm64.AppImage"
           test -f "release-upload/${channel}-mac-arm64.yml"
           test -f "release-upload/${channel}-mac-x64.yml"

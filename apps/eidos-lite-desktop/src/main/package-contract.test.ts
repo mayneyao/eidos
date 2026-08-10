@@ -202,6 +202,9 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain("Get-AuthenticodeSignature")
     expect(workflow).toContain('$signature.Status -ne "NotSigned"')
     expect(workflow).not.toContain("WINDOWS_CERTIFICATE")
+    expect(workflow).toContain(
+      'test -f "release-upload/Eidos Lite-${version}-linux-x86_64.AppImage"'
+    )
     expect(workflow).toContain("latest-mac.yml mac arm64")
     expect(workflow).toContain("softprops/action-gh-release@v2")
   })
