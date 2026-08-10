@@ -1586,22 +1586,34 @@ export async function runPackagedSmoke(
     )
     const externalSource = session.resolveUserPath(externalProbe.relativePath)
     const externalMoved = `${externalSource}.moved`
+    if (process.platform === "win32") {
+      // Windows does not allow an open SQLite file to be renamed. Close the
+      // Runtime first, then exercise the same missing-file diagnosis and
+      // recovery path without pretending the platform supports POSIX unlink.
+      await session.closeEidosFile(externalRuntime.sessionId)
+    }
     await fs.rename(externalSource, externalMoved)
     let externalRenameInvalidated = false
     let externalRenameIssue = false
     try {
-      await session.callRuntime(externalRuntime.sessionId, "getSnapshot", [])
+      if (process.platform !== "win32") {
+        await session.callRuntime(externalRuntime.sessionId, "getSnapshot", [])
+      }
     } catch {
-      externalRenameInvalidated = !session.runtimePool
-        .openRelativePaths()
-        .includes(externalProbe.relativePath)
-      const issue = await session.inspectEidosFileIssue(
-        externalProbe.relativePath
-      )
-      externalRenameIssue =
-        issue?.reason === "missing" && issue.localSafe === true
+      // The active Runtime must invalidate after an external POSIX rename.
     } finally {
-      await fs.rename(externalMoved, externalSource)
+      try {
+        externalRenameInvalidated = !session.runtimePool
+          .openRelativePaths()
+          .includes(externalProbe.relativePath)
+        const issue = await session.inspectEidosFileIssue(
+          externalProbe.relativePath
+        )
+        externalRenameIssue =
+          issue?.reason === "missing" && issue.localSafe === true
+      } finally {
+        await fs.rename(externalMoved, externalSource)
+      }
     }
     const externalRetry = await session.openEidosFile(
       externalProbe.relativePath
