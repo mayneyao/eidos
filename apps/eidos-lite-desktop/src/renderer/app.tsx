@@ -75,6 +75,7 @@ import {
 } from "./navigation-history"
 import { RecentFilesEmptyState } from "./recent-files-empty-state"
 import { QuickOpen } from "./quick-open"
+import { findSpaceEntry, resolveSpaceEntry } from "./space-entry-resolution"
 import {
   loadRecentFiles,
   rememberRecentFile,
@@ -311,20 +312,6 @@ function parentPath(entry: SpaceTreeEntry | null): string | null {
   if (entry.kind === "directory") return entry.relativePath
   const parent = entry.relativePath.split("/").slice(0, -1).join("/")
   return parent || null
-}
-
-function findSpaceEntry(
-  entries: readonly SpaceTreeEntry[],
-  relativePath: string
-): SpaceTreeEntry | null {
-  for (const entry of entries) {
-    if (entry.relativePath === relativePath) return entry
-    const nested = entry.children
-      ? findSpaceEntry(entry.children, relativePath)
-      : null
-    if (nested) return nested
-  }
-  return null
 }
 
 function hasUnloadedDirectories(entries: readonly SpaceTreeEntry[]): boolean {
@@ -1202,10 +1189,20 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           drainRequested = false
           let relativePath = await window.eidosLite.takeLaunchEidosFile()
           while (relativePath && active) {
-            const entry = findSpaceEntry(
-              launchSpace.current?.entries ?? [],
-              relativePath
-            )
+            const currentSpace = launchSpace.current
+            const resolved = currentSpace
+              ? await resolveSpaceEntry(
+                  currentSpace,
+                  relativePath,
+                  (directoryPath) =>
+                    window.eidosLite.loadSpaceDirectory(directoryPath)
+                )
+              : null
+            if (resolved && resolved.snapshot !== currentSpace) {
+              launchSpace.current = resolved.snapshot
+              launchAcceptSpaceSnapshot.current(resolved.snapshot)
+            }
+            const entry = resolved?.entry ?? null
             if (!entry || entry.kind !== "eidos") {
               setError(
                 `Could not open ${relativePath}. It is not an Eidos File in this Space.`

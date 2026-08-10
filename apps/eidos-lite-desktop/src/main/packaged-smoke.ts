@@ -325,6 +325,8 @@ const launchRouteProbe = `
       cachedFiles: [...document.querySelectorAll("[data-cached-file-path]")].map(
         (file) => file.dataset.cachedFilePath
       ),
+      inlineError: document.querySelector(".inline-error span")?.textContent ?? null,
+      locationHash: window.location.hash,
     })
   )
 })()
