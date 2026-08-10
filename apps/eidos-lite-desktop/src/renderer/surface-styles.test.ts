@@ -74,6 +74,20 @@ describe("Eidos Lite surface hierarchy", () => {
     )
   })
 
+  it("keeps Windows actions clear of the overlaid system controls", () => {
+    expect(
+      rule(
+        '.welcome-shell[data-platform="win32"],\n.settings-shell[data-platform="win32"],\n.workbench[data-platform="win32"]'
+      )
+    ).toContain("--windows-titlebar-controls-width")
+    expect(
+      rule('.welcome-shell[data-platform="win32"] .welcome-settings-button')
+    ).toContain("var(--windows-titlebar-controls-width)")
+    expect(rule('.workbench[data-platform="win32"] .file-titlebar')).toContain(
+      "var(--windows-titlebar-controls-width)"
+    )
+  })
+
   it("aligns text editor content with the file title without moving the scrollbar", () => {
     expect(rule(".text-file-editor-virtualizer")).not.toContain("padding")
     expect(rule(".text-file-editor-virtualizer-content")).toContain(

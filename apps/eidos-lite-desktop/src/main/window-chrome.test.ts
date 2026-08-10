@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   applyMacosTrafficLightPosition,
+  liteWindowChromeOptions,
   macosTrafficLightPosition,
 } from "./window-chrome"
 
@@ -43,5 +44,27 @@ describe("macOS window chrome", () => {
     )
 
     expect(setWindowButtonPosition).not.toHaveBeenCalled()
+  })
+
+  it("integrates Windows controls into the renderer titlebar", () => {
+    expect(liteWindowChromeOptions("win32")).toEqual({
+      titleBarStyle: "hidden",
+      autoHideMenuBar: true,
+      titleBarOverlay: {
+        color: "#00000000",
+        height: 40,
+      },
+    })
+  })
+
+  it("keeps native Linux chrome and the inset macOS titlebar", () => {
+    expect(liteWindowChromeOptions("darwin")).toEqual({
+      titleBarStyle: "hiddenInset",
+      autoHideMenuBar: false,
+    })
+    expect(liteWindowChromeOptions("linux")).toEqual({
+      titleBarStyle: "default",
+      autoHideMenuBar: false,
+    })
   })
 })

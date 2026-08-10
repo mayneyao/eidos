@@ -23,6 +23,13 @@
 
 ## 快速开始
 
+### 安装 Eidos Lite
+
+从 [Eidos 下载页](https://eidos.space/zh/download#eidos-lite)下载 Eidos Lite
+0.1.0。macOS 安装包已签名并完成公证，Windows 与 Linux 安装包目前未签名。本地
+Space、编辑和版本历史无需账号。Sync 是仅限邀请的 Private Preview，waitlist
+申请获批前保持不可用。
+
 ### 直接使用浏览器
 
 打开 [editor.eidos.space](https://editor.eidos.space/)，无需安装即可创建或编辑本地
@@ -58,7 +65,7 @@ Viewer。已停止迭代的旧应用保存在 `legacy/0.32` 分支，不再参�
 
 | 产品                    | 用途                                           | 位置                                                                                                  |
 | ----------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **Eidos Lite**          | 桌面 Space、本地文件、版本历史与可选同步       | [`apps/eidos-lite-desktop`](./apps/eidos-lite-desktop)                                                |
+| **Eidos Lite**          | 桌面 Space、本地文件、版本历史与邀请制 Sync    | [`apps/eidos-lite-desktop`](./apps/eidos-lite-desktop)                                                |
 | **Eidos File Web**      | 在浏览器中打开和编辑单个 `.eidos` 文件         | [`apps/eidos-file-web`](./apps/eidos-file-web) · [editor.eidos.space](https://editor.eidos.space/)    |
 | **Eidos CLI**           | 创建、检查、自动化处理和本地服务 `.eidos` 文件 | [`apps/cli`](./apps/cli)                                                                              |
 | **Eidos File packages** | 可移植 Runtime 与共享 React UI                 | [`packages/eidos-file`](./packages/eidos-file) · [`packages/eidos-file-ui`](./packages/eidos-file-ui) |
@@ -67,11 +74,12 @@ Viewer。已停止迭代的旧应用保存在 `legacy/0.32` 分支，不再参�
 ## Eidos Lite
 
 Space 是用户拥有的普通文件夹，可以同时包含多个 `.eidos` 文件以及普通文本或媒体文件。
-Eidos Lite 在不引入专有容器的前提下提供聚焦的编辑体验、版本历史与可选同步。
+Eidos Lite 在不引入专有容器的前提下提供聚焦的编辑体验、版本历史与邀请制 Sync。
 
 - `.eidos` 文件始终是标准 SQLite 数据库。
 - Eidos File Web、Lite 和 `eidos serve` 共享同一 UI package 与主题契约。
-- Graft 提供本地历史和可选远端协议。
+- Graft 提供本地历史。Eidos Sync 仍是仅限邀请的 Private Preview；加入 waitlist
+  不会自动获得权限。
 - 离线或退出账号后，本地文件仍可正常使用。
 
 ## 开发

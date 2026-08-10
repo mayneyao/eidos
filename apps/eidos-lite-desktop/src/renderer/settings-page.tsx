@@ -25,6 +25,7 @@ import type {
 import { DEFAULT_RENDERER_PREFERENCES } from "./app-appearance"
 import { useEidosLiteI18n } from "./i18n"
 import { KeyboardShortcutSettings } from "./keyboard-shortcut-settings"
+import { rendererPlatform } from "./renderer-platform"
 import {
   clearSyncStatusSnapshots,
   readSyncAccountContext,
@@ -264,9 +265,7 @@ export function SettingsPage() {
   return (
     <main
       className="settings-shell"
-      data-platform={
-        navigator.userAgent.includes("Macintosh") ? "darwin" : "other"
-      }
+      data-platform={appInfo?.platform ?? rendererPlatform()}
       data-settings-ready={appInfo ? "true" : "false"}
     >
       <header className="settings-titlebar">

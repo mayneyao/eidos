@@ -2,6 +2,17 @@ import type { BrowserWindow } from "electron"
 
 export type LiteWindowKind = "welcome" | "space" | "settings"
 
+export interface LiteWindowChromeOptions {
+  titleBarStyle: "default" | "hidden" | "hiddenInset"
+  autoHideMenuBar: boolean
+  titleBarOverlay?: {
+    color: string
+    height: number
+  }
+}
+
+const WINDOWS_TITLEBAR_HEIGHT = 40
+
 const MACOS_TRAFFIC_LIGHT_POSITION = {
   welcome: { x: 16, y: 15 },
   space: { x: 16, y: 12 },
@@ -13,6 +24,31 @@ export function macosTrafficLightPosition(kind: LiteWindowKind): {
   y: number
 } {
   return MACOS_TRAFFIC_LIGHT_POSITION[kind]
+}
+
+export function liteWindowChromeOptions(
+  platform: NodeJS.Platform = process.platform
+): LiteWindowChromeOptions {
+  if (platform === "darwin") {
+    return {
+      titleBarStyle: "hiddenInset",
+      autoHideMenuBar: false,
+    }
+  }
+  if (platform === "win32") {
+    return {
+      titleBarStyle: "hidden",
+      autoHideMenuBar: true,
+      titleBarOverlay: {
+        color: "#00000000",
+        height: WINDOWS_TITLEBAR_HEIGHT,
+      },
+    }
+  }
+  return {
+    titleBarStyle: "default",
+    autoHideMenuBar: false,
+  }
 }
 
 export function applyMacosTrafficLightPosition(

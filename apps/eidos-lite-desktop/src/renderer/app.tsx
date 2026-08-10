@@ -75,6 +75,7 @@ import {
   type NavigationSnapshot,
 } from "./navigation-history"
 import { RecentFilesEmptyState } from "./recent-files-empty-state"
+import { rendererPlatform } from "./renderer-platform"
 import { QuickOpen } from "./quick-open"
 import {
   isSidebarUpdateReady,
@@ -462,9 +463,7 @@ function Welcome({
   return (
     <main
       className="welcome-shell"
-      data-platform={
-        navigator.userAgent.includes("Macintosh") ? "darwin" : "other"
-      }
+      data-platform={appInfo?.platform ?? rendererPlatform()}
       data-welcome-ready={appInfo ? "true" : "false"}
     >
       <header className="welcome-titlebar">
@@ -1749,9 +1748,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   return (
     <div
       className="workbench"
-      data-platform={
-        navigator.userAgent.includes("Macintosh") ? "darwin" : "other"
-      }
+      data-platform={appInfo?.platform ?? rendererPlatform()}
       data-service-environment={appInfo?.services.name ?? "unknown"}
       data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
       style={

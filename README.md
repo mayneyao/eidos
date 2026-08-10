@@ -23,6 +23,14 @@
 
 ## Quick start
 
+### Install Eidos Lite
+
+Download Eidos Lite 0.1.0 from the [Eidos download
+page](https://eidos.space/download#eidos-lite). macOS packages are signed and
+notarized; Windows and Linux packages are currently unsigned. Local Spaces,
+editing, and version history need no account. Sync is an invite-only private
+preview and remains unavailable until waitlist access is approved.
+
 ### Use the browser
 
 Open [editor.eidos.space](https://editor.eidos.space/) to create or edit a
@@ -59,25 +67,26 @@ plus the standalone read-only SQLite Web Viewer. The retired application is
 archived on the `legacy/0.32` branch and is not part of current builds, tests,
 or releases.
 
-| Product                 | Purpose                                                         | Location                                                                                              |
-| ----------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **Eidos Lite**          | Desktop Spaces, local files, version history, and optional Sync | [`apps/eidos-lite-desktop`](./apps/eidos-lite-desktop)                                                |
-| **Eidos File Web**      | Open and edit one `.eidos` file in a browser                    | [`apps/eidos-file-web`](./apps/eidos-file-web) · [editor.eidos.space](https://editor.eidos.space/)    |
-| **Eidos CLI**           | Create, inspect, automate, and serve `.eidos` files             | [`apps/cli`](./apps/cli)                                                                              |
-| **Eidos File packages** | Portable Runtime and shared React UI                            | [`packages/eidos-file`](./packages/eidos-file) · [`packages/eidos-file-ui`](./packages/eidos-file-ui) |
-| **SQLite Web Viewer**   | Inspect SQLite-compatible files without editing them            | [`apps/sqlite-web-viewer`](./apps/sqlite-web-viewer)                                                  |
+| Product                 | Purpose                                                                | Location                                                                                              |
+| ----------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Eidos Lite**          | Desktop Spaces, local files, version history, and private-preview Sync | [`apps/eidos-lite-desktop`](./apps/eidos-lite-desktop)                                                |
+| **Eidos File Web**      | Open and edit one `.eidos` file in a browser                           | [`apps/eidos-file-web`](./apps/eidos-file-web) · [editor.eidos.space](https://editor.eidos.space/)    |
+| **Eidos CLI**           | Create, inspect, automate, and serve `.eidos` files                    | [`apps/cli`](./apps/cli)                                                                              |
+| **Eidos File packages** | Portable Runtime and shared React UI                                   | [`packages/eidos-file`](./packages/eidos-file) · [`packages/eidos-file-ui`](./packages/eidos-file-ui) |
+| **SQLite Web Viewer**   | Inspect SQLite-compatible files without editing them                   | [`apps/sqlite-web-viewer`](./apps/sqlite-web-viewer)                                                  |
 
 ## Eidos Lite
 
 A Space is an ordinary folder the user owns. It can contain multiple `.eidos`
 files plus normal text or media files. Eidos Lite adds focused editing,
-version history, and optional Sync without turning the folder into a proprietary
-container.
+version history, and invite-only Sync without turning the folder into a
+proprietary container.
 
 - `.eidos` files remain standard SQLite databases.
 - Eidos File Web, Lite, and `eidos serve` share the same UI package and theme
   contract.
-- Graft provides local history and the optional remote protocol.
+- Graft provides local history. Eidos Sync remains an invite-only private
+  preview; joining the waitlist does not grant access automatically.
 - Local files remain usable while offline or signed out.
 
 ## Development

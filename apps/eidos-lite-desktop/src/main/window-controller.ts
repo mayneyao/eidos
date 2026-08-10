@@ -50,6 +50,7 @@ import {
 } from "./sync/space-clone-coordinator"
 import {
   applyMacosTrafficLightPosition,
+  liteWindowChromeOptions,
   macosTrafficLightPosition,
   type LiteWindowKind,
 } from "./window-chrome"
@@ -828,13 +829,18 @@ export class WindowController {
         : kind === "settings"
           ? { width: 780, height: 640 }
           : this.resolveSpaceWindowBounds()
+    const chrome = liteWindowChromeOptions()
     const window = new BrowserWindow({
       ...bounds,
       minWidth: compact ? 680 : 900,
       minHeight: compact ? 520 : 600,
       show: false,
       title: "Eidos Lite",
-      titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+      titleBarStyle: chrome.titleBarStyle,
+      autoHideMenuBar: chrome.autoHideMenuBar,
+      ...(chrome.titleBarOverlay
+        ? { titleBarOverlay: chrome.titleBarOverlay }
+        : {}),
       ...(process.platform === "darwin"
         ? {
             trafficLightPosition: macosTrafficLightPosition(kind),

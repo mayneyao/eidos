@@ -6,10 +6,15 @@
 > the [repository README](../../README.md). This document covers the detailed
 > architecture and verification contract.
 
+Eidos Lite 0.1.0 is the first public release. Local Spaces, editing, and
+version history require no account. Eidos Sync remains an invite-only private
+preview: users may join the waitlist, but Lite provisions or connects a Remote
+only after an administrator grants `read_write` access.
+
 Eidos Lite is an independent Electron application for opening an ordinary
 folder as a Space and working with multiple `.eidos` files in that folder.
 Its runtime is intentionally limited to the Eidos File, local filesystem,
-history, account, and optional Sync boundaries documented here.
+history, account, and invite-only Sync boundaries documented here.
 
 The independent package uses a checked-in Eidos Lite icon family for macOS,
 Windows, and Linux. It preserves the official Eidos cube silhouette while
