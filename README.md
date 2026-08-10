@@ -25,11 +25,13 @@
 
 ### Install Eidos Lite
 
-Download Eidos Lite 0.1.0 from the [Eidos download
+Download Eidos Lite 0.1.1 from the [Eidos download
 page](https://eidos.space/download#eidos-lite). macOS packages are signed and
 notarized; Windows and Linux packages are currently unsigned. Local Spaces,
-editing, and version history need no account. Sync is an invite-only private
-preview and remains unavailable until waitlist access is approved.
+editing, and version history need no account. Version 0.1.1 upgrades Graft to
+0.3.8 for reliable incremental Pull and cancellation recovery. Sync remains an
+invite-only private preview and is unavailable until waitlist access is
+approved.
 
 ### Use the browser
 
