@@ -30,6 +30,7 @@ import { EidosLitePreferencesStore } from "./app-preferences"
 import { GraftClient } from "./graft/graft-client"
 import { GraftUtilityTransport } from "./graft/graft-utility-transport"
 import { resolveEidosFileLaunchIntent } from "./launch-intent"
+import { LaunchNotificationRetry } from "./launch-notification-retry"
 import { eidosLiteLogSummary, logCorrelationKey } from "./logging"
 import { RuntimePool } from "./runtime/runtime-pool"
 import {
@@ -67,6 +68,10 @@ export class WindowController {
   private readonly sessionByWebContents = new Map<number, SpaceSession>()
   private readonly windowBySpaceId = new Map<string, BrowserWindow>()
   private readonly pendingLaunchFilesByWebContents = new Map<number, string[]>()
+  private readonly launchNotificationRetriesByWebContents = new Map<
+    number,
+    LaunchNotificationRetry
+  >()
   private readonly sessionCloses = new SessionCloseTracker<SpaceSession>()
   private readonly openingSessions = new Set<Promise<SpaceSession>>()
   private recentSpacesStore: RecentSpacesStore | null = null
@@ -164,7 +169,7 @@ export class WindowController {
     const pending = this.pendingLaunchFilesByWebContents.get(webContents.id)
     const relativePath = pending?.shift() ?? null
     if (!pending?.length) {
-      this.pendingLaunchFilesByWebContents.delete(webContents.id)
+      this.clearPendingLaunchFiles(webContents.id)
     }
     return relativePath
   }
@@ -576,6 +581,10 @@ export class WindowController {
     this.sessionByWebContents.clear()
     this.windowBySpaceId.clear()
     this.pendingLaunchFilesByWebContents.clear()
+    for (const retry of this.launchNotificationRetriesByWebContents.values()) {
+      retry.cancel()
+    }
+    this.launchNotificationRetriesByWebContents.clear()
     await this.sessionCloses.waitForAll()
   }
 
@@ -636,7 +645,7 @@ export class WindowController {
     window.setTitle(`${session.canonical.name} — Eidos Lite`)
     window.once("closed", () => {
       this.sessionByWebContents.delete(webContents.id)
-      this.pendingLaunchFilesByWebContents.delete(webContents.id)
+      this.clearPendingLaunchFiles(webContents.id)
       if (this.windowBySpaceId.get(session.canonical.id) === window) {
         this.windowBySpaceId.delete(session.canonical.id)
       }
@@ -725,7 +734,24 @@ export class WindowController {
       this.pendingLaunchFilesByWebContents.get(webContents.id) ?? []
     if (pending.at(-1) !== relativePath) pending.push(relativePath)
     this.pendingLaunchFilesByWebContents.set(webContents.id, pending)
-    webContents.send(IPC_CHANNELS.launchFileAvailable)
+    const retry =
+      this.launchNotificationRetriesByWebContents.get(webContents.id) ??
+      new LaunchNotificationRetry()
+    this.launchNotificationRetriesByWebContents.set(webContents.id, retry)
+    retry.notifyUntil(
+      () =>
+        !webContents.isDestroyed() &&
+        Boolean(
+          this.pendingLaunchFilesByWebContents.get(webContents.id)?.length
+        ),
+      () => webContents.send(IPC_CHANNELS.launchFileAvailable)
+    )
+  }
+
+  private clearPendingLaunchFiles(webContentsId: number): void {
+    this.pendingLaunchFilesByWebContents.delete(webContentsId)
+    this.launchNotificationRetriesByWebContents.get(webContentsId)?.cancel()
+    this.launchNotificationRetriesByWebContents.delete(webContentsId)
   }
 
   private async chooseRecoveryTarget(
