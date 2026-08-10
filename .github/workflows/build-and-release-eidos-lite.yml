@@ -133,14 +133,27 @@ jobs:
           test -n "$APPLE_APP_SPECIFIC_PASSWORD"
           test -n "$APPLE_TEAM_ID"
 
-      - name: Build update-enabled release
+      - name: Build signed and notarized macOS release
+        if: matrix.platform == 'mac'
         env:
-          CSC_LINK: ${{ matrix.platform == 'mac' && secrets.MACOS_CERTIFICATE || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && secrets.MACOS_CERTIFICATE_PWD || '' }}
-          APPLE_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_ID || '' }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'mac' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_TEAM_ID || '' }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.platform == 'mac' && 'true' || 'false' }}
+          CSC_LINK: ${{ secrets.MACOS_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_IDENTITY_AUTO_DISCOVERY: true
+        shell: bash
+        run: |
+          pnpm --filter @eidos.space/eidos-lite-desktop build:release
+          pnpm --filter @eidos.space/eidos-lite-desktop exec electron-builder \
+            --publish never \
+            --config electron-builder.json \
+            --config.mac.notarize.teamId="$APPLE_TEAM_ID"
+
+      - name: Build unsigned Windows or Linux release
+        if: matrix.platform != 'mac'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
         run: pnpm build:eidos-lite:release
 
       - name: Verify macOS signature and notarization
@@ -188,6 +201,7 @@ jobs:
           fi
           executable="$(find apps/eidos-lite-desktop/dist-app -type f -name eidos-lite-desktop -print -quit)"
           test -n "$executable"
+          executable="$(realpath "$executable")"
           EIDOS_LITE_PACKAGED_APP="$executable" xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
 
       - name: Upload release assets

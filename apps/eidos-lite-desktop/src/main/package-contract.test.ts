@@ -178,6 +178,13 @@ describe("Eidos Lite package identity", () => {
     expect(linux.executableName).toBe("eidos-lite-desktop")
     expect(workflow).toContain('- "lite-v*"')
     expect(workflow).toContain("pnpm build:eidos-lite:release")
+    expect(workflow).toContain("Build signed and notarized macOS release")
+    expect(workflow).toContain('--config.mac.notarize.teamId="$APPLE_TEAM_ID"')
+    expect(workflow).toContain("Build unsigned Windows or Linux release")
+    expect(workflow).not.toContain(
+      "matrix.platform == 'mac' && secrets.MACOS_CERTIFICATE"
+    )
+    expect(workflow).toContain('executable="$(realpath "$executable")"')
     expect(workflow).toContain(
       "EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production"
     )
