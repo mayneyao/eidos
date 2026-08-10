@@ -4,8 +4,9 @@ This runbook describes the public-release procedure but does not authorize a
 release. The current local artifact is unsigned and staging-bound. A pushed
 `lite-v*` tag is the explicit production release action: it runs the isolated
 Lite workflow, deploys the update router, builds the update-enabled production
-application, signs the macOS and Windows packages, notarizes macOS, and creates
-the GitHub Release. Do not create or push a tag without release approval.
+application, signs and notarizes macOS, publishes explicitly unsigned Windows
+and Linux packages, and creates the GitHub Release. Do not create or push a tag
+without release approval.
 
 ## Version and channel contract
 
@@ -38,14 +39,13 @@ Configure these GitHub Actions secrets before the first tag:
 - `MACOS_CERTIFICATE` and `MACOS_CERTIFICATE_PWD` for Developer ID signing;
 - `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and `APPLE_TEAM_ID` for
   notarization;
-- `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PWD` for Authenticode;
 - `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` for the download/update
   Worker.
 
-The workflow fails closed when signing inputs are absent. macOS packages must
-pass `codesign` verification and stapler validation, and the Windows installer
-must report a valid Authenticode signature before its artifacts can reach the
-Release job.
+The workflow fails closed when macOS signing inputs are absent. macOS packages
+must pass `codesign` verification and stapler validation. Windows and Linux are
+published unsigned; the Windows job requires Authenticode status `NotSigned`
+before its artifacts can reach the Release job.
 
 Before tagging, use a clean branch whose complete intended commits are pushed,
 then run the Lite source/type gates, download routing tests, and the unsigned
@@ -63,8 +63,9 @@ After publication, require all of the following before reporting success:
    metadata file, blockmap, and `SHA256SUMS`.
 4. Stable and beta feed URLs return the matching architecture metadata, and
    every metadata path resolves to an uploaded asset.
-5. A previous signed package detects the new version, downloads it, restarts,
-   preserves its ordinary Spaces, and reports the new version in diagnostics.
+5. A previous published package detects the new version, downloads it,
+   restarts, preserves its ordinary Spaces, and reports the new version in
+   diagnostics.
 
 ## Invariants
 
@@ -84,8 +85,9 @@ After publication, require all of the following before reporting success:
 1. Confirm the artifact version, target architecture, `space.eidos.lite` app
    id, compiled service environment, and published checksums. Production must
    report `production`; a staging artifact is never promoted in place.
-2. Verify the platform signature/notarization result and both clean-install and
-   in-place-upgrade jobs. An unsigned local package is test evidence only.
+2. Verify the macOS signature/notarization result, the explicit unsigned policy
+   for Windows/Linux, and both clean-install and in-place-upgrade jobs. An
+   unpublished local package is test evidence only.
 3. Quit Eidos Lite and wait for all renderer and utility processes to exit. Do
    not replace the application while a checkpoint, Sync, clone, pull, or
    restore is in flight.
@@ -93,13 +95,14 @@ After publication, require all of the following before reporting success:
    record the app/Graft versions and operation state. Create a Local checkpoint
    for important pending work. Sync is optional and must never be a prerequisite
    for preserving Local files.
-5. Keep an independently obtained copy of the previously signed installer and
-   its checksum. Do not treat an update feed as the only rollback source.
+5. Keep an independently obtained copy of the previously published installer
+   and its checksum. Do not treat an update feed as the only rollback source.
 
 ## Install and upgrade
 
-1. Install the signed artifact using the platform-native package. Replace only
-   the application binary; do not choose any Space folder as an install target.
+1. Install the published artifact using the platform-native package. Replace
+   only the application binary; do not choose any Space folder as an install
+   target.
 2. Launch the app without a file argument. Confirm the Welcome screen,
    environment badge for non-production builds, and the expected version in
    **Copy diagnostics**.
@@ -129,8 +132,8 @@ targets require their CI runners and real installers.
 2. Preserve the current ordinary Spaces exactly as they are. Never restore a
    Space by replacing its `.graft` directory, copying an old `userData`
    directory, or downgrading SQLite files.
-3. Install the previous signed artifact whose checksum was recorded before the
-   upgrade. Keep the same release environment.
+3. Install the previous published artifact whose checksum was recorded before
+   the upgrade. Keep the same release environment.
 4. Open a representative Space read-only in intent: inspect Explorer,
    diagnostics, Changes, and History before performing a new mutation or Sync.
 5. If the previous version reports a Graft/protocol mismatch or cannot safely
@@ -161,10 +164,10 @@ an operation is failed or recoverable.
 
 ## Public-release blockers
 
-Before public v1, execute the new workflow and record successful signed
-installer install/upgrade/rollback evidence for every supported target, remote
-Apple Silicon and Intel packaged gates, signing/notarization, live feed routing,
-and rollback from the update channel. The implementation and fail-closed gates
-are present, but they are not release evidence until an approved tag, deployed
-Worker, signed artifacts, and a real previous-version upgrade have all been
-verified.
+Before public v1, execute the new workflow and record successful
+install/upgrade/rollback evidence for every supported target, remote Apple
+Silicon and Intel packaged gates, macOS signing/notarization, the explicit
+unsigned Windows/Linux policy, live feed routing, and rollback from the update
+channel. The implementation and fail-closed gates are present, but they are not
+release evidence until an approved tag, deployed Worker, published artifacts,
+and a real previous-version upgrade have all been verified.

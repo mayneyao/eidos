@@ -39,7 +39,7 @@
   "win": {
     "target": ["nsis"],
     "icon": "assets/logo.ico",
-    "forceCodeSigning": true
+    "forceCodeSigning": false
   },
   "linux": {
     "target": ["AppImage"],

@@ -161,25 +161,14 @@ jobs:
           test -n "$APPLE_APP_SPECIFIC_PASSWORD"
           test -n "$APPLE_TEAM_ID"
 
-      - name: Require Windows signing inputs
-        if: matrix.platform == 'win'
-        shell: bash
-        env:
-          WIN_CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PWD }}
-        run: |
-          test -n "$WIN_CSC_LINK"
-          test -n "$WIN_CSC_KEY_PASSWORD"
-
-      - name: Build signed and update-enabled release
+      - name: Build update-enabled release
         env:
           CSC_LINK: ${{ matrix.platform == 'mac' && secrets.MACOS_CERTIFICATE || '' }}
           CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && secrets.MACOS_CERTIFICATE_PWD || '' }}
           APPLE_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_ID || '' }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.platform == 'mac' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ matrix.platform == 'mac' && secrets.APPLE_TEAM_ID || '' }}
-          WIN_CSC_LINK: ${{ matrix.platform == 'win' && secrets.WINDOWS_CERTIFICATE || '' }}
-          WIN_CSC_KEY_PASSWORD: ${{ matrix.platform == 'win' && secrets.WINDOWS_CERTIFICATE_PWD || '' }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ matrix.platform == 'mac' && 'true' || 'false' }}
         run: pnpm build:eidos-lite:release
 
       - name: Verify macOS signature and notarization
@@ -191,14 +180,14 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$application"
           xcrun stapler validate "$application"
 
-      - name: Verify Windows signature
+      - name: Verify Windows installer is unsigned by policy
         if: matrix.platform == 'win'
         shell: pwsh
         run: |
           $installer = Get-ChildItem apps/eidos-lite-desktop/dist-app/*.exe | Select-Object -First 1
           if (-not $installer) { throw "Eidos Lite installer is missing" }
           $signature = Get-AuthenticodeSignature $installer.FullName
-          if ($signature.Status -ne "Valid") { throw "Invalid Authenticode signature: $($signature.Status)" }
+          if ($signature.Status -ne "NotSigned") { throw "Expected an unsigned Windows installer, got: $($signature.Status)" }
 
       - name: Upload release assets
         uses: actions/upload-artifact@v4

@@ -56,7 +56,8 @@ gh run watch <run-id> --exit-status
 ```
 
 Do not manually create a duplicate GitHub Release. The workflow verifies the
-tag/base-version contract, builds signed installers, deploys the update router,
+tag/base-version contract, builds signed and notarized macOS packages plus
+explicitly unsigned Windows/Linux packages, deploys the update router,
 normalizes update metadata, writes `SHA256SUMS`, and publishes the Release.
 
 ## Prove publication
