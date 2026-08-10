@@ -96,9 +96,13 @@ export function releaseAssetNameForLiteUpdate(route) {
   return `${metadata[1]}-${platform}-${route.architecture}.yml`
 }
 
+export function releaseArchitectureForPlatform(platform, architecture) {
+  if (platform === "linux" && architecture === "x64") return "x86_64"
+  return architecture
+}
+
 export function findReleaseAsset(assets, assetName) {
   return assets.find(
-    (candidate) =>
-      candidate.name === assetName || candidate.label === assetName
+    (candidate) => candidate.name === assetName || candidate.label === assetName
   )
 }

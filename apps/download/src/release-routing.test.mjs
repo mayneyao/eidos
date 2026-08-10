@@ -5,6 +5,7 @@ import {
   findReleaseAsset,
   getCliSource,
   getEidosLiteUpdateRoute,
+  releaseArchitectureForPlatform,
   releaseAssetNameForLiteUpdate,
   selectEidosLiteRelease,
 } from "./release-routing.mjs"
@@ -15,10 +16,7 @@ test("Lite assets retain access when GitHub normalizes spaces in names", () => {
     label: "Eidos Lite-0.1.0-beta.12-mac-arm64.zip",
   }
   assert.equal(
-    findReleaseAsset(
-      [asset],
-      "Eidos Lite-0.1.0-beta.12-mac-arm64.zip"
-    ),
+    findReleaseAsset([asset], "Eidos Lite-0.1.0-beta.12-mac-arm64.zip"),
     asset
   )
 })
@@ -87,4 +85,10 @@ test("Lite update routes isolate channel, architecture, and metadata assets", ()
     "Eidos Lite-0.2.0-mac-x64.zip"
   )
   assert.equal(getEidosLiteUpdateRoute("/lite/updates/stable/x64/../x"), null)
+})
+
+test("direct Linux downloads normalize public x64 architecture names", () => {
+  assert.equal(releaseArchitectureForPlatform("linux", "x64"), "x86_64")
+  assert.equal(releaseArchitectureForPlatform("linux", "arm64"), "arm64")
+  assert.equal(releaseArchitectureForPlatform("mac", "x64"), "x64")
 })

@@ -2,6 +2,7 @@ import {
   findReleaseAsset,
   getCliSource,
   getEidosLiteUpdateRoute,
+  releaseArchitectureForPlatform,
   releaseAssetNameForLiteUpdate,
   selectEidosLiteRelease,
 } from "./release-routing.mjs"
@@ -190,7 +191,8 @@ export default {
         const name = asset.name.toLowerCase()
         const ext = extMap[platform as keyof typeof extMap]
         if (arch) {
-          return name.includes(arch) && name.endsWith(ext)
+          const releaseArch = releaseArchitectureForPlatform(platform, arch)
+          return name.includes(releaseArch) && name.endsWith(ext)
         }
         return name.endsWith(ext)
       })
