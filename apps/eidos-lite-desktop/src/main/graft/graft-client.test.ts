@@ -29,6 +29,40 @@ function createUnusedTransport(): GraftSdkTransport {
 }
 
 describe("GraftClient", () => {
+  it("forwards AbortSignal through hosted remote operations", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-remote-signal-")
+    )
+    const requests: Array<{
+      command: string
+      signal: AbortSignal | undefined
+    }> = []
+    const transport: GraftSdkTransport = {
+      ...createUnusedTransport(),
+      target: root,
+      command: vi.fn(async (command, _args, options) => {
+        requests.push({ command, signal: options?.signal })
+        return {}
+      }),
+    }
+    const client = new GraftClient({ sdkTransport: transport })
+    const controller = new AbortController()
+
+    try {
+      await client.fetch(root, { signal: controller.signal })
+      await client.pull(root, { signal: controller.signal })
+      await client.push(root, undefined, { signal: controller.signal })
+
+      expect(requests).toEqual([
+        { command: "fetch", signal: controller.signal },
+        { command: "pull", signal: controller.signal },
+        { command: "push", signal: controller.signal },
+      ])
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("rejects non-official product remotes before invoking the SDK", async () => {
     const client = new GraftClient({ sdkTransport: createUnusedTransport() })
     await expect(
@@ -87,7 +121,7 @@ describe("GraftClient", () => {
       close: vi.fn(async () => undefined),
       command: vi.fn(async (command) => {
         commands.push(command)
-        if (command === "sdkVersion") return "0.3.7"
+        if (command === "sdkVersion") return "0.3.8"
         if (command === "statusIncremental") {
           return {
             generation: 1,
@@ -102,6 +136,7 @@ describe("GraftClient", () => {
                 branch: "main",
                 local: "local-head",
                 remote_target: "cloud-head",
+                common_ancestor: "base-head",
                 ahead: 1,
                 behind: 0,
                 state: "ahead",
@@ -133,7 +168,9 @@ describe("GraftClient", () => {
         changedPaths: 1_000,
         sync: {
           state: "ahead",
+          localHead: "local-head",
           remoteHead: "cloud-head",
+          commonAncestor: "base-head",
           ahead: 1,
           behind: 0,
         },

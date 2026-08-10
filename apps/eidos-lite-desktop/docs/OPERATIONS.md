@@ -504,8 +504,12 @@ explicit external staging gates.
   reopens the same Space, and reconstructs the session from durable `.graft`
   state. No PID file or daemon registration is recovered.
 - **Space closes during repository work:** stop accepting new repository work,
-  let the in-flight SDK operation settle, await session close, then release the
-  utility process. Never kill a worker while its result is still authoritative.
+  abort preemptible SDK work through its `AbortSignal`, await the command's
+  typed cancellation result, then release the utility process. If pull already
+  closed Eidos File handles, the materialization gate must still validate the
+  complete worktree, reopen the prior resident handles, and clear the recovery
+  journal before close completes. A cancelled push is reconciled by a fresh
+  fetch before any retry because Remote ref publication may already have won.
 - **Enable Versioning or checkpoint fails:** local file writes remain owned by
   the user. The gate attempts native validation and handle reopen, retains the
   recovery journal, surfaces the exact Graft failure, and never reports a
@@ -557,10 +561,20 @@ explicit external staging gates.
   and incorrect.
 - **Fetch shows both Local and Hosted commits:** report a conflict before
   closing SQLite handles or running pull. Keep both refs and the local
-  worktree unchanged; do not merge, reset, or force push. The conflict panel
-  may copy Local ordinary files into a disconnected Recovery Space or cold
-  clone Hosted into a separate connected folder. Both must re-fetch and
-  re-authorize before opening a save dialog.
+  worktree unchanged; do not merge, reset, or force push. Preserve Graft's
+  structured `local`, `remote_target`, and `common_ancestor` identities with
+  the `diverged` relation. The conflict panel may copy Local ordinary files
+  into a disconnected Recovery Space or cold clone Hosted into a separate
+  connected folder. Both must re-fetch and re-authorize before opening a save
+  dialog.
+- **Conflict ownership boundary:** Graft owns commit-graph ancestry, immutable
+  revision reads, generic path stages, merge-in-progress durability, and
+  expected-Remote-head/CAS publication. Eidos owns semantic `.eidos` merging
+  through Runtime identities and full validation, UTF-8 text conflict UX, and
+  explicit choose-side/keep-both handling for binary files. Until those domain
+  policies are exposed as a reviewed product flow, the safe resolution is the
+  two-copy recovery below; Lite must never invoke Graft's generic merge as an
+  implicit winner selection.
 - **A conflict includes binary files:** never attempt a binary merge. **Copy
   Local Space** preserves the exact Local bytes in a disconnected Recovery
   Space; **Clone Hosted Space** preserves the exact Hosted bytes in a separate

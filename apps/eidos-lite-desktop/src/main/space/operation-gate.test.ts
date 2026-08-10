@@ -321,4 +321,31 @@ describe("SpaceOperationGate", () => {
     expect(calls).toEqual(["fetch-start", "fetch-end"])
     expect(gate.current().phase).toBe("closed")
   })
+
+  it("cancels in-flight materialization on close and still validates and reopens", async () => {
+    const { gate, calls, journal } = await gateWithHooks()
+    const started = deferred()
+    const running = gate.withMaterialization({
+      kind: "pull",
+      materialize: async (signal) => {
+        calls.push("materialize")
+        started.resolve()
+        await new Promise<void>((_resolve, reject) => {
+          const abort = () => reject(new Error("materialization aborted"))
+          if (signal.aborted) abort()
+          else signal.addEventListener("abort", abort, { once: true })
+        })
+      },
+    })
+    const runningAssertion = expect(running).rejects.toThrow(
+      "materialization aborted"
+    )
+    await started.promise
+
+    await Promise.all([runningAssertion, gate.close()])
+
+    expect(calls).toEqual(["close", "materialize", "validate", "reopen"])
+    expect(gate.current().phase).toBe("closed")
+    expect(await journal.read()).toBeNull()
+  })
 })

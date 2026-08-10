@@ -205,7 +205,9 @@ export type SpaceSyncHistoryState =
 
 export interface SpaceSyncHistoryStatus {
   state: SpaceSyncHistoryState
+  localHead?: string
   remoteHead?: string
+  commonAncestor?: string
   ahead: number
   behind: number
   checkedAtMs?: number
@@ -682,6 +684,9 @@ export interface EidosSyncOutcome {
   message: string
   pulled: boolean
   pushed: boolean
+  localHead?: string
+  remoteHead?: string
+  commonAncestor?: string
   ahead: number
   behind: number
   snapshot: SpaceSnapshot

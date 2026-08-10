@@ -21,7 +21,7 @@ import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 const SDK_DIFF_PAGE_SIZE = 100
 const SDK_PATH_BATCH_SIZE = 1_000
-export const GRAFT_SDK_VERSION = "0.3.7"
+export const GRAFT_SDK_VERSION = "0.3.8"
 
 export interface GraftClientOptions {
   sdkTransport: GraftSdkTransport
@@ -630,6 +630,8 @@ export class GraftClient {
       Math.trunc(numberValue(value.behind ?? upstream.behind))
     )
     const remoteHead = stringValue(upstream.remote_target)
+    const localHead = stringValue(upstream.local)
+    const commonAncestor = stringValue(upstream.common_ancestor)
     const hasUpstreamStatus = Object.keys(upstream).length > 0
     const status: GraftRepositoryStatus = {
       dirty: value.dirty === true || changes.length > 0,
@@ -650,7 +652,9 @@ export class GraftClient {
         ? {
             sync: {
               state: syncHistoryState(upstream.state, ahead, behind),
+              ...(localHead ? { localHead } : {}),
               ...(remoteHead ? { remoteHead } : {}),
+              ...(commonAncestor ? { commonAncestor } : {}),
               ahead,
               behind,
             },
@@ -1149,8 +1153,12 @@ export class GraftClient {
     ])
   }
 
-  async remoteUrl(root: string, name = "origin"): Promise<string | null> {
-    const value = record(await this.runSdk(root, "listRemotes"))
+  async remoteUrl(
+    root: string,
+    name = "origin",
+    options: { signal?: AbortSignal } = {}
+  ): Promise<string | null> {
+    const value = record(await this.runSdk(root, "listRemotes", [], options))
     if (!Array.isArray(value.remotes)) {
       throw new Error("Graft returned an invalid remote list")
     }
@@ -1170,18 +1178,35 @@ export class GraftClient {
     })
   }
 
-  push(root: string, token?: string): Promise<unknown> {
-    return this.setHttpCredential(root, "origin", token).then(() =>
-      this.runSdk(root, "push", [{ remote: "origin", branch: "main" }])
+  push(
+    root: string,
+    token?: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<unknown> {
+    return this.setHttpCredential(root, "origin", token, options).then(() =>
+      this.runSdk(root, "push", [{ remote: "origin", branch: "main" }], options)
     )
   }
 
-  fetch(root: string): Promise<unknown> {
-    return this.runSdk(root, "fetch", [{ remote: "origin", branch: "main" }])
+  fetch(
+    root: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<unknown> {
+    return this.runSdk(
+      root,
+      "fetch",
+      [{ remote: "origin", branch: "main" }],
+      options
+    )
   }
 
-  pull(root: string): Promise<unknown> {
-    return this.runSdk(root, "pull", [{ remote: "origin", branch: "main" }])
+  pull(root: string, options: { signal?: AbortSignal } = {}): Promise<unknown> {
+    return this.runSdk(
+      root,
+      "pull",
+      [{ remote: "origin", branch: "main" }],
+      options
+    )
   }
 
   clone(
@@ -1199,28 +1224,34 @@ export class GraftClient {
   async configureOfficialRemote(
     root: string,
     remoteUrl: string,
-    token: string
+    token: string,
+    options: { signal?: AbortSignal } = {}
   ): Promise<void> {
     if (!isOfficialRemoteUrl(remoteUrl, this.syncRemoteOrigin)) {
       throw new Error("Eidos Lite accepts only the official Eidos Sync Remote")
     }
     if (!token) throw new Error("An Eidos Sync access token is required")
-    const existing = await this.remoteUrl(root)
+    const existing = await this.remoteUrl(root, "origin", options)
     if (existing === null) {
-      await this.runSdk(root, "configureRemote", [
-        {
-          name: "origin",
-          url: remoteUrl,
-          bearerToken: token,
-          upstreamBranch: "main",
-        },
-      ])
+      await this.runSdk(
+        root,
+        "configureRemote",
+        [
+          {
+            name: "origin",
+            url: remoteUrl,
+            bearerToken: token,
+            upstreamBranch: "main",
+          },
+        ],
+        options
+      )
     } else if (canonicalRemoteUrl(existing) !== canonicalRemoteUrl(remoteUrl)) {
       throw new Error(
         "This Space already has a different origin Remote. Eidos Lite will not overwrite it."
       )
     } else {
-      await this.setHttpCredential(root, "origin", token)
+      await this.setHttpCredential(root, "origin", token, options)
     }
   }
 
@@ -1529,10 +1560,11 @@ export class GraftClient {
   private async setHttpCredential(
     root: string,
     name: string,
-    token?: string
+    token?: string,
+    options: { signal?: AbortSignal } = {}
   ): Promise<void> {
     if (!token) return
-    await this.runSdk(root, "setHttpBearerToken", [name, token])
+    await this.runSdk(root, "setHttpBearerToken", [name, token], options)
   }
 
   private requireSdkTransport(): GraftSdkTransport {

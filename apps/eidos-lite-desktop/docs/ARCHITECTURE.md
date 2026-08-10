@@ -63,7 +63,7 @@ flowchart LR
   F1 -->|"guarded node:sqlite handle"| E1["a.eidos"]
   F2 -->|"guarded node:sqlite handle"| E2["nested/b.eidos"]
   M -->|"typed private IPC; one process per Space"| G["Graft utility process"]
-  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.7"]
+  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.8"]
   N --> S["whole ordinary folder Space"]
   N -. "explicit in-memory credential; Sync/Clone only" .-> H["Selected official Hosted Remote"]
 ```
@@ -356,7 +356,7 @@ SDK session transport at construction. Status, diff, history, checkpoint,
 restore, push, and clone never create a CLI subprocess; Lite has no backend
 switch, executable lookup, or CLI credential environment path.
 
-The SDK adapter pins published `@eidos.space/graft@0.3.7`,
+The SDK adapter pins published `@eidos.space/graft@0.3.8`,
 lazily opens one session on the first background or explicit repository read,
 and closes it when the window closes. It asks the published
 `operationMaterializesWorktree()` contract before restore. Remote credentials

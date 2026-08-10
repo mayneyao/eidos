@@ -16,8 +16,8 @@ interface MaterializationHooks {
 interface MaterializationOptions<T> {
   kind: string
   detail?: string
-  beforeClose?(): Promise<void>
-  materialize(): Promise<T>
+  beforeClose?(signal: AbortSignal): Promise<void>
+  materialize(signal: AbortSignal): Promise<T>
   afterValidate?(result: T): Promise<void>
 }
 
@@ -157,7 +157,7 @@ export class SpaceOperationGate {
   withMaterialization<T>(options: MaterializationOptions<T>): Promise<T> {
     return this.withRepositoryOperation(
       options.detail ?? options.kind,
-      async () => {
+      async (signal) => {
         const operationId = randomUUID()
         const startedAt = new Date().toISOString()
         const journal = async (
@@ -188,7 +188,7 @@ export class SpaceOperationGate {
         await this.waitForMutationDrain()
         if (options.beforeClose) {
           try {
-            await options.beforeClose()
+            await options.beforeClose(signal)
           } catch (error) {
             try {
               await this.journal.clear()
@@ -207,7 +207,7 @@ export class SpaceOperationGate {
           runtimesClosed = true
           this.transition("materializing", options.detail ?? options.kind)
           await journal("materializing", options.detail)
-          const result = await options.materialize()
+          const result = await options.materialize(signal)
           this.transition("validating", options.detail ?? options.kind)
           await journal("validating", options.detail)
           await this.hooks.validateWorktree()
@@ -238,7 +238,8 @@ export class SpaceOperationGate {
           this.transition("ready")
           throw error
         }
-      }
+      },
+      { preemptible: true }
     )
   }
 

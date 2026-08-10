@@ -15,6 +15,7 @@ import type {
   OpenEidosFileResult,
   RuntimeCalls,
   RuntimeMethod,
+  SpaceSyncHistoryStatus,
   SpaceSnapshot,
   SpacePathMutationResult,
   SpacePathSearchHit,
@@ -977,30 +978,36 @@ export class SpaceSession {
     if (!remoteUrl) throw new Error("This Space is not connected to Eidos Sync")
     await this.gate.withRepositoryOperation(
       "Authenticating Eidos Sync",
-      async () => {
+      async (signal) => {
         await this.graft.configureOfficialRemote(
           this.canonical.root,
           remoteUrl,
-          accessToken
+          accessToken,
+          { signal }
         )
-      }
+      },
+      { preemptible: true }
     )
 
     reportProgress("fetch", "Fetching Hosted Space history")
     let relation = await this.gate.withRepositoryOperation(
       "Fetching Eidos Sync",
-      async () => {
+      async (signal) => {
         const before = await this.graft.status(
           this.canonical.root,
-          this.graftStatusOptions()
+          this.graftStatusOptions(signal)
         )
         if (before.dirty) {
           throw new Error("Create a checkpoint for local changes before Sync")
         }
-        await this.graft.fetch(this.canonical.root)
+        await this.graft.fetch(this.canonical.root, { signal })
         await this.recordSyncHistoryCheck()
-        return this.graft.status(this.canonical.root, this.graftStatusOptions())
-      }
+        return this.graft.status(
+          this.canonical.root,
+          this.graftStatusOptions(signal)
+        )
+      },
+      { preemptible: true }
     )
     reportProgress("analyze", "Comparing Local and Hosted checkpoints")
     if (relation.hasConflicts || (relation.ahead > 0 && relation.behind > 0)) {
@@ -1045,10 +1052,10 @@ export class SpaceSession {
         pulled = await this.gate.withMaterialization({
           kind: "pull-hosted-sync",
           detail: "Updating Space from Eidos Sync",
-          beforeClose: async () => {
+          beforeClose: async (signal) => {
             const current = await this.graft.status(
               this.canonical.root,
-              this.graftStatusOptions()
+              this.graftStatusOptions(signal)
             )
             if (current.dirty) {
               throw new Error(
@@ -1065,9 +1072,9 @@ export class SpaceSession {
             }
             shouldPull = current.behind > 0
           },
-          materialize: async () => {
+          materialize: async (signal) => {
             if (!shouldPull) return false
-            await this.graft.pull(this.canonical.root)
+            await this.graft.pull(this.canonical.root, { signal })
             return true
           },
         })
@@ -1093,10 +1100,10 @@ export class SpaceSession {
       reportProgress("push", "Pushing Local checkpoints to Hosted Space")
       await this.gate.withRepositoryOperation(
         "Pushing Space to Eidos Sync",
-        async () => {
+        async (signal) => {
           const current = await this.graft.status(
             this.canonical.root,
-            this.graftStatusOptions()
+            this.graftStatusOptions(signal)
           )
           if (current.dirty) {
             throw new Error(
@@ -1108,8 +1115,9 @@ export class SpaceSession {
               "Hosted history changed before push. Sync again to re-fetch it."
             )
           }
-          await this.graft.push(this.canonical.root, accessToken)
-        }
+          await this.graft.push(this.canonical.root, accessToken, { signal })
+        },
+        { preemptible: true }
       )
       pushed = true
       relation = await this.repository.runForeground((signal) =>
@@ -2108,8 +2116,14 @@ export class SpaceSession {
     const sync = this.syncHistoryState
       ? {
           state: repositorySync?.state ?? ("unknown" as const),
+          ...(repositorySync?.localHead
+            ? { localHead: repositorySync.localHead }
+            : {}),
           ...(repositorySync?.remoteHead
             ? { remoteHead: repositorySync.remoteHead }
+            : {}),
+          ...(repositorySync?.commonAncestor
+            ? { commonAncestor: repositorySync.commonAncestor }
             : {}),
           ahead: repositorySync?.ahead ?? 0,
           behind: repositorySync?.behind ?? 0,
@@ -2216,6 +2230,8 @@ export class SpaceSession {
     relation: {
       ahead: number
       behind: number
+      currentHead?: string | null
+      sync?: SpaceSyncHistoryStatus
     }
   ): Promise<EidosSyncOutcome> {
     return {
@@ -2223,6 +2239,18 @@ export class SpaceSession {
       message,
       pulled,
       pushed,
+      ...(relation.sync?.localHead || relation.currentHead
+        ? {
+            localHead:
+              relation.sync?.localHead ?? relation.currentHead ?? undefined,
+          }
+        : {}),
+      ...(relation.sync?.remoteHead
+        ? { remoteHead: relation.sync.remoteHead }
+        : {}),
+      ...(relation.sync?.commonAncestor
+        ? { commonAncestor: relation.sync.commonAncestor }
+        : {}),
       ahead: relation.ahead,
       behind: relation.behind,
       snapshot: await this.freshSnapshotAndEmit(true),

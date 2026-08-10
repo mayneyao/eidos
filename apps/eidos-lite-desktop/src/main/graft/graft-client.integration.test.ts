@@ -329,7 +329,7 @@ describe("whole-Space real Graft integration", () => {
       expect(status).toMatchObject({
         available: true,
         backend: "sdk",
-        version: "0.3.7",
+        version: "0.3.8",
         initialized: true,
         clean: true,
         changedPaths: 0,
@@ -919,7 +919,7 @@ describe("whole-Space real Graft integration", () => {
     }
   })
 
-  it("reports pull and divergence state after fetch without materializing", async () => {
+  it("round trips two clients before reporting divergence without materializing", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-sync-"))
     const source = path.join(root, "source")
     const remote = path.join(root, "remote")
@@ -968,13 +968,57 @@ describe("whole-Space real Graft integration", () => {
         fs.readFile(path.join(clone, "remote-note.txt"), "utf8")
       ).resolves.toBe("remote one\n")
 
-      await fs.writeFile(path.join(clone, "local-note.txt"), "local\n")
+      const rowsBefore = await eidosRowCount(path.join(clone, "project.eidos"))
+      await insertBlankRow(path.join(clone, "project.eidos"))
+      await fs.writeFile(path.join(clone, "local-note.txt"), "from B\n")
       await cloneClient.stageAll(clone)
-      await cloneClient.commit(clone, "Local checkpoint")
+      await cloneClient.commit(clone, "Checkpoint from B")
+      await cloneClient.push(clone)
+      await sourceClient.fetch(source)
+      await expect(sourceClient.status(source)).resolves.toMatchObject({
+        dirty: false,
+        ahead: 0,
+        behind: 1,
+        hasConflicts: false,
+      })
+      await sourceClient.pull(source)
+      await expect(
+        fs.readFile(path.join(source, "local-note.txt"), "utf8")
+      ).resolves.toBe("from B\n")
+      await expect(
+        eidosRowCount(path.join(source, "project.eidos"))
+      ).resolves.toBe(rowsBefore + 1)
+      await validateEidosFile(path.join(source, "project.eidos"))
+
+      await sourceClient.pull(source)
+      await expect(sourceClient.status(source)).resolves.toMatchObject({
+        dirty: false,
+        ahead: 0,
+        behind: 0,
+        hasConflicts: false,
+      })
+      await sourceClient.close()
+      await cloneClient.close()
+      await sourceClient.open(source)
+      await cloneClient.open(clone)
+      await expect(sourceClient.status(source)).resolves.toMatchObject({
+        dirty: false,
+        ahead: 0,
+        behind: 0,
+      })
+      await expect(cloneClient.status(clone)).resolves.toMatchObject({
+        dirty: false,
+        ahead: 0,
+        behind: 0,
+      })
+
       await fs.writeFile(path.join(source, "remote-note.txt"), "remote two\n")
       await sourceClient.stageAll(source)
       await sourceClient.commit(source, "Second remote checkpoint")
       await sourceClient.push(source)
+      await fs.writeFile(path.join(clone, "diverged-local.txt"), "local\n")
+      await cloneClient.stageAll(clone)
+      await cloneClient.commit(clone, "Diverged checkpoint from B")
       await cloneClient.fetch(clone)
       await expect(cloneClient.status(clone)).resolves.toMatchObject({
         dirty: false,

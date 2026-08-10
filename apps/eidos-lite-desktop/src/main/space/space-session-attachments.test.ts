@@ -14,8 +14,8 @@ function graftStub(): GraftClient {
   const status: GraftSpaceStatus = {
     available: true,
     backend: "sdk",
-    version: "0.3.7",
-    expectedVersion: "0.3.7",
+    version: "0.3.8",
+    expectedVersion: "0.3.8",
     initialized: false,
     clean: true,
     changedPaths: 0,
@@ -23,7 +23,7 @@ function graftStub(): GraftClient {
   return {
     backend: "sdk",
     syncRemoteOrigin: "https://sync-staging.eidos.space",
-    expectedVersion: () => "0.3.7",
+    expectedVersion: () => "0.3.8",
     close: async () => undefined,
     inspectSpace: async () => status,
     inspectIgnores: async (_root: string, relativePaths: string[]) =>

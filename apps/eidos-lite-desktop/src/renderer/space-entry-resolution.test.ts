@@ -14,7 +14,7 @@ function snapshot(entries: SpaceSnapshot["entries"]): SpaceSnapshot {
     graft: {
       available: true,
       backend: "sdk",
-      expectedVersion: "0.3.7",
+      expectedVersion: "0.3.8",
       initialized: false,
     },
     invalidatedSessionIds: [],
