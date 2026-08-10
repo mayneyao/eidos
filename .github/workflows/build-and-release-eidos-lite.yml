@@ -341,9 +341,21 @@ jobs:
             "$channel/x64/${metadata}.yml" \
             "$channel/arm64/${metadata}-linux.yml" \
             "$channel/x64/${metadata}-linux.yml"; do
-            response="$(curl --fail --location --retry 5 --retry-all-errors --retry-delay 3 \
-              "https://download.eidos.space/lite/updates/$route")"
-            grep -Fq "version: $version" <<< "$response"
+            response=""
+            for attempt in {1..20}; do
+              if response="$(curl --fail --location --silent --show-error \
+                --retry 2 --retry-all-errors --retry-delay 3 \
+                "https://download.eidos.space/lite/updates/$route")" && \
+                grep -Fq "version: $version" <<< "$response"; then
+                break
+              fi
+              if (( attempt == 20 )); then
+                observed="$(awk -F ': ' '/^version: / { print $2; exit }' <<< "$response")"
+                echo "::error::Update route $route did not publish version $version (observed ${observed:-unavailable})"
+                exit 1
+              fi
+              sleep 3
+            done
             asset="$(awk -F ': ' '/^path: / { print $2; exit }' <<< "$response")"
             test -n "$asset"
             asset="${asset// /%20}"
