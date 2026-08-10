@@ -20,6 +20,8 @@ import {
 } from "./eidos-file-issue"
 
 interface PendingRequest {
+  child: UtilityProcess
+  settleOnCleanExit: boolean
   resolve(value: unknown): void
   reject(error: Error): void
 }
@@ -64,6 +66,7 @@ function defaultRuntimeWorkerPath(): string {
 export interface RuntimeResidencyCandidate {
   sessionId: string
   resident: boolean
+  pendingRequests: number
   lastAccess: number
 }
 
@@ -75,7 +78,9 @@ export function selectLruRuntimeToEvict(
     candidates
       .filter(
         (candidate) =>
-          candidate.resident && candidate.sessionId !== excludedSessionId
+          candidate.resident &&
+          candidate.pendingRequests === 0 &&
+          candidate.sessionId !== excludedSessionId
       )
       .sort((left, right) =>
         left.lastAccess === right.lastAccess
@@ -103,6 +108,7 @@ export class RuntimePool {
   private readonly pendingInvalidations: EidosFileIssue[] = []
   private accessSequence = 0
   private residencyTail: Promise<void> = Promise.resolve()
+  private readonly idleResidentWaiters = new Set<() => void>()
 
   constructor(
     private readonly spaceRoot: string,
@@ -516,12 +522,14 @@ export class RuntimePool {
           [...this.entriesBySession.values()].map((candidate) => ({
             sessionId: candidate.sessionId,
             resident: candidate.child !== null,
+            pendingRequests: candidate.pending.size,
             lastAccess: candidate.lastAccess,
           })),
           entry.sessionId
         )
         if (!sessionId) {
-          throw new Error("Runtime LRU could not free a resident handle")
+          await this.waitForIdleResident(entry.sessionId)
+          continue
         }
         await this.closeEntry(this.requireEntry(sessionId))
       }
@@ -562,19 +570,25 @@ export class RuntimePool {
     entry.crashed = false
     child.on("message", (message) => this.receive(entry, message))
     child.on("exit", (code) => {
-      if (!isCurrentRuntimeChild(entry.child, child)) return
-      entry.child = null
-      entry.crashed = code !== 0
-      for (const pending of entry.pending.values()) {
-        pending.reject(
-          new Error(
-            code === 0
-              ? "Eidos File runtime closed"
-              : `Eidos File runtime crashed with exit code ${code}`
-          )
-        )
+      if (isCurrentRuntimeChild(entry.child, child)) {
+        entry.child = null
+        entry.crashed = code !== 0
       }
-      entry.pending.clear()
+      const error = new Error(
+        code === 0
+          ? "Eidos File runtime closed"
+          : `Eidos File runtime crashed with exit code ${code}`
+      )
+      for (const [requestId, pending] of entry.pending) {
+        if (pending.child !== child) continue
+        entry.pending.delete(requestId)
+        if (code === 0 && pending.settleOnCleanExit) {
+          pending.resolve(undefined)
+        } else {
+          pending.reject(error)
+        }
+      }
+      this.notifyIdleResident(entry)
     })
     try {
       return (await this.request(
@@ -602,13 +616,18 @@ export class RuntimePool {
   private async closeEntry(entry: RuntimeEntry): Promise<void> {
     const child = entry.child
     if (!child) return
+    entry.child = null
     try {
-      await this.request(entry, {
-        type: "close",
-        requestId: entry.nextRequestId++,
-      })
+      await this.requestChild(
+        entry,
+        child,
+        {
+          type: "close",
+          requestId: entry.nextRequestId++,
+        },
+        true
+      )
     } finally {
-      entry.child = null
       child.kill()
     }
   }
@@ -619,9 +638,29 @@ export class RuntimePool {
   ): Promise<unknown> {
     const child = entry.child
     if (!child) return Promise.reject(new Error("Eidos File runtime is closed"))
+    return this.requestChild(entry, child, request)
+  }
+
+  private requestChild(
+    entry: RuntimeEntry,
+    child: UtilityProcess,
+    request: RuntimeWorkerRequest,
+    settleOnCleanExit = false
+  ): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      entry.pending.set(request.requestId, { resolve, reject })
-      child.postMessage(request)
+      entry.pending.set(request.requestId, {
+        child,
+        settleOnCleanExit,
+        resolve,
+        reject,
+      })
+      try {
+        child.postMessage(request)
+      } catch (error) {
+        entry.pending.delete(request.requestId)
+        this.notifyIdleResident(entry)
+        reject(error instanceof Error ? error : new Error(String(error)))
+      }
     })
   }
 
@@ -630,6 +669,7 @@ export class RuntimePool {
     const pending = entry.pending.get(message.requestId)
     if (!pending) return
     entry.pending.delete(message.requestId)
+    this.notifyIdleResident(entry)
     if (message.ok) {
       pending.resolve(message.result)
       return
@@ -639,6 +679,23 @@ export class RuntimePool {
     if (message.error.stack) error.stack = message.error.stack
     if (message.error.code) Object.assign(error, { code: message.error.code })
     pending.reject(error)
+  }
+
+  private waitForIdleResident(excludedSessionId: string): Promise<void> {
+    const hasIdleResident = [...this.entriesBySession.values()].some(
+      (entry) =>
+        entry.sessionId !== excludedSessionId &&
+        entry.child !== null &&
+        entry.pending.size === 0
+    )
+    if (hasIdleResident) return Promise.resolve()
+    return new Promise((resolve) => this.idleResidentWaiters.add(resolve))
+  }
+
+  private notifyIdleResident(entry: RuntimeEntry): void {
+    if (entry.pending.size > 0) return
+    for (const resolve of this.idleResidentWaiters) resolve()
+    this.idleResidentWaiters.clear()
   }
 
   private requireEntry(sessionId: string): RuntimeEntry {

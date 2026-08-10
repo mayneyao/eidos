@@ -14,10 +14,30 @@ describe("RuntimePool LRU policy", () => {
   it("evicts the least recently used resident and ignores closed metadata", () => {
     expect(
       selectLruRuntimeToEvict([
-        { sessionId: "newest", resident: true, lastAccess: 30 },
-        { sessionId: "closed", resident: false, lastAccess: 1 },
-        { sessionId: "oldest", resident: true, lastAccess: 10 },
-        { sessionId: "middle", resident: true, lastAccess: 20 },
+        {
+          sessionId: "newest",
+          resident: true,
+          pendingRequests: 0,
+          lastAccess: 30,
+        },
+        {
+          sessionId: "closed",
+          resident: false,
+          pendingRequests: 0,
+          lastAccess: 1,
+        },
+        {
+          sessionId: "oldest",
+          resident: true,
+          pendingRequests: 0,
+          lastAccess: 10,
+        },
+        {
+          sessionId: "middle",
+          resident: true,
+          pendingRequests: 0,
+          lastAccess: 20,
+        },
       ])
     ).toBe("oldest")
   })
@@ -26,12 +46,54 @@ describe("RuntimePool LRU policy", () => {
     expect(
       selectLruRuntimeToEvict(
         [
-          { sessionId: "opening", resident: true, lastAccess: 1 },
-          { sessionId: "other", resident: true, lastAccess: 2 },
+          {
+            sessionId: "opening",
+            resident: true,
+            pendingRequests: 0,
+            lastAccess: 1,
+          },
+          {
+            sessionId: "other",
+            resident: true,
+            pendingRequests: 0,
+            lastAccess: 2,
+          },
         ],
         "opening"
       )
     ).toBe("other")
+  })
+
+  it("never evicts a runtime with an in-flight request", () => {
+    expect(
+      selectLruRuntimeToEvict([
+        {
+          sessionId: "busy-oldest",
+          resident: true,
+          pendingRequests: 1,
+          lastAccess: 1,
+        },
+        {
+          sessionId: "idle-newest",
+          resident: true,
+          pendingRequests: 0,
+          lastAccess: 2,
+        },
+      ])
+    ).toBe("idle-newest")
+  })
+
+  it("waits instead of evicting when every resident is busy", () => {
+    expect(
+      selectLruRuntimeToEvict([
+        {
+          sessionId: "busy",
+          resident: true,
+          pendingRequests: 2,
+          lastAccess: 1,
+        },
+      ])
+    ).toBeNull()
   })
 
   it("ignores a delayed exit from a replaced utility process", () => {
