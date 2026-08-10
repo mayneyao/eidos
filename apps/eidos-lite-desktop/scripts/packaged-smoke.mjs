@@ -34,6 +34,15 @@ const expectedServices =
         stagingBadge: true,
       }
 
+const performancePolicy =
+  process.env.EIDOS_LITE_SMOKE_PERFORMANCE_POLICY ?? "enforce"
+if (performancePolicy !== "enforce" && performancePolicy !== "observe") {
+  throw new Error(
+    `Invalid packaged smoke performance policy: ${performancePolicy}`
+  )
+}
+const enforcePerformance = performancePolicy === "enforce"
+
 async function executablePath() {
   if (process.env.EIDOS_LITE_PACKAGED_APP) {
     return path.resolve(process.env.EIDOS_LITE_PACKAGED_APP)
@@ -225,7 +234,8 @@ try {
     report.environment?.stagingBadge !== expectedServices.stagingBadge ||
     report.performance?.coldStartMs <= 0 ||
     !Number.isFinite(budgets?.coldStartMs) ||
-    report.performance?.coldStartMs > budgets.coldStartMs ||
+    (enforcePerformance &&
+      report.performance?.coldStartMs > budgets.coldStartMs) ||
     startupPhases.length !== 7 ||
     startupPhases.some(
       (duration) => !Number.isFinite(duration) || duration < 0
@@ -235,14 +245,16 @@ try {
       startup?.totalMs ||
     report.performance?.utilityOpenP95Ms <= 0 ||
     !Number.isFinite(budgets?.utilityOpenP95Ms) ||
-    report.performance?.utilityOpenP95Ms > budgets.utilityOpenP95Ms ||
+    (enforcePerformance &&
+      report.performance?.utilityOpenP95Ms > budgets.utilityOpenP95Ms) ||
     report.performance?.utilityOpenMs?.length !== 4 ||
     report.performance?.denseGrid?.rows !== 100_000 ||
     report.performance?.denseGrid?.preparationMs <= 0 ||
     report.performance?.denseGrid?.renderedFirstFrameMs <= 0 ||
     !Number.isFinite(budgets?.denseGridFirstFrameMs) ||
-    report.performance?.denseGrid?.renderedFirstFrameMs >
-      budgets.denseGridFirstFrameMs ||
+    (enforcePerformance &&
+      report.performance?.denseGrid?.renderedFirstFrameMs >
+        budgets.denseGridFirstFrameMs) ||
     report.performance?.denseGrid?.canvasWidth <= 0 ||
     report.performance?.denseGrid?.canvasHeight <= 0 ||
     Object.values(report.launchRouting ?? {}).some((value) => value !== true) ||

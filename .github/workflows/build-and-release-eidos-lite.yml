@@ -183,26 +183,45 @@ jobs:
           sudo chown root:root "$sandbox"
           sudo chmod 4755 "$sandbox"
 
-      - name: Smoke packaged release
+      - name: Validate fresh packaged release
+        if: matrix.platform != 'linux'
+        env:
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
+          EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
+        run: pnpm smoke:eidos-lite-packaged
+
+      - name: Validate fresh packaged Linux release
+        if: matrix.platform == 'linux'
+        shell: bash
+        env:
+          EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
+          EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
+        run: |
+          if ! command -v xvfb-run >/dev/null || ! command -v dbus-run-session >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y dbus-x11 xvfb
+          fi
+          executable="$(find apps/eidos-lite-desktop/dist-app -type f -name eidos-lite-desktop -print -quit)"
+          test -n "$executable"
+          executable="$(realpath "$executable")"
+          EIDOS_LITE_PACKAGED_APP="$executable" dbus-run-session -- xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
+
+      - name: Enforce packaged release performance
         if: matrix.platform != 'linux'
         env:
           EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
         run: pnpm smoke:eidos-lite-packaged
 
-      - name: Smoke packaged Linux release
+      - name: Enforce packaged Linux release performance
         if: matrix.platform == 'linux'
         shell: bash
         env:
           EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
         run: |
-          if ! command -v xvfb-run >/dev/null; then
-            sudo apt-get update
-            sudo apt-get install -y xvfb
-          fi
           executable="$(find apps/eidos-lite-desktop/dist-app -type f -name eidos-lite-desktop -print -quit)"
           test -n "$executable"
           executable="$(realpath "$executable")"
-          EIDOS_LITE_PACKAGED_APP="$executable" xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
+          EIDOS_LITE_PACKAGED_APP="$executable" dbus-run-session -- xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
 
       - name: Upload release assets
         uses: actions/upload-artifact@v4

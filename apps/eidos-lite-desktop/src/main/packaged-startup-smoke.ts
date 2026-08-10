@@ -28,6 +28,14 @@ export interface PackagedSmokeStartup {
   welcomeWindow: BrowserWindow
 }
 
+export function shouldEnforcePackagedPerformance(
+  policy = process.env.EIDOS_LITE_SMOKE_PERFORMANCE_POLICY ?? "enforce"
+): boolean {
+  if (policy === "enforce") return true
+  if (policy === "observe") return false
+  throw new Error(`Invalid packaged smoke performance policy: ${policy}`)
+}
+
 const welcomeProbe = `
 (async () => {
   const deadline = Date.now() + 15000
@@ -140,7 +148,10 @@ export async function runPackagedStartupSmoke(
       Date.now()
     )
     const coldStartMs = timings.totalMs
-    if (coldStartMs <= 0 || coldStartMs > 2_000) {
+    if (coldStartMs <= 0) {
+      throw new Error(`Packaged cold start is invalid: ${coldStartMs}ms`)
+    }
+    if (shouldEnforcePackagedPerformance() && coldStartMs > 2_000) {
       throw new Error(
         `Packaged cold start exceeded the PRD P95 budget: ${coldStartMs}ms ` +
           JSON.stringify(timings)

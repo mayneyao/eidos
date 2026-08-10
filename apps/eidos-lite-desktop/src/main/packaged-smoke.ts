@@ -7,6 +7,7 @@ import { createEidosFile } from "@eidos.space/eidos-file/node-sqlite"
 import { EIDOS_LITE_PERFORMANCE_BUDGET_MS } from "../shared/performance-contract"
 import {
   observePackagedSmokeWindow,
+  shouldEnforcePackagedPerformance,
   type PackagedSmokeStartup,
   type PackagedStartupTimings,
 } from "./packaged-startup-smoke"
@@ -36,6 +37,8 @@ const expectedSmokeServices =
         billingOrigin: "https://staging.eidos.space",
         syncRemoteOrigin: "https://sync-staging.eidos.space",
       }
+
+const enforcePackagedPerformance = shouldEnforcePackagedPerformance()
 
 interface RendererSmokeResult {
   performance: {
@@ -447,6 +450,7 @@ const textHistoryProbe = `
 const rendererProbe = `
 (async () => {
   const expectedServices = ${JSON.stringify(expectedSmokeServices)}
+  const enforcePerformance = ${JSON.stringify(enforcePackagedPerformance)}
   const waitFor = async (read, label) => {
     const deadline = Date.now() + 15000
     while (Date.now() < deadline) {
@@ -552,8 +556,11 @@ const rendererProbe = `
     }
     utilityOpenMs.push(performance.now() - openStartedAt)
   }
+  if (!denseGrid) {
+    throw new Error("Packaged 100,000-row Grid did not render")
+  }
   if (
-    !denseGrid ||
+    enforcePerformance &&
     denseGrid.renderedFirstFrameMs >
       ${EIDOS_LITE_PERFORMANCE_BUDGET_MS.gridFirstPageHundredThousandRows}
   ) {
@@ -564,6 +571,7 @@ const rendererProbe = `
   }
   const utilityOpenP95Ms = Math.max(...utilityOpenMs)
   if (
+    enforcePerformance &&
     utilityOpenP95Ms >
     ${EIDOS_LITE_PERFORMANCE_BUDGET_MS.nativeOpenTenMiB}
   ) {
