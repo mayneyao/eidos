@@ -109,8 +109,20 @@ mod tests {
         ]);
         assert!(matches!(apply.command, Command::Apply(_)));
 
-        let serve = parse_ok(&["eidos", "tasks.eidos", "serve", "--port", "9000"]);
-        assert!(matches!(serve.command, Command::Serve(_)));
+        let serve = parse_ok(&[
+            "eidos",
+            "tasks.eidos",
+            "serve",
+            "--port",
+            "9000",
+            "--assets-dir",
+            "./assets",
+        ]);
+        assert!(matches!(
+            serve.command,
+            Command::Serve(ref args)
+                if args.assets_dir == Some(std::path::PathBuf::from("./assets"))
+        ));
 
         let lan = parse_ok(&[
             "eidos",

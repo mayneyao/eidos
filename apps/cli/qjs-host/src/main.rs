@@ -25,6 +25,7 @@ fn main() -> anyhow::Result<()> {
                 .ok_or_else(|| anyhow!("serve needs a .eidos file path"))?;
             let mut port: u16 = 8420;
             let mut ui_dir: Option<std::path::PathBuf> = None;
+            let mut assets_dir: Option<std::path::PathBuf> = None;
             let mut open_browser = false;
             let mut lan = false;
             let mut host: Option<std::net::IpAddr> = None;
@@ -41,6 +42,12 @@ fn main() -> anyhow::Result<()> {
                         ui_dir = Some(std::path::PathBuf::from(
                             args.next()
                                 .ok_or_else(|| anyhow!("--ui-dir needs a value"))?,
+                        ))
+                    }
+                    "--assets-dir" => {
+                        assets_dir = Some(std::path::PathBuf::from(
+                            args.next()
+                                .ok_or_else(|| anyhow!("--assets-dir needs a value"))?,
                         ))
                     }
                     "--open" => open_browser = true,
@@ -61,12 +68,15 @@ fn main() -> anyhow::Result<()> {
             }
             qjs_host::serve::run_serve(
                 std::path::Path::new(&db_path),
-                port,
-                ui_dir,
-                open_browser,
-                lan,
-                host,
-                None,
+                qjs_host::serve::ServeOptions {
+                    port,
+                    ui_dir,
+                    assets_dir,
+                    open_browser,
+                    lan,
+                    requested_host: host,
+                    relay: None,
+                },
             )
         }
         "open" => {
@@ -75,7 +85,7 @@ fn main() -> anyhow::Result<()> {
         }
         other => {
             eprintln!(
-                "unknown command: {other}\nusage: qjs-host selftest [db-path] | create <db> [title] | open <db> | serve <db> [--port N] [--lan [--host IP]] [--ui-dir DIR] [--open]"
+                "unknown command: {other}\nusage: qjs-host selftest [db-path] | create <db> [title] | open <db> | serve <db> [--port N] [--lan [--host IP]] [--ui-dir DIR] [--assets-dir DIR] [--open]"
             );
             std::process::exit(2)
         }

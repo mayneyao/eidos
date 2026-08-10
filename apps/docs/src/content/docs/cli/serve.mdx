@@ -33,6 +33,28 @@ Choose another port when needed:
 eidos serve tracker.eidos --port 9000 --open
 ```
 
+## Explicit assets folder
+
+Serve does not infer or open an assets directory. Mount an existing directory
+explicitly when the File contains relative entries such as `assets/cover.png`:
+
+```bash
+eidos serve tracker.eidos --assets-dir ./assets --open
+```
+
+With the mount active, File fields in the embedded UI can preview images, open
+or download existing files, and upload files through the picker, drag and drop,
+or clipboard paste. Uploads are written into the mounted directory with a
+collision-safe name and the UI persists the resulting `assets/<name>` File
+entry through the normal Runtime mutation.
+
+The mounted directory is an explicit capability: without `--assets-dir`, Serve
+neither reads nor writes a guessed sibling folder. Relative entries outside
+the `assets/` prefix are not resolved by this mount. Each upload is limited to
+256 MiB and previews to 64 MiB. A paired LAN browser, Relay account browser, or
+guest with a `--share` link receives the same upload authority for the lifetime
+of the Serve process, so mount only a directory intended for those users.
+
 ## Trusted LAN access
 
 Use `--lan` to detect and bind one private IPv4 interface:

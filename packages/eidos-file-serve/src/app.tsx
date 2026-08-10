@@ -59,8 +59,14 @@ import {
   establishCliHostSession,
   fetchCliHostManifest,
   subscribeCliHostEvents,
+  uploadCliHostAssets,
   type CliHostManifest,
 } from "./client"
+import {
+  cliHostAssetPresenter,
+  createCliHostAssetSession,
+  pickCliHostAssetFiles,
+} from "./assets"
 import { firstTableTemplate, resolveServeEditorState } from "./empty-file"
 
 const EidosFileEditorView = lazy(() =>
@@ -278,6 +284,29 @@ export function ServeApp() {
       activeTable.views[0]
     )
   }, [activeTable, activeViews])
+  const assetSession = useMemo(
+    () =>
+      manifest?.assets && snapshot
+        ? createCliHostAssetSession(
+            manifest.assets,
+            `cli-assets:${snapshot.metadata.fileId}`,
+            snapshot.metadata.fileId
+          )
+        : undefined,
+    [manifest?.assets, snapshot?.metadata.fileId]
+  )
+
+  const importAssetFiles = useCallback(async () => {
+    if (!assetSession) return []
+    const files = await pickCliHostAssetFiles()
+    return files.length > 0 ? uploadCliHostAssets(files) : []
+  }, [assetSession])
+
+  const importDroppedAssetFiles = useCallback(
+    (files: File[]) =>
+      assetSession ? uploadCliHostAssets(files) : Promise.resolve([]),
+    [assetSession]
+  )
 
   const editorPlugins = useMemo(
     () => [
@@ -915,7 +944,12 @@ export function ServeApp() {
   const statusLabel = saving ? "Saving" : "Saved"
 
   return (
-    <EidosFileUIProvider themeName={theme} locale={locale}>
+    <EidosFileUIProvider
+      themeName={theme}
+      locale={locale}
+      assetSession={assetSession}
+      assetPresenter={assetSession ? cliHostAssetPresenter : undefined}
+    >
       <main className="serve-shell">
         <EidosFileEditorShell
           className="min-h-0 flex-1 !h-auto"
@@ -1109,6 +1143,13 @@ export function ServeApp() {
               search={search}
               disabled={saving}
               reloadToken={viewReloadToken}
+              capabilities={{
+                read: true,
+                mutate: !saving,
+                resolveAssets: assetSession !== undefined,
+                rawFile: false,
+                nativeFileSystem: false,
+              }}
               propertyField={propertyField}
               onMutation={onRowMutation}
               onSnapshot={onStructureSnapshot}
@@ -1123,6 +1164,10 @@ export function ServeApp() {
                 setAddPropertyOpen(true)
               }}
               onError={(error) => setNotice(errorMessage(error))}
+              onImportFiles={assetSession ? importAssetFiles : undefined}
+              onImportDroppedFiles={
+                assetSession ? importDroppedAssetFiles : undefined
+              }
             />
           </Suspense>
         </EidosFileEditorShell>

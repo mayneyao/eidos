@@ -1,5 +1,6 @@
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
 use std::path::{Path, PathBuf};
@@ -10,14 +11,16 @@ use std::sync::{
     Arc, Mutex,
 };
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::anyhow;
 use base64::{
     engine::general_purpose::{STANDARD as B64, URL_SAFE_NO_PAD},
     Engine,
 };
+use chrono::{SecondsFormat, Utc};
 use rand::RngCore;
+use serde::{Deserialize, Serialize};
 
 use crate::relay::{RelayBrowserAccess, RelayConfig, RelayConnector};
 use crate::{open_host_state, QjsHost, ACTIVE_CTX};
@@ -26,8 +29,266 @@ use crate::{open_host_state, QjsHost, ACTIVE_CTX};
 // bounded while still allowing the runtime's 256 MiB file/export ceiling plus
 // base64 and JSON overhead.
 const MAX_JSON_BODY_BYTES: u64 = 384 * 1024 * 1024;
+const ASSET_BYTES_MAX: u64 = 256 * 1024 * 1024;
+const ASSET_PREVIEW_BYTES_MAX: u64 = 64 * 1024 * 1024;
+const ASSET_LEASES_MAX: usize = 32;
+const ASSET_LEASE_TTL: Duration = Duration::from_secs(5 * 60);
+const ASSET_RELEASE_GRACE: Duration = Duration::from_secs(30);
 const EVENT_HEARTBEAT: Duration = Duration::from_secs(15);
 const SESSION_COOKIE_PREFIX: &str = "eidos_serve_session_";
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AssetEntry {
+    id: String,
+    name: String,
+    media_type: String,
+    size: String,
+    uri: String,
+}
+
+#[derive(Clone, Debug)]
+struct AssetLeaseRecord {
+    resource_id: String,
+    entry: AssetEntry,
+    path: PathBuf,
+    purpose: String,
+    active: bool,
+    expires_at: Instant,
+    content_expires_at: Instant,
+}
+
+struct AssetMount {
+    root: PathBuf,
+    entries: RefCell<HashMap<String, AssetEntry>>,
+    conflicting_entries: RefCell<HashSet<String>>,
+    leases: RefCell<HashMap<String, AssetLeaseRecord>>,
+}
+
+impl AssetMount {
+    fn new(root: &Path) -> anyhow::Result<Self> {
+        let root = std::fs::canonicalize(root)
+            .map_err(|error| anyhow!("open assets directory {}: {error}", root.display()))?;
+        let metadata = std::fs::metadata(&root)
+            .map_err(|error| anyhow!("inspect assets directory {}: {error}", root.display()))?;
+        if !metadata.is_dir() {
+            return Err(anyhow!(
+                "assets path must be an existing directory: {}",
+                root.display()
+            ));
+        }
+        Ok(Self {
+            root,
+            entries: RefCell::new(HashMap::new()),
+            conflicting_entries: RefCell::new(HashSet::new()),
+            leases: RefCell::new(HashMap::new()),
+        })
+    }
+
+    fn cache_runtime_result(&self, method: &str, result: &str) {
+        let Ok(envelope) = serde_json::from_str::<serde_json::Value>(result) else {
+            return;
+        };
+        if envelope.get("ok").and_then(serde_json::Value::as_bool) != Some(true) {
+            return;
+        }
+        let Some(value) = envelope.get("value") else {
+            return;
+        };
+        match method {
+            "queryRows" | "getRowsById" | "queryGroupRows" => self.cache_row_batch(value),
+            "groupRows" => {
+                if let Some(groups) = value.get("groups").and_then(serde_json::Value::as_array) {
+                    for group in groups {
+                        self.cache_rows_with_columns(value.get("columns"), group.get("rows"));
+                    }
+                }
+            }
+            "mutateRows" => {
+                if let Some(rows) = value.get("returnedRows") {
+                    self.cache_row_batch(rows);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn cache_row_batch(&self, value: &serde_json::Value) {
+        self.cache_rows_with_columns(value.get("columns"), value.get("rows"));
+    }
+
+    fn cache_rows_with_columns(
+        &self,
+        columns: Option<&serde_json::Value>,
+        rows: Option<&serde_json::Value>,
+    ) {
+        let Some(columns) = columns.and_then(serde_json::Value::as_array) else {
+            return;
+        };
+        let Some(rows) = rows.and_then(serde_json::Value::as_array) else {
+            return;
+        };
+        let file_columns: Vec<usize> = columns
+            .iter()
+            .enumerate()
+            .filter_map(|(index, column)| {
+                let value_type = column.get("valueType")?;
+                let is_file = matches!(value_type.as_str(), Some("file") | Some("file-entry"))
+                    || value_type.get("kind").and_then(serde_json::Value::as_str) == Some("list")
+                        && value_type
+                            .get("element")
+                            .and_then(serde_json::Value::as_str)
+                            == Some("file-entry");
+                is_file.then_some(index)
+            })
+            .collect();
+        for row in rows {
+            let Some(values) = row.get("values").and_then(serde_json::Value::as_array) else {
+                continue;
+            };
+            for index in &file_columns {
+                let Some(value) = values.get(*index) else {
+                    continue;
+                };
+                if let Some(entries) = value.as_array() {
+                    for entry in entries {
+                        self.cache_entry_value(entry);
+                    }
+                } else {
+                    self.cache_entry_value(value);
+                }
+            }
+        }
+    }
+
+    fn cache_entry_value(&self, value: &serde_json::Value) {
+        let Ok(entry) = serde_json::from_value::<AssetEntry>(value.clone()) else {
+            return;
+        };
+        self.cache_entry(entry);
+    }
+
+    fn cache_entry(&self, entry: AssetEntry) {
+        if !entry.uri.starts_with("assets/") {
+            return;
+        }
+        let mut entries = self.entries.borrow_mut();
+        if let Some(existing) = entries.get(&entry.id) {
+            if existing != &entry {
+                entries.remove(&entry.id);
+                self.conflicting_entries.borrow_mut().insert(entry.id);
+            }
+            return;
+        }
+        if !self.conflicting_entries.borrow().contains(&entry.id) {
+            entries.insert(entry.id.clone(), entry);
+        }
+    }
+
+    fn resolve(&self, entry_id: &str, purpose: &str) -> Result<serde_json::Value, (u16, String)> {
+        if !matches!(purpose, "thumbnail" | "preview" | "download") {
+            return Err((400, "asset purpose is invalid".to_string()));
+        }
+        if self.conflicting_entries.borrow().contains(entry_id) {
+            return Err((409, "File entry metadata is conflicting".to_string()));
+        }
+        let entry = self
+            .entries
+            .borrow()
+            .get(entry_id)
+            .cloned()
+            .ok_or_else(|| (404, "File entry is unavailable".to_string()))?;
+        let relative = decode_asset_uri(&entry.uri).ok_or_else(|| {
+            (
+                404,
+                "File entry is outside the mounted assets folder".to_string(),
+            )
+        })?;
+        let candidate = self.root.join(relative);
+        let path = std::fs::canonicalize(&candidate)
+            .map_err(|_| (404, "Asset file is unavailable".to_string()))?;
+        if !path.starts_with(&self.root) || path == self.root {
+            return Err((403, "Asset path escapes the mounted folder".to_string()));
+        }
+        let metadata =
+            std::fs::metadata(&path).map_err(|_| (404, "Asset file is unavailable".to_string()))?;
+        if !metadata.is_file() {
+            return Err((404, "Asset path is not an ordinary file".to_string()));
+        }
+        let declared_size = entry
+            .size
+            .parse::<u64>()
+            .map_err(|_| (409, "File entry size is invalid".to_string()))?;
+        if metadata.len() != declared_size {
+            return Err((
+                409,
+                "Asset file size no longer matches the File entry".to_string(),
+            ));
+        }
+        let limit = if purpose == "download" {
+            ASSET_BYTES_MAX
+        } else {
+            ASSET_PREVIEW_BYTES_MAX
+        };
+        if metadata.len() > limit {
+            return Err((413, "Asset exceeds the negotiated size limit".to_string()));
+        }
+
+        let now = Instant::now();
+        let mut leases = self.leases.borrow_mut();
+        leases.retain(|_, lease| lease.content_expires_at > now);
+        if leases.values().filter(|lease| lease.active).count() >= ASSET_LEASES_MAX {
+            return Err((429, "Concurrent asset preview limit reached".to_string()));
+        }
+        let lease_id = random_token();
+        let resource_id = random_token();
+        let expires_at = now + ASSET_LEASE_TTL;
+        leases.insert(
+            lease_id.clone(),
+            AssetLeaseRecord {
+                resource_id: resource_id.clone(),
+                entry: entry.clone(),
+                path,
+                purpose: purpose.to_string(),
+                active: true,
+                expires_at,
+                content_expires_at: expires_at,
+            },
+        );
+        Ok(serde_json::json!({
+            "leaseId": lease_id,
+            "entryId": entry.id,
+            "purpose": purpose,
+            "mediaType": entry.media_type,
+            "name": entry.name,
+            "size": entry.size,
+            "expiresAt": (Utc::now() + chrono::Duration::from_std(ASSET_LEASE_TTL).unwrap())
+                .to_rfc3339_opts(SecondsFormat::Millis, true),
+            "resourceToken": format!("/api/assets/content/{resource_id}"),
+        }))
+    }
+
+    fn release(&self, lease_id: &str) {
+        let now = Instant::now();
+        let mut leases = self.leases.borrow_mut();
+        leases.retain(|_, lease| lease.content_expires_at > now);
+        if let Some(lease) = leases.get_mut(lease_id) {
+            lease.active = false;
+            lease.content_expires_at = lease.content_expires_at.min(now + ASSET_RELEASE_GRACE);
+        }
+    }
+
+    fn content(&self, resource_id: &str) -> Result<AssetLeaseRecord, (u16, String)> {
+        let now = Instant::now();
+        let mut leases = self.leases.borrow_mut();
+        leases.retain(|_, lease| lease.content_expires_at > now);
+        leases
+            .values()
+            .find(|lease| lease.resource_id == resource_id && lease.expires_at > now)
+            .cloned()
+            .ok_or_else(|| (404, "Asset lease is unavailable or expired".to_string()))
+    }
+}
 
 struct LanAccess {
     pairing_token: String,
@@ -351,6 +612,338 @@ fn query_parameter(url: &str, name: &str) -> Option<String> {
     })
 }
 
+fn percent_decode_component(value: &str) -> Option<String> {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'%' => {
+                let high = *bytes.get(index + 1)?;
+                let low = *bytes.get(index + 2)?;
+                let hex = |byte: u8| match byte {
+                    b'0'..=b'9' => Some(byte - b'0'),
+                    b'a'..=b'f' => Some(byte - b'a' + 10),
+                    b'A'..=b'F' => Some(byte - b'A' + 10),
+                    _ => None,
+                };
+                decoded.push(hex(high)? * 16 + hex(low)?);
+                index += 3;
+            }
+            byte => {
+                decoded.push(byte);
+                index += 1;
+            }
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
+fn query_text_parameter(url: &str, name: &str) -> Option<String> {
+    let query = url.split_once('?')?.1;
+    query.split('&').find_map(|member| {
+        let (candidate, value) = member.split_once('=')?;
+        if candidate != name || value.len() > 4_096 {
+            return None;
+        }
+        percent_decode_component(&value.replace('+', " "))
+    })
+}
+
+fn percent_encode_path_segment(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+    for byte in value.as_bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            encoded.push(char::from(*byte));
+        } else {
+            encoded.push('%');
+            encoded.push_str(&format!("{byte:02X}"));
+        }
+    }
+    encoded
+}
+
+fn decode_asset_uri(uri: &str) -> Option<PathBuf> {
+    if uri.contains(['?', '#']) {
+        return None;
+    }
+    let relative = percent_decode_component(uri.strip_prefix("assets/")?)?;
+    if relative.is_empty() || relative.contains(['\0', '\\']) {
+        return None;
+    }
+    let mut path = PathBuf::new();
+    for segment in relative.split('/') {
+        if segment.is_empty() || matches!(segment, "." | "..") {
+            return None;
+        }
+        path.push(segment);
+    }
+    (!path.is_absolute()).then_some(path)
+}
+
+fn asset_name(value: &str) -> Result<String, (u16, String)> {
+    if value.is_empty()
+        || value.len() > 240
+        || value.contains(['\0', '/', '\\'])
+        || matches!(value, "." | "..")
+    {
+        return Err((400, "asset file name is invalid".to_string()));
+    }
+    Ok(value.to_string())
+}
+
+fn valid_media_type(value: &str) -> bool {
+    let Some((kind, subtype)) = value.split_once('/') else {
+        return false;
+    };
+    let valid_part = |part: &str| {
+        !part.is_empty()
+            && part.len() <= 127
+            && part.bytes().enumerate().all(|(index, byte)| {
+                if index == 0 {
+                    byte.is_ascii_alphanumeric()
+                } else {
+                    byte.is_ascii_alphanumeric()
+                        || matches!(
+                            byte,
+                            b'!' | b'#' | b'$' | b'&' | b'+' | b'.' | b'^' | b'_' | b'-'
+                        )
+                }
+            })
+    };
+    valid_part(kind) && valid_part(subtype)
+}
+
+fn inferred_asset_media_type(name: &str) -> &'static str {
+    match name
+        .rsplit_once('.')
+        .map(|(_, extension)| extension.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("avif") => "image/avif",
+        Some("gif") => "image/gif",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("png") => "image/png",
+        Some("svg") => "image/svg+xml",
+        Some("webp") => "image/webp",
+        Some("csv") => "text/csv",
+        Some("json") => "application/json",
+        Some("md") => "text/markdown",
+        Some("txt") => "text/plain",
+        Some("pdf") => "application/pdf",
+        Some("mp3") => "audio/mpeg",
+        Some("wav") => "audio/wav",
+        Some("m4a") => "audio/mp4",
+        Some("mov") => "video/quicktime",
+        Some("mp4") => "video/mp4",
+        Some("webm") => "video/webm",
+        Some("zip") => "application/zip",
+        _ => "application/octet-stream",
+    }
+}
+
+fn asset_media_type(requested: Option<String>, name: &str) -> String {
+    requested
+        .and_then(|value| {
+            value
+                .split(';')
+                .next()
+                .map(str::trim)
+                .map(str::to_ascii_lowercase)
+        })
+        .filter(|value| valid_media_type(value))
+        .unwrap_or_else(|| inferred_asset_media_type(name).to_string())
+}
+
+fn collision_asset_name(name: &str, attempt: usize) -> String {
+    if attempt == 1 {
+        return name.to_string();
+    }
+    match name.rsplit_once('.') {
+        Some((stem, extension)) if !stem.is_empty() && !extension.is_empty() => {
+            format!("{stem} ({attempt}).{extension}")
+        }
+        _ => format!("{name} ({attempt})"),
+    }
+}
+
+fn create_asset_file(
+    root: &Path,
+    requested_name: &str,
+) -> Result<(String, PathBuf, File), (u16, String)> {
+    for attempt in 1..=10_000 {
+        let name = collision_asset_name(requested_name, attempt);
+        let path = root.join(&name);
+        match OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(file) => return Ok((name, path, file)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err((500, format!("create asset file: {error}"))),
+        }
+    }
+    Err((409, "could not choose a unique asset file name".to_string()))
+}
+
+fn allocate_asset_entry(
+    host: &QjsHost,
+    name: &str,
+    media_type: &str,
+    size: u64,
+) -> Result<AssetEntry, (u16, String)> {
+    let request = serde_json::json!({
+        "name": name,
+        "mediaType": media_type,
+        "size": size.to_string(),
+        "uri": format!("assets/{}", percent_encode_path_segment(name)),
+    })
+    .to_string();
+    let result = host
+        .invoke("allocateFileEntry", &[request])
+        .map_err(|error| (500, error.to_string()))?;
+    let envelope: serde_json::Value = serde_json::from_str(&result)
+        .map_err(|error| (500, format!("decode allocated File entry: {error}")))?;
+    if envelope.get("ok").and_then(serde_json::Value::as_bool) != Some(true) {
+        let message = envelope
+            .get("error")
+            .and_then(|error| error.get("message"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("Runtime refused the File entry");
+        return Err((400, message.to_string()));
+    }
+    serde_json::from_value(envelope.get("value").cloned().unwrap_or_default())
+        .map_err(|error| (500, format!("invalid allocated File entry: {error}")))
+}
+
+fn upload_asset_response(
+    request: &mut tiny_http::Request,
+    request_url: &str,
+    mount: &AssetMount,
+    host: &QjsHost,
+) -> tiny_http::Response<std::io::Cursor<Vec<u8>>> {
+    let result = (|| -> Result<AssetEntry, (u16, String)> {
+        if request
+            .body_length()
+            .is_some_and(|length| u64::try_from(length).unwrap_or(u64::MAX) > ASSET_BYTES_MAX)
+        {
+            return Err((413, "asset exceeds the 256 MiB upload limit".to_string()));
+        }
+        let requested_name = asset_name(
+            &query_text_parameter(request_url, "name")
+                .ok_or_else(|| (400, "asset file name is required".to_string()))?,
+        )?;
+        let media_type = asset_media_type(
+            query_text_parameter(request_url, "mediaType"),
+            &requested_name,
+        );
+        let (name, path, mut file) = create_asset_file(&mount.root, &requested_name)?;
+        let write_result = (|| -> Result<u64, (u16, String)> {
+            let mut reader = request.as_reader().take(ASSET_BYTES_MAX + 1);
+            let mut buffer = [0_u8; 64 * 1024];
+            let mut size = 0_u64;
+            loop {
+                let read = reader
+                    .read(&mut buffer)
+                    .map_err(|error| (400, format!("read asset upload: {error}")))?;
+                if read == 0 {
+                    break;
+                }
+                size += read as u64;
+                if size > ASSET_BYTES_MAX {
+                    return Err((413, "asset exceeds the 256 MiB upload limit".to_string()));
+                }
+                file.write_all(&buffer[..read])
+                    .map_err(|error| (500, format!("write asset file: {error}")))?;
+            }
+            file.sync_all()
+                .map_err(|error| (500, format!("sync asset file: {error}")))?;
+            Ok(size)
+        })();
+        drop(file);
+        let size = match write_result {
+            Ok(size) => size,
+            Err(error) => {
+                let _ = std::fs::remove_file(&path);
+                return Err(error);
+            }
+        };
+        match allocate_asset_entry(host, &name, &media_type, size) {
+            Ok(entry) => {
+                mount.cache_entry(entry.clone());
+                Ok(entry)
+            }
+            Err(error) => {
+                let _ = std::fs::remove_file(&path);
+                Err(error)
+            }
+        }
+    })();
+    match result {
+        Ok(entry) => json_response(&serde_json::json!({ "ok": true, "value": entry }).to_string()),
+        Err((status, message)) => error_response(status, &message),
+    }
+}
+
+fn asset_content_response(
+    lease: &AssetLeaseRecord,
+) -> Result<tiny_http::Response<File>, (u16, String)> {
+    let file =
+        File::open(&lease.path).map_err(|_| (404, "Asset file is unavailable".to_string()))?;
+    let canonical = std::fs::canonicalize(&lease.path)
+        .map_err(|_| (404, "Asset file is unavailable".to_string()))?;
+    if canonical != lease.path {
+        return Err((
+            403,
+            "Asset path changed after the lease was issued".to_string(),
+        ));
+    }
+    let metadata = file
+        .metadata()
+        .map_err(|_| (404, "Asset file is unavailable".to_string()))?;
+    let declared_size = lease
+        .entry
+        .size
+        .parse::<u64>()
+        .map_err(|_| (409, "File entry size is invalid".to_string()))?;
+    if !metadata.is_file() || metadata.len() != declared_size {
+        return Err((409, "Asset changed after the lease was issued".to_string()));
+    }
+    let disposition = if lease.purpose == "download" {
+        "attachment"
+    } else {
+        "inline"
+    };
+    let content_disposition = format!(
+        "Content-Disposition: {disposition}; filename*=UTF-8''{}",
+        percent_encode_path_segment(&lease.entry.name)
+    );
+    Ok(tiny_http::Response::from_file(file)
+        .with_header(
+            format!("Content-Type: {}", lease.entry.media_type)
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(content_disposition.parse::<tiny_http::Header>().unwrap())
+        .with_header(
+            "Cache-Control: private, no-store"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            "X-Content-Type-Options: nosniff"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            "Content-Security-Policy: sandbox; default-src 'none'; img-src 'self' data:; media-src 'self'"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            "Cross-Origin-Resource-Policy: same-origin"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        ))
+}
+
 fn pairing_response(
     request: &tiny_http::Request,
     network: &ServeNetwork,
@@ -535,15 +1128,26 @@ fn resolve_static(ui_dir: &Path, url_path: &str) -> Option<PathBuf> {
     index.is_file().then_some(index)
 }
 
-pub fn run_serve(
-    db_path: &Path,
-    port: u16,
-    ui_dir: Option<PathBuf>,
-    open_browser: bool,
-    lan: bool,
-    requested_host: Option<IpAddr>,
-    relay: Option<RelayConfig>,
-) -> anyhow::Result<()> {
+pub struct ServeOptions {
+    pub port: u16,
+    pub ui_dir: Option<PathBuf>,
+    pub assets_dir: Option<PathBuf>,
+    pub open_browser: bool,
+    pub lan: bool,
+    pub requested_host: Option<IpAddr>,
+    pub relay: Option<RelayConfig>,
+}
+
+pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
+    let ServeOptions {
+        port,
+        ui_dir,
+        assets_dir,
+        open_browser,
+        lan,
+        requested_host,
+        relay,
+    } = options;
     let file_name = db_path
         .file_name()
         .and_then(|name| name.to_str())
@@ -553,6 +1157,7 @@ pub fn run_serve(
     let host = QjsHost::new(&state)?;
     let network = ServeNetwork::new(port, lan, requested_host)?;
     let events = EventHub::default();
+    let assets = assets_dir.as_deref().map(AssetMount::new).transpose()?;
 
     let server = tiny_http::Server::http(network.bind)
         .map_err(|error| anyhow!("bind {}: {error}", network.bind))?;
@@ -578,6 +1183,11 @@ pub fn run_serve(
         println!("  ui:  {}", dir.display());
     } else {
         println!("  ui:  (embedded)");
+    }
+    if let Some(mount) = &assets {
+        println!("  assets: {}", mount.root.display());
+    } else {
+        println!("  assets: (not mounted; pass --assets-dir <dir> to enable)");
     }
     if network.lan.is_some() {
         println!("  access: paired browsers can read and write");
@@ -640,6 +1250,34 @@ pub fn run_serve(
             continue;
         }
 
+        if method == "POST" && url_path == "/api/assets/upload" {
+            let response = match &assets {
+                Some(mount) => upload_asset_response(&mut request, &request_url, mount, &host),
+                None => error_response(404, "no assets folder is mounted"),
+            };
+            if let Err(error) = request.respond(response) {
+                eprintln!("respond failed: {error}");
+            }
+            continue;
+        }
+
+        if method == "GET" && url_path.starts_with("/api/assets/content/") {
+            let resource_id = url_path.trim_start_matches("/api/assets/content/");
+            let result = assets
+                .as_ref()
+                .ok_or_else(|| (404, "no assets folder is mounted".to_string()))
+                .and_then(|mount| mount.content(resource_id))
+                .and_then(|lease| asset_content_response(&lease));
+            let responded = match result {
+                Ok(response) => request.respond(response),
+                Err((status, message)) => request.respond(error_response(status, &message)),
+            };
+            if let Err(error) = responded {
+                eprintln!("respond failed: {error}");
+            }
+            continue;
+        }
+
         let source_client_id = request_client_id(&request);
         let request_network = if header_value(&request, "X-Eidos-Relay") == Some("1") {
             "relay"
@@ -647,15 +1285,23 @@ pub fn run_serve(
             network.mode()
         };
         let response = match (method.as_str(), url_path.as_str()) {
-            ("GET", "/api/manifest") => json_response(
-                &serde_json::json!({
+            ("GET", "/api/manifest") => {
+                let mut manifest = serde_json::json!({
                     "mode": "cli",
                     "fileName": file_name,
                     "access": "readwrite",
                     "network": request_network,
-                })
-                .to_string(),
-            ),
+                });
+                if assets.is_some() {
+                    manifest["assets"] = serde_json::json!({
+                        "mounted": true,
+                        "assetBytesMax": ASSET_BYTES_MAX.to_string(),
+                        "assetPreviewBytesMax": ASSET_PREVIEW_BYTES_MAX.to_string(),
+                        "concurrentAssetLeasesMax": ASSET_LEASES_MAX,
+                    });
+                }
+                json_response(&manifest.to_string())
+            }
             ("POST", "/api/runtime/open") => match read_json_body(&mut request) {
                 Ok(value) => match value.get("access").and_then(|access| access.as_str()) {
                     Some(access @ ("read" | "readwrite")) => {
@@ -708,6 +1354,9 @@ pub fn run_serve(
                         });
                     match host.invoke("call", &[method.clone(), request_json, context_json]) {
                         Ok(result) => {
+                            if let Some(mount) = &assets {
+                                mount.cache_runtime_result(&method, &result);
+                            }
                             if let Some(event) = mutation_event(&method, &result) {
                                 events.publish(event, source_client_id.as_deref());
                             }
@@ -717,6 +1366,38 @@ pub fn run_serve(
                     }
                 }
                 Err((status, message)) => error_response(status, &message),
+            },
+            ("POST", "/api/assets/resolve") => match (&assets, read_json_body(&mut request)) {
+                (None, _) => error_response(404, "no assets folder is mounted"),
+                (Some(_), Err((status, message))) => error_response(status, &message),
+                (Some(mount), Ok(value)) => {
+                    let entry_id = value
+                        .get("entryId")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("");
+                    let purpose = value
+                        .get("purpose")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("");
+                    match mount.resolve(entry_id, purpose) {
+                        Ok(lease) => json_response(
+                            &serde_json::json!({ "ok": true, "value": lease }).to_string(),
+                        ),
+                        Err((status, message)) => error_response(status, &message),
+                    }
+                }
+            },
+            ("POST", "/api/assets/release") => match (&assets, read_json_body(&mut request)) {
+                (None, _) => error_response(404, "no assets folder is mounted"),
+                (Some(_), Err((status, message))) => error_response(status, &message),
+                (Some(mount), Ok(value)) => {
+                    let lease_id = value
+                        .get("leaseId")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("");
+                    mount.release(lease_id);
+                    json_response(&serde_json::json!({ "ok": true }).to_string())
+                }
             },
             // Browser sessions share one authoritative Runtime writer. A
             // tab closing must not terminate the Runtime for every other
@@ -783,7 +1464,8 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr};
 
     use super::{
-        allowed_host, allowed_origin, is_lan_address, mutation_event, query_parameter, EmbeddedUi,
+        allowed_host, allowed_origin, collision_asset_name, decode_asset_uri, is_lan_address,
+        mutation_event, query_parameter, query_text_parameter, AssetEntry, AssetMount, EmbeddedUi,
         EventHub, RevisionEvent, ServeNetwork,
     };
 
@@ -945,6 +1627,117 @@ mod tests {
         assert_eq!(
             query_parameter("/api/events?client=not%20valid", "client"),
             None
+        );
+    }
+
+    #[test]
+    fn asset_query_and_uri_decoding_preserve_unicode_and_containment() {
+        assert_eq!(
+            query_text_parameter("/api/assets/upload?name=%E5%9B%BE%E7%89%87+1.png", "name")
+                .as_deref(),
+            Some("图片 1.png")
+        );
+        assert_eq!(
+            decode_asset_uri("assets/report%20%2B%20final.pdf").as_deref(),
+            Some(std::path::Path::new("report + final.pdf"))
+        );
+        assert!(decode_asset_uri("assets/%2E%2E/private.txt").is_none());
+        assert!(decode_asset_uri("../assets/private.txt").is_none());
+        assert!(decode_asset_uri("assets/folder\\private.txt").is_none());
+        assert!(decode_asset_uri("assets/private.txt?download=1").is_none());
+    }
+
+    #[test]
+    fn asset_collision_names_preserve_extensions() {
+        assert_eq!(collision_asset_name("report.pdf", 1), "report.pdf");
+        assert_eq!(collision_asset_name("report.pdf", 2), "report (2).pdf");
+        assert_eq!(collision_asset_name("README", 3), "README (3)");
+    }
+
+    #[test]
+    fn runtime_pages_cache_only_typed_file_columns() {
+        let root = tempfile::tempdir().unwrap();
+        let mount = AssetMount::new(root.path()).unwrap();
+        let result = serde_json::json!({
+            "ok": true,
+            "value": {
+                "columns": [
+                    { "valueType": "file" },
+                    { "valueType": { "kind": "list", "element": "file-entry" } },
+                    { "valueType": "json" }
+                ],
+                "rows": [{
+                    "values": [
+                        [{
+                            "id": "0198c72d-82b5-7968-b163-98be4b7477de",
+                            "name": "photo.png",
+                            "mediaType": "image/png",
+                            "size": "3",
+                            "uri": "assets/photo.png"
+                        }],
+                        [{
+                            "id": "0198c72d-82b5-7968-b163-98be4b7477df",
+                            "name": "cover.png",
+                            "mediaType": "image/png",
+                            "size": "3",
+                            "uri": "assets/cover.png"
+                        }],
+                        {
+                            "id": "0198c72d-82b5-7968-a163-98be4b7477df",
+                            "name": "forged.png",
+                            "mediaType": "image/png",
+                            "size": "3",
+                            "uri": "assets/forged.png"
+                        }
+                    ]
+                }]
+            }
+        })
+        .to_string();
+
+        mount.cache_runtime_result("queryRows", &result);
+
+        let entries = mount.entries.borrow();
+        assert!(entries.contains_key("0198c72d-82b5-7968-b163-98be4b7477de"));
+        assert!(entries.contains_key("0198c72d-82b5-7968-b163-98be4b7477df"));
+        assert!(!entries.contains_key("0198c72d-82b5-7968-a163-98be4b7477df"));
+    }
+
+    #[test]
+    fn mounted_assets_resolve_through_short_lived_leases() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("cover.png"), b"png").unwrap();
+        let mount = AssetMount::new(root.path()).unwrap();
+        let entry = AssetEntry {
+            id: "0198c72d-82b5-7968-b163-98be4b7477df".to_string(),
+            name: "cover.png".to_string(),
+            media_type: "image/png".to_string(),
+            size: "3".to_string(),
+            uri: "assets/cover.png".to_string(),
+        };
+        mount.cache_entry(entry.clone());
+
+        let lease = mount.resolve(&entry.id, "thumbnail").unwrap();
+        assert_eq!(lease["entryId"], entry.id);
+        assert_eq!(lease["purpose"], "thumbnail");
+        let resource = lease["resourceToken"]
+            .as_str()
+            .unwrap()
+            .trim_start_matches("/api/assets/content/");
+        assert_eq!(
+            mount.content(resource).unwrap().path,
+            mount.root.join("cover.png")
+        );
+
+        mount.release(lease["leaseId"].as_str().unwrap());
+        assert_eq!(
+            mount
+                .leases
+                .borrow()
+                .values()
+                .filter(|lease| lease.active)
+                .count(),
+            0
         );
     }
 

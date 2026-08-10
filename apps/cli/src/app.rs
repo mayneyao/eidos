@@ -117,12 +117,15 @@ fn serve_file(args: ServeArgs) -> Result<CommandOutput> {
     };
     qjs_host::serve::run_serve(
         &args.file,
-        args.port,
-        args.ui_dir,
-        args.open,
-        args.lan,
-        args.host,
-        relay,
+        qjs_host::serve::ServeOptions {
+            port: args.port,
+            ui_dir: args.ui_dir,
+            assets_dir: args.assets_dir,
+            open_browser: args.open,
+            lan: args.lan,
+            requested_host: args.host,
+            relay,
+        },
     )
     .map_err(|error| AppError::internal(error.to_string()))?;
     Ok(CommandOutput::success(json!({ "served": true })))

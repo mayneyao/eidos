@@ -127,6 +127,17 @@ writes straight to the file — there is no separate save step.
 target/debug/eidos serve tracker.eidos --port 8420 --open
 ```
 
+Relative File entries and uploads remain disabled until an existing assets
+folder is explicitly mounted. With a mount, the embedded UI can preview,
+open, download, choose, drop, paste, and upload files in File fields:
+
+```bash
+target/debug/eidos serve tracker.eidos --assets-dir ./assets --open
+```
+
+The mount resolves only `assets/<name>` references and never falls back to a
+guessed sibling or working-directory path.
+
 The server binds `127.0.0.1` by default. Use `--lan` to bind one detected
 private interface and print a paired access link for other devices on that
 trusted network:

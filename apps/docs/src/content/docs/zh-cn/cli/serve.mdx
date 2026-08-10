@@ -32,6 +32,25 @@ eidos serve tracker.eidos --open
 eidos serve tracker.eidos --port 9000 --open
 ```
 
+## 显式挂载 assets 文件夹
+
+Serve 不会推测或自动打开 assets 目录。文件包含 `assets/cover.png` 这类 relative
+entry 时，需要显式挂载一个已经存在的目录：
+
+```bash
+eidos serve tracker.eidos --assets-dir ./assets --open
+```
+
+挂载后，内置 UI 的 File 字段可以预览图片、打开或下载已有文件，也可以通过文件选择器、
+拖放或剪贴板粘贴上传文件。上传内容会以避免覆盖同名文件的名称写入挂载目录，UI 再通过
+正常 Runtime mutation 持久化生成的 `assets/<name>` File entry。
+
+这个目录是一项显式 capability：没有 `--assets-dir` 时，Serve 不会读取或写入猜测出的
+相邻目录；该 mount 也不会解析 `assets/` 前缀之外的 relative entry。单个上传限制为
+256 MiB，预览限制为 64 MiB。已配对 LAN 浏览器、Relay 账号浏览器，以及持有
+`--share` 链接的访客，在 Serve 进程存活期间都拥有同样的上传权限，因此只应挂载准备
+授权给这些用户的目录。
+
 ## 可信局域网访问
 
 `--lan` 会检测并绑定一个私有 IPv4 接口：

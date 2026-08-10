@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { createBrowserId, establishCliHostSession } from "./client"
+import {
+  createBrowserId,
+  establishCliHostSession,
+  uploadCliHostAssets,
+} from "./client"
 import type { CliHostAccessError } from "./client"
 
 afterEach(() => {
@@ -80,5 +84,33 @@ describe("CLI Serve browser pairing", () => {
 
   it("creates browser IDs without relying on secure-context-only APIs", () => {
     expect(createBrowserId()).toMatch(/^[A-Za-z0-9_-]+$/)
+  })
+
+  it("streams explicitly selected assets without base64 encoding", async () => {
+    const entry = {
+      id: "0198c72d-82b5-7968-b163-98be4b7477df",
+      name: "图片 1.png",
+      mediaType: "image/png",
+      size: "3",
+      uri: "assets/%E5%9B%BE%E7%89%87%201.png",
+    }
+    const fetch = vi.fn(async () =>
+      Response.json({ ok: true, value: entry }, { status: 200 })
+    )
+    vi.stubGlobal("fetch", fetch)
+    const file = new File([new Uint8Array([1, 2, 3])], "图片 1.png", {
+      type: "image/png",
+    })
+
+    await expect(uploadCliHostAssets([file])).resolves.toEqual([entry])
+
+    const [url, request] = fetch.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ]
+    expect(url).toContain("/api/assets/upload?")
+    expect(url).toContain("name=%E5%9B%BE%E7%89%87+1.png")
+    expect(url).toContain("mediaType=image%2Fpng")
+    expect(request).toMatchObject({ method: "POST", body: file })
   })
 })

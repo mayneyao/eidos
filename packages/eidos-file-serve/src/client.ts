@@ -1,8 +1,10 @@
 import type {
+  AssetLease,
   EidosFileCsvImportOptions,
   EidosFileCsvImportPlan,
   EidosFileCsvImportResult,
   EidosFileSnapshot,
+  FileEntry,
   RequestContext,
   RuntimeClient,
 } from "@eidos.space/eidos-file"
@@ -16,6 +18,14 @@ export interface CliHostManifest {
   fileName: string
   access: "read" | "readwrite"
   network?: "loopback" | "lan" | "relay"
+  assets?: CliHostAssetManifest
+}
+
+export interface CliHostAssetManifest {
+  mounted: true
+  assetBytesMax: string
+  assetPreviewBytesMax: string
+  concurrentAssetLeasesMax: number
 }
 
 export interface EidosFileHttpOpenResult {
@@ -184,6 +194,59 @@ function unwrap(envelope: HttpEnvelope): unknown {
     )
   }
   return envelope.value
+}
+
+async function responseEnvelope(response: Response): Promise<HttpEnvelope> {
+  let envelope: HttpEnvelope
+  try {
+    envelope = (await response.json()) as HttpEnvelope
+  } catch {
+    throw new Error(`HTTP ${response.status}`)
+  }
+  if (!response.ok) {
+    throw Object.assign(
+      new Error(envelope.error?.message ?? `HTTP ${response.status}`),
+      { code: envelope.error?.code ?? "http-error" }
+    )
+  }
+  return envelope
+}
+
+export async function uploadCliHostAsset(file: File): Promise<FileEntry> {
+  const parameters = new URLSearchParams({
+    name: file.name,
+    ...(file.type ? { mediaType: file.type } : {}),
+  })
+  const response = await fetch(`/api/assets/upload?${parameters}`, {
+    method: "POST",
+    headers: { "X-Eidos-Client-ID": HTTP_CLIENT_ID },
+    body: file,
+  })
+  return unwrap(await responseEnvelope(response)) as FileEntry
+}
+
+export async function uploadCliHostAssets(
+  files: readonly File[]
+): Promise<FileEntry[]> {
+  if (files.length < 1 || files.length > 32) {
+    throw new Error("Choose between 1 and 32 files")
+  }
+  const entries: FileEntry[] = []
+  for (const file of files) entries.push(await uploadCliHostAsset(file))
+  return entries
+}
+
+export async function resolveCliHostAsset(
+  entryId: string,
+  purpose: AssetLease["purpose"]
+): Promise<AssetLease> {
+  return unwrap(
+    await postJson("/api/assets/resolve", { entryId, purpose })
+  ) as AssetLease
+}
+
+export async function releaseCliHostAsset(leaseId: string): Promise<void> {
+  unwrap(await postJson("/api/assets/release", { leaseId }))
 }
 
 function sanitizeContext(context: RequestContext): RequestContext {

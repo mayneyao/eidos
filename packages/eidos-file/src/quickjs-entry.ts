@@ -10,6 +10,7 @@ import { Runtime } from "./runtime-service"
 import type {
   RequestContext,
   RuntimeEnvironment,
+  RuntimeHostBridge,
   RuntimeService,
 } from "./runtime-contract"
 import type { CancellationPort } from "./protocol-types"
@@ -20,6 +21,7 @@ import { runSelfTest } from "./quickjs/selftest"
 interface EidosQuickJsRuntime {
   selfTest(): Promise<string>
   open(requestJson: string): Promise<string>
+  allocateFileEntry(requestJson: string): Promise<string>
   call(
     method: string,
     requestJson: string,
@@ -54,6 +56,7 @@ const liveEnvironment = (): RuntimeEnvironment => ({
 interface Session {
   port: QuickJsConnectionPort
   service: RuntimeService
+  hostBridge: RuntimeHostBridge
 }
 
 let session: Session | null = null
@@ -152,7 +155,11 @@ globalThis.__eidos_runtime = {
               request.access ?? "readwrite",
               { cancellation }
             )
-      session = { port, service: binding.service }
+      session = {
+        port,
+        service: binding.service,
+        hostBridge: binding.hostBridge,
+      }
       const negotiation = await binding.service.negotiate(
         { protocol: "eidos-runtime", versions: ["1.0"] },
         { requestId: "open-negotiate", deadlineMilliseconds: 30_000 }
@@ -161,6 +168,25 @@ globalThis.__eidos_runtime = {
         ok: true,
         capabilities: negotiation.capabilities,
       })
+    } catch (error) {
+      return errorEnvelope(error)
+    }
+  },
+
+  async allocateFileEntry(requestJson: string): Promise<string> {
+    try {
+      const { hostBridge } = requireSession()
+      const request = JSON.parse(requestJson) as {
+        name: string
+        mediaType: string
+        size: string
+        uri: string
+      }
+      const value = await hostBridge.allocateFileEntry(request, {
+        requestId: "serve-asset-allocate",
+        deadlineMilliseconds: 30_000,
+      })
+      return JSON.stringify({ ok: true, value })
     } catch (error) {
       return errorEnvelope(error)
     }

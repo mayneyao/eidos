@@ -1646,7 +1646,21 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   useEffect(() => {
     const container = containerRef.current
     if (!container || !onImportDroppedFiles) return
+    const ownerDocument = container.ownerDocument
     const onPasteFiles = (event: ClipboardEvent) => {
+      const target = event.target
+      const NodeConstructor = ownerDocument.defaultView?.Node
+      const targetIsInsideGrid =
+        NodeConstructor !== undefined &&
+        target instanceof NodeConstructor &&
+        container.contains(target)
+      if (
+        target !== ownerDocument.body &&
+        target !== ownerDocument.documentElement &&
+        !targetIsInsideGrid
+      ) {
+        return
+      }
       const files = event.clipboardData?.files
       if (!files || files.length === 0) return
       const cell = history.gridSelection?.current?.cell
@@ -1654,8 +1668,8 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       if (!importFilesIntoAttachmentCell(cell, Array.from(files))) return
       event.preventDefault()
     }
-    container.addEventListener("paste", onPasteFiles)
-    return () => container.removeEventListener("paste", onPasteFiles)
+    ownerDocument.addEventListener("paste", onPasteFiles, true)
+    return () => ownerDocument.removeEventListener("paste", onPasteFiles, true)
   }, [
     history.gridSelection,
     importFilesIntoAttachmentCell,

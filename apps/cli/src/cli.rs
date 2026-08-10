@@ -84,6 +84,9 @@ pub struct ServeArgs {
     /// Serve the web editor from this directory instead of the embedded UI.
     #[arg(long)]
     pub ui_dir: Option<PathBuf>,
+    /// Explicitly mount an existing folder for assets/<name> File entries.
+    #[arg(long, value_name = "DIR")]
+    pub assets_dir: Option<PathBuf>,
     /// Open the served URL in the default browser.
     #[arg(long)]
     pub open: bool,

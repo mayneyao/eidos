@@ -2340,7 +2340,7 @@ describe("EidosFileGrid", () => {
       await Promise.resolve()
     })
 
-    const dispatchPaste = (file: File) => {
+    const dispatchPaste = (file: File, target: EventTarget = document.body) => {
       const pasteEvent = new Event("paste", {
         bubbles: true,
         cancelable: true,
@@ -2348,9 +2348,7 @@ describe("EidosFileGrid", () => {
       Object.defineProperty(pasteEvent, "clipboardData", {
         value: { files: [file] },
       })
-      container
-        .querySelector(".eidos-file-detail-layout")!
-        .dispatchEvent(pasteEvent)
+      target.dispatchEvent(pasteEvent)
       return pasteEvent
     }
     const pasted = new File(["image"], "pasted.png", { type: "image/png" })
@@ -2395,6 +2393,14 @@ describe("EidosFileGrid", () => {
         onCellEdit.mock.calls.at(-1)?.[2] as string | undefined
       ).map((entry) => entry.uri)
     ).toEqual(["assets/existing.pdf", "assets/pasted.png"])
+
+    // Pasting into an unrelated editor must not retarget the selected cell.
+    const unrelatedInput = document.createElement("input")
+    document.body.appendChild(unrelatedInput)
+    const unrelatedPaste = dispatchPaste(pasted, unrelatedInput)
+    expect(unrelatedPaste.defaultPrevented).toBe(false)
+    expect(onImportDroppedFiles).toHaveBeenCalledTimes(1)
+    unrelatedInput.remove()
   })
 
   it("keeps loaded attachment thumbnails across equivalent page loader updates", async () => {
