@@ -13,10 +13,9 @@
   "vars": {
     "AUTH_USERINFO_URL": "https://eidos.space/api/sync/userinfo",
     "PUBLIC_REMOTE_ORIGIN": "https://sync.eidos.space",
-    // Preserve existing Sync access while production claims are observed and
-    // explicit legacy entitlements are backfilled. Enable only after the
-    // rollout gates in eidos.space/db/eidos-cloud-billing.md are satisfied.
-    "SYNC_ACCESS_ENFORCEMENT": "off",
+    // Keep production Sync behind the first-party versioned sync_access grant.
+    // Waitlist, missing, blocked, and read-only accounts stay non-writable.
+    "SYNC_ACCESS_ENFORCEMENT": "enforce",
     // Track exact immutable bytes before enforcing the commercial 10 GB cap.
     "SYNC_QUOTA_ENFORCEMENT": "shadow",
   },
