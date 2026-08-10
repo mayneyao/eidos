@@ -46,7 +46,6 @@ describe("AccountSyncClient", () => {
     ).resolves.toMatchObject({ id: "device-1", status: "active" })
     await expect(client.authorization("access-secret")).resolves.toEqual({
       subject: "user-1",
-      availability: { state: "available", joined: false },
       access: {
         version: 1,
         revision: 7,
@@ -74,18 +73,25 @@ describe("AccountSyncClient", () => {
     )
     await expect(client.authorization("token")).resolves.toEqual({
       subject: "user-1",
-      availability: { state: "available", joined: false },
       access: null,
     })
   })
 
-  it("reads and joins the staging Sync waitlist", async () => {
-    const fetchImpl = vi.fn(async (_input: string | URL, init?: RequestInit) =>
+  it("ignores legacy enrollment metadata and consumes the effective grant", async () => {
+    const fetchImpl = vi.fn(async () =>
       Response.json({
         sub: "user-1",
         sync_enrollment: {
           state: "waitlist",
-          joined: init?.method === "POST",
+          joined: false,
+        },
+        sync_access: {
+          version: 1,
+          revision: 8,
+          service: "eidos_sync",
+          access: "read_write",
+          quotaBytes: 10_737_418_240,
+          deviceLimit: 0,
         },
       })
     ) as unknown as typeof fetch
@@ -93,13 +99,16 @@ describe("AccountSyncClient", () => {
 
     await expect(client.authorization("token")).resolves.toEqual({
       subject: "user-1",
-      availability: { state: "waitlist", joined: false },
-      access: null,
+      access: {
+        version: 1,
+        revision: 8,
+        service: "eidos_sync",
+        access: "read_write",
+        quotaBytes: 10_737_418_240,
+        deviceLimit: 0,
+      },
     })
-    await expect(client.joinWaitlist("token")).resolves.toEqual({
-      subject: "user-1",
-      availability: { state: "waitlist", joined: true },
-    })
+    expect(fetchImpl).toHaveBeenCalledOnce()
   })
 
   it("rejects malformed grants and maps device authorization failures", async () => {

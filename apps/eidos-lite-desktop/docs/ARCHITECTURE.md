@@ -494,7 +494,7 @@ message and never receives that technical diagnostic.
 | -------------------- | ------------------------------------------------- | ---------------------- |
 | Offline              | timeout, DNS, connection reset                    | Retry now              |
 | Paused: sign in      | 401, expired session, revoked device binding      | Sign in again          |
-| Paused: subscription | missing, blocked, or inactive Sync grant          | Manage account         |
+| Sync access required | missing, blocked, or inactive Sync grant          | Manage Sync access     |
 | Paused: storage full | HTTP 413 or explicit quota rejection              | Manage storage         |
 | Needs attention      | protocol mismatch, missing Remote, local changes  | Update/re-clone/review |
 | Service unavailable  | rate limit, 5xx, persistence failure, worker exit | Retry/work locally     |

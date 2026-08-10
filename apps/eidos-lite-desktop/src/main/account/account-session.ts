@@ -1,6 +1,5 @@
 import type {
   AccountSyncClient,
-  SyncAvailability,
   SyncAuthorization,
   SyncDevicePlatform,
 } from "./account-sync-client"
@@ -92,20 +91,6 @@ export class AccountSessionService {
       )
     }
     return authorization
-  }
-
-  async joinSyncWaitlist(): Promise<SyncAvailability> {
-    const session = await this.activeSession()
-    const enrollment = await this.syncClient.joinWaitlist(
-      session.tokens.accessToken
-    )
-    if (enrollment.subject !== session.user.id) {
-      await this.credentials.clear()
-      throw new Error(
-        "The Eidos Sync identity does not match the signed-in account. Sign in again."
-      )
-    }
-    return enrollment.availability
   }
 
   private async activeSession(): Promise<StoredAccountSession> {

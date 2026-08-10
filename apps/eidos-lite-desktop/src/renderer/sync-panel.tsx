@@ -46,7 +46,6 @@ import {
 type BusyAction =
   | "sign-in"
   | "sign-out"
-  | "waitlist"
   | "enable"
   | "repositories"
   | "clone"
@@ -210,10 +209,8 @@ export function SyncPanel({
   const [loadError, setLoadError] = useState<LoadError | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false)
-  const [waitlistJoinFailed, setWaitlistJoinFailed] = useState(false)
 
   const loadResources = async (value: EidosSyncStatus) => {
-    if (value.availability?.state === "waitlist") return
     if (mode === "clone" && value.canClone) {
       const cached = readSyncStatusSnapshot(cacheKey)
       if (!cached?.repositories) setBusy("repositories")
@@ -311,7 +308,7 @@ export function SyncPanel({
   const shouldLoadSpaceSize =
     mode === "enable" &&
     status.account.state === "signed-in" &&
-    status.availability?.state !== "waitlist"
+    status.entitlement.state === "read-write"
 
   useEffect(() => {
     if (!shouldLoadSpaceSize) {
@@ -391,7 +388,10 @@ export function SyncPanel({
   )
 
   useEffect(() => {
-    if (status.availability?.state === "waitlist") {
+    if (
+      status.entitlement.state !== "read-only" &&
+      status.entitlement.state !== "read-write"
+    ) {
       setSyncQueueStatus(null)
       setSyncFailure(null)
       return
@@ -421,7 +421,7 @@ export function SyncPanel({
       active = false
       unsubscribe()
     }
-  }, [status.availability?.state])
+  }, [status.entitlement.state])
 
   useEffect(() => {
     if (!syncProgress || syncProgress.state !== "active") return
@@ -512,19 +512,6 @@ export function SyncPanel({
         "Could not sign out",
         "Your local files are unaffected. Try again from Sync details."
       )
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const joinWaitlist = async () => {
-    setBusy("waitlist")
-    setWaitlistJoinFailed(false)
-    try {
-      rememberStatus(await window.eidosLite.joinSyncWaitlist())
-    } catch (cause) {
-      console.error("Could not join the Eidos Sync waitlist", cause)
-      setWaitlistJoinFailed(true)
     } finally {
       setBusy(null)
     }
@@ -652,7 +639,9 @@ export function SyncPanel({
     }
   }
 
-  const openHelp = async (destination: "account" | "download") => {
+  const openHelp = async (
+    destination: "account" | "download" | "sync-access"
+  ) => {
     setBusy("help")
     try {
       await window.eidosLite.openSyncHelp(destination)
@@ -751,23 +740,23 @@ export function SyncPanel({
     hasUncheckpointedChanges,
     syncResult,
   })
-  const waitlistGate =
-    status.availability?.state === "waitlist" ||
-    (status.environment === "staging" && status.availability === undefined)
-
-  if (shouldRenderSyncAccessGate(status, waitlistGate)) {
+  if (shouldRenderSyncAccessGate(status)) {
     return (
       <SyncAccessGate
         mode={mode}
         variant={variant}
         environment={status.environment}
         accountState={status.account.state}
-        joined={status.availability?.joined === true}
+        entitlementState={status.entitlement.state}
         busy={busy}
-        joinFailed={waitlistJoinFailed}
+        checking={checking}
         onClose={onClose}
         onSignIn={() => void signIn()}
-        onJoinWaitlist={() => void joinWaitlist()}
+        onManageAccess={() => void openHelp("sync-access")}
+        onCheckAgain={() => {
+          setLoadError(null)
+          setReloadKey((current) => current + 1)
+        }}
       />
     )
   }
@@ -1324,11 +1313,12 @@ export function SyncPanel({
   )
 }
 
-function shouldRenderSyncAccessGate(
-  status: EidosSyncStatus,
-  waitlistGate: boolean
-): boolean {
-  return status.account.state === "signed-out" || waitlistGate
+function shouldRenderSyncAccessGate(status: EidosSyncStatus): boolean {
+  return (
+    status.account.state === "signed-out" ||
+    (status.entitlement.state !== "read-only" &&
+      status.entitlement.state !== "read-write")
+  )
 }
 
 function SyncAccessGate({
@@ -1336,25 +1326,28 @@ function SyncAccessGate({
   variant,
   environment,
   accountState,
-  joined,
+  entitlementState,
   busy,
-  joinFailed,
+  checking,
   onClose,
   onSignIn,
-  onJoinWaitlist,
+  onManageAccess,
+  onCheckAgain,
 }: {
   mode: "enable" | "clone"
   variant: "dialog" | "inspector"
   environment: EidosSyncStatus["environment"]
   accountState: EidosSyncStatus["account"]["state"]
-  joined: boolean
+  entitlementState: EidosSyncStatus["entitlement"]["state"]
   busy: BusyAction
-  joinFailed: boolean
+  checking: boolean
   onClose(): void
   onSignIn(): void
-  onJoinWaitlist(): void
+  onManageAccess(): void
+  onCheckAgain(): void
 }) {
   const signedOut = accountState === "signed-out"
+  const blocked = entitlementState === "blocked"
   return (
     <div
       className={
@@ -1371,8 +1364,7 @@ function SyncAccessGate({
         data-sync-environment={environment}
         data-sync-account-state={accountState}
         data-sync-can-enable="false"
-        data-sync-access-gate={signedOut ? "sign-in" : "waitlist"}
-        data-sync-waitlist-joined={joined ? "true" : "false"}
+        data-sync-access-gate={signedOut ? "sign-in" : "access-required"}
       >
         <header>
           <div>
@@ -1399,36 +1391,60 @@ function SyncAccessGate({
           </button>
         </header>
         <div className="sync-dialog-body sync-access-gate-body">
-          <div className="sync-primary-actions">
-            <button
-              type="button"
-              className="primary-action"
-              data-sync-sign-in={signedOut ? "" : undefined}
-              data-sync-join-waitlist={signedOut ? undefined : ""}
-              disabled={busy !== null || (!signedOut && joined)}
-              onClick={signedOut ? onSignIn : onJoinWaitlist}
-            >
-              {busy === "sign-in" || busy === "waitlist" ? (
-                <LoaderCircle className="spin" />
-              ) : joined ? (
-                <Check />
-              ) : signedOut ? (
-                <LogIn />
-              ) : (
-                <Cloud />
-              )}
+          <section className="sync-status">
+            <span className="sync-status-pill sync-status-pill-warning">
+              {signedOut ? "Sign-in needed" : "Access required"}
+            </span>
+            <h2>
+              {signedOut ? "Sign in to use Sync" : "Sync access required"}
+            </h2>
+            <p className="sync-status-message">
               {signedOut
-                ? busy === "sign-in"
-                  ? "Waiting for your browser…"
-                  : "Sign in"
-                : busy === "waitlist"
-                  ? "Joining…"
-                  : joined
-                    ? "You’re on the Sync waitlist"
-                    : joinFailed
-                      ? "Try joining the Sync waitlist again"
-                      : "Apply to join the Sync waitlist"}
-            </button>
+                ? "Use your eidos.space account to check whether Sync is available."
+                : blocked
+                  ? "Manage your Sync access on eidos.space, then check again here."
+                  : "Apply for or review Sync access on eidos.space, then check again here."}
+            </p>
+          </section>
+          <div className="sync-primary-actions">
+            {signedOut ? (
+              <button
+                type="button"
+                className="primary-action"
+                data-sync-sign-in=""
+                disabled={busy !== null}
+                onClick={onSignIn}
+              >
+                {busy === "sign-in" ? (
+                  <LoaderCircle className="spin" />
+                ) : (
+                  <LogIn />
+                )}
+                {busy === "sign-in" ? "Waiting for your browser…" : "Sign in"}
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="primary-action"
+                  data-sync-manage-access=""
+                  disabled={busy !== null}
+                  onClick={onManageAccess}
+                >
+                  <UserRound /> Manage Sync access
+                </button>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  data-sync-check-access=""
+                  disabled={busy !== null || checking}
+                  onClick={onCheckAgain}
+                >
+                  {checking ? <LoaderCircle className="spin" /> : <RefreshCw />}
+                  {checking ? "Checking…" : "Check again"}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </aside>
@@ -2448,7 +2464,6 @@ function initialSyncStatus(): EidosSyncStatus {
   return {
     environment: "production",
     account: { state: "signed-out" },
-    availability: { state: "available", joined: false },
     device: { state: "not-registered" },
     entitlement: {
       state: "not-checked",
@@ -2471,7 +2486,6 @@ function syncStatusFromAccountContext(
   return {
     environment: context.environment,
     account: context.account,
-    availability: context.availability,
     device: context.device,
     entitlement: context.entitlement,
     remote: { state: "not-connected" },
@@ -2486,7 +2500,23 @@ function syncStatusFromAccountContext(
             code: "authentication-required",
             message: "Sign in with your eidos.space account to continue.",
           }
-        : null,
+        : context.entitlement.state === "blocked"
+          ? {
+              code: "access-blocked",
+              message: "Eidos Sync access is currently blocked.",
+            }
+          : context.entitlement.state === "none" ||
+              context.entitlement.state === "not-checked"
+            ? {
+                code: "access-required",
+                message: "Eidos Sync access is required.",
+              }
+            : context.entitlement.state === "read-only"
+              ? {
+                  code: "read-only",
+                  message: "Eidos Sync access is read-only.",
+                }
+              : null,
   }
 }
 

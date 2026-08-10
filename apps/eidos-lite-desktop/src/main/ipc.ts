@@ -1198,9 +1198,6 @@ export function registerIpc(
     }
     return status
   })
-  ipcMain.handle(IPC_CHANNELS.syncJoinWaitlist, async (event) =>
-    syncControl.joinWaitlist(await currentRemoteUrl(event))
-  )
   ipcMain.handle(IPC_CHANNELS.syncPreflight, (event) =>
     controller.requireSession(event.sender).syncPreflight()
   )
@@ -1397,13 +1394,19 @@ export function registerIpc(
       value,
       "Sync help destination"
     ) as EidosSyncHelpDestination
-    if (destination !== "account" && destination !== "download") {
+    if (
+      destination !== "account" &&
+      destination !== "download" &&
+      destination !== "sync-access"
+    ) {
       throw new Error("Invalid Sync help destination")
     }
     await shell.openExternal(
       destination === "account"
         ? services.accountOrigin
-        : "https://eidos.space/download"
+        : destination === "sync-access"
+          ? new URL("/pricing#sync", services.accountOrigin).href
+          : "https://eidos.space/download"
     )
   })
   ipcMain.handle(IPC_CHANNELS.revealPath, (event, relativePath: unknown) => {

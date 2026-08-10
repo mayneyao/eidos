@@ -451,9 +451,10 @@ absent from that worktree, and its open Eidos File editor stayed usable.
 - **Revoked or conflicting device binding:** show the distinct device message
   and re-register only through a new sign-in. Never reuse the rejected bearer
   token.
-- **Missing/blocked entitlement:** show **Paused: subscription** and open the
-  selected official account origin on explicit user action. Pending Local
-  checkpoints remain in the same repository.
+- **Missing/blocked entitlement:** show **Sync access required** and open the
+  selected official Sync access page on explicit user action. Checking again
+  must re-read `sync_access`; pending Local checkpoints remain in the same
+  repository.
 - **Entitlement expires during a running Sync:** classify the active phase,
   pause the single whole-Space queue item without automatic retry, keep Local
   editing/checkpoints available, and persist no access token. After the account

@@ -330,33 +330,16 @@ const authorization = await responseJson(
 )
 if (
   authorization.sub !== state.userId ||
-  authorization.sync_enrollment?.state !== "waitlist" ||
-  typeof authorization.sync_enrollment?.joined !== "boolean" ||
-  authorization.sync_access !== undefined
+  authorization.sync_access?.version !== 1 ||
+  authorization.sync_access?.service !== "eidos_sync" ||
+  authorization.sync_access?.access !== "read_write"
 ) {
-  throw new Error("The staging account did not receive the Sync waitlist gate")
-}
-
-const waitlistResponse = await bearerJson(
-  `${ACCOUNT_ORIGIN}/api/sync/waitlist`,
-  refreshedTokens.access_token,
-  { method: "POST" }
-)
-const waitlist = await responseJson(
-  waitlistResponse,
-  "Eidos Sync waitlist enrollment"
-)
-if (
-  waitlist.sub !== state.userId ||
-  waitlist.sync_enrollment?.state !== "waitlist" ||
-  waitlist.sync_enrollment?.joined !== true
-) {
-  throw new Error("Eidos Sync waitlist enrollment was not recorded")
+  throw new Error("The staging account did not receive Sync read-write access")
 }
 
 let revoked = false
 try {
-  // Enrollment is intentionally the last Sync action available in staging.
+  // Authorization is intentionally the last Sync action before revocation.
 } finally {
   const revoke = await request(`${ACCOUNT_ORIGIN}/api/account/sync-devices`, {
     method: "POST",
@@ -391,8 +374,8 @@ process.stdout.write(
         userInfoSubjectVerified: true,
         refreshBoundToSameDevice: true,
       },
-      access: "withheld",
-      waitlist: waitlist.sync_enrollment,
+      access: authorization.sync_access.access,
+      quotaBytes: authorization.sync_access.quotaBytes,
       revocationInvalidatedToken: true,
     },
     null,

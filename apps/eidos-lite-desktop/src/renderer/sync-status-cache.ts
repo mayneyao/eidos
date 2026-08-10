@@ -21,7 +21,6 @@ export interface CachedSyncAccountContext {
   version: 1
   environment: EidosSyncStatus["environment"]
   account: EidosSyncStatus["account"]
-  availability?: EidosSyncStatus["availability"]
   device: EidosSyncStatus["device"]
   entitlement: EidosSyncStatus["entitlement"]
   checkedAtMs: number
@@ -130,7 +129,6 @@ export function writeSyncStatusSnapshot(
         version: 1,
         environment: snapshot.status.environment,
         account: snapshot.status.account,
-        availability: snapshot.status.availability,
         device: snapshot.status.device,
         entitlement: snapshot.status.entitlement,
         checkedAtMs: snapshot.checkedAtMs,

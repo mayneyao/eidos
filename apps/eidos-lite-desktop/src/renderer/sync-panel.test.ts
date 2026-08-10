@@ -21,7 +21,6 @@ const status: EidosSyncStatus = {
     state: "signed-in",
     user: { id: "user-1", email: "person@example.com" },
   },
-  availability: { state: "available", joined: false },
   device: { state: "active" },
   entitlement: {
     state: "read-write",
@@ -353,27 +352,26 @@ describe("SyncPanel failure states", () => {
     expect(beginSyncSignIn).toHaveBeenCalledOnce()
   })
 
-  it("shows only the waitlist action when staging Sync is gated", async () => {
-    const waitlistStatus: EidosSyncStatus = {
+  it("delegates access enrollment to eidos.space and refreshes the grant", async () => {
+    const accessRequiredStatus: EidosSyncStatus = {
       ...status,
-      availability: { state: "waitlist", joined: false },
       entitlement: {
         state: "none",
-        detail: "Eidos Sync is currently accepting waitlist applications.",
+        detail: "No Eidos Sync access grant is attached to this account.",
       },
       remote: { state: "not-connected" },
       canEnable: false,
       canClone: false,
-      blocker: { code: "waitlist", message: "Join the waitlist." },
+      blocker: { code: "access-required", message: "Sync access is required." },
     }
-    const joinedStatus: EidosSyncStatus = {
-      ...waitlistStatus,
-      availability: { state: "waitlist", joined: true },
-    }
-    const joinSyncWaitlist = vi.fn().mockResolvedValue(joinedStatus)
+    const getSyncStatus = vi
+      .fn()
+      .mockResolvedValueOnce(accessRequiredStatus)
+      .mockResolvedValueOnce(status)
+    const openSyncHelp = vi.fn().mockResolvedValue(undefined)
     const api = {
-      getSyncStatus: vi.fn().mockResolvedValue(waitlistStatus),
-      joinSyncWaitlist,
+      getSyncStatus,
+      openSyncHelp,
       getSyncQueueStatus: vi.fn().mockResolvedValue(null),
       onSyncProgress: vi.fn().mockReturnValue(() => undefined),
       onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
@@ -392,20 +390,25 @@ describe("SyncPanel failure states", () => {
       )
     })
 
-    expect(host.textContent).not.toContain("person@example.com")
+    expect(host.textContent).toContain("Sync access required")
     expect(host.textContent).not.toContain("Storage")
     expect(host.textContent).not.toContain("Details")
     expect(
       host.querySelector(".sync-dialog")?.getAttribute("data-sync-can-enable")
     ).toBe("false")
-    const action = host.querySelector<HTMLButtonElement>(
-      "[data-sync-join-waitlist]"
+    const manage = host.querySelector<HTMLButtonElement>(
+      "[data-sync-manage-access]"
     )
-    expect(action?.textContent).toContain("Apply to join the Sync waitlist")
-    await act(async () => action?.click())
-    expect(joinSyncWaitlist).toHaveBeenCalledOnce()
-    expect(action?.textContent).toContain("You’re on the Sync waitlist")
-    expect(action?.disabled).toBe(true)
+    expect(manage?.textContent).toContain("Manage Sync access")
+    await act(async () => manage?.click())
+    expect(openSyncHelp).toHaveBeenCalledWith("sync-access")
+
+    const refresh = host.querySelector<HTMLButtonElement>(
+      "[data-sync-check-access]"
+    )
+    await act(async () => refresh?.click())
+    expect(getSyncStatus).toHaveBeenCalledTimes(2)
+    expect(host.querySelector("[data-sync-access-gate]")).toBeNull()
   })
 
   it("keeps cached account and storage context available while offline", async () => {
