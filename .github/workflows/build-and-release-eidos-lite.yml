@@ -206,8 +206,8 @@ jobs:
           executable="$(realpath "$executable")"
           EIDOS_LITE_PACKAGED_APP="$executable" dbus-run-session -- xvfb-run --auto-servernum pnpm smoke:eidos-lite-packaged
 
-      - name: Enforce packaged release performance
-        if: matrix.platform != 'linux'
+      - name: Enforce packaged macOS release performance
+        if: matrix.platform == 'mac'
         env:
           EIDOS_LITE_SMOKE_EXPECTED_ENVIRONMENT: production
         run: pnpm smoke:eidos-lite-packaged

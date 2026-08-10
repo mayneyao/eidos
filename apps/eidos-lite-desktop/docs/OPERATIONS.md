@@ -183,15 +183,17 @@ explicit ownership error; a missing result is reported as a startup-ownership
 failure rather than a raw file-not-found exception. Do not treat an immediate
 collision retry as a performance sample.
 
-The Lite release workflow runs that packaged acceptance twice without changing
-the performance budgets. The first fresh-package process observes timings while
-still enforcing every functional, environment, data-safety, and integration
-assertion. A second new process then enforces the 2,000 ms cold-start, 1,500 ms
-utility-open P95, and 2,000 ms 100,000-row first-frame budgets on macOS and
-Windows. Linux runs the complete functional pass inside a session D-Bus and
-Xvfb, records the same timings, and does not treat software-rasterized Xvfb
-frames as representative UI performance evidence. This beta gate does not
-replace the repeated clean-machine P95 evidence required for Public v1.
+The Lite release workflow runs packaged acceptance on every target without
+changing the performance budgets. The first fresh-package process observes
+timings while still enforcing every functional, environment, data-safety, and
+integration assertion. A second new process then enforces the 2,000 ms
+cold-start, 1,500 ms utility-open P95, and 2,000 ms 100,000-row first-frame
+budgets on both macOS architectures. Linux runs the complete functional pass
+inside a session D-Bus and Xvfb; Windows runs the same pass on the hosted runner.
+Both record the contract timings, but their software or non-representative
+hosted graphics paths are not treated as end-user UI performance evidence. This
+beta gate does not replace the repeated clean-machine P95 evidence required for
+Public v1 on every supported platform.
 
 The smoke uses an isolated temporary Electron `userData` directory, opens the
 Eidos Sync panel, and requires the staging, signed-out, `canEnable: false`, and
