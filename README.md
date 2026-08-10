@@ -21,6 +21,14 @@
   </p>
 </div>
 
+## Eidos Lite in practice
+
+<p align="center">
+  <img alt="Eidos Lite showing a multidimensional personal library with typed fields, relations, and multiple views" src="static/assets/images/eidos-lite-grid.webp" width="1280" />
+</p>
+
+<p align="center"><em>A local Eidos File with typed fields, relations, formulas, and reusable Grid, Gallery, and Kanban views.</em></p>
+
 ## Quick start
 
 ### Install Eidos Lite
@@ -55,7 +63,10 @@ irm https://download.eidos.space/cli/install.ps1 | iex
 Create a file, then open the same editor UI locally:
 
 ```bash
-eidos create example.eidos
+eidos create example.eidos \
+  --table Tasks \
+  --label-field Title \
+  --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
 eidos serve example.eidos --open
 ```
 
@@ -91,6 +102,26 @@ proprietary container.
   preview; joining the waitlist does not grant access automatically.
 - Local files remain usable while offline or signed out.
 
+### Local history you can audit
+
+Graft keeps version evidence beside the Space. Eidos Lite can review changed
+files and inspect row-level before/after values before saving a named version.
+
+<p align="center">
+  <img alt="Eidos Lite showing changed files and row-level before-and-after values in local version history" src="static/assets/images/eidos-lite-audit.webp" width="1280" />
+</p>
+
+### Inspect and restore any saved version
+
+Expand a checkpoint into files, tables, changed-row counts, and concrete
+row-level details—even for the real million-row import shown below. Restore the
+entire Space when needed; the restore creates a new version instead of
+rewriting history.
+
+<p align="center">
+  <img alt="Eidos Lite History showing an import commit expanded to a one-million-row table change, concrete row-level details, and whole-Space restore controls" src="static/assets/images/eidos-lite-history.webp" width="1280" />
+</p>
+
 ## Development
 
 Requirements: Node.js `22.23.1` (pinned in [`.node-version`](./.node-version)),
@@ -116,7 +147,10 @@ pnpm test:sqlite-web-viewer
 # CLI
 cd apps/cli
 cargo test --workspace --locked
-cargo run -- create example.eidos
+cargo run -- create example.eidos \
+  --table Tasks \
+  --label-field Title \
+  --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
 cargo run -- serve example.eidos --open
 ```
 

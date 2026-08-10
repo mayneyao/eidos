@@ -21,6 +21,14 @@
   </p>
 </div>
 
+## Eidos Lite 实际界面
+
+<p align="center">
+  <img alt="Eidos Lite 中包含类型化字段、关系与多种视图的个人书影音多维表格" src="static/assets/images/eidos-lite-grid.webp" width="1280" />
+</p>
+
+<p align="center"><em>一个本地 Eidos File，同时拥有类型化字段、关系、公式，以及可复用的 Grid、Gallery 与 Kanban 视图。</em></p>
+
 ## 快速开始
 
 ### 安装 Eidos Lite
@@ -53,7 +61,10 @@ irm https://download.eidos.space/cli/install.ps1 | iex
 创建文件，然后在本地打开同一套编辑器 UI：
 
 ```bash
-eidos create example.eidos
+eidos create example.eidos \
+  --table Tasks \
+  --label-field Title \
+  --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
 eidos serve example.eidos --open
 ```
 
@@ -83,6 +94,24 @@ Eidos Lite 在不引入专有容器的前提下提供聚焦的编辑体验、版
   不会自动获得权限。
 - 离线或退出账号后，本地文件仍可正常使用。
 
+### 可审计的本地历史
+
+Graft 将版本证据保留在 Space 旁边。保存命名版本前，Eidos Lite 可以查看发生变化的
+文件，并检查行级字段修改前后的值。
+
+<p align="center">
+  <img alt="Eidos Lite 本地版本历史中展示 changed files 与行级字段修改前后值" src="static/assets/images/eidos-lite-audit.webp" width="1280" />
+</p>
+
+### 查看并恢复任意历史节点
+
+将 checkpoint 展开到文件、数据表、变更行数和具体行级内容——下图展示的就是真实的
+100 万行导入。需要时可以恢复整个 Space；恢复操作会创建一个新版本，而不是改写已有历史。
+
+<p align="center">
+  <img alt="Eidos Lite History 展开一个包含 100 万行变更的导入提交，同时展示具体行级改动与恢复整个 Space 的操作" src="static/assets/images/eidos-lite-history.webp" width="1280" />
+</p>
+
 ## 开发
 
 需要 Node.js `22.23.1`（由 [`.node-version`](./.node-version) 固定）、Corepack；
@@ -108,7 +137,10 @@ pnpm test:sqlite-web-viewer
 # CLI
 cd apps/cli
 cargo test --workspace --locked
-cargo run -- create example.eidos
+cargo run -- create example.eidos \
+  --table Tasks \
+  --label-field Title \
+  --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
 cargo run -- serve example.eidos --open
 ```
 
