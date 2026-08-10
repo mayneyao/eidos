@@ -290,7 +290,7 @@ jobs:
           copy_metadata lite-mac-x64 latest-mac.yml mac x64
           copy_metadata lite-win-x64 latest.yml win x64
           copy_metadata lite-linux-x64 latest-linux.yml linux x64
-          copy_metadata lite-linux-arm64 latest-linux.yml linux arm64
+          copy_metadata lite-linux-arm64 latest-linux-arm64.yml linux arm64
 
           test -f "release-upload/Eidos Lite-${version}-mac-arm64.dmg"
           test -f "release-upload/Eidos Lite-${version}-mac-arm64.zip"

@@ -205,6 +205,9 @@ describe("Eidos Lite package identity", () => {
     expect(workflow).toContain(
       'test -f "release-upload/Eidos Lite-${version}-linux-x86_64.AppImage"'
     )
+    expect(workflow).toContain(
+      "copy_metadata lite-linux-arm64 latest-linux-arm64.yml linux arm64"
+    )
     expect(workflow).toContain("latest-mac.yml mac arm64")
     expect(workflow).toContain("softprops/action-gh-release@v2")
   })
