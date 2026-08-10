@@ -1,57 +1,41 @@
 ## What's new
 
-### Create a table, then open it securely from any device
+### Mount an assets folder in `eidos serve`
 
-Start by creating an Eidos File with a `Tasks` table:
-
-```sh
-eidos create tracker.eidos \
-  --table Tasks \
-  --label-field Title \
-  --fields '[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]'
-```
-
-Sign in once, verify the reusable CLI session, and publish the embedded editor
-through Eidos Relay:
+Create an Eidos File with a File field and an explicit assets directory:
 
 ```sh
-eidos login
-eidos whoami
-eidos serve tracker.eidos --relay --open
+mkdir -p assets
+
+eidos create gallery.eidos \
+  --table Gallery \
+  --label-field Name \
+  --fields '[{"name":"Name","type":"text"},{"name":"Attachment","type":"file"}]'
+
+eidos serve gallery.eidos --assets-dir ./assets --open
 ```
 
-`eidos login` uses Authorization Code + PKCE and stores the renewable session
-in an owner-only user configuration file. Later Relay commands silently reuse
-or refresh it without a macOS Keychain or other operating-system credential
-prompt.
+The embedded editor can now preview existing `assets/<name>` File entries and
+upload new files through the picker, drag and drop, or clipboard paste. Uploads
+use collision-safe names and persist through the normal Eidos Runtime mutation,
+so images remain visible after a refresh or a new Serve process.
 
-The account receives a stable opaque `u-….eidos.ink` hostname. By default, the
-printed URL contains no access key: every browser signs in through eidos.space,
-and only the account that started the Relay can open the editor. The CLI keeps
-the file and Runtime on the local machine and connects through one outbound
-WebSocket.
+The mount is an explicit capability. Without `--assets-dir`, Serve does not
+guess, read, or write a sibling directory. Mounted paths stay inside the chosen
+directory, only `assets/` references are resolved, each upload is limited to
+256 MiB, and previews are limited to 64 MiB.
 
-Create a guest link explicitly when another person should be able to edit
-without the owner's Eidos account:
+### File-cell paste and refresh fixes
 
-```sh
-eidos serve tracker.eidos --relay --share
-```
+Image paste now works when the browser delivers the paste event to the page
+body while a File cell is selected. Serve also recognizes the Runtime's
+canonical `file` value type when rebuilding its attachment cache, fixing the
+case where an upload appeared immediately but disappeared after refresh.
 
-The `--share` URL contains a fragment-only access key. Treat it like a
-credential and share it only with intended collaborators.
-
-### Faster row creation over Relay
-
-Adding a row in the embedded editor is now optimistic. The new row appears and
-accepts edits immediately while the Runtime mutation completes in the
-background, so Relay latency no longer blocks the appended-row editor. The UI
-reconciles the temporary Row ID with the committed Row ID and removes the
-placeholder if creation fails.
-
-Other browsers still receive committed revisions from the single authoritative
-Runtime writer. This preserves serialized file mutations while making the
-initiating browser feel immediate.
+The same shared editor behavior remains available over loopback, a paired LAN
+session, or Eidos Relay. A remote browser receives the mounted upload authority
+for the lifetime of the Serve process, so mount only a directory intended for
+those users.
 
 ### Version-matched Eidos Skill for Codex
 
@@ -59,7 +43,7 @@ Install the Eidos Skill from this immutable CLI tag to keep the safe
 `context` → `apply` → `validate` workflow aligned with the release:
 
 ```sh
-npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.5/skills/eidos --skill eidos -g -a codex -y
+npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.6/skills/eidos --skill eidos -g -a codex -y
 ```
 
 ## Install
@@ -76,5 +60,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v0.36.5 and verify the downloaded archive against the
+The installers select v0.36.6 and verify the downloaded archive against the
 release `SHA256SUMS` before replacing an existing binary.
