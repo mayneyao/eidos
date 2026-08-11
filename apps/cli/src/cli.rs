@@ -28,6 +28,8 @@ pub enum Command {
     Whoami(AccountArgs),
     /// Remove the stored Eidos CLI session from this device.
     Logout(AccountArgs),
+    /// Upgrade this Eidos CLI installation from a verified release.
+    Upgrade(UpgradeArgs),
     /// Create a new Eidos File, optionally with an initial table.
     Create(CreateArgs),
     /// Inspect file identity, revision, and capabilities.
@@ -62,6 +64,16 @@ pub struct AccountArgs {
         default_value = "https://eidos.space"
     )]
     pub account_origin: String,
+}
+
+#[derive(Debug, Args)]
+pub struct UpgradeArgs {
+    /// Exact CLI version. Defaults to the latest stable release.
+    #[arg(long, value_name = "SEMVER")]
+    pub version: Option<String>,
+    /// Reinstall the current version or explicitly allow a downgrade.
+    #[arg(long)]
+    pub force: bool,
 }
 
 #[derive(Debug, Args)]

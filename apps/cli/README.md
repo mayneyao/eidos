@@ -12,6 +12,7 @@ default, and does not require a running Eidos application.
 - Apply atomic row and schema mutations with optimistic revision checks.
 - Validate file identity, structure, content, and supported semantics.
 - Serve a local web editor for one file over HTTP on macOS, Linux, and Windows.
+- Upgrade its own installation from a verified standalone release.
 
 The CLI does not manage Space lifecycle, ordinary documents, application RPC,
 version history, or Sync. Use ordinary file tools for text and attachments,
@@ -44,6 +45,21 @@ EIDOS_VERSION=0.36.8 EIDOS_INSTALL_DIR=/usr/local/bin sh install.sh
 ```
 
 Standalone assets currently cover macOS arm64/x64, Linux x64, and Windows x64.
+
+Upgrade an existing standalone installation to the latest stable version:
+
+```bash
+eidos upgrade
+```
+
+The command uses the same release pointer, platform archive, and
+`SHA256SUMS` contract as the installers. It verifies the downloaded binary's
+reported version before replacing the currently running executable. A current
+version is a no-op; use `--version <semver>` to select an exact release and
+`--force` only when intentionally reinstalling or downgrading. The containing
+directory must be writable by the current user. On Windows, the verified
+replacement is finalized by a one-time helper immediately after the running
+CLI process exits.
 
 ## Install the Eidos Skill for Codex
 

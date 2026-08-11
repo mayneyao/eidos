@@ -26,7 +26,7 @@ use serde_json::{Map, Value, json};
 use crate::cli::{
     AccountArgs, ApplyArgs, Command, ContextArgs, CreateArgs, FileArgs, QueryArgs, RowAddArgs,
     RowCommand, RowDeleteArgs, RowUpdateArgs, RowsArgs, SchemaApplyArgs, SchemaArgs, ServeArgs,
-    ValidateArgs, ValidationLevelArg,
+    UpgradeArgs, ValidateArgs, ValidationLevelArg,
 };
 use crate::error::{AppError, Result};
 use crate::relay_auth::{login_account, logout_account, sign_in_and_claim, whoami_account};
@@ -50,6 +50,7 @@ pub fn run(command: Command) -> Result<CommandOutput> {
         Command::Login(args) => login(args),
         Command::Whoami(args) => whoami(args),
         Command::Logout(args) => logout(args),
+        Command::Upgrade(args) => upgrade(args),
         Command::Create(args) => create(args),
         Command::Inspect(args) => inspect(args),
         Command::Tables(args) => tables(args),
@@ -62,6 +63,10 @@ pub fn run(command: Command) -> Result<CommandOutput> {
         Command::SchemaApply(args) => schema_apply(args),
         Command::Serve(args) => serve_file(args),
     }
+}
+
+fn upgrade(args: UpgradeArgs) -> Result<CommandOutput> {
+    Ok(CommandOutput::success(crate::upgrade::run(args)?))
 }
 
 fn login(args: AccountArgs) -> Result<CommandOutput> {

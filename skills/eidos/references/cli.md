@@ -3,6 +3,7 @@
 ## Contents
 
 - [Invocation](#invocation)
+- [CLI upgrades](#cli-upgrades)
 - [Inspection and creation](#inspection-and-creation)
 - [Compact agent context](#compact-agent-context)
 - [Query](#query)
@@ -23,7 +24,11 @@ eidos inspect file.eidos
 eidos file.eidos inspect
 ```
 
-The explicit file path is always required. Interactive commands print readable key-value sections and tables by default. Agents and scripts must pass `--json`; stdout then contains one JSON document on success, while stderr contains one JSON error document on failure:
+Eidos File data commands require an explicit file path; account commands and
+`upgrade` do not. Interactive commands print readable key-value sections and
+tables by default. Agents and scripts must pass `--json`; stdout then contains
+one JSON document on success, while stderr contains one JSON error document on
+failure:
 
 ```bash
 eidos --json inspect file.eidos
@@ -34,6 +39,21 @@ Arguments containing JSON accept:
 - inline JSON: `'{"Title":"Ship"}'`
 - file input: `@/absolute/path/operation.json`
 - stdin: `-`
+
+## CLI upgrades
+
+Upgrade a standalone installation to the latest stable release:
+
+```bash
+eidos upgrade
+```
+
+Select an exact release with `eidos upgrade --version <semver>`. The command
+verifies the release checksum and the downloaded binary's version before it
+replaces the current executable. It refuses downgrades unless `--force` is
+explicitly passed. Windows finalizes the replacement immediately after the
+running CLI process exits. Agents must run this command only when the user
+explicitly requests a CLI upgrade.
 
 ## Inspection and creation
 

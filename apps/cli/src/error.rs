@@ -25,6 +25,14 @@ impl AppError {
         }
     }
 
+    pub fn upgrade_failed(message: impl Into<String>) -> Self {
+        Self {
+            code: "upgrade-failed",
+            message: message.into(),
+            current_revision: None,
+        }
+    }
+
     pub fn to_json(&self) -> Value {
         let mut error = serde_json::Map::new();
         error.insert("code".into(), json!(self.code));

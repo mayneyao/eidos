@@ -3,6 +3,7 @@ mod cli;
 mod error;
 mod output;
 mod relay_auth;
+mod upgrade;
 
 use std::ffi::OsString;
 use std::io::{self, Write};
@@ -194,6 +195,11 @@ mod tests {
         assert!(matches!(
             parse_ok(&["eidos", "logout"]).command,
             Command::Logout(_)
+        ));
+        assert!(matches!(
+            parse_ok(&["eidos", "upgrade", "--version", "0.36.8", "--force"]).command,
+            Command::Upgrade(ref args)
+                if args.version.as_deref() == Some("0.36.8") && args.force
         ));
     }
 
