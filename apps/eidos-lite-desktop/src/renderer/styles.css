@@ -1173,11 +1173,11 @@ body {
 
 .sidebar-resizer {
   position: absolute;
-  z-index: 40;
+  z-index: 50;
   top: 0;
   bottom: 0;
-  left: calc(var(--space-sidebar-width) - 3px);
-  width: 6px;
+  left: calc(var(--space-sidebar-width) - 12px);
+  width: 12px;
   opacity: 1;
   cursor: col-resize;
   touch-action: none;
@@ -1189,8 +1189,8 @@ body {
 .sidebar-resizer::after {
   position: absolute;
   top: 0;
+  right: 0;
   bottom: 0;
-  left: 2px;
   width: 1px;
   background: transparent;
   content: "";
@@ -2752,6 +2752,314 @@ body {
   min-width: 0;
   min-height: 0;
   background: var(--canvas);
+}
+
+.document-file-preview {
+  display: grid;
+  grid-template-rows: 2rem minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  background: var(--canvas);
+}
+
+.document-preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0 0.5rem 0 0.75rem;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--ink-muted);
+  background: var(--surface);
+  font-size: 0.625rem;
+  white-space: nowrap;
+}
+
+.document-preview-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.1rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.32rem;
+  background: var(--control-fill);
+}
+
+.document-preview-mode-button {
+  display: inline-flex;
+  min-height: 1.35rem;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.12rem 0.45rem;
+  border: 0;
+  border-radius: 0.22rem;
+  color: var(--ink-muted);
+  background: transparent;
+  font: inherit;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.document-preview-mode-button[aria-selected="true"] {
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 1px 2px color-mix(in oklab, var(--ink) 12%, transparent);
+}
+
+.document-preview-mode-button:hover:not([aria-selected="true"]) {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+
+.document-preview-mode-button:focus-visible,
+.document-preview-icon-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.document-preview-mode-button svg,
+.document-preview-security svg,
+.document-preview-icon-button svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+.document-preview-security {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  color: var(--accent-strong);
+  font-weight: 650;
+}
+
+.document-preview-unsaved {
+  overflow: hidden;
+  color: var(--warning-strong, var(--ink-muted));
+  text-overflow: ellipsis;
+}
+
+.document-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: auto;
+}
+
+.document-preview-icon-button {
+  display: inline-grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0.28rem;
+  color: var(--ink-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.document-preview-icon-button:hover {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+
+.document-preview-actions .media-preview-reveal {
+  min-height: 1.4rem;
+  margin-top: 0;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+}
+
+.document-preview-actions .media-preview-reveal svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+.document-preview-body,
+.document-preview-body > .text-file-preview,
+.document-preview-body > .html-preview-native-host,
+.document-preview-body > .markdown-preview-scroll {
+  min-width: 0;
+  min-height: 0;
+}
+
+.document-preview-body {
+  display: grid;
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+.html-preview-native-host {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+.html-preview-error {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 1rem;
+  color: var(--danger-strong, var(--ink-muted));
+  font-size: 0.75rem;
+}
+
+.html-preview-error svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+}
+
+.markdown-preview-scroll {
+  overflow: auto;
+  background: var(--canvas);
+}
+
+.markdown-document {
+  width: min(100%, 52rem);
+  margin: 0 auto;
+  padding: clamp(1.6rem, 4vw, 3.2rem) clamp(1.25rem, 5vw, 4rem) 5rem;
+  color: var(--ink);
+  font-size: 0.875rem;
+  line-height: 1.72;
+  overflow-wrap: anywhere;
+}
+
+.markdown-document > :first-child {
+  margin-top: 0;
+}
+
+.markdown-document > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-document h1,
+.markdown-document h2,
+.markdown-document h3,
+.markdown-document h4,
+.markdown-document h5,
+.markdown-document h6 {
+  margin: 1.8em 0 0.65em;
+  color: var(--ink);
+  font-weight: 680;
+  line-height: 1.22;
+  letter-spacing: -0.018em;
+}
+
+.markdown-document h1 {
+  padding-bottom: 0.42em;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 1.8rem;
+}
+
+.markdown-document h2 {
+  padding-bottom: 0.32em;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 1.38rem;
+}
+
+.markdown-document h3 {
+  font-size: 1.08rem;
+}
+
+.markdown-document p,
+.markdown-document ul,
+.markdown-document ol,
+.markdown-document blockquote,
+.markdown-document pre,
+.markdown-document table {
+  margin: 0 0 1.1em;
+}
+
+.markdown-document ul,
+.markdown-document ol {
+  padding-left: 1.5rem;
+}
+
+.markdown-document li + li {
+  margin-top: 0.22em;
+}
+
+.markdown-document a {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--accent-strong) 36%,
+    transparent
+  );
+  text-underline-offset: 0.16em;
+}
+
+.markdown-document a:hover {
+  text-decoration-color: currentColor;
+}
+
+.markdown-document blockquote {
+  padding: 0.08rem 0 0.08rem 1rem;
+  border-left: 0.18rem solid var(--control-border);
+  color: var(--ink-muted);
+}
+
+.markdown-document code {
+  padding: 0.12em 0.3em;
+  border-radius: 0.24rem;
+  background: var(--control-fill);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 0.88em;
+}
+
+.markdown-document pre {
+  overflow: auto;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: 0.42rem;
+  background: var(--control-fill);
+  line-height: 1.55;
+}
+
+.markdown-document pre code {
+  padding: 0;
+  background: transparent;
+  font-size: 0.78rem;
+}
+
+.markdown-document table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.markdown-document th,
+.markdown-document td {
+  padding: 0.42rem 0.68rem;
+  border: 1px solid var(--hairline);
+  text-align: left;
+}
+
+.markdown-document th {
+  background: var(--control-fill);
+  font-weight: 650;
+}
+
+.markdown-document img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 1.2rem auto;
+  border-radius: 0.35rem;
+}
+
+.markdown-document input[type="checkbox"] {
+  margin: 0 0.45em 0 -1.25em;
+  accent-color: var(--accent-strong);
 }
 
 .media-preview-meta {

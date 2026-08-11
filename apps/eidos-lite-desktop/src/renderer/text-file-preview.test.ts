@@ -117,4 +117,82 @@ describe("TextFilePreview", () => {
     })
     expect(saveTextFile).not.toHaveBeenCalled()
   })
+
+  it("opens HTML in an isolated browser preview before loading its source editor", async () => {
+    const preview = {
+      type: "text",
+      relativePath: "dashboard.html",
+      content: "<!doctype html><title>Dashboard</title>",
+      encoding: "utf-8",
+      bom: false,
+      revision: "a".repeat(64),
+      browserPreview: {
+        kind: "html",
+        url: "eidos-space-document://preview/example-ticket",
+      },
+      size: 40,
+      modifiedAtMs: 0,
+      truncated: false,
+    } as const
+
+    await prepareTextFilePreview(preview)
+    const markup = renderToStaticMarkup(
+      createElement(TextFilePreview, {
+        preview,
+        theme: "light",
+        onReveal: () => undefined,
+        onSaved: () => undefined,
+        onReload: () => undefined,
+        onDraftChange: () => undefined,
+      })
+    )
+
+    expect(markup).toContain('data-document-file-preview="dashboard.html"')
+    expect(markup).toContain('data-document-file-preview-kind="html"')
+    expect(markup).toContain('data-document-file-preview-mode="preview"')
+    expect(markup).toContain('class="html-preview-native-host"')
+    expect(markup).not.toContain("<iframe")
+    expect(markup).not.toContain('src="eidos-space-document:')
+    expect(markup).toContain("Sandboxed")
+    expect(markup).toContain("Source")
+    expect(editorModuleLoaded).not.toHaveBeenCalled()
+    expect(editorSurfaceRendered).not.toHaveBeenCalled()
+  })
+
+  it("opens Markdown in a script-free document sandbox", async () => {
+    const preview = {
+      type: "text",
+      relativePath: "README.md",
+      content: "# Read me",
+      encoding: "utf-8",
+      bom: false,
+      revision: "b".repeat(64),
+      browserPreview: {
+        kind: "markdown",
+      },
+      size: 9,
+      modifiedAtMs: 0,
+      truncated: false,
+    } as const
+
+    await prepareTextFilePreview(preview)
+    const markup = renderToStaticMarkup(
+      createElement(TextFilePreview, {
+        preview,
+        theme: "dark",
+        onReveal: () => undefined,
+        onSaved: () => undefined,
+        onReload: () => undefined,
+        onDraftChange: () => undefined,
+      })
+    )
+
+    expect(markup).toContain('data-document-file-preview="README.md"')
+    expect(markup).toContain('data-document-file-preview-kind="markdown"')
+    expect(markup).toContain('class="markdown-document"')
+    expect(markup).toContain('<h1 id="read-me">Read me</h1>')
+    expect(markup).not.toContain("<iframe")
+    expect(markup).toContain("Markdown preview of README.md")
+    expect(editorModuleLoaded).not.toHaveBeenCalled()
+  })
 })

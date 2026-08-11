@@ -10,6 +10,7 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react"
+import { flushSync } from "react-dom"
 import type { EidosFileSnapshot } from "@eidos.space/eidos-file"
 import {
   ArrowLeft,
@@ -51,6 +52,7 @@ import { eidosLiteNewFileKind } from "../shared/new-file"
 import {
   DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   type EidosLiteKeyboardShortcuts,
+  type EidosLiteShortcutCommand,
 } from "../shared/keyboard-shortcuts"
 import {
   applyAppearance,
@@ -99,9 +101,8 @@ import {
 import { SettingsPage } from "./settings-page"
 import type { VersionInspection } from "./version-change-tree"
 import {
-  workspaceShortcutForKeyboardEvent,
-  workspaceShortcutLabel,
   workspaceShortcutAriaKeyShortcuts,
+  workspaceShortcutLabel,
 } from "./workspace-shortcuts"
 
 let eidosFileWorkbenchModule:
@@ -628,6 +629,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const [error, setError] = useState<string | null>(null)
   const [fileIssue, setFileIssue] = useState<EidosFileIssue | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState(storedSidebarWidth)
+  const [sidebarResizing, setSidebarResizing] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     storedSidebarCollapsed
   )
@@ -935,6 +937,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       event.preventDefault()
       const startX = event.clientX
       const startWidth = sidebarWidth
+      const pointerId = event.pointerId
+      const resizer = event.currentTarget
+      resizer.setPointerCapture(pointerId)
+      flushSync(() => setSidebarResizing(true))
       document.documentElement.classList.add("resizing-space-sidebar")
 
       const move = (pointerEvent: PointerEvent) => {
@@ -942,15 +948,24 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           clampSidebarWidth(startWidth + pointerEvent.clientX - startX)
         )
       }
-      const stop = () => {
+      const cleanup = () => {
         document.documentElement.classList.remove("resizing-space-sidebar")
         window.removeEventListener("pointermove", move)
         window.removeEventListener("pointerup", stop)
         window.removeEventListener("pointercancel", stop)
+        resizer.removeEventListener("lostpointercapture", cleanup)
+        setSidebarResizing(false)
+      }
+      const stop = () => {
+        cleanup()
+        if (resizer.hasPointerCapture(pointerId)) {
+          resizer.releasePointerCapture(pointerId)
+        }
       }
       window.addEventListener("pointermove", move)
       window.addEventListener("pointerup", stop)
       window.addEventListener("pointercancel", stop)
+      resizer.addEventListener("lostpointercapture", cleanup)
     },
     [sidebarCollapsed, sidebarWidth]
   )
@@ -1407,15 +1422,10 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   }, [space])
 
   useEffect(() => {
-    const handleKeyboardShortcut = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return
-      const workspaceShortcut = workspaceShortcutForKeyboardEvent(
-        event,
-        keyboardShortcuts,
-        macos
-      )
+    const handleKeyboardShortcut = (
+      workspaceShortcut: EidosLiteShortcutCommand
+    ) => {
       if (workspaceShortcut === "new-file" && space) {
-        event.preventDefault()
         if (
           !pathDialog &&
           !pathMutationBusy &&
@@ -1426,45 +1436,33 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         return
       }
       if (workspaceShortcut === "quick-open" && space) {
-        event.preventDefault()
         setQuickOpenVisible((current) => !current)
         return
       }
       if (workspaceShortcut === "toggle-theme") {
-        event.preventDefault()
         toggleTheme()
         return
       }
-      const target = event.target
-      if (
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target.matches("input, textarea, select, [role='textbox']"))
-      ) {
-        return
-      }
-      if (workspaceShortcut && space) {
+      if (space) {
         if (workspaceShortcut === "toggle-version" && !space.graft.available) {
           return
         }
-        event.preventDefault()
         if (workspaceShortcut === "toggle-sidebar") toggleSidebar()
         else if (workspaceShortcut === "toggle-version") toggleVersionPanel()
-        else toggleSyncPanel()
-        return
+        else if (workspaceShortcut === "toggle-sync") toggleSyncPanel()
       }
     }
-    window.addEventListener("keydown", handleKeyboardShortcut, true)
-    const unsubscribe = window.eidosLite.onNavigationCommand((direction) =>
-      navigateHistory(direction === "back" ? -1 : 1)
+    const unsubscribeShortcut = window.eidosLite.onWorkspaceShortcutCommand(
+      handleKeyboardShortcut
+    )
+    const unsubscribeNavigation = window.eidosLite.onNavigationCommand(
+      (direction) => navigateHistory(direction === "back" ? -1 : 1)
     )
     return () => {
-      window.removeEventListener("keydown", handleKeyboardShortcut, true)
-      unsubscribe()
+      unsubscribeShortcut()
+      unsubscribeNavigation()
     }
   }, [
-    keyboardShortcuts,
-    macos,
     navigateHistory,
     pathDialog,
     pathMutationBusy,
@@ -2105,6 +2103,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   preview={textPreview}
                   draft={textFileDrafts[textPreview.relativePath]}
                   theme={theme}
+                  nativePreviewSuppressed={
+                    quickOpenVisible || Boolean(pathDialog) || sidebarResizing
+                  }
                   onSaved={(file) =>
                     setTextPreview((current) =>
                       current?.relativePath === file.relativePath

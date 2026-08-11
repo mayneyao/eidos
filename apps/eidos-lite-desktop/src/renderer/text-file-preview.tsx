@@ -3,22 +3,37 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentProps,
+  type MouseEvent as ReactMouseEvent,
 } from "react"
 import {
   CircleAlert,
+  Code2,
+  Eye,
   FileText,
   FileWarning,
   FolderOpen,
   LoaderCircle,
+  RefreshCw,
+  ShieldCheck,
 } from "lucide-react"
 
-import type { TextFilePreviewResult } from "../shared/contracts"
+import type {
+  HtmlPreviewBounds,
+  TextFilePreviewResult,
+} from "../shared/contracts"
 import type { ResolvedAppearance } from "./app-appearance"
 import { useEidosLiteI18n } from "./i18n"
+import { renderSafeMarkdown } from "./markdown-preview"
 import type PierreTextEditorSurfaceImplementation from "./pierre-text-editor-surface"
+
+const useRendererLayoutEffect =
+  typeof document === "undefined" ? useEffect : useLayoutEffect
 
 let pierreTextEditorModule:
   | Promise<{ default: typeof PierreTextEditorSurfaceImplementation }>
@@ -59,7 +74,11 @@ export interface TextFileDraft {
 export async function prepareTextFilePreview(
   preview: TextFilePreviewResult
 ): Promise<void> {
-  if (preview.type === "text" && !preview.truncated) {
+  if (
+    preview.type === "text" &&
+    !preview.truncated &&
+    !preview.browserPreview
+  ) {
     await loadPierreTextEditorSurface()
   }
 }
@@ -281,10 +300,284 @@ function EditableTextFile({
   )
 }
 
+type BrowserTextPreview = TextPreview & {
+  browserPreview: NonNullable<TextPreview["browserPreview"]>
+}
+
+function previewBounds(element: HTMLElement): HtmlPreviewBounds | null {
+  const rectangle = element.getBoundingClientRect()
+  if (rectangle.width < 1 || rectangle.height < 1) return null
+  return {
+    x: rectangle.left,
+    y: rectangle.top,
+    width: rectangle.width,
+    height: rectangle.height,
+  }
+}
+
+function HtmlPreviewSurface({
+  previewId,
+  url,
+  visible,
+}: {
+  previewId: string
+  url: string
+  visible: boolean
+}) {
+  const { t } = useEidosLiteI18n()
+  const hostRef = useRef<HTMLDivElement>(null)
+  const visibleRef = useRef(visible)
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading")
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    visibleRef.current = visible
+  }, [visible])
+
+  useEffect(() => {
+    const host = hostRef.current
+    if (!host) return
+    let active = true
+    let animationFrame = 0
+
+    const syncLayout = () => {
+      window.cancelAnimationFrame(animationFrame)
+      animationFrame = window.requestAnimationFrame(() => {
+        const bounds = previewBounds(host)
+        if (!bounds || !active) return
+        void window.eidosLite
+          .layoutHtmlPreview({
+            previewId,
+            bounds,
+            visible: visibleRef.current,
+          })
+          .catch((cause) => {
+            if (!active) return
+            setState("error")
+            setError(cause instanceof Error ? cause.message : String(cause))
+          })
+      })
+    }
+    const bounds = previewBounds(host)
+    if (!bounds) return
+    const observer = new ResizeObserver(syncLayout)
+    observer.observe(host)
+    window.addEventListener("resize", syncLayout)
+    window.addEventListener("scroll", syncLayout, true)
+    setState("loading")
+    setError(null)
+    void window.eidosLite
+      .openHtmlPreview({
+        previewId,
+        url,
+        bounds,
+        visible: visibleRef.current,
+      })
+      .then(() => {
+        if (active) setState("ready")
+      })
+      .catch((cause) => {
+        if (!active) return
+        setState("error")
+        setError(cause instanceof Error ? cause.message : String(cause))
+      })
+
+    return () => {
+      active = false
+      observer.disconnect()
+      window.cancelAnimationFrame(animationFrame)
+      window.removeEventListener("resize", syncLayout)
+      window.removeEventListener("scroll", syncLayout, true)
+      void window.eidosLite.closeHtmlPreview(previewId)
+    }
+  }, [previewId, url])
+
+  useRendererLayoutEffect(() => {
+    const host = hostRef.current
+    const bounds = host ? previewBounds(host) : null
+    if (!bounds) return
+    void window.eidosLite.layoutHtmlPreview({ previewId, bounds, visible })
+  }, [previewId, visible])
+
+  return (
+    <div
+      ref={hostRef}
+      className="html-preview-native-host"
+      data-html-preview-state={state}
+    >
+      {state === "loading" ? (
+        <div className="text-preview-loading" role="status">
+          <LoaderCircle className="spin" aria-hidden="true" />
+          {t("Loading HTML preview…")}
+        </div>
+      ) : state === "error" ? (
+        <div className="html-preview-error" role="alert">
+          <CircleAlert aria-hidden="true" />
+          <span>{error ?? t("Could not load HTML preview")}</span>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function MarkdownPreview({ preview }: { preview: BrowserTextPreview }) {
+  const { t } = useEidosLiteI18n()
+  const document = useMemo(
+    () => renderSafeMarkdown(preview.content),
+    [preview.content]
+  )
+  const handleClick = useCallback((event: ReactMouseEvent<HTMLElement>) => {
+    const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>(
+      "a[data-markdown-external='true']"
+    )
+    if (!anchor) return
+    event.preventDefault()
+    void window.eidosLite.openExternalUrl(anchor.href)
+  }, [])
+
+  return (
+    <div className="markdown-preview-scroll">
+      <article
+        className="markdown-document"
+        aria-label={t("Markdown preview of {path}", {
+          path: preview.relativePath,
+        })}
+        onClick={handleClick}
+        dangerouslySetInnerHTML={{ __html: document }}
+      />
+    </div>
+  )
+}
+
+function DocumentFilePreview({
+  preview,
+  draft,
+  theme,
+  nativePreviewSuppressed,
+  onReveal,
+  onSaved,
+  onReload,
+  onDraftChange,
+}: {
+  preview: BrowserTextPreview
+  draft?: TextFileDraft
+  theme: ResolvedAppearance
+  nativePreviewSuppressed: boolean
+  onReveal(): void
+  onSaved(file: TextPreview): void
+  onReload(preview: TextFilePreviewResult): void
+  onDraftChange(relativePath: string, draft: TextFileDraft | null): void
+}) {
+  const { t } = useEidosLiteI18n()
+  const [mode, setMode] = useState<"preview" | "source">("preview")
+  const reactId = useId()
+  const previewId = useMemo(
+    () => `html-preview-${reactId.replace(/[^\w:-]/gu, "")}`,
+    [reactId]
+  )
+  const hasUnsavedChanges = Boolean(draft && draft.content !== preview.content)
+  const kindLabel = preview.browserPreview.kind === "html" ? "HTML" : "Markdown"
+  const previewLabel = t("{kind} preview of {path}", {
+    kind: kindLabel,
+    path: preview.relativePath,
+  })
+  const htmlPreview =
+    preview.browserPreview.kind === "html" ? preview.browserPreview : null
+
+  return (
+    <section
+      className="document-file-preview"
+      aria-label={previewLabel}
+      data-document-file-preview={preview.relativePath}
+      data-document-file-preview-kind={preview.browserPreview.kind}
+      data-document-file-preview-mode={mode}
+    >
+      <header className="document-preview-toolbar">
+        <div
+          className="document-preview-mode"
+          role="tablist"
+          aria-label={t("Document view mode")}
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "preview"}
+            className="document-preview-mode-button"
+            onClick={() => setMode("preview")}
+          >
+            <Eye aria-hidden="true" /> {t("Preview")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "source"}
+            className="document-preview-mode-button"
+            onClick={() => setMode("source")}
+          >
+            <Code2 aria-hidden="true" /> {t("Source")}
+          </button>
+        </div>
+        <span className="document-preview-security">
+          <ShieldCheck aria-hidden="true" /> {t("Sandboxed")}
+        </span>
+        {hasUnsavedChanges ? (
+          <span className="document-preview-unsaved">
+            {t("Preview shows the saved file")}
+          </span>
+        ) : null}
+        <div className="document-preview-actions">
+          {mode === "preview" && htmlPreview ? (
+            <button
+              type="button"
+              className="document-preview-icon-button"
+              aria-label={t("Refresh document preview")}
+              title={t("Refresh document preview")}
+              onClick={() => void window.eidosLite.reloadHtmlPreview(previewId)}
+            >
+              <RefreshCw aria-hidden="true" />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="editor-empty-action media-preview-reveal"
+            onClick={onReveal}
+          >
+            <FolderOpen aria-hidden="true" /> {t("Reveal in Finder")}
+          </button>
+        </div>
+      </header>
+      <div className="document-preview-body">
+        {mode === "preview" ? (
+          htmlPreview ? (
+            <HtmlPreviewSurface
+              previewId={previewId}
+              url={htmlPreview.url}
+              visible={!nativePreviewSuppressed}
+            />
+          ) : (
+            <MarkdownPreview preview={preview} />
+          )
+        ) : (
+          <EditableTextFile
+            key={preview.relativePath}
+            preview={preview}
+            draft={draft}
+            theme={theme}
+            onSaved={onSaved}
+            onReload={onReload}
+            onDraftChange={onDraftChange}
+          />
+        )}
+      </div>
+    </section>
+  )
+}
+
 export function TextFilePreview({
   preview,
   draft,
   theme,
+  nativePreviewSuppressed = false,
   onReveal,
   onSaved,
   onReload,
@@ -293,6 +586,7 @@ export function TextFilePreview({
   preview: TextSurfacePreview
   draft?: TextFileDraft
   theme: ResolvedAppearance
+  nativePreviewSuppressed?: boolean
   onReveal(): void
   onSaved(file: TextPreview): void
   onReload(preview: TextFilePreviewResult): void
@@ -322,6 +616,21 @@ export function TextFilePreview({
   }
 
   if (!preview.truncated) {
+    if (preview.browserPreview) {
+      return (
+        <DocumentFilePreview
+          key={preview.relativePath}
+          preview={preview as BrowserTextPreview}
+          draft={draft}
+          theme={theme}
+          nativePreviewSuppressed={nativePreviewSuppressed}
+          onReveal={onReveal}
+          onSaved={onSaved}
+          onReload={onReload}
+          onDraftChange={onDraftChange}
+        />
+      )
+    }
     return (
       <EditableTextFile
         key={preview.relativePath}

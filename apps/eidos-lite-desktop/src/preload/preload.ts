@@ -13,6 +13,7 @@ import {
   type RuntimeMethod,
   type SpaceSnapshot,
 } from "../shared/contracts"
+import type { EidosLiteShortcutCommand } from "../shared/keyboard-shortcuts"
 import type { FileEntry } from "@eidos.space/eidos-file"
 
 const api: EidosLiteApi = {
@@ -79,6 +80,15 @@ const api: EidosLiteApi = {
     return () =>
       ipcRenderer.removeListener(IPC_CHANNELS.navigationCommand, handler)
   },
+  onWorkspaceShortcutCommand: (listener) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      command: EidosLiteShortcutCommand
+    ) => listener(command)
+    ipcRenderer.on(IPC_CHANNELS.workspaceShortcutCommand, handler)
+    return () =>
+      ipcRenderer.removeListener(IPC_CHANNELS.workspaceShortcutCommand, handler)
+  },
   takeLaunchEidosFile: () => ipcRenderer.invoke(IPC_CHANNELS.takeLaunchFile),
   onLaunchEidosFileAvailable: (listener) => {
     const handler = () => listener()
@@ -90,6 +100,14 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.openFile, relativePath),
   previewTextFile: (relativePath) =>
     ipcRenderer.invoke(IPC_CHANNELS.previewTextFile, relativePath),
+  openHtmlPreview: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.htmlPreviewOpen, request),
+  layoutHtmlPreview: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.htmlPreviewLayout, request),
+  reloadHtmlPreview: (previewId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.htmlPreviewReload, previewId),
+  closeHtmlPreview: (previewId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.htmlPreviewClose, previewId),
   saveTextFile: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.saveTextFile, request),
   inspectEidosFileIssue: (relativePath) =>

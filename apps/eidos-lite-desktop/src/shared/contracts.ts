@@ -10,7 +10,10 @@ import type {
 } from "@eidos.space/eidos-file"
 
 import type { EidosLiteServiceEnvironment } from "./service-environment"
-import type { EidosLiteKeyboardShortcuts } from "./keyboard-shortcuts"
+import type {
+  EidosLiteKeyboardShortcuts,
+  EidosLiteShortcutCommand,
+} from "./keyboard-shortcuts"
 
 export interface EidosLiteAssetDataSource {
   name: string
@@ -53,10 +56,15 @@ export const IPC_CHANNELS = {
   searchPaths: "eidos-lite:space-paths-search",
   spaceChanged: "eidos-lite:space-changed",
   navigationCommand: "eidos-lite:navigation-command",
+  workspaceShortcutCommand: "eidos-lite:workspace-shortcut-command",
   launchFileAvailable: "eidos-lite:launch-file-available",
   takeLaunchFile: "eidos-lite:launch-file-take",
   openFile: "eidos-lite:file-open",
   previewTextFile: "eidos-lite:text-file-preview",
+  htmlPreviewOpen: "eidos-lite:html-preview-open",
+  htmlPreviewLayout: "eidos-lite:html-preview-layout",
+  htmlPreviewReload: "eidos-lite:html-preview-reload",
+  htmlPreviewClose: "eidos-lite:html-preview-close",
   saveTextFile: "eidos-lite:text-file-save",
   inspectFileIssue: "eidos-lite:file-issue-inspect",
   closeFile: "eidos-lite:file-close",
@@ -138,6 +146,31 @@ export type TextFileEncoding = "utf-8" | "utf-16le" | "utf-16be"
 export type MediaFileKind = "image" | "video" | "audio"
 
 export const EIDOS_SPACE_MEDIA_SCHEME = "eidos-space-media"
+export const EIDOS_SPACE_DOCUMENT_SCHEME = "eidos-space-document"
+
+export type TextFileBrowserPreview =
+  | { kind: "html"; url: string }
+  | { kind: "markdown" }
+
+export interface HtmlPreviewBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface HtmlPreviewOpenRequest {
+  previewId: string
+  url: string
+  bounds: HtmlPreviewBounds
+  visible: boolean
+}
+
+export interface HtmlPreviewLayoutRequest {
+  previewId: string
+  bounds: HtmlPreviewBounds
+  visible: boolean
+}
 
 export type TextFilePreviewResult =
   | {
@@ -147,6 +180,7 @@ export type TextFilePreviewResult =
       encoding: TextFileEncoding
       bom: boolean
       revision: string
+      browserPreview?: TextFileBrowserPreview
       size: number
       modifiedAtMs: number
       truncated: boolean
@@ -1035,10 +1069,17 @@ export interface EidosLiteApi {
   onNavigationCommand(
     listener: (direction: EidosLiteNavigationDirection) => void
   ): () => void
+  onWorkspaceShortcutCommand(
+    listener: (command: EidosLiteShortcutCommand) => void
+  ): () => void
   takeLaunchEidosFile(): Promise<string | null>
   onLaunchEidosFileAvailable(listener: () => void): () => void
   openEidosFile(relativePath: string): Promise<OpenEidosFileResult>
   previewTextFile(relativePath: string): Promise<TextFilePreviewResult>
+  openHtmlPreview(request: HtmlPreviewOpenRequest): Promise<void>
+  layoutHtmlPreview(request: HtmlPreviewLayoutRequest): Promise<void>
+  reloadHtmlPreview(previewId: string): Promise<void>
+  closeHtmlPreview(previewId: string): Promise<void>
   saveTextFile(request: TextFileSaveRequest): Promise<TextFileSaveResult>
   inspectEidosFileIssue(relativePath: string): Promise<EidosFileIssue | null>
   closeEidosFile(sessionId: string): Promise<void>

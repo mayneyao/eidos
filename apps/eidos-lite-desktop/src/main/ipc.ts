@@ -13,6 +13,9 @@ import {
   type EidosLiteCsvSelection,
   type EidosLitePathClipboardMode,
   type EidosLiteSettingsDestination,
+  type HtmlPreviewBounds,
+  type HtmlPreviewLayoutRequest,
+  type HtmlPreviewOpenRequest,
   type TextFileSaveRequest,
   type EidosSyncHelpDestination,
   type EidosSyncQueueStatus,
@@ -47,6 +50,7 @@ import { SyncExecutor } from "./sync/sync-executor"
 import { SyncQueueStore } from "./sync/sync-queue-store"
 import { SyncRunTracker } from "./sync/sync-run-tracker"
 import type { WindowController } from "./window-controller"
+import { HtmlPreviewViewManager } from "./html-preview-view"
 
 const runtimeMethods = new Set<RuntimeMethod>(RUNTIME_METHODS)
 const CSV_SOURCE_TTL_MS = 30 * 60_000
@@ -112,6 +116,68 @@ function textFileSaveRequest(value: unknown): TextFileSaveRequest {
     relativePath: candidate.relativePath,
     content: candidate.content,
     expectedRevision: candidate.expectedRevision,
+  }
+}
+
+function htmlPreviewBounds(value: unknown): HtmlPreviewBounds {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid HTML preview bounds")
+  }
+  const candidate = value as Record<string, unknown>
+  const values = [candidate.x, candidate.y, candidate.width, candidate.height]
+  if (
+    values.some((item) => typeof item !== "number" || !Number.isFinite(item)) ||
+    (candidate.width as number) <= 0 ||
+    (candidate.height as number) <= 0
+  ) {
+    throw new Error("Invalid HTML preview bounds")
+  }
+  return {
+    x: candidate.x as number,
+    y: candidate.y as number,
+    width: candidate.width as number,
+    height: candidate.height as number,
+  }
+}
+
+function htmlPreviewIdentity(value: unknown): string {
+  if (typeof value !== "string" || !/^[\w:-]{1,128}$/u.test(value)) {
+    throw new Error("Invalid HTML preview identity")
+  }
+  return value
+}
+
+function htmlPreviewOpenRequest(value: unknown): HtmlPreviewOpenRequest {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid HTML preview")
+  }
+  const candidate = value as Record<string, unknown>
+  if (
+    typeof candidate.url !== "string" ||
+    typeof candidate.visible !== "boolean"
+  ) {
+    throw new Error("Invalid HTML preview")
+  }
+  return {
+    previewId: htmlPreviewIdentity(candidate.previewId),
+    url: candidate.url,
+    bounds: htmlPreviewBounds(candidate.bounds),
+    visible: candidate.visible,
+  }
+}
+
+function htmlPreviewLayoutRequest(value: unknown): HtmlPreviewLayoutRequest {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid HTML preview layout")
+  }
+  const candidate = value as Record<string, unknown>
+  if (typeof candidate.visible !== "boolean") {
+    throw new Error("Invalid HTML preview layout")
+  }
+  return {
+    previewId: htmlPreviewIdentity(candidate.previewId),
+    bounds: htmlPreviewBounds(candidate.bounds),
+    visible: candidate.visible,
   }
 }
 
@@ -290,6 +356,9 @@ export function registerIpc(
     syncFailuresForTesting?: readonly PackagedSyncFault[]
   } = {}
 ): { close(): Promise<void> } {
+  const htmlPreviewViews = new HtmlPreviewViewManager((owner, event, input) =>
+    controller.handleWorkspaceShortcutInput(owner, event, input)
+  )
   const syncExecutor = new SyncExecutor(
     syncControl,
     options.syncFailuresForTesting
@@ -570,6 +639,25 @@ export function registerIpc(
         .previewTextFile(relativePath)
     }
   )
+  ipcMain.handle(IPC_CHANNELS.htmlPreviewOpen, (event, value: unknown) => {
+    const space = controller.requireSession(event.sender)
+    return htmlPreviewViews.open(
+      event.sender,
+      space.canonical.root,
+      htmlPreviewOpenRequest(value)
+    )
+  })
+  ipcMain.handle(IPC_CHANNELS.htmlPreviewLayout, (event, value: unknown) => {
+    controller.requireSession(event.sender)
+    htmlPreviewViews.layout(event.sender, htmlPreviewLayoutRequest(value))
+  })
+  ipcMain.handle(IPC_CHANNELS.htmlPreviewReload, (event, value: unknown) => {
+    controller.requireSession(event.sender)
+    return htmlPreviewViews.reload(event.sender, htmlPreviewIdentity(value))
+  })
+  ipcMain.handle(IPC_CHANNELS.htmlPreviewClose, (event, value: unknown) => {
+    htmlPreviewViews.close(event.sender, htmlPreviewIdentity(value))
+  })
   ipcMain.handle(IPC_CHANNELS.saveTextFile, (event, request: unknown) =>
     controller
       .requireSession(event.sender)
@@ -1577,6 +1665,7 @@ export function registerIpc(
   )
   return {
     async close() {
+      htmlPreviewViews.closeAll()
       assetLeases.clear()
       await syncQueue.close()
     },

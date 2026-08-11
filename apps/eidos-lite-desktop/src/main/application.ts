@@ -2,7 +2,11 @@ import fs from "node:fs"
 import path from "node:path"
 import { app, BrowserWindow, dialog, Menu, protocol } from "electron"
 
-import { EIDOS_SPACE_MEDIA_SCHEME, IPC_CHANNELS } from "../shared/contracts"
+import {
+  EIDOS_SPACE_DOCUMENT_SCHEME,
+  EIDOS_SPACE_MEDIA_SCHEME,
+  IPC_CHANNELS,
+} from "../shared/contracts"
 import {
   resolveEidosLiteServiceEnvironment,
   runtimeEnvironmentOverride,
@@ -26,6 +30,15 @@ protocol.registerSchemesAsPrivileged([
   {
     scheme: EIDOS_SPACE_MEDIA_SCHEME,
     privileges: { stream: true },
+  },
+  {
+    scheme: EIDOS_SPACE_DOCUMENT_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      stream: true,
+      supportFetchAPI: true,
+    },
   },
 ])
 const bootstrapState = (

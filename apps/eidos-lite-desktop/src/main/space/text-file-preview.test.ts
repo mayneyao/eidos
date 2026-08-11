@@ -51,6 +51,50 @@ describe("text file preview", () => {
     }
   })
 
+  it("issues an isolated browser preview for bounded HTML files", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-text-"))
+    await fs.writeFile(
+      path.join(root, "dashboard.html"),
+      "<!doctype html><title>Dashboard</title>"
+    )
+    try {
+      await expect(
+        readTextFilePreview(root, "dashboard.html")
+      ).resolves.toMatchObject({
+        type: "text",
+        relativePath: "dashboard.html",
+        browserPreview: {
+          kind: "html",
+          url: expect.stringMatching(
+            /^eidos-space-document:\/\/[\w-]+\/dashboard\.html$/u
+          ),
+        },
+        truncated: false,
+      })
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("issues a browser preview for bounded Markdown files", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-text-"))
+    await fs.writeFile(path.join(root, "README.md"), "# Read me")
+    try {
+      await expect(
+        readTextFilePreview(root, "README.md")
+      ).resolves.toMatchObject({
+        type: "text",
+        relativePath: "README.md",
+        browserPreview: {
+          kind: "markdown",
+        },
+        truncated: false,
+      })
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("saves text atomically while preserving encoding and BOM", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "eidos-lite-text-"))
     const filePath = path.join(root, "unicode.txt")

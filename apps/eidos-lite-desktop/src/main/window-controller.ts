@@ -8,6 +8,8 @@ import {
   dialog,
   screen,
   shell,
+  type Event,
+  type Input,
   type WebContents,
 } from "electron"
 
@@ -21,6 +23,10 @@ import {
   type SpaceSnapshot,
 } from "../shared/contracts"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
+import {
+  DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
+  eidosLiteShortcutCommandForKeyboardEvent,
+} from "../shared/keyboard-shortcuts"
 import { resolveEidosLiteLocale, translateEidosLite } from "../shared/i18n"
 import {
   createEidosLiteDiagnostics,
@@ -86,6 +92,7 @@ export class WindowController {
   private readonly windowState = new LiteWindowStateStore(
     app.getPath("userData")
   )
+  private keyboardShortcuts = DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS
   private closing = false
 
   constructor(private readonly services: EidosLiteServiceEnvironment) {}
@@ -417,14 +424,17 @@ export class WindowController {
     return diagnostics
   }
 
-  getPreferences(): Promise<EidosLitePreferences> {
-    return this.preferences().get()
+  async getPreferences(): Promise<EidosLitePreferences> {
+    const preferences = await this.preferences().get()
+    this.keyboardShortcuts = preferences.keyboardShortcuts
+    return preferences
   }
 
   async updatePreferences(
     patch: Partial<EidosLitePreferences>
   ): Promise<EidosLitePreferences> {
     const preferences = await this.preferences().update(patch)
+    this.keyboardShortcuts = preferences.keyboardShortcuts
     for (const session of new Set(this.sessionByWebContents.values())) {
       session.setAutomaticCheckpointsEnabled(preferences.automaticCheckpoints)
     }
@@ -438,6 +448,33 @@ export class WindowController {
   ): () => void {
     this.preferencesListeners.add(listener)
     return () => this.preferencesListeners.delete(listener)
+  }
+
+  handleWorkspaceShortcutInput(
+    owner: WebContents,
+    event: Event,
+    input: Input
+  ): void {
+    if (input.type !== "keyDown") return
+    const ownerWindow = BrowserWindow.fromWebContents(owner)
+    if (ownerWindow && this.windowKind.get(ownerWindow) === "settings") return
+    const command = eidosLiteShortcutCommandForKeyboardEvent(
+      {
+        key: input.key,
+        altKey: input.alt,
+        ctrlKey: input.control,
+        metaKey: input.meta,
+        shiftKey: input.shift,
+        repeat: input.isAutoRepeat,
+      },
+      this.keyboardShortcuts,
+      process.platform === "darwin"
+    )
+    if (!command) return
+    event.preventDefault()
+    if (!owner.isDestroyed()) {
+      owner.send(IPC_CHANNELS.workspaceShortcutCommand, command)
+    }
   }
 
   async chooseDefaultSpaceLocation(
@@ -858,6 +895,10 @@ export class WindowController {
     })
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
     window.webContents.on("will-navigate", (event) => event.preventDefault())
+    window.webContents.on("before-input-event", (event, input) =>
+      this.handleWorkspaceShortcutInput(window.webContents, event, input)
+    )
+    void this.getPreferences()
     window.on("app-command", (_event, command) => {
       if (command === "browser-backward") {
         window.webContents.send(IPC_CHANNELS.navigationCommand, "back")

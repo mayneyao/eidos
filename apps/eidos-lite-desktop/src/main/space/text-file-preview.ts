@@ -10,6 +10,11 @@ import {
   type TextFileSaveRequest,
   type TextFileSaveResult,
 } from "../../shared/contracts"
+import {
+  isHtmlFile,
+  isMarkdownFile,
+  issueHtmlPreviewUrl,
+} from "./document-file-preview"
 import { detectMediaFileType, issueMediaPreviewUrl } from "./media-file-preview"
 import { normalizeMutableRelativePath, resolveSpacePath } from "./space-paths"
 
@@ -180,6 +185,20 @@ export async function readTextFilePreview(
         bytes,
         truncated ? `:${stats.size}:${stats.mtimeMs}` : ""
       ),
+      ...(!truncated && isHtmlFile(relativePath)
+        ? {
+            browserPreview: {
+              kind: "html" as const,
+              url: issueHtmlPreviewUrl(canonicalRoot, relativePath),
+            },
+          }
+        : !truncated && isMarkdownFile(relativePath)
+          ? {
+              browserPreview: {
+                kind: "markdown" as const,
+              },
+            }
+          : {}),
       size: stats.size,
       modifiedAtMs: stats.mtimeMs,
       truncated,

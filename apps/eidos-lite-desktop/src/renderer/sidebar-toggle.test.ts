@@ -7,9 +7,10 @@ import { expect, it } from "vitest"
 const rendererRoot = path.dirname(fileURLToPath(import.meta.url))
 
 it("keeps document navigation inside the active draggable titlebar", async () => {
-  const [appSource, styles] = await Promise.all([
+  const [appSource, styles, textFilePreviewSource] = await Promise.all([
     fs.readFile(path.join(rendererRoot, "app.tsx"), "utf8"),
     fs.readFile(path.join(rendererRoot, "styles.css"), "utf8"),
+    fs.readFile(path.join(rendererRoot, "text-file-preview.tsx"), "utf8"),
   ])
   const sidebarHeader = appSource.match(
     /<header className="sidebar-header">([\s\S]*?)<\/header>/
@@ -33,7 +34,7 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
   expect(appSource).not.toContain('window.addEventListener("auxclick"')
   expect(appSource).not.toContain("preventAuxiliaryNavigation")
   expect(appSource).toContain("window.history.go(offset)")
-  expect(appSource).toContain("workspaceShortcutForKeyboardEvent(")
+  expect(appSource).toContain("onWorkspaceShortcutCommand(")
   expect(appSource).toContain("keyboardShortcuts")
   expect(appSource).toContain('workspaceShortcut === "toggle-theme"')
   expect(appSource).toContain("toggledAppearance(theme)")
@@ -57,6 +58,24 @@ it("keeps document navigation inside the active draggable titlebar", async () =>
   expect(styles).not.toContain("sidebar-toggle-navigation-enter")
   expect(styles).toMatch(
     /\.resizing-space-sidebar \.workbench,[\s\S]*?\.resizing-space-sidebar \.sidebar-resizer\s*\{\s*transition:\s*none;/
+  )
+  expect(styles).toMatch(
+    /\.sidebar-resizer\s*\{[\s\S]*?z-index:\s*50;[\s\S]*?left:\s*calc\(var\(--space-sidebar-width\) - 12px\);[\s\S]*?width:\s*12px;/
+  )
+  expect(styles).toMatch(
+    /\.sidebar-resizer::after\s*\{[\s\S]*?right:\s*0;[\s\S]*?width:\s*1px;/
+  )
+  expect(appSource).toContain("resizer.setPointerCapture(pointerId)")
+  expect(appSource).toContain("resizer.releasePointerCapture(pointerId)")
+  expect(appSource).toContain("flushSync(() => setSidebarResizing(true))")
+  expect(appSource).toContain(
+    'resizer.addEventListener("lostpointercapture", cleanup)'
+  )
+  expect(appSource).toMatch(
+    /nativePreviewSuppressed=\{[\s\S]*?sidebarResizing[\s\S]*?\}/
+  )
+  expect(textFilePreviewSource).toMatch(
+    /useRendererLayoutEffect\(\(\) => \{[\s\S]*?layoutHtmlPreview\(\{ previewId, bounds, visible \}\)[\s\S]*?\}, \[previewId, visible\]\)/
   )
   expect(styles).toMatch(
     /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?transition-delay:\s*0s !important;[\s\S]*?transition-duration:\s*0\.01ms !important;/
