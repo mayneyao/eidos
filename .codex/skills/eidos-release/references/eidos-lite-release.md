@@ -120,9 +120,10 @@ Verify:
 
 - remote tag and exact workflow SHA;
 - successful release and update-router jobs;
-- macOS arm64/x64 DMG and ZIP assets;
-- Windows x64 EXE plus blockmap;
-- Linux arm64/x64 AppImage assets plus blockmaps;
+- macOS arm64/x64 DMG and ZIP assets plus standalone blockmaps;
+- Windows x64 EXE plus a standalone blockmap;
+- Linux arm64/x64 AppImage assets with embedded blockmaps whose
+  `blockMapSize` values appear in their per-architecture metadata;
 - channel-specific metadata for all five targets and `SHA256SUMS`;
 - stable/prerelease classification;
 - a non-empty GitHub Release body that matches the committed
@@ -135,7 +136,8 @@ on the browser rendering alone:
 
 ```bash
 notes_copy="$(mktemp)"
-gh release view lite-v<version> --json body --jq -r '.body' > "$notes_copy"
+gh release view lite-v<version> --json body \
+  | jq --join-output '.body' > "$notes_copy"
 diff -u apps/eidos-lite-desktop/RELEASE_NOTES.md "$notes_copy"
 ```
 

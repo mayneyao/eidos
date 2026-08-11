@@ -60,7 +60,10 @@ After publication, require all of the following before reporting success:
 2. The workflow is green for macOS arm64/x64, Windows x64, and Linux
    arm64/x64.
 3. The GitHub Release contains every installer, macOS update ZIP, update
-   metadata file, blockmap, and `SHA256SUMS`.
+   metadata file, standalone macOS/Windows blockmap, and `SHA256SUMS`. Linux
+   AppImages carry an embedded blockmap whose size is recorded as
+   `blockMapSize` in their update metadata; they do not produce a separate
+   `.AppImage.blockmap` asset.
 4. Stable and beta feed URLs return the matching architecture metadata, and
    every metadata path resolves to an uploaded asset.
 5. A previous published package detects the new version, downloads it,
