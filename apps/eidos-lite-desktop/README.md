@@ -6,11 +6,12 @@
 > the [repository README](../../README.md). This document covers the detailed
 > architecture and verification contract.
 
-Eidos Lite 0.1.2 is the current public release. Local Spaces, editing, and
-version history require no account. This release uses Graft SDK 0.3.8 for
-reliable incremental Pull, cooperative cancellation, and safe retry/reopen
-behavior, and refreshes stale Explorer state before opening an externally
-launched Eidos File. Eidos Sync remains an invite-only private preview: users
+Eidos Lite 0.1.3 is the current public release. Local Spaces, editing, and
+version history require no account. This release adds cached image rendering
+for HTTPS URL fields, remote File attachments, and Gallery covers while keeping
+expanded Explorer folders stable during refreshes. It continues to use Graft
+SDK 0.3.8 for reliable incremental Pull, cooperative cancellation, and safe
+retry/reopen behavior. Eidos Sync remains an invite-only private preview: users
 may join the waitlist, but Lite provisions or connects a Remote only after an
 administrator grants `read_write` access.
 
