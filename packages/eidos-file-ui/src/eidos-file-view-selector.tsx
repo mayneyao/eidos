@@ -1054,7 +1054,9 @@ export function EidosFileViewSelector({
               </Select>
               {coverFields.length === 0 ? (
                 <p className="text-[11px] leading-4 text-muted-foreground">
-                  {t("Add a File field to use record images as card covers.")}
+                  {t(
+                    "Add a File field or set a URL field's Display to Image to use card covers."
+                  )}
                 </p>
               ) : null}
               {managedView.properties?.coverField ? (

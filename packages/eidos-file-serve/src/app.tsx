@@ -63,6 +63,7 @@ import {
   type CliHostManifest,
 } from "./client"
 import {
+  activateCliHostUrl,
   cliHostAssetPresenter,
   createCliHostAssetSession,
   pickCliHostAssetFiles,
@@ -297,15 +298,17 @@ export function ServeApp() {
   )
 
   const importAssetFiles = useCallback(async () => {
-    if (!assetSession) return []
+    if (!assetSession || !manifest?.assets?.mounted) return []
     const files = await pickCliHostAssetFiles()
     return files.length > 0 ? uploadCliHostAssets(files) : []
-  }, [assetSession])
+  }, [assetSession, manifest?.assets?.mounted])
 
   const importDroppedAssetFiles = useCallback(
     (files: File[]) =>
-      assetSession ? uploadCliHostAssets(files) : Promise.resolve([]),
-    [assetSession]
+      assetSession && manifest?.assets?.mounted
+        ? uploadCliHostAssets(files)
+        : Promise.resolve([]),
+    [assetSession, manifest?.assets?.mounted]
   )
 
   const editorPlugins = useMemo(
@@ -947,6 +950,7 @@ export function ServeApp() {
     <EidosFileUIProvider
       themeName={theme}
       locale={locale}
+      activateUrl={activateCliHostUrl}
       assetSession={assetSession}
       assetPresenter={assetSession ? cliHostAssetPresenter : undefined}
     >
@@ -1164,9 +1168,11 @@ export function ServeApp() {
                 setAddPropertyOpen(true)
               }}
               onError={(error) => setNotice(errorMessage(error))}
-              onImportFiles={assetSession ? importAssetFiles : undefined}
+              onImportFiles={
+                manifest?.assets?.mounted ? importAssetFiles : undefined
+              }
               onImportDroppedFiles={
-                assetSession ? importDroppedAssetFiles : undefined
+                manifest?.assets?.mounted ? importDroppedAssetFiles : undefined
               }
             />
           </Suspense>

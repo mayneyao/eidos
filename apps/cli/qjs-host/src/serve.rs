@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs, UdpSocket};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::{
@@ -34,6 +34,8 @@ const ASSET_PREVIEW_BYTES_MAX: u64 = 64 * 1024 * 1024;
 const ASSET_LEASES_MAX: usize = 32;
 const ASSET_LEASE_TTL: Duration = Duration::from_secs(5 * 60);
 const ASSET_RELEASE_GRACE: Duration = Duration::from_secs(30);
+const URL_IMAGE_REDIRECTS_MAX: usize = 5;
+const URL_IMAGE_TIMEOUT: Duration = Duration::from_secs(15);
 const EVENT_HEARTBEAT: Duration = Duration::from_secs(15);
 const SESSION_COOKIE_PREFIX: &str = "eidos_serve_session_";
 
@@ -48,10 +50,16 @@ struct AssetEntry {
 }
 
 #[derive(Clone, Debug)]
+enum AssetLeaseSource {
+    Local(PathBuf),
+    Network(Vec<u8>),
+}
+
+#[derive(Clone, Debug)]
 struct AssetLeaseRecord {
     resource_id: String,
     entry: AssetEntry,
-    path: PathBuf,
+    source: AssetLeaseSource,
     purpose: String,
     active: bool,
     expires_at: Instant,
@@ -59,10 +67,121 @@ struct AssetLeaseRecord {
 }
 
 struct AssetMount {
-    root: PathBuf,
+    root: Option<PathBuf>,
     entries: RefCell<HashMap<String, AssetEntry>>,
     conflicting_entries: RefCell<HashSet<String>>,
     leases: RefCell<HashMap<String, AssetLeaseRecord>>,
+}
+
+#[derive(Clone, Debug)]
+struct UrlImageLeaseRecord {
+    resource_id: String,
+    media_type: String,
+    bytes: Vec<u8>,
+    active: bool,
+    expires_at: Instant,
+    content_expires_at: Instant,
+}
+
+#[derive(Default)]
+struct UrlImageResolverState {
+    leases: HashMap<String, UrlImageLeaseRecord>,
+    pending: usize,
+}
+
+#[derive(Clone, Default)]
+struct UrlImageResolver {
+    state: Arc<Mutex<UrlImageResolverState>>,
+}
+
+impl UrlImageResolver {
+    fn resolve(&self, uri: &str, purpose: &str) -> Result<serde_json::Value, (u16, String)> {
+        if !matches!(purpose, "thumbnail" | "preview") {
+            return Err((400, "network image purpose is invalid".to_string()));
+        }
+        if uri.len() > 8_192 {
+            return Err((400, "network image URL is too long".to_string()));
+        }
+        let now = Instant::now();
+        {
+            let mut state = self.state.lock().expect("URL image resolver lock");
+            state
+                .leases
+                .retain(|_, lease| lease.content_expires_at > now);
+            if state.pending + state.leases.values().filter(|lease| lease.active).count()
+                >= ASSET_LEASES_MAX
+            {
+                return Err((429, "Concurrent image preview limit reached".to_string()));
+            }
+            state.pending += 1;
+        }
+        let fetched = fetch_url_image(uri);
+        let mut state = self.state.lock().expect("URL image resolver lock");
+        state.pending = state.pending.saturating_sub(1);
+        let (bytes, media_type) = fetched?;
+        let size = bytes.len();
+        let now = Instant::now();
+        let lease_id = random_token();
+        let resource_id = random_token();
+        let expires_at = now + ASSET_LEASE_TTL;
+        state
+            .leases
+            .retain(|_, lease| lease.content_expires_at > now);
+        if state.leases.values().filter(|lease| lease.active).count() >= ASSET_LEASES_MAX {
+            return Err((429, "Concurrent image preview limit reached".to_string()));
+        }
+        state.leases.insert(
+            lease_id.clone(),
+            UrlImageLeaseRecord {
+                resource_id: resource_id.clone(),
+                media_type: media_type.clone(),
+                bytes,
+                active: true,
+                expires_at,
+                content_expires_at: expires_at,
+            },
+        );
+        Ok(serde_json::json!({
+            "leaseId": lease_id,
+            "purpose": purpose,
+            "mediaType": media_type,
+            "size": size.to_string(),
+            "expiresAt": (Utc::now() + chrono::Duration::from_std(ASSET_LEASE_TTL).unwrap())
+                .to_rfc3339_opts(SecondsFormat::Millis, true),
+            "resourceToken": format!("/api/url-images/content/{resource_id}"),
+        }))
+    }
+
+    fn release(&self, lease_id: &str) {
+        let now = Instant::now();
+        let mut state = self.state.lock().expect("URL image resolver lock");
+        state
+            .leases
+            .retain(|_, lease| lease.content_expires_at > now);
+        if let Some(lease) = state.leases.get_mut(lease_id) {
+            lease.active = false;
+            lease.content_expires_at = lease.content_expires_at.min(now + ASSET_RELEASE_GRACE);
+        }
+    }
+
+    fn content(&self, resource_id: &str) -> Result<UrlImageLeaseRecord, (u16, String)> {
+        let now = Instant::now();
+        let mut state = self.state.lock().expect("URL image resolver lock");
+        state
+            .leases
+            .retain(|_, lease| lease.content_expires_at > now);
+        state
+            .leases
+            .values()
+            .find(|lease| lease.resource_id == resource_id && lease.expires_at > now)
+            .cloned()
+            .ok_or_else(|| {
+                (
+                    404,
+                    "Network image lease is unavailable or expired".to_string(),
+                )
+            })
+    }
 }
 
 impl AssetMount {
@@ -78,11 +197,20 @@ impl AssetMount {
             ));
         }
         Ok(Self {
-            root,
+            root: Some(root),
             entries: RefCell::new(HashMap::new()),
             conflicting_entries: RefCell::new(HashSet::new()),
             leases: RefCell::new(HashMap::new()),
         })
+    }
+
+    fn without_root() -> Self {
+        Self {
+            root: None,
+            entries: RefCell::new(HashMap::new()),
+            conflicting_entries: RefCell::new(HashSet::new()),
+            leases: RefCell::new(HashMap::new()),
+        }
     }
 
     fn cache_runtime_result(&self, method: &str, result: &str) {
@@ -169,7 +297,7 @@ impl AssetMount {
     }
 
     fn cache_entry(&self, entry: AssetEntry) {
-        if !entry.uri.starts_with("assets/") {
+        if !entry.uri.starts_with("assets/") && validated_remote_asset_url(&entry.uri).is_err() {
             return;
         }
         let mut entries = self.entries.borrow_mut();
@@ -198,41 +326,70 @@ impl AssetMount {
             .get(entry_id)
             .cloned()
             .ok_or_else(|| (404, "File entry is unavailable".to_string()))?;
-        let relative = decode_asset_uri(&entry.uri).ok_or_else(|| {
-            (
-                404,
-                "File entry is outside the mounted assets folder".to_string(),
-            )
-        })?;
-        let candidate = self.root.join(relative);
-        let path = std::fs::canonicalize(&candidate)
-            .map_err(|_| (404, "Asset file is unavailable".to_string()))?;
-        if !path.starts_with(&self.root) || path == self.root {
-            return Err((403, "Asset path escapes the mounted folder".to_string()));
-        }
-        let metadata =
-            std::fs::metadata(&path).map_err(|_| (404, "Asset file is unavailable".to_string()))?;
-        if !metadata.is_file() {
-            return Err((404, "Asset path is not an ordinary file".to_string()));
-        }
         let declared_size = entry
             .size
             .parse::<u64>()
             .map_err(|_| (409, "File entry size is invalid".to_string()))?;
-        if metadata.len() != declared_size {
-            return Err((
-                409,
-                "Asset file size no longer matches the File entry".to_string(),
-            ));
-        }
         let limit = if purpose == "download" {
             ASSET_BYTES_MAX
         } else {
             ASSET_PREVIEW_BYTES_MAX
         };
-        if metadata.len() > limit {
+        if declared_size > limit {
             return Err((413, "Asset exceeds the negotiated size limit".to_string()));
         }
+        let source = if entry
+            .uri
+            .get(..6)
+            .is_some_and(|scheme| scheme.eq_ignore_ascii_case("https:"))
+        {
+            let (bytes, media_type) =
+                fetch_url_asset(&entry.uri, &entry.name, limit, purpose == "thumbnail")?;
+            if media_type != entry.media_type.to_lowercase() {
+                return Err((
+                    409,
+                    "Network asset bytes do not match the File media type".to_string(),
+                ));
+            }
+            if bytes.len() as u64 != declared_size {
+                return Err((
+                    409,
+                    "Network asset size no longer matches the File entry".to_string(),
+                ));
+            }
+            AssetLeaseSource::Network(bytes)
+        } else {
+            let root = self.root.as_ref().ok_or_else(|| {
+                (
+                    404,
+                    "no assets folder is mounted for relative assets".to_string(),
+                )
+            })?;
+            let relative = decode_asset_uri(&entry.uri).ok_or_else(|| {
+                (
+                    404,
+                    "File entry is outside the mounted assets folder".to_string(),
+                )
+            })?;
+            let candidate = root.join(relative);
+            let path = std::fs::canonicalize(&candidate)
+                .map_err(|_| (404, "Asset file is unavailable".to_string()))?;
+            if !path.starts_with(root) || path == *root {
+                return Err((403, "Asset path escapes the mounted folder".to_string()));
+            }
+            let metadata = std::fs::metadata(&path)
+                .map_err(|_| (404, "Asset file is unavailable".to_string()))?;
+            if !metadata.is_file() {
+                return Err((404, "Asset path is not an ordinary file".to_string()));
+            }
+            if metadata.len() != declared_size {
+                return Err((
+                    409,
+                    "Asset file size no longer matches the File entry".to_string(),
+                ));
+            }
+            AssetLeaseSource::Local(path)
+        };
 
         let now = Instant::now();
         let mut leases = self.leases.borrow_mut();
@@ -248,7 +405,7 @@ impl AssetMount {
             AssetLeaseRecord {
                 resource_id: resource_id.clone(),
                 entry: entry.clone(),
-                path,
+                source,
                 purpose: purpose.to_string(),
                 active: true,
                 expires_at,
@@ -288,6 +445,228 @@ impl AssetMount {
             .cloned()
             .ok_or_else(|| (404, "Asset lease is unavailable or expired".to_string()))
     }
+}
+
+fn is_public_url_image_address(address: IpAddr) -> bool {
+    match address {
+        IpAddr::V4(address) => {
+            let [a, b, c, _] = address.octets();
+            !(a == 0
+                || a == 10
+                || a == 127
+                || a == 100 && (64..=127).contains(&b)
+                || a == 169 && b == 254
+                || a == 172 && (16..=31).contains(&b)
+                || a == 192 && b == 0 && c == 0
+                || a == 192 && b == 0 && c == 2
+                || a == 192 && b == 88 && c == 99
+                || a == 192 && b == 168
+                || a == 198 && matches!(b, 18 | 19)
+                || a == 198 && b == 51 && c == 100
+                || a == 203 && b == 0 && c == 113
+                || a >= 224)
+        }
+        IpAddr::V6(address) => {
+            if let Some(mapped) = address.to_ipv4_mapped() {
+                return is_public_url_image_address(IpAddr::V4(mapped));
+            }
+            let segments = address.segments();
+            let global_unicast = (0x2000..=0x3fff).contains(&segments[0]);
+            let documentation = segments[0] == 0x2001 && segments[1] == 0x0db8;
+            global_unicast && !documentation
+        }
+    }
+}
+
+fn is_proxy_synthetic_url_image_address(address: IpAddr) -> bool {
+    matches!(address, IpAddr::V4(address) if address.octets()[0] == 198
+        && matches!(address.octets()[1], 18 | 19))
+}
+
+fn validated_remote_asset_url(value: &str) -> Result<reqwest::Url, (u16, String)> {
+    let url =
+        reqwest::Url::parse(value).map_err(|_| (400, "remote file URL is invalid".to_string()))?;
+    if url.scheme() != "https"
+        || url.host_str().is_none_or(str::is_empty)
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err((
+            400,
+            "remote files require an HTTPS URL without credentials".to_string(),
+        ));
+    }
+    Ok(url)
+}
+
+fn pinned_public_url_image_addresses(
+    url: &reqwest::Url,
+) -> Result<(String, Vec<SocketAddr>), (u16, String)> {
+    let host = url
+        .host_str()
+        .ok_or_else(|| (400, "remote file host is missing".to_string()))?;
+    let port = url.port_or_known_default().unwrap_or(443);
+    let addresses = (host, port)
+        .to_socket_addrs()
+        .map_err(|_| (502, "remote file host could not be resolved".to_string()))?
+        .collect::<Vec<_>>();
+    let public_addresses = addresses
+        .iter()
+        .copied()
+        .filter(|address| is_public_url_image_address(address.ip()))
+        .collect::<Vec<_>>();
+    if !public_addresses.is_empty() {
+        return Ok((host.to_string(), public_addresses));
+    }
+    // Proxy/TUN clients commonly synthesize hostname answers from RFC 2544's
+    // benchmarking range. A literal 198.18/15 URL host is never granted.
+    if host.parse::<IpAddr>().is_err()
+        && !addresses.is_empty()
+        && addresses
+            .iter()
+            .all(|address| is_proxy_synthetic_url_image_address(address.ip()))
+    {
+        return Ok((host.to_string(), addresses));
+    }
+    Err((
+        403,
+        "remote file host did not resolve to public addresses".to_string(),
+    ))
+}
+
+fn detect_url_image_media_type(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]) {
+        return Some("image/png");
+    }
+    if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        return Some("image/jpeg");
+    }
+    if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        return Some("image/gif");
+    }
+    if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        return Some("image/webp");
+    }
+    if bytes.starts_with(b"BM") {
+        return Some("image/bmp");
+    }
+    if bytes.len() >= 12 && &bytes[4..8] == b"ftyp" && matches!(&bytes[8..12], b"avif" | b"avis") {
+        return Some("image/avif");
+    }
+    if bytes.len() >= 4
+        && bytes[0] == 0
+        && bytes[1] == 0
+        && matches!(bytes[2], 1 | 2)
+        && bytes[3] == 0
+    {
+        return Some("image/x-icon");
+    }
+    None
+}
+
+fn detected_remote_asset_media_type(bytes: &[u8], name: &str) -> String {
+    if let Some(media_type) = detect_url_image_media_type(bytes) {
+        return media_type.to_string();
+    }
+    if bytes.starts_with(b"%PDF-") {
+        return "application/pdf".to_string();
+    }
+    if bytes.starts_with(&[0x50, 0x4b, 0x03, 0x04]) {
+        return "application/zip".to_string();
+    }
+    inferred_asset_media_type(name).to_string()
+}
+
+fn fetch_url_asset(
+    uri: &str,
+    name: &str,
+    maximum_bytes: u64,
+    images_only: bool,
+) -> Result<(Vec<u8>, String), (u16, String)> {
+    let mut url = validated_remote_asset_url(uri)?;
+    for redirect in 0..=URL_IMAGE_REDIRECTS_MAX {
+        let (host, addresses) = pinned_public_url_image_addresses(&url)?;
+        let client = reqwest::blocking::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(URL_IMAGE_TIMEOUT)
+            .no_proxy()
+            .resolve_to_addrs(&host, &addresses)
+            .build()
+            .map_err(|_| (500, "remote file client could not be created".to_string()))?;
+        let response = client
+            .get(url.clone())
+            .header(
+                reqwest::header::ACCEPT,
+                if images_only {
+                    "image/avif,image/webp,image/png,image/jpeg,image/gif,image/bmp,image/x-icon"
+                } else {
+                    "*/*"
+                },
+            )
+            .header(reqwest::header::USER_AGENT, "Eidos-Serve-Remote-Asset/1")
+            .send()
+            .map_err(|_| (502, "remote file request failed".to_string()))?;
+        if response.status().is_redirection() {
+            if redirect == URL_IMAGE_REDIRECTS_MAX {
+                return Err((502, "remote file redirect limit was exceeded".to_string()));
+            }
+            let location = response
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|value| value.to_str().ok())
+                .ok_or_else(|| (502, "remote file redirect is invalid".to_string()))?;
+            url = validated_remote_asset_url(
+                url.join(location)
+                    .map_err(|_| (502, "remote file redirect is invalid".to_string()))?
+                    .as_str(),
+            )?;
+            continue;
+        }
+        if !response.status().is_success() {
+            return Err((
+                502,
+                format!("remote file request failed with HTTP {}", response.status()),
+            ));
+        }
+        if response
+            .content_length()
+            .is_some_and(|size| size > maximum_bytes)
+        {
+            return Err((
+                413,
+                "remote file exceeds the negotiated size limit".to_string(),
+            ));
+        }
+        let mut bytes = Vec::new();
+        response
+            .take(maximum_bytes + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|_| (502, "remote file body could not be read".to_string()))?;
+        if bytes.len() as u64 > maximum_bytes {
+            return Err((
+                413,
+                "remote file exceeds the negotiated size limit".to_string(),
+            ));
+        }
+        let media_type = if images_only {
+            detect_url_image_media_type(&bytes)
+                .ok_or_else(|| {
+                    (
+                        415,
+                        "remote file is not a supported raster image".to_string(),
+                    )
+                })?
+                .to_string()
+        } else {
+            detected_remote_asset_media_type(&bytes, name)
+        };
+        return Ok((bytes, media_type));
+    }
+    Err((502, "remote file redirect limit was exceeded".to_string()))
+}
+
+fn fetch_url_image(uri: &str) -> Result<(Vec<u8>, String), (u16, String)> {
+    fetch_url_asset(uri, "remote-image", ASSET_PREVIEW_BYTES_MAX, true)
 }
 
 struct LanAccess {
@@ -789,11 +1168,27 @@ fn allocate_asset_entry(
     media_type: &str,
     size: u64,
 ) -> Result<AssetEntry, (u16, String)> {
+    allocate_asset_entry_for_uri(
+        host,
+        name,
+        media_type,
+        size,
+        &format!("assets/{}", percent_encode_path_segment(name)),
+    )
+}
+
+fn allocate_asset_entry_for_uri(
+    host: &QjsHost,
+    name: &str,
+    media_type: &str,
+    size: u64,
+    uri: &str,
+) -> Result<AssetEntry, (u16, String)> {
     let request = serde_json::json!({
         "name": name,
         "mediaType": media_type,
         "size": size.to_string(),
-        "uri": format!("assets/{}", percent_encode_path_segment(name)),
+        "uri": uri,
     })
     .to_string();
     let result = host
@@ -811,6 +1206,49 @@ fn allocate_asset_entry(
     }
     serde_json::from_value(envelope.get("value").cloned().unwrap_or_default())
         .map_err(|error| (500, format!("invalid allocated File entry: {error}")))
+}
+
+fn remote_asset_name(uri: &str, requested: Option<&str>) -> Result<String, (u16, String)> {
+    if let Some(name) = requested {
+        return asset_name(name.trim());
+    }
+    let url = validated_remote_asset_url(uri)?;
+    let derived = url
+        .path_segments()
+        .and_then(|segments| segments.filter(|segment| !segment.is_empty()).next_back())
+        .and_then(percent_decode_component)
+        .filter(|name| asset_name(name).is_ok())
+        .unwrap_or_else(|| "remote-file".to_string());
+    asset_name(&derived)
+}
+
+fn acquire_remote_asset_response(
+    value: &serde_json::Value,
+    mount: &AssetMount,
+    host: &QjsHost,
+) -> tiny_http::Response<std::io::Cursor<Vec<u8>>> {
+    let result = (|| -> Result<AssetEntry, (u16, String)> {
+        let uri = value
+            .get("uri")
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|uri| !uri.is_empty() && uri.len() <= 8_192)
+            .ok_or_else(|| (400, "remote file URL is invalid or too long".to_string()))?;
+        let requested_name = value
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim);
+        let name = remote_asset_name(uri, requested_name)?;
+        let (bytes, media_type) = fetch_url_asset(uri, &name, ASSET_BYTES_MAX, false)?;
+        let entry =
+            allocate_asset_entry_for_uri(host, &name, &media_type, bytes.len() as u64, uri)?;
+        mount.cache_entry(entry.clone());
+        Ok(entry)
+    })();
+    match result {
+        Ok(entry) => json_response(&serde_json::json!({ "ok": true, "value": entry }).to_string()),
+        Err((status, message)) => error_response(status, &message),
+    }
 }
 
 fn upload_asset_response(
@@ -834,7 +1272,11 @@ fn upload_asset_response(
             query_text_parameter(request_url, "mediaType"),
             &requested_name,
         );
-        let (name, path, mut file) = create_asset_file(&mount.root, &requested_name)?;
+        let root = mount
+            .root
+            .as_ref()
+            .ok_or_else(|| (404, "no assets folder is mounted".to_string()))?;
+        let (name, path, mut file) = create_asset_file(root, &requested_name)?;
         let write_result = (|| -> Result<u64, (u16, String)> {
             let mut reader = request.as_reader().take(ASSET_BYTES_MAX + 1);
             let mut buffer = [0_u8; 64 * 1024];
@@ -882,14 +1324,14 @@ fn upload_asset_response(
     }
 }
 
-fn asset_content_response(
+fn local_asset_content_response(
     lease: &AssetLeaseRecord,
+    path: &Path,
 ) -> Result<tiny_http::Response<File>, (u16, String)> {
-    let file =
-        File::open(&lease.path).map_err(|_| (404, "Asset file is unavailable".to_string()))?;
-    let canonical = std::fs::canonicalize(&lease.path)
-        .map_err(|_| (404, "Asset file is unavailable".to_string()))?;
-    if canonical != lease.path {
+    let file = File::open(path).map_err(|_| (404, "Asset file is unavailable".to_string()))?;
+    let canonical =
+        std::fs::canonicalize(path).map_err(|_| (404, "Asset file is unavailable".to_string()))?;
+    if canonical != path {
         return Err((
             403,
             "Asset path changed after the lease was issued".to_string(),
@@ -942,6 +1384,82 @@ fn asset_content_response(
                 .parse::<tiny_http::Header>()
                 .unwrap(),
         ))
+}
+
+fn network_asset_content_response(
+    lease: &AssetLeaseRecord,
+    bytes: Vec<u8>,
+) -> tiny_http::Response<std::io::Cursor<Vec<u8>>> {
+    let disposition = if lease.purpose == "download" {
+        "attachment"
+    } else {
+        "inline"
+    };
+    tiny_http::Response::from_data(bytes)
+        .with_header(
+            format!("Content-Type: {}", lease.entry.media_type)
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            format!(
+                "Content-Disposition: {disposition}; filename*=UTF-8''{}",
+                percent_encode_path_segment(&lease.entry.name)
+            )
+            .parse::<tiny_http::Header>()
+            .unwrap(),
+        )
+        .with_header(
+            "Cache-Control: private, no-store"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            "X-Content-Type-Options: nosniff"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            "Content-Security-Policy: sandbox; default-src 'none'; img-src 'self' data:"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            "Cross-Origin-Resource-Policy: same-origin"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+}
+
+fn url_image_content_response(
+    lease: UrlImageLeaseRecord,
+) -> tiny_http::Response<std::io::Cursor<Vec<u8>>> {
+    tiny_http::Response::from_data(lease.bytes)
+        .with_header(
+            format!("Content-Type: {}", lease.media_type)
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            "Cache-Control: private, no-store"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            "X-Content-Type-Options: nosniff"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            "Content-Security-Policy: sandbox; default-src 'none'; img-src 'self' data:"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
+        .with_header(
+            "Cross-Origin-Resource-Policy: same-origin"
+                .parse::<tiny_http::Header>()
+                .unwrap(),
+        )
 }
 
 fn pairing_response(
@@ -1157,7 +1675,12 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
     let host = QjsHost::new(&state)?;
     let network = ServeNetwork::new(port, lan, requested_host)?;
     let events = EventHub::default();
-    let assets = assets_dir.as_deref().map(AssetMount::new).transpose()?;
+    let assets_mounted = assets_dir.is_some();
+    let assets = match assets_dir.as_deref() {
+        Some(root) => AssetMount::new(root)?,
+        None => AssetMount::without_root(),
+    };
+    let url_images = UrlImageResolver::default();
 
     let server = tiny_http::Server::http(network.bind)
         .map_err(|error| anyhow!("bind {}: {error}", network.bind))?;
@@ -1184,8 +1707,8 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
     } else {
         println!("  ui:  (embedded)");
     }
-    if let Some(mount) = &assets {
-        println!("  assets: {}", mount.root.display());
+    if let Some(root) = &assets.root {
+        println!("  assets: {}", root.display());
     } else {
         println!("  assets: (not mounted; pass --assets-dir <dir> to enable)");
     }
@@ -1250,10 +1773,41 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
             continue;
         }
 
+        if method == "POST" && url_path == "/api/url-images/resolve" {
+            let value = read_json_body(&mut request);
+            let resolver = url_images.clone();
+            thread::spawn(move || {
+                let response = match value {
+                    Err((status, message)) => error_response(status, &message),
+                    Ok(value) => {
+                        let uri = value
+                            .get("uri")
+                            .and_then(serde_json::Value::as_str)
+                            .unwrap_or("");
+                        let purpose = value
+                            .get("purpose")
+                            .and_then(serde_json::Value::as_str)
+                            .unwrap_or("");
+                        match resolver.resolve(uri, purpose) {
+                            Ok(lease) => json_response(
+                                &serde_json::json!({ "ok": true, "value": lease }).to_string(),
+                            ),
+                            Err((status, message)) => error_response(status, &message),
+                        }
+                    }
+                };
+                if let Err(error) = request.respond(response) {
+                    eprintln!("respond failed: {error}");
+                }
+            });
+            continue;
+        }
+
         if method == "POST" && url_path == "/api/assets/upload" {
-            let response = match &assets {
-                Some(mount) => upload_asset_response(&mut request, &request_url, mount, &host),
-                None => error_response(404, "no assets folder is mounted"),
+            let response = if assets_mounted {
+                upload_asset_response(&mut request, &request_url, &assets, &host)
+            } else {
+                error_response(404, "no assets folder is mounted")
             };
             if let Err(error) = request.respond(response) {
                 eprintln!("respond failed: {error}");
@@ -1263,16 +1817,35 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
 
         if method == "GET" && url_path.starts_with("/api/assets/content/") {
             let resource_id = url_path.trim_start_matches("/api/assets/content/");
-            let result = assets
-                .as_ref()
-                .ok_or_else(|| (404, "no assets folder is mounted".to_string()))
-                .and_then(|mount| mount.content(resource_id))
-                .and_then(|lease| asset_content_response(&lease));
-            let responded = match result {
-                Ok(response) => request.respond(response),
+            let responded = match assets.content(resource_id) {
                 Err((status, message)) => request.respond(error_response(status, &message)),
+                Ok(lease) => match lease.source.clone() {
+                    AssetLeaseSource::Local(path) => {
+                        match local_asset_content_response(&lease, &path) {
+                            Ok(response) => request.respond(response),
+                            Err((status, message)) => {
+                                request.respond(error_response(status, &message))
+                            }
+                        }
+                    }
+                    AssetLeaseSource::Network(bytes) => {
+                        request.respond(network_asset_content_response(&lease, bytes))
+                    }
+                },
             };
             if let Err(error) = responded {
+                eprintln!("respond failed: {error}");
+            }
+            continue;
+        }
+
+        if method == "GET" && url_path.starts_with("/api/url-images/content/") {
+            let resource_id = url_path.trim_start_matches("/api/url-images/content/");
+            let response = match url_images.content(resource_id) {
+                Ok(lease) => url_image_content_response(lease),
+                Err((status, message)) => error_response(status, &message),
+            };
+            if let Err(error) = request.respond(response) {
                 eprintln!("respond failed: {error}");
             }
             continue;
@@ -1292,14 +1865,22 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
                     "access": "readwrite",
                     "network": request_network,
                 });
-                if assets.is_some() {
-                    manifest["assets"] = serde_json::json!({
-                        "mounted": true,
-                        "assetBytesMax": ASSET_BYTES_MAX.to_string(),
-                        "assetPreviewBytesMax": ASSET_PREVIEW_BYTES_MAX.to_string(),
-                        "concurrentAssetLeasesMax": ASSET_LEASES_MAX,
-                    });
-                }
+                manifest["assets"] = serde_json::json!({
+                    "mounted": assets_mounted,
+                    "assetBytesMax": ASSET_BYTES_MAX.to_string(),
+                    "assetPreviewBytesMax": ASSET_PREVIEW_BYTES_MAX.to_string(),
+                    "concurrentAssetLeasesMax": ASSET_LEASES_MAX,
+                    "assetReadSchemes": if assets_mounted {
+                        serde_json::json!(["https", "relative"])
+                    } else {
+                        serde_json::json!(["https"])
+                    },
+                    "assetWriteSchemes": if assets_mounted {
+                        serde_json::json!(["https", "relative"])
+                    } else {
+                        serde_json::json!(["https"])
+                    },
+                });
                 json_response(&manifest.to_string())
             }
             ("POST", "/api/runtime/open") => match read_json_body(&mut request) {
@@ -1354,9 +1935,7 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
                         });
                     match host.invoke("call", &[method.clone(), request_json, context_json]) {
                         Ok(result) => {
-                            if let Some(mount) = &assets {
-                                mount.cache_runtime_result(&method, &result);
-                            }
+                            assets.cache_runtime_result(&method, &result);
                             if let Some(event) = mutation_event(&method, &result) {
                                 events.publish(event, source_client_id.as_deref());
                             }
@@ -1367,10 +1946,13 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
                 }
                 Err((status, message)) => error_response(status, &message),
             },
-            ("POST", "/api/assets/resolve") => match (&assets, read_json_body(&mut request)) {
-                (None, _) => error_response(404, "no assets folder is mounted"),
-                (Some(_), Err((status, message))) => error_response(status, &message),
-                (Some(mount), Ok(value)) => {
+            ("POST", "/api/assets/remote") => match read_json_body(&mut request) {
+                Ok(value) => acquire_remote_asset_response(&value, &assets, &host),
+                Err((status, message)) => error_response(status, &message),
+            },
+            ("POST", "/api/assets/resolve") => match read_json_body(&mut request) {
+                Err((status, message)) => error_response(status, &message),
+                Ok(value) => {
                     let entry_id = value
                         .get("entryId")
                         .and_then(serde_json::Value::as_str)
@@ -1379,7 +1961,7 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
                         .get("purpose")
                         .and_then(serde_json::Value::as_str)
                         .unwrap_or("");
-                    match mount.resolve(entry_id, purpose) {
+                    match assets.resolve(entry_id, purpose) {
                         Ok(lease) => json_response(
                             &serde_json::json!({ "ok": true, "value": lease }).to_string(),
                         ),
@@ -1387,15 +1969,15 @@ pub fn run_serve(db_path: &Path, options: ServeOptions) -> anyhow::Result<()> {
                     }
                 }
             },
-            ("POST", "/api/assets/release") => match (&assets, read_json_body(&mut request)) {
-                (None, _) => error_response(404, "no assets folder is mounted"),
-                (Some(_), Err((status, message))) => error_response(status, &message),
-                (Some(mount), Ok(value)) => {
+            ("POST", "/api/assets/release") => match read_json_body(&mut request) {
+                Err((status, message)) => error_response(status, &message),
+                Ok(value) => {
                     let lease_id = value
                         .get("leaseId")
                         .and_then(serde_json::Value::as_str)
                         .unwrap_or("");
-                    mount.release(lease_id);
+                    assets.release(lease_id);
+                    url_images.release(lease_id);
                     json_response(&serde_json::json!({ "ok": true }).to_string())
                 }
             },
@@ -1464,9 +2046,12 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr};
 
     use super::{
-        allowed_host, allowed_origin, collision_asset_name, decode_asset_uri, is_lan_address,
-        mutation_event, query_parameter, query_text_parameter, AssetEntry, AssetMount, EmbeddedUi,
-        EventHub, RevisionEvent, ServeNetwork,
+        allowed_host, allowed_origin, collision_asset_name, decode_asset_uri,
+        detect_url_image_media_type, detected_remote_asset_media_type, is_lan_address,
+        is_proxy_synthetic_url_image_address, is_public_url_image_address, mutation_event,
+        query_parameter, query_text_parameter, remote_asset_name, validated_remote_asset_url,
+        AssetEntry, AssetLeaseSource, AssetMount, EmbeddedUi, EventHub, RevisionEvent,
+        ServeNetwork,
     };
 
     fn relative_asset_references(source: &str) -> Vec<&str> {
@@ -1561,6 +2146,72 @@ mod tests {
         assert!(is_lan_address("fe80::1".parse().unwrap()));
         assert!(!is_lan_address("8.8.8.8".parse().unwrap()));
         assert!(!is_lan_address("2001:4860:4860::8888".parse().unwrap()));
+    }
+
+    #[test]
+    fn network_images_accept_only_public_addresses() {
+        assert!(is_public_url_image_address("8.8.8.8".parse().unwrap()));
+        assert!(is_public_url_image_address(
+            "2606:4700:4700::1111".parse().unwrap()
+        ));
+        for address in [
+            "0.0.0.0",
+            "10.0.0.1",
+            "100.64.0.1",
+            "127.0.0.1",
+            "169.254.169.254",
+            "172.16.0.1",
+            "192.168.0.1",
+            "198.18.0.1",
+            "::",
+            "::1",
+            "::ffff:127.0.0.1",
+            "2001:db8::1",
+            "fc00::1",
+            "fe80::1",
+        ] {
+            assert!(!is_public_url_image_address(address.parse().unwrap()));
+        }
+    }
+
+    #[test]
+    fn network_images_recognize_only_proxy_synthetic_benchmark_addresses() {
+        assert!(is_proxy_synthetic_url_image_address(
+            "198.18.0.1".parse().unwrap()
+        ));
+        assert!(is_proxy_synthetic_url_image_address(
+            "198.19.255.254".parse().unwrap()
+        ));
+        assert!(!is_proxy_synthetic_url_image_address(
+            "198.20.0.1".parse().unwrap()
+        ));
+        assert!(!is_proxy_synthetic_url_image_address(
+            "192.168.1.1".parse().unwrap()
+        ));
+    }
+
+    #[test]
+    fn network_images_require_safe_https_urls_and_raster_bytes() {
+        assert!(validated_remote_asset_url("https://example.com/image?id=1").is_ok());
+        assert!(validated_remote_asset_url("http://example.com/image.png").is_err());
+        assert!(validated_remote_asset_url("https://user@example.com/image.png").is_err());
+        assert_eq!(
+            detect_url_image_media_type(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]),
+            Some("image/png")
+        );
+        assert_eq!(detect_url_image_media_type(b"<svg></svg>"), None);
+        assert_eq!(
+            detected_remote_asset_media_type(b"%PDF-1.7", "download"),
+            "application/pdf"
+        );
+        assert_eq!(
+            detected_remote_asset_media_type(b"plain text", "report.csv"),
+            "text/csv"
+        );
+        assert_eq!(
+            remote_asset_name("https://example.com/files/report%20final.pdf", None).unwrap(),
+            "report final.pdf"
+        );
     }
 
     #[test]
@@ -1674,6 +2325,12 @@ mod tests {
                             "mediaType": "image/png",
                             "size": "3",
                             "uri": "assets/photo.png"
+                        }, {
+                            "id": "0198c72d-82b5-7968-b163-98be4b7477dd",
+                            "name": "remote.png",
+                            "mediaType": "image/png",
+                            "size": "3",
+                            "uri": "https://cdn.example.com/remote.png"
                         }],
                         [{
                             "id": "0198c72d-82b5-7968-b163-98be4b7477df",
@@ -1699,6 +2356,7 @@ mod tests {
 
         let entries = mount.entries.borrow();
         assert!(entries.contains_key("0198c72d-82b5-7968-b163-98be4b7477de"));
+        assert!(entries.contains_key("0198c72d-82b5-7968-b163-98be4b7477dd"));
         assert!(entries.contains_key("0198c72d-82b5-7968-b163-98be4b7477df"));
         assert!(!entries.contains_key("0198c72d-82b5-7968-a163-98be4b7477df"));
     }
@@ -1724,10 +2382,12 @@ mod tests {
             .as_str()
             .unwrap()
             .trim_start_matches("/api/assets/content/");
-        assert_eq!(
-            mount.content(resource).unwrap().path,
-            mount.root.join("cover.png")
-        );
+        match mount.content(resource).unwrap().source {
+            AssetLeaseSource::Local(path) => {
+                assert_eq!(path, mount.root.as_ref().unwrap().join("cover.png"));
+            }
+            AssetLeaseSource::Network(_) => panic!("expected a local asset lease"),
+        }
 
         mount.release(lease["leaseId"].as_str().unwrap());
         assert_eq!(

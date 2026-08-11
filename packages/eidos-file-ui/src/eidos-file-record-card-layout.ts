@@ -8,6 +8,7 @@ import { decodeEidosFileJsonArray } from "@eidos.space/eidos-file"
 
 import {
   eidosFileSelectOptions,
+  eidosFileUrlDisplaysImage,
   type EidosFileSelectOption,
 } from "./eidos-file-field-properties"
 import {
@@ -32,7 +33,7 @@ export interface EidosFileRecordCardLayout {
 export function isEidosFileRecordCoverField(
   field: EidosFileFieldInfo
 ): boolean {
-  return field.type === "file"
+  return field.type === "file" || eidosFileUrlDisplaysImage(field)
 }
 
 function isEmptyEidosFileRecordCardValue(

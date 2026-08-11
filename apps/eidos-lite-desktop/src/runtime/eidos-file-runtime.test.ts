@@ -15,6 +15,30 @@ import {
 } from "./eidos-file-runtime"
 
 describe("Eidos Lite Runtime 1.0 editor adapter", () => {
+  it("allocates canonical remote File entries through the Runtime host bridge", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-remote-file-"))
+    const filePath = path.join(root, "remote.eidos")
+    const opened = await createEidosLiteFileRuntime(filePath, "Remote")
+    try {
+      const request = {
+        name: "report.pdf",
+        mediaType: "application/pdf",
+        size: "1024",
+        uri: "https://cdn.example.com/report.pdf",
+      }
+      const entry = await opened.allocateFileEntry(request)
+
+      expect(entry).toMatchObject(request)
+      expect(entry.id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
+      )
+      expect(opened.findFileEntry(entry.id)).toBeNull()
+    } finally {
+      await opened.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("finds persisted File entries by stable ID and rejects unknown IDs", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "eidos-lite-files-"))
     const filePath = path.join(root, "files.eidos")

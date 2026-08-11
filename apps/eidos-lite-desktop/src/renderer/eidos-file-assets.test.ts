@@ -22,6 +22,36 @@ describe("Eidos Lite renderer attachment leases", () => {
     vi.unstubAllGlobals()
   })
 
+  it("acquires remote File entries through main-process IPC", async () => {
+    const entry = {
+      id: "0198c72d-82b5-7968-b163-98be4b7477de",
+      name: "report.pdf",
+      mediaType: "application/pdf",
+      size: "1024",
+      uri: "https://cdn.example.com/report.pdf",
+    }
+    const acquireRemoteEidosFileAsset = vi.fn(async () => entry)
+    vi.stubGlobal("window", { eidosLite: { acquireRemoteEidosFileAsset } })
+    const session = createEidosLiteAssetSession("session-1", "file-1")
+
+    await expect(
+      session.services.acquireRemoteAsset!(
+        {
+          sessionId: "session-1",
+          uri: entry.uri,
+          name: entry.name,
+        },
+        { requestId: "remote-file" }
+      )
+    ).resolves.toEqual({ entry })
+    expect(acquireRemoteEidosFileAsset).toHaveBeenCalledWith(
+      "session-1",
+      entry.uri,
+      entry.name
+    )
+    expect(session.state.capabilities.assetWriteSchemes).toContain("https")
+  })
+
   it("keeps filesystem paths behind IPC while presenting and releasing blobs", async () => {
     const resolveEidosFileAsset = vi.fn(async () => ({
       lease,
@@ -94,6 +124,59 @@ describe("Eidos Lite renderer attachment leases", () => {
       "session-1",
       lease.leaseId,
       "open"
+    )
+  })
+
+  it("resolves network images through main-process IPC and presents only a blob URL", async () => {
+    const urlLease = {
+      leaseId: "url-image-1",
+      purpose: "thumbnail" as const,
+      mediaType: "image/png",
+      size: "9",
+      expiresAt: "2099-01-01T00:00:00.000Z",
+      resourceToken: "url-resource-1",
+    }
+    const resolveEidosFileUrlImage = vi.fn(async () => ({
+      lease: urlLease,
+      bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+    }))
+    const releaseEidosFileAsset = vi.fn(async () => undefined)
+    vi.stubGlobal("window", {
+      eidosLite: { resolveEidosFileUrlImage, releaseEidosFileAsset },
+    })
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:eidos-url-image")
+    const revokeObjectURL = vi
+      .spyOn(URL, "revokeObjectURL")
+      .mockImplementation(() => undefined)
+    const session = createEidosLiteAssetSession("session-1", "file-1")
+    const uri = "https://cdn.example.com/avatar.png"
+
+    const acquired = await session.services.resolveUrlImage!(
+      { sessionId: "session-1", uri, purpose: "thumbnail" },
+      { requestId: "network-image" }
+    )
+    const image = eidosLiteAssetPresenter.renderImage({
+      sessionId: "session-1",
+      lease: acquired,
+      altText: "Avatar",
+    }) as { props: { src: string } }
+
+    expect(resolveEidosFileUrlImage).toHaveBeenCalledWith(
+      "session-1",
+      uri,
+      "thumbnail"
+    )
+    expect(image.props.src).toBe("blob:eidos-url-image")
+    expect(image.props.src).not.toBe(uri)
+
+    await session.services.releaseAsset(
+      { sessionId: "session-1", leaseId: urlLease.leaseId },
+      { requestId: "release-network-image" }
+    )
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:eidos-url-image")
+    expect(releaseEidosFileAsset).toHaveBeenCalledWith(
+      "session-1",
+      urlLease.leaseId
     )
   })
 })

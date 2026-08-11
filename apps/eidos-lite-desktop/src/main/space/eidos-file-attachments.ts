@@ -29,11 +29,17 @@ export interface ImportedEidosFileAssets {
   relativePaths: string[]
 }
 
-export interface ResolvedEidosFileAsset {
-  absolutePath: string
-  identity: EidosFileAssetIdentity
-  bytes?: Uint8Array
-}
+export type ResolvedEidosFileAsset =
+  | {
+      kind: "local"
+      absolutePath: string
+      identity: EidosFileAssetIdentity
+      bytes?: Uint8Array
+    }
+  | {
+      kind: "network"
+      bytes: Uint8Array
+    }
 
 export interface EidosFileAssetIdentity {
   device: number
@@ -140,7 +146,7 @@ function uniqueAssetName(existingKeys: Set<string>, requested: string): string {
   throw new Error("Could not allocate a unique attachment name")
 }
 
-function detectRasterMediaType(bytes: Uint8Array): string | null {
+export function detectRasterMediaType(bytes: Uint8Array): string | null {
   const ascii = (start: number, length: number) =>
     Buffer.from(bytes.subarray(start, start + length)).toString("ascii")
   if (
@@ -190,7 +196,10 @@ function detectRasterMediaType(bytes: Uint8Array): string | null {
   return null
 }
 
-function detectAssetMediaType(bytes: Uint8Array, filename: string): string {
+export function detectAssetMediaType(
+  bytes: Uint8Array,
+  filename: string
+): string {
   const raster = detectRasterMediaType(bytes)
   if (raster) return raster
   const ascii = (length: number) =>
@@ -687,7 +696,7 @@ export async function resolveEidosFileAttachment(
     size: stats.size,
     modifiedAtMs: stats.mtimeMs,
   }
-  if (purpose !== "thumbnail") return { absolutePath, identity }
+  if (purpose !== "thumbnail") return { kind: "local", absolutePath, identity }
   if (!SAFE_RASTER_MEDIA_TYPES.has(entry.mediaType.toLowerCase())) {
     throw new Error("Only safe raster images can be used as thumbnails")
   }
@@ -717,5 +726,5 @@ export async function resolveEidosFileAttachment(
   if (detectRasterMediaType(bytes) !== entry.mediaType.toLowerCase()) {
     throw new Error("Attachment bytes do not match the declared image type")
   }
-  return { absolutePath, identity, bytes }
+  return { kind: "local", absolutePath, identity, bytes }
 }

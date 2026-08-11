@@ -31,7 +31,11 @@ import {
 
 import { useEidosFileUI } from "./context"
 import { EidosFileFieldTypeIcon } from "./eidos-file-field-type-picker"
-import { eidosFileNumberProperty } from "./eidos-file-field-properties"
+import {
+  eidosFileFieldDisplaysUrl,
+  eidosFileNumberProperty,
+  eidosFileUrlDisplaysImage,
+} from "./eidos-file-field-properties"
 import { isEidosFileRecordLabelField } from "./eidos-file-field-visibility"
 import { EidosFileNumberPropertiesEditor } from "./eidos-file-number-properties-editor"
 import { EidosFileSelectOptionsEditor } from "./eidos-file-select-options-editor"
@@ -93,6 +97,7 @@ export function EidosFileFieldPropertyPanel({
   const nameId = useId()
   const systemReadOnly = field.valueKind === "system"
   const numberProperty = useMemo(() => eidosFileNumberProperty(field), [field])
+  const urlDisplaysImage = eidosFileUrlDisplaysImage(field)
   const mutable =
     field.valueKind === "source" &&
     field.type !== "file" &&
@@ -394,6 +399,42 @@ export function EidosFileFieldPropertyPanel({
               disabled={busy}
               onChange={saveProperty}
             />
+          ) : null}
+          {eidosFileFieldDisplaysUrl(field) ? (
+            <label className="grid gap-1.5 text-xs">
+              <span className="font-medium">{t("Display")}</span>
+              <Select
+                value={urlDisplaysImage ? "image" : "link"}
+                disabled={busy}
+                onValueChange={(value) => {
+                  const property = { ...(field.property ?? {}) }
+                  const previousDisplay = property.display
+                  const display: Record<string, unknown> =
+                    typeof previousDisplay === "object" &&
+                    previousDisplay !== null &&
+                    !Array.isArray(previousDisplay)
+                      ? { ...previousDisplay }
+                      : {}
+                  if (value === "image") display.kind = "image"
+                  else delete display.kind
+                  if (Object.keys(display).length > 0)
+                    property.display = display
+                  else delete property.display
+                  void saveProperty(property).catch(() => undefined)
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="link">{t("Link")}</SelectItem>
+                  <SelectItem value="image">{t("Image")}</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-[11px] leading-4 text-muted-foreground">
+                {t("Images load lazily through the active Host policy.")}
+              </span>
+            </label>
           ) : null}
           {field.type === "formula" && onEditFormula ? (
             <section className="grid gap-2 border-t pt-3">

@@ -666,7 +666,7 @@ describe("EidosFileKanbanView", () => {
           type: "url",
           tableName: "tb_tasks",
           tableColumnName: "image_url",
-          property: null,
+          property: { display: { kind: "image" } },
           storageCodec: "scalar",
           valueKind: "source",
           isHidden: false,
@@ -718,7 +718,10 @@ describe("EidosFileKanbanView", () => {
     })
 
     expect(recordCardMocks.layouts.get("row_cover")).toMatchObject({
-      coverField: null,
+      coverField: expect.objectContaining({
+        tableColumnName: "image_url",
+        type: "url",
+      }),
       fitContent: false,
       hideEmptyFields: false,
     })

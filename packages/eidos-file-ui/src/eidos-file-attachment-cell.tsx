@@ -17,6 +17,10 @@ import { CSS } from "@dnd-kit/utilities"
 
 import { useEidosFileUI } from "./context"
 import { EidosFileEntrySurface } from "./eidos-file-entry-surface"
+import {
+  EidosFileRemoteAttachmentControl,
+  eidosFileRemoteAssetAcquisitionAllowed,
+} from "./eidos-file-remote-attachment-control"
 import { cn } from "./lib/cn"
 import { Button } from "./ui/primitives"
 import { SortableContainer } from "./ui/sortable"
@@ -169,7 +173,7 @@ function EidosFileAttachmentCard({
 export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
   EidosFileAttachmentCell
 > = ({ value: cell, onChange }) => {
-  const { translate: t } = useEidosFileUI()
+  const { assetSession, translate: t } = useEidosFileUI()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const updateEntries = useCallback(
@@ -216,45 +220,75 @@ export const EidosFileAttachmentCellEditor: ProvideEditorComponent<
           <p className="px-2 py-1 text-xs text-destructive">{error}</p>
         ) : null}
       </div>
-      {!cell.readonly && cell.data.onImport ? (
-        <div className={EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 w-full gap-1.5 text-xs"
-            disabled={busy}
-            onClick={() => {
-              setBusy(true)
-              setError(null)
-              void cell.data
-                .onImport?.()
-                .then((entries) => {
-                  if (entries.length > 0) {
-                    const existingUris = new Set(
-                      cell.data.entries.map((entry) => entry.uri)
-                    )
-                    updateEntries([
-                      ...cell.data.entries,
-                      ...entries.filter(
-                        (entry) => !existingUris.has(entry.uri)
-                      ),
-                    ])
-                  }
-                })
-                .catch((importError) => {
-                  setError(
-                    importError instanceof Error
-                      ? importError.message
-                      : t("Unable to import files")
-                  )
-                })
-                .finally(() => setBusy(false))
-            }}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            {busy ? t("Importing…") : t("Add files")}
-          </Button>
+      {!cell.readonly &&
+      (cell.data.onImport ||
+        eidosFileRemoteAssetAcquisitionAllowed(assetSession)) ? (
+        <div
+          data-eidos-file-attachment-actions=""
+          className={cn(
+            EIDOS_FILE_GRID_EDITOR_FOOTER_CLASS_NAME,
+            "h-auto min-h-8 max-h-[260px] shrink overflow-y-auto overscroll-contain py-1"
+          )}
+        >
+          <div className="grid w-full gap-1">
+            {cell.data.onImport ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 w-full justify-start gap-1.5 px-1.5 text-xs"
+                disabled={busy}
+                onClick={() => {
+                  setBusy(true)
+                  setError(null)
+                  void cell.data
+                    .onImport?.()
+                    .then((entries) => {
+                      if (entries.length > 0) {
+                        const existingUris = new Set(
+                          cell.data.entries.map((entry) => entry.uri)
+                        )
+                        updateEntries([
+                          ...cell.data.entries,
+                          ...entries.filter(
+                            (entry) => !existingUris.has(entry.uri)
+                          ),
+                        ])
+                      }
+                    })
+                    .catch((importError) => {
+                      setError(
+                        importError instanceof Error
+                          ? importError.message
+                          : t("Unable to import files")
+                      )
+                    })
+                    .finally(() => setBusy(false))
+                }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {busy ? t("Importing…") : t("Add files")}
+              </Button>
+            ) : null}
+            <EidosFileRemoteAttachmentControl
+              className="w-full text-xs"
+              disabled={busy}
+              onAcquired={(entry) => {
+                const existingIds = new Set(
+                  cell.data.entries.map((candidate) => candidate.id)
+                )
+                const existingUris = new Set(
+                  cell.data.entries.map((candidate) => candidate.uri)
+                )
+                if (
+                  !existingIds.has(entry.id) &&
+                  !existingUris.has(entry.uri)
+                ) {
+                  updateEntries([...cell.data.entries, entry])
+                }
+              }}
+            />
+          </div>
         </div>
       ) : null}
     </EidosFileGridEditorSurface>

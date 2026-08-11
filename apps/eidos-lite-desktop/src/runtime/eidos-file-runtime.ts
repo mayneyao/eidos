@@ -24,6 +24,7 @@ import {
   type RequestContext,
   type RuntimeEnvironment,
   type RuntimeFactoryContext,
+  type RuntimeHostBridge,
 } from "@eidos.space/eidos-file"
 import {
   NodeSqliteConnectionPort,
@@ -391,6 +392,7 @@ async function importCsvFileIntoRuntime(
           columnName: column.columnName,
           type: column.type === "record-label" ? "text" : column.type,
           isRecordLabel: column.type === "record-label",
+          ...(column.settings ? { property: column.settings } : {}),
         })),
       })
       let batch: EidosFileRow[] = []
@@ -692,6 +694,9 @@ export interface EidosLiteFileRuntime {
     ReturnType<EidosRuntimeEditorDataSource["initialize"]>
   >
   findFileEntry(entryId: string): FileEntry | null
+  allocateFileEntry(
+    request: Parameters<RuntimeHostBridge["allocateFileEntry"]>[0]
+  ): Promise<FileEntry>
   previewCsvFile(
     source: EidosLiteCsvFileSource,
     options: EidosFileCsvImportOptions,
@@ -715,6 +720,7 @@ export interface EidosLiteFileRuntime {
 async function bindRuntime(
   connection: NodeSqliteConnectionPort,
   service: Awaited<ReturnType<typeof Runtime.open>>["service"],
+  hostBridge: RuntimeHostBridge,
   filePath: string
 ): Promise<EidosLiteFileRuntime> {
   const source = new EidosRuntimeEditorDataSource(
@@ -730,6 +736,11 @@ async function bindRuntime(
       initialSnapshot,
       findFileEntry: (entryId) =>
         findEidosFileEntry(connection.database, entryId),
+      allocateFileEntry: (request) =>
+        hostBridge.allocateFileEntry(
+          request,
+          context("eidos-lite-asset-allocate")
+        ),
       previewCsvFile: (csvSource, options, operationId) =>
         csv.preview(csvSource, options, operationId),
       importCsvFile: (csvSource, options, operationId) =>
@@ -827,7 +838,12 @@ export async function createEidosLiteFileRuntime(
       { title },
       factoryContext
     )
-    opened = await bindRuntime(connection, binding.service, filePath)
+    opened = await bindRuntime(
+      connection,
+      binding.service,
+      binding.hostBridge,
+      filePath
+    )
     opened.initialSnapshot = await opened.source.createTable({
       name: "Table 1",
     })
@@ -865,7 +881,12 @@ export async function openEidosLiteFileRuntime(
       "readwrite",
       factoryContext
     )
-    return await bindRuntime(connection, binding.service, filePath)
+    return await bindRuntime(
+      connection,
+      binding.service,
+      binding.hostBridge,
+      filePath
+    )
   } catch (error) {
     if (connection.database.isOpen) connection.close()
     throw error

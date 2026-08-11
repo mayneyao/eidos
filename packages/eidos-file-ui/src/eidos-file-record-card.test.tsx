@@ -79,6 +79,11 @@ const urlField: EidosFileFieldInfo = {
   storageCodec: "scalar",
 }
 
+const imageUrlField: EidosFileFieldInfo = {
+  ...urlField,
+  property: { display: { kind: "image" } },
+}
+
 const view: EidosFileViewInfo = {
   id: "view_gallery",
   name: "Gallery",
@@ -178,6 +183,28 @@ describe("EidosFileRecordCard", () => {
     expect(container.textContent).toContain(
       "https://images.example.test/cover.png"
     )
+  })
+
+  it("uses a field-level image URL as a card cover", async () => {
+    await act(async () => {
+      root.render(
+        <EidosFileRecordCard
+          row={{
+            _id: "row_1",
+            title: "Write RFC",
+            image_url: "https://images.example.test/cover.png",
+          }}
+          fields={[fields[0], imageUrlField]}
+          view={view}
+          onOpen={vi.fn()}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    expect(
+      container.querySelector('[role="img"][aria-label="Image URL"]')
+    ).not.toBeNull()
   })
 
   it("keeps nested relative URIs out of the quiet cover fallback", async () => {

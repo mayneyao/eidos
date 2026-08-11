@@ -31,6 +31,7 @@ import {
   eidosFileRecordFieldText,
   eidosFileRecordTitle,
 } from "./eidos-file-record-format"
+import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
 
 interface FailedRecordEdit {
   field: EidosFileFieldInfo
@@ -49,11 +50,13 @@ function recordEditErrorMessage(error: unknown, fallback: string): string {
 function FieldValue({
   field,
   row,
+  onError,
 }: {
   field: EidosFileFieldInfo
   row: EidosFileRow
+  onError?: (error: unknown) => void
 }) {
-  const { translate: t } = useEidosFileUI()
+  const { activateUrl, translate: t } = useEidosFileUI()
   const value = row[field.tableColumnName]
   if (field.type === "checkbox") {
     const checked = value === true || value === 1 || value === "1"
@@ -81,12 +84,23 @@ function FieldValue({
       </div>
     )
   }
-  if (field.type === "url" && typeof value === "string" && value.length > 0) {
+  if (
+    field.type === "url" &&
+    typeof value === "string" &&
+    activateUrl &&
+    eidosFileUrlIsActivatable(value)
+  ) {
     return (
       <button
         type="button"
         className="flex max-w-full items-center gap-1.5 rounded-[3px] px-1 py-0.5 text-left text-xs text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        onClick={() => window.open(value, "_blank", "noopener,noreferrer")}
+        onClick={() => {
+          try {
+            void Promise.resolve(activateUrl(value)).catch(onError)
+          } catch (error) {
+            onError?.(error)
+          }
+        }}
       >
         <span className="truncate">{value}</span>
         <ExternalLink className="h-3 w-3 shrink-0" />
@@ -446,7 +460,11 @@ export function EidosFileRecordInspector({
                     onChange={(value) => editField(field, value)}
                   />
                 ) : (
-                  <FieldValue field={field} row={currentRow} />
+                  <FieldValue
+                    field={field}
+                    row={currentRow}
+                    onError={onError}
+                  />
                 )}
               </div>
             ))}

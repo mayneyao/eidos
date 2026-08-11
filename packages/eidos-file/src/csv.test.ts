@@ -97,6 +97,42 @@ describe("Eidos File CSV import", () => {
     ).toThrow(/RFC 3339 timestamp/)
   })
 
+  it("marks HTTPS image URL columns for lazy image presentation", () => {
+    const plan = planEidosFileCsvImport({
+      name: "people.csv",
+      content:
+        "Name,Avatar,Asset,Website\nAda,https://cdn.example.com/ada?id=1,https://cdn.example.com/cover.png,https://eidos.space\nGrace,https://cdn.example.com/grace?id=2,https://cdn.example.com/photo.webp,https://example.com",
+    })
+
+    expect(plan.columns[1]).toMatchObject({
+      name: "Avatar",
+      type: "url",
+      settings: { display: { kind: "image" } },
+    })
+    expect(plan.columns[2]).toMatchObject({
+      name: "Asset",
+      type: "url",
+      settings: { display: { kind: "image" } },
+    })
+    expect(plan.columns[3]).toMatchObject({ name: "Website", type: "url" })
+    expect(plan.columns[3]?.settings).toBeUndefined()
+  })
+
+  it("does not opt HTTP or credential-bearing URL columns into image loading", () => {
+    const plan = planEidosFileCsvImport({
+      name: "unsafe.csv",
+      content:
+        "Name,Image,Photo\nOne,http://cdn.example.com/one.png,https://user@example.com/one.png",
+    })
+
+    expect(plan.columns.slice(1)).toEqual([
+      expect.objectContaining({ name: "Image", type: "url" }),
+      expect.objectContaining({ name: "Photo", type: "url" }),
+    ])
+    expect(plan.columns[1]?.settings).toBeUndefined()
+    expect(plan.columns[2]?.settings).toBeUndefined()
+  })
+
   it("imports the first record when the Runtime CSV request has no header", () => {
     const plan = planEidosFileCsvImport({
       name: "scores.csv",
@@ -178,6 +214,26 @@ describe("Eidos File CSV import", () => {
       }),
       expect.objectContaining({ Item: "Desk", Quantity: 1, Available: 0 }),
     ])
+    eidosFile.close()
+  })
+
+  it("persists inferred URL image presentation without downloading the URLs", () => {
+    const eidosFile = createEidosFile(path.join(root, "images.eidos"), {
+      title: "Image URLs",
+    })
+    const result = importEidosFileCsv(eidosFile, {
+      name: "people.csv",
+      content: "Name,Avatar\nAda,https://cdn.example.com/ada.png",
+    })
+
+    expect(
+      eidosFile
+        .listFields(result.table.id)
+        .find((candidate) => candidate.name === "Avatar")
+    ).toMatchObject({
+      type: "url",
+      property: { display: { kind: "image" } },
+    })
     eidosFile.close()
   })
 

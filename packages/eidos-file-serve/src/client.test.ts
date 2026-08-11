@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
+  acquireCliHostRemoteAsset,
   createBrowserId,
   establishCliHostSession,
   uploadCliHostAssets,
@@ -112,5 +113,30 @@ describe("CLI Serve browser pairing", () => {
     expect(url).toContain("name=%E5%9B%BE%E7%89%87+1.png")
     expect(url).toContain("mediaType=image%2Fpng")
     expect(request).toMatchObject({ method: "POST", body: file })
+  })
+
+  it("acquires remote File entries with an explicit JSON request", async () => {
+    const entry = {
+      id: "0198c72d-82b5-7968-b163-98be4b7477de",
+      name: "report.pdf",
+      mediaType: "application/pdf",
+      size: "1024",
+      uri: "https://cdn.example.com/report.pdf",
+    }
+    const fetch = vi.fn(async () =>
+      Response.json({ ok: true, value: entry }, { status: 200 })
+    )
+    vi.stubGlobal("fetch", fetch)
+
+    await expect(
+      acquireCliHostRemoteAsset(entry.uri, entry.name)
+    ).resolves.toEqual(entry)
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/assets/remote",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ uri: entry.uri, name: entry.name }),
+      })
+    )
   })
 })

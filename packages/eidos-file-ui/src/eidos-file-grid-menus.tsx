@@ -32,6 +32,8 @@ import {
 
 import { cn } from "./lib/cn"
 import { useEidosFileUI } from "./context"
+import { eidosFileFieldDisplaysUrl } from "./eidos-file-field-properties"
+import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
 import { Popover, PopoverAnchor, PopoverContent } from "./ui/primitives"
 
 import {
@@ -447,7 +449,7 @@ export function EidosFileCellMenu({
   onOpenRecord: (state: EidosFileCellMenuState) => void
   onCopyCell: (text: string) => void
   onCopyRecordId: (id: string) => void
-  onOpenUrl: (url: string) => void
+  onOpenUrl?: (url: string) => void
   onDeleteRows: (ranges: EidosFileRowRange[]) => void
 }) {
   const { translate: t } = useEidosFileUI()
@@ -456,7 +458,13 @@ export function EidosFileCellMenu({
     action()
   }
   const rowId = state?.row._id
-  const url = state?.field.type === "url" ? cellText : ""
+  const url =
+    state &&
+    onOpenUrl &&
+    eidosFileFieldDisplaysUrl(state.field) &&
+    eidosFileUrlIsActivatable(cellText)
+      ? cellText
+      : ""
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -507,7 +515,7 @@ export function EidosFileCellMenu({
               {t("Copy record ID")}
             </MenuItem>
             {url ? (
-              <MenuItem onClick={() => run(() => onOpenUrl(url))}>
+              <MenuItem onClick={() => run(() => onOpenUrl?.(url))}>
                 <ExternalLink className="h-3.5 w-3.5" />
                 {t("Open URL")}
               </MenuItem>

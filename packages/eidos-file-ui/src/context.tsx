@@ -5,6 +5,7 @@ import type {
   HostServices,
   HostSessionState,
   RequestContext,
+  UrlImageLease,
 } from "@eidos.space/eidos-file"
 
 import {
@@ -15,18 +16,19 @@ import {
 } from "./i18n"
 
 export type EidosFileUIThemeName = "light" | "dark"
+export type EidosFileImagePresentationLease = AssetLease | UrlImageLease
 
 /** Framework-native consumer of a Host-scoped asset lease. */
 export interface AssetPresenter<Surface> {
   renderImage(request: {
     sessionId: string
-    lease: AssetLease
+    lease: EidosFileImagePresentationLease
     altText: string
   }): Surface
   /** Optional Canvas-native image source used by Grid thumbnail renderers. */
   loadImage?(request: {
     sessionId: string
-    lease: AssetLease
+    lease: EidosFileImagePresentationLease
     altText: string
   }): Promise<CanvasImageSource>
   activate(
@@ -50,6 +52,8 @@ export interface EidosFileUIHost {
   themeName: EidosFileUIThemeName
   locale: EidosFileUILocale
   translate(message: string, values?: EidosFileUIMessageValues): string
+  /** Host-owned activation for a policy-checked external URL. */
+  activateUrl?: (uri: string) => void | Promise<void>
   assetSession?: EidosFileUIAssetSession
   assetPresenter?: AssetPresenter<ReactNode>
 }
@@ -69,6 +73,7 @@ export function EidosFileUIProvider({
   locale,
   messages = EMPTY_MESSAGES,
   translate: translateOverride,
+  activateUrl,
   assetSession,
   assetPresenter,
 }: Partial<EidosFileUIHost> & {
@@ -78,6 +83,7 @@ export function EidosFileUIProvider({
   const parent = useContext(EidosFileUIContext)
   const resolvedThemeName = themeName ?? parent.themeName
   const resolvedLocale = locale ?? parent.locale
+  const resolvedActivateUrl = activateUrl ?? parent.activateUrl
   const resolvedAssetSession = assetSession ?? parent.assetSession
   const resolvedAssetPresenter = assetPresenter ?? parent.assetPresenter
   const value = useMemo<EidosFileUIHost>(
@@ -90,6 +96,7 @@ export function EidosFileUIProvider({
           ? (message, values) =>
               translateEidosFileUI(resolvedLocale, message, values, messages)
           : parent.translate),
+      ...(resolvedActivateUrl ? { activateUrl: resolvedActivateUrl } : {}),
       ...(resolvedAssetSession ? { assetSession: resolvedAssetSession } : {}),
       ...(resolvedAssetPresenter
         ? { assetPresenter: resolvedAssetPresenter }
@@ -99,6 +106,7 @@ export function EidosFileUIProvider({
       locale,
       messages,
       parent.translate,
+      resolvedActivateUrl,
       resolvedAssetPresenter,
       resolvedAssetSession,
       resolvedLocale,

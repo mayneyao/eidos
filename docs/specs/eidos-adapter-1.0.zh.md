@@ -963,7 +963,8 @@ scheme、只在 session scoped asset
 root 中解析的 File URI，例如 `assets/diagram.png`。其他 token 是匹配
 `[a-z][a-z0-9+.-]*` 的 lowercase RFC 3986 scheme，例如 `https`；`assets` 是 path
 segment，不是 scheme。列出 network scheme 仍要求 Host 授权；writer 通常只列
-`relative`，只有明确支持 bounded inline-image representation 时才加入 `data`。
+`relative`，只有实现显式 remote File acquisition 时才加入 `https`，只有明确支持
+bounded inline-image representation 时才加入 `data`。
 
 `data` token 表示 Host 能验证并解析 canonical inline-image Data URL，不授权其他 Data
 URL。resolve Host 必须核对 File entry declared media type/size 与 Data URL，拒绝
@@ -981,6 +982,32 @@ asset import 时，Host policy 在调用 Runtime `allocateFileEntry` 前选择 c
 representation：通常是 relative external reference；只有 image 在 format limit 内且
 `assetWriteSchemes` 含 `data` 时才可选择 inline Data URL。UI 不选择 storage placement，
 也不创建 URI。
+
+optional remote File acquisition 接受 absolute `https:` URI 与 optional requested
+filename。Host 只能在明确 user action 后 fetch，必须执行 `assetBytesMax` 与 network
+deadline，取得 exact byte size、选择 safe filename、识别 safe media type，并以原始
+requested URI 调用 Runtime `allocateFileEntry`；redirect 不得重写 canonical URI。
+raster media type 与其他可 sniff format 必须从 bytes 验证；未知 generic file 使用安全的
+declared/inferred type 或 `application/octet-stream`。operation 只返回 metadata，不把
+remote bytes 复制进 relative asset root。每个 redirect target 都要重新授权，拒绝 URI
+userinfo 与 HTTPS downgrade，不发送 ambient cookie/authorization/referrer，并遵守下文
+loopback/private/address 规则。只有 `assetWriteSchemes` 包含 `https` 时 Host 才暴露该操作。
+
+Host 还可以为 Field settings 声明 `display.kind="image"` 的 scalar URL Field 解析
+image presentation。这是 read-only presentation flow，不是 File-entry acquisition：不创建
+persistent ID，不要求 canonical state 含 `name`、`size` 或 `mediaType`，也不重写 URL。
+UI-facing facade 只能通过 optional `resolveUrlImage` operation 与 `UrlImageLease` 暴露
+该能力；low-level PublicationPort 仍只接收 authorized URI reference。
+
+1.0 的 `resolveUrlImage` 只接受 absolute `https:` URI。只有 `assetReadSchemes` 含
+`https` 且 Host policy 允许时才能访问 network。resolver 必须拒绝 URI userinfo 与 HTTPS
+downgrade，限制 redirect 数并逐跳重新授权，不发送 ambient cookie、authorization 或
+referrer；除非 explicit disclosed Host policy 授权，否则禁止 loopback/private/link-local/
+reserved address。读取必须受 asset byte/time limit 约束，必须从 bytes 验证 supported raster
+image。该策略可以识别平台代理为 hostname 返回的 synthetic DNS range，但不得因此授权
+host 本身为 IP literal 的 URI，request 必须继续绑定原始 hostname，且不得扩展到其他
+private 或 reserved range。不能只信 suffix；cache 按 Host authorization context 隔离。signed URL 与 query
+credential 默认不得进入 log、telemetry、diagnostic 或 shared cache key。
 
 ## 9. Transport Profile
 
@@ -2245,6 +2272,10 @@ interface HostServices {
     request: { sessionId: string; sourceToken: string },
     context: RequestContext
   ): Promise<{ entry: FileEntry }>
+  acquireRemoteAsset?(
+    request: { sessionId: string; uri: string; name?: string },
+    context: RequestContext
+  ): Promise<{ entry: FileEntry }>
   resolveAsset(
     request: {
       sessionId: string
@@ -2253,6 +2284,14 @@ interface HostServices {
     },
     context: RequestContext
   ): Promise<AssetLease>
+  resolveUrlImage?(
+    request: {
+      sessionId: string
+      uri: string
+      purpose: "thumbnail" | "preview"
+    },
+    context: RequestContext
+  ): Promise<UrlImageLease>
   releaseAsset(
     request: { sessionId: string; leaseId: string },
     context: RequestContext
@@ -2387,6 +2426,14 @@ interface AssetLease {
   expiresAt: string
   resourceToken: string
 }
+interface UrlImageLease {
+  leaseId: string
+  purpose: "thumbnail" | "preview"
+  mediaType: string
+  size: string
+  expiresAt: string
+  resourceToken: string
+}
 ```
 
 `RequestContext`、`RuntimeClient`、`CommitReconciliation`、`FileEntry` 与
@@ -2480,6 +2527,7 @@ Runtime row mutation 才成为 canonical。
 | `restoreRecovery`        | PublicationPort read、File validate，再创建新 Connection/Runtime epoch                                                                                                    |
 | `discardRecovery`        | 显式 intent 后调用 PublicationPort `discardRecovery`                                                                                                                      |
 | `acquireAsset`           | composition 解析 UI `sourceToken`；PublicationPort 取得 `import` lease；Runtime 分配 File-entry ID，product 返回 candidate value                                          |
+| `acquireRemoteAsset`     | optional composition 在 asset limit 内授权并检查显式 HTTPS source；Runtime 分配 File-entry ID；返回 original URI 与 verified metadata                                     |
 | `resolveAsset`           | composition 把 Runtime File-entry ID 解析为 canonical URI；PublicationPort 取得 `read` lease 并解析 bytes/descriptor                                                      |
 | `releaseAsset`           | PublicationPort `releaseAsset`                                                                                                                                            |
 | `close`                  | 关闭 Transport（它是 Runtime 再 Connection 的唯一 closer），然后关闭 Publication session；绝不重复 close 任一 component                                                   |

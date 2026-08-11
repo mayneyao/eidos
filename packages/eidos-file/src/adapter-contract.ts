@@ -209,6 +209,10 @@ export interface HostServices {
     request: { sessionId: string; sourceToken: string },
     context: RequestContext
   ): Promise<{ entry: FileEntry }>
+  acquireRemoteAsset?(
+    request: { sessionId: string; uri: string; name?: string },
+    context: RequestContext
+  ): Promise<{ entry: FileEntry }>
   resolveAsset(
     request: {
       sessionId: string
@@ -217,6 +221,14 @@ export interface HostServices {
     },
     context: RequestContext
   ): Promise<AssetLease>
+  resolveUrlImage?(
+    request: {
+      sessionId: string
+      uri: string
+      purpose: "thumbnail" | "preview"
+    },
+    context: RequestContext
+  ): Promise<UrlImageLease>
   releaseAsset(
     request: { sessionId: string; leaseId: string },
     context: RequestContext
@@ -353,6 +365,15 @@ export interface AssetLease {
   purpose: "thumbnail" | "preview" | "download"
   mediaType: string
   name: string
+  size: string
+  expiresAt: string
+  resourceToken: string
+}
+
+export interface UrlImageLease {
+  leaseId: string
+  purpose: "thumbnail" | "preview"
+  mediaType: string
   size: string
   expiresAt: string
   resourceToken: string

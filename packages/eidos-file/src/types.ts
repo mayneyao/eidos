@@ -154,6 +154,7 @@ export interface EidosFileCsvImportColumn {
   name: string
   columnName: string
   type: "record-label" | EidosFileCsvFieldType
+  settings?: Record<string, unknown>
 }
 
 export interface EidosFileCsvImportIssue {

@@ -123,6 +123,15 @@ async function runtimeCall(
   switch (method) {
     case "getSnapshot":
       return dataSource.getSnapshot()
+    case "allocateFileEntry":
+      return requireRuntime().allocateFileEntry(
+        objectValue(args[0], "File entry allocation") as {
+          name: string
+          mediaType: string
+          size: string
+          uri: string
+        }
+      )
     case "findFileEntry":
       return requireRuntime().findFileEntry(
         requireString(args[0], "File entry ID")

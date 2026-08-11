@@ -66,6 +66,23 @@ export async function runSelfTest(): Promise<string> {
     expect(negotiation.capabilities.formulaPreview).toBe(true)
     checks.push("negotiate")
 
+    const remoteFileEntry = await binding.hostBridge.allocateFileEntry(
+      {
+        name: "remote.png",
+        mediaType: "image/png",
+        size: "68",
+        uri: "https://cdn.example.com/remote.png",
+      },
+      context("allocate-remote-file-entry")
+    )
+    expect(remoteFileEntry).toMatchObject({
+      name: "remote.png",
+      mediaType: "image/png",
+      size: "68",
+      uri: "https://cdn.example.com/remote.png",
+    })
+    checks.push("allocate-remote-file-entry")
+
     await expectConnectionPortConformance(port)
     checks.push("connection-port-conformance")
 

@@ -1180,6 +1180,8 @@ export interface EidosFileCsvImportColumn {
     // (undocumented)
     name: string;
     // (undocumented)
+    settings?: Record<string, unknown>;
+    // (undocumented)
     sourceIndex: number;
     // (undocumented)
     sourceName: string;
@@ -2929,6 +2931,14 @@ export interface HostServices {
         entry: FileEntry;
     }>;
     // (undocumented)
+    acquireRemoteAsset?(request: {
+        sessionId: string;
+        uri: string;
+        name?: string;
+    }, context: RequestContext): Promise<{
+        entry: FileEntry;
+    }>;
+    // (undocumented)
     close(request: {
         sessionId: string;
     }, context: RequestContext): Promise<void>;
@@ -2995,6 +3005,12 @@ export interface HostServices {
         destinationToken?: string;
         adopt?: "keep-current" | "adopt-copy";
     }, context: RequestContext): Promise<HostConflictResult>;
+    // (undocumented)
+    resolveUrlImage?(request: {
+        sessionId: string;
+        uri: string;
+        purpose: "thumbnail" | "preview";
+    }, context: RequestContext): Promise<UrlImageLease>;
     // (undocumented)
     restoreRecovery(request: {
         sessionId: string;
@@ -4175,6 +4191,22 @@ export interface UpdateEidosFileViewInput {
     sorts?: EidosFileSort[];
     // (undocumented)
     type?: string;
+}
+
+// @public (undocumented)
+export interface UrlImageLease {
+    // (undocumented)
+    expiresAt: string;
+    // (undocumented)
+    leaseId: string;
+    // (undocumented)
+    mediaType: string;
+    // (undocumented)
+    purpose: "thumbnail" | "preview";
+    // (undocumented)
+    resourceToken: string;
+    // (undocumented)
+    size: string;
 }
 
 // @public (undocumented)

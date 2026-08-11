@@ -539,6 +539,15 @@ interface HostServices {
     context: RequestContext
   ): Promise<{ entry: FileEntry }>
 
+  acquireRemoteAsset?(
+    request: {
+      sessionId: string
+      uri: string
+      name?: string
+    },
+    context: RequestContext
+  ): Promise<{ entry: FileEntry }>
+
   resolveAsset(
     request: {
       sessionId: string
@@ -547,6 +556,15 @@ interface HostServices {
     },
     context: RequestContext
   ): Promise<AssetLease>
+
+  resolveUrlImage?(
+    request: {
+      sessionId: string
+      uri: string
+      purpose: "thumbnail" | "preview"
+    },
+    context: RequestContext
+  ): Promise<UrlImageLease>
 
   releaseAsset(
     request: { sessionId: string; leaseId: string },
@@ -683,6 +701,15 @@ interface AssetLease {
   purpose: "thumbnail" | "preview" | "download"
   mediaType: string
   name: string
+  size: string
+  expiresAt: string
+  resourceToken: string
+}
+
+interface UrlImageLease {
+  leaseId: string
+  purpose: "thumbnail" | "preview"
+  mediaType: string
   size: string
   expiresAt: string
   resourceToken: string
@@ -1022,22 +1049,22 @@ hover、open editor 或 collapsed transient group；它们是 query result 或 U
 并且只在相应 key 适用时暴露 View 专用控件。不适用于当前 type 的 key 必须保留，但不
 影响 rendering 或 request。
 
-| Key                   | Type                             | Default                                | 适用 View      | 分类               | 含义                                                                 |
-| --------------------- | -------------------------------- | -------------------------------------- | -------------- | ------------------ | -------------------------------------------------------------------- |
-| `fieldOrder`          | unique Field-ID array            | metadata Field position，再按 Field ID | 全部标准 View  | 通用展示           | 从前到后的 Field 顺序                                                |
-| `hiddenFields`        | unique Field-ID array            | `[]`                                   | 全部标准 View  | 通用展示           | 从 View 省略的普通 Field，不是删除                                   |
-| `visibleSystemFields` | unique Field-ID array            | `[]`                                   | 全部标准 View  | 通用展示           | 在当前 View 明确展示的 optional hidden system Field                  |
-| `fieldWidths`         | Field-ID → number map            | `{}`；缺失 entry 为 `1`                | Grid           | Grid 展示          | dimensionless preferred relative width，范围 `0.25..8`               |
-| `rowDensity`          | `compact\|standard\|comfortable` | `standard`                             | Grid           | Grid 展示          | semantic row-density hint                                            |
-| `freezeColumns`       | non-negative integer             | `1`                                    | Grid           | Grid 展示          | 冻结 leading visible Field 的数量，并按 visible count clamp          |
-| `columnStats`         | Field-ID → `{type}` map          | `{}`                                   | Grid           | Grid 功能 recipe   | 每列 aggregate footer 请求；value 由 Runtime 生成                    |
-| `cardFields`          | unique Field-ID array            | `[]`                                   | Gallery/Kanban | Card 展示          | 有序 secondary card Field；Record Label 始终是 title                 |
-| `coverField`          | Field ID 或 `null`               | `null`                                 | Gallery/Kanban | Card 展示          | 作为 card cover 的 File Field                                        |
-| `coverFit`            | `cover\|contain`                 | `cover`                                | Gallery/Kanban | Card 展示          | semantic cover fitting hint                                          |
-| `cardSize`            | `small\|medium\|large`           | `medium`                               | Gallery/Kanban | Card 展示          | semantic card-size hint                                              |
-| `hideEmptyFields`     | boolean                          | `true`                                 | Gallery/Kanban | Card 展示          | configured secondary Field 的 logical value 为空时从该 card 省略     |
-| `groupField`          | Field ID 或 `null`               | `null`                                 | Kanban         | Kanban 功能 recipe | grouping Field；`null` 是 incomplete configuration                   |
-| `showEmptyGroups`     | boolean                          | `true`                                 | Kanban         | Kanban 展示/功能   | 展示从 grouping Field canonical option catalog 派生的 zero-row group |
+| Key                   | Type                             | Default                                | 适用 View      | 分类               | 含义                                                                    |
+| --------------------- | -------------------------------- | -------------------------------------- | -------------- | ------------------ | ----------------------------------------------------------------------- |
+| `fieldOrder`          | unique Field-ID array            | metadata Field position，再按 Field ID | 全部标准 View  | 通用展示           | 从前到后的 Field 顺序                                                   |
+| `hiddenFields`        | unique Field-ID array            | `[]`                                   | 全部标准 View  | 通用展示           | 从 View 省略的普通 Field，不是删除                                      |
+| `visibleSystemFields` | unique Field-ID array            | `[]`                                   | 全部标准 View  | 通用展示           | 在当前 View 明确展示的 optional hidden system Field                     |
+| `fieldWidths`         | Field-ID → number map            | `{}`；缺失 entry 为 `1`                | Grid           | Grid 展示          | dimensionless preferred relative width，范围 `0.25..8`                  |
+| `rowDensity`          | `compact\|standard\|comfortable` | `standard`                             | Grid           | Grid 展示          | semantic row-density hint                                               |
+| `freezeColumns`       | non-negative integer             | `1`                                    | Grid           | Grid 展示          | 冻结 leading visible Field 的数量，并按 visible count clamp             |
+| `columnStats`         | Field-ID → `{type}` map          | `{}`                                   | Grid           | Grid 功能 recipe   | 每列 aggregate footer 请求；value 由 Runtime 生成                       |
+| `cardFields`          | unique Field-ID array            | `[]`                                   | Gallery/Kanban | Card 展示          | 有序 secondary card Field；Record Label 始终是 title                    |
+| `coverField`          | Field ID 或 `null`               | `null`                                 | Gallery/Kanban | Card 展示          | 作为 card cover 的 File Field 或 image-display URL-capable scalar Field |
+| `coverFit`            | `cover\|contain`                 | `cover`                                | Gallery/Kanban | Card 展示          | semantic cover fitting hint                                             |
+| `cardSize`            | `small\|medium\|large`           | `medium`                               | Gallery/Kanban | Card 展示          | semantic card-size hint                                                 |
+| `hideEmptyFields`     | boolean                          | `true`                                 | Gallery/Kanban | Card 展示          | configured secondary Field 的 logical value 为空时从该 card 省略        |
+| `groupField`          | Field ID 或 `null`               | `null`                                 | Kanban         | Kanban 功能 recipe | grouping Field；`null` 是 incomplete configuration                      |
+| `showEmptyGroups`     | boolean                          | `true`                                 | Kanban         | Kanban 展示/功能   | 展示从 grouping Field canonical option catalog 派生的 zero-row group    |
 
 `columnStats[*].type` 只能是 `count-all`、`count-non-null`、
 `count-distinct`、`count-empty`、`percent-checked`、`percent-unchecked`、
@@ -1070,9 +1097,14 @@ advisory diagnostic。
 
 Grid 按 `fieldOrder` 展示 visible Field，再按 metadata order 追加剩余 visible Field。
 Gallery/Kanban 用 Table Record Label 作为 card title，`cardFields` 是 secondary
-content；同时存在于 `hiddenFields` 的 `cardFields` member 必须省略。`coverField`
-missing、hidden、非 File、logical null、empty、denied 或 unresolved 时
-只显示 non-persisted placeholder。`groupField:null` 的 Kanban 必须显示 accessible
+content；同时存在于 `hiddenFields` 的 `cardFields` member 必须省略。File Field，或
+Field settings 声明 `display.kind="image"` 的 scalar URL Field / scalar URL
+Formula/Lookup result，可以作为 `coverField`。`coverField` missing、hidden、
+不符合上述条件、logical null、empty、denied 或 unresolved 时只显示 non-persisted
+placeholder。符合条件的 URL cover 必须遵循第 9 节 image-display URL Field 的
+Host-only resolution、bounded rendered-window loading、decoded-image cache、failure
+fallback 和 canonical-value 规则；选择它绝不能把 URL value 转换为 File entry。
+`groupField:null` 的 Kanban 必须显示 accessible
 configuration-required state，不能虚构 Field；Field 不能 group 时结合 Runtime
 diagnostic 显示同一状态。
 
@@ -1297,25 +1329,26 @@ Editability 由 Runtime `ColumnDescriptor.writable`、Field role 和 negotiated 
 capability 决定。UI 不得从 `valueType` 或 `source` 推断 write permission。
 `writable:false` 表示不能 cell commit；仍可以 filter、sort、copy、display。
 
-| Field/role                         | Presentation                                       | Cell editability                                                                    |
-| ---------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Text、URL                          | scalar text；URL 在 explicit activation 前 inert   | editable stored value                                                               |
-| Number                             | localized finite number，并提供 raw-copy path      | editable stored value                                                               |
-| Integer                            | lossless decimal input；可 localized display       | editable stored value                                                               |
-| Integer 且 `display.kind="rating"` | rating affordance 加 accessible numeric value      | editable Integer；display min/max 只引导 input，不得 clamp existing value           |
-| Checkbox                           | nullable 时 tri-state                              | editable stored value                                                               |
-| Date                               | 无 timezone 的 calendar date                       | editable stored value                                                               |
-| Datetime                           | localized instant，并明确 display timezone         | editable stored value                                                               |
-| JSON                               | structured 或 textual JSON editor                  | Runtime validation 后 editable                                                      |
-| Select                             | raw option name 加 catalog color/label decoration  | editable；unconfigured raw name 仍可展示/选择                                       |
-| Multi-select                       | ordered raw option-name chips                      | editable；保留 order                                                                |
-| File                               | image preview，再 type icon，再 inert URI fallback | 只能通过 `acquireAsset` 后 Runtime mutation 编辑                                    |
-| forward Relation                   | ordered target Row ID 加 separate resolved label   | 通过 paged target selector 编辑                                                     |
-| inverse Relation                   | generated source Row ID                            | read-only                                                                           |
-| Formula                            | generated declared result                          | read-only；definition 属 Schema UI                                                  |
-| Lookup                             | generated scalar/list                              | read-only；definition 属 Schema UI                                                  |
-| Row ID、created time、updated time | system value                                       | read-only                                                                           |
-| unknown optional Field kind        | typed/raw fallback 加 diagnostic                   | read-only；除非 registered isolated renderer 获得 explicit scoped writer capability |
+| Field/role                         | Presentation                                       | Cell editability                                                                            |
+| ---------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Text、URL                          | scalar text；合格 URL 是经 policy-check 的 link    | editable stored value                                                                       |
+| URL 且 `display.kind="image"`      | Host-leased image，再 inert URL fallback           | editable URL；presentation 不重写 value                                                     |
+| Number                             | localized finite number，并提供 raw-copy path      | editable stored value                                                                       |
+| Integer                            | lossless decimal input；可 localized display       | editable stored value                                                                       |
+| Integer 且 `display.kind="rating"` | rating affordance 加 accessible numeric value      | editable Integer；display min/max 只引导 input，不得 clamp existing value                   |
+| Checkbox                           | nullable 时 tri-state                              | editable stored value                                                                       |
+| Date                               | 无 timezone 的 calendar date                       | editable stored value                                                                       |
+| Datetime                           | localized instant，并明确 display timezone         | editable stored value                                                                       |
+| JSON                               | structured 或 textual JSON editor                  | Runtime validation 后 editable                                                              |
+| Select                             | raw option name 加 catalog color/label decoration  | editable；unconfigured raw name 仍可展示/选择                                               |
+| Multi-select                       | ordered raw option-name chips                      | editable；保留 order                                                                        |
+| File                               | image preview，再 type icon，再 inert URI fallback | 只能通过 Host acquisition（`acquireAsset` 或 `acquireRemoteAsset`）后 Runtime mutation 编辑 |
+| forward Relation                   | ordered target Row ID 加 separate resolved label   | 通过 paged target selector 编辑                                                             |
+| inverse Relation                   | generated source Row ID                            | read-only                                                                                   |
+| Formula                            | generated declared result                          | read-only；definition 属 Schema UI                                                          |
+| Lookup                             | generated scalar/list                              | read-only；definition 属 Schema UI                                                          |
+| Row ID、created time、updated time | system value                                       | read-only                                                                                   |
+| unknown optional Field kind        | typed/raw fallback 加 diagnostic                   | read-only；除非 registered isolated renderer 获得 explicit scoped writer capability         |
 
 Table 当前 Record Label Field 在所有场合提供 row title，包括 Relation selector。
 不能假设存在 `Title` 或 `Name` Field。切换 Record Label role 是 schema operation。
@@ -1351,8 +1384,40 @@ timezone identifier，并在 editor 附近清楚暴露。DST overlap/gap input �
 unambiguous instant 或 offset；提交值遵守 Runtime canonical UTC binding。Locale 与
 timezone 是 UI state，除非 extension 明确定义 canonical setting。
 
-普通 URL Field 保持 inert，不得只因 cell visible 就 fetch。File presentation 使用以下
-deterministic ladder：
+在标准文本展示中，不包含 user information 的非空 absolute `http:` 或 `https:` URL
+可以激活。Grid 必须用 link affordance 展示合格 value，包括 link color，以及 pointer
+hover 到文字时的下划线；在已渲染文字上 primary click 必须直接 dispatch 到 embedding
+Host 的 URL activator，不得先打开 cell editor。点击文字之外的区域仍执行普通 Grid
+selection；编辑继续使用 Grid 的显式 edit gesture。以 URL 展示的 scalar URL
+Formula/Lookup result 也遵守该规则，但 value 仍为只读。
+
+激活时 UI 传递 exact raw value，不得 fetch、probe、normalize 或写回。Embedding Host
+必须独立验证 destination，并可以执行更严格的 navigation policy。Relative value、
+不支持的 scheme、credential-bearing value、malformed value、超过 negotiated UI bound
+的 value，或者 Host activator 缺失时，均保持 inert 且可 copy。Activation failure 只
+报告错误，不改变 value。Desktop Host 通过 privileged external navigation boundary
+打开合格 destination，不依赖 renderer `window.open`。
+
+普通 URL Field 对 network fetch 保持 inert，不得只因 cell visible 就 fetch。Field
+settings 声明 `display.kind="image"` 的 scalar URL Field 或 scalar URL
+Formula/Lookup result，只有在
+value 是 non-empty absolute `https:`、cell 位于 bounded rendered window、Host 声明
+`https` 并实现 optional `resolveUrlImage` 且当前 policy 允许时，才可请求图片。Grid 与
+image-capable card surface 使用 `AssetPresenter.loadImage`，对相同 URL 去重、限制并发、
+取消 stale generation，并在 decode 或 eviction 后 release lease。release lease 后，UI 应在 session-scoped、以 exact URL 为 key
+的 bounded memory cache 中保留近期 decoded image，避免 row 离开再进入 rendered window 时
+重新发起 network request。该 cache 必须同时限制 entry count 与 estimated decoded bytes，
+使用 LRU 等 bounded eviction，并在 Host session 或 authorization context 结束时清空；不得
+成为 canonical state、cross-session/cross-authorization cache 或 persistent storage。URL 仍是 editable/copyable/exported value；empty、non-HTTPS、
+denied、unsupported、failed 或 unavailable 时 fallback 为 inert text，绝不 mutation。
+Record Label 与 Relation label 始终使用 text fallback，不触发该 image flow。
+
+CSV import 可以基于 bounded header name 与 URL syntax 建议该 setting，但 planning/import
+期间不得 fetch 或 probe image。该 setting 是 Field-wide default，因此 Grid 与其他
+image-capable surface 共享；View layout 继续拥有 dimension、visibility、card cover 与 fit。
+持久 setting 不授予 Host network authority。
+
+File presentation 使用以下 deterministic ladder：
 
 1. entry declared `mediaType` 为 `image/*` 时，UI 应在 item 处于 rendered surface
    期间请求 `thumbnail` lease，并通过 injected `AssetPresenter` 把返回资源渲染为 image。
@@ -1686,6 +1751,13 @@ presentation URL 的 default identity resolver。
 在 sparse Runtime mutation 中原样提交，只能 reorder/remove 整个 entry；不得
 manufacture/rewrite `uri`、`size`、`mediaType` 或 asset ID。Row mutation 失败也不
 授权 UI 删除 acquired asset；cleanup 属 Host policy。
+
+当 optional `acquireRemoteAsset` 存在且 `assetWriteSchemes` 包含 `https` 时，可编辑
+File surface 应提供显式“从 URL 添加”操作。该操作接收一个 absolute HTTPS URI 和
+optional display filename，再将两者提交给 Host。普通 paste、CSV import、render、scroll
+以及打开 File editor 都不得隐式调用该操作。Host 返回由 Runtime 分配的 `FileEntry`；
+UI 对它执行与 `acquireAsset` 相同的 unchanged-object 与 failed-mutation 规则。缺少该
+operation 或 capability 时隐藏或禁用入口，但不会使已有 HTTPS File entry 失效。
 
 Asset preview 是 untrusted content。HTML、带 active feature 的 SVG、PDF、office
 document、media metadata 必须按 Host isolation/download policy render。Preview

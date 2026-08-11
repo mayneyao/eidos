@@ -741,6 +741,14 @@ change the Integer raw domain or make an otherwise valid stored int64 invalid.
 Validation rules that constrain raw data, when desired by a future feature,
 are not display settings.
 
+An image URL is likewise not a Field type. A URL Field MAY declare the
+presentation setting `{ "display": { "kind": "image" } }`. The setting says
+that image-capable UI surfaces should request a Host-authorized thumbnail for
+an eligible absolute `https:` value. It does not change the URL raw domain,
+grant network authority, create a File entry, or add remote bytes to canonical
+File state. Unknown members of `display` are preserved like other Field
+settings.
+
 `number` and `integer` are distinct because not every signed int64 is exactly
 representable as binary64. A Number raw value MUST be finite; negative zero is
 normalized to positive zero before storage. An Integer raw
@@ -905,6 +913,10 @@ image bytes are embedded once in the canonical `uri` string and MUST NOT also
 be copied elsewhere in the File. File existence, authorization, upload,
 download, resolution, preview generation, and external-asset garbage
 collection belong to Eidos Adapter 1.0. Rendering belongs to Eidos UI 1.0.
+For an `https:` entry, `name`, `mediaType`, and `size` describe the bytes the
+Host verified when the entry was acquired. A later remote change or outage
+makes resolution unavailable or conflicting; it does not authorize silently
+rewriting the canonical entry.
 
 ### 8.4 Stored type changes
 

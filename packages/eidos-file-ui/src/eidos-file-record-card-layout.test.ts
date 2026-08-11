@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest"
 import {
   createEidosFileRecordCardLayout,
   eidosFileRecordCardPageProjection,
+  isEidosFileRecordCoverField,
   selectEidosFileRecordCardFields,
   type EidosFileRecordCardFieldLayout,
   type EidosFileRecordCardLayout,
@@ -136,6 +137,36 @@ describe("selectEidosFileRecordCardFields", () => {
 })
 
 describe("createEidosFileRecordCardLayout", () => {
+  it("accepts File and field-level image URL covers only", () => {
+    const base = recordField(1).field
+    expect(
+      isEidosFileRecordCoverField({
+        ...base,
+        type: "file",
+        storageCodec: "json_array",
+      })
+    ).toBe(true)
+    expect(
+      isEidosFileRecordCoverField({
+        ...base,
+        type: "url",
+        property: { display: { kind: "image" } },
+      })
+    ).toBe(true)
+    expect(
+      isEidosFileRecordCoverField({
+        ...base,
+        type: "formula",
+        property: { displayType: "url", display: { kind: "image" } },
+        valueKind: "derived",
+        isDerived: true,
+      })
+    ).toBe(true)
+    expect(
+      isEidosFileRecordCoverField({ ...base, type: "url", property: null })
+    ).toBe(false)
+  })
+
   it("uses explicit cardFields order and canonical coverFit", () => {
     const first = recordField(1).field
     const second = recordField(2).field

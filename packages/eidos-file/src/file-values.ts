@@ -18,6 +18,34 @@ const encoder = new TextEncoder()
 
 export type EidosFileUriClass = "relative" | "https" | "data"
 
+function hasHttpsAuthorityWithoutUrl(uri: string): boolean {
+  const authorityAndRest = uri.slice("https://".length)
+  const authorityEnd = authorityAndRest.search(/[/?#]/u)
+  const authority =
+    authorityEnd < 0
+      ? authorityAndRest
+      : authorityAndRest.slice(0, authorityEnd)
+  if (authority.length === 0) return false
+
+  const hostAndPort = authority.slice(authority.lastIndexOf("@") + 1)
+  if (hostAndPort.length === 0) return false
+  if (hostAndPort.startsWith("[")) {
+    const closingBracket = hostAndPort.indexOf("]")
+    if (closingBracket <= 1) return false
+    const suffix = hostAndPort.slice(closingBracket + 1)
+    return suffix === "" || /^:[0-9]+$/u.test(suffix)
+  }
+
+  const separator = hostAndPort.lastIndexOf(":")
+  const host = separator < 0 ? hostAndPort : hostAndPort.slice(0, separator)
+  const port = separator < 0 ? "" : hostAndPort.slice(separator + 1)
+  return (
+    host.length > 0 &&
+    !host.includes(":") &&
+    (separator < 0 || /^[0-9]+$/u.test(port))
+  )
+}
+
 function isEidosFileMediaType(value: string): boolean {
   const separator = value.indexOf("/")
   return (
@@ -111,11 +139,13 @@ function isContainedRelativeUri(uri: string): boolean {
 export function eidosFileUriClass(uri: string): EidosFileUriClass | null {
   if (uri.startsWith("data:")) return inlineImageDataUrl(uri) ? "data" : null
   if (/^https:\/\//iu.test(uri)) {
+    if (!URI_REFERENCE_ASCII.test(uri)) return null
+    if (typeof URL === "undefined") {
+      return hasHttpsAuthorityWithoutUrl(uri) ? "https" : null
+    }
     try {
       const parsed = new URL(uri)
-      return URI_REFERENCE_ASCII.test(uri) &&
-        parsed.protocol === "https:" &&
-        parsed.hostname.length > 0
+      return parsed.protocol === "https:" && parsed.hostname.length > 0
         ? "https"
         : null
     } catch {

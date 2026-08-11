@@ -6,6 +6,7 @@ import type {
   EidosFileDataSource,
   EidosFileSnapshot,
   FileEntry,
+  UrlImageLease,
 } from "@eidos.space/eidos-file"
 
 import type { EidosLiteServiceEnvironment } from "./service-environment"
@@ -39,6 +40,7 @@ export const IPC_CHANNELS = {
   diagnostics: "eidos-lite:diagnostics-get",
   copyDiagnostics: "eidos-lite:diagnostics-copy",
   clipboardReadText: "eidos-lite:clipboard-read-text",
+  openExternalUrl: "eidos-lite:url-open-external",
   openSpace: "eidos-lite:space-open",
   newSpace: "eidos-lite:space-new",
   recentSpaces: "eidos-lite:space-recents",
@@ -69,7 +71,9 @@ export const IPC_CHANNELS = {
   selectEidosFileAssets: "eidos-lite:eidos-file-assets-select",
   importEidosFileAssets: "eidos-lite:eidos-file-assets-import",
   importEidosFileAssetData: "eidos-lite:eidos-file-assets-import-data",
+  acquireRemoteEidosFileAsset: "eidos-lite:eidos-file-remote-asset-acquire",
   resolveEidosFileAsset: "eidos-lite:eidos-file-asset-resolve",
+  resolveEidosFileUrlImage: "eidos-lite:eidos-file-url-image-resolve",
   releaseEidosFileAsset: "eidos-lite:eidos-file-asset-release",
   activateEidosFileAsset: "eidos-lite:eidos-file-asset-activate",
   selectCsv: "eidos-lite:csv-select",
@@ -814,7 +818,23 @@ export interface EidosLiteAssetResolution {
   bytes?: Uint8Array
 }
 
+export interface EidosLiteUrlImageResolution {
+  lease: UrlImageLease
+  bytes: Uint8Array
+}
+
 interface RuntimeCustomCalls {
+  allocateFileEntry: {
+    args: [
+      request: {
+        name: string
+        mediaType: string
+        size: string
+        uri: string
+      },
+    ]
+    result: FileEntry
+  }
   findFileEntry: {
     args: [entryId: string]
     result: FileEntry | null
@@ -873,6 +893,7 @@ interface RuntimeCustomCalls {
 
 export const RUNTIME_READ_METHODS = [
   "getSnapshot",
+  "allocateFileEntry",
   "findFileEntry",
   "getPage",
   "getRow",
@@ -999,6 +1020,7 @@ export interface EidosLiteApi {
   getDiagnostics(): Promise<EidosLiteDiagnostics>
   copyDiagnostics(): Promise<EidosLiteDiagnostics>
   readClipboardText(): Promise<string>
+  openExternalUrl(uri: string): Promise<void>
   openSpace(): Promise<SpaceSnapshot | null>
   newSpace(): Promise<SpaceSnapshot | null>
   listRecentSpaces(): Promise<RecentSpaceEntry[]>
@@ -1053,11 +1075,21 @@ export interface EidosLiteApi {
     sessionId: string,
     files: readonly File[]
   ): Promise<FileEntry[]>
+  acquireRemoteEidosFileAsset(
+    sessionId: string,
+    uri: string,
+    name?: string
+  ): Promise<FileEntry>
   resolveEidosFileAsset(
     sessionId: string,
     entryId: string,
     purpose: AssetLease["purpose"]
   ): Promise<EidosLiteAssetResolution>
+  resolveEidosFileUrlImage(
+    sessionId: string,
+    uri: string,
+    purpose: UrlImageLease["purpose"]
+  ): Promise<EidosLiteUrlImageResolution>
   releaseEidosFileAsset(sessionId: string, leaseId: string): Promise<void>
   activateEidosFileAsset(
     sessionId: string,

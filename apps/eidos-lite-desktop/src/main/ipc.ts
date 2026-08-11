@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron"
-import type { AssetLease } from "@eidos.space/eidos-file"
+import type { AssetLease, UrlImageLease } from "@eidos.space/eidos-file"
 
 import {
   EIDOS_LITE_CSV_EXPORT_BYTES_MAX,
@@ -25,6 +25,7 @@ import {
 } from "../shared/contracts"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
 import { isEidosLiteKeyboardShortcuts } from "../shared/keyboard-shortcuts"
+import { requiredEidosLiteExternalUrl } from "../shared/external-url"
 import { eidosLiteLogger, logCorrelationKey } from "./logging"
 import type { EidosLiteUpdater } from "./updater"
 import {
@@ -58,12 +59,28 @@ interface RegisteredCsvSource extends EidosLiteCsvSelection {
   expiresAtMs: number
 }
 
-interface RegisteredAssetLease {
+interface RegisteredAssetLeaseBase {
   ownerId: number
   sessionId: string
-  absolutePath: string
-  identity: EidosFileAssetIdentity
   lease: AssetLease
+  expiresAtMs: number
+}
+
+type RegisteredAssetLease =
+  | (RegisteredAssetLeaseBase & {
+      kind: "local"
+      absolutePath: string
+      identity: EidosFileAssetIdentity
+    })
+  | (RegisteredAssetLeaseBase & {
+      kind: "network"
+      bytes: Uint8Array
+    })
+
+interface RegisteredUrlImageLease {
+  ownerId: number
+  sessionId: string
+  lease: UrlImageLease
   expiresAtMs: number
 }
 
@@ -182,6 +199,13 @@ function requiredAssetPurpose(
   return value
 }
 
+function requiredUrlImagePurpose(value: unknown): "thumbnail" | "preview" {
+  if (value !== "thumbnail" && value !== "preview") {
+    throw new Error("Invalid network image purpose")
+  }
+  return value
+}
+
 function preferencesPatch(value: unknown): Partial<EidosLitePreferences> {
   if (typeof value !== "object" || value === null) {
     throw new Error("Invalid preferences")
@@ -278,6 +302,7 @@ export function registerIpc(
   const csvSourcesBySender = new Map<number, Map<string, RegisteredCsvSource>>()
   const csvSourceCleanupSenders = new Set<number>()
   const assetLeases = new Map<string, RegisteredAssetLease>()
+  const urlImageLeases = new Map<string, RegisteredUrlImageLease>()
   const assetLeaseCleanupSenders = new Set<number>()
   const releaseAssetLeases = (ownerId: number, sessionId?: string) => {
     for (const [leaseId, record] of assetLeases) {
@@ -286,6 +311,14 @@ export function registerIpc(
         (sessionId === undefined || record.sessionId === sessionId)
       ) {
         assetLeases.delete(leaseId)
+      }
+    }
+    for (const [leaseId, record] of urlImageLeases) {
+      if (
+        record.ownerId === ownerId &&
+        (sessionId === undefined || record.sessionId === sessionId)
+      ) {
+        urlImageLeases.delete(leaseId)
       }
     }
   }
@@ -319,6 +352,9 @@ export function registerIpc(
   const assertAssetLeaseFileUnchanged = async (
     record: RegisteredAssetLease
   ) => {
+    if (record.kind !== "local") {
+      throw new Error("Network attachment has no local file identity")
+    }
     const [stats, realPath] = await Promise.all([
       fs.lstat(record.absolutePath),
       fs.realpath(record.absolutePath),
@@ -441,6 +477,13 @@ export function registerIpc(
   ipcMain.handle(IPC_CHANNELS.updateDownload, () => updater.download())
   ipcMain.handle(IPC_CHANNELS.updateInstall, () => updater.restartToInstall())
   ipcMain.handle(IPC_CHANNELS.clipboardReadText, () => clipboard.readText())
+  ipcMain.handle(
+    IPC_CHANNELS.openExternalUrl,
+    async (event, value: unknown) => {
+      controller.requireSession(event.sender)
+      await shell.openExternal(requiredEidosLiteExternalUrl(value))
+    }
+  )
   ipcMain.handle(IPC_CHANNELS.preferencesChooseSpaceLocation, (event) =>
     controller.chooseDefaultSpaceLocation(event.sender)
   )
@@ -659,6 +702,26 @@ export function registerIpc(
         )
   )
   ipcMain.handle(
+    IPC_CHANNELS.acquireRemoteEidosFileAsset,
+    (event, sessionValue: unknown, uriValue: unknown, nameValue: unknown) => {
+      const sessionId = requiredString(sessionValue, "Eidos File session")
+      const uri = requiredString(uriValue, "remote file URL").trim()
+      if (!uri || uri.length > 8_192) {
+        throw new Error("Remote file URL is invalid or too long")
+      }
+      const name =
+        nameValue === undefined
+          ? undefined
+          : requiredString(nameValue, "remote file name").trim()
+      if (name !== undefined && (!name || name.length > 1_024)) {
+        throw new Error("Remote file name is invalid or too long")
+      }
+      return controller
+        .requireSession(event.sender)
+        .acquireRemoteEidosFileAsset(sessionId, uri, name)
+    }
+  )
+  ipcMain.handle(
     IPC_CHANNELS.resolveEidosFileAsset,
     async (
       event,
@@ -669,7 +732,10 @@ export function registerIpc(
       const sessionId = requiredString(sessionValue, "Eidos File session")
       const entryId = requiredString(entryValue, "File entry")
       const purpose = requiredAssetPurpose(purposeValue)
-      const activeCount = [...assetLeases.values()].filter(
+      const activeCount = [
+        ...assetLeases.values(),
+        ...urlImageLeases.values(),
+      ].filter(
         (record) =>
           record.ownerId === event.sender.id &&
           record.sessionId === sessionId &&
@@ -693,19 +759,79 @@ export function registerIpc(
         expiresAt: new Date(expiresAtMs).toISOString(),
         resourceToken: `eidos-lite-resource-${randomUUID()}`,
       }
-      assetLeases.set(leaseId, {
-        ownerId: event.sender.id,
-        sessionId,
-        absolutePath: resolved.absolutePath,
-        identity: resolved.identity,
-        lease,
-        expiresAtMs,
-      })
+      assetLeases.set(
+        leaseId,
+        resolved.kind === "local"
+          ? {
+              kind: "local",
+              ownerId: event.sender.id,
+              sessionId,
+              absolutePath: resolved.absolutePath,
+              identity: resolved.identity,
+              lease,
+              expiresAtMs,
+            }
+          : {
+              kind: "network",
+              ownerId: event.sender.id,
+              sessionId,
+              bytes: resolved.bytes,
+              lease,
+              expiresAtMs,
+            }
+      )
       attachAssetLeaseCleanup(event.sender)
       return {
         lease,
         ...(resolved.bytes ? { bytes: resolved.bytes } : {}),
       }
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.resolveEidosFileUrlImage,
+    async (
+      event,
+      sessionValue: unknown,
+      uriValue: unknown,
+      purposeValue: unknown
+    ) => {
+      const sessionId = requiredString(sessionValue, "Eidos File session")
+      const uri = requiredString(uriValue, "network image URL")
+      if (uri.length > 8_192) throw new Error("Network image URL is too long")
+      const purpose = requiredUrlImagePurpose(purposeValue)
+      const activeCount = [
+        ...assetLeases.values(),
+        ...urlImageLeases.values(),
+      ].filter(
+        (record) =>
+          record.ownerId === event.sender.id &&
+          record.sessionId === sessionId &&
+          record.expiresAtMs > Date.now()
+      ).length
+      if (activeCount >= ASSET_LEASES_PER_SESSION_MAX) {
+        throw new Error("Concurrent image preview limit reached")
+      }
+      const resolved = await controller
+        .requireSession(event.sender)
+        .resolveEidosFileUrlImage(sessionId, uri, purpose)
+      const leaseId = `eidos-lite-url-image-${randomUUID()}`
+      const expiresAtMs = Date.now() + ASSET_LEASE_TTL_MS
+      const lease: UrlImageLease = {
+        leaseId,
+        purpose,
+        mediaType: resolved.mediaType,
+        size: String(resolved.size),
+        expiresAt: new Date(expiresAtMs).toISOString(),
+        resourceToken: `eidos-lite-url-image-resource-${randomUUID()}`,
+      }
+      urlImageLeases.set(leaseId, {
+        ownerId: event.sender.id,
+        sessionId,
+        lease,
+        expiresAtMs,
+      })
+      attachAssetLeaseCleanup(event.sender)
+      return { lease, bytes: resolved.bytes }
     }
   )
   ipcMain.handle(
@@ -719,6 +845,13 @@ export function registerIpc(
         record.sessionId === sessionId
       ) {
         assetLeases.delete(leaseId)
+      }
+      const urlImageRecord = urlImageLeases.get(leaseId)
+      if (
+        urlImageRecord?.ownerId === event.sender.id &&
+        urlImageRecord.sessionId === sessionId
+      ) {
+        urlImageLeases.delete(leaseId)
       }
     }
   )
@@ -736,7 +869,9 @@ export function registerIpc(
         throw new Error("Invalid attachment action")
       }
       const record = requireAssetLease(event.sender, sessionId, leaseId)
-      await assertAssetLeaseFileUnchanged(record)
+      if (record.kind === "local") {
+        await assertAssetLeaseFileUnchanged(record)
+      }
       if (
         (actionValue === "open" && record.lease.purpose !== "preview") ||
         (actionValue === "download" && record.lease.purpose !== "download")
@@ -744,6 +879,9 @@ export function registerIpc(
         throw new Error("Attachment lease purpose does not allow this action")
       }
       if (actionValue === "open") {
+        if (record.kind !== "local") {
+          throw new Error("Network attachments cannot be opened as local files")
+        }
         const failure = await shell.openPath(record.absolutePath)
         if (failure) throw new Error(failure)
         return
@@ -759,7 +897,11 @@ export function registerIpc(
         ? await dialog.showSaveDialog(parent, options)
         : await dialog.showSaveDialog(options)
       if (!selected.canceled && selected.filePath) {
-        await fs.copyFile(record.absolutePath, selected.filePath)
+        if (record.kind === "local") {
+          await fs.copyFile(record.absolutePath, selected.filePath)
+        } else {
+          await fs.writeFile(selected.filePath, record.bytes)
+        }
       }
     }
   )

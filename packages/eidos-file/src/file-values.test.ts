@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   assertEidosFileValues,
@@ -29,6 +29,8 @@ function entry(
 }
 
 describe("Eidos File field values", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
   it("stores portable File objects with stable UUIDv7 identities", () => {
     const encoded = encodeEidosFileAttachmentPaths([
       "assets/roadmap, final.pdf",
@@ -83,6 +85,19 @@ describe("Eidos File field values", () => {
     expect(eidosFileUriClass("file:///tmp/cover.png")).toBeNull()
     expect(eidosFileUriClass("assets/%2e%2e/%2e%2e/secret.png")).toBeNull()
     expect(eidosFileUriClass("data:text/plain;base64,AA==")).toBeNull()
+  })
+
+  it("validates HTTPS File URIs when the QuickJS host has no URL global", () => {
+    vi.stubGlobal("URL", undefined)
+
+    expect(eidosFileUriClass("https://www.w3.org/Icons/w3c_home.png")).toBe(
+      "https"
+    )
+    expect(eidosFileUriClass("HTTPS://user@example.com:443/a.png")).toBe(
+      "https"
+    )
+    expect(eidosFileUriClass("https:///missing-host.png")).toBeNull()
+    expect(eidosFileUriClass("https://:443/missing-host.png")).toBeNull()
   })
 
   it("enforces RFC 6838 restricted media-type names", () => {

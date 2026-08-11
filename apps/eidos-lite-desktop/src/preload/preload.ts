@@ -49,6 +49,8 @@ const api: EidosLiteApi = {
   getDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.diagnostics),
   copyDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.copyDiagnostics),
   readClipboardText: () => ipcRenderer.invoke(IPC_CHANNELS.clipboardReadText),
+  openExternalUrl: (uri) =>
+    ipcRenderer.invoke(IPC_CHANNELS.openExternalUrl, uri),
   openSpace: () => ipcRenderer.invoke(IPC_CHANNELS.openSpace),
   newSpace: () => ipcRenderer.invoke(IPC_CHANNELS.newSpace),
   listRecentSpaces: () => ipcRenderer.invoke(IPC_CHANNELS.recentSpaces),
@@ -156,11 +158,25 @@ const api: EidosLiteApi = {
     })
     return importedByIndex.filter((entry): entry is FileEntry => entry !== null)
   },
+  acquireRemoteEidosFileAsset: (sessionId, uri, name) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.acquireRemoteEidosFileAsset,
+      sessionId,
+      uri,
+      name
+    ),
   resolveEidosFileAsset: (sessionId, entryId, purpose) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.resolveEidosFileAsset,
       sessionId,
       entryId,
+      purpose
+    ),
+  resolveEidosFileUrlImage: (sessionId, uri, purpose) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.resolveEidosFileUrlImage,
+      sessionId,
+      uri,
       purpose
     ),
   releaseEidosFileAsset: (sessionId, leaseId) =>

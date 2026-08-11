@@ -6,6 +6,7 @@ import type {
   HostServiceCapabilities,
   HostServices,
   HostSessionState,
+  UrlImageLease,
 } from "@eidos.space/eidos-file"
 import type {
   AssetPresenter,
@@ -24,7 +25,7 @@ function releaseObjectUrl(leaseId: string): void {
   if (objectUrl) URL.revokeObjectURL(objectUrl)
 }
 
-function objectUrl(lease: AssetLease): string {
+function objectUrl(lease: AssetLease | UrlImageLease): string {
   const value = objectUrlsByResource.get(lease.resourceToken)
   if (!value) throw new Error("Attachment preview resource is unavailable")
   return value
@@ -46,8 +47,8 @@ const HOST_CAPABILITIES: HostCapabilities = {
   canSaveCopy: false,
   canRequestPermission: false,
   hasRecovery: false,
-  assetReadSchemes: ["relative"],
-  assetWriteSchemes: ["relative"],
+  assetReadSchemes: ["https", "relative"],
+  assetWriteSchemes: ["https", "relative"],
   casGuarantee: "cooperative",
   atomicReplace: true,
   durability: "best-effort",
@@ -77,6 +78,21 @@ export function createEidosLiteAssetSession(
     fileId,
   }
   const services = {
+    async acquireRemoteAsset(request: {
+      sessionId: string
+      uri: string
+      name?: string
+    }) {
+      if (request.sessionId !== sessionId) {
+        throw new Error("Attachment session is no longer active")
+      }
+      const entry = await window.eidosLite.acquireRemoteEidosFileAsset(
+        sessionId,
+        request.uri,
+        request.name
+      )
+      return { entry }
+    },
     async resolveAsset(request: {
       sessionId: string
       entryId: string
@@ -91,17 +107,24 @@ export function createEidosLiteAssetSession(
         request.purpose
       )
       if (resolution.bytes) {
-        const blobBytes = new Uint8Array(resolution.bytes.byteLength)
-        blobBytes.set(resolution.bytes)
-        const url = URL.createObjectURL(
-          new Blob([blobBytes], { type: resolution.lease.mediaType })
-        )
-        objectUrlsByResource.set(resolution.lease.resourceToken, url)
-        resourcesByLease.set(
-          resolution.lease.leaseId,
-          resolution.lease.resourceToken
-        )
+        registerObjectUrl(resolution.lease, resolution.bytes)
       }
+      return resolution.lease
+    },
+    async resolveUrlImage(request: {
+      sessionId: string
+      uri: string
+      purpose: UrlImageLease["purpose"]
+    }) {
+      if (request.sessionId !== sessionId) {
+        throw new Error("Network image session is no longer active")
+      }
+      const resolution = await window.eidosLite.resolveEidosFileUrlImage(
+        sessionId,
+        request.uri,
+        request.purpose
+      )
+      registerObjectUrl(resolution.lease, resolution.bytes)
       return resolution.lease
     },
     async releaseAsset(request: { sessionId: string; leaseId: string }) {
@@ -111,6 +134,19 @@ export function createEidosLiteAssetSession(
     },
   } as unknown as HostServices
   return { services, serviceCapabilities: SERVICE_CAPABILITIES, state }
+}
+
+function registerObjectUrl(
+  lease: AssetLease | UrlImageLease,
+  bytes: Uint8Array
+): void {
+  const blobBytes = new Uint8Array(bytes.byteLength)
+  blobBytes.set(bytes)
+  const url = URL.createObjectURL(
+    new Blob([blobBytes], { type: lease.mediaType })
+  )
+  objectUrlsByResource.set(lease.resourceToken, url)
+  resourcesByLease.set(lease.leaseId, lease.resourceToken)
 }
 
 export const eidosLiteAssetPresenter: AssetPresenter<ReactNode> = {

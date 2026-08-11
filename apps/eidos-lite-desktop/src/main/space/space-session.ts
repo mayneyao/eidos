@@ -60,6 +60,12 @@ import {
   type ImportedEidosFileAssets,
   type ResolvedEidosFileAsset,
 } from "./eidos-file-attachments"
+import {
+  acquireEidosFileRemoteAsset,
+  resolveEidosFileRemoteAsset,
+  resolveEidosFileUrlImage,
+  type ResolvedEidosFileUrlImage,
+} from "./eidos-file-url-images"
 import { SpaceRepositoryCoordinator } from "./repository-coordinator"
 import {
   canonicalizeSpaceRoot,
@@ -779,12 +785,22 @@ export class SpaceSession {
     sessionId: string,
     imported: ImportedEidosFileAssets
   ): FileEntry[] {
+    this.trackPendingEidosFileAssets(sessionId, imported.entries)
+    this.noteLocalChange()
+    void this.refreshAndEmit()
+    return imported.entries
+  }
+
+  private trackPendingEidosFileAssets(
+    sessionId: string,
+    entries: readonly FileEntry[]
+  ): void {
     let pending = this.pendingEidosFileAssets.get(sessionId)
     if (!pending) {
       pending = new Map()
       this.pendingEidosFileAssets.set(sessionId, pending)
     }
-    for (const entry of imported.entries) {
+    for (const entry of entries) {
       while (
         !pending.has(entry.id) &&
         pending.size >= PENDING_EIDOS_FILE_ASSETS_PER_SESSION_MAX
@@ -795,9 +811,26 @@ export class SpaceSession {
       }
       pending.set(entry.id, entry)
     }
-    this.noteLocalChange()
-    void this.refreshAndEmit()
-    return imported.entries
+  }
+
+  async acquireRemoteEidosFileAsset(
+    sessionId: string,
+    uri: string,
+    requestedName?: string
+  ): Promise<FileEntry> {
+    this.assertRuntimeAvailable()
+    this.runtimePool.relativePathForSession(sessionId)
+    const inspected = await acquireEidosFileRemoteAsset(uri, requestedName)
+    const entry = await this.callRuntime(sessionId, "allocateFileEntry", [
+      {
+        name: inspected.name,
+        mediaType: inspected.mediaType,
+        size: String(inspected.size),
+        uri: inspected.uri,
+      },
+    ])
+    this.trackPendingEidosFileAssets(sessionId, [entry])
+    return entry
   }
 
   eidosFileAssetsPath(sessionId: string): Promise<string> {
@@ -836,6 +869,27 @@ export class SpaceSession {
       pending.delete(entryId)
       if (pending.size === 0) this.pendingEidosFileAssets.delete(sessionId)
     }
+    if (/^https:/iu.test(entry.uri)) {
+      const resolved = await resolveEidosFileRemoteAsset(
+        entry.uri,
+        entry.name,
+        purpose
+      )
+      if (resolved.mediaType !== entry.mediaType.toLowerCase()) {
+        throw new Error(
+          "Network attachment bytes do not match the File media type"
+        )
+      }
+      if (String(resolved.size) !== entry.size) {
+        throw new Error(
+          "Network attachment size no longer matches its File metadata"
+        )
+      }
+      return {
+        entry,
+        resolved: { kind: "network", bytes: resolved.bytes },
+      }
+    }
     return {
       entry,
       resolved: await resolveEidosFileAttachment(
@@ -845,6 +899,16 @@ export class SpaceSession {
         purpose
       ),
     }
+  }
+
+  async resolveEidosFileUrlImage(
+    sessionId: string,
+    uri: string,
+    purpose: "thumbnail" | "preview"
+  ): Promise<ResolvedEidosFileUrlImage> {
+    this.assertRuntimeAvailable()
+    this.runtimePool.relativePathForSession(sessionId)
+    return resolveEidosFileUrlImage(uri, purpose)
   }
 
   async enableVersioning(): Promise<SpaceSnapshot> {

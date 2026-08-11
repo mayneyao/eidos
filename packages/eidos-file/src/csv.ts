@@ -204,6 +204,38 @@ function inferType(values: string[]): EidosFileCsvFieldType {
   return "text"
 }
 
+const IMAGE_COLUMN_NAME =
+  /(?:^|[\s_-])(?:avatar|cover|image|img|logo|photo|picture|thumb|thumbnail)(?:$|[\s_-])/iu
+const IMAGE_PATH_SUFFIX = /\.(?:avif|bmp|gif|ico|jpe?g|png|webp)$/iu
+
+function imageUrlDisplaySettings(
+  sourceName: string,
+  values: string[],
+  type: EidosFileCsvFieldType
+): Record<string, unknown> | undefined {
+  if (type !== "url") return undefined
+  const populated = values.map((value) => value.trim()).filter(Boolean)
+  if (populated.length === 0) return undefined
+  const parsed = populated.flatMap((value) => {
+    try {
+      const url = new URL(value)
+      return url.protocol === "https:" && !url.username && !url.password
+        ? [url]
+        : []
+    } catch {
+      return []
+    }
+  })
+  if (parsed.length !== populated.length) return undefined
+  const imageNamed = IMAGE_COLUMN_NAME.test(sourceName.trim())
+  const imageSuffixed = parsed.every((url) =>
+    IMAGE_PATH_SUFFIX.test(url.pathname)
+  )
+  return imageNamed || imageSuffixed
+    ? { display: { kind: "image" } }
+    : undefined
+}
+
 function defaultTableName(fileName: string): string {
   const withoutExtension = fileName.replace(/\.[^.]+$/, "").trim()
   return withoutExtension || "Imported table"
@@ -225,16 +257,18 @@ function buildColumns(
         type: "record-label",
       }
     }
+    const values = rows
+      .slice(0, EIDOS_FILE_CSV_INFERENCE_ROW_COUNT)
+      .map((row) => row[sourceIndex] ?? "")
+    const type = inferType(values)
+    const settings = imageUrlDisplaySettings(sourceName, values, type)
     return {
       sourceIndex,
       sourceName,
       name,
       columnName: name,
-      type: inferType(
-        rows
-          .slice(0, EIDOS_FILE_CSV_INFERENCE_ROW_COUNT)
-          .map((row) => row[sourceIndex] ?? "")
-      ),
+      type,
+      ...(settings ? { settings } : {}),
     }
   })
 }
@@ -277,6 +311,7 @@ export function importEidosFileCsv(
         columnName: column.columnName,
         type: column.type === "record-label" ? "text" : column.type,
         isRecordLabel: column.type === "record-label",
+        ...(column.settings ? { property: column.settings } : {}),
       })),
     },
     rows
@@ -339,8 +374,10 @@ export function createEidosFileCsvImportPlan(
       }
       column.name = name
     }
-    if (column.type !== "record-label" && override.type)
+    if (column.type !== "record-label" && override.type) {
       column.type = override.type
+      if (override.type !== "url") delete column.settings
+    }
   }
   const tableName =
     options.tableName?.trim() || defaultTableName(source.fileName)

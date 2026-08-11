@@ -17,6 +17,26 @@ export interface EidosFileNumberProperty extends Record<string, unknown> {
   showNumber: boolean
 }
 
+export function eidosFileFieldDisplaysUrl(field: EidosFileFieldInfo): boolean {
+  return (
+    field.storageCodec === "scalar" &&
+    (field.type === "url" ||
+      ((field.type === "formula" || field.type === "lookup") &&
+        field.property?.displayType === "url"))
+  )
+}
+
+export function eidosFileUrlDisplaysImage(field: EidosFileFieldInfo): boolean {
+  const display = field.property?.display
+  return (
+    eidosFileFieldDisplaysUrl(field) &&
+    typeof display === "object" &&
+    display !== null &&
+    !Array.isArray(display) &&
+    (display as Record<string, unknown>).kind === "image"
+  )
+}
+
 export const DEFAULT_BASE_NUMBER_PROPERTY: EidosFileNumberProperty = {
   format: "number",
   showAs: "number",

@@ -353,6 +353,7 @@ export function EidosFileWorkbench({
     <EidosFileUIProvider
       locale={locale}
       themeName={theme}
+      activateUrl={window.eidosLite?.openExternalUrl}
       assetSession={assetSession}
       assetPresenter={eidosLiteAssetPresenter}
     >

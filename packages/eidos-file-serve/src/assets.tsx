@@ -6,6 +6,7 @@ import type {
   HostServiceCapabilities,
   HostServices,
   HostSessionState,
+  UrlImageLease,
 } from "@eidos.space/eidos-file"
 import type {
   AssetPresenter,
@@ -13,8 +14,10 @@ import type {
 } from "@eidos.space/eidos-file-ui/context"
 
 import {
+  acquireCliHostRemoteAsset,
   releaseCliHostAsset,
   resolveCliHostAsset,
+  resolveCliHostUrlImage,
   type CliHostAssetManifest,
 } from "./client"
 
@@ -29,16 +32,18 @@ const SERVICE_CAPABILITIES: HostServiceCapabilities = {
   canUseAssets: true,
 }
 
-const HOST_CAPABILITIES: HostCapabilities = {
-  canWriteCurrent: true,
-  canSaveCopy: false,
-  canRequestPermission: false,
-  hasRecovery: false,
-  assetReadSchemes: ["relative"],
-  assetWriteSchemes: ["relative"],
-  casGuarantee: "cooperative",
-  atomicReplace: true,
-  durability: "best-effort",
+function hostCapabilities(manifest: CliHostAssetManifest): HostCapabilities {
+  return {
+    canWriteCurrent: true,
+    canSaveCopy: false,
+    canRequestPermission: false,
+    hasRecovery: false,
+    assetReadSchemes: manifest.assetReadSchemes,
+    assetWriteSchemes: manifest.assetWriteSchemes,
+    casGuarantee: "cooperative",
+    atomicReplace: true,
+    durability: "best-effort",
+  }
 }
 
 function hostLimits(manifest: CliHostAssetManifest): HostLimits {
@@ -64,11 +69,23 @@ export function createCliHostAssetSession(
   const state: HostSessionState = {
     sessionId,
     phase: "ready-clean",
-    capabilities: HOST_CAPABILITIES,
+    capabilities: hostCapabilities(manifest),
     limits,
     fileId,
   }
   const services = {
+    async acquireRemoteAsset(request: {
+      sessionId: string
+      uri: string
+      name?: string
+    }) {
+      if (request.sessionId !== sessionId) {
+        throw new Error("Attachment session is no longer active")
+      }
+      return {
+        entry: await acquireCliHostRemoteAsset(request.uri, request.name),
+      }
+    },
     async resolveAsset(request: {
       sessionId: string
       entryId: string
@@ -78,6 +95,16 @@ export function createCliHostAssetSession(
         throw new Error("Attachment session is no longer active")
       }
       return resolveCliHostAsset(request.entryId, request.purpose)
+    },
+    async resolveUrlImage(request: {
+      sessionId: string
+      uri: string
+      purpose: UrlImageLease["purpose"]
+    }) {
+      if (request.sessionId !== sessionId) {
+        throw new Error("Network image session is no longer active")
+      }
+      return resolveCliHostUrlImage(request.uri, request.purpose)
     },
     async releaseAsset(request: { sessionId: string; leaseId: string }) {
       if (request.sessionId !== sessionId) return
@@ -97,6 +124,25 @@ function activateResource(lease: AssetLease, action: "open" | "download") {
     anchor.target = "_blank"
   }
   anchor.click()
+}
+
+function checkedExternalUrl(uri: string): string {
+  if (uri.length === 0 || uri.length > 8_192 || uri !== uri.trim()) {
+    throw new Error("Invalid external URL")
+  }
+  const url = new URL(uri)
+  if (
+    (url.protocol !== "https:" && url.protocol !== "http:") ||
+    url.username !== "" ||
+    url.password !== ""
+  ) {
+    throw new Error("External URLs require HTTP or HTTPS without credentials")
+  }
+  return uri
+}
+
+export function activateCliHostUrl(uri: string): void {
+  window.open(checkedExternalUrl(uri), "_blank", "noopener,noreferrer")
 }
 
 export const cliHostAssetPresenter: AssetPresenter<ReactNode> = {

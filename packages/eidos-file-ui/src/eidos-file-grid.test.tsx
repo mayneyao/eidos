@@ -20,6 +20,7 @@ import {
   GridCellKind,
   type DataEditorProps,
   type EditableGridCell,
+  type UriCell,
 } from "@glideapps/glide-data-grid"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -225,6 +226,106 @@ describe("EidosFileGrid", () => {
       table.fields[0],
       "Write implementation"
     )
+  })
+
+  it("activates a link-styled URL on one text click without opening its editor", async () => {
+    const uri = "https://example.com/artwork?id=42#preview"
+    const activateUrl = vi.fn(async () => undefined)
+    const urlTable: EidosFileTableSnapshot = {
+      ...table,
+      fields: [
+        {
+          ...table.fields[0],
+          name: "Artwork",
+          type: "url",
+          tableColumnName: "artwork",
+        },
+      ],
+      rowCount: 1,
+    }
+    const loadPage = vi.fn(async (offset: number, limit: number) => ({
+      tableId: urlTable.table.id,
+      offset,
+      limit,
+      total: 1,
+      rows: [{ _id: "row_0", artwork: uri }],
+    }))
+
+    await act(async () => {
+      root.render(
+        <EidosFileUIProvider activateUrl={activateUrl}>
+          <EidosFileGrid
+            table={urlTable}
+            loadPage={loadPage}
+            onAddRow={vi.fn()}
+            onCellEdit={createCellEdit(urlTable)}
+          />
+        </EidosFileUIProvider>
+      )
+      await Promise.resolve()
+    })
+
+    const cell = mocks.props?.getCellContent([0, 0]) as UriCell
+    expect(cell).toMatchObject({
+      kind: GridCellKind.Uri,
+      data: uri,
+      hoverEffect: true,
+    })
+    expect(cell.onClickUri).toEqual(expect.any(Function))
+
+    const preventDefault = vi.fn()
+    await act(async () => {
+      mocks.props?.onCellClicked?.([0, 0], {
+        button: 0,
+        preventDefault,
+      } as never)
+      await Promise.resolve()
+    })
+
+    expect(preventDefault).toHaveBeenCalledOnce()
+    expect(activateUrl).toHaveBeenCalledWith(uri)
+  })
+
+  it("leaves URL cell selection untouched when the Host cannot activate URLs", async () => {
+    const uri = "https://example.com/artwork"
+    const urlTable: EidosFileTableSnapshot = {
+      ...table,
+      fields: [
+        {
+          ...table.fields[0],
+          name: "Artwork",
+          type: "url",
+          tableColumnName: "artwork",
+        },
+      ],
+      rowCount: 1,
+    }
+
+    await act(async () => {
+      root.render(
+        <EidosFileGrid
+          table={urlTable}
+          loadPage={async (offset, limit) => ({
+            tableId: urlTable.table.id,
+            offset,
+            limit,
+            total: 1,
+            rows: [{ _id: "row_0", artwork: uri }],
+          })}
+          onAddRow={vi.fn()}
+          onCellEdit={createCellEdit(urlTable)}
+        />
+      )
+      await Promise.resolve()
+    })
+
+    const preventDefault = vi.fn()
+    mocks.props?.onCellClicked?.([0, 0], {
+      button: 0,
+      preventDefault,
+    } as never)
+
+    expect(preventDefault).not.toHaveBeenCalled()
   })
 
   it("updates the mounted Canvas from its scoped semantic theme", async () => {

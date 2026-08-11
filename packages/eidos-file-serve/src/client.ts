@@ -7,6 +7,7 @@ import type {
   FileEntry,
   RequestContext,
   RuntimeClient,
+  UrlImageLease,
 } from "@eidos.space/eidos-file"
 import {
   EidosRuntimeEditorDataSource,
@@ -22,10 +23,12 @@ export interface CliHostManifest {
 }
 
 export interface CliHostAssetManifest {
-  mounted: true
+  mounted: boolean
   assetBytesMax: string
   assetPreviewBytesMax: string
   concurrentAssetLeasesMax: number
+  assetReadSchemes: string[]
+  assetWriteSchemes: string[]
 }
 
 export interface EidosFileHttpOpenResult {
@@ -236,6 +239,18 @@ export async function uploadCliHostAssets(
   return entries
 }
 
+export async function acquireCliHostRemoteAsset(
+  uri: string,
+  name?: string
+): Promise<FileEntry> {
+  return unwrap(
+    await postJson("/api/assets/remote", {
+      uri,
+      ...(name ? { name } : {}),
+    })
+  ) as FileEntry
+}
+
 export async function resolveCliHostAsset(
   entryId: string,
   purpose: AssetLease["purpose"]
@@ -243,6 +258,15 @@ export async function resolveCliHostAsset(
   return unwrap(
     await postJson("/api/assets/resolve", { entryId, purpose })
   ) as AssetLease
+}
+
+export async function resolveCliHostUrlImage(
+  uri: string,
+  purpose: UrlImageLease["purpose"]
+): Promise<UrlImageLease> {
+  return unwrap(
+    await postJson("/api/url-images/resolve", { uri, purpose })
+  ) as UrlImageLease
 }
 
 export async function releaseCliHostAsset(leaseId: string): Promise<void> {

@@ -244,6 +244,54 @@ describe("Eidos File Grid adapter", () => {
     expect(decodeEidosFileValues(encoded ?? undefined)).toEqual(entries)
   })
 
+  it("renders URL fields as editable image cells when configured by the field", () => {
+    const imageUrl = field("url", { display: { kind: "image" } })
+    const cell = eidosFileValueToGridCell(
+      imageUrl,
+      "https://cdn.example.com/avatar.png"
+    )
+
+    expect(cell).toMatchObject({
+      kind: GridCellKind.Custom,
+      readonly: false,
+      data: {
+        kind: "eidos-file-url-image-cell",
+        uri: "https://cdn.example.com/avatar.png",
+      },
+    })
+    if (cell.kind !== GridCellKind.Custom) {
+      throw new Error("Expected a URL image custom cell")
+    }
+    expect(gridCellToEidosFileValue(imageUrl, cell)).toBe(
+      "https://cdn.example.com/avatar.png"
+    )
+  })
+
+  it("renders URL Formula results as read-only image cells", () => {
+    const imageUrl = {
+      ...field("formula", {
+        displayType: "url",
+        display: { kind: "image" },
+      }),
+      valueKind: "derived" as const,
+      isDerived: true,
+    }
+
+    expect(
+      eidosFileValueToGridCell(
+        imageUrl,
+        "https://cdn.example.com/generated.png"
+      )
+    ).toMatchObject({
+      kind: GridCellKind.Custom,
+      readonly: true,
+      data: {
+        kind: "eidos-file-url-image-cell",
+        uri: "https://cdn.example.com/generated.png",
+      },
+    })
+  })
+
   it("maps relation IDs to hydrated record titles and back", () => {
     const relation = {
       ...field("relation", {

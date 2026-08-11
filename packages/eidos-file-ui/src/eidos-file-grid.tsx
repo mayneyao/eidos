@@ -68,6 +68,12 @@ import {
 } from "./eidos-file-attachment-cell"
 import { EidosFileAttachmentThumbnailManager } from "./eidos-file-attachment-thumbnails"
 import {
+  EidosFileUrlImageCellRenderer,
+  type EidosFileUrlImageCell,
+} from "./eidos-file-url-image-cell"
+import { EidosFileUrlImageThumbnailManager } from "./eidos-file-url-image-thumbnails"
+import { sharedEidosFileUrlImageSourceCache } from "./eidos-file-url-image-source-cache"
+import {
   EidosFileRelationCellRenderer,
   type EidosFileRelationCell,
 } from "./eidos-file-relation-cell"
@@ -84,6 +90,7 @@ import {
 import { EidosFileRecordInspector } from "./eidos-file-record-inspector"
 import { eidosFileFieldKey } from "./eidos-file-field-visibility"
 import { eidosFileRecordFieldText } from "./eidos-file-record-format"
+import { eidosFileUrlIsActivatable } from "./eidos-file-url-activation"
 import { eidosFileGridScrollbarConfig } from "./eidos-file-grid-scrollbar"
 import {
   eidosFileViewFreezeColumns,
@@ -108,6 +115,7 @@ const EIDOS_FILE_GRID_CUSTOM_RENDERERS = [
   MultiSelectCell,
   DatePickerCell,
   EidosFileAttachmentCellRenderer,
+  EidosFileUrlImageCellRenderer,
   EidosFileRelationCellRenderer,
 ]
 
@@ -410,6 +418,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   onError,
 }: EidosFileGridProps) {
   const {
+    activateUrl,
     assetPresenter,
     assetSession,
     themeName,
@@ -434,6 +443,19 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       ),
     [assetPresenter, assetSession]
   )
+  const urlImageThumbnails = useMemo(() => {
+    const sourceCache = sharedEidosFileUrlImageSourceCache(
+      assetSession,
+      assetPresenter
+    )
+    return new EidosFileUrlImageThumbnailManager(
+      assetSession,
+      assetPresenter,
+      (cells) => gridRef.current?.updateCells(cells),
+      undefined,
+      sourceCache
+    )
+  }, [assetPresenter, assetSession])
   const widthSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rowsRef = useRef(new Map<number, EidosFileRow>())
   const rowMutationRevisionRef = useRef(new Map<number, number>())
@@ -461,6 +483,20 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   const onSelectedRowsChangeRef = useRef(onSelectedRowsChange)
   tableRowCountRef.current = table.rowCount
   onErrorRef.current = onError
+
+  const openUrl = useCallback(
+    (uri: string) => {
+      if (!activateUrl || !eidosFileUrlIsActivatable(uri)) return
+      try {
+        void Promise.resolve(activateUrl(uri)).catch((error) =>
+          onErrorRef.current?.(error)
+        )
+      } catch (error) {
+        onErrorRef.current?.(error)
+      }
+    },
+    [activateUrl]
+  )
   onRowCountChangeRef.current = onRowCountChange
   onSelectedRowsChangeRef.current = onSelectedRowsChange
   const [cacheRevision, setCacheRevision] = useState(0)
@@ -666,6 +702,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     if (thumbnailScopeRef.current !== thumbnailScope) {
       thumbnailScopeRef.current = thumbnailScope
       attachmentThumbnails.clear()
+      urlImageThumbnails.clear()
     }
     generationRef.current += 1
     loadedPagesRef.current.clear()
@@ -704,6 +741,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     scheduleLatestPageRequest,
     table.table.id,
     updateFailedMutation,
+    urlImageThumbnails,
     view?.id,
   ])
 
@@ -723,9 +761,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       columnStatGenerationRef.current += 1
       latestPageRequestRef.current = null
       attachmentThumbnails.clear()
+      urlImageThumbnails.clear()
       if (widthSaveTimerRef.current) clearTimeout(widthSaveTimerRef.current)
     },
-    [attachmentThumbnails]
+    [attachmentThumbnails, urlImageThumbnails]
   )
 
   const columnStatConfigs = useMemo(
@@ -884,6 +923,27 @@ export const EidosFileGrid = memo(function EidosFileGrid({
       }
       if (
         cell.kind === GridCellKind.Custom &&
+        (cell.data as { kind?: unknown }).kind === "eidos-file-url-image-cell"
+      ) {
+        const imageCell = cell as EidosFileUrlImageCell
+        return tagGridCellRowIdentity(
+          {
+            ...imageCell,
+            data: {
+              ...imageCell.data,
+              thumbnail: urlImageThumbnails.prepare(
+                imageCell.data.uri,
+                columnIndex,
+                rowIndex
+              ),
+            },
+          } as EidosFileUrlImageCell,
+          row,
+          rowIndex
+        )
+      }
+      if (
+        cell.kind === GridCellKind.Custom &&
         (cell.data as { kind?: unknown }).kind === "eidos-file-relation-cell"
       ) {
         return tagGridCellRowIdentity(
@@ -930,14 +990,35 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           rowIndex
         )
       }
+      if (
+        cell.kind === GridCellKind.Uri &&
+        activateUrl &&
+        eidosFileUrlIsActivatable(cell.data)
+      ) {
+        const uri = cell.data
+        return tagGridCellRowIdentity(
+          {
+            ...cell,
+            hoverEffect: true,
+            onClickUri: (event) => {
+              event.preventDefault()
+              openUrl(uri)
+            },
+          },
+          row,
+          rowIndex
+        )
+      }
       return tagGridCellRowIdentity(cell, row, rowIndex)
     },
     [
       attachmentThumbnails,
+      activateUrl,
       cacheRevision,
       fields,
       gridWriteLocked,
       onImportFiles,
+      openUrl,
       onFieldUpdate,
       onError,
       onSearchRelation,
@@ -1000,9 +1081,10 @@ export const EidosFileGrid = memo(function EidosFileGrid({
   >(
     (range) => {
       attachmentThumbnails.retainVisibleRows(range.y, range.height)
+      urlImageThumbnails.retainVisibleRows(range.y, range.height)
       requestVisiblePages(range)
     },
-    [attachmentThumbnails, requestVisiblePages]
+    [attachmentThumbnails, requestVisiblePages, urlImageThumbnails]
   )
 
   useEffect(() => {
@@ -1792,6 +1874,24 @@ export const EidosFileGrid = memo(function EidosFileGrid({
     [fields, history.gridSelection]
   )
 
+  const onCellClicked = useCallback<
+    NonNullable<DataEditorProps["onCellClicked"]>
+  >(
+    (location, event) => {
+      if (!activateUrl || event.button === 2) return
+      const cell = getCellContent(location)
+      if (
+        cell.kind !== GridCellKind.Uri ||
+        !eidosFileUrlIsActivatable(cell.data)
+      ) {
+        return
+      }
+      event.preventDefault()
+      openUrl(cell.data)
+    },
+    [activateUrl, getCellContent, openUrl]
+  )
+
   const updateView = useCallback(
     (changes: UpdateEidosFileViewInput) => {
       if (!onViewUpdate) return
@@ -1887,6 +1987,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           onGridSelectionChange={history.onGridSelectionChange}
           onHeaderClicked={onHeaderClicked}
           onHeaderContextMenu={onHeaderClicked}
+          onCellClicked={onCellClicked}
           onCellContextMenu={onCellContextMenu}
           onColumnResize={onColumnResize}
           onColumnMoved={onColumnMoved}
@@ -2040,7 +2141,7 @@ export const EidosFileGrid = memo(function EidosFileGrid({
           }}
           onCopyCell={copyText}
           onCopyRecordId={copyText}
-          onOpenUrl={(url) => window.open(url, "_blank", "noopener,noreferrer")}
+          onOpenUrl={activateUrl ? openUrl : undefined}
           onDeleteRows={(ranges) => onRequestDeleteRows?.(ranges)}
         />
       </div>

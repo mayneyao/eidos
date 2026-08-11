@@ -42,7 +42,10 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu"
 
-import { eidosFileOptionColor } from "./eidos-file-field-properties"
+import {
+  eidosFileOptionColor,
+  eidosFileUrlDisplaysImage,
+} from "./eidos-file-field-properties"
 import { eidosFileFieldDisplayName } from "./eidos-file-field-visibility"
 import {
   createEidosFileRecordCardLayout,
@@ -54,6 +57,7 @@ import {
   eidosFileRecordFieldText,
   eidosFileRecordTitle,
 } from "./eidos-file-record-format"
+import { EidosFileUrlImageCoverSurface } from "./eidos-file-url-image-cover"
 
 const CARD_INTERACTIVE_TARGET =
   'button, a, input, select, textarea, summary, [role="button"], [role="menuitem"], [contenteditable="true"]'
@@ -77,6 +81,22 @@ function EidosFileRecordCover({
   fitContent: boolean
 }) {
   const value = row[field.tableColumnName]
+  if (eidosFileUrlDisplaysImage(field)) {
+    return (
+      <div
+        className={cn(
+          "overflow-hidden border-b bg-gradient-to-br from-muted/40 to-muted",
+          compact ? "h-28" : "h-36"
+        )}
+      >
+        <EidosFileUrlImageCoverSurface
+          uri={typeof value === "string" ? value : ""}
+          altText={field.name}
+          fitContent={fitContent}
+        />
+      </div>
+    )
+  }
   const entry = decodeEidosFileValues(value).at(0)
 
   return (

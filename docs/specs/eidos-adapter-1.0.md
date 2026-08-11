@@ -1171,7 +1171,8 @@ root. Every other token is a lowercase RFC 3986 scheme matching
 `[a-z][a-z0-9+.-]*`, for example `https`. `assets` is a path segment, not a
 scheme token. Listing `https` or another network scheme is an explicit
 capability declaration but still requires per-Host authorization. Writers
-normally declare `relative`, adding `data` only when they intentionally support
+normally declare `relative`, adding `https` only when they implement explicit
+remote File acquisition, and adding `data` only when they intentionally support
 the bounded inline-image representation.
 
 The `data` token means the Host can validate and resolve canonical inline-image
@@ -1196,11 +1197,48 @@ an inline Data URL only for an image within the format limit when `data` is
 listed in `assetWriteSchemes`. UI neither chooses storage placement nor creates
 the URI.
 
+An optional remote File acquisition accepts an absolute `https:` URI and an
+optional requested filename. The Host MUST fetch only after an explicit user
+action, enforce `assetBytesMax` and its network deadline, obtain the exact byte
+size, choose a safe filename, identify a safe media type, and call Runtime
+`allocateFileEntry` with the original requested URI. Redirects do not rewrite
+that canonical URI. Raster media types and other sniffable formats MUST be
+verified from bytes; an unknown generic file uses a safe declared/inferred
+type or `application/octet-stream`. The operation returns metadata only: it
+does not copy remote bytes into the relative asset root. Every redirect target
+is re-authorized, URI userinfo and HTTPS downgrade are rejected, ambient
+cookies/authorization/referrer are omitted, and the loopback/private/address
+rules below apply. A Host exposes this operation only while `https` is listed
+in `assetWriteSchemes`.
+
 When one operation changes assets and database, Host stages assets first,
 publishes database only after required assets are durable, and retains a
 recovery manifest until verified. Failure prefers unreferenced staged assets
 over a database referencing missing assets. Cross-resource atomicity is never
 claimed without a real platform transaction.
+
+A Host MAY additionally resolve an image presentation for a scalar URL Field
+whose Field settings declare `display.kind="image"`. This is a read-only
+presentation flow, not File-entry acquisition: it creates no persistent ID,
+does not require `name`, `size`, or `mediaType` in canonical state, and never
+rewrites the URL. The UI-facing facade exposes it only through the optional
+`resolveUrlImage` operation and a `UrlImageLease`; the low-level
+PublicationPort still receives an authorized URI reference.
+
+`resolveUrlImage` accepts only an absolute `https:` URI in 1.0. Network remains
+disabled unless `https` is present in `assetReadSchemes` and Host policy allows
+the request. A conforming resolver MUST reject URI userinfo and HTTPS downgrade,
+bound redirects, re-authorize every redirect target, send no ambient cookie,
+authorization, or referrer, and prevent loopback/private/link-local/reserved
+address access unless an explicit disclosed Host policy grants that network.
+Such a policy MAY recognize a platform proxy's synthetic DNS range for a
+hostname, but MUST NOT thereby authorize a URI whose host is a literal address,
+MUST keep the request bound to the original hostname, and MUST NOT broaden the
+grant to other private or reserved ranges.
+It MUST stream under the asset byte/time limits, validate a supported raster
+image from bytes rather than suffix alone, and keep caches scoped by Host
+authorization context. Signed URLs and query credentials MUST NOT enter logs,
+telemetry, diagnostics, or shared cache keys by default.
 
 ## 9. Transport Profile
 
@@ -2585,6 +2623,10 @@ interface HostServices {
     request: { sessionId: string; sourceToken: string },
     context: RequestContext
   ): Promise<{ entry: FileEntry }>
+  acquireRemoteAsset?(
+    request: { sessionId: string; uri: string; name?: string },
+    context: RequestContext
+  ): Promise<{ entry: FileEntry }>
   resolveAsset(
     request: {
       sessionId: string
@@ -2593,6 +2635,14 @@ interface HostServices {
     },
     context: RequestContext
   ): Promise<AssetLease>
+  resolveUrlImage?(
+    request: {
+      sessionId: string
+      uri: string
+      purpose: "thumbnail" | "preview"
+    },
+    context: RequestContext
+  ): Promise<UrlImageLease>
   releaseAsset(
     request: { sessionId: string; leaseId: string },
     context: RequestContext
@@ -2727,6 +2777,14 @@ interface AssetLease {
   expiresAt: string
   resourceToken: string
 }
+interface UrlImageLease {
+  leaseId: string
+  purpose: "thumbnail" | "preview"
+  mediaType: string
+  size: string
+  expiresAt: string
+  resourceToken: string
+}
 ```
 
 `RequestContext`, `RuntimeClient`, `CommitReconciliation`, `FileEntry`, and `JsonObject` are imported
@@ -2819,24 +2877,26 @@ mutation.
 
 The required actions delegate as follows:
 
-| Composition action       | Adapter/Runtime delegation                                                                                                                                                   |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `negotiate`              | source-independent EA-Host service capabilities and maxima; no source/Transport session exists yet                                                                           |
-| `openSource`             | resolve opaque grant; PublicationPort open/read; import through SourceSnapshot and `release` in `finally`; create Connection/Runtime/Transport session                       |
-| `createSource`           | resolve create-only grant; Runtime creates/validates File; PublicationPort publishes; return new session                                                                     |
-| `requestWritePermission` | trusted user-activation layer refreshes opaque grant; PublicationPort observes result                                                                                        |
-| `save`                   | Runtime `createPublicationSnapshot({maxBytes:candidateBytesMax},context)`, validate/hash that frozen source, PublicationPort `publish`, then snapshot `release` in `finally` |
-| `saveCopy`               | same frozen-candidate/`finally release` boundary, PublicationPort `saveCopy`; explicit keep/adopt choice controls whether a new Runtime epoch is opened                      |
-| `reconcileCommit`        | Host-private receipt/direct record + same-working-ID reopen; File ID/revision decides committed/rolled-back/conflict; returns replacement Runtime only for a decided outcome |
-| `resolveConflict`        | reload/discard and Save Copy are Host flows; `merge` delegates entirely to Runtime/product                                                                                   |
-| `listRecovery`           | PublicationPort `listRecovery`                                                                                                                                               |
-| `restoreRecovery`        | PublicationPort read, File validate, then new Connection/Runtime epoch                                                                                                       |
-| `discardRecovery`        | PublicationPort `discardRecovery` after explicit intent                                                                                                                      |
-| `acquireAsset`           | composition resolves UI `sourceToken`; PublicationPort acquires an `import` lease; Runtime allocates the File-entry ID and product returns the candidate value               |
-| `resolveAsset`           | composition resolves Runtime File-entry ID to canonical URI; PublicationPort acquires a `read` lease and resolves bytes/descriptor                                           |
-| `releaseAsset`           | PublicationPort `releaseAsset`                                                                                                                                               |
-| `close`                  | close Transport (the sole closer of Runtime then Connection), then close Publication session; never close either component twice                                             |
-| `subscribe`              | composition emits derived Host state/capability events; no native object or bytes                                                                                            |
+| Composition action       | Adapter/Runtime delegation                                                                                                                                                     |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `negotiate`              | source-independent EA-Host service capabilities and maxima; no source/Transport session exists yet                                                                             |
+| `openSource`             | resolve opaque grant; PublicationPort open/read; import through SourceSnapshot and `release` in `finally`; create Connection/Runtime/Transport session                         |
+| `createSource`           | resolve create-only grant; Runtime creates/validates File; PublicationPort publishes; return new session                                                                       |
+| `requestWritePermission` | trusted user-activation layer refreshes opaque grant; PublicationPort observes result                                                                                          |
+| `save`                   | Runtime `createPublicationSnapshot({maxBytes:candidateBytesMax},context)`, validate/hash that frozen source, PublicationPort `publish`, then snapshot `release` in `finally`   |
+| `saveCopy`               | same frozen-candidate/`finally release` boundary, PublicationPort `saveCopy`; explicit keep/adopt choice controls whether a new Runtime epoch is opened                        |
+| `reconcileCommit`        | Host-private receipt/direct record + same-working-ID reopen; File ID/revision decides committed/rolled-back/conflict; returns replacement Runtime only for a decided outcome   |
+| `resolveConflict`        | reload/discard and Save Copy are Host flows; `merge` delegates entirely to Runtime/product                                                                                     |
+| `listRecovery`           | PublicationPort `listRecovery`                                                                                                                                                 |
+| `restoreRecovery`        | PublicationPort read, File validate, then new Connection/Runtime epoch                                                                                                         |
+| `discardRecovery`        | PublicationPort `discardRecovery` after explicit intent                                                                                                                        |
+| `acquireAsset`           | composition resolves UI `sourceToken`; PublicationPort acquires an `import` lease; Runtime allocates the File-entry ID and product returns the candidate value                 |
+| `acquireRemoteAsset`     | optional composition authorizes and inspects an explicit HTTPS source under asset limits; Runtime allocates the File-entry ID; original URI and verified metadata are returned |
+| `resolveAsset`           | composition resolves Runtime File-entry ID to canonical URI; PublicationPort acquires a `read` lease and resolves bytes/descriptor                                             |
+| `resolveUrlImage`        | optional composition validates a scalar URL presentation request; PublicationPort acquires a scoped HTTPS `read` lease and returns presentation-only metadata/token            |
+| `releaseAsset`           | PublicationPort `releaseAsset`                                                                                                                                                 |
+| `close`                  | close Transport (the sole closer of Runtime then Connection), then close Publication session; never close either component twice                                               |
+| `subscribe`              | composition emits derived Host state/capability events; no native object or bytes                                                                                              |
 
 The facade returns opaque session, conflict, recovery, source, and asset tokens
 plus Runtime client. It never returns path, handle, SQLite connection, SQL,

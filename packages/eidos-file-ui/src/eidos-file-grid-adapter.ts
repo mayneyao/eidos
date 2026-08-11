@@ -24,8 +24,10 @@ import {
 import type { RangeCell } from "./cells/range-cell"
 
 import {
+  eidosFileFieldDisplaysUrl,
   eidosFileNumberProperty,
   eidosFileSelectOptions,
+  eidosFileUrlDisplaysImage,
 } from "./eidos-file-field-properties"
 import {
   eidosFileFieldDisplayName,
@@ -33,6 +35,7 @@ import {
 } from "./eidos-file-field-visibility"
 import type { EidosFileAttachmentCell } from "./eidos-file-attachment-cell"
 import type { EidosFileRelationCell } from "./eidos-file-relation-cell"
+import type { EidosFileUrlImageCell } from "./eidos-file-url-image-cell"
 
 export { visibleEidosFileFields } from "./eidos-file-field-visibility"
 
@@ -309,7 +312,19 @@ export function eidosFileValueToGridCell(
     }
   }
   const text = scalarText(value)
-  if (field.type === "url") {
+  if (eidosFileFieldDisplaysUrl(field)) {
+    if (eidosFileUrlDisplaysImage(field)) {
+      return {
+        kind: GridCellKind.Custom,
+        allowOverlay: true,
+        readonly,
+        copyData: text,
+        data: {
+          kind: "eidos-file-url-image-cell",
+          uri: text,
+        },
+      } satisfies EidosFileUrlImageCell
+    }
     return {
       kind: GridCellKind.Uri,
       allowOverlay: true,
@@ -378,6 +393,9 @@ export function gridCellToEidosFileValue(
     }
     if (data.kind === "range-cell") {
       return typeof data.value === "number" ? data.value : null
+    }
+    if (data.kind === "eidos-file-url-image-cell") {
+      return typeof data.uri === "string" && data.uri !== "" ? data.uri : null
     }
     if (data.kind === "date-picker-cell") {
       if (!(data.date instanceof Date) || Number.isNaN(data.date.getTime())) {

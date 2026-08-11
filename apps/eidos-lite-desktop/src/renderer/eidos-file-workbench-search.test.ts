@@ -25,6 +25,7 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
   const Empty = () => null
   function SearchResultReporter() {
     const navigation = actual.useEidosFileSearchNavigation()
+    const { activateUrl } = actual.useEidosFileUI()
     return React.createElement(
       React.Fragment,
       null,
@@ -35,6 +36,15 @@ vi.mock("@eidos.space/eidos-file-ui", async () => {
           onClick: () => navigation?.reportSearchResultCount(3),
         },
         "Report search results"
+      ),
+      React.createElement(
+        "button",
+        {
+          type: "button",
+          disabled: !activateUrl,
+          onClick: () => activateUrl?.("https://example.com/image.png"),
+        },
+        "Open URL through host"
       ),
       React.createElement(
         "span",
@@ -266,5 +276,43 @@ describe("Eidos Lite Eidos File search navigation", () => {
       []
     )
     expect(onSnapshot).toHaveBeenCalledWith(snapshot)
+  })
+
+  it("connects shared URL activation to the Lite host", async () => {
+    const openExternalUrl = vi.fn(async () => undefined)
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: { openExternalUrl } as unknown as EidosLiteApi,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(EidosFileWorkbench, {
+          relativePath: "sample.eidos",
+          snapshot,
+          source: {} as IpcEidosFileDataSource,
+          activeTableId: "tasks",
+          disabled: false,
+          theme: "light",
+          onTableSelect: vi.fn(),
+          onSnapshot: vi.fn(),
+          onError: vi.fn(),
+        })
+      )
+    })
+
+    const openUrl = Array.from(host.querySelectorAll("button")).find(
+      (button) => button.textContent === "Open URL through host"
+    )
+    expect(openUrl?.disabled).toBe(false)
+
+    await act(async () => {
+      openUrl?.click()
+      await Promise.resolve()
+    })
+
+    expect(openExternalUrl).toHaveBeenCalledWith(
+      "https://example.com/image.png"
+    )
   })
 })

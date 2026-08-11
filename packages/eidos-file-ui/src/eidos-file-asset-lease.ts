@@ -1,4 +1,5 @@
 import {
+  type UrlImageLease,
   eidosFileUriClass,
   type AssetLease,
   type FileEntry,
@@ -76,7 +77,7 @@ export function assertEidosFileAssetLease(
 
 export async function releaseEidosFileAssetLease(
   session: EidosFileUIAssetSession,
-  lease: AssetLease
+  lease: AssetLease | UrlImageLease
 ): Promise<void> {
   try {
     await session.services.releaseAsset(

@@ -664,6 +664,13 @@ type，而是 Integer 的纯 display setting：
 display bounds 不能缩小 Integer raw domain，也不能使已有 int64 失效。URL 保存用户的
 RFC 3986 URI-reference，不在写入时 resolve、fetch 或 normalize。
 
+image URL 同样不是 Field type。URL Field 可以声明
+`{ "display": { "kind": "image" } }` presentation setting，表示支持图片的 UI
+surface 可以为 eligible absolute `https:` value 请求 Host-authorized thumbnail。
+该 setting 不改变 URL raw domain、不授予 network authority、不创建 File entry，也不把
+remote bytes 加入 canonical File state；`display` 的 unknown member 与其他 Field setting
+一样保留。
+
 date 与 datetime column 还必须执行下列 template，或由 Writer 提供等价校验；其中
 `<column>` 替换为正确 quoted 的 physical column name：
 
@@ -796,6 +803,9 @@ hidden attachment table 或第二份 canonical value。Data URL 是刻意收窄�
 decoded image bytes 只在 canonical `uri` string 中嵌入一次，也不能在 File 内另存副本。
 存在性、授权、上传、下载、解析、preview generation 与 external-asset garbage collection
 归 Adapter；rendering 归 UI。
+对于 `https:` entry，`name`、`mediaType` 与 `size` 描述 Host 在 acquisition 时验证的
+bytes。之后 remote resource 发生变化或不可用会使 resolution unavailable/conflicting，
+但不授权静默重写 canonical entry。
 
 ### 8.4 Stored type change
 
