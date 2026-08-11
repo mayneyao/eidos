@@ -33,11 +33,9 @@
 
 ### 安装 Eidos Lite
 
-从 [Eidos 下载页](https://eidos.space/zh/download#eidos-lite)下载 Eidos Lite
-0.1.2。macOS 安装包已签名并完成公证，Windows 与 Linux 安装包目前未签名。本地
-Space、编辑和版本历史无需账号。0.1.2 使用 Graft 0.3.8，提供可靠的增量 Pull
-和取消恢复，并会在从外部打开 Eidos File 前刷新过期的 Explorer 状态。Sync
-仍是仅限邀请的 Private Preview，waitlist 申请获批前保持不可用。
+从 [Eidos 下载页](https://eidos.space/zh/download#eidos-lite)下载 Eidos Lite。
+本地 Space、编辑和版本历史无需账号。Sync 仍是仅限邀请的 Private Preview，
+waitlist 申请获批前保持不可用。
 
 ### 直接使用浏览器
 

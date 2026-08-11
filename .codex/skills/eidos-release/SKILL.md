@@ -36,6 +36,9 @@ Do not conflate version namespaces or publishers:
 - Never weaken tests or compatibility assertions to make a release green.
 - Require the intended branch commit to exist on the remote before tagging.
 - Use lightweight tags and never move a distributed tag.
+- For tagged releases, require a curated, non-empty, surface-specific release
+  body before creating the tag. An empty body, placeholder, or unreviewed
+  generated commit list is a release blocker.
 - Never claim success from a local tag, green build, or successful deploy
   command alone. Prove remote state and public artifacts.
 
@@ -80,9 +83,9 @@ Release, artifact, or plausible consumer.
 ## Prove publication
 
 For tagged releases, verify local and remote SHAs, the exact workflow run, the
-GitHub Release, expected assets, checksums, and an installed or packaged smoke.
-For Web deployments, verify the active Cloudflare version plus fresh public
-HTML, service worker, bundle, and user-flow evidence.
+GitHub Release, its non-empty curated body, expected assets, checksums, and an
+installed or packaged smoke. For Web deployments, verify the active Cloudflare
+version plus fresh public HTML, service worker, bundle, and user-flow evidence.
 
 Always report the released/deployed commit, tag or deployment ID, public URLs,
 validation performed, artifact/platform coverage, and branch/worktree state.
