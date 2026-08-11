@@ -1,32 +1,40 @@
 ## What's new
 
-### Readable terminal output by default
+### Images from URL fields in Serve
 
-Eidos CLI now prints concise key-value sections and tables for interactive use.
-File inspection, schema details, row queries, mutations, and validation results
-are easier to scan directly in a terminal without piping every command through
-a JSON formatter.
+Set a URL field's **Display** property to **Image** to render its HTTPS values
+as lazy-loaded thumbnails in Grid and as Gallery covers. Decoded images stay
+cached while rows leave and re-enter the viewport, so scrolling no longer
+downloads the same image repeatedly. Ordinary URL cells are visibly underlined
+and open directly without first entering edit mode.
 
-Errors use the same human-readable default and preserve useful details such as
-the current revision when an optimistic update is stale.
+Remote images are fetched through the Serve host with HTTPS-only validation,
+redirect and response-size limits, and private-network blocking. A large CSV
+can therefore keep its existing URL column; it does not need to convert every
+value into a File field or download image metadata during import.
 
-### Stable JSON for Agents and scripts
+### Remote files and mounted attachments
 
-Pass the global `--json` flag whenever a machine consumes the result:
+File fields can now attach an HTTPS address directly from the cell editor or
+record inspector. Remote images receive the same thumbnail and preview
+behavior as local attachments, while other remote files can be opened or
+downloaded through the host.
+
+Relative `assets/...` entries still require an explicit assets directory. This
+complete example creates the file and initial table before starting Serve:
 
 ```sh
-eidos --json inspect tracker.eidos
-eidos --json query tracker.eidos Tasks --fields Title,Status --limit 50
+mkdir eidos-media && cd eidos-media
+eidos create media.eidos \
+  --table Artwork \
+  --label-field Title \
+  --fields '[{"name":"Title","type":"text"},{"name":"Image URL","type":"url"},{"name":"Files","type":"file"}]'
+mkdir assets
+eidos serve media.eidos --assets-dir ./assets --open
 ```
 
-JSON mode retains the existing stable contract: one JSON document on stdout
-for success and one JSON error document on stderr for failure. The flag works
-with both command-first and file-first forms, including
-`eidos --json tracker.eidos inspect`.
-
-The bundled Eidos Skill and automation documentation now pass `--json`
-explicitly, keeping Agent workflows deterministic while making the default CLI
-friendlier for people.
+HTTPS URL images and remote File entries do not require `--assets-dir`; the
+mount is only for relative attachments and uploads stored beneath `assets/`.
 
 ### Version-matched Eidos Skill for Codex
 
@@ -34,7 +42,7 @@ Install the Eidos Skill from this immutable CLI tag to keep the safe
 `context` → `apply` → `validate` workflow aligned with the release:
 
 ```sh
-npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.7/skills/eidos --skill eidos -g -a codex -y
+npx skills add https://github.com/mayneyao/eidos/tree/cli-v0.36.8/skills/eidos --skill eidos -g -a codex -y
 ```
 
 ## Install
@@ -51,5 +59,5 @@ Windows PowerShell:
 irm https://download.eidos.space/cli/install.ps1 | iex
 ```
 
-The installers select v0.36.7 and verify the downloaded archive against the
+The installers select v0.36.8 and verify the downloaded archive against the
 release `SHA256SUMS` before replacing an existing binary.
