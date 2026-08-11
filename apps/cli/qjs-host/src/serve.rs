@@ -1215,7 +1215,7 @@ fn remote_asset_name(uri: &str, requested: Option<&str>) -> Result<String, (u16,
     let url = validated_remote_asset_url(uri)?;
     let derived = url
         .path_segments()
-        .and_then(|segments| segments.filter(|segment| !segment.is_empty()).next_back())
+        .and_then(|mut segments| segments.rfind(|segment| !segment.is_empty()))
         .and_then(percent_decode_component)
         .filter(|name| asset_name(name).is_ok())
         .unwrap_or_else(|| "remote-file".to_string());
