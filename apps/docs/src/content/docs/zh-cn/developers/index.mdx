@@ -12,7 +12,7 @@ Eidos 不支持把直接读取 metadata table 或生成 SQL 作为集成 API。
 
 | 构建内容                    | 使用                                                                           | 提供                                                    |
 | --------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------- |
-| 脚本或 Agent 自动化         | [`eidos` CLI](/zh-cn/cli/)                                                     | 稳定 JSON process 边界，提供原子 mutation 与 validation |
+| 脚本或 Agent 自动化         | [`eidos --json` CLI](/zh-cn/cli/)                                              | 稳定 JSON process 边界，提供原子 mutation 与 validation |
 | Node 应用处理一个文件       | [`@eidos.space/eidos-file/node-sqlite`](/zh-cn/developers/runtime-quickstart/) | 使用内置 `node:sqlite`，语义仍由 Runtime 拥有           |
 | 浏览器应用                  | `@eidos.space/eidos-file/browser`                                              | SQLite WASM 保留在 Dedicated Worker                     |
 | React viewer 或 editor Host | [`@eidos.space/eidos-file-ui`](/zh-cn/reference/eidos-file-ui-package/)        | 共享 UI 只消费 RuntimeClient 与 HostServices            |

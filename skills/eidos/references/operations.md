@@ -16,7 +16,7 @@
 Use one compact context call for ordinary analysis and report its revision:
 
 ```bash
-eidos research.eidos context Papers --fields Title,Status,Published --limit 100
+eidos --json context research.eidos Papers --fields Title,Status,Published --limit 100
 ```
 
 Use `context --full` or `schema` only when detailed metadata is relevant. Never
@@ -27,7 +27,7 @@ derive Eidos field semantics from physical SQLite table or column names.
 Create the complete initial table in one operation, then validate:
 
 ```bash
-eidos create tracker.eidos \
+eidos --json create tracker.eidos \
   --table Tasks \
   --label-field Title \
   --fields '[
@@ -37,7 +37,7 @@ eidos create tracker.eidos \
     {"name":"Tags","type":"multi-select"}
   ]'
 
-eidos tracker.eidos validate --level full
+eidos --json validate tracker.eidos --level full
 ```
 
 If creation fails, the CLI removes the incomplete new file. It never overwrites an existing file.
@@ -47,13 +47,13 @@ If creation fails, the CLI removes the incomplete new file. It never overwrites 
 Load a narrow context, then use its revision and an exact match:
 
 ```bash
-eidos tracker.eidos context Tasks \
+eidos --json context tracker.eidos Tasks \
   --where '{"op":"eq","field":"Status","value":"doing"}' \
   --fields Title,Status
 ```
 
 ```bash
-eidos tracker.eidos apply \
+eidos --json apply tracker.eidos \
   '{"revision":"12","table":"Tasks","match":{"_id":"019..."},"expect":1,"set":{"Status":"done"},"returning":["Title","Status"]}'
 ```
 
@@ -67,18 +67,18 @@ to separate calls; validate after lower-level mutations.
 Run the exact operation as a dry run, confirm the file revision did not change, then apply it using the same revision only if no other writer intervened:
 
 ```bash
-eidos tracker.eidos inspect
+eidos --json inspect tracker.eidos
 
-eidos tracker.eidos schema-apply \
+eidos --json schema-apply tracker.eidos \
   --expected-revision 12 \
   --dry-run \
   --op '{"kind":"create-field","table":"Tasks","name":"Due","type":"date"}'
 
-eidos tracker.eidos schema-apply \
+eidos --json schema-apply tracker.eidos \
   --expected-revision 12 \
   --op '{"kind":"create-field","table":"Tasks","name":"Due","type":"date"}'
 
-eidos tracker.eidos validate --level full
+eidos --json validate tracker.eidos --level full
 ```
 
 Treat every `createdObjects[].id` returned by the dry run as ephemeral. The real apply allocates different stable IDs.
@@ -90,11 +90,11 @@ Adding a non-null scalar field to a non-empty table is rejected because existing
 Create the target table first, capture the new revision, then create the Relation in a separate schema transaction:
 
 ```bash
-eidos tracker.eidos schema-apply \
+eidos --json schema-apply tracker.eidos \
   --expected-revision 12 \
   --op '{"kind":"create-table","name":"People","fields":[{"name":"Name","type":"text","nullable":false}],"labelField":"Name"}'
 
-eidos tracker.eidos schema-apply \
+eidos --json schema-apply tracker.eidos \
   --expected-revision 13 \
   --op '{"kind":"create-field","table":"Tasks","name":"Owners","type":"relation","definition":{"direction":"forward","targetTable":"People","cardinality":"many","onDelete":"detach"}}'
 ```
@@ -102,7 +102,7 @@ eidos tracker.eidos schema-apply \
 Add target rows, obtain their `_id` values, then assign a Relation as an array of row IDs:
 
 ```bash
-eidos tracker.eidos rows update Tasks 019-task... \
+eidos --json rows tracker.eidos update Tasks 019-task... \
   --expected-revision 15 \
   --values '{"Owners":["019-person..."]}'
 ```
@@ -117,13 +117,13 @@ Deletion requires exact scope and the latest revision.
 For rows, query first and keep the exact `_id` set visible in the plan:
 
 ```bash
-eidos tracker.eidos rows delete Tasks 019... 019... --expected-revision 20
+eidos --json rows tracker.eidos delete Tasks 019... 019... --expected-revision 20
 ```
 
 For a field or table, dry-run first:
 
 ```bash
-eidos tracker.eidos schema-apply \
+eidos --json schema-apply tracker.eidos \
   --expected-revision 21 \
   --dry-run \
   --op '{"kind":"delete-field","table":"Tasks","field":"Obsolete"}'

@@ -1,6 +1,7 @@
 mod app;
 mod cli;
 mod error;
+mod output;
 mod relay_auth;
 
 use std::ffi::OsString;
@@ -12,6 +13,7 @@ use clap::Parser;
 use crate::app::CommandOutput;
 use crate::cli::{Cli, normalize_args};
 use crate::error::AppError;
+use crate::output::{write_human, write_human_error};
 
 fn write_json(mut writer: impl Write, value: &serde_json::Value) -> io::Result<()> {
     serde_json::to_writer(&mut writer, value)?;
@@ -19,11 +21,16 @@ fn write_json(mut writer: impl Write, value: &serde_json::Value) -> io::Result<(
 }
 
 fn parse(args: Vec<OsString>) -> Result<Cli, ExitCode> {
+    let json = args.iter().any(|arg| arg == "--json");
     match Cli::try_parse_from(normalize_args(args)) {
         Ok(cli) => Ok(cli),
         Err(error) if error.use_stderr() => {
-            let app_error = AppError::invalid_request(error.to_string());
-            let _ = write_json(io::stderr().lock(), &app_error.to_json());
+            if json {
+                let app_error = AppError::invalid_request(error.to_string());
+                let _ = write_json(io::stderr().lock(), &app_error.to_json());
+            } else {
+                let _ = error.print();
+            }
             Err(ExitCode::from(2))
         }
         Err(error) => {
@@ -39,10 +46,16 @@ fn main() -> ExitCode {
         Ok(cli) => cli,
         Err(code) => return code,
     };
+    let json = cli.json;
 
     match app::run(cli.command) {
         Ok(CommandOutput { value, success }) => {
-            if write_json(io::stdout().lock(), &value).is_err() {
+            let result = if json {
+                write_json(io::stdout().lock(), &value)
+            } else {
+                write_human(io::stdout().lock(), &value)
+            };
+            if result.is_err() {
                 return ExitCode::FAILURE;
             }
             if success {
@@ -52,7 +65,11 @@ fn main() -> ExitCode {
             }
         }
         Err(error) => {
-            let _ = write_json(io::stderr().lock(), &error.to_json());
+            if json {
+                let _ = write_json(io::stderr().lock(), &error.to_json());
+            } else {
+                let _ = write_human_error(io::stderr().lock(), &error);
+            }
             ExitCode::FAILURE
         }
     }
@@ -72,8 +89,13 @@ mod tests {
     fn accepts_command_first_and_file_first_forms() {
         let command_first = parse_ok(&["eidos", "inspect", "tasks.eidos"]);
         let file_first = parse_ok(&["eidos", "tasks.eidos", "--json", "inspect"]);
+        let global_first = parse_ok(&["eidos", "--json", "tasks.eidos", "inspect"]);
         assert!(matches!(command_first.command, Command::Inspect(_)));
         assert!(matches!(file_first.command, Command::Inspect(_)));
+        assert!(matches!(global_first.command, Command::Inspect(_)));
+        assert!(!command_first.json);
+        assert!(file_first.json);
+        assert!(global_first.json);
 
         let rows = parse_ok(&[
             "eidos",

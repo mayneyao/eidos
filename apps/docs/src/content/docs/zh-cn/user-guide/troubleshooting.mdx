@@ -41,8 +41,9 @@ eidos serve example.eidos --port 8420
 
 ## 自动化命令失败
 
-成功的 CLI 命令向 stdout 输出一个 JSON document；失败时向 stderr 输出一个 JSON error
-document，并返回非零状态。请保留 stderr 和 exit code，不要解析面向人的终端文本。
+CLI 命令默认输出便于阅读的终端文本。自动化必须传入 `--json`，成功时从 stdout 获取一个
+JSON document，失败时从 stderr 获取一个 JSON error document。两种模式下失败都会返回
+非零状态。请保留 stderr 和 exit code，不要解析面向人的终端文本。
 
 问题仍存在时，请在 [GitHub issue](https://github.com/mayneyao/eidos/issues) 中附上 CLI
 版本、操作系统、validation 输出和最小复现。

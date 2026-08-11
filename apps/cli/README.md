@@ -1,8 +1,8 @@
 # Eidos CLI
 
 `eidos` is the agent-first Rust interface to the open Eidos File format. It
-reads and modifies `.eidos` files directly, emits JSON only, and does not
-require a running Eidos application.
+reads and modifies `.eidos` files directly, prints readable terminal output by
+default, and does not require a running Eidos application.
 
 ## Responsibilities
 
@@ -85,6 +85,15 @@ target/debug/eidos tracker.eidos context Tasks \
   --limit 50
 ```
 
+Pass the global `--json` flag when a script or Agent needs the stable machine
+contract:
+
+```bash
+target/debug/eidos --json context tracker.eidos Tasks \
+  --fields Title,Status \
+  --limit 50
+```
+
 For ordinary row updates, `apply` combines exact matching, revision checking,
 returning rows, and validation before commit:
 
@@ -112,7 +121,11 @@ target/debug/eidos tracker.eidos rows add Tasks \
 target/debug/eidos tracker.eidos validate --level full
 ```
 
-Both `eidos tracker.eidos inspect` and `eidos inspect tracker.eidos` are supported. Successful commands write one JSON document to stdout. Failed commands write one JSON error document to stderr and return a nonzero exit code.
+Both `eidos tracker.eidos inspect` and `eidos inspect tracker.eidos` are
+supported. Commands print readable key-value sections and tables by default.
+With `--json`, successful commands write one JSON document to stdout and
+failures write one JSON error document to stderr. Failures return a nonzero
+exit code in either mode.
 
 ## Local web editor
 
@@ -250,7 +263,7 @@ The workspace contains:
 apps/cli/
 ├── core/       # Eidos File format, query, mutation, and validation library
 ├── qjs-host/   # Embedded QuickJS host bridging the TypeScript runtime to rusqlite
-├── src/        # JSON CLI and agent-facing normalization
+├── src/        # CLI output, commands, and agent-facing normalization
 └── tests/      # End-to-end external-agent contract tests
 ```
 

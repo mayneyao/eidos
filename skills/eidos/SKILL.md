@@ -9,12 +9,14 @@ Use `eidos` as the typed transaction boundary for `.eidos` files. Use ordinary f
 
 Before the first operation, run `eidos --version`. If the command is unavailable, stop and direct the user to `https://eidos.space/download#agent-setup`; do not install software without the user's request.
 
+Always pass the global `--json` flag for structured reads, mutations, and validation. Human-readable output is the interactive default; Agent workflows must use the stable JSON contract explicitly.
+
 ## Start with one compact context
 
 Locate the exact file, then load only the table and fields needed:
 
 ```bash
-eidos data.eidos context Tasks --fields Title,Status --limit 50
+eidos --json context data.eidos Tasks --fields Title,Status --limit 50
 ```
 
 Omit the table when the File has a default or only one table. Use `--where`, `--sort`, or `--search` to narrow rows. Use `--full` only when stable schema IDs, system fields, relations, or views are needed.
@@ -24,7 +26,7 @@ Omit the table when the File has a default or only one table. Use `--where`, `--
 Prefer `apply` for ordinary updates. It asserts the revision and exact match count, updates all matched rows, runs validation against the proposed state, and commits only when valid:
 
 ```bash
-eidos data.eidos apply - <<'JSON'
+eidos --json apply data.eidos - <<'JSON'
 {
   "revision": "4",
   "table": "Tasks",

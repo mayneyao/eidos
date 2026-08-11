@@ -11,8 +11,16 @@ fn run(args: &[&str]) -> Output {
         .expect("run eidos CLI")
 }
 
+fn run_json(args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_eidos"))
+        .args(args)
+        .arg("--json")
+        .output()
+        .expect("run eidos CLI with JSON output")
+}
+
 fn success(args: &[&str]) -> Value {
-    let output = run(args);
+    let output = run_json(args);
     assert!(
         output.status.success(),
         "command failed: {}",
@@ -114,7 +122,7 @@ fn agent_can_create_query_mutate_and_validate_a_file() {
     let report = success(&[&file, "validate", "--level", "full"]);
     assert_eq!(report["valid"], true);
 
-    let stale = run(&[
+    let stale = run_json(&[
         &file,
         "rows",
         "update",
@@ -202,7 +210,7 @@ fn compact_context_and_atomic_apply_cover_the_common_agent_loop() {
         "set": { "Status": "done" }
     })
     .to_string();
-    let failed = run(&[&file, "apply", &no_match]);
+    let failed = run_json(&[&file, "apply", &no_match]);
     assert_eq!(failed.status.code(), Some(1));
     let error: Value = serde_json::from_slice(&failed.stderr).expect("stderr is JSON");
     assert_eq!(error["error"]["code"], "invalid-request");
@@ -215,7 +223,7 @@ fn compact_context_and_atomic_apply_cover_the_common_agent_loop() {
         "set": { "Status": "todo" }
     })
     .to_string();
-    let failed = run(&[&file, "apply", &stale]);
+    let failed = run_json(&[&file, "apply", &stale]);
     assert_eq!(failed.status.code(), Some(1));
     let error: Value = serde_json::from_slice(&failed.stderr).expect("stderr is JSON");
     assert_eq!(error["error"]["code"], "stale-revision");
@@ -267,7 +275,7 @@ fn apply_rolls_back_when_the_proposed_file_fails_validation() {
         "set": { "Status": "done" }
     })
     .to_string();
-    let failed = run(&[&file, "apply", &request]);
+    let failed = run_json(&[&file, "apply", &request]);
     assert_eq!(failed.status.code(), Some(1));
     let result: Value = serde_json::from_slice(&failed.stdout).expect("stdout is JSON");
     assert_eq!(result["applied"], false);
@@ -322,4 +330,59 @@ fn relation_schema_uses_agent_friendly_camel_case() {
     assert!(relation.contains_key("inverseOfFieldId"));
     assert!(relation.contains_key("onDelete"));
     assert!(!relation.contains_key("target_table_id"));
+}
+
+#[test]
+fn human_output_is_default_and_json_is_explicit() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = path_string(&dir.path().join("readable.eidos"));
+    success(&[
+        "create",
+        &file,
+        "--title",
+        "Readable CLI",
+        "--table",
+        "Tasks",
+        "--fields",
+        r#"[{"name":"Title","type":"text"},{"name":"Status","type":"select"}]"#,
+    ]);
+
+    let human = run(&["inspect", &file]);
+    assert!(human.status.success());
+    let stdout = String::from_utf8(human.stdout).unwrap();
+    assert!(stdout.contains("revision: 1"));
+    assert!(stdout.contains("file:"));
+    assert!(stdout.contains("title: Readable CLI"));
+    assert!(!stdout.trim_start().starts_with('{'));
+
+    let json_output = run_json(&["inspect", &file]);
+    assert!(json_output.status.success());
+    let value: Value = serde_json::from_slice(&json_output.stdout).expect("stdout is JSON");
+    assert_eq!(value["revision"], "1");
+
+    let missing = run(&["inspect", "missing.eidos"]);
+    assert_eq!(missing.status.code(), Some(1));
+    assert!(
+        String::from_utf8(missing.stderr)
+            .unwrap()
+            .starts_with("error [not-found]:")
+    );
+
+    let missing_json = run_json(&["inspect", "missing.eidos"]);
+    assert_eq!(missing_json.status.code(), Some(1));
+    let error: Value = serde_json::from_slice(&missing_json.stderr).expect("stderr is JSON");
+    assert_eq!(error["error"]["code"], "not-found");
+
+    let usage = run(&["inspect"]);
+    assert_eq!(usage.status.code(), Some(2));
+    assert!(
+        String::from_utf8(usage.stderr)
+            .unwrap()
+            .starts_with("error:")
+    );
+
+    let usage_json = run_json(&["inspect"]);
+    assert_eq!(usage_json.status.code(), Some(2));
+    let error: Value = serde_json::from_slice(&usage_json.stderr).expect("stderr is JSON");
+    assert_eq!(error["error"]["code"], "invalid-request");
 }

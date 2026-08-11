@@ -1,6 +1,6 @@
 ---
 title: CLI and automation
-description: Use the JSON-only Eidos CLI as a safe machine boundary for Eidos Files.
+description: Use readable terminal output or explicit JSON automation with the Eidos CLI.
 sidebar:
   order: 1
 ---
@@ -42,8 +42,17 @@ File-first forms such as `eidos tracker.eidos inspect` are also accepted for
 compatibility. New scripts should prefer command-first syntax so they match
 `eidos --help`.
 
-Successful commands write one JSON document to stdout. Failed commands write
-one JSON error document to stderr and return a nonzero exit status.
+Commands print readable key-value sections and tables by default. Pass the
+global `--json` flag for Agent and script workflows:
+
+```bash
+eidos --json context tracker.eidos Tasks --fields Title,Status --limit 50
+```
+
+In JSON mode, successful commands write one JSON document to stdout. Failed
+commands write one JSON error document to stderr and return a nonzero exit
+status. The JSON schema is the stable automation contract; human output may
+evolve for readability.
 
 ## Supported responsibility
 

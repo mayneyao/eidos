@@ -19,11 +19,15 @@
 Both forms are equivalent:
 
 ```bash
-eidos file.eidos inspect
 eidos inspect file.eidos
+eidos file.eidos inspect
 ```
 
-The explicit file path is always required. stdout contains one JSON document on success. stderr contains one JSON error document on failure. `--json` is a compatibility no-op because there is no human-table output mode.
+The explicit file path is always required. Interactive commands print readable key-value sections and tables by default. Agents and scripts must pass `--json`; stdout then contains one JSON document on success, while stderr contains one JSON error document on failure:
+
+```bash
+eidos --json inspect file.eidos
+```
 
 Arguments containing JSON accept:
 
@@ -34,10 +38,10 @@ Arguments containing JSON accept:
 ## Inspection and creation
 
 ```bash
-eidos file.eidos inspect
-eidos file.eidos tables
-eidos file.eidos schema
-eidos file.eidos schema Tasks
+eidos --json inspect file.eidos
+eidos --json tables file.eidos
+eidos --json schema file.eidos
+eidos --json schema file.eidos Tasks
 ```
 
 `inspect` returns file identity, title, revision, counts, and capability flags. `schema` returns logical tables, fields, relations, formulas, lookups, and views. Revisions are canonical decimal strings.
@@ -45,13 +49,13 @@ eidos file.eidos schema Tasks
 Create an empty file:
 
 ```bash
-eidos create tracker.eidos
+eidos --json create tracker.eidos
 ```
 
 Create a file with an initial table:
 
 ```bash
-eidos create tracker.eidos \
+eidos --json create tracker.eidos \
   --table Tasks \
   --label-field Title \
   --fields '[
@@ -69,7 +73,7 @@ Creation refuses to overwrite an existing path.
 Combine the File revision, compact field definitions, and a bounded row query:
 
 ```bash
-eidos file.eidos context Tasks \
+eidos --json context file.eidos Tasks \
   --fields Title,Status,Estimate \
   --where '{"op":"in","field":"Status","values":["todo","doing"]}' \
   --limit 50
@@ -84,7 +88,7 @@ grammar as `query`.
 ## Query
 
 ```bash
-eidos file.eidos query Tasks \
+eidos --json query file.eidos Tasks \
   --where '{"op":"eq","field":"Status","value":"doing"}' \
   --sort '[{"field":"Estimate","direction":"desc","nulls":"last"}]' \
   --fields Title,Status,Estimate \
@@ -95,7 +99,7 @@ eidos file.eidos query Tasks \
 Search requires explicit fields:
 
 ```bash
-eidos file.eidos query Tasks --search ship --search-fields Title,Notes
+eidos --json query file.eidos Tasks --search ship --search-fields Title,Notes
 ```
 
 Filter nodes accept `field` or `fieldId`:
@@ -129,7 +133,7 @@ Rows are keyed by display names and always include `_id`. Integer values are ret
 Use `apply` for the common read-check-update-validate loop:
 
 ```bash
-eidos file.eidos apply - <<'JSON'
+eidos --json apply file.eidos - <<'JSON'
 {
   "revision": "4",
   "table": "Tasks",
@@ -158,11 +162,11 @@ no change. This initial version updates existing rows only.
 Add one or multiple rows atomically:
 
 ```bash
-eidos file.eidos rows add Tasks \
+eidos --json rows file.eidos add Tasks \
   --expected-revision 4 \
   --values '{"Title":"Ship CLI","Estimate":"3"}'
 
-eidos file.eidos rows add Tasks \
+eidos --json rows file.eidos add Tasks \
   --expected-revision 5 \
   --values '[{"Title":"A"},{"Title":"B"}]'
 ```
@@ -170,7 +174,7 @@ eidos file.eidos rows add Tasks \
 Update one row using a sparse values object:
 
 ```bash
-eidos file.eidos rows update Tasks 019... \
+eidos --json rows file.eidos update Tasks 019... \
   --expected-revision 6 \
   --values '{"Status":"done"}'
 ```
@@ -178,7 +182,7 @@ eidos file.eidos rows update Tasks 019... \
 Delete rows atomically:
 
 ```bash
-eidos file.eidos rows delete Tasks 019... 019... --expected-revision 7
+eidos --json rows file.eidos delete Tasks 019... 019... --expected-revision 7
 ```
 
 Successful mutations return the new `revision`. Creation also returns stable row IDs under `created[].rowId`.
@@ -190,7 +194,7 @@ Every schema operation takes one JSON object and one expected revision. Add `--d
 IDs returned in a dry-run `createdObjects` array are ephemeral planning IDs. They will differ from IDs allocated by the real apply and must never be stored or used in later commands. Read actual IDs from the apply result.
 
 ```bash
-eidos file.eidos schema-apply \
+eidos --json schema-apply file.eidos \
   --expected-revision 8 \
   --dry-run \
   --op '{"kind":"create-field","table":"Tasks","name":"Owner","type":"text"}'
@@ -233,10 +237,10 @@ Formula, Lookup, and inverse Relation creation is intentionally rejected in the 
 ## Validation
 
 ```bash
-eidos file.eidos validate --level identity
-eidos file.eidos validate --level structural
-eidos file.eidos validate --level content
-eidos file.eidos validate --level full --diagnostics-limit 100
+eidos --json validate file.eidos --level identity
+eidos --json validate file.eidos --level structural
+eidos --json validate file.eidos --level content
+eidos --json validate file.eidos --level full --diagnostics-limit 100
 ```
 
 The process exits nonzero when `valid` is false.

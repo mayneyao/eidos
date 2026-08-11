@@ -9,10 +9,13 @@ The reliable write sequence is **context → apply → validate**. It gives an
 Agent or script a bounded view, prevents writes based on stale data, and proves
 the committed file still satisfies the requested validation level.
 
+Every automation command below passes `--json` explicitly. The default output
+is designed for people and is not a machine contract.
+
 ## 1. Read a bounded context
 
 ```bash
-eidos context tracker.eidos Tasks \
+eidos --json context tracker.eidos Tasks \
   --fields Title,Status \
   --limit 50
 ```
@@ -24,7 +27,7 @@ needed.
 Filters use portable JSON and may reference fields by name or stable ID:
 
 ```bash
-eidos context tracker.eidos Tasks \
+eidos --json context tracker.eidos Tasks \
   --where '{"op":"ne","field":"Status","value":"done"}' \
   --fields Title,Status
 ```
@@ -48,7 +51,7 @@ Save a request as `request.json` or pass it on stdin:
 ```
 
 ```bash
-eidos apply tracker.eidos request.json
+eidos --json apply tracker.eidos request.json
 ```
 
 `revision` rejects stale work. `expect` prevents an unexpectedly broad update.
@@ -58,7 +61,7 @@ requested by `returning`.
 ## 3. Validate the committed file
 
 ```bash
-eidos validate tracker.eidos --level full
+eidos --json validate tracker.eidos --level full
 ```
 
 Treat a nonzero exit status at any step as a failed workflow. Do not continue
@@ -71,7 +74,7 @@ for automation that already owns stable IDs and revision state. Schema changes
 support dry-run execution against the real transaction path before commit.
 
 ```bash
-eidos schema-apply tracker.eidos \
+eidos --json schema-apply tracker.eidos \
   --expected-revision 1 \
   --op @schema-change.json \
   --dry-run

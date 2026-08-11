@@ -1,6 +1,6 @@
 ---
 title: CLI 与自动化
-description: 使用只输出 JSON 的 Eidos CLI，安全操作 Eidos File。
+description: 使用 Eidos CLI 的可读终端输出或显式 JSON 自动化接口。
 sidebar:
   order: 1
 ---
@@ -41,8 +41,15 @@ eidos validate tracker.eidos --level full
 为兼容旧工作流，也接受 `eidos tracker.eidos inspect` 这样的 file-first 写法。新脚本建议使用
 command-first，与 `eidos --help` 保持一致。
 
-成功命令向 stdout 写一个 JSON document；失败命令向 stderr 写一个 JSON error
-document，并返回非零 exit status。
+命令默认输出便于阅读的键值区块和表格。Agent 与脚本应显式传入全局 `--json` 参数：
+
+```bash
+eidos --json context tracker.eidos Tasks --fields Title,Status --limit 50
+```
+
+JSON 模式下，成功命令向 stdout 写一个 JSON document；失败命令向 stderr 写一个 JSON
+error document，并返回非零 exit status。JSON schema 是稳定的自动化合同；人类可读输出可能
+继续为可读性优化。
 
 ## 支持边界
 

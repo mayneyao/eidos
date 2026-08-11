@@ -8,11 +8,11 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 #[command(
     name = "eidos",
     version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"),
-    about = "Read and modify Eidos File (*.eidos) for agents and automation",
-    long_about = "A JSON-only, agent-first interface to the open Eidos File format. It works directly on .eidos files and does not require a running Eidos application."
+    about = "Read and modify Eidos File (*.eidos) for people, agents, and automation",
+    long_about = "A local command-line interface to the open Eidos File format. It prints readable output by default and stable JSON with --json. It works directly on .eidos files and does not require a running Eidos application."
 )]
 pub struct Cli {
-    /// Explicitly request JSON. JSON is always the default and only output format.
+    /// Emit stable machine-readable JSON instead of human-readable output.
     #[arg(long, global = true)]
     pub json: bool,
 
@@ -293,20 +293,32 @@ pub fn normalize_args(mut args: Vec<OsString>) -> Vec<OsString> {
     if args.len() < 3 {
         return args;
     }
-    let candidate = args[1].to_string_lossy();
+    let Some(file_index) =
+        args.iter().enumerate().skip(1).find_map(|(index, value)| {
+            (!value.to_string_lossy().starts_with('-')).then_some(index)
+        })
+    else {
+        return args;
+    };
+    let candidate = args[file_index].to_string_lossy();
     if candidate.starts_with('-')
         || COMMANDS.contains(&candidate.as_ref())
         || !candidate.to_ascii_lowercase().ends_with(".eidos")
     {
         return args;
     }
-    let Some(command_index) = args.iter().enumerate().skip(2).find_map(|(index, value)| {
-        let value = value.to_string_lossy();
-        COMMANDS.contains(&value.as_ref()).then_some(index)
-    }) else {
+    let Some(command_index) =
+        args.iter()
+            .enumerate()
+            .skip(file_index + 1)
+            .find_map(|(index, value)| {
+                let value = value.to_string_lossy();
+                COMMANDS.contains(&value.as_ref()).then_some(index)
+            })
+    else {
         return args;
     };
-    let file = args.remove(1);
+    let file = args.remove(file_index);
     let adjusted_command_index = command_index - 1;
     args.insert(adjusted_command_index + 1, file);
     args

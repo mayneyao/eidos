@@ -8,10 +8,12 @@ sidebar:
 可靠的写入顺序是 **context → apply → validate**。它让 Agent 或脚本只读取有界上下文，
 避免基于过期数据写入，并证明提交后的文件仍满足指定 validation level。
 
+以下自动化命令都显式传入 `--json`。默认输出面向人类阅读，不属于机器合同。
+
 ## 1. 读取有界上下文
 
 ```bash
-eidos context tracker.eidos Tasks \
+eidos --json context tracker.eidos Tasks \
   --fields Title,Status \
   --limit 50
 ```
@@ -22,7 +24,7 @@ system field、settings、relations 和保存视图时才添加 `--full`。
 筛选使用可移植 JSON，字段可以用名称或 stable ID：
 
 ```bash
-eidos context tracker.eidos Tasks \
+eidos --json context tracker.eidos Tasks \
   --where '{"op":"ne","field":"Status","value":"done"}' \
   --fields Title,Status
 ```
@@ -46,7 +48,7 @@ eidos context tracker.eidos Tasks \
 ```
 
 ```bash
-eidos apply tracker.eidos request.json
+eidos --json apply tracker.eidos request.json
 ```
 
 `revision` 拒绝过期工作；`expect` 防止修改范围意外扩大。CLI 在提交前校验 proposed final
@@ -55,7 +57,7 @@ state，并返回 `returning` 指定的记录。
 ## 3. 校验已提交文件
 
 ```bash
-eidos validate tracker.eidos --level full
+eidos --json validate tracker.eidos --level full
 ```
 
 任一步返回非零 exit status，都应视为整个工作流失败。不要根据猜测或不完整解析继续执行。
@@ -67,7 +69,7 @@ eidos validate tracker.eidos --level full
 执行 dry run。
 
 ```bash
-eidos schema-apply tracker.eidos \
+eidos --json schema-apply tracker.eidos \
   --expected-revision 1 \
   --op @schema-change.json \
   --dry-run

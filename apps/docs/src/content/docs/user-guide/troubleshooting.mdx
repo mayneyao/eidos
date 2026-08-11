@@ -48,8 +48,9 @@ startup support.
 
 ## A command failed in automation
 
-Successful CLI commands emit one JSON document to stdout. Failures emit one
-JSON error document to stderr and return a nonzero status. Preserve stderr and
+CLI commands emit readable terminal output by default. Automation must pass
+`--json` to receive one JSON document on stdout or one JSON error document on
+stderr. Failures return a nonzero status in either mode. Preserve stderr and
 the exit code; do not parse human terminal text.
 
 If the problem remains, include the CLI version, operating system, validation
