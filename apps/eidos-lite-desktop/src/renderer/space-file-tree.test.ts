@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { FileTree as PierreFileTree } from "@pierre/trees"
 
 import type { SpaceTreeEntry } from "../shared/contracts"
 import {
@@ -7,6 +8,7 @@ import {
   canMoveTreeDrop,
   dropTargetDirectory,
   parentTreePaths,
+  preservedExpandedTreePaths,
   relativePathFromTreePath,
   remappedTreePaths,
 } from "./space-file-tree"
@@ -74,6 +76,37 @@ describe("buildSpaceFileTreeModel", () => {
       "projects/active/",
     ])
     expect(parentTreePaths("Roadmap.eidos")).toEqual([])
+  })
+})
+
+describe("preservedExpandedTreePaths", () => {
+  it("keeps a deep directory open when lazy-loaded children reset the paths", () => {
+    const model = new PierreFileTree({
+      flattenEmptyDirectories: false,
+      initialExpandedPaths: ["projects/"],
+      initialExpansion: "closed",
+      paths: ["projects/", "projects/archive/"],
+    })
+
+    const archive = model.getItem("projects/archive/")
+    expect(archive !== null && "expand" in archive).toBe(true)
+    if (archive && "expand" in archive) archive.expand()
+    const nextPaths = [
+      "projects/",
+      "projects/archive/",
+      "projects/archive/history.eidos",
+    ]
+    model.resetPaths(nextPaths, {
+      initialExpandedPaths: preservedExpandedTreePaths(nextPaths, model),
+    })
+
+    const restoredArchive = model.getItem("projects/archive/")
+    expect(
+      restoredArchive && "isExpanded" in restoredArchive
+        ? restoredArchive.isExpanded()
+        : false
+    ).toBe(true)
+    model.cleanUp()
   })
 })
 

@@ -146,6 +146,58 @@ describe("Eidos Lite attachment files", () => {
     ).rejects.toThrow("no longer matches")
   })
 
+  it("resolves safe equivalent percent encodings produced by other hosts", async () => {
+    const root = await fixture()
+    const source = path.join(root, "photo.png")
+    await fs.writeFile(source, PNG)
+    await importEidosFileAttachments(root, "project/data.eidos", [source])
+    const imported = await importEidosFileAttachments(
+      root,
+      "project/data.eidos",
+      [source]
+    )
+    const entry = imported.entries[0]!
+
+    await expect(
+      resolveEidosFileAttachment(
+        root,
+        "project/data.eidos",
+        {
+          ...entry,
+          uri: entry.uri.replace("(2)", "%282%29"),
+        },
+        "thumbnail"
+      )
+    ).resolves.toMatchObject({ bytes: PNG })
+  })
+
+  it("rejects encoded traversal and path separators while resolving assets", async () => {
+    const root = await fixture()
+    const source = path.join(root, "photo.png")
+    await fs.writeFile(source, PNG)
+    const imported = await importEidosFileAttachments(
+      root,
+      "project/data.eidos",
+      [source]
+    )
+    const entry = imported.entries[0]!
+
+    for (const uri of [
+      "assets/%2E%2E/photo.png",
+      "assets/folder%2Fphoto.png",
+      "assets//photo.png",
+    ]) {
+      await expect(
+        resolveEidosFileAttachment(
+          root,
+          "project/data.eidos",
+          { ...entry, uri },
+          "thumbnail"
+        )
+      ).rejects.toThrow(/Attachment URI/)
+    }
+  })
+
   it("rejects symlink attachment sources", async () => {
     if (process.platform === "win32") return
     const root = await fixture()

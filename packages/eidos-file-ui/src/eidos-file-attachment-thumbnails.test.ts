@@ -21,7 +21,10 @@ const serviceCapabilities: HostServiceCapabilities = {
   canUseAssets: true,
 }
 
-function hostState(assetReadSchemes = ["relative"]): HostSessionState {
+function hostState(
+  assetReadSchemes = ["relative"],
+  concurrentAssetLeasesMax = 8
+): HostSessionState {
   return {
     sessionId: "session-1",
     phase: "ready-clean",
@@ -44,7 +47,7 @@ function hostState(assetReadSchemes = ["relative"]): HostSessionState {
       recoveryRetentionSecondsMax: 0,
       assetBytesMax: "16777216",
       assetPreviewBytesMax: "1048576",
-      concurrentAssetLeasesMax: 8,
+      concurrentAssetLeasesMax,
       concurrentSessionsMax: 1,
     },
   }
@@ -72,7 +75,7 @@ function lease(): AssetLease {
 }
 
 describe("EidosFileAttachmentThumbnailManager", () => {
-  it("loads through the Host lease and presenter, redraws, and releases offscreen", async () => {
+  it("loads through the Host lease and presenter, redraws, and releases after decoding", async () => {
     const resolveAsset = vi.fn(async () => lease())
     const releaseAsset = vi.fn(async () => undefined)
     const services = { resolveAsset, releaseAsset } as unknown as HostServices
@@ -110,13 +113,93 @@ describe("EidosFileAttachmentThumbnailManager", () => {
     })
     expect(fetchSpy).not.toHaveBeenCalled()
 
-    manager.retainVisibleRows(100, 10)
     await vi.waitFor(() => expect(releaseAsset).toHaveBeenCalledOnce())
     expect(releaseAsset).toHaveBeenCalledWith(
       { sessionId: "session-1", leaseId: "lease-1" },
       expect.objectContaining({ requestId: expect.any(String) })
     )
     fetchSpy.mockRestore()
+  })
+
+  it("queues thumbnail decoding within the negotiated lease limit", async () => {
+    const entries = Array.from({ length: 3 }, (_, index) => ({
+      ...entry,
+      id: `0198c6b9-c9a3-7cb9-82d0-dfb39d51c45${index}`,
+      name: `cover-${index}.png`,
+      uri: `assets/cover-${index}.png`,
+    }))
+    const resolveAsset = vi.fn(async (request: { entryId: string }) => {
+      const candidate = entries.find((item) => item.id === request.entryId)!
+      return {
+        ...lease(),
+        leaseId: `lease-${candidate.id}`,
+        entryId: candidate.id,
+        name: candidate.name,
+        resourceToken: `blob:host/${candidate.id}`,
+      }
+    })
+    const releaseAsset = vi.fn(async () => undefined)
+    const decoders: Array<(source: CanvasImageSource) => void> = []
+    const loadImage = vi.fn(
+      () =>
+        new Promise<CanvasImageSource>((resolve) => {
+          decoders.push(resolve)
+        })
+    )
+    const manager = new EidosFileAttachmentThumbnailManager(
+      {
+        services: { resolveAsset, releaseAsset } as unknown as HostServices,
+        serviceCapabilities,
+        state: hostState(["relative"], 2),
+      },
+      { loadImage } as unknown as AssetPresenter<unknown>,
+      vi.fn()
+    )
+
+    entries.forEach((candidate, row) => manager.prepare([candidate], 0, row))
+    await vi.waitFor(() => expect(loadImage).toHaveBeenCalledTimes(2))
+    expect(resolveAsset).toHaveBeenCalledTimes(2)
+
+    decoders[0]!({ height: 32, width: 32 } as CanvasImageSource)
+    await vi.waitFor(() => expect(resolveAsset).toHaveBeenCalledTimes(3))
+    expect(releaseAsset).toHaveBeenCalledTimes(1)
+
+    decoders
+      .slice(1)
+      .forEach((resolve) =>
+        resolve({ height: 32, width: 32 } as CanvasImageSource)
+      )
+    await vi.waitFor(() => expect(releaseAsset).toHaveBeenCalledTimes(3))
+  })
+
+  it("shares one decoded thumbnail across cells that reference the same entry", async () => {
+    const resolveAsset = vi.fn(async () => lease())
+    const releaseAsset = vi.fn(async () => undefined)
+    const source = { height: 32, width: 32 } as unknown as CanvasImageSource
+    const onCellsReady = vi.fn()
+    const manager = new EidosFileAttachmentThumbnailManager(
+      {
+        services: { resolveAsset, releaseAsset } as unknown as HostServices,
+        serviceCapabilities,
+        state: hostState(),
+      },
+      {
+        loadImage: vi.fn(async () => source),
+      } as unknown as AssetPresenter<unknown>,
+      onCellsReady
+    )
+
+    expect(manager.prepare([entry], 0, 0)).toEqual([])
+    expect(manager.prepare([entry], 0, 1)).toEqual([])
+    await vi.waitFor(() => expect(onCellsReady).toHaveBeenCalledOnce())
+
+    expect(resolveAsset).toHaveBeenCalledOnce()
+    expect(onCellsReady).toHaveBeenCalledWith([
+      { cell: [0, 0] },
+      { cell: [0, 1] },
+    ])
+    expect(manager.prepare([entry], 0, 0)).toEqual([source])
+    expect(manager.prepare([entry], 0, 1)).toEqual([source])
   })
 
   it("does not resolve a URI scheme denied by the Host session", () => {

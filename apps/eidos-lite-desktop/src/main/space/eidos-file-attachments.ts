@@ -21,6 +21,8 @@ const SAFE_RASTER_MEDIA_TYPES = new Set([
   "image/x-icon",
 ])
 const URI_SCHEME = /^[a-z][a-z\d+.-]*:/iu
+const URI_REFERENCE_ASCII =
+  /^(?:[A-Za-z0-9\-._~!$&'()*+,;=:@/?#\[\]]|%[0-9A-Fa-f]{2})*$/u
 
 export interface ImportedEidosFileAssets {
   entries: FileEntry[]
@@ -589,20 +591,30 @@ export async function importEidosFileAttachments(
 }
 
 function decodeRelativeAssetUri(uri: string): string {
-  if (normalizeRelativeAssetUri(uri) !== uri) {
-    throw new Error("Attachment URI is not a canonical relative path")
+  if (
+    !URI_REFERENCE_ASCII.test(uri) ||
+    uri.startsWith("/") ||
+    URI_SCHEME.test(uri) ||
+    uri.includes("?") ||
+    uri.includes("#")
+  ) {
+    throw new Error("Attachment URI is not a safe relative path")
   }
   try {
-    const segments = uri
-      .split("/")
-      .map((segment) => decodeURIComponent(segment))
-    if (
-      segments.some(
-        (segment) => segment.includes("/") || segment.includes("\\")
-      )
-    ) {
-      throw new Error("Attachment URI contains an encoded path separator")
-    }
+    const segments = uri.split("/").map((segment) => {
+      if (!segment) throw new Error("Attachment URI contains an empty segment")
+      const decoded = decodeURIComponent(segment)
+      if (
+        decoded === "." ||
+        decoded === ".." ||
+        decoded.includes("/") ||
+        decoded.includes("\\") ||
+        decoded.includes("\0")
+      ) {
+        throw new Error("Attachment URI contains an unsafe path segment")
+      }
+      return decoded
+    })
     return segments.join(path.sep)
   } catch {
     throw new Error("Attachment URI encoding is invalid")

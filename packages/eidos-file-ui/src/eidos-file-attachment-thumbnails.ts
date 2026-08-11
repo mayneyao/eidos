@@ -16,11 +16,11 @@ interface ThumbnailRecord {
   active: boolean
   cells: Set<string>
   entry: FileEntry
-  expiryTimer?: ReturnType<typeof setTimeout>
   lease?: Awaited<
     ReturnType<EidosFileUIAssetSession["services"]["resolveAsset"]>
   >
   source?: CanvasImageSource
+  state: "queued" | "loading" | "ready" | "failed"
 }
 
 function cellKey(column: number, row: number): string {
@@ -33,10 +33,14 @@ function cellFromKey(key: string): EidosFileAttachmentThumbnailCell {
 }
 
 /**
- * Keeps Host thumbnail leases only for rendered Grid rows. Canonical File URIs
- * never enter the Canvas loader; the injected presenter supplies the source.
+ * Queues Host thumbnail resolution within the negotiated lease budget, then
+ * retains the decoded source for visible Grid cells after releasing the lease.
+ * Canonical File URIs never enter the Canvas loader directly.
  */
 export class EidosFileAttachmentThumbnailManager {
+  private activeLoads = 0
+  private readonly concurrentLoads: number
+  private readonly loadQueue: ThumbnailRecord[] = []
   private readonly records = new Map<string, ThumbnailRecord>()
   private readonly cellEntries = new Map<string, Set<string>>()
 
@@ -46,7 +50,12 @@ export class EidosFileAttachmentThumbnailManager {
     private readonly onCellsReady: (
       cells: EidosFileAttachmentThumbnailCell[]
     ) => void
-  ) {}
+  ) {
+    this.concurrentLoads = Math.max(
+      1,
+      Math.min(4, session?.state.limits.concurrentAssetLeasesMax ?? 1)
+    )
+  }
 
   prepare(
     entries: readonly FileEntry[],
@@ -67,13 +76,19 @@ export class EidosFileAttachmentThumbnailManager {
     for (const entry of eligible) {
       let record = this.records.get(entry.id)
       if (!record) {
-        record = { active: true, cells: new Set(), entry }
+        record = {
+          active: true,
+          cells: new Set(),
+          entry,
+          state: "queued",
+        }
         this.records.set(entry.id, record)
-        void this.load(record)
+        this.loadQueue.push(record)
       }
       record.cells.add(key)
       if (record.source) sources.push(record.source)
     }
+    this.drainLoadQueue()
     return sources
   }
 
@@ -90,8 +105,31 @@ export class EidosFileAttachmentThumbnailManager {
 
   clear(): void {
     this.cellEntries.clear()
+    this.loadQueue.length = 0
     for (const record of this.records.values()) this.dispose(record)
     this.records.clear()
+  }
+
+  private drainLoadQueue(): void {
+    while (
+      this.activeLoads < this.concurrentLoads &&
+      this.loadQueue.length > 0
+    ) {
+      const record = this.loadQueue.shift()!
+      if (
+        !record.active ||
+        record.cells.size === 0 ||
+        record.state !== "queued"
+      ) {
+        continue
+      }
+      record.state = "loading"
+      this.activeLoads += 1
+      void this.load(record).finally(() => {
+        this.activeLoads -= 1
+        this.drainLoadQueue()
+      })
+    }
   }
 
   private replaceCellEntries(key: string, nextIds: Set<string>): void {
@@ -137,16 +175,9 @@ export class EidosFileAttachmentThumbnailManager {
         return
       }
       record.source = source
-      const remaining = Date.parse(lease.expiresAt) - Date.now()
-      record.expiryTimer = setTimeout(
-        () => {
-          const cells = [...record.cells].map(cellFromKey)
-          this.records.delete(record.entry.id)
-          this.dispose(record)
-          if (cells.length > 0) this.onCellsReady(cells)
-        },
-        Math.min(remaining, 2_147_483_647)
-      )
+      record.state = "ready"
+      record.lease = undefined
+      await releaseEidosFileAssetLease(this.session, lease)
       this.onCellsReady([...record.cells].map(cellFromKey))
     } catch {
       if (lease) {
@@ -154,13 +185,13 @@ export class EidosFileAttachmentThumbnailManager {
       }
       record.lease = undefined
       record.source = undefined
+      record.state = "failed"
     }
   }
 
   private dispose(record: ThumbnailRecord): void {
     if (!record.active) return
     record.active = false
-    if (record.expiryTimer) clearTimeout(record.expiryTimer)
     if (record.lease && this.session) {
       void releaseEidosFileAssetLease(this.session, record.lease)
     }

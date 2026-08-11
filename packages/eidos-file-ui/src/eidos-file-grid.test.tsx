@@ -2497,7 +2497,7 @@ describe("EidosFileGrid", () => {
       data: { thumbnails: [source] },
     })
     expect(resolveAsset).toHaveBeenCalledOnce()
-    expect(releaseAsset).not.toHaveBeenCalled()
+    expect(releaseAsset).toHaveBeenCalledOnce()
   })
 
   it("hydrates relation cells and delegates target record search", async () => {

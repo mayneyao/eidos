@@ -1846,6 +1846,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             }
           >
             <SpaceFileTree
+              key={space.id}
               entries={space.entries}
               activePath={activeDocumentPath}
               disabled={localInteractionBlocked || busyFile !== null}

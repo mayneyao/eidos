@@ -6,7 +6,11 @@ import {
   type CSSProperties,
   type SyntheticEvent,
 } from "react"
-import type { FileTreeDropContext, FileTreeDropTarget } from "@pierre/trees"
+import type {
+  FileTreeDropContext,
+  FileTreeDropTarget,
+  FileTreeItemHandle,
+} from "@pierre/trees"
 import {
   FileTree,
   useFileTree,
@@ -87,6 +91,21 @@ function treePathLeafName(treePath: string): string {
 
 function sortedPathsSignature(paths: readonly string[]): string {
   return [...paths].sort().join("\u0000")
+}
+
+interface FileTreeExpansionReader {
+  getItem(path: string): FileTreeItemHandle | null
+}
+
+export function preservedExpandedTreePaths(
+  nextPaths: readonly string[],
+  model: FileTreeExpansionReader
+): string[] {
+  return nextPaths.filter((path) => {
+    if (!path.endsWith("/")) return false
+    const item = model.getItem(path)
+    return item !== null && "isExpanded" in item && item.isExpanded()
+  })
 }
 
 export function remappedTreePaths(
@@ -251,6 +270,7 @@ export function SpaceFileTree({
   const treeRef = useRef(tree)
   treeRef.current = tree
   const appliedPathsSignatureRef = useRef<string | null>(null)
+  const treeInitializedRef = useRef(false)
 
   const { model } = useFileTree({
     paths: [],
@@ -343,9 +363,13 @@ export function SpaceFileTree({
   useEffect(() => {
     const signature = sortedPathsSignature(tree.paths)
     if (appliedPathsSignatureRef.current === signature) return
+    const expandedPaths = treeInitializedRef.current
+      ? preservedExpandedTreePaths(tree.paths, model)
+      : tree.initialExpandedPaths
     model.resetPaths(tree.paths, {
-      initialExpandedPaths: tree.initialExpandedPaths,
+      initialExpandedPaths: expandedPaths,
     })
+    treeInitializedRef.current = true
     appliedPathsSignatureRef.current = signature
   }, [model, treeResetVersion, treeSignature])
 
