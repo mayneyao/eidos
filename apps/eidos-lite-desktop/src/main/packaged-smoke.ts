@@ -517,14 +517,46 @@ const rendererProbe = `
     [...treeHost.shadowRoot.querySelectorAll('[data-type="item"]')].find(
       (candidate) => candidate.dataset.itemPath === relativePath
     )
+  const treeScroll = treeHost.shadowRoot.querySelector(
+    '[data-file-tree-virtualized-scroll="true"]'
+  )
+  if (!(treeScroll instanceof HTMLElement)) {
+    throw new Error("Pierre Space file tree scroll surface is missing")
+  }
+  const scanTreeItem = async (relativePath) => {
+    const deadline = Date.now() + 15000
+    treeScroll.scrollTop = 0
+    while (Date.now() < deadline) {
+      const candidate = treeItem(relativePath)
+      if (candidate) return candidate
+      const maximum = Math.max(0, treeScroll.scrollHeight - treeScroll.clientHeight)
+      const step = Math.max(28, Math.floor(treeScroll.clientHeight * 0.75))
+      treeScroll.scrollTop =
+        treeScroll.scrollTop >= maximum
+          ? 0
+          : Math.min(maximum, treeScroll.scrollTop + step)
+      treeScroll.dispatchEvent(new Event("scroll"))
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    throw new Error("Timed out waiting for " + relativePath + " in Space Explorer")
+  }
+  const revealTreeItem = async (relativePath) => {
+    const segments = relativePath.split("/")
+    for (let index = 0; index < segments.length - 1; index += 1) {
+      const parentPath = segments.slice(0, index + 1).join("/") + "/"
+      const parent = await scanTreeItem(parentPath)
+      if (parent.getAttribute("aria-expanded") === "false") {
+        parent.click()
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+    }
+    return scanTreeItem(relativePath)
+  }
   const utilityOpenMs = []
   let denseGrid = null
   for (let index = 0; index < 4; index += 1) {
     const relativePath = eidosPaths[index]
-    const button = await waitFor(
-      () => treeItem(relativePath),
-      relativePath + " in Space Explorer"
-    )
+    const button = await revealTreeItem(relativePath)
     const openStartedAt = performance.now()
     button.click()
     await waitFor(
@@ -1321,7 +1353,7 @@ const rendererProbe = `
   if (readmePreview.type !== "text" || readmePreview.truncated) {
     throw new Error("README text preview is not editable")
   }
-  const readmeItem = await waitFor(() => treeItem("README.md"), "README in Space Explorer")
+  const readmeItem = await revealTreeItem("README.md")
   readmeItem.click()
   const readmeSurface = await waitFor(
     () =>
