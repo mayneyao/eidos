@@ -126,6 +126,11 @@ describe("EidosFileSheetTabs", () => {
     })
 
     await openTableMenu(container, "projects")
+    const menu = document.body.querySelector<HTMLElement>(
+      "[data-eidos-file-table-menu]"
+    )
+    expect(menu?.classList.contains("w-max")).toBe(true)
+    expect(menu?.classList.contains("w-44")).toBe(false)
     expect(
       Array.from(document.body.querySelectorAll('[role="menuitem"]')).map(
         (item) => item.textContent?.trim()
