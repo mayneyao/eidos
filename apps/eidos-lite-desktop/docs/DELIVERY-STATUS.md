@@ -70,8 +70,14 @@ The final local audit passed:
   most 100 row-diff records; its first page server-rendered in 58.4 ms. The
   packaged import/diff flow was also directly accepted by the product owner.
 - Production-mode compile and environment-manifest verification passed for
-  `https://eidos.space` and `https://sync.eidos.space`. No production request
-  or mutation was performed.
+  `https://eidos.space` and `https://sync.eidos.space`. The approved
+  `lite-v0.1.4` workflow then built all five targets, deployed the update
+  router, and verified every stable metadata route at version 0.1.4.
+- The public macOS arm64 ZIP matched `SHA256SUMS` at
+  `6179de506523d6cb88a55505da6a54c81d25fa0e9f4425ba400e13deda6ca472`.
+  Its Developer ID signature, notarization ticket, Gatekeeper assessment, and
+  production packaged smoke all passed; the downloaded artifact reached a
+  usable window in 1,910 ms with zero console errors and Graft SDK 0.3.10.
 - The latest unsigned staging package passed the complete packaged smoke with
   zero console errors. The normal main-process entry no longer imports the
   packaged-smoke fixture builder or native SQLite chunk; it dynamically loads
@@ -192,9 +198,9 @@ The following must stay visibly open before Public v1:
    Intel workers for every `lite-v*` tag.
 3. Build and exercise real Windows x64 and Linux arm64/x64 installers, including
    `.eidos` association, native Graft package loading and credential storage.
-4. Configure signing, macOS notarization and a signed update feed; verify clean
-   install, in-place upgrade, update-source validation and rollback for every
-   supported target.
+4. Complete clean-machine in-place upgrade and rollback from 0.1.3 to the
+   signed/notarized 0.1.4 package. Signing, notarization, stable update metadata,
+   public checksum, and direct launch verification are complete.
 5. Complete at least two weeks of two-device dogfood using real Spaces and the
    official staging subscription/Credits path.
 6. Re-run the owner-only staging OAuth acceptance for the release candidate,
@@ -208,15 +214,10 @@ The following must stay visibly open before Public v1:
    encryption claims.
 9. Obtain explicit authorization before any future production mutation,
    deployment, push, PR, merge or release.
-10. For every approved `lite-v*` release, deploy the new download Worker, verify
-    every architecture-specific update route, and perform a signed upgrade and
-    rollback from the preceding version. The implementation exists locally but
-    no tag, production deployment, signed artifact, or live update proof was
-    created by this audit.
 
 ## Next delivery sequence
 
-Run remote macOS gates first, then execute the owner-only staging candidate
-acceptance and start two-device dogfood. In parallel, close the destructive
-test matrix and service-operations gates. Only after those results are recorded
-should signing/update work and production release approval begin.
+Exercise the signed 0.1.3 -> 0.1.4 upgrade and rollback on a clean Mac, then
+execute the owner-only staging acceptance and start two-device dogfood. In
+parallel, close the real Windows/Linux hardware, destructive test matrix, and
+service-operations gates.
