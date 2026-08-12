@@ -5,23 +5,40 @@ import { parse as parseToml, stringify as stringifyToml } from "smol-toml"
 
 import type {
   GraftSpaceStatus,
+  EidosSyncMergeConflict,
+  EidosSyncMergeCellConflict,
+  EidosSyncMergeConflictPage,
+  EidosSyncMergeContent,
+  EidosSyncMergePath,
+  EidosSyncMergePathPage,
+  EidosSyncMergePlan,
+  EidosSyncMergeSqliteDiff,
+  EidosSyncMergeSqliteVersion,
+  EidosSyncMergeStatus,
   SpaceVersionCommit,
   SpaceVersionDiff,
   SpaceVersionFileDiff,
   SpaceVersionHistory,
   SpaceVersionPathChange,
   SpaceVersionRowChange,
+  SpaceVersionSchemaChange,
   SpaceVersionTableDiff,
   SpaceVersionTableSummary,
   SpaceVersionTextContentDiff,
   SpaceSyncHistoryStatus,
 } from "../../shared/contracts"
+import type {
+  GraftMergePolicy,
+  GraftMergePolicyResult,
+  GraftMergePolicyValidationResult,
+} from "../../shared/graft-merge-contracts"
 import { resolveEidosLiteServiceEnvironment } from "../../shared/service-environment"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 const SDK_DIFF_PAGE_SIZE = 100
 const SDK_PATH_BATCH_SIZE = 1_000
-export const GRAFT_SDK_VERSION = "0.3.8"
+export const GRAFT_SDK_VERSION = "0.3.10"
+export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.10"
 
 export interface GraftClientOptions {
   sdkTransport: GraftSdkTransport
@@ -46,6 +63,15 @@ export interface GraftRepositoryStatus {
   persistentSnapshotSaved?: boolean
   stabilityRetries?: number
   verifiedPaths?: string[]
+  pathDiagnostics?: GraftRepositoryPathDiagnostic[]
+}
+
+export interface GraftRepositoryPathDiagnostic {
+  path: string
+  status: "skipped" | "corrupt" | "analysis_failed"
+  operation: string
+  protectedByIndex: boolean
+  message: string
 }
 
 export interface GraftCommitResult {
@@ -118,9 +144,30 @@ function numberValue(value: unknown): number {
 
 function syncHistoryState(
   value: unknown,
+  localHead: string | undefined,
+  remoteHead: string | undefined,
+  commonAncestor: string | undefined,
   ahead: number,
   behind: number
 ): SpaceSyncHistoryStatus["state"] {
+  if (localHead && remoteHead) {
+    if (localHead === remoteHead) return "up_to_date"
+    if (commonAncestor) {
+      if (localHead === commonAncestor && remoteHead !== commonAncestor) {
+        return "behind"
+      }
+      if (remoteHead === commonAncestor && localHead !== commonAncestor) {
+        return "ahead"
+      }
+      if (
+        localHead !== commonAncestor &&
+        remoteHead !== commonAncestor &&
+        localHead !== remoteHead
+      ) {
+        return "diverged"
+      }
+    }
+  }
   if (
     value === "up_to_date" ||
     value === "ahead" ||
@@ -135,10 +182,393 @@ function syncHistoryState(
   return "unknown"
 }
 
+export function classifySyncHistory(input: {
+  state?: unknown
+  localHead?: string
+  remoteHead?: string
+  commonAncestor?: string
+  ahead: number
+  behind: number
+}): SpaceSyncHistoryStatus["state"] {
+  return syncHistoryState(
+    input.state,
+    input.localHead,
+    input.remoteHead,
+    input.commonAncestor,
+    input.ahead,
+    input.behind
+  )
+}
+
 function stringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item) => typeof item === "string")
     : []
+}
+
+function requiredString(value: unknown, label: string): string {
+  const result = stringValue(value)
+  if (!result) throw new Error(`Graft returned an invalid ${label}`)
+  return result
+}
+
+function mergeStatus(value: unknown): EidosSyncMergeStatus {
+  const item = record(value)
+  if (item.state === "none") return { state: "none" }
+  if (item.state !== "merging") {
+    throw new Error("Graft returned an invalid merge status")
+  }
+  return {
+    state: "merging",
+    localHead: requiredString(item.orig_head, "merge Local head"),
+    hostedHead: requiredString(item.merge_head, "merge Hosted head"),
+    commonAncestor: stringValue(item.merge_base) ?? null,
+    stagedCount: Math.max(0, Math.trunc(numberValue(item.staged_count))),
+    unmergedCount: Math.max(0, Math.trunc(numberValue(item.unmerged_count))),
+    stateToken: requiredString(item.state_token, "merge state token"),
+    policyToken: requiredString(item.policy_token, "merge policy token"),
+    policyVersion: Math.max(1, Math.trunc(numberValue(item.policy_version))),
+  }
+}
+
+function mergePlan(value: unknown): EidosSyncMergePlan {
+  const item = record(value)
+  if (
+    item.kind !== "up_to_date" &&
+    item.kind !== "fast_forward" &&
+    item.kind !== "three_way"
+  ) {
+    throw new Error("Graft returned an invalid merge plan")
+  }
+  return {
+    kind: item.kind,
+    expectedHead: stringValue(item.expected_head) ?? null,
+    hostedHead: requiredString(item.target, "merge target"),
+    commonAncestor: stringValue(item.merge_base) ?? null,
+    stagedPaths: stringArray(item.staged_paths),
+    conflictedPaths: stringArray(item.conflicted_paths),
+    planToken: requiredString(item.plan_token, "merge plan token"),
+    policyToken: requiredString(item.policy_token, "merge policy token"),
+    policyVersion: Math.max(1, Math.trunc(numberValue(item.policy_version))),
+  }
+}
+
+function mergePolicyResult(value: unknown): GraftMergePolicyResult {
+  const item = record(value)
+  const policy = record(item.policy)
+  if (policy.version !== 1) {
+    throw new Error("Graft returned an unsupported merge policy version")
+  }
+  return {
+    policy: policy as unknown as GraftMergePolicy,
+    policy_token: requiredString(item.policy_token, "merge policy token"),
+    active_merge: item.active_merge === true,
+  }
+}
+
+function mergePolicyValidationResult(
+  value: unknown
+): GraftMergePolicyValidationResult {
+  const item = record(value)
+  const policy = record(item.policy)
+  const errors = Array.isArray(item.errors)
+    ? item.errors.map((entry) => {
+        const issue = record(entry)
+        return {
+          key: requiredString(issue.key, "merge policy issue key"),
+          value: stringValue(issue.value) ?? "",
+          message: requiredString(issue.message, "merge policy issue message"),
+        }
+      })
+    : []
+  return {
+    valid: item.valid === true,
+    policy:
+      policy.version === 1 ? (policy as unknown as GraftMergePolicy) : null,
+    policy_token: stringValue(item.policy_token) ?? null,
+    errors,
+  }
+}
+
+function mergePathPage(value: unknown): EidosSyncMergePathPage {
+  const page = record(value)
+  const stateToken = requiredString(page.state_token, "merge state token")
+  const items = Array.isArray(page.items)
+    ? page.items.map((entry): EidosSyncMergePath => {
+        const item = record(entry)
+        const kind = item.kind
+        const storage = item.storage
+        if (
+          kind !== "sqlite_database" &&
+          kind !== "text_file" &&
+          kind !== "binary_file"
+        ) {
+          throw new Error("Graft returned an invalid merge path kind")
+        }
+        if (
+          storage !== "sqlite_snapshot" &&
+          storage !== "inline" &&
+          storage !== "external"
+        ) {
+          throw new Error("Graft returned an invalid merge path storage")
+        }
+        if (item.state !== "unmerged" && item.state !== "resolved") {
+          throw new Error("Graft returned an invalid merge path state")
+        }
+        return {
+          path: requiredString(item.path, "merge path"),
+          state: item.state,
+          kind,
+          storage,
+          hasBase: item.has_base === true,
+          hasLocal: item.has_ours === true,
+          hasHosted: item.has_theirs === true,
+        }
+      })
+    : []
+  return {
+    stateToken,
+    items,
+    nextCursor: stringValue(page.next_cursor) ?? null,
+  }
+}
+
+function mergeConflict(value: unknown): EidosSyncMergeConflict {
+  const item = record(value)
+  const pathKind = item.path_kind
+  const storage = item.storage
+  if (
+    pathKind !== "sqlite_database" &&
+    pathKind !== "text_file" &&
+    pathKind !== "binary_file"
+  ) {
+    throw new Error("Graft returned an invalid merge conflict path kind")
+  }
+  if (
+    storage !== "sqlite_snapshot" &&
+    storage !== "inline" &&
+    storage !== "external"
+  ) {
+    throw new Error("Graft returned an invalid merge conflict storage")
+  }
+  if (item.status !== "resolved" && item.status !== "unresolved") {
+    throw new Error("Graft returned an invalid merge conflict status")
+  }
+  const columnChanges = Array.isArray(item.column_changes)
+    ? item.column_changes.map((entry) => {
+        const change = record(entry)
+        return {
+          side: requiredString(change.side, "schema conflict side"),
+          operation: requiredString(
+            change.operation,
+            "schema conflict operation"
+          ),
+          ...(stringValue(change.from)
+            ? { from: stringValue(change.from) }
+            : {}),
+          ...(stringValue(change.to) ? { to: stringValue(change.to) } : {}),
+        }
+      })
+    : undefined
+  const cells = Array.isArray(item.cells)
+    ? item.cells.map((entry): EidosSyncMergeCellConflict => {
+        const cell = record(entry)
+        const resolution =
+          cell.resolution === "ours" || cell.resolution === "theirs"
+            ? cell.resolution
+            : undefined
+        return {
+          column: requiredString(cell.column, "merge cell column"),
+          base: cell.base,
+          local: cell.ours,
+          hosted: cell.theirs,
+          ...(resolution ? { resolution } : {}),
+        }
+      })
+    : undefined
+  return {
+    id: requiredString(item.id, "merge conflict id"),
+    path: requiredString(item.path, "merge conflict path"),
+    pathKind,
+    storage,
+    kind: requiredString(item.kind, "merge conflict kind"),
+    reason: requiredString(item.reason, "merge conflict reason"),
+    status: item.status,
+    ...(item.resolution === "ours" ||
+    item.resolution === "theirs" ||
+    item.resolution === "manual" ||
+    item.resolution === "edited" ||
+    item.resolution === "cells"
+      ? { resolution: item.resolution }
+      : {}),
+    ...(typeof item.auto_resolvable === "boolean"
+      ? { autoResolvable: item.auto_resolvable }
+      : {}),
+    ...(item.recommended_result === "ours" ||
+    item.recommended_result === "theirs" ||
+    item.recommended_result === "merged"
+      ? { recommendedResult: item.recommended_result }
+      : {}),
+    ...(stringValue(item.recommended_action)
+      ? { recommendedAction: stringValue(item.recommended_action) }
+      : {}),
+    ...(stringValue(item.table) ? { table: stringValue(item.table) } : {}),
+    ...(Array.isArray(item.columns)
+      ? { columns: stringArray(item.columns) }
+      : {}),
+    ...(typeof item.rowid === "number" ? { rowid: item.rowid } : {}),
+    ...(Object.keys(record(item.key)).length ? { key: record(item.key) } : {}),
+    ...(typeof item.ours_rowid === "number"
+      ? { oursRowid: item.ours_rowid }
+      : {}),
+    ...(typeof item.theirs_rowid === "number"
+      ? { theirsRowid: item.theirs_rowid }
+      : {}),
+    ...(Object.keys(record(item.ours_key)).length
+      ? { oursKey: record(item.ours_key) }
+      : {}),
+    ...(Object.keys(record(item.theirs_key)).length
+      ? { theirsKey: record(item.theirs_key) }
+      : {}),
+    ...(Array.isArray(item.semantic_key)
+      ? { semanticKey: stringArray(item.semantic_key) }
+      : {}),
+    ...(Array.isArray(item.semantic_key_collations)
+      ? {
+          semanticKeyCollations: item.semantic_key_collations.filter(
+            (entry): entry is "binary" | "nocase" =>
+              entry === "binary" || entry === "nocase"
+          ),
+        }
+      : {}),
+    ...(cells ? { cells } : {}),
+    ...(stringValue(item.name) ? { name: stringValue(item.name) } : {}),
+    ...(stringValue(item.entry_type)
+      ? { entryType: stringValue(item.entry_type) }
+      : {}),
+    ...(columnChanges ? { columnChanges } : {}),
+    ...(stringValue(item.change) ? { change: stringValue(item.change) } : {}),
+    ...(stringValue(item.owner) ? { owner: stringValue(item.owner) } : {}),
+    ...(stringValue(item.ours_op)
+      ? { oursOperation: stringValue(item.ours_op) }
+      : {}),
+    ...(stringValue(item.theirs_op)
+      ? { theirsOperation: stringValue(item.theirs_op) }
+      : {}),
+    ...(Array.isArray(item.base_row) ? { baseRow: item.base_row } : {}),
+    ...(Array.isArray(item.ours_row) ? { oursRow: item.ours_row } : {}),
+    ...(Array.isArray(item.theirs_row) ? { theirsRow: item.theirs_row } : {}),
+    ...(stringValue(item.message)
+      ? { message: stringValue(item.message) }
+      : {}),
+  }
+}
+
+function mergeConflictPage(value: unknown): EidosSyncMergeConflictPage {
+  const page = record(value)
+  return {
+    stateToken: requiredString(page.state_token, "merge state token"),
+    path: requiredString(page.path, "merge conflict path"),
+    items: Array.isArray(page.items) ? page.items.map(mergeConflict) : [],
+    nextCursor: stringValue(page.next_cursor) ?? null,
+  }
+}
+
+function mergeContent(value: unknown): EidosSyncMergeContent {
+  const item = record(value)
+  const content = record(item.content)
+  if (
+    item.version !== "base" &&
+    item.version !== "ours" &&
+    item.version !== "theirs" &&
+    item.version !== "result"
+  ) {
+    throw new Error("Graft returned an invalid merge content version")
+  }
+  if (
+    content.state !== "absent" &&
+    content.state !== "utf8" &&
+    content.state !== "too_large" &&
+    content.state !== "missing_payload" &&
+    content.state !== "invalid_utf8"
+  ) {
+    throw new Error("Graft returned invalid merge content")
+  }
+  const kind = item.kind
+  const storage = item.storage
+  let projectedContent: EidosSyncMergeContent["content"]
+  if (content.state === "absent") {
+    projectedContent = { state: "absent" }
+  } else if (content.state === "utf8") {
+    if (typeof content.content !== "string") {
+      throw new Error("Graft returned invalid merge text content")
+    }
+    projectedContent = {
+      state: "utf8",
+      content: content.content,
+      size: Math.max(0, Math.trunc(numberValue(content.size))),
+    }
+  } else if (content.state === "too_large") {
+    projectedContent = {
+      state: "too_large",
+      size: Math.max(0, Math.trunc(numberValue(content.size))),
+    }
+  } else if (content.state === "missing_payload") {
+    projectedContent = {
+      state: "missing_payload",
+      size: Math.max(0, Math.trunc(numberValue(content.size))),
+    }
+  } else {
+    projectedContent = {
+      state: "invalid_utf8",
+      size: Math.max(0, Math.trunc(numberValue(content.size))),
+    }
+  }
+  return {
+    version: item.version,
+    revision: stringValue(item.revision) ?? null,
+    path: requiredString(item.path, "merge content path"),
+    kind:
+      kind === "sqlite_database" ||
+      kind === "text_file" ||
+      kind === "binary_file"
+        ? kind
+        : null,
+    storage:
+      storage === "sqlite_snapshot" ||
+      storage === "inline" ||
+      storage === "external"
+        ? storage
+        : null,
+    content: projectedContent,
+    stateToken: requiredString(item.state_token, "merge state token"),
+  }
+}
+
+function mergeSqliteVersion(value: unknown): EidosSyncMergeSqliteVersion {
+  if (value === "base" || value === "ours" || value === "theirs") {
+    return value
+  }
+  throw new Error("Graft returned an invalid merge SQLite version")
+}
+
+function mergeSqliteDiff(value: unknown): EidosSyncMergeSqliteDiff {
+  const item = record(value)
+  const from = record(item.from)
+  const to = record(item.to)
+  return {
+    stateToken: requiredString(item.state_token, "merge state token"),
+    path: requiredString(item.path, "merge SQLite path"),
+    from: {
+      version: mergeSqliteVersion(from.version),
+      revision: requiredString(from.revision, "merge SQLite from revision"),
+    },
+    to: {
+      version: mergeSqliteVersion(to.version),
+      revision: requiredString(to.revision, "merge SQLite to revision"),
+    },
+    diff: boundedVersionDiff(item.diff),
+  }
 }
 
 function pathChange(value: unknown): SpaceVersionPathChange {
@@ -184,6 +614,27 @@ function limitation(value: unknown): string | null {
     : kind.replaceAll("_", " ")
 }
 
+function schemaChange(value: unknown): SpaceVersionSchemaChange {
+  const change = record(value)
+  const operation = change.op
+  if (
+    operation !== "added" &&
+    operation !== "deleted" &&
+    operation !== "modified"
+  ) {
+    throw new Error("Graft returned an invalid SQLite schema operation")
+  }
+  return {
+    name: requiredString(change.name, "SQLite schema object name"),
+    entryType: requiredString(change.entry_type, "SQLite schema object type"),
+    operation,
+    sql: requiredString(change.sql, "SQLite schema SQL"),
+    ...(stringValue(change.old_sql)
+      ? { oldSql: stringValue(change.old_sql) }
+      : {}),
+  }
+}
+
 function boundedFileDiff(value: unknown): SpaceVersionFileDiff {
   const item = record(value)
   const mode = stringValue(item.mode)
@@ -219,6 +670,9 @@ function boundedFileDiff(value: unknown): SpaceVersionFileDiff {
       ? item.limitations
           .map(limitation)
           .filter((entry): entry is string => entry !== null)
+      : [],
+    schemaChanges: Array.isArray(item.schema_changes)
+      ? item.schema_changes.map(schemaChange)
       : [],
     tables,
     detailsLoaded: true,
@@ -286,6 +740,7 @@ function fileDiff(value: unknown): SpaceVersionFileDiff {
       ? { logicalStatus: stringValue(item.logical_status) }
       : {}),
     limitations: stringArray(item.limitations),
+    schemaChanges: [],
     tables: Array.isArray(item.tables) ? item.tables.map(tableDiff) : [],
     detailsLoaded: true,
   }
@@ -401,7 +856,9 @@ export class GraftClient {
   }
 
   expectedVersion(): string {
-    return GRAFT_SDK_VERSION
+    return process.env.EIDOS_LITE_GRAFT_SDK_PATH?.trim()
+      ? GRAFT_LOCAL_MERGE_SDK_VERSION
+      : GRAFT_SDK_VERSION
   }
 
   hasOpenSession(): boolean {
@@ -502,6 +959,9 @@ export class GraftClient {
         ...(status.statusCacheHit === undefined
           ? {}
           : { statusCacheHit: status.statusCacheHit }),
+        ...(status.pathDiagnostics?.length
+          ? { pathDiagnostics: status.pathDiagnostics }
+          : {}),
       }
     } catch (error) {
       return {
@@ -620,6 +1080,34 @@ export class GraftClient {
       })
       .filter((entry): entry is SpaceVersionPathChange => entry !== null)
     const changed = changes.map((entry) => entry.path)
+    const pathDiagnostics = Array.isArray(value.path_diagnostics)
+      ? value.path_diagnostics
+          .map((entry): GraftRepositoryPathDiagnostic | null => {
+            const diagnostic = record(entry)
+            const status = diagnostic.status
+            const diagnosticPath = stringValue(diagnostic.path)
+            if (
+              !diagnosticPath ||
+              (status !== "skipped" &&
+                status !== "corrupt" &&
+                status !== "analysis_failed")
+            ) {
+              return null
+            }
+            return {
+              path: diagnosticPath,
+              status,
+              operation: stringValue(diagnostic.operation) ?? "status",
+              protectedByIndex: diagnostic.protected_by_index === true,
+              message:
+                stringValue(diagnostic.message) ??
+                "Graft could not analyze this path safely.",
+            }
+          })
+          .filter(
+            (entry): entry is GraftRepositoryPathDiagnostic => entry !== null
+          )
+      : []
     const telemetry = record(response.telemetry)
     const ahead = Math.max(
       0,
@@ -648,10 +1136,18 @@ export class GraftClient {
       changedPaths: changed.length,
       paths: changed,
       changes,
+      ...(pathDiagnostics.length > 0 ? { pathDiagnostics } : {}),
       ...(hasUpstreamStatus
         ? {
             sync: {
-              state: syncHistoryState(upstream.state, ahead, behind),
+              state: classifySyncHistory({
+                state: upstream.state,
+                localHead,
+                remoteHead,
+                commonAncestor,
+                ahead,
+                behind,
+              }),
               ...(localHead ? { localHead } : {}),
               ...(remoteHead ? { remoteHead } : {}),
               ...(commonAncestor ? { commonAncestor } : {}),
@@ -1209,6 +1705,410 @@ export class GraftClient {
     )
   }
 
+  async getMergePolicy(
+    root: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<GraftMergePolicyResult> {
+    return mergePolicyResult(
+      await this.runSdk(root, "getMergePolicy", [], options)
+    )
+  }
+
+  async validateMergePolicy(
+    root: string,
+    policy: GraftMergePolicy,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<GraftMergePolicyValidationResult> {
+    return mergePolicyValidationResult(
+      await this.runSdk(root, "validateMergePolicy", [{ policy }], options)
+    )
+  }
+
+  async setMergePolicy(
+    root: string,
+    policy: GraftMergePolicy,
+    expectedPolicyToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<GraftMergePolicyResult> {
+    return mergePolicyResult(
+      await this.runSdk(
+        root,
+        "setMergePolicy",
+        [{ policy, expectedPolicyToken }],
+        options
+      )
+    )
+  }
+
+  async planMerge(
+    root: string,
+    revision: string,
+    expectedHead: string | null,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergePlan> {
+    const value = await this.runSdk(
+      root,
+      "planMerge",
+      [
+        {
+          revision,
+          ...(expectedHead ? { expectedHead } : {}),
+        },
+      ],
+      options
+    )
+    return mergePlan(value)
+  }
+
+  async applyMerge(
+    root: string,
+    revision: string,
+    expectedHead: string | null,
+    planToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergeStatus> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "applyMerge",
+        [
+          {
+            revision,
+            ...(expectedHead ? { expectedHead } : {}),
+            planToken,
+          },
+        ],
+        options
+      )
+    )
+    return mergeStatus(value.merge)
+  }
+
+  async getMergeStatus(
+    root: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergeStatus> {
+    return mergeStatus(await this.runSdk(root, "getMergeStatus", [], options))
+  }
+
+  async getMergeStatusIfAvailable(
+    root: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergeStatus> {
+    try {
+      return await this.getMergeStatus(root, options)
+    } catch (error) {
+      if (hasErrorCode(error, "EIDOS_LITE_GRAFT_MERGE_UNAVAILABLE")) {
+        return { state: "none" }
+      }
+      throw error
+    }
+  }
+
+  async listMergePaths(
+    root: string,
+    expectedStateToken: string,
+    options: {
+      filter?: "all" | "unmerged" | "resolved"
+      limit?: number
+      after?: string
+      signal?: AbortSignal
+    } = {}
+  ): Promise<EidosSyncMergePathPage> {
+    return mergePathPage(
+      await this.runSdk(
+        root,
+        "listMergePaths",
+        [
+          {
+            expectedStateToken,
+            filter: options.filter ?? "all",
+            limit: this.safePageSize(options.limit),
+            ...(options.after ? { after: options.after } : {}),
+          },
+        ],
+        options
+      )
+    )
+  }
+
+  async listMergeConflicts(
+    root: string,
+    relativePath: string,
+    expectedStateToken: string,
+    options: { limit?: number; after?: string; signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergeConflictPage> {
+    return mergeConflictPage(
+      await this.runSdk(
+        root,
+        "listMergeConflicts",
+        [
+          {
+            path: relativePath,
+            expectedStateToken,
+            limit: this.safePageSize(options.limit),
+            ...(options.after ? { after: options.after } : {}),
+          },
+        ],
+        options
+      )
+    )
+  }
+
+  async readMergeVersion(
+    root: string,
+    relativePath: string,
+    version: EidosSyncMergeContent["version"],
+    expectedStateToken: string,
+    options: { maxBytes?: number; signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergeContent> {
+    return mergeContent(
+      await this.runSdk(
+        root,
+        "readMergeVersion",
+        [
+          {
+            path: relativePath,
+            version,
+            expectedStateToken,
+            maxBytes: Math.max(
+              1,
+              Math.min(Math.trunc(options.maxBytes ?? 1024 * 1024), 8_388_608)
+            ),
+          },
+        ],
+        options
+      )
+    )
+  }
+
+  async diffMergeSqlite(
+    root: string,
+    relativePath: string,
+    from: EidosSyncMergeSqliteVersion,
+    to: EidosSyncMergeSqliteVersion,
+    expectedStateToken: string,
+    options:
+      | { mode?: "summary"; signal?: AbortSignal }
+      | {
+          mode: "rows"
+          table: string
+          rowLimit?: number
+          rowAfter?: string
+          signal?: AbortSignal
+        } = {}
+  ): Promise<EidosSyncMergeSqliteDiff> {
+    const rows = options.mode === "rows"
+    return mergeSqliteDiff(
+      await this.runSdk(
+        root,
+        "diffMergeSqlite",
+        [
+          {
+            path: relativePath,
+            from,
+            to,
+            mode: rows ? "rows" : "summary",
+            expectedStateToken,
+            ...(rows
+              ? {
+                  table: options.table,
+                  rowLimit: Math.max(
+                    1,
+                    Math.min(Math.trunc(options.rowLimit ?? 100), 1_000)
+                  ),
+                  ...(options.rowAfter ? { rowAfter: options.rowAfter } : {}),
+                }
+              : {}),
+          },
+        ],
+        options
+      )
+    )
+  }
+
+  async setMergePathResult(
+    root: string,
+    relativePath: string,
+    result: "ours" | "theirs",
+    expectedStateToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergeStatus> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "setMergePathResult",
+        [{ path: relativePath, result, expectedStateToken }],
+        options
+      )
+    )
+    return mergeStatus(value.merge)
+  }
+
+  async resolveMergeRow(
+    root: string,
+    relativePath: string,
+    table: string,
+    identity: number | Record<string, unknown>,
+    result: "ours" | "theirs",
+    expectedStateToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergeStatus> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "resolveMergeRow",
+        [
+          {
+            path: relativePath,
+            table,
+            identity,
+            result,
+            expectedStateToken,
+          },
+        ],
+        options
+      )
+    )
+    return mergeStatus(value.merge)
+  }
+
+  async resolveMergeCell(
+    root: string,
+    relativePath: string,
+    table: string,
+    identity: number | Record<string, unknown>,
+    column: string,
+    result: "ours" | "theirs",
+    expectedStateToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergeStatus> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "resolveMergeCell",
+        [
+          {
+            path: relativePath,
+            table,
+            identity,
+            column,
+            result,
+            expectedStateToken,
+          },
+        ],
+        options
+      )
+    )
+    return mergeStatus(value.merge)
+  }
+
+  async resolveMergeTable(
+    root: string,
+    relativePath: string,
+    table: string,
+    result: "ours" | "theirs",
+    expectedStateToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergeStatus> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "resolveMergeTable",
+        [
+          {
+            path: relativePath,
+            table,
+            result,
+            expectedStateToken,
+          },
+        ],
+        options
+      )
+    )
+    return mergeStatus(value.merge)
+  }
+
+  async unresolveMergePath(
+    root: string,
+    relativePath: string,
+    expectedStateToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergeStatus> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "unresolveMergePath",
+        [{ path: relativePath, expectedStateToken }],
+        options
+      )
+    )
+    return mergeStatus(value.merge)
+  }
+
+  async stageMergeSqliteResult(
+    root: string,
+    relativePath: string,
+    expectedStateToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergeStatus> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "stageMergeSqliteResult",
+        [{ path: relativePath, expectedStateToken }],
+        options
+      )
+    )
+    return mergeStatus(value.merge)
+  }
+
+  async writeAndStageTextResult(
+    root: string,
+    relativePath: string,
+    content: string,
+    expectedStateToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergeStatus> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "writeAndStageTextResult",
+        [{ path: relativePath, content, expectedStateToken }],
+        options
+      )
+    )
+    return mergeStatus(value.merge)
+  }
+
+  async continueMerge(
+    root: string,
+    message: string,
+    expectedStateToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergeStatus> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "continueMerge",
+        [{ message, expectedStateToken }],
+        options
+      )
+    )
+    return mergeStatus(value.merge)
+  }
+
+  async abortMerge(
+    root: string,
+    expectedStateToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<EidosSyncMergeStatus> {
+    const value = record(
+      await this.runSdk(root, "abortMerge", [{ expectedStateToken }], options)
+    )
+    return mergeStatus(value.merge)
+  }
+
   clone(
     targetDirectory: string,
     remoteUrl: string,
@@ -1232,39 +2132,52 @@ export class GraftClient {
     }
     if (!token) throw new Error("An Eidos Sync access token is required")
     const existing = await this.remoteUrl(root, "origin", options)
-    if (existing === null) {
-      await this.runSdk(
-        root,
-        "configureRemote",
-        [
-          {
-            name: "origin",
-            url: remoteUrl,
-            bearerToken: token,
-            upstreamBranch: "main",
-          },
-        ],
-        options
-      )
-    } else if (canonicalRemoteUrl(existing) !== canonicalRemoteUrl(remoteUrl)) {
+    if (
+      existing !== null &&
+      canonicalRemoteUrl(existing) !== canonicalRemoteUrl(remoteUrl)
+    ) {
       throw new Error(
         "This Space already has a different origin Remote. Eidos Lite will not overwrite it."
       )
-    } else {
-      await this.setHttpCredential(root, "origin", token, options)
     }
+    // `configureRemote` is intentionally repeated for an existing origin. It
+    // refreshes the in-memory credential and, critically, reasserts that the
+    // current branch compares against origin/main. A test or another Graft
+    // client may have selected a different upstream without changing origin.
+    await this.runSdk(
+      root,
+      "configureRemote",
+      [
+        {
+          name: "origin",
+          // Reuse the SDK's exact stored spelling when origin already
+          // exists. `graft+https:` and `https:` are equivalent to Eidos,
+          // while configureRemote deliberately compares exact URLs.
+          url: existing ?? remoteUrl,
+          bearerToken: token,
+          upstreamBranch: "main",
+        },
+      ],
+      options
+    )
   }
 
   async clearHttpCredentials(root: string, name = "origin"): Promise<void> {
     await this.runSdk(root, "clearHttpBearerToken", [name])
   }
 
-  async operationMaterializesWorktree(operation: string): Promise<boolean> {
+  async operationMaterializesWorktree(
+    operation: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<boolean> {
     const root = this.openedRoot
     if (!root) throw new Error("Graft repository session is closed")
-    const result = await this.runSdk(root, "operationMaterializesWorktree", [
-      operation,
-    ])
+    const result = await this.runSdk(
+      root,
+      "operationMaterializesWorktree",
+      [operation],
+      options
+    )
     return result === true
   }
 

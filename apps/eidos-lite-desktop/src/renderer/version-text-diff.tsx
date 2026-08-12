@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react"
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react"
 import type { FileDiffMetadata } from "@pierre/diffs"
 import {
   ArrowRight,
@@ -97,14 +97,22 @@ function VersionTextDiffUnavailable({
   )
 }
 
-function ComputedTextDiff({
+export function InlineTextDiff({
   content,
   theme,
+  title = "Text changes",
+  fixedLayout,
+  toolbarEnd,
 }: {
   content: SpaceVersionTextContentDiff
   theme: ResolvedAppearance
+  title?: string
+  fixedLayout?: "split" | "unified"
+  toolbarEnd?: ReactNode
 }) {
-  const [layout, setLayout] = useState<"split" | "unified">("split")
+  const [layout, setLayout] = useState<"split" | "unified">(
+    fixedLayout ?? "split"
+  )
   const [diff, setDiff] = useState<FileDiffMetadata | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
   const before = contentValue(content.before)
@@ -146,7 +154,7 @@ function ComputedTextDiff({
     <div className="version-text-diff" data-version-text-diff>
       <header className="version-inspector-diff-bar version-text-diff-toolbar">
         <div>
-          <strong>Text changes</strong>
+          <strong>{title}</strong>
           <span>
             {byteCount(
               content.before.state === "utf8" ? content.before.size : 0
@@ -156,22 +164,25 @@ function ComputedTextDiff({
             B
           </span>
         </div>
-        <div className="version-text-diff-layout" aria-label="Diff layout">
-          <button
-            type="button"
-            aria-pressed={layout === "split"}
-            onClick={() => setLayout("split")}
-          >
-            Split
-          </button>
-          <button
-            type="button"
-            aria-pressed={layout === "unified"}
-            onClick={() => setLayout("unified")}
-          >
-            Unified
-          </button>
-        </div>
+        {toolbarEnd ??
+          (fixedLayout ? null : (
+            <div className="version-text-diff-layout" aria-label="Diff layout">
+              <button
+                type="button"
+                aria-pressed={layout === "split"}
+                onClick={() => setLayout("split")}
+              >
+                Split
+              </button>
+              <button
+                type="button"
+                aria-pressed={layout === "unified"}
+                onClick={() => setLayout("unified")}
+              >
+                Unified
+              </button>
+            </div>
+          ))}
       </header>
       <div className="version-text-diff-surface">
         {failure ? (
@@ -218,7 +229,7 @@ export function VersionTextDiffContent({
       <VersionRenameSummary previousPath={previousPath} path={content.path} />
     )
   }
-  if (!previousPath) return <ComputedTextDiff content={content} theme={theme} />
+  if (!previousPath) return <InlineTextDiff content={content} theme={theme} />
   return (
     <div className="version-text-change-stack">
       <VersionRenameSummary
@@ -226,7 +237,7 @@ export function VersionTextDiffContent({
         path={content.path}
         compact
       />
-      <ComputedTextDiff content={content} theme={theme} />
+      <InlineTextDiff content={content} theme={theme} />
     </div>
   )
 }

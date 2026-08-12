@@ -295,6 +295,34 @@ const api: EidosLiteApi = {
     ipcRenderer.invoke(IPC_CHANNELS.syncRecoverLocal),
   cloneHostedRecoverySpace: () =>
     ipcRenderer.invoke(IPC_CHANNELS.syncRecoverHosted),
+  getSyncMergeStatus: () => ipcRenderer.invoke(IPC_CHANNELS.syncMergeStatus),
+  planSyncMerge: () => ipcRenderer.invoke(IPC_CHANNELS.syncMergePlan),
+  applySyncMerge: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeApply, request),
+  listSyncMergePaths: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergePaths, request),
+  listSyncMergeConflicts: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeConflicts, request),
+  readSyncMergeVersion: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeVersion, request),
+  diffSyncMergeSqlite: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeSqliteDiff, request),
+  resolveSyncMergePath: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeResolvePath, request),
+  resolveSyncMergeRow: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeResolveRow, request),
+  resolveSyncMergeCell: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeResolveCell, request),
+  resolveSyncMergeTable: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeResolveTable, request),
+  unresolveSyncMergePath: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeUnresolvePath, request),
+  writeSyncMergeText: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeWriteText, request),
+  continueSyncMerge: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeContinue, request),
+  abortSyncMerge: (stateToken) =>
+    ipcRenderer.invoke(IPC_CHANNELS.syncMergeAbort, stateToken),
   openSyncHelp: (destination) =>
     ipcRenderer.invoke(IPC_CHANNELS.syncOpenHelp, destination),
   revealPath: (relativePath) =>

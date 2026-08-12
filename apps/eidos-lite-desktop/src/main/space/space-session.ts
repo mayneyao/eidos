@@ -6,6 +6,16 @@ import type { FileEntry } from "@eidos.space/eidos-file"
 
 import type {
   EidosFileIssue,
+  EidosSyncMergeApplyRequest,
+  EidosSyncMergeChoice,
+  EidosSyncMergeConflictPage,
+  EidosSyncMergeContent,
+  EidosSyncMergePathFilter,
+  EidosSyncMergePathPage,
+  EidosSyncMergePlan,
+  EidosSyncMergeSqliteDiff,
+  EidosSyncMergeSqliteVersion,
+  EidosSyncMergeStatus,
   EidosSyncOutcome,
   EidosSyncPhase,
   EidosSyncPreflight,
@@ -35,7 +45,12 @@ import {
   RUNTIME_MUTATION_METHODS,
 } from "../../shared/contracts"
 import { eidosLiteNewFileKind } from "../../shared/new-file"
-import type { GraftClient, GraftIgnoreInspection } from "../graft/graft-client"
+import type {
+  GraftClient,
+  GraftIgnoreInspection,
+  GraftRepositoryStatus,
+} from "../graft/graft-client"
+import type { GraftMergePolicy } from "../../shared/graft-merge-contracts"
 import {
   normalizeEidosTableDiff,
   readEidosPhysicalSchema,
@@ -108,8 +123,30 @@ const BACKGROUND_GRAFT_IGNORE_DELAY_MS =
     ? 0
     : BACKGROUND_GRAFT_STATUS_DELAY_MS + 250
 const PENDING_EIDOS_FILE_ASSETS_PER_SESSION_MAX = 10_000
+const EIDOS_FILE_METADATA_TABLES = [
+  "eidos__features",
+  "eidos__fields",
+  "eidos__formula_fields",
+  "eidos__lookup_fields",
+  "eidos__meta",
+  "eidos__relation_fields",
+  "eidos__tables",
+  "eidos__views",
+] as const
 
 class AutomaticCheckpointSkipped extends Error {}
+
+function repositorySyncState(relation: {
+  ahead: number
+  behind: number
+  sync?: SpaceSyncHistoryStatus
+}): SpaceSyncHistoryStatus["state"] {
+  if (relation.sync) return relation.sync.state
+  if (relation.ahead > 0 && relation.behind > 0) return "diverged"
+  if (relation.ahead > 0) return "ahead"
+  if (relation.behind > 0) return "behind"
+  return "unknown"
+}
 
 function pathMatchesWorkingChangeTarget(
   relativePath: string,
@@ -208,14 +245,7 @@ export class SpaceSession {
       new SpaceOperationJournal(stateDirectory),
       {
         closeRuntimes: () => this.runtimePool.closeHandles(),
-        validateWorktree: async () => {
-          const entries = flattenSpaceTree(await listSpaceTree(canonical.root))
-          await this.runtimePool.validatePaths(
-            entries
-              .filter((entry) => entry.kind === "eidos")
-              .map((entry) => entry.relativePath)
-          )
-        },
+        validateWorktree: () => this.validateMaterializedWorktree(),
         reopenRuntimes: () => this.runtimePool.reopenHandles(),
       },
       this.repository
@@ -1053,6 +1083,29 @@ export class SpaceSession {
       { preemptible: true }
     )
 
+    const activeMerge = await this.gate.withRepositoryOperation(
+      "Checking for an interrupted merge",
+      (signal) =>
+        typeof this.graft.getMergeStatusIfAvailable === "function"
+          ? this.graft.getMergeStatusIfAvailable(this.canonical.root, {
+              signal,
+            })
+          : Promise.resolve({ state: "none" as const }),
+      { preemptible: true }
+    )
+    if (activeMerge.state === "merging") {
+      const relation = await this.repository.runForeground((signal) =>
+        this.graft.status(this.canonical.root, this.graftStatusOptions(signal))
+      )
+      return this.syncResult(
+        "conflict",
+        "A reviewed merge is already in progress. Reopen the conflict workspace to continue or abort it.",
+        false,
+        false,
+        relation
+      )
+    }
+
     reportProgress("fetch", "Fetching Hosted Space history")
     let relation = await this.gate.withRepositoryOperation(
       "Fetching Eidos Sync",
@@ -1061,6 +1114,7 @@ export class SpaceSession {
           this.canonical.root,
           this.graftStatusOptions(signal)
         )
+        this.assertGraftPathsSafeForMerge(before)
         if (before.dirty) {
           throw new Error("Create a checkpoint for local changes before Sync")
         }
@@ -1074,7 +1128,7 @@ export class SpaceSession {
       { preemptible: true }
     )
     reportProgress("analyze", "Comparing Local and Hosted checkpoints")
-    if (relation.hasConflicts || (relation.ahead > 0 && relation.behind > 0)) {
+    if (relation.hasConflicts || repositorySyncState(relation) === "diverged") {
       return this.syncResult(
         "conflict",
         "Local and Hosted history have diverged. No files were replaced. Review History before choosing a recovery path.",
@@ -1085,7 +1139,7 @@ export class SpaceSession {
     }
 
     let pulled = false
-    if (relation.behind > 0) {
+    if (repositorySyncState(relation) === "behind") {
       if (
         !(await this.repository.runForeground(() =>
           this.graft.operationMaterializesWorktree("pull")
@@ -1128,13 +1182,13 @@ export class SpaceSession {
             }
             if (
               current.hasConflicts ||
-              (current.ahead > 0 && current.behind > 0)
+              repositorySyncState(current) === "diverged"
             ) {
               throw new Error(
                 "Local and Hosted history diverged after fetch. No pull was started."
               )
             }
-            shouldPull = current.behind > 0
+            shouldPull = repositorySyncState(current) === "behind"
           },
           materialize: async (signal) => {
             if (!shouldPull) return false
@@ -1151,7 +1205,7 @@ export class SpaceSession {
     }
 
     let pushed = false
-    if (relation.ahead > 0) {
+    if (repositorySyncState(relation) === "ahead") {
       if (access === "read_only") {
         return this.syncResult(
           "read-only",
@@ -1174,7 +1228,12 @@ export class SpaceSession {
               "Space changed before push. Create a checkpoint and Sync again."
             )
           }
-          if (current.behind > 0 || current.hasConflicts) {
+          const currentState = repositorySyncState(current)
+          if (
+            currentState === "behind" ||
+            currentState === "diverged" ||
+            current.hasConflicts
+          ) {
             throw new Error(
               "Hosted history changed before push. Sync again to re-fetch it."
             )
@@ -1208,32 +1267,488 @@ export class SpaceSession {
     if (!remoteUrl) throw new Error("This Space is not connected to Eidos Sync")
     const relation = await this.gate.withRepositoryOperation(
       "Refreshing conflict state",
-      async () => {
+      async (signal) => {
         await this.graft.configureOfficialRemote(
           this.canonical.root,
           remoteUrl,
-          accessToken
+          accessToken,
+          { signal }
         )
         const before = await this.graft.status(
           this.canonical.root,
-          this.graftStatusOptions()
+          this.graftStatusOptions(signal)
         )
         if (before.dirty) {
           throw new Error(
             "Create a checkpoint for local changes before conflict recovery"
           )
         }
-        await this.graft.fetch(this.canonical.root)
+        await this.graft.fetch(this.canonical.root, { signal })
         await this.recordSyncHistoryCheck()
-        return this.graft.status(this.canonical.root, this.graftStatusOptions())
+        return this.graft.status(
+          this.canonical.root,
+          this.graftStatusOptions(signal)
+        )
       }
     )
-    if (!relation.hasConflicts && (relation.ahead < 1 || relation.behind < 1)) {
+    if (
+      !relation.hasConflicts &&
+      repositorySyncState(relation) !== "diverged"
+    ) {
       throw new Error(
         "Local and Hosted history are no longer in the recoverable ahead+behind state. Run Sync Now again."
       )
     }
     return { ahead: relation.ahead, behind: relation.behind }
+  }
+
+  getSyncMergeStatus(): Promise<EidosSyncMergeStatus> {
+    return this.gate.withRepositoryOperation(
+      "Reading merge recovery state",
+      (signal) => this.graft.getMergeStatus(this.canonical.root, { signal }),
+      { preemptible: true }
+    )
+  }
+
+  async planHostedMerge(accessToken: string): Promise<EidosSyncMergePlan> {
+    const remoteUrl = await this.officialSyncRemoteUrl()
+    if (!remoteUrl) throw new Error("This Space is not connected to Eidos Sync")
+    return this.gate.withRepositoryOperation(
+      "Analyzing Local and Hosted merge",
+      async (signal) => {
+        await this.graft.configureOfficialRemote(
+          this.canonical.root,
+          remoteUrl,
+          accessToken,
+          { signal }
+        )
+        const before = await this.graft.status(
+          this.canonical.root,
+          this.graftStatusOptions(signal)
+        )
+        if (before.dirty) {
+          throw new Error(
+            "Create a checkpoint for local changes before analyzing a merge"
+          )
+        }
+        await this.graft.fetch(this.canonical.root, { signal })
+        await this.recordSyncHistoryCheck()
+        const status = await this.graft.status(
+          this.canonical.root,
+          this.graftStatusOptions(signal)
+        )
+        this.assertGraftPathsSafeForMerge(status)
+        if (status.dirty) {
+          throw new Error(
+            "Space changed while fetching Hosted history. Create a checkpoint and analyze again."
+          )
+        }
+        await this.ensureEidosMergePolicy(signal)
+        // The guarded plan is authoritative. The relationship may have
+        // changed since the inspector last rendered (for example after an
+        // abort or another device push), so return an up-to-date or
+        // fast-forward plan instead of trapping the UI in a stale divergence.
+        return this.graft.planMerge(
+          this.canonical.root,
+          "origin/main",
+          status.currentHead,
+          { signal }
+        )
+      },
+      { preemptible: true }
+    )
+  }
+
+  applyHostedMerge(
+    request: EidosSyncMergeApplyRequest
+  ): Promise<EidosSyncMergeStatus> {
+    return this.materializeMergeOperation(
+      "applyMerge",
+      "apply-hosted-merge",
+      "Starting reviewed Local and Hosted merge",
+      null,
+      async (signal) => {
+        const current = await this.graft.status(
+          this.canonical.root,
+          this.graftStatusOptions(signal)
+        )
+        if (current.dirty) {
+          throw new Error(
+            "Space changed after merge analysis. Create a checkpoint and analyze again."
+          )
+        }
+        if (current.currentHead !== request.expectedHead) {
+          throw Object.assign(
+            new Error("The Local head changed after merge analysis"),
+            { code: "GRAFT_SDK_REPOSITORY_STALE" }
+          )
+        }
+        return this.graft.applyMerge(
+          this.canonical.root,
+          "origin/main",
+          request.expectedHead,
+          request.planToken,
+          { signal }
+        )
+      }
+    )
+  }
+
+  listSyncMergePaths(
+    stateToken: string,
+    filter: EidosSyncMergePathFilter = "all",
+    limit = 100,
+    after?: string
+  ): Promise<EidosSyncMergePathPage> {
+    return this.gate.withRepositoryOperation(
+      "Reading merge paths",
+      (signal) =>
+        this.graft.listMergePaths(this.canonical.root, stateToken, {
+          filter,
+          limit,
+          after,
+          signal,
+        }),
+      { preemptible: true }
+    )
+  }
+
+  listSyncMergeConflicts(
+    stateToken: string,
+    relativePath: string,
+    limit = 100,
+    after?: string
+  ): Promise<EidosSyncMergeConflictPage> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    return this.gate.withRepositoryOperation(
+      "Reading merge conflicts",
+      async (signal) => {
+        const page = await this.graft.listMergeConflicts(
+          this.canonical.root,
+          normalized,
+          stateToken,
+          { limit, after, signal }
+        )
+        if (!normalized.toLowerCase().endsWith(".eidos")) return page
+        try {
+          const opened = await this.runtimePool.open(normalized)
+          const tableColumns = new Map<string, string[]>()
+          for (const table of opened.snapshot.tables) {
+            const columns = table.fields.flatMap((field) =>
+              field.physicalName ? [field.physicalName] : []
+            )
+            if (columns.length === 0) continue
+            for (const name of [
+              table.table.name,
+              table.table.physicalName,
+              table.table.rawTableName,
+            ]) {
+              if (name) tableColumns.set(name, columns)
+            }
+          }
+          return {
+            ...page,
+            items: page.items.map((conflict) => {
+              if (conflict.kind !== "row" || !conflict.table) return conflict
+              const rowColumns = tableColumns.get(conflict.table)
+              const rowLength = Math.max(
+                conflict.baseRow?.length ?? 0,
+                conflict.oursRow?.length ?? 0,
+                conflict.theirsRow?.length ?? 0
+              )
+              return rowColumns?.length === rowLength
+                ? { ...conflict, rowColumns }
+                : conflict
+            }),
+          }
+        } catch {
+          // A structurally conflicted candidate may not open yet. Preserve
+          // Graft's conflict data so whole-table/file recovery remains usable.
+          return page
+        }
+      },
+      { preemptible: true }
+    )
+  }
+
+  readSyncMergeVersion(
+    stateToken: string,
+    relativePath: string,
+    version: EidosSyncMergeContent["version"]
+  ): Promise<EidosSyncMergeContent> {
+    return this.gate.withRepositoryOperation(
+      `Reading ${version} merge version`,
+      (signal) =>
+        this.graft.readMergeVersion(
+          this.canonical.root,
+          normalizeMutableRelativePath(relativePath),
+          version,
+          stateToken,
+          { signal }
+        ),
+      { preemptible: true }
+    )
+  }
+
+  diffSyncMergeSqlite(
+    stateToken: string,
+    relativePath: string,
+    from: EidosSyncMergeSqliteVersion,
+    to: EidosSyncMergeSqliteVersion,
+    options:
+      | { mode?: "summary" }
+      | {
+          mode: "rows"
+          table: string
+          rowLimit?: number
+          rowAfter?: string
+        } = {}
+  ): Promise<EidosSyncMergeSqliteDiff> {
+    return this.gate.withRepositoryOperation(
+      `Reading ${from} to ${to} SQLite merge differences`,
+      (signal) =>
+        this.graft.diffMergeSqlite(
+          this.canonical.root,
+          normalizeMutableRelativePath(relativePath),
+          from,
+          to,
+          stateToken,
+          { ...options, signal }
+        ),
+      { preemptible: true }
+    )
+  }
+
+  resolveSyncMergePath(
+    stateToken: string,
+    relativePath: string,
+    result: EidosSyncMergeChoice
+  ): Promise<EidosSyncMergeStatus> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    return this.materializeMergeOperation(
+      "setMergePathResult",
+      "resolve-merge-path",
+      `Resolving ${normalized}`,
+      stateToken,
+      (signal) =>
+        this.graft.setMergePathResult(
+          this.canonical.root,
+          normalized,
+          result,
+          stateToken,
+          { signal }
+        )
+    )
+  }
+
+  resolveSyncMergeRow(
+    stateToken: string,
+    relativePath: string,
+    table: string,
+    identity: number | Record<string, unknown>,
+    result: EidosSyncMergeChoice
+  ): Promise<EidosSyncMergeStatus> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    return this.materializeMergeOperation(
+      "resolveMergeRow",
+      "resolve-merge-row",
+      `Resolving a row in ${normalized}`,
+      stateToken,
+      (signal) =>
+        this.graft.resolveMergeRow(
+          this.canonical.root,
+          normalized,
+          table,
+          identity,
+          result,
+          stateToken,
+          { signal }
+        )
+    )
+  }
+
+  resolveSyncMergeCell(
+    stateToken: string,
+    relativePath: string,
+    table: string,
+    identity: number | Record<string, unknown>,
+    column: string,
+    result: EidosSyncMergeChoice
+  ): Promise<EidosSyncMergeStatus> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    if (!column) throw new Error("Merge column is required")
+    return this.materializeMergeOperation(
+      "resolveMergeCell",
+      "resolve-merge-cell",
+      `Resolving ${column} in ${table}`,
+      stateToken,
+      (signal) =>
+        this.graft.resolveMergeCell(
+          this.canonical.root,
+          normalized,
+          table,
+          identity,
+          column,
+          result,
+          stateToken,
+          { signal }
+        )
+    )
+  }
+
+  resolveSyncMergeTable(
+    stateToken: string,
+    relativePath: string,
+    table: string,
+    result: EidosSyncMergeChoice
+  ): Promise<EidosSyncMergeStatus> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    return this.materializeMergeOperation(
+      "resolveMergeTable",
+      "resolve-merge-table",
+      `Resolving ${table} in ${normalized}`,
+      stateToken,
+      (signal) =>
+        this.graft.resolveMergeTable(
+          this.canonical.root,
+          normalized,
+          table,
+          result,
+          stateToken,
+          { signal }
+        )
+    )
+  }
+
+  unresolveSyncMergePath(
+    stateToken: string,
+    relativePath: string
+  ): Promise<EidosSyncMergeStatus> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    return this.materializeMergeOperation(
+      "unresolveMergePath",
+      "unresolve-merge-path",
+      `Restoring conflicts in ${normalized}`,
+      stateToken,
+      (signal) =>
+        this.graft.unresolveMergePath(
+          this.canonical.root,
+          normalized,
+          stateToken,
+          { signal }
+        )
+    )
+  }
+
+  stageSyncMergeSqliteResult(
+    stateToken: string,
+    relativePath: string
+  ): Promise<EidosSyncMergeStatus> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    if (!normalized.toLowerCase().endsWith(".eidos")) {
+      throw new Error("Only Eidos Files can be staged as SQLite merge results")
+    }
+    return this.gate
+      .withMaterialization({
+        kind: "stage-merge-sqlite-result",
+        detail: `Validating and staging ${normalized}`,
+        beforeClose: async (signal) => {
+          const materializes = await this.graft.operationMaterializesWorktree(
+            "stageMergeSqliteResult",
+            { signal }
+          )
+          if (materializes) {
+            throw new Error(
+              "Graft unexpectedly declared stageMergeSqliteResult as a worktree materialization"
+            )
+          }
+          const merge = await this.graft.getMergeStatus(this.canonical.root, {
+            signal,
+          })
+          if (merge.state !== "merging" || merge.stateToken !== stateToken) {
+            throw Object.assign(
+              new Error("The merge changed; reload it first"),
+              { code: "GRAFT_SDK_REPOSITORY_STALE" }
+            )
+          }
+        },
+        materialize: async (signal) => {
+          // Application-owned recompute must already be present in the
+          // candidate. Validate Eidos semantics before Graft captures it.
+          await this.validateMaterializedWorktree()
+          return this.graft.stageMergeSqliteResult(
+            this.canonical.root,
+            normalized,
+            stateToken,
+            { signal }
+          )
+        },
+      })
+      .then(async (result) => {
+        this.invalidateGraftStatusCache()
+        await this.freshSnapshotAndEmit(true)
+        return result
+      })
+  }
+
+  writeSyncMergeText(
+    stateToken: string,
+    relativePath: string,
+    content: string
+  ): Promise<EidosSyncMergeStatus> {
+    const normalized = normalizeMutableRelativePath(relativePath)
+    return this.materializeMergeOperation(
+      "writeAndStageTextResult",
+      "write-merge-text",
+      `Saving merged text for ${normalized}`,
+      stateToken,
+      (signal) =>
+        this.graft.writeAndStageTextResult(
+          this.canonical.root,
+          normalized,
+          content,
+          stateToken,
+          { signal }
+        )
+    )
+  }
+
+  continueSyncMerge(
+    stateToken: string,
+    message: string
+  ): Promise<EidosSyncMergeStatus> {
+    const normalizedMessage = message.trim()
+    if (!normalizedMessage || normalizedMessage.length > 200) {
+      throw new Error("Merge checkpoint message must be 1–200 characters")
+    }
+    return this.materializeMergeOperation(
+      "continueMerge",
+      "continue-hosted-merge",
+      "Validating and completing the merge checkpoint",
+      stateToken,
+      async (signal) => {
+        // The SDK requires the exact state token whose Eidos File worktree was
+        // semantically validated. Handles are already closed at this point.
+        await this.validateMaterializedWorktree()
+        return this.graft.continueMerge(
+          this.canonical.root,
+          normalizedMessage,
+          stateToken,
+          { signal }
+        )
+      }
+    )
+  }
+
+  abortSyncMerge(stateToken: string): Promise<EidosSyncMergeStatus> {
+    return this.materializeMergeOperation(
+      "abortMerge",
+      "abort-hosted-merge",
+      "Restoring the pre-merge Local Space",
+      stateToken,
+      (signal) =>
+        this.graft.abortMerge(this.canonical.root, stateToken, { signal })
+    )
   }
 
   async createLocalRecovery(
@@ -2463,6 +2978,143 @@ export class SpaceSession {
     } finally {
       if (!this.graftStatusCache) this.scheduleGraftStatusRefresh()
     }
+  }
+
+  private async validateMaterializedWorktree(): Promise<void> {
+    const entries = flattenSpaceTree(await listSpaceTree(this.canonical.root))
+    await this.runtimePool.validatePaths(
+      entries
+        .filter((entry) => entry.kind === "eidos")
+        .map((entry) => entry.relativePath)
+    )
+  }
+
+  private assertGraftPathsSafeForMerge(status: GraftRepositoryStatus): void {
+    const diagnostic = status.pathDiagnostics?.[0]
+    if (!diagnostic) return
+    const state = diagnostic.status.replaceAll("_", " ")
+    const protection = diagnostic.protectedByIndex
+      ? "The last indexed version remains protected."
+      : "The current worktree bytes are not protected by the index."
+    throw new Error(
+      `Graft reported ${state} while analyzing ${diagnostic.path}. ${protection} Repair or recover that file before analyzing the merge again.`
+    )
+  }
+
+  private async ensureEidosMergePolicy(signal: AbortSignal): Promise<void> {
+    const current = await this.graft.getMergePolicy(this.canonical.root, {
+      signal,
+    })
+    if (current.active_merge) return
+
+    const entries = flattenSpaceTree(await listSpaceTree(this.canonical.root))
+    const tableNames = new Set<string>(EIDOS_FILE_METADATA_TABLES)
+    for (const entry of entries) {
+      if (entry.kind !== "eidos") continue
+      const opened = await this.runtimePool.open(entry.relativePath)
+      for (const table of opened.snapshot.tables) {
+        tableNames.add(
+          table.table.physicalName ??
+            table.table.rawTableName ??
+            table.table.name
+        )
+      }
+    }
+
+    const columnResolvers: NonNullable<GraftMergePolicy["column_resolvers"]> = {
+      ...(current.policy.column_resolvers ?? {}),
+    }
+    for (const tableName of tableNames) {
+      const existing = columnResolvers[tableName] ?? {}
+      columnResolvers[tableName] = {
+        ...existing,
+        [tableName.startsWith("eidos__") ? "updated_at" : "_updated_at"]:
+          "max_timestamp",
+      }
+    }
+
+    const desired: GraftMergePolicy = {
+      ...current.policy,
+      version: 1,
+      same_row_merge: true,
+      default_semantic_keys: [
+        "_id",
+        ...(current.policy.default_semantic_keys ?? []).filter(
+          (key) => key !== "_id"
+        ),
+      ],
+      column_resolvers: columnResolvers,
+    }
+    if (JSON.stringify(desired) === JSON.stringify(current.policy)) return
+
+    const validation = await this.graft.validateMergePolicy(
+      this.canonical.root,
+      desired,
+      { signal }
+    )
+    if (!validation.valid) {
+      const detail = validation.errors
+        .map((issue) => `${issue.key}: ${issue.message}`)
+        .join("; ")
+      throw new Error(
+        `Eidos merge policy is invalid${detail ? `: ${detail}` : ""}`
+      )
+    }
+    await this.graft.setMergePolicy(
+      this.canonical.root,
+      desired,
+      current.policy_token,
+      { signal }
+    )
+  }
+
+  private async materializeMergeOperation(
+    operationName:
+      | "applyMerge"
+      | "setMergePathResult"
+      | "resolveMergeRow"
+      | "resolveMergeCell"
+      | "resolveMergeTable"
+      | "unresolveMergePath"
+      | "writeAndStageTextResult"
+      | "continueMerge"
+      | "abortMerge",
+    kind: string,
+    detail: string,
+    expectedStateToken: string | null,
+    operation: (signal: AbortSignal) => Promise<EidosSyncMergeStatus>
+  ): Promise<EidosSyncMergeStatus> {
+    const result = await this.gate.withMaterialization({
+      kind,
+      detail,
+      beforeClose: async (signal) => {
+        const materializes = await this.graft.operationMaterializesWorktree(
+          operationName,
+          { signal }
+        )
+        if (!materializes) {
+          throw new Error(
+            `Graft did not declare ${operationName} as a worktree materialization`
+          )
+        }
+        if (!expectedStateToken) return
+        const merge = await this.graft.getMergeStatus(this.canonical.root, {
+          signal,
+        })
+        if (
+          merge.state !== "merging" ||
+          merge.stateToken !== expectedStateToken
+        ) {
+          throw Object.assign(new Error("The merge changed; reload it first"), {
+            code: "GRAFT_SDK_REPOSITORY_STALE",
+          })
+        }
+      },
+      materialize: operation,
+    })
+    this.invalidateGraftStatusCache()
+    await this.freshSnapshotAndEmit(true)
+    return result
   }
 
   private safeVersionPageSize(value: number): number {

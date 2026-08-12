@@ -1,13 +1,12 @@
 # Eidos Lite Desktop delivery status
 
-Last audited: 2026-08-04
+Last audited: 2026-08-12
 
 ## Verdict
 
-The current branch is an **internal macOS Apple Silicon staging candidate**.
-It is suitable for controlled dogfood with ordinary user-owned Space folders
-and the official staging account/Hosted Remote. It is not a signed installer,
-an Integrated Beta, or a Public v1 release.
+The current branch is the source for **Eidos Lite 0.1.4**. Local Spaces and
+versioning are public desktop capabilities; Eidos Sync remains an invite-only
+private preview backed by the official Hosted Remote.
 
 This verdict preserves the product boundary: one window owns one ordinary
 folder Space, one Space owns one Graft repository and one Hosted Remote, and
@@ -16,34 +15,54 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 
 ## Delivered capability
 
-| Area                    | Internal-candidate status | Evidence boundary                                                                                                                                                                |
-| ----------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Independent application | Ready                     | Focused Electron main, sandboxed preload, utility processes, renderer, bundle id, package config, and tests                                                                      |
-| Local Space             | Ready                     | New/Open/Recent ordinary folders, canonical one-window ownership, Pierre Explorer, watcher, ordinary-file system open and recoverable file operations                            |
-| Eidos File editing      | Ready                     | Canonical `eidos-file-ui` Grid/View/Query/Fields/Sheet UI, real SQLite transactions, one active editor and a three-runtime LRU                                                   |
-| Local versioning        | Ready                     | Whole-Space status, Changes, row-aware diff, History, checkpoint, forward-only restore and stable-change automatic checkpoints through the resident Graft SDK                    |
-| Sync control plane      | Staging-ready             | Independent PKCE/device/grant flow, preflight upload scope, official Hosted Remote provisioning, background queue, typed failures and Local-safe recovery                        |
-| Whole-Space Sync        | Staging-ready             | Real staging push/clone/pull and divergence acceptance is recorded in [Operations](./OPERATIONS.md); credentials remain in main/SDK memory                                       |
-| Recovery                | Internal-ready            | Clone journals, operation journals, close/validate/reopen materialization, two-copy divergence recovery, external-path invalidation, file-utility and Graft-utility crash reopen |
-| Diagnostics             | Internal-ready            | Main-owned allowlisted Copy diagnostics excludes credentials, URLs, paths, Space/repository identity and user content                                                            |
-| Distribution operations | Runbook-ready             | Clean install, upgrade, binary rollback, association, support and uninstall procedure in [Release runbook](./RELEASE-RUNBOOK.md)                                                 |
-| Languages               | Source-ready              | System/English/Simplified Chinese preference, native menu/dialog translation, Lite core surfaces, and shared Eidos File editor locale                                            |
-| Release and updates     | Implementation-ready      | Isolated `lite-v*` workflow, five platform/architecture packages, fail-closed signing/notarization, product-specific stable/beta feeds, and Settings update state                |
+| Area                    | Internal-candidate status | Evidence boundary                                                                                                                                                 |
+| ----------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Independent application | Ready                     | Focused Electron main, sandboxed preload, utility processes, renderer, bundle id, package config, and tests                                                       |
+| Local Space             | Ready                     | New/Open/Recent ordinary folders, canonical one-window ownership, Pierre Explorer, watcher, ordinary-file system open and recoverable file operations             |
+| Eidos File editing      | Ready                     | Canonical `eidos-file-ui` Grid/View/Query/Fields/Sheet UI, real SQLite transactions, one active editor and a three-runtime LRU                                    |
+| Local versioning        | Ready                     | Whole-Space status, Changes, row-aware diff, History, checkpoint, forward-only restore and stable-change automatic checkpoints through the resident Graft SDK     |
+| Sync control plane      | Staging-ready             | Independent PKCE/device/grant flow, preflight upload scope, official Hosted Remote provisioning, background queue, typed failures and Local-safe recovery         |
+| Whole-Space Sync        | Private-preview ready     | Real staging push/clone/pull and divergence acceptance is recorded in [Operations](./OPERATIONS.md); reviewed merge uses the published Graft SDK 0.3.10           |
+| Recovery                | Release verified          | Durable merge reopen/abort, operation journals, close/validate/reopen materialization, two-copy recovery, external invalidation, and utility crash reopen         |
+| Diagnostics             | Internal-ready            | Main-owned allowlisted Copy diagnostics excludes credentials, URLs, paths, Space/repository identity and user content                                             |
+| Distribution operations | Runbook-ready             | Clean install, upgrade, binary rollback, association, support and uninstall procedure in [Release runbook](./RELEASE-RUNBOOK.md)                                  |
+| Languages               | Source-ready              | System/English/Simplified Chinese preference, native menu/dialog translation, Lite core surfaces, and shared Eidos File editor locale                             |
+| Release and updates     | Implementation-ready      | Isolated `lite-v*` workflow, five platform/architecture packages, fail-closed signing/notarization, product-specific stable/beta feeds, and Settings update state |
 
 ## Current verification record
 
 The final local audit passed:
 
-- Lite source and real-Graft suite: 135 passed, 8 explicitly skipped. The
-  skipped cases are the opt-in performance and external staging/discovery
-  gates, not hidden successes.
-- Real Graft SDK integration: 6 passed, covering whole-Space push/clone,
+- The reviewed merge source integration passes one real local-Graft dual-client
+  E2E: common ancestor -> Policy v1 CAS -> text/binary/real `.eidos` conflicts
+  with Local-only, Hosted-only, and same-field row changes -> cell choice -> SDK
+  reopen -> stale CAS rejection -> remaining table choices -> path unresolve ->
+  full validation -> two-parent continue -> push/fetch equality. The same test
+  covers partial resolution, reopen, abort, cancellation, idempotent status,
+  and a transient filesystem Remote failure. Graft SDK 0.3.10 is pinned in the
+  lockfile, and the real merge flow passed against the published registry
+  package.
+
+- Lite source suite: 104 files and 551 tests passed; 186 tests were explicitly
+  skipped. The skipped cases are the 158-case opt-in schema matrix,
+  opt-in performance, external staging/discovery, large-repository, and local
+  release-SDK gates, not hidden successes. With the exact Graft 0.3.10 release
+  build, the complete schema matrix separately passed all 158/158 cases in
+  354.44 seconds. It covers compatible directory-wide schema
+  unions, validated rebuilds, every conflict family in both whole-file
+  directions, SQLite internal structures, malformed-file diagnostics, Eidos
+  stable identities, Runtime validation, stale/reopen/abort, and safe failure.
+  Two validation-required candidate families retain an executable Graft API
+  gap documented in the compatibility matrix; their safe Local recovery path
+  passes and is not mislabeled as an automatic merged result.
+- Published Graft SDK integration: 14 passed, covering whole-Space push/clone,
   diff/restore, retained session lifecycle, memory-only HTTP credentials and
-  divergence analysis.
-- Explicit performance load: 4 passed. Explorer with 1,000 entries was 19.9
-  ms; a stable change in a 10,000-entry watcher was 37.6 ms; 10 MiB and 100 MiB
-  native opens were 127.9 ms and 115.3 ms; the canonical 100,000-row first page
-  was 1.66 ms and cell-commit P95 was 1.89 ms.
+  divergence analysis. The published Graft 0.3.10 merge E2E also passed both
+  availability and full dual-client cases.
+- Explicit performance load: 16 passed. Explorer with 1,000 entries was 14.4
+  ms; a stable change in a 10,000-entry watcher was 38.7 ms; 10 MiB and 100 MiB
+  native opens were 103.6 ms and 98.9 ms; the canonical 100,000-row first page
+  was 3.7 ms and cell-commit P95 was 1.86 ms.
 - The exact 1,425,218-byte Elden Ring CSV fixture imported 10,111 data rows and
   9 columns in 202.9-268.9 ms after the bulk-write fix, versus a 10,355.0 ms
   baseline. The complete row-aware Graft diff contained 10,126 row changes and
@@ -169,9 +188,8 @@ The following must stay visibly open before Public v1:
    variance. The smoke-only static native load is removed and the latest
    rebuilt first launches passed, but 1,972-1,986 ms has insufficient release
    margin compared with 405-463 ms same-build reruns.
-2. Run the configured read-only GitHub gates on remote macOS Apple Silicon and
-   Intel workers. They have not run because this branch has not been pushed and
-   no PR was authorized.
+2. Keep the configured GitHub release gates green on macOS Apple Silicon and
+   Intel workers for every `lite-v*` tag.
 3. Build and exercise real Windows x64 and Linux arm64/x64 installers, including
    `.eidos` association, native Graft package loading and credential storage.
 4. Configure signing, macOS notarization and a signed update feed; verify clean
@@ -188,9 +206,9 @@ The following must stay visibly open before Public v1:
 8. Provide the Sync service status page, alerting, quota dashboard and service
    runbook, and reconcile Privacy/Pricing/application copy for upload scope and
    encryption claims.
-9. Obtain explicit authorization before any production contact, signed build,
+9. Obtain explicit authorization before any future production mutation,
    deployment, push, PR, merge or release.
-10. Run an approved `lite-v*` release, deploy the new download Worker, verify
+10. For every approved `lite-v*` release, deploy the new download Worker, verify
     every architecture-specific update route, and perform a signed upgrade and
     rollback from the preceding version. The implementation exists locally but
     no tag, production deployment, signed artifact, or live update proof was

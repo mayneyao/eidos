@@ -18,6 +18,20 @@ import {
   type HtmlPreviewOpenRequest,
   type TextFileSaveRequest,
   type EidosSyncHelpDestination,
+  type EidosSyncMergeApplyRequest,
+  type EidosSyncMergeConflictsRequest,
+  type EidosSyncMergeContinueRequest,
+  type EidosSyncMergePathsRequest,
+  type EidosSyncMergeResolvePathRequest,
+  type EidosSyncMergeResolveCellRequest,
+  type EidosSyncMergeResolveRowRequest,
+  type EidosSyncMergeResolveTableRequest,
+  type EidosSyncMergeResponse,
+  type EidosSyncMergeSqliteDiffRequest,
+  type EidosSyncMergeSqliteVersion,
+  type EidosSyncMergeUnresolvePathRequest,
+  type EidosSyncMergeVersionRequest,
+  type EidosSyncMergeWriteTextRequest,
   type EidosSyncQueueStatus,
   type EidosSyncRunResponse,
   type EidosSyncPreflightApproval,
@@ -41,6 +55,8 @@ import {
 import { BackgroundSyncQueue } from "./sync/background-sync-queue"
 import { scheduleCheckpointSyncAfterLocalSave } from "./sync/checkpoint-sync-scheduler"
 import { cloudDisplayNameForLocalSpace } from "./sync/cloud-space-name"
+import { classifyMergeFailure } from "./sync/merge-failure"
+import { requiredMergeStateToken } from "./sync/merge-token"
 import type { SyncControlPlane } from "./sync/sync-control-plane"
 import {
   classifySyncFailure,
@@ -97,6 +113,289 @@ function optionalRelativePath(value: unknown): string | null {
 function requiredString(value: unknown, label: string): string {
   if (typeof value !== "string") throw new Error(`Invalid ${label}`)
   return value
+}
+
+const GRAFT_ID_PATTERN = /^[a-f\d]{64}$/iu
+const MERGE_TEXT_BYTES_MAX = 8 * 1024 * 1024
+
+function mergeStateToken(value: unknown): string {
+  return requiredMergeStateToken(value)
+}
+
+function mergePath(value: unknown): string {
+  if (typeof value !== "string" || !value || value.length > 4_096) {
+    throw new Error("Invalid merge path")
+  }
+  return value
+}
+
+function mergeChoice(value: unknown): "ours" | "theirs" {
+  if (value !== "ours" && value !== "theirs") {
+    throw new Error("Invalid merge result")
+  }
+  return value
+}
+
+function mergeApplyRequest(value: unknown): EidosSyncMergeApplyRequest {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid merge apply request")
+  }
+  const candidate = value as Record<string, unknown>
+  if (
+    (candidate.expectedHead !== null &&
+      (typeof candidate.expectedHead !== "string" ||
+        !GRAFT_ID_PATTERN.test(candidate.expectedHead))) ||
+    typeof candidate.planToken !== "string" ||
+    !GRAFT_ID_PATTERN.test(candidate.planToken)
+  ) {
+    throw new Error("Invalid merge apply request")
+  }
+  return {
+    expectedHead: candidate.expectedHead as string | null,
+    planToken: candidate.planToken,
+  }
+}
+
+function mergePageLimit(value: unknown): number | undefined {
+  if (value === undefined) return undefined
+  if (!Number.isInteger(value) || Number(value) < 1 || Number(value) > 100) {
+    throw new Error("Invalid merge page limit")
+  }
+  return Number(value)
+}
+
+function mergeCursor(value: unknown): string | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== "string" || !value || value.length > 4_096) {
+    throw new Error("Invalid merge page cursor")
+  }
+  return value
+}
+
+function mergePathsRequest(value: unknown): EidosSyncMergePathsRequest {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid merge paths request")
+  }
+  const candidate = value as Record<string, unknown>
+  if (
+    candidate.filter !== undefined &&
+    candidate.filter !== "all" &&
+    candidate.filter !== "unmerged" &&
+    candidate.filter !== "resolved"
+  ) {
+    throw new Error("Invalid merge path filter")
+  }
+  return {
+    stateToken: mergeStateToken(candidate.stateToken),
+    ...(candidate.filter ? { filter: candidate.filter } : {}),
+    ...(candidate.limit === undefined
+      ? {}
+      : { limit: mergePageLimit(candidate.limit) }),
+    ...(candidate.after === undefined
+      ? {}
+      : { after: mergeCursor(candidate.after) }),
+  }
+}
+
+function mergeConflictsRequest(value: unknown): EidosSyncMergeConflictsRequest {
+  const page = mergePathsRequest(value)
+  const candidate = value as Record<string, unknown>
+  return {
+    stateToken: page.stateToken,
+    path: mergePath(candidate.path),
+    ...(page.limit === undefined ? {} : { limit: page.limit }),
+    ...(page.after === undefined ? {} : { after: page.after }),
+  }
+}
+
+function mergeVersionRequest(value: unknown): EidosSyncMergeVersionRequest {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid merge version request")
+  }
+  const candidate = value as Record<string, unknown>
+  if (
+    candidate.version !== "base" &&
+    candidate.version !== "ours" &&
+    candidate.version !== "theirs" &&
+    candidate.version !== "result"
+  ) {
+    throw new Error("Invalid merge version")
+  }
+  return {
+    stateToken: mergeStateToken(candidate.stateToken),
+    path: mergePath(candidate.path),
+    version: candidate.version,
+  }
+}
+
+function mergeSqliteDiffRequest(
+  value: unknown
+): EidosSyncMergeSqliteDiffRequest {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid merge SQLite diff request")
+  }
+  const candidate = value as Record<string, unknown>
+  const version = (entry: unknown): EidosSyncMergeSqliteVersion => {
+    if (entry === "base" || entry === "ours" || entry === "theirs") {
+      return entry
+    }
+    throw new Error("Invalid merge SQLite version")
+  }
+  const from = version(candidate.from)
+  const to = version(candidate.to)
+  if (from === to) throw new Error("Merge SQLite versions must differ")
+  const base = {
+    stateToken: mergeStateToken(candidate.stateToken),
+    path: mergePath(candidate.path),
+    from,
+    to,
+  }
+  if (candidate.mode === "summary") return { ...base, mode: "summary" }
+  if (candidate.mode !== "rows") {
+    throw new Error("Invalid merge SQLite diff mode")
+  }
+  return {
+    ...base,
+    mode: "rows",
+    table: mergePath(candidate.table),
+    ...(candidate.rowLimit === undefined
+      ? {}
+      : { rowLimit: mergePageLimit(candidate.rowLimit) }),
+    ...(candidate.rowAfter === undefined
+      ? {}
+      : { rowAfter: mergeCursor(candidate.rowAfter) }),
+  }
+}
+
+function mergeResolvePathRequest(
+  value: unknown
+): EidosSyncMergeResolvePathRequest {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid merge path resolution")
+  }
+  const candidate = value as Record<string, unknown>
+  return {
+    stateToken: mergeStateToken(candidate.stateToken),
+    path: mergePath(candidate.path),
+    result: mergeChoice(candidate.result),
+  }
+}
+
+function mergeResolveRowRequest(
+  value: unknown
+): EidosSyncMergeResolveRowRequest {
+  const pathRequest = mergeResolvePathRequest(value)
+  const candidate = value as Record<string, unknown>
+  if (typeof candidate.table !== "string" || !candidate.table) {
+    throw new Error("Invalid merge table")
+  }
+  const identity = candidate.identity
+  const validNumber = Number.isSafeInteger(identity)
+  const validObject =
+    typeof identity === "object" &&
+    identity !== null &&
+    !Array.isArray(identity) &&
+    Object.keys(identity).length > 0 &&
+    Object.keys(identity).length <= 64 &&
+    JSON.stringify(identity).length <= 64 * 1024
+  if (!validNumber && !validObject) {
+    throw new Error("Invalid stable merge row identity")
+  }
+  return {
+    ...pathRequest,
+    table: candidate.table,
+    identity: identity as number | Record<string, unknown>,
+  }
+}
+
+function mergeResolveCellRequest(
+  value: unknown
+): EidosSyncMergeResolveCellRequest {
+  const rowRequest = mergeResolveRowRequest(value)
+  const candidate = value as Record<string, unknown>
+  if (
+    typeof candidate.column !== "string" ||
+    !candidate.column ||
+    candidate.column.length > 1_024
+  ) {
+    throw new Error("Invalid merge column")
+  }
+  return { ...rowRequest, column: candidate.column }
+}
+
+function mergeResolveTableRequest(
+  value: unknown
+): EidosSyncMergeResolveTableRequest {
+  const pathRequest = mergeResolvePathRequest(value)
+  const candidate = value as Record<string, unknown>
+  if (
+    typeof candidate.table !== "string" ||
+    !candidate.table ||
+    candidate.table.length > 1_024
+  ) {
+    throw new Error("Invalid merge table")
+  }
+  return { ...pathRequest, table: candidate.table }
+}
+
+function mergeUnresolvePathRequest(
+  value: unknown
+): EidosSyncMergeUnresolvePathRequest {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid merge path reset")
+  }
+  const candidate = value as Record<string, unknown>
+  return {
+    stateToken: mergeStateToken(candidate.stateToken),
+    path: mergePath(candidate.path),
+  }
+}
+
+function mergeWriteTextRequest(value: unknown): EidosSyncMergeWriteTextRequest {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid merge text result")
+  }
+  const candidate = value as Record<string, unknown>
+  if (
+    typeof candidate.content !== "string" ||
+    Buffer.byteLength(candidate.content, "utf8") > MERGE_TEXT_BYTES_MAX
+  ) {
+    throw new Error("Merged text exceeds the 8 MiB safety limit")
+  }
+  return {
+    stateToken: mergeStateToken(candidate.stateToken),
+    path: mergePath(candidate.path),
+    content: candidate.content,
+  }
+}
+
+function mergeContinueRequest(value: unknown): EidosSyncMergeContinueRequest {
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Invalid continue merge request")
+  }
+  const candidate = value as Record<string, unknown>
+  if (
+    typeof candidate.message !== "string" ||
+    !candidate.message.trim() ||
+    candidate.message.trim().length > 200
+  ) {
+    throw new Error("Invalid merge checkpoint message")
+  }
+  return {
+    stateToken: mergeStateToken(candidate.stateToken),
+    message: candidate.message.trim(),
+  }
+}
+
+async function mergeResponse<T>(
+  operation: () => Promise<T>
+): Promise<EidosSyncMergeResponse<T>> {
+  try {
+    return { ok: true, value: await operation() }
+  } catch (error) {
+    eidosLiteLogger()?.warn("sync.merge.failed", {}, error)
+    return { ok: false, failure: classifyMergeFailure(error) }
+  }
 }
 
 function textFileSaveRequest(value: unknown): TextFileSaveRequest {
@@ -1619,6 +1918,175 @@ export function registerIpc(
       access.accessToken
     )
   })
+  ipcMain.handle(IPC_CHANNELS.syncMergeStatus, (event) =>
+    mergeResponse(() =>
+      controller.requireSession(event.sender).getSyncMergeStatus()
+    )
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergePlan, (event) =>
+    mergeResponse(async () => {
+      const session = controller.requireSession(event.sender)
+      const remoteUrl = await session.officialSyncRemoteUrl()
+      if (!remoteUrl) {
+        throw new Error("This Space is not connected to Eidos Sync")
+      }
+      const access = await syncControl.repositoryAccess(remoteUrl)
+      return session.planHostedMerge(access.accessToken)
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeApply, (event, value: unknown) =>
+    mergeResponse(() =>
+      controller
+        .requireSession(event.sender)
+        .applyHostedMerge(mergeApplyRequest(value))
+    )
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergePaths, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergePathsRequest(value)
+      return controller
+        .requireSession(event.sender)
+        .listSyncMergePaths(
+          request.stateToken,
+          request.filter,
+          request.limit,
+          request.after
+        )
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeConflicts, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeConflictsRequest(value)
+      return controller
+        .requireSession(event.sender)
+        .listSyncMergeConflicts(
+          request.stateToken,
+          request.path,
+          request.limit,
+          request.after
+        )
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeVersion, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeVersionRequest(value)
+      return controller
+        .requireSession(event.sender)
+        .readSyncMergeVersion(request.stateToken, request.path, request.version)
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeSqliteDiff, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeSqliteDiffRequest(value)
+      return controller.requireSession(event.sender).diffSyncMergeSqlite(
+        request.stateToken,
+        request.path,
+        request.from,
+        request.to,
+        request.mode === "rows"
+          ? {
+              mode: "rows",
+              table: request.table,
+              rowLimit: request.rowLimit,
+              rowAfter: request.rowAfter,
+            }
+          : { mode: "summary" }
+      )
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeResolvePath, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeResolvePathRequest(value)
+      return controller
+        .requireSession(event.sender)
+        .resolveSyncMergePath(request.stateToken, request.path, request.result)
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeResolveRow, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeResolveRowRequest(value)
+      return controller
+        .requireSession(event.sender)
+        .resolveSyncMergeRow(
+          request.stateToken,
+          request.path,
+          request.table,
+          request.identity,
+          request.result
+        )
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeResolveCell, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeResolveCellRequest(value)
+      return controller
+        .requireSession(event.sender)
+        .resolveSyncMergeCell(
+          request.stateToken,
+          request.path,
+          request.table,
+          request.identity,
+          request.column,
+          request.result
+        )
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeResolveTable, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeResolveTableRequest(value)
+      return controller
+        .requireSession(event.sender)
+        .resolveSyncMergeTable(
+          request.stateToken,
+          request.path,
+          request.table,
+          request.result
+        )
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeUnresolvePath, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeUnresolvePathRequest(value)
+      return controller
+        .requireSession(event.sender)
+        .unresolveSyncMergePath(request.stateToken, request.path)
+    })
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeWriteText, (event, value: unknown) =>
+    mergeResponse(() => {
+      const request = mergeWriteTextRequest(value)
+      return controller
+        .requireSession(event.sender)
+        .writeSyncMergeText(request.stateToken, request.path, request.content)
+    })
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.syncMergeContinue,
+    async (event, value: unknown) => {
+      const response = await mergeResponse(async () => {
+        const request = mergeContinueRequest(value)
+        return controller
+          .requireSession(event.sender)
+          .continueSyncMerge(request.stateToken, request.message)
+      })
+      if (response.ok && response.value.state === "none") {
+        try {
+          const { session } = await attachSyncQueue(event)
+          await syncQueue.enqueue(session.canonical.id, "local-checkpoint")
+        } catch (error) {
+          eidosLiteLogger()?.warn("sync.merge.queue.failed", {}, error)
+        }
+      }
+      return response
+    }
+  )
+  ipcMain.handle(IPC_CHANNELS.syncMergeAbort, (event, value: unknown) =>
+    mergeResponse(() =>
+      controller
+        .requireSession(event.sender)
+        .abortSyncMerge(mergeStateToken(value))
+    )
+  )
   ipcMain.handle(IPC_CHANNELS.syncOpenHelp, async (_event, value: unknown) => {
     const destination = requiredString(
       value,

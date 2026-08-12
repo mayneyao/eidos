@@ -501,6 +501,7 @@ function DocumentFilePreview({
           <button
             type="button"
             role="tab"
+            data-document-preview-mode="preview"
             aria-selected={mode === "preview"}
             className="document-preview-mode-button"
             onClick={() => setMode("preview")}
@@ -510,6 +511,7 @@ function DocumentFilePreview({
           <button
             type="button"
             role="tab"
+            data-document-preview-mode="source"
             aria-selected={mode === "source"}
             className="document-preview-mode-button"
             onClick={() => setMode("source")}

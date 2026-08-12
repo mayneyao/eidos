@@ -2,6 +2,8 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
+import { createEidosFileUuid } from "@eidos.space/eidos-file"
+import { createEidosFile } from "@eidos.space/eidos-file/node-sqlite"
 
 import { GraftClient } from "../graft/graft-client"
 import { EIDOS_LITE_PERFORMANCE_BUDGET_MS } from "../../shared/performance-contract"
@@ -1823,6 +1825,630 @@ describe("SpaceSession Graft-backed snapshots", () => {
       expect(snapshot.graft).toMatchObject({
         initialized: false,
       })
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  })
+
+  it("binds a Runtime-derived Eidos policy to merge planning with one CAS signal", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-space-merge-policy-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-space-merge-policy-state-")
+    )
+    const remoteOrigin = "https://sync-staging.eidos.space"
+    const remoteUrl = `${remoteOrigin}/u-alice/project`
+    const localHead = "a".repeat(64)
+    const hostedHead = "b".repeat(64)
+    const base = "c".repeat(64)
+    const initialPolicyToken = "d".repeat(64)
+    const configuredPolicyToken = "e".repeat(64)
+    const signals: AbortSignal[] = []
+    let configuredPolicy: unknown
+    const file = createEidosFile(path.join(root, "records.eidos"), {
+      title: "Merge policy fixture",
+    })
+    try {
+      file.importTable(
+        {
+          name: "Docs",
+          fields: [{ name: "Title", type: "text", isRecordLabel: true }],
+        },
+        [{ _id: createEidosFileUuid(1_753_000_000_000), Title: "Base" }]
+      )
+    } finally {
+      file.close()
+    }
+    const noteSignal = (signal: AbortSignal | undefined) => {
+      if (signal) signals.push(signal)
+    }
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: remoteOrigin,
+      expectedVersion: () => "0.3.10",
+      close: vi.fn(async () => undefined),
+      inspectSpace: vi.fn(async () => ({
+        available: true,
+        backend: "sdk" as const,
+        version: "0.3.10",
+        expectedVersion: "0.3.10",
+        initialized: true,
+        clean: true,
+        currentHead: localHead,
+        changedPaths: 0,
+      })),
+      remoteUrl: vi.fn(async () => remoteUrl),
+      configureOfficialRemote: vi.fn(
+        async (
+          _root: string,
+          _url: string,
+          _token: string,
+          options: { signal?: AbortSignal }
+        ) => noteSignal(options.signal)
+      ),
+      status: vi.fn(
+        async (_root: string, options: { signal?: AbortSignal }) => {
+          noteSignal(options.signal)
+          return {
+            dirty: false,
+            currentHead: localHead,
+            currentBranch: "main",
+            ahead: 1,
+            behind: 1,
+            hasConflicts: false,
+            changedPaths: 0,
+            paths: [],
+            changes: [],
+          }
+        }
+      ),
+      fetch: vi.fn(async (_root: string, options: { signal?: AbortSignal }) =>
+        noteSignal(options.signal)
+      ),
+      getMergePolicy: vi.fn(
+        async (_root: string, options: { signal?: AbortSignal }) => {
+          noteSignal(options.signal)
+          return {
+            policy: { version: 1 as const },
+            policy_token: initialPolicyToken,
+            active_merge: false,
+          }
+        }
+      ),
+      validateMergePolicy: vi.fn(
+        async (
+          _root: string,
+          policy: unknown,
+          options: { signal?: AbortSignal }
+        ) => {
+          noteSignal(options.signal)
+          return {
+            valid: true,
+            policy,
+            policy_token: configuredPolicyToken,
+            errors: [],
+          }
+        }
+      ),
+      setMergePolicy: vi.fn(
+        async (
+          _root: string,
+          policy: unknown,
+          _expectedPolicyToken: string,
+          options: { signal?: AbortSignal }
+        ) => {
+          noteSignal(options.signal)
+          configuredPolicy = policy
+          return {
+            policy,
+            policy_token: configuredPolicyToken,
+            active_merge: false,
+          }
+        }
+      ),
+      planMerge: vi.fn(
+        async (
+          _root: string,
+          _revision: string,
+          expectedHead: string,
+          options: { signal?: AbortSignal }
+        ) => {
+          noteSignal(options.signal)
+          return {
+            kind: "three_way" as const,
+            expectedHead,
+            hostedHead,
+            commonAncestor: base,
+            stagedPaths: [],
+            conflictedPaths: ["records.eidos"],
+            planToken: "f".repeat(64),
+            policyToken: configuredPolicyToken,
+            policyVersion: 1,
+          }
+        }
+      ),
+      listMergeConflicts: vi.fn(
+        async (
+          _root: string,
+          relativePath: string,
+          stateToken: string,
+          options: { signal?: AbortSignal }
+        ) => {
+          noteSignal(options.signal)
+          return {
+            stateToken,
+            path: relativePath,
+            items: [
+              {
+                id: "row:Docs:doc-1",
+                path: relativePath,
+                pathKind: "sqlite_database" as const,
+                storage: "sqlite_snapshot" as const,
+                kind: "row",
+                reason: "cell_conflict",
+                status: "unresolved" as const,
+                table: "Docs",
+                columns: ["Title"],
+                key: { _id: "doc-1" },
+                baseRow: ["doc-1", "Base"],
+                oursRow: ["doc-1", "Local"],
+                theirsRow: ["doc-1", "Hosted"],
+              },
+            ],
+            nextCursor: null,
+          }
+        }
+      ),
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      await fs.mkdir(path.join(root, ".graft"))
+      const canonical = await canonicalizeSpaceRoot(root)
+      await new SpaceSyncStateStore(
+        path.join(userData, "spaces", canonical.id),
+        remoteOrigin
+      ).markClone(remoteUrl)
+      session = await SpaceSession.createCanonical(canonical, userData, {
+        graft,
+      })
+      vi.spyOn(session.runtimePool, "open").mockResolvedValue({
+        snapshot: {
+          tables: [
+            {
+              table: {
+                name: "Docs",
+                physicalName: "Docs",
+                rawTableName: "Docs",
+              },
+              fields: [{ physicalName: "_id" }, { physicalName: "Title" }],
+            },
+          ],
+        },
+      } as never)
+
+      await expect(
+        session.planHostedMerge("access-token")
+      ).resolves.toMatchObject({
+        kind: "three_way",
+        policyToken: configuredPolicyToken,
+        policyVersion: 1,
+      })
+      expect(configuredPolicy).toMatchObject({
+        version: 1,
+        same_row_merge: true,
+        default_semantic_keys: ["_id"],
+        column_resolvers: {
+          Docs: { _updated_at: "max_timestamp" },
+          eidos__meta: { updated_at: "max_timestamp" },
+        },
+      })
+      expect(configuredPolicy).not.toMatchObject({
+        column_resolvers: { eidos__meta: { revision: expect.anything() } },
+      })
+      expect(graft.setMergePolicy).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        configuredPolicy,
+        initialPolicyToken,
+        { signal: signals[0] }
+      )
+      expect(signals.length).toBeGreaterThan(5)
+      expect(new Set(signals).size).toBe(1)
+
+      const conflicts = await session.listSyncMergeConflicts(
+        "state-1",
+        "records.eidos"
+      )
+      expect(conflicts.items[0]).toMatchObject({
+        columns: ["Title"],
+        rowColumns: ["_id", "Title"],
+      })
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  })
+
+  it("validates every Eidos File before continuing a merge and keeps one gate signal", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-space-merge-gate-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-space-merge-gate-state-")
+    )
+    const stateToken = "d".repeat(64)
+    const localHead = "a".repeat(64)
+    const hostedHead = "b".repeat(64)
+    const calls: string[] = []
+    const signals: AbortSignal[] = []
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.8",
+      close: vi.fn(async () => undefined),
+      operationMaterializesWorktree: vi.fn(
+        async (operation: string, options: { signal?: AbortSignal }) => {
+          calls.push("contract")
+          if (options.signal) signals.push(options.signal)
+          return operation !== "stageMergeSqliteResult"
+        }
+      ),
+      getMergeStatus: vi.fn(
+        async (_root: string, options: { signal?: AbortSignal }) => {
+          calls.push("status")
+          if (options.signal) signals.push(options.signal)
+          return {
+            state: "merging" as const,
+            localHead,
+            hostedHead,
+            commonAncestor: "c".repeat(64),
+            stagedCount: 1,
+            unmergedCount: 0,
+            stateToken,
+            policyToken: "policy-1",
+            policyVersion: 1,
+          }
+        }
+      ),
+      diffMergeSqlite: vi.fn(
+        async (
+          _root: string,
+          path: string,
+          from: string,
+          to: string,
+          _token: string,
+          options: { signal?: AbortSignal }
+        ) => {
+          calls.push("diff-sqlite")
+          if (options.signal) signals.push(options.signal)
+          return {
+            stateToken,
+            path,
+            from: { version: from, revision: "c".repeat(64) },
+            to: { version: to, revision: hostedHead },
+            diff: {
+              currentHead: localHead,
+              currentBranch: "main",
+              from: "c".repeat(64),
+              to: hostedHead,
+              paths: [],
+              files: [],
+            },
+          }
+        }
+      ),
+      resolveMergeTable: vi.fn(
+        async (
+          _root: string,
+          _path: string,
+          _table: string,
+          _result: string,
+          _token: string,
+          options: { signal?: AbortSignal }
+        ) => {
+          calls.push("resolve-table")
+          if (options.signal) signals.push(options.signal)
+          return {
+            state: "merging" as const,
+            localHead,
+            hostedHead,
+            commonAncestor: "c".repeat(64),
+            stagedCount: 1,
+            unmergedCount: 0,
+            stateToken,
+          }
+        }
+      ),
+      resolveMergeCell: vi.fn(
+        async (
+          _root: string,
+          _path: string,
+          _table: string,
+          _identity: number | Record<string, unknown>,
+          _column: string,
+          _result: string,
+          _token: string,
+          options: { signal?: AbortSignal }
+        ) => {
+          calls.push("resolve-cell")
+          if (options.signal) signals.push(options.signal)
+          return {
+            state: "merging" as const,
+            localHead,
+            hostedHead,
+            commonAncestor: "c".repeat(64),
+            stagedCount: 1,
+            unmergedCount: 0,
+            stateToken,
+            policyToken: "policy-1",
+            policyVersion: 1,
+          }
+        }
+      ),
+      stageMergeSqliteResult: vi.fn(
+        async (
+          _root: string,
+          _path: string,
+          _token: string,
+          options: { signal?: AbortSignal }
+        ) => {
+          calls.push("stage-sqlite")
+          if (options.signal) signals.push(options.signal)
+          return {
+            state: "merging" as const,
+            localHead,
+            hostedHead,
+            commonAncestor: "c".repeat(64),
+            stagedCount: 1,
+            unmergedCount: 0,
+            stateToken,
+            policyToken: "policy-1",
+            policyVersion: 1,
+          }
+        }
+      ),
+      unresolveMergePath: vi.fn(
+        async (
+          _root: string,
+          _path: string,
+          _token: string,
+          options: { signal?: AbortSignal }
+        ) => {
+          calls.push("unresolve-path")
+          if (options.signal) signals.push(options.signal)
+          return {
+            state: "merging" as const,
+            localHead,
+            hostedHead,
+            commonAncestor: "c".repeat(64),
+            stagedCount: 0,
+            unmergedCount: 1,
+            stateToken,
+          }
+        }
+      ),
+      continueMerge: vi.fn(
+        async (
+          _root: string,
+          _message: string,
+          _token: string,
+          options: { signal?: AbortSignal }
+        ) => {
+          calls.push("continue")
+          if (options.signal) signals.push(options.signal)
+          return { state: "none" as const }
+        }
+      ),
+      inspectSpace: vi.fn(async () => ({
+        available: true,
+        backend: "sdk" as const,
+        version: "0.3.8",
+        expectedVersion: "0.3.8",
+        initialized: true,
+        clean: true,
+        currentHead: "e".repeat(64),
+        changedPaths: 0,
+      })),
+      inspectIgnores: vi.fn(async (_root: string, relativePaths: string[]) =>
+        relativePaths.map((relativePath) => ({
+          path: relativePath,
+          isIgnored: false,
+          isTracked: true,
+          isDirectory: false,
+          hasTrackedDescendants: false,
+        }))
+      ),
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      await fs.mkdir(path.join(root, ".graft"))
+      await fs.writeFile(path.join(root, "records.eidos"), "test fixture")
+      session = await SpaceSession.create(root, userData, { graft })
+      vi.spyOn(session.runtimePool, "closeHandles").mockImplementation(
+        async () => {
+          calls.push("close")
+        }
+      )
+      vi.spyOn(session.runtimePool, "validatePaths").mockImplementation(
+        async (paths) => {
+          calls.push(`validate:${paths.join(",")}`)
+        }
+      )
+      vi.spyOn(session.runtimePool, "reopenHandles").mockImplementation(
+        async () => {
+          calls.push("reopen")
+        }
+      )
+
+      await expect(
+        session.diffSyncMergeSqlite(
+          stateToken,
+          "records.eidos",
+          "base",
+          "theirs",
+          { mode: "summary" }
+        )
+      ).resolves.toMatchObject({
+        stateToken,
+        path: "records.eidos",
+        from: { version: "base" },
+        to: { version: "theirs" },
+      })
+      expect(calls).toEqual(["diff-sqlite"])
+      expect(graft.diffMergeSqlite).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        "records.eidos",
+        "base",
+        "theirs",
+        stateToken,
+        { mode: "summary", signal: signals[0] }
+      )
+      expect(signals).toHaveLength(1)
+
+      calls.length = 0
+      signals.length = 0
+
+      await expect(
+        session.resolveSyncMergeTable(
+          stateToken,
+          "records.eidos",
+          "Docs",
+          "theirs"
+        )
+      ).resolves.toMatchObject({ state: "merging", unmergedCount: 0 })
+      expect(calls).toEqual([
+        "contract",
+        "status",
+        "close",
+        "resolve-table",
+        "validate:records.eidos",
+        "reopen",
+      ])
+      expect(graft.resolveMergeTable).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        "records.eidos",
+        "Docs",
+        "theirs",
+        stateToken,
+        { signal: signals[0] }
+      )
+      expect(signals).toHaveLength(3)
+      expect(new Set(signals).size).toBe(1)
+
+      calls.length = 0
+      signals.length = 0
+
+      await expect(
+        session.resolveSyncMergeCell(
+          stateToken,
+          "records.eidos",
+          "Docs",
+          { _id: "stable-id" },
+          "Status",
+          "ours"
+        )
+      ).resolves.toMatchObject({ state: "merging", unmergedCount: 0 })
+      expect(calls).toEqual([
+        "contract",
+        "status",
+        "close",
+        "resolve-cell",
+        "validate:records.eidos",
+        "reopen",
+      ])
+      expect(graft.resolveMergeCell).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        "records.eidos",
+        "Docs",
+        { _id: "stable-id" },
+        "Status",
+        "ours",
+        stateToken,
+        { signal: signals[0] }
+      )
+      expect(signals).toHaveLength(3)
+      expect(new Set(signals).size).toBe(1)
+
+      calls.length = 0
+      signals.length = 0
+
+      await expect(
+        session.stageSyncMergeSqliteResult(stateToken, "records.eidos")
+      ).resolves.toMatchObject({ state: "merging", unmergedCount: 0 })
+      expect(calls).toEqual([
+        "contract",
+        "status",
+        "close",
+        "validate:records.eidos",
+        "stage-sqlite",
+        "validate:records.eidos",
+        "reopen",
+      ])
+      expect(graft.stageMergeSqliteResult).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        "records.eidos",
+        stateToken,
+        { signal: signals[0] }
+      )
+      expect(signals).toHaveLength(3)
+      expect(new Set(signals).size).toBe(1)
+
+      calls.length = 0
+      signals.length = 0
+      await expect(
+        session.unresolveSyncMergePath(stateToken, "records.eidos")
+      ).resolves.toMatchObject({ state: "merging", unmergedCount: 1 })
+      expect(calls).toEqual([
+        "contract",
+        "status",
+        "close",
+        "unresolve-path",
+        "validate:records.eidos",
+        "reopen",
+      ])
+      expect(graft.unresolveMergePath).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        "records.eidos",
+        stateToken,
+        { signal: signals[0] }
+      )
+      expect(signals).toHaveLength(3)
+      expect(new Set(signals).size).toBe(1)
+
+      calls.length = 0
+      signals.length = 0
+
+      await expect(
+        session.continueSyncMerge(stateToken, " Merge Hosted changes ")
+      ).resolves.toEqual({ state: "none" })
+      expect(calls.slice(0, 8)).toEqual([
+        "contract",
+        "status",
+        "close",
+        "validate:records.eidos",
+        "continue",
+        "validate:records.eidos",
+        "reopen",
+      ])
+      expect(graft.continueMerge).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        "Merge Hosted changes",
+        stateToken,
+        { signal: signals[0] }
+      )
+      expect(signals).toHaveLength(3)
+      expect(new Set(signals).size).toBe(1)
+      expect(signals[0]?.aborted).toBe(false)
+      expect(session.gate.current().phase).toBe("ready")
     } finally {
       await session?.close().catch(() => undefined)
       await Promise.all([

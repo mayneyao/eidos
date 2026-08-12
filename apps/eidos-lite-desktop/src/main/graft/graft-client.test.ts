@@ -3,7 +3,11 @@ import os from "node:os"
 import path from "node:path"
 
 import { EIDOS_LITE_SERVICE_ENVIRONMENTS } from "../../shared/service-environment"
-import { GraftClient, isOfficialRemoteUrl } from "./graft-client"
+import {
+  classifySyncHistory,
+  GraftClient,
+  isOfficialRemoteUrl,
+} from "./graft-client"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 const unusedRevisionTextDiff: GraftSdkTransport["revisionTextDiff"] = vi.fn(
@@ -29,6 +33,478 @@ function createUnusedTransport(): GraftSdkTransport {
 }
 
 describe("GraftClient", () => {
+  it("classifies fetched history from heads and their common ancestor", () => {
+    const base = "a".repeat(64)
+    const local = "b".repeat(64)
+    const hosted = "c".repeat(64)
+
+    expect(
+      classifySyncHistory({
+        state: "diverged",
+        localHead: hosted,
+        remoteHead: hosted,
+        commonAncestor: base,
+        ahead: 9,
+        behind: 9,
+      })
+    ).toBe("up_to_date")
+    expect(
+      classifySyncHistory({
+        state: "unknown",
+        localHead: base,
+        remoteHead: hosted,
+        commonAncestor: base,
+        ahead: 0,
+        behind: 0,
+      })
+    ).toBe("behind")
+    expect(
+      classifySyncHistory({
+        state: "unknown",
+        localHead: local,
+        remoteHead: base,
+        commonAncestor: base,
+        ahead: 0,
+        behind: 0,
+      })
+    ).toBe("ahead")
+    expect(
+      classifySyncHistory({
+        state: "ahead",
+        localHead: local,
+        remoteHead: hosted,
+        commonAncestor: base,
+        ahead: 1,
+        behind: 0,
+      })
+    ).toBe("diverged")
+  })
+
+  it("forwards merge CAS tokens and AbortSignal and projects SDK results", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-merge-contract-")
+    )
+    const head = "a".repeat(64)
+    const hosted = "b".repeat(64)
+    const base = "c".repeat(64)
+    const planToken = "d".repeat(64)
+    const policyToken = "e".repeat(64)
+    const nextPolicyToken = "f".repeat(64)
+    const policy = { version: 1 as const, same_row_merge: true }
+    const stateTokens = Array.from({ length: 12 }, (_, index) =>
+      (index + 1).toString(16).repeat(64)
+    )
+    const requests: Array<{
+      command: string
+      args: unknown[]
+      signal: AbortSignal | undefined
+    }> = []
+    let mutation = 0
+    const merging = () => ({
+      state: "merging",
+      orig_head: head,
+      merge_head: hosted,
+      merge_base: base,
+      staged_count: mutation,
+      unmerged_count: Math.max(0, 6 - mutation),
+      state_token: stateTokens[Math.min(mutation, stateTokens.length - 1)],
+      policy_token: nextPolicyToken,
+      policy_version: 1,
+    })
+    const transport: GraftSdkTransport = {
+      ...createUnusedTransport(),
+      target: root,
+      command: vi.fn(async (command, args = [], options) => {
+        requests.push({ command, args, signal: options?.signal })
+        if (command === "getMergePolicy") {
+          return { policy, policy_token: policyToken, active_merge: false }
+        }
+        if (command === "validateMergePolicy") {
+          return {
+            valid: true,
+            policy,
+            policy_token: nextPolicyToken,
+            errors: [],
+          }
+        }
+        if (command === "setMergePolicy") {
+          return {
+            policy,
+            policy_token: nextPolicyToken,
+            active_merge: false,
+          }
+        }
+        if (command === "planMerge") {
+          return {
+            kind: "three_way",
+            expected_head: head,
+            target: hosted,
+            merge_base: base,
+            staged_paths: ["clean.txt"],
+            conflicted_paths: ["notes.txt", "records.eidos"],
+            plan_token: planToken,
+            policy_token: nextPolicyToken,
+            policy_version: 1,
+          }
+        }
+        if (command === "getMergeStatus") return merging()
+        if (command === "listMergePaths") {
+          return {
+            state_token: stateTokens[mutation],
+            items: [
+              {
+                path: "notes.txt",
+                state: "unmerged",
+                kind: "text_file",
+                storage: "inline",
+                has_base: true,
+                has_ours: true,
+                has_theirs: true,
+              },
+            ],
+            next_cursor: null,
+          }
+        }
+        if (command === "listMergeConflicts") {
+          return {
+            state_token: stateTokens[mutation],
+            path: "records.eidos",
+            items: [
+              {
+                id: "row:Docs:1",
+                path: "records.eidos",
+                path_kind: "sqlite_database",
+                storage: "sqlite_snapshot",
+                kind: "row",
+                reason: "both_updated",
+                status: "unresolved",
+                auto_resolvable: true,
+                recommended_result: "ours",
+                table: "Docs",
+                rowid: 1,
+                base_row: ["base"],
+                ours_row: ["local"],
+                theirs_row: ["hosted"],
+                cells: [
+                  {
+                    column: "title",
+                    base: "base",
+                    ours: "local",
+                    theirs: "hosted",
+                  },
+                ],
+              },
+            ],
+            next_cursor: null,
+          }
+        }
+        if (command === "readMergeVersion") {
+          const request = args[0] as { version: string }
+          return {
+            version: request.version,
+            revision: head,
+            path: "notes.txt",
+            kind: "text_file",
+            storage: "inline",
+            content: { state: "utf8", content: "", size: 0 },
+            state_token: stateTokens[mutation],
+          }
+        }
+        if (command === "diffMergeSqlite") {
+          return {
+            state_token: stateTokens[mutation],
+            path: "records.eidos",
+            from: { version: "base", revision: base },
+            to: { version: "ours", revision: head },
+            diff: {
+              from: base,
+              to: head,
+              paths: [
+                {
+                  path: "records.eidos",
+                  change: "modified",
+                  kind: "sqlite_database",
+                  storage: "sqlite_snapshot",
+                },
+              ],
+              files: [
+                {
+                  path: "records.eidos",
+                  change: "modified",
+                  kind: "sqlite_database",
+                  storage: "sqlite_snapshot",
+                  row_diff_available: true,
+                  mode: "summary",
+                  logical_status: "changed",
+                  capabilities: ["schema"],
+                  limitations: [],
+                  schema_changes: [
+                    {
+                      name: "Docs",
+                      entry_type: "table",
+                      op: "modified",
+                      sql: "CREATE TABLE Docs (id TEXT PRIMARY KEY, title TEXT)",
+                      old_sql: "CREATE TABLE Docs (id TEXT PRIMARY KEY)",
+                    },
+                  ],
+                  has_more: false,
+                  telemetry: {
+                    tables_considered: 1,
+                    tables_scanned: 0,
+                    rows_scanned: 0,
+                    rows_returned: 0,
+                    truncated: false,
+                    response_scope: "unavailable",
+                  },
+                },
+              ],
+            },
+          }
+        }
+        if (command === "continueMerge" || command === "abortMerge") {
+          mutation += 1
+          return { output: {}, merge: { state: "none" } }
+        }
+        mutation += 1
+        return { output: {}, merge: merging() }
+      }),
+    }
+    const client = new GraftClient({ sdkTransport: transport })
+    const controller = new AbortController()
+
+    try {
+      await expect(
+        client.getMergePolicy(root, { signal: controller.signal })
+      ).resolves.toMatchObject({ policy, policy_token: policyToken })
+      await expect(
+        client.validateMergePolicy(root, policy, {
+          signal: controller.signal,
+        })
+      ).resolves.toMatchObject({ valid: true, policy })
+      await expect(
+        client.setMergePolicy(root, policy, policyToken, {
+          signal: controller.signal,
+        })
+      ).resolves.toMatchObject({ policy_token: nextPolicyToken })
+      const plan = await client.planMerge(root, "origin/main", head, {
+        signal: controller.signal,
+      })
+      expect(plan).toMatchObject({
+        kind: "three_way",
+        expectedHead: head,
+        hostedHead: hosted,
+        commonAncestor: base,
+        planToken,
+        policyToken: nextPolicyToken,
+        policyVersion: 1,
+      })
+      const applied = await client.applyMerge(
+        root,
+        "origin/main",
+        head,
+        planToken,
+        { signal: controller.signal }
+      )
+      expect(applied).toMatchObject({ state: "merging", localHead: head })
+      await client.getMergeStatus(root, { signal: controller.signal })
+      await client.listMergePaths(root, stateTokens[1], {
+        signal: controller.signal,
+      })
+      const conflicts = await client.listMergeConflicts(
+        root,
+        "records.eidos",
+        stateTokens[1],
+        { signal: controller.signal }
+      )
+      expect(conflicts.items[0]).toMatchObject({
+        table: "Docs",
+        rowid: 1,
+        baseRow: ["base"],
+        oursRow: ["local"],
+        theirsRow: ["hosted"],
+        autoResolvable: true,
+        recommendedResult: "ours",
+        cells: [
+          {
+            column: "title",
+            base: "base",
+            local: "local",
+            hosted: "hosted",
+          },
+        ],
+      })
+      const empty = await client.readMergeVersion(
+        root,
+        "notes.txt",
+        "result",
+        stateTokens[1],
+        { signal: controller.signal }
+      )
+      expect(empty.content).toEqual({ state: "utf8", content: "", size: 0 })
+      const sqliteDiff = await client.diffMergeSqlite(
+        root,
+        "records.eidos",
+        "base",
+        "ours",
+        stateTokens[1],
+        { mode: "summary", signal: controller.signal }
+      )
+      expect(sqliteDiff).toMatchObject({
+        stateToken: stateTokens[1],
+        path: "records.eidos",
+        from: { version: "base", revision: base },
+        to: { version: "ours", revision: head },
+      })
+      expect(sqliteDiff.diff.files[0]?.schemaChanges).toEqual([
+        {
+          name: "Docs",
+          entryType: "table",
+          operation: "modified",
+          sql: "CREATE TABLE Docs (id TEXT PRIMARY KEY, title TEXT)",
+          oldSql: "CREATE TABLE Docs (id TEXT PRIMARY KEY)",
+        },
+      ])
+      await client.setMergePathResult(
+        root,
+        "asset.bin",
+        "ours",
+        stateTokens[1],
+        { signal: controller.signal }
+      )
+      await client.resolveMergeRow(
+        root,
+        "records.eidos",
+        "Docs",
+        { id: "stable-id" },
+        "theirs",
+        stateTokens[2],
+        { signal: controller.signal }
+      )
+      await client.resolveMergeCell(
+        root,
+        "records.eidos",
+        "Docs",
+        { id: "stable-id" },
+        "title",
+        "ours",
+        stateTokens[3],
+        { signal: controller.signal }
+      )
+      await client.resolveMergeTable(
+        root,
+        "records.eidos",
+        "Docs",
+        "ours",
+        stateTokens[4],
+        { signal: controller.signal }
+      )
+      await client.unresolveMergePath(root, "records.eidos", stateTokens[5], {
+        signal: controller.signal,
+      })
+      await client.stageMergeSqliteResult(
+        root,
+        "records.eidos",
+        stateTokens[6],
+        { signal: controller.signal }
+      )
+      await client.writeAndStageTextResult(
+        root,
+        "notes.txt",
+        "combined\n",
+        stateTokens[7],
+        { signal: controller.signal }
+      )
+      await client.continueMerge(root, "Merge Hosted changes", stateTokens[8], {
+        signal: controller.signal,
+      })
+      await client.abortMerge(root, stateTokens[9], {
+        signal: controller.signal,
+      })
+
+      expect(requests.map((request) => request.command)).toEqual([
+        "getMergePolicy",
+        "validateMergePolicy",
+        "setMergePolicy",
+        "planMerge",
+        "applyMerge",
+        "getMergeStatus",
+        "listMergePaths",
+        "listMergeConflicts",
+        "readMergeVersion",
+        "diffMergeSqlite",
+        "setMergePathResult",
+        "resolveMergeRow",
+        "resolveMergeCell",
+        "resolveMergeTable",
+        "unresolveMergePath",
+        "stageMergeSqliteResult",
+        "writeAndStageTextResult",
+        "continueMerge",
+        "abortMerge",
+      ])
+      expect(
+        requests.every((request) => request.signal === controller.signal)
+      ).toBe(true)
+      expect(requests[3]?.args).toEqual([
+        { revision: "origin/main", expectedHead: head },
+      ])
+      expect(requests[4]?.args).toEqual([
+        { revision: "origin/main", expectedHead: head, planToken },
+      ])
+      expect(requests[9]?.args).toEqual([
+        {
+          path: "records.eidos",
+          from: "base",
+          to: "ours",
+          mode: "summary",
+          expectedStateToken: stateTokens[1],
+        },
+      ])
+      expect(requests[11]?.args).toEqual([
+        {
+          path: "records.eidos",
+          table: "Docs",
+          identity: { id: "stable-id" },
+          result: "theirs",
+          expectedStateToken: stateTokens[2],
+        },
+      ])
+      expect(requests[12]?.args).toEqual([
+        {
+          path: "records.eidos",
+          table: "Docs",
+          identity: { id: "stable-id" },
+          column: "title",
+          result: "ours",
+          expectedStateToken: stateTokens[3],
+        },
+      ])
+      expect(requests[13]?.args).toEqual([
+        {
+          path: "records.eidos",
+          table: "Docs",
+          result: "ours",
+          expectedStateToken: stateTokens[4],
+        },
+      ])
+      expect(requests[14]?.args).toEqual([
+        {
+          path: "records.eidos",
+          expectedStateToken: stateTokens[5],
+        },
+      ])
+      expect(requests[15]?.args).toEqual([
+        {
+          path: "records.eidos",
+          expectedStateToken: stateTokens[6],
+        },
+      ])
+    } finally {
+      await client.close()
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("forwards AbortSignal through hosted remote operations", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-graft-remote-signal-")
@@ -72,6 +548,52 @@ describe("GraftClient", () => {
         "secret"
       )
     ).rejects.toThrow("only the official")
+  })
+
+  it("reasserts origin/main when an existing official origin is configured", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-graft-official-upstream-")
+    )
+    const storedRemoteUrl =
+      "https://sync-staging.eidos.space/u-alice/existing-space"
+    const remoteUrl = `graft+${storedRemoteUrl}`
+    const controller = new AbortController()
+    const command = vi.fn(async (name: string) => {
+      if (name === "listRemotes") {
+        return { remotes: [{ name: "origin", url: storedRemoteUrl }] }
+      }
+      if (name === "configureRemote") return {}
+      throw new Error(`Unexpected Graft SDK command: ${name}`)
+    })
+    const client = new GraftClient({
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      sdkTransport: {
+        ...createUnusedTransport(),
+        command,
+      },
+    })
+
+    try {
+      await client.configureOfficialRemote(root, remoteUrl, "secret", {
+        signal: controller.signal,
+      })
+
+      expect(command).toHaveBeenNthCalledWith(
+        2,
+        "configureRemote",
+        [
+          {
+            name: "origin",
+            url: storedRemoteUrl,
+            bearerToken: "secret",
+            upstreamBranch: "main",
+          },
+        ],
+        { signal: controller.signal }
+      )
+    } finally {
+      await fs.rm(root, { recursive: true, force: true })
+    }
   })
 
   it("allows only the selected environment's official repository origin", () => {
@@ -121,7 +643,9 @@ describe("GraftClient", () => {
       close: vi.fn(async () => undefined),
       command: vi.fn(async (command) => {
         commands.push(command)
-        if (command === "sdkVersion") return "0.3.8"
+        if (command === "sdkVersion") {
+          return "0.3.10"
+        }
         if (command === "statusIncremental") {
           return {
             generation: 1,
@@ -145,6 +669,15 @@ describe("GraftClient", () => {
                 path: `file-${index}.txt`,
                 change: "modified",
               })),
+              path_diagnostics: [
+                {
+                  path: "broken.eidos",
+                  status: "corrupt",
+                  operation: "status",
+                  protected_by_index: true,
+                  message: "SQLite integrity check failed",
+                },
+              ],
             },
             telemetry: {
               status_cache_hit: false,
@@ -166,8 +699,17 @@ describe("GraftClient", () => {
         initialized: true,
         clean: false,
         changedPaths: 1_000,
+        pathDiagnostics: [
+          {
+            path: "broken.eidos",
+            status: "corrupt",
+            operation: "status",
+            protectedByIndex: true,
+            message: "SQLite integrity check failed",
+          },
+        ],
         sync: {
-          state: "ahead",
+          state: "diverged",
           localHead: "local-head",
           remoteHead: "cloud-head",
           commonAncestor: "base-head",

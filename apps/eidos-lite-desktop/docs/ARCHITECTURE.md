@@ -63,7 +63,7 @@ flowchart LR
   F1 -->|"guarded node:sqlite handle"| E1["a.eidos"]
   F2 -->|"guarded node:sqlite handle"| E2["nested/b.eidos"]
   M -->|"typed private IPC; one process per Space"| G["Graft utility process"]
-  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.8"]
+  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.10"]
   N --> S["whole ordinary folder Space"]
   N -. "explicit in-memory credential; Sync/Clone only" .-> H["Selected official Hosted Remote"]
 ```
@@ -356,7 +356,7 @@ SDK session transport at construction. Status, diff, history, checkpoint,
 restore, push, and clone never create a CLI subprocess; Lite has no backend
 switch, executable lookup, or CLI credential environment path.
 
-The SDK adapter pins published `@eidos.space/graft@0.3.8`,
+The SDK adapter pins published `@eidos.space/graft@0.3.10`,
 lazily opens one session on the first background or explicit repository read,
 and closes it when the window closes. It asks the published
 `operationMaterializesWorktree()` contract before restore. Remote credentials
@@ -462,8 +462,10 @@ For an already connected Space, **Sync Now** runs one explicit reconciliation:
    repository list and put the fresh bearer token in the retained SDK session.
 2. Require a clean local worktree, then fetch with application SQLite handles
    still open.
-3. Read SDK `ahead`/`behind`. If both are non-zero, report a conflict before
-   changing any user file.
+3. Classify history from the structured `local`, `remote_target`, and
+   `common_ancestor` identities. Counts remain display metadata and a legacy
+   fallback; they do not override contradictory graph identities. A true
+   divergence is reported before changing any user file.
 4. If only Hosted history is ahead, re-check the clean/divergence precondition,
    stop new mutations and drain active ones. If the Space changed after fetch,
    clear the not-yet-materialized journal and return to Ready without closing
@@ -472,7 +474,157 @@ For an already connected Space, **Sync Now** runs one explicit reconciliation:
 5. If only Local history is ahead, push only with `read_write`; `read_only`
    reports the unpushed local checkpoints without discarding them.
 
-No automatic merge, reset, or force push exists in this slice.
+### Multi-device collaboration state machine
+
+Sync state belongs to each local clone, not to the account or to a renderer
+window. Hosted exposes one authoritative branch head, updated with
+compare-and-swap publication. A device learns that another device moved that
+head only after a successful fetch; Lite never broadcasts or copies another
+device's in-memory Sync or merge UI state.
+
+After every fetch, Lite classifies the clone from the structured commit
+identities rather than from timestamps or checkpoint counts:
+
+| Relation     | Structured condition                                                        | Safe next action                                      |
+| ------------ | --------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `up_to_date` | `localHead === hostedHead`                                                  | No materialization                                    |
+| `behind`     | `commonAncestor === localHead` and Hosted differs                           | Guarded fast-forward pull                             |
+| `ahead`      | `commonAncestor === hostedHead` and Local differs                           | CAS push with `read_write`; report only for read-only |
+| `diverged`   | the common ancestor differs from both heads                                 | Reviewed merge or two-copy recovery                   |
+| `blocked`    | no valid common ancestor, invalid contract, dirty worktree, or auth failure | Preserve Local and surface the precise recovery       |
+
+An open Space first restores durable merge state. An active merge pauses the
+ordinary background reconciliation queue; it is resumed only after continue
+or abort returns the repository to a non-merging state.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Restoring
+    Restoring --> Resolving: getMergeStatus = merging
+    Restoring --> NeedsComparison: getMergeStatus = none
+
+    NeedsComparison --> Comparing: authorized fetch
+    Comparing --> UpToDate: Local = Hosted
+    Comparing --> Behind: ancestor = Local
+    Comparing --> Ahead: ancestor = Hosted
+    Comparing --> Diverged: ancestor differs from both
+    Comparing --> Blocked: invalid graph, dirty, auth, or protocol failure
+
+    Behind --> Pulling: gate acquired and clean rechecked
+    Pulling --> NeedsComparison: pull, validate all .eidos, reopen
+    Ahead --> Pushing: read_write and Remote CAS
+    Pushing --> UpToDate: publication wins
+    Pushing --> NeedsComparison: Remote CAS loses; fetch again
+
+    Diverged --> Planning: explicit Start merge
+    Planning --> Resolving: expectedHead + planToken accepted
+    Planning --> NeedsComparison: plan is stale or relation changed
+    Resolving --> Resolving: cell, row, table, path, or text choice
+    Resolving --> Resolving: reopen app or reload latest stateToken
+    Resolving --> ReadyToContinue: unmergedCount = 0
+    ReadyToContinue --> Resolving: unresolve a path
+    ReadyToContinue --> NeedsComparison: continue creates local two-parent commit
+    Resolving --> NeedsComparison: explicit abort restores ORIG_HEAD
+```
+
+Every successful merge mutation produces a new local `stateToken`; a stale
+operation is rejected without replay. Closing the window leaves `Resolving` or
+`ReadyToContinue` durable. Reopening calls `getMergeStatus` and reconstructs
+paths, tables, rows, and current choices from Graft rather than renderer state.
+Path-level unresolve is the Git-style escape from a staged/resolved path and
+must reconstruct its conflict stages through Graft; Lite never synthesizes
+those stages from displayed data.
+
+The important cross-device transitions are:
+
+1. Device A may resolve a divergence and create a two-parent merge locally.
+   Until A publishes it, Hosted and every other device are unchanged.
+2. A fresh reconciliation fetches before A pushes. The push uses the fetched
+   Hosted head as a CAS boundary; if another device published first, A returns
+   to `NeedsComparison` and reclassifies instead of force pushing.
+3. After A publishes merge commit `M`, a device B whose Local head is either
+   parent or any other ancestor of `M` classifies as `behind`. B can pull `M`
+   directly through the guarded fast-forward path; it does not open the merge
+   workspace again.
+4. If B created a new checkpoint not contained in `M`, B classifies as
+   `diverged` after fetch and must run another reviewed merge. A prior merge on
+   A is not permission to discard B's new Local history.
+5. If Hosted moves while B already has an active merge, B's local
+   `stateToken` still guards only that durable local merge. B may finish or
+   abort it, but publication always performs a fresh fetch; a changed Hosted
+   head can therefore produce another divergence before push.
+
+No implicit merge, reset, force push, or automatic winner selection exists.
+When the structured relation is `diverged`, the conflict workspace drives a
+reviewed, restart-safe merge:
+
+The living
+[merge schema compatibility matrix](./MERGE-SCHEMA-COMPATIBILITY.md) assigns
+stable scenario IDs to physical SQLite classification, Eidos-domain
+validation, Lite UI behavior, and executable coverage. A missing Graft schema
+conflict is never by itself proof that an Eidos candidate is safe.
+
+1. Main re-authorizes and fetches, confirms a clean worktree and the same
+   divergent graph, derives a data-only Policy v1 from every open-format Eidos
+   File, then calls `planMerge(origin/main)` with `expectedHead`. Eidos File
+   1.0 explicitly enables `same_row_merge`, uses `_id` as the default semantic
+   key, and marks only `_updated_at`/metadata `updated_at` as
+   `max_timestamp`. Revision counters and other domain values are not guessed.
+   The renderer receives only the projected Base/Local/Hosted identities,
+   conflict paths, opaque `planToken`, and the policy token/version.
+2. Policy validation and update use `expectedPolicyToken` CAS. The plan token
+   is bound to the policy, and Graft freezes the actual policy for an active
+   merge. Apply requires both `expectedHead` and `planToken`. Graft persists
+   `ORIG_HEAD`, `MERGE_HEAD`, and index stages. `getMergeStatus` reconstructs
+   the workflow and its frozen policy when the Space or application is
+   reopened.
+3. Every subsequent read or mutation supplies the latest `stateToken`. A stale
+   CAS response is mapped to a typed renderer-safe failure; the workspace
+   reloads durable state and does not replay the rejected choice.
+4. `applyMerge`, whole-path choice, SQLite row/cell/table choice, path
+   unresolve, edited text staging, continue, and abort all use the existing
+   `SpaceOperationGate`. It journals, stops new mutations, drains active writes,
+   closes resident Runtime/SQLite handles, materializes, validates every
+   `.eidos` in the Space, and restores the previous resident Runtime set.
+   Cancel, exception, window close, and startup recovery use the same cleanup
+   boundary.
+5. Text shows Base/Local/Hosted plus an editable result. Binary paths allow
+   Local or Hosted; "keep both" aborts to the non-destructive two-Recovery-Space
+   flow. `.eidos` paths list table conflicts, use Graft's stable row identity,
+   and allow cell, row, safe-table, or complete-file scope. Graft's
+   `conflict.columns` is the conflicting subset while row payloads are full
+   physical rows, so SpaceSession enriches user-table conflicts with the Eidos
+   Runtime's exact physical column order before rendering. Resolved conflicts
+   remain inspectable after reopen; unresolve restores the original staged
+   conflict candidate. Eidos Runtime still owns semantic validation; Graft is
+   not asked to understand Eidos domain rules.
+6. A future application-owned `recompute` writes the candidate through Eidos
+   Runtime, validates all `.eidos` files with handles closed, and only then
+   calls non-materializing `stageMergeSqliteResult`; Graft performs SQLite
+   integrity/foreign-key checks and captures the exact bytes. No Graft policy
+   resolver executes Eidos business code.
+   A Graft `automatic_merge_available` result is not equivalent to that staged
+   candidate. Until Graft exposes a successful, state-token-guarded operation
+   that materializes the analyzed candidate without committing it, Lite keeps
+   the path unresolved and offers only complete-file Local/Hosted recovery. It
+   does not stage the current Local worktree or depend on a failed `continue`
+   side effect.
+7. Continue is enabled only after Graft reports zero unmerged paths. Main runs
+   a full Eidos validation while handles are closed, passes that exact token to
+   `continueMerge`, and queues the resulting two-parent checkpoint for Sync.
+   Abort restores the pre-merge Local head and retains Hosted history.
+
+The merge surface is compiled against a type-only snapshot kept aligned with
+the published Graft 0.3.10 declaration. `EIDOS_LITE_GRAFT_SDK_PATH` may select
+a compatible local package in source development and tests; production always
+resolves the pinned SDK and fails closed with a typed unavailable result if its
+runtime contract is incomplete.
+
+Repository status also projects `path_diagnostics`. A skipped, corrupt, or
+analysis-failed path blocks merge planning with its path, protection state,
+and recovery message. `protected_by_index` is evidence about whether the
+current bytes are captured; it is never interpreted as permission to discard
+the worktree copy.
 
 Main emits a typed, per-run Sync timeline as each boundary is crossed:
 authorization, fetch, relation analysis, mutation drain/handle close, pull,

@@ -237,8 +237,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/eidos-file-ui
       '@eidos.space/graft':
-        specifier: 0.3.8
-        version: 0.3.8
+        specifier: 0.3.10
+        version: 0.3.10
       '@glideapps/glide-data-grid':
         specifier: ^6.0.0
         version: 6.0.3(lodash@4.18.1)(marked@4.3.0)(react-dom@18.3.1(react@18.3.1))(react-responsive-carousel@3.2.23)(react@18.3.1)
@@ -1519,26 +1519,26 @@ packages:
     peerDependencies:
       react: '>=16.8.0'
 
-  '@eidos.space/graft-darwin-arm64@0.3.8':
-    resolution: {integrity: sha512-YsZS/eymMJFAH3CVX+ldcrB6HvDdWwaUCkVVClU0RwdEnMPN3p33I9gcFIPuU4V0xaLIPQFxctY7NLmCKyADtA==}
+  '@eidos.space/graft-darwin-arm64@0.3.10':
+    resolution: {integrity: sha512-qhFaMA6G4lqE4Ctpb+7TbmHp5Y8zzq21QdRBt04JLDxAQY6CQrnCKd3fx0KhVqX/NnDovb5mN4E1W8t+IaH7jw==}
     engines: {node: '>=20'}
     cpu: [arm64]
     os: [darwin]
 
-  '@eidos.space/graft-darwin-x64@0.3.8':
-    resolution: {integrity: sha512-JyahSSBlqckbCLpmpR5AWEcv/sna/O6uNVgjI2eeRLyBhSRpslZCBpHXZ9Xxqcif1v68/EF6fNx2d+wcrzGbmg==}
+  '@eidos.space/graft-darwin-x64@0.3.10':
+    resolution: {integrity: sha512-PEYi9V9i4wt+mSrAaIKIVvnO7zm5ei46j5gYqGOreT4badP49RphACLtHGPaf49ACNbB8FBYqpEzWOcwM4+k/Q==}
     engines: {node: '>=20'}
     cpu: [x64]
     os: [darwin]
 
-  '@eidos.space/graft-linux-arm64-gnu@0.3.8':
-    resolution: {integrity: sha512-Zo5BstPMTvo5OCYFF4iUtGmcmuJWzs1XkcBfayyfSnFxKGsXJ71j5CAZiBYpFAhriDL7aSEghbrG4XMkMwv8LA==}
+  '@eidos.space/graft-linux-arm64-gnu@0.3.10':
+    resolution: {integrity: sha512-9B5kXdkNSUrsu3ezNzcqLae9PRepamiCay6nribQIMtSgn4P1Ostl2581Mrj9X/ibmgc809KQO1OO7tTQysolw==}
     engines: {node: '>=20'}
     cpu: [arm64]
     os: [linux]
 
-  '@eidos.space/graft-linux-x64-gnu@0.3.8':
-    resolution: {integrity: sha512-o17UnJ9LOUJ91YIgvBMfj1k6TDJa4G2QmGjAZuQp9IHdeX92sWptowmB1aiCmYLdQD/WwkJpSO4C06pfQ2VT0A==}
+  '@eidos.space/graft-linux-x64-gnu@0.3.10':
+    resolution: {integrity: sha512-fia/lGjTfvewNRUQeEFGvbqIRczgtWN4zivGvY3iWclvwqT0AXdYBMAWASG/B8ejM94W3Dbsadmdcgw83CTudQ==}
     engines: {node: '>=20'}
     cpu: [x64]
     os: [linux]
@@ -1559,14 +1559,14 @@ packages:
     resolution: {integrity: sha512-Lnh/PmhBbhoI02/+gi605qZQdNA6e222iwtKJz9P0sECs8UH9TofXtu0nOTcyE5iUMBeJqj9WMy2WjK2flO96g==}
     engines: {node: '>=20'}
 
-  '@eidos.space/graft-win32-x64-msvc@0.3.8':
-    resolution: {integrity: sha512-JWw3e3ai/CDyZFNFCYeEOiPMZ61GdbLtL7jrR4I+5CAjRZK2iD0R+XTD3uNfu7Yp1p2YkLNoy4Jk9DbvzSjhnQ==}
+  '@eidos.space/graft-win32-x64-msvc@0.3.10':
+    resolution: {integrity: sha512-VJElz9sRnkVEoWHkZdcfzQtwtX+ggzmQPDeiO8GZsQeGqrXTZxd4TvvxdQ/NsQuN7VEVTRBsg5ZKHqjy1DsrQg==}
     engines: {node: '>=20'}
     cpu: [x64]
     os: [win32]
 
-  '@eidos.space/graft@0.3.8':
-    resolution: {integrity: sha512-xqWB9qo2pVIaizl/Dp9GepjmocJW96qH4BVjPWLOGnTEC9zvdvC2mef5glKJi4OfmGPtWrXynSFQgIuaXnUTIQ==}
+  '@eidos.space/graft@0.3.10':
+    resolution: {integrity: sha512-cG5G13fPp3+oszp9/NZnyvIVW/OgDwNoG/pmvsrIMkHUsVd3+0skw2TJ5zpLAc2yTG1KRiFo42jPW86bJV3CVg==}
     engines: {node: '>=20'}
 
   '@electron-internal/extract-zip@1.0.5':
@@ -9807,16 +9807,16 @@ snapshots:
       react: 18.3.1
       tslib: 2.8.1
 
-  '@eidos.space/graft-darwin-arm64@0.3.8':
+  '@eidos.space/graft-darwin-arm64@0.3.10':
     optional: true
 
-  '@eidos.space/graft-darwin-x64@0.3.8':
+  '@eidos.space/graft-darwin-x64@0.3.10':
     optional: true
 
-  '@eidos.space/graft-linux-arm64-gnu@0.3.8':
+  '@eidos.space/graft-linux-arm64-gnu@0.3.10':
     optional: true
 
-  '@eidos.space/graft-linux-x64-gnu@0.3.8':
+  '@eidos.space/graft-linux-x64-gnu@0.3.10':
     optional: true
 
   '@eidos.space/graft-remote-cloudflare@0.2.1(@cloudflare/workers-types@5.20260727.1)':
@@ -9831,16 +9831,16 @@ snapshots:
 
   '@eidos.space/graft-remote@0.2.1': {}
 
-  '@eidos.space/graft-win32-x64-msvc@0.3.8':
+  '@eidos.space/graft-win32-x64-msvc@0.3.10':
     optional: true
 
-  '@eidos.space/graft@0.3.8':
+  '@eidos.space/graft@0.3.10':
     optionalDependencies:
-      '@eidos.space/graft-darwin-arm64': 0.3.8
-      '@eidos.space/graft-darwin-x64': 0.3.8
-      '@eidos.space/graft-linux-arm64-gnu': 0.3.8
-      '@eidos.space/graft-linux-x64-gnu': 0.3.8
-      '@eidos.space/graft-win32-x64-msvc': 0.3.8
+      '@eidos.space/graft-darwin-arm64': 0.3.10
+      '@eidos.space/graft-darwin-x64': 0.3.10
+      '@eidos.space/graft-linux-arm64-gnu': 0.3.10
+      '@eidos.space/graft-linux-x64-gnu': 0.3.10
+      '@eidos.space/graft-win32-x64-msvc': 0.3.10
 
   '@electron-internal/extract-zip@1.0.5': {}
 
@@ -12426,14 +12426,6 @@ snapshots:
       chai: 6.2.2
       tinyrainbow: 3.1.0
 
-  '@vitest/mocker@3.2.6(vite@7.3.6(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0))':
-    dependencies:
-      '@vitest/spy': 3.2.6
-      estree-walker: 3.0.3
-      magic-string: 0.30.21
-    optionalDependencies:
-      vite: 7.3.6(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
-
   '@vitest/mocker@3.2.6(vite@7.3.6(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0))':
     dependencies:
       '@vitest/spy': 3.2.6
@@ -12441,6 +12433,14 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       vite: 7.3.6(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
+
+  '@vitest/mocker@3.2.6(vite@7.3.6(@types/node@25.4.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0))':
+    dependencies:
+      '@vitest/spy': 3.2.6
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 7.3.6(@types/node@25.4.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0)
 
   '@vitest/mocker@3.2.7(vite@7.3.6(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0))':
     dependencies:
@@ -17291,7 +17291,7 @@ snapshots:
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/expect': 3.2.6
-      '@vitest/mocker': 3.2.6(vite@7.3.6(@types/node@20.19.1)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0))
+      '@vitest/mocker': 3.2.6(vite@7.3.6(@types/node@25.4.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.47.1)(tsx@4.21.0)(yaml@2.9.0))
       '@vitest/pretty-format': 3.2.7
       '@vitest/runner': 3.2.6
       '@vitest/snapshot': 3.2.6

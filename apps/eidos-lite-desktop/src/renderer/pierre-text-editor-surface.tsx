@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { Editor, type EditorOptions } from "@pierre/diffs/edit"
 import { EditProvider, File, Virtualizer } from "@pierre/diffs/react"
 
@@ -9,26 +9,34 @@ export default function PierreTextEditorSurface({
   relativePath,
   content,
   theme,
+  persistEditorState = true,
   onChange,
 }: {
   relativePath: string
   content: string
   theme: ResolvedAppearance
+  persistEditorState?: boolean
   onChange(content: string): void
 }) {
   const editorRef = useRef<Editor<undefined> | null>(null)
-  const createEditor = useCallback((options: EditorOptions<undefined>) => {
-    const persistentOptions: EditorOptions<undefined> = {
-      ...options,
-      persistState: true,
-    }
-    if (editorRef.current) {
-      editorRef.current.setOptions(persistentOptions)
-    } else {
-      editorRef.current = new Editor<undefined>(persistentOptions)
-    }
-    return editorRef.current
-  }, [])
+  const createEditor = useCallback(
+    (options: EditorOptions<undefined>) => {
+      const persistentOptions: EditorOptions<undefined> = {
+        ...options,
+        persistState: persistEditorState,
+      }
+      if (editorRef.current) {
+        editorRef.current.setOptions(persistentOptions)
+      } else {
+        editorRef.current = new Editor<undefined>(persistentOptions)
+      }
+      return editorRef.current
+    },
+    [persistEditorState]
+  )
+  useEffect(() => {
+    editorRef.current?.setOptions({ persistState: persistEditorState })
+  }, [persistEditorState])
   const contentPropRef = useRef(content)
   const currentContentRef = useRef(content)
   if (contentPropRef.current !== content) {

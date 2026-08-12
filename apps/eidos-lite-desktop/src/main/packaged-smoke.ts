@@ -1323,6 +1323,22 @@ const rendererProbe = `
   }
   const readmeItem = await waitFor(() => treeItem("README.md"), "README in Space Explorer")
   readmeItem.click()
+  const readmeSurface = await waitFor(
+    () =>
+      document.querySelector('[data-text-file-editor="README.md"]') ??
+      document.querySelector('[data-document-file-preview="README.md"]'),
+    "README text surface"
+  )
+  if (readmeSurface.hasAttribute("data-document-file-preview")) {
+    const sourceMode = await waitFor(
+      () =>
+        document.querySelector(
+          '[data-document-file-preview="README.md"] [data-document-preview-mode="source"]'
+        ),
+      "README source action"
+    )
+    sourceMode.click()
+  }
   const textEditorSurface = await waitFor(
     () => document.querySelector('[data-text-file-editor="README.md"]'),
     "README text editor"

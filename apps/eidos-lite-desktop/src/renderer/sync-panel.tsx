@@ -32,6 +32,7 @@ import type {
   EidosSyncRunResult,
   EidosSyncStatus,
   EidosSyncTelemetry,
+  EidosSyncMergeStatus,
   SpaceSnapshot,
   SpaceSyncHistoryStatus,
   SyncAccountUser,
@@ -42,6 +43,7 @@ import {
   readSyncStatusSnapshot,
   writeSyncStatusSnapshot,
 } from "./sync-status-cache"
+import { SyncMergeWorkspace } from "./sync-merge-workspace"
 
 type BusyAction =
   | "sign-in"
@@ -74,7 +76,7 @@ interface SyncPill {
 interface SyncOverview {
   pill: SyncPill
   title: string
-  message: string
+  message?: string
   tone: SyncTone
 }
 
@@ -146,6 +148,8 @@ export function SyncPanel({
   onClone,
   onRequestClone,
   onReviewLocal,
+  onMergeStatusChange,
+  onReviewMerge,
   onSpaceChange,
 }: {
   mode: "enable" | "clone"
@@ -157,6 +161,8 @@ export function SyncPanel({
   onClone?(snapshot: SpaceSnapshot): void
   onRequestClone?(): void
   onReviewLocal?(): void
+  onMergeStatusChange?(status: EidosSyncMergeStatus): void
+  onReviewMerge?(): void
   onSpaceChange?(snapshot: SpaceSnapshot): void
 }) {
   const [initialSnapshot] = useState(() => readSyncStatusSnapshot(cacheKey))
@@ -209,6 +215,7 @@ export function SyncPanel({
   const [loadError, setLoadError] = useState<LoadError | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [diagnosticsCopied, setDiagnosticsCopied] = useState(false)
+  const [mergeActive, setMergeActive] = useState(false)
 
   const loadResources = async (value: EidosSyncStatus) => {
     if (mode === "clone" && value.canClone) {
@@ -729,7 +736,13 @@ export function SyncPanel({
     status.account.user?.email ?? status.account.user?.name ?? "Signed in"
   const storage = syncStorageUsage(status)
   const storageState = storage ? syncStorageState(storage) : "normal"
-  const storageIsLow = storageState !== "normal"
+  const storageNeedsAttention = storageState !== "normal"
+  const storageBlocksCurrentUpload =
+    status.entitlement.state === "read-write" &&
+    storage !== null &&
+    (storageState === "over" ||
+      (storageState === "full" && storage.usedBytes >= storage.quotaBytes)) &&
+    (storage.reservedBytes > 0 || syncHistory?.state === "ahead")
   const operationsBlocked =
     loadError !== null || (checking && initialSnapshot === null)
   const spaceStatusPending =
@@ -740,6 +753,12 @@ export function SyncPanel({
     hasUncheckpointedChanges,
     syncResult,
   })
+  const syncActionIsPrimary =
+    status.entitlement.state === "read-only" ||
+    syncHistory?.state === "ahead" ||
+    syncHistory?.state === "behind"
+  const mergeReviewNeeded =
+    syncResult?.state === "conflict" || syncHistory?.state === "diverged"
   if (shouldRenderSyncAccessGate(status)) {
     return (
       <SyncAccessGate
@@ -837,26 +856,30 @@ export function SyncPanel({
               : {})}
             aria-live="polite"
           >
-            <span
-              className={`sync-status-pill sync-status-pill-${overview.pill.tone}`}
-            >
-              {overview.pill.tone === "success" ? <Check /> : null}
-              {overview.pill.label}
-            </span>
+            <div className="sync-status-topline">
+              <span
+                className={`sync-status-pill sync-status-pill-${overview.pill.tone}`}
+              >
+                {overview.pill.tone === "success" ? <Check /> : null}
+                {overview.pill.label}
+              </span>
+              {status.account.state === "signed-in" &&
+              (mode === "clone" ? repositoriesCheckedAtMs : lastSyncedAtMs) &&
+              !syncFailure &&
+              syncProgress?.state !== "active" ? (
+                <span className="sync-status-meta">
+                  {mode === "clone" ? "List updated" : "Last synced"}{" "}
+                  {formatRelativeTime(
+                    mode === "clone"
+                      ? (repositoriesCheckedAtMs ?? 0)
+                      : (lastSyncedAtMs ?? 0)
+                  )}
+                </span>
+              ) : null}
+            </div>
             <h2>{overview.title}</h2>
-            <p className="sync-status-message">{overview.message}</p>
-            {status.account.state === "signed-in" &&
-            (mode === "clone" ? repositoriesCheckedAtMs : lastSyncedAtMs) &&
-            !syncFailure &&
-            syncProgress?.state !== "active" ? (
-              <p className="sync-status-meta">
-                {mode === "clone" ? "Cloud list updated" : "Last synced"}{" "}
-                {formatRelativeTime(
-                  mode === "clone"
-                    ? (repositoriesCheckedAtMs ?? 0)
-                    : (lastSyncedAtMs ?? 0)
-                )}
-              </p>
+            {overview.message ? (
+              <p className="sync-status-message">{overview.message}</p>
             ) : null}
             {syncFailure ? (
               <small className="sync-local-safe">
@@ -1011,24 +1034,14 @@ export function SyncPanel({
                         <UserRound /> Manage account
                       </button>
                     )}
-                    {status.canEnable && storageIsLow ? (
-                      <button
-                        type="button"
-                        className="secondary-action"
-                        data-sync-manage-storage
-                        disabled={busy !== null}
-                        onClick={() => void openHelp("account")}
-                      >
-                        <UserRound /> Manage storage
-                      </button>
-                    ) : null}
                   </div>
                 </>
               ) : null}
 
               {mode === "enable" &&
               status.account.state === "signed-in" &&
-              status.remote.state === "connected" ? (
+              status.remote.state === "connected" &&
+              (!mergeReviewNeeded || hasUncheckpointedChanges) ? (
                 <div className="sync-primary-actions">
                   {hasUncheckpointedChanges ? (
                     <button
@@ -1042,11 +1055,25 @@ export function SyncPanel({
                     >
                       <FileWarning /> Review local changes
                     </button>
+                  ) : storageBlocksCurrentUpload ? (
+                    <button
+                      type="button"
+                      className="primary-action"
+                      data-sync-manage-storage
+                      disabled={busy !== null}
+                      onClick={() => void openHelp("account")}
+                    >
+                      <UserRound /> Manage storage
+                    </button>
                   ) : (
                     <>
                       <button
                         type="button"
-                        className="primary-action sync-run"
+                        className={`${
+                          syncActionIsPrimary
+                            ? "primary-action"
+                            : "secondary-action"
+                        } sync-run`}
                         data-sync-run
                         disabled={busy !== null || operationsBlocked}
                         onClick={() => void syncNow()}
@@ -1062,17 +1089,6 @@ export function SyncPanel({
                         )}
                         {busy === "sync" ? "Syncing…" : syncAction}
                       </button>
-                      {storageIsLow ? (
-                        <button
-                          type="button"
-                          className="secondary-action"
-                          data-sync-manage-storage
-                          disabled={busy !== null}
-                          onClick={() => void openHelp("account")}
-                        >
-                          <UserRound /> Manage storage
-                        </button>
-                      ) : null}
                     </>
                   )}
                 </div>
@@ -1092,11 +1108,25 @@ export function SyncPanel({
             </>
           ) : null}
 
+          {(syncResult?.state === "conflict" ||
+            syncHistory?.state === "diverged") &&
+          status.remote.state === "connected" ? (
+            <SyncMergeWorkspace
+              onStatusChange={(merge) => {
+                setMergeActive(merge.state === "merging")
+                onMergeStatusChange?.(merge)
+              }}
+              onReviewMerge={onReviewMerge}
+              onSpaceChange={onSpaceChange}
+            />
+          ) : null}
+
           {mode === "enable" && status.account.state === "signed-in" ? (
             <details
               className="sync-storage-disclosure"
               data-sync-storage-disclosure
-              open={storageIsLow || undefined}
+              data-sync-storage-state={storageState}
+              open={storageBlocksCurrentUpload || undefined}
             >
               <summary>
                 <HardDrive />
@@ -1112,64 +1142,82 @@ export function SyncPanel({
                 storage={storage}
                 spaceBytes={preflight?.totalBytes ?? spaceBytes}
                 spaceSizeState={spaceSizeState}
+                managing={busy === "help"}
+                onManageStorage={
+                  storageNeedsAttention
+                    ? () => void openHelp("account")
+                    : undefined
+                }
               />
             </details>
           ) : null}
 
-          {syncResult?.state === "conflict" ? (
-            <section className="sync-recovery" data-sync-recovery>
-              <header>
-                <strong>Keep both versions safe</strong>
+          {syncResult?.state === "conflict" ||
+          syncHistory?.state === "diverged" ? (
+            <details className="sync-recovery" data-sync-recovery>
+              <summary>
+                <ChevronRight />
+                <span>
+                  <strong>Recovery copies</strong>
+                  <small>Keep Local and Hosted separate</small>
+                </span>
+              </summary>
+              <div className="sync-recovery-body">
                 <p>
-                  Eidos will not merge or overwrite this Space automatically.
-                  Create either copy in a new folder, then decide what to keep.
+                  {mergeActive
+                    ? "Abort the active merge before creating Recovery Spaces."
+                    : "These copies will not merge or overwrite either side."}
                 </p>
-              </header>
-              <dl className="sync-divergence-summary">
-                <div>
-                  <dt>Local-only updates</dt>
-                  <dd data-sync-local-ahead>{syncResult.ahead}</dd>
+                <dl className="sync-divergence-summary">
+                  <div>
+                    <dt>Local-only updates</dt>
+                    <dd data-sync-local-ahead>
+                      {syncResult?.ahead ?? syncHistory?.ahead ?? 0}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Cloud-only updates</dt>
+                    <dd data-sync-hosted-ahead>
+                      {syncResult?.behind ?? syncHistory?.behind ?? 0}
+                    </dd>
+                  </div>
+                </dl>
+                <div className="sync-recovery-actions">
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    data-sync-recover-local
+                    disabled={busy !== null || mergeActive}
+                    onClick={() => void recoverLocal()}
+                  >
+                    {busy === "recover-local" ? (
+                      <LoaderCircle className="spin" />
+                    ) : (
+                      <Copy />
+                    )}
+                    {busy === "recover-local"
+                      ? "Creating local copy…"
+                      : "Keep a local copy"}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    data-sync-recover-hosted
+                    disabled={busy !== null || mergeActive}
+                    onClick={() => void recoverHosted()}
+                  >
+                    {busy === "recover-hosted" ? (
+                      <LoaderCircle className="spin" />
+                    ) : (
+                      <FolderDown />
+                    )}
+                    {busy === "recover-hosted"
+                      ? "Creating cloud copy…"
+                      : "Open a cloud copy"}
+                  </button>
                 </div>
-                <div>
-                  <dt>Cloud-only updates</dt>
-                  <dd data-sync-hosted-ahead>{syncResult.behind}</dd>
-                </div>
-              </dl>
-              <div className="sync-recovery-actions">
-                <button
-                  type="button"
-                  className="secondary-action"
-                  data-sync-recover-local
-                  disabled={busy !== null}
-                  onClick={() => void recoverLocal()}
-                >
-                  {busy === "recover-local" ? (
-                    <LoaderCircle className="spin" />
-                  ) : (
-                    <Copy />
-                  )}
-                  {busy === "recover-local"
-                    ? "Creating local copy…"
-                    : "Keep a local copy"}
-                </button>
-                <button
-                  type="button"
-                  className="secondary-action"
-                  data-sync-recover-hosted
-                  disabled={busy !== null}
-                  onClick={() => void recoverHosted()}
-                >
-                  {busy === "recover-hosted" ? (
-                    <LoaderCircle className="spin" />
-                  ) : (
-                    <FolderDown />
-                  )}
-                  {busy === "recover-hosted"
-                    ? "Creating cloud copy…"
-                    : "Open a cloud copy"}
-                </button>
               </div>
-            </section>
+            </details>
           ) : null}
 
           {recoveryResult ? (
@@ -1578,9 +1626,9 @@ function syncOverview({
   if (result?.state === "conflict") {
     return {
       pill: { label: "Needs review", tone: "danger" },
-      title: "Local and cloud changes differ",
+      title: "Local and Hosted both changed",
       message:
-        "Nothing was overwritten. Keep both versions in separate folders before deciding what to merge.",
+        "Review conflicting files and tables in Changes. Nothing was overwritten.",
       tone: "danger",
     }
   }
@@ -1597,31 +1645,28 @@ function syncOverview({
     if (result.pulled && result.pushed) {
       return {
         pill: { label: "Up to date", tone: "success" },
-        title: "Cloud and local changes are up to date",
-        message: "Updates were downloaded and your changes were uploaded.",
+        title: "Local and Hosted match",
+        message: "Downloaded and uploaded saved versions.",
         tone: "success",
       }
     }
     if (result.pulled) {
       return {
         pill: { label: "Up to date", tone: "success" },
-        title: "Cloud updates received",
-        message: "This local Space now includes the latest cloud changes.",
+        title: "Hosted updates downloaded",
         tone: "success",
       }
     }
     if (result.pushed) {
       return {
         pill: { label: "Up to date", tone: "success" },
-        title: "Changes uploaded",
-        message: "Your cloud Space now includes the latest local changes.",
+        title: "Local changes uploaded",
         tone: "success",
       }
     }
     return {
       pill: { label: "Up to date", tone: "success" },
-      title: "Latest saved version is in the cloud",
-      message: "There are no new local or cloud updates.",
+      title: "Local and Hosted match",
       tone: "success",
     }
   }
@@ -1634,9 +1679,92 @@ function syncOverview({
       tone: "neutral",
     }
   }
+  if (status.remote.state === "not-connected") {
+    if (!status.canEnable) {
+      return {
+        pill: { label: "Unavailable", tone: "warning" },
+        title: "Sync access is required",
+        message:
+          "Manage your account to connect this Space. Local files are unaffected.",
+        tone: "warning",
+      }
+    }
+    return {
+      pill: { label: "Not connected", tone: "neutral" },
+      title: "Sync is off for this Space",
+      message:
+        "Connect once to keep saved versions available on your other devices.",
+      tone: "neutral",
+    }
+  }
+  if (hasUncheckpointedChanges) {
+    return {
+      pill: { label: "Local changes", tone: "active" },
+      title: "Save a version before syncing",
+      message: "Review these changes in Changes, then save a version.",
+      tone: "warning",
+    }
+  }
+  if (queue?.state === "running") {
+    return {
+      pill: { label: "Syncing", tone: "active" },
+      title: "Syncing this Space",
+      tone: "active",
+    }
+  }
+  if (queue?.state === "pending") {
+    return {
+      pill: { label: "Queued", tone: "active" },
+      title: "Waiting to upload saved changes",
+      message: "Sync will continue in the background.",
+      tone: "active",
+    }
+  }
+  if (queue?.state === "retry-wait") {
+    return {
+      pill: { label: "Retrying soon", tone: "warning" },
+      title: "Sync will try again soon",
+      message: queue.nextAttemptAtMs
+        ? `Next attempt around ${new Date(queue.nextAttemptAtMs).toLocaleTimeString()}. Local files are safe.`
+        : "Local files are safe while Eidos waits for the service.",
+      tone: "warning",
+    }
+  }
+  if (status.entitlement.state === "read-only") {
+    return {
+      pill: { label: "Download only", tone: "warning" },
+      title: "Hosted updates can be downloaded",
+      message: "Local changes stay on this device and cannot be uploaded.",
+      tone: "neutral",
+    }
+  }
+  if (progress?.operation === "connect" && progress.state === "completed") {
+    return {
+      pill: { label: "Connected", tone: "success" },
+      title: "Sync is ready",
+      message: "The first Hosted copy is complete.",
+      tone: "success",
+    }
+  }
+  if (syncHistory?.state === "diverged") {
+    return {
+      pill: { label: "Needs review", tone: "warning" },
+      title: "Local and Hosted both changed",
+      message:
+        "Review conflicting files and tables in Changes. Nothing was overwritten.",
+      tone: "warning",
+    }
+  }
   const storage = syncStorageUsage(status)
   const storageState = storage ? syncStorageState(storage) : "normal"
-  if (status.entitlement.state === "read-write" && storage) {
+  const storageLimitsCurrentUpload =
+    storage !== null &&
+    (storage.reservedBytes > 0 || syncHistory?.state === "ahead")
+  if (
+    status.entitlement.state === "read-write" &&
+    storage &&
+    storageLimitsCurrentUpload
+  ) {
     const projectedBytes = storage.usedBytes + storage.reservedBytes
     if (storageState === "over") {
       const pendingExceedsPlan =
@@ -1672,127 +1800,31 @@ function syncOverview({
         tone: "danger",
       }
     }
-    if (storageState === "warning") {
-      return {
-        pill: {
-          label: `${formatStoragePercent(projectedBytes, storage.quotaBytes)} ${
-            storage.reservedBytes > 0 ? "projected" : "used"
-          }`,
-          tone: "warning",
-        },
-        title: `${formatBytes(storage.remainingBytes)} cloud storage left`,
-        message:
-          "Manage storage before the next large upload. Your local files remain safe.",
-        tone: "warning",
-      }
-    }
-  }
-  if (status.remote.state === "not-connected") {
-    if (!status.canEnable) {
-      return {
-        pill: { label: "Unavailable", tone: "warning" },
-        title: "Sync access is required",
-        message:
-          "Manage your account to connect this Space. Local files are unaffected.",
-        tone: "warning",
-      }
-    }
-    return {
-      pill: { label: "Not connected", tone: "neutral" },
-      title: "Keep this Space up to date",
-      message:
-        "Connect once to create a cloud copy, then Eidos can sync updates across devices.",
-      tone: "neutral",
-    }
-  }
-  if (hasUncheckpointedChanges) {
-    return {
-      pill: { label: "Unsaved changes", tone: "active" },
-      title: "Save a version before uploading",
-      message:
-        "Your local changes are safe, but they aren’t part of a saved version yet.",
-      tone: "warning",
-    }
-  }
-  if (queue?.state === "running") {
-    return {
-      pill: { label: "Syncing", tone: "active" },
-      title: "Syncing this Space",
-      message: "Checking for cloud updates and uploading saved changes.",
-      tone: "active",
-    }
-  }
-  if (queue?.state === "pending") {
-    return {
-      pill: { label: "Changes to upload", tone: "active" },
-      title: "Changes are queued",
-      message: "Eidos will sync the latest saved changes in the background.",
-      tone: "active",
-    }
-  }
-  if (queue?.state === "retry-wait") {
-    return {
-      pill: { label: "Retrying soon", tone: "warning" },
-      title: "Sync will try again soon",
-      message: queue.nextAttemptAtMs
-        ? `Next attempt around ${new Date(queue.nextAttemptAtMs).toLocaleTimeString()}. Local files are safe.`
-        : "Local files are safe while Eidos waits for the service.",
-      tone: "warning",
-    }
-  }
-  if (status.entitlement.state === "read-only") {
-    return {
-      pill: { label: "View only", tone: "warning" },
-      title: "Ready to get updates",
-      message:
-        "This account can download cloud changes, but local changes will stay on this device.",
-      tone: "neutral",
-    }
-  }
-  if (progress?.operation === "connect" && progress.state === "completed") {
-    return {
-      pill: { label: "Connected", tone: "success" },
-      title: "This Space is ready to sync",
-      message: "The first cloud copy is complete.",
-      tone: "success",
-    }
   }
   if (syncHistory?.state === "ahead") {
     return {
-      pill: { label: "Ready to upload", tone: "active" },
-      title: `${syncHistory.ahead} saved ${syncHistory.ahead === 1 ? "version" : "versions"} ready to upload`,
-      message: "Cloud is behind this device. Upload when you’re ready.",
+      pill: { label: "Upload", tone: "active" },
+      title: `${syncHistory.ahead} saved ${syncHistory.ahead === 1 ? "version" : "versions"} to upload`,
       tone: "active",
     }
   }
   if (syncHistory?.state === "behind") {
     return {
-      pill: { label: "Cloud updated", tone: "active" },
-      title: `Cloud has ${syncHistory.behind} newer ${syncHistory.behind === 1 ? "version" : "versions"}`,
-      message: "Get the latest saved work from the cloud.",
+      pill: { label: "Download", tone: "active" },
+      title: `${syncHistory.behind} Hosted ${syncHistory.behind === 1 ? "version is" : "versions are"} available`,
       tone: "active",
-    }
-  }
-  if (syncHistory?.state === "diverged") {
-    return {
-      pill: { label: "Needs review", tone: "warning" },
-      title: "Local and cloud versions differ",
-      message: "Review both sides before choosing how to continue.",
-      tone: "warning",
     }
   }
   if (syncHistory?.state === "up_to_date") {
     return {
       pill: { label: "Up to date", tone: "success" },
-      title: "Latest saved version is in the cloud",
-      message: "There are no saved versions waiting to upload or download.",
+      title: "Local and Hosted match",
       tone: "success",
     }
   }
   return {
     pill: { label: "Ready", tone: "neutral" },
-    title: "Ready to check Sync",
-    message: "Check for cloud updates and upload any saved local versions.",
+    title: "Check Local and Hosted",
     tone: "neutral",
   }
 }
@@ -1812,9 +1844,9 @@ function syncPrimaryAction({
   if (status.entitlement.state === "read-only") return "Get cloud updates"
   if (syncHistory?.state === "ahead") return "Upload changes"
   if (syncHistory?.state === "behind") return "Get updates"
-  if (syncHistory?.state === "diverged") return "Review differences"
+  if (syncHistory?.state === "diverged") return "Check cloud status"
   if (syncResult) return "Check again"
-  return "Check for updates"
+  return "Check now"
 }
 
 function operationStepPercent(progress: EidosSyncProgress): number {
@@ -1864,10 +1896,14 @@ function SyncStorageSummary({
   storage,
   spaceBytes,
   spaceSizeState,
+  managing,
+  onManageStorage,
 }: {
   storage: SyncStorageUsage | null
   spaceBytes?: number
   spaceSizeState: SpaceSizeState
+  managing: boolean
+  onManageStorage?: () => void
 }) {
   const state = storage ? syncStorageState(storage) : "normal"
   const projectedBytes = storage
@@ -2045,6 +2081,18 @@ function SyncStorageSummary({
             </span>
           ) : null}
         </footer>
+      ) : null}
+
+      {onManageStorage ? (
+        <button
+          type="button"
+          className="secondary-action sync-storage-manage"
+          data-sync-manage-storage
+          disabled={managing}
+          onClick={onManageStorage}
+        >
+          <UserRound /> {managing ? "Opening account…" : "Manage storage"}
+        </button>
       ) : null}
 
       <small className="sync-storage-note">

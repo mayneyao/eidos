@@ -219,7 +219,7 @@ function normalizeChanges(
 }
 
 /**
- * Graft 0.3.8 exposes one column list for both sides of a SQLite row diff.
+ * Graft exposes one column list for both sides of a SQLite row diff.
  * When an Eidos Field is added, removed, or renamed, old row values still use
  * the old physical schema. Rebind both sides through stable Field IDs before
  * presenting the diff so values cannot drift into adjacent columns.

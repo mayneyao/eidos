@@ -329,7 +329,7 @@ describe("whole-Space real Graft integration", () => {
       expect(status).toMatchObject({
         available: true,
         backend: "sdk",
-        version: "0.3.8",
+        version: client.expectedVersion(),
         initialized: true,
         clean: true,
         changedPaths: 0,

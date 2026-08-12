@@ -6,12 +6,12 @@
 > the [repository README](../../README.md). This document covers the detailed
 > architecture and verification contract.
 
-Eidos Lite 0.1.3 is the current public release. Local Spaces, editing, and
-version history require no account. This release adds cached image rendering
-for HTTPS URL fields, remote File attachments, and Gallery covers while keeping
-expanded Explorer folders stable during refreshes. It continues to use Graft
-SDK 0.3.8 for reliable incremental Pull, cooperative cancellation, and safe
-retry/reopen behavior. Eidos Sync remains an invite-only private preview: users
+Eidos Lite 0.1.4 is the current public release. Local Spaces, editing, and
+version history require no account. This release adds reviewed Local/Hosted
+merge resolution for text, binary, and Eidos table data, plus Markdown and HTML
+preview. It uses Graft SDK 0.3.10 for durable merge state, policy-governed
+SQLite resolution, cooperative cancellation, and safe retry/reopen behavior.
+Eidos Sync remains an invite-only private preview: users
 may join the waitlist, but Lite provisions or connects a Remote only after an
 administrator grants `read_write` access.
 
@@ -63,9 +63,14 @@ OAuth + Hosted Remote acceptance is part of the operational verification
 ladder. Clone now lists only account-owned Hosted Spaces, materializes into a
 journaled hidden sibling, validates every Eidos File, and atomically publishes
 the selected ordinary folder. Connected Spaces expose explicit Sync Now:
-fetch remains handle-safe, divergence is reported before materialization,
-pull runs behind full handle close/validate/reopen, and push is allowed only
-for `read_write`.
+fetch remains handle-safe, the structured Local/Hosted/common-ancestor
+relation is checked before materialization, pull runs behind full handle
+close/validate/reopen, and push is allowed only for `read_write`. Divergence
+opens an explicit reviewed merge workspace: text results are editable,
+`.eidos` row choices use stable identities and Runtime validation, and binary
+paths require a side choice or the existing two-Recovery-Space exit. The merge
+state survives an application restart and never turns Sync into an implicit
+winner selection.
 
 The installer associates `.eidos` with Eidos Lite. A shell-opened file is
 validated as an ordinary non-symlink file. Lite first reuses the deepest open
@@ -88,6 +93,17 @@ into a new user-selected directory and open a new window. Sync also reports its
 actual authorization, fetch, analysis, drain/close, pull, validation, reopen,
 and push phases with main-process elapsed timing.
 
+Source development and focused compatibility tests can optionally use a local
+Graft SDK build without changing production package resolution:
+
+```bash
+EIDOS_LITE_GRAFT_SDK_PATH=/absolute/path/to/graft/packages/graft-sdk \
+  pnpm dev:eidos-lite
+```
+
+Packaged production builds reject this development override and always resolve
+the pinned published SDK.
+
 Expected Sync failures now cross preload as a typed result rather than an
 Electron exception string. Main classifies offline/service, sign-in or revoked
 device, entitlement, storage quota, protocol version, missing/conflicting
@@ -107,7 +123,7 @@ credentials. The titlebar and Sync panel expose queued, running, retry-wait,
 and paused states. Local-only Spaces still neither log in nor create a Sync
 queue.
 
-Graft runs through the published `@eidos.space/graft@0.3.8` Node-API SDK.
+Graft runs through the published `@eidos.space/graft@0.3.10` Node-API SDK.
 Opening a Space does not open or classify its repository. The root Explorer and
 local Eidos File runtime become usable first; the first background or explicit
 version operation lazily starts one Electron utility process and retains one
@@ -197,9 +213,9 @@ runtime to preserve the committed file identity, revision, table identities,
 and row counts. It separately repeats the crash/reopen gate for the resident
 Graft SDK utility process.
 
-See [Architecture](./docs/ARCHITECTURE.md),
-[theme specification](./docs/THEME-SPEC.md),
-[Operations](./docs/OPERATIONS.md), and the
+See [Architecture](./docs/ARCHITECTURE.md), the
+[merge schema compatibility matrix](./docs/MERGE-SCHEMA-COMPATIBILITY.md),
+[theme specification](./docs/THEME-SPEC.md), [Operations](./docs/OPERATIONS.md), and the
 [install/upgrade/rollback runbook](./docs/RELEASE-RUNBOOK.md). The current
 internal-candidate verdict, evidence, and explicit Public v1 gates live in
 [Delivery status](./docs/DELIVERY-STATUS.md).

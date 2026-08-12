@@ -114,6 +114,21 @@ export const IPC_CHANNELS = {
   syncQueueChanged: "eidos-lite:sync-queue-changed",
   syncRecoverLocal: "eidos-lite:sync-recover-local",
   syncRecoverHosted: "eidos-lite:sync-recover-hosted",
+  syncMergeStatus: "eidos-lite:sync-merge-status",
+  syncMergePlan: "eidos-lite:sync-merge-plan",
+  syncMergeApply: "eidos-lite:sync-merge-apply",
+  syncMergePaths: "eidos-lite:sync-merge-paths",
+  syncMergeConflicts: "eidos-lite:sync-merge-conflicts",
+  syncMergeVersion: "eidos-lite:sync-merge-version",
+  syncMergeSqliteDiff: "eidos-lite:sync-merge-sqlite-diff",
+  syncMergeResolvePath: "eidos-lite:sync-merge-resolve-path",
+  syncMergeResolveRow: "eidos-lite:sync-merge-resolve-row",
+  syncMergeResolveCell: "eidos-lite:sync-merge-resolve-cell",
+  syncMergeResolveTable: "eidos-lite:sync-merge-resolve-table",
+  syncMergeUnresolvePath: "eidos-lite:sync-merge-unresolve-path",
+  syncMergeWriteText: "eidos-lite:sync-merge-write-text",
+  syncMergeContinue: "eidos-lite:sync-merge-continue",
+  syncMergeAbort: "eidos-lite:sync-merge-abort",
   syncOpenHelp: "eidos-lite:sync-open-help",
   revealPath: "eidos-lite:path-reveal",
   openPath: "eidos-lite:path-open",
@@ -263,9 +278,18 @@ export interface GraftSpaceStatus {
   generation?: number
   changeToken?: string
   statusCacheHit?: boolean
+  pathDiagnostics?: GraftPathDiagnostic[]
   sync?: SpaceSyncHistoryStatus
   checking?: boolean
   error?: string
+}
+
+export interface GraftPathDiagnostic {
+  path: string
+  status: "skipped" | "corrupt" | "analysis_failed"
+  operation: string
+  protectedByIndex: boolean
+  message: string
 }
 
 export interface SpaceVersionPathChange {
@@ -288,6 +312,14 @@ export interface SpaceVersionTableSummary {
   inserts: number
   deletes: number
   updates: number
+}
+
+export interface SpaceVersionSchemaChange {
+  name: string
+  entryType: string
+  operation: "added" | "deleted" | "modified"
+  sql: string
+  oldSql?: string
 }
 
 export type SpaceVersionColumnChangeKind = "added" | "deleted" | "renamed"
@@ -314,6 +346,7 @@ export interface SpaceVersionFileDiff extends SpaceVersionPathChange {
   rowDiffAvailable: boolean
   logicalStatus?: string
   limitations: string[]
+  schemaChanges?: SpaceVersionSchemaChange[]
   tables: SpaceVersionTableDiff[]
   detailsLoaded?: boolean
 }
@@ -825,6 +858,252 @@ export interface EidosSyncRecoveryResult {
   connected: boolean
 }
 
+export type EidosSyncMergePlanKind = "up_to_date" | "fast_forward" | "three_way"
+
+export interface EidosSyncMergePlan {
+  kind: EidosSyncMergePlanKind
+  expectedHead: string | null
+  hostedHead: string
+  commonAncestor: string | null
+  stagedPaths: string[]
+  conflictedPaths: string[]
+  planToken: string
+  policyToken: string
+  policyVersion: number
+}
+
+export type EidosSyncMergeStatus =
+  | { state: "none" }
+  | {
+      state: "merging"
+      localHead: string
+      hostedHead: string
+      commonAncestor: string | null
+      stagedCount: number
+      unmergedCount: number
+      stateToken: string
+      policyToken: string
+      policyVersion: number
+    }
+
+export type EidosSyncMergePathFilter = "all" | "unmerged" | "resolved"
+export type EidosSyncMergePathKind =
+  | "sqlite_database"
+  | "text_file"
+  | "binary_file"
+export type EidosSyncMergePathStorage =
+  | "sqlite_snapshot"
+  | "inline"
+  | "external"
+
+export interface EidosSyncMergePath {
+  path: string
+  state: "unmerged" | "resolved"
+  kind: EidosSyncMergePathKind
+  storage: EidosSyncMergePathStorage
+  hasBase: boolean
+  hasLocal: boolean
+  hasHosted: boolean
+}
+
+export interface EidosSyncMergePathPage {
+  stateToken: string
+  items: EidosSyncMergePath[]
+  nextCursor: string | null
+}
+
+export interface EidosSyncMergeSchemaColumnChange {
+  side: string
+  operation: string
+  from?: string
+  to?: string
+}
+
+export interface EidosSyncMergeConflict {
+  id: string
+  path: string
+  pathKind: EidosSyncMergePathKind
+  storage: EidosSyncMergePathStorage
+  kind: string
+  reason: string
+  status: "resolved" | "unresolved"
+  resolution?: "ours" | "theirs" | "manual" | "edited" | "cells"
+  autoResolvable?: boolean
+  recommendedResult?: "ours" | "theirs" | "merged"
+  recommendedAction?: string
+  table?: string
+  /** Eidos Runtime physical column order for the full row payloads. */
+  rowColumns?: string[]
+  columns?: string[]
+  rowid?: number
+  key?: Record<string, unknown>
+  oursRowid?: number
+  theirsRowid?: number
+  oursKey?: Record<string, unknown>
+  theirsKey?: Record<string, unknown>
+  semanticKey?: string[]
+  semanticKeyCollations?: Array<"binary" | "nocase">
+  cells?: EidosSyncMergeCellConflict[]
+  name?: string
+  entryType?: string
+  columnChanges?: EidosSyncMergeSchemaColumnChange[]
+  change?: string
+  owner?: string
+  oursOperation?: string
+  theirsOperation?: string
+  baseRow?: unknown[]
+  oursRow?: unknown[]
+  theirsRow?: unknown[]
+  message?: string
+}
+
+export interface EidosSyncMergeCellConflict {
+  column: string
+  base: unknown
+  local: unknown
+  hosted: unknown
+  resolution?: EidosSyncMergeChoice
+}
+
+export interface EidosSyncMergeConflictPage {
+  stateToken: string
+  path: string
+  items: EidosSyncMergeConflict[]
+  nextCursor: string | null
+}
+
+export type EidosSyncMergeVersion = "base" | "ours" | "theirs" | "result"
+export type EidosSyncMergeContentState =
+  | { state: "absent" }
+  | { state: "utf8"; content: string; size: number }
+  | { state: "too_large"; size: number }
+  | { state: "missing_payload"; size: number }
+  | { state: "invalid_utf8"; size: number }
+
+export interface EidosSyncMergeContent {
+  version: EidosSyncMergeVersion
+  revision: string | null
+  path: string
+  kind: EidosSyncMergePathKind | null
+  storage: EidosSyncMergePathStorage | null
+  content: EidosSyncMergeContentState
+  stateToken: string
+}
+
+export type EidosSyncMergeSqliteVersion = "base" | "ours" | "theirs"
+
+export interface EidosSyncMergeSqliteRevision {
+  version: EidosSyncMergeSqliteVersion
+  revision: string
+}
+
+export interface EidosSyncMergeSqliteDiff {
+  stateToken: string
+  path: string
+  from: EidosSyncMergeSqliteRevision
+  to: EidosSyncMergeSqliteRevision
+  diff: SpaceVersionDiff
+}
+
+export type EidosSyncMergeChoice = "ours" | "theirs"
+export type EidosSyncMergeFailureCode =
+  | "stale"
+  | "cancelled"
+  | "unavailable"
+  | "invalid-state"
+  | "unknown"
+
+export interface EidosSyncMergeFailure {
+  code: EidosSyncMergeFailureCode
+  title: string
+  message: string
+  localSafe: true
+  retryable: boolean
+}
+
+export type EidosSyncMergeResponse<T> =
+  | { ok: true; value: T }
+  | { ok: false; failure: EidosSyncMergeFailure }
+
+export interface EidosSyncMergeApplyRequest {
+  expectedHead: string | null
+  planToken: string
+}
+
+export interface EidosSyncMergePathsRequest {
+  stateToken: string
+  filter?: EidosSyncMergePathFilter
+  limit?: number
+  after?: string
+}
+
+export interface EidosSyncMergeConflictsRequest {
+  stateToken: string
+  path: string
+  limit?: number
+  after?: string
+}
+
+export interface EidosSyncMergeVersionRequest {
+  stateToken: string
+  path: string
+  version: EidosSyncMergeVersion
+}
+
+export type EidosSyncMergeSqliteDiffRequest =
+  | {
+      stateToken: string
+      path: string
+      from: EidosSyncMergeSqliteVersion
+      to: EidosSyncMergeSqliteVersion
+      mode: "summary"
+    }
+  | {
+      stateToken: string
+      path: string
+      from: EidosSyncMergeSqliteVersion
+      to: EidosSyncMergeSqliteVersion
+      mode: "rows"
+      table: string
+      rowLimit?: number
+      rowAfter?: string
+    }
+
+export interface EidosSyncMergeResolvePathRequest {
+  stateToken: string
+  path: string
+  result: EidosSyncMergeChoice
+}
+
+export interface EidosSyncMergeResolveRowRequest extends EidosSyncMergeResolvePathRequest {
+  table: string
+  identity: number | Record<string, unknown>
+}
+
+export interface EidosSyncMergeResolveCellRequest extends EidosSyncMergeResolveRowRequest {
+  column: string
+}
+
+export interface EidosSyncMergeResolveTableRequest extends EidosSyncMergeResolvePathRequest {
+  table: string
+}
+
+export interface EidosSyncMergeUnresolvePathRequest {
+  stateToken: string
+  path: string
+}
+
+export interface EidosSyncMergeWriteTextRequest {
+  stateToken: string
+  path: string
+  content: string
+}
+
+export interface EidosSyncMergeContinueRequest {
+  stateToken: string
+  message: string
+}
+
 export type EidosSyncHelpDestination = "account" | "download" | "sync-access"
 
 export interface EidosLiteCsvSelection {
@@ -1209,6 +1488,47 @@ export interface EidosLiteApi {
   ): () => void
   copyLocalRecoverySpace(): Promise<EidosSyncRecoveryResult | null>
   cloneHostedRecoverySpace(): Promise<EidosSyncRecoveryResult | null>
+  getSyncMergeStatus(): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
+  planSyncMerge(): Promise<EidosSyncMergeResponse<EidosSyncMergePlan>>
+  applySyncMerge(
+    request: EidosSyncMergeApplyRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
+  listSyncMergePaths(
+    request: EidosSyncMergePathsRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergePathPage>>
+  listSyncMergeConflicts(
+    request: EidosSyncMergeConflictsRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeConflictPage>>
+  readSyncMergeVersion(
+    request: EidosSyncMergeVersionRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeContent>>
+  diffSyncMergeSqlite(
+    request: EidosSyncMergeSqliteDiffRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeSqliteDiff>>
+  resolveSyncMergePath(
+    request: EidosSyncMergeResolvePathRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
+  resolveSyncMergeRow(
+    request: EidosSyncMergeResolveRowRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
+  resolveSyncMergeCell(
+    request: EidosSyncMergeResolveCellRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
+  resolveSyncMergeTable(
+    request: EidosSyncMergeResolveTableRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
+  unresolveSyncMergePath(
+    request: EidosSyncMergeUnresolvePathRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
+  writeSyncMergeText(
+    request: EidosSyncMergeWriteTextRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
+  continueSyncMerge(
+    request: EidosSyncMergeContinueRequest
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
+  abortSyncMerge(
+    stateToken: string
+  ): Promise<EidosSyncMergeResponse<EidosSyncMergeStatus>>
   openSyncHelp(destination: EidosSyncHelpDestination): Promise<void>
   revealPath(relativePath: string): Promise<void>
   openPath(relativePath: string): Promise<void>

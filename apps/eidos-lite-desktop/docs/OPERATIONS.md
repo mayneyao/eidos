@@ -232,7 +232,7 @@ sequence.
 
 ## Stable Graft supply chain
 
-The runtime pins published `@eidos.space/graft@0.3.8`; npm selects one of its
+The runtime pins published `@eidos.space/graft@0.3.10`; npm selects one of its
 five exact-version optional native packages for the current platform. Packaging
 keeps the JavaScript wrapper in ASAR and unpacks only the selected native
 package; `graft-worker.js` loads it directly in an Electron
@@ -559,27 +559,85 @@ explicit external staging gates.
   one pending item. Reconciliation always compares and transfers the entire
   current repository, so per-checkpoint network jobs would be both redundant
   and incorrect.
+- **Device A resolves and publishes a merge while Device B is still at either
+  parent:** B fetches the new Hosted head, classifies its Local head as an
+  ancestor, and uses the ordinary guarded fast-forward pull. Do not reopen the
+  merge workspace or ask B to repeat A's choices.
+- **Device A publishes a merge after Device B creates another Local
+  checkpoint:** B fetches, classifies `diverged`, and keeps the new checkpoint.
+  Require a new reviewed merge or two-copy recovery; never reset B to A's merge
+  commit merely because A resolved the earlier conflict.
+- **Two devices race to publish:** exactly one Hosted ref CAS may win. The
+  losing device re-fetches and reclassifies from structured heads. It must not
+  retry the rejected push against the old expected Hosted head or force push.
+- **Hosted moves while a local reviewed merge is open:** keep the local merge
+  durable and pause its background Sync item. Local `stateToken` continues to
+  guard merge choices, but does not claim the Hosted ref is unchanged. After
+  continue or abort, run a fresh fetch before publication; another divergence
+  is a valid outcome.
 - **Fetch shows both Local and Hosted commits:** report a conflict before
   closing SQLite handles or running pull. Keep both refs and the local
-  worktree unchanged; do not merge, reset, or force push. Preserve Graft's
-  structured `local`, `remote_target`, and `common_ancestor` identities with
-  the `diverged` relation. The conflict panel may copy Local ordinary files
-  into a disconnected Recovery Space or cold clone Hosted into a separate
-  connected folder. Both must re-fetch and re-authorize before opening a save
-  dialog.
+  worktree unchanged; do not implicitly merge, reset, or force push. Preserve
+  Graft's structured `local`, `remote_target`, and `common_ancestor` identities
+  with the `diverged` relation. The conflict panel may start a reviewed merge,
+  copy Local ordinary files into a disconnected Recovery Space, or cold clone
+  Hosted into a separate connected folder. Every entry re-fetches and
+  re-authorizes before materialization.
 - **Conflict ownership boundary:** Graft owns commit-graph ancestry, immutable
   revision reads, generic path stages, merge-in-progress durability, and
   expected-Remote-head/CAS publication. Eidos owns semantic `.eidos` merging
   through Runtime identities and full validation, UTF-8 text conflict UX, and
-  explicit choose-side/keep-both handling for binary files. Until those domain
-  policies are exposed as a reviewed product flow, the safe resolution is the
-  two-copy recovery below; Lite must never invoke Graft's generic merge as an
+  explicit choose-side/keep-both handling for binary files. Lite invokes only
+  the reviewed Graft primitives and never treats a generic merge as an
   implicit winner selection.
+- **Reviewed merge starts:** require a clean checkpoint, fresh fetch,
+  structured `diverged` relation, `expectedHead`, and the exact `planToken`.
+  Apply is serialized through `SpaceOperationGate`; a changed head or plan is
+  a stale result, not permission to re-plan and materialize silently.
+- **Merge is reopened:** call `getMergeStatus`, retain its current
+  `stateToken`, and page paths/conflicts from durable Graft index stages. Never
+  infer merge state from renderer memory. Every later read and write carries
+  the latest token.
+- **A merge step materializes:** verify Graft declares the operation
+  materializing, journal it, drain mutations, close all resident handles,
+  execute with the gate's `AbortSignal`, validate every `.eidos`, and reopen
+  the resident LRU. This applies to apply/path/row/cell/table/unresolve/text/
+  continue/abort. On a thrown or cancelled operation, run validation/reopen
+  cleanup before returning control; retain the journal only if safe recovery
+  itself cannot complete.
+- **An Eidos-owned recompute is staged:** assert that
+  `stageMergeSqliteResult` is non-materializing, recheck the exact
+  `stateToken`, drain and close handles, run full Eidos validation before the
+  SDK captures the candidate, then let Graft run SQLite integrity and foreign
+  key validation. The gate validates again and reopens. Do not call this API
+  before application-owned recompute and domain checks are complete.
+- **A `.eidos` row conflicts:** list Graft's table and stable identity. A
+  structured `cells` conflict permits Local/Hosted choice for one field through
+  `resolveMergeCell`; the user may still choose a whole row, safe table, or
+  File. The UI must show every durable cell/row/table selection after reload.
+  Schema or opaque conflicts require their supported safe scope or an explicit
+  whole-file choice. Run Eidos Runtime validation after each materialization
+  and again immediately before continue; do not move arbitrary SQLite editing
+  policy into Graft.
+- **Graft cannot analyze a tracked path:** consume `path_diagnostics` before
+  merge planning. Show the exact skipped/corrupt/analysis-failed path and
+  whether its current bytes are protected by the index. Preserve the worktree
+  file and require repair or Recovery Space selection; never report a clean,
+  protected checkpoint by inference.
+- **Continue merge:** require zero unmerged paths, validate the full Space with
+  handles closed, call `continueMerge` with the exact validated token, verify
+  the resulting durable state is `none`, then enqueue the two-parent checkpoint
+  for normal push/fetch reconciliation.
+- **Abort or close during merge:** abort restores `ORIG_HEAD`; closing the
+  application does not. A close leaves Graft's durable merge state for the next
+  Space open, where the user can continue or explicitly abort. Partial choices
+  remain recoverable and neither ref is discarded.
 - **A conflict includes binary files:** never attempt a binary merge. **Copy
   Local Space** preserves the exact Local bytes in a disconnected Recovery
   Space; **Clone Hosted Space** preserves the exact Hosted bytes in a separate
   connected Recovery Space. Keep the original divergent Space unchanged, so
   all versions remain independently user-owned ordinary files.
+
 - **Local Recovery copy:** require a clean checkpoint, drain mutations, close
   handles, exclude root `.graft`, reject symlinks, special files and nested
   `.graft`, validate all copied `.eidos` files, then atomically publish a new
@@ -646,8 +704,9 @@ explicit external staging gates.
 - **Copy/import preflight or validation fails:** publish no target when
   possible, remove hidden staging files and partial imports, reopen the prior
   resident LRU, and surface the filesystem or native validation error.
-- **Conflict:** do not invent a merge. Preserve Graft's reported state and
-  require an explicit conflict workflow before another materialization.
+- **Conflict:** do not invent a winner. Preserve Graft's reported state and
+  require the reviewed merge or two-copy recovery workflow before another
+  materialization.
 - **Sync appears slow:** inspect the visible phase timeline. Authorization and
   fetch are handle-safe; drain/close, pull, validation and reopen identify the
   materialization window. Final timings come from main and must match only
@@ -655,3 +714,53 @@ explicit external staging gates.
 
 Never place OAuth, entitlement, or Graft Remote tokens in the Space or journal,
 and never emit them in command output or application logs.
+
+Schema-merge acceptance uses the stable scenario IDs and `G`/`U`/`E` evidence
+ledger in the
+[merge schema compatibility matrix](./MERGE-SCHEMA-COMPATIBILITY.md). A schema
+behavior is not considered covered merely because a synthetic UI fixture
+renders or because Graft reports no physical schema conflict; Eidos validation
+and the real dual-client Lite path remain separate gates.
+
+### Merge SDK compatibility verification
+
+The release gate uses the pinned published SDK. To verify a candidate Graft
+build before publication, point source tests at an already-built local package:
+
+```bash
+cd apps/eidos-lite-desktop
+EIDOS_LITE_RUN_GRAFT_MERGE=1 \
+  node ../../scripts/run-electron-node.mjs \
+  ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts \
+  src/main/graft/graft-merge.local.integration.test.ts
+```
+
+The test creates two clients from one ancestor, binds Policy v1 by CAS, and
+conflicts text, binary, and a real `.eidos` row. The Eidos row has one Local-only
+field, one Hosted-only field, and one true cell conflict; it proves independent
+fields combine while the chosen cell persists across SDK reopen. It applies
+through the operation gate, rejects a stale token, resolves remaining tables,
+unresolves and resolves the cell again, validates the Eidos File, creates a
+two-parent commit, and pushes/fetches to equality. A second divergence proves
+partial-resolution reopen and abort. The test also covers a pre-aborted signal,
+idempotent `state: none`, and recovery after a temporary filesystem Remote
+failure.
+
+Run the complete physical/Eidos schema contract separately:
+
+```bash
+cd apps/eidos-lite-desktop
+EIDOS_LITE_RUN_GRAFT_MERGE=1 \
+  node ../../scripts/run-electron-node.mjs \
+  ../../node_modules/vitest/vitest.mjs run --config vitest.config.ts \
+  src/main/graft/graft-merge-schema.local.integration.test.ts
+```
+
+Graft 0.3.10 may report a validation-required SQLite candidate as
+`automatic_merge_available`. Do not call `stageMergeSqliteResult` immediately:
+the current worktree can still be Local. Do not use a rejected
+`continueMerge` call as a materialization API either. Until Graft provides a
+successful candidate-only materialization operation, leave the item unresolved
+and retain complete-file Local/Hosted recovery. The exact reproduction and
+required contract are recorded in the
+[schema compatibility matrix](./MERGE-SCHEMA-COMPATIBILITY.md).

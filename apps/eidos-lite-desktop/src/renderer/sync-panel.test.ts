@@ -297,6 +297,10 @@ describe("SyncPanel failure states", () => {
       "complementary"
     )
     expect(host.querySelector("aside")?.hasAttribute("aria-modal")).toBe(false)
+    const checkNow = host.querySelector<HTMLButtonElement>("[data-sync-run]")
+    expect(checkNow?.textContent).toContain("Check now")
+    expect(checkNow?.classList.contains("secondary-action")).toBe(true)
+    expect(host.querySelector(".sync-status-message")).toBeNull()
   })
 
   it("removes cached identity when the secure session is signed out", async () => {
@@ -693,7 +697,7 @@ describe("SyncPanel failure states", () => {
     expect(repositoryButtons[0]?.dataset.syncOpenSpace).toBe("Design notes")
     expect(repositoryButtons[1]?.dataset.syncOpenSpace).toBe("Unnamed Space")
     expect(host.querySelector('input[type="search"]')).not.toBeNull()
-    expect(host.textContent).toContain("Cloud list updated")
+    expect(host.textContent).toContain("List updated")
   })
 
   it("keeps an oversized local Space separate from the cloud used bar", async () => {
@@ -848,8 +852,11 @@ describe("SyncPanel failure states", () => {
     })
 
     const overview = host.querySelector<HTMLElement>("[data-sync-overview]")
-    expect(overview?.dataset.syncOverview).toBe("warning")
-    expect(overview?.textContent).toContain("512 MiB cloud storage left")
+    expect(overview?.dataset.syncOverview).toBe("neutral")
+    expect(overview?.textContent).not.toContain("cloud storage left")
+    expect(
+      host.querySelector("[data-sync-storage-disclosure]")?.hasAttribute("open")
+    ).toBe(false)
     const storage = host.querySelector<HTMLElement>("[data-sync-storage-used]")
     expect(storage?.dataset.syncStorageState).toBe("warning")
     expect(storage?.textContent).toContain("Cloud used")
@@ -939,8 +946,8 @@ describe("SyncPanel failure states", () => {
     })
 
     const overview = host.querySelector<HTMLElement>("[data-sync-overview]")
-    expect(overview?.textContent).toContain("Save a version before uploading")
-    expect(overview?.textContent).toContain("aren’t part of a saved version")
+    expect(overview?.textContent).toContain("Save a version before syncing")
+    expect(overview?.textContent).toContain("Review these changes in Changes")
     expect(overview?.textContent).not.toMatch(
       /checkpoint|repository|remote|transport|segment/i
     )
@@ -1149,6 +1156,11 @@ describe("SyncPanel failure states", () => {
     })
 
     const recovery = host.querySelector<HTMLElement>("[data-sync-recovery]")
+    expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
+      "Review conflicting files and tables in Changes"
+    )
+    expect(host.querySelector("[data-sync-run]")).toBeNull()
+    expect(host.querySelector("[data-sync-merge-start]")).not.toBeNull()
     expect(recovery?.textContent).toContain("will not merge or overwrite")
     expect(
       recovery?.querySelector("[data-sync-local-ahead]")?.textContent
@@ -1328,7 +1340,7 @@ describe("SyncPanel failure states", () => {
       })
     })
     expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
-      "This Space is ready to sync"
+      "Sync is ready"
     )
   })
 
@@ -1465,7 +1477,7 @@ describe("SyncPanel failure states", () => {
     })
 
     expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
-      "Ready to get updates"
+      "Hosted updates can be downloaded"
     )
     expect(host.querySelector("[data-sync-run]")?.textContent).toContain(
       "Get cloud updates"
@@ -1555,7 +1567,7 @@ describe("SyncPanel failure states", () => {
     })
 
     expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
-      "Latest saved version is in the cloud"
+      "Local and Hosted match"
     )
   })
 

@@ -1,28 +1,28 @@
 ## What's new
 
-### Show URL columns as images
+### Resolve Local and Hosted changes safely
 
-Set a URL field's **Display** property to **Image** to show HTTPS values as
-lazy-loaded thumbnails in Grid. The same field can be selected as a Gallery
-cover, so imported CSV image columns remain ordinary URL data and do not need
-to be converted into File fields.
+Eidos Lite can now review diverged Sync histories instead of asking you to
+overwrite one side. The Sync panel shows the files that need attention and
+opens a dedicated merge workspace for comparing Base, Local, and Hosted
+versions.
 
-Images remain decoded and cached when rows leave the viewport, making repeated
-scrolling faster and preventing the same image from flashing through another
-download. URL cells that use the normal link display are now visibly
-underlined and open directly without entering edit mode first.
+Text files can be reviewed side by side, edited as a result, and resolved with
+either version. Eidos files expose their tables as child changes, with
+table-, row-, and field-level choices for data conflicts. Compatible table
+structure changes are merged automatically; incompatible changes stay visible
+and preserve whole-file Local and Hosted recovery choices.
 
-### Attach remote files by URL
+Merge progress is durable. You can close and reopen a Space, continue resolving
+remaining items, retry stale analysis safely, or abort and return to the
+unchanged Local history. Eidos validates every affected `.eidos` file before a
+merge commit is completed.
 
-File fields can now add an HTTPS address from the cell editor or record
-inspector. Remote images receive thumbnails and previews; other remote files
-can be opened or downloaded with the same File-field controls as local
-attachments.
+### Preview Markdown and HTML files
 
-### More stable browsing and previews
+Markdown and HTML files can now be previewed directly in Eidos Lite while still
+keeping their source available for editing and history review.
 
-Expanded Explorer folders stay open while the Space tree refreshes. Local File
-thumbnails also retain their decoded previews after scrolling away and back,
-including when multiple cells reference the same image.
-
-No migration is required. Existing URL and File values remain unchanged.
+No migration is required. Existing Spaces remain ordinary folders and all
+Local and Hosted versions are retained until you explicitly complete or abort
+a reviewed merge.

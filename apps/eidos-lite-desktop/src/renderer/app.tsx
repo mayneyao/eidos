@@ -24,6 +24,7 @@ import {
   FilePlus2,
   FolderOpen,
   FolderPlus,
+  GitMerge,
   HardDrive,
   History,
   LoaderCircle,
@@ -41,6 +42,7 @@ import type {
   EidosLiteAppearance,
   EidosLiteAppInfo,
   EidosLiteUpdateStatus,
+  EidosSyncMergeStatus,
   EidosSyncQueueStatus,
   RecentSpaceEntry,
   SpacePathMutationResult,
@@ -145,6 +147,10 @@ const VersionPanel = lazy(async () => {
 const VersionDiffPreview = lazy(async () => {
   const module = await import("./version-panel")
   return { default: module.VersionDiffPreview }
+})
+const SyncMergeWorkbench = lazy(async () => {
+  const module = await import("./sync-merge-workspace")
+  return { default: module.SyncMergeWorkbench }
 })
 
 interface CachedFile {
@@ -624,6 +630,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   )
   const [syncQueueStatus, setSyncQueueStatus] =
     useState<EidosSyncQueueStatus | null>(null)
+  const [syncMergeStatus, setSyncMergeStatus] = useState<EidosSyncMergeStatus>({
+    state: "none",
+  })
   const [versionRefreshKey, setVersionRefreshKey] = useState(0)
   const [fileMaterializationKey, setFileMaterializationKey] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -759,6 +768,11 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
       snapshot: SpaceSnapshot,
       materializedPaths: readonly string[] = []
     ) => {
+      // Merge apply/resolve/continue/abort all return an authoritative Space
+      // snapshot. Keep the shell's Graft/Sync relationship in step with the
+      // refreshed files so an aborted merge cannot leave a stale divergence
+      // panel behind.
+      acceptSpaceSnapshot(snapshot)
       const invalidated = new Set(snapshot.invalidatedSessionIds)
       const materialized = new Set(materializedPaths)
       if (materialized.size > 0) {
@@ -824,7 +838,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         )
       }
     },
-    [cachedFiles, textPreview]
+    [acceptSpaceSnapshot, cachedFiles, textPreview]
   )
 
   useEffect(() => {
@@ -863,6 +877,30 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     return () => {
       active = false
       unsubscribe()
+    }
+  }, [space?.id])
+
+  useEffect(() => {
+    if (!space || typeof window.eidosLite.getSyncMergeStatus !== "function") {
+      setSyncMergeStatus({ state: "none" })
+      return
+    }
+    let active = true
+    setSyncMergeStatus({ state: "none" })
+    void window.eidosLite.getSyncMergeStatus().then(
+      (response) => {
+        if (!active || !response.ok) return
+        setSyncMergeStatus(response.value)
+        if (response.value.state === "merging") {
+          setSyncPanelMode(null)
+          setVersionInspection(null)
+          setVersionPanelOpen(true)
+        }
+      },
+      () => undefined
+    )
+    return () => {
+      active = false
     }
   }, [space?.id])
 
@@ -1731,10 +1769,14 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     )
   }
 
+  const mergeConflictCount =
+    syncMergeStatus.state === "merging" ? syncMergeStatus.unmergedCount : 0
   const versionChangeCount =
-    space.graft.initialized && space.graft.clean === false
-      ? Math.max(1, space.graft.changedPaths ?? 1)
-      : 0
+    mergeConflictCount > 0
+      ? mergeConflictCount
+      : space.graft.initialized && space.graft.clean === false
+        ? Math.max(1, space.graft.changedPaths ?? 1)
+        : 0
   const versionChangeLabel =
     versionChangeCount > 99 ? "99+" : String(versionChangeCount)
   const localInteractionBlocked = blocksLocalInteraction(space.operation.phase)
@@ -1970,11 +2012,13 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   ? "Checking version history"
                   : !space.graft.available
                     ? "Version history unavailable"
-                    : versionChangeCount > 0
-                      ? `Version history, ${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
-                      : space.graft.initialized
-                        ? "Version history"
-                        : "Set up version history"
+                    : mergeConflictCount > 0
+                      ? `Changes, ${mergeConflictCount} unresolved merge ${mergeConflictCount === 1 ? "conflict" : "conflicts"}`
+                      : versionChangeCount > 0
+                        ? `Version history, ${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
+                        : space.graft.initialized
+                          ? "Version history"
+                          : "Set up version history"
               }
               onClick={toggleVersionPanel}
               title={shortcutTitle(
@@ -1982,15 +2026,17 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   ? "Checking version history"
                   : !space.graft.available
                     ? (space.graft.error ?? "Version history unavailable")
-                    : versionChangeCount > 0
-                      ? `${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
-                      : space.graft.initialized
-                        ? "Version history"
-                        : "Set up version history",
+                    : mergeConflictCount > 0
+                      ? `${mergeConflictCount} unresolved merge ${mergeConflictCount === 1 ? "conflict" : "conflicts"}`
+                      : versionChangeCount > 0
+                        ? `${versionChangeCount} changed ${versionChangeCount === 1 ? "file" : "files"}`
+                        : space.graft.initialized
+                          ? "Version history"
+                          : "Set up version history",
                 versionShortcutLabel
               )}
             >
-              <History />
+              {syncMergeStatus.state === "merging" ? <GitMerge /> : <History />}
               {versionChangeCount > 0 ? (
                 <span className="version-change-badge" aria-hidden="true">
                   {versionChangeLabel}
@@ -2072,158 +2118,189 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
         <div
           className={`editor-work-area${versionPanelOpen || syncPanelMode ? " with-utility-panel" : ""}`}
         >
-          <div className="editor-work-content">
-            {versionPanelOpen && versionInspection ? (
-              <Suspense
-                fallback={
-                  <div className="editor-empty" role="status">
-                    <LoaderCircle className="spin" aria-hidden="true" />
-                    <p>{t("Loading change details…")}</p>
-                  </div>
-                }
-              >
-                <VersionDiffPreview
-                  inspection={versionInspection}
-                  theme={theme}
-                  onClose={() => setVersionInspection(null)}
-                />
-              </Suspense>
-            ) : textPreview ? (
-              textPreview.type === "media" ? (
-                <MediaFilePreview
-                  preview={textPreview}
-                  onReveal={() =>
-                    void window.eidosLite
-                      .revealPath(textPreview.relativePath)
-                      .catch((cause) => setError(errorMessage(cause)))
+          {versionPanelOpen && syncMergeStatus.state === "merging" ? (
+            <Suspense
+              fallback={
+                <div className="editor-empty" role="status">
+                  <LoaderCircle className="spin" aria-hidden="true" />
+                  <p>{t("Loading merge conflicts…")}</p>
+                </div>
+              }
+            >
+              <SyncMergeWorkbench
+                initialStatus={syncMergeStatus}
+                theme={theme}
+                onClose={() => setVersionPanelOpen(false)}
+                onStatusChange={(merge) => {
+                  setSyncMergeStatus(merge)
+                  if (merge.state === "none") {
+                    setVersionInspection(null)
+                    setVersionRefreshKey((current) => current + 1)
                   }
-                />
-              ) : (
-                <TextFilePreview
-                  preview={textPreview}
-                  draft={textFileDrafts[textPreview.relativePath]}
-                  theme={theme}
-                  nativePreviewSuppressed={
-                    quickOpenVisible || Boolean(pathDialog) || sidebarResizing
-                  }
-                  onSaved={(file) =>
-                    setTextPreview((current) =>
-                      current?.relativePath === file.relativePath
-                        ? file
-                        : current
-                    )
-                  }
-                  onReload={(preview) =>
-                    setTextPreview((current) =>
-                      current?.relativePath === preview.relativePath
-                        ? preview
-                        : current
-                    )
-                  }
-                  onDraftChange={updateTextFileDraft}
-                  onReveal={() =>
-                    void window.eidosLite
-                      .revealPath(textPreview.relativePath)
-                      .catch((cause) => setError(errorMessage(cause)))
-                  }
-                />
-              )
-            ) : activeFile && activeTable ? (
-              <section
-                className="file-editor"
-                aria-label={activeFile.relativePath}
-                data-eidos-file-relative-path={activeFile.relativePath}
-                data-eidos-file-row-count={activeTable.rowCount}
-              >
-                <Suspense
-                  fallback={
-                    <div className="editor-empty" role="status">
-                      <LoaderCircle className="spin" aria-hidden="true" />
-                      <p>{t("Loading Eidos File editor…")}</p>
-                    </div>
-                  }
-                >
-                  <EidosFileWorkbench
-                    key={`${activeFile.sessionId}:${fileMaterializationKey}`}
-                    relativePath={activeFile.relativePath}
-                    snapshot={activeFile.snapshot}
-                    source={activeFile.source}
-                    activeTableId={activeFile.tableId}
-                    disabled={localInteractionBlocked}
-                    theme={theme}
-                    onTableSelect={(tableId) =>
-                      setCachedFiles((current) =>
-                        current.map((file) =>
-                          file.sessionId === activeFile.sessionId
-                            ? { ...file, tableId }
-                            : file
-                        )
-                      )
-                    }
-                    onSnapshot={(snapshot) =>
-                      setCachedFiles((current) =>
-                        current.map((file) =>
-                          file.sessionId === activeFile.sessionId
-                            ? { ...file, snapshot }
-                            : file
-                        )
-                      )
-                    }
-                    onError={(cause) => setError(errorMessage(cause))}
-                  />
-                </Suspense>
-              </section>
-            ) : recentFiles.length === 0 &&
-              space.eidosFileCount === 0 &&
-              !spaceTreeIncomplete ? (
-              <section
-                className="editor-empty editor-empty-onboarding"
-                data-empty-space-onboarding
-              >
-                <Database aria-hidden="true" />
-                <h2>{t("Create your first Eidos File")}</h2>
-                <p>
-                  {t(
-                    "Start with a local {extension} file inside this Space. It remains an ordinary file you own and can move or back up.",
-                    { extension: ".eidos" }
-                  )}
-                </p>
-                <button
-                  type="button"
-                  className="editor-empty-action"
-                  data-create-first-eidos
-                  disabled={pathMutationBusy || localInteractionBlocked}
-                  onClick={() =>
-                    setPathDialog({ action: "create-file", entry: null })
-                  }
-                >
-                  <FilePlus2 /> {t("New Eidos File")}
-                </button>
-              </section>
-            ) : (
-              <RecentFilesEmptyState
-                files={recentFiles}
-                busyPath={busyFile}
-                onOpen={(file) => void openRecentFile(file)}
-              />
-            )}
-          </div>
-          {versionPanelOpen && space.graft.available ? (
-            <Suspense fallback={null}>
-              <VersionPanel
-                space={space}
-                refreshKey={versionRefreshKey}
-                onClose={() => {
-                  setVersionPanelOpen(false)
-                  setVersionInspection(null)
                 }}
-                onSpaceChange={acceptSpaceSnapshot}
                 onFilesMaterialized={refreshMaterializedFiles}
-                onRefresh={() => setVersionRefreshKey((current) => current + 1)}
-                onInspectionChange={setVersionInspection}
               />
             </Suspense>
-          ) : null}
+          ) : (
+            <>
+              <div className="editor-work-content">
+                {versionPanelOpen && versionInspection ? (
+                  <Suspense
+                    fallback={
+                      <div className="editor-empty" role="status">
+                        <LoaderCircle className="spin" aria-hidden="true" />
+                        <p>{t("Loading change details…")}</p>
+                      </div>
+                    }
+                  >
+                    <VersionDiffPreview
+                      inspection={versionInspection}
+                      theme={theme}
+                      onClose={() => setVersionInspection(null)}
+                    />
+                  </Suspense>
+                ) : textPreview ? (
+                  textPreview.type === "media" ? (
+                    <MediaFilePreview
+                      preview={textPreview}
+                      onReveal={() =>
+                        void window.eidosLite
+                          .revealPath(textPreview.relativePath)
+                          .catch((cause) => setError(errorMessage(cause)))
+                      }
+                    />
+                  ) : (
+                    <TextFilePreview
+                      preview={textPreview}
+                      draft={textFileDrafts[textPreview.relativePath]}
+                      theme={theme}
+                      nativePreviewSuppressed={
+                        quickOpenVisible ||
+                        Boolean(pathDialog) ||
+                        sidebarResizing
+                      }
+                      onSaved={(file) =>
+                        setTextPreview((current) =>
+                          current?.relativePath === file.relativePath
+                            ? file
+                            : current
+                        )
+                      }
+                      onReload={(preview) =>
+                        setTextPreview((current) =>
+                          current?.relativePath === preview.relativePath
+                            ? preview
+                            : current
+                        )
+                      }
+                      onDraftChange={updateTextFileDraft}
+                      onReveal={() =>
+                        void window.eidosLite
+                          .revealPath(textPreview.relativePath)
+                          .catch((cause) => setError(errorMessage(cause)))
+                      }
+                    />
+                  )
+                ) : activeFile && activeTable ? (
+                  <section
+                    className="file-editor"
+                    aria-label={activeFile.relativePath}
+                    data-eidos-file-relative-path={activeFile.relativePath}
+                    data-eidos-file-row-count={activeTable.rowCount}
+                  >
+                    <Suspense
+                      fallback={
+                        <div className="editor-empty" role="status">
+                          <LoaderCircle className="spin" aria-hidden="true" />
+                          <p>{t("Loading Eidos File editor…")}</p>
+                        </div>
+                      }
+                    >
+                      <EidosFileWorkbench
+                        key={`${activeFile.sessionId}:${fileMaterializationKey}`}
+                        relativePath={activeFile.relativePath}
+                        snapshot={activeFile.snapshot}
+                        source={activeFile.source}
+                        activeTableId={activeFile.tableId}
+                        disabled={localInteractionBlocked}
+                        theme={theme}
+                        onTableSelect={(tableId) =>
+                          setCachedFiles((current) =>
+                            current.map((file) =>
+                              file.sessionId === activeFile.sessionId
+                                ? { ...file, tableId }
+                                : file
+                            )
+                          )
+                        }
+                        onSnapshot={(snapshot) =>
+                          setCachedFiles((current) =>
+                            current.map((file) =>
+                              file.sessionId === activeFile.sessionId
+                                ? { ...file, snapshot }
+                                : file
+                            )
+                          )
+                        }
+                        onError={(cause) => setError(errorMessage(cause))}
+                      />
+                    </Suspense>
+                  </section>
+                ) : recentFiles.length === 0 &&
+                  space.eidosFileCount === 0 &&
+                  !spaceTreeIncomplete ? (
+                  <section
+                    className="editor-empty editor-empty-onboarding"
+                    data-empty-space-onboarding
+                  >
+                    <Database aria-hidden="true" />
+                    <h2>{t("Create your first Eidos File")}</h2>
+                    <p>
+                      {t(
+                        "Start with a local {extension} file inside this Space. It remains an ordinary file you own and can move or back up.",
+                        { extension: ".eidos" }
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      className="editor-empty-action"
+                      data-create-first-eidos
+                      disabled={pathMutationBusy || localInteractionBlocked}
+                      onClick={() =>
+                        setPathDialog({ action: "create-file", entry: null })
+                      }
+                    >
+                      <FilePlus2 /> {t("New Eidos File")}
+                    </button>
+                  </section>
+                ) : (
+                  <RecentFilesEmptyState
+                    files={recentFiles}
+                    busyPath={busyFile}
+                    onOpen={(file) => void openRecentFile(file)}
+                  />
+                )}
+              </div>
+              {versionPanelOpen && space.graft.available ? (
+                <Suspense fallback={null}>
+                  <VersionPanel
+                    space={space}
+                    refreshKey={versionRefreshKey}
+                    onClose={() => {
+                      setVersionPanelOpen(false)
+                      setVersionInspection(null)
+                    }}
+                    onSpaceChange={acceptSpaceSnapshot}
+                    onFilesMaterialized={refreshMaterializedFiles}
+                    onRefresh={() =>
+                      setVersionRefreshKey((current) => current + 1)
+                    }
+                    onInspectionChange={setVersionInspection}
+                  />
+                </Suspense>
+              ) : null}
+            </>
+          )}
           {syncPanelMode ? (
             <Suspense fallback={null}>
               <SyncPanel
@@ -2231,7 +2308,9 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                 variant="inspector"
                 cacheKey={space.id}
                 hasUncheckpointedChanges={
-                  space.graft.initialized && space.graft.clean === false
+                  syncMergeStatus.state !== "merging" &&
+                  space.graft.initialized &&
+                  space.graft.clean === false
                 }
                 syncHistory={space.graft.sync}
                 onClose={() => setSyncPanelMode(null)}
@@ -2240,6 +2319,12 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   setSyncPanelMode(null)
                   setVersionPanelOpen(true)
                   setVersionInspection(null)
+                }}
+                onMergeStatusChange={setSyncMergeStatus}
+                onReviewMerge={() => {
+                  setSyncPanelMode(null)
+                  setVersionInspection(null)
+                  setVersionPanelOpen(true)
                 }}
                 onSpaceChange={acceptSpaceSnapshot}
               />

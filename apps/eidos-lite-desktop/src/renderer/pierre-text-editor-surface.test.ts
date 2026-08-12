@@ -168,10 +168,68 @@ describe("PierreTextEditorSurface", () => {
       setOptions: ReturnType<typeof vi.fn>
     }
     expect(editor.initialOptions).toMatchObject({ persistState: true })
-    expect(editor.setOptions).toHaveBeenCalledTimes(2)
+    expect(editor.setOptions).toHaveBeenCalledTimes(3)
     expect(editor.setOptions).toHaveBeenLastCalledWith(
       expect.objectContaining({ persistState: true })
     )
+
+    await act(async () => root.unmount())
+  })
+
+  it("can disable persisted editor state for externally controlled content", async () => {
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        createElement(PierreTextEditorSurface, {
+          relativePath: "notes/readme.md",
+          content: "local\n",
+          theme: "light",
+          persistEditorState: false,
+          onChange: () => undefined,
+        })
+      )
+    })
+
+    const editor = pierre.editorInstances.mock.calls[0]?.[0] as {
+      initialOptions: Record<string, unknown>
+    }
+    expect(editor.initialOptions).toMatchObject({ persistState: false })
+
+    await act(async () => {
+      root.render(
+        createElement(PierreTextEditorSurface, {
+          relativePath: "notes/readme.md",
+          content: "hosted\n",
+          theme: "light",
+          persistEditorState: false,
+          onChange: () => undefined,
+        })
+      )
+    })
+
+    expect(pierre.fileContents).toHaveBeenLastCalledWith("hosted\n")
+
+    await act(async () => {
+      root.render(
+        createElement(PierreTextEditorSurface, {
+          relativePath: "notes/readme.md",
+          content: "hosted\n",
+          theme: "light",
+          persistEditorState: true,
+          onChange: () => undefined,
+        })
+      )
+    })
+
+    expect(
+      (
+        pierre.editorInstances.mock.calls[0]?.[0] as {
+          setOptions: ReturnType<typeof vi.fn>
+        }
+      ).setOptions
+    ).toHaveBeenLastCalledWith({ persistState: true })
 
     await act(async () => root.unmount())
   })

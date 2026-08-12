@@ -1,31 +1,54 @@
 import path from "node:path"
-import {
-  operationMaterializesWorktree,
-  RepositorySession,
-  sdkVersion,
-  type CloneOptions,
-  type CommitChangedPathsOptions,
-  type DiffOptions,
-  type DiffPathsOptions,
-  type HistoryOptions,
-  type IgnoredPathsOptions,
-  type InventoryOptions,
-  type RemoteConfigureOptions,
-  type RemoteOperationOptions,
-  type RecordPathMoveOptions,
-  type RestoreOptions,
-  type RestorePathsOptions,
-  type SqliteDiffPathsOptions,
-  type StagePathsOptions,
-  type UntrackPathsOptions,
+import type {
+  CloneOptions,
+  CommitChangedPathsOptions,
+  DiffOptions,
+  DiffPathsOptions,
+  HistoryOptions,
+  IgnoredPathsOptions,
+  InventoryOptions,
+  RemoteConfigureOptions,
+  RemoteOperationOptions,
+  RecordPathMoveOptions,
+  RestoreOptions,
+  RestorePathsOptions,
+  SqliteDiffPathsOptions,
+  StagePathsOptions,
+  UntrackPathsOptions,
 } from "@eidos.space/graft"
 
+import type {
+  GraftAbortMergeOptions,
+  GraftApplyMergeOptions,
+  GraftContinueMergeOptions,
+  GraftDiffMergeSqliteOptions,
+  GraftListMergeConflictsOptions,
+  GraftListMergePathsOptions,
+  GraftPlanMergeOptions,
+  GraftReadMergeVersionOptions,
+  GraftResolveMergeCellOptions,
+  GraftResolveMergeRowOptions,
+  GraftResolveMergeTableOptions,
+  GraftSetMergePolicyOptions,
+  GraftSetMergePathResultOptions,
+  GraftStageMergeSqliteResultOptions,
+  GraftUnresolveMergePathOptions,
+  GraftValidateMergePolicyOptions,
+  GraftWriteAndStageTextResultOptions,
+} from "../shared/graft-merge-contracts"
 import type {
   GraftSdkCommand,
   GraftSdkWorkerRequest,
   GraftSdkWorkerResponse,
 } from "../shared/graft-sdk-contracts"
+import {
+  loadEidosGraftSdk,
+  type EidosGraftRepositorySession,
+} from "../main/graft/graft-sdk-module"
 import { readRevisionTextDiff } from "../main/graft/revision-text-reader"
+
+const { operationMaterializesWorktree, RepositorySession, sdkVersion } =
+  loadEidosGraftSdk()
 
 interface UtilityParentPort {
   on(event: "message", listener: (event: { data: unknown }) => void): void
@@ -38,7 +61,7 @@ const parentPort = (
 
 if (!parentPort) throw new Error("Graft SDK requires a utility parent")
 
-let session: RepositorySession | null = null
+let session: EidosGraftRepositorySession | null = null
 let sessionRoot: string | null = null
 const operationControllers = new Map<number, AbortController>()
 
@@ -58,9 +81,27 @@ function serializeError(error: unknown): WorkerError {
   return { name: "Error", message: String(error) }
 }
 
-function requireSession(): RepositorySession {
+function requireSession(): EidosGraftRepositorySession {
   if (!session) throw new Error("Graft repository session is not open")
   return session
+}
+
+function requireMergeMethod(
+  repository: EidosGraftRepositorySession,
+  method: string
+): void {
+  if (
+    typeof (repository as unknown as Record<string, unknown>)[method] ===
+    "function"
+  ) {
+    return
+  }
+  throw Object.assign(
+    new Error(
+      "The installed Graft SDK does not provide the merge operation required by this Eidos Lite build."
+    ),
+    { code: "EIDOS_LITE_GRAFT_MERGE_UNAVAILABLE" }
+  )
 }
 
 function requireString(value: unknown, label: string): string {
@@ -247,6 +288,165 @@ async function runCommand(
           args[0] ?? {},
           "pull options"
         ) as RemoteOperationOptions),
+        signal,
+      })
+    case "getMergePolicy":
+      requireMergeMethod(repository, command)
+      return repository.getMergePolicy({ signal })
+    case "validateMergePolicy":
+      requireMergeMethod(repository, command)
+      return repository.validateMergePolicy({
+        ...(objectValue(
+          args[0],
+          "validate merge policy options"
+        ) as unknown as GraftValidateMergePolicyOptions),
+        signal,
+      })
+    case "setMergePolicy":
+      requireMergeMethod(repository, command)
+      return repository.setMergePolicy({
+        ...(objectValue(
+          args[0],
+          "set merge policy options"
+        ) as unknown as GraftSetMergePolicyOptions),
+        signal,
+      })
+    case "planMerge":
+      requireMergeMethod(repository, command)
+      return repository.planMerge({
+        ...(objectValue(
+          args[0],
+          "plan merge options"
+        ) as unknown as GraftPlanMergeOptions),
+        signal,
+      })
+    case "applyMerge":
+      requireMergeMethod(repository, command)
+      return repository.applyMerge({
+        ...(objectValue(
+          args[0],
+          "apply merge options"
+        ) as unknown as GraftApplyMergeOptions),
+        signal,
+      })
+    case "getMergeStatus":
+      requireMergeMethod(repository, command)
+      return repository.getMergeStatus({ signal })
+    case "listMergePaths":
+      requireMergeMethod(repository, command)
+      return repository.listMergePaths({
+        ...(objectValue(
+          args[0],
+          "list merge paths options"
+        ) as unknown as GraftListMergePathsOptions),
+        signal,
+      })
+    case "listMergeConflicts":
+      requireMergeMethod(repository, command)
+      return repository.listMergeConflicts({
+        ...(objectValue(
+          args[0],
+          "list merge conflicts options"
+        ) as unknown as GraftListMergeConflictsOptions),
+        signal,
+      })
+    case "readMergeVersion":
+      requireMergeMethod(repository, command)
+      return repository.readMergeVersion({
+        ...(objectValue(
+          args[0],
+          "read merge version options"
+        ) as unknown as GraftReadMergeVersionOptions),
+        signal,
+      })
+    case "diffMergeSqlite":
+      requireMergeMethod(repository, command)
+      return repository.diffMergeSqlite({
+        ...(objectValue(
+          args[0],
+          "diff merge SQLite options"
+        ) as unknown as GraftDiffMergeSqliteOptions),
+        signal,
+      })
+    case "setMergePathResult":
+      requireMergeMethod(repository, command)
+      return repository.setMergePathResult({
+        ...(objectValue(
+          args[0],
+          "set merge path result options"
+        ) as unknown as GraftSetMergePathResultOptions),
+        signal,
+      })
+    case "resolveMergeRow":
+      requireMergeMethod(repository, command)
+      return repository.resolveMergeRow({
+        ...(objectValue(
+          args[0],
+          "resolve merge row options"
+        ) as unknown as GraftResolveMergeRowOptions),
+        signal,
+      })
+    case "resolveMergeCell":
+      requireMergeMethod(repository, command)
+      return repository.resolveMergeCell({
+        ...(objectValue(
+          args[0],
+          "resolve merge cell options"
+        ) as unknown as GraftResolveMergeCellOptions),
+        signal,
+      })
+    case "resolveMergeTable":
+      requireMergeMethod(repository, command)
+      return repository.resolveMergeTable({
+        ...(objectValue(
+          args[0],
+          "resolve merge table options"
+        ) as unknown as GraftResolveMergeTableOptions),
+        signal,
+      })
+    case "unresolveMergePath":
+      requireMergeMethod(repository, command)
+      return repository.unresolveMergePath({
+        ...(objectValue(
+          args[0],
+          "unresolve merge path options"
+        ) as unknown as GraftUnresolveMergePathOptions),
+        signal,
+      })
+    case "stageMergeSqliteResult":
+      requireMergeMethod(repository, command)
+      return repository.stageMergeSqliteResult({
+        ...(objectValue(
+          args[0],
+          "stage merge SQLite result options"
+        ) as unknown as GraftStageMergeSqliteResultOptions),
+        signal,
+      })
+    case "writeAndStageTextResult":
+      requireMergeMethod(repository, command)
+      return repository.writeAndStageTextResult({
+        ...(objectValue(
+          args[0],
+          "write merge text result options"
+        ) as unknown as GraftWriteAndStageTextResultOptions),
+        signal,
+      })
+    case "continueMerge":
+      requireMergeMethod(repository, command)
+      return repository.continueMerge({
+        ...(objectValue(
+          args[0],
+          "continue merge options"
+        ) as unknown as GraftContinueMergeOptions),
+        signal,
+      })
+    case "abortMerge":
+      requireMergeMethod(repository, command)
+      return repository.abortMerge({
+        ...(objectValue(
+          args[0],
+          "abort merge options"
+        ) as unknown as GraftAbortMergeOptions),
         signal,
       })
     case "cloneRepository":
