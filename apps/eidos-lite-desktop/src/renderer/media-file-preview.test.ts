@@ -39,7 +39,13 @@ describe("MediaFilePreview", () => {
 
   async function render(preview: MediaPreview, onReveal = vi.fn()) {
     await act(async () => {
-      root.render(createElement(MediaFilePreview, { preview, onReveal }))
+      root.render(
+        createElement(MediaFilePreview, {
+          preview,
+          platform: "darwin",
+          onReveal,
+        })
+      )
     })
     return onReveal
   }
@@ -59,6 +65,7 @@ describe("MediaFilePreview", () => {
       root.render(
         createElement(MediaFilePreview, {
           preview: mediaPreview("video"),
+          platform: "darwin",
           onReveal: vi.fn(),
         })
       )
@@ -72,6 +79,7 @@ describe("MediaFilePreview", () => {
       root.render(
         createElement(MediaFilePreview, {
           preview: mediaPreview("audio"),
+          platform: "darwin",
           onReveal: vi.fn(),
         })
       )
@@ -92,6 +100,20 @@ describe("MediaFilePreview", () => {
       button?.click()
     })
     expect(onReveal).toHaveBeenCalledTimes(1)
+  })
+
+  it("uses File Explorer copy on Windows", async () => {
+    await act(async () => {
+      root.render(
+        createElement(MediaFilePreview, {
+          preview: mediaPreview("image"),
+          platform: "win32",
+          onReveal: vi.fn(),
+        })
+      )
+    })
+    expect(host.textContent).toContain("Show in File Explorer")
+    expect(host.textContent).not.toContain("Finder")
   })
 
   it("labels the preview with its kind and path", async () => {

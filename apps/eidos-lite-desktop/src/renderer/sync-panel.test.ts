@@ -141,12 +141,16 @@ describe("SyncPanel failure states", () => {
       root.render(
         createElement(SyncPanel, {
           mode: "clone",
+          platform: "win32",
           onClose: () => undefined,
         })
       )
     })
 
     expect(host.querySelector("[data-sync-overview]")).toBeNull()
+    expect(
+      host.querySelector(".sync-dialog-backdrop")?.getAttribute("data-platform")
+    ).toBe("win32")
     expect(host.textContent).toContain("Sign in")
     expect(host.textContent).not.toContain("keychain denied")
   })

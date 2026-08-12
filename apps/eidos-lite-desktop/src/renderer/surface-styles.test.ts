@@ -77,7 +77,7 @@ describe("Eidos Lite surface hierarchy", () => {
   it("keeps Windows actions clear of the overlaid system controls", () => {
     expect(
       rule(
-        '.welcome-shell[data-platform="win32"],\n.settings-shell[data-platform="win32"],\n.workbench[data-platform="win32"]'
+        '.welcome-shell[data-platform="win32"],\n.settings-shell[data-platform="win32"],\n.workbench[data-platform="win32"],\n.sync-dialog-backdrop[data-platform="win32"]'
       )
     ).toContain("--windows-titlebar-controls-width")
     expect(
@@ -86,6 +86,9 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(rule('.workbench[data-platform="win32"] .file-titlebar')).toContain(
       "var(--windows-titlebar-controls-width)"
     )
+    expect(
+      rule('.sync-dialog-backdrop[data-platform="win32"] .sync-dialog > header')
+    ).toContain("var(--windows-titlebar-controls-width)")
   })
 
   it("aligns text editor content with the file title without moving the scrollbar", () => {
@@ -103,5 +106,17 @@ describe("Eidos Lite surface hierarchy", () => {
     expect(rule(".recent-file-list button")).toContain(
       "background: transparent"
     )
+  })
+
+  it("groups updates above the persistent sidebar Settings entry", () => {
+    expect(rule(".sidebar-footer")).toContain("flex-direction: column")
+    expect(rule(".sidebar-footer")).toContain(
+      "border-top: 1px solid var(--hairline)"
+    )
+    expect(rule(".sidebar-settings-button")).toContain(
+      "background: transparent"
+    )
+    expect(rule(".sidebar-settings-button")).toContain("height: 2rem")
+    expect(rule(".sidebar-update-action")).not.toContain("border-top")
   })
 })

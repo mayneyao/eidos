@@ -51,6 +51,7 @@ import type {
   TextFilePreviewResult,
 } from "../shared/contracts"
 import { eidosLiteNewFileKind } from "../shared/new-file"
+import { fileManagerMessage } from "../shared/platform-copy"
 import {
   DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   type EidosLiteKeyboardShortcuts,
@@ -467,10 +468,12 @@ function Welcome({
   diagnosticsCopied: boolean
 }) {
   const { t } = useEidosLiteI18n()
+  const platform = appInfo?.platform ?? rendererPlatform()
+  const settingsShortcut = platform === "darwin" ? "⌘," : "Ctrl+,"
   return (
     <main
       className="welcome-shell"
-      data-platform={appInfo?.platform ?? rendererPlatform()}
+      data-platform={platform}
       data-welcome-ready={appInfo ? "true" : "false"}
     >
       <header className="welcome-titlebar">
@@ -480,7 +483,8 @@ function Welcome({
           className="icon-button welcome-settings-button"
           onClick={onOpenSettings}
           aria-label={t("Settings")}
-          title={`${t("Settings")} (⌘,)`}
+          aria-keyshortcuts={platform === "darwin" ? "Meta+," : "Control+,"}
+          title={`${t("Settings")} (${settingsShortcut})`}
         >
           <Settings />
         </button>
@@ -584,7 +588,9 @@ function Welcome({
 
 function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   const { t } = useEidosLiteI18n()
-  const macos = navigator.userAgent.includes("Macintosh")
+  const [appInfo, setAppInfo] = useState<EidosLiteAppInfo | null>(null)
+  const platform = appInfo?.platform ?? rendererPlatform()
+  const macos = platform === "darwin"
   const [keyboardShortcuts, setKeyboardShortcuts] =
     useState<EidosLiteKeyboardShortcuts>({
       ...DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
@@ -604,7 +610,6 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
     macos,
     keyboardShortcuts
   )
-  const [appInfo, setAppInfo] = useState<EidosLiteAppInfo | null>(null)
   const [space, setSpace] = useState<SpaceSnapshot | null>(null)
   const [cachedFiles, setCachedFiles] = useState<CachedFile[]>([])
   const [recentFileState, setRecentFileState] = useState<RecentFileState>({
@@ -1749,6 +1754,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
           <Suspense fallback={null}>
             <SyncPanel
               mode={syncPanelMode}
+              platform={platform}
               cacheKey="welcome"
               hasUncheckpointedChanges={false}
               onClose={() => setSyncPanelMode(null)}
@@ -1789,7 +1795,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
   return (
     <div
       className="workbench"
-      data-platform={appInfo?.platform ?? rendererPlatform()}
+      data-platform={platform}
       data-service-environment={appInfo?.services.name ?? "unknown"}
       data-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
       style={
@@ -1922,15 +1928,30 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
             </p>
           ) : null}
         </nav>
-        {isSidebarUpdateReady(updateStatus) ? (
-          <SidebarUpdateAction
-            label={t("Restart to update")}
-            description={t("Version {version} is ready to install.", {
-              version: updateStatus.version ?? "",
-            })}
-            onRestart={() => void window.eidosLite.restartToInstallUpdate()}
-          />
-        ) : null}
+        <footer className="sidebar-footer">
+          {isSidebarUpdateReady(updateStatus) ? (
+            <SidebarUpdateAction
+              label={t("Restart to update")}
+              description={t("Version {version} is ready to install.", {
+                version: updateStatus.version ?? "",
+              })}
+              onRestart={() => void window.eidosLite.restartToInstallUpdate()}
+            />
+          ) : null}
+          <button
+            type="button"
+            className="sidebar-settings-button"
+            data-sidebar-action="settings"
+            aria-label={t("Settings")}
+            aria-keyshortcuts={macos ? "Meta+," : "Control+,"}
+            onClick={() => void window.eidosLite.openSettings()}
+            title={`${t("Settings")} (${macos ? "⌘," : "Ctrl+,"})`}
+          >
+            <Settings aria-hidden="true" />
+            <span>{t("Settings")}</span>
+            <kbd aria-hidden="true">{macos ? "⌘," : "Ctrl+,"}</kbd>
+          </button>
+        </footer>
       </aside>
 
       <div
@@ -2163,6 +2184,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                   textPreview.type === "media" ? (
                     <MediaFilePreview
                       preview={textPreview}
+                      platform={platform}
                       onReveal={() =>
                         void window.eidosLite
                           .revealPath(textPreview.relativePath)
@@ -2174,6 +2196,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
                       preview={textPreview}
                       draft={textFileDrafts[textPreview.relativePath]}
                       theme={theme}
+                      platform={platform}
                       nativePreviewSuppressed={
                         quickOpenVisible ||
                         Boolean(pathDialog) ||
@@ -2306,6 +2329,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               <SyncPanel
                 mode={syncPanelMode}
                 variant="inspector"
+                platform={platform}
                 cacheKey={space.id}
                 hasUncheckpointedChanges={
                   syncMergeStatus.state !== "merging" &&
@@ -2435,7 +2459,7 @@ function WorkspaceApp({ theme }: { theme: ResolvedAppearance }) {
               setContextMenu(null)
             }}
           >
-            <FolderOpen /> {t("Reveal in Finder")}
+            <FolderOpen /> {t(fileManagerMessage(platform))}
           </button>
           <button
             type="button"

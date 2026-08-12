@@ -778,6 +778,9 @@ const rendererProbe = `
       Math.abs(sidebarHeaderRect.height - fileTitlebarRect.height) < 1,
     compactTitleRow:
       fileTitlebarRect !== undefined && fileTitlebarRect.height <= 40,
+    sidebarSettingsAction: Boolean(
+      document.querySelector('[data-sidebar-action="settings"]')
+    ),
     unifiedSidebar:
       spaceHeadingStyle !== undefined &&
       spaceHeadingStyle.borderTopWidth === "0px" &&

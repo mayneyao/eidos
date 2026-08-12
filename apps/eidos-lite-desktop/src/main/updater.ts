@@ -39,6 +39,7 @@ interface EidosLiteUpdaterOptions {
   production: boolean
   updatesEnabled: boolean
   loadAutoUpdater(): Promise<EidosLiteAutoUpdater>
+  prepareToInstall(): Promise<void>
   broadcast(status: EidosLiteUpdateStatus): void
   logger: EidosLiteUpdaterLogger
 }
@@ -82,6 +83,7 @@ export class EidosLiteUpdater {
   private status: EidosLiteUpdateStatus
   private automaticDownloads = true
   private updaterPromise: Promise<EidosLiteAutoUpdater> | null = null
+  private installPromise: Promise<void> | null = null
 
   constructor(private readonly options: EidosLiteUpdaterOptions) {
     const unavailableReason = !options.packaged
@@ -189,7 +191,19 @@ export class EidosLiteUpdater {
 
   async restartToInstall(): Promise<void> {
     if (!this.supported || this.status.state !== "downloaded") return
+    const attempt = this.installPromise ?? this.installDownloadedUpdate()
+    this.installPromise = attempt
+    try {
+      await attempt
+    } catch (error) {
+      if (this.installPromise === attempt) this.installPromise = null
+      throw error
+    }
+  }
+
+  private async installDownloadedUpdate(): Promise<void> {
     const updater = await this.ensureUpdater()
+    await this.options.prepareToInstall()
     updater.quitAndInstall(false, true)
   }
 

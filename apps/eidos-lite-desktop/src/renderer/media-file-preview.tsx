@@ -1,6 +1,7 @@
 import { FileMusic, FolderOpen, Image, MonitorPlay } from "lucide-react"
 
 import type { TextFilePreviewResult } from "../shared/contracts"
+import { fileManagerMessage } from "../shared/platform-copy"
 import { useEidosLiteI18n } from "./i18n"
 
 type MediaPreview = Extract<TextFilePreviewResult, { type: "media" }>
@@ -13,9 +14,11 @@ function formatBytes(bytes: number): string {
 
 export function MediaFilePreview({
   preview,
+  platform,
   onReveal,
 }: {
   preview: MediaPreview
+  platform: string
   onReveal(): void
 }) {
   const { t } = useEidosLiteI18n()
@@ -53,7 +56,7 @@ export function MediaFilePreview({
           className="editor-empty-action media-preview-reveal"
           onClick={onReveal}
         >
-          <FolderOpen aria-hidden="true" /> {t("Reveal in Finder")}
+          <FolderOpen aria-hidden="true" /> {t(fileManagerMessage(platform))}
         </button>
       </header>
       <div className="media-preview-stage">

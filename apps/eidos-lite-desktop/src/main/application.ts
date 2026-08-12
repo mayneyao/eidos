@@ -86,6 +86,43 @@ if (smokeUserData) {
 }
 const logger = initializeEidosLiteLogger(app.getPath("logs"))
 const stopLogging = installElectronLogging(app, logger)
+logger.info("app.started", {
+  appVersion: app.getVersion(),
+  packaged: app.isPackaged,
+  environment: services.name,
+  platform: process.platform,
+  arch: process.arch,
+  electronVersion: process.versions.electron,
+})
+const controller = new WindowController(services)
+let shutdownStarted = false
+let shutdownPromise: Promise<void> | null = null
+let closeIpc = (): Promise<void> => Promise.resolve()
+const pendingLaunchFiles = eidosFilePathsFromArguments(
+  process.argv,
+  process.cwd()
+)
+let launchRoutingReady = false
+let launchRoutingInFlight: Promise<void> | null = null
+
+function prepareForShutdown(reason: "quit" | "update-install"): Promise<void> {
+  if (shutdownPromise) return shutdownPromise
+  shutdownStarted = true
+  logger.info("app.shutdown.started", { reason })
+  launchRoutingReady = false
+  pendingLaunchFiles.length = 0
+  shutdownPromise = closeIpc()
+    .then(() => launchRoutingInFlight)
+    .then(() => controller.closeAll())
+  return shutdownPromise
+}
+
+function failShutdown(error: unknown): void {
+  logger.error("app.shutdown.failed", undefined, error)
+  console.error("Failed to close Eidos Lite runtimes", error)
+  app.exit(1)
+}
+
 const updater = new EidosLiteUpdater({
   currentVersion: app.getVersion(),
   platform: process.platform,
@@ -97,6 +134,14 @@ const updater = new EidosLiteUpdater({
     const { autoUpdater } = await import("electron-updater")
     return autoUpdater as unknown as EidosLiteAutoUpdater
   },
+  // electron-updater closes windows before Electron emits before-quit. Drain
+  // runtimes and mark the controller as closing first so a Space close cannot
+  // recreate Welcome and cancel the install lifecycle.
+  prepareToInstall: () =>
+    prepareForShutdown("update-install").catch((error) => {
+      failShutdown(error)
+      throw error
+    }),
   broadcast: (status) => {
     for (const window of BrowserWindow.getAllWindows()) {
       if (!window.isDestroyed()) {
@@ -106,23 +151,6 @@ const updater = new EidosLiteUpdater({
   },
   logger,
 })
-logger.info("app.started", {
-  appVersion: app.getVersion(),
-  packaged: app.isPackaged,
-  environment: services.name,
-  platform: process.platform,
-  arch: process.arch,
-  electronVersion: process.versions.electron,
-})
-const controller = new WindowController(services)
-let shutdownStarted = false
-let closeIpc = (): Promise<void> => Promise.resolve()
-const pendingLaunchFiles = eidosFilePathsFromArguments(
-  process.argv,
-  process.cwd()
-)
-let launchRoutingReady = false
-let launchRoutingInFlight: Promise<void> | null = null
 
 function enqueueLaunchFiles(paths: readonly string[]): void {
   if (shutdownStarted) return
@@ -197,21 +225,7 @@ app.on("activate", () => {
 app.on("before-quit", (event) => {
   if (shutdownStarted) return
   event.preventDefault()
-  shutdownStarted = true
-  logger.info("app.shutdown.started")
-  launchRoutingReady = false
-  pendingLaunchFiles.length = 0
-  void closeIpc()
-    .then(() => launchRoutingInFlight)
-    .then(() => controller.closeAll())
-    .then(
-      () => app.quit(),
-      (error) => {
-        logger.error("app.shutdown.failed", undefined, error)
-        console.error("Failed to close Eidos Lite runtimes", error)
-        app.exit(1)
-      }
-    )
+  void prepareForShutdown("quit").then(() => app.quit(), failShutdown)
 })
 
 async function installApplicationMenu(): Promise<void> {

@@ -178,6 +178,8 @@ const zh: Record<string, string> = {
     "仅显示前 2 MB，磁盘上的文件不会被更改。",
   "Preview unavailable": "无法预览",
   "Reveal in Finder": "在访达中显示",
+  "Show in File Explorer": "在文件资源管理器中显示",
+  "Show in File Manager": "在文件管理器中显示",
   Image: "图片",
   Video: "视频",
   Audio: "音频",

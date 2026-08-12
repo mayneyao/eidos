@@ -20,7 +20,7 @@ export function SidebarUpdateAction({
   onRestart,
 }: SidebarUpdateActionProps) {
   return (
-    <footer className="sidebar-update-action" data-sidebar-update-ready>
+    <div className="sidebar-update-action" data-sidebar-update-ready>
       <button
         type="button"
         className="sidebar-update-button"
@@ -32,6 +32,6 @@ export function SidebarUpdateAction({
           <small>{description}</small>
         </span>
       </button>
-    </footer>
+    </div>
   )
 }

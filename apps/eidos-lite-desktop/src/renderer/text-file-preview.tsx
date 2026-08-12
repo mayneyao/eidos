@@ -27,6 +27,7 @@ import type {
   HtmlPreviewBounds,
   TextFilePreviewResult,
 } from "../shared/contracts"
+import { fileManagerMessage } from "../shared/platform-copy"
 import type { ResolvedAppearance } from "./app-appearance"
 import { useEidosLiteI18n } from "./i18n"
 import { renderSafeMarkdown } from "./markdown-preview"
@@ -453,6 +454,7 @@ function DocumentFilePreview({
   preview,
   draft,
   theme,
+  platform,
   nativePreviewSuppressed,
   onReveal,
   onSaved,
@@ -462,6 +464,7 @@ function DocumentFilePreview({
   preview: BrowserTextPreview
   draft?: TextFileDraft
   theme: ResolvedAppearance
+  platform: string
   nativePreviewSuppressed: boolean
   onReveal(): void
   onSaved(file: TextPreview): void
@@ -544,7 +547,7 @@ function DocumentFilePreview({
             className="editor-empty-action media-preview-reveal"
             onClick={onReveal}
           >
-            <FolderOpen aria-hidden="true" /> {t("Reveal in Finder")}
+            <FolderOpen aria-hidden="true" /> {t(fileManagerMessage(platform))}
           </button>
         </div>
       </header>
@@ -579,6 +582,7 @@ export function TextFilePreview({
   preview,
   draft,
   theme,
+  platform,
   nativePreviewSuppressed = false,
   onReveal,
   onSaved,
@@ -588,6 +592,7 @@ export function TextFilePreview({
   preview: TextSurfacePreview
   draft?: TextFileDraft
   theme: ResolvedAppearance
+  platform: string
   nativePreviewSuppressed?: boolean
   onReveal(): void
   onSaved(file: TextPreview): void
@@ -611,7 +616,7 @@ export function TextFilePreview({
           className="editor-empty-action text-preview-reveal"
           onClick={onReveal}
         >
-          <FolderOpen /> {t("Reveal in Finder")}
+          <FolderOpen /> {t(fileManagerMessage(platform))}
         </button>
       </section>
     )
@@ -625,6 +630,7 @@ export function TextFilePreview({
           preview={preview as BrowserTextPreview}
           draft={draft}
           theme={theme}
+          platform={platform}
           nativePreviewSuppressed={nativePreviewSuppressed}
           onReveal={onReveal}
           onSaved={onSaved}

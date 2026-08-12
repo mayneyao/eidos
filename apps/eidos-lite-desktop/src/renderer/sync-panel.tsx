@@ -141,6 +141,7 @@ const OPERATION_STEPS: Record<
 export function SyncPanel({
   mode,
   variant = "dialog",
+  platform = "unknown",
   cacheKey = mode === "clone" ? "welcome" : "current-space",
   hasUncheckpointedChanges = false,
   syncHistory,
@@ -154,6 +155,7 @@ export function SyncPanel({
 }: {
   mode: "enable" | "clone"
   variant?: "dialog" | "inspector"
+  platform?: string
   cacheKey?: string
   hasUncheckpointedChanges?: boolean
   syncHistory?: SpaceSyncHistoryStatus
@@ -764,6 +766,7 @@ export function SyncPanel({
       <SyncAccessGate
         mode={mode}
         variant={variant}
+        platform={platform}
         environment={status.environment}
         accountState={status.account.state}
         entitlementState={status.entitlement.state}
@@ -786,6 +789,7 @@ export function SyncPanel({
         variant === "dialog" ? "sync-dialog-backdrop" : "sync-inspector-host"
       }
       role="presentation"
+      data-platform={platform}
     >
       <aside
         className={`sync-dialog${variant === "inspector" ? " sync-dialog-inspector" : ""}`}
@@ -1372,6 +1376,7 @@ function shouldRenderSyncAccessGate(status: EidosSyncStatus): boolean {
 function SyncAccessGate({
   mode,
   variant,
+  platform,
   environment,
   accountState,
   entitlementState,
@@ -1384,6 +1389,7 @@ function SyncAccessGate({
 }: {
   mode: "enable" | "clone"
   variant: "dialog" | "inspector"
+  platform: string
   environment: EidosSyncStatus["environment"]
   accountState: EidosSyncStatus["account"]["state"]
   entitlementState: EidosSyncStatus["entitlement"]["state"]
@@ -1402,6 +1408,7 @@ function SyncAccessGate({
         variant === "dialog" ? "sync-dialog-backdrop" : "sync-inspector-host"
       }
       role="presentation"
+      data-platform={platform}
     >
       <aside
         className={`sync-dialog${variant === "inspector" ? " sync-dialog-inspector" : ""}`}

@@ -43,6 +43,7 @@ describe("TextFilePreview", () => {
           truncated: true,
         },
         theme: "light",
+        platform: "darwin",
         onReveal: () => undefined,
         onSaved: () => undefined,
         onReload: () => undefined,
@@ -69,6 +70,7 @@ describe("TextFilePreview", () => {
           modifiedAtMs: 0,
         },
         theme: "dark",
+        platform: "darwin",
         onReveal: () => undefined,
         onSaved: () => undefined,
         onReload: () => undefined,
@@ -100,6 +102,7 @@ describe("TextFilePreview", () => {
       createElement(TextFilePreview, {
         preview,
         theme: "light",
+        platform: "darwin",
         onReveal: () => undefined,
         onSaved: () => undefined,
         onReload: () => undefined,
@@ -140,6 +143,7 @@ describe("TextFilePreview", () => {
       createElement(TextFilePreview, {
         preview,
         theme: "light",
+        platform: "darwin",
         onReveal: () => undefined,
         onSaved: () => undefined,
         onReload: () => undefined,
@@ -180,6 +184,7 @@ describe("TextFilePreview", () => {
       createElement(TextFilePreview, {
         preview,
         theme: "dark",
+        platform: "darwin",
         onReveal: () => undefined,
         onSaved: () => undefined,
         onReload: () => undefined,
