@@ -1,28 +1,21 @@
 ## What's new
 
-### Resolve Local and Hosted changes safely
+### More reliable updates on Windows
 
-Eidos Lite can now review diverged Sync histories instead of asking you to
-overwrite one side. The Sync panel shows the files that need attention and
-opens a dedicated merge workspace for comparing Base, Local, and Hosted
-versions.
+Restarting after an update now closes open Space runtimes cleanly before
+installing, instead of returning to the Welcome window without restarting.
+Windows also uses File Explorer terminology, and Sync and clone panels keep
+clear of the native window controls.
 
-Text files can be reviewed side by side, edited as a result, and resolved with
-either version. Eidos files expose their tables as child changes, with
-table-, row-, and field-level choices for data conflicts. Compatible table
-structure changes are merged automatically; incompatible changes stay visible
-and preserve whole-file Local and Hosted recovery choices.
+### Settings in the Space sidebar
 
-Merge progress is durable. You can close and reopen a Space, continue resolving
-remaining items, retry stale analysis safely, or abort and return to the
-unchanged Local history. Eidos validates every affected `.eidos` file before a
-merge commit is completed.
+Settings now has one consistent home at the bottom of the Space sidebar. Update
+notices appear beside it, keeping account and app controls available without
+competing with the document toolbar.
 
-### Preview Markdown and HTML files
+### Table menus that fit their actions
 
-Markdown and HTML files can now be previewed directly in Eidos Lite while still
-keeping their source available for editing and history review.
+Table menus now expand to fit actions such as “Export entire table as CSV,” so
+labels remain readable instead of being clipped.
 
-No migration is required. Existing Spaces remain ordinary folders and all
-Local and Hosted versions are retained until you explicitly complete or abort
-a reviewed merge.
+No migration is required.
