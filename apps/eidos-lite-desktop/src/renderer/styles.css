@@ -3562,6 +3562,26 @@ body {
   background: var(--lite-accent);
 }
 
+.sync-transfer-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.22rem 0.7rem;
+  color: var(--ink-muted);
+  font-size: 0.625rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.sync-transfer-metrics strong {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.sync-transfer-metrics > span + span::before {
+  margin-right: 0.7rem;
+  color: var(--ink-faint);
+  content: "·";
+}
+
 .sync-operation-progress ol {
   display: flex;
   flex-wrap: wrap;

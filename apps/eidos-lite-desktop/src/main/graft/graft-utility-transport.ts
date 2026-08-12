@@ -5,6 +5,7 @@ import type {
   GraftSdkCommand,
   GraftSdkWorkerRequest,
   GraftSdkWorkerResponse,
+  GraftTransferProgress,
 } from "../../shared/graft-sdk-contracts"
 import type {
   SpaceVersionTextContentDiff,
@@ -22,6 +23,7 @@ interface PendingRequest {
   operation: string
   repositoryKey: string | null
   startedAtMs: number
+  onProgress?: (progress: GraftTransferProgress) => void
   cleanup(): void
   resolve(value: unknown): void
   reject(error: Error): void
@@ -31,7 +33,9 @@ interface GraftUtilityTransportOptions {
   repositoryKey?(root: string): string
 }
 
-function isWorkerResponse(value: unknown): value is GraftSdkWorkerResponse {
+function isWorkerResponse(
+  value: unknown
+): value is Exclude<GraftSdkWorkerResponse, { type: "progress" }> {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -39,6 +43,20 @@ function isWorkerResponse(value: unknown): value is GraftSdkWorkerResponse {
     typeof value.requestId === "number" &&
     "ok" in value &&
     typeof value.ok === "boolean"
+  )
+}
+
+function isWorkerProgress(
+  value: unknown
+): value is Extract<GraftSdkWorkerResponse, { type: "progress" }> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "requestId" in value &&
+    typeof value.requestId === "number" &&
+    "type" in value &&
+    value.type === "progress" &&
+    "progress" in value
   )
 }
 
@@ -96,7 +114,10 @@ export class GraftUtilityTransport implements GraftSdkTransport {
   command(
     command: GraftSdkCommand,
     args: unknown[] = [],
-    options: { signal?: AbortSignal } = {}
+    options: {
+      signal?: AbortSignal
+      onProgress?: (progress: GraftTransferProgress) => void
+    } = {}
   ): Promise<unknown> {
     if (!this.child) {
       return Promise.reject(new Error("Graft SDK utility process is closed"))
@@ -108,7 +129,8 @@ export class GraftUtilityTransport implements GraftSdkTransport {
         command,
         args,
       },
-      options.signal
+      options.signal,
+      options.onProgress
     )
   }
 
@@ -128,18 +150,23 @@ export class GraftUtilityTransport implements GraftSdkTransport {
   async clone(
     targetDirectory: string,
     remoteUrl: string,
-    token?: string
+    token?: string,
+    options: { onProgress?: (progress: GraftTransferProgress) => void } = {}
   ): Promise<unknown> {
     const transport = new GraftUtilityTransport(this.workerPath, this.options)
     await transport.open(targetDirectory)
     try {
-      return await transport.command("cloneRepository", [
-        {
-          remoteUrl,
-          branch: "main",
-          ...(token ? { bearerToken: token } : {}),
-        },
-      ])
+      return await transport.command(
+        "cloneRepository",
+        [
+          {
+            remoteUrl,
+            branch: "main",
+            ...(token ? { bearerToken: token } : {}),
+          },
+        ],
+        options
+      )
     } finally {
       await transport.close()
     }
@@ -260,7 +287,8 @@ export class GraftUtilityTransport implements GraftSdkTransport {
 
   private request(
     request: Exclude<GraftSdkWorkerRequest, { type: "cancel" }>,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    onProgress?: (progress: GraftTransferProgress) => void
   ): Promise<unknown> {
     const child = this.child
     if (!child) {
@@ -294,6 +322,7 @@ export class GraftUtilityTransport implements GraftSdkTransport {
         operation,
         repositoryKey,
         startedAtMs,
+        onProgress,
         cleanup,
         resolve,
         reject,
@@ -303,6 +332,11 @@ export class GraftUtilityTransport implements GraftSdkTransport {
   }
 
   private receive(child: UtilityProcess, message: unknown): void {
+    if (isWorkerProgress(message)) {
+      const pending = this.pending.get(message.requestId)
+      if (pending?.child === child) pending.onProgress?.(message.progress)
+      return
+    }
     if (!isWorkerResponse(message)) return
     const pending = this.pending.get(message.requestId)
     if (!pending || pending.child !== child) return

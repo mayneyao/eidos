@@ -1776,7 +1776,8 @@ export function registerIpc(
       await session.enableHostedSync(
         provisioned.remoteUrl,
         provisioned.accessToken,
-        approval
+        approval,
+        (progress) => tracker.transfer(progress)
       )
       stage = "status"
       transition("validate", "Finishing the connection")
@@ -1854,7 +1855,8 @@ export function registerIpc(
             } else {
               transition("reopen", "Opening the local Space")
             }
-          }
+          },
+          (progress) => tracker.transfer(progress)
         )
         const telemetry = tracker.complete(
           result ? "Space is ready" : "Download cancelled"

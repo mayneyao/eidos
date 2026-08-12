@@ -37,9 +37,14 @@ describe("SpaceCloneCoordinator", () => {
       stateDirectory: state,
       remoteOrigin: origin,
       createGraftClient: () => ({
-        clone: async (target, receivedRemote, token) => {
+        clone: async (target, receivedRemote, token, cloneOptions) => {
           expect(receivedRemote).toBe(remoteUrl)
           expect(token).toBe("memory-only-token")
+          cloneOptions?.onProgress?.({
+            direction: "download",
+            transferredBytes: 32,
+            totalBytes: 64,
+          })
           const journalFiles = await fs.readdir(
             path.join(state, "clone-operations")
           )
@@ -71,10 +76,17 @@ describe("SpaceCloneCoordinator", () => {
   it("validates a hidden sibling and atomically publishes a normal Space", async () => {
     const target = path.join(destinations, "Project Space")
     const phases: string[] = []
+    const transferredBytes: number[] = []
     await expect(
-      coordinator().clone(target, remoteUrl, "memory-only-token", (phase) => {
-        phases.push(phase)
-      })
+      coordinator().clone(
+        target,
+        remoteUrl,
+        "memory-only-token",
+        (phase) => {
+          phases.push(phase)
+        },
+        (progress) => transferredBytes.push(progress.transferredBytes)
+      )
     ).resolves.toBe(target)
     expect(phases).toEqual([
       "preparing",
@@ -83,6 +95,7 @@ describe("SpaceCloneCoordinator", () => {
       "publishing",
       "published",
     ])
+    expect(transferredBytes).toEqual([32])
 
     await expect(
       fs.readFile(path.join(target, "project.eidos"), "utf8")

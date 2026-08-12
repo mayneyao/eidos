@@ -1,14 +1,39 @@
 import { createRequire } from "node:module"
 import path from "node:path"
 import * as publishedGraftSdk from "@eidos.space/graft"
-import type { RepositorySession as PublishedRepositorySession } from "@eidos.space/graft"
+import type {
+  CloneOptions,
+  RemoteOperationOptions,
+  RepositorySession as PublishedRepositorySession,
+} from "@eidos.space/graft"
 
 import type { GraftMergeRepositorySession } from "../../shared/graft-merge-contracts"
+import type { GraftTransferProgress } from "../../shared/graft-sdk-contracts"
 
 type PublishedGraftSdk = typeof publishedGraftSdk
 
-export type EidosGraftRepositorySession = PublishedRepositorySession &
-  GraftMergeRepositorySession
+interface TransferProgressOptions {
+  onProgress?: (progress: GraftTransferProgress) => void
+}
+
+export type EidosGraftRepositorySession = Omit<
+  PublishedRepositorySession,
+  "push" | "fetch" | "pull" | "cloneRepository"
+> &
+  GraftMergeRepositorySession & {
+    push(
+      options?: RemoteOperationOptions & TransferProgressOptions
+    ): Promise<unknown>
+    fetch(
+      options?: RemoteOperationOptions & TransferProgressOptions
+    ): Promise<unknown>
+    pull(
+      options?: RemoteOperationOptions & TransferProgressOptions
+    ): Promise<unknown>
+    cloneRepository(
+      options: CloneOptions & TransferProgressOptions
+    ): Promise<unknown>
+  }
 
 export interface EidosGraftSdkModule extends Omit<
   PublishedGraftSdk,

@@ -1,5 +1,11 @@
 import type { SpaceVersionTextContentRequest } from "./contracts"
 
+export interface GraftTransferProgress {
+  direction: "upload" | "download"
+  transferredBytes: number
+  totalBytes?: number
+}
+
 export type GraftSdkCommand =
   | "sdkVersion"
   | "operationMaterializesWorktree"
@@ -82,6 +88,11 @@ export type GraftSdkWorkerRequest =
     }
 
 export type GraftSdkWorkerResponse =
+  | {
+      requestId: number
+      type: "progress"
+      progress: GraftTransferProgress
+    }
   | {
       requestId: number
       ok: true

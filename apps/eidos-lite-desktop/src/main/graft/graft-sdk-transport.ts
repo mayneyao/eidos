@@ -1,4 +1,7 @@
-import type { GraftSdkCommand } from "../../shared/graft-sdk-contracts"
+import type {
+  GraftSdkCommand,
+  GraftTransferProgress,
+} from "../../shared/graft-sdk-contracts"
 import type {
   SpaceVersionTextContentDiff,
   SpaceVersionTextContentRequest,
@@ -12,7 +15,10 @@ export interface GraftSdkTransport {
   command(
     command: GraftSdkCommand,
     args?: unknown[],
-    options?: { signal?: AbortSignal }
+    options?: {
+      signal?: AbortSignal
+      onProgress?: (progress: GraftTransferProgress) => void
+    }
   ): Promise<unknown>
   revisionTextDiff(
     request: SpaceVersionTextContentRequest
@@ -20,7 +26,8 @@ export interface GraftSdkTransport {
   clone(
     targetDirectory: string,
     remoteUrl: string,
-    token?: string
+    token?: string,
+    options?: { onProgress?: (progress: GraftTransferProgress) => void }
   ): Promise<unknown>
   terminateForTesting?(): Promise<void>
 }

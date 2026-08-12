@@ -5,11 +5,15 @@ import type {
   EidosSyncProgress,
   EidosSyncTelemetry,
 } from "../../shared/contracts"
+import type { GraftTransferProgress } from "../../shared/graft-sdk-contracts"
 
 interface ActivePhase {
   phase: EidosSyncPhase
   detail: string
   startedAtMs: number
+  transfer?: EidosSyncProgress["transfer"]
+  transferStartedAtMs?: number
+  transferStartedBytes?: number
 }
 
 export class SyncRunTracker {
@@ -34,6 +38,44 @@ export class SyncRunTracker {
     }
     this.completeActive(now)
     this.active = { phase, detail, startedAtMs: now }
+    this.emitProgress("active", now)
+  }
+
+  transfer(progress: GraftTransferProgress): void {
+    if (!this.active) return
+    const now = this.now()
+    const transferredBytes = Math.max(0, progress.transferredBytes)
+    const totalBytes =
+      progress.totalBytes === undefined
+        ? null
+        : Math.max(transferredBytes, progress.totalBytes)
+    const directionChanged =
+      this.active.transfer?.direction !== undefined &&
+      this.active.transfer.direction !== progress.direction
+    const transferStartedAtMs = directionChanged
+      ? now
+      : (this.active.transferStartedAtMs ?? now)
+    const transferStartedBytes = directionChanged
+      ? transferredBytes
+      : (this.active.transferStartedBytes ?? transferredBytes)
+    const sampledBytes = Math.max(0, transferredBytes - transferStartedBytes)
+    const sampledMs = Math.max(0, now - transferStartedAtMs)
+    const bytesPerSecond =
+      sampledMs > 0 ? (sampledBytes * 1_000) / sampledMs : 0
+    const remainingBytes =
+      totalBytes === null ? null : Math.max(0, totalBytes - transferredBytes)
+    this.active.transferStartedAtMs = transferStartedAtMs
+    this.active.transferStartedBytes = transferStartedBytes
+    this.active.transfer = {
+      direction: progress.direction,
+      transferredBytes,
+      totalBytes,
+      bytesPerSecond,
+      estimatedRemainingMs:
+        remainingBytes === null || bytesPerSecond <= 0
+          ? null
+          : Math.round((remainingBytes / bytesPerSecond) * 1_000),
+    }
     this.emitProgress("active", now)
   }
 
@@ -104,6 +146,7 @@ export class SyncRunTracker {
       startedAtMs: this.startedAtMs,
       phaseStartedAtMs: this.active.startedAtMs,
       elapsedMs: Math.max(0, now - this.startedAtMs),
+      ...(this.active.transfer ? { transfer: this.active.transfer } : {}),
     })
   }
 }

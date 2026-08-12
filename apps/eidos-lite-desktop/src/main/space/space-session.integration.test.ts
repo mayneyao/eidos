@@ -1870,13 +1870,13 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: remoteOrigin,
-      expectedVersion: () => "0.3.10",
+      expectedVersion: () => "0.3.11",
       close: vi.fn(async () => undefined),
       inspectSpace: vi.fn(async () => ({
         available: true,
         backend: "sdk" as const,
-        version: "0.3.10",
-        expectedVersion: "0.3.10",
+        version: "0.3.11",
+        expectedVersion: "0.3.11",
         initialized: true,
         clean: true,
         currentHead: localHead,

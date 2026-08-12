@@ -505,34 +505,43 @@ describe("GraftClient", () => {
     }
   })
 
-  it("forwards AbortSignal through hosted remote operations", async () => {
+  it("forwards cancellation and transfer progress through hosted remote operations", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-graft-remote-signal-")
     )
     const requests: Array<{
       command: string
       signal: AbortSignal | undefined
+      onProgress: unknown
     }> = []
     const transport: GraftSdkTransport = {
       ...createUnusedTransport(),
       target: root,
       command: vi.fn(async (command, _args, options) => {
-        requests.push({ command, signal: options?.signal })
+        requests.push({
+          command,
+          signal: options?.signal,
+          onProgress: options?.onProgress,
+        })
         return {}
       }),
     }
     const client = new GraftClient({ sdkTransport: transport })
     const controller = new AbortController()
+    const onProgress = vi.fn()
 
     try {
-      await client.fetch(root, { signal: controller.signal })
-      await client.pull(root, { signal: controller.signal })
-      await client.push(root, undefined, { signal: controller.signal })
+      await client.fetch(root, { signal: controller.signal, onProgress })
+      await client.pull(root, { signal: controller.signal, onProgress })
+      await client.push(root, undefined, {
+        signal: controller.signal,
+        onProgress,
+      })
 
       expect(requests).toEqual([
-        { command: "fetch", signal: controller.signal },
-        { command: "pull", signal: controller.signal },
-        { command: "push", signal: controller.signal },
+        { command: "fetch", signal: controller.signal, onProgress },
+        { command: "pull", signal: controller.signal, onProgress },
+        { command: "push", signal: controller.signal, onProgress },
       ])
     } finally {
       await fs.rm(root, { recursive: true, force: true })
@@ -644,7 +653,7 @@ describe("GraftClient", () => {
       command: vi.fn(async (command) => {
         commands.push(command)
         if (command === "sdkVersion") {
-          return "0.3.10"
+          return "0.3.11"
         }
         if (command === "statusIncremental") {
           return {

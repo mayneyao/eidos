@@ -40,6 +40,7 @@ import type {
   GraftSdkCommand,
   GraftSdkWorkerRequest,
   GraftSdkWorkerResponse,
+  GraftTransferProgress,
 } from "../shared/graft-sdk-contracts"
 import {
   loadEidosGraftSdk,
@@ -125,7 +126,8 @@ function unsupportedCommand(command: never): never {
 async function runCommand(
   command: GraftSdkCommand,
   args: unknown[],
-  signal: AbortSignal
+  signal: AbortSignal,
+  onProgress: (progress: GraftTransferProgress) => void
 ): Promise<unknown> {
   if (command === "sdkVersion") return sdkVersion()
   if (command === "operationMaterializesWorktree") {
@@ -273,6 +275,7 @@ async function runCommand(
           "push options"
         ) as RemoteOperationOptions),
         signal,
+        onProgress,
       })
     case "fetch":
       return repository.fetch({
@@ -281,6 +284,7 @@ async function runCommand(
           "fetch options"
         ) as RemoteOperationOptions),
         signal,
+        onProgress,
       })
     case "pull":
       return repository.pull({
@@ -289,6 +293,7 @@ async function runCommand(
           "pull options"
         ) as RemoteOperationOptions),
         signal,
+        onProgress,
       })
     case "getMergePolicy":
       requireMergeMethod(repository, command)
@@ -453,6 +458,7 @@ async function runCommand(
       return repository.cloneRepository({
         ...(objectValue(args[0], "clone options") as unknown as CloneOptions),
         signal,
+        onProgress,
       })
     case "setHttpBearerToken":
       repository.setHttpBearerToken(
@@ -511,7 +517,14 @@ async function handle(request: GraftSdkWorkerRequest): Promise<unknown> {
         request.command,
         request.args,
         operationControllers.get(request.requestId)?.signal ??
-          new AbortController().signal
+          new AbortController().signal,
+        (progress) => {
+          parentPort.postMessage({
+            requestId: request.requestId,
+            type: "progress",
+            progress,
+          })
+        }
       )
     case "cancel":
       operationControllers.get(request.requestId)?.abort()

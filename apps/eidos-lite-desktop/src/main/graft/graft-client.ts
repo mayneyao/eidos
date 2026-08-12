@@ -32,13 +32,14 @@ import type {
   GraftMergePolicyResult,
   GraftMergePolicyValidationResult,
 } from "../../shared/graft-merge-contracts"
+import type { GraftTransferProgress } from "../../shared/graft-sdk-contracts"
 import { resolveEidosLiteServiceEnvironment } from "../../shared/service-environment"
 import type { GraftSdkTransport } from "./graft-sdk-transport"
 
 const SDK_DIFF_PAGE_SIZE = 100
 const SDK_PATH_BATCH_SIZE = 1_000
-export const GRAFT_SDK_VERSION = "0.3.10"
-export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.10"
+export const GRAFT_SDK_VERSION = "0.3.11"
+export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.11"
 
 export interface GraftClientOptions {
   sdkTransport: GraftSdkTransport
@@ -81,6 +82,11 @@ export interface GraftCommitResult {
 interface GraftStatusOptions {
   signal?: AbortSignal
   verifyPaths?: readonly string[]
+}
+
+interface GraftRemoteOperationOptions {
+  signal?: AbortSignal
+  onProgress?: (progress: GraftTransferProgress) => void
 }
 
 export interface GraftIgnoreInspection {
@@ -1677,7 +1683,7 @@ export class GraftClient {
   push(
     root: string,
     token?: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftRemoteOperationOptions = {}
   ): Promise<unknown> {
     return this.setHttpCredential(root, "origin", token, options).then(() =>
       this.runSdk(root, "push", [{ remote: "origin", branch: "main" }], options)
@@ -1686,7 +1692,7 @@ export class GraftClient {
 
   fetch(
     root: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftRemoteOperationOptions = {}
   ): Promise<unknown> {
     return this.runSdk(
       root,
@@ -1696,7 +1702,10 @@ export class GraftClient {
     )
   }
 
-  pull(root: string, options: { signal?: AbortSignal } = {}): Promise<unknown> {
+  pull(
+    root: string,
+    options: GraftRemoteOperationOptions = {}
+  ): Promise<unknown> {
     return this.runSdk(
       root,
       "pull",
@@ -2112,12 +2121,14 @@ export class GraftClient {
   clone(
     targetDirectory: string,
     remoteUrl: string,
-    token?: string
+    token?: string,
+    options: { onProgress?: (progress: GraftTransferProgress) => void } = {}
   ): Promise<unknown> {
     return this.requireSdkTransport().clone(
       path.resolve(targetDirectory),
       remoteUrl,
-      token
+      token,
+      options
     )
   }
 
@@ -2200,7 +2211,7 @@ export class GraftClient {
     root: string,
     command: Parameters<GraftSdkTransport["command"]>[0],
     args: unknown[] = [],
-    options: { signal?: AbortSignal } = {}
+    options: GraftRemoteOperationOptions = {}
   ): Promise<T> {
     const canonicalRoot = await this.canonicalRepositoryRoot(root)
     if (this.openedRoot && this.openedRoot !== canonicalRoot) {
@@ -2474,7 +2485,7 @@ export class GraftClient {
     root: string,
     name: string,
     token?: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftRemoteOperationOptions = {}
   ): Promise<void> {
     if (!token) return
     await this.runSdk(root, "setHttpBearerToken", [name, token], options)

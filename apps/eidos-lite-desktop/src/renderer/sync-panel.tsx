@@ -1856,20 +1856,26 @@ function syncPrimaryAction({
   return "Check now"
 }
 
-function operationStepPercent(progress: EidosSyncProgress): number {
-  const steps = OPERATION_STEPS[progress.operation]
-  const activeIndex = Math.max(
-    0,
-    steps.findIndex((step) => step.phases.includes(progress.phase))
-  )
-  return Math.round(((activeIndex + 1) / steps.length) * 100)
+function operationPillLabel(progress: EidosSyncProgress): string {
+  const percent = transferPercent(progress)
+  const suffix = percent === null ? "" : ` ${percent}%`
+  if (progress.operation === "sync") return `Syncing${suffix}`
+  if (progress.operation === "recovery") return `Copying${suffix}`
+  return `Connecting${suffix}`
 }
 
-function operationPillLabel(progress: EidosSyncProgress): string {
-  const percent = operationStepPercent(progress)
-  if (progress.operation === "sync") return `Syncing ${percent}%`
-  if (progress.operation === "recovery") return `Copying ${percent}%`
-  return `Connecting ${percent}%`
+function transferPercent(progress: EidosSyncProgress): number | null {
+  const transfer = progress.transfer
+  if (!transfer || transfer.totalBytes === null || transfer.totalBytes <= 0) {
+    return null
+  }
+  return Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round((transfer.transferredBytes / transfer.totalBytes) * 100)
+    )
+  )
 }
 
 function SyncIdentityChip({
@@ -2122,7 +2128,8 @@ function OperationProgress({
     0,
     steps.findIndex((step) => step.phases.includes(progress.phase))
   )
-  const percent = operationStepPercent(progress)
+  const percent = transferPercent(progress)
+  const transfer = progress.transfer
   return (
     <section
       className="sync-operation-progress"
@@ -2137,10 +2144,38 @@ function OperationProgress({
       </header>
       <progress
         className="sync-operation-bar"
-        aria-label={`${percent}% complete`}
+        aria-label={
+          percent === null ? "Transfer in progress" : `${percent}% complete`
+        }
         max={100}
-        value={percent}
+        value={percent ?? undefined}
       />
+      {transfer ? (
+        <div
+          className="sync-transfer-metrics"
+          data-sync-transfer={transfer.direction}
+        >
+          <span data-sync-transfer-bytes>
+            {transfer.direction === "upload" ? "Uploaded" : "Downloaded"}{" "}
+            <strong>{formatBytes(transfer.transferredBytes)}</strong>
+            {transfer.totalBytes === null
+              ? ""
+              : ` of ${formatBytes(transfer.totalBytes)}`}
+          </span>
+          <span data-sync-transfer-speed>
+            {transfer.bytesPerSecond > 0
+              ? `${formatBytes(transfer.bytesPerSecond)}/s`
+              : "Measuring speed…"}
+          </span>
+          <span data-sync-transfer-remaining>
+            {transfer.estimatedRemainingMs === null
+              ? "Estimating time left…"
+              : transfer.estimatedRemainingMs <= 0
+                ? "Finishing…"
+                : `${formatDuration(transfer.estimatedRemainingMs)} left`}
+          </span>
+        </div>
+      ) : null}
       <ol>
         {steps.map((step, index) => {
           const state =

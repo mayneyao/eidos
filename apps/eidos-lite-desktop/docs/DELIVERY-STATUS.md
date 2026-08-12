@@ -1,10 +1,10 @@
 # Eidos Lite Desktop delivery status
 
-Last audited: 2026-08-12
+Last audited: 2026-08-13
 
 ## Verdict
 
-The current branch is the source for **Eidos Lite 0.1.4**. Local Spaces and
+The current branch is the source for **Eidos Lite 0.1.6**. Local Spaces and
 versioning are public desktop capabilities; Eidos Sync remains an invite-only
 private preview backed by the official Hosted Remote.
 
@@ -22,7 +22,7 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 | Eidos File editing      | Ready                     | Canonical `eidos-file-ui` Grid/View/Query/Fields/Sheet UI, real SQLite transactions, one active editor and a three-runtime LRU                                    |
 | Local versioning        | Ready                     | Whole-Space status, Changes, row-aware diff, History, checkpoint, forward-only restore and stable-change automatic checkpoints through the resident Graft SDK     |
 | Sync control plane      | Staging-ready             | Independent PKCE/device/grant flow, preflight upload scope, official Hosted Remote provisioning, background queue, typed failures and Local-safe recovery         |
-| Whole-Space Sync        | Private-preview ready     | Real staging push/clone/pull and divergence acceptance is recorded in [Operations](./OPERATIONS.md); reviewed merge uses the published Graft SDK 0.3.10           |
+| Whole-Space Sync        | Private-preview ready     | Real staging push/clone/pull and divergence acceptance is recorded in [Operations](./OPERATIONS.md); reviewed merge uses the published Graft SDK 0.3.11           |
 | Recovery                | Release verified          | Durable merge reopen/abort, operation journals, close/validate/reopen materialization, two-copy recovery, external invalidation, and utility crash reopen         |
 | Diagnostics             | Internal-ready            | Main-owned allowlisted Copy diagnostics excludes credentials, URLs, paths, Space/repository identity and user content                                             |
 | Distribution operations | Runbook-ready             | Clean install, upgrade, binary rollback, association, support and uninstall procedure in [Release runbook](./RELEASE-RUNBOOK.md)                                  |
@@ -39,14 +39,14 @@ The final local audit passed:
   reopen -> stale CAS rejection -> remaining table choices -> path unresolve ->
   full validation -> two-parent continue -> push/fetch equality. The same test
   covers partial resolution, reopen, abort, cancellation, idempotent status,
-  and a transient filesystem Remote failure. Graft SDK 0.3.10 is pinned in the
+  and a transient filesystem Remote failure. Graft SDK 0.3.11 is pinned in the
   lockfile, and the real merge flow passed against the published registry
   package.
 
-- Lite source suite: 104 files and 551 tests passed; 186 tests were explicitly
+- Lite source suite: 106 files and 558 tests passed; 186 tests were explicitly
   skipped. The skipped cases are the 158-case opt-in schema matrix,
   opt-in performance, external staging/discovery, large-repository, and local
-  release-SDK gates, not hidden successes. With the exact Graft 0.3.10 release
+  release-SDK gates, not hidden successes. With the exact Graft 0.3.11 release
   build, the complete schema matrix separately passed all 158/158 cases in
   354.44 seconds. It covers compatible directory-wide schema
   unions, validated rebuilds, every conflict family in both whole-file
@@ -57,7 +57,7 @@ The final local audit passed:
   passes and is not mislabeled as an automatic merged result.
 - Published Graft SDK integration: 14 passed, covering whole-Space push/clone,
   diff/restore, retained session lifecycle, memory-only HTTP credentials and
-  divergence analysis. The published Graft 0.3.10 merge E2E also passed both
+  divergence analysis. The published Graft 0.3.11 merge E2E also passed both
   availability and full dual-client cases.
 - Explicit performance load: 16 passed. Explorer with 1,000 entries was 14.4
   ms; a stable change in a 10,000-entry watcher was 38.7 ms; 10 MiB and 100 MiB
@@ -77,7 +77,7 @@ The final local audit passed:
   `6179de506523d6cb88a55505da6a54c81d25fa0e9f4425ba400e13deda6ca472`.
   Its Developer ID signature, notarization ticket, Gatekeeper assessment, and
   production packaged smoke all passed; the downloaded artifact reached a
-  usable window in 1,910 ms with zero console errors and Graft SDK 0.3.10.
+  usable window in 1,910 ms with zero console errors and Graft SDK 0.3.11.
 - The latest unsigned staging package passed the complete packaged smoke with
   zero console errors. The normal main-process entry no longer imports the
   packaged-smoke fixture builder or native SQLite chunk; it dynamically loads

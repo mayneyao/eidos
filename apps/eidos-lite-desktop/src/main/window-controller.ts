@@ -23,6 +23,7 @@ import {
   type SpaceSnapshot,
 } from "../shared/contracts"
 import type { EidosLiteServiceEnvironment } from "../shared/service-environment"
+import type { GraftTransferProgress } from "../shared/graft-sdk-contracts"
 import {
   DEFAULT_EIDOS_LITE_KEYBOARD_SHORTCUTS,
   eidosLiteShortcutCommandForKeyboardEvent,
@@ -248,7 +249,8 @@ export class WindowController {
     remoteUrl: string,
     accessToken: string,
     displayName?: string,
-    reportProgress: CloneProgressReporter = () => undefined
+    reportProgress: CloneProgressReporter = () => undefined,
+    reportTransfer: (progress: GraftTransferProgress) => void = () => undefined
   ): Promise<SpaceSnapshot | null> {
     if (this.sessionByWebContents.has(webContents.id)) {
       throw new Error("This window already owns a Space")
@@ -278,7 +280,8 @@ export class WindowController {
       result.filePath,
       remoteUrl,
       accessToken,
-      reportProgress
+      reportProgress,
+      reportTransfer
     )
     return this.bindSpace(webContents, target)
   }

@@ -66,7 +66,8 @@ export class SyncExecutor {
       const outcome = await session.syncHostedRemote(
         access.accessToken,
         access.access,
-        transition
+        transition,
+        (progress) => tracker.transfer(progress)
       )
       const telemetry = tracker.complete(outcome.message)
       logger?.info("sync.run.completed", {

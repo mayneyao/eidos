@@ -700,6 +700,14 @@ export type EidosSyncPhase =
 
 export type EidosSyncOperation = "connect" | "sync" | "clone" | "recovery"
 
+export interface EidosSyncTransferProgress {
+  direction: "upload" | "download"
+  transferredBytes: number
+  totalBytes: number | null
+  bytesPerSecond: number
+  estimatedRemainingMs: number | null
+}
+
 export interface EidosSyncProgress {
   runId: string
   operation: EidosSyncOperation
@@ -709,6 +717,7 @@ export interface EidosSyncProgress {
   startedAtMs: number
   phaseStartedAtMs: number
   elapsedMs: number
+  transfer?: EidosSyncTransferProgress
 }
 
 export interface EidosSyncPhaseTiming {

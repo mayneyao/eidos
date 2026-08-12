@@ -36,7 +36,10 @@ import type {
   GraftValidateMergePolicyOptions,
   GraftWriteAndStageTextResultOptions,
 } from "../../shared/graft-merge-contracts"
-import type { GraftSdkCommand } from "../../shared/graft-sdk-contracts"
+import type {
+  GraftSdkCommand,
+  GraftTransferProgress,
+} from "../../shared/graft-sdk-contracts"
 import type {
   SpaceVersionTextContentDiff,
   SpaceVersionTextContentRequest,
@@ -107,7 +110,10 @@ export class GraftInProcessTransport implements GraftSdkTransport {
   async command(
     command: GraftSdkCommand,
     args: unknown[] = [],
-    options: { signal?: AbortSignal } = {}
+    options: {
+      signal?: AbortSignal
+      onProgress?: (progress: GraftTransferProgress) => void
+    } = {}
   ): Promise<unknown> {
     if (options.signal?.aborted) throw abortError()
     if (command === "sdkVersion") return sdkVersion()
@@ -213,16 +219,19 @@ export class GraftInProcessTransport implements GraftSdkTransport {
         return session.push({
           ...(this.object(args[0] ?? {}) as RemoteOperationOptions),
           signal,
+          onProgress: options.onProgress,
         })
       case "fetch":
         return session.fetch({
           ...(this.object(args[0] ?? {}) as RemoteOperationOptions),
           signal,
+          onProgress: options.onProgress,
         })
       case "pull":
         return session.pull({
           ...(this.object(args[0] ?? {}) as RemoteOperationOptions),
           signal,
+          onProgress: options.onProgress,
         })
       case "getMergePolicy":
         this.requireMergeMethod(session, command)
@@ -372,18 +381,23 @@ export class GraftInProcessTransport implements GraftSdkTransport {
   async clone(
     targetDirectory: string,
     remoteUrl: string,
-    token?: string
+    token?: string,
+    options: { onProgress?: (progress: GraftTransferProgress) => void } = {}
   ): Promise<unknown> {
     const transport = new GraftInProcessTransport()
     await transport.open(targetDirectory)
     try {
-      return await transport.command("cloneRepository", [
-        {
-          remoteUrl,
-          branch: "main",
-          ...(token ? { bearerToken: token } : {}),
-        },
-      ])
+      return await transport.command(
+        "cloneRepository",
+        [
+          {
+            remoteUrl,
+            branch: "main",
+            ...(token ? { bearerToken: token } : {}),
+          },
+        ],
+        options
+      )
     } finally {
       await transport.close()
     }

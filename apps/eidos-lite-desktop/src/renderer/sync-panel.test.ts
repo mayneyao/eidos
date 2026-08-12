@@ -1311,6 +1311,13 @@ describe("SyncPanel failure states", () => {
         startedAtMs: Date.now() - 200,
         phaseStartedAtMs: Date.now() - 50,
         elapsedMs: 200,
+        transfer: {
+          direction: "upload",
+          transferredBytes: 64 * 1024 * 1024,
+          totalBytes: 128 * 1024 * 1024,
+          bytesPerSecond: 8 * 1024 * 1024,
+          estimatedRemainingMs: 8_000,
+        },
       })
     })
 
@@ -1320,6 +1327,12 @@ describe("SyncPanel failure states", () => {
       "Uploading this Space for the first time"
     )
     expect(progress?.textContent).not.toContain("repository segments")
+    expect(progress?.textContent).toContain("Uploaded 64 MiB of 128 MiB")
+    expect(progress?.textContent).toContain("8 MiB/s")
+    expect(progress?.textContent).toContain("8.0 s left")
+    expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
+      "Connecting 50%"
+    )
 
     await act(async () => {
       progressListener?.({
@@ -1416,6 +1429,13 @@ describe("SyncPanel failure states", () => {
         startedAtMs: Date.now() - 100,
         phaseStartedAtMs: Date.now() - 80,
         elapsedMs: 100,
+        transfer: {
+          direction: "download",
+          transferredBytes: 25 * 1024 * 1024,
+          totalBytes: 100 * 1024 * 1024,
+          bytesPerSecond: 5 * 1024 * 1024,
+          estimatedRemainingMs: 15_000,
+        },
       })
     })
 
@@ -1427,6 +1447,9 @@ describe("SyncPanel failure states", () => {
     )
     expect(progress?.textContent).toContain("Downloading files from the cloud")
     expect(progress?.textContent).not.toContain("Remote URL")
+    expect(progress?.textContent).toContain("Downloaded 25 MiB of 100 MiB")
+    expect(progress?.textContent).toContain("5 MiB/s")
+    expect(progress?.textContent).toContain("15 s left")
     expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
       "Opening Research"
     )

@@ -40,6 +40,7 @@ import type {
   TextFileSaveRequest,
   TextFileSaveResult,
 } from "../../shared/contracts"
+import type { GraftTransferProgress } from "../../shared/graft-sdk-contracts"
 import {
   EIDOS_LITE_VERSION_TEXT_DIFF_BYTES_MAX,
   RUNTIME_MUTATION_METHODS,
@@ -116,6 +117,7 @@ const versionReadKeys = [
 ] as const
 type VersionReadKey = (typeof versionReadKeys)[number]
 type SyncProgressReporter = (phase: EidosSyncPhase, detail: string) => void
+type SyncTransferProgressReporter = (progress: GraftTransferProgress) => void
 const BACKGROUND_GRAFT_STATUS_DELAY_MS =
   process.env.VITEST || process.env.EIDOS_LITE_SMOKE_RESULT ? 0 : 3_000
 const BACKGROUND_GRAFT_IGNORE_DELAY_MS =
@@ -1017,7 +1019,8 @@ export class SpaceSession {
   async enableHostedSync(
     remoteUrl: string,
     accessToken: string,
-    approval: EidosSyncPreflightApproval
+    approval: EidosSyncPreflightApproval,
+    reportTransfer: SyncTransferProgressReporter = () => undefined
   ): Promise<SpaceSnapshot> {
     const existing = await this.syncState.read()
     if (existing) {
@@ -1056,7 +1059,9 @@ export class SpaceSession {
           remoteUrl,
           accessToken
         )
-        await this.graft.push(this.canonical.root, accessToken)
+        await this.graft.push(this.canonical.root, accessToken, {
+          onProgress: reportTransfer,
+        })
         this.syncHistoryState = await this.syncState.markFirstPush(remoteUrl)
       }
     )
@@ -1066,7 +1071,8 @@ export class SpaceSession {
   async syncHostedRemote(
     accessToken: string,
     access: "read_only" | "read_write",
-    reportProgress: SyncProgressReporter = () => undefined
+    reportProgress: SyncProgressReporter = () => undefined,
+    reportTransfer: SyncTransferProgressReporter = () => undefined
   ): Promise<EidosSyncOutcome> {
     const remoteUrl = await this.officialSyncRemoteUrl()
     if (!remoteUrl) throw new Error("This Space is not connected to Eidos Sync")
@@ -1118,7 +1124,10 @@ export class SpaceSession {
         if (before.dirty) {
           throw new Error("Create a checkpoint for local changes before Sync")
         }
-        await this.graft.fetch(this.canonical.root, { signal })
+        await this.graft.fetch(this.canonical.root, {
+          signal,
+          onProgress: reportTransfer,
+        })
         await this.recordSyncHistoryCheck()
         return this.graft.status(
           this.canonical.root,
@@ -1192,7 +1201,10 @@ export class SpaceSession {
           },
           materialize: async (signal) => {
             if (!shouldPull) return false
-            await this.graft.pull(this.canonical.root, { signal })
+            await this.graft.pull(this.canonical.root, {
+              signal,
+              onProgress: reportTransfer,
+            })
             return true
           },
         })
@@ -1238,7 +1250,10 @@ export class SpaceSession {
               "Hosted history changed before push. Sync again to re-fetch it."
             )
           }
-          await this.graft.push(this.canonical.root, accessToken, { signal })
+          await this.graft.push(this.canonical.root, accessToken, {
+            signal,
+            onProgress: reportTransfer,
+          })
         },
         { preemptible: true }
       )

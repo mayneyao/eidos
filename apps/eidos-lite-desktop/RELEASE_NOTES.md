@@ -1,21 +1,16 @@
 ## What's new
 
-### More reliable updates on Windows
+### See Sync progress while files move
 
-Restarting after an update now closes open Space runtimes cleanly before
-installing, instead of returning to the Welcome window without restarting.
-Windows also uses File Explorer terminology, and Sync and clone panels keep
-clear of the native window controls.
+First upload, download, clone, and later Sync runs now show transferred bytes,
+total size when the service provides it, current speed, and an estimated time
+remaining. When a total is not available, Lite shows an honest indeterminate
+state instead of a made-up percentage.
 
-### Settings in the Space sidebar
+### Reliable first Sync across platforms
 
-Settings now has one consistent home at the bottom of the Space sidebar. Update
-notices appear beside it, keeping account and app controls available without
-competing with the document toolbar.
-
-### Table menus that fit their actions
-
-Table menus now expand to fit actions such as “Export entire table as CSV,” so
-labels remain readable instead of being clipped.
+Connecting a Space no longer stops because different SQLite versions encode the
+same database differently. Lite compares the logical database state before it
+decides that a freshly cloned Space has unexpected Local changes.
 
 No migration is required.

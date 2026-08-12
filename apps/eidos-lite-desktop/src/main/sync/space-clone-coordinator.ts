@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import fs from "node:fs/promises"
 import path from "node:path"
 
+import type { GraftTransferProgress } from "../../shared/graft-sdk-contracts"
 import { isOfficialRemoteUrl } from "../graft/graft-client"
 import { canonicalizeSpaceRoot } from "../space/space-paths"
 import { SpaceSyncStateStore } from "../space/sync-state"
@@ -10,7 +11,8 @@ interface CloneGraftClient {
   clone(
     targetDirectory: string,
     remoteUrl: string,
-    token?: string
+    token?: string,
+    options?: { onProgress?: (progress: GraftTransferProgress) => void }
   ): Promise<unknown>
   close(): Promise<void>
 }
@@ -67,10 +69,17 @@ export class SpaceCloneCoordinator {
     targetPath: string,
     remoteUrl: string,
     accessToken: string,
-    reportProgress: CloneProgressReporter = () => undefined
+    reportProgress: CloneProgressReporter = () => undefined,
+    reportTransfer: (progress: GraftTransferProgress) => void = () => undefined
   ): Promise<string> {
     const scheduled = this.operationTail.then(() =>
-      this.cloneExclusive(targetPath, remoteUrl, accessToken, reportProgress)
+      this.cloneExclusive(
+        targetPath,
+        remoteUrl,
+        accessToken,
+        reportProgress,
+        reportTransfer
+      )
     )
     this.operationTail = scheduled.then(
       () => undefined,
@@ -143,7 +152,8 @@ export class SpaceCloneCoordinator {
     requestedTarget: string,
     remoteUrl: string,
     accessToken: string,
-    reportProgress: CloneProgressReporter
+    reportProgress: CloneProgressReporter,
+    reportTransfer: (progress: GraftTransferProgress) => void
   ): Promise<string> {
     if (!accessToken) throw new Error("An Eidos Sync access token is required")
     if (!isOfficialRemoteUrl(remoteUrl, this.options.remoteOrigin)) {
@@ -177,7 +187,9 @@ export class SpaceCloneCoordinator {
       await fs.mkdir(stagingPath, { mode: 0o700 })
       entry = await this.advance(journalPath, entry, "cloning")
       reportProgress("cloning")
-      await client.clone(stagingPath, remoteUrl, accessToken)
+      await client.clone(stagingPath, remoteUrl, accessToken, {
+        onProgress: reportTransfer,
+      })
       entry = await this.advance(journalPath, entry, "validating")
       reportProgress("validating")
       await this.options.validateWorktree(stagingPath)

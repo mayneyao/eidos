@@ -116,4 +116,57 @@ describe("SyncRunTracker", () => {
 
     expect(operations).toEqual(["connect", "clone"])
   })
+
+  it("projects transfer bytes, speed, and remaining time into active progress", () => {
+    let now = 1_000
+    const events: Array<{ transfer?: unknown }> = []
+    const tracker = new SyncRunTracker(
+      "transfer-1",
+      (progress) => events.push(progress),
+      () => now,
+      "connect"
+    )
+
+    tracker.transition("push", "Uploading")
+    tracker.transfer({
+      direction: "upload",
+      transferredBytes: 0,
+      totalBytes: 1_000,
+    })
+    now += 500
+    tracker.transfer({
+      direction: "upload",
+      transferredBytes: 250,
+      totalBytes: 1_000,
+    })
+
+    expect(events.at(-1)?.transfer).toEqual({
+      direction: "upload",
+      transferredBytes: 250,
+      totalBytes: 1_000,
+      bytesPerSecond: 500,
+      estimatedRemainingMs: 1_500,
+    })
+
+    now += 250
+    tracker.transfer({
+      direction: "download",
+      transferredBytes: 50,
+      totalBytes: 200,
+    })
+    now += 250
+    tracker.transfer({
+      direction: "download",
+      transferredBytes: 100,
+      totalBytes: 200,
+    })
+
+    expect(events.at(-1)?.transfer).toEqual({
+      direction: "download",
+      transferredBytes: 100,
+      totalBytes: 200,
+      bytesPerSecond: 200,
+      estimatedRemainingMs: 500,
+    })
+  })
 })

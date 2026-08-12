@@ -232,7 +232,7 @@ sequence.
 
 ## Stable Graft supply chain
 
-The runtime pins published `@eidos.space/graft@0.3.10`; npm selects one of its
+The runtime pins published `@eidos.space/graft@0.3.11`; npm selects one of its
 five exact-version optional native packages for the current platform. Packaging
 keeps the JavaScript wrapper in ASAR and unpacks only the selected native
 package; `graft-worker.js` loads it directly in an Electron
@@ -756,7 +756,7 @@ EIDOS_LITE_RUN_GRAFT_MERGE=1 \
   src/main/graft/graft-merge-schema.local.integration.test.ts
 ```
 
-Graft 0.3.10 may report a validation-required SQLite candidate as
+Graft 0.3.11 may report a validation-required SQLite candidate as
 `automatic_merge_available`. Do not call `stageMergeSqliteResult` immediately:
 the current worktree can still be Local. Do not use a rejected
 `continueMerge` call as a materialization API either. Until Graft provides a
