@@ -2077,7 +2077,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     }
   })
 
-  it("validates every Eidos File before continuing a merge and keeps one gate signal", async () => {
+  it("validates only changed merge files during choices and the full candidate at continue", async () => {
     const root = await fs.mkdtemp(
       path.join(os.tmpdir(), "eidos-lite-space-merge-gate-")
     )
@@ -2101,6 +2101,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
           return operation !== "stageMergeSqliteResult"
         }
       ),
+      hasExactMergeWorktreePaths: vi.fn(() => true),
       getMergeStatus: vi.fn(
         async (_root: string, options: { signal?: AbortSignal }) => {
           calls.push("status")
@@ -2115,6 +2116,31 @@ describe("SpaceSession Graft-backed snapshots", () => {
             stateToken,
             policyToken: "policy-1",
             policyVersion: 1,
+          }
+        }
+      ),
+      listMergePaths: vi.fn(
+        async (
+          _root: string,
+          _token: string,
+          options: { signal?: AbortSignal }
+        ) => {
+          calls.push("list-paths")
+          if (options.signal) signals.push(options.signal)
+          return {
+            stateToken,
+            items: [
+              {
+                path: "records.eidos",
+                state: "resolved" as const,
+                kind: "sqlite_database" as const,
+                storage: "sqlite_snapshot" as const,
+                hasBase: true,
+                hasLocal: true,
+                hasHosted: true,
+              },
+            ],
+            nextCursor: null,
           }
         }
       ),
@@ -2152,10 +2178,14 @@ describe("SpaceSession Graft-backed snapshots", () => {
           _table: string,
           _result: string,
           _token: string,
-          options: { signal?: AbortSignal }
+          options: {
+            signal?: AbortSignal
+            onWorktreePaths?: (paths: string[] | null) => void
+          }
         ) => {
           calls.push("resolve-table")
           if (options.signal) signals.push(options.signal)
+          options.onWorktreePaths?.(["records.eidos"])
           return {
             state: "merging" as const,
             localHead,
@@ -2176,10 +2206,14 @@ describe("SpaceSession Graft-backed snapshots", () => {
           _column: string,
           _result: string,
           _token: string,
-          options: { signal?: AbortSignal }
+          options: {
+            signal?: AbortSignal
+            onWorktreePaths?: (paths: string[] | null) => void
+          }
         ) => {
           calls.push("resolve-cell")
           if (options.signal) signals.push(options.signal)
+          options.onWorktreePaths?.([])
           return {
             state: "merging" as const,
             localHead,
@@ -2220,10 +2254,14 @@ describe("SpaceSession Graft-backed snapshots", () => {
           _root: string,
           _path: string,
           _token: string,
-          options: { signal?: AbortSignal }
+          options: {
+            signal?: AbortSignal
+            onWorktreePaths?: (paths: string[] | null) => void
+          }
         ) => {
           calls.push("unresolve-path")
           if (options.signal) signals.push(options.signal)
+          options.onWorktreePaths?.(["records.eidos"])
           return {
             state: "merging" as const,
             localHead,
@@ -2240,10 +2278,14 @@ describe("SpaceSession Graft-backed snapshots", () => {
           _root: string,
           _message: string,
           _token: string,
-          options: { signal?: AbortSignal }
+          options: {
+            signal?: AbortSignal
+            onWorktreePaths?: (paths: string[] | null) => void
+          }
         ) => {
           calls.push("continue")
           if (options.signal) signals.push(options.signal)
+          options.onWorktreePaths?.(["records.eidos"])
           return { state: "none" as const }
         }
       ),
@@ -2271,6 +2313,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
 
     try {
       await fs.mkdir(path.join(root, ".graft"))
+      await fs.writeFile(path.join(root, "archive.eidos"), "test fixture")
       await fs.writeFile(path.join(root, "records.eidos"), "test fixture")
       session = await SpaceSession.create(root, userData, { graft })
       vi.spyOn(session.runtimePool, "closeHandles").mockImplementation(
@@ -2339,7 +2382,10 @@ describe("SpaceSession Graft-backed snapshots", () => {
         "Docs",
         "theirs",
         stateToken,
-        { signal: signals[0] }
+        {
+          signal: signals[0],
+          onWorktreePaths: expect.any(Function),
+        }
       )
       expect(signals).toHaveLength(3)
       expect(new Set(signals).size).toBe(1)
@@ -2362,7 +2408,6 @@ describe("SpaceSession Graft-backed snapshots", () => {
         "status",
         "close",
         "resolve-cell",
-        "validate:records.eidos",
         "reopen",
       ])
       expect(graft.resolveMergeCell).toHaveBeenCalledWith(
@@ -2373,7 +2418,10 @@ describe("SpaceSession Graft-backed snapshots", () => {
         "Status",
         "ours",
         stateToken,
-        { signal: signals[0] }
+        {
+          signal: signals[0],
+          onWorktreePaths: expect.any(Function),
+        }
       )
       expect(signals).toHaveLength(3)
       expect(new Set(signals).size).toBe(1)
@@ -2390,7 +2438,6 @@ describe("SpaceSession Graft-backed snapshots", () => {
         "close",
         "validate:records.eidos",
         "stage-sqlite",
-        "validate:records.eidos",
         "reopen",
       ])
       expect(graft.stageMergeSqliteResult).toHaveBeenCalledWith(
@@ -2419,7 +2466,10 @@ describe("SpaceSession Graft-backed snapshots", () => {
         await fs.realpath(root),
         "records.eidos",
         stateToken,
-        { signal: signals[0] }
+        {
+          signal: signals[0],
+          onWorktreePaths: expect.any(Function),
+        }
       )
       expect(signals).toHaveLength(3)
       expect(new Set(signals).size).toBe(1)
@@ -2430,11 +2480,11 @@ describe("SpaceSession Graft-backed snapshots", () => {
       await expect(
         session.continueSyncMerge(stateToken, " Merge Hosted changes ")
       ).resolves.toEqual({ state: "none" })
-      expect(calls.slice(0, 8)).toEqual([
+      expect(calls.slice(0, 7)).toEqual([
         "contract",
         "status",
         "close",
-        "validate:records.eidos",
+        "validate:archive.eidos,records.eidos",
         "continue",
         "validate:records.eidos",
         "reopen",
@@ -2443,7 +2493,10 @@ describe("SpaceSession Graft-backed snapshots", () => {
         await fs.realpath(root),
         "Merge Hosted changes",
         stateToken,
-        { signal: signals[0] }
+        {
+          signal: signals[0],
+          onWorktreePaths: expect.any(Function),
+        }
       )
       expect(signals).toHaveLength(3)
       expect(new Set(signals).size).toBe(1)

@@ -247,7 +247,8 @@ export class SpaceSession {
       new SpaceOperationJournal(stateDirectory),
       {
         closeRuntimes: () => this.runtimePool.closeHandles(),
-        validateWorktree: () => this.validateMaterializedWorktree(),
+        validateWorktree: (relativePaths) =>
+          this.validateMaterializedWorktree(relativePaths),
         reopenRuntimes: () => this.runtimePool.reopenHandles(),
       },
       this.repository
@@ -1382,7 +1383,7 @@ export class SpaceSession {
       "apply-hosted-merge",
       "Starting reviewed Local and Hosted merge",
       null,
-      async (signal) => {
+      async (signal, onWorktreePaths) => {
         const current = await this.graft.status(
           this.canonical.root,
           this.graftStatusOptions(signal)
@@ -1403,7 +1404,7 @@ export class SpaceSession {
           "origin/main",
           request.expectedHead,
           request.planToken,
-          { signal }
+          { signal, onWorktreePaths }
         )
       }
     )
@@ -1545,14 +1546,15 @@ export class SpaceSession {
       "resolve-merge-path",
       `Resolving ${normalized}`,
       stateToken,
-      (signal) =>
+      (signal, onWorktreePaths) =>
         this.graft.setMergePathResult(
           this.canonical.root,
           normalized,
           result,
           stateToken,
-          { signal }
-        )
+          { signal, onWorktreePaths }
+        ),
+      [normalized]
     )
   }
 
@@ -1569,7 +1571,7 @@ export class SpaceSession {
       "resolve-merge-row",
       `Resolving a row in ${normalized}`,
       stateToken,
-      (signal) =>
+      (signal, onWorktreePaths) =>
         this.graft.resolveMergeRow(
           this.canonical.root,
           normalized,
@@ -1577,8 +1579,9 @@ export class SpaceSession {
           identity,
           result,
           stateToken,
-          { signal }
-        )
+          { signal, onWorktreePaths }
+        ),
+      [normalized]
     )
   }
 
@@ -1597,7 +1600,7 @@ export class SpaceSession {
       "resolve-merge-cell",
       `Resolving ${column} in ${table}`,
       stateToken,
-      (signal) =>
+      (signal, onWorktreePaths) =>
         this.graft.resolveMergeCell(
           this.canonical.root,
           normalized,
@@ -1606,8 +1609,9 @@ export class SpaceSession {
           column,
           result,
           stateToken,
-          { signal }
-        )
+          { signal, onWorktreePaths }
+        ),
+      [normalized]
     )
   }
 
@@ -1623,15 +1627,16 @@ export class SpaceSession {
       "resolve-merge-table",
       `Resolving ${table} in ${normalized}`,
       stateToken,
-      (signal) =>
+      (signal, onWorktreePaths) =>
         this.graft.resolveMergeTable(
           this.canonical.root,
           normalized,
           table,
           result,
           stateToken,
-          { signal }
-        )
+          { signal, onWorktreePaths }
+        ),
+      [normalized]
     )
   }
 
@@ -1645,13 +1650,14 @@ export class SpaceSession {
       "unresolve-merge-path",
       `Restoring conflicts in ${normalized}`,
       stateToken,
-      (signal) =>
+      (signal, onWorktreePaths) =>
         this.graft.unresolveMergePath(
           this.canonical.root,
           normalized,
           stateToken,
-          { signal }
-        )
+          { signal, onWorktreePaths }
+        ),
+      [normalized]
     )
   }
 
@@ -1667,6 +1673,9 @@ export class SpaceSession {
       .withMaterialization({
         kind: "stage-merge-sqlite-result",
         detail: `Validating and staging ${normalized}`,
+        // The candidate is validated immediately before this explicitly
+        // non-materializing Graft operation, so no second validation is needed.
+        validationPaths: [],
         beforeClose: async (signal) => {
           const materializes = await this.graft.operationMaterializesWorktree(
             "stageMergeSqliteResult",
@@ -1690,7 +1699,7 @@ export class SpaceSession {
         materialize: async (signal) => {
           // Application-owned recompute must already be present in the
           // candidate. Validate Eidos semantics before Graft captures it.
-          await this.validateMaterializedWorktree()
+          await this.validateMaterializedWorktree([normalized])
           return this.graft.stageMergeSqliteResult(
             this.canonical.root,
             normalized,
@@ -1717,14 +1726,15 @@ export class SpaceSession {
       "write-merge-text",
       `Saving merged text for ${normalized}`,
       stateToken,
-      (signal) =>
+      (signal, onWorktreePaths) =>
         this.graft.writeAndStageTextResult(
           this.canonical.root,
           normalized,
           content,
           stateToken,
-          { signal }
-        )
+          { signal, onWorktreePaths }
+        ),
+      [normalized]
     )
   }
 
@@ -1736,22 +1746,47 @@ export class SpaceSession {
     if (!normalizedMessage || normalizedMessage.length > 200) {
       throw new Error("Merge checkpoint message must be 1–200 characters")
     }
+    let fallbackMaterializedPaths: string[] | undefined
     return this.materializeMergeOperation(
       "continueMerge",
       "continue-hosted-merge",
       "Validating and completing the merge checkpoint",
       stateToken,
-      async (signal) => {
+      async (signal, onWorktreePaths) => {
         // The SDK requires the exact state token whose Eidos File worktree was
         // semantically validated. Handles are already closed at this point.
         await this.validateMaterializedWorktree()
+        if (!this.graft.hasExactMergeWorktreePaths?.()) {
+          fallbackMaterializedPaths = []
+          let after: string | undefined
+          do {
+            const page = await this.graft.listMergePaths(
+              this.canonical.root,
+              stateToken,
+              {
+                filter: "all",
+                limit: 100,
+                ...(after ? { after } : {}),
+                signal,
+              }
+            )
+            fallbackMaterializedPaths.push(
+              ...page.items.map((item) => item.path)
+            )
+            after = page.nextCursor ?? undefined
+          } while (after)
+        }
         return this.graft.continueMerge(
           this.canonical.root,
           normalizedMessage,
           stateToken,
-          { signal }
+          { signal, onWorktreePaths }
         )
-      }
+      },
+      // continueMerge can materialize only paths in the active merge. The
+      // entire candidate is checked before the commit; revalidate those paths
+      // afterward instead of reopening every unchanged Eidos File again.
+      () => fallbackMaterializedPaths
     )
   }
 
@@ -1761,8 +1796,11 @@ export class SpaceSession {
       "abort-hosted-merge",
       "Restoring the pre-merge Local Space",
       stateToken,
-      (signal) =>
-        this.graft.abortMerge(this.canonical.root, stateToken, { signal })
+      (signal, onWorktreePaths) =>
+        this.graft.abortMerge(this.canonical.root, stateToken, {
+          signal,
+          onWorktreePaths,
+        })
     )
   }
 
@@ -2995,11 +3033,28 @@ export class SpaceSession {
     }
   }
 
-  private async validateMaterializedWorktree(): Promise<void> {
+  private async validateMaterializedWorktree(
+    relativePaths?: readonly string[]
+  ): Promise<void> {
+    const requestedEidosPaths = relativePaths
+      ? new Set(
+          relativePaths
+            .map(normalizeMutableRelativePath)
+            .filter((relativePath) =>
+              relativePath.toLowerCase().endsWith(".eidos")
+            )
+        )
+      : null
+    if (requestedEidosPaths?.size === 0) return
     const entries = flattenSpaceTree(await listSpaceTree(this.canonical.root))
     await this.runtimePool.validatePaths(
       entries
-        .filter((entry) => entry.kind === "eidos")
+        .filter(
+          (entry) =>
+            entry.kind === "eidos" &&
+            (!requestedEidosPaths ||
+              requestedEidosPaths.has(entry.relativePath))
+        )
         .map((entry) => entry.relativePath)
     )
   }
@@ -3097,11 +3152,21 @@ export class SpaceSession {
     kind: string,
     detail: string,
     expectedStateToken: string | null,
-    operation: (signal: AbortSignal) => Promise<EidosSyncMergeStatus>
+    operation: (
+      signal: AbortSignal,
+      onWorktreePaths: (paths: string[] | null) => void
+    ) => Promise<EidosSyncMergeStatus>,
+    validationPaths?: readonly string[] | (() => readonly string[] | undefined)
   ): Promise<EidosSyncMergeStatus> {
+    const worktreeEffect: { paths: string[] | null } = { paths: null }
     const result = await this.gate.withMaterialization({
       kind,
       detail,
+      validationPaths: () =>
+        worktreeEffect.paths ??
+        (typeof validationPaths === "function"
+          ? validationPaths()
+          : validationPaths),
       beforeClose: async (signal) => {
         const materializes = await this.graft.operationMaterializesWorktree(
           operationName,
@@ -3125,9 +3190,20 @@ export class SpaceSession {
           })
         }
       },
-      materialize: operation,
+      materialize: (signal) =>
+        operation(signal, (paths) => {
+          worktreeEffect.paths = paths
+        }),
     })
     this.invalidateGraftStatusCache()
+    if (worktreeEffect.paths?.length === 0) {
+      // An index-only conflict choice changed durable merge metadata but did
+      // not change any directory entry or application database. Return the
+      // authoritative merge status immediately and refresh general version
+      // chrome in the background instead of rescanning the Space.
+      this.scheduleGraftStatusRefresh()
+      return result
+    }
     await this.freshSnapshotAndEmit(true)
     return result
   }

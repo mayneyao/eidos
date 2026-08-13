@@ -263,10 +263,19 @@ describe("GraftClient", () => {
         }
         if (command === "continueMerge" || command === "abortMerge") {
           mutation += 1
-          return { output: {}, merge: { state: "none" } }
+          return {
+            output: {},
+            merge: { state: "none" },
+            worktree_paths: ["records.eidos"],
+          }
         }
         mutation += 1
-        return { output: {}, merge: merging() }
+        return {
+          output: {},
+          merge: merging(),
+          worktree_paths:
+            command === "resolveMergeCell" ? [] : ["records.eidos"],
+        }
       }),
     }
     const client = new GraftClient({ sdkTransport: transport })
@@ -298,14 +307,20 @@ describe("GraftClient", () => {
         policyToken: nextPolicyToken,
         policyVersion: 1,
       })
+      const appliedWorktreePaths = vi.fn()
       const applied = await client.applyMerge(
         root,
         "origin/main",
         head,
         planToken,
-        { signal: controller.signal }
+        {
+          signal: controller.signal,
+          onWorktreePaths: appliedWorktreePaths,
+        }
       )
       expect(applied).toMatchObject({ state: "merging", localHead: head })
+      expect(appliedWorktreePaths).toHaveBeenCalledWith(["records.eidos"])
+      expect(client.hasExactMergeWorktreePaths()).toBe(true)
       await client.getMergeStatus(root, { signal: controller.signal })
       await client.listMergePaths(root, stateTokens[1], {
         signal: controller.signal,
@@ -380,6 +395,7 @@ describe("GraftClient", () => {
         stateTokens[2],
         { signal: controller.signal }
       )
+      const cellWorktreePaths = vi.fn()
       await client.resolveMergeCell(
         root,
         "records.eidos",
@@ -388,8 +404,9 @@ describe("GraftClient", () => {
         "title",
         "ours",
         stateTokens[3],
-        { signal: controller.signal }
+        { signal: controller.signal, onWorktreePaths: cellWorktreePaths }
       )
+      expect(cellWorktreePaths).toHaveBeenCalledWith([])
       await client.resolveMergeTable(
         root,
         "records.eidos",
@@ -755,7 +772,18 @@ describe("GraftClient", () => {
         }
         if (command === "historySummaries") {
           return {
-            commits: [],
+            commits: [
+              {
+                id: "c".repeat(64),
+                parents: ["a".repeat(64), "b".repeat(64)],
+                message: "Merge Hosted changes",
+                timestamp_ms: 1_700_000_000_000,
+                path_changes: { added: 0, modified: 1, deleted: 0 },
+                path_counts_complete: true,
+                tables: [],
+                changed_tables: 0,
+              },
+            ],
             has_more: false,
             next_cursor: null,
             telemetry: { paths_examined: 0 },
@@ -784,7 +812,14 @@ describe("GraftClient", () => {
       await expect(client.history(root)).resolves.toMatchObject({
         currentHead: "a".repeat(64),
         currentBranch: "main",
-        commits: [],
+        commits: [
+          {
+            id: "c".repeat(64),
+            parent: "a".repeat(64),
+            parents: ["a".repeat(64), "b".repeat(64)],
+            files: 1,
+          },
+        ],
       })
       await expect(client.remoteUrl(root)).resolves.toBe(
         "https://sync-staging.eidos.space/u-alice/project"

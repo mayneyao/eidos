@@ -471,7 +471,7 @@ describe("SyncMergeWorkbench", () => {
         readSyncMergeVersion,
         writeSyncMergeText,
         continueSyncMerge,
-        refreshSpace: vi.fn(async () => null),
+        getSpace: vi.fn(async () => null),
       } as unknown as EidosLiteApi,
     })
 
@@ -675,7 +675,7 @@ describe("SyncMergeWorkbench", () => {
           },
         })),
         resolveSyncMergeTable,
-        refreshSpace: vi.fn(async () => null),
+        getSpace: vi.fn(async () => null),
       } as unknown as EidosLiteApi,
     })
 
@@ -707,6 +707,111 @@ describe("SyncMergeWorkbench", () => {
     })
     expect(host.textContent).toContain("Using Local Table")
     expect(host.textContent).toContain("Eidos File resolved")
+  })
+
+  it("loads conflicts only for the active Eidos File and reuses the materialized Space snapshot", async () => {
+    const snapshot = {
+      id: "space-1",
+      name: "Space",
+      displayPath: "/tmp/Space",
+      entries: [],
+      eidosFileCount: 3,
+      operation: { state: "idle" as const },
+      graft: {
+        available: true,
+        backend: "sdk" as const,
+        expectedVersion: "0.4.0",
+        initialized: true,
+      },
+      invalidatedSessionIds: [],
+    }
+    const listSyncMergePaths = vi.fn(async (request) => ({
+      ok: true as const,
+      value: {
+        stateToken: request.stateToken,
+        items: [
+          mergePath("alpha.eidos", "unmerged"),
+          mergePath("beta.eidos", "unmerged"),
+          mergePath("gamma.eidos", "unmerged"),
+        ],
+        nextCursor: null,
+      },
+    }))
+    const listSyncMergeConflicts = vi.fn(async (request) => ({
+      ok: true as const,
+      value: {
+        stateToken: request.stateToken,
+        path: request.path,
+        items: [rowConflict("Projects", `${request.path}-project`)],
+        nextCursor: null,
+      },
+    }))
+    const resolveSyncMergeTable = vi.fn(async () => ({
+      ok: true as const,
+      value: merging(secondToken, 2),
+    }))
+    const getSpace = vi.fn(async () => snapshot)
+    const refreshSpace = vi.fn(async () => snapshot)
+    const onFilesMaterialized = vi.fn()
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: {
+        listSyncMergePaths,
+        listSyncMergeConflicts,
+        resolveSyncMergeTable,
+        getSpace,
+        refreshSpace,
+      } as unknown as EidosLiteApi,
+    })
+
+    await act(async () =>
+      root.render(
+        createElement(SyncMergeWorkbench, {
+          initialStatus: merging(),
+          theme: "light",
+          onClose: vi.fn(),
+          onStatusChange: vi.fn(),
+          onFilesMaterialized,
+        })
+      )
+    )
+    await flush()
+    await flush()
+
+    expect(listSyncMergeConflicts).toHaveBeenCalledTimes(1)
+    expect(listSyncMergeConflicts).toHaveBeenLastCalledWith({
+      stateToken: firstToken,
+      path: "alpha.eidos",
+      limit: 100,
+    })
+
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>("button[aria-label='Next conflict']")
+        ?.click()
+    )
+    await flush()
+
+    expect(listSyncMergeConflicts).toHaveBeenCalledTimes(2)
+    expect(listSyncMergeConflicts).toHaveBeenLastCalledWith({
+      stateToken: firstToken,
+      path: "beta.eidos",
+      limit: 100,
+    })
+
+    await act(async () => button(host, "Use Local Table").click())
+    await flush()
+    await flush()
+
+    expect(listSyncMergeConflicts).toHaveBeenCalledTimes(3)
+    expect(listSyncMergeConflicts).toHaveBeenLastCalledWith({
+      stateToken: secondToken,
+      path: "beta.eidos",
+      limit: 100,
+    })
+    expect(getSpace).toHaveBeenCalledOnce()
+    expect(refreshSpace).not.toHaveBeenCalled()
+    expect(onFilesMaterialized).toHaveBeenCalledWith(snapshot, ["beta.eidos"])
   })
 
   it("shows table schema changes beside row differences and blocks unsafe partial choices", async () => {
@@ -1095,7 +1200,7 @@ describe("SyncMergeWorkbench", () => {
           },
         })),
         unresolveSyncMergePath,
-        refreshSpace: vi.fn(async () => null),
+        getSpace: vi.fn(async () => null),
       } as unknown as EidosLiteApi,
     })
 

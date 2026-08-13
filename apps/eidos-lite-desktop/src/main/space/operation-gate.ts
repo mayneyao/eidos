@@ -9,13 +9,17 @@ import { SpaceRepositoryCoordinator } from "./repository-coordinator"
 
 interface MaterializationHooks {
   closeRuntimes(): Promise<void>
-  validateWorktree(): Promise<void>
+  validateWorktree(relativePaths?: readonly string[]): Promise<void>
   reopenRuntimes(): Promise<void>
 }
 
 interface MaterializationOptions<T> {
   kind: string
   detail?: string
+  /** Undefined validates the whole worktree; an empty list skips validation. */
+  validationPaths?:
+    | readonly string[]
+    | ((result: T) => readonly string[] | undefined)
   beforeClose?(signal: AbortSignal): Promise<void>
   materialize(signal: AbortSignal): Promise<T>
   afterValidate?(result: T): Promise<void>
@@ -210,7 +214,11 @@ export class SpaceOperationGate {
           const result = await options.materialize(signal)
           this.transition("validating", options.detail ?? options.kind)
           await journal("validating", options.detail)
-          await this.hooks.validateWorktree()
+          const validationPaths =
+            typeof options.validationPaths === "function"
+              ? options.validationPaths(result)
+              : options.validationPaths
+          await this.hooks.validateWorktree(validationPaths)
           await options.afterValidate?.(result)
           this.transition("reopening", options.detail ?? options.kind)
           await journal("reopening", options.detail)

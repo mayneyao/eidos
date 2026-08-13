@@ -39,7 +39,7 @@ import type { GraftSdkTransport } from "./graft-sdk-transport"
 const SDK_DIFF_PAGE_SIZE = 100
 const SDK_PATH_BATCH_SIZE = 1_000
 export const GRAFT_SDK_VERSION = "0.3.11"
-export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.11"
+export const GRAFT_LOCAL_MERGE_SDK_VERSION = "0.3.12"
 
 export interface GraftClientOptions {
   sdkTransport: GraftSdkTransport
@@ -87,6 +87,11 @@ interface GraftStatusOptions {
 interface GraftRemoteOperationOptions {
   signal?: AbortSignal
   onProgress?: (progress: GraftTransferProgress) => void
+}
+
+interface GraftMergeMutationOptions {
+  signal?: AbortSignal
+  onWorktreePaths?: (paths: string[] | null) => void
 }
 
 export interface GraftIgnoreInspection {
@@ -782,6 +787,7 @@ function tableSummary(value: unknown): SpaceVersionTableSummary {
 function commit(value: unknown): SpaceVersionCommit {
   const item = record(value)
   const parents = stringArray(item.parents)
+  const parent = stringValue(item.parent) ?? parents[0] ?? null
   const changes = Array.isArray(item.changes)
     ? item.changes.map(pathChange)
     : []
@@ -794,7 +800,8 @@ function commit(value: unknown): SpaceVersionCommit {
     numberValue(pathCounts.deleted)
   return {
     id: stringValue(item.id) ?? "",
-    parent: stringValue(item.parent) ?? parents[0] ?? null,
+    parent,
+    parents: parents.length ? parents : parent ? [parent] : [],
     message: stringValue(item.message) ?? "Checkpoint",
     timestampMs: numberValue(item.timestamp_ms),
     files: changes.length || summarizedFiles,
@@ -850,6 +857,7 @@ function mergeVersionDiffs(
 export class GraftClient {
   private verifiedVersion: Promise<string> | null = null
   private openedRoot: string | null = null
+  private exactMergeWorktreePaths = false
   readonly backend = "sdk" as const
   readonly syncRemoteOrigin: string
   private readonly sdkTransport: GraftSdkTransport
@@ -871,6 +879,10 @@ export class GraftClient {
     return this.openedRoot !== null
   }
 
+  hasExactMergeWorktreePaths(): boolean {
+    return this.exactMergeWorktreePaths
+  }
+
   async open(root: string): Promise<void> {
     const canonicalRoot = await this.canonicalRepositoryRoot(root)
     await this.requireSdkTransport().open(canonicalRoot)
@@ -881,6 +893,7 @@ export class GraftClient {
   async close(): Promise<void> {
     this.openedRoot = null
     this.verifiedVersion = null
+    this.exactMergeWorktreePaths = false
     await this.requireSdkTransport().close()
   }
 
@@ -1774,7 +1787,7 @@ export class GraftClient {
     revision: string,
     expectedHead: string | null,
     planToken: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftMergeMutationOptions = {}
   ): Promise<EidosSyncMergeStatus> {
     const value = record(
       await this.runSdk(
@@ -1790,7 +1803,7 @@ export class GraftClient {
         options
       )
     )
-    return mergeStatus(value.merge)
+    return this.finishMergeMutation(value, options)
   }
 
   async getMergeStatus(
@@ -1941,7 +1954,7 @@ export class GraftClient {
     relativePath: string,
     result: "ours" | "theirs",
     expectedStateToken: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftMergeMutationOptions = {}
   ): Promise<EidosSyncMergeStatus> {
     const value = record(
       await this.runSdk(
@@ -1951,7 +1964,7 @@ export class GraftClient {
         options
       )
     )
-    return mergeStatus(value.merge)
+    return this.finishMergeMutation(value, options)
   }
 
   async resolveMergeRow(
@@ -1961,7 +1974,7 @@ export class GraftClient {
     identity: number | Record<string, unknown>,
     result: "ours" | "theirs",
     expectedStateToken: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftMergeMutationOptions = {}
   ): Promise<EidosSyncMergeStatus> {
     const value = record(
       await this.runSdk(
@@ -1979,7 +1992,7 @@ export class GraftClient {
         options
       )
     )
-    return mergeStatus(value.merge)
+    return this.finishMergeMutation(value, options)
   }
 
   async resolveMergeCell(
@@ -1990,7 +2003,7 @@ export class GraftClient {
     column: string,
     result: "ours" | "theirs",
     expectedStateToken: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftMergeMutationOptions = {}
   ): Promise<EidosSyncMergeStatus> {
     const value = record(
       await this.runSdk(
@@ -2009,7 +2022,7 @@ export class GraftClient {
         options
       )
     )
-    return mergeStatus(value.merge)
+    return this.finishMergeMutation(value, options)
   }
 
   async resolveMergeTable(
@@ -2018,7 +2031,7 @@ export class GraftClient {
     table: string,
     result: "ours" | "theirs",
     expectedStateToken: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftMergeMutationOptions = {}
   ): Promise<EidosSyncMergeStatus> {
     const value = record(
       await this.runSdk(
@@ -2035,14 +2048,14 @@ export class GraftClient {
         options
       )
     )
-    return mergeStatus(value.merge)
+    return this.finishMergeMutation(value, options)
   }
 
   async unresolveMergePath(
     root: string,
     relativePath: string,
     expectedStateToken: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftMergeMutationOptions = {}
   ): Promise<EidosSyncMergeStatus> {
     const value = record(
       await this.runSdk(
@@ -2052,7 +2065,7 @@ export class GraftClient {
         options
       )
     )
-    return mergeStatus(value.merge)
+    return this.finishMergeMutation(value, options)
   }
 
   async stageMergeSqliteResult(
@@ -2077,7 +2090,7 @@ export class GraftClient {
     relativePath: string,
     content: string,
     expectedStateToken: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftMergeMutationOptions = {}
   ): Promise<EidosSyncMergeStatus> {
     const value = record(
       await this.runSdk(
@@ -2087,14 +2100,14 @@ export class GraftClient {
         options
       )
     )
-    return mergeStatus(value.merge)
+    return this.finishMergeMutation(value, options)
   }
 
   async continueMerge(
     root: string,
     message: string,
     expectedStateToken: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftMergeMutationOptions = {}
   ): Promise<EidosSyncMergeStatus> {
     const value = record(
       await this.runSdk(
@@ -2104,17 +2117,29 @@ export class GraftClient {
         options
       )
     )
-    return mergeStatus(value.merge)
+    return this.finishMergeMutation(value, options)
   }
 
   async abortMerge(
     root: string,
     expectedStateToken: string,
-    options: { signal?: AbortSignal } = {}
+    options: GraftMergeMutationOptions = {}
   ): Promise<EidosSyncMergeStatus> {
     const value = record(
       await this.runSdk(root, "abortMerge", [{ expectedStateToken }], options)
     )
+    return this.finishMergeMutation(value, options)
+  }
+
+  private finishMergeMutation(
+    value: Record<string, unknown>,
+    options: GraftMergeMutationOptions
+  ): EidosSyncMergeStatus {
+    const worktreePaths = Array.isArray(value.worktree_paths)
+      ? stringArray(value.worktree_paths)
+      : null
+    if (worktreePaths !== null) this.exactMergeWorktreePaths = true
+    options.onWorktreePaths?.(worktreePaths)
     return mergeStatus(value.merge)
   }
 

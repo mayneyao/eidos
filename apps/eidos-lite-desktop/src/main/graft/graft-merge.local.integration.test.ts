@@ -572,12 +572,19 @@ integrationDescribe("Eidos Lite Graft merge workflow", () => {
         ]),
       })
       expect(readEidosRow(cloneEidos, rowId)).toMatchObject({
+        // Like Git, an intermediate conflict choice lives in Graft's durable
+        // resolution index without rewriting the physical SQLite worktree.
+        Title: "local",
+        Status: "Ready",
+        Owner: "Ada",
+      })
+      merge = await resolveRemainingEidosTables(merge)
+      expect(merge.unmergedCount).toBe(0)
+      expect(readEidosRow(cloneEidos, rowId)).toMatchObject({
         Title: "hosted",
         Status: "Ready",
         Owner: "Hosted Team",
       })
-      merge = await resolveRemainingEidosTables(merge)
-      expect(merge.unmergedCount).toBe(0)
       let resolvedConflicts = await cloneClient.listMergeConflicts(
         clone,
         "records.eidos",

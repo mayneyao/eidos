@@ -383,6 +383,8 @@ export interface SpaceWorkingChangesDiscardResult {
 export interface SpaceVersionCommit {
   id: string
   parent: string | null
+  /** All commit parents in Graft order. Merge commits have two or more. */
+  parents?: string[]
   message: string
   timestampMs: number
   files: number

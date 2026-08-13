@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import {
   AlertTriangle,
   Check,
@@ -237,6 +237,8 @@ export function SyncMergeWorkbench({
   const [conflictPages, setConflictPages] = useState<
     Map<string, MergeConflictPageState>
   >(() => new Map())
+  const conflictPagesRef = useRef(conflictPages)
+  conflictPagesRef.current = conflictPages
   const [versions, setVersions] = useState<EidosSyncMergeContent[]>([])
   const [textResult, setTextResult] = useState("")
   const [textResultSource, setTextResultSource] =
@@ -261,61 +263,12 @@ export function SyncMergeWorkbench({
   }
 
   const materialized = async (relativePaths: readonly string[]) => {
-    const snapshot = await window.eidosLite.refreshSpace()
+    // Every merge materialization returns only after the main process has
+    // rebuilt and broadcast its authoritative Space snapshot. Read that
+    // cached snapshot instead of forcing a second repository status scan and
+    // directory reload for the same operation.
+    const snapshot = await window.eidosLite.getSpace()
     if (snapshot) await onFilesMaterialized(snapshot, relativePaths)
-  }
-
-  const loadConflictSummaries = (
-    merge: ActiveMergeStatus,
-    mergePaths: readonly EidosSyncMergePath[],
-    replace = true
-  ) => {
-    const sqlitePaths = mergePaths.filter(
-      (path) => path.kind === "sqlite_database"
-    )
-    const pendingPages = new Map(
-      sqlitePaths.map((path) => [
-        path.path,
-        {
-          stateToken: merge.stateToken,
-          items: [],
-          nextCursor: null,
-          loading: true,
-        },
-      ])
-    )
-    if (replace) {
-      setConflictPages(pendingPages)
-    } else {
-      setConflictPages((current) => {
-        const next = new Map(current)
-        for (const [path, page] of pendingPages) next.set(path, page)
-        return next
-      })
-    }
-
-    void Promise.all(
-      sqlitePaths.map(async (path) => {
-        const response = await window.eidosLite.listSyncMergeConflicts({
-          stateToken: merge.stateToken,
-          path: path.path,
-          limit: 100,
-        })
-        setConflictPages((current) => {
-          const pending = current.get(path.path)
-          if (pending?.stateToken !== merge.stateToken) return current
-          const next = new Map(current)
-          next.set(path.path, {
-            stateToken: merge.stateToken,
-            items: response.ok ? response.value.items : [],
-            nextCursor: response.ok ? response.value.nextCursor : null,
-            loading: false,
-          })
-          return next
-        })
-        if (!response.ok) setFailure(response.failure)
-      })
-    )
   }
 
   const loadPaths = async (
@@ -343,7 +296,6 @@ export function SyncMergeWorkbench({
       setSelectedScope("file")
     }
     setSelectedPath(nextSelected)
-    loadConflictSummaries(merge, page.items)
   }
 
   const refreshStatus = async (preferredPath?: string) => {
@@ -363,6 +315,50 @@ export function SyncMergeWorkbench({
     // Initial durable state is supplied by App and loaded once on entry.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!selectedPath || selectedPath.kind !== "sqlite_database") return
+    const relativePath = selectedPath.path
+    const stateToken = status.stateToken
+    const cached = conflictPagesRef.current.get(relativePath)
+    if (cached?.stateToken === stateToken) return
+
+    let active = true
+    const pending = new Map(conflictPagesRef.current)
+    pending.set(relativePath, {
+      stateToken,
+      items: [],
+      nextCursor: null,
+      loading: true,
+    })
+    conflictPagesRef.current = pending
+    setConflictPages(pending)
+
+    const load = async () => {
+      const response = await window.eidosLite.listSyncMergeConflicts({
+        stateToken,
+        path: relativePath,
+        limit: 100,
+      })
+      if (!active) return
+      const current = conflictPagesRef.current
+      if (current.get(relativePath)?.stateToken !== stateToken) return
+      const next = new Map(current)
+      next.set(relativePath, {
+        stateToken,
+        items: response.ok ? response.value.items : [],
+        nextCursor: response.ok ? response.value.nextCursor : null,
+        loading: false,
+      })
+      conflictPagesRef.current = next
+      setConflictPages(next)
+      if (!response.ok) setFailure(response.failure)
+    }
+    void load()
+    return () => {
+      active = false
+    }
+  }, [selectedPath?.kind, selectedPath?.path, status.stateToken])
 
   useEffect(() => {
     setTextResultSource(null)
@@ -598,7 +594,6 @@ export function SyncMergeWorkbench({
     if (page) {
       setPaths((current) => [...current, ...page.items])
       setPathsCursor(page.nextCursor)
-      loadConflictSummaries(status, page.items, false)
     }
     setBusy(null)
   }

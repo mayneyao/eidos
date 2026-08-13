@@ -2,7 +2,7 @@
  * Unpublished Graft merge contract used by Eidos Lite development builds.
  *
  * Keep this type-only snapshot aligned with
- * /Users/mayne/.codex/worktrees/f1d8/graft/packages/graft-sdk/index.d.ts until the SDK
+ * /Users/mayne/workspace/graft/packages/graft-sdk/index.d.ts until the SDK
  * version containing these APIs is published and pinned by Lite.
  */
 
@@ -104,6 +104,7 @@ export interface GraftMergeApplyResult {
   plan: GraftMergePlanResult
   output: GraftJson
   merge: GraftMergeStatus
+  worktree_paths?: string[]
 }
 
 export type GraftMergePathFilter = "all" | "unmerged" | "resolved"
@@ -394,6 +395,7 @@ export interface GraftAbortMergeOptions extends GraftOperationOptions {
 export interface GraftMergeOperationResult {
   output: GraftJson
   merge: GraftMergeStatus
+  worktree_paths?: string[]
 }
 
 export type GraftJson = Record<string, unknown> | unknown[]

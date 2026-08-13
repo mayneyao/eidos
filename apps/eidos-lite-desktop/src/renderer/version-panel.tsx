@@ -96,7 +96,7 @@ function versionPathDiffCacheKey(
   return inspection.mode === "history" && inspection.commit
     ? [
         "history",
-        inspection.commit.parent ?? "root",
+        inspection.diff.from ?? inspection.commit.parent ?? "root",
         inspection.commit.id,
         inspection.change.path,
         scope,
@@ -140,6 +140,44 @@ export function loadVersionPathDiff(
     })
   versionPathDiffCache.set(key, entry)
   return entry.promise
+}
+
+function hasConcreteSqliteChanges(
+  diff: SpaceVersionDiff,
+  path: string
+): boolean {
+  const file = diff.files.find((candidate) => candidate.path === path)
+  return Boolean(
+    file &&
+    (file.logicalStatus === "logical_changes" ||
+      file.tables.length > 0 ||
+      (file.schemaChanges?.length ?? 0) > 0)
+  )
+}
+
+export async function loadHistoricalVersionPathDiff(
+  path: string,
+  commit: SpaceVersionCommit,
+  preferredParent: string | null,
+  load: (parent: string | null) => Promise<SpaceVersionDiff>
+): Promise<SpaceVersionDiff> {
+  const initialParent = preferredParent ?? commit.parent
+  const primary = await load(initialParent)
+  const primaryFile = primary.files.find((file) => file.path === path)
+  if (
+    primaryFile?.logicalStatus !== "file_changed_no_supported_logical_changes"
+  ) {
+    return primary
+  }
+
+  const alternateParents = (commit.parents ?? []).filter(
+    (parent) => parent !== initialParent
+  )
+  for (const parent of alternateParents) {
+    const alternate = await load(parent)
+    if (hasConcreteSqliteChanges(alternate, path)) return alternate
+  }
+  return primary
 }
 
 export function clearVersionPathDiffCache(): void {
@@ -496,6 +534,13 @@ export function VersionDiffPreview({
     inspection.type === "file" &&
     Boolean(inspection.change.previousPath) &&
     changeLabel(inspection.change.change) === "Renamed"
+  const comparesAlternateMergeParent = Boolean(
+    inspection.mode === "history" &&
+    inspection.commit &&
+    (inspection.commit.parents?.length ?? 0) > 1 &&
+    inspection.diff.from &&
+    inspection.diff.from !== inspection.commit.parent
+  )
 
   const loadMoreRows = async (): Promise<boolean> => {
     if (
@@ -511,7 +556,7 @@ export function VersionDiffPreview({
         inspection.change.path,
         inspection.mode === "history" ? (inspection.commit?.id ?? null) : null,
         inspection.mode === "history"
-          ? (inspection.commit?.parent ?? null)
+          ? (inspection.diff.from ?? inspection.commit?.parent ?? null)
           : null,
         activeTable.name,
         activeTable.nextCursor
@@ -659,7 +704,9 @@ export function VersionDiffPreview({
               <p>{inspection.detailsError}</p>
             </div>
           </div>
-        ) : inspection.file?.tables.length ? (
+        ) : inspection.file &&
+          (inspection.file.tables.length > 0 ||
+            (inspection.file.schemaChanges?.length ?? 0) > 0) ? (
           <>
             {showsRename && inspection.change.previousPath ? (
               <VersionRenameSummary
@@ -669,10 +716,19 @@ export function VersionDiffPreview({
               />
             ) : null}
             <div className="version-inspector-file-summary">
+              {comparesAlternateMergeParent ? (
+                <p className="version-summary-hint">
+                  This merge matches its local parent, so these details are
+                  compared with the other merge parent.
+                </p>
+              ) : null}
               <p>
                 {inspection.file.tables.length} changed{" "}
                 {inspection.file.tables.length === 1 ? "table" : "tables"} ·{" "}
                 {fileRowChanges(inspection.file)} row changes
+                {(inspection.file.schemaChanges?.length ?? 0) > 0
+                  ? ` · ${inspection.file.schemaChanges!.length} schema ${inspection.file.schemaChanges!.length === 1 ? "change" : "changes"}`
+                  : ""}
               </p>
               {inspection.file.detailsLoaded === false ? (
                 <p className="version-summary-hint">
@@ -694,6 +750,17 @@ export function VersionDiffPreview({
                     </li>
                   )
                 })}
+                {inspection.file.schemaChanges?.map((change) => (
+                  <li
+                    key={`schema:${change.entryType}:${change.name}:${change.operation}`}
+                  >
+                    <Database />
+                    <strong>
+                      {change.entryType} · {change.name}
+                    </strong>
+                    <span>{change.operation}</span>
+                  </li>
+                ))}
               </ul>
               {inspection.file.limitations.map((limitation) => (
                 <p key={limitation} className="version-limitation">
@@ -711,11 +778,25 @@ export function VersionDiffPreview({
           <div className="version-inspector-empty">
             <FileText />
             <div>
-              <strong>File change recorded</strong>
-              <p>
-                This first version shows file metadata only. Content preview can
-                be added without changing the Space history model.
-              </p>
+              {inspection.file?.logicalStatus ===
+              "file_changed_no_supported_logical_changes" ? (
+                <>
+                  <strong>No supported logical changes</strong>
+                  <p>
+                    The SQLite snapshot changed, but its supported schema and
+                    rows match the comparison version.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <strong>File change recorded</strong>
+                  <p>
+                    {inspection.commit?.parent
+                      ? "Detailed content changes are not available for this saved version."
+                      : "This first version shows file metadata only."}
+                  </p>
+                </>
+              )}
               <dl>
                 {inspection.change.previousPath ? (
                   <div>
@@ -1013,18 +1094,30 @@ export function VersionPanel({
       selectedInspectionRef.current = loadingInspection
       onInspectionChange(loadingInspection)
       try {
-        const detail = await loadVersionPathDiff(cacheKey, () =>
-          window.eidosLite.getVersionPathDiff(
+        const tableName =
+          inspection.type === "table" ? inspection.table.name : undefined
+        const detail = await loadVersionPathDiff(cacheKey, () => {
+          if (inspection.mode === "history" && inspection.commit) {
+            return loadHistoricalVersionPathDiff(
+              inspection.change.path,
+              inspection.commit,
+              inspection.diff.from,
+              (parent) =>
+                window.eidosLite.getVersionPathDiff(
+                  inspection.change.path,
+                  inspection.commit!.id,
+                  parent,
+                  tableName
+                )
+            )
+          }
+          return window.eidosLite.getVersionPathDiff(
             inspection.change.path,
-            inspection.mode === "history"
-              ? (inspection.commit?.id ?? null)
-              : null,
-            inspection.mode === "history"
-              ? (inspection.commit?.parent ?? null)
-              : null,
-            inspection.type === "table" ? inspection.table.name : undefined
+            null,
+            null,
+            tableName
           )
-        )
+        })
         applyDetail(detail)
       } catch (cause) {
         if (

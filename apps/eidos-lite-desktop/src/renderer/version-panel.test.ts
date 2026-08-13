@@ -22,6 +22,7 @@ import {
   clearVersionPathDiffCacheForTests,
   historySyncPresentation,
   isVersionReadAbortError,
+  loadHistoricalVersionPathDiff,
   loadVersionPathDiff,
   mergeVersionDiffPages,
   TableDiff,
@@ -93,6 +94,137 @@ const unversionedSpace: SpaceSnapshot = {
 }
 
 describe("VersionPanel table diff", () => {
+  it("falls back to the other merge parent when the first-parent SQLite diff is physical only", async () => {
+    const path = "dev/eidos-project.eidos"
+    const firstParent = "a".repeat(64)
+    const otherParent = "b".repeat(64)
+    const commit: SpaceVersionCommit = {
+      id: "c".repeat(64),
+      parent: firstParent,
+      parents: [firstParent, otherParent],
+      message: "Merge Hosted changes",
+      timestampMs: 1_700_000_000_000,
+      files: 1,
+      changes: [],
+      tables: [],
+      changedTables: 0,
+    }
+    const physicalOnly: SpaceVersionDiff = {
+      currentHead: commit.id,
+      currentBranch: "main",
+      from: firstParent,
+      to: commit.id,
+      paths: [{ path, change: "modified", kind: "sqlite_database" }],
+      files: [
+        {
+          path,
+          change: "modified",
+          kind: "sqlite_database",
+          rowDiffAvailable: true,
+          logicalStatus: "file_changed_no_supported_logical_changes",
+          limitations: [],
+          schemaChanges: [],
+          tables: [],
+        },
+      ],
+    }
+    const logicalChanges: SpaceVersionDiff = {
+      ...physicalOnly,
+      from: otherParent,
+      files: [
+        {
+          ...physicalOnly.files[0]!,
+          logicalStatus: "logical_changes",
+          tables: [customersTable],
+        },
+      ],
+    }
+    const load = vi.fn(async (parent: string | null) =>
+      parent === firstParent ? physicalOnly : logicalChanges
+    )
+
+    await expect(
+      loadHistoricalVersionPathDiff(path, commit, firstParent, load)
+    ).resolves.toBe(logicalChanges)
+    expect(load.mock.calls.map(([parent]) => parent)).toEqual([
+      firstParent,
+      otherParent,
+    ])
+  })
+
+  it("explains an alternate merge-parent comparison in the file detail", () => {
+    const firstParent = "a".repeat(64)
+    const otherParent = "b".repeat(64)
+    const commit: SpaceVersionCommit = {
+      id: "c".repeat(64),
+      parent: firstParent,
+      parents: [firstParent, otherParent],
+      message: "Merge Hosted changes",
+      timestampMs: 1_700_000_000_000,
+      files: 1,
+      changes: [],
+      tables: [],
+      changedTables: 0,
+    }
+    const inspection: VersionInspection = {
+      type: "file",
+      key: "history:merge:data/crm.eidos",
+      mode: "history",
+      diff: { ...versionDiff, from: otherParent, to: commit.id },
+      change: versionDiff.paths[1]!,
+      file: versionDiff.files[0]!,
+      commit,
+    }
+
+    const markup = renderToStaticMarkup(
+      createElement(VersionDiffPreview, {
+        inspection,
+        theme: "light",
+        onClose: () => undefined,
+      })
+    )
+
+    expect(markup).toContain("matches its local parent")
+    expect(markup).toContain("compared with the other merge parent")
+  })
+
+  it("describes physical-only SQLite history without calling it a first version", () => {
+    const inspection: VersionInspection = {
+      type: "file",
+      key: "history:physical-only:data/crm.eidos",
+      mode: "history",
+      diff: versionDiff,
+      change: versionDiff.paths[1]!,
+      file: {
+        ...versionDiff.files[0]!,
+        logicalStatus: "file_changed_no_supported_logical_changes",
+        tables: [],
+      },
+      commit: {
+        id: "c".repeat(64),
+        parent: "a".repeat(64),
+        message: "Merge Hosted changes",
+        timestampMs: 1_700_000_000_000,
+        files: 1,
+        changes: [],
+        tables: [],
+        changedTables: 0,
+      },
+    }
+
+    const markup = renderToStaticMarkup(
+      createElement(VersionDiffPreview, {
+        inspection,
+        theme: "light",
+        onClose: () => undefined,
+      })
+    )
+
+    expect(markup).toContain("No supported logical changes")
+    expect(markup).toContain("supported schema and rows match")
+    expect(markup).not.toContain("first version")
+  })
+
   it("keeps the working change identity when table details omit it", () => {
     const detail: SpaceVersionDiff = {
       ...versionDiff,
