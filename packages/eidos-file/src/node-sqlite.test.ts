@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises"
+import { copyFile, mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest"
 import { expectConnectionPortConformance } from "./connection-port.conformance"
 import {
   createEidosFile,
+  mergeEidosSystemMetadataFiles,
   NodeSqliteConnectionPort,
   openEidosFile,
 } from "./node-sqlite"
@@ -139,6 +140,71 @@ describe.runIf(supportsElectron43NodeSqlite)(
           expect(opened.listTables()).toHaveLength(1)
         } finally {
           opened.close()
+        }
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    })
+
+    it("merges Graft snapshot files through the node:sqlite adapter", async () => {
+      const directory = await mkdtemp(
+        path.join(tmpdir(), "eidos-node-sqlite-system-merge-")
+      )
+      const basePath = path.join(directory, "base.sqlite")
+      const oursPath = path.join(directory, "ours.sqlite")
+      const theirsPath = path.join(directory, "theirs.sqlite")
+      const resultPath = path.join(directory, "result.sqlite")
+      const sourcePath = path.join(directory, "source.eidos")
+      try {
+        const created = createEidosFile(sourcePath, {
+          title: "Base",
+          createdAt: "2026-08-13T00:00:00.000Z",
+        })
+        created.close()
+        await Promise.all([
+          copyFile(sourcePath, basePath),
+          copyFile(sourcePath, oursPath),
+          copyFile(sourcePath, theirsPath),
+        ])
+
+        const ours = new DatabaseSync(oursPath)
+        ours.exec(
+          "UPDATE eidos__meta SET title='From Ours',revision=2,updated_at='2026-08-13T00:01:00.000Z' WHERE singleton=1"
+        )
+        ours.close()
+        const theirs = new DatabaseSync(theirsPath)
+        theirs.exec(
+          "UPDATE eidos__meta SET title='From Theirs',revision=5,updated_at='2026-08-13T00:02:00.000Z' WHERE singleton=1"
+        )
+        theirs.close()
+        await copyFile(oursPath, resultPath)
+
+        const outcome = mergeEidosSystemMetadataFiles({
+          basePath,
+          oursPath,
+          theirsPath,
+          resultPath,
+          oursKey: "commit-a",
+          theirsKey: "commit-b",
+          operationInstant: "2026-08-13T23:59:00.000Z",
+        })
+        expect(outcome.outcome).toBe("merged")
+
+        const result = new DatabaseSync(resultPath)
+        try {
+          expect(
+            result
+              .prepare(
+                "SELECT title,revision,updated_at FROM eidos__meta WHERE singleton=1"
+              )
+              .get()
+          ).toEqual({
+            title: "From Theirs",
+            revision: 6,
+            updated_at: "2026-08-13T23:59:00.000Z",
+          })
+        } finally {
+          result.close()
         }
       } finally {
         await rm(directory, { recursive: true, force: true })

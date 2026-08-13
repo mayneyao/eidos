@@ -35,6 +35,10 @@ import { EidosFileError } from "./errors"
 import { MemoryByteSource, parseNonNegativeInt64 } from "./protocol-types"
 import { EidosFileRuntime } from "./runtime"
 import { initializeEidosFileSchema } from "./schema"
+import {
+  mergeEidosSystemMetadata,
+  type EidosSystemMergeResult,
+} from "./system-metadata-merge"
 import type { CreateEidosFileOptions } from "./types"
 import { validateEidosFile } from "./validation"
 
@@ -1246,6 +1250,51 @@ export function inspectEidosFile(filePath: string) {
     return validateEidosFile(connection)
   } finally {
     connection.close()
+  }
+}
+
+export interface MergeEidosSystemMetadataFilesOptions {
+  basePath: string
+  oursPath: string
+  theirsPath: string
+  /** Existing private Graft seed whose system rows still equal Ours. */
+  resultPath: string
+  oursKey: string
+  theirsKey: string
+  operationInstant: string
+}
+
+/** Node/Electron file adapter for the Runtime-owned system metadata merge profile. */
+export function mergeEidosSystemMetadataFiles(
+  options: MergeEidosSystemMetadataFilesOptions
+): EidosSystemMergeResult {
+  const base = new NodeSqliteEidosFileConnection(
+    openDatabase(options.basePath, { readOnly: true })
+  )
+  const ours = new NodeSqliteEidosFileConnection(
+    openDatabase(options.oursPath, { readOnly: true })
+  )
+  const theirs = new NodeSqliteEidosFileConnection(
+    openDatabase(options.theirsPath, { readOnly: true })
+  )
+  const result = new NodeSqliteEidosFileConnection(
+    openDatabase(options.resultPath)
+  )
+  try {
+    return mergeEidosSystemMetadata({
+      base,
+      ours,
+      theirs,
+      result,
+      oursKey: options.oursKey,
+      theirsKey: options.theirsKey,
+      operationInstant: options.operationInstant,
+    })
+  } finally {
+    result.close()
+    theirs.close()
+    ours.close()
+    base.close()
   }
 }
 

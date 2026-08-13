@@ -5,6 +5,7 @@ import type {
   EidosFileCsvImportResult,
   EidosFileDataSource,
   EidosFileSnapshot,
+  EidosSystemMergeResult,
   FileEntry,
   UrlImageLease,
 } from "@eidos.space/eidos-file"
@@ -1299,6 +1300,17 @@ export type RuntimeWorkerRequest =
       args: unknown[]
     }
   | {
+      type: "mergeSystemMetadata"
+      requestId: number
+      basePath: string
+      oursPath: string
+      theirsPath: string
+      resultPath: string
+      oursKey: string
+      theirsKey: string
+      operationInstant: string
+    }
+  | {
       type: "close"
       requestId: number
     }
@@ -1319,6 +1331,18 @@ export type RuntimeWorkerResponse =
         stack?: string
       }
     }
+
+export interface RuntimeSystemMetadataMergeOptions {
+  basePath: string
+  oursPath: string
+  theirsPath: string
+  resultPath: string
+  oursKey: string
+  theirsKey: string
+  operationInstant: string
+}
+
+export type RuntimeSystemMetadataMergeResult = EidosSystemMergeResult
 
 export interface EidosLiteApi {
   getAppInfo(): Promise<EidosLiteAppInfo>

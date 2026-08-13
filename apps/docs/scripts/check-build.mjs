@@ -64,10 +64,12 @@ for (const sourceFile of htmlFiles) {
 for (const route of [
   "/specifications/file-format-1-0/",
   "/specifications/runtime-1-0/",
+  "/specifications/system-metadata-merge-1-0/",
   "/specifications/adapter-1-0/",
   "/specifications/ui-1-0/",
   "/zh-cn/specifications/file-format-1-0/",
   "/zh-cn/specifications/runtime-1-0/",
+  "/zh-cn/specifications/system-metadata-merge-1-0/",
   "/zh-cn/specifications/adapter-1-0/",
   "/zh-cn/specifications/ui-1-0/",
 ]) {

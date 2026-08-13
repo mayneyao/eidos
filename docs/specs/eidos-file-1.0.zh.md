@@ -1201,6 +1201,10 @@ publication 是 Adapter operation；logical merge 与 post-merge validation 是 
 operation。stable IDs 与 canonical/raw distinction 是 version manager 可以依赖的完整
 边界。1.0 没有 Graft-specific table 或 sidecar。
 
+可选的 [Eidos 系统元数据合并 1.0](./eidos-system-metadata-merge-1.0.zh.md) Runtime
+profile 为 canonical `eidos__*` metadata objects 定义 draft 三方语义。它不改变本格式的
+validity rules 或 base conformance labels。
+
 ## 18. File validation
 
 格式层有三级：

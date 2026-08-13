@@ -9,6 +9,8 @@ import type {
   OpenEidosFileResult,
   RuntimeCalls,
   RuntimeMethod,
+  RuntimeSystemMetadataMergeOptions,
+  RuntimeSystemMetadataMergeResult,
   RuntimeWorkerRequest,
   RuntimeWorkerResponse,
 } from "../../shared/contracts"
@@ -329,6 +331,53 @@ export class RuntimePool {
       await this.spawnAndOpen(probe)
       await this.closeEntry(probe)
     }
+  }
+
+  async mergeSystemMetadata(
+    options: RuntimeSystemMetadataMergeOptions
+  ): Promise<RuntimeSystemMetadataMergeResult> {
+    const child = utilityProcess.fork(this.workerPath, [], {
+      serviceName: "Eidos File · System metadata merge",
+      stdio: "pipe",
+    })
+    return new Promise((resolve, reject) => {
+      let settled = false
+      const finish = (operation: () => void) => {
+        if (settled) return
+        settled = true
+        operation()
+        child.kill()
+      }
+      child.on("message", (message) => {
+        if (!isWorkerResponse(message) || message.requestId !== 1) return
+        if (message.ok) {
+          finish(() =>
+            resolve(message.result as RuntimeSystemMetadataMergeResult)
+          )
+          return
+        }
+        const error = new Error(message.error.message)
+        error.name = message.error.name
+        if (message.error.stack) error.stack = message.error.stack
+        if (message.error.code)
+          Object.assign(error, { code: message.error.code })
+        finish(() => reject(error))
+      })
+      child.once("exit", (code) => {
+        if (settled) return
+        settled = true
+        reject(
+          new Error(
+            `Eidos system metadata merge worker exited with code ${code}`
+          )
+        )
+      })
+      child.postMessage({
+        type: "mergeSystemMetadata",
+        requestId: 1,
+        ...options,
+      } satisfies RuntimeWorkerRequest)
+    })
   }
 
   async destroy(): Promise<void> {

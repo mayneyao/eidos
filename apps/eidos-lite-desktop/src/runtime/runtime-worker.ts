@@ -5,6 +5,7 @@ import type {
   EidosFileRowPageProjection,
   EidosFileRowQuery,
 } from "@eidos.space/eidos-file"
+import { mergeEidosSystemMetadataFiles } from "@eidos.space/eidos-file/node-sqlite"
 import type { EidosRuntimeEditorDataSource } from "@eidos.space/eidos-file-ui/runtime-editor-data-source"
 
 import type {
@@ -275,6 +276,24 @@ async function handle(request: RuntimeWorkerRequest): Promise<unknown> {
     }
     case "call":
       return runtimeCall(request.method, request.args)
+    case "mergeSystemMetadata": {
+      for (const filePath of [
+        request.basePath,
+        request.oursPath,
+        request.theirsPath,
+        request.resultPath,
+      ]) {
+        if (!path.isAbsolute(filePath)) {
+          throw new Error("System metadata merge paths must be absolute")
+        }
+      }
+      if (openedRuntime) {
+        throw new Error(
+          "System metadata merge requires a private Runtime worker"
+        )
+      }
+      return mergeEidosSystemMetadataFiles(request)
+    }
     case "close":
       await openedRuntime?.close()
       openedRuntime = null

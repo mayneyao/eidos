@@ -7,8 +7,8 @@ sidebar:
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-Eidos File 的互操作行为由四份规范定义。英文页面是规范性文本；中文页面是参考译本，不能覆盖
-英文契约。
+Eidos File 的互操作行为由四份核心规范和可选 profile 定义。英文页面是规范性文本；中文页面是
+参考译本，不能覆盖英文契约。
 
 <CardGrid>
   <LinkCard
@@ -20,6 +20,11 @@ Eidos File 的互操作行为由四份规范定义。英文页面是规范性文
     title="Eidos Runtime 1.0"
     description="Logical type、query、filter、derived value、mutation、revision 与 error。"
     href="/zh-cn/specifications/runtime-1-0/"
+  />
+  <LinkCard
+    title="Eidos 系统元数据合并 1.0"
+    description="为 canonical Eidos system metadata 提供确定性三方合并的 draft Runtime profile。"
+    href="/zh-cn/specifications/system-metadata-merge-1-0/"
   />
   <LinkCard
     title="Eidos Adapter 1.0"

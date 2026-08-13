@@ -1393,6 +1393,12 @@ merge and post-merge validation are Runtime operations. Stable IDs and the
 canonical/raw distinction above are the complete boundary a version manager
 may rely on. No Graft-specific table or sidecar is part of Eidos File Format 1.0.
 
+The optional
+[Eidos System Metadata Merge 1.0](./eidos-system-metadata-merge-1.0.md)
+Runtime profile defines draft three-way semantics for the canonical
+`eidos__*` metadata objects. It does not change this format's validity rules or
+base conformance labels.
+
 ## 18. File Validation
 
 File validation has three format-owned levels:

@@ -46,12 +46,13 @@ Semantic ownership is one-way. In particular:
 
 ## Documents
 
-| Layer       | Canonical specification                      | Informative Chinese reference     |
-| ----------- | -------------------------------------------- | --------------------------------- |
-| File Format | [Eidos File Format 1.0](./eidos-file-1.0.md) | [中文](./eidos-file-1.0.zh.md)    |
-| Runtime     | [Eidos Runtime 1.0](./eidos-runtime-1.0.md)  | [中文](./eidos-runtime-1.0.zh.md) |
-| Adapter     | [Eidos Adapter 1.0](./eidos-adapter-1.0.md)  | [中文](./eidos-adapter-1.0.zh.md) |
-| UI          | [Eidos UI 1.0](./eidos-ui-1.0.md)            | [中文](./eidos-ui-1.0.zh.md)      |
+| Layer                 | Canonical specification                                                 | Informative Chinese reference                   |
+| --------------------- | ----------------------------------------------------------------------- | ----------------------------------------------- |
+| File Format           | [Eidos File Format 1.0](./eidos-file-1.0.md)                            | [中文](./eidos-file-1.0.zh.md)                  |
+| Runtime               | [Eidos Runtime 1.0](./eidos-runtime-1.0.md)                             | [中文](./eidos-runtime-1.0.zh.md)               |
+| Runtime merge profile | [Eidos System Metadata Merge 1.0](./eidos-system-metadata-merge-1.0.md) | [中文](./eidos-system-metadata-merge-1.0.zh.md) |
+| Adapter               | [Eidos Adapter 1.0](./eidos-adapter-1.0.md)                             | [中文](./eidos-adapter-1.0.zh.md)               |
+| UI                    | [Eidos UI 1.0](./eidos-ui-1.0.md)                                       | [中文](./eidos-ui-1.0.zh.md)                    |
 
 ## Implementation ladder
 
@@ -100,6 +101,7 @@ EF-Reader-1.0
 EF-Writer-1.0
 ER-Reader-1.0
 ER-Writer-1.0
+ER-System-Merge-1.0
 EA-Connection-1.0
 EA-Host-1.0
 EA-Browser-1.0
@@ -109,7 +111,10 @@ EU-Editor-1.0
 EU-Schema-1.0
 ```
 
-Higher labels do not imply unrelated layers. For example, a headless CLI can
+Higher labels do not imply unrelated layers. `ER-System-Merge-1.0` is an
+optional draft Runtime profile and requires `EF-Reader-1.0`, `EF-Writer-1.0`,
+`ER-Reader-1.0`, and `ER-Writer-1.0`; it is not implied by `ER-Writer-1.0`.
+For example, a headless CLI can
 be `EF-Reader-1.0 ER-Reader-1.0 EA-Desktop-1.0` without UI conformance. Each
 specification defines its own prerequisites and required test families.
 

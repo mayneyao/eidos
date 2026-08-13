@@ -105,11 +105,13 @@ for (const [source, destination] of Object.entries(legacyRedirects)) {
 }
 
 const generatedSpecs = contentFiles.filter((file) =>
-  /\/specifications\/(?:file-format|runtime|adapter|ui)-1-0\.md$/u.test(file)
+  /\/specifications\/(?:file-format|runtime|system-metadata-merge|adapter|ui)-1-0\.md$/u.test(
+    file
+  )
 )
-if (generatedSpecs.length !== 8) {
+if (generatedSpecs.length !== 10) {
   failures.push(
-    `Expected 8 generated specification pages, found ${generatedSpecs.length}`
+    `Expected 10 generated specification pages, found ${generatedSpecs.length}`
   )
 }
 

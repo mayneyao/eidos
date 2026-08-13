@@ -80,6 +80,10 @@ Runtime 不拥有：
 - **ER-Writer-1.0**：ER-Reader 加上 canonical row、View 和 schema mutation、
   conversion、revision postcondition 与 rollback behavior。它要求
   `EF-Writer-1.0` storage implementation。
+- **ER-System-Merge-1.0**：由
+  [Eidos 系统元数据合并 1.0](./eidos-system-metadata-merge-1.0.zh.md) 定义的可选 draft
+  profile。它增加确定性三方 system metadata merge 并要求 ER-Writer；ER-Writer 不会
+  自动隐含它。
 
 implementation MUST 分别公布它支持的每一个标签。ER-Writer 蕴含 ER-Reader。
 两者均不蕴含任何 Adapter 或 UI profile。

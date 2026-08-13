@@ -20,12 +20,15 @@ import type {
 import type {
   GraftAbortMergeOptions,
   GraftApplyMergeOptions,
+  GraftAcceptSemanticMergeResultOptions,
   GraftContinueMergeOptions,
   GraftDiffMergeSqliteOptions,
   GraftListMergeConflictsOptions,
   GraftListMergePathsOptions,
   GraftPlanMergeOptions,
+  GraftPrepareSemanticMergeOptions,
   GraftReadMergeVersionOptions,
+  GraftRecordSemanticMergeConflictsOptions,
   GraftResolveMergeCellOptions,
   GraftResolveMergeRowOptions,
   GraftResolveMergeTableOptions,
@@ -331,6 +334,30 @@ export class GraftInProcessTransport implements GraftSdkTransport {
           ...(this.object(
             args[0]
           ) as unknown as GraftStageMergeSqliteResultOptions),
+          signal,
+        })
+      case "prepareSemanticMerge":
+        this.requireMergeMethod(session, command)
+        return session.prepareSemanticMerge({
+          ...(this.object(
+            args[0]
+          ) as unknown as GraftPrepareSemanticMergeOptions),
+          signal,
+        })
+      case "recordSemanticMergeConflicts":
+        this.requireMergeMethod(session, command)
+        return session.recordSemanticMergeConflicts({
+          ...(this.object(
+            args[0]
+          ) as unknown as GraftRecordSemanticMergeConflictsOptions),
+          signal,
+        })
+      case "acceptSemanticMergeResult":
+        this.requireMergeMethod(session, command)
+        return session.acceptSemanticMergeResult({
+          ...(this.object(
+            args[0]
+          ) as unknown as GraftAcceptSemanticMergeResultOptions),
           signal,
         })
       case "writeAndStageTextResult":

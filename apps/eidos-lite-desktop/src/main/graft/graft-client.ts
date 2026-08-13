@@ -31,6 +31,8 @@ import type {
   GraftMergePolicy,
   GraftMergePolicyResult,
   GraftMergePolicyValidationResult,
+  GraftSemanticMergeInput,
+  GraftSemanticMergeWorkspace,
 } from "../../shared/graft-merge-contracts"
 import type { GraftTransferProgress } from "../../shared/graft-sdk-contracts"
 import { resolveEidosLiteServiceEnvironment } from "../../shared/service-environment"
@@ -239,6 +241,76 @@ function mergeStatus(value: unknown): EidosSyncMergeStatus {
     stateToken: requiredString(item.state_token, "merge state token"),
     policyToken: requiredString(item.policy_token, "merge policy token"),
     policyVersion: Math.max(1, Math.trunc(numberValue(item.policy_version))),
+  }
+}
+
+function semanticMergeWorkspace(value: unknown): GraftSemanticMergeWorkspace {
+  const workspace = record(value)
+  const inputs = Array.isArray(workspace.inputs)
+    ? workspace.inputs.map((input): GraftSemanticMergeInput => {
+        const item = record(input)
+        if (
+          item.version !== "base" &&
+          item.version !== "ours" &&
+          item.version !== "theirs"
+        ) {
+          throw new Error("Graft returned an invalid semantic merge input")
+        }
+        return {
+          version: item.version,
+          revision: stringValue(item.revision) ?? null,
+          file_path: stringValue(item.file_path) ?? null,
+          size:
+            typeof item.size === "number" && Number.isFinite(item.size)
+              ? item.size
+              : null,
+        }
+      })
+    : []
+  if (inputs.length !== 3) {
+    throw new Error("Graft returned an incomplete semantic merge workspace")
+  }
+  const providerRecord = record(workspace.record)
+  if (
+    providerRecord.state !== "pending" &&
+    providerRecord.state !== "conflict" &&
+    providerRecord.state !== "merged"
+  ) {
+    throw new Error("Graft returned an invalid semantic merge provider record")
+  }
+  return {
+    provider_token: requiredString(workspace.provider_token, "provider token"),
+    provider: requiredString(workspace.provider, "provider"),
+    path: requiredString(workspace.path, "provider path"),
+    workspace_path: requiredString(
+      workspace.workspace_path,
+      "provider workspace"
+    ),
+    result_path: requiredString(workspace.result_path, "provider result"),
+    managed_tables: stringArray(workspace.managed_tables),
+    seed_applied_sql: workspace.seed_applied_sql === true,
+    managed_conflicts: Math.max(
+      0,
+      Math.trunc(numberValue(workspace.managed_conflicts))
+    ),
+    prepared_at_unix_ms: Math.max(
+      0,
+      Math.trunc(numberValue(workspace.prepared_at_unix_ms))
+    ),
+    state_token: requiredString(workspace.state_token, "provider state token"),
+    policy_token: requiredString(
+      workspace.policy_token,
+      "provider policy token"
+    ),
+    policy_version: Math.max(
+      0,
+      Math.trunc(numberValue(workspace.policy_version))
+    ),
+    orig_head: requiredString(workspace.orig_head, "provider Local head"),
+    merge_head: requiredString(workspace.merge_head, "provider Hosted head"),
+    merge_base: stringValue(workspace.merge_base) ?? null,
+    inputs,
+    record: providerRecord as GraftSemanticMergeWorkspace["record"],
   }
 }
 
@@ -2083,6 +2155,82 @@ export class GraftClient {
       )
     )
     return mergeStatus(value.merge)
+  }
+
+  async prepareSemanticMerge(
+    root: string,
+    relativePath: string,
+    provider: string,
+    managedTables: readonly string[],
+    expectedStateToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<GraftSemanticMergeWorkspace> {
+    return semanticMergeWorkspace(
+      await this.runSdk(
+        root,
+        "prepareSemanticMerge",
+        [
+          {
+            path: relativePath,
+            provider,
+            managedTables: [...managedTables],
+            expectedStateToken,
+          },
+        ],
+        options
+      )
+    )
+  }
+
+  async recordSemanticMergeConflicts(
+    root: string,
+    providerToken: string,
+    conflicts: readonly unknown[],
+    automaticResolutions: readonly unknown[],
+    expectedStateToken: string,
+    options: { signal?: AbortSignal } = {}
+  ): Promise<GraftSemanticMergeWorkspace> {
+    return semanticMergeWorkspace(
+      await this.runSdk(
+        root,
+        "recordSemanticMergeConflicts",
+        [
+          {
+            providerToken,
+            conflicts: [...conflicts],
+            automaticResolutions: [...automaticResolutions],
+            expectedStateToken,
+          },
+        ],
+        options
+      )
+    )
+  }
+
+  async acceptSemanticMergeResult(
+    root: string,
+    providerToken: string,
+    validation: unknown,
+    automaticResolutions: readonly unknown[],
+    expectedStateToken: string,
+    options: GraftMergeMutationOptions = {}
+  ): Promise<EidosSyncMergeStatus> {
+    const value = record(
+      await this.runSdk(
+        root,
+        "acceptSemanticMergeResult",
+        [
+          {
+            providerToken,
+            validation,
+            automaticResolutions: [...automaticResolutions],
+            expectedStateToken,
+          },
+        ],
+        options
+      )
+    )
+    return this.finishMergeMutation(value, options)
   }
 
   async writeAndStageTextResult(

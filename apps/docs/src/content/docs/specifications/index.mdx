@@ -7,9 +7,9 @@ sidebar:
 
 import { CardGrid, LinkCard } from "@astrojs/starlight/components"
 
-Eidos File interoperability is defined by four specifications. The English
-pages are normative. Chinese pages are informative translations and cannot
-override the English contract.
+Eidos File interoperability is defined by four core specifications and
+optional profiles. The English pages are normative. Chinese pages are
+informative translations and cannot override the English contract.
 
 <CardGrid>
   <LinkCard
@@ -21,6 +21,11 @@ override the English contract.
     title="Eidos Runtime 1.0"
     description="Logical types, queries, filters, derived values, mutations, revisions, and errors."
     href="/specifications/runtime-1-0/"
+  />
+  <LinkCard
+    title="Eidos System Metadata Merge 1.0"
+    description="Draft Runtime profile for deterministic three-way merge of canonical Eidos system metadata."
+    href="/specifications/system-metadata-merge-1-0/"
   />
   <LinkCard
     title="Eidos Adapter 1.0"

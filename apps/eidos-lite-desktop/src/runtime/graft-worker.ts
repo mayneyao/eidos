@@ -25,13 +25,16 @@ import type {
   GraftListMergeConflictsOptions,
   GraftListMergePathsOptions,
   GraftPlanMergeOptions,
+  GraftPrepareSemanticMergeOptions,
   GraftReadMergeVersionOptions,
+  GraftRecordSemanticMergeConflictsOptions,
   GraftResolveMergeCellOptions,
   GraftResolveMergeRowOptions,
   GraftResolveMergeTableOptions,
   GraftSetMergePolicyOptions,
   GraftSetMergePathResultOptions,
   GraftStageMergeSqliteResultOptions,
+  GraftAcceptSemanticMergeResultOptions,
   GraftUnresolveMergePathOptions,
   GraftValidateMergePolicyOptions,
   GraftWriteAndStageTextResultOptions,
@@ -425,6 +428,33 @@ async function runCommand(
           args[0],
           "stage merge SQLite result options"
         ) as unknown as GraftStageMergeSqliteResultOptions),
+        signal,
+      })
+    case "prepareSemanticMerge":
+      requireMergeMethod(repository, command)
+      return repository.prepareSemanticMerge({
+        ...(objectValue(
+          args[0],
+          "prepare semantic merge options"
+        ) as unknown as GraftPrepareSemanticMergeOptions),
+        signal,
+      })
+    case "recordSemanticMergeConflicts":
+      requireMergeMethod(repository, command)
+      return repository.recordSemanticMergeConflicts({
+        ...(objectValue(
+          args[0],
+          "record semantic merge conflicts options"
+        ) as unknown as GraftRecordSemanticMergeConflictsOptions),
+        signal,
+      })
+    case "acceptSemanticMergeResult":
+      requireMergeMethod(repository, command)
+      return repository.acceptSemanticMergeResult({
+        ...(objectValue(
+          args[0],
+          "accept semantic merge result options"
+        ) as unknown as GraftAcceptSemanticMergeResultOptions),
         signal,
       })
     case "writeAndStageTextResult":

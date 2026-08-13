@@ -1850,6 +1850,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const configuredPolicyToken = "e".repeat(64)
     const signals: AbortSignal[] = []
     let configuredPolicy: unknown
+    let domainConflictEnabled = false
     const file = createEidosFile(path.join(root, "records.eidos"), {
       title: "Merge policy fixture",
     })
@@ -2004,6 +2005,30 @@ describe("SpaceSession Graft-backed snapshots", () => {
           }
         }
       ),
+      prepareSemanticMerge: vi.fn(async () => {
+        if (!domainConflictEnabled) {
+          return { record: { state: "pending" as const } }
+        }
+        return {
+          record: {
+            state: "conflict" as const,
+            conflicts: [
+              {
+                code: "feature-conflict",
+                objectKind: "feature",
+                objectId: "feature-1",
+                group: "payload",
+                message: "Both sides changed this feature differently.",
+                base: { state: "present" },
+                ours: { state: "present", changedGroups: ["payload"] },
+                theirs: { state: "present", changedGroups: ["payload"] },
+                resolutionScope: "object",
+              },
+            ],
+            automatic_resolutions: [],
+          },
+        }
+      }),
     } as unknown as GraftClient
     let session: SpaceSession | null = null
 
@@ -2068,6 +2093,289 @@ describe("SpaceSession Graft-backed snapshots", () => {
         columns: ["Title"],
         rowColumns: ["_id", "Title"],
       })
+
+      domainConflictEnabled = true
+      const domainConflicts = await session.listSyncMergeConflicts(
+        "state-1",
+        "records.eidos"
+      )
+      expect(domainConflicts.items).toEqual([
+        expect.objectContaining({
+          kind: "domain",
+          reason: "feature-conflict",
+          owner: "feature",
+          name: "feature-1",
+          change: "payload",
+          message: "Both sides changed this feature differently.",
+        }),
+      ])
+    } finally {
+      await session?.close().catch(() => undefined)
+      await Promise.all([
+        fs.rm(root, { recursive: true, force: true }),
+        fs.rm(userData, { recursive: true, force: true }),
+      ])
+    }
+  })
+
+  it("automatically resolves Eidos system metadata through the Graft provider", async () => {
+    const root = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-space-system-merge-")
+    )
+    const userData = await fs.mkdtemp(
+      path.join(os.tmpdir(), "eidos-lite-space-system-merge-state-")
+    )
+    const relativePath = "records.eidos"
+    const localHead = "a".repeat(64)
+    const hostedHead = "b".repeat(64)
+    const baseHead = "c".repeat(64)
+    const stateToken = "d".repeat(64)
+    const planToken = "e".repeat(64)
+    const providerToken = "f".repeat(64)
+    const calls: string[] = []
+    const file = createEidosFile(path.join(root, relativePath), {
+      title: "System merge fixture",
+    })
+    file.close()
+
+    const merging = {
+      state: "merging" as const,
+      localHead,
+      hostedHead,
+      commonAncestor: baseHead,
+      stagedCount: 0,
+      unmergedCount: 1,
+      stateToken,
+      policyToken: "policy-1",
+      policyVersion: 1,
+    }
+    const applyMerge = vi.fn(
+      async (
+        _root: string,
+        _revision: string,
+        _expectedHead: string,
+        _planToken: string,
+        options: {
+          signal?: AbortSignal
+          onWorktreePaths?: (paths: string[] | null) => void
+        }
+      ) => {
+        calls.push("apply")
+        options.onWorktreePaths?.([relativePath])
+        return merging
+      }
+    )
+    const prepareSemanticMerge = vi.fn(async () => {
+      calls.push("prepare-semantic")
+      return {
+        provider_token: providerToken,
+        provider: "eidos.system-merge-1.0",
+        path: relativePath,
+        workspace_path: path.join(root, ".graft", "semantic-merge", "fixture"),
+        result_path: path.join(
+          root,
+          ".graft",
+          "semantic-merge",
+          "result.sqlite"
+        ),
+        managed_tables: ["eidos__meta"],
+        seed_applied_sql: true,
+        managed_conflicts: 1,
+        prepared_at_unix_ms: Date.parse("2026-08-13T03:00:00.000Z"),
+        state_token: stateToken,
+        policy_token: "policy-1",
+        policy_version: 1,
+        orig_head: localHead,
+        merge_head: hostedHead,
+        merge_base: baseHead,
+        inputs: [
+          {
+            version: "base" as const,
+            revision: baseHead,
+            file_path: path.join(root, "base.sqlite"),
+            size: 1,
+          },
+          {
+            version: "ours" as const,
+            revision: localHead,
+            file_path: path.join(root, "ours.sqlite"),
+            size: 1,
+          },
+          {
+            version: "theirs" as const,
+            revision: hostedHead,
+            file_path: path.join(root, "theirs.sqlite"),
+            size: 1,
+          },
+        ],
+        record: { state: "pending" as const },
+      }
+    })
+    const acceptSemanticMergeResult = vi.fn(
+      async (
+        _root: string,
+        _providerToken: string,
+        _validation: unknown,
+        _automaticResolutions: unknown[],
+        _stateToken: string,
+        options: {
+          signal?: AbortSignal
+          onWorktreePaths?: (paths: string[] | null) => void
+        }
+      ) => {
+        calls.push("accept-semantic")
+        options.onWorktreePaths?.([relativePath])
+        return { ...merging, stagedCount: 1, unmergedCount: 0 }
+      }
+    )
+    const graft = {
+      backend: "sdk",
+      syncRemoteOrigin: "https://sync-staging.eidos.space",
+      expectedVersion: () => "0.3.12",
+      close: vi.fn(async () => undefined),
+      operationMaterializesWorktree: vi.fn(async (operation: string) => {
+        calls.push(`contract:${operation}`)
+        return true
+      }),
+      status: vi.fn(async () => ({
+        dirty: false,
+        currentHead: localHead,
+        currentBranch: "main",
+        paths: [],
+        changes: [],
+        changedPaths: 0,
+      })),
+      applyMerge,
+      listMergePaths: vi.fn(async () => {
+        calls.push("list-paths")
+        return {
+          stateToken,
+          items: [
+            {
+              path: relativePath,
+              state: "unmerged" as const,
+              kind: "sqlite_database" as const,
+              storage: "sqlite_snapshot" as const,
+              hasBase: true,
+              hasLocal: true,
+              hasHosted: true,
+            },
+          ],
+          nextCursor: null,
+        }
+      }),
+      prepareSemanticMerge,
+      acceptSemanticMergeResult,
+      inspectSpace: vi.fn(async () => ({
+        available: true,
+        backend: "sdk" as const,
+        version: "0.3.12",
+        expectedVersion: "0.3.12",
+        initialized: true,
+        clean: true,
+        currentHead: localHead,
+        changedPaths: 0,
+      })),
+      inspectIgnores: vi.fn(async (_root: string, relativePaths: string[]) =>
+        relativePaths.map((relativePath) => ({
+          path: relativePath,
+          isIgnored: false,
+          isTracked: true,
+          isDirectory: false,
+          hasTrackedDescendants: false,
+        }))
+      ),
+    } as unknown as GraftClient
+    let session: SpaceSession | null = null
+
+    try {
+      await fs.mkdir(path.join(root, ".graft"))
+      session = await SpaceSession.create(root, userData, { graft })
+      vi.spyOn(session.runtimePool, "closeHandles").mockImplementation(
+        async () => {
+          calls.push("close")
+        }
+      )
+      vi.spyOn(session.runtimePool, "validatePaths").mockImplementation(
+        async (paths) => {
+          calls.push(`validate:${paths.join(",")}`)
+        }
+      )
+      vi.spyOn(session.runtimePool, "reopenHandles").mockImplementation(
+        async () => {
+          calls.push("reopen")
+        }
+      )
+      const mergeSystemMetadata = vi
+        .spyOn(session.runtimePool, "mergeSystemMetadata")
+        .mockImplementation(async (options) => {
+          calls.push("runtime-merge")
+          expect(options).toMatchObject({
+            oursKey: localHead,
+            theirsKey: hostedHead,
+            operationInstant: "2026-08-13T03:00:00.000Z",
+          })
+          return {
+            outcome: "merged" as const,
+            automaticResolutions: [
+              {
+                objectKind: "file" as const,
+                objectId: "singleton",
+                group: "title",
+                reason: "last-write-wins" as const,
+                selectedSide: "theirs" as const,
+              },
+            ],
+            validation: {
+              profile: "ER-System-Merge-1.0" as const,
+              level: "full" as const,
+              fileId: "file-1",
+              revision: "2",
+              operationInstant: options.operationInstant,
+              errors: [],
+              warnings: [],
+            },
+          }
+        })
+
+      await expect(
+        session.applyHostedMerge({ expectedHead: localHead, planToken })
+      ).resolves.toMatchObject({ state: "merging", unmergedCount: 0 })
+
+      expect(calls).toEqual([
+        "contract:applyMerge",
+        "close",
+        "apply",
+        "list-paths",
+        "prepare-semantic",
+        "runtime-merge",
+        "contract:acceptSemanticMergeResult",
+        "accept-semantic",
+        `validate:${relativePath}`,
+        "reopen",
+      ])
+      expect(prepareSemanticMerge).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        relativePath,
+        "eidos.system-merge-1.0",
+        expect.arrayContaining(["eidos__meta", "eidos__views"]),
+        stateToken,
+        { signal: expect.any(AbortSignal) }
+      )
+      expect(mergeSystemMetadata).toHaveBeenCalledOnce()
+      expect(acceptSemanticMergeResult).toHaveBeenCalledWith(
+        await fs.realpath(root),
+        providerToken,
+        expect.objectContaining({ profile: "ER-System-Merge-1.0" }),
+        expect.arrayContaining([
+          expect.objectContaining({ group: "title", selectedSide: "theirs" }),
+        ]),
+        stateToken,
+        {
+          signal: expect.any(AbortSignal),
+          onWorktreePaths: expect.any(Function),
+        }
+      )
     } finally {
       await session?.close().catch(() => undefined)
       await Promise.all([

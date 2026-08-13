@@ -47,12 +47,13 @@ File Format → Runtime → Adapter → UI
 
 ## 文档
 
-| 层          | 英文规范                                     | 中文参考                          |
-| ----------- | -------------------------------------------- | --------------------------------- |
-| File Format | [Eidos File Format 1.0](./eidos-file-1.0.md) | [中文](./eidos-file-1.0.zh.md)    |
-| Runtime     | [Eidos Runtime 1.0](./eidos-runtime-1.0.md)  | [中文](./eidos-runtime-1.0.zh.md) |
-| Adapter     | [Eidos Adapter 1.0](./eidos-adapter-1.0.md)  | [中文](./eidos-adapter-1.0.zh.md) |
-| UI          | [Eidos UI 1.0](./eidos-ui-1.0.md)            | [中文](./eidos-ui-1.0.zh.md)      |
+| 层                    | 英文规范                                                                | 中文参考                                        |
+| --------------------- | ----------------------------------------------------------------------- | ----------------------------------------------- |
+| File Format           | [Eidos File Format 1.0](./eidos-file-1.0.md)                            | [中文](./eidos-file-1.0.zh.md)                  |
+| Runtime               | [Eidos Runtime 1.0](./eidos-runtime-1.0.md)                             | [中文](./eidos-runtime-1.0.zh.md)               |
+| Runtime merge profile | [Eidos System Metadata Merge 1.0](./eidos-system-metadata-merge-1.0.md) | [中文](./eidos-system-metadata-merge-1.0.zh.md) |
+| Adapter               | [Eidos Adapter 1.0](./eidos-adapter-1.0.md)                             | [中文](./eidos-adapter-1.0.zh.md)               |
+| UI                    | [Eidos UI 1.0](./eidos-ui-1.0.md)                                       | [中文](./eidos-ui-1.0.zh.md)                    |
 
 ## 实现阶梯
 
@@ -94,6 +95,7 @@ EF-Reader-1.0
 EF-Writer-1.0
 ER-Reader-1.0
 ER-Writer-1.0
+ER-System-Merge-1.0
 EA-Connection-1.0
 EA-Host-1.0
 EA-Browser-1.0
@@ -103,7 +105,9 @@ EU-Editor-1.0
 EU-Schema-1.0
 ```
 
-较高 label 不隐含无关 layer。例如 headless CLI 可以声明
+较高 label 不隐含无关 layer。`ER-System-Merge-1.0` 是可选的 draft Runtime profile，
+要求 `EF-Reader-1.0`、`EF-Writer-1.0`、`ER-Reader-1.0` 与 `ER-Writer-1.0`，但
+`ER-Writer-1.0` 不会自动隐含它。例如 headless CLI 可以声明
 `EF-Reader-1.0 ER-Reader-1.0 EA-Desktop-1.0` 而没有 UI conformance。每份规范定义
 自己的 prerequisite 与 required test family。
 

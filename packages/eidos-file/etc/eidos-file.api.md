@@ -1041,6 +1041,9 @@ export const EIDOS_FILE_VIEWS_TABLE: "eidos__views";
 export const EIDOS_RUNTIME_LIMITS: RuntimeLimits;
 
 // @public (undocumented)
+export const EIDOS_SYSTEM_METADATA_TABLES: readonly string[];
+
+// @public (undocumented)
 export class EidosAdapterError extends Error implements AdapterError {
     constructor(code: AdapterErrorCode, message: string, retryable?: boolean, fatal?: boolean, sqlitePrimaryCode?: number | undefined, sqliteExtendedCode?: number | undefined);
     // (undocumented)
@@ -2503,6 +2506,120 @@ export class EidosRuntimeService implements RuntimeClient {
     validate(request: ValidationRequest, context: RequestContext): Promise<ValidationReport>;
 }
 
+// @public (undocumented)
+export interface EidosSystemMergeAutomaticResolution {
+    // (undocumented)
+    group: string;
+    // (undocumented)
+    objectId: string;
+    // (undocumented)
+    objectKind: EidosSystemMergeObjectKind;
+    // (undocumented)
+    reason: "last-write-wins" | "merge-finalization";
+    // (undocumented)
+    selectedSide?: "ours" | "theirs";
+}
+
+// @public (undocumented)
+export type EidosSystemMergeConflictCode = "identity-collision" | "name-collision" | "delete-update" | "table-rename-conflict" | "field-rename-conflict" | "field-conversion-conflict" | "option-catalog-conflict" | "dependency-conflict" | "feature-conflict" | "unsupported-schema-change" | "validation-failed";
+
+// @public (undocumented)
+export interface EidosSystemMergeDomainConflict {
+    // (undocumented)
+    base: EidosSystemMergeSummary;
+    // (undocumented)
+    code: EidosSystemMergeConflictCode;
+    // (undocumented)
+    group: string;
+    // (undocumented)
+    message: string;
+    // (undocumented)
+    objectId: string;
+    // (undocumented)
+    objectKind: EidosSystemMergeObjectKind;
+    // (undocumented)
+    ours: EidosSystemMergeSummary;
+    // (undocumented)
+    resolutionScope: "object" | "group" | "schema" | "dependency";
+    // (undocumented)
+    theirs: EidosSystemMergeSummary;
+}
+
+// @public (undocumented)
+export interface EidosSystemMergeInput {
+    // (undocumented)
+    base: EidosFileConnection;
+    // (undocumented)
+    operationInstant: string;
+    // (undocumented)
+    ours: EidosFileConnection;
+    // (undocumented)
+    oursKey: string;
+    result: EidosFileConnection;
+    // (undocumented)
+    theirs: EidosFileConnection;
+    // (undocumented)
+    theirsKey: string;
+}
+
+// @public (undocumented)
+export interface EidosSystemMergeInputIssue {
+    // (undocumented)
+    code: string;
+    // (undocumented)
+    input: "base" | "ours" | "theirs" | "result" | "request";
+    // (undocumented)
+    message: string;
+}
+
+// @public (undocumented)
+export type EidosSystemMergeObjectKind = "file" | "table" | "field" | "view" | "feature" | "dependency";
+
+// @public (undocumented)
+export type EidosSystemMergeResult = {
+    outcome: "merged";
+    automaticResolutions: EidosSystemMergeAutomaticResolution[];
+    validation: EidosSystemMergeValidationProof;
+} | {
+    outcome: "conflict";
+    conflicts: EidosSystemMergeDomainConflict[];
+    automaticResolutions: EidosSystemMergeAutomaticResolution[];
+} | {
+    outcome: "invalid-input";
+    issues: EidosSystemMergeInputIssue[];
+} | {
+    outcome: "failed";
+    code: "clock-not-after-input" | "revision-exhausted";
+};
+
+// @public (undocumented)
+export interface EidosSystemMergeSummary {
+    // (undocumented)
+    changedGroups?: string[];
+    // (undocumented)
+    state: "absent" | "present";
+}
+
+// @public (undocumented)
+export interface EidosSystemMergeValidationProof {
+    // (undocumented)
+    errors: EidosFileValidationIssue[];
+    // (undocumented)
+    fileId: string;
+    // (undocumented)
+    level: "full";
+    // (undocumented)
+    operationInstant: string;
+    // Warning: (ae-forgotten-export) The symbol "PROFILE" needs to be exported by the entry point index.d.mts
+    //
+    // (undocumented)
+    profile: typeof PROFILE;
+    // (undocumented)
+    revision: string;
+    // (undocumented)
+    warnings: EidosFileValidationIssue[];
+}
+
 // @public
 export class EidosUuidV7Generator {
     constructor(nowInstant: () => string, randomBytes: (length: number) => Uint8Array);
@@ -3153,6 +3270,9 @@ export class MemoryByteSource implements ByteSource {
     // (undocumented)
     readonly size: string;
 }
+
+// @public
+export function mergeEidosSystemMetadata(input: EidosSystemMergeInput): EidosSystemMergeResult;
 
 // @public (undocumented)
 export const MUTABLE_BASE_FIELD_TYPES: readonly ["text", "number", "checkbox", "date", "datetime", "file", "multi-select", "rating", "select", "url"];

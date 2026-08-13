@@ -84,6 +84,10 @@ Conformance profiles are:
 - **ER-Writer-1.0**: ER-Reader plus canonical row, View, and schema mutations,
   conversion, revision postconditions, and rollback behavior. It requires an
   `EF-Writer-1.0` storage implementation.
+- **ER-System-Merge-1.0**: optional draft profile defined by
+  [Eidos System Metadata Merge 1.0](./eidos-system-metadata-merge-1.0.md). It
+  adds deterministic three-way system metadata merge and requires ER-Writer;
+  ER-Writer does not imply it.
 
 An implementation MUST publish each supported label separately. ER-Writer
 implies ER-Reader. Neither implies an Adapter or UI profile.

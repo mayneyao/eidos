@@ -35,6 +35,7 @@ export * from "./runtime-service"
 export * from "./schema"
 export * from "./select-options"
 export * from "./sqlite-wasm"
+export * from "./system-metadata-merge"
 export {
   currentEidosFileInstant,
   isCanonicalEidosFileDate,

@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto"
 import { constants as fsConstants } from "node:fs"
 import fs from "node:fs/promises"
 import path from "node:path"
-import type { FileEntry } from "@eidos.space/eidos-file"
+import type {
+  EidosSystemMergeDomainConflict,
+  FileEntry,
+} from "@eidos.space/eidos-file"
 
 import type {
   EidosFileIssue,
@@ -135,8 +138,69 @@ const EIDOS_FILE_METADATA_TABLES = [
   "eidos__tables",
   "eidos__views",
 ] as const
+const EIDOS_SYSTEM_MERGE_PROVIDER = "eidos.system-merge-1.0"
+const EIDOS_SYSTEM_MERGE_CONFLICT_CODES = new Set([
+  "identity-collision",
+  "name-collision",
+  "delete-update",
+  "table-rename-conflict",
+  "field-rename-conflict",
+  "field-conversion-conflict",
+  "option-catalog-conflict",
+  "dependency-conflict",
+  "feature-conflict",
+  "unsupported-schema-change",
+  "validation-failed",
+])
+const EIDOS_SYSTEM_MERGE_OBJECT_KINDS = new Set([
+  "file",
+  "table",
+  "field",
+  "view",
+  "feature",
+  "dependency",
+])
+const EIDOS_SYSTEM_MERGE_RESOLUTION_SCOPES = new Set([
+  "object",
+  "group",
+  "schema",
+  "dependency",
+])
 
 class AutomaticCheckpointSkipped extends Error {}
+
+function semanticDomainConflict(
+  value: unknown
+): EidosSystemMergeDomainConflict | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null
+  const conflict = value as Record<string, unknown>
+  const summary = (candidate: unknown) =>
+    Boolean(
+      candidate &&
+      typeof candidate === "object" &&
+      !Array.isArray(candidate) &&
+      ["absent", "present"].includes(
+        String((candidate as Record<string, unknown>).state)
+      )
+    )
+  if (
+    typeof conflict.code !== "string" ||
+    !EIDOS_SYSTEM_MERGE_CONFLICT_CODES.has(conflict.code) ||
+    typeof conflict.objectKind !== "string" ||
+    !EIDOS_SYSTEM_MERGE_OBJECT_KINDS.has(conflict.objectKind) ||
+    typeof conflict.objectId !== "string" ||
+    typeof conflict.group !== "string" ||
+    typeof conflict.message !== "string" ||
+    typeof conflict.resolutionScope !== "string" ||
+    !EIDOS_SYSTEM_MERGE_RESOLUTION_SCOPES.has(conflict.resolutionScope) ||
+    !summary(conflict.base) ||
+    !summary(conflict.ours) ||
+    !summary(conflict.theirs)
+  ) {
+    return null
+  }
+  return conflict as unknown as EidosSystemMergeDomainConflict
+}
 
 function repositorySyncState(relation: {
   ahead: number
@@ -1399,13 +1463,27 @@ export class SpaceSession {
             { code: "GRAFT_SDK_REPOSITORY_STALE" }
           )
         }
-        return this.graft.applyMerge(
+        const materializedPaths = new Set<string>()
+        const capturePaths = (paths: string[] | null) => {
+          for (const relativePath of paths ?? [])
+            materializedPaths.add(relativePath)
+        }
+        let merge = await this.graft.applyMerge(
           this.canonical.root,
           "origin/main",
           request.expectedHead,
           request.planToken,
-          { signal, onWorktreePaths }
+          { signal, onWorktreePaths: capturePaths }
         )
+        if (merge.state === "merging") {
+          merge = await this.resolveEidosSystemMetadataMerges(
+            merge,
+            signal,
+            capturePaths
+          )
+        }
+        onWorktreePaths([...materializedPaths])
+        return merge
       }
     )
   }
@@ -1447,6 +1525,44 @@ export class SpaceSession {
         )
         if (!normalized.toLowerCase().endsWith(".eidos")) return page
         try {
+          const workspace = await this.graft.prepareSemanticMerge(
+            this.canonical.root,
+            normalized,
+            EIDOS_SYSTEM_MERGE_PROVIDER,
+            EIDOS_FILE_METADATA_TABLES,
+            stateToken,
+            { signal }
+          )
+          if (workspace.record.state === "conflict") {
+            const domainConflicts = workspace.record.conflicts
+              .map(semanticDomainConflict)
+              .filter(
+                (conflict): conflict is EidosSystemMergeDomainConflict =>
+                  conflict !== null
+              )
+            if (domainConflicts.length !== workspace.record.conflicts.length) {
+              return page
+            }
+            return {
+              ...page,
+              items: domainConflicts.map((domain, index) => {
+                return {
+                  id: `semantic:${domain.objectKind}:${domain.objectId}:${domain.group}:${index}`,
+                  path: normalized,
+                  pathKind: "sqlite_database" as const,
+                  storage: "sqlite_snapshot" as const,
+                  kind: "domain",
+                  reason: domain.code,
+                  status: "unresolved" as const,
+                  name: domain.objectId,
+                  owner: domain.objectKind,
+                  change: domain.group,
+                  message: domain.message,
+                }
+              }),
+              nextCursor: null,
+            }
+          }
           const opened = await this.runtimePool.open(normalized)
           const tableColumns = new Map<string, string[]>()
           for (const table of opened.snapshot.tables) {
@@ -3136,6 +3252,115 @@ export class SpaceSession {
       current.policy_token,
       { signal }
     )
+  }
+
+  private async resolveEidosSystemMetadataMerges(
+    initial: EidosSyncMergeStatus & { state: "merging" },
+    signal: AbortSignal,
+    onWorktreePaths: (paths: string[] | null) => void
+  ): Promise<EidosSyncMergeStatus> {
+    let merge: EidosSyncMergeStatus = initial
+    const eidosPaths: string[] = []
+    let after: string | undefined
+    do {
+      const page = await this.graft.listMergePaths(
+        this.canonical.root,
+        initial.stateToken,
+        {
+          filter: "unmerged",
+          limit: 100,
+          ...(after ? { after } : {}),
+          signal,
+        }
+      )
+      eidosPaths.push(
+        ...page.items
+          .filter(
+            (item) =>
+              item.kind === "sqlite_database" &&
+              item.path.toLowerCase().endsWith(".eidos")
+          )
+          .map((item) => item.path)
+      )
+      after = page.nextCursor ?? undefined
+    } while (after)
+
+    for (const relativePath of eidosPaths) {
+      if (merge.state !== "merging") break
+      try {
+        const workspace = await this.graft.prepareSemanticMerge(
+          this.canonical.root,
+          relativePath,
+          EIDOS_SYSTEM_MERGE_PROVIDER,
+          EIDOS_FILE_METADATA_TABLES,
+          merge.stateToken,
+          { signal }
+        )
+        const inputPath = (version: "base" | "ours" | "theirs") => {
+          const filePath = workspace.inputs.find(
+            (input) => input.version === version
+          )?.file_path
+          if (!filePath) {
+            throw new Error(
+              `Eidos system merge requires a ${version} SQLite snapshot`
+            )
+          }
+          return filePath
+        }
+        const outcome = await this.runtimePool.mergeSystemMetadata({
+          basePath: inputPath("base"),
+          oursPath: inputPath("ours"),
+          theirsPath: inputPath("theirs"),
+          resultPath: workspace.result_path,
+          oursKey: workspace.orig_head,
+          theirsKey: workspace.merge_head,
+          operationInstant: new Date(
+            workspace.prepared_at_unix_ms
+          ).toISOString(),
+        })
+        if (outcome.outcome === "conflict") {
+          await this.graft.recordSemanticMergeConflicts(
+            this.canonical.root,
+            workspace.provider_token,
+            outcome.conflicts,
+            outcome.automaticResolutions,
+            merge.stateToken,
+            { signal }
+          )
+          continue
+        }
+        if (outcome.outcome !== "merged") {
+          console.warn(
+            `Could not automatically merge Eidos system metadata for ${relativePath}`,
+            outcome
+          )
+          continue
+        }
+        const materializes = await this.graft.operationMaterializesWorktree(
+          "acceptSemanticMergeResult",
+          { signal }
+        )
+        if (!materializes) {
+          throw new Error(
+            "Graft did not declare acceptSemanticMergeResult as a worktree materialization"
+          )
+        }
+        merge = await this.graft.acceptSemanticMergeResult(
+          this.canonical.root,
+          workspace.provider_token,
+          outcome.validation,
+          outcome.automaticResolutions,
+          merge.stateToken,
+          { signal, onWorktreePaths }
+        )
+      } catch (error) {
+        console.warn(
+          `Eidos system metadata merge is not available for ${relativePath}`,
+          error
+        )
+      }
+    }
+    return merge
   }
 
   private async materializeMergeOperation(

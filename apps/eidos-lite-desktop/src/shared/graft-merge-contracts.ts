@@ -377,6 +377,67 @@ export interface GraftStageMergeSqliteResultOptions extends GraftOperationOption
   expectedStateToken: string
 }
 
+export interface GraftPrepareSemanticMergeOptions extends GraftOperationOptions {
+  path: string
+  provider: string
+  managedTables: string[]
+  expectedStateToken: string
+}
+
+export type GraftSemanticMergeProviderRecord =
+  | { state: "pending" }
+  | {
+      state: "conflict"
+      conflicts: unknown[]
+      automatic_resolutions: unknown[]
+    }
+  | {
+      state: "merged"
+      validation: unknown
+      automatic_resolutions: unknown[]
+    }
+
+export interface GraftSemanticMergeInput {
+  version: GraftMergeSqliteVersion
+  revision: string | null
+  file_path: string | null
+  size: number | null
+}
+
+export interface GraftSemanticMergeWorkspace {
+  provider_token: string
+  provider: string
+  path: string
+  workspace_path: string
+  result_path: string
+  managed_tables: string[]
+  seed_applied_sql: boolean
+  managed_conflicts: number
+  prepared_at_unix_ms: number
+  state_token: string
+  policy_token: string
+  policy_version: number
+  orig_head: string
+  merge_head: string
+  merge_base: string | null
+  inputs: GraftSemanticMergeInput[]
+  record: GraftSemanticMergeProviderRecord
+}
+
+export interface GraftRecordSemanticMergeConflictsOptions extends GraftOperationOptions {
+  providerToken: string
+  conflicts: unknown[]
+  automaticResolutions?: unknown[]
+  expectedStateToken: string
+}
+
+export interface GraftAcceptSemanticMergeResultOptions extends GraftOperationOptions {
+  providerToken: string
+  validation: unknown
+  automaticResolutions?: unknown[]
+  expectedStateToken: string
+}
+
 export interface GraftWriteAndStageTextResultOptions extends GraftOperationOptions {
   path: string
   content: string
@@ -450,6 +511,15 @@ export interface GraftMergeRepositorySession {
   ): Promise<GraftMergeOperationResult>
   stageMergeSqliteResult(
     options: GraftStageMergeSqliteResultOptions
+  ): Promise<GraftMergeOperationResult>
+  prepareSemanticMerge(
+    options: GraftPrepareSemanticMergeOptions
+  ): Promise<GraftSemanticMergeWorkspace>
+  recordSemanticMergeConflicts(
+    options: GraftRecordSemanticMergeConflictsOptions
+  ): Promise<GraftSemanticMergeWorkspace>
+  acceptSemanticMergeResult(
+    options: GraftAcceptSemanticMergeResultOptions
   ): Promise<GraftMergeOperationResult>
   writeAndStageTextResult(
     options: GraftWriteAndStageTextResultOptions

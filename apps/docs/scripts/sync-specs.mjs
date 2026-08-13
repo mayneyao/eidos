@@ -10,6 +10,11 @@ const contentDirectory = path.join(docsApp, "src/content/docs")
 const specifications = [
   { source: "eidos-file-1.0.md", slug: "file-format-1-0", order: 10 },
   { source: "eidos-runtime-1.0.md", slug: "runtime-1-0", order: 20 },
+  {
+    source: "eidos-system-metadata-merge-1.0.md",
+    slug: "system-metadata-merge-1-0",
+    order: 25,
+  },
   { source: "eidos-adapter-1.0.md", slug: "adapter-1-0", order: 30 },
   { source: "eidos-ui-1.0.md", slug: "ui-1-0", order: 40 },
 ]
@@ -17,6 +22,7 @@ const specifications = [
 const retiredGeneratedSlugs = [
   "file-format-1.0",
   "runtime-1.0",
+  "system-metadata-merge-1.0",
   "adapter-1.0",
   "ui-1.0",
 ]
