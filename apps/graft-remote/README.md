@@ -18,7 +18,7 @@ GRAFT_REMOTE_TOKEN. CLI keys are independent of Desktop sessions and devices.
 
 Wire behavior comes exclusively from the official npm packages released from
 the `eidos-space/graft` repository at commit
-`1f90077a8d43ff767c4233e526a1fd0bccdde453`:
+`6f3fcf58b889e467fcf0e7ddc6ed94d3ca96be63`:
 
 - @eidos.space/graft-remote owns Remote v1 validation, status codes, range
   reads, conditional operations, pagination, and the Graft-Protocol: 1 header.
@@ -26,7 +26,7 @@ the `eidos-space/graft` repository at commit
 - @eidos.space/graft-remote-cloudflare owns the R2 and SQLite Durable Object
   backend.
 
-The service pins the three public Remote packages to `0.2.1`; no upstream
+The service pins the three public Remote packages to `0.2.2`; no upstream
 implementation is copied into the Eidos repository. Eidos-specific code does
 not duplicate or version-gate the protocol. A newer official Remote release
 becomes the tested baseline only after the service checks and current CLI

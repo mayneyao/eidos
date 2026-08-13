@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react"
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   Check,
   CheckCircle2,
   ChevronRight,
+  Clock,
   Cloud,
   CloudDownload,
+  CloudOff,
   CloudUpload,
   Copy,
   FileWarning,
@@ -17,6 +21,7 @@ import {
   ShieldCheck,
   UserRound,
   X,
+  type LucideIcon,
 } from "lucide-react"
 
 import type {
@@ -68,13 +73,9 @@ interface LoadError {
 
 type SyncTone = "neutral" | "active" | "success" | "warning" | "danger"
 
-interface SyncPill {
-  label: string
-  tone: SyncTone
-}
-
 interface SyncOverview {
-  pill: SyncPill
+  icon: LucideIcon
+  spin?: boolean
   title: string
   message?: string
   tone: SyncTone
@@ -101,41 +102,6 @@ const OPERATION_LABELS: Record<EidosSyncOperation, string> = {
   sync: "Syncing this Space",
   clone: "Opening a synced Space",
   recovery: "Creating a safe copy",
-}
-
-const OPERATION_STEPS: Record<
-  EidosSyncOperation,
-  Array<{ label: string; phases: EidosSyncPhase[] }>
-> = {
-  connect: [
-    { label: "Check access", phases: ["authorization"] },
-    { label: "Prepare Space", phases: ["analyze", "drain"] },
-    { label: "Upload", phases: ["push"] },
-    { label: "Finish", phases: ["validate", "reopen"] },
-  ],
-  sync: [
-    {
-      label: "Check for updates",
-      phases: ["authorization", "fetch", "analyze"],
-    },
-    {
-      label: "Get updates",
-      phases: ["drain", "pull", "validate", "reopen"],
-    },
-    { label: "Upload changes", phases: ["push"] },
-  ],
-  clone: [
-    { label: "Choose location", phases: ["authorization", "drain"] },
-    { label: "Download", phases: ["fetch"] },
-    { label: "Check files", phases: ["validate"] },
-    { label: "Open Space", phases: ["reopen"] },
-  ],
-  recovery: [
-    { label: "Prepare", phases: ["authorization", "drain"] },
-    { label: "Create copy", phases: ["fetch", "pull", "push"] },
-    { label: "Check files", phases: ["validate"] },
-    { label: "Open Space", phases: ["reopen"] },
-  ],
 }
 
 export function SyncPanel({
@@ -783,6 +749,26 @@ export function SyncPanel({
     )
   }
 
+  const signedIn = status.account.state === "signed-in"
+  const heroMeta =
+    signedIn &&
+    (mode === "clone" ? repositoriesCheckedAtMs : lastSyncedAtMs) &&
+    !syncFailure &&
+    syncProgress?.state !== "active"
+      ? `${mode === "clone" ? "List updated" : "Last synced"} ${formatRelativeTime(
+          mode === "clone"
+            ? (repositoriesCheckedAtMs ?? 0)
+            : (lastSyncedAtMs ?? 0)
+        )}`
+      : null
+  const direction =
+    mode === "enable" &&
+    signedIn &&
+    status.remote.state === "connected" &&
+    syncProgress?.state !== "active"
+      ? syncDirection(syncHistory)
+      : null
+
   return (
     <div
       className={
@@ -826,7 +812,7 @@ export function SyncPanel({
             </span>
           </div>
           <div className="sync-dialog-header-side">
-            {status.account.state === "signed-in" ? (
+            {signedIn ? (
               <SyncIdentityChip
                 user={status.account.user}
                 checking={checking}
@@ -847,7 +833,7 @@ export function SyncPanel({
 
         <div className="sync-dialog-body" data-sync-tone={overview.tone}>
           <section
-            className="sync-status"
+            className="sync-hero"
             data-sync-overview={overview.tone}
             data-sync-queue-state={syncQueueStatus?.state ?? "idle"}
             {...(syncFailure
@@ -860,40 +846,45 @@ export function SyncPanel({
               : {})}
             aria-live="polite"
           >
-            <div className="sync-status-topline">
-              <span
-                className={`sync-status-pill sync-status-pill-${overview.pill.tone}`}
-              >
-                {overview.pill.tone === "success" ? <Check /> : null}
-                {overview.pill.label}
-              </span>
-              {status.account.state === "signed-in" &&
-              (mode === "clone" ? repositoriesCheckedAtMs : lastSyncedAtMs) &&
-              !syncFailure &&
-              syncProgress?.state !== "active" ? (
-                <span className="sync-status-meta">
-                  {mode === "clone" ? "List updated" : "Last synced"}{" "}
-                  {formatRelativeTime(
-                    mode === "clone"
-                      ? (repositoriesCheckedAtMs ?? 0)
-                      : (lastSyncedAtMs ?? 0)
-                  )}
+            <span className="sync-hero-icon" aria-hidden="true">
+              <overview.icon className={overview.spin ? "spin" : undefined} />
+            </span>
+            <div className="sync-hero-copy">
+              <h2>{overview.title}</h2>
+              {overview.message ? <p>{overview.message}</p> : null}
+              {direction ? (
+                <span className="sync-direction">
+                  {direction.upload > 0 ? (
+                    <span
+                      className="sync-direction-item"
+                      data-sync-direction="upload"
+                    >
+                      <ArrowUp /> {direction.upload} to upload
+                    </span>
+                  ) : null}
+                  {direction.download > 0 ? (
+                    <span
+                      className="sync-direction-item"
+                      data-sync-direction="download"
+                    >
+                      <ArrowDown /> {direction.download} to download
+                    </span>
+                  ) : null}
                 </span>
               ) : null}
+              {heroMeta ? (
+                <small className="sync-hero-meta">{heroMeta}</small>
+              ) : null}
+              {syncFailure ? (
+                <small className="sync-local-safe">
+                  <HardDrive /> Local files safe
+                </small>
+              ) : null}
             </div>
-            <h2>{overview.title}</h2>
-            {overview.message ? (
-              <p className="sync-status-message">{overview.message}</p>
-            ) : null}
-            {syncFailure ? (
-              <small className="sync-local-safe">
-                <HardDrive /> Local files safe
-              </small>
-            ) : null}
           </section>
 
           {loadError ? (
-            <div className="sync-primary-actions">
+            <div className="sync-actions">
               <button
                 type="button"
                 className="primary-action"
@@ -921,7 +912,7 @@ export function SyncPanel({
           ) : null}
 
           {syncFailure && !loadError ? (
-            <div className="sync-primary-actions sync-failure-actions">
+            <div className="sync-actions">
               <button
                 type="button"
                 className={
@@ -957,7 +948,7 @@ export function SyncPanel({
                 progress={syncProgress}
                 elapsedMs={syncElapsedMs}
               />
-              <div className="sync-primary-actions">
+              <div className="sync-actions">
                 <button
                   type="button"
                   className="secondary-action sync-keep-working"
@@ -972,8 +963,8 @@ export function SyncPanel({
 
           {!syncFailure && !loadError && !spaceStatusPending ? (
             <>
-              {status.account.state === "signed-out" ? (
-                <div className="sync-primary-actions">
+              {!signedIn ? (
+                <div className="sync-actions">
                   <button
                     type="button"
                     className="primary-action sync-sign-in"
@@ -994,7 +985,7 @@ export function SyncPanel({
               ) : null}
 
               {mode === "enable" &&
-              status.account.state === "signed-in" &&
+              signedIn &&
               status.remote.state === "not-connected" ? (
                 <>
                   {status.canEnable ? (
@@ -1004,7 +995,7 @@ export function SyncPanel({
                       onConfirmWarnings={setConfirmWarnings}
                     />
                   ) : null}
-                  <div className="sync-primary-actions">
+                  <div className="sync-actions">
                     {status.canEnable ? (
                       <button
                         type="button"
@@ -1043,10 +1034,10 @@ export function SyncPanel({
               ) : null}
 
               {mode === "enable" &&
-              status.account.state === "signed-in" &&
+              signedIn &&
               status.remote.state === "connected" &&
               (!mergeReviewNeeded || hasUncheckpointedChanges) ? (
-                <div className="sync-primary-actions">
+                <div className="sync-actions">
                   {hasUncheckpointedChanges ? (
                     <button
                       type="button"
@@ -1057,7 +1048,7 @@ export function SyncPanel({
                       }
                       onClick={onReviewLocal}
                     >
-                      <FileWarning /> Review local changes
+                      <FileWarning /> Review changes
                     </button>
                   ) : storageBlocksCurrentUpload ? (
                     <button
@@ -1070,37 +1061,35 @@ export function SyncPanel({
                       <UserRound /> Manage storage
                     </button>
                   ) : (
-                    <>
-                      <button
-                        type="button"
-                        className={`${
-                          syncActionIsPrimary
-                            ? "primary-action"
-                            : "secondary-action"
-                        } sync-run`}
-                        data-sync-run
-                        disabled={busy !== null || operationsBlocked}
-                        onClick={() => void syncNow()}
-                      >
-                        {busy === "sync" ? (
-                          <LoaderCircle className="spin" />
-                        ) : status.entitlement.state === "read-only" ? (
-                          <CloudDownload />
-                        ) : syncHistory?.state === "ahead" ? (
-                          <CloudUpload />
-                        ) : (
-                          <RefreshCw />
-                        )}
-                        {busy === "sync" ? "Syncing…" : syncAction}
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      className={`${
+                        syncActionIsPrimary
+                          ? "primary-action"
+                          : "secondary-action"
+                      } sync-run`}
+                      data-sync-run
+                      disabled={busy !== null || operationsBlocked}
+                      onClick={() => void syncNow()}
+                    >
+                      {busy === "sync" ? (
+                        <LoaderCircle className="spin" />
+                      ) : status.entitlement.state === "read-only" ? (
+                        <CloudDownload />
+                      ) : syncHistory?.state === "ahead" ? (
+                        <CloudUpload />
+                      ) : syncHistory?.state === "behind" ? (
+                        <CloudDownload />
+                      ) : (
+                        <RefreshCw />
+                      )}
+                      {busy === "sync" ? "Syncing…" : syncAction}
+                    </button>
                   )}
                 </div>
               ) : null}
 
-              {mode === "clone" &&
-              status.account.state === "signed-in" &&
-              status.canClone ? (
+              {mode === "clone" && signedIn && status.canClone ? (
                 <RepositoryPicker
                   repositories={repositories}
                   busy={busy}
@@ -1125,103 +1114,66 @@ export function SyncPanel({
             />
           ) : null}
 
-          {mode === "enable" && status.account.state === "signed-in" ? (
-            <details
-              className="sync-storage-disclosure"
-              data-sync-storage-disclosure
-              data-sync-storage-state={storageState}
-              open={storageBlocksCurrentUpload || undefined}
-            >
-              <summary>
-                <HardDrive />
-                <strong>Storage</strong>
-                <span>
-                  {storage
-                    ? `${formatBytes(storage.usedBytes)} of ${formatBytes(storage.quotaBytes)}`
-                    : "Usage unavailable"}
-                </span>
-                <ChevronRight />
-              </summary>
-              <SyncStorageSummary
-                storage={storage}
-                spaceBytes={preflight?.totalBytes ?? spaceBytes}
-                spaceSizeState={spaceSizeState}
-                managing={busy === "help"}
-                onManageStorage={
-                  storageNeedsAttention
-                    ? () => void openHelp("account")
-                    : undefined
-                }
-              />
-            </details>
-          ) : null}
-
           {syncResult?.state === "conflict" ||
           syncHistory?.state === "diverged" ? (
-            <details className="sync-recovery" data-sync-recovery>
-              <summary>
-                <ChevronRight />
-                <span>
-                  <strong>Recovery copies</strong>
-                  <small>Keep Local and Hosted separate</small>
-                </span>
-              </summary>
-              <div className="sync-recovery-body">
-                <p>
-                  {mergeActive
-                    ? "Abort the active merge before creating Recovery Spaces."
-                    : "These copies will not merge or overwrite either side."}
-                </p>
-                <dl className="sync-divergence-summary">
-                  <div>
-                    <dt>Local-only updates</dt>
-                    <dd data-sync-local-ahead>
-                      {syncResult?.ahead ?? syncHistory?.ahead ?? 0}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Cloud-only updates</dt>
-                    <dd data-sync-hosted-ahead>
-                      {syncResult?.behind ?? syncHistory?.behind ?? 0}
-                    </dd>
-                  </div>
-                </dl>
-                <div className="sync-recovery-actions">
-                  <button
-                    type="button"
-                    className="secondary-action"
-                    data-sync-recover-local
-                    disabled={busy !== null || mergeActive}
-                    onClick={() => void recoverLocal()}
-                  >
-                    {busy === "recover-local" ? (
-                      <LoaderCircle className="spin" />
-                    ) : (
-                      <Copy />
-                    )}
-                    {busy === "recover-local"
-                      ? "Creating local copy…"
-                      : "Keep a local copy"}
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary-action"
-                    data-sync-recover-hosted
-                    disabled={busy !== null || mergeActive}
-                    onClick={() => void recoverHosted()}
-                  >
-                    {busy === "recover-hosted" ? (
-                      <LoaderCircle className="spin" />
-                    ) : (
-                      <FolderDown />
-                    )}
-                    {busy === "recover-hosted"
-                      ? "Creating cloud copy…"
-                      : "Open a cloud copy"}
-                  </button>
+            <section className="sync-section" data-sync-recovery>
+              <div className="sync-section-head">
+                <h3>Recovery copies</h3>
+              </div>
+              <p className="sync-caption">
+                {mergeActive
+                  ? "Abort the active merge before creating Recovery Spaces."
+                  : "These copies will not merge or overwrite either side."}
+              </p>
+              <div className="sync-stat-grid">
+                <div>
+                  <strong data-sync-local-ahead>
+                    {syncResult?.ahead ?? syncHistory?.ahead ?? 0}
+                  </strong>
+                  <span>Local-only updates</span>
+                </div>
+                <div>
+                  <strong data-sync-hosted-ahead>
+                    {syncResult?.behind ?? syncHistory?.behind ?? 0}
+                  </strong>
+                  <span>Cloud-only updates</span>
                 </div>
               </div>
-            </details>
+              <div className="sync-actions sync-recovery-actions">
+                <button
+                  type="button"
+                  className="secondary-action"
+                  data-sync-recover-local
+                  disabled={busy !== null || mergeActive}
+                  onClick={() => void recoverLocal()}
+                >
+                  {busy === "recover-local" ? (
+                    <LoaderCircle className="spin" />
+                  ) : (
+                    <Copy />
+                  )}
+                  {busy === "recover-local"
+                    ? "Creating local copy…"
+                    : "Keep a local copy"}
+                </button>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  data-sync-recover-hosted
+                  disabled={busy !== null || mergeActive}
+                  onClick={() => void recoverHosted()}
+                >
+                  {busy === "recover-hosted" ? (
+                    <LoaderCircle className="spin" />
+                  ) : (
+                    <FolderDown />
+                  )}
+                  {busy === "recover-hosted"
+                    ? "Creating cloud copy…"
+                    : "Open a cloud copy"}
+                </button>
+              </div>
+            </section>
           ) : null}
 
           {recoveryResult ? (
@@ -1245,26 +1197,38 @@ export function SyncPanel({
             </section>
           ) : null}
 
-          <details className="sync-details" data-sync-details>
-            <summary>
-              <ChevronRight /> Details
-            </summary>
-            <div className="sync-details-body">
-              <dl>
+          {mode === "enable" && signedIn ? (
+            <SyncStorageSection
+              storage={storage}
+              storageState={storageState}
+              spaceBytes={preflight?.totalBytes ?? spaceBytes}
+              spaceSizeState={spaceSizeState}
+              blocksUpload={storageBlocksCurrentUpload}
+              managing={busy === "help"}
+              onManageStorage={
+                storageNeedsAttention || storageBlocksCurrentUpload
+                  ? () => void openHelp("account")
+                  : undefined
+              }
+            />
+          ) : null}
+
+          {signedIn ? (
+            <section className="sync-section sync-about" data-sync-details>
+              <div className="sync-section-head">
+                <h3>Connection</h3>
+              </div>
+              <dl className="sync-kv">
                 <div>
                   <dt>Account</dt>
-                  <dd>
-                    {status.account.state === "signed-in"
-                      ? accountName
-                      : "Signed out"}
-                  </dd>
+                  <dd>{accountName}</dd>
                 </div>
                 <div>
                   <dt>Access</dt>
                   <dd>{accessLabel(status)}</dd>
                 </div>
                 <div>
-                  <dt>Cloud connection</dt>
+                  <dt>Cloud</dt>
                   <dd>
                     {status.remote.state === "connected"
                       ? "Connected"
@@ -1280,15 +1244,15 @@ export function SyncPanel({
               </dl>
 
               {visiblePhases.length > 0 ? (
-                <section className="sync-diagnostics">
-                  <header>
-                    <strong>Last operation</strong>
+                <details className="sync-more sync-diagnostics">
+                  <summary>
+                    <ChevronRight /> Last operation
                     <span>
                       {formatDuration(
                         runTelemetry?.durationMs ?? syncElapsedMs
                       )}
                     </span>
-                  </header>
+                  </summary>
                   <ol>
                     {visiblePhases.map((phase, index) => (
                       <li
@@ -1307,13 +1271,13 @@ export function SyncPanel({
                       </li>
                     ))}
                   </ol>
-                </section>
+                </details>
               ) : null}
 
-              <div className="sync-details-actions">
+              <div className="sync-ghost-row">
                 <button
                   type="button"
-                  className="secondary-action"
+                  className="sync-ghost"
                   disabled={busy !== null}
                   onClick={() => {
                     setBusy("diagnostics")
@@ -1337,7 +1301,7 @@ export function SyncPanel({
                 </button>
                 <button
                   type="button"
-                  className="secondary-action"
+                  className="sync-ghost"
                   disabled={busy !== null}
                   onClick={() =>
                     void window.eidosLite.openSettingsDestination("logs")
@@ -1345,20 +1309,18 @@ export function SyncPanel({
                 >
                   <FolderDown /> Open logs
                 </button>
-                {status.account.state === "signed-in" ? (
-                  <button
-                    type="button"
-                    className="secondary-action sync-sign-out"
-                    disabled={busy !== null}
-                    onClick={() => void signOut()}
-                  >
-                    <UserRound />
-                    {busy === "sign-out" ? "Signing out…" : "Sign out"}
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  className="sync-ghost sync-sign-out"
+                  disabled={busy !== null}
+                  onClick={() => void signOut()}
+                >
+                  <UserRound />
+                  {busy === "sign-out" ? "Signing out…" : "Sign out"}
+                </button>
               </div>
-            </div>
-          </details>
+            </section>
+          ) : null}
         </div>
       </aside>
     </div>
@@ -1445,23 +1407,19 @@ function SyncAccessGate({
             <X />
           </button>
         </header>
-        <div className="sync-dialog-body sync-access-gate-body">
-          <section className="sync-status">
-            <span className="sync-status-pill sync-status-pill-warning">
-              {signedOut ? "Sign-in needed" : "Access required"}
-            </span>
-            <h2>
-              {signedOut ? "Sign in to use Sync" : "Sync access required"}
-            </h2>
-            <p className="sync-status-message">
-              {signedOut
-                ? "Use your eidos.space account to check whether Sync is available."
-                : blocked
-                  ? "Manage your Sync access on eidos.space, then check again here."
-                  : "Apply for or review Sync access on eidos.space, then check again here."}
-            </p>
-          </section>
-          <div className="sync-primary-actions">
+        <div className="sync-dialog-body sync-gate">
+          <span className="sync-hero-icon sync-gate-icon" aria-hidden="true">
+            {signedOut ? <LogIn /> : <ShieldCheck />}
+          </span>
+          <h2>{signedOut ? "Sign in to use Sync" : "Sync access required"}</h2>
+          <p>
+            {signedOut
+              ? "Use your eidos.space account to check whether Sync is available."
+              : blocked
+                ? "Manage your Sync access on eidos.space, then check again here."
+                : "Apply for or review Sync access on eidos.space, then check again here."}
+          </p>
+          <div className="sync-actions">
             {signedOut ? (
               <button
                 type="button"
@@ -1544,23 +1502,33 @@ function syncOverview({
   syncHistory?: SpaceSyncHistoryStatus
 }): SyncOverview {
   if (loadError) {
-    const pill: SyncPill =
-      loadError.kind === "offline"
-        ? { label: "Offline", tone: "warning" }
-        : loadError.kind === "session-expired"
-          ? { label: "Sign-in needed", tone: "warning" }
-          : { label: "Needs attention", tone: "danger" }
+    if (loadError.kind === "offline") {
+      return {
+        icon: CloudOff,
+        title: loadError.title,
+        message: loadError.message,
+        tone: "warning",
+      }
+    }
+    if (loadError.kind === "session-expired") {
+      return {
+        icon: LogIn,
+        title: loadError.title,
+        message: loadError.message,
+        tone: "warning",
+      }
+    }
     return {
-      pill,
+      icon: AlertTriangle,
       title: loadError.title,
       message: loadError.message,
-      tone: loadError.kind === "unavailable" ? "danger" : "warning",
+      tone: "danger",
     }
   }
   if (failure) {
     if (queue?.state === "retry-wait") {
       return {
-        pill: { label: "Retrying soon", tone: "warning" },
+        icon: Clock,
         title: "Sync will try again soon",
         message: queue.nextAttemptAtMs
           ? `Next attempt around ${new Date(queue.nextAttemptAtMs).toLocaleTimeString()}. Your local files are safe.`
@@ -1568,43 +1536,45 @@ function syncOverview({
         tone: "warning",
       }
     }
+    if (failure.state === "offline") {
+      return {
+        icon: CloudOff,
+        title: failure.title,
+        message: failure.message,
+        tone: "warning",
+      }
+    }
     return {
-      pill:
-        failure.state === "offline"
-          ? { label: "Offline", tone: "warning" }
-          : { label: "Needs attention", tone: "danger" },
+      icon: AlertTriangle,
       title: failure.title,
       message: failure.message,
-      tone: failure.state === "offline" ? "warning" : "danger",
+      tone: "danger",
     }
   }
   if (progress?.state === "active") {
     return {
-      pill: { label: operationPillLabel(progress), tone: "active" },
+      icon: LoaderCircle,
+      spin: true,
       title:
         progress.operation === "clone" && selectedRepository
           ? `Opening ${repositoryDisplayName(selectedRepository)}`
           : OPERATION_LABELS[progress.operation],
-      message: friendlyProgressDetail(progress),
       tone: "active",
     }
   }
   if (checking && hasCachedAccount) {
     return {
-      pill: { label: "Checking", tone: "neutral" },
+      icon: LoaderCircle,
+      spin: true,
       title:
         mode === "clone" ? "Refreshing your Spaces" : "Checking this Space",
-      message:
-        mode === "clone"
-          ? "Your account is ready while Eidos refreshes the cloud list."
-          : "Showing your saved account while Eidos checks this Space’s cloud status.",
       tone: "neutral",
     }
   }
   if (mode === "clone") {
     if (status.account.state === "signed-out") {
       return {
-        pill: { label: "Not connected", tone: "neutral" },
+        icon: LogIn,
         title: "Sign in to see your Spaces",
         message:
           "Choose a synced Space and Eidos will keep an ordinary local copy for offline work.",
@@ -1613,7 +1583,7 @@ function syncOverview({
     }
     if (!status.canClone) {
       return {
-        pill: { label: "Unavailable", tone: "warning" },
+        icon: ShieldCheck,
         title: "Sync access is required",
         message:
           "Manage your account to open a synced Space. Existing local Spaces are unaffected.",
@@ -1621,7 +1591,7 @@ function syncOverview({
       }
     }
     return {
-      pill: { label: "Open from cloud", tone: "neutral" },
+      icon: FolderDown,
       title: "Choose a synced Space",
       message:
         status.entitlement.state === "read-only"
@@ -1632,8 +1602,8 @@ function syncOverview({
   }
   if (result?.state === "conflict") {
     return {
-      pill: { label: "Needs review", tone: "danger" },
-      title: "Local and Hosted both changed",
+      icon: AlertTriangle,
+      title: "Local and cloud both changed",
       message:
         "Review conflicting files and tables in Changes. Nothing was overwritten.",
       tone: "danger",
@@ -1641,45 +1611,32 @@ function syncOverview({
   }
   if (result?.state === "read-only") {
     return {
-      pill: { label: "Up to date", tone: "success" },
-      title: "Up to date in read-only mode",
+      icon: CheckCircle2,
+      title: "Everything is up to date",
       message:
-        "Cloud changes are available locally. Your changes remain on this device.",
+        "Cloud updates were downloaded. Your changes remain on this device.",
       tone: "success",
     }
   }
   if (result?.state === "synced") {
-    if (result.pulled && result.pushed) {
-      return {
-        pill: { label: "Up to date", tone: "success" },
-        title: "Local and Hosted match",
-        message: "Downloaded and uploaded saved versions.",
-        tone: "success",
-      }
-    }
-    if (result.pulled) {
-      return {
-        pill: { label: "Up to date", tone: "success" },
-        title: "Hosted updates downloaded",
-        tone: "success",
-      }
-    }
-    if (result.pushed) {
-      return {
-        pill: { label: "Up to date", tone: "success" },
-        title: "Local changes uploaded",
-        tone: "success",
-      }
-    }
+    const message =
+      result.pulled && result.pushed
+        ? "Downloaded and uploaded saved versions."
+        : result.pulled
+          ? "Downloaded cloud updates."
+          : result.pushed
+            ? "Uploaded saved versions."
+            : undefined
     return {
-      pill: { label: "Up to date", tone: "success" },
-      title: "Local and Hosted match",
+      icon: CheckCircle2,
+      title: "Everything is up to date",
+      message,
       tone: "success",
     }
   }
   if (status.account.state === "signed-out") {
     return {
-      pill: { label: "Not connected", tone: "neutral" },
+      icon: Cloud,
       title: "Keep this Space in sync",
       message:
         "Back up your work and continue on another device. Local work never requires an account.",
@@ -1689,7 +1646,7 @@ function syncOverview({
   if (status.remote.state === "not-connected") {
     if (!status.canEnable) {
       return {
-        pill: { label: "Unavailable", tone: "warning" },
+        icon: ShieldCheck,
         title: "Sync access is required",
         message:
           "Manage your account to connect this Space. Local files are unaffected.",
@@ -1697,7 +1654,7 @@ function syncOverview({
       }
     }
     return {
-      pill: { label: "Not connected", tone: "neutral" },
+      icon: Cloud,
       title: "Sync is off for this Space",
       message:
         "Connect once to keep saved versions available on your other devices.",
@@ -1706,30 +1663,31 @@ function syncOverview({
   }
   if (hasUncheckpointedChanges) {
     return {
-      pill: { label: "Local changes", tone: "active" },
-      title: "Save a version before syncing",
-      message: "Review these changes in Changes, then save a version.",
-      tone: "warning",
+      icon: FileWarning,
+      title: "Unsaved changes",
+      message: "Only saved versions sync. Review and save a version first.",
+      tone: "active",
     }
   }
   if (queue?.state === "running") {
     return {
-      pill: { label: "Syncing", tone: "active" },
+      icon: LoaderCircle,
+      spin: true,
       title: "Syncing this Space",
       tone: "active",
     }
   }
   if (queue?.state === "pending") {
     return {
-      pill: { label: "Queued", tone: "active" },
-      title: "Waiting to upload saved changes",
-      message: "Sync will continue in the background.",
+      icon: Clock,
+      title: "Sync queued",
+      message: "Saved changes will upload in the background.",
       tone: "active",
     }
   }
   if (queue?.state === "retry-wait") {
     return {
-      pill: { label: "Retrying soon", tone: "warning" },
+      icon: Clock,
       title: "Sync will try again soon",
       message: queue.nextAttemptAtMs
         ? `Next attempt around ${new Date(queue.nextAttemptAtMs).toLocaleTimeString()}. Local files are safe.`
@@ -1739,24 +1697,25 @@ function syncOverview({
   }
   if (status.entitlement.state === "read-only") {
     return {
-      pill: { label: "Download only", tone: "warning" },
-      title: "Hosted updates can be downloaded",
-      message: "Local changes stay on this device and cannot be uploaded.",
+      icon: CloudDownload,
+      title: "Download only",
+      message:
+        "Cloud updates can be downloaded. Changes you make stay on this device.",
       tone: "neutral",
     }
   }
   if (progress?.operation === "connect" && progress.state === "completed") {
     return {
-      pill: { label: "Connected", tone: "success" },
+      icon: CheckCircle2,
       title: "Sync is ready",
-      message: "The first Hosted copy is complete.",
+      message: "The first cloud copy is complete.",
       tone: "success",
     }
   }
   if (syncHistory?.state === "diverged") {
     return {
-      pill: { label: "Needs review", tone: "warning" },
-      title: "Local and Hosted both changed",
+      icon: AlertTriangle,
+      title: "Local and cloud both changed",
       message:
         "Review conflicting files and tables in Changes. Nothing was overwritten.",
       tone: "warning",
@@ -1777,10 +1736,7 @@ function syncOverview({
       const pendingExceedsPlan =
         storage.reservedBytes > 0 && storage.usedBytes <= storage.quotaBytes
       return {
-        pill: {
-          label: `${formatBytes(projectedBytes - storage.quotaBytes)} over plan`,
-          tone: "danger",
-        },
+        icon: HardDrive,
         title: pendingExceedsPlan
           ? "Pending upload exceeds your plan"
           : "Cloud storage is over its limit",
@@ -1794,10 +1750,7 @@ function syncOverview({
       const pendingFillsPlan =
         storage.reservedBytes > 0 && storage.usedBytes < storage.quotaBytes
       return {
-        pill: {
-          label: pendingFillsPlan ? "Plan fully reserved" : "Storage full",
-          tone: "danger",
-        },
+        icon: HardDrive,
         title: pendingFillsPlan
           ? "Pending upload will fill cloud storage"
           : "Cloud storage is full",
@@ -1810,28 +1763,28 @@ function syncOverview({
   }
   if (syncHistory?.state === "ahead") {
     return {
-      pill: { label: "Upload", tone: "active" },
+      icon: CloudUpload,
       title: `${syncHistory.ahead} saved ${syncHistory.ahead === 1 ? "version" : "versions"} to upload`,
       tone: "active",
     }
   }
   if (syncHistory?.state === "behind") {
     return {
-      pill: { label: "Download", tone: "active" },
-      title: `${syncHistory.behind} Hosted ${syncHistory.behind === 1 ? "version is" : "versions are"} available`,
+      icon: CloudDownload,
+      title: `${syncHistory.behind} ${syncHistory.behind === 1 ? "update is" : "updates are"} available`,
       tone: "active",
     }
   }
   if (syncHistory?.state === "up_to_date") {
     return {
-      pill: { label: "Up to date", tone: "success" },
-      title: "Local and Hosted match",
+      icon: CheckCircle2,
+      title: "Everything is up to date",
       tone: "success",
     }
   }
   return {
-    pill: { label: "Ready", tone: "neutral" },
-    title: "Check Local and Hosted",
+    icon: Cloud,
+    title: "Sync is on",
     tone: "neutral",
   }
 }
@@ -1847,21 +1800,26 @@ function syncPrimaryAction({
   hasUncheckpointedChanges: boolean
   syncResult: EidosSyncRunResult | null
 }): string {
-  if (hasUncheckpointedChanges) return "Review & save"
+  if (hasUncheckpointedChanges) return "Review changes"
   if (status.entitlement.state === "read-only") return "Get cloud updates"
-  if (syncHistory?.state === "ahead") return "Upload changes"
-  if (syncHistory?.state === "behind") return "Get updates"
+  if (syncHistory?.state === "ahead") {
+    return `Upload ${syncHistory.ahead} ${syncHistory.ahead === 1 ? "version" : "versions"}`
+  }
+  if (syncHistory?.state === "behind") {
+    return `Download ${syncHistory.behind} ${syncHistory.behind === 1 ? "update" : "updates"}`
+  }
   if (syncHistory?.state === "diverged") return "Check cloud status"
   if (syncResult) return "Check again"
   return "Check now"
 }
 
-function operationPillLabel(progress: EidosSyncProgress): string {
-  const percent = transferPercent(progress)
-  const suffix = percent === null ? "" : ` ${percent}%`
-  if (progress.operation === "sync") return `Syncing${suffix}`
-  if (progress.operation === "recovery") return `Copying${suffix}`
-  return `Connecting${suffix}`
+function syncDirection(
+  syncHistory?: SpaceSyncHistoryStatus
+): { upload: number; download: number } | null {
+  if (!syncHistory || syncHistory.state === "unknown") return null
+  const upload = Math.max(0, syncHistory.ahead)
+  const download = Math.max(0, syncHistory.behind)
+  return upload > 0 || download > 0 ? { upload, download } : null
 }
 
 function transferPercent(progress: EidosSyncProgress): number | null {
@@ -1905,20 +1863,23 @@ function SyncIdentityChip({
   )
 }
 
-function SyncStorageSummary({
+function SyncStorageSection({
   storage,
+  storageState,
   spaceBytes,
   spaceSizeState,
+  blocksUpload,
   managing,
   onManageStorage,
 }: {
   storage: SyncStorageUsage | null
+  storageState: SyncStorageState
   spaceBytes?: number
   spaceSizeState: SpaceSizeState
+  blocksUpload: boolean
   managing: boolean
   onManageStorage?: () => void
 }) {
-  const state = storage ? syncStorageState(storage) : "normal"
   const projectedBytes = storage
     ? storage.usedBytes + storage.reservedBytes
     : undefined
@@ -1940,9 +1901,21 @@ function SyncStorageSummary({
       : 0
   const segmentWidth = (value: number) =>
     storage && hasQuota ? `${(value / storage.quotaBytes) * 100}%` : "0%"
+  const flag =
+    storageState === "warning"
+      ? "Running low"
+      : storageState === "full"
+        ? storage &&
+          storage.reservedBytes > 0 &&
+          storage.usedBytes < storage.quotaBytes
+          ? "Full after pending upload"
+          : "Storage full"
+        : storageState === "over"
+          ? `${formatBytes(overageBytes)} over plan`
+          : null
   return (
     <section
-      className="sync-storage-summary"
+      className="sync-section sync-storage"
       aria-label="Storage"
       data-sync-space-bytes={
         spaceSizeState === "available" || spaceSizeState === "cached"
@@ -1953,165 +1926,134 @@ function SyncStorageSummary({
       data-sync-storage-used={storage?.usedBytes}
       data-sync-storage-remaining={storage?.remainingBytes}
       data-sync-storage-quota={storage?.quotaBytes}
-      data-sync-storage-state={storage ? state : "unavailable"}
+      data-sync-storage-state={storage ? storageState : "unavailable"}
     >
-      <div className="sync-storage-space-size" data-sync-space-size>
-        <span>
-          <HardDrive aria-hidden="true" />
-          This Space on this device
-        </span>
-        <strong
-          aria-live="polite"
-          title={
-            spaceSizeState === "cached"
-              ? "Showing the last calculated size while Eidos refreshes it"
-              : undefined
-          }
-        >
-          {spaceSizeState === "loading" ? (
-            <>
-              <LoaderCircle className="spin" /> Calculating…
-            </>
-          ) : (spaceSizeState === "available" || spaceSizeState === "cached") &&
-            spaceBytes !== undefined ? (
-            formatBytes(spaceBytes)
-          ) : (
-            "Unavailable"
-          )}
-        </strong>
+      <div className="sync-section-head">
+        <h3>Storage</h3>
+        {flag ? <span className="sync-section-flag">{flag}</span> : null}
       </div>
 
-      <header className="sync-storage-header">
-        <strong>Cloud storage</strong>
-        <span>
-          {storage
-            ? `${formatBytes(storage.usedBytes)} of ${formatBytes(storage.quotaBytes)} used`
-            : "Usage unavailable"}
-        </span>
-      </header>
-
       {hasQuota && storage ? (
-        <div
-          className="sync-storage-capacity"
-          data-sync-storage-used-track-bytes={usedTrackBytes}
-          data-sync-storage-pending-track-bytes={pendingTrackBytes}
-        >
-          <progress
-            className="sync-storage-semantic-progress"
-            aria-label={`${formatBytes(storage.usedBytes)} of ${formatBytes(storage.quotaBytes)} cloud storage used`}
-            max={storage.quotaBytes}
-            value={storage.usedBytes}
-          />
-          <div className="sync-storage-segments" aria-hidden="true">
-            <span
-              className="sync-storage-segment sync-storage-segment-cloud"
-              data-sync-storage-segment="cloud-used"
-              data-sync-storage-segment-bytes={usedTrackBytes}
-              style={{ width: segmentWidth(usedTrackBytes) }}
+        <>
+          <div className="sync-meter">
+            <progress
+              className="sync-storage-semantic-progress"
+              aria-label={`${formatBytes(storage.usedBytes)} of ${formatBytes(storage.quotaBytes)} cloud storage used`}
+              max={storage.quotaBytes}
+              value={storage.usedBytes}
             />
-            <span
-              className="sync-storage-segment sync-storage-segment-pending"
-              data-sync-storage-segment="pending"
-              data-sync-storage-segment-bytes={pendingTrackBytes}
-              style={{ width: segmentWidth(pendingTrackBytes) }}
-            />
-            <span className="sync-storage-segment-available" />
+            <div className="sync-storage-segments" aria-hidden="true">
+              <span
+                className="sync-storage-segment sync-storage-segment-cloud"
+                data-sync-storage-segment="cloud-used"
+                data-sync-storage-segment-bytes={usedTrackBytes}
+                style={{ width: segmentWidth(usedTrackBytes) }}
+              />
+              <span
+                className="sync-storage-segment sync-storage-segment-pending"
+                data-sync-storage-segment="pending"
+                data-sync-storage-segment-bytes={pendingTrackBytes}
+                style={{ width: segmentWidth(pendingTrackBytes) }}
+              />
+            </div>
           </div>
-        </div>
+          <p className="sync-caption" data-sync-storage-caption>
+            {formatBytes(storage.usedBytes)} of{" "}
+            {formatBytes(storage.quotaBytes)}
+            {" · "}
+            {formatStoragePercent(storage.usedBytes, storage.quotaBytes)} used
+            {storage.reservedBytes > 0
+              ? ` · ${formatBytes(storage.reservedBytes)} pending`
+              : ""}
+          </p>
+        </>
       ) : (
-        <p className="sync-storage-unavailable">
+        <p className="sync-caption" data-sync-storage-caption>
           {storage
             ? "No cloud storage is available on this plan."
             : "Cloud usage is temporarily unavailable."}
         </p>
       )}
 
-      <ul className="sync-storage-legend" aria-label="Storage breakdown">
-        <li>
-          <span
-            className="sync-storage-legend-mark sync-storage-legend-mark-cloud"
-            aria-hidden="true"
-          />
-          <span>Cloud used</span>
-          <strong>
-            {storage ? formatBytes(storage.usedBytes) : "Unavailable"}
-          </strong>
-        </li>
-        <li>
-          <span
-            className="sync-storage-legend-mark sync-storage-legend-mark-total"
-            aria-hidden="true"
-          />
-          <span>Plan total</span>
-          <strong>
-            {storage ? formatBytes(storage.quotaBytes) : "Unavailable"}
-          </strong>
-        </li>
-        {storage &&
-        storage.reservedBytes > 0 &&
-        projectedBytes !== undefined ? (
-          <li data-sync-storage-reserved={storage.reservedBytes}>
-            <span
-              className="sync-storage-legend-mark sync-storage-legend-mark-pending"
-              aria-hidden="true"
-            />
-            <span>Pending</span>
-            <strong>
-              {formatBytes(storage.reservedBytes)} ·{" "}
-              {formatBytes(projectedBytes)} projected
-            </strong>
-          </li>
+      <details
+        className="sync-more"
+        data-sync-storage-disclosure
+        open={blocksUpload || undefined}
+      >
+        <summary>
+          <ChevronRight /> Breakdown
+        </summary>
+        <dl className="sync-kv">
+          <div data-sync-space-size>
+            <dt>This Space on this device</dt>
+            <dd
+              aria-live="polite"
+              title={
+                spaceSizeState === "cached"
+                  ? "Showing the last calculated size while Eidos refreshes it"
+                  : undefined
+              }
+            >
+              {spaceSizeState === "loading" ? (
+                <>
+                  <LoaderCircle className="spin" /> Calculating…
+                </>
+              ) : (spaceSizeState === "available" ||
+                  spaceSizeState === "cached") &&
+                spaceBytes !== undefined ? (
+                formatBytes(spaceBytes)
+              ) : (
+                "Unavailable"
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>Cloud used</dt>
+            <dd>{storage ? formatBytes(storage.usedBytes) : "Unavailable"}</dd>
+          </div>
+          <div>
+            <dt>Plan total</dt>
+            <dd>{storage ? formatBytes(storage.quotaBytes) : "Unavailable"}</dd>
+          </div>
+          {storage &&
+          storage.reservedBytes > 0 &&
+          projectedBytes !== undefined ? (
+            <div data-sync-storage-reserved={storage.reservedBytes}>
+              <dt>Pending upload</dt>
+              <dd>
+                {formatBytes(storage.reservedBytes)} ·{" "}
+                {formatBytes(projectedBytes)} projected
+              </dd>
+            </div>
+          ) : null}
+          {storage ? (
+            <div>
+              <dt>Available</dt>
+              <dd>
+                {formatBytes(storage.remainingBytes)}
+                {storage.reservedBytes > 0 ? " after pending uploads" : ""}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+        <p className="sync-note">
+          This Space is a local sync size, not its billed cloud contribution.
+          Cloud usage can differ because of history and deduplication.
+        </p>
+        {onManageStorage ? (
+          <div className="sync-actions">
+            <button
+              type="button"
+              className="secondary-action sync-storage-manage"
+              data-sync-manage-storage
+              disabled={managing}
+              onClick={onManageStorage}
+            >
+              <UserRound /> {managing ? "Opening account…" : "Manage storage"}
+            </button>
+          </div>
         ) : null}
-      </ul>
-
-      {storage && hasQuota ? (
-        <footer>
-          <span>
-            <strong>
-              {formatStoragePercent(storage.usedBytes, storage.quotaBytes)} used
-            </strong>
-            {" · "}
-            {storage.reservedBytes > 0
-              ? `${formatBytes(storage.remainingBytes)} available after pending uploads`
-              : `${formatBytes(storage.remainingBytes)} available`}
-          </span>
-          {state === "warning" ? <span>Storage running low</span> : null}
-          {state === "full" ? (
-            <span>
-              {storage.reservedBytes > 0 &&
-              storage.usedBytes < storage.quotaBytes
-                ? "Full after pending upload"
-                : "Storage full"}
-            </span>
-          ) : null}
-          {state === "over" ? (
-            <span>
-              {formatBytes(overageBytes)} over plan
-              {storage.reservedBytes > 0 &&
-              storage.usedBytes <= storage.quotaBytes
-                ? " after pending uploads"
-                : ""}
-            </span>
-          ) : null}
-        </footer>
-      ) : null}
-
-      {onManageStorage ? (
-        <button
-          type="button"
-          className="secondary-action sync-storage-manage"
-          data-sync-manage-storage
-          disabled={managing}
-          onClick={onManageStorage}
-        >
-          <UserRound /> {managing ? "Opening account…" : "Manage storage"}
-        </button>
-      ) : null}
-
-      <small className="sync-storage-note">
-        This Space is a local sync size, not its billed cloud contribution.
-        Cloud usage can differ because of history and deduplication.
-      </small>
+      </details>
     </section>
   )
 }
@@ -2123,81 +2065,80 @@ function OperationProgress({
   progress: EidosSyncProgress
   elapsedMs: number
 }) {
-  const steps = OPERATION_STEPS[progress.operation]
-  const activeIndex = Math.max(
-    0,
-    steps.findIndex((step) => step.phases.includes(progress.phase))
-  )
   const percent = transferPercent(progress)
   const transfer = progress.transfer
+  const transferVerb =
+    transfer?.direction === "upload" ? "Uploaded" : "Downloaded"
+  const transferValueText = transfer
+    ? transfer.totalBytes === null
+      ? `${transferVerb} ${formatBytes(transfer.transferredBytes)}; calculating total size`
+      : `${transferVerb} ${formatBytes(transfer.transferredBytes)} of ${formatBytes(transfer.totalBytes)}`
+    : undefined
   return (
     <section
-      className="sync-operation-progress"
+      className="sync-progress"
       data-sync-progress={progress.state}
       data-sync-operation={progress.operation}
       data-sync-progress-phase={progress.phase}
       role="status"
     >
-      <header>
-        <span>{friendlyProgressDetail(progress)}</span>
-        <small>{formatDuration(elapsedMs)}</small>
-      </header>
-      <progress
-        className="sync-operation-bar"
+      <div
+        className="sync-progress-track"
+        role="progressbar"
         aria-label={
           percent === null ? "Transfer in progress" : `${percent}% complete`
         }
-        max={100}
-        value={percent ?? undefined}
-      />
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent ?? undefined}
+        aria-valuetext={transferValueText}
+      >
+        {percent === null ? (
+          <span className="sync-progress-indeterminate" />
+        ) : (
+          <span
+            className="sync-progress-fill"
+            style={{ width: `${percent}%` }}
+          />
+        )}
+      </div>
+      <div className="sync-progress-meta">
+        <span>{friendlyProgressDetail(progress)}</span>
+        <span>
+          {percent === null ? formatDuration(elapsedMs) : `${percent}%`}
+        </span>
+      </div>
       {transfer ? (
         <div
-          className="sync-transfer-metrics"
+          className="sync-progress-metrics"
           data-sync-transfer={transfer.direction}
         >
           <span data-sync-transfer-bytes>
-            {transfer.direction === "upload" ? "Uploaded" : "Downloaded"}{" "}
+            {transferVerb}{" "}
             <strong>{formatBytes(transfer.transferredBytes)}</strong>
             {transfer.totalBytes === null
               ? ""
               : ` of ${formatBytes(transfer.totalBytes)}`}
           </span>
+          {transfer.totalBytes === null ? (
+            <span data-sync-transfer-total>Calculating total size…</span>
+          ) : null}
           <span data-sync-transfer-speed>
             {transfer.bytesPerSecond > 0
               ? `${formatBytes(transfer.bytesPerSecond)}/s`
               : "Measuring speed…"}
           </span>
           <span data-sync-transfer-remaining>
-            {transfer.estimatedRemainingMs === null
-              ? "Estimating time left…"
-              : transfer.estimatedRemainingMs <= 0
-                ? "Finishing…"
-                : `${formatDuration(transfer.estimatedRemainingMs)} left`}
+            {transfer.totalBytes === null
+              ? "Calculating time left…"
+              : transfer.estimatedRemainingMs === null
+                ? "Estimating time left…"
+                : transfer.estimatedRemainingMs <= 0
+                  ? "Finishing…"
+                  : `${formatDuration(transfer.estimatedRemainingMs)} left`}
           </span>
         </div>
       ) : null}
-      <ol>
-        {steps.map((step, index) => {
-          const state =
-            index < activeIndex
-              ? "complete"
-              : index === activeIndex
-                ? "active"
-                : "pending"
-          return (
-            <li data-step-state={state} key={step.label}>
-              <span aria-hidden="true">
-                {state === "complete" ? (
-                  <Check />
-                ) : state === "active" ? (
-                  <LoaderCircle className="spin" />
-                ) : null}
-              </span>
-              <small>{step.label}</small>
-            </li>
-          )
-        })}
-      </ol>
     </section>
   )
 }
@@ -2236,21 +2177,21 @@ function RepositoryPicker({
     })
   return (
     <section className="sync-repositories" data-sync-repositories>
-      <header>
-        <strong>Your synced Spaces</strong>
+      <div className="sync-section-head">
+        <h3>Your synced Spaces</h3>
         {repositories ? (
-          <small>
+          <span className="sync-section-flag sync-section-count">
             {repositories.repositories.length}{" "}
             {repositories.repositories.length === 1 ? "Space" : "Spaces"}
-          </small>
+          </span>
         ) : null}
-      </header>
+      </div>
       {busy === "repositories" ? (
         <p className="sync-loading" role="status">
           <LoaderCircle className="spin" /> Loading your synced Spaces…
         </p>
       ) : repositories?.repositories.length ? (
-        <div>
+        <div className="sync-repository-list">
           {repositories.repositories.length > 8 ? (
             <label className="sync-repository-search">
               <span className="sr-only">Search synced Spaces</span>
@@ -2275,12 +2216,14 @@ function RepositoryPicker({
                 disabled={busy !== null || disabled}
                 onClick={() => onSelect(repository)}
               >
-                {busy === "clone" && selected ? (
-                  <LoaderCircle className="spin" />
-                ) : (
-                  <FolderDown />
-                )}
-                <span>
+                <span className="sync-repository-icon" aria-hidden="true">
+                  {busy === "clone" && selected ? (
+                    <LoaderCircle className="spin" />
+                  ) : (
+                    <FolderDown />
+                  )}
+                </span>
+                <span className="sync-repository-copy">
                   <strong>{displayName}</strong>
                   <small>
                     Created{" "}
@@ -2338,65 +2281,54 @@ function SyncSafetyReview({
 }) {
   return (
     <section
-      className="sync-safety-review"
+      className="sync-section sync-safety-review"
       data-sync-preflight
       data-sync-preflight-blocked={preflight?.blockerCount ? "true" : "false"}
     >
-      <header>
-        <ShieldCheck />
-        <div>
-          <strong>Before the first upload</strong>
-          <p>
-            Eidos checks the whole Space for files that may be private,
-            unsupported, or unusually large.
-          </p>
-        </div>
-      </header>
+      <div className="sync-section-head">
+        <h3>First upload check</h3>
+        {preflight ? (
+          <span className="sync-section-count">
+            {preflight.fileCount} files · {formatBytes(preflight.totalBytes)} ·{" "}
+            {preflight.eidosFileCount} Eidos Files
+          </span>
+        ) : null}
+      </div>
       {preflight ? (
         <>
-          <p className="sync-scope-summary">
-            <strong>{preflight.fileCount} files</strong>
-            <span>{formatBytes(preflight.totalBytes)}</span>
-            <span>{preflight.eidosFileCount} Eidos Files</span>
-          </p>
-
           {preflight.blockerCount > 0 ? (
-            <div className="sync-safety-issue" role="alert">
-              <AlertTriangle />
-              <div>
+            <div className="sync-flag-list" role="alert">
+              <header>
+                <AlertTriangle />
                 <strong>Fix these files before connecting</strong>
-                <p>
-                  Move, replace, or remove the blocked entries, then reopen
-                  Sync.
-                </p>
-                <PreflightEntries
-                  entries={preflight.blockers}
-                  total={preflight.blockerCount}
-                />
-              </div>
+              </header>
+              <PreflightEntries
+                entries={preflight.blockers}
+                total={preflight.blockerCount}
+              />
             </div>
           ) : null}
 
           {preflight.warningCount > 0 ? (
-            <div className="sync-safety-issue">
-              <FileWarning />
-              <div>
+            <div className="sync-flag-list">
+              <header>
+                <FileWarning />
                 <strong>Review files before upload</strong>
-                <p>
-                  These files may contain private information or use more cloud
-                  storage than expected.
-                </p>
-                <PreflightEntries
-                  entries={preflight.warnings}
-                  total={preflight.warningCount}
-                />
-              </div>
+              </header>
+              <p>
+                These files may contain private information or use more cloud
+                storage than expected.
+              </p>
+              <PreflightEntries
+                entries={preflight.warnings}
+                total={preflight.warningCount}
+              />
             </div>
-          ) : (
-            <p className="sync-safety-clear">
+          ) : preflight.blockerCount === 0 ? (
+            <p className="sync-clear">
               <CheckCircle2 /> No files need your review.
             </p>
-          )}
+          ) : null}
 
           {preflight.warningCount > 0 && preflight.blockerCount === 0 ? (
             <label className="sync-preflight-confirm">
@@ -2413,9 +2345,9 @@ function SyncSafetyReview({
             </label>
           ) : null}
 
-          <details className="sync-scope-details">
+          <details className="sync-more sync-scope-details">
             <summary>
-              <ChevronRight /> Files not included ({preflight.excludedCount})
+              <ChevronRight /> Not included ({preflight.excludedCount})
             </summary>
             {preflight.excluded.length ? (
               <ul>

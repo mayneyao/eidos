@@ -1,23 +1,22 @@
 ## What's new
 
-### Eidos system metadata merges automatically
+### A clearer Sync panel
 
-Concurrent updates to supported `eidos__*` system tables now use deterministic
-Eidos-owned merge rules instead of appearing as raw SQLite conflicts. Routine
-metadata changes no longer require a manual Local or Hosted choice.
+Sync now presents one compact, consistent view of connection state, actions,
+first-upload checks, storage, and synced Spaces. Important status and recovery
+actions are easier to scan without expanding several competing sections.
 
-### Safer collaboration between macOS and Windows
+### Real transfer progress
 
-Graft now hands immutable Base, Local, and Hosted snapshots to the Eidos
-Runtime, preserves the merge across restarts, and accepts the validated result
-under exact repository-state tokens. Ordinary user tables keep Graft's normal
-three-way behavior.
+Uploads and downloads show transferred and total size, percentage, current
+speed, and estimated time remaining. During clone, Eidos explicitly says when
+it is still calculating the total size and time left instead of presenting an
+unexplained spinner.
 
-### Conflicts only when a decision is genuinely needed
+### More focused first-sync review
 
-Lite reports a domain conflict only when a system-table change is structurally
-unsafe or cannot be validated. Successful automatic decisions are retained as
-merge audit data without interrupting Sync, and an interrupted final handoff
-remains retryable.
+The first-upload file review, cloud storage summary, repository picker, and
+signed-in account controls use a simpler hierarchy. Local work remains clearly
+identified as safe while Sync is connecting, transferring, or needs attention.
 
 No migration is required.

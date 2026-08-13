@@ -1,7 +1,7 @@
 # Eidos Lite merge schema compatibility matrix
 
 Status: living product and verification contract  
-Applies to: Eidos Lite reviewed merge with Graft SDK 0.3.13
+Applies to: Eidos Lite reviewed merge with Graft SDK 0.3.14
 Last reviewed: 2026-08-13
 
 ## Purpose and ownership
@@ -368,7 +368,7 @@ product contract and therefore remains a release blocker for that scenario.
 
 ### `GRAFT-SCHEMA-GAP-001`: validation-required candidates lack a standalone materialization operation
 
-Graft 0.3.13 automatically materializes compatible column/table/index/view/
+Graft 0.3.14 automatically materializes compatible column/table/index/view/
 trigger unions in a directory repository. For a more complex candidate that
 requires application validation, such as independent data rows plus
 `sqlite_sequence`/index/stat rebuild state (`SC-OPAQUE-001/002/003`), it leaves
@@ -415,7 +415,7 @@ before Lite can claim Field-index merge coverage.
 
 ### Closed: `GRAFT-SCHEMA-GAP-003` malformed tracked SQLite diagnostics
 
-Graft 0.3.13 returns structured `path_diagnostics` for skipped, corrupt, and
+Graft 0.3.14 returns structured `path_diagnostics` for skipped, corrupt, and
 analysis-failed tracked SQLite paths, including `protected_by_index`. Lite
 projects the diagnostics, blocks merge planning, and preserves the worktree
 file while directing the user to repair or recovery. This closes the prior
@@ -424,7 +424,7 @@ published or silently replaced.
 
 ### Closed: `GRAFT-SCHEMA-GAP-002` table/view same-name selection
 
-Graft 0.3.13 reports `schema_same_name_conflict` and safely completes either the
+Graft 0.3.14 reports `schema_same_name_conflict` and safely completes either the
 Local table or Hosted view complete-file choice. The real directory-repository
 matrix verifies both final `sqlite_schema` object types and no longer observes
 the former `Invalid page number` failure.

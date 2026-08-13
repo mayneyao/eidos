@@ -191,12 +191,13 @@ describe("SyncPanel failure states", () => {
     })
 
     expect(host.textContent).toContain("person@example.com")
-    expect(host.textContent).toContain("Cloud used")
-    expect(host.textContent).toContain("2 GiB")
-    expect(host.textContent).toContain("Plan total")
-    expect(host.textContent).toContain("10 GiB")
-    expect(host.textContent).not.toContain("Checking account and cloud status")
-    expect(host.textContent).not.toContain("Checking Sync")
+    expect(host.textContent).toContain("Checking this Space")
+    expect(host.textContent).toContain("Last synced 2m ago")
+    const storage = host.querySelector<HTMLElement>("[data-sync-storage-used]")
+    expect(storage?.textContent).toContain("2 GiB of 10 GiB")
+    expect(storage?.textContent).toContain("Cloud used")
+    expect(storage?.textContent).toContain("Plan total")
+    expect(storage?.textContent).toContain("10 GiB")
     expect(
       host.querySelector<HTMLElement>("[data-sync-account-summary]")?.dataset
         .syncAccountChecking
@@ -304,7 +305,8 @@ describe("SyncPanel failure states", () => {
     const checkNow = host.querySelector<HTMLButtonElement>("[data-sync-run]")
     expect(checkNow?.textContent).toContain("Check now")
     expect(checkNow?.classList.contains("secondary-action")).toBe(true)
-    expect(host.querySelector(".sync-status-message")).toBeNull()
+    expect(host.querySelector(".sync-hero-copy p")).toBeNull()
+    expect(host.querySelector(".sync-hero-meta")).toBeNull()
   })
 
   it("removes cached identity when the secure session is signed out", async () => {
@@ -400,7 +402,8 @@ describe("SyncPanel failure states", () => {
 
     expect(host.textContent).toContain("Sync access required")
     expect(host.textContent).not.toContain("Storage")
-    expect(host.textContent).not.toContain("Details")
+    expect(host.textContent).not.toContain("Breakdown")
+    expect(host.textContent).not.toContain("Connection")
     expect(
       host.querySelector(".sync-dialog")?.getAttribute("data-sync-can-enable")
     ).toBe("false")
@@ -449,8 +452,7 @@ describe("SyncPanel failure states", () => {
 
     expect(host.textContent).toContain("We’ll sync when you’re back online")
     expect(host.textContent).toContain("person@example.com")
-    expect(host.textContent).toContain("Cloud used")
-    expect(host.textContent).toContain("2 GiB")
+    expect(host.textContent).toContain("2 GiB of 10 GiB")
     expect(host.textContent).toContain("Plan total")
     expect(host.textContent).toContain("10 GiB")
     expect(host.textContent).toContain("You can keep working on this device")
@@ -494,8 +496,7 @@ describe("SyncPanel failure states", () => {
     expect(storage?.dataset.syncSpaceSizeState).toBe("loading")
     expect(storage?.textContent).toContain("This Space")
     expect(storage?.textContent).toContain("Calculating")
-    expect(storage?.textContent).toContain("Cloud used")
-    expect(storage?.textContent).toContain("2 GiB")
+    expect(storage?.textContent).toContain("2 GiB of 10 GiB")
     expect(
       storage
         ?.querySelector("[data-sync-storage-segment='cloud-used']")
@@ -517,13 +518,14 @@ describe("SyncPanel failure states", () => {
       preflight.totalBytes.toString()
     )
     expect(storage?.textContent).toContain("120 MiB")
-    expect(storage?.textContent).toContain("Pending")
+    expect(storage?.textContent).toContain("Pending upload")
     expect(storage?.textContent).toContain("512 MiB · 2.5 GiB projected")
     expect(storage?.textContent).toContain("not its billed cloud contribution")
     expect(storage?.textContent).toContain("history and deduplication")
-    expect(
-      storage?.querySelector(".sync-storage-header")?.textContent
-    ).toContain("2 GiB of 10 GiB used")
+    expect(storage?.textContent).toContain("Cloud used")
+    expect(storage?.textContent).toContain("2 GiB")
+    expect(storage?.textContent).toContain("Plan total")
+    expect(storage?.textContent).toContain("10 GiB")
     expect(
       storage
         ?.querySelector("[data-sync-storage-segment='cloud-used']")
@@ -778,8 +780,7 @@ describe("SyncPanel failure states", () => {
     expect(
       storage?.querySelector("[data-sync-space-size]")?.textContent
     ).toContain("Unavailable")
-    expect(storage?.textContent).toContain("Cloud used")
-    expect(storage?.textContent).toContain("2 GiB")
+    expect(storage?.textContent).toContain("2 GiB of 10 GiB")
     expect(host.querySelector("[data-sync-run]")).not.toBeNull()
     expect(host.textContent).not.toContain("Sync couldn’t be checked")
   })
@@ -863,11 +864,15 @@ describe("SyncPanel failure states", () => {
     ).toBe(false)
     const storage = host.querySelector<HTMLElement>("[data-sync-storage-used]")
     expect(storage?.dataset.syncStorageState).toBe("warning")
-    expect(storage?.textContent).toContain("Cloud used")
-    expect(storage?.textContent).toContain("9.5 GiB")
+    expect(storage?.textContent).toContain("Running low")
+    expect(storage?.textContent).toContain("9.5 GiB of 10 GiB")
+    expect(storage?.textContent).toContain("95% used")
     expect(storage?.textContent).toContain("Plan total")
-    expect(storage?.textContent).toContain("10 GiB")
-    expect(storage?.textContent).toContain("512 MiB available")
+    expect(
+      [...(storage?.querySelectorAll(".sync-kv dt") ?? [])].find(
+        (entry) => entry.textContent === "Available"
+      )?.nextElementSibling?.textContent
+    ).toContain("512 MiB")
 
     const manage = host.querySelector<HTMLButtonElement>(
       "[data-sync-manage-storage]"
@@ -914,7 +919,7 @@ describe("SyncPanel failure states", () => {
     expect(overview?.textContent).toContain("Pending upload exceeds your plan")
     const storage = host.querySelector<HTMLElement>("[data-sync-storage-state]")
     expect(storage?.dataset.syncStorageState).toBe("over")
-    expect(storage?.textContent).toContain("Pending")
+    expect(storage?.textContent).toContain("Pending upload")
     expect(storage?.textContent).toContain("1 GiB · 10.5 GiB projected")
     expect(storage?.textContent).toContain("512 MiB over plan")
     expect(
@@ -925,6 +930,9 @@ describe("SyncPanel failure states", () => {
     expect(storage?.querySelector<HTMLProgressElement>("progress")?.value).toBe(
       projectedOverStatus.entitlement.usedBytes
     )
+    expect(
+      host.querySelector("[data-sync-storage-disclosure]")?.hasAttribute("open")
+    ).toBe(true)
   })
 
   it("keeps unsaved-change guidance task-focused", async () => {
@@ -945,16 +953,21 @@ describe("SyncPanel failure states", () => {
           mode: "enable",
           hasUncheckpointedChanges: true,
           onClose: () => undefined,
+          onReviewLocal: () => undefined,
         })
       )
     })
 
     const overview = host.querySelector<HTMLElement>("[data-sync-overview]")
-    expect(overview?.textContent).toContain("Save a version before syncing")
-    expect(overview?.textContent).toContain("Review these changes in Changes")
+    expect(overview?.textContent).toContain("Unsaved changes")
+    expect(overview?.textContent).toContain("Only saved versions sync")
     expect(overview?.textContent).not.toMatch(
       /checkpoint|repository|remote|transport|segment/i
     )
+    expect(
+      host.querySelector<HTMLButtonElement>("[data-sync-review-local]")
+        ?.textContent
+    ).toContain("Review changes")
   })
 
   it("renders an actionable Local-safe failure instead of a generic string", async () => {
@@ -988,13 +1001,12 @@ describe("SyncPanel failure states", () => {
       )?.textContent
     ).toBe("Staging")
     expect(
-      [...host.querySelectorAll(".sync-status-list dt")].some(
+      [...host.querySelectorAll(".sync-about dt")].some(
         (entry) => entry.textContent === "Environment"
       )
     ).toBe(false)
     const storage = host.querySelector("[data-sync-storage-used]")
-    expect(storage?.textContent).toContain("Cloud used")
-    expect(storage?.textContent).toContain("2 GiB")
+    expect(storage?.textContent).toContain("2 GiB of 10 GiB")
     expect(storage?.textContent).toContain("Plan total")
     expect(storage?.textContent).toContain("10 GiB")
 
@@ -1067,6 +1079,11 @@ describe("SyncPanel failure states", () => {
     expect(failure?.textContent).not.toMatch(
       /storage is full|increase your limit/i
     )
+    expect(
+      host.querySelector<HTMLButtonElement>(
+        "[data-sync-failure-primary-action]"
+      )?.textContent
+    ).toContain("Close")
     expect(
       host.querySelector("[data-sync-storage-used]")?.textContent
     ).toContain("2 GiB")
@@ -1230,7 +1247,7 @@ describe("SyncPanel failure states", () => {
 
     const scope = host.querySelector<HTMLElement>("[data-sync-preflight]")
     const enable = host.querySelector<HTMLButtonElement>("[data-sync-enable]")
-    expect(scope?.textContent).toContain("4")
+    expect(scope?.textContent).toContain("4 files")
     expect(scope?.textContent).toContain("120 MiB")
     expect(scope?.textContent).toContain(".env.local")
     expect(enable?.disabled).toBe(true)
@@ -1330,8 +1347,9 @@ describe("SyncPanel failure states", () => {
     expect(progress?.textContent).toContain("Uploaded 64 MiB of 128 MiB")
     expect(progress?.textContent).toContain("8 MiB/s")
     expect(progress?.textContent).toContain("8.0 s left")
+    expect(progress?.textContent).toContain("50%")
     expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
-      "Connecting 50%"
+      "Connecting this Space"
     )
 
     await act(async () => {
@@ -1426,6 +1444,37 @@ describe("SyncPanel failure states", () => {
         state: "active",
         phase: "fetch",
         detail: "Cloning Remote URL",
+        startedAtMs: Date.now() - 50,
+        phaseStartedAtMs: Date.now() - 30,
+        elapsedMs: 50,
+        transfer: {
+          direction: "download",
+          transferredBytes: 1 * 1024 * 1024,
+          totalBytes: null,
+          bytesPerSecond: 2 * 1024 * 1024,
+          estimatedRemainingMs: null,
+        },
+      })
+    })
+
+    const pendingTotal = host.querySelector<HTMLElement>("[data-sync-progress]")
+    expect(pendingTotal?.textContent).toContain("Downloaded 1 MiB")
+    expect(pendingTotal?.textContent).toContain("Calculating total size…")
+    expect(pendingTotal?.textContent).toContain("2 MiB/s")
+    expect(pendingTotal?.textContent).toContain("Calculating time left…")
+    expect(
+      pendingTotal
+        ?.querySelector<HTMLElement>("[role='progressbar']")
+        ?.getAttribute("aria-valuetext")
+    ).toBe("Downloaded 1 MiB; calculating total size")
+
+    await act(async () => {
+      progressListener?.({
+        runId: "clone-1",
+        operation: "clone",
+        state: "active",
+        phase: "fetch",
+        detail: "Cloning Remote URL",
         startedAtMs: Date.now() - 100,
         phaseStartedAtMs: Date.now() - 80,
         elapsedMs: 100,
@@ -1504,7 +1553,7 @@ describe("SyncPanel failure states", () => {
     })
 
     expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
-      "Hosted updates can be downloaded"
+      "Download only"
     )
     expect(host.querySelector("[data-sync-run]")?.textContent).toContain(
       "Get cloud updates"
@@ -1594,7 +1643,149 @@ describe("SyncPanel failure states", () => {
     })
 
     expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
-      "Local and Hosted match"
+      "Everything is up to date"
+    )
+  })
+
+  it("keeps the sync direction visible next to any status", async () => {
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(status),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          hasUncheckpointedChanges: true,
+          syncHistory: {
+            state: "ahead",
+            ahead: 3,
+            behind: 0,
+          },
+          onClose: () => undefined,
+          onReviewLocal: () => undefined,
+        })
+      )
+    })
+
+    const upload = host.querySelector<HTMLElement>(
+      "[data-sync-direction='upload']"
+    )
+    expect(upload?.textContent).toContain("3 to upload")
+    expect(host.querySelector("[data-sync-direction='download']")).toBeNull()
+    expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
+      "Unsaved changes"
+    )
+  })
+
+  it("shows both directions of a divergence with exact counts", async () => {
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(status),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          syncHistory: {
+            state: "diverged",
+            ahead: 2,
+            behind: 3,
+          },
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    expect(
+      host.querySelector("[data-sync-direction='upload']")?.textContent
+    ).toContain("2 to upload")
+    expect(
+      host.querySelector("[data-sync-direction='download']")?.textContent
+    ).toContain("3 to download")
+    expect(host.querySelector("[data-sync-recovery]")?.textContent).toContain(
+      "will not merge or overwrite"
+    )
+  })
+
+  it("names the pending counts on the directional sync actions", async () => {
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(status),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          syncHistory: {
+            state: "behind",
+            ahead: 0,
+            behind: 2,
+          },
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    expect(host.querySelector("[data-sync-run]")?.textContent).toContain(
+      "Download 2 updates"
+    )
+    expect(
+      host.querySelector("[data-sync-direction='download']")?.textContent
+    ).toContain("2 to download")
+    expect(host.querySelector("[data-sync-direction='upload']")).toBeNull()
+  })
+
+  it("hides the direction row when Local and Hosted match", async () => {
+    const api = {
+      getSyncStatus: vi.fn().mockResolvedValue(status),
+      getSyncQueueStatus: vi.fn().mockResolvedValue(null),
+      onSyncProgress: vi.fn().mockReturnValue(() => undefined),
+      onSyncQueueChanged: vi.fn().mockReturnValue(() => undefined),
+    } as unknown as EidosLiteApi
+    Object.defineProperty(window, "eidosLite", {
+      configurable: true,
+      value: api,
+    })
+
+    await act(async () => {
+      root.render(
+        createElement(SyncPanel, {
+          mode: "enable",
+          syncHistory: {
+            state: "up_to_date",
+            ahead: 0,
+            behind: 0,
+          },
+          onClose: () => undefined,
+        })
+      )
+    })
+
+    expect(host.querySelector("[data-sync-direction]")).toBeNull()
+    expect(host.querySelector("[data-sync-overview]")?.textContent).toContain(
+      "Everything is up to date"
     )
   })
 
