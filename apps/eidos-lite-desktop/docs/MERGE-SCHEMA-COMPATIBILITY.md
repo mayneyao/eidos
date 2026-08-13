@@ -1,7 +1,7 @@
 # Eidos Lite merge schema compatibility matrix
 
 Status: living product and verification contract  
-Applies to: Eidos Lite reviewed merge with Graft SDK 0.3.12
+Applies to: Eidos Lite reviewed merge with Graft SDK 0.3.13
 Last reviewed: 2026-08-13
 
 ## Purpose and ownership
@@ -368,7 +368,7 @@ product contract and therefore remains a release blocker for that scenario.
 
 ### `GRAFT-SCHEMA-GAP-001`: validation-required candidates lack a standalone materialization operation
 
-Graft 0.3.12 automatically materializes compatible column/table/index/view/
+Graft 0.3.13 automatically materializes compatible column/table/index/view/
 trigger unions in a directory repository. For a more complex candidate that
 requires application validation, such as independent data rows plus
 `sqlite_sequence`/index/stat rebuild state (`SC-OPAQUE-001/002/003`), it leaves
@@ -393,17 +393,16 @@ handles, invoke it through `SpaceOperationGate`, run Eidos domain validation,
 and call `stageMergeSqliteResult`. Until then, the UI retains recoverable
 complete-file Local/Hosted choices for these validation-required candidates.
 
-### `EIDOS-SCHEMA-GAP-001`: duplicate display identity is not reviewable
+### Closed: `EIDOS-SCHEMA-GAP-001` raw metadata conflicts
 
-When both sides independently add an Eidos Field named `Owner` or an Eidos
-Table named `Projects` with different stable IDs, Graft exposes only the
-`eidos__meta` revision row conflict. Choosing that row then fails on the
-candidate with the corresponding Eidos uniqueness constraint. The operation
-is non-destructive, the state token is unchanged, the Local file remains
-valid, and abort restores it, but the UI cannot explain or resolve the actual
-domain collision. Eidos needs a pre-resolution domain conflict record keyed by
-stable Table/Field identity; this must not be implemented as generic SQLite
-semantics inside Graft.
+Graft no longer asks users to choose the technical `eidos__meta.revision` row.
+It persists an Eidos semantic-provider workspace, and Runtime either accepts a
+validated deterministic system-metadata result or records an Eidos domain
+conflict before publication. Structural Table/Field changes that the current
+Draft Runtime profile does not yet merge are reported conservatively as
+`unsupported-schema-change`; they remain recoverable and are never mislabeled
+as successful automatic merges. The generic Graft layer still does not infer
+Eidos identity or uniqueness semantics.
 
 ### `EIDOS-SCHEMA-GAP-002`: Runtime rejects a spec-permitted Field index
 
@@ -416,7 +415,7 @@ before Lite can claim Field-index merge coverage.
 
 ### Closed: `GRAFT-SCHEMA-GAP-003` malformed tracked SQLite diagnostics
 
-Graft 0.3.12 returns structured `path_diagnostics` for skipped, corrupt, and
+Graft 0.3.13 returns structured `path_diagnostics` for skipped, corrupt, and
 analysis-failed tracked SQLite paths, including `protected_by_index`. Lite
 projects the diagnostics, blocks merge planning, and preserves the worktree
 file while directing the user to repair or recovery. This closes the prior
@@ -425,7 +424,7 @@ published or silently replaced.
 
 ### Closed: `GRAFT-SCHEMA-GAP-002` table/view same-name selection
 
-Graft 0.3.12 reports `schema_same_name_conflict` and safely completes either the
+Graft 0.3.13 reports `schema_same_name_conflict` and safely completes either the
 Local table or Hosted view complete-file choice. The real directory-repository
 matrix verifies both final `sqlite_schema` object types and no longer observes
 the former `Invalid page number` failure.

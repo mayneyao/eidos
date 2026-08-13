@@ -63,7 +63,7 @@ flowchart LR
   F1 -->|"guarded node:sqlite handle"| E1["a.eidos"]
   F2 -->|"guarded node:sqlite handle"| E2["nested/b.eidos"]
   M -->|"typed private IPC; one process per Space"| G["Graft utility process"]
-  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.12"]
+  G -->|"one retained RepositorySession"| N["Official Node-API SDK 0.3.13"]
   N --> S["whole ordinary folder Space"]
   N -. "explicit in-memory credential; Sync/Clone only" .-> H["Selected official Hosted Remote"]
 ```
@@ -356,7 +356,7 @@ SDK session transport at construction. Status, diff, history, checkpoint,
 restore, push, and clone never create a CLI subprocess; Lite has no backend
 switch, executable lookup, or CLI credential environment path.
 
-The SDK adapter pins published `@eidos.space/graft@0.3.12`,
+The SDK adapter pins published `@eidos.space/graft@0.3.13`,
 lazily opens one session on the first background or explicit repository read,
 and closes it when the window closes. It asks the published
 `operationMaterializesWorktree()` contract before restore. Remote credentials
@@ -581,13 +581,13 @@ conflict is never by itself proof that an Eidos candidate is safe.
 3. Every subsequent read or mutation supplies the latest `stateToken`. A stale
    CAS response is mapped to a typed renderer-safe failure; the workspace
    reloads durable state and does not replay the rejected choice.
-4. `applyMerge`, whole-path choice, SQLite row/cell/table choice, path
-   unresolve, edited text staging, continue, and abort all use the existing
-   `SpaceOperationGate`. It journals, stops new mutations, drains active writes,
-   closes resident Runtime/SQLite handles, materializes, validates every
-   `.eidos` in the Space, and restores the previous resident Runtime set.
-   Cancel, exception, window close, and startup recovery use the same cleanup
-   boundary.
+4. `applyMerge`, whole-path choice, SQLite row/cell/table choice, semantic
+   result acceptance, path unresolve, edited text staging, continue, and abort
+   all use the existing `SpaceOperationGate`. It journals, stops new mutations,
+   drains active writes, closes resident Runtime/SQLite handles, materializes,
+   validates every `.eidos` in the Space, and restores the previous resident
+   Runtime set. Cancel, exception, window close, and startup recovery use the
+   same cleanup boundary.
 5. Text shows Base/Local/Hosted plus an editable result. Binary paths allow
    Local or Hosted; "keep both" aborts to the non-destructive two-Recovery-Space
    flow. `.eidos` paths list table conflicts, use Graft's stable row identity,
@@ -598,24 +598,27 @@ conflict is never by itself proof that an Eidos candidate is safe.
    remain inspectable after reopen; unresolve restores the original staged
    conflict candidate. Eidos Runtime still owns semantic validation; Graft is
    not asked to understand Eidos domain rules.
-6. A future application-owned `recompute` writes the candidate through Eidos
-   Runtime, validates all `.eidos` files with handles closed, and only then
-   calls non-materializing `stageMergeSqliteResult`; Graft performs SQLite
-   integrity/foreign-key checks and captures the exact bytes. No Graft policy
-   resolver executes Eidos business code.
-   A Graft `automatic_merge_available` result is not equivalent to that staged
-   candidate. Until Graft exposes a successful, state-token-guarded operation
-   that materializes the analyzed candidate without committing it, Lite keeps
-   the path unresolved and offers only complete-file Local/Hosted recovery. It
-   does not stage the current Local worktree or depend on a failed `continue`
-   side effect.
-7. Continue is enabled only after Graft reports zero unmerged paths. Main runs
+6. For a conflicted `.eidos` path, Lite may call Graft's semantic-provider
+   preparation with the exact eight canonical `eidos__*` tables and current
+   `stateToken`. Graft persists immutable Base/Local/Hosted SQLite snapshots,
+   an Ours-derived private result seed containing safe non-managed Hosted row
+   changes, and a provider token bound to the plan, policy, heads, path, and
+   managed-table set. Eidos Runtime alone merges system metadata and validates
+   the result. Lite records bounded domain conflicts without materializing, or
+   accepts the validated result under both provider and merge-state tokens.
+   An interrupted acceptance remains retryable; no Graft resolver executes
+   Eidos business rules.
+7. Manual application-owned recompute remains available through
+   `stageMergeSqliteResult` for candidates outside the system-metadata profile.
+   It is non-materializing and may be called only after Eidos Runtime completes
+   its domain checks and full validation.
+8. Continue is enabled only after Graft reports zero unmerged paths. Main runs
    a full Eidos validation while handles are closed, passes that exact token to
    `continueMerge`, and queues the resulting two-parent checkpoint for Sync.
    Abort restores the pre-merge Local head and retains Hosted history.
 
 The merge surface is compiled against a type-only snapshot kept aligned with
-the published Graft 0.3.12 declaration. `EIDOS_LITE_GRAFT_SDK_PATH` may select
+the published Graft 0.3.13 declaration. `EIDOS_LITE_GRAFT_SDK_PATH` may select
 a compatible local package in source development and tests; production always
 resolves the pinned SDK and fails closed with a typed unavailable result if its
 runtime contract is incomplete.

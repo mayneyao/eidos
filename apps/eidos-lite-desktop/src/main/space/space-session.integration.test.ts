@@ -1871,13 +1871,13 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: remoteOrigin,
-      expectedVersion: () => "0.3.12",
+      expectedVersion: () => "0.3.13",
       close: vi.fn(async () => undefined),
       inspectSpace: vi.fn(async () => ({
         available: true,
         backend: "sdk" as const,
-        version: "0.3.12",
-        expectedVersion: "0.3.12",
+        version: "0.3.13",
+        expectedVersion: "0.3.13",
         initialized: true,
         clean: true,
         currentHead: localHead,
@@ -2231,7 +2231,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
     const graft = {
       backend: "sdk",
       syncRemoteOrigin: "https://sync-staging.eidos.space",
-      expectedVersion: () => "0.3.12",
+      expectedVersion: () => "0.3.13",
       close: vi.fn(async () => undefined),
       operationMaterializesWorktree: vi.fn(async (operation: string) => {
         calls.push(`contract:${operation}`)
@@ -2269,8 +2269,8 @@ describe("SpaceSession Graft-backed snapshots", () => {
       inspectSpace: vi.fn(async () => ({
         available: true,
         backend: "sdk" as const,
-        version: "0.3.12",
-        expectedVersion: "0.3.12",
+        version: "0.3.13",
+        expectedVersion: "0.3.13",
         initialized: true,
         clean: true,
         currentHead: localHead,

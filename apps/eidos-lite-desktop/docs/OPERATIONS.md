@@ -232,7 +232,7 @@ sequence.
 
 ## Stable Graft supply chain
 
-The runtime pins published `@eidos.space/graft@0.3.12`; npm selects one of its
+The runtime pins published `@eidos.space/graft@0.3.13`; npm selects one of its
 five exact-version optional native packages for the current platform. Packaging
 keeps the JavaScript wrapper in ASAR and unpacks only the selected native
 package; `graft-worker.js` loads it directly in an Electron
@@ -611,6 +611,15 @@ explicit external staging gates.
   SDK captures the candidate, then let Graft run SQLite integrity and foreign
   key validation. The gate validates again and reopens. Do not call this API
   before application-owned recompute and domain checks are complete.
+- **An Eidos system-metadata path is eligible for automatic resolution:** Lite
+  asks Graft to prepare the semantic-provider workspace for the exact eight
+  canonical `eidos__*` tables and current `stateToken`. Runtime merges the
+  immutable Base/Local/Hosted snapshots into Graft's private result seed. Lite
+  either records bounded Eidos domain conflicts without materializing, or
+  accepts the fully validated result under the provider token and latest merge
+  token. Never treat `eidos__meta.revision` as a user choice, reuse a provider
+  token after the merge state changes, or publish a candidate that Runtime did
+  not validate.
 - **A `.eidos` row conflicts:** list Graft's table and stable identity. A
   structured `cells` conflict permits Local/Hosted choice for one field through
   `resolveMergeCell`; the user may still choose a whole row, safe table, or
@@ -756,7 +765,7 @@ EIDOS_LITE_RUN_GRAFT_MERGE=1 \
   src/main/graft/graft-merge-schema.local.integration.test.ts
 ```
 
-Graft 0.3.12 may report a validation-required SQLite candidate as
+Graft 0.3.13 may report a validation-required SQLite candidate as
 `automatic_merge_available`. Do not call `stageMergeSqliteResult` immediately:
 the current worktree can still be Local. Do not use a rejected
 `continueMerge` call as a materialization API either. Until Graft provides a

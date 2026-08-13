@@ -4,7 +4,7 @@ Last audited: 2026-08-13
 
 ## Verdict
 
-The current branch is the source for **Eidos Lite 0.1.7**. Local Spaces and
+The current branch is the source for **Eidos Lite 0.1.8**. Local Spaces and
 versioning are public desktop capabilities; Eidos Sync remains an invite-only
 private preview backed by the official Hosted Remote.
 
@@ -22,7 +22,7 @@ in an in-memory LRU. The product deliberately does not expose multi-file tabs.
 | Eidos File editing      | Ready                     | Canonical `eidos-file-ui` Grid/View/Query/Fields/Sheet UI, real SQLite transactions, one active editor and a three-runtime LRU                                    |
 | Local versioning        | Ready                     | Whole-Space status, Changes, row-aware diff, History, checkpoint, forward-only restore and stable-change automatic checkpoints through the resident Graft SDK     |
 | Sync control plane      | Staging-ready             | Independent PKCE/device/grant flow, preflight upload scope, official Hosted Remote provisioning, background queue, typed failures and Local-safe recovery         |
-| Whole-Space Sync        | Private-preview ready     | Real staging push/clone/pull and divergence acceptance is recorded in [Operations](./OPERATIONS.md); reviewed merge uses the published Graft SDK 0.3.12           |
+| Whole-Space Sync        | Private-preview ready     | Real staging push/clone/pull and divergence acceptance is recorded in [Operations](./OPERATIONS.md); reviewed merge uses the published Graft SDK 0.3.13           |
 | Recovery                | Release verified          | Durable merge reopen/abort, operation journals, close/validate/reopen materialization, two-copy recovery, external invalidation, and utility crash reopen         |
 | Diagnostics             | Internal-ready            | Main-owned allowlisted Copy diagnostics excludes credentials, URLs, paths, Space/repository identity and user content                                             |
 | Distribution operations | Runbook-ready             | Clean install, upgrade, binary rollback, association, support and uninstall procedure in [Release runbook](./RELEASE-RUNBOOK.md)                                  |
@@ -39,11 +39,11 @@ The final local audit passed:
   reopen -> stale CAS rejection -> remaining table choices -> path unresolve ->
   full validation -> two-parent continue -> push/fetch equality. The same test
   covers partial resolution, reopen, abort, cancellation, idempotent status,
-  and a transient filesystem Remote failure. Graft SDK 0.3.12 is pinned in the
+  and a transient filesystem Remote failure. Graft SDK 0.3.13 is pinned in the
   lockfile, and the real merge flow passed against the published registry
   package.
 
-- Lite source suite: 106 files and 562 tests passed; 186 tests were explicitly
+- Lite source suite: 106 files and 563 tests passed; 186 tests were explicitly
   skipped. The skipped cases are the 158-case opt-in schema matrix,
   opt-in performance, external staging/discovery, large-repository, and local
   release-SDK gates, not hidden successes. With the exact Graft 0.3.11 release
@@ -57,8 +57,10 @@ The final local audit passed:
   passes and is not mislabeled as an automatic merged result.
 - Published Graft SDK integration: 14 passed, covering whole-Space push/clone,
   diff/restore, retained session lifecycle, memory-only HTTP credentials and
-  divergence analysis. The published Graft 0.3.12 merge E2E also passed both
-  availability and full dual-client cases.
+  divergence analysis. The published Graft 0.3.13 merge E2E also passed both
+  availability and full dual-client cases. The semantic-provider integration
+  additionally proves automatic Eidos system-metadata acceptance, persisted
+  domain conflicts, exact state tokens, and Runtime validation.
 - Explicit performance load: 16 passed. Explorer with 1,000 entries was 14.4
   ms; a stable change in a 10,000-entry watcher was 38.7 ms; 10 MiB and 100 MiB
   native opens were 103.6 ms and 98.9 ms; the canonical 100,000-row first page

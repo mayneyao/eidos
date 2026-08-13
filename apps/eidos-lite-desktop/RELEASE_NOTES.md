@@ -1,29 +1,23 @@
 ## What's new
 
-### Faster conflict resolution for large Eidos files
+### Eidos system metadata merges automatically
 
-Choosing Local or Hosted values no longer rebuilds a large SQLite file after
-every row, cell, or table decision. Lite records intermediate choices quickly,
-then validates and reopens only the files that were actually materialized.
+Concurrent updates to supported `eidos__*` system tables now use deterministic
+Eidos-owned merge rules instead of appearing as raw SQLite conflicts. Routine
+metadata changes no longer require a manual Local or Hosted choice.
 
-### See the real changes after a cross-platform merge
+### Safer collaboration between macOS and Windows
 
-Version History now shows schema, table, and row changes when a merge result
-matches the Local parent but differs from the Hosted parent. If the SQLite file
-changed physically without a supported logical change, Lite says so instead of
-presenting an empty first-version message.
+Graft now hands immutable Base, Local, and Hosted snapshots to the Eidos
+Runtime, preserves the merge across restarts, and accepts the validated result
+under exact repository-state tokens. Ordinary user tables keep Graft's normal
+three-way behavior.
 
-### See Sync progress while files move
+### Conflicts only when a decision is genuinely needed
 
-First upload, download, clone, and later Sync runs now show transferred bytes,
-total size when the service provides it, current speed, and an estimated time
-remaining. When a total is not available, Lite shows an honest indeterminate
-state instead of a made-up percentage.
-
-### Reliable first Sync across platforms
-
-Connecting a Space no longer stops because different SQLite versions encode the
-same database differently. Lite compares the logical database state before it
-decides that a freshly cloned Space has unexpected Local changes.
+Lite reports a domain conflict only when a system-table change is structurally
+unsafe or cannot be validated. Successful automatic decisions are retained as
+merge audit data without interrupting Sync, and an interrupted final handoff
+remains retryable.
 
 No migration is required.
