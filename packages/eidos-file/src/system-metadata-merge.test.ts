@@ -99,6 +99,22 @@ describe("Eidos system metadata three-way merge", () => {
         name: "items",
         fields: [{ name: "Name", type: "text", isRecordLabel: true }],
       })
+      runtime.connection.transaction(() => {
+        for (const table of [
+          "eidos__tables",
+          "eidos__fields",
+          "eidos__views",
+        ]) {
+          runtime.connection.run(
+            `UPDATE ${table} SET created_at=?,updated_at=?`,
+            [CREATED_AT, CREATED_AT]
+          )
+        }
+        runtime.connection.run(
+          "UPDATE eidos__meta SET created_at=?,updated_at=? WHERE singleton=1",
+          [CREATED_AT, CREATED_AT]
+        )
+      })
     }
     runtime.close()
     copyFileSync(filePaths.base, filePaths.ours)
