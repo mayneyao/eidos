@@ -139,6 +139,7 @@ const EIDOS_FILE_METADATA_TABLES = [
   "eidos__views",
 ] as const
 const EIDOS_SYSTEM_MERGE_PROVIDER = "eidos.system-merge-1.0"
+const DEFAULT_HOSTED_MERGE_MESSAGE = "Merge Hosted changes"
 const EIDOS_SYSTEM_MERGE_CONFLICT_CODES = new Set([
   "identity-collision",
   "name-collision",
@@ -1154,7 +1155,7 @@ export class SpaceSession {
       { preemptible: true }
     )
 
-    const activeMerge = await this.gate.withRepositoryOperation(
+    let activeMerge = await this.gate.withRepositoryOperation(
       "Checking for an interrupted merge",
       (signal) =>
         typeof this.graft.getMergeStatusIfAvailable === "function"
@@ -1164,6 +1165,7 @@ export class SpaceSession {
           : Promise.resolve({ state: "none" as const }),
       { preemptible: true }
     )
+    activeMerge = await this.completeResolvedMerge(activeMerge)
     if (activeMerge.state === "merging") {
       const relation = await this.repository.runForeground((signal) =>
         this.graft.status(this.canonical.root, this.graftStatusOptions(signal))
@@ -1382,12 +1384,13 @@ export class SpaceSession {
     return { ahead: relation.ahead, behind: relation.behind }
   }
 
-  getSyncMergeStatus(): Promise<EidosSyncMergeStatus> {
-    return this.gate.withRepositoryOperation(
+  async getSyncMergeStatus(): Promise<EidosSyncMergeStatus> {
+    const merge = await this.gate.withRepositoryOperation(
       "Reading merge recovery state",
       (signal) => this.graft.getMergeStatus(this.canonical.root, { signal }),
       { preemptible: true }
     )
+    return this.completeResolvedMerge(merge)
   }
 
   async planHostedMerge(accessToken: string): Promise<EidosSyncMergePlan> {
@@ -1439,10 +1442,10 @@ export class SpaceSession {
     )
   }
 
-  applyHostedMerge(
+  async applyHostedMerge(
     request: EidosSyncMergeApplyRequest
   ): Promise<EidosSyncMergeStatus> {
-    return this.materializeMergeOperation(
+    const merge = await this.materializeMergeOperation(
       "applyMerge",
       "apply-hosted-merge",
       "Starting reviewed Local and Hosted merge",
@@ -1486,6 +1489,7 @@ export class SpaceSession {
         return merge
       }
     )
+    return this.completeResolvedMerge(merge)
   }
 
   listSyncMergePaths(
@@ -1903,6 +1907,18 @@ export class SpaceSession {
       // entire candidate is checked before the commit; revalidate those paths
       // afterward instead of reopening every unchanged Eidos File again.
       () => fallbackMaterializedPaths
+    )
+  }
+
+  private completeResolvedMerge(
+    merge: EidosSyncMergeStatus
+  ): Promise<EidosSyncMergeStatus> {
+    if (merge.state !== "merging" || merge.unmergedCount > 0) {
+      return Promise.resolve(merge)
+    }
+    return this.continueSyncMerge(
+      merge.stateToken,
+      DEFAULT_HOSTED_MERGE_MESSAGE
     )
   }
 

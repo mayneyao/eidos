@@ -1,22 +1,24 @@
 ## What's new
 
-### A clearer Sync panel
+### Cloud checkpoints stay visible in History
 
-Sync now presents one compact, consistent view of connection state, actions,
-first-upload checks, storage, and synced Spaces. Important status and recovery
-actions are easier to scan without expanding several competing sections.
+Version History now marks the last locally known Cloud checkpoint even when
+Local and Cloud histories have diverged. Like a Git remote-tracking ref, this
+uses the checkpoint recorded by the latest fetch or push and does not require
+another network request.
 
-### Real transfer progress
+### Conflict-free merges finish automatically
 
-Uploads and downloads show transferred and total size, percentage, current
-speed, and estimated time remaining. During clone, Eidos explicitly says when
-it is still calculating the total size and time left instead of presenting an
-unexplained spinner.
+When Graft completes a reviewed three-way merge without any unresolved paths,
+Lite now finalizes it immediately instead of opening an empty conflict workspace
+showing zero conflicts. Interrupted conflict-free merges receive the same
+recovery behavior, so Sync can continue to the next fetch or push.
 
-### More focused first-sync review
+### Upload progress uses the whole push
 
-The first-upload file review, cloud storage summary, repository picker, and
-signed-in account controls use a simpler hierarchy. Local work remains clearly
-identified as safe while Sync is connecting, transferring, or needs attention.
+Uploads containing several Graft objects now establish the complete known
+payload before sending the first object. The transferred value advances against
+one stable total instead of repeatedly showing matching values such as `10/10`
+and `20/20` while more requests are still waiting.
 
 No migration is required.
