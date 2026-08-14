@@ -82,5 +82,10 @@ jobs:
       - name: Build unsigned staging package
         run: pnpm build:eidos-lite:dev
 
-      - name: Run packaged smoke
+      - name: Observe fresh packaged smoke
+        env:
+          EIDOS_LITE_SMOKE_PERFORMANCE_POLICY: observe
+        run: pnpm smoke:eidos-lite-packaged
+
+      - name: Enforce packaged performance
         run: pnpm smoke:eidos-lite-packaged

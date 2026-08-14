@@ -50,9 +50,13 @@ the command, keeping obsolete hashes and test code out of `app.asar`.
 `.github/workflows/eidos-lite-desktop-gates.yml` repeats the source and real
 Graft SDK suite on Linux, then builds the unsigned staging package and runs the
 same packaged smoke independently on `macos-15` (Apple Silicon) and
-`macos-15-intel`. The workflow has read-only repository permissions and no
-signing, artifact upload, release, or production-service step. A local ARM pass
-does not count as Intel evidence; Public v1 requires both remote jobs to pass.
+`macos-15-intel`. Each architecture first runs a fresh-package observation
+process, then starts a second isolated process that enforces the unchanged
+packaged performance budgets. This avoids treating one-time operating-system
+package discovery as a P95 sample while preserving the actual latency ceiling.
+The workflow has read-only repository permissions and no signing, artifact
+upload, release, or production-service step. A local ARM pass does not count as
+Intel evidence; Public v1 requires both remote jobs to pass.
 
 The performance load gate measures the real Space tree walker, recursive
 watcher, native Eidos File validation/open path, and generated canonical
@@ -61,7 +65,9 @@ Table switching, deep viewport jumps, search, filter, sort, row mutations,
 metadata edits, physical field add/drop, and Text/Select conversion. A separate
 streaming fixture gates one-million-row CSV analysis, transactional import, the
 exact imported count, and the single final completed progress state. Fixture
-generation is reported separately from user-visible timings.
+generation is reported separately from user-visible timings. Mutation P95
+budgets are computed from 20 update, insert, and delete samples independently;
+a single scheduler stall is not mislabeled as a percentile.
 
 Field conversion has its own independent-copy matrix: all editor conversion
 algorithm families run at 100,000 rows, Text/Select metadata conversion and one
