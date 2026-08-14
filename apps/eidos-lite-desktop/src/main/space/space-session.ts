@@ -1451,21 +1451,9 @@ export class SpaceSession {
       "Starting reviewed Local and Hosted merge",
       null,
       async (signal, onWorktreePaths) => {
-        const current = await this.graft.status(
-          this.canonical.root,
-          this.graftStatusOptions(signal)
-        )
-        if (current.dirty) {
-          throw new Error(
-            "Space changed after merge analysis. Create a checkpoint and analyze again."
-          )
-        }
-        if (current.currentHead !== request.expectedHead) {
-          throw Object.assign(
-            new Error("The Local head changed after merge analysis"),
-            { code: "GRAFT_SDK_REPOSITORY_STALE" }
-          )
-        }
+        // Graft applies the reviewed plan under HEAD, plan-token, and clean-worktree guards.
+        // Avoid a second full Space status scan here; large SQLite files make that duplicate
+        // probe visible, while the SDK check remains the atomic authority at mutation time.
         const materializedPaths = new Set<string>()
         const capturePaths = (paths: string[] | null) => {
           for (const relativePath of paths ?? [])

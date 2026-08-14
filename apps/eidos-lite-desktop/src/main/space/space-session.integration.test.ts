@@ -2361,6 +2361,7 @@ describe("SpaceSession Graft-backed snapshots", () => {
         session.applyHostedMerge({ expectedHead: localHead, planToken })
       ).resolves.toEqual({ state: "none" })
 
+      expect(graft.status).not.toHaveBeenCalled()
       expect(calls).toEqual([
         "contract:applyMerge",
         "close",
